@@ -363,8 +363,9 @@ def update_local_biz_field(conn, biz_id, field_id, new_value):
                 found = True
                 break
         if not found:
+            fname = field_id_to_name(field_id)
             data.setdefault("additionalFields", []).append({
-                "additionalField": {"id": field_id},
+                "additionalField": {"id": field_id, "name": fname},
                 "value": str(new_value),
             })
         cur.execute(
