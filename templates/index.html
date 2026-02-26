@@ -452,7 +452,8 @@ async function loadSyncState() {
     }
 }
 
-let eventSource = null;
+let syncPollTimer = null;
+let syncLogOffset = 0;
 
 async function startSync(mode) {
     const btnDelta = document.getElementById('btn-delta');
@@ -464,39 +465,43 @@ async function startSync(mode) {
         if (data.error) { alert(data.error); return; }
     } catch (err) { alert('Erro: ' + err.message); return; }
 
-    btnDelta.disabled = btnFull.disabled = true;
-    btnDelta.classList.add('opacity-50');
-    btnFull.classList.add('opacity-50');
-    document.getElementById('btn-sync-stop').classList.remove('hidden');
-    updateBadge(true);
+    clearLog();
+    syncLogOffset = 0;
+    setSyncBtnsState(true);
+    startSyncPolling();
+}
 
-    if (eventSource) eventSource.close();
-    eventSource = new EventSource('/api/sync/stream');
+function setSyncBtnsState(running) {
+    const btnDelta = document.getElementById('btn-delta');
+    const btnFull = document.getElementById('btn-full');
+    btnDelta.disabled = btnFull.disabled = running;
+    btnDelta.classList.toggle('opacity-50', running);
+    btnFull.classList.toggle('opacity-50', running);
+    document.getElementById('btn-sync-stop').classList.toggle('hidden', !running);
+    updateBadge(running);
+}
 
-    eventSource.onmessage = (e) => {
-        if (e.data === '[DONE]') {
-            eventSource.close();
-            eventSource = null;
-            btnDelta.disabled = btnFull.disabled = false;
-            btnDelta.classList.remove('opacity-50');
-            btnFull.classList.remove('opacity-50');
-            document.getElementById('btn-sync-stop').classList.add('hidden');
-            updateBadge(false);
+function startSyncPolling() {
+    if (syncPollTimer) clearInterval(syncPollTimer);
+    syncPollTimer = setInterval(pollSyncLogs, 1500);
+    pollSyncLogs();
+}
+
+async function pollSyncLogs() {
+    try {
+        const res = await api(`/api/sync/logs?since=${syncLogOffset}`);
+        const data = await res.json();
+        data.lines.forEach(l => appendLog(l));
+        syncLogOffset = data.total;
+        if (!data.running) {
+            clearInterval(syncPollTimer);
+            syncPollTimer = null;
+            setSyncBtnsState(false);
             loadSyncState();
-            return;
         }
-        appendLog(e.data);
-    };
-
-    eventSource.onerror = () => {
-        eventSource.close();
-        eventSource = null;
-        btnDelta.disabled = btnFull.disabled = false;
-        btnDelta.classList.remove('opacity-50');
-        btnFull.classList.remove('opacity-50');
-        document.getElementById('btn-sync-stop').classList.add('hidden');
-        updateBadge(false);
-    };
+    } catch (err) {
+        console.error('Poll sync error:', err);
+    }
 }
 
 function appendLog(text) {
@@ -535,16 +540,20 @@ async function stopSync() {
     } catch (err) { console.error(err); }
 }
 
-// Poll sync status on load
+// Check sync status on load and resume polling if running
 fetch('/api/sync/status').then(r => r.json()).then(d => {
-    updateBadge(d.running);
-    if (d.running) document.getElementById('btn-sync-stop').classList.remove('hidden');
+    if (d.running) {
+        setSyncBtnsState(true);
+        startSyncPolling();
+    }
 });
 
 // ---------------------------------------------------------------------------
 // Update CRM
 // ---------------------------------------------------------------------------
-let updateEventSource = null;
+let updatePollTimer = null;
+let updateLogOffset = 0;
+let _lastUpdateMode = null;
 
 const updateBtns = () => [
     document.getElementById('btn-dryrun'),
@@ -582,6 +591,7 @@ function updateBadge(running) {
 async function startUpdate(mode) {
     setUpdateBtnsDisabled(true);
     updateUpdateBadge(true);
+    _lastUpdateMode = mode;
 
     const body = {};
     if (mode === 'execute') {
@@ -609,27 +619,33 @@ async function startUpdate(mode) {
         return;
     }
 
-    if (updateEventSource) updateEventSource.close();
-    updateEventSource = new EventSource('/api/update/stream');
+    clearUpdateLog();
+    updateLogOffset = 0;
+    startUpdatePolling();
+}
 
-    updateEventSource.onmessage = (e) => {
-        if (e.data === '[DONE]') {
-            updateEventSource.close();
-            updateEventSource = null;
+function startUpdatePolling() {
+    if (updatePollTimer) clearInterval(updatePollTimer);
+    updatePollTimer = setInterval(pollUpdateLogs, 1500);
+    pollUpdateLogs();
+}
+
+async function pollUpdateLogs() {
+    try {
+        const res = await api(`/api/update/logs?since=${updateLogOffset}`);
+        const data = await res.json();
+        data.lines.forEach(l => appendUpdateLog(l));
+        updateLogOffset = data.total;
+        if (!data.running) {
+            clearInterval(updatePollTimer);
+            updatePollTimer = null;
             setUpdateBtnsDisabled(false);
             updateUpdateBadge(false);
-            if (mode === 'dry-run') loadPreview();
-            return;
+            if (_lastUpdateMode === 'dry-run') loadPreview();
         }
-        appendUpdateLog(e.data);
-    };
-
-    updateEventSource.onerror = () => {
-        updateEventSource.close();
-        updateEventSource = null;
-        setUpdateBtnsDisabled(false);
-        updateUpdateBadge(false);
-    };
+    } catch (err) {
+        console.error('Poll update error:', err);
+    }
 }
 
 function confirmExecute() {
@@ -706,11 +722,12 @@ async function stopUpdate() {
     } catch (err) { console.error(err); }
 }
 
-// Check update status on load
+// Check update status on load and resume polling if running
 fetch('/api/update/status').then(r => r.json()).then(d => {
     if (d.running) {
         updateUpdateBadge(true);
         setUpdateBtnsDisabled(true);
+        startUpdatePolling();
     }
 });
 

@@ -11,14 +11,13 @@ import sys
 import json
 import subprocess
 import threading
-import queue
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 
 from flask import (
-    Flask, render_template, request, jsonify, Response,
-    stream_with_context, redirect, url_for, session,
+    Flask, render_template, request, jsonify,
+    redirect, url_for, session,
 )
 import psycopg2
 import psycopg2.extras
@@ -84,35 +83,21 @@ UPDATE_SCRIPT = str(Path(__file__).parent / "update_crm.py")
 # Estado global (para controlar execuções concorrentes)
 # ---------------------------------------------------------------------------
 
-_sync_lock = threading.Lock()
 _sync_running = False
-_sync_log_queues: list[queue.Queue] = []
+_sync_proc = None
+_sync_logs: list[str] = []
 
 _update_running = False
-_update_log_queues: list[queue.Queue] = []
 _update_proc = None
-
-_sync_proc = None
-
-
-def _broadcast_log(line: str):
-    for q in _sync_log_queues:
-        q.put(line)
+_update_logs: list[str] = []
 
 
-def _broadcast_done():
-    for q in _sync_log_queues:
-        q.put(None)
+def _add_sync_log(line: str):
+    _sync_logs.append(line.rstrip())
 
 
-def _broadcast_update_log(line: str):
-    for q in _update_log_queues:
-        q.put(line)
-
-
-def _broadcast_update_done():
-    for q in _update_log_queues:
-        q.put(None)
+def _add_update_log(line: str):
+    _update_logs.append(line.rstrip())
 
 # ---------------------------------------------------------------------------
 # Database helpers
@@ -305,6 +290,7 @@ def api_sync(mode):
         return jsonify({"error": "Sincronização já em andamento."}), 409
 
     _sync_running = True
+    _sync_logs.clear()
 
     def run():
         global _sync_running, _sync_proc
@@ -313,7 +299,7 @@ def api_sync(mode):
             if mode == "full":
                 cmd.append("--full")
 
-            _broadcast_log(f"[INÍCIO] Sincronização {mode.upper()} iniciada\n")
+            _add_sync_log(f"[INÍCIO] Sincronização {mode.upper()} iniciada")
 
             proc = subprocess.Popen(
                 cmd,
@@ -326,62 +312,37 @@ def api_sync(mode):
             _sync_proc = proc
 
             for line in proc.stdout:
-                _broadcast_log(line)
+                _add_sync_log(line)
 
             proc.wait()
 
             if proc.returncode == 0:
-                _broadcast_log(f"\n[FIM] Sincronização concluída com sucesso (exit code 0)\n")
+                _add_sync_log("[FIM] Sincronização concluída com sucesso")
             elif proc.returncode < 0 or proc.returncode == 1:
-                _broadcast_log(f"\n[PARADO] Sincronização interrompida.\n")
+                _add_sync_log("[PARADO] Sincronização interrompida.")
             else:
-                _broadcast_log(f"\n[ERRO] Sincronização falhou (exit code {proc.returncode})\n")
+                _add_sync_log(f"[ERRO] Sincronização falhou (exit code {proc.returncode})")
         except Exception as e:
-            _broadcast_log(f"\n[ERRO] {e}\n")
+            _add_sync_log(f"[ERRO] {e}")
         finally:
             _sync_proc = None
             _sync_running = False
-            _broadcast_done()
 
     threading.Thread(target=run, daemon=True).start()
     return jsonify({"ok": True, "mode": mode})
 
 
-@app.route("/api/sync/stream")
-def api_sync_stream():
-    q = queue.Queue()
-    _sync_log_queues.append(q)
-
-    def generate():
-        try:
-            while True:
-                try:
-                    msg = q.get(timeout=60)
-                except queue.Empty:
-                    yield "data: \n\n"
-                    continue
-
-                if msg is None:
-                    yield "data: [DONE]\n\n"
-                    break
-
-                for line in msg.splitlines():
-                    yield f"data: {line}\n\n"
-        finally:
-            if q in _sync_log_queues:
-                _sync_log_queues.remove(q)
-
-    return Response(
-        stream_with_context(generate()),
-        mimetype="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+@app.route("/api/sync/logs")
+def api_sync_logs():
+    since = int(request.args.get("since", 0))
+    lines = _sync_logs[since:]
+    return jsonify({"lines": lines, "total": len(_sync_logs), "running": _sync_running})
 
 
 @app.route("/api/sync/status")
 def api_sync_status():
     global _sync_running
-    if _sync_running and _sync_proc is not None and _sync_proc.poll() is not None:
+    if _sync_running and (_sync_proc is None or _sync_proc.poll() is not None):
         _sync_running = False
     return jsonify({"running": _sync_running})
 
@@ -395,7 +356,6 @@ def api_sync_stop():
         except Exception:
             pass
     _sync_running = False
-    _broadcast_done()
     return jsonify({"ok": True})
 
 
@@ -416,6 +376,7 @@ def api_update(mode):
     limit = request.json.get("limit") if request.is_json else None
 
     _update_running = True
+    _update_logs.clear()
 
     def run():
         global _update_running, _update_proc
@@ -424,7 +385,7 @@ def api_update(mode):
             if limit and mode == "execute":
                 cmd.extend(["--limit", str(int(limit))])
 
-            _broadcast_update_log(f"[INÍCIO] Update CRM — modo {mode.upper()}\n")
+            _add_update_log(f"[INÍCIO] Update CRM — modo {mode.upper()}")
 
             proc = subprocess.Popen(
                 cmd,
@@ -437,62 +398,37 @@ def api_update(mode):
             _update_proc = proc
 
             for line in proc.stdout:
-                _broadcast_update_log(line)
+                _add_update_log(line)
 
             proc.wait()
 
             if proc.returncode == 0:
-                _broadcast_update_log(f"\n[FIM] Concluído com sucesso (exit code 0)\n")
+                _add_update_log("[FIM] Concluído com sucesso (exit code 0)")
             elif proc.returncode < 0 or proc.returncode == 1:
-                _broadcast_update_log(f"\n[PARADO] Processo interrompido pelo usuário.\n")
+                _add_update_log("[PARADO] Processo interrompido pelo usuário.")
             else:
-                _broadcast_update_log(f"\n[ERRO] Falhou (exit code {proc.returncode})\n")
+                _add_update_log(f"[ERRO] Falhou (exit code {proc.returncode})")
         except Exception as e:
-            _broadcast_update_log(f"\n[ERRO] {e}\n")
+            _add_update_log(f"[ERRO] {e}")
         finally:
             _update_proc = None
             _update_running = False
-            _broadcast_update_done()
 
     threading.Thread(target=run, daemon=True).start()
     return jsonify({"ok": True, "mode": mode})
 
 
-@app.route("/api/update/stream")
-def api_update_stream():
-    q = queue.Queue()
-    _update_log_queues.append(q)
-
-    def generate():
-        try:
-            while True:
-                try:
-                    msg = q.get(timeout=60)
-                except queue.Empty:
-                    yield "data: \n\n"
-                    continue
-
-                if msg is None:
-                    yield "data: [DONE]\n\n"
-                    break
-
-                for line in msg.splitlines():
-                    yield f"data: {line}\n\n"
-        finally:
-            if q in _update_log_queues:
-                _update_log_queues.remove(q)
-
-    return Response(
-        stream_with_context(generate()),
-        mimetype="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+@app.route("/api/update/logs")
+def api_update_logs():
+    since = int(request.args.get("since", 0))
+    lines = _update_logs[since:]
+    return jsonify({"lines": lines, "total": len(_update_logs), "running": _update_running})
 
 
 @app.route("/api/update/status")
 def api_update_status():
     global _update_running
-    if _update_running and _update_proc is not None and _update_proc.poll() is not None:
+    if _update_running and (_update_proc is None or _update_proc.poll() is not None):
         _update_running = False
     return jsonify({"running": _update_running})
 
@@ -506,7 +442,6 @@ def api_update_stop():
         except Exception:
             pass
     _update_running = False
-    _broadcast_update_done()
     return jsonify({"ok": True})
 
 
