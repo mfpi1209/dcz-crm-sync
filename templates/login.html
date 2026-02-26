@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — DCz CRM Sync</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="h-full bg-gray-950 text-gray-100 flex items-center justify-center">
+
+<div class="w-full max-w-sm">
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl p-8 shadow-xl">
+        <div class="flex items-center justify-center gap-3 mb-8">
+            <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-bold text-lg">DC</div>
+            <h1 class="text-xl font-semibold">CRM Sync</h1>
+        </div>
+
+        {% if error %}
+        <div class="mb-4 p-3 bg-red-900/40 border border-red-800 rounded-lg text-red-300 text-sm text-center">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <form method="POST" class="space-y-4">
+            <div>
+                <label class="block text-xs text-gray-400 mb-1.5">Usuário</label>
+                <input type="text" name="username" required autofocus
+                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:border-indigo-500 focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1.5">Senha</label>
+                <input type="password" name="password" required
+                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:border-indigo-500 focus:outline-none">
+            </div>
+            <button type="submit"
+                class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-5 py-2.5 rounded-lg transition">
+                Entrar
+            </button>
+        </form>
+    </div>
+</div>
+
+</body>
+</html>

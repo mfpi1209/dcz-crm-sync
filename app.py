@@ -16,8 +16,10 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from functools import wraps
-from flask import Flask, render_template, request, jsonify, Response, stream_with_context
+from flask import (
+    Flask, render_template, request, jsonify, Response,
+    stream_with_context, redirect, url_for, session,
+)
 import psycopg2
 import psycopg2.extras
 from dotenv import load_dotenv
@@ -25,48 +27,45 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env")
 
 app = Flask(__name__)
+app.secret_key = os.getenv("SECRET_KEY", os.urandom(32).hex())
 
 # ---------------------------------------------------------------------------
-# Autenticação HTTP Basic
+# Autenticação por sessão
 # ---------------------------------------------------------------------------
 
 APP_USER = os.getenv("APP_USER", "admin")
 APP_PASS = os.getenv("APP_PASS", "")
 
 
-def check_auth(username, password):
-    return username == APP_USER and password == APP_PASS
-
-
-def auth_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not APP_PASS:
-            return f(*args, **kwargs)
-        auth = request.authorization
-        if not auth or not check_auth(auth.username, auth.password):
-            return Response(
-                "Acesso negado. Informe usuário e senha.",
-                401,
-                {"WWW-Authenticate": 'Basic realm="DCz CRM Sync"'},
-            )
-        return f(*args, **kwargs)
-    return decorated
-
-
 @app.before_request
 def require_auth():
     if not APP_PASS:
         return
-    if request.path.startswith("/static"):
+    if request.path in ("/login",):
         return
-    auth = request.authorization
-    if not auth or not check_auth(auth.username, auth.password):
-        return Response(
-            "Acesso negado. Informe usuário e senha.",
-            401,
-            {"WWW-Authenticate": 'Basic realm="DCz CRM Sync"'},
-        )
+    if not session.get("authenticated"):
+        if request.path.startswith("/api/"):
+            return jsonify({"error": "Não autenticado"}), 401
+        return redirect(url_for("login"))
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    error = None
+    if request.method == "POST":
+        user = request.form.get("username", "")
+        pwd = request.form.get("password", "")
+        if user == APP_USER and pwd == APP_PASS:
+            session["authenticated"] = True
+            return redirect(url_for("index"))
+        error = "Usuário ou senha incorretos."
+    return render_template("login.html", error=error)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
 
 DB_DSN = dict(
     host=os.getenv("DB_HOST", "localhost"),
