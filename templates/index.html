@@ -251,6 +251,18 @@
 <script>
 {% raw %}
 // ---------------------------------------------------------------------------
+// API helper — redireciona ao login se sessão expirou
+// ---------------------------------------------------------------------------
+async function api(url, opts = {}) {
+    const res = await fetch(url, opts);
+    if (res.status === 401) {
+        window.location.href = '/login';
+        throw new Error('Sessão expirada');
+    }
+    return res;
+}
+
+// ---------------------------------------------------------------------------
 // Tabs
 // ---------------------------------------------------------------------------
 function switchTab(tab) {
@@ -447,7 +459,7 @@ async function startSync(mode) {
     const btnFull = document.getElementById('btn-full');
 
     try {
-        const res = await fetch(`/api/sync/${mode}`, { method: 'POST' });
+        const res = await api(`/api/sync/${mode}`, { method: 'POST' });
         const data = await res.json();
         if (data.error) { alert(data.error); return; }
     } catch (err) { alert('Erro: ' + err.message); return; }
@@ -519,7 +531,7 @@ function updateBadge(running) {
 async function stopSync() {
     if (!confirm('Interromper a sincronização?')) return;
     try {
-        await fetch('/api/sync/stop', { method: 'POST' });
+        await api('/api/sync/stop', { method: 'POST' });
     } catch (err) { console.error(err); }
 }
 
@@ -578,7 +590,7 @@ async function startUpdate(mode) {
     }
 
     try {
-        const res = await fetch(`/api/update/${mode}`, {
+        const res = await api(`/api/update/${mode}`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(body),
@@ -690,7 +702,7 @@ async function loadPreview() {
 async function stopUpdate() {
     if (!confirm('Interromper a atualização do CRM?')) return;
     try {
-        await fetch('/api/update/stop', { method: 'POST' });
+        await api('/api/update/stop', { method: 'POST' });
     } catch (err) { console.error(err); }
 }
 

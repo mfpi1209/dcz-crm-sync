@@ -27,7 +27,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env")
 
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", os.urandom(32).hex())
+app.secret_key = os.getenv("SECRET_KEY", "dcz-sync-default-key-change-me")
 
 # ---------------------------------------------------------------------------
 # Autenticação por sessão
