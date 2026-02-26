@@ -58,6 +58,8 @@ def login():
         if user == APP_USER and pwd == APP_PASS:
             session["authenticated"] = True
             return redirect(url_for("index"))
+        app.logger.warning("Login falhou: user=%r (esperado %r), pass_len=%d (esperado %d)",
+                           user, APP_USER, len(pwd), len(APP_PASS))
         error = "Usuário ou senha incorretos."
     return render_template("login.html", error=error)
 
