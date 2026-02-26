@@ -349,45 +349,49 @@ def get_conn():
 def update_local_biz_field(conn, biz_id, field_id, new_value):
     """Atualiza o valor de um campo adicional no JSONB local do negócio."""
     with conn.cursor() as cur:
-        cur.execute("""
-            UPDATE businesses
-            SET data = (
-                SELECT jsonb_set(
-                    data,
-                    '{additionalFields}',
-                    COALESCE(
-                        (SELECT jsonb_agg(
-                            CASE
-                                WHEN elem->'additionalField'->>'id' = %s
-                                THEN jsonb_set(elem, '{value}', to_jsonb(%s::text))
-                                ELSE elem
-                            END
-                        ) FROM jsonb_array_elements(data->'additionalFields') elem),
-                        '[]'::jsonb
-                    )
-                )
+        cur.execute("SELECT data FROM businesses WHERE id = %s", (biz_id,))
+        row = cur.fetchone()
+        if not row:
+            return
+        data = row[0]
+        updated = False
+        for f in data.get("additionalFields", []):
+            af = f.get("additionalField", {})
+            fid = af.get("id") if isinstance(af, dict) else af
+            if fid == field_id:
+                f["value"] = str(new_value)
+                updated = True
+                break
+        if updated:
+            cur.execute(
+                "UPDATE businesses SET data = %s::jsonb WHERE id = %s",
+                (json.dumps(data), biz_id),
             )
-            WHERE id = %s
-        """, (field_id, str(new_value), biz_id))
-    conn.commit()
+            conn.commit()
 
 
 def update_local_lead(conn, lead_id, updates):
     """Atualiza campos do lead no JSONB local."""
     if not updates:
         return
-    patch = {}
-    for k, v in updates.items():
-        if k == "address":
-            patch["address"] = v
-        else:
-            patch[k] = v
     with conn.cursor() as cur:
+        cur.execute("SELECT data FROM leads WHERE id = %s", (lead_id,))
+        row = cur.fetchone()
+        if not row:
+            return
+        data = row[0]
+        for k, v in updates.items():
+            if k == "address":
+                if "address" not in data or not isinstance(data["address"], dict):
+                    data["address"] = {}
+                data["address"].update(v)
+            else:
+                data[k] = v
         cur.execute(
-            "UPDATE leads SET data = data || %s::jsonb WHERE id = %s",
-            (json.dumps(patch), lead_id),
+            "UPDATE leads SET data = %s::jsonb WHERE id = %s",
+            (json.dumps(data), lead_id),
         )
-    conn.commit()
+        conn.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -579,18 +583,21 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
             crm_cpf = lead["cpf"].strip() if lead["cpf"] else ""
             if cpf and not crm_cpf:
                 lead_updates["taxId"] = format_cpf(cpf)
-            if xl_data["email"] and not lead.get("email"):
+            crm_email = (lead["email"] or "").strip().lower()
+            if xl_data["email"] and not crm_email:
                 lead_updates["email"] = xl_data["email"]
 
+            crm_addr = lead["data"].get("address") or {}
             addr = {}
-            if xl_data["bairro"]:
+            if xl_data["bairro"] and xl_data["bairro"] != (crm_addr.get("block") or ""):
                 addr["block"] = xl_data["bairro"]
-            if xl_data["cidade"]:
+            if xl_data["cidade"] and xl_data["cidade"] != (crm_addr.get("city") or ""):
                 addr["city"] = xl_data["cidade"]
             if addr:
                 lead_updates["address"] = addr
 
-            if xl_data["empresa"] and not lead["data"].get("company"):
+            crm_company = (lead["data"].get("company") or "").strip()
+            if xl_data["empresa"] and not crm_company:
                 lead_updates["company"] = xl_data["empresa"]
 
         # Preparar atualização dos custom fields do negócio
