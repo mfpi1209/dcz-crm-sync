@@ -525,13 +525,27 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
         phone = clean_phone(str(r[col["FoneCelular"]] or ""))
         nome = normalize_name(r[col["Nome"]] or "")
 
+        serie_raw = r[col["Serie"]] if "Serie" in col else None
+        try:
+            serie_str = str(int(float(serie_raw))) if serie_raw else ""
+        except (ValueError, TypeError):
+            serie_str = str(serie_raw).strip() if serie_raw else ""
+
+        dm = r[col["DataMatricula"]] if "DataMatricula" in col else None
+        if dm and hasattr(dm, "strftime"):
+            dm_str = dm.strftime("%Y-%m-%d")
+        elif dm:
+            dm_str = str(dm).strip().split("T")[0].split(" ")[0]
+        else:
+            dm_str = ""
+
         xl_data = {
             "rgm": rgm,
             "cpf": cpf,
             "nome": title_case(r[col["Nome"]] or ""),
             "curso": title_case(r[col["Curso"]] or ""),
             "polo": normalize_polo(r[col["Polo"]] or ""),
-            "serie": str(r[col["Serie"]] or ""),
+            "serie": serie_str,
             "situacao": normalize_situacao(r[col["SituacaoMatricula"]] or ""),
             "tipo": normalize_tipo_aluno(r[col["TipoMatricula"]] or ""),
             "bairro": title_case(r[col["Bairro"]] or ""),
@@ -541,10 +555,8 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
             "email_acad": (r[col.get("EmailAcademico", -1)] or "").strip().lower() if "EmailAcademico" in col else "",
             "empresa": title_case(r[col["Empresa"]] or "") if "Empresa" in col else "",
             "phone_raw": str(r[col["FoneCelular"]] or ""),
+            "data_matricula": dm_str,
         }
-
-        dm = r[col["DataMatricula"]] if "DataMatricula" in col else None
-        xl_data["data_matricula"] = dm.strftime("%Y-%m-%d") if dm and hasattr(dm, "strftime") else str(dm or "")
 
         # Cascata de match
         match_type = None
@@ -624,9 +636,10 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
                 fid = FIELD_IDS.get(field_name, "")
                 if not fid:
                     continue
-                current = get_biz_field(biz["data"], fid)
-                if new_val != current:
-                    fields_to_update[fid] = new_val
+                current = str(get_biz_field(biz["data"], fid) or "").strip()
+                new_clean = str(new_val).strip()
+                if new_clean != current:
+                    fields_to_update[fid] = new_clean
 
             if fields_to_update:
                 biz_updates.append({
