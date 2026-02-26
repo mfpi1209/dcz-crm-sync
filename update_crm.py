@@ -346,6 +346,50 @@ def get_conn():
     return psycopg2.connect(**DB_DSN)
 
 
+def update_local_biz_field(conn, biz_id, field_id, new_value):
+    """Atualiza o valor de um campo adicional no JSONB local do negócio."""
+    with conn.cursor() as cur:
+        cur.execute("""
+            UPDATE businesses
+            SET data = (
+                SELECT jsonb_set(
+                    data,
+                    '{additionalFields}',
+                    COALESCE(
+                        (SELECT jsonb_agg(
+                            CASE
+                                WHEN elem->'additionalField'->>'id' = %s
+                                THEN jsonb_set(elem, '{value}', to_jsonb(%s::text))
+                                ELSE elem
+                            END
+                        ) FROM jsonb_array_elements(data->'additionalFields') elem),
+                        '[]'::jsonb
+                    )
+                )
+            )
+            WHERE id = %s
+        """, (field_id, str(new_value), biz_id))
+    conn.commit()
+
+
+def update_local_lead(conn, lead_id, updates):
+    """Atualiza campos do lead no JSONB local."""
+    if not updates:
+        return
+    patch = {}
+    for k, v in updates.items():
+        if k == "address":
+            patch["address"] = v
+        else:
+            patch[k] = v
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE leads SET data = data || %s::jsonb WHERE id = %s",
+            (json.dumps(patch), lead_id),
+        )
+    conn.commit()
+
+
 # ---------------------------------------------------------------------------
 # Carregamento
 # ---------------------------------------------------------------------------
@@ -664,6 +708,8 @@ def execute_updates(api, updates, limit=None):
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file = LOG_DIR / f"update_{ts}.csv"
 
+    conn = get_conn()
+
     with open(log_file, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f, delimiter=";")
         w.writerow(["timestamp", "tipo", "match", "nome", "rgm", "id",
@@ -697,6 +743,10 @@ def execute_updates(api, updates, limit=None):
                 ])
                 if result["ok"]:
                     ok_count += 1
+                    try:
+                        update_local_lead(conn, upd["lead_id"], payload)
+                    except Exception:
+                        pass
                 else:
                     err_count += 1
                     log.warning("  ERRO lead %s: %s", upd["lead_id"], result["body"][:200])
@@ -713,6 +763,10 @@ def execute_updates(api, updates, limit=None):
                     ])
                     if result["ok"]:
                         ok_count += 1
+                        try:
+                            update_local_biz_field(conn, biz["biz_id"], fid, val)
+                        except Exception:
+                            pass
                     else:
                         err_count += 1
                         log.warning("  ERRO biz %s campo %s: %s",
@@ -726,6 +780,7 @@ def execute_updates(api, updates, limit=None):
                          i, len(updates), i/len(updates)*100,
                          ok_count, err_count, remaining/60)
 
+    conn.close()
     log.info("Concluído. OK: %d | Erros: %d | API calls: %d", ok_count, err_count, api.total_calls)
     log.info("Log detalhado: %s", log_file)
     return ok_count, err_count
