@@ -380,18 +380,23 @@ def api_sync_stream():
 
 @app.route("/api/sync/status")
 def api_sync_status():
+    global _sync_running
+    if _sync_running and _sync_proc is not None and _sync_proc.poll() is not None:
+        _sync_running = False
     return jsonify({"running": _sync_running})
 
 
 @app.route("/api/sync/stop", methods=["POST"])
 def api_sync_stop():
-    if not _sync_running or _sync_proc is None:
-        return jsonify({"error": "Nenhuma sincronização em andamento."}), 400
-    try:
-        _sync_proc.terminate()
-        return jsonify({"ok": True})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    global _sync_running
+    if _sync_proc is not None:
+        try:
+            _sync_proc.terminate()
+        except Exception:
+            pass
+    _sync_running = False
+    _broadcast_done()
+    return jsonify({"ok": True})
 
 
 # ---------------------------------------------------------------------------
@@ -486,18 +491,23 @@ def api_update_stream():
 
 @app.route("/api/update/status")
 def api_update_status():
+    global _update_running
+    if _update_running and _update_proc is not None and _update_proc.poll() is not None:
+        _update_running = False
     return jsonify({"running": _update_running})
 
 
 @app.route("/api/update/stop", methods=["POST"])
 def api_update_stop():
-    if not _update_running or _update_proc is None:
-        return jsonify({"error": "Nenhuma atualização em andamento."}), 400
-    try:
-        _update_proc.terminate()
-        return jsonify({"ok": True})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    global _update_running
+    if _update_proc is not None:
+        try:
+            _update_proc.terminate()
+        except Exception:
+            pass
+    _update_running = False
+    _broadcast_update_done()
+    return jsonify({"ok": True})
 
 
 @app.route("/api/update/preview")
