@@ -456,9 +456,6 @@ let syncPollTimer = null;
 let syncLogOffset = 0;
 
 async function startSync(mode) {
-    const btnDelta = document.getElementById('btn-delta');
-    const btnFull = document.getElementById('btn-full');
-
     try {
         const res = await api(`/api/sync/${mode}`, { method: 'POST' });
         const data = await res.json();
@@ -468,6 +465,7 @@ async function startSync(mode) {
     clearLog();
     syncLogOffset = 0;
     setSyncBtnsState(true);
+    appendLog('[INÍCIO] Aguardando logs do servidor...');
     startSyncPolling();
 }
 
@@ -478,21 +476,33 @@ function setSyncBtnsState(running) {
     btnDelta.classList.toggle('opacity-50', running);
     btnFull.classList.toggle('opacity-50', running);
     document.getElementById('btn-sync-stop').classList.toggle('hidden', !running);
-    updateBadge(running);
+    _syncRunningFlag = running;
+    refreshBadge();
 }
 
 function startSyncPolling() {
     if (syncPollTimer) clearInterval(syncPollTimer);
-    syncPollTimer = setInterval(pollSyncLogs, 1500);
-    pollSyncLogs();
+    syncPollTimer = setInterval(pollSyncLogs, 2000);
+    setTimeout(pollSyncLogs, 500);
 }
 
+let _syncPollBusy = false;
 async function pollSyncLogs() {
+    if (_syncPollBusy) return;
+    _syncPollBusy = true;
     try {
-        const res = await api(`/api/sync/logs?since=${syncLogOffset}`);
+        const url = `/api/sync/logs?since=${syncLogOffset}`;
+        const res = await fetch(url, { credentials: 'same-origin' });
+        if (res.status === 401) { window.location.href = '/login'; return; }
+        if (!res.ok) {
+            appendLog(`[POLL ERRO] HTTP ${res.status}`);
+            return;
+        }
         const data = await res.json();
-        data.lines.forEach(l => appendLog(l));
-        syncLogOffset = data.total;
+        if (data.lines && data.lines.length > 0) {
+            data.lines.forEach(l => appendLog(l));
+        }
+        syncLogOffset = data.total || 0;
         if (!data.running) {
             clearInterval(syncPollTimer);
             syncPollTimer = null;
@@ -500,17 +510,18 @@ async function pollSyncLogs() {
             loadSyncState();
         }
     } catch (err) {
-        console.error('Poll sync error:', err);
+        appendLog(`[POLL ERRO] ${err.message}`);
+    } finally {
+        _syncPollBusy = false;
     }
 }
 
 function appendLog(text) {
     const el = document.getElementById('sync-log');
-    // Color code log lines
     let colored = text;
     if (text.includes('INFO')) colored = `<span class="text-gray-300">${esc(text)}</span>`;
     else if (text.includes('WARNING')) colored = `<span class="text-yellow-400">${esc(text)}</span>`;
-    else if (text.includes('ERROR') || text.includes('[ERRO]')) colored = `<span class="text-red-400">${esc(text)}</span>`;
+    else if (text.includes('ERROR') || text.includes('[ERRO]') || text.includes('POLL ERRO')) colored = `<span class="text-red-400">${esc(text)}</span>`;
     else if (text.includes('[INÍCIO]') || text.includes('[FIM]')) colored = `<span class="text-indigo-400 font-semibold">${esc(text)}</span>`;
     else colored = esc(text);
 
@@ -522,11 +533,17 @@ function clearLog() {
     document.getElementById('sync-log').innerHTML = '';
 }
 
-function updateBadge(running) {
+let _syncRunningFlag = false;
+let _updateRunningFlag = false;
+
+function refreshBadge() {
     const badge = document.getElementById('sync-status-badge');
-    if (running) {
+    if (_syncRunningFlag) {
         badge.textContent = 'Sincronizando...';
         badge.className = 'text-xs px-3 py-1 rounded-full bg-indigo-900/50 text-indigo-300 animate-pulse';
+    } else if (_updateRunningFlag) {
+        badge.textContent = 'Atualizando CRM...';
+        badge.className = 'text-xs px-3 py-1 rounded-full bg-amber-900/50 text-amber-300 animate-pulse';
     } else {
         badge.textContent = 'Idle';
         badge.className = 'text-xs px-3 py-1 rounded-full bg-gray-800 text-gray-400';
@@ -541,12 +558,12 @@ async function stopSync() {
 }
 
 // Check sync status on load and resume polling if running
-fetch('/api/sync/status').then(r => r.json()).then(d => {
+fetch('/api/sync/status', { credentials: 'same-origin' }).then(r => r.json()).then(d => {
     if (d.running) {
         setSyncBtnsState(true);
         startSyncPolling();
     }
-});
+}).catch(() => {});
 
 // ---------------------------------------------------------------------------
 // Update CRM
@@ -571,21 +588,8 @@ function setUpdateBtnsDisabled(disabled) {
 }
 
 function updateUpdateBadge(running) {
-    const badge = document.getElementById('sync-status-badge');
-    if (running) {
-        badge.textContent = 'Atualizando CRM...';
-        badge.className = 'text-xs px-3 py-1 rounded-full bg-amber-900/50 text-amber-300 animate-pulse';
-    } else if (!_syncRunning) {
-        badge.textContent = 'Idle';
-        badge.className = 'text-xs px-3 py-1 rounded-full bg-gray-800 text-gray-400';
-    }
-}
-
-let _syncRunning = false;
-const origUpdateBadge = updateBadge;
-function updateBadge(running) {
-    _syncRunning = running;
-    origUpdateBadge(running);
+    _updateRunningFlag = running;
+    refreshBadge();
 }
 
 async function startUpdate(mode) {
@@ -626,16 +630,26 @@ async function startUpdate(mode) {
 
 function startUpdatePolling() {
     if (updatePollTimer) clearInterval(updatePollTimer);
-    updatePollTimer = setInterval(pollUpdateLogs, 1500);
-    pollUpdateLogs();
+    updatePollTimer = setInterval(pollUpdateLogs, 2000);
+    setTimeout(pollUpdateLogs, 500);
 }
 
+let _updatePollBusy = false;
 async function pollUpdateLogs() {
+    if (_updatePollBusy) return;
+    _updatePollBusy = true;
     try {
-        const res = await api(`/api/update/logs?since=${updateLogOffset}`);
+        const res = await fetch(`/api/update/logs?since=${updateLogOffset}`, { credentials: 'same-origin' });
+        if (res.status === 401) { window.location.href = '/login'; return; }
+        if (!res.ok) {
+            appendUpdateLog(`[POLL ERRO] HTTP ${res.status}`);
+            return;
+        }
         const data = await res.json();
-        data.lines.forEach(l => appendUpdateLog(l));
-        updateLogOffset = data.total;
+        if (data.lines && data.lines.length > 0) {
+            data.lines.forEach(l => appendUpdateLog(l));
+        }
+        updateLogOffset = data.total || 0;
         if (!data.running) {
             clearInterval(updatePollTimer);
             updatePollTimer = null;
@@ -644,7 +658,9 @@ async function pollUpdateLogs() {
             if (_lastUpdateMode === 'dry-run') loadPreview();
         }
     } catch (err) {
-        console.error('Poll update error:', err);
+        appendUpdateLog(`[POLL ERRO] ${err.message}`);
+    } finally {
+        _updatePollBusy = false;
     }
 }
 
@@ -723,13 +739,13 @@ async function stopUpdate() {
 }
 
 // Check update status on load and resume polling if running
-fetch('/api/update/status').then(r => r.json()).then(d => {
+fetch('/api/update/status', { credentials: 'same-origin' }).then(r => r.json()).then(d => {
     if (d.running) {
         updateUpdateBadge(true);
         setUpdateBtnsDisabled(true);
         startUpdatePolling();
     }
-});
+}).catch(() => {});
 
 // ---------------------------------------------------------------------------
 // Upload
