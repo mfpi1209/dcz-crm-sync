@@ -354,20 +354,24 @@ def update_local_biz_field(conn, biz_id, field_id, new_value):
         if not row:
             return
         data = row[0]
-        updated = False
+        found = False
         for f in data.get("additionalFields", []):
             af = f.get("additionalField", {})
             fid = af.get("id") if isinstance(af, dict) else af
             if fid == field_id:
                 f["value"] = str(new_value)
-                updated = True
+                found = True
                 break
-        if updated:
-            cur.execute(
-                "UPDATE businesses SET data = %s::jsonb WHERE id = %s",
-                (json.dumps(data), biz_id),
-            )
-            conn.commit()
+        if not found:
+            data.setdefault("additionalFields", []).append({
+                "additionalField": {"id": field_id},
+                "value": str(new_value),
+            })
+        cur.execute(
+            "UPDATE businesses SET data = %s::jsonb WHERE id = %s",
+            (json.dumps(data), biz_id),
+        )
+        conn.commit()
 
 
 def update_local_lead(conn, lead_id, updates):
