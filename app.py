@@ -218,7 +218,9 @@ FROM sync_state ORDER BY entity_type;
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    resp = app.make_response(render_template("index.html"))
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return resp
 
 
 @app.route("/api/search")
@@ -300,7 +302,9 @@ def api_sync(mode):
                 cmd.append("--full")
 
             _add_sync_log(f"[INÍCIO] Sincronização {mode.upper()} iniciada")
+            _add_sync_log(f"CMD: {' '.join(cmd)}")
 
+            env = {**os.environ, "PYTHONUNBUFFERED": "1"}
             proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
@@ -308,6 +312,7 @@ def api_sync(mode):
                 text=True,
                 bufsize=1,
                 cwd=str(Path(__file__).parent),
+                env=env,
             )
             _sync_proc = proc
 
@@ -323,13 +328,31 @@ def api_sync(mode):
             else:
                 _add_sync_log(f"[ERRO] Sincronização falhou (exit code {proc.returncode})")
         except Exception as e:
+            import traceback
             _add_sync_log(f"[ERRO] {e}")
+            _add_sync_log(traceback.format_exc())
         finally:
             _sync_proc = None
             _sync_running = False
 
     threading.Thread(target=run, daemon=True).start()
     return jsonify({"ok": True, "mode": mode})
+
+
+@app.route("/api/debug")
+def api_debug():
+    return jsonify({
+        "sync_running": _sync_running,
+        "sync_proc_alive": _sync_proc is not None and _sync_proc.poll() is None if _sync_proc else False,
+        "sync_log_count": len(_sync_logs),
+        "sync_logs_last5": _sync_logs[-5:] if _sync_logs else [],
+        "update_running": _update_running,
+        "update_log_count": len(_update_logs),
+        "python": sys.executable,
+        "sync_script": SYNC_SCRIPT,
+        "sync_script_exists": Path(SYNC_SCRIPT).exists(),
+        "cwd": str(Path(__file__).parent),
+    })
 
 
 @app.route("/api/sync/logs")
@@ -387,6 +410,7 @@ def api_update(mode):
 
             _add_update_log(f"[INÍCIO] Update CRM — modo {mode.upper()}")
 
+            env = {**os.environ, "PYTHONUNBUFFERED": "1"}
             proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
@@ -394,6 +418,7 @@ def api_update(mode):
                 text=True,
                 bufsize=1,
                 cwd=str(Path(__file__).parent),
+                env=env,
             )
             _update_proc = proc
 
@@ -409,7 +434,9 @@ def api_update(mode):
             else:
                 _add_update_log(f"[ERRO] Falhou (exit code {proc.returncode})")
         except Exception as e:
+            import traceback
             _add_update_log(f"[ERRO] {e}")
+            _add_update_log(traceback.format_exc())
         finally:
             _update_proc = None
             _update_running = False
