@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DataCrazy CRM Sync</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { brand: '#6366f1' }
+                }
+            }
+        }
+    </script>
+    <style>
+        .log-terminal { font-family: 'Consolas', 'Courier New', monospace; font-size: 0.8rem; }
+        .tag-pill { display: inline-block; padding: 2px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    </style>
+</head>
+<body class="h-full bg-gray-950 text-gray-100">
+
+<div class="min-h-full flex flex-col">
+    <!-- Header -->
+    <header class="bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-sm">DC</div>
+            <h1 class="text-lg font-semibold">DataCrazy CRM Sync</h1>
+        </div>
+        <div id="sync-status-badge" class="text-xs px-3 py-1 rounded-full bg-gray-800 text-gray-400">
+            Idle
+        </div>
+    </header>
+
+    <!-- Tabs -->
+    <div class="bg-gray-900 border-b border-gray-800 px-6">
+        <nav class="flex gap-1">
+            <button onclick="switchTab('search')" id="tab-search"
+                class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-indigo-500 text-indigo-400">
+                Buscar
+            </button>
+            <button onclick="switchTab('sync')" id="tab-sync"
+                class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-200">
+                Sincronização
+            </button>
+            <button onclick="switchTab('update')" id="tab-update"
+                class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-200">
+                Atualização CRM
+            </button>
+        </nav>
+    </div>
+
+    <!-- Content -->
+    <main class="flex-1 overflow-auto">
+
+        <!-- ============ TAB: BUSCAR ============ -->
+        <div id="panel-search" class="p-6 max-w-7xl mx-auto">
+            <form id="search-form" class="flex flex-wrap gap-3 items-end mb-6">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">CPF</label>
+                    <input type="text" name="cpf" placeholder="000.000.000-00"
+                        class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-44 focus:border-indigo-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">RGM</label>
+                    <input type="text" name="rgm" placeholder="12345678"
+                        class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-36 focus:border-indigo-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Telefone</label>
+                    <input type="text" name="telefone" placeholder="11999998888"
+                        class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-40 focus:border-indigo-500 focus:outline-none">
+                </div>
+                <button type="submit"
+                    class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition">
+                    Buscar
+                </button>
+            </form>
+
+            <div id="search-error" class="hidden mb-4 p-3 bg-red-900/40 border border-red-800 rounded-lg text-red-300 text-sm"></div>
+            <div id="search-empty" class="hidden mb-4 p-3 bg-yellow-900/30 border border-yellow-800 rounded-lg text-yellow-300 text-sm">
+                Nenhum resultado encontrado.
+            </div>
+            <div id="search-loading" class="hidden mb-4 text-gray-400 text-sm">Buscando...</div>
+
+            <div id="search-results" class="space-y-4"></div>
+        </div>
+
+        <!-- ============ TAB: SYNC ============ -->
+        <div id="panel-sync" class="p-6 max-w-7xl mx-auto hidden">
+
+            <!-- Sync state -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                    <h3 class="text-sm font-semibold text-gray-300 mb-3">Estado da Sincronização</h3>
+                    <div id="sync-state-table" class="text-sm text-gray-400">Carregando...</div>
+                </div>
+                <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                    <h3 class="text-sm font-semibold text-gray-300 mb-3">Últimas Atualizações</h3>
+                    <div id="recent-updates" class="text-sm text-gray-400">Carregando...</div>
+                </div>
+            </div>
+
+            <!-- Buttons -->
+            <div class="flex gap-3 mb-4">
+                <button onclick="startSync('delta')" id="btn-delta"
+                    class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    Sync Delta
+                </button>
+                <button onclick="startSync('full')" id="btn-full"
+                    class="bg-gray-700 hover:bg-gray-600 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
+                    Sync Full
+                </button>
+                <button onclick="stopSync()" id="btn-sync-stop"
+                    class="hidden bg-red-600 hover:bg-red-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+                    Parar
+                </button>
+            </div>
+
+            <!-- Log terminal -->
+            <div class="bg-gray-950 border border-gray-800 rounded-xl overflow-hidden">
+                <div class="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800">
+                    <span class="text-xs text-gray-400 font-medium">Log de Execução</span>
+                    <button onclick="clearLog()" class="text-xs text-gray-500 hover:text-gray-300">Limpar</button>
+                </div>
+                <pre id="sync-log" class="log-terminal p-4 h-96 overflow-auto text-gray-400 whitespace-pre-wrap"></pre>
+            </div>
+        </div>
+
+        <!-- ============ TAB: UPDATE CRM ============ -->
+        <div id="panel-update" class="p-6 max-w-7xl mx-auto hidden">
+
+            <!-- Upload + Info -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <!-- Upload area -->
+                <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                    <h3 class="text-sm font-semibold text-gray-300 mb-3">Planilha de Matriculados</h3>
+                    <div id="upload-zone"
+                        class="border-2 border-dashed border-gray-700 rounded-lg p-6 text-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-950/10 transition"
+                        onclick="document.getElementById('file-input').click()"
+                        ondragover="event.preventDefault(); this.classList.add('border-indigo-500','bg-indigo-950/10')"
+                        ondragleave="this.classList.remove('border-indigo-500','bg-indigo-950/10')"
+                        ondrop="handleDrop(event)">
+                        <input type="file" id="file-input" accept=".xlsx" class="hidden" onchange="handleUpload(this.files[0])">
+                        <svg class="w-8 h-8 mx-auto mb-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                        </svg>
+                        <p class="text-sm text-gray-400">Arraste o arquivo <span class="text-indigo-400 font-medium">.xlsx</span> aqui</p>
+                        <p class="text-xs text-gray-600 mt-1">ou clique para selecionar</p>
+                    </div>
+                    <div id="upload-progress" class="hidden mt-3">
+                        <div class="w-full bg-gray-800 rounded-full h-1.5">
+                            <div id="upload-bar" class="bg-indigo-500 h-1.5 rounded-full transition-all" style="width:0%"></div>
+                        </div>
+                        <p id="upload-status" class="text-xs text-gray-400 mt-1">Enviando...</p>
+                    </div>
+                </div>
+
+                <!-- Current file info -->
+                <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                    <h3 class="text-sm font-semibold text-gray-300 mb-3">Arquivo Atual</h3>
+                    <div id="file-info" class="text-sm text-gray-400">Carregando...</div>
+                    <div class="mt-4 pt-3 border-t border-gray-800">
+                        <p class="text-xs text-gray-500 leading-relaxed">
+                            Cruza a planilha com o CRM e atualiza campos dos leads e negócios.
+                            Não altera pipelines nem etapas. Cascata: RGM &rarr; CPF &rarr; Telefone &rarr; Nome.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Buttons -->
+            <div class="flex flex-wrap gap-3 mb-4 items-end">
+                <button onclick="startUpdate('dry-run')" id="btn-dryrun"
+                    class="bg-amber-600 hover:bg-amber-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                    Dry-Run (Preview)
+                </button>
+                <button onclick="startUpdate('test')" id="btn-test"
+                    class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Testar 1 Registro
+                </button>
+                <div class="flex items-end gap-2">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Limite (opcional)</label>
+                        <input type="number" id="update-limit" placeholder="todos" min="1"
+                            class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-28 focus:border-indigo-500 focus:outline-none">
+                    </div>
+                    <button onclick="confirmExecute()" id="btn-execute"
+                        class="bg-red-600 hover:bg-red-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        Executar Update
+                    </button>
+                </div>
+                <button onclick="stopUpdate()" id="btn-update-stop"
+                    class="hidden bg-red-600 hover:bg-red-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+                    Parar
+                </button>
+            </div>
+
+            <!-- Preview table -->
+            <div id="update-preview-section" class="hidden mb-4">
+                <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                    <div class="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800">
+                        <span class="text-xs text-gray-400 font-medium">Preview de Atualizações <span id="preview-count" class="text-gray-600"></span></span>
+                        <button onclick="document.getElementById('update-preview-section').classList.add('hidden')"
+                            class="text-xs text-gray-500 hover:text-gray-300">Fechar</button>
+                    </div>
+                    <div class="overflow-auto max-h-80">
+                        <table class="w-full text-left text-xs">
+                            <thead class="sticky top-0 bg-gray-900">
+                                <tr class="text-gray-500 border-b border-gray-800">
+                                    <th class="px-3 py-2">Match</th>
+                                    <th class="px-3 py-2">RGM</th>
+                                    <th class="px-3 py-2">Nome</th>
+                                    <th class="px-3 py-2">Lead ID</th>
+                                    <th class="px-3 py-2">Lead Mudanças</th>
+                                    <th class="px-3 py-2">Negócio Mudanças</th>
+                                </tr>
+                            </thead>
+                            <tbody id="preview-tbody" class="text-gray-300"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Update log terminal -->
+            <div class="bg-gray-950 border border-gray-800 rounded-xl overflow-hidden">
+                <div class="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800">
+                    <span class="text-xs text-gray-400 font-medium">Log de Atualização</span>
+                    <button onclick="clearUpdateLog()" class="text-xs text-gray-500 hover:text-gray-300">Limpar</button>
+                </div>
+                <pre id="update-log" class="log-terminal p-4 h-96 overflow-auto text-gray-400 whitespace-pre-wrap"></pre>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<script>
+{% raw %}
+// ---------------------------------------------------------------------------
+// Tabs
+// ---------------------------------------------------------------------------
+function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.remove('border-indigo-500', 'text-indigo-400');
+        b.classList.add('border-transparent', 'text-gray-400');
+    });
+    document.getElementById('tab-' + tab).classList.add('border-indigo-500', 'text-indigo-400');
+    document.getElementById('tab-' + tab).classList.remove('border-transparent', 'text-gray-400');
+
+    document.getElementById('panel-search').classList.toggle('hidden', tab !== 'search');
+    document.getElementById('panel-sync').classList.toggle('hidden', tab !== 'sync');
+    document.getElementById('panel-update').classList.toggle('hidden', tab !== 'update');
+
+    if (tab === 'sync') loadSyncState();
+}
+
+// ---------------------------------------------------------------------------
+// Search
+// ---------------------------------------------------------------------------
+document.getElementById('search-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = new FormData(e.target);
+    const params = new URLSearchParams();
+    for (const [k, v] of form) params.set(k, v.trim());
+
+    document.getElementById('search-error').classList.add('hidden');
+    document.getElementById('search-empty').classList.add('hidden');
+    document.getElementById('search-results').innerHTML = '';
+    document.getElementById('search-loading').classList.remove('hidden');
+
+    try {
+        const res = await fetch('/api/search?' + params);
+        const data = await res.json();
+        document.getElementById('search-loading').classList.add('hidden');
+
+        if (data.error) {
+            document.getElementById('search-error').textContent = data.error;
+            document.getElementById('search-error').classList.remove('hidden');
+            return;
+        }
+        if (!data.results.length) {
+            document.getElementById('search-empty').classList.remove('hidden');
+            return;
+        }
+        renderResults(data.results);
+    } catch (err) {
+        document.getElementById('search-loading').classList.add('hidden');
+        document.getElementById('search-error').textContent = 'Erro de conexão: ' + err.message;
+        document.getElementById('search-error').classList.remove('hidden');
+    }
+});
+
+function renderResults(results) {
+    const container = document.getElementById('search-results');
+    container.innerHTML = '';
+
+    results.forEach(r => {
+        const statusColor = {
+            'won': 'bg-emerald-900/50 text-emerald-300',
+            'in_process': 'bg-blue-900/50 text-blue-300',
+            'lost': 'bg-red-900/50 text-red-300'
+        }[r.negocio_status] || 'bg-gray-800 text-gray-300';
+
+        const statusLabel = {
+            'won': 'Ganho', 'in_process': 'Em andamento', 'lost': 'Perdido'
+        }[r.negocio_status] || r.negocio_status;
+
+        const stageStyle = r.etapa_cor ? `background:${r.etapa_cor}22; color:${r.etapa_cor}; border:1px solid ${r.etapa_cor}44` : '';
+
+        const campos_neg = r.campos_negocio || {};
+        const campos_lead = r.campos_lead || {};
+
+        const card = document.createElement('div');
+        card.className = 'bg-gray-900 border border-gray-800 rounded-xl p-5 fade-in';
+        card.innerHTML = `
+            <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
+                <div>
+                    <h3 class="text-base font-semibold text-white">${esc(r.lead_nome || '—')}</h3>
+                    <p class="text-xs text-gray-500 mt-0.5">Lead: ${esc(r.lead_id || '')} &middot; Negócio: ${esc(r.negocio_codigo || r.negocio_id || '')}</p>
+                </div>
+                <div class="flex gap-2 flex-wrap">
+                    <span class="tag-pill ${statusColor}">${statusLabel}</span>
+                    ${r.etapa_nome ? `<span class="tag-pill" style="${stageStyle}">${esc(r.etapa_nome)}</span>` : ''}
+                    ${r.pipeline_nome ? `<span class="tag-pill bg-gray-800 text-gray-300">${esc(r.pipeline_nome)}</span>` : ''}
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 text-sm mb-4">
+                ${field('CPF', r.lead_cpf)}
+                ${field('Telefone', r.lead_telefone)}
+                ${field('Email', r.lead_email)}
+                ${field('Origem', r.lead_origem)}
+                ${field('Cidade', r.lead_cidade)}
+                ${field('Estado', r.lead_estado)}
+                ${field('Valor', r.negocio_valor ? 'R$ ' + Number(r.negocio_valor).toLocaleString('pt-BR') : null)}
+                ${field('Atendente', r.atendente)}
+                ${field('Criado em', fmtDate(r.negocio_criado_em))}
+                ${field('Última mov.', fmtDate(r.negocio_movido_em))}
+            </div>
+
+            ${Object.keys(campos_neg).length ? `
+            <details class="group">
+                <summary class="text-xs font-semibold text-gray-400 cursor-pointer mb-2 select-none">
+                    Campos do Negócio <span class="text-gray-600">(${Object.keys(campos_neg).length})</span>
+                </summary>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 text-sm pl-1">
+                    ${Object.entries(campos_neg).map(([k,v]) => field(k, v || null)).join('')}
+                </div>
+            </details>` : ''}
+
+            ${Object.keys(campos_lead).length ? `
+            <details class="group mt-3">
+                <summary class="text-xs font-semibold text-gray-400 cursor-pointer mb-2 select-none">
+                    Campos do Lead <span class="text-gray-600">(${Object.keys(campos_lead).length})</span>
+                </summary>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 text-sm pl-1">
+                    ${Object.entries(campos_lead).map(([k,v]) => field(k, v || null)).join('')}
+                </div>
+            </details>` : ''}
+        `;
+        container.appendChild(card);
+    });
+}
+
+function field(label, value) {
+    return `<div><span class="text-gray-500">${esc(label)}</span><br><span class="text-gray-200">${value ? esc(String(value)) : '<span class=text-gray-600>—</span>'}</span></div>`;
+}
+
+function fmtDate(iso) {
+    if (!iso) return null;
+    try {
+        const d = new Date(iso);
+        return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+    } catch { return iso; }
+}
+
+function esc(s) {
+    const el = document.createElement('span');
+    el.textContent = s;
+    return el.innerHTML;
+}
+
+// ---------------------------------------------------------------------------
+// Sync
+// ---------------------------------------------------------------------------
+async function loadSyncState() {
+    try {
+        const res = await fetch('/api/sync-state');
+        const data = await res.json();
+
+        // State table
+        const stateDiv = document.getElementById('sync-state-table');
+        if (data.states && data.states.length) {
+            stateDiv.innerHTML = `<table class="w-full text-left">
+                <thead><tr class="text-xs text-gray-500 border-b border-gray-800">
+                    <th class="pb-2">Entidade</th><th class="pb-2">Último sync</th><th class="pb-2">Runs</th>
+                </tr></thead>
+                <tbody>${data.states.map(s => `<tr class="border-b border-gray-800/50">
+                    <td class="py-1.5 text-gray-300 font-medium">${esc(s.entity_type)}</td>
+                    <td class="py-1.5">${s.last_sync_at ? fmtDate(s.last_sync_at) : '—'}</td>
+                    <td class="py-1.5">${s.run_count || 0}</td>
+                </tr>`).join('')}</tbody></table>`;
+        } else {
+            stateDiv.textContent = 'Nenhuma sincronização realizada ainda.';
+        }
+
+        // Recent updates
+        const recentDiv = document.getElementById('recent-updates');
+        if (data.recent_updates && data.recent_updates.length) {
+            recentDiv.innerHTML = data.recent_updates.map(u => `
+                <div class="flex items-center justify-between py-1.5 border-b border-gray-800/50">
+                    <div>
+                        <span class="text-gray-300">${esc(u.nome_lead || '—')}</span>
+                        <span class="text-gray-600 text-xs ml-2">${esc(u.pipeline || '')} &rarr; ${esc(u.etapa || '')}</span>
+                    </div>
+                    <span class="tag-pill ${u.status === 'won' ? 'bg-emerald-900/50 text-emerald-300' : u.status === 'lost' ? 'bg-red-900/50 text-red-300' : 'bg-blue-900/50 text-blue-300'}">
+                        ${{won:'Ganho', in_process:'Aberto', lost:'Perdido'}[u.status] || u.status}
+                    </span>
+                </div>
+            `).join('');
+        } else {
+            recentDiv.textContent = 'Nenhuma atualização recente.';
+        }
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+let eventSource = null;
+
+async function startSync(mode) {
+    const btnDelta = document.getElementById('btn-delta');
+    const btnFull = document.getElementById('btn-full');
+
+    try {
+        const res = await fetch(`/api/sync/${mode}`, { method: 'POST' });
+        const data = await res.json();
+        if (data.error) { alert(data.error); return; }
+    } catch (err) { alert('Erro: ' + err.message); return; }
+
+    btnDelta.disabled = btnFull.disabled = true;
+    btnDelta.classList.add('opacity-50');
+    btnFull.classList.add('opacity-50');
+    document.getElementById('btn-sync-stop').classList.remove('hidden');
+    updateBadge(true);
+
+    if (eventSource) eventSource.close();
+    eventSource = new EventSource('/api/sync/stream');
+
+    eventSource.onmessage = (e) => {
+        if (e.data === '[DONE]') {
+            eventSource.close();
+            eventSource = null;
+            btnDelta.disabled = btnFull.disabled = false;
+            btnDelta.classList.remove('opacity-50');
+            btnFull.classList.remove('opacity-50');
+            document.getElementById('btn-sync-stop').classList.add('hidden');
+            updateBadge(false);
+            loadSyncState();
+            return;
+        }
+        appendLog(e.data);
+    };
+
+    eventSource.onerror = () => {
+        eventSource.close();
+        eventSource = null;
+        btnDelta.disabled = btnFull.disabled = false;
+        btnDelta.classList.remove('opacity-50');
+        btnFull.classList.remove('opacity-50');
+        document.getElementById('btn-sync-stop').classList.add('hidden');
+        updateBadge(false);
+    };
+}
+
+function appendLog(text) {
+    const el = document.getElementById('sync-log');
+    // Color code log lines
+    let colored = text;
+    if (text.includes('INFO')) colored = `<span class="text-gray-300">${esc(text)}</span>`;
+    else if (text.includes('WARNING')) colored = `<span class="text-yellow-400">${esc(text)}</span>`;
+    else if (text.includes('ERROR') || text.includes('[ERRO]')) colored = `<span class="text-red-400">${esc(text)}</span>`;
+    else if (text.includes('[INÍCIO]') || text.includes('[FIM]')) colored = `<span class="text-indigo-400 font-semibold">${esc(text)}</span>`;
+    else colored = esc(text);
+
+    el.innerHTML += colored + '\n';
+    el.scrollTop = el.scrollHeight;
+}
+
+function clearLog() {
+    document.getElementById('sync-log').innerHTML = '';
+}
+
+function updateBadge(running) {
+    const badge = document.getElementById('sync-status-badge');
+    if (running) {
+        badge.textContent = 'Sincronizando...';
+        badge.className = 'text-xs px-3 py-1 rounded-full bg-indigo-900/50 text-indigo-300 animate-pulse';
+    } else {
+        badge.textContent = 'Idle';
+        badge.className = 'text-xs px-3 py-1 rounded-full bg-gray-800 text-gray-400';
+    }
+}
+
+async function stopSync() {
+    if (!confirm('Interromper a sincronização?')) return;
+    try {
+        await fetch('/api/sync/stop', { method: 'POST' });
+    } catch (err) { console.error(err); }
+}
+
+// Poll sync status on load
+fetch('/api/sync/status').then(r => r.json()).then(d => {
+    updateBadge(d.running);
+    if (d.running) document.getElementById('btn-sync-stop').classList.remove('hidden');
+});
+
+// ---------------------------------------------------------------------------
+// Update CRM
+// ---------------------------------------------------------------------------
+let updateEventSource = null;
+
+const updateBtns = () => [
+    document.getElementById('btn-dryrun'),
+    document.getElementById('btn-test'),
+    document.getElementById('btn-execute'),
+];
+
+function setUpdateBtnsDisabled(disabled) {
+    updateBtns().forEach(b => {
+        b.disabled = disabled;
+        b.classList.toggle('opacity-50', disabled);
+        b.classList.toggle('cursor-not-allowed', disabled);
+    });
+    document.getElementById('btn-update-stop').classList.toggle('hidden', !disabled);
+}
+
+function updateUpdateBadge(running) {
+    const badge = document.getElementById('sync-status-badge');
+    if (running) {
+        badge.textContent = 'Atualizando CRM...';
+        badge.className = 'text-xs px-3 py-1 rounded-full bg-amber-900/50 text-amber-300 animate-pulse';
+    } else if (!_syncRunning) {
+        badge.textContent = 'Idle';
+        badge.className = 'text-xs px-3 py-1 rounded-full bg-gray-800 text-gray-400';
+    }
+}
+
+let _syncRunning = false;
+const origUpdateBadge = updateBadge;
+function updateBadge(running) {
+    _syncRunning = running;
+    origUpdateBadge(running);
+}
+
+async function startUpdate(mode) {
+    setUpdateBtnsDisabled(true);
+    updateUpdateBadge(true);
+
+    const body = {};
+    if (mode === 'execute') {
+        const lim = document.getElementById('update-limit').value;
+        if (lim) body.limit = parseInt(lim);
+    }
+
+    try {
+        const res = await fetch(`/api/update/${mode}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (data.error) {
+            alert(data.error);
+            setUpdateBtnsDisabled(false);
+            updateUpdateBadge(false);
+            return;
+        }
+    } catch (err) {
+        alert('Erro: ' + err.message);
+        setUpdateBtnsDisabled(false);
+        updateUpdateBadge(false);
+        return;
+    }
+
+    if (updateEventSource) updateEventSource.close();
+    updateEventSource = new EventSource('/api/update/stream');
+
+    updateEventSource.onmessage = (e) => {
+        if (e.data === '[DONE]') {
+            updateEventSource.close();
+            updateEventSource = null;
+            setUpdateBtnsDisabled(false);
+            updateUpdateBadge(false);
+            if (mode === 'dry-run') loadPreview();
+            return;
+        }
+        appendUpdateLog(e.data);
+    };
+
+    updateEventSource.onerror = () => {
+        updateEventSource.close();
+        updateEventSource = null;
+        setUpdateBtnsDisabled(false);
+        updateUpdateBadge(false);
+    };
+}
+
+function confirmExecute() {
+    const lim = document.getElementById('update-limit').value;
+    const msg = lim
+        ? `Executar atualização nos primeiros ${lim} registros?\n\nIsso vai alterar dados no CRM em PRODUÇÃO.`
+        : 'Executar atualização em TODOS os registros?\n\nIsso vai alterar dados no CRM em PRODUÇÃO.';
+    if (confirm(msg)) startUpdate('execute');
+}
+
+function appendUpdateLog(text) {
+    const el = document.getElementById('update-log');
+    let colored = text;
+    if (text.includes('CONFIRMADO') || text.includes('SUCESSO') || text.includes('[FIM]'))
+        colored = `<span class="text-emerald-400 font-semibold">${esc(text)}</span>`;
+    else if (text.includes('INFO'))
+        colored = `<span class="text-gray-300">${esc(text)}</span>`;
+    else if (text.includes('WARNING'))
+        colored = `<span class="text-yellow-400">${esc(text)}</span>`;
+    else if (text.includes('ERROR') || text.includes('FALHOU') || text.includes('[ERRO]'))
+        colored = `<span class="text-red-400">${esc(text)}</span>`;
+    else if (text.includes('[INÍCIO]'))
+        colored = `<span class="text-amber-400 font-semibold">${esc(text)}</span>`;
+    else if (text.startsWith('='))
+        colored = `<span class="text-indigo-400">${esc(text)}</span>`;
+    else colored = esc(text);
+
+    el.innerHTML += colored + '\n';
+    el.scrollTop = el.scrollHeight;
+}
+
+function clearUpdateLog() {
+    document.getElementById('update-log').innerHTML = '';
+}
+
+async function loadPreview() {
+    try {
+        const res = await fetch('/api/update/preview');
+        const data = await res.json();
+        if (data.error) return;
+        if (!data.rows || !data.rows.length) return;
+
+        const section = document.getElementById('update-preview-section');
+        section.classList.remove('hidden');
+        document.getElementById('preview-count').textContent = `(${data.rows.length} registros)`;
+
+        const tbody = document.getElementById('preview-tbody');
+        tbody.innerHTML = data.rows.map(r => {
+            const matchColor = {
+                'RGM': 'text-emerald-400',
+                'CPF': 'text-blue-400',
+                'TELEFONE': 'text-amber-400',
+                'NOME': 'text-purple-400'
+            }[r.match_tipo] || 'text-gray-400';
+
+            return `<tr class="border-b border-gray-800/50 hover:bg-gray-800/30">
+                <td class="px-3 py-1.5 ${matchColor} font-medium">${esc(r.match_tipo || '')}</td>
+                <td class="px-3 py-1.5 text-gray-400 font-mono">${esc(r.rgm || '')}</td>
+                <td class="px-3 py-1.5 text-gray-200">${esc(r.nome || '')}</td>
+                <td class="px-3 py-1.5 text-gray-500 font-mono text-[10px]">${esc((r.lead_id || '').substring(0,8))}...</td>
+                <td class="px-3 py-1.5 text-cyan-400">${esc(r.lead_mudancas || '—')}</td>
+                <td class="px-3 py-1.5 text-amber-300 max-w-xs truncate" title="${esc(r.biz_mudancas || '')}">${esc(r.biz_mudancas || '—')}</td>
+            </tr>`;
+        }).join('');
+    } catch (err) {
+        console.error('Preview load error:', err);
+    }
+}
+
+async function stopUpdate() {
+    if (!confirm('Interromper a atualização do CRM?')) return;
+    try {
+        await fetch('/api/update/stop', { method: 'POST' });
+    } catch (err) { console.error(err); }
+}
+
+// Check update status on load
+fetch('/api/update/status').then(r => r.json()).then(d => {
+    if (d.running) {
+        updateUpdateBadge(true);
+        setUpdateBtnsDisabled(true);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// Upload
+// ---------------------------------------------------------------------------
+function handleDrop(e) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('border-indigo-500', 'bg-indigo-950/10');
+    const file = e.dataTransfer.files[0];
+    if (file) handleUpload(file);
+}
+
+async function handleUpload(file) {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.xlsx')) {
+        alert('Apenas arquivos .xlsx são aceitos.');
+        return;
+    }
+
+    const progress = document.getElementById('upload-progress');
+    const bar = document.getElementById('upload-bar');
+    const status = document.getElementById('upload-status');
+    progress.classList.remove('hidden');
+    bar.style.width = '30%';
+    status.textContent = `Enviando ${file.name}...`;
+
+    const form = new FormData();
+    form.append('file', file);
+
+    try {
+        bar.style.width = '60%';
+        const res = await fetch('/api/upload', { method: 'POST', body: form });
+        const data = await res.json();
+        bar.style.width = '100%';
+
+        if (data.error) {
+            status.textContent = data.error;
+            status.classList.add('text-red-400');
+            setTimeout(() => {
+                progress.classList.add('hidden');
+                status.classList.remove('text-red-400');
+            }, 3000);
+            return;
+        }
+
+        status.textContent = 'Upload concluído!';
+        status.classList.add('text-emerald-400');
+        renderFileInfo(data.file);
+
+        setTimeout(() => {
+            progress.classList.add('hidden');
+            bar.style.width = '0%';
+            status.classList.remove('text-emerald-400');
+            status.textContent = 'Enviando...';
+        }, 2000);
+    } catch (err) {
+        bar.style.width = '100%';
+        bar.classList.replace('bg-indigo-500', 'bg-red-500');
+        status.textContent = 'Erro: ' + err.message;
+        status.classList.add('text-red-400');
+        setTimeout(() => {
+            progress.classList.add('hidden');
+            bar.classList.replace('bg-red-500', 'bg-indigo-500');
+            bar.style.width = '0%';
+            status.classList.remove('text-red-400');
+        }, 3000);
+    }
+
+    document.getElementById('file-input').value = '';
+}
+
+function renderFileInfo(info) {
+    const div = document.getElementById('file-info');
+    if (!info) {
+        div.innerHTML = '<span class="text-yellow-400">Nenhum arquivo carregado.</span><br><span class="text-xs text-gray-600">Faça upload de uma planilha .xlsx com "matriculados" no nome.</span>';
+        return;
+    }
+    const size = (info.size / 1024 / 1024).toFixed(1);
+    const date = info.modified ? fmtDate(info.modified) : '—';
+    div.innerHTML = `
+        <div class="flex items-center gap-3 mb-2">
+            <svg class="w-8 h-8 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <div>
+                <p class="text-gray-200 font-medium text-sm">${esc(info.name)}</p>
+                <p class="text-gray-500 text-xs">${size} MB &middot; ${date}</p>
+            </div>
+        </div>
+    `;
+}
+
+function loadFileInfo() {
+    fetch('/api/upload/info').then(r => r.json()).then(d => renderFileInfo(d.file));
+}
+
+loadFileInfo();
+{% endraw %}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.pyc
+*.xlsx
+logs/
+reports/
+_*.py
+_*.txt
+*.egg-info/
+.venv/
+venv/
