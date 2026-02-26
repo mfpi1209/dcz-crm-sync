@@ -515,8 +515,13 @@ def load_crm_data(conn):
 # Preparação das atualizações
 # ---------------------------------------------------------------------------
 
+_debug_diff = False
+_diff_details = []
+
 def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_name, leads_by_id, biz_by_lead):
     """Retorna lista de dicts com as atualizações necessárias."""
+    global _debug_diff, _diff_details
+    _debug_diff = True
     updates = []
 
     for r in xl_rows:
@@ -640,6 +645,8 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
                 new_clean = str(new_val).strip()
                 if new_clean != current:
                     fields_to_update[fid] = new_clean
+                    if _debug_diff:
+                        _diff_details.append(f"  {field_name}: '{current}' → '{new_clean}'")
 
             if fields_to_update:
                 biz_updates.append({
@@ -655,7 +662,18 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
                 "lead_id": matched_lead_id,
                 "lead_updates": lead_updates,
                 "biz_updates": biz_updates,
+                "_diff": list(_diff_details),
             })
+            _diff_details.clear()
+
+            if len(updates) <= 5:
+                log.info("  DIFF %s (RGM %s):", xl_data["nome"], rgm)
+                for d in updates[-1]["_diff"]:
+                    log.info("    %s", d)
+                if lead_updates:
+                    log.info("    lead: %s", lead_updates)
+        else:
+            _diff_details.clear()
 
     return updates
 
@@ -747,9 +765,18 @@ def execute_updates(api, updates, limit=None):
         for i, upd in enumerate(updates, 1):
             n_fields = sum(len(b["fields"]) for b in upd["biz_updates"])
             lead_tag = "lead+" if upd["lead_updates"] else ""
-            log.info("[%d/%d] %s | RGM %s | %s%d campos | %s",
+            biz_field_names = ", ".join(
+                field_id_to_name(fid)
+                for b in upd["biz_updates"]
+                for fid in b["fields"]
+            )
+            detail = biz_field_names if biz_field_names else ""
+            if upd["lead_updates"]:
+                lead_keys = ",".join(upd["lead_updates"].keys())
+                detail = f"lead({lead_keys})+{detail}" if detail else f"lead({lead_keys})"
+            log.info("[%d/%d] %s | RGM %s | %s | %s",
                      i, len(updates), upd["xl_nome"],
-                     upd["xl_rgm"] or "—", lead_tag, n_fields,
+                     upd["xl_rgm"] or "—", detail,
                      upd["match_type"])
 
             if upd["lead_updates"] and upd["lead_id"]:
