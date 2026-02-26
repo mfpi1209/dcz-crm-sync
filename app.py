@@ -323,7 +323,7 @@ def api_sync(mode):
 
             if proc.returncode == 0:
                 _add_sync_log("[FIM] Sincronização concluída com sucesso")
-            elif proc.returncode < 0 or proc.returncode == 1:
+            elif proc.returncode < 0:
                 _add_sync_log("[PARADO] Sincronização interrompida.")
             else:
                 _add_sync_log(f"[ERRO] Sincronização falhou (exit code {proc.returncode})")
@@ -429,7 +429,7 @@ def api_update(mode):
 
             if proc.returncode == 0:
                 _add_update_log("[FIM] Concluído com sucesso (exit code 0)")
-            elif proc.returncode < 0 or proc.returncode == 1:
+            elif proc.returncode < 0:
                 _add_update_log("[PARADO] Processo interrompido pelo usuário.")
             else:
                 _add_update_log(f"[ERRO] Falhou (exit code {proc.returncode})")
