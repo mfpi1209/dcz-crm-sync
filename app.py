@@ -16,6 +16,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from functools import wraps
 from flask import Flask, render_template, request, jsonify, Response, stream_with_context
 import psycopg2
 import psycopg2.extras
@@ -24,6 +25,48 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env")
 
 app = Flask(__name__)
+
+# ---------------------------------------------------------------------------
+# Autenticação HTTP Basic
+# ---------------------------------------------------------------------------
+
+APP_USER = os.getenv("APP_USER", "admin")
+APP_PASS = os.getenv("APP_PASS", "")
+
+
+def check_auth(username, password):
+    return username == APP_USER and password == APP_PASS
+
+
+def auth_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not APP_PASS:
+            return f(*args, **kwargs)
+        auth = request.authorization
+        if not auth or not check_auth(auth.username, auth.password):
+            return Response(
+                "Acesso negado. Informe usuário e senha.",
+                401,
+                {"WWW-Authenticate": 'Basic realm="DCz CRM Sync"'},
+            )
+        return f(*args, **kwargs)
+    return decorated
+
+
+@app.before_request
+def require_auth():
+    if not APP_PASS:
+        return
+    if request.path.startswith("/static"):
+        return
+    auth = request.authorization
+    if not auth or not check_auth(auth.username, auth.password):
+        return Response(
+            "Acesso negado. Informe usuário e senha.",
+            401,
+            {"WWW-Authenticate": 'Basic realm="DCz CRM Sync"'},
+        )
 
 DB_DSN = dict(
     host=os.getenv("DB_HOST", "localhost"),
