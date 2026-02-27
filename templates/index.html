@@ -25,10 +25,11 @@
         .card-stat { transition: transform 0.15s; }
         .card-stat:hover { transform: translateY(-2px); }
 
+        #sidebar-overlay { display: none; }
+
         @media (max-width: 768px) {
             #sidebar { transform: translateX(-100%); position: fixed; z-index: 40; height: 100vh; }
             #sidebar.open { transform: translateX(0); }
-            #sidebar-overlay { display: none; }
             #sidebar-overlay.open { display: block; }
         }
     </style>
