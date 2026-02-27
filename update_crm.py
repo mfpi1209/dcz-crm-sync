@@ -512,10 +512,13 @@ def load_excel():
     raw_col = {h: i for i, h in enumerate(raw_header) if h}
 
     col = {}
+    missing = []
     for norm, aliases in COLUMN_ALIASES.items():
         found = _col_find(raw_col, *aliases)
         if found in raw_col:
             col[norm] = raw_col[found]
+        else:
+            missing.append(norm)
 
     rows = []
     for row in ws.iter_rows(min_row=2, values_only=True):
@@ -523,7 +526,10 @@ def load_excel():
             continue
         rows.append(row)
     wb.close()
-    log.info("  %d registros, %d colunas", len(rows), len(col))
+    log.info("  %d registros, %d colunas mapeadas", len(rows), len(col))
+    log.info("  Colunas encontradas: %s", ", ".join(sorted(col.keys())))
+    if missing:
+        log.warning("  Colunas NÃO encontradas na planilha: %s", ", ".join(sorted(missing)))
     return rows, col
 
 
