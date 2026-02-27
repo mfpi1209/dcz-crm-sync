@@ -13,7 +13,9 @@ import subprocess
 import threading
 import time
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+
+BRT = timezone(timedelta(hours=-3))
 from pathlib import Path
 from collections import deque
 
@@ -26,6 +28,18 @@ import psycopg2.extras
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent / ".env")
+
+
+def to_brt(dt):
+    """Convert a datetime to BRT (UTC-3) string."""
+    if dt is None:
+        return None
+    if isinstance(dt, datetime):
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(BRT).strftime("%d/%m/%Y %H:%M:%S")
+    return str(dt)
+
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dcz-sync-default-key-change-me")
@@ -237,7 +251,7 @@ def api_dashboard():
                 row = dict(r)
                 for k, v in row.items():
                     if isinstance(v, datetime):
-                        row[k] = v.isoformat()
+                        row[k] = to_brt(v)
                 states.append(row)
 
             cur.execute(RECENT_BIZ_UPDATES_QUERY)
@@ -246,7 +260,7 @@ def api_dashboard():
                 row = dict(r)
                 for k, v in row.items():
                     if isinstance(v, datetime):
-                        row[k] = v.isoformat()
+                        row[k] = to_brt(v)
                 recent.append(row)
 
             cur.execute("SELECT COUNT(*) AS total FROM pipelines")
@@ -259,7 +273,7 @@ def api_dashboard():
                 for s in schedules:
                     for k, v in s.items():
                         if isinstance(v, datetime):
-                            s[k] = v.isoformat()
+                            s[k] = to_brt(v)
             except Exception:
                 schedules = []
 
@@ -302,7 +316,7 @@ def api_search():
                 row = dict(r)
                 for k, v in row.items():
                     if isinstance(v, datetime):
-                        row[k] = v.isoformat()
+                        row[k] = to_brt(v)
                 results.append(row)
         return jsonify({"results": results})
     except Exception as e:
@@ -322,7 +336,7 @@ def api_sync_state():
                 row = dict(r)
                 for k, v in row.items():
                     if isinstance(v, datetime):
-                        row[k] = v.isoformat()
+                        row[k] = to_brt(v)
                 states.append(row)
 
             cur.execute(RECENT_BIZ_UPDATES_QUERY)
@@ -331,7 +345,7 @@ def api_sync_state():
                 row = dict(r)
                 for k, v in row.items():
                     if isinstance(v, datetime):
-                        row[k] = v.isoformat()
+                        row[k] = to_brt(v)
                 recent.append(row)
 
         return jsonify({"states": states, "recent_updates": recent})
@@ -556,7 +570,7 @@ def _find_xlsx():
             return {
                 "name": f.name,
                 "size": stat.st_size,
-                "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                "modified": to_brt(datetime.fromtimestamp(stat.st_mtime, tz=BRT)),
             }
     return None
 
@@ -595,7 +609,7 @@ def api_upload():
         "file": {
             "name": dest.name,
             "size": stat.st_size,
-            "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            "modified": to_brt(datetime.fromtimestamp(stat.st_mtime, tz=BRT)),
         },
     })
 
@@ -620,7 +634,7 @@ def _list_log_files():
                     "dir": d.name,
                     "path": f"{d.name}/{f.name}",
                     "size": stat.st_size,
-                    "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                    "modified": to_brt(datetime.fromtimestamp(stat.st_mtime, tz=BRT)),
                 })
     files.sort(key=lambda x: x["modified"], reverse=True)
     return files
@@ -696,14 +710,14 @@ def api_schedules_list():
                 row = dict(r)
                 for k, v in row.items():
                     if isinstance(v, datetime):
-                        row[k] = v.isoformat()
+                        row[k] = to_brt(v)
                 rows.append(row)
 
         # Add next run info from scheduler
         for row in rows:
             job = scheduler.get_job(row["id"])
             if job and job.next_run_time:
-                row["next_run"] = job.next_run_time.isoformat()
+                row["next_run"] = to_brt(job.next_run_time)
             else:
                 row["next_run"] = None
 

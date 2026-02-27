@@ -18,7 +18,9 @@ import json
 import time
 import logging
 import unicodedata
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+
+BRT = timezone(timedelta(hours=-3))
 from pathlib import Path
 from collections import Counter
 
@@ -70,11 +72,15 @@ API_RATE_LIMIT = 240            # requests/min allowed by the API
 DEFAULT_TARGET_RATE = 120       # requests/min default target (50% margin)
 CRITICAL_REMAINING = 20        # below this → pause until window resets
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s  %(levelname)-7s  %(message)s",
-    datefmt="%H:%M:%S",
-)
+class _BRTFormatter(logging.Formatter):
+    def formatTime(self, record, datefmt=None):
+        dt = datetime.fromtimestamp(record.created, tz=BRT)
+        return dt.strftime(datefmt or "%H:%M:%S")
+
+logging.basicConfig(level=logging.INFO)
+_handler = logging.StreamHandler()
+_handler.setFormatter(_BRTFormatter("%(asctime)s  %(levelname)-7s  %(message)s", datefmt="%H:%M:%S"))
+logging.root.handlers = [_handler]
 log = logging.getLogger("update_crm")
 
 # ---------------------------------------------------------------------------
@@ -866,7 +872,7 @@ def test_one_update(api, updates):
 def execute_updates(api, updates, limit=None):
     """Executa as atualizações — PUT campo a campo para negócios."""
     LOG_DIR.mkdir(exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(BRT).strftime("%Y%m%d_%H%M%S")
     log_file = LOG_DIR / f"update_{ts}.csv"
 
     conn = get_conn()
@@ -907,7 +913,7 @@ def execute_updates(api, updates, limit=None):
                 result = api.patch(f"/leads/{upd['lead_id']}", payload)
                 status = "OK" if result["ok"] else "ERRO"
                 w.writerow([
-                    datetime.now().isoformat(), "LEAD", upd["match_type"],
+                    datetime.now(BRT).strftime("%d/%m/%Y %H:%M:%S"), "LEAD", upd["match_type"],
                     upd["xl_nome"], upd["xl_rgm"], upd["lead_id"],
                     ",".join(payload.keys()), "", result["status"], status,
                 ])
@@ -927,7 +933,7 @@ def execute_updates(api, updates, limit=None):
                     result = api.put_biz_field(biz["biz_id"], fid, val)
                     status = "OK" if result["ok"] else "ERRO"
                     w.writerow([
-                        datetime.now().isoformat(), "BIZ_FIELD", upd["match_type"],
+                        datetime.now(BRT).strftime("%d/%m/%Y %H:%M:%S"), "BIZ_FIELD", upd["match_type"],
                         upd["xl_nome"], upd["xl_rgm"], biz["biz_id"],
                         fname, val, result["status"], status,
                     ])

@@ -20,7 +20,9 @@ import csv
 import json
 import time
 import logging
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+BRT = timezone(timedelta(hours=-3))
 from pathlib import Path
 from collections import defaultdict
 
@@ -56,11 +58,15 @@ FIELD_RGM = "2ac4e30f-cfd7-435f-b688-fbce27f76c38"
 MIN_REQUEST_DELAY = 1.05
 RATE_LIMIT_BUFFER = 5
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s  %(levelname)-7s  %(message)s",
-    datefmt="%H:%M:%S",
-)
+class _BRTFormatter(logging.Formatter):
+    def formatTime(self, record, datefmt=None):
+        dt = datetime.fromtimestamp(record.created, tz=BRT)
+        return dt.strftime(datefmt or "%H:%M:%S")
+
+logging.basicConfig(level=logging.INFO)
+_handler = logging.StreamHandler()
+_handler.setFormatter(_BRTFormatter("%(asctime)s  %(levelname)-7s  %(message)s", datefmt="%H:%M:%S"))
+logging.root.handlers = [_handler]
 log = logging.getLogger("repair_crm")
 
 
@@ -302,7 +308,7 @@ def find_damaged_businesses(conn, rgm_to_cpfs, rgm_to_nome):
 
 def generate_reports(damaged):
     REPORTS_DIR.mkdir(exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(BRT).strftime("%Y%m%d_%H%M%S")
 
     # Report 1: Businesses to repair
     biz_report = REPORTS_DIR / f"repair_businesses_{ts}.csv"
@@ -346,7 +352,7 @@ def generate_reports(damaged):
 
 def execute_repair(api, damaged, conn):
     LOG_DIR.mkdir(exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(BRT).strftime("%Y%m%d_%H%M%S")
     log_file = LOG_DIR / f"repair_{ts}.csv"
 
     ok_count = 0
@@ -366,7 +372,7 @@ def execute_repair(api, damaged, conn):
             status = "OK" if result["ok"] else "ERRO"
 
             w.writerow([
-                datetime.now().isoformat(), d["biz_id"], d["biz_code"],
+                datetime.now(BRT).strftime("%d/%m/%Y %H:%M:%S"), d["biz_id"], d["biz_code"],
                 d["rgm"], d["lead_id"], d["lead_nome"],
                 result["status"], status,
             ])
