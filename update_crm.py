@@ -65,8 +65,10 @@ FIELD_IDS = {
     "Turma":            "8815a8de-f755-4597-b6f4-8da6d289b6eb",
 }
 
-RATE_LIMIT_BUFFER = 5
-MIN_REQUEST_DELAY = 1.05
+API_RATE_LIMIT = 240            # requests/min allowed by the API
+TARGET_RATE    = 120            # requests/min we aim for (50% margin)
+BASE_DELAY     = 60.0 / TARGET_RATE   # ~0.5s between requests
+CRITICAL_REMAINING = 20        # below this → pause until window resets
 
 logging.basicConfig(
     level=logging.INFO,
@@ -84,19 +86,54 @@ class ApiClient:
         self.s = requests.Session()
         self.s.headers["Authorization"] = f"Bearer {API_TOKEN}"
         self.s.headers["Content-Type"] = "application/json"
-        self._remaining = 60
+        self._remaining = API_RATE_LIMIT
         self._reset = 0
         self._last_req = 0.0
         self.total_calls = 0
+        self._window_start = time.monotonic()
+        self._window_calls = 0
 
     def _throttle(self):
-        elapsed = time.monotonic() - self._last_req
-        if elapsed < MIN_REQUEST_DELAY:
-            time.sleep(MIN_REQUEST_DELAY - elapsed)
-        if self._remaining <= RATE_LIMIT_BUFFER and self._reset > 0:
+        now = time.monotonic()
+
+        # Reset local window counter every 60s
+        if now - self._window_start >= 60:
+            self._window_start = now
+            self._window_calls = 0
+
+        # Critical: API says almost nothing left → full pause
+        if self._remaining <= CRITICAL_REMAINING and self._reset > 0:
             wait = self._reset + 1
-            log.warning("Rate-limit próximo (%d restantes) — pausando %ds", self._remaining, wait)
+            log.warning("Rate-limit crítico (%d restantes) — pausando %ds",
+                        self._remaining, wait)
             time.sleep(wait)
+            self._window_start = time.monotonic()
+            self._window_calls = 0
+            return
+
+        # Adaptive delay based on remaining quota
+        ratio = self._remaining / API_RATE_LIMIT  # 1.0=full, 0.0=empty
+        if ratio > 0.5:
+            delay = BASE_DELAY                     # 0.5s — comfortable
+        elif ratio > 0.25:
+            delay = BASE_DELAY * 1.5               # 0.75s — easing off
+        else:
+            delay = BASE_DELAY * 3.0               # 1.5s — conservative
+
+        # Also enforce our own 120/min cap
+        if self._window_calls >= TARGET_RATE:
+            remaining_window = 60 - (now - self._window_start)
+            if remaining_window > 0:
+                log.info("Limite interno atingido (%d calls) — pausando %.1fs",
+                         self._window_calls, remaining_window)
+                time.sleep(remaining_window + 0.5)
+                self._window_start = time.monotonic()
+                self._window_calls = 0
+                return
+
+        elapsed = now - self._last_req
+        if elapsed < delay:
+            time.sleep(delay - elapsed)
 
     def _read_headers(self, r):
         self._remaining = int(r.headers.get("X-RateLimit-Remaining", self._remaining))
@@ -107,6 +144,7 @@ class ApiClient:
             self._throttle()
             self._last_req = time.monotonic()
             self.total_calls += 1
+            self._window_calls += 1
 
             r = self.s.request(method, url, json=payload, timeout=30)
 
