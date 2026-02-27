@@ -523,8 +523,58 @@ def load_crm_data(conn):
 _debug_diff = False
 _diff_details = []
 
+def _find_lead(cpf, phone, nome, email, crm_by_cpf, crm_by_phone, crm_by_name, leads_by_id):
+    """Stage 1: Find the lead by CPF → Phone → Email → Name.
+    Returns (lead_match_type, lead_id) or (None, None).
+    For weak matches (phone/name), cross-checks CPF if available."""
+    if cpf and cpf in crm_by_cpf:
+        return "CPF", crm_by_cpf[cpf][0]["id"]
+
+    if phone and phone in crm_by_phone:
+        candidate = crm_by_phone[phone][0]
+        cand_cpf = clean_cpf(candidate.get("cpf", ""))
+        if cpf and cand_cpf and cpf != cand_cpf:
+            pass
+        else:
+            return "TELEFONE", candidate["id"]
+
+    if nome and nome in crm_by_name:
+        candidate = crm_by_name[nome][0]
+        cand_cpf = clean_cpf(candidate.get("cpf", ""))
+        if cpf and cand_cpf and cpf != cand_cpf:
+            pass
+        else:
+            return "NOME", candidate["id"]
+
+    return None, None
+
+
+def _find_biz_for_rgm(rgm, biz_list):
+    """Stage 2: Within a lead's businesses, find the one with this RGM.
+    Returns the matching business dict, or None."""
+    if not rgm:
+        return None
+    for biz in biz_list:
+        biz_rgm = get_biz_field(biz["data"], FIELD_IDS["RGM"])
+        if biz_rgm and biz_rgm.strip() == rgm:
+            return biz
+    return None
+
+
+def _find_empty_biz(biz_list):
+    """Find a business with no RGM (candidate for RGM assignment)."""
+    for biz in biz_list:
+        biz_rgm = get_biz_field(biz["data"], FIELD_IDS["RGM"])
+        if not biz_rgm or not biz_rgm.strip():
+            return biz
+    return None
+
+
 def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_name, leads_by_id, biz_by_lead):
-    """Retorna lista de dicts com as atualizações necessárias."""
+    """Two-stage matching:
+    Stage 1 — Find the LEAD (CPF → Phone → Email → Name)
+    Stage 2 — Find the BUSINESS within that lead (by RGM)
+    Falls back to direct RGM lookup if lead match fails."""
     global _debug_diff, _diff_details
     _debug_diff = True
     updates = []
@@ -534,6 +584,7 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
         cpf = clean_cpf(r[col["CPF"]])
         phone = clean_phone(str(r[col["FoneCelular"]] or ""))
         nome = normalize_name(r[col["Nome"]] or "")
+        email = (r[col["Email"]] or "").strip().lower() if "Email" in col else ""
 
         serie_raw = r[col["Serie"]] if "Serie" in col else None
         try:
@@ -561,48 +612,57 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
             "bairro": title_case(r[col["Bairro"]] or ""),
             "cidade": title_case(r[col["Cidade"]] or ""),
             "sexo": normalize_sexo(r[col["Sexo"]] or ""),
-            "email": (r[col["Email"]] or "").strip().lower(),
+            "email": email,
             "email_acad": (r[col.get("EmailAcademico", -1)] or "").strip().lower() if "EmailAcademico" in col else "",
             "empresa": title_case(r[col["Empresa"]] or "") if "Empresa" in col else "",
             "phone_raw": str(r[col["FoneCelular"]] or ""),
             "data_matricula": dm_str,
         }
 
-        # Cascata de match
+        # ── Stage 1: Find the LEAD ──
+        lead_match, matched_lead_id = _find_lead(
+            cpf, phone, nome, email,
+            crm_by_cpf, crm_by_phone, crm_by_name, leads_by_id,
+        )
+
         match_type = None
-        matched_lead_id = None
-        matched_biz_list = []
+        target_biz = None
 
-        if rgm and rgm in crm_by_rgm:
-            match_type = "RGM"
-            matched_biz_list = crm_by_rgm[rgm]
-            if matched_biz_list:
-                lid = matched_biz_list[0]["data"].get("leadId", "")
-                matched_lead_id = lid
-        elif cpf and cpf in crm_by_cpf:
-            match_type = "CPF"
-            matched_lead_id = crm_by_cpf[cpf][0]["id"]
-            matched_biz_list = biz_by_lead.get(matched_lead_id, [])
-        elif phone and phone in crm_by_phone:
-            match_type = "TELEFONE"
-            matched_lead_id = crm_by_phone[phone][0]["id"]
-            matched_biz_list = biz_by_lead.get(matched_lead_id, [])
-        elif nome and nome in crm_by_name:
-            match_type = "NOME"
-            matched_lead_id = crm_by_name[nome][0]["id"]
-            matched_biz_list = biz_by_lead.get(matched_lead_id, [])
+        if matched_lead_id:
+            lead_bizs = biz_by_lead.get(matched_lead_id, [])
 
-        if not match_type:
-            continue
+            # ── Stage 2: Find the BUSINESS by RGM within this lead ──
+            target_biz = _find_biz_for_rgm(rgm, lead_bizs)
 
-        # Safeguard: para matches fracos (telefone/nome), verificar CPF
-        if match_type in ("TELEFONE", "NOME") and matched_lead_id and matched_lead_id in leads_by_id:
-            lead = leads_by_id[matched_lead_id]
-            lead_cpf = clean_cpf(lead["cpf"])
-            if cpf and lead_cpf and cpf != lead_cpf:
+            if target_biz:
+                match_type = f"{lead_match}+RGM"
+            else:
+                # Lead found but no business with this RGM — assign to empty biz
+                target_biz = _find_empty_biz(lead_bizs)
+                if target_biz:
+                    match_type = f"{lead_match}+ASSIGN"
+                elif lead_bizs:
+                    # Lead has businesses but none match — skip to avoid contamination
+                    continue
+                else:
+                    continue
+        else:
+            # Fallback: direct RGM lookup (business already has the RGM)
+            if rgm and rgm in crm_by_rgm:
+                biz_matches = crm_by_rgm[rgm]
+                if len(biz_matches) == 1:
+                    target_biz = biz_matches[0]
+                    matched_lead_id = target_biz["data"].get("leadId", "")
+                    match_type = "RGM_DIRETO"
+                else:
+                    continue
+            else:
                 continue
 
-        # Preparar atualização do lead (nunca renomeia; só preenche campos vazios)
+        if not target_biz or not match_type:
+            continue
+
+        # ── Prepare lead updates (never rename, only fill empty fields) ──
         lead_updates = {}
         if matched_lead_id and matched_lead_id in leads_by_id:
             lead = leads_by_id[matched_lead_id]
@@ -626,42 +686,41 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
             if xl_data["empresa"] and not crm_company:
                 lead_updates["company"] = xl_data["empresa"]
 
-        # Preparar atualização dos custom fields do negócio
+        # ── Prepare business field updates (single target business) ──
         biz_updates = []
-        for biz in matched_biz_list:
-            fields_to_update = {}
-            mapping = {
-                "Curso": xl_data["curso"],
-                "Polo": xl_data["polo"],
-                "Serie": xl_data["serie"],
-                "Situacao": xl_data["situacao"],
-                "Bairro": xl_data["bairro"],
-                "Cidade": xl_data["cidade"],
-                "Sexo": xl_data["sexo"],
-                "DataMatricula": xl_data["data_matricula"],
-                "TipoAluno": xl_data["tipo"],
-            }
-            if rgm and match_type == "RGM":
-                mapping["RGM"] = rgm
+        fields_to_update = {}
+        mapping = {
+            "Curso": xl_data["curso"],
+            "Polo": xl_data["polo"],
+            "Serie": xl_data["serie"],
+            "Situacao": xl_data["situacao"],
+            "Bairro": xl_data["bairro"],
+            "Cidade": xl_data["cidade"],
+            "Sexo": xl_data["sexo"],
+            "DataMatricula": xl_data["data_matricula"],
+            "TipoAluno": xl_data["tipo"],
+        }
+        if rgm:
+            mapping["RGM"] = rgm
 
-            for field_name, new_val in mapping.items():
-                if not new_val:
-                    continue
-                fid = FIELD_IDS.get(field_name, "")
-                if not fid:
-                    continue
-                current = str(get_biz_field(biz["data"], fid) or "").strip()
-                new_clean = str(new_val).strip()
-                if new_clean != current:
-                    fields_to_update[fid] = new_clean
-                    if _debug_diff:
-                        _diff_details.append(f"  {field_name}: '{current}' → '{new_clean}'")
+        for field_name, new_val in mapping.items():
+            if not new_val:
+                continue
+            fid = FIELD_IDS.get(field_name, "")
+            if not fid:
+                continue
+            current = str(get_biz_field(target_biz["data"], fid) or "").strip()
+            new_clean = str(new_val).strip()
+            if new_clean != current:
+                fields_to_update[fid] = new_clean
+                if _debug_diff:
+                    _diff_details.append(f"  {field_name}: '{current}' → '{new_clean}'")
 
-            if fields_to_update:
-                biz_updates.append({
-                    "biz_id": biz["id"],
-                    "fields": fields_to_update,
-                })
+        if fields_to_update:
+            biz_updates.append({
+                "biz_id": target_biz["id"],
+                "fields": fields_to_update,
+            })
 
         if lead_updates or biz_updates:
             updates.append({
