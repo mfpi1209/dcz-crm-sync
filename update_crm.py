@@ -595,13 +595,17 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
         if not match_type:
             continue
 
-        # Preparar atualização do lead
+        # Safeguard: para matches fracos (telefone/nome), verificar CPF
+        if match_type in ("TELEFONE", "NOME") and matched_lead_id and matched_lead_id in leads_by_id:
+            lead = leads_by_id[matched_lead_id]
+            lead_cpf = clean_cpf(lead["cpf"])
+            if cpf and lead_cpf and cpf != lead_cpf:
+                continue
+
+        # Preparar atualização do lead (nunca renomeia; só preenche campos vazios)
         lead_updates = {}
         if matched_lead_id and matched_lead_id in leads_by_id:
             lead = leads_by_id[matched_lead_id]
-            crm_name = (lead["nome"] or "").strip()
-            if xl_data["nome"] and xl_data["nome"] != crm_name:
-                lead_updates["name"] = xl_data["nome"]
             crm_cpf = lead["cpf"].strip() if lead["cpf"] else ""
             if cpf and not crm_cpf:
                 lead_updates["taxId"] = format_cpf(cpf)
@@ -637,7 +641,7 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
                 "DataMatricula": xl_data["data_matricula"],
                 "TipoAluno": xl_data["tipo"],
             }
-            if rgm:
+            if rgm and match_type == "RGM":
                 mapping["RGM"] = rgm
 
             for field_name, new_val in mapping.items():
