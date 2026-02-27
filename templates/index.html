@@ -5,62 +5,192 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DataCrazy CRM Sync</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script>
         tailwind.config = {
             darkMode: 'class',
             theme: {
                 extend: {
-                    colors: { brand: '#6366f1' }
+                    colors: { brand: '#6366f1' },
+                    fontFamily: {
+                        display: ['Sora', 'sans-serif'],
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    borderRadius: { '2xl': '1rem', '3xl': '1.5rem' },
                 }
             }
         }
     </script>
     <style>
-        .log-terminal { font-family: 'Consolas', 'Courier New', monospace; font-size: 0.8rem; }
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3, h4, h5, h6 { font-family: 'Sora', sans-serif; }
+        .log-terminal { font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 0.78rem; line-height: 1.6; }
         .tag-pill { display: inline-block; padding: 2px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
-        .fade-in { animation: fadeIn 0.3s ease-in; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-        .sidebar-link { display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; transition: all 0.15s; cursor: pointer; }
-        .card-stat { transition: transform 0.15s; }
-        .card-stat:hover { transform: translateY(-2px); }
-        .green-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; display: inline-block; box-shadow: 0 0 6px #22c55e; }
+        .fade-in { animation: fadeIn 0.35s cubic-bezier(0.4, 0, 0.2, 1); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+        @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 8px rgba(34,197,94,0.4); } 50% { box-shadow: 0 0 16px rgba(34,197,94,0.7); } }
+
+        .glass-card {
+            backdrop-filter: blur(16px) saturate(1.6);
+            -webkit-backdrop-filter: blur(16px) saturate(1.6);
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(100, 116, 139, 0.15);
+            border-radius: 1rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .glass-card:hover { border-color: rgba(99, 102, 241, 0.3); box-shadow: 0 8px 32px rgba(99, 102, 241, 0.08); }
+
+        .glass-sidebar {
+            backdrop-filter: blur(20px) saturate(1.8);
+            -webkit-backdrop-filter: blur(20px) saturate(1.8);
+            background: rgba(15, 23, 42, 0.85);
+            border-right: 1px solid rgba(100, 116, 139, 0.15);
+        }
+
+        .metric-card {
+            position: relative;
+            overflow: hidden;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            border: 1px solid;
+            backdrop-filter: blur(16px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .metric-card:hover { transform: translateY(-4px) scale(1.02); box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
+        .metric-card::after {
+            content: '';
+            position: absolute;
+            right: -2rem;
+            bottom: -2rem;
+            width: 6rem;
+            height: 6rem;
+            border-radius: 50%;
+            filter: blur(2rem);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .metric-card:hover::after { opacity: 1; }
+        .metric-indigo { background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(139,92,246,0.1)); border-color: rgba(99,102,241,0.25); }
+        .metric-indigo:hover { border-color: rgba(99,102,241,0.5); }
+        .metric-indigo::after { background: rgba(99,102,241,0.3); }
+        .metric-emerald { background: linear-gradient(135deg, rgba(16,185,129,0.15), rgba(6,182,212,0.1)); border-color: rgba(16,185,129,0.25); }
+        .metric-emerald:hover { border-color: rgba(16,185,129,0.5); }
+        .metric-emerald::after { background: rgba(16,185,129,0.3); }
+        .metric-amber { background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(249,115,22,0.1)); border-color: rgba(245,158,11,0.25); }
+        .metric-amber:hover { border-color: rgba(245,158,11,0.5); }
+        .metric-amber::after { background: rgba(245,158,11,0.3); }
+        .metric-cyan { background: linear-gradient(135deg, rgba(6,182,212,0.15), rgba(59,130,246,0.1)); border-color: rgba(6,182,212,0.25); }
+        .metric-cyan:hover { border-color: rgba(6,182,212,0.5); }
+        .metric-cyan::after { background: rgba(6,182,212,0.3); }
+
+        .sidebar-link {
+            display: flex; align-items: center; gap: 0.75rem;
+            padding: 0.65rem 1rem; border-radius: 0.75rem;
+            font-size: 0.875rem; font-family: 'Inter', sans-serif; font-weight: 500;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer; color: #94a3b8;
+        }
+        .sidebar-link:hover { background: rgba(99,102,241,0.08); color: #e2e8f0; }
+        .sidebar-link.active {
+            background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.15));
+            border: 1px solid rgba(99,102,241,0.35);
+            color: #a5b4fc; font-weight: 600;
+        }
+        .sidebar-link:not(.active) { border: 1px solid transparent; }
+
+        .green-dot {
+            width: 8px; height: 8px; border-radius: 50%; background: #22c55e;
+            display: inline-block; animation: pulse-glow 2s ease-in-out infinite;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            border: 1px solid rgba(99,102,241,0.5);
+            box-shadow: 0 4px 12px rgba(99,102,241,0.25);
+            transition: all 0.25s;
+        }
+        .btn-primary:hover { box-shadow: 0 6px 20px rgba(99,102,241,0.4); transform: translateY(-1px); }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            border: 1px solid rgba(239,68,68,0.5);
+            box-shadow: 0 4px 12px rgba(239,68,68,0.2);
+        }
+        .btn-danger:hover { box-shadow: 0 6px 20px rgba(239,68,68,0.35); }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            border: 1px solid rgba(245,158,11,0.5);
+            box-shadow: 0 4px 12px rgba(245,158,11,0.2);
+        }
+        .btn-warning:hover { box-shadow: 0 6px 20px rgba(245,158,11,0.35); }
+
+        .btn-secondary {
+            background: rgba(51, 65, 85, 0.6);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+            backdrop-filter: blur(8px);
+        }
+        .btn-secondary:hover { background: rgba(71, 85, 105, 0.7); border-color: rgba(100, 116, 139, 0.5); }
+
+        .input-glass {
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid rgba(100, 116, 139, 0.25);
+            border-radius: 0.75rem;
+            backdrop-filter: blur(8px);
+            transition: all 0.25s;
+        }
+        .input-glass:focus { border-color: rgba(99, 102, 241, 0.6); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15); outline: none; }
+
+        .log-panel {
+            background: rgba(2, 6, 23, 0.7);
+            border: 1px solid rgba(100, 116, 139, 0.15);
+            border-radius: 1rem;
+            overflow: hidden;
+        }
+        .log-header {
+            background: rgba(15, 23, 42, 0.8);
+            border-bottom: 1px solid rgba(100, 116, 139, 0.15);
+            padding: 0.65rem 1rem;
+        }
 
         #sidebar-overlay { display: none; }
-
         @media (max-width: 768px) {
             #sidebar { transform: translateX(-100%); position: fixed; z-index: 40; height: 100vh; }
             #sidebar.open { transform: translateX(0); }
             #sidebar-overlay.open { display: block; }
         }
 
-        /* Dark mode (default) */
-        .dark .sidebar-link { color: #9ca3af; }
-        .dark .sidebar-link:hover { background: rgba(99,102,241,0.08); color: #e5e7eb; }
-        .dark .sidebar-link.active { background: rgba(99,102,241,0.15); color: #a5b4fc; font-weight: 600; }
-
         /* Light mode */
-        .light body, .light .bg-gray-950 { background: #f8fafc !important; color: #1e293b !important; }
-        .light .bg-gray-900 { background: #ffffff !important; }
-        .light .bg-gray-800 { background: #f1f5f9 !important; }
-        .light .bg-gray-800\/50 { background: #f1f5f9 !important; }
-        .light .border-gray-800 { border-color: #e2e8f0 !important; }
-        .light .border-gray-700 { border-color: #cbd5e1 !important; }
-        .light .border-gray-800\/50 { border-color: #e2e8f0 !important; }
+        .light body, .light .bg-base { background: #f8fafc !important; color: #1e293b !important; }
+        .light .glass-sidebar { background: rgba(255,255,255,0.9) !important; border-color: #e2e8f0 !important; }
+        .light .glass-card { background: rgba(255,255,255,0.8) !important; border-color: #e2e8f0 !important; }
+        .light .metric-card { border-color: rgba(0,0,0,0.08) !important; }
+        .light .text-white { color: #0f172a !important; }
+        .light .text-slate-100 { color: #1e293b !important; }
+        .light .text-slate-200 { color: #334155 !important; }
+        .light .text-slate-300 { color: #475569 !important; }
+        .light .text-slate-400 { color: #64748b !important; }
+        .light .text-slate-500 { color: #94a3b8 !important; }
+        .light .text-slate-600 { color: #94a3b8 !important; }
         .light .text-gray-100 { color: #1e293b !important; }
         .light .text-gray-200 { color: #334155 !important; }
         .light .text-gray-300 { color: #475569 !important; }
         .light .text-gray-400 { color: #64748b !important; }
         .light .text-gray-500 { color: #94a3b8 !important; }
         .light .text-gray-600 { color: #94a3b8 !important; }
-        .light .text-white { color: #0f172a !important; }
         .light .sidebar-link { color: #64748b; }
         .light .sidebar-link:hover { background: rgba(99,102,241,0.06); color: #334155; }
-        .light .sidebar-link.active { background: rgba(99,102,241,0.1); color: #4f46e5; font-weight: 600; }
-        .light .bg-gray-950 { background: #f8fafc !important; }
-        .light input, .light select { background: #f1f5f9 !important; border-color: #cbd5e1 !important; color: #1e293b !important; }
-        .light .log-terminal { background: #f1f5f9 !important; color: #334155 !important; }
+        .light .sidebar-link.active { background: rgba(99,102,241,0.1); color: #4f46e5; border-color: rgba(99,102,241,0.2); }
+        .light .input-glass { background: #f1f5f9 !important; border-color: #cbd5e1 !important; color: #1e293b !important; }
+        .light .log-terminal { background: #f8fafc !important; color: #334155 !important; }
+        .light .log-panel { background: #ffffff !important; border-color: #e2e8f0 !important; }
+        .light .log-header { background: #f8fafc !important; border-color: #e2e8f0 !important; }
         .light pre { background: #f8fafc !important; }
         .light .border-dashed { border-color: #cbd5e1 !important; }
+        .light select { background: #f1f5f9 !important; border-color: #cbd5e1 !important; color: #1e293b !important; }
     </style>
     <script>
         (function() {
@@ -69,61 +199,66 @@
         })();
     </script>
 </head>
-<body class="h-full bg-gray-950 text-gray-100">
+<body class="h-full bg-base text-slate-200" style="background: #0f172a;">
 
 <div class="h-full flex">
     <!-- Mobile overlay -->
-    <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-30" onclick="toggleSidebar()"></div>
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-30" onclick="toggleSidebar()"></div>
 
     <!-- Sidebar -->
-    <aside id="sidebar" class="w-60 bg-gray-900 border-r border-gray-800 flex flex-col flex-shrink-0 transition-transform duration-200 md:translate-x-0">
+    <aside id="sidebar" class="w-64 glass-sidebar flex flex-col flex-shrink-0 transition-transform duration-300 md:translate-x-0">
         <!-- Logo -->
-        <div class="px-5 py-5 flex items-center gap-3 border-b border-gray-800">
-            <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-sm">DC</div>
-            <span class="text-sm font-semibold text-gray-200">DataCrazy Sync</span>
+        <div class="px-5 py-5 flex items-center gap-3 border-b border-slate-700/20">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+                <span class="text-white font-bold text-lg font-display">DC</span>
+            </div>
+            <div>
+                <h1 class="text-base font-bold text-white font-display">DataCrazy</h1>
+                <p class="text-[11px] text-slate-500 font-medium tracking-wide">CRM Sync</p>
+            </div>
         </div>
 
         <!-- Nav -->
-        <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        <nav class="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
             <a href="#dashboard" onclick="navigate('dashboard')" class="sidebar-link active" data-page="dashboard">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z"/></svg>
+                <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z"/></svg>
                 Dashboard
             </a>
             <a href="#search" onclick="navigate('search')" class="sidebar-link" data-page="search">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                 Buscar
             </a>
             <a href="#sync" onclick="navigate('sync')" class="sidebar-link" data-page="sync">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 Sincronização
             </a>
             <a href="#update" onclick="navigate('update')" class="sidebar-link" data-page="update">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                 Atualização CRM
             </a>
             <a href="#pipeline" onclick="navigate('pipeline')" class="sidebar-link" data-page="pipeline">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
                 Saneamento / Pipeline
             </a>
             <a href="#logs" onclick="navigate('logs')" class="sidebar-link" data-page="logs">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                 Logs / Relatórios
             </a>
             <a href="#schedule" onclick="navigate('schedule')" class="sidebar-link" data-page="schedule">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 Agendamento
             </a>
         </nav>
 
         <!-- Footer -->
-        <div class="px-4 py-3 border-t border-gray-800 space-y-2">
+        <div class="px-4 py-3 border-t border-slate-700/20 space-y-2">
             <div class="flex items-center justify-between">
                 <div id="global-badge" class="text-xs px-2.5 py-1 rounded-full bg-emerald-900/40 text-emerald-400 flex items-center gap-1.5">
                     <span class="green-dot"></span> Conectado
                 </div>
-                <a href="/logout" class="text-xs text-gray-600 hover:text-gray-400 transition">Sair</a>
+                <a href="/logout" class="text-xs text-slate-600 hover:text-slate-400 transition">Sair</a>
             </div>
-            <button onclick="toggleTheme()" id="theme-toggle" class="w-full flex items-center gap-2 text-xs text-gray-500 hover:text-gray-300 transition px-1 py-1">
+            <button onclick="toggleTheme()" id="theme-toggle" class="w-full flex items-center gap-2 text-xs text-slate-500 hover:text-slate-300 transition px-1 py-1">
                 <svg id="theme-icon-sun" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
                 <svg id="theme-icon-moon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
                 <span id="theme-label">Modo claro</span>
@@ -134,186 +269,201 @@
     <!-- Main content -->
     <div class="flex-1 flex flex-col min-w-0">
         <!-- Top bar (mobile) -->
-        <header class="md:hidden bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center gap-3">
-            <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white">
+        <header class="md:hidden glass-sidebar px-4 py-3 flex items-center gap-3">
+            <button onclick="toggleSidebar()" class="text-slate-400 hover:text-white transition">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
             </button>
-            <span class="text-sm font-semibold" id="mobile-title">Dashboard</span>
+            <span class="text-sm font-semibold font-display" id="mobile-title">Dashboard</span>
         </header>
 
         <main class="flex-1 overflow-auto">
 
             <!-- ============ PAGE: DASHBOARD ============ -->
-            <div id="page-dashboard" class="p-6 max-w-7xl mx-auto">
-                <h2 class="text-xl font-bold text-gray-100 mb-6">Dashboard</h2>
+            <div id="page-dashboard" class="p-4 lg:p-8 max-w-7xl mx-auto">
+                <div class="mb-8">
+                    <h2 class="text-3xl font-bold text-white font-display mb-1">Dashboard</h2>
+                    <p class="text-slate-500 text-sm">Bem-vindo ao seu painel de controle de CRM</p>
+                </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                    <div class="card-stat bg-gray-900 border border-gray-800 rounded-xl p-5">
-                        <div class="flex items-center gap-3 mb-2">
-                            <div class="w-10 h-10 rounded-lg bg-blue-600/20 flex items-center justify-center">
-                                <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                            </div>
-                            <div>
-                                <p class="text-2xl font-bold text-white" id="dash-leads">—</p>
-                                <p class="text-xs text-gray-500">Leads</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+                    <div class="metric-card metric-indigo">
+                        <div class="flex items-start justify-between mb-3">
+                            <p class="text-sm font-medium text-slate-400">Leads</p>
+                            <div class="p-2 rounded-lg bg-gradient-to-br from-indigo-500/30 to-purple-500/30 border border-indigo-500/40">
+                                <svg class="w-5 h-5 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                             </div>
                         </div>
+                        <p class="text-3xl font-bold text-white font-display" id="dash-leads">—</p>
                     </div>
-                    <div class="card-stat bg-gray-900 border border-gray-800 rounded-xl p-5">
-                        <div class="flex items-center gap-3 mb-2">
-                            <div class="w-10 h-10 rounded-lg bg-emerald-600/20 flex items-center justify-center">
-                                <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-                            </div>
-                            <div>
-                                <p class="text-2xl font-bold text-white" id="dash-biz">—</p>
-                                <p class="text-xs text-gray-500">Negócios</p>
+                    <div class="metric-card metric-emerald">
+                        <div class="flex items-start justify-between mb-3">
+                            <p class="text-sm font-medium text-slate-400">Negócios</p>
+                            <div class="p-2 rounded-lg bg-gradient-to-br from-emerald-500/30 to-cyan-500/30 border border-emerald-500/40">
+                                <svg class="w-5 h-5 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
                             </div>
                         </div>
+                        <p class="text-3xl font-bold text-white font-display" id="dash-biz">—</p>
                     </div>
-                    <div class="card-stat bg-gray-900 border border-gray-800 rounded-xl p-5">
-                        <div class="flex items-center gap-3 mb-2">
-                            <div class="w-10 h-10 rounded-lg bg-purple-600/20 flex items-center justify-center">
-                                <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
-                            </div>
-                            <div>
-                                <p class="text-2xl font-bold text-white" id="dash-pipelines">—</p>
-                                <p class="text-xs text-gray-500">Pipelines</p>
+                    <div class="metric-card metric-amber">
+                        <div class="flex items-start justify-between mb-3">
+                            <p class="text-sm font-medium text-slate-400">Pipelines</p>
+                            <div class="p-2 rounded-lg bg-gradient-to-br from-amber-500/30 to-orange-500/30 border border-amber-500/40">
+                                <svg class="w-5 h-5 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
                             </div>
                         </div>
+                        <p class="text-3xl font-bold text-white font-display" id="dash-pipelines">—</p>
                     </div>
-                    <div class="card-stat bg-gray-900 border border-gray-800 rounded-xl p-5">
-                        <div class="flex items-center gap-3 mb-2">
-                            <div class="w-10 h-10 rounded-lg bg-amber-600/20 flex items-center justify-center">
-                                <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                            </div>
-                            <div>
-                                <p class="text-2xl font-bold text-white flex items-center gap-2" id="dash-status"><span class="green-dot"></span> Conectado</p>
-                                <p class="text-xs text-gray-500">Status</p>
+                    <div class="metric-card metric-cyan">
+                        <div class="flex items-start justify-between mb-3">
+                            <p class="text-sm font-medium text-slate-400">Status</p>
+                            <div class="p-2 rounded-lg bg-gradient-to-br from-cyan-500/30 to-blue-500/30 border border-cyan-500/40">
+                                <svg class="w-5 h-5 text-cyan-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                             </div>
                         </div>
+                        <p class="text-2xl font-bold text-white font-display flex items-center gap-2" id="dash-status"><span class="green-dot"></span> Conectado</p>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-                    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                        <h3 class="text-sm font-semibold text-gray-300 mb-3">Estado da Sincronização</h3>
-                        <div id="dash-sync-state" class="text-sm text-gray-400">Carregando...</div>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
+                    <div class="lg:col-span-2 glass-card p-6">
+                        <div class="flex items-center justify-between mb-5">
+                            <h3 class="text-base font-bold text-white font-display flex items-center gap-2">
+                                <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                                Estado da Sincronização
+                            </h3>
+                            <div class="px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40">
+                                <span class="text-[11px] font-semibold text-emerald-400">Ativo</span>
+                            </div>
+                        </div>
+                        <div id="dash-sync-state" class="text-sm text-slate-400">Carregando...</div>
                     </div>
-                    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                        <h3 class="text-sm font-semibold text-gray-300 mb-3">Últimos Negócios Sincronizados</h3>
-                        <div id="dash-recent" class="text-sm text-gray-400">Carregando...</div>
+                    <div class="glass-card p-6">
+                        <h3 class="text-base font-bold text-white font-display flex items-center gap-2 mb-5">
+                            <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                            Últimos Negócios
+                        </h3>
+                        <div id="dash-recent" class="text-sm text-slate-400">Carregando...</div>
                     </div>
                 </div>
             </div>
 
             <!-- ============ PAGE: BUSCAR ============ -->
-            <div id="page-search" class="p-6 max-w-7xl mx-auto hidden">
-                <h2 class="text-xl font-bold text-gray-100 mb-6">Buscar Lead / Negócio</h2>
-                <form id="search-form" class="flex flex-wrap gap-3 items-end mb-6">
+            <div id="page-search" class="p-4 lg:p-8 max-w-7xl mx-auto hidden">
+                <div class="mb-8">
+                    <h2 class="text-3xl font-bold text-white font-display mb-1">Buscar Lead / Negócio</h2>
+                    <p class="text-slate-500 text-sm">Pesquise por CPF, RGM ou telefone</p>
+                </div>
+                <form id="search-form" class="glass-card p-5 flex flex-wrap gap-4 items-end mb-6">
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">CPF</label>
+                        <label class="block text-xs text-slate-500 mb-1.5 font-medium">CPF</label>
                         <input type="text" name="cpf" placeholder="000.000.000-00"
-                            class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-44 focus:border-indigo-500 focus:outline-none">
+                            class="input-glass px-3 py-2.5 text-sm w-44 text-slate-200">
                     </div>
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">RGM</label>
+                        <label class="block text-xs text-slate-500 mb-1.5 font-medium">RGM</label>
                         <input type="text" name="rgm" placeholder="12345678"
-                            class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-36 focus:border-indigo-500 focus:outline-none">
+                            class="input-glass px-3 py-2.5 text-sm w-36 text-slate-200">
                     </div>
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">Telefone</label>
+                        <label class="block text-xs text-slate-500 mb-1.5 font-medium">Telefone</label>
                         <input type="text" name="telefone" placeholder="11999998888"
-                            class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-40 focus:border-indigo-500 focus:outline-none">
+                            class="input-glass px-3 py-2.5 text-sm w-40 text-slate-200">
                     </div>
-                    <button type="submit"
-                        class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition">
+                    <button type="submit" class="btn-primary text-white font-medium text-sm px-6 py-2.5 rounded-xl flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                         Buscar
                     </button>
                 </form>
 
-                <div id="search-error" class="hidden mb-4 p-3 bg-red-900/40 border border-red-800 rounded-lg text-red-300 text-sm"></div>
-                <div id="search-empty" class="hidden mb-4 p-3 bg-yellow-900/30 border border-yellow-800 rounded-lg text-yellow-300 text-sm">
+                <div id="search-error" class="hidden mb-4 p-3 bg-red-900/30 border border-red-800/50 rounded-xl text-red-300 text-sm"></div>
+                <div id="search-empty" class="hidden mb-4 p-3 bg-yellow-900/20 border border-yellow-800/40 rounded-xl text-yellow-300 text-sm">
                     Nenhum resultado encontrado.
                 </div>
-                <div id="search-loading" class="hidden mb-4 text-gray-400 text-sm">Buscando...</div>
+                <div id="search-loading" class="hidden mb-4 text-slate-400 text-sm">Buscando...</div>
                 <div id="search-results" class="space-y-4"></div>
             </div>
 
             <!-- ============ PAGE: SYNC ============ -->
-            <div id="page-sync" class="p-6 max-w-7xl mx-auto hidden">
-                <h2 class="text-xl font-bold text-gray-100 mb-6">Sincronização</h2>
+            <div id="page-sync" class="p-4 lg:p-8 max-w-7xl mx-auto hidden">
+                <div class="mb-8">
+                    <h2 class="text-3xl font-bold text-white font-display mb-1">Sincronização</h2>
+                    <p class="text-slate-500 text-sm">Sincronize dados entre o CRM e o banco local</p>
+                </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                        <h3 class="text-sm font-semibold text-gray-300 mb-3">Estado da Sincronização</h3>
-                        <div id="sync-state-table" class="text-sm text-gray-400">Carregando...</div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+                    <div class="glass-card p-5">
+                        <h3 class="text-sm font-bold text-slate-300 font-display mb-3">Estado da Sincronização</h3>
+                        <div id="sync-state-table" class="text-sm text-slate-400">Carregando...</div>
                     </div>
-                    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                        <h3 class="text-sm font-semibold text-gray-300 mb-3">Últimas Atualizações</h3>
-                        <div id="recent-updates" class="text-sm text-gray-400">Carregando...</div>
+                    <div class="glass-card p-5">
+                        <h3 class="text-sm font-bold text-slate-300 font-display mb-3">Últimas Atualizações</h3>
+                        <div id="recent-updates" class="text-sm text-slate-400">Carregando...</div>
                     </div>
                 </div>
 
-                <div class="flex gap-3 mb-4">
+                <div class="flex gap-3 mb-5">
                     <button onclick="startSync('delta')" id="btn-delta"
-                        class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
+                        class="btn-primary text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                         Sync Delta
                     </button>
                     <button onclick="startSync('full')" id="btn-full"
-                        class="bg-gray-700 hover:bg-gray-600 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
+                        class="btn-secondary text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
                         Sync Full
                     </button>
                     <button onclick="stopSync()" id="btn-sync-stop"
-                        class="hidden bg-red-600 hover:bg-red-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
+                        class="hidden btn-danger text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
                         Parar
                     </button>
                 </div>
 
-                <div class="bg-gray-950 border border-gray-800 rounded-xl overflow-hidden">
-                    <div class="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800">
-                        <span class="text-xs text-gray-400 font-medium">Log de Execução</span>
-                        <button onclick="clearLog()" class="text-xs text-gray-500 hover:text-gray-300">Limpar</button>
+                <div class="log-panel">
+                    <div class="log-header flex items-center justify-between">
+                        <span class="text-xs text-slate-500 font-semibold tracking-wide uppercase">Log de Execução</span>
+                        <button onclick="clearLog()" class="text-xs text-slate-600 hover:text-slate-400 transition">Limpar</button>
                     </div>
-                    <pre id="sync-log" class="log-terminal p-4 h-96 overflow-auto text-gray-400 whitespace-pre-wrap"></pre>
+                    <pre id="sync-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap"></pre>
                 </div>
             </div>
 
             <!-- ============ PAGE: UPDATE CRM ============ -->
-            <div id="page-update" class="p-6 max-w-7xl mx-auto hidden">
-                <h2 class="text-xl font-bold text-gray-100 mb-6">Atualização CRM</h2>
+            <div id="page-update" class="p-4 lg:p-8 max-w-7xl mx-auto hidden">
+                <div class="mb-8">
+                    <h2 class="text-3xl font-bold text-white font-display mb-1">Atualização CRM</h2>
+                    <p class="text-slate-500 text-sm">Atualize leads e negócios com base na planilha de matriculados</p>
+                </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                        <h3 class="text-sm font-semibold text-gray-300 mb-3">Planilha de Matriculados</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+                    <div class="glass-card p-5">
+                        <h3 class="text-sm font-bold text-slate-300 font-display mb-3">Planilha de Matriculados</h3>
                         <div id="upload-zone"
-                            class="border-2 border-dashed border-gray-700 rounded-lg p-6 text-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-950/10 transition"
+                            class="border-2 border-dashed border-slate-700/40 rounded-xl p-6 text-center cursor-pointer hover:border-indigo-500/60 hover:bg-indigo-950/10 transition-all duration-300"
                             onclick="document.getElementById('file-input').click()"
                             ondragover="event.preventDefault(); this.classList.add('border-indigo-500','bg-indigo-950/10')"
                             ondragleave="this.classList.remove('border-indigo-500','bg-indigo-950/10')"
                             ondrop="handleDrop(event)">
                             <input type="file" id="file-input" accept=".xlsx" class="hidden" onchange="handleUpload(this.files[0])">
-                            <svg class="w-8 h-8 mx-auto mb-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg class="w-8 h-8 mx-auto mb-2 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
                             </svg>
-                            <p class="text-sm text-gray-400">Arraste o arquivo <span class="text-indigo-400 font-medium">.xlsx</span> aqui</p>
-                            <p class="text-xs text-gray-600 mt-1">ou clique para selecionar</p>
+                            <p class="text-sm text-slate-400">Arraste o arquivo <span class="text-indigo-400 font-semibold">.xlsx</span> aqui</p>
+                            <p class="text-xs text-slate-600 mt-1">ou clique para selecionar</p>
                         </div>
                         <div id="upload-progress" class="hidden mt-3">
-                            <div class="w-full bg-gray-800 rounded-full h-1.5">
-                                <div id="upload-bar" class="bg-indigo-500 h-1.5 rounded-full transition-all" style="width:0%"></div>
+                            <div class="w-full bg-slate-800 rounded-full h-1.5">
+                                <div id="upload-bar" class="bg-gradient-to-r from-indigo-500 to-purple-500 h-1.5 rounded-full transition-all" style="width:0%"></div>
                             </div>
-                            <p id="upload-status" class="text-xs text-gray-400 mt-1">Enviando...</p>
+                            <p id="upload-status" class="text-xs text-slate-400 mt-1">Enviando...</p>
                         </div>
                     </div>
 
-                    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                        <h3 class="text-sm font-semibold text-gray-300 mb-3">Arquivo Atual</h3>
-                        <div id="file-info" class="text-sm text-gray-400">Carregando...</div>
-                        <div class="mt-4 pt-3 border-t border-gray-800">
-                            <p class="text-xs text-gray-500 leading-relaxed">
+                    <div class="glass-card p-5">
+                        <h3 class="text-sm font-bold text-slate-300 font-display mb-3">Arquivo Atual</h3>
+                        <div id="file-info" class="text-sm text-slate-400">Carregando...</div>
+                        <div class="mt-4 pt-3 border-t border-slate-700/20">
+                            <p class="text-xs text-slate-500 leading-relaxed">
                                 Cruza a planilha com o CRM e atualiza campos dos leads e negócios.
                                 Cascata: RGM &rarr; CPF &rarr; Telefone &rarr; Nome.
                             </p>
@@ -321,66 +471,66 @@
                     </div>
                 </div>
 
-                <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-4">
+                <div class="glass-card p-5 mb-5">
                     <div class="flex items-center gap-3 mb-3">
-                        <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                        <label class="text-sm font-semibold text-gray-300">Rate Limit</label>
+                        <svg class="w-4 h-4 text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        <label class="text-sm font-bold text-slate-300 font-display">Rate Limit</label>
                         <span id="rate-value" class="text-sm font-mono font-bold text-indigo-400">120</span>
-                        <span class="text-xs text-gray-500">req/min</span>
-                        <span class="text-xs text-gray-600 ml-auto">API max: 240/min</span>
+                        <span class="text-xs text-slate-500">req/min</span>
+                        <span class="text-xs text-slate-600 ml-auto">API max: 240/min</span>
                     </div>
                     <input type="range" id="rate-slider" min="0" max="240" step="10" value="120"
-                        class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                        class="w-full h-2 bg-slate-700/60 rounded-lg appearance-none cursor-pointer accent-indigo-500"
                         oninput="document.getElementById('rate-value').textContent=this.value; updateRateBar()">
-                    <div class="flex justify-between text-[10px] text-gray-600 mt-1 px-0.5">
+                    <div class="flex justify-between text-[10px] text-slate-600 mt-1 px-0.5">
                         <span>0</span><span>60</span><span>120</span><span>180</span><span>240</span>
                     </div>
-                    <div class="mt-2 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                    <div class="mt-2 h-1.5 bg-slate-800/60 rounded-full overflow-hidden">
                         <div id="rate-bar" class="h-full rounded-full transition-all" style="width:50%; background: linear-gradient(90deg, #22c55e, #6366f1)"></div>
                     </div>
                 </div>
 
-                <div class="flex flex-wrap gap-3 mb-4 items-end">
+                <div class="flex flex-wrap gap-3 mb-5 items-end">
                     <button onclick="startUpdate('dry-run')" id="btn-dryrun"
-                        class="bg-amber-600 hover:bg-amber-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
+                        class="btn-warning text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                         Dry-Run (Preview)
                     </button>
                     <button onclick="startUpdate('test')" id="btn-test"
-                        class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
+                        class="btn-primary text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                         Testar 1 Registro
                     </button>
                     <div class="flex items-end gap-2">
                         <div>
-                            <label class="block text-xs text-gray-400 mb-1">Limite (opcional)</label>
+                            <label class="block text-xs text-slate-500 mb-1.5 font-medium">Limite (opcional)</label>
                             <input type="number" id="update-limit" placeholder="todos" min="1"
-                                class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-28 focus:border-indigo-500 focus:outline-none">
+                                class="input-glass px-3 py-2.5 text-sm w-28 text-slate-200">
                         </div>
                         <button onclick="confirmExecute()" id="btn-execute"
-                            class="bg-red-600 hover:bg-red-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
+                            class="btn-danger text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center gap-2">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                             Executar Update
                         </button>
                     </div>
                     <button onclick="stopUpdate()" id="btn-update-stop"
-                        class="hidden bg-red-600 hover:bg-red-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
+                        class="hidden btn-danger text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
                         Parar
                     </button>
                 </div>
 
-                <div id="update-preview-section" class="hidden mb-4">
-                    <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-                        <div class="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800">
-                            <span class="text-xs text-gray-400 font-medium">Preview de Atualizações <span id="preview-count" class="text-gray-600"></span></span>
+                <div id="update-preview-section" class="hidden mb-5">
+                    <div class="glass-card overflow-hidden">
+                        <div class="log-header flex items-center justify-between">
+                            <span class="text-xs text-slate-500 font-semibold">Preview de Atualizações <span id="preview-count" class="text-slate-600"></span></span>
                             <button onclick="document.getElementById('update-preview-section').classList.add('hidden')"
-                                class="text-xs text-gray-500 hover:text-gray-300">Fechar</button>
+                                class="text-xs text-slate-600 hover:text-slate-400 transition">Fechar</button>
                         </div>
                         <div class="overflow-auto max-h-80">
                             <table class="w-full text-left text-xs">
-                                <thead class="sticky top-0 bg-gray-900">
-                                    <tr class="text-gray-500 border-b border-gray-800">
+                                <thead class="sticky top-0 bg-slate-900/90 backdrop-blur">
+                                    <tr class="text-slate-500 border-b border-slate-700/20">
                                         <th class="px-3 py-2">Match</th>
                                         <th class="px-3 py-2">RGM</th>
                                         <th class="px-3 py-2">Nome</th>
@@ -389,58 +539,61 @@
                                         <th class="px-3 py-2">Negócio Mudanças</th>
                                     </tr>
                                 </thead>
-                                <tbody id="preview-tbody" class="text-gray-300"></tbody>
+                                <tbody id="preview-tbody" class="text-slate-300"></tbody>
                             </table>
                         </div>
                     </div>
                 </div>
 
-                <div class="bg-gray-950 border border-gray-800 rounded-xl overflow-hidden">
-                    <div class="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800">
-                        <span class="text-xs text-gray-400 font-medium">Log de Atualização</span>
-                        <button onclick="clearUpdateLog()" class="text-xs text-gray-500 hover:text-gray-300">Limpar</button>
+                <div class="log-panel">
+                    <div class="log-header flex items-center justify-between">
+                        <span class="text-xs text-slate-500 font-semibold tracking-wide uppercase">Log de Atualização</span>
+                        <button onclick="clearUpdateLog()" class="text-xs text-slate-600 hover:text-slate-400 transition">Limpar</button>
                     </div>
-                    <pre id="update-log" class="log-terminal p-4 h-96 overflow-auto text-gray-400 whitespace-pre-wrap"></pre>
+                    <pre id="update-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap"></pre>
                 </div>
             </div>
 
             <!-- ============ PAGE: PIPELINE (Saneamento + Pipeline) ============ -->
-            <div id="page-pipeline" class="p-6 max-w-7xl mx-auto hidden">
-                <h2 class="text-xl font-bold text-gray-100 mb-6">Saneamento / Pipeline</h2>
+            <div id="page-pipeline" class="p-4 lg:p-8 max-w-7xl mx-auto hidden">
+                <div class="mb-8">
+                    <h2 class="text-3xl font-bold text-white font-display mb-1">Saneamento / Pipeline</h2>
+                    <p class="text-slate-500 text-sm">Sanitize duplicatas e gerencie pipeline de alunos</p>
+                </div>
 
                 <!-- FASE 1: Saneamento -->
-                <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">
+                <div class="glass-card p-5 mb-6">
                     <div class="flex items-center gap-2 mb-1">
-                        <span class="text-xs font-bold text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded">FASE 1</span>
-                        <h3 class="text-sm font-semibold text-gray-200">Saneamento de Duplicatas</h3>
+                        <span class="text-xs font-bold text-amber-400 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-lg">FASE 1</span>
+                        <h3 class="text-sm font-bold text-slate-200 font-display">Saneamento de Duplicatas</h3>
                     </div>
-                    <p class="text-xs text-gray-500 mb-4">Remove negócios duplicados (mesmo RGM no mesmo lead) e negócios sem RGM. Gera relatório de RGMs em leads diferentes.</p>
+                    <p class="text-xs text-slate-500 mb-4">Remove negócios duplicados (mesmo RGM no mesmo lead) e negócios sem RGM. Gera relatório de RGMs em leads diferentes.</p>
 
                     <div class="flex flex-wrap gap-3 items-end">
                         <button onclick="startSanitize('dry-run')" id="btn-san-dryrun"
-                            class="bg-amber-600 hover:bg-amber-500 text-white font-medium text-sm px-4 py-2 rounded-lg transition flex items-center gap-2">
+                            class="btn-warning text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                             Dry-Run
                         </button>
                         <button onclick="startSanitize('test')" id="btn-san-test"
-                            class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-4 py-2 rounded-lg transition flex items-center gap-2">
+                            class="btn-primary text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                             Testar 1
                         </button>
                         <div class="flex items-end gap-2">
                             <div>
-                                <label class="block text-xs text-gray-400 mb-1">Limite</label>
+                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Limite</label>
                                 <input type="number" id="sanitize-limit" placeholder="todos" min="1"
-                                    class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-24 focus:border-indigo-500 focus:outline-none">
+                                    class="input-glass px-3 py-2.5 text-sm w-24 text-slate-200">
                             </div>
                             <button onclick="confirmSanitize()" id="btn-san-execute"
-                                class="bg-red-600 hover:bg-red-500 text-white font-medium text-sm px-4 py-2 rounded-lg transition flex items-center gap-2">
+                                class="btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                                 Executar DELETEs
                             </button>
                         </div>
                         <button onclick="stopSanitize()" id="btn-san-stop"
-                            class="hidden bg-red-600 hover:bg-red-500 text-white font-medium text-sm px-4 py-2 rounded-lg transition flex items-center gap-2">
+                            class="hidden btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
                             Parar
                         </button>
@@ -448,38 +601,38 @@
                 </div>
 
                 <!-- FASE 2: Pipeline -->
-                <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">
+                <div class="glass-card p-5 mb-6">
                     <div class="flex items-center gap-2 mb-1">
-                        <span class="text-xs font-bold text-emerald-400 bg-emerald-900/30 px-2 py-0.5 rounded">FASE 2</span>
-                        <h3 class="text-sm font-semibold text-gray-200">Movimentação de Pipeline</h3>
+                        <span class="text-xs font-bold text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-lg">FASE 2</span>
+                        <h3 class="text-sm font-bold text-slate-200 font-display">Movimentação de Pipeline</h3>
                     </div>
-                    <p class="text-xs text-gray-500 mb-4">Move negócios para etapas corretas (Calouro, Veterano, Sem Rematrícula, Perdido) e altera status (lost/restore). Execute o saneamento antes.</p>
+                    <p class="text-xs text-slate-500 mb-4">Move negócios para etapas corretas (Calouro, Veterano, Sem Rematrícula, Perdido) e altera status (lost/restore). Execute o saneamento antes.</p>
 
                     <div class="flex flex-wrap gap-3 items-end">
                         <button onclick="startPipeline('dry-run')" id="btn-pipe-dryrun"
-                            class="bg-amber-600 hover:bg-amber-500 text-white font-medium text-sm px-4 py-2 rounded-lg transition flex items-center gap-2">
+                            class="btn-warning text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                             Dry-Run
                         </button>
                         <button onclick="startPipeline('test')" id="btn-pipe-test"
-                            class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-4 py-2 rounded-lg transition flex items-center gap-2">
+                            class="btn-primary text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                             Testar 1
                         </button>
                         <div class="flex items-end gap-2">
                             <div>
-                                <label class="block text-xs text-gray-400 mb-1">Limite</label>
+                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Limite</label>
                                 <input type="number" id="pipeline-limit" placeholder="todos" min="1"
-                                    class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-24 focus:border-indigo-500 focus:outline-none">
+                                    class="input-glass px-3 py-2.5 text-sm w-24 text-slate-200">
                             </div>
                             <button onclick="confirmPipeline()" id="btn-pipe-execute"
-                                class="bg-red-600 hover:bg-red-500 text-white font-medium text-sm px-4 py-2 rounded-lg transition flex items-center gap-2">
+                                class="btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                                 Executar Pipeline
                             </button>
                         </div>
                         <button onclick="stopPipeline()" id="btn-pipe-stop"
-                            class="hidden bg-red-600 hover:bg-red-500 text-white font-medium text-sm px-4 py-2 rounded-lg transition flex items-center gap-2">
+                            class="hidden btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
                             Parar
                         </button>
@@ -487,76 +640,82 @@
                 </div>
 
                 <!-- Log compartilhado -->
-                <div class="bg-gray-950 border border-gray-800 rounded-xl overflow-hidden">
-                    <div class="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800">
-                        <div class="flex gap-3">
-                            <button onclick="showPipelineLog('sanitize')" id="tab-san-log" class="text-xs font-medium text-indigo-400 border-b-2 border-indigo-400 pb-1">Saneamento</button>
-                            <button onclick="showPipelineLog('pipeline')" id="tab-pipe-log" class="text-xs font-medium text-gray-500 hover:text-gray-300 pb-1">Pipeline</button>
+                <div class="log-panel">
+                    <div class="log-header flex items-center justify-between">
+                        <div class="flex gap-4">
+                            <button onclick="showPipelineLog('sanitize')" id="tab-san-log" class="text-xs font-semibold text-indigo-400 border-b-2 border-indigo-400 pb-1 transition">Saneamento</button>
+                            <button onclick="showPipelineLog('pipeline')" id="tab-pipe-log" class="text-xs font-semibold text-slate-500 hover:text-slate-300 pb-1 transition">Pipeline</button>
                         </div>
-                        <button onclick="clearPipelineLog()" class="text-xs text-gray-500 hover:text-gray-300">Limpar</button>
+                        <button onclick="clearPipelineLog()" class="text-xs text-slate-600 hover:text-slate-400 transition">Limpar</button>
                     </div>
-                    <pre id="sanitize-log" class="log-terminal p-4 h-96 overflow-auto text-gray-400 whitespace-pre-wrap"></pre>
-                    <pre id="pipeline-log" class="log-terminal p-4 h-96 overflow-auto text-gray-400 whitespace-pre-wrap hidden"></pre>
+                    <pre id="sanitize-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap"></pre>
+                    <pre id="pipeline-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap hidden"></pre>
                 </div>
             </div>
 
             <!-- ============ PAGE: LOGS ============ -->
-            <div id="page-logs" class="p-6 max-w-7xl mx-auto hidden">
-                <h2 class="text-xl font-bold text-gray-100 mb-6">Logs / Relatórios</h2>
+            <div id="page-logs" class="p-4 lg:p-8 max-w-7xl mx-auto hidden">
+                <div class="mb-8">
+                    <h2 class="text-3xl font-bold text-white font-display mb-1">Logs / Relatórios</h2>
+                    <p class="text-slate-500 text-sm">Visualize e baixe logs de execução e relatórios</p>
+                </div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
                     <!-- File list -->
-                    <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                    <div class="glass-card p-4">
                         <div class="flex items-center justify-between mb-3">
-                            <h3 class="text-sm font-semibold text-gray-300">Arquivos</h3>
-                            <button onclick="loadLogFiles()" class="text-xs text-gray-500 hover:text-gray-300">Atualizar</button>
+                            <h3 class="text-sm font-bold text-slate-300 font-display">Arquivos</h3>
+                            <button onclick="loadLogFiles()" class="text-xs text-slate-600 hover:text-slate-400 transition">Atualizar</button>
                         </div>
                         <div id="log-file-list" class="space-y-1 max-h-[70vh] overflow-y-auto text-sm">
-                            <p class="text-gray-500">Carregando...</p>
+                            <p class="text-slate-500">Carregando...</p>
                         </div>
                     </div>
 
                     <!-- File viewer -->
-                    <div class="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-                        <div class="flex items-center justify-between px-4 py-2 border-b border-gray-800">
-                            <span class="text-xs text-gray-400 font-medium" id="log-viewer-title">Selecione um arquivo</span>
-                            <div class="flex gap-2">
-                                <select id="log-tail-select" onchange="reloadLogView()" class="text-xs bg-gray-800 border border-gray-700 rounded px-2 py-1 text-gray-300">
+                    <div class="lg:col-span-2 log-panel">
+                        <div class="log-header flex items-center justify-between">
+                            <span class="text-xs text-slate-500 font-semibold" id="log-viewer-title">Selecione um arquivo</span>
+                            <div class="flex gap-2 items-center">
+                                <select id="log-tail-select" onchange="reloadLogView()" class="text-xs input-glass px-2 py-1 text-slate-300 rounded-lg">
                                     <option value="100">100 linhas</option>
                                     <option value="200" selected>200 linhas</option>
                                     <option value="500">500 linhas</option>
                                     <option value="1000">1000 linhas</option>
                                     <option value="0">Todas</option>
                                 </select>
-                                <button onclick="downloadCurrentLog()" id="btn-download-log" class="hidden text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
+                                <button onclick="downloadCurrentLog()" id="btn-download-log" class="hidden text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                                     Baixar
                                 </button>
                             </div>
                         </div>
-                        <pre id="log-viewer-content" class="log-terminal p-4 h-[65vh] overflow-auto text-gray-400 whitespace-pre-wrap">Clique em um arquivo para visualizar.</pre>
+                        <pre id="log-viewer-content" class="log-terminal p-4 h-[65vh] overflow-auto text-slate-400 whitespace-pre-wrap">Clique em um arquivo para visualizar.</pre>
                     </div>
                 </div>
             </div>
 
             <!-- ============ PAGE: SCHEDULE ============ -->
-            <div id="page-schedule" class="p-6 max-w-7xl mx-auto hidden">
-                <h2 class="text-xl font-bold text-gray-100 mb-6">Agendamento</h2>
+            <div id="page-schedule" class="p-4 lg:p-8 max-w-7xl mx-auto hidden">
+                <div class="mb-8">
+                    <h2 class="text-3xl font-bold text-white font-display mb-1">Agendamento</h2>
+                    <p class="text-slate-500 text-sm">Configure sincronizações automáticas</p>
+                </div>
 
                 <!-- New schedule form -->
-                <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">
-                    <h3 class="text-sm font-semibold text-gray-300 mb-4">Novo Agendamento</h3>
+                <div class="glass-card p-5 mb-6">
+                    <h3 class="text-sm font-bold text-slate-300 font-display mb-4">Novo Agendamento</h3>
                     <div class="flex flex-wrap gap-4 items-end">
                         <div>
-                            <label class="block text-xs text-gray-400 mb-1">Tipo</label>
-                            <select id="sched-type" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none">
+                            <label class="block text-xs text-slate-500 mb-1.5 font-medium">Tipo</label>
+                            <select id="sched-type" class="input-glass px-3 py-2.5 text-sm text-slate-200 rounded-xl">
                                 <option value="sync_delta">Sync Delta</option>
                                 <option value="sync_full">Sync Full</option>
                             </select>
                         </div>
                         <div>
-                            <label class="block text-xs text-gray-400 mb-1">Dias</label>
-                            <select id="sched-days" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none">
+                            <label class="block text-xs text-slate-500 mb-1.5 font-medium">Dias</label>
+                            <select id="sched-days" class="input-glass px-3 py-2.5 text-sm text-slate-200 rounded-xl">
                                 <option value="*">Todos os dias</option>
                                 <option value="0,1,2,3,4">Seg — Sex</option>
                                 <option value="0">Segunda</option>
@@ -569,17 +728,17 @@
                             </select>
                         </div>
                         <div>
-                            <label class="block text-xs text-gray-400 mb-1">Hora</label>
+                            <label class="block text-xs text-slate-500 mb-1.5 font-medium">Hora</label>
                             <input type="number" id="sched-hour" value="2" min="0" max="23"
-                                class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-20 focus:border-indigo-500 focus:outline-none">
+                                class="input-glass px-3 py-2.5 text-sm w-20 text-slate-200 rounded-xl">
                         </div>
                         <div>
-                            <label class="block text-xs text-gray-400 mb-1">Minuto</label>
+                            <label class="block text-xs text-slate-500 mb-1.5 font-medium">Minuto</label>
                             <input type="number" id="sched-minute" value="0" min="0" max="59"
-                                class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-20 focus:border-indigo-500 focus:outline-none">
+                                class="input-glass px-3 py-2.5 text-sm w-20 text-slate-200 rounded-xl">
                         </div>
                         <button onclick="saveSchedule()"
-                            class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
+                            class="btn-primary text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center gap-2">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                             Salvar
                         </button>
@@ -587,13 +746,13 @@
                 </div>
 
                 <!-- Schedule list -->
-                <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-                    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-800">
-                        <h3 class="text-sm font-semibold text-gray-300">Agendamentos Ativos</h3>
-                        <button onclick="loadSchedules()" class="text-xs text-gray-500 hover:text-gray-300">Atualizar</button>
+                <div class="glass-card overflow-hidden">
+                    <div class="log-header flex items-center justify-between">
+                        <h3 class="text-sm font-bold text-slate-300 font-display">Agendamentos Ativos</h3>
+                        <button onclick="loadSchedules()" class="text-xs text-slate-600 hover:text-slate-400 transition">Atualizar</button>
                     </div>
                     <div id="schedule-list" class="p-4">
-                        <p class="text-sm text-gray-500">Carregando...</p>
+                        <p class="text-sm text-slate-500">Carregando...</p>
                     </div>
                 </div>
             </div>
@@ -671,7 +830,7 @@ function esc(s) {
 }
 
 function field(label, value) {
-    return `<div><span class="text-gray-500">${esc(label)}</span><br><span class="text-gray-200">${value ? esc(String(value)) : '<span class=text-gray-600>—</span>'}</span></div>`;
+    return `<div><span class="text-slate-500">${esc(label)}</span><br><span class="text-slate-200">${value ? esc(String(value)) : '<span class=text-slate-600>—</span>'}</span></div>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -720,13 +879,13 @@ async function loadDashboard() {
         const stateDiv = document.getElementById('dash-sync-state');
         if (d.sync_states && d.sync_states.length) {
             stateDiv.innerHTML = `<table class="w-full text-left">
-                <thead><tr class="text-xs text-gray-500 border-b border-gray-800">
-                    <th class="pb-2">Entidade</th><th class="pb-2">Último sync</th><th class="pb-2">Runs</th>
+                <thead><tr class="text-xs text-slate-500 border-b border-slate-700/20">
+                    <th class="pb-2 font-semibold">Entidade</th><th class="pb-2 font-semibold">Último sync</th><th class="pb-2 font-semibold">Runs</th>
                 </tr></thead>
-                <tbody>${d.sync_states.map(s => `<tr class="border-b border-gray-800/50">
-                    <td class="py-1.5 text-gray-300 font-medium">${esc(s.entity_type)}</td>
-                    <td class="py-1.5">${s.last_sync_at ? fmtDate(s.last_sync_at) : '—'}</td>
-                    <td class="py-1.5">${s.run_count || 0}</td>
+                <tbody>${d.sync_states.map(s => `<tr class="border-b border-slate-700/10 hover:bg-slate-800/20 transition">
+                    <td class="py-2 text-slate-300 font-mono text-xs">${esc(s.entity_type)}</td>
+                    <td class="py-2 text-slate-400 text-xs">${s.last_sync_at ? fmtDate(s.last_sync_at) : '—'}</td>
+                    <td class="py-2 text-slate-300 font-semibold">${s.run_count || 0}</td>
                 </tr>`).join('')}</tbody></table>`;
         } else {
             stateDiv.textContent = 'Nenhuma sincronização realizada.';
@@ -736,12 +895,12 @@ async function loadDashboard() {
         const recentDiv = document.getElementById('dash-recent');
         if (d.recent_updates && d.recent_updates.length) {
             recentDiv.innerHTML = d.recent_updates.map(u => `
-                <div class="flex items-center justify-between py-1.5 border-b border-gray-800/50">
+                <div class="flex items-center justify-between py-2 border-b border-slate-700/10 hover:bg-slate-800/10 transition">
                     <div>
-                        <span class="text-gray-300">${esc(u.nome_lead || '—')}</span>
-                        <span class="text-gray-600 text-xs ml-2">${esc(u.pipeline || '')} &rarr; ${esc(u.etapa || '')}</span>
+                        <span class="text-slate-300 text-sm font-medium">${esc(u.nome_lead || '—')}</span>
+                        <span class="text-slate-600 text-xs ml-2">${esc(u.pipeline || '')} &rarr; ${esc(u.etapa || '')}</span>
                     </div>
-                    <span class="tag-pill ${u.status === 'won' ? 'bg-emerald-900/50 text-emerald-300' : u.status === 'lost' ? 'bg-red-900/50 text-red-300' : 'bg-blue-900/50 text-blue-300'}">
+                    <span class="tag-pill ${u.status === 'won' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : u.status === 'lost' ? 'bg-red-500/15 text-red-400 border border-red-500/30' : 'bg-blue-500/15 text-blue-400 border border-blue-500/30'}">
                         ${{won:'Ganho', in_process:'Aberto', lost:'Perdido'}[u.status] || u.status}
                     </span>
                 </div>
@@ -796,32 +955,32 @@ function renderResults(results) {
 
     results.forEach(r => {
         const statusColor = {
-            'won': 'bg-emerald-900/50 text-emerald-300',
-            'in_process': 'bg-blue-900/50 text-blue-300',
-            'lost': 'bg-red-900/50 text-red-300'
-        }[r.negocio_status] || 'bg-gray-800 text-gray-300';
+            'won': 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
+            'in_process': 'bg-blue-500/15 text-blue-400 border border-blue-500/30',
+            'lost': 'bg-red-500/15 text-red-400 border border-red-500/30'
+        }[r.negocio_status] || 'bg-slate-800 text-slate-300';
 
         const statusLabel = {
             'won': 'Ganho', 'in_process': 'Em andamento', 'lost': 'Perdido'
         }[r.negocio_status] || r.negocio_status;
 
-        const stageStyle = r.etapa_cor ? `background:${r.etapa_cor}22; color:${r.etapa_cor}; border:1px solid ${r.etapa_cor}44` : '';
+        const stageStyle = r.etapa_cor ? `background:${r.etapa_cor}15; color:${r.etapa_cor}; border:1px solid ${r.etapa_cor}40` : '';
 
         const campos_neg = r.campos_negocio || {};
         const campos_lead = r.campos_lead || {};
 
         const card = document.createElement('div');
-        card.className = 'bg-gray-900 border border-gray-800 rounded-xl p-5 fade-in';
+        card.className = 'glass-card p-5 fade-in';
         card.innerHTML = `
             <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
                 <div>
-                    <h3 class="text-base font-semibold text-white">${esc(r.lead_nome || '—')}</h3>
-                    <p class="text-xs text-gray-500 mt-0.5">Lead: ${esc(r.lead_id || '')} &middot; Negócio: ${esc(r.negocio_codigo || r.negocio_id || '')}</p>
+                    <h3 class="text-base font-bold text-white font-display">${esc(r.lead_nome || '—')}</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">Lead: ${esc(r.lead_id || '')} &middot; Negócio: ${esc(r.negocio_codigo || r.negocio_id || '')}</p>
                 </div>
                 <div class="flex gap-2 flex-wrap">
                     <span class="tag-pill ${statusColor}">${statusLabel}</span>
                     ${r.etapa_nome ? `<span class="tag-pill" style="${stageStyle}">${esc(r.etapa_nome)}</span>` : ''}
-                    ${r.pipeline_nome ? `<span class="tag-pill bg-gray-800 text-gray-300">${esc(r.pipeline_nome)}</span>` : ''}
+                    ${r.pipeline_nome ? `<span class="tag-pill bg-slate-800/60 text-slate-300 border border-slate-700/30">${esc(r.pipeline_nome)}</span>` : ''}
                 </div>
             </div>
 
@@ -840,8 +999,8 @@ function renderResults(results) {
 
             ${Object.keys(campos_neg).length ? `
             <details class="group">
-                <summary class="text-xs font-semibold text-gray-400 cursor-pointer mb-2 select-none">
-                    Campos do Negócio <span class="text-gray-600">(${Object.keys(campos_neg).length})</span>
+                <summary class="text-xs font-bold text-slate-400 cursor-pointer mb-2 select-none font-display">
+                    Campos do Negócio <span class="text-slate-600">(${Object.keys(campos_neg).length})</span>
                 </summary>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 text-sm pl-1">
                     ${Object.entries(campos_neg).map(([k,v]) => field(k, v || null)).join('')}
@@ -850,8 +1009,8 @@ function renderResults(results) {
 
             ${Object.keys(campos_lead).length ? `
             <details class="group mt-3">
-                <summary class="text-xs font-semibold text-gray-400 cursor-pointer mb-2 select-none">
-                    Campos do Lead <span class="text-gray-600">(${Object.keys(campos_lead).length})</span>
+                <summary class="text-xs font-bold text-slate-400 cursor-pointer mb-2 select-none font-display">
+                    Campos do Lead <span class="text-slate-600">(${Object.keys(campos_lead).length})</span>
                 </summary>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 text-sm pl-1">
                     ${Object.entries(campos_lead).map(([k,v]) => field(k, v || null)).join('')}
@@ -873,13 +1032,13 @@ async function loadSyncState() {
         const stateDiv = document.getElementById('sync-state-table');
         if (data.states && data.states.length) {
             stateDiv.innerHTML = `<table class="w-full text-left">
-                <thead><tr class="text-xs text-gray-500 border-b border-gray-800">
-                    <th class="pb-2">Entidade</th><th class="pb-2">Último sync</th><th class="pb-2">Runs</th>
+                <thead><tr class="text-xs text-slate-500 border-b border-slate-700/20">
+                    <th class="pb-2 font-semibold">Entidade</th><th class="pb-2 font-semibold">Último sync</th><th class="pb-2 font-semibold">Runs</th>
                 </tr></thead>
-                <tbody>${data.states.map(s => `<tr class="border-b border-gray-800/50">
-                    <td class="py-1.5 text-gray-300 font-medium">${esc(s.entity_type)}</td>
-                    <td class="py-1.5">${s.last_sync_at ? fmtDate(s.last_sync_at) : '—'}</td>
-                    <td class="py-1.5">${s.run_count || 0}</td>
+                <tbody>${data.states.map(s => `<tr class="border-b border-slate-700/10 hover:bg-slate-800/20 transition">
+                    <td class="py-2 text-slate-300 font-mono text-xs">${esc(s.entity_type)}</td>
+                    <td class="py-2 text-slate-400 text-xs">${s.last_sync_at ? fmtDate(s.last_sync_at) : '—'}</td>
+                    <td class="py-2 text-slate-300 font-semibold">${s.run_count || 0}</td>
                 </tr>`).join('')}</tbody></table>`;
         } else {
             stateDiv.textContent = 'Nenhuma sincronização realizada ainda.';
@@ -888,12 +1047,12 @@ async function loadSyncState() {
         const recentDiv = document.getElementById('recent-updates');
         if (data.recent_updates && data.recent_updates.length) {
             recentDiv.innerHTML = data.recent_updates.map(u => `
-                <div class="flex items-center justify-between py-1.5 border-b border-gray-800/50">
+                <div class="flex items-center justify-between py-2 border-b border-slate-700/10 hover:bg-slate-800/10 transition">
                     <div>
-                        <span class="text-gray-300">${esc(u.nome_lead || '—')}</span>
-                        <span class="text-gray-600 text-xs ml-2">${esc(u.pipeline || '')} &rarr; ${esc(u.etapa || '')}</span>
+                        <span class="text-slate-300 text-sm">${esc(u.nome_lead || '—')}</span>
+                        <span class="text-slate-600 text-xs ml-2">${esc(u.pipeline || '')} &rarr; ${esc(u.etapa || '')}</span>
                     </div>
-                    <span class="tag-pill ${u.status === 'won' ? 'bg-emerald-900/50 text-emerald-300' : u.status === 'lost' ? 'bg-red-900/50 text-red-300' : 'bg-blue-900/50 text-blue-300'}">
+                    <span class="tag-pill ${u.status === 'won' ? 'bg-emerald-500/15 text-emerald-400' : u.status === 'lost' ? 'bg-red-500/15 text-red-400' : 'bg-blue-500/15 text-blue-400'}">
                         ${{won:'Ganho', in_process:'Aberto', lost:'Perdido'}[u.status] || u.status}
                     </span>
                 </div>
@@ -970,7 +1129,7 @@ async function pollSyncLogs() {
 function appendLog(text) {
     const el = document.getElementById('sync-log');
     let colored = text;
-    if (text.includes('INFO')) colored = `<span class="text-gray-300">${esc(text)}</span>`;
+    if (text.includes('INFO')) colored = `<span class="text-slate-300">${esc(text)}</span>`;
     else if (text.includes('WARNING')) colored = `<span class="text-yellow-400">${esc(text)}</span>`;
     else if (text.includes('ERROR') || text.includes('[ERRO]') || text.includes('POLL ERRO')) colored = `<span class="text-red-400">${esc(text)}</span>`;
     else if (text.includes('[INÍCIO]') || text.includes('[FIM]') || text.includes('[AGENDADO]')) colored = `<span class="text-indigo-400 font-semibold">${esc(text)}</span>`;
@@ -1111,7 +1270,7 @@ function appendUpdateLog(text) {
     if (text.includes('CONFIRMADO') || text.includes('SUCESSO') || text.includes('[FIM]'))
         colored = `<span class="text-emerald-400 font-semibold">${esc(text)}</span>`;
     else if (text.includes('INFO'))
-        colored = `<span class="text-gray-300">${esc(text)}</span>`;
+        colored = `<span class="text-slate-300">${esc(text)}</span>`;
     else if (text.includes('WARNING'))
         colored = `<span class="text-yellow-400">${esc(text)}</span>`;
     else if (text.includes('ERROR') || text.includes('FALHOU') || text.includes('[ERRO]'))
@@ -1141,12 +1300,12 @@ async function loadPreview() {
 
         const tbody = document.getElementById('preview-tbody');
         tbody.innerHTML = data.rows.map(r => {
-            const matchColor = { 'RGM': 'text-emerald-400', 'CPF': 'text-blue-400', 'TELEFONE': 'text-amber-400', 'NOME': 'text-purple-400' }[r.match_tipo] || 'text-gray-400';
-            return `<tr class="border-b border-gray-800/50 hover:bg-gray-800/30">
+            const matchColor = { 'RGM': 'text-emerald-400', 'CPF': 'text-blue-400', 'TELEFONE': 'text-amber-400', 'NOME': 'text-purple-400' }[r.match_tipo] || 'text-slate-400';
+            return `<tr class="border-b border-slate-700/10 hover:bg-slate-800/20 transition">
                 <td class="px-3 py-1.5 ${matchColor} font-medium">${esc(r.match_tipo || '')}</td>
-                <td class="px-3 py-1.5 text-gray-400 font-mono">${esc(r.rgm || '')}</td>
-                <td class="px-3 py-1.5 text-gray-200">${esc(r.nome || '')}</td>
-                <td class="px-3 py-1.5 text-gray-500 font-mono text-[10px]">${esc((r.lead_id || '').substring(0,8))}...</td>
+                <td class="px-3 py-1.5 text-slate-400 font-mono">${esc(r.rgm || '')}</td>
+                <td class="px-3 py-1.5 text-slate-200">${esc(r.nome || '')}</td>
+                <td class="px-3 py-1.5 text-slate-500 font-mono text-[10px]">${esc((r.lead_id || '').substring(0,8))}...</td>
                 <td class="px-3 py-1.5 text-cyan-400">${esc(r.lead_mudancas || '—')}</td>
                 <td class="px-3 py-1.5 text-amber-300 max-w-xs truncate" title="${esc(r.biz_mudancas || '')}">${esc(r.biz_mudancas || '—')}</td>
             </tr>`;
@@ -1294,12 +1453,12 @@ function showPipelineLog(which) {
     const tabPipe = document.getElementById('tab-pipe-log');
     if (which === 'sanitize') {
         sanLog.classList.remove('hidden'); pipeLog.classList.add('hidden');
-        tabSan.classList.add('text-indigo-400','border-b-2','border-indigo-400'); tabSan.classList.remove('text-gray-500');
-        tabPipe.classList.remove('text-indigo-400','border-b-2','border-indigo-400'); tabPipe.classList.add('text-gray-500');
+        tabSan.classList.add('text-indigo-400','border-b-2','border-indigo-400'); tabSan.classList.remove('text-slate-500');
+        tabPipe.classList.remove('text-indigo-400','border-b-2','border-indigo-400'); tabPipe.classList.add('text-slate-500');
     } else {
         pipeLog.classList.remove('hidden'); sanLog.classList.add('hidden');
-        tabPipe.classList.add('text-indigo-400','border-b-2','border-indigo-400'); tabPipe.classList.remove('text-gray-500');
-        tabSan.classList.remove('text-indigo-400','border-b-2','border-indigo-400'); tabSan.classList.add('text-gray-500');
+        tabPipe.classList.add('text-indigo-400','border-b-2','border-indigo-400'); tabPipe.classList.remove('text-slate-500');
+        tabSan.classList.remove('text-indigo-400','border-b-2','border-indigo-400'); tabSan.classList.add('text-slate-500');
     }
 }
 
@@ -1382,7 +1541,7 @@ async function handleUpload(file) {
 function renderFileInfo(info) {
     const div = document.getElementById('file-info');
     if (!info) {
-        div.innerHTML = '<span class="text-yellow-400">Nenhum arquivo carregado.</span><br><span class="text-xs text-gray-600">Faça upload de uma planilha .xlsx com "matriculados" no nome.</span>';
+        div.innerHTML = '<span class="text-yellow-400">Nenhum arquivo carregado.</span><br><span class="text-xs text-slate-600">Faça upload de uma planilha .xlsx com "matriculados" no nome.</span>';
         return;
     }
     const size = (info.size / 1024 / 1024).toFixed(1);
@@ -1393,8 +1552,8 @@ function renderFileInfo(info) {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
             <div>
-                <p class="text-gray-200 font-medium text-sm">${esc(info.name)}</p>
-                <p class="text-gray-500 text-xs">${size} MB &middot; ${date}</p>
+                <p class="text-slate-200 font-medium text-sm">${esc(info.name)}</p>
+                <p class="text-slate-500 text-xs">${size} MB &middot; ${date}</p>
             </div>
         </div>
     `;
@@ -1416,7 +1575,7 @@ async function loadLogFiles() {
         const list = document.getElementById('log-file-list');
 
         if (!data.files || !data.files.length) {
-            list.innerHTML = '<p class="text-gray-500 text-xs">Nenhum arquivo encontrado.</p>';
+            list.innerHTML = '<p class="text-slate-500 text-xs">Nenhum arquivo encontrado.</p>';
             return;
         }
 
@@ -1424,9 +1583,9 @@ async function loadLogFiles() {
             const size = f.size > 1048576 ? (f.size / 1048576).toFixed(1) + ' MB' : (f.size / 1024).toFixed(0) + ' KB';
             const isActive = _currentLogFile === f.path;
             return `<button onclick="viewLogFile('${esc(f.path)}')"
-                class="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-800 transition ${isActive ? 'bg-gray-800 text-indigo-400' : 'text-gray-300'}">
+                class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800/40 transition ${isActive ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'text-slate-300 border border-transparent'}">
                 <div class="font-medium text-xs truncate">${esc(f.name)}</div>
-                <div class="text-[10px] text-gray-600">${esc(f.dir)} &middot; ${size} &middot; ${fmtDate(f.modified) || '—'}</div>
+                <div class="text-[10px] text-slate-600">${esc(f.dir)} &middot; ${size} &middot; ${fmtDate(f.modified) || '—'}</div>
             </button>`;
         }).join('');
     } catch (err) {
@@ -1484,24 +1643,24 @@ async function loadSchedules() {
         const container = document.getElementById('schedule-list');
 
         if (!data.schedules || !data.schedules.length) {
-            container.innerHTML = '<p class="text-sm text-gray-500">Nenhum agendamento configurado.</p>';
+            container.innerHTML = '<p class="text-sm text-slate-500">Nenhum agendamento configurado.</p>';
             return;
         }
 
         container.innerHTML = `<div class="space-y-3">${data.schedules.map(s => {
-            const typeColor = s.job_type === 'sync_full' ? 'bg-purple-900/50 text-purple-300' : 'bg-indigo-900/50 text-indigo-300';
-            const enabledColor = s.enabled ? 'bg-emerald-900/50 text-emerald-300' : 'bg-gray-800 text-gray-500';
+            const typeColor = s.job_type === 'sync_full' ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30' : 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30';
+            const enabledColor = s.enabled ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-500 border border-slate-700/30';
             const days = DAY_LABELS[s.cron_days] || s.cron_days;
             const time = String(s.cron_hour).padStart(2, '0') + ':' + String(s.cron_minute).padStart(2, '0');
 
-            return `<div class="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg border border-gray-700/50">
+            return `<div class="flex items-center justify-between p-4 glass-card">
                 <div class="flex items-center gap-4">
                     <div>
                         <span class="tag-pill ${typeColor}">${TYPE_LABELS[s.job_type] || s.job_type}</span>
                     </div>
                     <div>
-                        <p class="text-sm text-gray-200 font-medium">${days} às ${time}</p>
-                        <p class="text-xs text-gray-500">
+                        <p class="text-sm text-slate-200 font-semibold">${days} às ${time}</p>
+                        <p class="text-xs text-slate-500">
                             ${s.last_run_at ? 'Última execução: ' + fmtDate(s.last_run_at) : 'Nunca executado'}
                             ${s.next_run ? ' &middot; Próxima: ' + fmtDate(s.next_run) : ''}
                         </p>
@@ -1509,10 +1668,10 @@ async function loadSchedules() {
                 </div>
                 <div class="flex items-center gap-2">
                     <span class="tag-pill ${enabledColor}">${s.enabled ? 'Ativo' : 'Inativo'}</span>
-                    <button onclick="toggleSchedule('${esc(s.id)}')" class="text-xs px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 transition">
+                    <button onclick="toggleSchedule('${esc(s.id)}')" class="text-xs px-3 py-1.5 rounded-lg btn-secondary text-slate-300">
                         ${s.enabled ? 'Desativar' : 'Ativar'}
                     </button>
-                    <button onclick="deleteSchedule('${esc(s.id)}')" class="text-xs px-3 py-1.5 rounded-lg bg-red-900/30 hover:bg-red-900/50 text-red-400 transition">
+                    <button onclick="deleteSchedule('${esc(s.id)}')" class="text-xs px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition">
                         Excluir
                     </button>
                 </div>
@@ -1565,7 +1724,6 @@ async function deleteSchedule(id) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
 // Theme toggle
 // ---------------------------------------------------------------------------
