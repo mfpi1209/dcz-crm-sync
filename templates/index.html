@@ -317,6 +317,25 @@
                     </div>
                 </div>
 
+                <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-4">
+                    <div class="flex items-center gap-3 mb-3">
+                        <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        <label class="text-sm font-semibold text-gray-300">Rate Limit</label>
+                        <span id="rate-value" class="text-sm font-mono font-bold text-indigo-400">120</span>
+                        <span class="text-xs text-gray-500">req/min</span>
+                        <span class="text-xs text-gray-600 ml-auto">API max: 240/min</span>
+                    </div>
+                    <input type="range" id="rate-slider" min="0" max="240" step="10" value="120"
+                        class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                        oninput="document.getElementById('rate-value').textContent=this.value; updateRateBar()">
+                    <div class="flex justify-between text-[10px] text-gray-600 mt-1 px-0.5">
+                        <span>0</span><span>60</span><span>120</span><span>180</span><span>240</span>
+                    </div>
+                    <div class="mt-2 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                        <div id="rate-bar" class="h-full rounded-full transition-all" style="width:50%; background: linear-gradient(90deg, #22c55e, #6366f1)"></div>
+                    </div>
+                </div>
+
                 <div class="flex flex-wrap gap-3 mb-4 items-end">
                     <button onclick="startUpdate('dry-run')" id="btn-dryrun"
                         class="bg-amber-600 hover:bg-amber-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
@@ -895,12 +914,24 @@ function updateUpdateBadge(running) {
     refreshBadge();
 }
 
+function updateRateBar() {
+    const val = parseInt(document.getElementById('rate-slider').value);
+    const pct = (val / 240) * 100;
+    const bar = document.getElementById('rate-bar');
+    bar.style.width = pct + '%';
+    if (val <= 60) bar.style.background = 'linear-gradient(90deg, #22c55e, #22c55e)';
+    else if (val <= 120) bar.style.background = 'linear-gradient(90deg, #22c55e, #6366f1)';
+    else if (val <= 180) bar.style.background = 'linear-gradient(90deg, #6366f1, #f59e0b)';
+    else bar.style.background = 'linear-gradient(90deg, #f59e0b, #ef4444)';
+}
+
 async function startUpdate(mode) {
     setUpdateBtnsDisabled(true);
     updateUpdateBadge(true);
     _lastUpdateMode = mode;
 
-    const body = {};
+    const rate = parseInt(document.getElementById('rate-slider').value) || 120;
+    const body = { rate };
     if (mode === 'execute') {
         const lim = document.getElementById('update-limit').value;
         if (lim) body.limit = parseInt(lim);

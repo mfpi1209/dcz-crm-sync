@@ -444,7 +444,9 @@ def api_update(mode):
     if _update_running:
         return jsonify({"error": "Atualização já em andamento."}), 409
 
-    limit = request.json.get("limit") if request.is_json else None
+    body = request.json if request.is_json else {}
+    limit = body.get("limit")
+    rate = body.get("rate")
 
     _update_running = True
     _update_logs.clear()
@@ -455,6 +457,8 @@ def api_update(mode):
             cmd = [sys.executable, UPDATE_SCRIPT, f"--{mode}"]
             if limit and mode == "execute":
                 cmd.extend(["--limit", str(int(limit))])
+            if rate is not None:
+                cmd.extend(["--rate", str(int(rate))])
 
             _add_update_log(f"[INÍCIO] Update CRM — modo {mode.upper()}")
 

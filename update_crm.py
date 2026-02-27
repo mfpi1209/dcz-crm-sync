@@ -66,8 +66,7 @@ FIELD_IDS = {
 }
 
 API_RATE_LIMIT = 240            # requests/min allowed by the API
-TARGET_RATE    = 120            # requests/min we aim for (50% margin)
-BASE_DELAY     = 60.0 / TARGET_RATE   # ~0.5s between requests
+DEFAULT_TARGET_RATE = 120       # requests/min default target (50% margin)
 CRITICAL_REMAINING = 20        # below this → pause until window resets
 
 logging.basicConfig(
@@ -82,7 +81,7 @@ log = logging.getLogger("update_crm")
 # ---------------------------------------------------------------------------
 
 class ApiClient:
-    def __init__(self):
+    def __init__(self, target_rate=None):
         self.s = requests.Session()
         self.s.headers["Authorization"] = f"Bearer {API_TOKEN}"
         self.s.headers["Content-Type"] = "application/json"
@@ -92,16 +91,18 @@ class ApiClient:
         self.total_calls = 0
         self._window_start = time.monotonic()
         self._window_calls = 0
+        self.target_rate = max(1, min(target_rate or DEFAULT_TARGET_RATE, API_RATE_LIMIT))
+        self.base_delay = 60.0 / self.target_rate
+        log.info("Rate-limit configurado: %d req/min (delay base %.2fs)",
+                 self.target_rate, self.base_delay)
 
     def _throttle(self):
         now = time.monotonic()
 
-        # Reset local window counter every 60s
         if now - self._window_start >= 60:
             self._window_start = now
             self._window_calls = 0
 
-        # Critical: API says almost nothing left → full pause
         if self._remaining <= CRITICAL_REMAINING and self._reset > 0:
             wait = self._reset + 1
             log.warning("Rate-limit crítico (%d restantes) — pausando %ds",
@@ -111,17 +112,15 @@ class ApiClient:
             self._window_calls = 0
             return
 
-        # Adaptive delay based on remaining quota
-        ratio = self._remaining / API_RATE_LIMIT  # 1.0=full, 0.0=empty
+        ratio = self._remaining / API_RATE_LIMIT
         if ratio > 0.5:
-            delay = BASE_DELAY                     # 0.5s — comfortable
+            delay = self.base_delay
         elif ratio > 0.25:
-            delay = BASE_DELAY * 1.5               # 0.75s — easing off
+            delay = self.base_delay * 1.5
         else:
-            delay = BASE_DELAY * 3.0               # 1.5s — conservative
+            delay = self.base_delay * 3.0
 
-        # Also enforce our own 120/min cap
-        if self._window_calls >= TARGET_RATE:
+        if self._window_calls >= self.target_rate:
             remaining_window = 60 - (now - self._window_start)
             if remaining_window > 0:
                 log.info("Limite interno atingido (%d calls) — pausando %.1fs",
@@ -1009,19 +1008,17 @@ def dry_run_summary(updates):
 def main():
     mode = "--dry-run"
     limit = None
+    rate = None
 
     for arg in sys.argv[1:]:
         if arg in ("--test", "--dry-run", "--execute"):
             mode = arg
-        elif arg == "--limit":
-            pass
-        elif sys.argv[sys.argv.index(arg) - 1] == "--limit":
-            limit = int(arg)
 
-    # Parse --limit N
     for i, arg in enumerate(sys.argv):
         if arg == "--limit" and i + 1 < len(sys.argv):
             limit = int(sys.argv[i + 1])
+        if arg == "--rate" and i + 1 < len(sys.argv):
+            rate = int(sys.argv[i + 1])
 
     log.info("=" * 50)
     log.info("Atualização CRM — modo: %s", mode.upper())
@@ -1046,7 +1043,7 @@ def main():
         dry_run_summary(updates)
         return
 
-    api = ApiClient()
+    api = ApiClient(target_rate=rate)
 
     if mode == "--test":
         result = test_one_update(api, updates)
