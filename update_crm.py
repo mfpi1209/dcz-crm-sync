@@ -51,7 +51,7 @@ DB_DSN = dict(
 REPORTS_DIR = Path(__file__).parent / "reports"
 LOG_DIR = Path(__file__).parent / "logs"
 
-FIELD_IDS = {
+BIZ_FIELD_IDS = {
     "RGM":              "2ac4e30f-cfd7-435f-b688-fbce27f76c38",
     "Curso":            "4bddb764-658b-48bc-9d70-6e94ad420132",
     "Polo":             "0ec9d8dc-d547-4482-b9ad-d4a3e6ec1b54",
@@ -64,9 +64,14 @@ FIELD_IDS = {
     "EmailAD":          "731bd2fd-7cfa-49af-ab24-2e55e0374798",
     "SenhaProvisoria":  "cccb3046-1906-4465-901d-329ef2fe08dc",
     "TipoAluno":        "4230e4db-970b-4444-abaf-c3135a03b79c",
-    "Sexo":             "d77aa3c7-cd39-46d2-9c12-7be48b86eb2f",
     "Turma":            "8815a8de-f755-4597-b6f4-8da6d289b6eb",
 }
+
+LEAD_FIELD_IDS = {
+    "Sexo":             "",  # TODO: preencher com o ID do campo adicional de lead
+}
+
+FIELD_IDS = {**BIZ_FIELD_IDS, **LEAD_FIELD_IDS}
 
 API_RATE_LIMIT = 240            # requests/min allowed by the API
 DEFAULT_TARGET_RATE = 120       # requests/min default target (50% margin)
@@ -178,6 +183,11 @@ class ApiClient:
     def put_biz_field(self, biz_id, field_id, value):
         """PUT /crm/crm/additional-fields/business/{bizId}/{fieldId}"""
         path = f"/crm/crm/additional-fields/business/{biz_id}/{field_id}"
+        return self.put(path, {"value": str(value)})
+
+    def put_lead_field(self, lead_id, field_id, value):
+        """PUT /crm/crm/additional-fields/lead/{leadId}/{fieldId}"""
+        path = f"/crm/crm/additional-fields/lead/{lead_id}/{field_id}"
         return self.put(path, {"value": str(value)})
 
     def get(self, path, params=None):
@@ -691,13 +701,16 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
         except (ValueError, TypeError):
             serie_str = str(serie_raw).strip() if serie_raw else ""
 
-        dm = r[col["DataMatricula"]] if "DataMatricula" in col else None
-        if dm and hasattr(dm, "strftime"):
-            dm_str = dm.strftime("%Y-%m-%d")
-        elif dm:
-            dm_str = str(dm).strip().split("T")[0].split(" ")[0]
-        else:
-            dm_str = ""
+        def _parse_date(key):
+            val = r[col[key]] if key in col else None
+            if val and hasattr(val, "strftime"):
+                return val.strftime("%Y-%m-%d")
+            elif val:
+                return str(val).strip().split("T")[0].split(" ")[0]
+            return ""
+
+        dm_str = _parse_date("DataMatricula")
+        dn_str = _parse_date("DataNascimento")
 
         def _col_val(key, default=""):
             return r[col[key]] if key in col and col[key] < len(r) else default
@@ -719,6 +732,7 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
             "email_acad": (_col_val("EmailAcademico") or "").strip().lower(),
             "phone_raw": str(_col_val("FoneCelular") or ""),
             "data_matricula": dm_str,
+            "data_nasc": dn_str,
         }
 
         # ── Stage 1: Find the LEAD ──
@@ -794,6 +808,18 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
             if addr:
                 lead_updates["address"] = addr
 
+            if xl_data["data_nasc"]:
+                crm_bday = (lead["data"].get("birthday") or "").strip()
+                if _normalize_date(xl_data["data_nasc"]) != _normalize_date(crm_bday):
+                    lead_updates["birthday"] = xl_data["data_nasc"]
+
+        # ── Prepare lead additional field updates ──
+        lead_field_updates = {}
+        if matched_lead_id and xl_data["sexo"]:
+            fid = LEAD_FIELD_IDS.get("Sexo", "")
+            if fid:
+                lead_field_updates["Sexo"] = (fid, xl_data["sexo"])
+
         # ── Prepare business field updates (single target business) ──
         biz_updates = []
         fields_to_update = {}
@@ -805,7 +831,6 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
             "Situacao": xl_data["situacao"],
             "Bairro": xl_data["bairro"],
             "Cidade": xl_data["cidade"],
-            "Sexo": xl_data["sexo"],
             "DataMatricula": xl_data["data_matricula"],
             "TipoAluno": xl_data["tipo"],
             "EmailAD": xl_data["email_acad"],
@@ -837,13 +862,14 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
                 "fields": fields_to_update,
             })
 
-        if lead_updates or biz_updates:
+        if lead_updates or lead_field_updates or biz_updates:
             updates.append({
                 "match_type": match_type,
                 "xl_nome": xl_data["nome"],
                 "xl_rgm": rgm,
                 "lead_id": matched_lead_id,
                 "lead_updates": lead_updates,
+                "lead_field_updates": lead_field_updates,
                 "biz_updates": biz_updates,
                 "_diff": list(_diff_details),
             })
@@ -961,8 +987,9 @@ def execute_updates(api, updates, limit=None):
                 for fid in b["fields"]
             )
             detail = biz_field_names if biz_field_names else ""
-            if upd["lead_updates"]:
-                lead_keys = ",".join(upd["lead_updates"].keys())
+            lead_parts = list(upd["lead_updates"].keys()) + list(upd.get("lead_field_updates", {}).keys())
+            if lead_parts:
+                lead_keys = ",".join(lead_parts)
                 detail = f"lead({lead_keys})+{detail}" if detail else f"lead({lead_keys})"
             log.info("[%d/%d] %s | RGM %s | %s | %s",
                      i, len(updates), upd["xl_nome"],
@@ -987,6 +1014,20 @@ def execute_updates(api, updates, limit=None):
                 else:
                     err_count += 1
                     log.warning("  ERRO lead %s: %s", upd["lead_id"], result["body"][:200])
+
+            for fname, (fid, val) in upd.get("lead_field_updates", {}).items():
+                result = api.put_lead_field(upd["lead_id"], fid, val)
+                status = "OK" if result["ok"] else "ERRO"
+                w.writerow([
+                    datetime.now(BRT).strftime("%d/%m/%Y %H:%M:%S"), "LEAD_FIELD", upd["match_type"],
+                    upd["xl_nome"], upd["xl_rgm"], upd["lead_id"],
+                    fname, val, result["status"], status,
+                ])
+                if result["ok"]:
+                    ok_count += 1
+                else:
+                    err_count += 1
+                    log.warning("  ERRO lead field %s: %s", fname, result["body"][:200])
 
             for biz in upd["biz_updates"]:
                 for fid, val in biz["fields"].items():
@@ -1027,11 +1068,12 @@ def dry_run_summary(updates):
     """Mostra resumo do que seria atualizado."""
     match_types = Counter(u["match_type"] for u in updates)
     lead_updates_count = sum(1 for u in updates if u["lead_updates"])
+    lead_field_calls = sum(len(u.get("lead_field_updates", {})) for u in updates)
     biz_updates_count = sum(len(u["biz_updates"]) for u in updates)
     biz_field_calls = sum(
         len(biz["fields"]) for u in updates for biz in u["biz_updates"]
     )
-    total_api_calls = lead_updates_count + biz_field_calls
+    total_api_calls = lead_updates_count + lead_field_calls + biz_field_calls
 
     base_delay = 60.0 / DEFAULT_TARGET_RATE
     estimated_minutes = total_api_calls * base_delay / 60
@@ -1043,17 +1085,20 @@ def dry_run_summary(updates):
     for mt, c in match_types.most_common():
         print(f"    {mt:20s}: {c:,}")
     print()
-    print(f"  Leads a atualizar:             {lead_updates_count:,}")
+    print(f"  Leads a atualizar (PATCH):     {lead_updates_count:,}")
+    print(f"  Lead fields (PUT):             {lead_field_calls:,}")
     print(f"  Negócios a atualizar:          {biz_updates_count:,}")
-    print(f"  Campos PUT (1 call/campo):     {biz_field_calls:,}")
+    print(f"  Biz fields (PUT):              {biz_field_calls:,}")
     print(f"  Total de API calls:            {total_api_calls:,}")
     print(f"  Tempo estimado (~{DEFAULT_TARGET_RATE} req/min):  {estimated_minutes:.0f} min ({estimated_minutes/60:.1f}h)")
     print()
 
-    # Detalhe dos campos de lead
+    # Detalhe dos campos de lead (PATCH + PUT)
     lead_fields = Counter()
     for u in updates:
         for k in u["lead_updates"]:
+            lead_fields[k] += 1
+        for k in u.get("lead_field_updates", {}):
             lead_fields[k] += 1
     if lead_fields:
         print("  Campos de lead atualizados:")
