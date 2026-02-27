@@ -65,6 +65,7 @@ BIZ_FIELD_IDS = {
     "SenhaProvisoria":  "cccb3046-1906-4465-901d-329ef2fe08dc",
     "TipoAluno":        "4230e4db-970b-4444-abaf-c3135a03b79c",
     "Turma":            "8815a8de-f755-4597-b6f4-8da6d289b6eb",
+    "Nivel":            "233fcf6f-0bed-49d7-89a1-d1cd54fb9c12",
 }
 
 LEAD_FIELD_IDS = {
@@ -157,7 +158,15 @@ class ApiClient:
             self.total_calls += 1
             self._window_calls += 1
 
-            r = self.s.request(method, url, json=payload, timeout=30)
+            try:
+                r = self.s.request(method, url, json=payload, timeout=30)
+            except (requests.exceptions.ReadTimeout,
+                    requests.exceptions.ConnectionError) as exc:
+                wait = min(5 * (2 ** attempt), 60)
+                log.warning("Timeout/conexão (tentativa %d/4) — retry em %ds: %s",
+                            attempt + 1, wait, str(exc)[:120])
+                time.sleep(wait)
+                continue
 
             if r.status_code == 429:
                 retry = int(r.headers.get("Retry-After", 30))
@@ -172,7 +181,7 @@ class ApiClient:
 
             return {"ok": True, "status": r.status_code, "body": r.json()}
 
-        return {"ok": False, "status": 429, "body": "Falha após 4 tentativas"}
+        return {"ok": False, "status": 429, "body": "Falha após 4 tentativas (timeout/429)"}
 
     def patch(self, path, payload):
         return self._request("PATCH", f"{API_BASE}{path}", payload)
@@ -373,7 +382,7 @@ def normalize_nivel(nivel):
     if not nivel:
         return ""
     key = _strip_accents(str(nivel).strip()).lower()
-    return NIVEL_MAP.get(key, title_case(nivel))
+    return NIVEL_MAP.get(key, "")
 
 
 def _strip_accents(text):
@@ -673,7 +682,7 @@ def _compare_field(field_name, crm_val, xl_val):
         return True
     if field_name == "DataMatricula":
         return _normalize_date(crm_val) == _normalize_date(xl_val)
-    if field_name in ("Curso", "Polo", "Bairro", "Cidade"):
+    if field_name in ("Curso", "Polo", "Bairro", "Cidade", "Nivel"):
         return crm_val.strip().lower() == xl_val.strip().lower()
     return False
 
@@ -733,6 +742,7 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
             "phone_raw": str(_col_val("FoneCelular") or ""),
             "data_matricula": dm_str,
             "data_nasc": dn_str,
+            "nivel": normalize_nivel(_col_val("Negocio") or ""),
         }
 
         # ── Stage 1: Find the LEAD ──
@@ -835,6 +845,7 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
             "TipoAluno": xl_data["tipo"],
             "EmailAD": xl_data["email_acad"],
             "SenhaProvisoria": senha,
+            "Nivel": xl_data["nivel"],
         }
         if rgm:
             mapping["RGM"] = rgm
