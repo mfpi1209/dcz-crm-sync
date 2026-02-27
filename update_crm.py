@@ -657,22 +657,24 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
         else:
             dm_str = ""
 
+        def _col_val(key, default=""):
+            return r[col[key]] if key in col and col[key] < len(r) else default
+
         xl_data = {
             "rgm": rgm,
             "cpf": cpf,
-            "nome": title_case(r[col["Nome"]] or ""),
-            "curso": title_case(r[col["Curso"]] or ""),
-            "polo": normalize_polo(r[col["Polo"]] or ""),
+            "nome": title_case(_col_val("Nome") or ""),
+            "curso": title_case(_col_val("Curso") or ""),
+            "polo": normalize_polo(_col_val("Polo") or ""),
             "serie": serie_str,
-            "situacao": normalize_situacao(r[col["SituacaoMatricula"]] or ""),
-            "tipo": normalize_tipo_aluno(r[col["TipoMatricula"]] or ""),
-            "bairro": title_case(r[col["Bairro"]] or ""),
-            "cidade": title_case(r[col["Cidade"]] or ""),
-            "sexo": normalize_sexo(r[col["Sexo"]] or ""),
+            "situacao": normalize_situacao(_col_val("SituacaoMatricula") or ""),
+            "tipo": normalize_tipo_aluno(_col_val("TipoMatricula") or ""),
+            "bairro": title_case(_col_val("Bairro") or ""),
+            "cidade": title_case(_col_val("Cidade") or ""),
+            "sexo": normalize_sexo(_col_val("Sexo") or ""),
             "email": email,
-            "email_acad": (r[col.get("EmailAcademico", -1)] or "").strip().lower() if "EmailAcademico" in col else "",
-            "empresa": title_case(r[col["Empresa"]] or "") if "Empresa" in col else "",
-            "phone_raw": str(r[col["FoneCelular"]] or ""),
+            "email_acad": (_col_val("EmailAcademico") or "").strip().lower(),
+            "phone_raw": str(_col_val("FoneCelular") or ""),
             "data_matricula": dm_str,
         }
 
@@ -719,13 +721,22 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
         if not target_biz or not match_type:
             continue
 
-        # ── Prepare lead updates (only CPF — personal info only) ──
+        # ── Prepare lead updates ──
         lead_updates = {}
         if matched_lead_id and matched_lead_id in leads_by_id:
             lead = leads_by_id[matched_lead_id]
+
             crm_cpf = lead["cpf"].strip() if lead["cpf"] else ""
             if cpf and not crm_cpf:
                 lead_updates["taxId"] = format_cpf(cpf)
+
+            crm_email = (lead["email"] or "").strip().lower()
+            if xl_data["email"] and xl_data["email"] != crm_email:
+                lead_updates["email"] = xl_data["email"]
+
+            crm_company = (lead["data"].get("company") or "").strip()
+            if crm_company:
+                lead_updates["company"] = ""
 
         # ── Prepare business field updates (single target business) ──
         biz_updates = []
@@ -955,7 +966,8 @@ def dry_run_summary(updates):
     )
     total_api_calls = lead_updates_count + biz_field_calls
 
-    estimated_minutes = total_api_calls * MIN_REQUEST_DELAY / 60
+    base_delay = 60.0 / DEFAULT_TARGET_RATE
+    estimated_minutes = total_api_calls * base_delay / 60
 
     print("\n" + "=" * 60)
     print("DRY-RUN — Resumo das atualizações pendentes")
@@ -968,7 +980,7 @@ def dry_run_summary(updates):
     print(f"  Negócios a atualizar:          {biz_updates_count:,}")
     print(f"  Campos PUT (1 call/campo):     {biz_field_calls:,}")
     print(f"  Total de API calls:            {total_api_calls:,}")
-    print(f"  Tempo estimado (~1 req/s):     {estimated_minutes:.0f} min ({estimated_minutes/60:.1f}h)")
+    print(f"  Tempo estimado (~{DEFAULT_TARGET_RATE} req/min):  {estimated_minutes:.0f} min ({estimated_minutes/60:.1f}h)")
     print()
 
     # Detalhe dos campos de lead
