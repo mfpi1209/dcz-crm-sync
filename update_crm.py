@@ -821,7 +821,7 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
             if xl_data["data_nasc"]:
                 crm_bday = (lead["data"].get("birthDate") or "").strip()
                 if _normalize_date(xl_data["data_nasc"]) != _normalize_date(crm_bday):
-                    lead_updates["birthDate"] = xl_data["data_nasc"]
+                    lead_updates["birthDate"] = xl_data["data_nasc"] + "T03:00:00.000Z"
 
         # ── Prepare lead additional field updates ──
         lead_field_updates = {}
