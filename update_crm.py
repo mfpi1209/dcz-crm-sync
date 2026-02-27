@@ -639,6 +639,34 @@ def _find_empty_biz(biz_list):
     return None
 
 
+def _normalize_date(val):
+    """Normalize date to YYYY-MM-DD for comparison."""
+    if not val:
+        return ""
+    s = str(val).strip().split("T")[0].split(" ")[0]
+    if "/" in s:
+        parts = s.split("/")
+        if len(parts) == 3:
+            if len(parts[0]) == 4:  # YYYY/MM/DD
+                return f"{parts[0]}-{parts[1].zfill(2)}-{parts[2].zfill(2)}"
+            else:  # DD/MM/YYYY
+                return f"{parts[2]}-{parts[1].zfill(2)}-{parts[0].zfill(2)}"
+    return s
+
+
+def _compare_field(field_name, crm_val, xl_val):
+    """Return True if values are equivalent (no update needed)."""
+    if crm_val == xl_val:
+        return True
+    if not crm_val and not xl_val:
+        return True
+    if field_name == "DataMatricula":
+        return _normalize_date(crm_val) == _normalize_date(xl_val)
+    if field_name in ("Curso", "Polo", "Bairro", "Cidade"):
+        return crm_val.strip().lower() == xl_val.strip().lower()
+    return False
+
+
 def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_name, leads_by_id, biz_by_lead):
     """Two-stage matching:
     Stage 1 — Find the LEAD (CPF → Phone → Email → Name)
@@ -647,6 +675,7 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
     global _debug_diff, _diff_details
     _debug_diff = True
     updates = []
+    _format_samples = {}  # field_name → [(crm_val, xl_val)] first 3 diffs per field
 
     for r in xl_rows:
         rgm = str(r[col["RGM"]]).strip() if r[col["RGM"]] else ""
@@ -778,10 +807,14 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
                 continue
             current = str(get_biz_field(target_biz["data"], fid) or "").strip()
             new_clean = str(new_val).strip()
-            if new_clean != current:
-                fields_to_update[fid] = new_clean
-                if _debug_diff:
-                    _diff_details.append(f"  {field_name}: '{current}' → '{new_clean}'")
+            if _compare_field(field_name, current, new_clean):
+                continue
+            fields_to_update[fid] = new_clean
+            if _debug_diff:
+                _diff_details.append(f"  {field_name}: '{current}' → '{new_clean}'")
+            samples = _format_samples.setdefault(field_name, [])
+            if len(samples) < 3:
+                samples.append((current, new_clean))
 
         if fields_to_update:
             biz_updates.append({
@@ -809,6 +842,13 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
                     log.info("    lead: %s", lead_updates)
         else:
             _diff_details.clear()
+
+    if _format_samples:
+        log.info("  Amostras de diferenças por campo:")
+        for fname, samples in sorted(_format_samples.items()):
+            log.info("    %s:", fname)
+            for crm_v, xl_v in samples:
+                log.info("      CRM: '%s'  →  Planilha: '%s'", crm_v, xl_v)
 
     return updates
 
