@@ -662,29 +662,13 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
         if not target_biz or not match_type:
             continue
 
-        # ── Prepare lead updates (never rename, only fill empty fields) ──
+        # ── Prepare lead updates (only CPF — personal info only) ──
         lead_updates = {}
         if matched_lead_id and matched_lead_id in leads_by_id:
             lead = leads_by_id[matched_lead_id]
             crm_cpf = lead["cpf"].strip() if lead["cpf"] else ""
             if cpf and not crm_cpf:
                 lead_updates["taxId"] = format_cpf(cpf)
-            crm_email = (lead["email"] or "").strip().lower()
-            if xl_data["email"] and not crm_email:
-                lead_updates["email"] = xl_data["email"]
-
-            crm_addr = lead["data"].get("address") or {}
-            addr = {}
-            if xl_data["bairro"] and xl_data["bairro"] != (crm_addr.get("block") or ""):
-                addr["block"] = xl_data["bairro"]
-            if xl_data["cidade"] and xl_data["cidade"] != (crm_addr.get("city") or ""):
-                addr["city"] = xl_data["cidade"]
-            if addr:
-                lead_updates["address"] = addr
-
-            crm_company = (lead["data"].get("company") or "").strip()
-            if xl_data["empresa"] and not crm_company:
-                lead_updates["company"] = xl_data["empresa"]
 
         # ── Prepare business field updates (single target business) ──
         biz_updates = []
@@ -699,6 +683,7 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
             "Sexo": xl_data["sexo"],
             "DataMatricula": xl_data["data_matricula"],
             "TipoAluno": xl_data["tipo"],
+            "EmailAD": xl_data["email_acad"],
         }
         if rgm:
             mapping["RGM"] = rgm
