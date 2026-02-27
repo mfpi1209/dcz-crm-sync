@@ -68,7 +68,7 @@ BIZ_FIELD_IDS = {
 }
 
 LEAD_FIELD_IDS = {
-    "Sexo":             "",  # TODO: preencher com o ID do campo adicional de lead
+    "Sexo":             "802d0e93-53e9-4c3e-b593-14dafd890bf8",
 }
 
 FIELD_IDS = {**BIZ_FIELD_IDS, **LEAD_FIELD_IDS}
