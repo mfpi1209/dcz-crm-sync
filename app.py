@@ -3,7 +3,7 @@ DataCrazy CRM Sync — Interface Web (Flask).
 
 Uso:
     python app.py
-    Acesse http://localhost:5000
+    Acesse http://localhost:5001
 """
 
 import os
@@ -12,12 +12,14 @@ import json
 import subprocess
 import threading
 import time
+import re
 from datetime import datetime, timezone
 from pathlib import Path
+from collections import deque
 
 from flask import (
     Flask, render_template, request, jsonify,
-    redirect, url_for, session,
+    redirect, url_for, session, send_file,
 )
 import psycopg2
 import psycopg2.extras
@@ -41,6 +43,8 @@ def require_auth():
     if not APP_PASS:
         return
     if request.path in ("/login",):
+        return
+    if request.path.startswith("/static/"):
         return
     if not session.get("authenticated"):
         if request.path.startswith("/api/"):
@@ -76,20 +80,25 @@ DB_DSN = dict(
     dbname=os.getenv("DB_NAME", "dcz_sync"),
 )
 
-SYNC_SCRIPT = str(Path(__file__).parent / "sync.py")
-UPDATE_SCRIPT = str(Path(__file__).parent / "update_crm.py")
+BASE_DIR = Path(__file__).parent
+SYNC_SCRIPT = str(BASE_DIR / "sync.py")
+UPDATE_SCRIPT = str(BASE_DIR / "update_crm.py")
+LOG_DIR = BASE_DIR / "logs"
+REPORTS_DIR = BASE_DIR / "reports"
+
+MAX_LOG_LINES = 2000
 
 # ---------------------------------------------------------------------------
-# Estado global (para controlar execuções concorrentes)
+# Estado global
 # ---------------------------------------------------------------------------
 
 _sync_running = False
 _sync_proc = None
-_sync_logs: list[str] = []
+_sync_logs: deque = deque(maxlen=MAX_LOG_LINES)
 
 _update_running = False
 _update_proc = None
-_update_logs: list[str] = []
+_update_logs: deque = deque(maxlen=MAX_LOG_LINES)
 
 
 def _add_sync_log(line: str):
@@ -107,7 +116,6 @@ def get_conn():
     return psycopg2.connect(**DB_DSN)
 
 
-# IDs dos campos personalizados dos negócios
 FIELD_RGM = "2ac4e30f-cfd7-435f-b688-fbce27f76c38"
 
 SEARCH_QUERY = """
@@ -160,15 +168,12 @@ LEFT JOIN LATERAL (
     WHERE elem->'additionalField'->>'name' IS NOT NULL
 ) lead_cf ON true
 WHERE (
-    -- CPF
     (%(cpf)s != '' AND REPLACE(REPLACE(l.data->>'taxId', '.', ''), '-', '') LIKE '%%' || REPLACE(REPLACE(%(cpf)s, '.', ''), '-', '') || '%%')
-    -- RGM
     OR (%(rgm)s != '' AND EXISTS (
         SELECT 1 FROM jsonb_array_elements(b.data->'additionalFields') e
         WHERE e->'additionalField'->>'id' = '2ac4e30f-cfd7-435f-b688-fbce27f76c38'
           AND e->>'value' LIKE '%%' || %(rgm)s || '%%'
     ))
-    -- Telefone
     OR (%(telefone)s != '' AND (
         l.data->>'rawPhone' LIKE '%%' || %(telefone)s || '%%'
         OR REPLACE(REPLACE(REPLACE(REPLACE(l.data->>'phone', ' ', ''), '(', ''), ')', ''), '-', '') LIKE '%%' || %(telefone)s || '%%'
@@ -176,18 +181,6 @@ WHERE (
 )
 ORDER BY b.data->>'lastMovedAt' DESC NULLS LAST
 LIMIT 50;
-"""
-
-RECENT_UPDATES_QUERY = """
-SELECT
-    'lead' AS tipo,
-    l.id,
-    l.data->>'name' AS nome,
-    l.synced_at
-FROM leads l
-WHERE l.synced_at = (SELECT MAX(synced_at) FROM leads)
-ORDER BY l.synced_at DESC
-LIMIT 10;
 """
 
 RECENT_BIZ_UPDATES_QUERY = """
@@ -213,7 +206,7 @@ FROM sync_state ORDER BY entity_type;
 """
 
 # ---------------------------------------------------------------------------
-# Rotas
+# Rotas — Páginas
 # ---------------------------------------------------------------------------
 
 @app.route("/")
@@ -222,6 +215,73 @@ def index():
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     return resp
 
+
+# ---------------------------------------------------------------------------
+# Rotas — Dashboard
+# ---------------------------------------------------------------------------
+
+@app.route("/api/dashboard")
+def api_dashboard():
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT COUNT(*) AS total FROM leads")
+            total_leads = cur.fetchone()["total"]
+
+            cur.execute("SELECT COUNT(*) AS total FROM businesses")
+            total_biz = cur.fetchone()["total"]
+
+            cur.execute(SYNC_STATE_QUERY)
+            states = []
+            for r in cur.fetchall():
+                row = dict(r)
+                for k, v in row.items():
+                    if isinstance(v, datetime):
+                        row[k] = v.isoformat()
+                states.append(row)
+
+            cur.execute(RECENT_BIZ_UPDATES_QUERY)
+            recent = []
+            for r in cur.fetchall():
+                row = dict(r)
+                for k, v in row.items():
+                    if isinstance(v, datetime):
+                        row[k] = v.isoformat()
+                recent.append(row)
+
+            cur.execute("SELECT COUNT(*) AS total FROM pipelines")
+            total_pipelines = cur.fetchone()["total"]
+
+            # Schedules
+            try:
+                cur.execute("SELECT * FROM schedules ORDER BY created_at")
+                schedules = [dict(r) for r in cur.fetchall()]
+                for s in schedules:
+                    for k, v in s.items():
+                        if isinstance(v, datetime):
+                            s[k] = v.isoformat()
+            except Exception:
+                schedules = []
+
+        return jsonify({
+            "total_leads": total_leads,
+            "total_businesses": total_biz,
+            "total_pipelines": total_pipelines,
+            "sync_states": states,
+            "recent_updates": recent,
+            "schedules": schedules,
+            "sync_running": _sync_running,
+            "update_running": _update_running,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Rotas — Busca
+# ---------------------------------------------------------------------------
 
 @app.route("/api/search")
 def api_search():
@@ -281,6 +341,10 @@ def api_sync_state():
         conn.close()
 
 
+# ---------------------------------------------------------------------------
+# Rotas — Sync
+# ---------------------------------------------------------------------------
+
 @app.route("/api/sync/<mode>", methods=["POST"])
 def api_sync(mode):
     global _sync_running
@@ -302,7 +366,6 @@ def api_sync(mode):
                 cmd.append("--full")
 
             _add_sync_log(f"[INÍCIO] Sincronização {mode.upper()} iniciada")
-            _add_sync_log(f"CMD: {' '.join(cmd)}")
 
             env = {**os.environ, "PYTHONUNBUFFERED": "1"}
             proc = subprocess.Popen(
@@ -311,7 +374,7 @@ def api_sync(mode):
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
-                cwd=str(Path(__file__).parent),
+                cwd=str(BASE_DIR),
                 env=env,
             )
             _sync_proc = proc
@@ -339,27 +402,12 @@ def api_sync(mode):
     return jsonify({"ok": True, "mode": mode})
 
 
-@app.route("/api/debug")
-def api_debug():
-    return jsonify({
-        "sync_running": _sync_running,
-        "sync_proc_alive": _sync_proc is not None and _sync_proc.poll() is None if _sync_proc else False,
-        "sync_log_count": len(_sync_logs),
-        "sync_logs_last5": _sync_logs[-5:] if _sync_logs else [],
-        "update_running": _update_running,
-        "update_log_count": len(_update_logs),
-        "python": sys.executable,
-        "sync_script": SYNC_SCRIPT,
-        "sync_script_exists": Path(SYNC_SCRIPT).exists(),
-        "cwd": str(Path(__file__).parent),
-    })
-
-
 @app.route("/api/sync/logs")
 def api_sync_logs():
     since = int(request.args.get("since", 0))
-    lines = _sync_logs[since:]
-    return jsonify({"lines": lines, "total": len(_sync_logs), "running": _sync_running})
+    logs_list = list(_sync_logs)
+    lines = logs_list[since:]
+    return jsonify({"lines": lines, "total": len(logs_list), "running": _sync_running})
 
 
 @app.route("/api/sync/status")
@@ -383,7 +431,7 @@ def api_sync_stop():
 
 
 # ---------------------------------------------------------------------------
-# Update CRM routes
+# Rotas — Update CRM
 # ---------------------------------------------------------------------------
 
 @app.route("/api/update/<mode>", methods=["POST"])
@@ -417,7 +465,7 @@ def api_update(mode):
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
-                cwd=str(Path(__file__).parent),
+                cwd=str(BASE_DIR),
                 env=env,
             )
             _update_proc = proc
@@ -448,8 +496,9 @@ def api_update(mode):
 @app.route("/api/update/logs")
 def api_update_logs():
     since = int(request.args.get("since", 0))
-    lines = _update_logs[since:]
-    return jsonify({"lines": lines, "total": len(_update_logs), "running": _update_running})
+    logs_list = list(_update_logs)
+    lines = logs_list[since:]
+    return jsonify({"lines": lines, "total": len(logs_list), "running": _update_running})
 
 
 @app.route("/api/update/status")
@@ -474,7 +523,7 @@ def api_update_stop():
 
 @app.route("/api/update/preview")
 def api_update_preview():
-    preview_path = Path(__file__).parent / "reports" / "update_preview.csv"
+    preview_path = REPORTS_DIR / "update_preview.csv"
     if not preview_path.exists():
         return jsonify({"rows": [], "error": "Rode dry-run primeiro para gerar o preview."})
 
@@ -490,13 +539,13 @@ def api_update_preview():
 
 
 # ---------------------------------------------------------------------------
-# Upload da planilha de matriculados
+# Rotas — Upload
 # ---------------------------------------------------------------------------
 
-UPLOAD_DIR = Path(__file__).parent
+UPLOAD_DIR = BASE_DIR
+
 
 def _find_xlsx():
-    """Retorna info do .xlsx de matriculados atual, se existir."""
     for f in UPLOAD_DIR.iterdir():
         if f.suffix.lower() == ".xlsx" and "matriculados" in f.name.lower():
             stat = f.stat()
@@ -510,10 +559,7 @@ def _find_xlsx():
 
 @app.route("/api/upload/info")
 def api_upload_info():
-    info = _find_xlsx()
-    if info:
-        return jsonify({"file": info})
-    return jsonify({"file": None})
+    return jsonify({"file": _find_xlsx()})
 
 
 @app.route("/api/upload", methods=["POST"])
@@ -548,6 +594,343 @@ def api_upload():
             "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
         },
     })
+
+
+# ---------------------------------------------------------------------------
+# Rotas — Explorador de Logs
+# ---------------------------------------------------------------------------
+
+SAFE_LOG_DIRS = [LOG_DIR, REPORTS_DIR]
+
+
+def _list_log_files():
+    files = []
+    for d in SAFE_LOG_DIRS:
+        if not d.exists():
+            continue
+        for f in d.iterdir():
+            if f.is_file() and f.suffix.lower() in (".csv", ".log", ".txt"):
+                stat = f.stat()
+                files.append({
+                    "name": f.name,
+                    "dir": d.name,
+                    "path": f"{d.name}/{f.name}",
+                    "size": stat.st_size,
+                    "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                })
+    files.sort(key=lambda x: x["modified"], reverse=True)
+    return files
+
+
+def _resolve_log_path(filepath):
+    """Resolve and validate a log file path, preventing directory traversal."""
+    filepath = filepath.replace("\\", "/")
+    if ".." in filepath:
+        return None
+    for d in SAFE_LOG_DIRS:
+        candidate = d.parent / filepath
+        try:
+            candidate = candidate.resolve()
+            if candidate.is_file() and any(str(candidate).startswith(str(sd.resolve())) for sd in SAFE_LOG_DIRS):
+                return candidate
+        except Exception:
+            pass
+    return None
+
+
+@app.route("/api/logs")
+def api_logs_list():
+    return jsonify({"files": _list_log_files()})
+
+
+@app.route("/api/logs/view/<path:filepath>")
+def api_logs_view(filepath):
+    fpath = _resolve_log_path(filepath)
+    if not fpath:
+        return jsonify({"error": "Arquivo não encontrado."}), 404
+
+    tail = int(request.args.get("tail", 200))
+
+    try:
+        with open(fpath, "r", encoding="utf-8-sig", errors="replace") as f:
+            lines = f.readlines()
+
+        total = len(lines)
+        if tail and tail < total:
+            lines = lines[-tail:]
+
+        return jsonify({
+            "name": fpath.name,
+            "total_lines": total,
+            "showing": len(lines),
+            "lines": [l.rstrip() for l in lines],
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/logs/download/<path:filepath>")
+def api_logs_download(filepath):
+    fpath = _resolve_log_path(filepath)
+    if not fpath:
+        return jsonify({"error": "Arquivo não encontrado."}), 404
+    return send_file(str(fpath), as_attachment=True)
+
+
+# ---------------------------------------------------------------------------
+# Rotas — Agendamento (Schedules)
+# ---------------------------------------------------------------------------
+
+@app.route("/api/schedules")
+def api_schedules_list():
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT * FROM schedules ORDER BY created_at")
+            rows = []
+            for r in cur.fetchall():
+                row = dict(r)
+                for k, v in row.items():
+                    if isinstance(v, datetime):
+                        row[k] = v.isoformat()
+                rows.append(row)
+
+        # Add next run info from scheduler
+        for row in rows:
+            job = scheduler.get_job(row["id"])
+            if job and job.next_run_time:
+                row["next_run"] = job.next_run_time.isoformat()
+            else:
+                row["next_run"] = None
+
+        return jsonify({"schedules": rows})
+    except Exception as e:
+        return jsonify({"schedules": [], "error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/schedules", methods=["POST"])
+def api_schedules_save():
+    data = request.json
+    if not data:
+        return jsonify({"error": "Dados inválidos."}), 400
+
+    job_type = data.get("job_type", "")
+    if job_type not in ("sync_delta", "sync_full"):
+        return jsonify({"error": "Tipo inválido. Use 'sync_delta' ou 'sync_full'."}), 400
+
+    cron_days = data.get("cron_days", "*")
+    cron_hour = int(data.get("cron_hour", 2))
+    cron_minute = int(data.get("cron_minute", 0))
+    enabled = bool(data.get("enabled", True))
+    schedule_id = data.get("id") or f"{job_type}_{cron_hour:02d}{cron_minute:02d}"
+
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO schedules (id, job_type, cron_days, cron_hour, cron_minute, enabled)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE SET
+                    job_type = EXCLUDED.job_type,
+                    cron_days = EXCLUDED.cron_days,
+                    cron_hour = EXCLUDED.cron_hour,
+                    cron_minute = EXCLUDED.cron_minute,
+                    enabled = EXCLUDED.enabled
+            """, (schedule_id, job_type, cron_days, cron_hour, cron_minute, enabled))
+        conn.commit()
+
+        _register_schedule_job(schedule_id, job_type, cron_days, cron_hour, cron_minute, enabled)
+
+        return jsonify({"ok": True, "id": schedule_id})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/schedules/<schedule_id>", methods=["DELETE"])
+def api_schedules_delete(schedule_id):
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM schedules WHERE id = %s", (schedule_id,))
+        conn.commit()
+
+        try:
+            scheduler.remove_job(schedule_id)
+        except Exception:
+            pass
+
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/schedules/<schedule_id>/toggle", methods=["POST"])
+def api_schedules_toggle(schedule_id):
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("UPDATE schedules SET enabled = NOT enabled WHERE id = %s RETURNING *", (schedule_id,))
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"error": "Agendamento não encontrado."}), 404
+        conn.commit()
+
+        _register_schedule_job(
+            row["id"], row["job_type"], row["cron_days"],
+            row["cron_hour"], row["cron_minute"], row["enabled"],
+        )
+
+        return jsonify({"ok": True, "enabled": row["enabled"]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Rotas — Debug
+# ---------------------------------------------------------------------------
+
+@app.route("/api/debug")
+def api_debug():
+    return jsonify({
+        "sync_running": _sync_running,
+        "sync_proc_alive": _sync_proc is not None and _sync_proc.poll() is None if _sync_proc else False,
+        "sync_log_count": len(_sync_logs),
+        "sync_logs_last5": list(_sync_logs)[-5:] if _sync_logs else [],
+        "update_running": _update_running,
+        "update_log_count": len(_update_logs),
+        "python": sys.executable,
+        "sync_script": SYNC_SCRIPT,
+        "sync_script_exists": Path(SYNC_SCRIPT).exists(),
+        "cwd": str(BASE_DIR),
+    })
+
+
+# ---------------------------------------------------------------------------
+# APScheduler
+# ---------------------------------------------------------------------------
+
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+
+scheduler = BackgroundScheduler(timezone="America/Sao_Paulo")
+
+DAY_MAP = {"0": "mon", "1": "tue", "2": "wed", "3": "thu", "4": "fri", "5": "sat", "6": "sun"}
+
+
+def _run_scheduled_sync(job_type):
+    """Executa sync agendado (roda no thread do scheduler)."""
+    global _sync_running, _sync_proc
+
+    if _sync_running:
+        app.logger.info("Scheduled %s skipped — sync already running", job_type)
+        return
+
+    mode = "full" if job_type == "sync_full" else "delta"
+    _sync_running = True
+    _sync_logs.clear()
+
+    try:
+        cmd = [sys.executable, SYNC_SCRIPT]
+        if mode == "full":
+            cmd.append("--full")
+
+        _add_sync_log(f"[AGENDADO] Sincronização {mode.upper()} iniciada automaticamente")
+
+        env = {**os.environ, "PYTHONUNBUFFERED": "1"}
+        proc = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, bufsize=1, cwd=str(BASE_DIR), env=env,
+        )
+        _sync_proc = proc
+
+        for line in proc.stdout:
+            _add_sync_log(line)
+
+        proc.wait()
+
+        if proc.returncode == 0:
+            _add_sync_log("[FIM] Sincronização agendada concluída com sucesso")
+        else:
+            _add_sync_log(f"[ERRO] Sincronização agendada falhou (exit code {proc.returncode})")
+
+        # Update last_run_at
+        try:
+            conn = get_conn()
+            with conn.cursor() as cur:
+                cur.execute("UPDATE schedules SET last_run_at = NOW() WHERE job_type = %s", (job_type,))
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
+    except Exception as e:
+        _add_sync_log(f"[ERRO] {e}")
+    finally:
+        _sync_proc = None
+        _sync_running = False
+
+
+def _register_schedule_job(schedule_id, job_type, cron_days, cron_hour, cron_minute, enabled):
+    """Register or update a scheduler job."""
+    try:
+        scheduler.remove_job(schedule_id)
+    except Exception:
+        pass
+
+    if not enabled:
+        return
+
+    if cron_days == "*":
+        day_of_week = "*"
+    else:
+        parts = [d.strip() for d in cron_days.split(",")]
+        day_of_week = ",".join(DAY_MAP.get(p, p) for p in parts)
+
+    trigger = CronTrigger(
+        day_of_week=day_of_week,
+        hour=cron_hour,
+        minute=cron_minute,
+        timezone="America/Sao_Paulo",
+    )
+
+    scheduler.add_job(
+        _run_scheduled_sync,
+        trigger=trigger,
+        args=[job_type],
+        id=schedule_id,
+        replace_existing=True,
+        misfire_grace_time=300,
+    )
+
+
+def _load_schedules_from_db():
+    """Load all schedules from DB and register them in APScheduler."""
+    try:
+        conn = get_conn()
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT * FROM schedules")
+            for row in cur.fetchall():
+                _register_schedule_job(
+                    row["id"], row["job_type"], row["cron_days"],
+                    row["cron_hour"], row["cron_minute"], row["enabled"],
+                )
+        conn.close()
+        app.logger.info("Schedules loaded from DB")
+    except Exception as e:
+        app.logger.warning("Could not load schedules: %s", e)
+
+
+# Start scheduler
+scheduler.start()
+_load_schedules_from_db()
 
 
 # ---------------------------------------------------------------------------

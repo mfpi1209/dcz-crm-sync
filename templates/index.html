@@ -19,239 +19,432 @@
         .tag-pill { display: inline-block; padding: 2px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
         .fade-in { animation: fadeIn 0.3s ease-in; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+        .sidebar-link { display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; color: #9ca3af; transition: all 0.15s; cursor: pointer; }
+        .sidebar-link:hover { background: rgba(99,102,241,0.08); color: #e5e7eb; }
+        .sidebar-link.active { background: rgba(99,102,241,0.15); color: #a5b4fc; font-weight: 600; }
+        .card-stat { transition: transform 0.15s; }
+        .card-stat:hover { transform: translateY(-2px); }
+
+        @media (max-width: 768px) {
+            #sidebar { transform: translateX(-100%); position: fixed; z-index: 40; height: 100vh; }
+            #sidebar.open { transform: translateX(0); }
+            #sidebar-overlay { display: none; }
+            #sidebar-overlay.open { display: block; }
+        }
     </style>
 </head>
 <body class="h-full bg-gray-950 text-gray-100">
 
-<div class="min-h-full flex flex-col">
-    <!-- Header -->
-    <header class="bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-3">
+<div class="h-full flex">
+    <!-- Mobile overlay -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-30" onclick="toggleSidebar()"></div>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="w-60 bg-gray-900 border-r border-gray-800 flex flex-col flex-shrink-0 transition-transform duration-200 md:translate-x-0">
+        <!-- Logo -->
+        <div class="px-5 py-5 flex items-center gap-3 border-b border-gray-800">
             <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-sm">DC</div>
-            <h1 class="text-lg font-semibold">DataCrazy CRM Sync</h1>
+            <span class="text-sm font-semibold text-gray-200">DataCrazy Sync</span>
         </div>
-        <div class="flex items-center gap-3">
-            <div id="sync-status-badge" class="text-xs px-3 py-1 rounded-full bg-gray-800 text-gray-400">
-                Idle
-            </div>
-            <a href="/logout" class="text-xs text-gray-500 hover:text-gray-300 transition">Sair</a>
-        </div>
-    </header>
 
-    <!-- Tabs -->
-    <div class="bg-gray-900 border-b border-gray-800 px-6">
-        <nav class="flex gap-1">
-            <button onclick="switchTab('search')" id="tab-search"
-                class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-indigo-500 text-indigo-400">
+        <!-- Nav -->
+        <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+            <a onclick="navigate('dashboard')" class="sidebar-link active" data-page="dashboard">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z"/></svg>
+                Dashboard
+            </a>
+            <a onclick="navigate('search')" class="sidebar-link" data-page="search">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                 Buscar
-            </button>
-            <button onclick="switchTab('sync')" id="tab-sync"
-                class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-200">
+            </a>
+            <a onclick="navigate('sync')" class="sidebar-link" data-page="sync">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 Sincronização
-            </button>
-            <button onclick="switchTab('update')" id="tab-update"
-                class="tab-btn px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-200">
+            </a>
+            <a onclick="navigate('update')" class="sidebar-link" data-page="update">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                 Atualização CRM
-            </button>
+            </a>
+            <a onclick="navigate('logs')" class="sidebar-link" data-page="logs">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                Logs / Relatórios
+            </a>
+            <a onclick="navigate('schedule')" class="sidebar-link" data-page="schedule">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Agendamento
+            </a>
         </nav>
-    </div>
 
-    <!-- Content -->
-    <main class="flex-1 overflow-auto">
-
-        <!-- ============ TAB: BUSCAR ============ -->
-        <div id="panel-search" class="p-6 max-w-7xl mx-auto">
-            <form id="search-form" class="flex flex-wrap gap-3 items-end mb-6">
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">CPF</label>
-                    <input type="text" name="cpf" placeholder="000.000.000-00"
-                        class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-44 focus:border-indigo-500 focus:outline-none">
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">RGM</label>
-                    <input type="text" name="rgm" placeholder="12345678"
-                        class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-36 focus:border-indigo-500 focus:outline-none">
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">Telefone</label>
-                    <input type="text" name="telefone" placeholder="11999998888"
-                        class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-40 focus:border-indigo-500 focus:outline-none">
-                </div>
-                <button type="submit"
-                    class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition">
-                    Buscar
-                </button>
-            </form>
-
-            <div id="search-error" class="hidden mb-4 p-3 bg-red-900/40 border border-red-800 rounded-lg text-red-300 text-sm"></div>
-            <div id="search-empty" class="hidden mb-4 p-3 bg-yellow-900/30 border border-yellow-800 rounded-lg text-yellow-300 text-sm">
-                Nenhum resultado encontrado.
-            </div>
-            <div id="search-loading" class="hidden mb-4 text-gray-400 text-sm">Buscando...</div>
-
-            <div id="search-results" class="space-y-4"></div>
-        </div>
-
-        <!-- ============ TAB: SYNC ============ -->
-        <div id="panel-sync" class="p-6 max-w-7xl mx-auto hidden">
-
-            <!-- Sync state -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                    <h3 class="text-sm font-semibold text-gray-300 mb-3">Estado da Sincronização</h3>
-                    <div id="sync-state-table" class="text-sm text-gray-400">Carregando...</div>
-                </div>
-                <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                    <h3 class="text-sm font-semibold text-gray-300 mb-3">Últimas Atualizações</h3>
-                    <div id="recent-updates" class="text-sm text-gray-400">Carregando...</div>
-                </div>
-            </div>
-
-            <!-- Buttons -->
-            <div class="flex gap-3 mb-4">
-                <button onclick="startSync('delta')" id="btn-delta"
-                    class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                    Sync Delta
-                </button>
-                <button onclick="startSync('full')" id="btn-full"
-                    class="bg-gray-700 hover:bg-gray-600 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
-                    Sync Full
-                </button>
-                <button onclick="stopSync()" id="btn-sync-stop"
-                    class="hidden bg-red-600 hover:bg-red-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
-                    Parar
-                </button>
-            </div>
-
-            <!-- Log terminal -->
-            <div class="bg-gray-950 border border-gray-800 rounded-xl overflow-hidden">
-                <div class="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800">
-                    <span class="text-xs text-gray-400 font-medium">Log de Execução</span>
-                    <button onclick="clearLog()" class="text-xs text-gray-500 hover:text-gray-300">Limpar</button>
-                </div>
-                <pre id="sync-log" class="log-terminal p-4 h-96 overflow-auto text-gray-400 whitespace-pre-wrap"></pre>
+        <!-- Footer -->
+        <div class="px-4 py-3 border-t border-gray-800">
+            <div class="flex items-center justify-between">
+                <div id="global-badge" class="text-xs px-2.5 py-1 rounded-full bg-gray-800 text-gray-500">Idle</div>
+                <a href="/logout" class="text-xs text-gray-600 hover:text-gray-400 transition">Sair</a>
             </div>
         </div>
+    </aside>
 
-        <!-- ============ TAB: UPDATE CRM ============ -->
-        <div id="panel-update" class="p-6 max-w-7xl mx-auto hidden">
+    <!-- Main content -->
+    <div class="flex-1 flex flex-col min-w-0">
+        <!-- Top bar (mobile) -->
+        <header class="md:hidden bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center gap-3">
+            <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+            <span class="text-sm font-semibold" id="mobile-title">Dashboard</span>
+        </header>
 
-            <!-- Upload + Info -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <!-- Upload area -->
-                <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                    <h3 class="text-sm font-semibold text-gray-300 mb-3">Planilha de Matriculados</h3>
-                    <div id="upload-zone"
-                        class="border-2 border-dashed border-gray-700 rounded-lg p-6 text-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-950/10 transition"
-                        onclick="document.getElementById('file-input').click()"
-                        ondragover="event.preventDefault(); this.classList.add('border-indigo-500','bg-indigo-950/10')"
-                        ondragleave="this.classList.remove('border-indigo-500','bg-indigo-950/10')"
-                        ondrop="handleDrop(event)">
-                        <input type="file" id="file-input" accept=".xlsx" class="hidden" onchange="handleUpload(this.files[0])">
-                        <svg class="w-8 h-8 mx-auto mb-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
-                        </svg>
-                        <p class="text-sm text-gray-400">Arraste o arquivo <span class="text-indigo-400 font-medium">.xlsx</span> aqui</p>
-                        <p class="text-xs text-gray-600 mt-1">ou clique para selecionar</p>
-                    </div>
-                    <div id="upload-progress" class="hidden mt-3">
-                        <div class="w-full bg-gray-800 rounded-full h-1.5">
-                            <div id="upload-bar" class="bg-indigo-500 h-1.5 rounded-full transition-all" style="width:0%"></div>
+        <main class="flex-1 overflow-auto">
+
+            <!-- ============ PAGE: DASHBOARD ============ -->
+            <div id="page-dashboard" class="p-6 max-w-7xl mx-auto">
+                <h2 class="text-xl font-bold text-gray-100 mb-6">Dashboard</h2>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                    <div class="card-stat bg-gray-900 border border-gray-800 rounded-xl p-5">
+                        <div class="flex items-center gap-3 mb-2">
+                            <div class="w-10 h-10 rounded-lg bg-blue-600/20 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            </div>
+                            <div>
+                                <p class="text-2xl font-bold text-white" id="dash-leads">—</p>
+                                <p class="text-xs text-gray-500">Leads</p>
+                            </div>
                         </div>
-                        <p id="upload-status" class="text-xs text-gray-400 mt-1">Enviando...</p>
+                    </div>
+                    <div class="card-stat bg-gray-900 border border-gray-800 rounded-xl p-5">
+                        <div class="flex items-center gap-3 mb-2">
+                            <div class="w-10 h-10 rounded-lg bg-emerald-600/20 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                            </div>
+                            <div>
+                                <p class="text-2xl font-bold text-white" id="dash-biz">—</p>
+                                <p class="text-xs text-gray-500">Negócios</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-stat bg-gray-900 border border-gray-800 rounded-xl p-5">
+                        <div class="flex items-center gap-3 mb-2">
+                            <div class="w-10 h-10 rounded-lg bg-purple-600/20 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
+                            </div>
+                            <div>
+                                <p class="text-2xl font-bold text-white" id="dash-pipelines">—</p>
+                                <p class="text-xs text-gray-500">Pipelines</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-stat bg-gray-900 border border-gray-800 rounded-xl p-5">
+                        <div class="flex items-center gap-3 mb-2">
+                            <div class="w-10 h-10 rounded-lg bg-amber-600/20 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </div>
+                            <div>
+                                <p class="text-2xl font-bold text-white" id="dash-status">Idle</p>
+                                <p class="text-xs text-gray-500">Status</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Current file info -->
-                <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                    <h3 class="text-sm font-semibold text-gray-300 mb-3">Arquivo Atual</h3>
-                    <div id="file-info" class="text-sm text-gray-400">Carregando...</div>
-                    <div class="mt-4 pt-3 border-t border-gray-800">
-                        <p class="text-xs text-gray-500 leading-relaxed">
-                            Cruza a planilha com o CRM e atualiza campos dos leads e negócios.
-                            Não altera pipelines nem etapas. Cascata: RGM &rarr; CPF &rarr; Telefone &rarr; Nome.
-                        </p>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+                    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                        <h3 class="text-sm font-semibold text-gray-300 mb-3">Estado da Sincronização</h3>
+                        <div id="dash-sync-state" class="text-sm text-gray-400">Carregando...</div>
+                    </div>
+                    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                        <h3 class="text-sm font-semibold text-gray-300 mb-3">Últimos Negócios Sincronizados</h3>
+                        <div id="dash-recent" class="text-sm text-gray-400">Carregando...</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Buttons -->
-            <div class="flex flex-wrap gap-3 mb-4 items-end">
-                <button onclick="startUpdate('dry-run')" id="btn-dryrun"
-                    class="bg-amber-600 hover:bg-amber-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                    Dry-Run (Preview)
-                </button>
-                <button onclick="startUpdate('test')" id="btn-test"
-                    class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    Testar 1 Registro
-                </button>
-                <div class="flex items-end gap-2">
+            <!-- ============ PAGE: BUSCAR ============ -->
+            <div id="page-search" class="p-6 max-w-7xl mx-auto hidden">
+                <h2 class="text-xl font-bold text-gray-100 mb-6">Buscar Lead / Negócio</h2>
+                <form id="search-form" class="flex flex-wrap gap-3 items-end mb-6">
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">Limite (opcional)</label>
-                        <input type="number" id="update-limit" placeholder="todos" min="1"
-                            class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-28 focus:border-indigo-500 focus:outline-none">
+                        <label class="block text-xs text-gray-400 mb-1">CPF</label>
+                        <input type="text" name="cpf" placeholder="000.000.000-00"
+                            class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-44 focus:border-indigo-500 focus:outline-none">
                     </div>
-                    <button onclick="confirmExecute()" id="btn-execute"
-                        class="bg-red-600 hover:bg-red-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                        Executar Update
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">RGM</label>
+                        <input type="text" name="rgm" placeholder="12345678"
+                            class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-36 focus:border-indigo-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Telefone</label>
+                        <input type="text" name="telefone" placeholder="11999998888"
+                            class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-40 focus:border-indigo-500 focus:outline-none">
+                    </div>
+                    <button type="submit"
+                        class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition">
+                        Buscar
+                    </button>
+                </form>
+
+                <div id="search-error" class="hidden mb-4 p-3 bg-red-900/40 border border-red-800 rounded-lg text-red-300 text-sm"></div>
+                <div id="search-empty" class="hidden mb-4 p-3 bg-yellow-900/30 border border-yellow-800 rounded-lg text-yellow-300 text-sm">
+                    Nenhum resultado encontrado.
+                </div>
+                <div id="search-loading" class="hidden mb-4 text-gray-400 text-sm">Buscando...</div>
+                <div id="search-results" class="space-y-4"></div>
+            </div>
+
+            <!-- ============ PAGE: SYNC ============ -->
+            <div id="page-sync" class="p-6 max-w-7xl mx-auto hidden">
+                <h2 class="text-xl font-bold text-gray-100 mb-6">Sincronização</h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                        <h3 class="text-sm font-semibold text-gray-300 mb-3">Estado da Sincronização</h3>
+                        <div id="sync-state-table" class="text-sm text-gray-400">Carregando...</div>
+                    </div>
+                    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                        <h3 class="text-sm font-semibold text-gray-300 mb-3">Últimas Atualizações</h3>
+                        <div id="recent-updates" class="text-sm text-gray-400">Carregando...</div>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 mb-4">
+                    <button onclick="startSync('delta')" id="btn-delta"
+                        class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        Sync Delta
+                    </button>
+                    <button onclick="startSync('full')" id="btn-full"
+                        class="bg-gray-700 hover:bg-gray-600 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
+                        Sync Full
+                    </button>
+                    <button onclick="stopSync()" id="btn-sync-stop"
+                        class="hidden bg-red-600 hover:bg-red-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+                        Parar
                     </button>
                 </div>
-                <button onclick="stopUpdate()" id="btn-update-stop"
-                    class="hidden bg-red-600 hover:bg-red-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
-                    Parar
-                </button>
-            </div>
 
-            <!-- Preview table -->
-            <div id="update-preview-section" class="hidden mb-4">
-                <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                <div class="bg-gray-950 border border-gray-800 rounded-xl overflow-hidden">
                     <div class="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800">
-                        <span class="text-xs text-gray-400 font-medium">Preview de Atualizações <span id="preview-count" class="text-gray-600"></span></span>
-                        <button onclick="document.getElementById('update-preview-section').classList.add('hidden')"
-                            class="text-xs text-gray-500 hover:text-gray-300">Fechar</button>
+                        <span class="text-xs text-gray-400 font-medium">Log de Execução</span>
+                        <button onclick="clearLog()" class="text-xs text-gray-500 hover:text-gray-300">Limpar</button>
                     </div>
-                    <div class="overflow-auto max-h-80">
-                        <table class="w-full text-left text-xs">
-                            <thead class="sticky top-0 bg-gray-900">
-                                <tr class="text-gray-500 border-b border-gray-800">
-                                    <th class="px-3 py-2">Match</th>
-                                    <th class="px-3 py-2">RGM</th>
-                                    <th class="px-3 py-2">Nome</th>
-                                    <th class="px-3 py-2">Lead ID</th>
-                                    <th class="px-3 py-2">Lead Mudanças</th>
-                                    <th class="px-3 py-2">Negócio Mudanças</th>
-                                </tr>
-                            </thead>
-                            <tbody id="preview-tbody" class="text-gray-300"></tbody>
-                        </table>
+                    <pre id="sync-log" class="log-terminal p-4 h-96 overflow-auto text-gray-400 whitespace-pre-wrap"></pre>
+                </div>
+            </div>
+
+            <!-- ============ PAGE: UPDATE CRM ============ -->
+            <div id="page-update" class="p-6 max-w-7xl mx-auto hidden">
+                <h2 class="text-xl font-bold text-gray-100 mb-6">Atualização CRM</h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                        <h3 class="text-sm font-semibold text-gray-300 mb-3">Planilha de Matriculados</h3>
+                        <div id="upload-zone"
+                            class="border-2 border-dashed border-gray-700 rounded-lg p-6 text-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-950/10 transition"
+                            onclick="document.getElementById('file-input').click()"
+                            ondragover="event.preventDefault(); this.classList.add('border-indigo-500','bg-indigo-950/10')"
+                            ondragleave="this.classList.remove('border-indigo-500','bg-indigo-950/10')"
+                            ondrop="handleDrop(event)">
+                            <input type="file" id="file-input" accept=".xlsx" class="hidden" onchange="handleUpload(this.files[0])">
+                            <svg class="w-8 h-8 mx-auto mb-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                            </svg>
+                            <p class="text-sm text-gray-400">Arraste o arquivo <span class="text-indigo-400 font-medium">.xlsx</span> aqui</p>
+                            <p class="text-xs text-gray-600 mt-1">ou clique para selecionar</p>
+                        </div>
+                        <div id="upload-progress" class="hidden mt-3">
+                            <div class="w-full bg-gray-800 rounded-full h-1.5">
+                                <div id="upload-bar" class="bg-indigo-500 h-1.5 rounded-full transition-all" style="width:0%"></div>
+                            </div>
+                            <p id="upload-status" class="text-xs text-gray-400 mt-1">Enviando...</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                        <h3 class="text-sm font-semibold text-gray-300 mb-3">Arquivo Atual</h3>
+                        <div id="file-info" class="text-sm text-gray-400">Carregando...</div>
+                        <div class="mt-4 pt-3 border-t border-gray-800">
+                            <p class="text-xs text-gray-500 leading-relaxed">
+                                Cruza a planilha com o CRM e atualiza campos dos leads e negócios.
+                                Cascata: RGM &rarr; CPF &rarr; Telefone &rarr; Nome.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap gap-3 mb-4 items-end">
+                    <button onclick="startUpdate('dry-run')" id="btn-dryrun"
+                        class="bg-amber-600 hover:bg-amber-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                        Dry-Run (Preview)
+                    </button>
+                    <button onclick="startUpdate('test')" id="btn-test"
+                        class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Testar 1 Registro
+                    </button>
+                    <div class="flex items-end gap-2">
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Limite (opcional)</label>
+                            <input type="number" id="update-limit" placeholder="todos" min="1"
+                                class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-28 focus:border-indigo-500 focus:outline-none">
+                        </div>
+                        <button onclick="confirmExecute()" id="btn-execute"
+                            class="bg-red-600 hover:bg-red-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                            Executar Update
+                        </button>
+                    </div>
+                    <button onclick="stopUpdate()" id="btn-update-stop"
+                        class="hidden bg-red-600 hover:bg-red-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+                        Parar
+                    </button>
+                </div>
+
+                <div id="update-preview-section" class="hidden mb-4">
+                    <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                        <div class="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800">
+                            <span class="text-xs text-gray-400 font-medium">Preview de Atualizações <span id="preview-count" class="text-gray-600"></span></span>
+                            <button onclick="document.getElementById('update-preview-section').classList.add('hidden')"
+                                class="text-xs text-gray-500 hover:text-gray-300">Fechar</button>
+                        </div>
+                        <div class="overflow-auto max-h-80">
+                            <table class="w-full text-left text-xs">
+                                <thead class="sticky top-0 bg-gray-900">
+                                    <tr class="text-gray-500 border-b border-gray-800">
+                                        <th class="px-3 py-2">Match</th>
+                                        <th class="px-3 py-2">RGM</th>
+                                        <th class="px-3 py-2">Nome</th>
+                                        <th class="px-3 py-2">Lead ID</th>
+                                        <th class="px-3 py-2">Lead Mudanças</th>
+                                        <th class="px-3 py-2">Negócio Mudanças</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="preview-tbody" class="text-gray-300"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-950 border border-gray-800 rounded-xl overflow-hidden">
+                    <div class="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800">
+                        <span class="text-xs text-gray-400 font-medium">Log de Atualização</span>
+                        <button onclick="clearUpdateLog()" class="text-xs text-gray-500 hover:text-gray-300">Limpar</button>
+                    </div>
+                    <pre id="update-log" class="log-terminal p-4 h-96 overflow-auto text-gray-400 whitespace-pre-wrap"></pre>
+                </div>
+            </div>
+
+            <!-- ============ PAGE: LOGS ============ -->
+            <div id="page-logs" class="p-6 max-w-7xl mx-auto hidden">
+                <h2 class="text-xl font-bold text-gray-100 mb-6">Logs / Relatórios</h2>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <!-- File list -->
+                    <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-sm font-semibold text-gray-300">Arquivos</h3>
+                            <button onclick="loadLogFiles()" class="text-xs text-gray-500 hover:text-gray-300">Atualizar</button>
+                        </div>
+                        <div id="log-file-list" class="space-y-1 max-h-[70vh] overflow-y-auto text-sm">
+                            <p class="text-gray-500">Carregando...</p>
+                        </div>
+                    </div>
+
+                    <!-- File viewer -->
+                    <div class="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                        <div class="flex items-center justify-between px-4 py-2 border-b border-gray-800">
+                            <span class="text-xs text-gray-400 font-medium" id="log-viewer-title">Selecione um arquivo</span>
+                            <div class="flex gap-2">
+                                <select id="log-tail-select" onchange="reloadLogView()" class="text-xs bg-gray-800 border border-gray-700 rounded px-2 py-1 text-gray-300">
+                                    <option value="100">100 linhas</option>
+                                    <option value="200" selected>200 linhas</option>
+                                    <option value="500">500 linhas</option>
+                                    <option value="1000">1000 linhas</option>
+                                    <option value="0">Todas</option>
+                                </select>
+                                <button onclick="downloadCurrentLog()" id="btn-download-log" class="hidden text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                    Baixar
+                                </button>
+                            </div>
+                        </div>
+                        <pre id="log-viewer-content" class="log-terminal p-4 h-[65vh] overflow-auto text-gray-400 whitespace-pre-wrap">Clique em um arquivo para visualizar.</pre>
                     </div>
                 </div>
             </div>
 
-            <!-- Update log terminal -->
-            <div class="bg-gray-950 border border-gray-800 rounded-xl overflow-hidden">
-                <div class="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800">
-                    <span class="text-xs text-gray-400 font-medium">Log de Atualização</span>
-                    <button onclick="clearUpdateLog()" class="text-xs text-gray-500 hover:text-gray-300">Limpar</button>
-                </div>
-                <pre id="update-log" class="log-terminal p-4 h-96 overflow-auto text-gray-400 whitespace-pre-wrap"></pre>
-            </div>
-        </div>
+            <!-- ============ PAGE: SCHEDULE ============ -->
+            <div id="page-schedule" class="p-6 max-w-7xl mx-auto hidden">
+                <h2 class="text-xl font-bold text-gray-100 mb-6">Agendamento</h2>
 
-    </main>
+                <!-- New schedule form -->
+                <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">
+                    <h3 class="text-sm font-semibold text-gray-300 mb-4">Novo Agendamento</h3>
+                    <div class="flex flex-wrap gap-4 items-end">
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Tipo</label>
+                            <select id="sched-type" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none">
+                                <option value="sync_delta">Sync Delta</option>
+                                <option value="sync_full">Sync Full</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Dias</label>
+                            <select id="sched-days" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none">
+                                <option value="*">Todos os dias</option>
+                                <option value="0,1,2,3,4">Seg — Sex</option>
+                                <option value="0">Segunda</option>
+                                <option value="1">Terça</option>
+                                <option value="2">Quarta</option>
+                                <option value="3">Quinta</option>
+                                <option value="4">Sexta</option>
+                                <option value="5">Sábado</option>
+                                <option value="6">Domingo</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Hora</label>
+                            <input type="number" id="sched-hour" value="2" min="0" max="23"
+                                class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-20 focus:border-indigo-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Minuto</label>
+                            <input type="number" id="sched-minute" value="0" min="0" max="59"
+                                class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-20 focus:border-indigo-500 focus:outline-none">
+                        </div>
+                        <button onclick="saveSchedule()"
+                            class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                            Salvar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Schedule list -->
+                <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+                        <h3 class="text-sm font-semibold text-gray-300">Agendamentos Ativos</h3>
+                        <button onclick="loadSchedules()" class="text-xs text-gray-500 hover:text-gray-300">Atualizar</button>
+                    </div>
+                    <div id="schedule-list" class="p-4">
+                        <p class="text-sm text-gray-500">Carregando...</p>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
 </div>
 
 <script>
 {% raw %}
+
 // ---------------------------------------------------------------------------
-// API helper — redireciona ao login se sessão expirou
+// API helper
 // ---------------------------------------------------------------------------
 async function api(url, opts = {}) {
     const res = await fetch(url, opts);
@@ -263,21 +456,134 @@ async function api(url, opts = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// Tabs
+// SPA Navigation
 // ---------------------------------------------------------------------------
-function switchTab(tab) {
-    document.querySelectorAll('.tab-btn').forEach(b => {
-        b.classList.remove('border-indigo-500', 'text-indigo-400');
-        b.classList.add('border-transparent', 'text-gray-400');
+const PAGES = ['dashboard', 'search', 'sync', 'update', 'logs', 'schedule'];
+const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', update: 'Atualização CRM', logs: 'Logs / Relatórios', schedule: 'Agendamento' };
+
+function navigate(page) {
+    PAGES.forEach(p => {
+        document.getElementById('page-' + p).classList.toggle('hidden', p !== page);
     });
-    document.getElementById('tab-' + tab).classList.add('border-indigo-500', 'text-indigo-400');
-    document.getElementById('tab-' + tab).classList.remove('border-transparent', 'text-gray-400');
+    document.querySelectorAll('.sidebar-link').forEach(el => {
+        el.classList.toggle('active', el.dataset.page === page);
+    });
+    document.getElementById('mobile-title').textContent = PAGE_TITLES[page] || page;
 
-    document.getElementById('panel-search').classList.toggle('hidden', tab !== 'search');
-    document.getElementById('panel-sync').classList.toggle('hidden', tab !== 'sync');
-    document.getElementById('panel-update').classList.toggle('hidden', tab !== 'update');
+    // Close mobile sidebar
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebar-overlay').classList.remove('open');
 
-    if (tab === 'sync') loadSyncState();
+    // Load page data
+    if (page === 'dashboard') loadDashboard();
+    if (page === 'sync') loadSyncState();
+    if (page === 'update') loadFileInfo();
+    if (page === 'logs') loadLogFiles();
+    if (page === 'schedule') loadSchedules();
+
+    history.replaceState(null, '', '#' + page);
+}
+
+function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebar-overlay').classList.toggle('open');
+}
+
+// ---------------------------------------------------------------------------
+// Utils
+// ---------------------------------------------------------------------------
+function fmtDate(iso) {
+    if (!iso) return null;
+    try {
+        const d = new Date(iso);
+        return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+    } catch { return iso; }
+}
+
+function esc(s) {
+    const el = document.createElement('span');
+    el.textContent = s;
+    return el.innerHTML;
+}
+
+function field(label, value) {
+    return `<div><span class="text-gray-500">${esc(label)}</span><br><span class="text-gray-200">${value ? esc(String(value)) : '<span class=text-gray-600>—</span>'}</span></div>`;
+}
+
+// ---------------------------------------------------------------------------
+// Global badge
+// ---------------------------------------------------------------------------
+let _syncRunningFlag = false;
+let _updateRunningFlag = false;
+
+function refreshBadge() {
+    const badge = document.getElementById('global-badge');
+    if (_syncRunningFlag) {
+        badge.textContent = 'Sincronizando...';
+        badge.className = 'text-xs px-2.5 py-1 rounded-full bg-indigo-900/50 text-indigo-300 animate-pulse';
+    } else if (_updateRunningFlag) {
+        badge.textContent = 'Atualizando CRM...';
+        badge.className = 'text-xs px-2.5 py-1 rounded-full bg-amber-900/50 text-amber-300 animate-pulse';
+    } else {
+        badge.textContent = 'Idle';
+        badge.className = 'text-xs px-2.5 py-1 rounded-full bg-gray-800 text-gray-500';
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard
+// ---------------------------------------------------------------------------
+async function loadDashboard() {
+    try {
+        const res = await api('/api/dashboard');
+        const d = await res.json();
+        if (d.error) return;
+
+        document.getElementById('dash-leads').textContent = (d.total_leads || 0).toLocaleString('pt-BR');
+        document.getElementById('dash-biz').textContent = (d.total_businesses || 0).toLocaleString('pt-BR');
+        document.getElementById('dash-pipelines').textContent = d.total_pipelines || 0;
+
+        let statusText = 'Idle';
+        if (d.sync_running) statusText = 'Sync...';
+        else if (d.update_running) statusText = 'Update...';
+        document.getElementById('dash-status').textContent = statusText;
+
+        // Sync state
+        const stateDiv = document.getElementById('dash-sync-state');
+        if (d.sync_states && d.sync_states.length) {
+            stateDiv.innerHTML = `<table class="w-full text-left">
+                <thead><tr class="text-xs text-gray-500 border-b border-gray-800">
+                    <th class="pb-2">Entidade</th><th class="pb-2">Último sync</th><th class="pb-2">Runs</th>
+                </tr></thead>
+                <tbody>${d.sync_states.map(s => `<tr class="border-b border-gray-800/50">
+                    <td class="py-1.5 text-gray-300 font-medium">${esc(s.entity_type)}</td>
+                    <td class="py-1.5">${s.last_sync_at ? fmtDate(s.last_sync_at) : '—'}</td>
+                    <td class="py-1.5">${s.run_count || 0}</td>
+                </tr>`).join('')}</tbody></table>`;
+        } else {
+            stateDiv.textContent = 'Nenhuma sincronização realizada.';
+        }
+
+        // Recent
+        const recentDiv = document.getElementById('dash-recent');
+        if (d.recent_updates && d.recent_updates.length) {
+            recentDiv.innerHTML = d.recent_updates.map(u => `
+                <div class="flex items-center justify-between py-1.5 border-b border-gray-800/50">
+                    <div>
+                        <span class="text-gray-300">${esc(u.nome_lead || '—')}</span>
+                        <span class="text-gray-600 text-xs ml-2">${esc(u.pipeline || '')} &rarr; ${esc(u.etapa || '')}</span>
+                    </div>
+                    <span class="tag-pill ${u.status === 'won' ? 'bg-emerald-900/50 text-emerald-300' : u.status === 'lost' ? 'bg-red-900/50 text-red-300' : 'bg-blue-900/50 text-blue-300'}">
+                        ${{won:'Ganho', in_process:'Aberto', lost:'Perdido'}[u.status] || u.status}
+                    </span>
+                </div>
+            `).join('');
+        } else {
+            recentDiv.textContent = 'Nenhuma atualização recente.';
+        }
+    } catch (err) {
+        console.error('Dashboard load error:', err);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -388,24 +694,6 @@ function renderResults(results) {
     });
 }
 
-function field(label, value) {
-    return `<div><span class="text-gray-500">${esc(label)}</span><br><span class="text-gray-200">${value ? esc(String(value)) : '<span class=text-gray-600>—</span>'}</span></div>`;
-}
-
-function fmtDate(iso) {
-    if (!iso) return null;
-    try {
-        const d = new Date(iso);
-        return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
-    } catch { return iso; }
-}
-
-function esc(s) {
-    const el = document.createElement('span');
-    el.textContent = s;
-    return el.innerHTML;
-}
-
 // ---------------------------------------------------------------------------
 // Sync
 // ---------------------------------------------------------------------------
@@ -414,7 +702,6 @@ async function loadSyncState() {
         const res = await fetch('/api/sync-state');
         const data = await res.json();
 
-        // State table
         const stateDiv = document.getElementById('sync-state-table');
         if (data.states && data.states.length) {
             stateDiv.innerHTML = `<table class="w-full text-left">
@@ -430,7 +717,6 @@ async function loadSyncState() {
             stateDiv.textContent = 'Nenhuma sincronização realizada ainda.';
         }
 
-        // Recent updates
         const recentDiv = document.getElementById('recent-updates');
         if (data.recent_updates && data.recent_updates.length) {
             recentDiv.innerHTML = data.recent_updates.map(u => `
@@ -494,10 +780,7 @@ async function pollSyncLogs() {
         const url = `/api/sync/logs?since=${syncLogOffset}`;
         const res = await fetch(url, { credentials: 'same-origin' });
         if (res.status === 401) { window.location.href = '/login'; return; }
-        if (!res.ok) {
-            appendLog(`[POLL ERRO] HTTP ${res.status}`);
-            return;
-        }
+        if (!res.ok) { appendLog(`[POLL ERRO] HTTP ${res.status}`); return; }
         const data = await res.json();
         if (data.lines && data.lines.length > 0) {
             data.lines.forEach(l => appendLog(l));
@@ -522,7 +805,7 @@ function appendLog(text) {
     if (text.includes('INFO')) colored = `<span class="text-gray-300">${esc(text)}</span>`;
     else if (text.includes('WARNING')) colored = `<span class="text-yellow-400">${esc(text)}</span>`;
     else if (text.includes('ERROR') || text.includes('[ERRO]') || text.includes('POLL ERRO')) colored = `<span class="text-red-400">${esc(text)}</span>`;
-    else if (text.includes('[INÍCIO]') || text.includes('[FIM]')) colored = `<span class="text-indigo-400 font-semibold">${esc(text)}</span>`;
+    else if (text.includes('[INÍCIO]') || text.includes('[FIM]') || text.includes('[AGENDADO]')) colored = `<span class="text-indigo-400 font-semibold">${esc(text)}</span>`;
     else colored = esc(text);
 
     el.innerHTML += colored + '\n';
@@ -533,36 +816,14 @@ function clearLog() {
     document.getElementById('sync-log').innerHTML = '';
 }
 
-let _syncRunningFlag = false;
-let _updateRunningFlag = false;
-
-function refreshBadge() {
-    const badge = document.getElementById('sync-status-badge');
-    if (_syncRunningFlag) {
-        badge.textContent = 'Sincronizando...';
-        badge.className = 'text-xs px-3 py-1 rounded-full bg-indigo-900/50 text-indigo-300 animate-pulse';
-    } else if (_updateRunningFlag) {
-        badge.textContent = 'Atualizando CRM...';
-        badge.className = 'text-xs px-3 py-1 rounded-full bg-amber-900/50 text-amber-300 animate-pulse';
-    } else {
-        badge.textContent = 'Idle';
-        badge.className = 'text-xs px-3 py-1 rounded-full bg-gray-800 text-gray-400';
-    }
-}
-
 async function stopSync() {
     if (!confirm('Interromper a sincronização?')) return;
-    try {
-        await api('/api/sync/stop', { method: 'POST' });
-    } catch (err) { console.error(err); }
+    try { await api('/api/sync/stop', { method: 'POST' }); } catch (err) { console.error(err); }
 }
 
-// Check sync status on load and resume polling if running
+// Check sync status on load
 fetch('/api/sync/status', { credentials: 'same-origin' }).then(r => r.json()).then(d => {
-    if (d.running) {
-        setSyncBtnsState(true);
-        startSyncPolling();
-    }
+    if (d.running) { setSyncBtnsState(true); startSyncPolling(); }
 }).catch(() => {});
 
 // ---------------------------------------------------------------------------
@@ -572,14 +833,9 @@ let updatePollTimer = null;
 let updateLogOffset = 0;
 let _lastUpdateMode = null;
 
-const updateBtns = () => [
-    document.getElementById('btn-dryrun'),
-    document.getElementById('btn-test'),
-    document.getElementById('btn-execute'),
-];
-
 function setUpdateBtnsDisabled(disabled) {
-    updateBtns().forEach(b => {
+    ['btn-dryrun', 'btn-test', 'btn-execute'].forEach(id => {
+        const b = document.getElementById(id);
         b.disabled = disabled;
         b.classList.toggle('opacity-50', disabled);
         b.classList.toggle('cursor-not-allowed', disabled);
@@ -641,10 +897,7 @@ async function pollUpdateLogs() {
     try {
         const res = await fetch(`/api/update/logs?since=${updateLogOffset}`, { credentials: 'same-origin' });
         if (res.status === 401) { window.location.href = '/login'; return; }
-        if (!res.ok) {
-            appendUpdateLog(`[POLL ERRO] HTTP ${res.status}`);
-            return;
-        }
+        if (!res.ok) { appendUpdateLog(`[POLL ERRO] HTTP ${res.status}`); return; }
         const data = await res.json();
         if (data.lines && data.lines.length > 0) {
             data.lines.forEach(l => appendUpdateLog(l));
@@ -701,22 +954,14 @@ async function loadPreview() {
     try {
         const res = await fetch('/api/update/preview');
         const data = await res.json();
-        if (data.error) return;
-        if (!data.rows || !data.rows.length) return;
+        if (data.error || !data.rows || !data.rows.length) return;
 
-        const section = document.getElementById('update-preview-section');
-        section.classList.remove('hidden');
+        document.getElementById('update-preview-section').classList.remove('hidden');
         document.getElementById('preview-count').textContent = `(${data.rows.length} registros)`;
 
         const tbody = document.getElementById('preview-tbody');
         tbody.innerHTML = data.rows.map(r => {
-            const matchColor = {
-                'RGM': 'text-emerald-400',
-                'CPF': 'text-blue-400',
-                'TELEFONE': 'text-amber-400',
-                'NOME': 'text-purple-400'
-            }[r.match_tipo] || 'text-gray-400';
-
+            const matchColor = { 'RGM': 'text-emerald-400', 'CPF': 'text-blue-400', 'TELEFONE': 'text-amber-400', 'NOME': 'text-purple-400' }[r.match_tipo] || 'text-gray-400';
             return `<tr class="border-b border-gray-800/50 hover:bg-gray-800/30">
                 <td class="px-3 py-1.5 ${matchColor} font-medium">${esc(r.match_tipo || '')}</td>
                 <td class="px-3 py-1.5 text-gray-400 font-mono">${esc(r.rgm || '')}</td>
@@ -733,18 +978,12 @@ async function loadPreview() {
 
 async function stopUpdate() {
     if (!confirm('Interromper a atualização do CRM?')) return;
-    try {
-        await api('/api/update/stop', { method: 'POST' });
-    } catch (err) { console.error(err); }
+    try { await api('/api/update/stop', { method: 'POST' }); } catch (err) { console.error(err); }
 }
 
-// Check update status on load and resume polling if running
+// Check update status on load
 fetch('/api/update/status', { credentials: 'same-origin' }).then(r => r.json()).then(d => {
-    if (d.running) {
-        updateUpdateBadge(true);
-        setUpdateBtnsDisabled(true);
-        startUpdatePolling();
-    }
+    if (d.running) { updateUpdateBadge(true); setUpdateBtnsDisabled(true); startUpdatePolling(); }
 }).catch(() => {});
 
 // ---------------------------------------------------------------------------
@@ -783,10 +1022,7 @@ async function handleUpload(file) {
         if (data.error) {
             status.textContent = data.error;
             status.classList.add('text-red-400');
-            setTimeout(() => {
-                progress.classList.add('hidden');
-                status.classList.remove('text-red-400');
-            }, 3000);
+            setTimeout(() => { progress.classList.add('hidden'); status.classList.remove('text-red-400'); }, 3000);
             return;
         }
 
@@ -841,7 +1077,177 @@ function loadFileInfo() {
     fetch('/api/upload/info').then(r => r.json()).then(d => renderFileInfo(d.file));
 }
 
-loadFileInfo();
+// ---------------------------------------------------------------------------
+// Logs / Relatórios
+// ---------------------------------------------------------------------------
+let _currentLogFile = null;
+
+async function loadLogFiles() {
+    try {
+        const res = await api('/api/logs');
+        const data = await res.json();
+        const list = document.getElementById('log-file-list');
+
+        if (!data.files || !data.files.length) {
+            list.innerHTML = '<p class="text-gray-500 text-xs">Nenhum arquivo encontrado.</p>';
+            return;
+        }
+
+        list.innerHTML = data.files.map(f => {
+            const size = f.size > 1048576 ? (f.size / 1048576).toFixed(1) + ' MB' : (f.size / 1024).toFixed(0) + ' KB';
+            const isActive = _currentLogFile === f.path;
+            return `<button onclick="viewLogFile('${esc(f.path)}')"
+                class="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-800 transition ${isActive ? 'bg-gray-800 text-indigo-400' : 'text-gray-300'}">
+                <div class="font-medium text-xs truncate">${esc(f.name)}</div>
+                <div class="text-[10px] text-gray-600">${esc(f.dir)} &middot; ${size} &middot; ${fmtDate(f.modified) || '—'}</div>
+            </button>`;
+        }).join('');
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+async function viewLogFile(filepath) {
+    _currentLogFile = filepath;
+    const tail = document.getElementById('log-tail-select').value;
+    const title = document.getElementById('log-viewer-title');
+    const content = document.getElementById('log-viewer-content');
+    const btnDl = document.getElementById('btn-download-log');
+
+    title.textContent = filepath;
+    content.textContent = 'Carregando...';
+    btnDl.classList.remove('hidden');
+
+    try {
+        const res = await api(`/api/logs/view/${filepath}?tail=${tail}`);
+        const data = await res.json();
+        if (data.error) {
+            content.textContent = 'Erro: ' + data.error;
+            return;
+        }
+        title.textContent = `${data.name} (${data.showing}/${data.total_lines} linhas)`;
+        content.textContent = data.lines.join('\n');
+        content.scrollTop = content.scrollHeight;
+    } catch (err) {
+        content.textContent = 'Erro: ' + err.message;
+    }
+
+    loadLogFiles();
+}
+
+function reloadLogView() {
+    if (_currentLogFile) viewLogFile(_currentLogFile);
+}
+
+function downloadCurrentLog() {
+    if (!_currentLogFile) return;
+    window.open(`/api/logs/download/${_currentLogFile}`, '_blank');
+}
+
+// ---------------------------------------------------------------------------
+// Schedule
+// ---------------------------------------------------------------------------
+const DAY_LABELS = { '*': 'Todos os dias', '0,1,2,3,4': 'Seg — Sex', '0': 'Seg', '1': 'Ter', '2': 'Qua', '3': 'Qui', '4': 'Sex', '5': 'Sáb', '6': 'Dom' };
+const TYPE_LABELS = { sync_delta: 'Sync Delta', sync_full: 'Sync Full' };
+
+async function loadSchedules() {
+    try {
+        const res = await api('/api/schedules');
+        const data = await res.json();
+        const container = document.getElementById('schedule-list');
+
+        if (!data.schedules || !data.schedules.length) {
+            container.innerHTML = '<p class="text-sm text-gray-500">Nenhum agendamento configurado.</p>';
+            return;
+        }
+
+        container.innerHTML = `<div class="space-y-3">${data.schedules.map(s => {
+            const typeColor = s.job_type === 'sync_full' ? 'bg-purple-900/50 text-purple-300' : 'bg-indigo-900/50 text-indigo-300';
+            const enabledColor = s.enabled ? 'bg-emerald-900/50 text-emerald-300' : 'bg-gray-800 text-gray-500';
+            const days = DAY_LABELS[s.cron_days] || s.cron_days;
+            const time = String(s.cron_hour).padStart(2, '0') + ':' + String(s.cron_minute).padStart(2, '0');
+
+            return `<div class="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                <div class="flex items-center gap-4">
+                    <div>
+                        <span class="tag-pill ${typeColor}">${TYPE_LABELS[s.job_type] || s.job_type}</span>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-200 font-medium">${days} às ${time}</p>
+                        <p class="text-xs text-gray-500">
+                            ${s.last_run_at ? 'Última execução: ' + fmtDate(s.last_run_at) : 'Nunca executado'}
+                            ${s.next_run ? ' &middot; Próxima: ' + fmtDate(s.next_run) : ''}
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="tag-pill ${enabledColor}">${s.enabled ? 'Ativo' : 'Inativo'}</span>
+                    <button onclick="toggleSchedule('${esc(s.id)}')" class="text-xs px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 transition">
+                        ${s.enabled ? 'Desativar' : 'Ativar'}
+                    </button>
+                    <button onclick="deleteSchedule('${esc(s.id)}')" class="text-xs px-3 py-1.5 rounded-lg bg-red-900/30 hover:bg-red-900/50 text-red-400 transition">
+                        Excluir
+                    </button>
+                </div>
+            </div>`;
+        }).join('')}</div>`;
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+async function saveSchedule() {
+    const payload = {
+        job_type: document.getElementById('sched-type').value,
+        cron_days: document.getElementById('sched-days').value,
+        cron_hour: parseInt(document.getElementById('sched-hour').value),
+        cron_minute: parseInt(document.getElementById('sched-minute').value),
+        enabled: true,
+    };
+
+    try {
+        const res = await api('/api/schedules', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (data.error) { alert(data.error); return; }
+        loadSchedules();
+    } catch (err) {
+        alert('Erro: ' + err.message);
+    }
+}
+
+async function toggleSchedule(id) {
+    try {
+        await api(`/api/schedules/${id}/toggle`, { method: 'POST' });
+        loadSchedules();
+    } catch (err) {
+        alert('Erro: ' + err.message);
+    }
+}
+
+async function deleteSchedule(id) {
+    if (!confirm('Excluir este agendamento?')) return;
+    try {
+        await api(`/api/schedules/${id}`, { method: 'DELETE' });
+        loadSchedules();
+    } catch (err) {
+        alert('Erro: ' + err.message);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Init
+// ---------------------------------------------------------------------------
+const hash = window.location.hash.replace('#', '') || 'dashboard';
+if (PAGES.includes(hash)) {
+    navigate(hash);
+} else {
+    navigate('dashboard');
+}
+
 {% endraw %}
 </script>
 

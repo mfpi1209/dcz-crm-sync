@@ -47,3 +47,14 @@ CREATE INDEX IF NOT EXISTS idx_leads_synced ON leads(synced_at);
 CREATE INDEX IF NOT EXISTS idx_biz_synced ON businesses(synced_at);
 CREATE INDEX IF NOT EXISTS idx_leads_gin ON leads USING GIN(data);
 CREATE INDEX IF NOT EXISTS idx_biz_gin ON businesses USING GIN(data);
+
+CREATE TABLE IF NOT EXISTS schedules (
+    id TEXT PRIMARY KEY,
+    job_type TEXT NOT NULL,
+    cron_days TEXT NOT NULL DEFAULT '*',
+    cron_hour INTEGER NOT NULL DEFAULT 2,
+    cron_minute INTEGER NOT NULL DEFAULT 0,
+    enabled BOOLEAN DEFAULT TRUE,
+    last_run_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
