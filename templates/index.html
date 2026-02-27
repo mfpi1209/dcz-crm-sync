@@ -101,6 +101,10 @@
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                 Atualização CRM
             </a>
+            <a href="#pipeline" onclick="navigate('pipeline')" class="sidebar-link" data-page="pipeline">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                Saneamento / Pipeline
+            </a>
             <a href="#logs" onclick="navigate('logs')" class="sidebar-link" data-page="logs">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                 Logs / Relatórios
@@ -400,6 +404,102 @@
                 </div>
             </div>
 
+            <!-- ============ PAGE: PIPELINE (Saneamento + Pipeline) ============ -->
+            <div id="page-pipeline" class="p-6 max-w-7xl mx-auto hidden">
+                <h2 class="text-xl font-bold text-gray-100 mb-6">Saneamento / Pipeline</h2>
+
+                <!-- FASE 1: Saneamento -->
+                <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-xs font-bold text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded">FASE 1</span>
+                        <h3 class="text-sm font-semibold text-gray-200">Saneamento de Duplicatas</h3>
+                    </div>
+                    <p class="text-xs text-gray-500 mb-4">Remove negócios duplicados (mesmo RGM no mesmo lead) e negócios sem RGM. Gera relatório de RGMs em leads diferentes.</p>
+
+                    <div class="flex flex-wrap gap-3 items-end">
+                        <button onclick="startSanitize('dry-run')" id="btn-san-dryrun"
+                            class="bg-amber-600 hover:bg-amber-500 text-white font-medium text-sm px-4 py-2 rounded-lg transition flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                            Dry-Run
+                        </button>
+                        <button onclick="startSanitize('test')" id="btn-san-test"
+                            class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-4 py-2 rounded-lg transition flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            Testar 1
+                        </button>
+                        <div class="flex items-end gap-2">
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">Limite</label>
+                                <input type="number" id="sanitize-limit" placeholder="todos" min="1"
+                                    class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-24 focus:border-indigo-500 focus:outline-none">
+                            </div>
+                            <button onclick="confirmSanitize()" id="btn-san-execute"
+                                class="bg-red-600 hover:bg-red-500 text-white font-medium text-sm px-4 py-2 rounded-lg transition flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                Executar DELETEs
+                            </button>
+                        </div>
+                        <button onclick="stopSanitize()" id="btn-san-stop"
+                            class="hidden bg-red-600 hover:bg-red-500 text-white font-medium text-sm px-4 py-2 rounded-lg transition flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+                            Parar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- FASE 2: Pipeline -->
+                <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-xs font-bold text-emerald-400 bg-emerald-900/30 px-2 py-0.5 rounded">FASE 2</span>
+                        <h3 class="text-sm font-semibold text-gray-200">Movimentação de Pipeline</h3>
+                    </div>
+                    <p class="text-xs text-gray-500 mb-4">Move negócios para etapas corretas (Calouro, Veterano, Sem Rematrícula, Perdido) e altera status (lost/restore). Execute o saneamento antes.</p>
+
+                    <div class="flex flex-wrap gap-3 items-end">
+                        <button onclick="startPipeline('dry-run')" id="btn-pipe-dryrun"
+                            class="bg-amber-600 hover:bg-amber-500 text-white font-medium text-sm px-4 py-2 rounded-lg transition flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                            Dry-Run
+                        </button>
+                        <button onclick="startPipeline('test')" id="btn-pipe-test"
+                            class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-4 py-2 rounded-lg transition flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            Testar 1
+                        </button>
+                        <div class="flex items-end gap-2">
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">Limite</label>
+                                <input type="number" id="pipeline-limit" placeholder="todos" min="1"
+                                    class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm w-24 focus:border-indigo-500 focus:outline-none">
+                            </div>
+                            <button onclick="confirmPipeline()" id="btn-pipe-execute"
+                                class="bg-red-600 hover:bg-red-500 text-white font-medium text-sm px-4 py-2 rounded-lg transition flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                                Executar Pipeline
+                            </button>
+                        </div>
+                        <button onclick="stopPipeline()" id="btn-pipe-stop"
+                            class="hidden bg-red-600 hover:bg-red-500 text-white font-medium text-sm px-4 py-2 rounded-lg transition flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+                            Parar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Log compartilhado -->
+                <div class="bg-gray-950 border border-gray-800 rounded-xl overflow-hidden">
+                    <div class="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800">
+                        <div class="flex gap-3">
+                            <button onclick="showPipelineLog('sanitize')" id="tab-san-log" class="text-xs font-medium text-indigo-400 border-b-2 border-indigo-400 pb-1">Saneamento</button>
+                            <button onclick="showPipelineLog('pipeline')" id="tab-pipe-log" class="text-xs font-medium text-gray-500 hover:text-gray-300 pb-1">Pipeline</button>
+                        </div>
+                        <button onclick="clearPipelineLog()" class="text-xs text-gray-500 hover:text-gray-300">Limpar</button>
+                    </div>
+                    <pre id="sanitize-log" class="log-terminal p-4 h-96 overflow-auto text-gray-400 whitespace-pre-wrap"></pre>
+                    <pre id="pipeline-log" class="log-terminal p-4 h-96 overflow-auto text-gray-400 whitespace-pre-wrap hidden"></pre>
+                </div>
+            </div>
+
             <!-- ============ PAGE: LOGS ============ -->
             <div id="page-logs" class="p-6 max-w-7xl mx-auto hidden">
                 <h2 class="text-xl font-bold text-gray-100 mb-6">Logs / Relatórios</h2>
@@ -520,8 +620,8 @@ async function api(url, opts = {}) {
 // ---------------------------------------------------------------------------
 // SPA Navigation
 // ---------------------------------------------------------------------------
-const PAGES = ['dashboard', 'search', 'sync', 'update', 'logs', 'schedule'];
-const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', update: 'Atualização CRM', logs: 'Logs / Relatórios', schedule: 'Agendamento' };
+const PAGES = ['dashboard', 'search', 'sync', 'update', 'pipeline', 'logs', 'schedule'];
+const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', logs: 'Logs / Relatórios', schedule: 'Agendamento' };
 
 function navigate(page) {
     PAGES.forEach(p => {
@@ -1064,6 +1164,153 @@ async function stopUpdate() {
 // Check update status on load
 fetch('/api/update/status', { credentials: 'same-origin' }).then(r => r.json()).then(d => {
     if (d.running) { updateUpdateBadge(true); setUpdateBtnsDisabled(true); startUpdatePolling(); }
+}).catch(() => {});
+
+// ---------------------------------------------------------------------------
+// Saneamento
+// ---------------------------------------------------------------------------
+let _sanPolling = null;
+
+async function startSanitize(mode) {
+    const body = {};
+    if (mode === 'execute') {
+        const lim = document.getElementById('sanitize-limit').value;
+        if (lim) body.limit = parseInt(lim);
+    }
+    showPipelineLog('sanitize');
+    try {
+        const res = await api('/api/sanitize/' + mode, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        const d = await res.json();
+        if (d.error) { alert(d.error); return; }
+        setSanBtns(true);
+        startSanPolling();
+    } catch(e) { alert('Erro: ' + e.message); }
+}
+
+function confirmSanitize() {
+    if (!confirm('Executar exclusão em massa de negócios duplicados? Esta ação é IRREVERSÍVEL.')) return;
+    startSanitize('execute');
+}
+
+function setSanBtns(running) {
+    ['btn-san-dryrun','btn-san-test','btn-san-execute'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.disabled = running; el.classList.toggle('opacity-50', running); }
+    });
+    const stop = document.getElementById('btn-san-stop');
+    if (stop) stop.classList.toggle('hidden', !running);
+}
+
+function startSanPolling() {
+    let since = 0;
+    if (_sanPolling) clearInterval(_sanPolling);
+    _sanPolling = setInterval(async () => {
+        try {
+            const res = await api('/api/sanitize/logs?since=' + since);
+            const d = await res.json();
+            const el = document.getElementById('sanitize-log');
+            if (d.lines && d.lines.length > 0) {
+                d.lines.forEach(l => { el.textContent += l + '\n'; });
+                el.scrollTop = el.scrollHeight;
+            }
+            since = d.total;
+            if (!d.running) { clearInterval(_sanPolling); _sanPolling = null; setSanBtns(false); }
+        } catch(e) { console.error(e); }
+    }, 1500);
+}
+
+async function stopSanitize() {
+    if (!confirm('Interromper o saneamento?')) return;
+    try { await api('/api/sanitize/stop', { method: 'POST' }); } catch(e) { console.error(e); }
+}
+
+// Check sanitize status on load
+fetch('/api/sanitize/status', { credentials: 'same-origin' }).then(r => r.json()).then(d => {
+    if (d.running) { setSanBtns(true); startSanPolling(); }
+}).catch(() => {});
+
+// ---------------------------------------------------------------------------
+// Pipeline
+// ---------------------------------------------------------------------------
+let _pipePolling = null;
+
+async function startPipeline(mode) {
+    const body = {};
+    if (mode === 'execute') {
+        const lim = document.getElementById('pipeline-limit').value;
+        if (lim) body.limit = parseInt(lim);
+    }
+    showPipelineLog('pipeline');
+    try {
+        const res = await api('/api/pipeline/' + mode, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        const d = await res.json();
+        if (d.error) { alert(d.error); return; }
+        setPipeBtns(true);
+        startPipePolling();
+    } catch(e) { alert('Erro: ' + e.message); }
+}
+
+function confirmPipeline() {
+    if (!confirm('Executar movimentação de pipeline em massa? Negócios serão movidos/perdidos/restaurados.')) return;
+    startPipeline('execute');
+}
+
+function setPipeBtns(running) {
+    ['btn-pipe-dryrun','btn-pipe-test','btn-pipe-execute'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.disabled = running; el.classList.toggle('opacity-50', running); }
+    });
+    const stop = document.getElementById('btn-pipe-stop');
+    if (stop) stop.classList.toggle('hidden', !running);
+}
+
+function startPipePolling() {
+    let since = 0;
+    if (_pipePolling) clearInterval(_pipePolling);
+    _pipePolling = setInterval(async () => {
+        try {
+            const res = await api('/api/pipeline/logs?since=' + since);
+            const d = await res.json();
+            const el = document.getElementById('pipeline-log');
+            if (d.lines && d.lines.length > 0) {
+                d.lines.forEach(l => { el.textContent += l + '\n'; });
+                el.scrollTop = el.scrollHeight;
+            }
+            since = d.total;
+            if (!d.running) { clearInterval(_pipePolling); _pipePolling = null; setPipeBtns(false); }
+        } catch(e) { console.error(e); }
+    }, 1500);
+}
+
+async function stopPipeline() {
+    if (!confirm('Interromper o pipeline?')) return;
+    try { await api('/api/pipeline/stop', { method: 'POST' }); } catch(e) { console.error(e); }
+}
+
+function showPipelineLog(which) {
+    const sanLog = document.getElementById('sanitize-log');
+    const pipeLog = document.getElementById('pipeline-log');
+    const tabSan = document.getElementById('tab-san-log');
+    const tabPipe = document.getElementById('tab-pipe-log');
+    if (which === 'sanitize') {
+        sanLog.classList.remove('hidden'); pipeLog.classList.add('hidden');
+        tabSan.classList.add('text-indigo-400','border-b-2','border-indigo-400'); tabSan.classList.remove('text-gray-500');
+        tabPipe.classList.remove('text-indigo-400','border-b-2','border-indigo-400'); tabPipe.classList.add('text-gray-500');
+    } else {
+        pipeLog.classList.remove('hidden'); sanLog.classList.add('hidden');
+        tabPipe.classList.add('text-indigo-400','border-b-2','border-indigo-400'); tabPipe.classList.remove('text-gray-500');
+        tabSan.classList.remove('text-indigo-400','border-b-2','border-indigo-400'); tabSan.classList.add('text-gray-500');
+    }
+}
+
+function clearPipelineLog() {
+    document.getElementById('sanitize-log').textContent = '';
+    document.getElementById('pipeline-log').textContent = '';
+}
+
+// Check pipeline status on load
+fetch('/api/pipeline/status', { credentials: 'same-origin' }).then(r => r.json()).then(d => {
+    if (d.running) { setPipeBtns(true); startPipePolling(); showPipelineLog('pipeline'); }
 }).catch(() => {});
 
 // ---------------------------------------------------------------------------

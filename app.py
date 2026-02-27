@@ -97,6 +97,8 @@ DB_DSN = dict(
 BASE_DIR = Path(__file__).parent
 SYNC_SCRIPT = str(BASE_DIR / "sync.py")
 UPDATE_SCRIPT = str(BASE_DIR / "update_crm.py")
+SANITIZE_SCRIPT = str(BASE_DIR / "sanitize_crm.py")
+PIPELINE_SCRIPT = str(BASE_DIR / "pipeline_crm.py")
 LOG_DIR = BASE_DIR / "logs"
 REPORTS_DIR = BASE_DIR / "reports"
 
@@ -114,6 +116,14 @@ _update_running = False
 _update_proc = None
 _update_logs: deque = deque(maxlen=MAX_LOG_LINES)
 
+_sanitize_running = False
+_sanitize_proc = None
+_sanitize_logs: deque = deque(maxlen=MAX_LOG_LINES)
+
+_pipeline_running = False
+_pipeline_proc = None
+_pipeline_logs: deque = deque(maxlen=MAX_LOG_LINES)
+
 
 def _add_sync_log(line: str):
     _sync_logs.append(line.rstrip())
@@ -121,6 +131,14 @@ def _add_sync_log(line: str):
 
 def _add_update_log(line: str):
     _update_logs.append(line.rstrip())
+
+
+def _add_sanitize_log(line: str):
+    _sanitize_logs.append(line.rstrip())
+
+
+def _add_pipeline_log(line: str):
+    _pipeline_logs.append(line.rstrip())
 
 # ---------------------------------------------------------------------------
 # Database helpers
@@ -554,6 +572,178 @@ def api_update_preview():
                 break
             rows.append(dict(row))
     return jsonify({"rows": rows, "total": len(rows)})
+
+
+# ---------------------------------------------------------------------------
+# Rotas — Saneamento
+# ---------------------------------------------------------------------------
+
+@app.route("/api/sanitize/<mode>", methods=["POST"])
+def api_sanitize(mode):
+    global _sanitize_running
+
+    if mode not in ("dry-run", "test", "execute"):
+        return jsonify({"error": "Modo inválido. Use 'dry-run', 'test' ou 'execute'."}), 400
+
+    if _sanitize_running:
+        return jsonify({"error": "Saneamento já em andamento."}), 409
+
+    body = request.json if request.is_json else {}
+    limit = body.get("limit")
+
+    _sanitize_running = True
+    _sanitize_logs.clear()
+
+    def run():
+        global _sanitize_running, _sanitize_proc
+        try:
+            cmd = [sys.executable, SANITIZE_SCRIPT, f"--{mode}"]
+            if limit and mode == "execute":
+                cmd.extend(["--limit", str(int(limit))])
+
+            _add_sanitize_log(f"[INÍCIO] Saneamento — modo {mode.upper()}")
+
+            env = {**os.environ, "PYTHONUNBUFFERED": "1"}
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, bufsize=1, cwd=str(BASE_DIR), env=env,
+            )
+            _sanitize_proc = proc
+            for line in proc.stdout:
+                _add_sanitize_log(line)
+            proc.wait()
+
+            if proc.returncode == 0:
+                _add_sanitize_log("[FIM] Concluído com sucesso (exit code 0)")
+            elif proc.returncode < 0:
+                _add_sanitize_log("[PARADO] Processo interrompido pelo usuário.")
+            else:
+                _add_sanitize_log(f"[ERRO] Falhou (exit code {proc.returncode})")
+        except Exception as e:
+            import traceback
+            _add_sanitize_log(f"[ERRO] {e}")
+            _add_sanitize_log(traceback.format_exc())
+        finally:
+            _sanitize_proc = None
+            _sanitize_running = False
+
+    threading.Thread(target=run, daemon=True).start()
+    return jsonify({"ok": True, "mode": mode})
+
+
+@app.route("/api/sanitize/logs")
+def api_sanitize_logs():
+    since = int(request.args.get("since", 0))
+    logs_list = list(_sanitize_logs)
+    lines = logs_list[since:]
+    return jsonify({"lines": lines, "total": len(logs_list), "running": _sanitize_running})
+
+
+@app.route("/api/sanitize/status")
+def api_sanitize_status():
+    global _sanitize_running
+    if _sanitize_running and (_sanitize_proc is None or _sanitize_proc.poll() is not None):
+        _sanitize_running = False
+    return jsonify({"running": _sanitize_running})
+
+
+@app.route("/api/sanitize/stop", methods=["POST"])
+def api_sanitize_stop():
+    global _sanitize_running
+    if _sanitize_proc is not None:
+        try:
+            _sanitize_proc.terminate()
+        except Exception:
+            pass
+    _sanitize_running = False
+    return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# Rotas — Pipeline
+# ---------------------------------------------------------------------------
+
+@app.route("/api/pipeline/<mode>", methods=["POST"])
+def api_pipeline(mode):
+    global _pipeline_running
+
+    if mode not in ("dry-run", "test", "execute"):
+        return jsonify({"error": "Modo inválido. Use 'dry-run', 'test' ou 'execute'."}), 400
+
+    if _pipeline_running:
+        return jsonify({"error": "Pipeline já em andamento."}), 409
+
+    body = request.json if request.is_json else {}
+    limit = body.get("limit")
+
+    _pipeline_running = True
+    _pipeline_logs.clear()
+
+    def run():
+        global _pipeline_running, _pipeline_proc
+        try:
+            cmd = [sys.executable, PIPELINE_SCRIPT, f"--{mode}"]
+            if limit and mode == "execute":
+                cmd.extend(["--limit", str(int(limit))])
+
+            _add_pipeline_log(f"[INÍCIO] Pipeline — modo {mode.upper()}")
+
+            env = {**os.environ, "PYTHONUNBUFFERED": "1"}
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, bufsize=1, cwd=str(BASE_DIR), env=env,
+            )
+            _pipeline_proc = proc
+            for line in proc.stdout:
+                _add_pipeline_log(line)
+            proc.wait()
+
+            if proc.returncode == 0:
+                _add_pipeline_log("[FIM] Concluído com sucesso (exit code 0)")
+            elif proc.returncode < 0:
+                _add_pipeline_log("[PARADO] Processo interrompido pelo usuário.")
+            else:
+                _add_pipeline_log(f"[ERRO] Falhou (exit code {proc.returncode})")
+        except Exception as e:
+            import traceback
+            _add_pipeline_log(f"[ERRO] {e}")
+            _add_pipeline_log(traceback.format_exc())
+        finally:
+            _pipeline_proc = None
+            _pipeline_running = False
+
+    threading.Thread(target=run, daemon=True).start()
+    return jsonify({"ok": True, "mode": mode})
+
+
+@app.route("/api/pipeline/logs")
+def api_pipeline_logs():
+    since = int(request.args.get("since", 0))
+    logs_list = list(_pipeline_logs)
+    lines = logs_list[since:]
+    return jsonify({"lines": lines, "total": len(logs_list), "running": _pipeline_running})
+
+
+@app.route("/api/pipeline/status")
+def api_pipeline_status():
+    global _pipeline_running
+    if _pipeline_running and (_pipeline_proc is None or _pipeline_proc.poll() is not None):
+        _pipeline_running = False
+    return jsonify({"running": _pipeline_running})
+
+
+@app.route("/api/pipeline/stop", methods=["POST"])
+def api_pipeline_stop():
+    global _pipeline_running
+    if _pipeline_proc is not None:
+        try:
+            _pipeline_proc.terminate()
+        except Exception:
+            pass
+    _pipeline_running = False
+    return jsonify({"ok": True})
 
 
 # ---------------------------------------------------------------------------
