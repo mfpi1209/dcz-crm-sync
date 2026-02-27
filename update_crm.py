@@ -203,10 +203,11 @@ def clean_cpf(cpf):
 
 
 def format_cpf(cpf):
+    """Only digits, zero-padded to 11 chars."""
     c = clean_cpf(cpf)
-    if len(c) == 11:
-        return f"{c[:3]}.{c[3:6]}.{c[6:9]}-{c[9:]}"
-    return c
+    if not c:
+        return ""
+    return c.zfill(11)
 
 
 def clean_phone(phone):
@@ -710,6 +711,7 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
             "serie": serie_str,
             "situacao": normalize_situacao(_col_val("SituacaoMatricula") or ""),
             "tipo": normalize_tipo_aluno(_col_val("TipoMatricula") or ""),
+            "endereco": title_case(_col_val("Endereco") or ""),
             "bairro": title_case(_col_val("Bairro") or ""),
             "cidade": title_case(_col_val("Cidade") or ""),
             "sexo": normalize_sexo(_col_val("Sexo") or ""),
@@ -767,9 +769,11 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
         if matched_lead_id and matched_lead_id in leads_by_id:
             lead = leads_by_id[matched_lead_id]
 
-            crm_cpf = lead["cpf"].strip() if lead["cpf"] else ""
-            if cpf and not crm_cpf:
-                lead_updates["taxId"] = format_cpf(cpf)
+            if cpf:
+                formatted_cpf = format_cpf(cpf)
+                crm_cpf = clean_cpf(lead["cpf"] or "")
+                if formatted_cpf != crm_cpf:
+                    lead_updates["taxId"] = formatted_cpf
 
             crm_email = (lead["email"] or "").strip().lower()
             if xl_data["email"] and xl_data["email"] != crm_email:
@@ -778,6 +782,17 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
             crm_company = (lead["data"].get("company") or "").strip()
             if crm_company:
                 lead_updates["company"] = ""
+
+            crm_addr = lead["data"].get("address") or {}
+            addr = {}
+            if xl_data["endereco"] and xl_data["endereco"] != (crm_addr.get("street") or "").strip():
+                addr["street"] = xl_data["endereco"]
+            if xl_data["bairro"] and xl_data["bairro"] != (crm_addr.get("block") or "").strip():
+                addr["block"] = xl_data["bairro"]
+            if xl_data["cidade"] and xl_data["cidade"] != (crm_addr.get("city") or "").strip():
+                addr["city"] = xl_data["cidade"]
+            if addr:
+                lead_updates["address"] = addr
 
         # ── Prepare business field updates (single target business) ──
         biz_updates = []
