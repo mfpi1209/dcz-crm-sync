@@ -17,6 +17,7 @@ import csv
 import json
 import time
 import logging
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 from collections import Counter
@@ -354,10 +355,29 @@ NIVEL_MAP = {
 def normalize_nivel(nivel):
     if not nivel:
         return ""
-    import unicodedata
-    key = unicodedata.normalize("NFKD", str(nivel).strip())
-    key = "".join(c for c in key if not unicodedata.combining(c)).lower()
+    key = _strip_accents(str(nivel).strip()).lower()
     return NIVEL_MAP.get(key, title_case(nivel))
+
+
+def _strip_accents(text):
+    nfkd = unicodedata.normalize("NFKD", text)
+    return "".join(c for c in nfkd if not unicodedata.combining(c))
+
+
+def generate_senha(nome, rgm, cpf):
+    """Senha padrão: Primeiras 3 letras do nome (sem acento, capitalizado) + @ + 3 primeiros dígitos RGM + 4 primeiros dígitos CPF.
+    Ex: Fernanda, RGM 36925847, CPF 12345678912 → Fer@3691234"""
+    if not nome or not rgm or not cpf:
+        return ""
+    first_name = nome.strip().split()[0] if nome.strip() else ""
+    if not first_name or len(first_name) < 2:
+        return ""
+    prefix = _strip_accents(first_name[:3]).capitalize()
+    rgm_digits = "".join(c for c in str(rgm) if c.isdigit())[:3]
+    cpf_digits = "".join(c for c in str(cpf) if c.isdigit())[:4]
+    if len(rgm_digits) < 3 or len(cpf_digits) < 4:
+        return ""
+    return f"{prefix}@{rgm_digits}{cpf_digits}"
 
 
 def get_biz_field(biz_data, field_id):
@@ -710,6 +730,7 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
         # ── Prepare business field updates (single target business) ──
         biz_updates = []
         fields_to_update = {}
+        senha = generate_senha(xl_data["nome"], rgm, cpf)
         mapping = {
             "Curso": xl_data["curso"],
             "Polo": xl_data["polo"],
@@ -721,6 +742,7 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
             "DataMatricula": xl_data["data_matricula"],
             "TipoAluno": xl_data["tipo"],
             "EmailAD": xl_data["email_acad"],
+            "SenhaProvisoria": senha,
         }
         if rgm:
             mapping["RGM"] = rgm
