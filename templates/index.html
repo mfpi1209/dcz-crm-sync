@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     colors: { brand: '#6366f1' }
@@ -19,11 +20,10 @@
         .tag-pill { display: inline-block; padding: 2px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
         .fade-in { animation: fadeIn 0.3s ease-in; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-        .sidebar-link { display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; color: #9ca3af; transition: all 0.15s; cursor: pointer; }
-        .sidebar-link:hover { background: rgba(99,102,241,0.08); color: #e5e7eb; }
-        .sidebar-link.active { background: rgba(99,102,241,0.15); color: #a5b4fc; font-weight: 600; }
+        .sidebar-link { display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; transition: all 0.15s; cursor: pointer; }
         .card-stat { transition: transform 0.15s; }
         .card-stat:hover { transform: translateY(-2px); }
+        .green-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; display: inline-block; box-shadow: 0 0 6px #22c55e; }
 
         #sidebar-overlay { display: none; }
 
@@ -32,7 +32,42 @@
             #sidebar.open { transform: translateX(0); }
             #sidebar-overlay.open { display: block; }
         }
+
+        /* Dark mode (default) */
+        .dark .sidebar-link { color: #9ca3af; }
+        .dark .sidebar-link:hover { background: rgba(99,102,241,0.08); color: #e5e7eb; }
+        .dark .sidebar-link.active { background: rgba(99,102,241,0.15); color: #a5b4fc; font-weight: 600; }
+
+        /* Light mode */
+        .light body, .light .bg-gray-950 { background: #f8fafc !important; color: #1e293b !important; }
+        .light .bg-gray-900 { background: #ffffff !important; }
+        .light .bg-gray-800 { background: #f1f5f9 !important; }
+        .light .bg-gray-800\/50 { background: #f1f5f9 !important; }
+        .light .border-gray-800 { border-color: #e2e8f0 !important; }
+        .light .border-gray-700 { border-color: #cbd5e1 !important; }
+        .light .border-gray-800\/50 { border-color: #e2e8f0 !important; }
+        .light .text-gray-100 { color: #1e293b !important; }
+        .light .text-gray-200 { color: #334155 !important; }
+        .light .text-gray-300 { color: #475569 !important; }
+        .light .text-gray-400 { color: #64748b !important; }
+        .light .text-gray-500 { color: #94a3b8 !important; }
+        .light .text-gray-600 { color: #94a3b8 !important; }
+        .light .text-white { color: #0f172a !important; }
+        .light .sidebar-link { color: #64748b; }
+        .light .sidebar-link:hover { background: rgba(99,102,241,0.06); color: #334155; }
+        .light .sidebar-link.active { background: rgba(99,102,241,0.1); color: #4f46e5; font-weight: 600; }
+        .light .bg-gray-950 { background: #f8fafc !important; }
+        .light input, .light select { background: #f1f5f9 !important; border-color: #cbd5e1 !important; color: #1e293b !important; }
+        .light .log-terminal { background: #f1f5f9 !important; color: #334155 !important; }
+        .light pre { background: #f8fafc !important; }
+        .light .border-dashed { border-color: #cbd5e1 !important; }
     </style>
+    <script>
+        (function() {
+            var t = localStorage.getItem('dcz-theme') || 'dark';
+            document.documentElement.className = t + ' h-full';
+        })();
+    </script>
 </head>
 <body class="h-full bg-gray-950 text-gray-100">
 
@@ -77,11 +112,18 @@
         </nav>
 
         <!-- Footer -->
-        <div class="px-4 py-3 border-t border-gray-800">
+        <div class="px-4 py-3 border-t border-gray-800 space-y-2">
             <div class="flex items-center justify-between">
-                <div id="global-badge" class="text-xs px-2.5 py-1 rounded-full bg-gray-800 text-gray-500">Idle</div>
+                <div id="global-badge" class="text-xs px-2.5 py-1 rounded-full bg-emerald-900/40 text-emerald-400 flex items-center gap-1.5">
+                    <span class="green-dot"></span> Conectado
+                </div>
                 <a href="/logout" class="text-xs text-gray-600 hover:text-gray-400 transition">Sair</a>
             </div>
+            <button onclick="toggleTheme()" id="theme-toggle" class="w-full flex items-center gap-2 text-xs text-gray-500 hover:text-gray-300 transition px-1 py-1">
+                <svg id="theme-icon-sun" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                <svg id="theme-icon-moon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                <span id="theme-label">Modo claro</span>
+            </button>
         </div>
     </aside>
 
@@ -141,7 +183,7 @@
                                 <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                             </div>
                             <div>
-                                <p class="text-2xl font-bold text-white" id="dash-status">Idle</p>
+                                <p class="text-2xl font-bold text-white flex items-center gap-2" id="dash-status"><span class="green-dot"></span> Conectado</p>
                                 <p class="text-xs text-gray-500">Status</p>
                             </div>
                         </div>
@@ -520,14 +562,14 @@ let _updateRunningFlag = false;
 function refreshBadge() {
     const badge = document.getElementById('global-badge');
     if (_syncRunningFlag) {
-        badge.textContent = 'Sincronizando...';
-        badge.className = 'text-xs px-2.5 py-1 rounded-full bg-indigo-900/50 text-indigo-300 animate-pulse';
+        badge.innerHTML = '<span class="inline-block w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span> Sincronizando...';
+        badge.className = 'text-xs px-2.5 py-1 rounded-full bg-indigo-900/50 text-indigo-300 flex items-center gap-1.5 animate-pulse';
     } else if (_updateRunningFlag) {
-        badge.textContent = 'Atualizando CRM...';
-        badge.className = 'text-xs px-2.5 py-1 rounded-full bg-amber-900/50 text-amber-300 animate-pulse';
+        badge.innerHTML = '<span class="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span> Atualizando...';
+        badge.className = 'text-xs px-2.5 py-1 rounded-full bg-amber-900/50 text-amber-300 flex items-center gap-1.5 animate-pulse';
     } else {
-        badge.textContent = 'Idle';
-        badge.className = 'text-xs px-2.5 py-1 rounded-full bg-gray-800 text-gray-500';
+        badge.innerHTML = '<span class="green-dot"></span> Conectado';
+        badge.className = 'text-xs px-2.5 py-1 rounded-full bg-emerald-900/40 text-emerald-400 flex items-center gap-1.5';
     }
 }
 
@@ -544,10 +586,14 @@ async function loadDashboard() {
         document.getElementById('dash-biz').textContent = (d.total_businesses || 0).toLocaleString('pt-BR');
         document.getElementById('dash-pipelines').textContent = d.total_pipelines || 0;
 
-        let statusText = 'Idle';
-        if (d.sync_running) statusText = 'Sync...';
-        else if (d.update_running) statusText = 'Update...';
-        document.getElementById('dash-status').textContent = statusText;
+        const dashStatus = document.getElementById('dash-status');
+        if (d.sync_running) {
+            dashStatus.innerHTML = '<span class="inline-block w-3 h-3 rounded-full bg-indigo-400 animate-pulse"></span> Sync...';
+        } else if (d.update_running) {
+            dashStatus.innerHTML = '<span class="inline-block w-3 h-3 rounded-full bg-amber-400 animate-pulse"></span> Update...';
+        } else {
+            dashStatus.innerHTML = '<span class="green-dot"></span> Conectado';
+        }
 
         // Sync state
         const stateDiv = document.getElementById('dash-sync-state');
@@ -1240,8 +1286,40 @@ async function deleteSchedule(id) {
 }
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Theme toggle
+// ---------------------------------------------------------------------------
+function toggleTheme() {
+    const html = document.documentElement;
+    const isDark = html.classList.contains('dark');
+    const newTheme = isDark ? 'light' : 'dark';
+    html.classList.remove('dark', 'light');
+    html.classList.add(newTheme);
+    localStorage.setItem('dcz-theme', newTheme);
+    updateThemeUI(newTheme);
+}
+
+function updateThemeUI(theme) {
+    const sunIcon = document.getElementById('theme-icon-sun');
+    const moonIcon = document.getElementById('theme-icon-moon');
+    const label = document.getElementById('theme-label');
+    if (theme === 'dark') {
+        sunIcon.classList.add('hidden');
+        moonIcon.classList.remove('hidden');
+        label.textContent = 'Modo claro';
+    } else {
+        sunIcon.classList.remove('hidden');
+        moonIcon.classList.add('hidden');
+        label.textContent = 'Modo escuro';
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
+const currentTheme = localStorage.getItem('dcz-theme') || 'dark';
+updateThemeUI(currentTheme);
+
 const hash = window.location.hash.replace('#', '') || 'dashboard';
 if (PAGES.includes(hash)) {
     navigate(hash);
