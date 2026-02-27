@@ -928,7 +928,31 @@ def _load_schedules_from_db():
         app.logger.warning("Could not load schedules: %s", e)
 
 
+def _ensure_schedules_table():
+    """Create the schedules table if it doesn't exist yet."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS schedules (
+                    id TEXT PRIMARY KEY,
+                    job_type TEXT NOT NULL,
+                    cron_days TEXT NOT NULL DEFAULT '*',
+                    cron_hour INTEGER NOT NULL DEFAULT 2,
+                    cron_minute INTEGER NOT NULL DEFAULT 0,
+                    enabled BOOLEAN DEFAULT TRUE,
+                    last_run_at TIMESTAMPTZ,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        app.logger.warning("Could not ensure schedules table: %s", e)
+
+
 # Start scheduler
+_ensure_schedules_table()
 scheduler.start()
 _load_schedules_from_db()
 
