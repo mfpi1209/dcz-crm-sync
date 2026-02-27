@@ -364,7 +364,7 @@ def normalize_tipo_aluno(tipo):
     if not tipo:
         return ""
     key = str(tipo).strip().lower()
-    return TIPO_ALUNO_MAP.get(key, title_case(tipo))
+    return TIPO_ALUNO_MAP.get(key, "")
 
 
 NIVEL_MAP = {
@@ -454,6 +454,34 @@ def update_local_biz_field(conn, biz_id, field_id, new_value):
         cur.execute(
             "UPDATE businesses SET data = %s::jsonb WHERE id = %s",
             (json.dumps(data), biz_id),
+        )
+        conn.commit()
+
+
+def update_local_lead_field(conn, lead_id, field_id, field_name, new_value):
+    """Atualiza o valor de um campo adicional no JSONB local do lead."""
+    with conn.cursor() as cur:
+        cur.execute("SELECT data FROM leads WHERE id = %s", (lead_id,))
+        row = cur.fetchone()
+        if not row:
+            return
+        data = row[0]
+        found = False
+        for f in data.get("additionalFields", []):
+            af = f.get("additionalField", {})
+            fid = af.get("id") if isinstance(af, dict) else af
+            if fid == field_id:
+                f["value"] = str(new_value)
+                found = True
+                break
+        if not found:
+            data.setdefault("additionalFields", []).append({
+                "additionalField": {"id": field_id, "name": field_name},
+                "value": str(new_value),
+            })
+        cur.execute(
+            "UPDATE leads SET data = %s::jsonb WHERE id = %s",
+            (json.dumps(data), lead_id),
         )
         conn.commit()
 
@@ -695,6 +723,7 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
     global _debug_diff, _diff_details
     _debug_diff = True
     updates = []
+    _skipped_nivel = []
     _format_samples = {}  # field_name → [(crm_val, xl_val)] first 3 diffs per field
 
     for r in xl_rows:
@@ -724,6 +753,18 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
         def _col_val(key, default=""):
             return r[col[key]] if key in col and col[key] < len(r) else default
 
+        negocio_raw = str(_col_val("Negocio") or "").strip()
+        nivel = normalize_nivel(negocio_raw)
+
+        if not nivel:
+            _skipped_nivel.append({
+                "nome": title_case(_col_val("Nome") or ""),
+                "rgm": rgm,
+                "cpf": cpf,
+                "negocio": negocio_raw,
+            })
+            continue
+
         xl_data = {
             "rgm": rgm,
             "cpf": cpf,
@@ -742,7 +783,7 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
             "phone_raw": str(_col_val("FoneCelular") or ""),
             "data_matricula": dm_str,
             "data_nasc": dn_str,
-            "nivel": normalize_nivel(_col_val("Negocio") or ""),
+            "nivel": nivel,
         }
 
         # ── Stage 1: Find the LEAD ──
@@ -839,8 +880,6 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
             "Polo": xl_data["polo"],
             "Serie": xl_data["serie"],
             "Situacao": xl_data["situacao"],
-            "Bairro": xl_data["bairro"],
-            "Cidade": xl_data["cidade"],
             "DataMatricula": xl_data["data_matricula"],
             "TipoAluno": xl_data["tipo"],
             "EmailAD": xl_data["email_acad"],
@@ -901,6 +940,16 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
             log.info("    %s:", fname)
             for crm_v, xl_v in samples:
                 log.info("      CRM: '%s'  →  Planilha: '%s'", crm_v, xl_v)
+
+    if _skipped_nivel:
+        REPORTS_DIR.mkdir(exist_ok=True)
+        skip_path = REPORTS_DIR / "ignorados_nivel.csv"
+        with open(skip_path, "w", newline="", encoding="utf-8-sig") as f:
+            w = csv.writer(f, delimiter=";")
+            w.writerow(["Nome", "RGM", "CPF", "Negocio"])
+            for s in _skipped_nivel:
+                w.writerow([s["nome"], s["rgm"], s["cpf"], s["negocio"]])
+        log.info("Ignorados por nível (não Graduação/Pós): %d → %s", len(_skipped_nivel), skip_path)
 
     return updates
 
@@ -1036,6 +1085,10 @@ def execute_updates(api, updates, limit=None):
                 ])
                 if result["ok"]:
                     ok_count += 1
+                    try:
+                        update_local_lead_field(conn, upd["lead_id"], fid, fname, val)
+                    except Exception:
+                        pass
                 else:
                     err_count += 1
                     log.warning("  ERRO lead field %s: %s", fname, result["body"][:200])
