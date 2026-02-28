@@ -405,11 +405,11 @@ def test_one_delete(api, to_delete):
     log.info("  Status:  %s", result["status"])
 
     if result["ok"]:
-            log.info("DELETE OK — endpoint validado.")
-            return True
-        else:
-            log.error("FALHOU: %s", result.get("body", ""))
-            return False
+        log.info("DELETE OK — endpoint validado.")
+        return True
+    else:
+        log.error("FALHOU: %s", result.get("body", ""))
+        return False
 
 
 def execute_deletes(api, to_delete, conn, limit=None):
