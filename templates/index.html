@@ -400,35 +400,20 @@
                         </div>
                     </div>
                     <div class="px-5 pb-5">
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            <div class="rounded-xl p-4 bg-slate-800/20 border border-slate-700/20">
-                                <div class="flex items-center justify-between mb-2">
-                                    <p class="text-xs font-bold text-emerald-400 uppercase tracking-wider">Rematrículas</p>
-                                    <p class="text-lg font-bold text-white font-display" id="tl-remat-total">—</p>
+                        <!-- Card Geral: todas as linhas sobrepostas -->
+                        <div class="rounded-xl p-4 bg-slate-800/20 border border-slate-700/20 mb-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="flex items-center gap-4">
+                                    <p class="text-xs font-bold text-white uppercase tracking-wider">Visão Geral</p>
+                                    <div class="flex items-center gap-3 text-[10px]" id="tl-legend">
+                                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-indigo-400 inline-block"></span><span class="text-slate-400">Calouros</span> <span class="text-white font-mono font-medium" id="tl-novos-total">—</span></span>
+                                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span><span class="text-slate-400" id="tl-remat-label">Rematrículas</span> <span class="text-white font-mono font-medium" id="tl-remat-total">—</span></span>
+                                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span><span class="text-slate-400">Regresso</span> <span class="text-white font-mono font-medium" id="tl-regresso-total">—</span></span>
+                                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-violet-400 inline-block"></span><span class="text-slate-400">Total</span> <span class="text-white font-mono font-medium" id="tl-total-total">—</span></span>
+                                    </div>
                                 </div>
-                                <div style="height:200px"><canvas id="chart-rematricula"></canvas></div>
                             </div>
-                            <div class="rounded-xl p-4 bg-slate-800/20 border border-slate-700/20">
-                                <div class="flex items-center justify-between mb-2">
-                                    <p class="text-xs font-bold text-indigo-400 uppercase tracking-wider">Calouros</p>
-                                    <p class="text-lg font-bold text-white font-display" id="tl-novos-total">—</p>
-                                </div>
-                                <div style="height:200px"><canvas id="chart-novos"></canvas></div>
-                            </div>
-                            <div class="rounded-xl p-4 bg-slate-800/20 border border-slate-700/20">
-                                <div class="flex items-center justify-between mb-2">
-                                    <p class="text-xs font-bold text-amber-400 uppercase tracking-wider">Regresso</p>
-                                    <p class="text-lg font-bold text-white font-display" id="tl-regresso-total">—</p>
-                                </div>
-                                <div style="height:200px"><canvas id="chart-regresso"></canvas></div>
-                            </div>
-                            <div class="rounded-xl p-4 bg-slate-800/20 border border-slate-700/20">
-                                <div class="flex items-center justify-between mb-2">
-                                    <p class="text-xs font-bold text-violet-400 uppercase tracking-wider">Total Geral</p>
-                                    <p class="text-lg font-bold text-white font-display" id="tl-total-total">—</p>
-                                </div>
-                                <div style="height:200px"><canvas id="chart-total"></canvas></div>
-                            </div>
+                            <div style="height:280px"><canvas id="chart-geral"></canvas></div>
                         </div>
                     </div>
                 </div>
@@ -785,13 +770,13 @@
                             <svg class="w-3.5 h-3.5 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                             <label class="text-xs font-bold text-slate-400">Rate Limit</label>
                             <span id="san-rate-value" class="text-xs font-mono font-bold text-amber-400">60</span>
-                            <span class="text-[10px] text-slate-600">req/min (API max: 60/rota)</span>
+                            <span class="text-[10px] text-slate-600">req/min (API max: 240/min)</span>
                         </div>
-                        <input type="range" id="san-rate-slider" min="10" max="120" step="5" value="60"
+                        <input type="range" id="san-rate-slider" min="10" max="240" step="5" value="60"
                             class="w-full h-1.5 bg-slate-700/60 rounded-lg appearance-none cursor-pointer accent-amber-500"
                             oninput="document.getElementById('san-rate-value').textContent=this.value">
                         <div class="flex justify-between text-[9px] text-slate-600 mt-1">
-                            <span>10</span><span>30</span><span>60</span><span>90</span><span>120</span>
+                            <span>10</span><span>60</span><span>120</span><span>180</span><span>240</span>
                         </div>
                     </div>
 
@@ -823,6 +808,29 @@
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
                             Parar
                         </button>
+                    </div>
+                </div>
+
+                <!-- Enriquecimento de Duplicatas -->
+                <div class="glass-card p-5 mb-6">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-xs font-bold text-blue-400 bg-blue-500/15 border border-blue-500/30 px-2 py-0.5 rounded-lg">ANÁLISE</span>
+                        <h3 class="text-sm font-bold text-slate-200 font-display">Enriquecimento — RGMs em Leads Diferentes</h3>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-4">Consulta histórico e conversas de cada lead do relatório de duplicatas entre leads. Gera CSV enriquecido com última atividade, conversas e recomendação para análise manual.</p>
+
+                    <div class="flex flex-wrap gap-3 items-center">
+                        <button onclick="startEnrich()" id="btn-enrich-start"
+                            class="btn-primary text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            Investigar Duplicatas
+                        </button>
+                        <button onclick="stopEnrich()" id="btn-enrich-stop"
+                            class="hidden btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+                            Parar
+                        </button>
+                        <span class="text-[10px] text-slate-600">Requer relatório de saneamento (dry-run) prévio</span>
                     </div>
                 </div>
 
@@ -870,11 +878,13 @@
                     <div class="log-header flex items-center justify-between">
                         <div class="flex gap-4">
                             <button onclick="showPipelineLog('sanitize')" id="tab-san-log" class="text-xs font-semibold text-indigo-400 border-b-2 border-indigo-400 pb-1 transition">Saneamento</button>
+                            <button onclick="showPipelineLog('enrich')" id="tab-enrich-log" class="text-xs font-semibold text-slate-500 hover:text-slate-300 pb-1 transition">Enriquecimento</button>
                             <button onclick="showPipelineLog('pipeline')" id="tab-pipe-log" class="text-xs font-semibold text-slate-500 hover:text-slate-300 pb-1 transition">Pipeline</button>
                         </div>
                         <button onclick="clearPipelineLog()" class="text-xs text-slate-600 hover:text-slate-400 transition">Limpar</button>
                     </div>
                     <pre id="sanitize-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap"></pre>
+                    <pre id="enrich-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap hidden"></pre>
                     <pre id="pipeline-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap hidden"></pre>
                 </div>
             </div>
@@ -1346,29 +1356,42 @@ let _tlGranularity = 'month';
 let _tlDrillMonth = null;
 
 const _tlColors = {
-    rematricula: { line: '#34d399', bg: 'rgba(52,211,153,0.08)' },
-    novos:       { line: '#818cf8', bg: 'rgba(129,140,248,0.08)' },
-    regresso:    { line: '#fbbf24', bg: 'rgba(251,191,36,0.08)' },
-    total:       { line: '#a78bfa', bg: 'rgba(167,139,250,0.08)' },
+    novos:       { line: '#818cf8', bg: 'rgba(129,140,248,0.06)' },
+    rematricula: { line: '#34d399', bg: 'rgba(52,211,153,0.06)' },
+    regresso:    { line: '#fbbf24', bg: 'rgba(251,191,36,0.06)' },
+    total:       { line: '#a78bfa', bg: 'rgba(167,139,250,0.06)' },
 };
 
-function _makeChart(canvasId, color) {
-    const ctx = document.getElementById(canvasId);
+function _makeGeralChart() {
+    const ctx = document.getElementById('chart-geral');
     if (!ctx) return null;
-    if (_tlCharts[canvasId]) { _tlCharts[canvasId].destroy(); }
+    if (_tlCharts['chart-geral']) { _tlCharts['chart-geral'].destroy(); }
+    const rematLabel = document.getElementById('tl-remat-label')?.textContent || 'Rematrículas';
+    const dsCfg = (color, label) => ({
+        label, data: [], borderColor: color.line, backgroundColor: color.bg,
+        borderWidth: 2, pointRadius: 3, pointHoverRadius: 6, pointBackgroundColor: color.line,
+        fill: false, tension: 0.35,
+    });
     const chart = new Chart(ctx, {
         type: 'line',
-        data: { labels: [], datasets: [{ data: [], borderColor: color.line, backgroundColor: color.bg,
-            borderWidth: 2, pointRadius: 4, pointHoverRadius: 7, pointBackgroundColor: color.line,
-            fill: true, tension: 0.3 }] },
+        data: { labels: [], datasets: [
+            dsCfg(_tlColors.novos, 'Calouros'),
+            dsCfg(_tlColors.rematricula, rematLabel),
+            dsCfg(_tlColors.regresso, 'Regresso'),
+            dsCfg(_tlColors.total, 'Total'),
+        ]},
         options: {
             responsive: true, maintainAspectRatio: false, animation: { duration: 400 },
+            interaction: { mode: 'index', intersect: false },
             onClick: (evt, elements) => { if (elements.length && _tlGranularity === 'month') timelineDrillDown(elements[0].index); },
-            plugins: { legend: { display: false }, tooltip: {
-                backgroundColor: 'rgba(15,23,42,0.9)', borderColor: 'rgba(100,116,139,0.3)', borderWidth: 1,
-                titleFont: { family: 'Inter', size: 11 }, bodyFont: { family: 'JetBrains Mono', size: 12 },
-                callbacks: { label: c => c.parsed.y.toLocaleString('pt-BR') }
-            }},
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: 'rgba(15,23,42,0.95)', borderColor: 'rgba(100,116,139,0.3)', borderWidth: 1,
+                    titleFont: { family: 'Inter', size: 11 }, bodyFont: { family: 'JetBrains Mono', size: 12 },
+                    callbacks: { label: c => c.dataset.label + ': ' + c.parsed.y.toLocaleString('pt-BR') },
+                },
+            },
             scales: {
                 x: { grid: { color: 'rgba(100,116,139,0.08)' }, ticks: { color: '#64748b', font: { size: 10, family: 'Inter' }, maxRotation: 0 } },
                 y: { grid: { color: 'rgba(100,116,139,0.08)' }, ticks: { color: '#64748b', font: { size: 10, family: 'JetBrains Mono' },
@@ -1376,16 +1399,22 @@ function _makeChart(canvasId, color) {
             },
         },
     });
-    _tlCharts[canvasId] = chart;
+    _tlCharts['chart-geral'] = chart;
     return chart;
 }
 
-function _updateChart(canvasId, labels, data, color) {
-    let chart = _tlCharts[canvasId];
-    if (!chart) chart = _makeChart(canvasId, color);
+function _updateGeralChart(labels, series) {
+    let chart = _tlCharts['chart-geral'];
+    if (!chart) chart = _makeGeralChart();
     if (!chart) return;
+    const rematLabel = document.getElementById('tl-remat-label')?.textContent || 'Rematrículas';
     chart.data.labels = labels;
-    chart.data.datasets[0].data = data;
+    chart.data.datasets[0].data = series.novos || [];
+    chart.data.datasets[0].label = 'Calouros';
+    chart.data.datasets[1].data = series.rematricula || [];
+    chart.data.datasets[1].label = rematLabel;
+    chart.data.datasets[2].data = series.regresso || [];
+    chart.data.datasets[3].data = series.total || [];
     chart.update();
 }
 
@@ -1416,10 +1445,11 @@ async function loadTimeline(from, to) {
         const s = d.series || {};
         const fmt = n => (n||0).toLocaleString('pt-BR');
 
-        _updateChart('chart-rematricula', labels, s.rematricula || [], _tlColors.rematricula);
-        _updateChart('chart-novos', labels, s.novos || [], _tlColors.novos);
-        _updateChart('chart-regresso', labels, s.regresso || [], _tlColors.regresso);
-        _updateChart('chart-total', labels, s.total || [], _tlColors.total);
+        const isPosOnly = nivel === 'Pós-Graduação';
+        const rematLbl = document.getElementById('tl-remat-label');
+        if (rematLbl) rematLbl.textContent = isPosOnly ? 'Veteranos' : 'Rematrículas';
+
+        _updateGeralChart(labels, s);
 
         const sum = arr => (arr || []).reduce((a,b) => a+b, 0);
         document.getElementById('tl-remat-total').textContent = fmt(sum(s.rematricula));
@@ -1501,6 +1531,11 @@ function renderCicloMaster(data) {
         return { txt: (d >= 0 ? '+' : '') + d.toFixed(1) + '%', cls: d > 0 ? 'text-emerald-400' : d < 0 ? 'text-rose-400' : 'text-slate-400' };
     };
 
+    const nivelFilter = document.getElementById('ciclo-filter-nivel').value;
+    const isPosOnly = nivelFilter === 'Pós-Graduação';
+    const rematLabel = isPosOnly ? 'Veteranos' : 'Rematr.';
+    const rematLabelFull = isPosOnly ? 'Veteranos' : 'Rematrículas';
+
     const cmp = data.comparisons || {};
     const ytd = cmp.ytd?.current || {grand_total:0, totals:{}};
     const ytdP = cmp.ytd_prev?.current || {grand_total:0, totals:{}};
@@ -1524,7 +1559,7 @@ function renderCicloMaster(data) {
             <p class="text-xl font-bold text-white font-display mb-1.5">${fmt(total)}</p>
             <div class="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px]">
                 <div class="flex justify-between"><span class="text-slate-500">Novos</span><span class="text-slate-300 font-medium">${fmt(t.novos||0)}</span></div>
-                <div class="flex justify-between"><span class="text-slate-500">Rematr.</span><span class="text-slate-300 font-medium">${fmt(t.rematricula||0)}</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">${rematLabel}</span><span class="text-slate-300 font-medium">${fmt(t.rematricula||0)}</span></div>
                 <div class="flex justify-between"><span class="text-slate-500">Regresso</span><span class="text-slate-300 font-medium">${fmt(t.regresso||0)}</span></div>
                 <div class="flex justify-between"><span class="text-slate-500">Recompra</span><span class="text-slate-300 font-medium">${fmt(t.recompra||0)}</span></div>
             </div>
@@ -1554,6 +1589,10 @@ function renderCicloMaster(data) {
         const sits = Object.entries(c.by_situacao || {}).slice(0, 6);
         const polos = Object.entries(c.by_polo || {}).slice(0, 8);
 
+        const cardIsPos = (c.nivel || '').includes('Pós');
+        const cardRematShort = cardIsPos ? 'Veteranos' : 'Rematr.';
+        const cardRematFull  = cardIsPos ? 'Veteranos' : 'Rematrículas';
+
         return `<div class="rounded-xl border border-${color}-500/20 overflow-hidden">
             <button onclick="document.getElementById('${id}').classList.toggle('hidden')" class="w-full px-4 py-3 flex items-center justify-between bg-gradient-to-r from-${color}-500/8 to-transparent hover:from-${color}-500/12 transition-all">
                 <div class="flex items-center gap-4 min-w-0">
@@ -1563,7 +1602,7 @@ function renderCicloMaster(data) {
                     </div>
                     <div class="flex items-center gap-3 text-[11px]">
                         <span class="text-slate-500">Novos <span class="text-slate-300 font-medium">${fmt(t.novos||0)}</span></span>
-                        <span class="text-slate-500">Rematr. <span class="text-slate-300 font-medium">${fmt(t.rematricula||0)}</span></span>
+                        <span class="text-slate-500">${cardRematShort} <span class="text-slate-300 font-medium">${fmt(t.rematricula||0)}</span></span>
                         <span class="text-slate-500">Regresso <span class="text-slate-300 font-medium">${fmt(t.regresso||0)}</span></span>
                         <span class="text-slate-500">Recompra <span class="text-slate-300 font-medium">${fmt(t.recompra||0)}</span></span>
                     </div>
@@ -1581,7 +1620,7 @@ function renderCicloMaster(data) {
                         <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Por Tipo</p>
                         <div class="space-y-1 text-[12px]">
                             <div class="flex justify-between"><span class="text-slate-400">Novos (Calouros)</span><span class="text-white font-mono">${fmt(t.novos||0)}</span></div>
-                            <div class="flex justify-between"><span class="text-slate-400">Rematrículas</span><span class="text-white font-mono">${fmt(t.rematricula||0)}</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">${cardRematFull}</span><span class="text-white font-mono">${fmt(t.rematricula||0)}</span></div>
                             <div class="flex justify-between"><span class="text-slate-400">Regresso</span><span class="text-white font-mono">${fmt(t.regresso||0)}</span></div>
                             <div class="flex justify-between"><span class="text-slate-400">Recompra</span><span class="text-white font-mono">${fmt(t.recompra||0)}</span></div>
                             <div class="flex justify-between border-t border-slate-700/30 pt-1 mt-1"><span class="text-white font-bold">Total</span><span class="text-white font-mono font-bold">${fmt(c.grand_total)}</span></div>
@@ -1627,9 +1666,11 @@ async function loadStudentMetrics() {
         const gt = d.grand_total || 1;
         const det = d.by_tipo_detail || {};
 
+        const stuIsPosOnly = nivel === 'Pós-Graduação';
+        const stuRematLabel = stuIsPosOnly ? 'Veteranos' : 'Rematrículas';
         const tipoCards = [
             { key: 'novos', label: 'Novos (Calouros)', accent: 'indigo', bgFrom: 'indigo-500', bgTo: 'blue-500', border: 'indigo-500' },
-            { key: 'rematricula', label: 'Rematrículas', accent: 'emerald', bgFrom: 'emerald-500', bgTo: 'teal-500', border: 'emerald-500' },
+            { key: 'rematricula', label: stuRematLabel, accent: 'emerald', bgFrom: 'emerald-500', bgTo: 'teal-500', border: 'emerald-500' },
             { key: 'regresso', label: 'Regresso', accent: 'amber', bgFrom: 'amber-500', bgTo: 'orange-500', border: 'amber-500' },
             { key: 'recompra', label: 'Recompra', accent: 'cyan', bgFrom: 'cyan-500', bgTo: 'sky-500', border: 'cyan-500' },
             { key: '_total', label: 'Total Geral', accent: 'violet', bgFrom: 'violet-500', bgTo: 'pink-500', border: 'violet-500' },
@@ -1648,7 +1689,7 @@ async function loadStudentMetrics() {
                 const t = d.totals || {};
                 innerHtml = `<div class="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px] mt-2">
                     <div class="flex justify-between"><span class="text-slate-500">Novos</span><span class="text-slate-300 font-medium">${fmt(t.novos||0)}</span></div>
-                    <div class="flex justify-between"><span class="text-slate-500">Rematr.</span><span class="text-slate-300 font-medium">${fmt(t.rematricula||0)}</span></div>
+                    <div class="flex justify-between"><span class="text-slate-500">${stuIsPosOnly ? 'Veter.' : 'Rematr.'}</span><span class="text-slate-300 font-medium">${fmt(t.rematricula||0)}</span></div>
                     <div class="flex justify-between"><span class="text-slate-500">Regresso</span><span class="text-slate-300 font-medium">${fmt(t.regresso||0)}</span></div>
                     <div class="flex justify-between"><span class="text-slate-500">Recompra</span><span class="text-slate-300 font-medium">${fmt(t.recompra||0)}</span></div>
                 </div>`;
@@ -2203,7 +2244,7 @@ fetch('/api/sanitize/status', { credentials: 'same-origin' }).then(r => r.json()
 let _pipePolling = null;
 
 async function startPipeline(mode) {
-    const body = {};
+    const body = { rate: parseInt(document.getElementById('san-rate-slider').value) || 60 };
     if (mode === 'execute') {
         const lim = document.getElementById('pipeline-limit').value;
         if (lim) body.limit = parseInt(lim);
@@ -2256,23 +2297,81 @@ async function stopPipeline() {
 }
 
 function showPipelineLog(which) {
-    const sanLog = document.getElementById('sanitize-log');
-    const pipeLog = document.getElementById('pipeline-log');
-    const tabSan = document.getElementById('tab-san-log');
-    const tabPipe = document.getElementById('tab-pipe-log');
-    if (which === 'sanitize') {
-        sanLog.classList.remove('hidden'); pipeLog.classList.add('hidden');
-        tabSan.classList.add('text-indigo-400','border-b-2','border-indigo-400'); tabSan.classList.remove('text-slate-500');
-        tabPipe.classList.remove('text-indigo-400','border-b-2','border-indigo-400'); tabPipe.classList.add('text-slate-500');
-    } else {
-        pipeLog.classList.remove('hidden'); sanLog.classList.add('hidden');
-        tabPipe.classList.add('text-indigo-400','border-b-2','border-indigo-400'); tabPipe.classList.remove('text-slate-500');
-        tabSan.classList.remove('text-indigo-400','border-b-2','border-indigo-400'); tabSan.classList.add('text-slate-500');
-    }
+    const logs = ['sanitize-log', 'enrich-log', 'pipeline-log'];
+    const tabs = ['tab-san-log', 'tab-enrich-log', 'tab-pipe-log'];
+    const map = { sanitize: 0, enrich: 1, pipeline: 2 };
+    const idx = map[which] ?? 0;
+    logs.forEach((id, i) => {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('hidden', i !== idx);
+    });
+    tabs.forEach((id, i) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (i === idx) {
+            el.classList.add('text-indigo-400','border-b-2','border-indigo-400');
+            el.classList.remove('text-slate-500');
+        } else {
+            el.classList.remove('text-indigo-400','border-b-2','border-indigo-400');
+            el.classList.add('text-slate-500');
+        }
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Enriquecimento de duplicatas
+// ---------------------------------------------------------------------------
+let _enrichPolling = null;
+
+async function startEnrich() {
+    const rate = parseInt(document.getElementById('san-rate-slider').value) || 60;
+    showPipelineLog('enrich');
+    try {
+        const res = await api('/api/enrich/start', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ rate })
+        });
+        const d = await res.json();
+        if (d.error) { alert(d.error); return; }
+        setEnrichBtns(true);
+        startEnrichPolling();
+    } catch(e) { alert('Erro: ' + e.message); }
+}
+
+function setEnrichBtns(running) {
+    const btn = document.getElementById('btn-enrich-start');
+    if (btn) { btn.disabled = running; btn.classList.toggle('opacity-50', running); }
+    const stop = document.getElementById('btn-enrich-stop');
+    if (stop) stop.classList.toggle('hidden', !running);
+}
+
+function startEnrichPolling() {
+    let since = 0;
+    if (_enrichPolling) clearInterval(_enrichPolling);
+    _enrichPolling = setInterval(async () => {
+        try {
+            const res = await api('/api/enrich/logs?since=' + since);
+            const d = await res.json();
+            const el = document.getElementById('enrich-log');
+            if (d.lines && d.lines.length > 0) {
+                d.lines.forEach(l => { el.textContent += l + '\n'; });
+                el.scrollTop = el.scrollHeight;
+            }
+            since = d.total;
+            if (!d.running) { clearInterval(_enrichPolling); _enrichPolling = null; setEnrichBtns(false); }
+        } catch(e) { console.error(e); }
+    }, 1500);
+}
+
+async function stopEnrich() {
+    if (!confirm('Interromper o enriquecimento?')) return;
+    try { await api('/api/enrich/stop', { method: 'POST' }); } catch(e) { console.error(e); }
 }
 
 function clearPipelineLog() {
     document.getElementById('sanitize-log').textContent = '';
+    document.getElementById('enrich-log').textContent = '';
     document.getElementById('pipeline-log').textContent = '';
 }
 

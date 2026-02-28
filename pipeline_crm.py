@@ -108,15 +108,16 @@ log = logging.getLogger("pipeline")
 # ---------------------------------------------------------------------------
 
 class ApiClient:
-    def __init__(self):
+    def __init__(self, rate_limit=None):
         self.s = requests.Session()
         self.s.headers["Authorization"] = f"Bearer {API_TOKEN}"
         self.s.headers["Content-Type"] = "application/json"
-        self._remaining = ROUTE_RATE_LIMIT
+        rl = rate_limit or ROUTE_RATE_LIMIT
+        self._remaining = rl
         self._reset = 0
         self._last_req = 0.0
         self.total_calls = 0
-        self.base_delay = 60.0 / ROUTE_RATE_LIMIT
+        self.base_delay = 60.0 / rl
 
     def _throttle(self):
         if self._remaining <= 5 and self._reset > 0:
@@ -516,7 +517,7 @@ def analyze(xl_by_rgm, crm_by_rgm, stage_ids):
 # Dry-run
 # ---------------------------------------------------------------------------
 
-def dry_run_summary(to_restore, to_move, to_lose, stats, stage_ids):
+def dry_run_summary(to_restore, to_move, to_lose, stats, stage_ids, rate_limit=None):
     stage_id_to_name = {}
     for key, sid in stage_ids.items():
         stage_id_to_name[sid] = key.replace("_", " ").title()
@@ -556,8 +557,9 @@ def dry_run_summary(to_restore, to_move, to_lose, stats, stage_ids):
     for key, val in sorted(stats.items()):
         print(f"    {key:25s}: {val:,}")
 
+    rl = rate_limit or ROUTE_RATE_LIMIT
     print(f"\n  Total API calls estimadas:     {total_api_calls:,} (batches de {BATCH_SIZE})")
-    est_time = total_api_calls * (60.0 / ROUTE_RATE_LIMIT) / 60
+    est_time = total_api_calls * (60.0 / rl) / 60
     print(f"  Tempo estimado:                {est_time:.1f} min")
 
     print()
@@ -732,12 +734,17 @@ def main():
     for arg in sys.argv[1:]:
         if arg in ("--test", "--dry-run", "--execute"):
             mode = arg
+    rate_limit = None
     for i, arg in enumerate(sys.argv):
         if arg == "--limit" and i + 1 < len(sys.argv):
             limit = int(sys.argv[i + 1])
+        if arg == "--rate" and i + 1 < len(sys.argv):
+            rate_limit = int(sys.argv[i + 1])
 
     log.info("=" * 50)
     log.info("Pipeline CRM — modo: %s", mode.upper())
+    if rate_limit:
+        log.info("Rate-limit: %d req/min", rate_limit)
     log.info("=" * 50)
 
     xl_by_rgm = load_excel()
@@ -762,10 +769,10 @@ def main():
              sum(len(v) for v in to_lose.values()))
 
     if mode == "--dry-run":
-        dry_run_summary(to_restore, to_move, to_lose, stats, stage_ids)
+        dry_run_summary(to_restore, to_move, to_lose, stats, stage_ids, rate_limit=rate_limit)
         return
 
-    api = ApiClient()
+    api = ApiClient(rate_limit=rate_limit)
 
     reason_ids = ensure_loss_reasons(api)
     if not reason_ids:
