@@ -71,6 +71,39 @@ BIZ_FIELD_IDS = {
 ROUTE_RATE_LIMIT = 60
 BATCH_SIZE = 50
 
+import re as _re
+
+def _normalize_rgm(val):
+    """Normaliza RGM para string de dígitos, tratando floats do Excel."""
+    if val is None:
+        return ""
+    if isinstance(val, float) and val == int(val):
+        val = int(val)
+    s = str(val).strip()
+    if _re.match(r"^\d+\.0+$", s):
+        s = s.split(".")[0]
+    return _re.sub(r"\D", "", s)
+
+
+def _normalize_rgm(val):
+    """Normaliza RGM para string de dígitos sem zeros extras de float."""
+    if val is None:
+        return ""
+    if isinstance(val, float):
+        if val == int(val):
+            return str(int(val))
+        return str(val)
+    s = str(val).strip()
+    if not s:
+        return ""
+    if "." in s:
+        try:
+            s = str(int(float(s)))
+        except (ValueError, OverflowError):
+            pass
+    import re
+    return re.sub(r"\D", "", s)
+
 STAGE_NAMES = {
     "calouro":               ["Calouro", "Calouros", "CALOURO"],
     "veterano":              ["Veterano", "Veteranos", "VETERANO"],
@@ -320,14 +353,21 @@ def load_excel():
     idx_tipo = raw_col.get(col_tipo)
     idx_nome = raw_col.get(col_nome)
 
+    def _cell_str(v):
+        if v is None:
+            return ""
+        if isinstance(v, float) and v == int(v):
+            return str(int(v))
+        return str(v).strip()
+
     by_rgm = {}
     for row in ws.iter_rows(min_row=2, values_only=True):
-        rgm = str(row[idx_rgm]).strip() if row[idx_rgm] else ""
+        rgm = _normalize_rgm(row[idx_rgm])
         if not rgm:
             continue
-        sit = str(row[idx_sit] or "").strip() if idx_sit is not None else ""
-        tipo = str(row[idx_tipo] or "").strip() if idx_tipo is not None else ""
-        nome = str(row[idx_nome] or "").strip() if idx_nome is not None else ""
+        sit = _cell_str(row[idx_sit]) if idx_sit is not None else ""
+        tipo = _cell_str(row[idx_tipo]) if idx_tipo is not None else ""
+        nome = _cell_str(row[idx_nome]) if idx_nome is not None else ""
         by_rgm[rgm] = {
             "situacao": sit,
             "tipo_matricula": tipo,
@@ -354,14 +394,22 @@ def load_sem_rematricula_snapshot(conn):
             SELECT data->>'rgm_digits' AS rgm, data->>'status_financeiro' AS sf
             FROM xl_rows WHERE snapshot_id=%s AND data->>'rgm_digits' != ''
         """, (snap["id"],))
+        sf_null = 0
         for r in cur.fetchall():
+            rgm_val = _normalize_rgm(r["rgm"])
+            if not rgm_val:
+                continue
             if r["sf"] == "inadimplente":
-                inadimplentes.add(r["rgm"])
+                inadimplentes.add(rgm_val)
+            elif r["sf"] == "adimplente":
+                adimplentes.add(rgm_val)
             else:
-                adimplentes.add(r["rgm"])
+                adimplentes.add(rgm_val)
+                sf_null += 1
         cur.close()
-        log.info("  Snapshot sem_rematricula: %d adimplentes, %d inadimplentes",
-                 len(adimplentes), len(inadimplentes))
+        log.info("  Snapshot sem_rematricula (id=%s): %d adimplentes, %d inadimplentes%s",
+                 snap["id"], len(adimplentes), len(inadimplentes),
+                 f" ({sf_null} sem status_financeiro → classificados como adimplente)" if sf_null else "")
         return adimplentes, inadimplentes
     except Exception as e:
         log.warning("  Sem snapshot de sem_rematricula: %s", e)
@@ -378,7 +426,7 @@ def load_inadimplentes_snapshot(conn):
             cur.close()
             return set()
         cur.execute("SELECT data->>'rgm_digits' AS rgm FROM xl_rows WHERE snapshot_id=%s AND data->>'rgm_digits' != ''", (snap["id"],))
-        rgms = {r["rgm"] for r in cur.fetchall()}
+        rgms = {_normalize_rgm(r["rgm"]) for r in cur.fetchall()} - {""}
         cur.close()
         log.info("  Snapshot inadimplentes: %d RGMs", len(rgms))
         return rgms
@@ -397,7 +445,7 @@ def load_concluintes_snapshot(conn):
             cur.close()
             return set()
         cur.execute("SELECT data->>'rgm_digits' AS rgm FROM xl_rows WHERE snapshot_id=%s AND data->>'rgm_digits' != ''", (snap["id"],))
-        rgms = {r["rgm"] for r in cur.fetchall()}
+        rgms = {_normalize_rgm(r["rgm"]) for r in cur.fetchall()} - {""}
         cur.close()
         log.info("  Snapshot concluintes: %d RGMs", len(rgms))
         return rgms
@@ -495,9 +543,9 @@ def load_crm_businesses(conn):
     by_rgm = {}
     total_with_rgm = 0
     for row in rows:
-        rgm = get_biz_field(row["data"], BIZ_FIELD_IDS["RGM"])
-        if rgm and rgm.strip():
-            rgm = rgm.strip()
+        raw = get_biz_field(row["data"], BIZ_FIELD_IDS["RGM"])
+        rgm = _normalize_rgm(raw)
+        if rgm:
             by_rgm.setdefault(rgm, []).append(row)
             total_with_rgm += 1
 

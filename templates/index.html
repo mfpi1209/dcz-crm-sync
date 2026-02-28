@@ -4263,6 +4263,87 @@ function handleDropTyped(e, tipo) {
     if (file) handleUploadTyped(file, tipo);
 }
 
+function handleDropSemRemat(e, subtipo) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('border-emerald-500', 'bg-emerald-950/10',
+        'border-amber-500', 'bg-amber-950/10');
+    const file = e.dataTransfer.files[0];
+    if (file) handleUploadSemRemat(file, subtipo);
+}
+
+async function handleUploadSemRemat(file, subtipo) {
+    if (!file) return;
+    const ext = file.name.toLowerCase().split('.').pop();
+    if (!['xlsx', 'xlsm'].includes(ext)) {
+        alert('Aceitos: .xlsx ou .xlsm');
+        return;
+    }
+
+    const card = document.querySelector('[data-upload-tipo="sem_rematricula"]');
+    const progress = card.querySelector('.upload-progress');
+    const bar = card.querySelector('.upload-bar');
+    const msg = card.querySelector('.upload-msg');
+    const statusEl = document.getElementById('sem-remat-status-' + subtipo);
+
+    progress.classList.remove('hidden');
+    bar.style.width = '30%';
+    msg.textContent = `Enviando ${subtipo}: ${file.name}...`;
+    msg.className = 'upload-msg text-xs text-slate-400 mt-1';
+    if (statusEl) statusEl.textContent = 'Enviando...';
+
+    const form = new FormData();
+    form.append('file', file);
+    form.append('tipo', 'sem_rematricula');
+    form.append('subtipo', subtipo);
+
+    try {
+        bar.style.width = '60%';
+        const res = await fetch('/api/upload', { method: 'POST', body: form });
+        const data = await res.json();
+        bar.style.width = '100%';
+
+        if (data.error) {
+            msg.textContent = data.error;
+            msg.classList.add('text-red-400');
+            if (statusEl) statusEl.textContent = 'Erro';
+            setTimeout(() => { progress.classList.add('hidden'); }, 3000);
+            return;
+        }
+
+        const color = subtipo === 'adimplente' ? 'emerald' : 'amber';
+        if (data.snapshot_rows > 0) {
+            msg.textContent = `✓ Snapshot criado! (${data.snapshot_rows.toLocaleString('pt-BR')} linhas)`;
+            msg.className = 'upload-msg text-xs text-emerald-400 font-semibold mt-1';
+            if (statusEl) {
+                statusEl.textContent = `✓ ${data.snapshot_rows.toLocaleString('pt-BR')} linhas`;
+                statusEl.className = `text-[10px] text-${color}-400 font-semibold mt-1 truncate`;
+            }
+        } else {
+            msg.textContent = `✓ ${subtipo} recebido! Envie o outro arquivo.`;
+            msg.className = 'upload-msg text-xs text-amber-400 font-semibold mt-1';
+            if (statusEl) {
+                statusEl.textContent = `✓ Recebido`;
+                statusEl.className = `text-[10px] text-${color}-400 font-semibold mt-1 truncate`;
+            }
+        }
+        loadFileInfo();
+
+        setTimeout(() => {
+            bar.style.width = '0%';
+            progress.querySelector('.upload-bar').parentElement.classList.add('hidden');
+        }, 1500);
+    } catch (err) {
+        bar.style.width = '100%';
+        msg.textContent = 'Erro: ' + err.message;
+        msg.classList.add('text-red-400');
+        if (statusEl) statusEl.textContent = 'Erro';
+        setTimeout(() => {
+            progress.classList.add('hidden');
+            bar.style.width = '0%';
+        }, 3000);
+    }
+}
+
 async function handleUploadTyped(file, tipo) {
     if (!file) return;
     const ext = file.name.toLowerCase().split('.').pop();
@@ -4323,77 +4404,6 @@ async function handleUploadTyped(file, tipo) {
     }
 
     card.querySelector('input[type="file"]').value = '';
-}
-
-function handleDropSemRemat(e, subtipo) {
-    e.preventDefault();
-    e.currentTarget.classList.remove('border-emerald-500', 'bg-emerald-950/10',
-        'border-amber-500', 'bg-amber-950/10');
-    const file = e.dataTransfer.files[0];
-    if (file) handleUploadSemRemat(file, subtipo);
-}
-
-async function handleUploadSemRemat(file, subtipo) {
-    if (!file) return;
-    const ext = file.name.toLowerCase().split('.').pop();
-    if (!['xlsx','xlsm'].includes(ext)) { alert('Aceito: .xlsx'); return; }
-
-    const card = document.querySelector('[data-upload-tipo="sem_rematricula"]');
-    const progress = card.querySelector('.upload-progress');
-    const bar = card.querySelector('.upload-bar');
-    const msg = card.querySelector('.upload-msg');
-    const statusEl = document.getElementById('sem-remat-status-' + subtipo);
-
-    progress.classList.remove('hidden');
-    bar.style.width = '30%';
-    msg.textContent = `Enviando ${subtipo}: ${file.name}...`;
-    msg.className = 'upload-msg text-xs text-slate-400 mt-1';
-
-    const form = new FormData();
-    form.append('file', file);
-    form.append('tipo', 'sem_rematricula');
-    form.append('subtipo', subtipo);
-
-    try {
-        bar.style.width = '60%';
-        const res = await fetch('/api/upload', { method: 'POST', body: form });
-        const data = await res.json();
-        bar.style.width = '100%';
-
-        if (data.error) {
-            msg.textContent = data.error;
-            msg.classList.add('text-red-400');
-            if (statusEl) statusEl.textContent = 'Erro';
-            setTimeout(() => { progress.classList.add('hidden'); }, 3000);
-            return;
-        }
-
-        const color = subtipo === 'adimplente' ? 'emerald' : 'amber';
-        if (statusEl) {
-            statusEl.textContent = '✓ ' + file.name.substring(0, 20);
-            statusEl.className = `text-[10px] text-${color}-400 font-semibold mt-1 truncate`;
-        }
-
-        if (data.snapshot_rows > 0) {
-            msg.textContent = `✓ Snapshot criado! (${data.snapshot_rows.toLocaleString('pt-BR')} linhas)`;
-            msg.className = 'upload-msg text-xs text-emerald-400 font-semibold mt-1';
-        } else {
-            msg.textContent = `✓ ${subtipo} recebido! Envie o outro para criar snapshot.`;
-            msg.className = 'upload-msg text-xs text-amber-400 font-semibold mt-1';
-        }
-        loadFileInfo();
-
-        setTimeout(() => {
-            bar.style.width = '0%';
-            progress.querySelector('.upload-bar').parentElement.classList.add('hidden');
-        }, 1500);
-    } catch (err) {
-        bar.style.width = '100%';
-        msg.textContent = 'Erro: ' + err.message;
-        msg.classList.add('text-red-400');
-        if (statusEl) statusEl.textContent = 'Erro';
-        setTimeout(() => { progress.classList.add('hidden'); bar.style.width = '0%'; }, 3000);
-    }
 }
 
 async function processServerFolder(tipo) {

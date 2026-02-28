@@ -1306,10 +1306,15 @@ def api_search():
 _xl_cache = {"data": None, "mtime": 0}
 
 def _normalize_digits(s):
-    """Remove tudo exceto dígitos."""
+    """Remove tudo exceto dígitos, tratando floats do Excel (46901353.0 → 46901353)."""
     if not s:
         return ""
-    return re.sub(r"\D", "", str(s))
+    if isinstance(s, float) and s == int(s):
+        s = int(s)
+    raw = str(s).strip()
+    if re.match(r"^\d+\.0+$", raw):
+        raw = raw.split(".")[0]
+    return re.sub(r"\D", "", raw)
 
 
 @app.route("/api/search-xl")
@@ -2744,6 +2749,8 @@ def _save_xl_snapshot(filepath, filename, tipo="matriculados"):
             return ""
         if isinstance(v, datetime):
             return v.strftime("%d/%m/%Y")
+        if isinstance(v, float) and v == int(v):
+            return str(int(v))
         return str(v).strip()
 
     entries = []
@@ -2986,6 +2993,8 @@ def _parse_sem_rematricula(folder_path):
                     v = ""
                 elif isinstance(v, datetime):
                     v = v.strftime("%d/%m/%Y")
+                elif isinstance(v, float) and v == int(v):
+                    v = str(int(v))
                 else:
                     v = str(v).strip()
                 entry[key] = v
