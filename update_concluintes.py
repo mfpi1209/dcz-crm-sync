@@ -151,7 +151,8 @@ class ApiClient:
             self._read_headers(r)
             if r.status_code >= 400:
                 return {"ok": False, "status": r.status_code, "body": r.text[:500]}
-            return {"ok": True, "status": r.status_code, "body": r.json()}
+            body = r.json() if r.text.strip() else {}
+            return {"ok": True, "status": r.status_code, "body": body}
         return {"ok": False, "status": 429, "body": "Falha após 4 tentativas"}
 
     def post(self, path, payload):
