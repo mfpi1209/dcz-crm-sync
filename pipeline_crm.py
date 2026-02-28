@@ -29,7 +29,7 @@ import csv
 import json
 import time
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 from pathlib import Path
 from collections import Counter
 
@@ -62,8 +62,10 @@ REPORTS_DIR = Path(__file__).parent / "reports"
 LOG_DIR = Path(__file__).parent / "logs"
 
 BIZ_FIELD_IDS = {
-    "RGM":      "2ac4e30f-cfd7-435f-b688-fbce27f76c38",
-    "Situacao": "fd08d44b-a4a5-4343-b7a9-37f75e2c1caa",
+    "RGM":           "2ac4e30f-cfd7-435f-b688-fbce27f76c38",
+    "Situacao":      "fd08d44b-a4a5-4343-b7a9-37f75e2c1caa",
+    "DataMatricula": "bf93a8e9-42c0-4517-8518-6f604746a300",
+    "Nivel":         "233fcf6f-0bed-49d7-89a1-d1cd54fb9c12",
 }
 
 ROUTE_RATE_LIMIT = 60
@@ -82,6 +84,14 @@ LOSS_REASON_NAMES = {
     "transferido":      "Transferido",
     "sem_rematricula":  "Sem Rematrícula",
     "outros":           "Outros",
+}
+
+LOSS_JUSTIFICATIONS = {
+    "cancelado":        "Matrícula cancelada conforme base acadêmica",
+    "trancado":         "Matrícula trancada conforme base acadêmica",
+    "transferido":      "Aluno transferido conforme base acadêmica",
+    "sem_rematricula":  "Aluno não realizou rematrícula no ciclo vigente",
+    "outros":           "Situação irregular conforme base acadêmica",
 }
 
 CALOURO_TIPOS = {"calouro", "calouro (recompra)", "nova matrícula", "nova matricula", "recompra", "retorno", "regresso (retorno)"}
@@ -348,6 +358,42 @@ def load_concluintes_snapshot(conn):
         return set()
 
 
+def load_ciclo_cutoffs(conn):
+    """Retorna {nivel: dt_inicio} do ciclo vigente por nível.
+
+    Alunos com data_matricula anterior a dt_inicio são elegíveis
+    para 'Sem Rematrícula'. Se não houver ciclo configurado para
+    um nível, esse nível não aparece no dict (sem trava).
+    """
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(
+            "SELECT DISTINCT ON (nivel) nivel, nome, dt_inicio, dt_fim "
+            "FROM ciclos "
+            "WHERE dt_inicio <= CURRENT_DATE AND dt_fim >= CURRENT_DATE "
+            "ORDER BY nivel, dt_inicio DESC"
+        )
+        rows = cur.fetchall()
+        if not rows:
+            cur.execute(
+                "SELECT DISTINCT ON (nivel) nivel, nome, dt_inicio, dt_fim "
+                "FROM ciclos "
+                "ORDER BY nivel, dt_inicio DESC"
+            )
+            rows = cur.fetchall()
+        cur.close()
+
+        cutoffs = {}
+        for r in rows:
+            cutoffs[r["nivel"]] = r["dt_inicio"]
+            log.info("  Ciclo %s (%s): corte em %s", r["nivel"], r["nome"], r["dt_inicio"])
+
+        return cutoffs
+    except Exception as e:
+        log.warning("  Sem ciclos configurados: %s", e)
+        return {}
+
+
 def load_pipeline_stages(conn):
     """Carrega etapas do pipeline do banco local."""
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -453,13 +499,15 @@ def ensure_loss_reasons(api):
 # ---------------------------------------------------------------------------
 
 def analyze(xl_by_rgm, crm_by_rgm, stage_ids, sem_remat_rgms=None,
-            inadimplentes_rgms=None, concluintes_rgms=None):
+            inadimplentes_rgms=None, concluintes_rgms=None,
+            ciclo_cutoffs=None):
     """Cruza planilha com CRM e determina ações necessárias.
 
     Args:
         sem_remat_rgms: set de RGMs do snapshot sem_rematricula (reforça identificação)
         inadimplentes_rgms: set de RGMs do snapshot inadimplentes (informativo/stats)
         concluintes_rgms: set de RGMs do snapshot concluintes (informativo/stats)
+        ciclo_cutoffs: dict {nivel: dt_inicio} — trava de data para Sem Rematrícula
 
     Returns:
         to_restore: list of biz_ids que precisam sair de lost/won para in_process
@@ -470,6 +518,7 @@ def analyze(xl_by_rgm, crm_by_rgm, stage_ids, sem_remat_rgms=None,
     sem_remat_rgms = sem_remat_rgms or set()
     inadimplentes_rgms = inadimplentes_rgms or set()
     concluintes_rgms = concluintes_rgms or set()
+    ciclo_cutoffs = ciclo_cutoffs or {}
     to_restore = []
     to_move = {sid: [] for sid in stage_ids.values()}
     to_lose = {}
@@ -709,8 +758,9 @@ def test_one(api, to_restore, to_move, to_lose, reason_ids):
         item = items[0]
         rid = reason_ids.get(reason_key, "")
         if rid:
+            justification = LOSS_JUSTIFICATIONS.get(reason_key, "Atualização automática via pipeline")
             log.info("LOSE: %s motivo=%s (RGM %s, %s)", item["biz_id"][:12], reason_key, item["rgm"], item["nome"])
-            r = api.lose_businesses([item["biz_id"]], rid)
+            r = api.lose_businesses([item["biz_id"]], rid, justification)
             log.info("  Status: %s | OK: %s", r["status"], r["ok"])
             if not r["ok"]:
                 log.error("  FALHOU: %s", r["body"])
@@ -794,10 +844,11 @@ def execute(api, to_restore, to_move, to_lose, reason_ids):
 
             ids = [i["biz_id"] for i in items]
             label = LOSS_REASON_NAMES.get(reason_key, reason_key)
+            justification = LOSS_JUSTIFICATIONS.get(reason_key, "Atualização automática via pipeline")
             log.info("=== LOSE (%s): %d negócios ===", label, len(ids))
             for bn, batch in enumerate(_batch(ids, BATCH_SIZE), 1):
                 log.info("  Lose batch %d (%d IDs) motivo=%s...", bn, len(batch), label)
-                r = api.lose_businesses(batch, rid)
+                r = api.lose_businesses(batch, rid, justification)
                 status = "OK" if r["ok"] else "ERRO"
                 w.writerow([
                     datetime.now(BRT).strftime("%d/%m/%Y %H:%M:%S"),
