@@ -74,6 +74,7 @@ BATCH_SIZE = 50
 STAGE_NAMES = {
     "calouro":               ["Calouro", "Calouros", "CALOURO"],
     "veterano":              ["Veterano", "Veteranos", "VETERANO"],
+    "inadimplente":          ["Inadimplente", "INADIMPLENTE", "Inadimplentes"],
     "sem_remat_adimplente":  ["Sem Rematricula Adimplente", "SEM REMATRICULA ADIMPLENTE", "Sem Rematrícula Adimplente"],
     "sem_remat_inadimplente":["Sem Rematricula Inadimplente", "SEM REMATRICULA INADIMPLENTE", "Sem Rematrícula Inadimplente"],
     "perdido":               ["Perdido", "Perdidos", "PERDIDO"],
@@ -83,6 +84,7 @@ LOSS_REASON_NAMES = {
     "cancelado":        "Cancelado",
     "trancado":         "Trancado",
     "transferido":      "Transferido",
+    "concluinte":       "Concluinte",
     "sem_rematricula":  "Sem Rematrícula",
     "outros":           "Outros",
 }
@@ -91,9 +93,12 @@ LOSS_JUSTIFICATIONS = {
     "cancelado":        "Matrícula cancelada conforme base acadêmica",
     "trancado":         "Matrícula trancada conforme base acadêmica",
     "transferido":      "Aluno transferido conforme base acadêmica",
+    "concluinte":       "Aluno concluiu o curso conforme base acadêmica",
     "sem_rematricula":  "Aluno não realizou rematrícula no ciclo vigente",
     "outros":           "Situação irregular conforme base acadêmica",
 }
+
+GRACE_PERIOD_DAYS = 5
 
 CALOURO_TIPOS = {"calouro", "calouro (recompra)", "nova matrícula", "nova matricula", "recompra", "retorno", "regresso (retorno)"}
 VETERANO_TIPOS = {"veterano", "rematrícula", "rematricula"}
@@ -205,6 +210,17 @@ class ApiClient:
         """POST /businesses/actions/restore"""
         return self.post("/businesses/actions/restore", {"ids": ids})
 
+    def patch(self, path, payload):
+        return self._request("PATCH", path, payload)
+
+    def patch_business_tags(self, biz_id, tag_ids):
+        """PATCH /businesses/{id} com tagIds."""
+        return self.patch(f"/businesses/{biz_id}", {"tagIds": tag_ids})
+
+    def create_tag(self, name):
+        """POST /tags"""
+        return self.post("/tags", {"name": name})
+
     def create_loss_reason(self, name):
         """POST /business-loss-reasons"""
         return self.post("/business-loss-reasons", {
@@ -216,6 +232,27 @@ class ApiClient:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def resolve_tag_id(conn, api, tag_name):
+    """Encontra ou cria uma tag pelo nome. Retorna o ID."""
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute("SELECT id, data->>'name' AS nome FROM tags")
+    for row in cur.fetchall():
+        if (row["nome"] or "").strip().upper() == tag_name.upper():
+            cur.close()
+            log.info("  Tag '%s' encontrada → %s", tag_name, row["id"][:12] + "…")
+            return row["id"]
+    cur.close()
+
+    log.info("  Tag '%s' não encontrada — criando...", tag_name)
+    r = api.create_tag(tag_name)
+    if r["ok"]:
+        tid = r["body"].get("id", "")
+        log.info("  Tag '%s' criada → %s", tag_name, tid[:12] + "…")
+        return tid
+    log.error("  Falha ao criar tag '%s': %s", tag_name, r["body"])
+    return None
+
 
 def get_conn():
     return psycopg2.connect(**DB_DSN)
@@ -509,35 +546,52 @@ def ensure_loss_reasons(api):
 # Análise
 # ---------------------------------------------------------------------------
 
+def _parse_created_at(biz_data):
+    """Extrai datetime de createdAt do negócio. Retorna None se inválido."""
+    raw = biz_data.get("createdAt", "")
+    if not raw:
+        return None
+    try:
+        if "T" in raw:
+            return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return datetime.strptime(raw[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return None
+
+
 def analyze(xl_by_rgm, crm_by_rgm, stage_ids, sem_remat_adim=None,
             sem_remat_inadim=None,
-            inadimplentes_rgms=None, concluintes_rgms=None,
-            ciclo_cutoffs=None):
+            inadimplentes_rgms=None, concluintes_rgms=None):
     """Cruza planilha com CRM e determina ações necessárias.
 
-    Args:
-        sem_remat_adim: set de RGMs do snapshot sem_rematricula adimplentes
-        sem_remat_inadim: set de RGMs do snapshot sem_rematricula inadimplentes
-        inadimplentes_rgms: set de RGMs do snapshot inadimplentes (informativo/stats)
-        concluintes_rgms: set de RGMs do snapshot concluintes (informativo/stats)
-        ciclo_cutoffs: dict {nivel: dt_inicio} — trava de data para Sem Rematrícula
+    Regras de prioridade:
+      1. Won → pular
+      2. Na planilha + Em Curso + Inadimplente → etapa INADIMPLENTE
+      3. Na planilha + Em Curso → Calouro ou Veterano
+      4. Na planilha + situação perdida + Concluinte → Perdido (Concluinte) + TAG
+      5. Na planilha + situação perdida → Perdido (por situação)
+      6. Não na planilha + Concluinte → Perdido (Concluinte) + TAG
+      7. Não na planilha + Sem Rematrícula Adimplente → SEM REMAT ADIMPLENTE
+      8. Não na planilha + Sem Rematrícula Inadimplente → SEM REMAT INADIMPLENTE
+      9. Não na planilha + criado < 5 dias → pular (grace period)
+     10. Não na planilha + nenhum match → Perdido (Sem Rematrícula)
 
     Returns:
-        to_restore: list of biz_ids que precisam sair de lost/won para in_process
-        to_move: dict {stage_id: [list of {biz_id, rgm, nome, motivo}]}
-        to_lose: dict {loss_reason_key: [list of {biz_id, rgm, nome}]}
-        stats: Counter
+        to_restore, to_move, to_lose, to_tag, stats
     """
     sem_remat_adim = sem_remat_adim or set()
     sem_remat_inadim = sem_remat_inadim or set()
-    sem_remat_rgms = sem_remat_adim | sem_remat_inadim
     inadimplentes_rgms = inadimplentes_rgms or set()
     concluintes_rgms = concluintes_rgms or set()
-    ciclo_cutoffs = ciclo_cutoffs or {}
+
     to_restore = []
     to_move = {sid: [] for sid in stage_ids.values()}
     to_lose = {}
+    to_tag = []
     stats = Counter()
+
+    now = datetime.now(timezone.utc)
+    grace_cutoff = now - timedelta(days=GRACE_PERIOD_DAYS)
 
     for rgm, biz_list in crm_by_rgm.items():
         for biz in biz_list:
@@ -553,6 +607,8 @@ def analyze(xl_by_rgm, crm_by_rgm, stage_ids, sem_remat_adim=None,
                 continue
 
             xl = xl_by_rgm.get(rgm)
+            is_concluinte = rgm in concluintes_rgms
+            is_inadimplente = rgm in inadimplentes_rgms
 
             if xl:
                 xl_sit = xl["situacao"].lower().strip()
@@ -560,7 +616,11 @@ def analyze(xl_by_rgm, crm_by_rgm, stage_ids, sem_remat_adim=None,
                 xl_nome = xl["nome"] or nome
 
                 if xl_sit == "em curso":
-                    if xl_tipo in CALOURO_TIPOS:
+                    # Em Curso + Inadimplente → etapa INADIMPLENTE
+                    if is_inadimplente and "inadimplente" in stage_ids:
+                        target_stage = stage_ids["inadimplente"]
+                        stage_label = "Inadimplente"
+                    elif xl_tipo in CALOURO_TIPOS:
                         target_stage = stage_ids["calouro"]
                         stage_label = "Calouro"
                     elif xl_tipo in VETERANO_TIPOS:
@@ -587,9 +647,17 @@ def analyze(xl_by_rgm, crm_by_rgm, stage_ids, sem_remat_adim=None,
                     else:
                         stats["already_correct"] += 1
 
-                elif xl_sit in LOST_SITUACOES:
-                    reason_key = xl_sit
-                    if reason_key not in LOSS_REASON_NAMES:
+                else:
+                    # Concluinte tem prioridade sobre o motivo genérico
+                    if is_concluinte:
+                        reason_key = "concluinte"
+                        to_tag.append({"biz_id": biz_id, "rgm": rgm, "nome": xl_nome})
+                        stats["tag_concluinte"] += 1
+                    elif xl_sit in LOST_SITUACOES:
+                        reason_key = xl_sit
+                        if reason_key not in LOSS_REASON_NAMES:
+                            reason_key = "outros"
+                    else:
                         reason_key = "outros"
 
                     target_stage = stage_ids["perdido"]
@@ -597,7 +665,7 @@ def analyze(xl_by_rgm, crm_by_rgm, stage_ids, sem_remat_adim=None,
                     if crm_stage_id != target_stage:
                         to_move[target_stage].append({
                             "biz_id": biz_id, "rgm": rgm, "nome": xl_nome,
-                            "motivo": f"Perdido ({xl['situacao']})",
+                            "motivo": f"Perdido ({LOSS_REASON_NAMES.get(reason_key, xl['situacao'])})",
                         })
                         stats["move_perdido"] += 1
 
@@ -608,74 +676,95 @@ def analyze(xl_by_rgm, crm_by_rgm, stage_ids, sem_remat_adim=None,
                         stats[f"lose_{reason_key}"] += 1
                     else:
                         stats["already_lost"] += 1
-                else:
-                    reason_key = "outros"
+
+            else:
+                # RGM não está na planilha de matriculados
+
+                # 1) Concluinte → Perdido + TAG
+                if is_concluinte:
                     target_stage = stage_ids["perdido"]
+                    to_tag.append({"biz_id": biz_id, "rgm": rgm, "nome": nome})
+                    stats["tag_concluinte"] += 1
 
                     if crm_stage_id != target_stage:
                         to_move[target_stage].append({
-                            "biz_id": biz_id, "rgm": rgm, "nome": xl_nome,
-                            "motivo": f"Perdido ({xl['situacao']})",
+                            "biz_id": biz_id, "rgm": rgm, "nome": nome,
+                            "motivo": "Perdido (Concluinte)",
                         })
                         stats["move_perdido"] += 1
 
                     if crm_status != "lost":
-                        to_lose.setdefault(reason_key, []).append({
-                            "biz_id": biz_id, "rgm": rgm, "nome": xl_nome,
+                        to_lose.setdefault("concluinte", []).append({
+                            "biz_id": biz_id, "rgm": rgm, "nome": nome,
                         })
-                        stats[f"lose_{reason_key}"] += 1
-            else:
+                        stats["lose_concluinte"] += 1
+                    else:
+                        stats["already_lost"] += 1
+                    continue
+
+                # 2) Sem Rematrícula (adimplente ou inadimplente)
                 in_adim = rgm in sem_remat_adim
                 in_inadim = rgm in sem_remat_inadim
                 in_sem_remat = in_adim or in_inadim
 
-                if in_inadim:
-                    target_stage = stage_ids["sem_remat_inadimplente"]
-                    label = "Sem Rematrícula Inadimplente"
-                else:
-                    target_stage = stage_ids["sem_remat_adimplente"]
-                    label = "Sem Rematrícula Adimplente"
+                if in_sem_remat:
+                    if in_inadim:
+                        target_stage = stage_ids["sem_remat_inadimplente"]
+                        label = "Sem Rematrícula Inadimplente"
+                    else:
+                        target_stage = stage_ids["sem_remat_adimplente"]
+                        label = "Sem Rematrícula Adimplente"
 
-                if crm_sit and crm_sit.lower().strip() == "em curso":
-                    motivo = f"{label} (confirmado snapshot)" if in_sem_remat else f"{label} (ausente na planilha)"
+                    if crm_status == "lost":
+                        to_restore.append({
+                            "biz_id": biz_id, "rgm": rgm, "nome": nome,
+                            "motivo": f"{label} — restaurar de lost",
+                        })
+                        stats["restore_sem_remat"] += 1
+
                     if crm_stage_id != target_stage:
                         to_move[target_stage].append({
                             "biz_id": biz_id, "rgm": rgm, "nome": nome,
-                            "motivo": motivo,
+                            "motivo": label,
                         })
                         stats["move_sem_remat_adim" if in_adim else "move_sem_remat_inadim"] += 1
-                        if in_sem_remat:
-                            stats["confirmado_snapshot_sem_remat"] += 1
                     else:
                         stats["already_correct"] += 1
-                elif in_sem_remat:
-                    if crm_stage_id != target_stage:
-                        to_move[target_stage].append({
-                            "biz_id": biz_id, "rgm": rgm, "nome": nome,
-                            "motivo": f"{label} (snapshot, situação CRM: {crm_sit or 'N/I'})",
-                        })
-                        stats["move_sem_remat_adim" if in_adim else "move_sem_remat_inadim"] += 1
+                    continue
+
+                # 3) Grace period — negócio criado nos últimos N dias
+                created_at = _parse_created_at(biz_data)
+                if created_at and created_at > grace_cutoff:
+                    stats["skip_recente"] += 1
+                    continue
+
+                # 4) Órfão → Perdido (Sem Rematrícula)
+                target_stage = stage_ids["perdido"]
+                if crm_stage_id != target_stage:
+                    to_move[target_stage].append({
+                        "biz_id": biz_id, "rgm": rgm, "nome": nome,
+                        "motivo": "Perdido (ausente em todas as planilhas)",
+                    })
+                    stats["move_perdido_orfao"] += 1
+
+                if crm_status != "lost":
+                    to_lose.setdefault("sem_rematricula", []).append({
+                        "biz_id": biz_id, "rgm": rgm, "nome": nome,
+                    })
+                    stats["lose_sem_rematricula"] += 1
                 else:
-                    stats["skip_orfao_outro"] += 1
+                    stats["already_lost"] += 1
 
     to_move = {k: v for k, v in to_move.items() if v}
 
-    all_crm_rgms = set(crm_by_rgm.keys())
-    if inadimplentes_rgms:
-        cross_inad = all_crm_rgms & inadimplentes_rgms
-        stats["crm_inadimplentes"] = len(cross_inad)
-    if concluintes_rgms:
-        cross_conc = all_crm_rgms & concluintes_rgms
-        stats["crm_concluintes"] = len(cross_conc)
-
-    return to_restore, to_move, to_lose, stats
+    return to_restore, to_move, to_lose, to_tag, stats
 
 
 # ---------------------------------------------------------------------------
 # Dry-run
 # ---------------------------------------------------------------------------
 
-def dry_run_summary(to_restore, to_move, to_lose, stats, stage_ids, rate_limit=None):
+def dry_run_summary(to_restore, to_move, to_lose, to_tag, stats, stage_ids, rate_limit=None):
     stage_id_to_name = {}
     for key, sid in stage_ids.items():
         stage_id_to_name[sid] = key.replace("_", " ").title()
@@ -687,6 +776,7 @@ def dry_run_summary(to_restore, to_move, to_lose, stats, stage_ids, rate_limit=N
         total_api_calls += (len(items) + BATCH_SIZE - 1) // BATCH_SIZE
     for items in to_lose.values():
         total_api_calls += (len(items) + BATCH_SIZE - 1) // BATCH_SIZE
+    total_api_calls += len(to_tag)
 
     print("\n" + "=" * 60)
     print("PIPELINE — DRY-RUN — Resumo")
@@ -711,12 +801,15 @@ def dry_run_summary(to_restore, to_move, to_lose, stats, stage_ids, rate_limit=N
     if not to_lose:
         print("    (nenhum)")
 
+    if to_tag:
+        print(f"\n  TAG CONCLUINTE:                 {len(to_tag):,}")
+
     print(f"\n  Estatísticas:")
     for key, val in sorted(stats.items()):
         print(f"    {key:25s}: {val:,}")
 
     rl = rate_limit or ROUTE_RATE_LIMIT
-    print(f"\n  Total API calls estimadas:     {total_api_calls:,} (batches de {BATCH_SIZE})")
+    print(f"\n  Total API calls estimadas:     {total_api_calls:,} (batches de {BATCH_SIZE} + tags individuais)")
     est_time = total_api_calls * (60.0 / rl) / 60
     print(f"  Tempo estimado:                {est_time:.1f} min")
 
@@ -740,6 +833,8 @@ def dry_run_summary(to_restore, to_move, to_lose, stats, stage_ids, rate_limit=N
             label = LOSS_REASON_NAMES.get(reason_key, reason_key)
             for item in items:
                 w.writerow(["LOSE", item["biz_id"], item["rgm"], item["nome"], label])
+        for item in to_tag:
+            w.writerow(["TAG", item["biz_id"], item["rgm"], item["nome"], "CONCLUINTE"])
     log.info("  Preview: %s", preview)
 
 
@@ -752,7 +847,7 @@ def _batch(items, size):
         yield items[i:i + size]
 
 
-def test_one(api, to_restore, to_move, to_lose, reason_ids):
+def test_one(api, to_restore, to_move, to_lose, to_tag, reason_ids, concluinte_tag_id):
     """Testa 1 operação de cada tipo disponível."""
     log.info("=== TESTE: 1 de cada ação ===")
     ok = True
@@ -789,6 +884,15 @@ def test_one(api, to_restore, to_move, to_lose, reason_ids):
                 log.error("  FALHOU: %s", r["body"])
                 ok = False
 
+    if to_tag and concluinte_tag_id:
+        item = to_tag[0]
+        log.info("TAG: %s → CONCLUINTE (RGM %s, %s)", item["biz_id"][:12], item["rgm"], item["nome"])
+        r = api.patch_business_tags(item["biz_id"], [concluinte_tag_id])
+        log.info("  Status: %s | OK: %s", r["status"], r["ok"])
+        if not r["ok"]:
+            log.error("  FALHOU: %s", r["body"])
+            ok = False
+
     if ok:
         log.info("Teste OK! Execute com: python pipeline_crm.py --execute")
     else:
@@ -796,8 +900,8 @@ def test_one(api, to_restore, to_move, to_lose, reason_ids):
     return ok
 
 
-def execute(api, to_restore, to_move, to_lose, reason_ids):
-    """Executa todas as ações em batch: restore → move → lose."""
+def execute(api, to_restore, to_move, to_lose, to_tag, reason_ids, concluinte_tag_id):
+    """Executa todas as ações em batch: restore → move → lose → tag."""
     LOG_DIR.mkdir(exist_ok=True)
     ts = datetime.now(BRT).strftime("%Y%m%d_%H%M%S")
     log_file = LOG_DIR / f"pipeline_{ts}.csv"
@@ -888,6 +992,29 @@ def execute(api, to_restore, to_move, to_lose, reason_ids):
                         err_count += len(batch)
                         log.warning("  ERRO lose batch %d (%s): %s", bn, label, body[:200])
 
+        # 4. Tag CONCLUINTE
+        if to_tag and concluinte_tag_id:
+            log.info("=== TAG CONCLUINTE: %d negócios ===", len(to_tag))
+            for i, item in enumerate(to_tag, 1):
+                r = api.patch_business_tags(item["biz_id"], [concluinte_tag_id])
+                status = "OK" if r["ok"] else "ERRO"
+                w.writerow([
+                    datetime.now(BRT).strftime("%d/%m/%Y %H:%M:%S"),
+                    "TAG", i, 1, "CONCLUINTE",
+                    r["status"], status, item["biz_id"],
+                ])
+                if r["ok"]:
+                    ok_count += 1
+                else:
+                    body = r.get("body", "")
+                    if "not found" in str(body).lower() or r.get("status") == 404:
+                        log.warning("  TAG %d: negócio não encontrado — provável merge anterior", i)
+                    else:
+                        err_count += 1
+                        log.warning("  ERRO tag %d: %s", i, str(body)[:200])
+                if i % 50 == 0:
+                    log.info("  TAG progresso: %d/%d", i, len(to_tag))
+
     elapsed = time.monotonic() - start
     log.info("Concluído em %.1f min. OK: %d | Erros: %d | API calls: %d",
              elapsed / 60, ok_count, err_count, api.total_calls)
@@ -937,18 +1064,19 @@ def main():
         conn.close()
 
     log.info("Analisando ações necessárias...")
-    to_restore, to_move, to_lose, stats = analyze(
+    to_restore, to_move, to_lose, to_tag, stats = analyze(
         xl_by_rgm, crm_by_rgm, stage_ids,
         sem_remat_adim=sem_adim, sem_remat_inadim=sem_inadim,
         inadimplentes_rgms=inad_rgms, concluintes_rgms=conc_rgms,
     )
-    log.info("  Restore: %d | Move: %d | Lose: %d",
+    log.info("  Restore: %d | Move: %d | Lose: %d | Tag: %d",
              len(to_restore),
              sum(len(v) for v in to_move.values()),
-             sum(len(v) for v in to_lose.values()))
+             sum(len(v) for v in to_lose.values()),
+             len(to_tag))
 
     if mode == "--dry-run":
-        dry_run_summary(to_restore, to_move, to_lose, stats, stage_ids, rate_limit=rate_limit)
+        dry_run_summary(to_restore, to_move, to_lose, to_tag, stats, stage_ids, rate_limit=rate_limit)
         return
 
     api = ApiClient(rate_limit=rate_limit)
@@ -958,13 +1086,23 @@ def main():
         log.error("Abortado: falha ao configurar motivos de perda.")
         return
 
+    concluinte_tag_id = None
+    if to_tag:
+        conn2 = get_conn()
+        try:
+            concluinte_tag_id = resolve_tag_id(conn2, api, "CONCLUINTE")
+        finally:
+            conn2.close()
+        if not concluinte_tag_id:
+            log.warning("Tag CONCLUINTE não resolvida — tags não serão aplicadas")
+
     if mode == "--test":
-        test_one(api, to_restore, to_move, to_lose, reason_ids)
+        test_one(api, to_restore, to_move, to_lose, to_tag, reason_ids, concluinte_tag_id)
         return
 
     if mode == "--execute":
         log.info("Iniciando execução em massa (batch de %d)...", BATCH_SIZE)
-        ok, err = execute(api, to_restore, to_move, to_lose, reason_ids)
+        ok, err = execute(api, to_restore, to_move, to_lose, to_tag, reason_ids, concluinte_tag_id)
         print(f"\nResultado: {ok} OK, {err} erros. API calls: {api.total_calls}")
 
 

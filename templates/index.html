@@ -4283,9 +4283,14 @@ async function handleUploadTyped(file, tipo) {
             return;
         }
 
-        const rowsTxt = data.snapshot_rows >= 0 ? ` (${data.snapshot_rows.toLocaleString('pt-BR')} linhas)` : '';
-        msg.textContent = `✓ Upload concluído!${rowsTxt}`;
-        msg.className = 'upload-msg text-xs text-emerald-400 font-semibold mt-1';
+        if (tipo === 'sem_rematricula' && data.snapshot_rows === 0) {
+            msg.textContent = `✓ Arquivo recebido! Envie o outro arquivo (adimplente/inadimplente).`;
+            msg.className = 'upload-msg text-xs text-amber-400 font-semibold mt-1';
+        } else {
+            const rowsTxt = data.snapshot_rows >= 0 ? ` (${data.snapshot_rows.toLocaleString('pt-BR')} linhas)` : '';
+            msg.textContent = `✓ Upload concluído!${rowsTxt}`;
+            msg.className = 'upload-msg text-xs text-emerald-400 font-semibold mt-1';
+        }
         loadFileInfo();
 
         setTimeout(() => {

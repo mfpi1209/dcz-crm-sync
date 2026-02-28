@@ -2517,10 +2517,25 @@ def api_upload():
             shutil.copy2(str(dest), str(tmp_dir / safe_name))
             entries = _parse_inadimplentes_batch(str(tmp_dir))
             snap_count = _persist_snapshot_entries(entries, tipo, safe_name) if entries else 0
+        elif tipo == "sem_rematricula" and fname_lower.endswith((".xlsx", ".xlsm")):
+            import shutil
+            staging = UPLOAD_DIR / "_staging_sem_rematricula"
+            staging.mkdir(exist_ok=True)
+            shutil.copy2(str(dest), str(staging / safe_name))
+            entries = _parse_sem_rematricula(str(staging))
+            if entries:
+                snap_count = _persist_snapshot_entries(entries, tipo, safe_name)
+                staged = [p.name for p in staging.iterdir() if p.suffix.lower() in (".xlsx", ".xlsm")]
+                app.logger.info("sem_rematricula staging: %s → %d linhas", staged, snap_count)
+            else:
+                snap_count = 0
+                app.logger.info("sem_rematricula: arquivo '%s' salvo no staging, aguardando o outro", safe_name)
         else:
             snap_count = _save_xl_snapshot(str(dest), safe_name, tipo)
     except Exception as e:
+        import traceback
         app.logger.warning("Erro ao gravar snapshot (%s): %s", tipo, e)
+        app.logger.warning("Traceback: %s", traceback.format_exc())
         snap_count = -1
 
     stat = dest.stat()
@@ -2660,8 +2675,15 @@ def _save_xl_snapshot(filepath, filename, tipo="matriculados"):
 
     wb = openpyxl.load_workbook(filepath, data_only=True, read_only=True)
     sheet_names = wb.sheetnames
+    if not sheet_names:
+        wb.close()
+        return 0
     ws = wb[sheet_names[0]]
-    header = [cell.value for cell in next(ws.iter_rows(min_row=1, max_row=1))]
+    first_row = next(ws.iter_rows(min_row=1, max_row=1), None)
+    if not first_row:
+        wb.close()
+        return 0
+    header = [cell.value for cell in first_row]
     col_map = {h: i for i, h in enumerate(header) if h}
 
     def _find(names):
@@ -2698,7 +2720,7 @@ def _save_xl_snapshot(filepath, filename, tipo="matriculados"):
 
     entries = []
     for row in ws.iter_rows(min_row=2, values_only=True):
-        if row[0] is None and (len(row) < 2 or row[1] is None):
+        if not row or (row[0] is None and (len(row) < 2 or row[1] is None)):
             continue
         entry = {k: _get(row, v) for k, v in idx.items()}
         for k, v in unmapped.items():
@@ -2785,7 +2807,7 @@ def _parse_inadimplentes_batch(folder_path):
                 wb.close()
                 continue
             for row in ws.iter_rows(min_row=header_row + 1, max_col=18, values_only=True):
-                if row[0] is None and (len(row) < 2 or row[1] is None):
+                if not row or (row[0] is None and (len(row) < 2 or row[1] is None)):
                     continue
                 entry = {}
                 descrica_idx = 0
@@ -2890,14 +2912,36 @@ def _parse_sem_rematricula(folder_path):
         "apto-rematricula": "apto_rematricula",
     }
 
+    def _find_file(folder, keyword, exclude_keyword=None):
+        exact = os.path.join(folder, f"{keyword}s.xlsx")
+        if os.path.isfile(exact):
+            return exact
+        exact2 = os.path.join(folder, f"{keyword}.xlsx")
+        if os.path.isfile(exact2):
+            return exact2
+        for fn in os.listdir(folder):
+            fl = fn.lower()
+            if not fl.endswith((".xlsx", ".xlsm")):
+                continue
+            if keyword in fl and (exclude_keyword is None or exclude_keyword not in fl):
+                return os.path.join(folder, fn)
+        return None
+
     entries = []
-    for fname, flag in [("adimplentes.xlsx", "adimplente"), ("inadimplentes.xlsx", "inadimplente")]:
-        fpath = os.path.join(folder_path, fname)
-        if not os.path.isfile(fpath):
+    for keyword, flag, excl in [("adimplente", "adimplente", "inadimplente"), ("inadimplente", "inadimplente", None)]:
+        fpath = _find_file(folder_path, keyword, exclude_keyword=excl)
+        if not fpath:
             continue
         wb = openpyxl.load_workbook(fpath, data_only=True, read_only=True)
+        if not wb.sheetnames:
+            wb.close()
+            continue
         ws = wb[wb.sheetnames[0]]
-        raw_header = [c.value for c in next(ws.iter_rows(min_row=1, max_row=1))]
+        first_row = next(ws.iter_rows(min_row=1, max_row=1), None)
+        if not first_row:
+            wb.close()
+            continue
+        raw_header = [c.value for c in first_row]
         col_idx = {}
         for i, h in enumerate(raw_header):
             if h:
