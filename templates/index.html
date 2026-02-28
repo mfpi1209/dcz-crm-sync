@@ -39,7 +39,7 @@
             -webkit-backdrop-filter: blur(16px) saturate(1.6);
             background: rgba(15, 23, 42, 0.6);
             border: 1px solid rgba(100, 116, 139, 0.15);
-            border-radius: 1rem;
+            border-radius: 1.5rem;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .glass-card:hover { border-color: rgba(99, 102, 241, 0.3); box-shadow: 0 8px 32px rgba(99, 102, 241, 0.08); }
@@ -54,7 +54,7 @@
         .metric-card {
             position: relative;
             overflow: hidden;
-            border-radius: 1rem;
+            border-radius: 1.5rem;
             padding: 1.5rem;
             border: 1px solid;
             backdrop-filter: blur(16px);
@@ -148,7 +148,7 @@
         .log-panel {
             background: rgba(2, 6, 23, 0.7);
             border: 1px solid rgba(100, 116, 139, 0.15);
-            border-radius: 1rem;
+            border-radius: 1.5rem;
             overflow: hidden;
         }
         .log-header {
@@ -164,37 +164,100 @@
             #sidebar-overlay.open { display: block; }
         }
 
-        /* ── Light mode ── */
-        .light body, .light .bg-base { background: #f1f5f9 !important; color: #1e293b !important; }
+        /* ══════════════════════════════════════════════════════════
+           LIGHT MODE — Premium, vibrante, depth-based
+           Background: slate-50 (#f8fafc)
+           Cards: branco puro + shadow-lg (sem dependência de bordas)
+           Typography: slate-900 títulos, slate-600 secundário
+           Acentos: indigo-600, gradientes saturados
+           ══════════════════════════════════════════════════════════ */
 
-        /* Sidebar */
-        .light .glass-sidebar { background: rgba(255,255,255,0.95) !important; border-color: #e2e8f0 !important; }
-        .light .sidebar-link { color: #475569; }
-        .light .sidebar-link:hover { background: rgba(99,102,241,0.07); color: #1e293b; }
-        .light .sidebar-link.active { background: rgba(99,102,241,0.12); color: #4338ca; border-color: rgba(99,102,241,0.3); }
+        .light body,
+        .light .bg-base { background: #f8fafc !important; color: #0f172a !important; }
 
-        /* Cards & containers */
-        .light .glass-card { background: rgba(255,255,255,0.85) !important; border-color: #e2e8f0 !important; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
-        .light .glass-card:hover { border-color: rgba(99,102,241,0.35) !important; box-shadow: 0 4px 16px rgba(99,102,241,0.08); }
-        .light .metric-card { border-color: rgba(0,0,0,0.08) !important; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
-        .light .metric-indigo { background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.05)) !important; }
-        .light .metric-emerald { background: linear-gradient(135deg, rgba(16,185,129,0.08), rgba(6,182,212,0.05)) !important; }
-        .light .metric-amber { background: linear-gradient(135deg, rgba(245,158,11,0.08), rgba(249,115,22,0.05)) !important; }
-        .light .metric-cyan { background: linear-gradient(135deg, rgba(6,182,212,0.08), rgba(59,130,246,0.05)) !important; }
+        /* ── Sidebar ── */
+        .light .glass-sidebar {
+            background: #ffffff !important;
+            border-color: transparent !important;
+            box-shadow: 4px 0 24px rgba(15,23,42,0.06), 1px 0 0 rgba(226,232,240,0.6) !important;
+        }
+        .light .sidebar-link { color: #64748b; }
+        .light .sidebar-link:hover { background: #f1f5f9; color: #0f172a; }
+        .light .sidebar-link svg { color: #94a3b8; }
+        .light .sidebar-link:hover svg { color: #4f46e5; }
+        .light .sidebar-link.active {
+            background: linear-gradient(135deg, rgba(79,70,229,0.1), rgba(139,92,246,0.08)) !important;
+            color: #4f46e5 !important;
+            border-color: transparent !important;
+            box-shadow: 0 2px 8px rgba(79,70,229,0.1);
+        }
+        .light .sidebar-link.active svg { color: #4f46e5 !important; }
+        .light #sidebar .border-slate-700\/20,
+        .light #sidebar .border-t { border-color: #f1f5f9 !important; }
+        .light #sidebar .text-slate-500 { color: #94a3b8 !important; }
+        .light #sidebar .text-slate-600 { color: #94a3b8 !important; }
+        .light #sidebar .text-slate-600:hover { color: #475569 !important; }
+        .light .green-dot { box-shadow: 0 0 8px rgba(16,185,129,0.5); }
 
-        /* Text: base neutrals */
+        /* ── Glass cards → White cards com depth ── */
+        .light .glass-card {
+            background: #ffffff !important;
+            border: 1px solid rgba(226,232,240,0.5) !important;
+            border-radius: 1.5rem !important;
+            box-shadow: 0 4px 24px rgba(15,23,42,0.05), 0 1px 3px rgba(15,23,42,0.04) !important;
+            backdrop-filter: none !important;
+        }
+        .light .glass-card:hover {
+            border-color: rgba(99,102,241,0.2) !important;
+            box-shadow: 0 8px 40px rgba(99,102,241,0.08), 0 2px 8px rgba(15,23,42,0.04) !important;
+            transform: translateY(-1px);
+        }
+
+        /* ── Metric cards — gradientes vibrantes ── */
+        .light .metric-card {
+            border: none !important;
+            border-radius: 1.5rem !important;
+            box-shadow: 0 4px 20px rgba(15,23,42,0.06) !important;
+        }
+        .light .metric-card:hover {
+            box-shadow: 0 12px 40px rgba(15,23,42,0.1) !important;
+        }
+        .light .metric-indigo {
+            background: linear-gradient(135deg, rgba(79,70,229,0.1), rgba(139,92,246,0.06)) !important;
+        }
+        .light .metric-indigo .text-indigo-400,
+        .light .metric-indigo svg { color: #4f46e5 !important; }
+        .light .metric-emerald {
+            background: linear-gradient(135deg, rgba(5,150,105,0.1), rgba(6,182,212,0.06)) !important;
+        }
+        .light .metric-emerald .text-emerald-400,
+        .light .metric-emerald svg { color: #059669 !important; }
+        .light .metric-amber {
+            background: linear-gradient(135deg, rgba(217,119,6,0.1), rgba(249,115,22,0.06)) !important;
+        }
+        .light .metric-amber .text-amber-400,
+        .light .metric-amber svg { color: #d97706 !important; }
+        .light .metric-cyan {
+            background: linear-gradient(135deg, rgba(8,145,178,0.1), rgba(37,99,235,0.06)) !important;
+        }
+        .light .metric-cyan .text-cyan-400,
+        .light .metric-cyan svg { color: #0891b2 !important; }
+
+        /* ── Typography: slate-900 títulos, slate-600 secundário ── */
         .light .text-white { color: #0f172a !important; }
-        .light .text-slate-100, .light .text-gray-100 { color: #1e293b !important; }
-        .light .text-slate-200, .light .text-gray-200 { color: #334155 !important; }
-        .light .text-slate-300, .light .text-gray-300 { color: #475569 !important; }
+        .light .text-slate-100, .light .text-gray-100 { color: #0f172a !important; }
+        .light .text-slate-200, .light .text-gray-200 { color: #1e293b !important; }
+        .light .text-slate-300, .light .text-gray-300 { color: #334155 !important; }
         .light .text-slate-400, .light .text-gray-400 { color: #64748b !important; }
         .light .text-slate-500, .light .text-gray-500 { color: #64748b !important; }
         .light .text-slate-600, .light .text-gray-600 { color: #475569 !important; }
+        .light h1, .light h2, .light h3, .light h4 { color: #0f172a !important; }
+        .light p { color: #475569; }
 
-        /* Text: vivid accent colors for light mode */
-        .light .text-indigo-300, .light .text-indigo-400 { color: #4338ca !important; }
-        .light .text-violet-300, .light .text-violet-400 { color: #6d28d9 !important; }
-        .light .text-purple-300, .light .text-purple-400 { color: #7c3aed !important; }
+        /* ── Accent colors: saturados e vibrantes ── */
+        .light .text-indigo-300, .light .text-indigo-400, .light .text-indigo-500 { color: #4f46e5 !important; }
+        .light .text-violet-300, .light .text-violet-400 { color: #7c3aed !important; }
+        .light .text-purple-300, .light .text-purple-400 { color: #9333ea !important; }
         .light .text-emerald-300, .light .text-emerald-400 { color: #059669 !important; }
         .light .text-cyan-300, .light .text-cyan-400 { color: #0891b2 !important; }
         .light .text-blue-300, .light .text-blue-400 { color: #2563eb !important; }
@@ -204,42 +267,217 @@
         .light .text-teal-300, .light .text-teal-400 { color: #0d9488 !important; }
         .light .text-sky-300, .light .text-sky-400 { color: #0284c7 !important; }
         .light .text-pink-300, .light .text-pink-400 { color: #db2777 !important; }
+        .light .text-red-300, .light .text-red-400 { color: #dc2626 !important; }
+        .light .text-green-300, .light .text-green-400 { color: #16a34a !important; }
 
-        /* Backgrounds: panels & breakdowns */
-        .light [class*="bg-slate-800"], .light [class*="bg-slate-900"] { background: rgba(241,245,249,0.7) !important; }
-        .light [class*="bg-slate-700"] { background: rgba(226,232,240,0.5) !important; }
+        /* ── Background panels & sections ── */
+        .light [class*="bg-slate-800"],
+        .light [class*="bg-slate-900"] { background: #f1f5f9 !important; }
+        .light [class*="bg-slate-700"] { background: #f1f5f9 !important; }
+        .light .bg-slate-800\/30 { background: #f8fafc !important; }
+        .light .bg-slate-800\/40 { background: #f1f5f9 !important; }
+        .light .bg-slate-800\/50 { background: #f1f5f9 !important; }
+        .light .bg-slate-900\/50 { background: #f1f5f9 !important; }
 
-        /* Borders */
-        .light [class*="border-slate-700"], .light [class*="border-slate-600"] { border-color: #e2e8f0 !important; }
+        /* Subtle accent backgrounds */
+        .light .bg-indigo-500\/10, .light .bg-indigo-500\/15 { background: rgba(79,70,229,0.08) !important; }
+        .light .bg-emerald-500\/10, .light .bg-emerald-500\/15 { background: rgba(5,150,105,0.08) !important; }
+        .light .bg-amber-500\/10, .light .bg-amber-500\/15 { background: rgba(217,119,6,0.08) !important; }
+        .light .bg-violet-500\/10, .light .bg-violet-500\/15 { background: rgba(124,58,237,0.08) !important; }
+        .light .bg-blue-500\/10, .light .bg-blue-500\/15 { background: rgba(37,99,235,0.08) !important; }
+        .light .bg-rose-500\/10, .light .bg-rose-500\/15 { background: rgba(225,29,72,0.08) !important; }
+        .light .bg-cyan-500\/10, .light .bg-cyan-500\/15 { background: rgba(8,145,178,0.08) !important; }
+        .light .bg-emerald-900\/40 { background: rgba(5,150,105,0.1) !important; }
+
+        /* Phase badges */
+        .light .bg-amber-500\/15 { background: rgba(217,119,6,0.1) !important; }
+        .light .bg-emerald-500\/15 { background: rgba(5,150,105,0.1) !important; }
+        .light .bg-blue-500\/15 { background: rgba(37,99,235,0.1) !important; }
+        .light .bg-violet-500\/15 { background: rgba(124,58,237,0.1) !important; }
+        .light [class*="border-amber-500"] { border-color: rgba(217,119,6,0.25) !important; }
+        .light [class*="border-emerald-500"] { border-color: rgba(5,150,105,0.25) !important; }
+        .light [class*="border-blue-500"] { border-color: rgba(37,99,235,0.25) !important; }
+        .light [class*="border-violet-500"] { border-color: rgba(124,58,237,0.25) !important; }
+        .light [class*="border-indigo-500"] { border-color: rgba(79,70,229,0.25) !important; }
+
+        /* ── Borders: suaves, quase invisíveis ── */
+        .light [class*="border-slate-700"],
+        .light [class*="border-slate-600"] { border-color: #e2e8f0 !important; }
+        .light [class*="border-slate-500"] { border-color: #e2e8f0 !important; }
         .light .border-dashed { border-color: #cbd5e1 !important; }
 
-        /* Inputs & selects */
-        .light .input-glass, .light select { background: #ffffff !important; border-color: #cbd5e1 !important; color: #1e293b !important; }
-        .light .input-glass:focus { border-color: #6366f1 !important; box-shadow: 0 0 0 3px rgba(99,102,241,0.12) !important; }
+        /* ── Inputs & selects ── */
+        .light .input-glass,
+        .light select {
+            background: #ffffff !important;
+            border: 1px solid #e2e8f0 !important;
+            color: #0f172a !important;
+            box-shadow: 0 1px 3px rgba(15,23,42,0.04) !important;
+        }
+        .light .input-glass:focus,
+        .light select:focus {
+            border-color: #4f46e5 !important;
+            box-shadow: 0 0 0 3px rgba(79,70,229,0.12), 0 1px 3px rgba(15,23,42,0.04) !important;
+        }
+        .light .input-glass::placeholder { color: #94a3b8 !important; }
+        .light input[type="range"] {
+            background: #e2e8f0 !important;
+        }
+        .light input[type="range"]::-webkit-slider-thumb { background: #4f46e5; }
 
-        /* Buttons */
-        .light .btn-secondary { background: rgba(241,245,249,0.9) !important; border-color: #cbd5e1 !important; color: #334155 !important; }
-        .light .btn-secondary:hover { background: rgba(226,232,240,0.9) !important; }
+        /* ── Buttons ── */
+        .light .btn-primary {
+            background: linear-gradient(135deg, #4f46e5, #7c3aed) !important;
+            border-color: transparent !important;
+            box-shadow: 0 4px 14px rgba(79,70,229,0.3) !important;
+        }
+        .light .btn-primary:hover {
+            box-shadow: 0 6px 22px rgba(79,70,229,0.4) !important;
+        }
+        .light .btn-danger {
+            background: linear-gradient(135deg, #dc2626, #be123c) !important;
+            border-color: transparent !important;
+            box-shadow: 0 4px 14px rgba(220,38,38,0.25) !important;
+        }
+        .light .btn-danger:hover {
+            box-shadow: 0 6px 22px rgba(220,38,38,0.35) !important;
+        }
+        .light .btn-warning {
+            background: linear-gradient(135deg, #d97706, #ea580c) !important;
+            border-color: transparent !important;
+            box-shadow: 0 4px 14px rgba(217,119,6,0.25) !important;
+        }
+        .light .btn-warning:hover {
+            box-shadow: 0 6px 22px rgba(217,119,6,0.35) !important;
+        }
+        .light .btn-secondary {
+            background: #f1f5f9 !important;
+            border: 1px solid #e2e8f0 !important;
+            color: #334155 !important;
+            box-shadow: 0 1px 3px rgba(15,23,42,0.04) !important;
+        }
+        .light .btn-secondary:hover {
+            background: #e2e8f0 !important;
+            box-shadow: 0 2px 6px rgba(15,23,42,0.06) !important;
+        }
 
-        /* Logs & terminal */
-        .light .log-terminal { background: #ffffff !important; color: #334155 !important; }
-        .light .log-panel { background: #ffffff !important; border-color: #e2e8f0 !important; }
-        .light .log-header { background: #f8fafc !important; border-color: #e2e8f0 !important; color: #334155 !important; }
-        .light pre { background: #f8fafc !important; color: #334155 !important; }
+        /* Button text stays white (override general .text-white rule) */
+        .light .btn-primary .text-white,
+        .light .btn-danger .text-white,
+        .light .btn-warning .text-white,
+        .light .btn-primary,
+        .light .btn-danger,
+        .light .btn-warning { color: #ffffff !important; }
+        .light .btn-primary svg,
+        .light .btn-danger svg,
+        .light .btn-warning svg { color: #ffffff !important; }
 
-        /* Progress bars: bump opacity for visibility */
-        .light [class*="bg-gradient-to-r"][class*="from-indigo"] { opacity: 0.8; }
+        /* ── Logs & terminal ── */
+        .light .log-panel {
+            background: #ffffff !important;
+            border: none !important;
+            border-radius: 1.5rem !important;
+            box-shadow: 0 4px 24px rgba(15,23,42,0.05), 0 1px 3px rgba(15,23,42,0.04) !important;
+        }
+        .light .log-header {
+            background: #f8fafc !important;
+            border-color: #f1f5f9 !important;
+            color: #334155 !important;
+        }
+        .light .log-terminal {
+            background: #fafbfd !important;
+            color: #334155 !important;
+        }
+        .light pre { background: #fafbfd !important; color: #334155 !important; }
 
-        /* Tables */
-        .light th { color: #475569 !important; }
-        .light td { color: #334155 !important; }
+        /* Log tab buttons */
+        .light .log-header button { color: #94a3b8 !important; }
+        .light .log-header button.text-indigo-400,
+        .light .log-header .border-indigo-400 {
+            color: #4f46e5 !important;
+            border-color: #4f46e5 !important;
+        }
 
-        /* Badge overrides */
-        .light .bg-emerald-900\/40 { background: rgba(16,185,129,0.1) !important; }
-        .light .bg-indigo-500\/15 { background: rgba(99,102,241,0.1) !important; }
+        /* ── Progress bars ── */
+        .light [class*="bg-gradient-to-r"][class*="from-indigo"] { opacity: 0.9; }
+        .light .bg-slate-700\/60 { background: #e2e8f0 !important; }
 
-        /* Font-mono in light */
+        /* ── Tables ── */
+        .light th {
+            color: #64748b !important;
+            background: #f8fafc !important;
+            border-color: #f1f5f9 !important;
+        }
+        .light td {
+            color: #334155 !important;
+            border-color: #f1f5f9 !important;
+        }
+        .light tr:hover td { background: #f8fafc; }
+
+        /* ── Tooltips, pills, tags ── */
+        .light .tag-pill { box-shadow: 0 1px 3px rgba(15,23,42,0.06); }
         .light .font-mono { color: #334155; }
+
+        /* ── Chart containers ── */
+        .light canvas { filter: saturate(1.1); }
+
+        /* ── Ciclo / temporal cards ── */
+        .light .rounded-2xl[class*="bg-"] {
+            box-shadow: 0 2px 12px rgba(15,23,42,0.04);
+        }
+
+        /* ── Scrollbar styling ── */
+        .light ::-webkit-scrollbar { width: 6px; height: 6px; }
+        .light ::-webkit-scrollbar-track { background: #f1f5f9; }
+        .light ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .light ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* ── Status badge ── */
+        .light .bg-emerald-900\/40 {
+            background: rgba(5,150,105,0.12) !important;
+            box-shadow: 0 1px 4px rgba(5,150,105,0.1);
+        }
+        .light .text-emerald-400 { color: #059669 !important; }
+
+        /* ── Theme toggle button ── */
+        .light #theme-toggle { color: #64748b !important; }
+        .light #theme-toggle:hover { color: #0f172a !important; }
+
+        /* ── Ciclo expand/collapse sections ── */
+        .light .bg-slate-800\/20 { background: #f8fafc !important; }
+        .light details summary { color: #0f172a !important; }
+
+        /* ── Override: keep gradient text readable ── */
+        .light .bg-gradient-to-r { border-radius: 1rem; }
+
+        /* ── Distribuição table ── */
+        .light .divide-slate-700\/30 > * + * { border-color: #f1f5f9 !important; }
+
+        /* ── Metric card icon containers: saturados ── */
+        .light .from-indigo-500\/30 { --tw-gradient-from: rgba(79,70,229,0.15) !important; }
+        .light .from-emerald-500\/30 { --tw-gradient-from: rgba(5,150,105,0.15) !important; }
+        .light .from-amber-500\/30 { --tw-gradient-from: rgba(217,119,6,0.15) !important; }
+        .light .from-cyan-500\/30 { --tw-gradient-from: rgba(8,145,178,0.15) !important; }
+        .light .to-purple-500\/30 { --tw-gradient-to: rgba(124,58,237,0.1) !important; }
+        .light .to-cyan-500\/30 { --tw-gradient-to: rgba(8,145,178,0.1) !important; }
+        .light .to-orange-500\/30 { --tw-gradient-to: rgba(234,88,12,0.1) !important; }
+        .light .to-blue-500\/30 { --tw-gradient-to: rgba(37,99,235,0.1) !important; }
+        .light .border-indigo-500\/40 { border-color: rgba(79,70,229,0.2) !important; }
+        .light .border-emerald-500\/40 { border-color: rgba(5,150,105,0.2) !important; }
+        .light .border-amber-500\/40 { border-color: rgba(217,119,6,0.2) !important; }
+        .light .border-cyan-500\/40 { border-color: rgba(8,145,178,0.2) !important; }
+
+        /* Icon colors inside metric cards: strong & solid */
+        .light .text-indigo-300 { color: #4f46e5 !important; }
+        .light .text-emerald-300 { color: #059669 !important; }
+        .light .text-amber-300 { color: #d97706 !important; }
+        .light .text-cyan-300 { color: #0891b2 !important; }
+
+        /* ── Disabled / opacity states ── */
+        .light .opacity-50 { opacity: 0.45 !important; }
+
+        /* ── SVG icons general (sidebar excluded — handled above) ── */
+        .light .glass-card svg:not(.btn-primary svg):not(.btn-danger svg):not(.btn-warning svg) { color: inherit; }
     </style>
     <script>
         (function() {
@@ -847,6 +1085,59 @@
                     </div>
                 </div>
 
+                <!-- MERGE: Consolidar leads duplicados -->
+                <div class="glass-card p-5 mb-6">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-xs font-bold text-violet-400 bg-violet-500/15 border border-violet-500/30 px-2 py-0.5 rounded-lg">MERGE</span>
+                        <h3 class="text-sm font-bold text-slate-200 font-display">Merge de Leads Duplicados</h3>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-4">Move negócios para o lead correto, atualiza telefone do último contato e remove o lead vazio. Requer relatório enriquecido prévio.</p>
+
+                    <div class="mb-4 p-3 rounded-lg bg-slate-800/30 border border-slate-700/20">
+                        <div class="flex items-center gap-2 mb-2">
+                            <svg class="w-3.5 h-3.5 text-violet-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+                            <label class="text-xs font-bold text-slate-400">Fase</label>
+                            <select id="merge-fase" class="input-glass text-xs px-2 py-1 text-slate-200 w-auto">
+                                <option value="">Todas</option>
+                                <option value="1">1 — Fáceis (MANTER + CANDIDATO)</option>
+                                <option value="2">2 — in_process vs lost</option>
+                                <option value="3">3 — Mesmo status</option>
+                                <option value="4">4 — Multi-lead (relatório)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap gap-3 items-end">
+                        <button onclick="startMerge('dry-run')" id="btn-merge-dryrun"
+                            class="btn-warning text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                            Dry-Run
+                        </button>
+                        <button onclick="startMerge('test')" id="btn-merge-test"
+                            class="btn-primary text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            Testar 1
+                        </button>
+                        <div class="flex items-end gap-2">
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Limite</label>
+                                <input type="number" id="merge-limit" placeholder="todos" min="1"
+                                    class="input-glass px-3 py-2.5 text-sm w-24 text-slate-200">
+                            </div>
+                            <button onclick="confirmMerge()" id="btn-merge-execute"
+                                class="btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                                Executar Merge
+                            </button>
+                        </div>
+                        <button onclick="stopMerge()" id="btn-merge-stop"
+                            class="hidden btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+                            Parar
+                        </button>
+                    </div>
+                </div>
+
                 <!-- FASE 2: Pipeline -->
                 <div class="glass-card p-5 mb-6">
                     <div class="flex items-center gap-2 mb-1">
@@ -892,12 +1183,14 @@
                         <div class="flex gap-4">
                             <button onclick="showPipelineLog('sanitize')" id="tab-san-log" class="text-xs font-semibold text-indigo-400 border-b-2 border-indigo-400 pb-1 transition">Saneamento</button>
                             <button onclick="showPipelineLog('enrich')" id="tab-enrich-log" class="text-xs font-semibold text-slate-500 hover:text-slate-300 pb-1 transition">Enriquecimento</button>
+                            <button onclick="showPipelineLog('merge')" id="tab-merge-log" class="text-xs font-semibold text-slate-500 hover:text-slate-300 pb-1 transition">Merge</button>
                             <button onclick="showPipelineLog('pipeline')" id="tab-pipe-log" class="text-xs font-semibold text-slate-500 hover:text-slate-300 pb-1 transition">Pipeline</button>
                         </div>
                         <button onclick="clearPipelineLog()" class="text-xs text-slate-600 hover:text-slate-400 transition">Limpar</button>
                     </div>
                     <pre id="sanitize-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap"></pre>
                     <pre id="enrich-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap hidden"></pre>
+                    <pre id="merge-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap hidden"></pre>
                     <pre id="pipeline-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap hidden"></pre>
                 </div>
             </div>
@@ -2484,9 +2777,9 @@ async function stopPipeline() {
 }
 
 function showPipelineLog(which) {
-    const logs = ['sanitize-log', 'enrich-log', 'pipeline-log'];
-    const tabs = ['tab-san-log', 'tab-enrich-log', 'tab-pipe-log'];
-    const map = { sanitize: 0, enrich: 1, pipeline: 2 };
+    const logs = ['sanitize-log', 'enrich-log', 'merge-log', 'pipeline-log'];
+    const tabs = ['tab-san-log', 'tab-enrich-log', 'tab-merge-log', 'tab-pipe-log'];
+    const map = { sanitize: 0, enrich: 1, merge: 2, pipeline: 3 };
     const idx = map[which] ?? 0;
     logs.forEach((id, i) => {
         const el = document.getElementById(id);
@@ -2559,7 +2852,77 @@ async function stopEnrich() {
 function clearPipelineLog() {
     document.getElementById('sanitize-log').textContent = '';
     document.getElementById('enrich-log').textContent = '';
+    document.getElementById('merge-log').textContent = '';
     document.getElementById('pipeline-log').textContent = '';
+}
+
+// ---------------------------------------------------------------------------
+// Merge de leads duplicados
+// ---------------------------------------------------------------------------
+let _mergePolling = null;
+
+async function startMerge(mode) {
+    const body = {
+        mode: mode,
+        rate: parseInt(document.getElementById('san-rate-slider').value) || 60,
+    };
+    const fase = document.getElementById('merge-fase').value;
+    if (fase) body.fase = parseInt(fase);
+    if (mode === 'execute') {
+        const lim = document.getElementById('merge-limit').value;
+        if (lim) body.limit = parseInt(lim);
+    }
+    showPipelineLog('merge');
+    try {
+        const res = await api('/api/merge/start', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(body),
+        });
+        const d = await res.json();
+        if (d.error) { alert(d.error); return; }
+        setMergeBtns(true);
+        startMergePolling();
+    } catch(e) { alert('Erro: ' + e.message); }
+}
+
+function confirmMerge() {
+    const fase = document.getElementById('merge-fase').value;
+    const label = fase ? ` (fase ${fase})` : ' (TODAS as fases)';
+    if (!confirm(`Executar merge de leads duplicados${label}? Negócios serão movidos e leads vazios serão deletados.`)) return;
+    startMerge('execute');
+}
+
+function setMergeBtns(running) {
+    ['btn-merge-dryrun','btn-merge-test','btn-merge-execute'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.disabled = running; el.classList.toggle('opacity-50', running); }
+    });
+    const stop = document.getElementById('btn-merge-stop');
+    if (stop) stop.classList.toggle('hidden', !running);
+}
+
+function startMergePolling() {
+    let since = 0;
+    if (_mergePolling) clearInterval(_mergePolling);
+    _mergePolling = setInterval(async () => {
+        try {
+            const res = await api('/api/merge/logs?since=' + since);
+            const d = await res.json();
+            const el = document.getElementById('merge-log');
+            if (d.lines && d.lines.length > 0) {
+                d.lines.forEach(l => { el.textContent += l + '\n'; });
+                el.scrollTop = el.scrollHeight;
+            }
+            since = d.total;
+            if (!d.running) { clearInterval(_mergePolling); _mergePolling = null; setMergeBtns(false); }
+        } catch(e) { console.error(e); }
+    }, 1500);
+}
+
+async function stopMerge() {
+    if (!confirm('Interromper o merge?')) return;
+    try { await api('/api/merge/stop', { method: 'POST' }); } catch(e) { console.error(e); }
 }
 
 // Check pipeline status on load
