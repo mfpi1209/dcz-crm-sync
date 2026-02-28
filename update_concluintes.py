@@ -183,6 +183,12 @@ class ApiClient:
     def patch_lead(self, lead_id, payload):
         return self._request("PATCH", f"{API_BASE}/leads/{lead_id}", payload)
 
+    def search_leads(self, query):
+        return self._request("GET", f"{API_BASE}/leads?search={query}&take=5")
+
+    def get_lead(self, lead_id):
+        return self._request("GET", f"{API_BASE}/leads/{lead_id}")
+
 
 def get_conn():
     return psycopg2.connect(**DB_DSN)
@@ -257,6 +263,33 @@ def load_pipeline_stages(conn):
     return rows
 
 
+def find_lead_by_contact(conn, phone=None, email=None):
+    """Busca lead no banco local por telefone ou e-mail."""
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    if phone:
+        digits = "".join(c for c in str(phone) if c.isdigit())
+        if digits:
+            cur.execute(
+                "SELECT id, data FROM leads WHERE regexp_replace(data->>'phone', '[^0-9]', '', 'g') LIKE %s LIMIT 1",
+                (f"%{digits[-10:]}",),
+            )
+            row = cur.fetchone()
+            if row:
+                cur.close()
+                return row["id"]
+    if email:
+        cur.execute(
+            "SELECT id FROM leads WHERE lower(data->>'email') = lower(%s) LIMIT 1",
+            (email.strip(),),
+        )
+        row = cur.fetchone()
+        if row:
+            cur.close()
+            return row["id"]
+    cur.close()
+    return None
+
+
 def _strip_accents(s):
     return "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn")
 
@@ -285,12 +318,27 @@ def _normalize_phone(raw):
     return digits
 
 
+def _title_case_name(raw):
+    """Converte 'RENATO GIORDANO FOGAÇA' → 'Renato Giordano Fogaça'."""
+    if not raw:
+        return raw
+    LOWER_WORDS = {"de", "da", "do", "dos", "das", "e"}
+    parts = raw.strip().split()
+    result = []
+    for i, w in enumerate(parts):
+        if i > 0 and w.lower() in LOWER_WORDS:
+            result.append(w.lower())
+        else:
+            result.append(w.capitalize())
+    return " ".join(result)
+
+
 def _build_lead_payload(xl_data):
     """Constrói payload para POST /leads a partir de dados do snapshot."""
     payload = {}
     nome = xl_data.get("nome", "").strip()
     if nome:
-        payload["name"] = nome
+        payload["name"] = _title_case_name(nome)
     cpf = xl_data.get("cpf_digits", "") or xl_data.get("cpf", "")
     if cpf:
         payload["taxId"] = str(cpf).strip()
@@ -316,6 +364,7 @@ def _build_lead_payload(xl_data):
         payload["address"] = addr
     if not payload.get("name"):
         payload["name"] = f"Concluinte RGM {xl_data.get('rgm_digits', '?')}"
+    payload["source"] = "Planilha Concluintes"
     return payload
 
 
@@ -528,29 +577,53 @@ def main():
         if to_create:
             log.info("=== CREATE: %d leads + negócios (RGMs sem negócio no CRM) ===", len(to_create))
             created_biz_ids = []
+            conn_create = get_conn()
             for idx, item in enumerate(to_create, 1):
                 rgm = item["rgm"]
                 xl = item["xl_data"]
-                nome = item["nome"]
+                nome_raw = item["nome"]
+                nome = _title_case_name(nome_raw)
 
                 lead_payload = _build_lead_payload(xl)
                 log.info("  [%d/%d] RGM %s — Criando lead '%s'...", idx, len(to_create), rgm, nome)
                 r_lead = api.create_lead(lead_payload)
-                if not r_lead["ok"]:
-                    err_count += 1
-                    log.warning("    ERRO criar lead RGM %s: %s", rgm, str(r_lead["body"])[:200])
-                    w.writerow([datetime.now(BRT).strftime("%H:%M:%S"), "CREATE_LEAD", idx, 1, "ERRO", f"RGM {rgm}: {str(r_lead['body'])[:100]}"])
-                    continue
 
-                lead_body = r_lead["body"]
-                lead_id = lead_body.get("id") if isinstance(lead_body, dict) else None
+                lead_id = None
+                if r_lead["ok"]:
+                    lead_body = r_lead["body"]
+                    lead_id = lead_body.get("id") if isinstance(lead_body, dict) else None
+                    if lead_id:
+                        log.info("    Lead criado: %s", lead_id[:12])
+
                 if not lead_id:
-                    err_count += 1
-                    log.warning("    ERRO: resposta sem ID de lead para RGM %s", rgm)
-                    w.writerow([datetime.now(BRT).strftime("%H:%M:%S"), "CREATE_LEAD", idx, 1, "ERRO", f"RGM {rgm}: sem ID na resposta"])
-                    continue
-
-                log.info("    Lead criado: %s", lead_id[:12])
+                    err_body = str(r_lead.get("body", ""))
+                    if "lead-with-same-contact-exists" in err_body:
+                        phone = lead_payload.get("phone", "")
+                        email = lead_payload.get("email", "")
+                        log.info("    Lead já existe — buscando no banco local...")
+                        lead_id = find_lead_by_contact(conn_create, phone=phone, email=email)
+                        if not lead_id and (phone or email):
+                            log.info("    Não encontrado localmente — buscando via API...")
+                            search_term = email or phone
+                            r_search = api.search_leads(search_term)
+                            if r_search["ok"] and isinstance(r_search["body"], dict):
+                                items = r_search["body"].get("data", [])
+                                if items:
+                                    lead_id = items[0].get("id")
+                        if lead_id:
+                            log.info("    Lead existente encontrado: %s", lead_id[:12])
+                        else:
+                            log.warning("    Lead não encontrado. Rode sync e tente novamente.")
+                            err_count += 1
+                            w.writerow([datetime.now(BRT).strftime("%H:%M:%S"), "CREATE_LEAD", idx, 1, "SKIP",
+                                        f"RGM {rgm}: lead existe mas não localizado"])
+                            continue
+                    else:
+                        err_count += 1
+                        log.warning("    ERRO criar lead RGM %s: %s", rgm, err_body[:200])
+                        w.writerow([datetime.now(BRT).strftime("%H:%M:%S"), "CREATE_LEAD", idx, 1, "ERRO",
+                                    f"RGM {rgm}: {err_body[:100]}"])
+                        continue
 
                 r_biz = api.create_business(lead_id, concluinte_stage_id)
                 if not r_biz["ok"]:
@@ -582,6 +655,8 @@ def main():
                 ok_count += 1
                 w.writerow([datetime.now(BRT).strftime("%H:%M:%S"), "CREATE_FULL", idx, 1, "OK",
                             f"RGM {rgm} lead={lead_id[:12]} biz={biz_id[:12]} campos={field_ok}/{len(biz_fields)}"])
+
+            conn_create.close()
 
             if created_biz_ids:
                 log.info("=== WIN (novos): %d negócios criados ===", len(created_biz_ids))
