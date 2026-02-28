@@ -1554,17 +1554,19 @@ function renderCicloMaster(data) {
 
         return `<div class="rounded-xl border border-${color}-500/20 overflow-hidden">
             <button onclick="document.getElementById('${id}').classList.toggle('hidden')" class="w-full px-4 py-3 flex items-center justify-between bg-gradient-to-r from-${color}-500/8 to-transparent hover:from-${color}-500/12 transition-all">
-                <div class="flex items-center gap-3">
-                    <span class="text-xs font-bold text-${color}-400 uppercase tracking-wider">${esc(c.nome)}</span>
-                    <span class="text-[10px] text-slate-500">${esc(c.nivel)}</span>
-                </div>
-                <div class="flex items-center gap-4">
-                    <div class="flex items-center gap-3 text-[11px]">
-                        <span class="text-slate-500">N <span class="text-slate-300 font-medium">${fmt(t.novos||0)}</span></span>
-                        <span class="text-slate-500">R <span class="text-slate-300 font-medium">${fmt(t.rematricula||0)}</span></span>
-                        <span class="text-slate-500">Rg <span class="text-slate-300 font-medium">${fmt(t.regresso||0)}</span></span>
-                        <span class="text-slate-500">Rc <span class="text-slate-300 font-medium">${fmt(t.recompra||0)}</span></span>
+                <div class="flex items-center gap-4 min-w-0">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold text-${color}-400 uppercase tracking-wider">${esc(c.nome)}</span>
+                        <span class="text-[10px] text-slate-500">${esc(c.nivel)}</span>
                     </div>
+                    <div class="flex items-center gap-3 text-[11px]">
+                        <span class="text-slate-500">Novos <span class="text-slate-300 font-medium">${fmt(t.novos||0)}</span></span>
+                        <span class="text-slate-500">Rematr. <span class="text-slate-300 font-medium">${fmt(t.rematricula||0)}</span></span>
+                        <span class="text-slate-500">Regresso <span class="text-slate-300 font-medium">${fmt(t.regresso||0)}</span></span>
+                        <span class="text-slate-500">Recompra <span class="text-slate-300 font-medium">${fmt(t.recompra||0)}</span></span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3 flex-shrink-0">
                     <span class="text-lg font-bold text-white font-display">${fmt(c.grand_total)}</span>
                     ${chg ? `<span class="text-[10px] font-bold ${chg.cls}">${chg.txt}</span>` : ''}
                     <svg class="w-4 h-4 text-slate-500 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
