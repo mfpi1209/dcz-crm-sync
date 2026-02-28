@@ -43,7 +43,8 @@ from dotenv import load_dotenv
 
 BRT = timezone(timedelta(hours=-3))
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True)
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True)
 
 load_dotenv(Path(__file__).parent / ".env")
 
@@ -101,8 +102,15 @@ class _BRTFormatter(logging.Formatter):
         return dt.strftime(datefmt or "%H:%M:%S")
 
 
+class _FlushHandler(logging.StreamHandler):
+    """StreamHandler que força flush a cada registro para não perder logs em subprocess."""
+    def emit(self, record):
+        super().emit(record)
+        self.flush()
+
+
 logging.basicConfig(level=logging.INFO)
-_handler = logging.StreamHandler()
+_handler = _FlushHandler(sys.stderr)
 _handler.setFormatter(_BRTFormatter("%(asctime)s  %(levelname)-7s  %(message)s", datefmt="%H:%M:%S"))
 logging.root.handlers = [_handler]
 log = logging.getLogger("merge")
@@ -591,6 +599,7 @@ def execute(api, plans, mode, limit=None):
 
             total_ok = 0
             total_err = 0
+            _exec_start = time.monotonic()
             log.info("Executando merge de %d RGMs...", len(actionable))
 
             for i, plan in enumerate(actionable, 1):
@@ -600,9 +609,10 @@ def execute(api, plans, mode, limit=None):
                 total_ok += ok
                 total_err += err
 
-                if i % 20 == 0:
-                    log.info("  Progresso: %d/%d | OK: %d | Erros: %d | API calls: %d",
-                             i, len(actionable), total_ok, total_err, api.total_calls)
+                if i % 5 == 0 or i == len(actionable):
+                    log.info("  Progresso: %d/%d | OK: %d | Erros: %d | API: %d | %.1f min",
+                             i, len(actionable), total_ok, total_err, api.total_calls,
+                             (time.monotonic() - _exec_start) / 60)
     finally:
         conn.close()
 
