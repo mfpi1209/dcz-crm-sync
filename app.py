@@ -678,6 +678,7 @@ def api_update(mode):
     body = request.json if request.is_json else {}
     limit = body.get("limit")
     rate = body.get("rate")
+    with_address = body.get("withAddress", False)
 
     _update_running = True
     _update_logs.clear()
@@ -690,6 +691,8 @@ def api_update(mode):
                 cmd.extend(["--limit", str(int(limit))])
             if rate is not None:
                 cmd.extend(["--rate", str(int(rate))])
+            if with_address:
+                cmd.append("--with-address")
 
             _add_update_log(f"[INÍCIO] Update CRM — modo {mode.upper()}")
 

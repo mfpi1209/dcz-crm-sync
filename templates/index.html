@@ -570,6 +570,13 @@
                     </div>
                 </div>
 
+                <div class="flex items-center gap-3 mb-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="with-address" class="w-4 h-4 rounded accent-indigo-500 bg-slate-700 border-slate-600">
+                        <span class="text-sm text-slate-400">Incluir endereço (rua/bairro/cidade)</span>
+                    </label>
+                </div>
+
                 <div class="flex flex-wrap gap-3 mb-5 items-end">
                     <button onclick="startUpdate('dry-run')" id="btn-dryrun"
                         class="btn-warning text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center gap-2">
@@ -1346,7 +1353,8 @@ async function startUpdate(mode) {
     _lastUpdateMode = mode;
 
     const rate = parseInt(document.getElementById('rate-slider').value) || 120;
-    const body = { rate };
+    const withAddress = document.getElementById('with-address').checked;
+    const body = { rate, withAddress };
     if (mode === 'execute') {
         const lim = document.getElementById('update-limit').value;
         if (lim) body.limit = parseInt(lim);

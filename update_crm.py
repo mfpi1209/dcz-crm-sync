@@ -77,6 +77,7 @@ FIELD_IDS = {**BIZ_FIELD_IDS, **LEAD_FIELD_IDS}
 API_RATE_LIMIT = 240            # requests/min allowed by the API
 DEFAULT_TARGET_RATE = 120       # requests/min default target (50% margin)
 CRITICAL_REMAINING = 20        # below this → pause until window resets
+SKIP_ADDRESS = True             # pular atualizações de endereço (rua/bairro/cidade)
 
 class _BRTFormatter(logging.Formatter):
     def formatTime(self, record, datefmt=None):
@@ -853,17 +854,18 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
             if crm_company:
                 lead_updates["company"] = ""
 
-            crm_addr = lead["data"].get("address") or {}
-            addr = {}
-            crm_street = (crm_addr.get("address") or crm_addr.get("street") or "").strip()
-            if xl_data["endereco"] and xl_data["endereco"] != crm_street:
-                addr["address"] = xl_data["endereco"]
-            if xl_data["bairro"] and xl_data["bairro"] != (crm_addr.get("block") or "").strip():
-                addr["block"] = xl_data["bairro"]
-            if xl_data["cidade"] and xl_data["cidade"] != (crm_addr.get("city") or "").strip():
-                addr["city"] = xl_data["cidade"]
-            if addr:
-                lead_updates["address"] = addr
+            if not SKIP_ADDRESS:
+                crm_addr = lead["data"].get("address") or {}
+                addr = {}
+                crm_street = (crm_addr.get("address") or crm_addr.get("street") or "").strip()
+                if xl_data["endereco"] and xl_data["endereco"] != crm_street:
+                    addr["address"] = xl_data["endereco"]
+                if xl_data["bairro"] and xl_data["bairro"] != (crm_addr.get("block") or "").strip():
+                    addr["block"] = xl_data["bairro"]
+                if xl_data["cidade"] and xl_data["cidade"] != (crm_addr.get("city") or "").strip():
+                    addr["city"] = xl_data["cidade"]
+                if addr:
+                    lead_updates["address"] = addr
 
             if xl_data["data_nasc"]:
                 crm_bday = (lead["data"].get("birthDate") or "").strip()
@@ -1224,6 +1226,7 @@ def dry_run_summary(updates):
 # ---------------------------------------------------------------------------
 
 def main():
+    global SKIP_ADDRESS
     mode = "--dry-run"
     limit = None
     rate = None
@@ -1231,6 +1234,8 @@ def main():
     for arg in sys.argv[1:]:
         if arg in ("--test", "--dry-run", "--execute"):
             mode = arg
+        if arg == "--with-address":
+            SKIP_ADDRESS = False
 
     for i, arg in enumerate(sys.argv):
         if arg == "--limit" and i + 1 < len(sys.argv):
@@ -1239,7 +1244,8 @@ def main():
             rate = int(sys.argv[i + 1])
 
     log.info("=" * 50)
-    log.info("Atualização CRM — modo: %s", mode.upper())
+    log.info("Atualização CRM — modo: %s%s", mode.upper(),
+             "" if SKIP_ADDRESS else " (com address)")
     log.info("=" * 50)
 
     xl_rows, col = load_excel()
