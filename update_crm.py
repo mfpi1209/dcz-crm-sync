@@ -406,14 +406,19 @@ def generate_senha(nome, rgm, cpf):
     return f"{prefix}@{rgm_digits}{cpf_digits}"
 
 
-def get_biz_field(biz_data, field_id):
-    for f in biz_data.get("additionalFields", []):
+def get_additional_field(data, field_id):
+    """Retorna o valor de um additionalField pelo ID (funciona para leads e negócios)."""
+    for f in data.get("additionalFields", []):
         af = f.get("additionalField", {})
         if isinstance(af, dict) and af.get("id") == field_id:
             return f.get("value", "")
         if isinstance(af, str) and af == field_id:
             return f.get("value", "")
     return ""
+
+
+def get_biz_field(biz_data, field_id):
+    return get_additional_field(biz_data, field_id)
 
 
 def get_biz_field_value_id(biz_data, field_id):
@@ -866,10 +871,12 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
 
         # ── Prepare lead additional field updates ──
         lead_field_updates = {}
-        if matched_lead_id and xl_data["sexo"]:
+        if matched_lead_id and xl_data["sexo"] and matched_lead_id in leads_by_id:
             fid = LEAD_FIELD_IDS.get("Sexo", "")
             if fid:
-                lead_field_updates["Sexo"] = (fid, xl_data["sexo"])
+                current_sexo = get_additional_field(leads_by_id[matched_lead_id]["data"], fid)
+                if current_sexo != xl_data["sexo"]:
+                    lead_field_updates["Sexo"] = (fid, xl_data["sexo"])
 
         # ── Prepare business field updates (single target business) ──
         biz_updates = []

@@ -194,8 +194,53 @@ def set_state(conn, entity: str, now: datetime, is_full: bool):
 # Upsert genérico JSONB (com hash para detectar mudanças reais)
 # ---------------------------------------------------------------------------
 
+_PRESERVE_KEYS = ("address", "additionalFields", "birthDate", "taxId")
+
+
+def _merge_preserve(api_rec: dict, local_rec: dict) -> dict:
+    """Mescla dados da API com dados locais, preservando campos que a API pode não retornar."""
+    merged = dict(api_rec)
+    for key in _PRESERVE_KEYS:
+        api_val = api_rec.get(key)
+        local_val = local_rec.get(key)
+
+        if key == "additionalFields":
+            api_fields = api_val if isinstance(api_val, list) else []
+            local_fields = local_val if isinstance(local_val, list) else []
+            if not local_fields:
+                continue
+            api_field_ids = set()
+            for f in api_fields:
+                af = f.get("additionalField", {})
+                fid = af.get("id") if isinstance(af, dict) else af
+                if fid:
+                    api_field_ids.add(fid)
+            for lf in local_fields:
+                af = lf.get("additionalField", {})
+                fid = af.get("id") if isinstance(af, dict) else af
+                if fid and fid not in api_field_ids:
+                    api_fields.append(lf)
+            merged["additionalFields"] = api_fields
+
+        elif key == "address":
+            if isinstance(local_val, dict) and local_val:
+                if not api_val or not isinstance(api_val, dict):
+                    merged["address"] = local_val
+                else:
+                    addr = dict(local_val)
+                    addr.update({k: v for k, v in api_val.items() if v})
+                    merged["address"] = addr
+
+        else:
+            if not api_val and local_val:
+                merged[key] = local_val
+
+    return merged
+
+
 def upsert(conn, table: str, records: list[dict], now: datetime, *, use_hash: bool = True):
-    """Batch upsert otimizado — reduz round-trips ao DB remoto."""
+    """Batch upsert otimizado — reduz round-trips ao DB remoto.
+    Para updates, mescla campos locais que a API pode não retornar."""
     ins = upd = unch = 0
     if not records:
         return ins, upd, unch
@@ -208,7 +253,7 @@ def upsert(conn, table: str, records: list[dict], now: datetime, *, use_hash: bo
             rid = rec.get("id")
             if not rid:
                 continue
-            prepared.append((rid, json.dumps(rec, default=str), md5(rec), rec.get("createdAt")))
+            prepared.append((rid, rec, md5(rec), rec.get("createdAt")))
 
         with conn.cursor() as c:
             for i in range(0, len(prepared), BATCH):
@@ -216,20 +261,29 @@ def upsert(conn, table: str, records: list[dict], now: datetime, *, use_hash: bo
                 batch_ids = [r[0] for r in batch]
 
                 c.execute(
-                    f"SELECT id, data_hash FROM {table} WHERE id = ANY(%s)",
+                    f"SELECT id, data_hash, data FROM {table} WHERE id = ANY(%s)",
                     (batch_ids,),
                 )
-                existing = {row[0]: row[1] for row in c.fetchall()}
+                existing = {}
+                existing_data = {}
+                for row in c.fetchall():
+                    existing[row[0]] = row[1]
+                    existing_data[row[0]] = row[2] if isinstance(row[2], dict) else json.loads(row[2]) if row[2] else {}
 
                 to_insert = []
                 to_update = []
-                for rid, jdata, h, created in batch:
+                for rid, rec, h, created in batch:
                     if rid not in existing:
-                        to_insert.append((rid, jdata, h, now, created))
+                        to_insert.append((rid, json.dumps(rec, default=str), h, now, created))
                         ins += 1
                     elif existing[rid] != h:
-                        to_update.append((jdata, h, now, rid))
-                        upd += 1
+                        merged = _merge_preserve(rec, existing_data.get(rid, {}))
+                        merged_h = md5(merged)
+                        if merged_h != existing[rid]:
+                            to_update.append((json.dumps(merged, default=str), merged_h, now, rid))
+                            upd += 1
+                        else:
+                            unch += 1
                     else:
                         unch += 1
 
