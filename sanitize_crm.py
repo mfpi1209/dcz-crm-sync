@@ -123,7 +123,15 @@ class ApiClient:
             self.total_calls += 1
 
             url = f"{API_BASE}/businesses/{biz_id}"
-            r = self.s.delete(url, timeout=30)
+            try:
+                r = self.s.delete(url, timeout=30)
+            except (requests.exceptions.ConnectionError,
+                    requests.exceptions.ReadTimeout) as e:
+                wait = 5 * (2 ** attempt)
+                log.warning("Conexão falhou (%s) — retry em %ds (tentativa %d/4)",
+                            type(e).__name__, wait, attempt + 1)
+                time.sleep(wait)
+                continue
 
             if r.status_code == 429:
                 retry = int(r.headers.get("Retry-After", 30))
@@ -138,7 +146,7 @@ class ApiClient:
 
             return {"ok": True, "status": r.status_code}
 
-        return {"ok": False, "status": 429, "body": "Falha após 4 tentativas"}
+        return {"ok": False, "status": 0, "body": "Falha após 4 tentativas"}
 
 
 # ---------------------------------------------------------------------------
