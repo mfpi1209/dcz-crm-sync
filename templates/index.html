@@ -741,7 +741,23 @@
                         <span class="text-xs font-bold text-amber-400 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-lg">FASE 1</span>
                         <h3 class="text-sm font-bold text-slate-200 font-display">Saneamento de Duplicatas</h3>
                     </div>
-                    <p class="text-xs text-slate-500 mb-4">Remove negócios duplicados (mesmo RGM no mesmo lead) e negócios sem RGM. Gera relatório de RGMs em leads diferentes.</p>
+                    <p class="text-xs text-slate-500 mb-4">Remove negócios duplicados (mesmo RGM no mesmo lead) e negócios sem RGM. Gera relatório de RGMs em leads diferentes para análise manual.</p>
+
+                    <!-- Rate limit slider -->
+                    <div class="mb-4 p-3 rounded-lg bg-slate-800/30 border border-slate-700/20">
+                        <div class="flex items-center gap-2 mb-2">
+                            <svg class="w-3.5 h-3.5 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                            <label class="text-xs font-bold text-slate-400">Rate Limit</label>
+                            <span id="san-rate-value" class="text-xs font-mono font-bold text-amber-400">60</span>
+                            <span class="text-[10px] text-slate-600">req/min (API max: 60/rota)</span>
+                        </div>
+                        <input type="range" id="san-rate-slider" min="10" max="120" step="5" value="60"
+                            class="w-full h-1.5 bg-slate-700/60 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                            oninput="document.getElementById('san-rate-value').textContent=this.value">
+                        <div class="flex justify-between text-[9px] text-slate-600 mt-1">
+                            <span>10</span><span>30</span><span>60</span><span>90</span><span>120</span>
+                        </div>
+                    </div>
 
                     <div class="flex flex-wrap gap-3 items-end">
                         <button onclick="startSanitize('dry-run')" id="btn-san-dryrun"
@@ -1946,7 +1962,7 @@ fetch('/api/update/status', { credentials: 'same-origin' }).then(r => r.json()).
 let _sanPolling = null;
 
 async function startSanitize(mode) {
-    const body = {};
+    const body = { rate: parseInt(document.getElementById('san-rate-slider').value) || 60 };
     if (mode === 'execute') {
         const lim = document.getElementById('sanitize-limit').value;
         if (lim) body.limit = parseInt(lim);

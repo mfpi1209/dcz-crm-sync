@@ -1296,6 +1296,7 @@ def api_sanitize(mode):
 
     body = request.json if request.is_json else {}
     limit = body.get("limit")
+    rate = body.get("rate", 60)
 
     _sanitize_running = True
     _sanitize_logs.clear()
@@ -1303,7 +1304,8 @@ def api_sanitize(mode):
     def run():
         global _sanitize_running, _sanitize_proc
         try:
-            cmd = [sys.executable, SANITIZE_SCRIPT, f"--{mode}"]
+            cmd = [sys.executable, SANITIZE_SCRIPT, f"--{mode}",
+                   "--rate", str(int(rate))]
             if limit and mode == "execute":
                 cmd.extend(["--limit", str(int(limit))])
 

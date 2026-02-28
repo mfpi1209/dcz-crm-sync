@@ -69,7 +69,7 @@ BIZ_FIELD_IDS = {
     "Turma":         "8815a8de-f755-4597-b6f4-8da6d289b6eb",
 }
 
-ROUTE_RATE_LIMIT = 60
+DEFAULT_RATE_LIMIT = 60
 
 class _BRTFormatter(logging.Formatter):
     def formatTime(self, record, datefmt=None):
@@ -88,15 +88,16 @@ log = logging.getLogger("sanitize")
 # ---------------------------------------------------------------------------
 
 class ApiClient:
-    def __init__(self):
+    def __init__(self, rate_limit=None):
         self.s = requests.Session()
         self.s.headers["Authorization"] = f"Bearer {API_TOKEN}"
         self.s.headers["Content-Type"] = "application/json"
-        self._remaining = ROUTE_RATE_LIMIT
+        self.rate_limit = rate_limit or DEFAULT_RATE_LIMIT
+        self._remaining = self.rate_limit
         self._reset = 0
         self._last_req = 0.0
         self.total_calls = 0
-        self.base_delay = 60.0 / ROUTE_RATE_LIMIT
+        self.base_delay = 60.0 / self.rate_limit
 
     def _throttle(self):
         if self._remaining <= 5 and self._reset > 0:
@@ -351,32 +352,22 @@ def write_cross_lead_report(cross_lead):
 # Dry-run
 # ---------------------------------------------------------------------------
 
-def dry_run_summary(to_delete, cross_lead, stats):
+def dry_run_summary(to_delete, cross_lead, stats, rate_limit=DEFAULT_RATE_LIMIT):
     motivos = Counter(d["motivo"].split(" (")[0] for d in to_delete)
 
-    print("\n" + "=" * 60)
-    print("SANEAMENTO — DRY-RUN — Resumo")
-    print("=" * 60)
-    print(f"  Negócios a excluir:            {stats['total_to_delete']:,}")
+    log.info("Negócios a excluir: %s", f"{stats['total_to_delete']:,}")
     for m, c in motivos.most_common():
-        print(f"    {m:25s}: {c:,}")
+        log.info("  %s: %s", m, f"{c:,}")
     if stats.get("sem_rgm_won_skip"):
-        print(f"  Sem RGM ignorados (won):       {stats['sem_rgm_won_skip']:,}")
-    print()
-    print(f"  RGMs em leads diferentes:      {stats.get('rgm_cross_lead', 0):,} RGMs")
-    print(f"    (negócios envolvidos):       {stats['total_cross_lead']:,}")
-    print()
+        log.info("Sem RGM ignorados (won): %s", f"{stats['sem_rgm_won_skip']:,}")
+
+    log.info("RGMs em leads diferentes: %s RGMs (%s negócios) — somente relatório",
+             f"{stats.get('rgm_cross_lead', 0):,}", f"{stats['total_cross_lead']:,}")
 
     if to_delete:
-        est_time = len(to_delete) * (60.0 / ROUTE_RATE_LIMIT) / 60
-        print(f"  Tempo estimado (~{ROUTE_RATE_LIMIT} req/min): {est_time:.1f} min")
+        est_time = len(to_delete) * (60.0 / rate_limit) / 60
+        log.info("Tempo estimado (~%d req/min): %.1f min", rate_limit, est_time)
 
-    print()
-    print("  Para executar: python sanitize_crm.py --execute")
-    print("  Para testar 1: python sanitize_crm.py --test")
-    print("=" * 60)
-
-    if to_delete:
         preview_path = REPORTS_DIR / "sanitize_preview.csv"
         REPORTS_DIR.mkdir(exist_ok=True)
         with open(preview_path, "w", newline="", encoding="utf-8-sig") as f:
@@ -385,7 +376,10 @@ def dry_run_summary(to_delete, cross_lead, stats):
             for d in to_delete[:500]:
                 w.writerow([d["biz_id"], d["lead_id"], d["lead_nome"],
                             d["rgm"], d["curso"], d["status"], d["score"], d["motivo"]])
-        log.info("  Preview salvo: %s (primeiros 500)", preview_path)
+        log.info("Preview salvo: %s (primeiros 500)", preview_path)
+
+    log.info("Resultado: %s para excluir, %s RGMs entre leads (relatório).",
+             f"{stats['total_to_delete']:,}", f"{stats.get('rgm_cross_lead', 0):,}")
 
 
 # ---------------------------------------------------------------------------
@@ -436,8 +430,8 @@ def execute_deletes(api, to_delete, conn, limit=None):
                      "rgm", "motivo", "score", "status_http", "resultado"])
 
         for i, d in enumerate(to_delete, 1):
-            log.info("[%d/%d] DELETE %s | %s | RGM %s | %s",
-                     i, len(to_delete), d["biz_id"][:12],
+            log.info("[%d/%d] %s | RGM %s | %s",
+                     i, len(to_delete),
                      d["lead_nome"], d["rgm"] or "—", d["motivo"].split(" (")[0])
 
             result = api.delete(d["biz_id"])
@@ -482,6 +476,7 @@ def execute_deletes(api, to_delete, conn, limit=None):
 def main():
     mode = "--dry-run"
     limit = None
+    rate_limit = DEFAULT_RATE_LIMIT
 
     for arg in sys.argv[1:]:
         if arg in ("--test", "--dry-run", "--execute"):
@@ -489,10 +484,11 @@ def main():
     for i, arg in enumerate(sys.argv):
         if arg == "--limit" and i + 1 < len(sys.argv):
             limit = int(sys.argv[i + 1])
+        if arg == "--rate" and i + 1 < len(sys.argv):
+            rate_limit = int(sys.argv[i + 1])
 
-    log.info("=" * 50)
     log.info("Saneamento CRM — modo: %s", mode.upper())
-    log.info("=" * 50)
+    log.info("Rate-limit: %d req/min", rate_limit)
 
     conn = get_conn()
     try:
@@ -501,29 +497,30 @@ def main():
 
         log.info("Analisando duplicatas...")
         to_delete, cross_lead, stats = analyze(businesses, leads_info)
-        log.info("  %d para excluir | %d RGMs em leads diferentes",
+        log.info("%d para excluir | %d RGMs em leads diferentes (relatório)",
                  stats["total_to_delete"], stats.get("rgm_cross_lead", 0))
 
         write_cross_lead_report(cross_lead)
 
         if mode == "--dry-run":
-            dry_run_summary(to_delete, cross_lead, stats)
+            dry_run_summary(to_delete, cross_lead, stats, rate_limit)
             return
 
-        api = ApiClient()
+        api = ApiClient(rate_limit)
 
         if mode == "--test":
             ok = test_one_delete(api, to_delete)
             if ok:
-                log.info("Teste OK! Execute com: python sanitize_crm.py --execute")
+                log.info("Teste OK — endpoint validado.")
             else:
-                log.error("Teste FALHOU. Verifique os logs.")
+                log.error("Teste FALHOU.")
             return
 
         if mode == "--execute":
             log.info("Iniciando exclusão em massa...")
             ok, err = execute_deletes(api, to_delete, conn, limit)
-            print(f"\nResultado: {ok} excluídos, {err} erros de {len(to_delete)} negócios.")
+            log.info("Resultado: %d excluídos, %d erros de %d negócios.",
+                     ok, err, len(to_delete))
 
     finally:
         conn.close()
