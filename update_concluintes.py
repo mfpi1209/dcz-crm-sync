@@ -369,6 +369,46 @@ def _build_lead_payload(xl_data):
     return payload
 
 
+POLO_MAP = {
+    "barra funda": "Barra Funda",
+    "sapopemba": "Sapopemba",
+    "vila prudente": "Vila Prudente",
+    "morumbi": "Morumbi",
+    "santana": "Santana",
+    "vila mariana": "Vila Mariana",
+    "ibirapuera": "Ibirapuera",
+    "freguesia do o": "Freguesia do Ó",
+    "freguesia do ó": "Freguesia do Ó",
+    "taboao da serra - centro": "Taboão da Serra - Centro",
+    "taboão da serra - centro": "Taboão da Serra - Centro",
+    "taboao da serra centro": "Taboão da Serra - Centro",
+    "taboão da serra centro": "Taboão da Serra - Centro",
+    "taboao da serra - mituzi": "Taboão da Serra - Mituzi",
+    "taboão da serra - mituzi": "Taboão da Serra - Mituzi",
+    "taboao da serra mituzi": "Taboão da Serra - Mituzi",
+    "taboão da serra mituzi": "Taboão da Serra - Mituzi",
+    "campinas": "Campinas",
+    "capivari": "Capivari",
+    "itapira": "Itapira",
+}
+
+
+def _normalize_polo(polo):
+    if not polo:
+        return ""
+    key = _strip_accents(str(polo).strip()).lower()
+    if key in POLO_MAP:
+        return POLO_MAP[key]
+    if "taboao" in key or "taboa" in key:
+        if "mituzi" in key or "mituizi" in key or "jardim" in key:
+            return "Taboão da Serra - Mituzi"
+        return "Taboão da Serra - Centro"
+    for canonical_key, canonical_val in POLO_MAP.items():
+        if canonical_key in key:
+            return canonical_val
+    return _title_case_name(str(polo).strip())
+
+
 def _build_biz_fields(xl_data):
     """Retorna lista de (field_id, value) para preencher campos adicionais do negócio."""
     fields = []
@@ -377,34 +417,31 @@ def _build_biz_fields(xl_data):
         fields.append((BIZ_FIELD_IDS["RGM"], str(rgm)))
     curso = xl_data.get("curso", "")
     if curso:
-        fields.append((BIZ_FIELD_IDS["Curso"], str(curso).strip()))
+        fields.append((BIZ_FIELD_IDS["Curso"], _title_case_name(str(curso).strip())))
     polo = xl_data.get("polo", "")
     if polo:
-        fields.append((BIZ_FIELD_IDS["Polo"], str(polo).strip()))
+        fields.append((BIZ_FIELD_IDS["Polo"], _normalize_polo(polo)))
     serie = xl_data.get("serie", "")
     if serie:
         fields.append((BIZ_FIELD_IDS["Serie"], str(serie).strip()))
     sit = xl_data.get("situacao", "")
     if sit:
-        fields.append((BIZ_FIELD_IDS["Situacao"], str(sit).strip()))
+        fields.append((BIZ_FIELD_IDS["Situacao"], _title_case_name(str(sit).strip())))
     data_mat = xl_data.get("data_mat", "")
     if data_mat:
         fields.append((BIZ_FIELD_IDS["DataMatricula"], str(data_mat).strip()))
     modalidade = xl_data.get("modalidade", "")
     if modalidade:
-        fields.append((BIZ_FIELD_IDS["Modalidade"], str(modalidade).strip()))
+        fields.append((BIZ_FIELD_IDS["Modalidade"], _title_case_name(str(modalidade).strip())))
     email_acad = xl_data.get("email_acad", "")
     if email_acad:
         fields.append((BIZ_FIELD_IDS["EmailAD"], str(email_acad).strip()))
     tipo = xl_data.get("tipo_matricula", "")
     if tipo:
-        fields.append((BIZ_FIELD_IDS["TipoAluno"], str(tipo).strip()))
-    ciclo = xl_data.get("ciclo", "")
-    if ciclo:
-        fields.append((BIZ_FIELD_IDS["Ciclo"], str(ciclo).strip()))
+        fields.append((BIZ_FIELD_IDS["TipoAluno"], _title_case_name(str(tipo).strip())))
     nivel = xl_data.get("negocio", "")
     if nivel:
-        fields.append((BIZ_FIELD_IDS["Nivel"], str(nivel).strip()))
+        fields.append((BIZ_FIELD_IDS["Nivel"], _title_case_name(str(nivel).strip())))
     return fields
 
 
