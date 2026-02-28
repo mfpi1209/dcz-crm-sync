@@ -14,7 +14,7 @@
             darkMode: 'class',
             theme: {
                 extend: {
-                    colors: { brand: '#6366f1' },
+                    colors: { brand: '#2563eb' },
                     fontFamily: {
                         display: ['Sora', 'sans-serif'],
                         sans: ['Inter', 'sans-serif'],
@@ -26,6 +26,26 @@
         }
     </script>
     <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --primary-light: #dbeafe;
+            --secondary: #0891b2;
+            --accent: #f59e0b;
+            --success: #059669;
+            --warning: #d97706;
+            --danger: #dc2626;
+            --bg-main: #0f172a;
+            --bg-card: #1e293b;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border: #334155;
+            --shadow: 0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.08);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.15), 0 4px 6px -2px rgba(0,0,0,.1);
+            --radius-card: 16px;
+            --radius-btn: 10px;
+        }
         body { font-family: 'Inter', sans-serif; }
         h1, h2, h3, h4, h5, h6 { font-family: 'Sora', sans-serif; }
         .log-terminal { font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 0.78rem; line-height: 1.6; }
@@ -35,70 +55,57 @@
         @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 8px rgba(34,197,94,0.4); } 50% { box-shadow: 0 0 16px rgba(34,197,94,0.7); } }
 
         .glass-card {
-            backdrop-filter: blur(16px) saturate(1.6);
-            -webkit-backdrop-filter: blur(16px) saturate(1.6);
-            background: rgba(15, 23, 42, 0.6);
-            border: 1px solid rgba(100, 116, 139, 0.15);
-            border-radius: 1.5rem;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-card);
+            box-shadow: var(--shadow);
+            transition: transform 0.2s, box-shadow 0.2s;
         }
-        .glass-card:hover { border-color: rgba(99, 102, 241, 0.3); box-shadow: 0 8px 32px rgba(99, 102, 241, 0.08); }
+        .glass-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
 
         .glass-sidebar {
-            backdrop-filter: blur(20px) saturate(1.8);
-            -webkit-backdrop-filter: blur(20px) saturate(1.8);
-            background: rgba(15, 23, 42, 0.85);
-            border-right: 1px solid rgba(100, 116, 139, 0.15);
+            background: rgba(15, 23, 42, 0.95);
+            border-right: 1px solid var(--border);
         }
 
         .metric-card {
             position: relative;
             overflow: hidden;
-            border-radius: 1.5rem;
+            border-radius: var(--radius-card);
             padding: 1.5rem;
-            border: 1px solid;
-            backdrop-filter: blur(16px);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            transition: transform 0.2s, box-shadow 0.2s;
         }
-        .metric-card:hover { transform: translateY(-4px) scale(1.02); box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
-        .metric-card::after {
+        .metric-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+        .metric-card::before {
             content: '';
             position: absolute;
-            right: -2rem;
-            bottom: -2rem;
-            width: 6rem;
-            height: 6rem;
-            border-radius: 50%;
-            filter: blur(2rem);
-            opacity: 0;
-            transition: opacity 0.3s;
+            top: 0; left: 0;
+            width: 4px; height: 100%;
         }
-        .metric-card:hover::after { opacity: 1; }
-        .metric-indigo { background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(139,92,246,0.1)); border-color: rgba(99,102,241,0.25); }
-        .metric-indigo:hover { border-color: rgba(99,102,241,0.5); }
-        .metric-indigo::after { background: rgba(99,102,241,0.3); }
-        .metric-emerald { background: linear-gradient(135deg, rgba(16,185,129,0.15), rgba(6,182,212,0.1)); border-color: rgba(16,185,129,0.25); }
-        .metric-emerald:hover { border-color: rgba(16,185,129,0.5); }
-        .metric-emerald::after { background: rgba(16,185,129,0.3); }
-        .metric-amber { background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(249,115,22,0.1)); border-color: rgba(245,158,11,0.25); }
-        .metric-amber:hover { border-color: rgba(245,158,11,0.5); }
-        .metric-amber::after { background: rgba(245,158,11,0.3); }
-        .metric-cyan { background: linear-gradient(135deg, rgba(6,182,212,0.15), rgba(59,130,246,0.1)); border-color: rgba(6,182,212,0.25); }
-        .metric-cyan:hover { border-color: rgba(6,182,212,0.5); }
-        .metric-cyan::after { background: rgba(6,182,212,0.3); }
+        .metric-indigo { background: linear-gradient(135deg, rgba(37,99,235,0.12), rgba(37,99,235,0.04)); border-color: rgba(37,99,235,0.2); }
+        .metric-indigo::before { background: var(--primary); }
+        .metric-emerald { background: linear-gradient(135deg, rgba(5,150,105,0.12), rgba(5,150,105,0.04)); border-color: rgba(5,150,105,0.2); }
+        .metric-emerald::before { background: var(--success); }
+        .metric-amber { background: linear-gradient(135deg, rgba(217,119,6,0.12), rgba(217,119,6,0.04)); border-color: rgba(217,119,6,0.2); }
+        .metric-amber::before { background: var(--warning); }
+        .metric-cyan { background: linear-gradient(135deg, rgba(8,145,178,0.12), rgba(8,145,178,0.04)); border-color: rgba(8,145,178,0.2); }
+        .metric-cyan::before { background: var(--secondary); }
 
         .sidebar-link {
             display: flex; align-items: center; gap: 0.75rem;
-            padding: 0.65rem 1rem; border-radius: 0.75rem;
+            padding: 0.65rem 1rem; border-radius: var(--radius-btn);
             font-size: 0.875rem; font-family: 'Inter', sans-serif; font-weight: 500;
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.2s;
             cursor: pointer; color: #94a3b8;
         }
-        .sidebar-link:hover { background: rgba(99,102,241,0.08); color: #e2e8f0; }
+        .sidebar-link:hover { background: rgba(37,99,235,0.08); color: #e2e8f0; }
         .sidebar-link.active {
-            background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.15));
-            border: 1px solid rgba(99,102,241,0.35);
-            color: #a5b4fc; font-weight: 600;
+            background: linear-gradient(135deg, rgba(37,99,235,0.2), rgba(37,99,235,0.1));
+            border: 1px solid rgba(37,99,235,0.3);
+            color: #93c5fd; font-weight: 600;
         }
         .sidebar-link:not(.active) { border: 1px solid transparent; }
 
@@ -108,54 +115,67 @@
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, #6366f1, #8b5cf6);
-            border: 1px solid rgba(99,102,241,0.5);
-            box-shadow: 0 4px 12px rgba(99,102,241,0.25);
-            transition: all 0.25s;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border: none;
+            border-radius: var(--radius-btn);
+            box-shadow: 0 4px 14px rgba(37,99,235,0.3);
+            transition: all 0.2s;
         }
-        .btn-primary:hover { box-shadow: 0 6px 20px rgba(99,102,241,0.4); transform: translateY(-1px); }
+        .btn-primary:hover { box-shadow: 0 6px 20px rgba(37,99,235,0.4); transform: translateY(-1px); }
 
         .btn-danger {
             background: linear-gradient(135deg, #ef4444, #dc2626);
-            border: 1px solid rgba(239,68,68,0.5);
-            box-shadow: 0 4px 12px rgba(239,68,68,0.2);
+            border: none;
+            border-radius: var(--radius-btn);
+            box-shadow: 0 4px 14px rgba(239,68,68,0.25);
+            transition: all 0.2s;
         }
-        .btn-danger:hover { box-shadow: 0 6px 20px rgba(239,68,68,0.35); }
+        .btn-danger:hover { box-shadow: 0 6px 20px rgba(239,68,68,0.35); transform: translateY(-1px); }
 
         .btn-warning {
             background: linear-gradient(135deg, #f59e0b, #d97706);
-            border: 1px solid rgba(245,158,11,0.5);
-            box-shadow: 0 4px 12px rgba(245,158,11,0.2);
+            border: none;
+            border-radius: var(--radius-btn);
+            box-shadow: 0 4px 14px rgba(245,158,11,0.25);
+            transition: all 0.2s;
         }
-        .btn-warning:hover { box-shadow: 0 6px 20px rgba(245,158,11,0.35); }
+        .btn-warning:hover { box-shadow: 0 6px 20px rgba(245,158,11,0.35); transform: translateY(-1px); }
 
         .btn-secondary {
             background: rgba(51, 65, 85, 0.6);
-            border: 1px solid rgba(100, 116, 139, 0.3);
-            backdrop-filter: blur(8px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-btn);
+            transition: all 0.2s;
         }
         .btn-secondary:hover { background: rgba(71, 85, 105, 0.7); border-color: rgba(100, 116, 139, 0.5); }
 
         .input-glass {
-            background: rgba(15, 23, 42, 0.5);
-            border: 1px solid rgba(100, 116, 139, 0.25);
-            border-radius: 0.75rem;
-            backdrop-filter: blur(8px);
-            transition: all 0.25s;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-btn);
+            padding: 12px 14px;
+            font-size: 14px;
+            transition: all 0.2s;
         }
-        .input-glass:focus { border-color: rgba(99, 102, 241, 0.6); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15); outline: none; }
+        .input-glass:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.15); outline: none; }
 
         .log-panel {
-            background: rgba(2, 6, 23, 0.7);
-            border: 1px solid rgba(100, 116, 139, 0.15);
-            border-radius: 1.5rem;
+            background: rgba(2, 6, 23, 0.8);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-card);
             overflow: hidden;
         }
         .log-header {
-            background: rgba(15, 23, 42, 0.8);
-            border-bottom: 1px solid rgba(100, 116, 139, 0.15);
+            background: rgba(15, 23, 42, 0.9);
+            border-bottom: 1px solid var(--border);
             padding: 0.65rem 1rem;
         }
+
+        th {
+            font-size: 12px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: .5px; padding: 14px 16px;
+        }
+        td { padding: 16px; font-size: 14px; }
 
         #sidebar-overlay { display: none; }
         @media (max-width: 768px) {
@@ -165,15 +185,12 @@
         }
 
         /* ══════════════════════════════════════════════════════════
-           LIGHT MODE — Premium, vibrante, depth-based
-           Background: slate-50 (#f8fafc)
-           Cards: branco puro + shadow-lg (sem dependência de bordas)
-           Typography: slate-900 títulos, slate-600 secundário
-           Acentos: indigo-600, gradientes saturados
+           LIGHT MODE — Clean, moderno, padrão Feedback
            ══════════════════════════════════════════════════════════ */
 
         .light body,
-        .light .bg-base { background: #f8fafc !important; color: #0f172a !important; }
+        .light .bg-base { background: #f1f5f9 !important; color: #0f172a !important; }
+        .light { --bg-main: #f1f5f9; --bg-card: #ffffff; --text-primary: #0f172a; --text-secondary: #475569; --text-muted: #94a3b8; --border: #e2e8f0; }
 
         /* ── Sidebar ── */
         .light .glass-sidebar {
@@ -184,14 +201,14 @@
         .light .sidebar-link { color: #64748b; }
         .light .sidebar-link:hover { background: #f1f5f9; color: #0f172a; }
         .light .sidebar-link svg { color: #94a3b8; }
-        .light .sidebar-link:hover svg { color: #4f46e5; }
+        .light .sidebar-link:hover svg { color: var(--primary); }
         .light .sidebar-link.active {
-            background: linear-gradient(135deg, rgba(79,70,229,0.1), rgba(139,92,246,0.08)) !important;
-            color: #4f46e5 !important;
+            background: linear-gradient(135deg, rgba(37,99,235,0.1), rgba(37,99,235,0.05)) !important;
+            color: var(--primary) !important;
             border-color: transparent !important;
-            box-shadow: 0 2px 8px rgba(79,70,229,0.1);
+            box-shadow: 0 2px 8px rgba(37,99,235,0.1);
         }
-        .light .sidebar-link.active svg { color: #4f46e5 !important; }
+        .light .sidebar-link.active svg { color: var(--primary) !important; }
         .light #sidebar .border-slate-700\/20,
         .light #sidebar .border-t { border-color: #f1f5f9 !important; }
         .light #sidebar .text-slate-500 { color: #94a3b8 !important; }
@@ -199,51 +216,50 @@
         .light #sidebar .text-slate-600:hover { color: #475569 !important; }
         .light .green-dot { box-shadow: 0 0 8px rgba(16,185,129,0.5); }
 
-        /* ── Glass cards → White cards com depth ── */
+        /* ── Cards ── */
         .light .glass-card {
             background: #ffffff !important;
-            border: 1px solid rgba(226,232,240,0.5) !important;
-            border-radius: 1.5rem !important;
-            box-shadow: 0 4px 24px rgba(15,23,42,0.05), 0 1px 3px rgba(15,23,42,0.04) !important;
-            backdrop-filter: none !important;
+            border: 1px solid #e2e8f0 !important;
+            border-radius: var(--radius-card) !important;
+            box-shadow: var(--shadow) !important;
         }
         .light .glass-card:hover {
-            border-color: rgba(99,102,241,0.2) !important;
-            box-shadow: 0 8px 40px rgba(99,102,241,0.08), 0 2px 8px rgba(15,23,42,0.04) !important;
-            transform: translateY(-1px);
+            box-shadow: var(--shadow-lg) !important;
+            transform: translateY(-2px);
         }
 
-        /* ── Metric cards — gradientes vibrantes ── */
+        /* ── Metric cards ── */
         .light .metric-card {
             border: none !important;
-            border-radius: 1.5rem !important;
-            box-shadow: 0 4px 20px rgba(15,23,42,0.06) !important;
+            border-radius: var(--radius-card) !important;
+            box-shadow: var(--shadow) !important;
+            background: #ffffff !important;
         }
         .light .metric-card:hover {
-            box-shadow: 0 12px 40px rgba(15,23,42,0.1) !important;
+            box-shadow: var(--shadow-lg) !important;
         }
         .light .metric-indigo {
-            background: linear-gradient(135deg, rgba(79,70,229,0.1), rgba(139,92,246,0.06)) !important;
+            background: linear-gradient(135deg, rgba(37,99,235,0.08), rgba(37,99,235,0.02)) !important;
         }
         .light .metric-indigo .text-indigo-400,
-        .light .metric-indigo svg { color: #4f46e5 !important; }
+        .light .metric-indigo svg { color: var(--primary) !important; }
         .light .metric-emerald {
-            background: linear-gradient(135deg, rgba(5,150,105,0.1), rgba(6,182,212,0.06)) !important;
+            background: linear-gradient(135deg, rgba(5,150,105,0.08), rgba(5,150,105,0.02)) !important;
         }
         .light .metric-emerald .text-emerald-400,
         .light .metric-emerald svg { color: #059669 !important; }
         .light .metric-amber {
-            background: linear-gradient(135deg, rgba(217,119,6,0.1), rgba(249,115,22,0.06)) !important;
+            background: linear-gradient(135deg, rgba(217,119,6,0.08), rgba(217,119,6,0.02)) !important;
         }
         .light .metric-amber .text-amber-400,
         .light .metric-amber svg { color: #d97706 !important; }
         .light .metric-cyan {
-            background: linear-gradient(135deg, rgba(8,145,178,0.1), rgba(37,99,235,0.06)) !important;
+            background: linear-gradient(135deg, rgba(8,145,178,0.08), rgba(8,145,178,0.02)) !important;
         }
         .light .metric-cyan .text-cyan-400,
         .light .metric-cyan svg { color: #0891b2 !important; }
 
-        /* ── Typography: slate-900 títulos, slate-600 secundário ── */
+        /* ── Typography ── */
         .light .text-white { color: #0f172a !important; }
         .light .text-slate-100, .light .text-gray-100 { color: #0f172a !important; }
         .light .text-slate-200, .light .text-gray-200 { color: #1e293b !important; }
@@ -254,8 +270,8 @@
         .light h1, .light h2, .light h3, .light h4 { color: #0f172a !important; }
         .light p { color: #475569; }
 
-        /* ── Accent colors: saturados e vibrantes ── */
-        .light .text-indigo-300, .light .text-indigo-400, .light .text-indigo-500 { color: #4f46e5 !important; }
+        /* ── Accent colors ── */
+        .light .text-indigo-300, .light .text-indigo-400, .light .text-indigo-500 { color: var(--primary) !important; }
         .light .text-violet-300, .light .text-violet-400 { color: #7c3aed !important; }
         .light .text-purple-300, .light .text-purple-400 { color: #9333ea !important; }
         .light .text-emerald-300, .light .text-emerald-400 { color: #059669 !important; }
@@ -270,7 +286,7 @@
         .light .text-red-300, .light .text-red-400 { color: #dc2626 !important; }
         .light .text-green-300, .light .text-green-400 { color: #16a34a !important; }
 
-        /* ── Background panels & sections ── */
+        /* ── Background panels ── */
         .light [class*="bg-slate-800"],
         .light [class*="bg-slate-900"] { background: #f1f5f9 !important; }
         .light [class*="bg-slate-700"] { background: #f1f5f9 !important; }
@@ -279,8 +295,8 @@
         .light .bg-slate-800\/50 { background: #f1f5f9 !important; }
         .light .bg-slate-900\/50 { background: #f1f5f9 !important; }
 
-        /* Subtle accent backgrounds */
-        .light .bg-indigo-500\/10, .light .bg-indigo-500\/15 { background: rgba(79,70,229,0.08) !important; }
+        /* Accent backgrounds */
+        .light .bg-indigo-500\/10, .light .bg-indigo-500\/15 { background: rgba(37,99,235,0.08) !important; }
         .light .bg-emerald-500\/10, .light .bg-emerald-500\/15 { background: rgba(5,150,105,0.08) !important; }
         .light .bg-amber-500\/10, .light .bg-amber-500\/15 { background: rgba(217,119,6,0.08) !important; }
         .light .bg-violet-500\/10, .light .bg-violet-500\/15 { background: rgba(124,58,237,0.08) !important; }
@@ -290,17 +306,13 @@
         .light .bg-emerald-900\/40 { background: rgba(5,150,105,0.1) !important; }
 
         /* Phase badges */
-        .light .bg-amber-500\/15 { background: rgba(217,119,6,0.1) !important; }
-        .light .bg-emerald-500\/15 { background: rgba(5,150,105,0.1) !important; }
-        .light .bg-blue-500\/15 { background: rgba(37,99,235,0.1) !important; }
-        .light .bg-violet-500\/15 { background: rgba(124,58,237,0.1) !important; }
         .light [class*="border-amber-500"] { border-color: rgba(217,119,6,0.25) !important; }
         .light [class*="border-emerald-500"] { border-color: rgba(5,150,105,0.25) !important; }
         .light [class*="border-blue-500"] { border-color: rgba(37,99,235,0.25) !important; }
         .light [class*="border-violet-500"] { border-color: rgba(124,58,237,0.25) !important; }
-        .light [class*="border-indigo-500"] { border-color: rgba(79,70,229,0.25) !important; }
+        .light [class*="border-indigo-500"] { border-color: rgba(37,99,235,0.25) !important; }
 
-        /* ── Borders: suaves, quase invisíveis ── */
+        /* ── Borders ── */
         .light [class*="border-slate-700"],
         .light [class*="border-slate-600"] { border-color: #e2e8f0 !important; }
         .light [class*="border-slate-500"] { border-color: #e2e8f0 !important; }
@@ -312,30 +324,29 @@
             background: #ffffff !important;
             border: 1px solid #e2e8f0 !important;
             color: #0f172a !important;
+            border-radius: var(--radius-btn) !important;
             box-shadow: 0 1px 3px rgba(15,23,42,0.04) !important;
         }
         .light .input-glass:focus,
         .light select:focus {
-            border-color: #4f46e5 !important;
-            box-shadow: 0 0 0 3px rgba(79,70,229,0.12), 0 1px 3px rgba(15,23,42,0.04) !important;
+            border-color: var(--primary) !important;
+            box-shadow: 0 0 0 3px var(--primary-light), 0 1px 3px rgba(15,23,42,0.04) !important;
         }
         .light .input-glass::placeholder { color: #94a3b8 !important; }
-        .light input[type="range"] {
-            background: #e2e8f0 !important;
-        }
-        .light input[type="range"]::-webkit-slider-thumb { background: #4f46e5; }
+        .light input[type="range"] { background: #e2e8f0 !important; }
+        .light input[type="range"]::-webkit-slider-thumb { background: var(--primary); }
 
         /* ── Buttons ── */
         .light .btn-primary {
-            background: linear-gradient(135deg, #4f46e5, #7c3aed) !important;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark)) !important;
             border-color: transparent !important;
-            box-shadow: 0 4px 14px rgba(79,70,229,0.3) !important;
+            box-shadow: 0 4px 14px rgba(37,99,235,0.3) !important;
         }
         .light .btn-primary:hover {
-            box-shadow: 0 6px 22px rgba(79,70,229,0.4) !important;
+            box-shadow: 0 6px 22px rgba(37,99,235,0.4) !important;
         }
         .light .btn-danger {
-            background: linear-gradient(135deg, #dc2626, #be123c) !important;
+            background: linear-gradient(135deg, #dc2626, #b91c1c) !important;
             border-color: transparent !important;
             box-shadow: 0 4px 14px rgba(220,38,38,0.25) !important;
         }
@@ -361,7 +372,7 @@
             box-shadow: 0 2px 6px rgba(15,23,42,0.06) !important;
         }
 
-        /* Button text stays white (override general .text-white rule) */
+        /* Button text stays white */
         .light .btn-primary .text-white,
         .light .btn-danger .text-white,
         .light .btn-warning .text-white,
@@ -376,8 +387,8 @@
         .light .log-panel {
             background: #ffffff !important;
             border: none !important;
-            border-radius: 1.5rem !important;
-            box-shadow: 0 4px 24px rgba(15,23,42,0.05), 0 1px 3px rgba(15,23,42,0.04) !important;
+            border-radius: var(--radius-card) !important;
+            box-shadow: var(--shadow) !important;
         }
         .light .log-header {
             background: #f8fafc !important;
@@ -394,8 +405,8 @@
         .light .log-header button { color: #94a3b8 !important; }
         .light .log-header button.text-indigo-400,
         .light .log-header .border-indigo-400 {
-            color: #4f46e5 !important;
-            border-color: #4f46e5 !important;
+            color: var(--primary) !important;
+            border-color: var(--primary) !important;
         }
 
         /* ── Progress bars ── */
@@ -405,8 +416,8 @@
         /* ── Tables ── */
         .light th {
             color: #64748b !important;
-            background: #f8fafc !important;
-            border-color: #f1f5f9 !important;
+            background: #f1f5f9 !important;
+            border-color: #e2e8f0 !important;
         }
         .light td {
             color: #334155 !important;
@@ -421,12 +432,7 @@
         /* ── Chart containers ── */
         .light canvas { filter: saturate(1.1); }
 
-        /* ── Ciclo / temporal cards ── */
-        .light .rounded-2xl[class*="bg-"] {
-            box-shadow: 0 2px 12px rgba(15,23,42,0.04);
-        }
-
-        /* ── Scrollbar styling ── */
+        /* ── Scrollbar ── */
         .light ::-webkit-scrollbar { width: 6px; height: 6px; }
         .light ::-webkit-scrollbar-track { background: #f1f5f9; }
         .light ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
@@ -439,44 +445,43 @@
         }
         .light .text-emerald-400 { color: #059669 !important; }
 
-        /* ── Theme toggle button ── */
+        /* ── Theme toggle ── */
         .light #theme-toggle { color: #64748b !important; }
         .light #theme-toggle:hover { color: #0f172a !important; }
 
-        /* ── Ciclo expand/collapse sections ── */
+        /* ── Expand/collapse ── */
         .light .bg-slate-800\/20 { background: #f8fafc !important; }
         .light details summary { color: #0f172a !important; }
 
-        /* ── Override: keep gradient text readable ── */
+        /* ── Misc overrides ── */
         .light .bg-gradient-to-r { border-radius: 1rem; }
-
-        /* ── Distribuição table ── */
         .light .divide-slate-700\/30 > * + * { border-color: #f1f5f9 !important; }
+        .light .rounded-2xl[class*="bg-"] { box-shadow: 0 2px 12px rgba(15,23,42,0.04); }
 
-        /* ── Metric card icon containers: saturados ── */
-        .light .from-indigo-500\/30 { --tw-gradient-from: rgba(79,70,229,0.15) !important; }
-        .light .from-emerald-500\/30 { --tw-gradient-from: rgba(5,150,105,0.15) !important; }
-        .light .from-amber-500\/30 { --tw-gradient-from: rgba(217,119,6,0.15) !important; }
-        .light .from-cyan-500\/30 { --tw-gradient-from: rgba(8,145,178,0.15) !important; }
-        .light .to-purple-500\/30 { --tw-gradient-to: rgba(124,58,237,0.1) !important; }
-        .light .to-cyan-500\/30 { --tw-gradient-to: rgba(8,145,178,0.1) !important; }
-        .light .to-orange-500\/30 { --tw-gradient-to: rgba(234,88,12,0.1) !important; }
-        .light .to-blue-500\/30 { --tw-gradient-to: rgba(37,99,235,0.1) !important; }
-        .light .border-indigo-500\/40 { border-color: rgba(79,70,229,0.2) !important; }
+        /* ── Metric card icon containers ── */
+        .light .from-indigo-500\/30 { --tw-gradient-from: rgba(37,99,235,0.12) !important; }
+        .light .from-emerald-500\/30 { --tw-gradient-from: rgba(5,150,105,0.12) !important; }
+        .light .from-amber-500\/30 { --tw-gradient-from: rgba(217,119,6,0.12) !important; }
+        .light .from-cyan-500\/30 { --tw-gradient-from: rgba(8,145,178,0.12) !important; }
+        .light .to-purple-500\/30 { --tw-gradient-to: rgba(37,99,235,0.06) !important; }
+        .light .to-cyan-500\/30 { --tw-gradient-to: rgba(8,145,178,0.06) !important; }
+        .light .to-orange-500\/30 { --tw-gradient-to: rgba(234,88,12,0.06) !important; }
+        .light .to-blue-500\/30 { --tw-gradient-to: rgba(37,99,235,0.06) !important; }
+        .light .border-indigo-500\/40 { border-color: rgba(37,99,235,0.2) !important; }
         .light .border-emerald-500\/40 { border-color: rgba(5,150,105,0.2) !important; }
         .light .border-amber-500\/40 { border-color: rgba(217,119,6,0.2) !important; }
         .light .border-cyan-500\/40 { border-color: rgba(8,145,178,0.2) !important; }
 
-        /* Icon colors inside metric cards: strong & solid */
-        .light .text-indigo-300 { color: #4f46e5 !important; }
+        /* Icon colors inside metric cards */
+        .light .text-indigo-300 { color: var(--primary) !important; }
         .light .text-emerald-300 { color: #059669 !important; }
         .light .text-amber-300 { color: #d97706 !important; }
         .light .text-cyan-300 { color: #0891b2 !important; }
 
-        /* ── Disabled / opacity states ── */
+        /* ── Disabled states ── */
         .light .opacity-50 { opacity: 0.45 !important; }
 
-        /* ── SVG icons general (sidebar excluded — handled above) ── */
+        /* ── SVG icons ── */
         .light .glass-card svg:not(.btn-primary svg):not(.btn-danger svg):not(.btn-warning svg) { color: inherit; }
 
         /* ══════════════════════════════════════════════════════════════
@@ -1229,7 +1234,7 @@
                         <span>0</span><span>60</span><span>120</span><span>180</span><span>240</span>
                     </div>
                     <div class="mt-2 h-1.5 bg-slate-800/60 rounded-full overflow-hidden">
-                        <div id="rate-bar" class="h-full rounded-full transition-all" style="width:50%; background: linear-gradient(90deg, #22c55e, #6366f1)"></div>
+                        <div id="rate-bar" class="h-full rounded-full transition-all" style="width:50%; background: linear-gradient(90deg, #22c55e, #2563eb)"></div>
                     </div>
                 </div>
 
@@ -1556,10 +1561,7 @@
                             <option value="Atendimento">Atendimento</option>
                             <option value="Acolhimento">Acolhimento</option>
                         </select>
-                        <button onclick="sortDistribuicao()" class="text-[11px] text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded border border-slate-700/30 hover:border-slate-600/50 transition flex items-center gap-1" title="Ordenar por fila">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>
-                            Fila
-                        </button>
+                        <span class="text-[10px] text-slate-500 italic">Clique nos cabeçalhos para ordenar</span>
                     </div>
                 </div>
 
@@ -1570,13 +1572,14 @@
                             <thead>
                                 <tr class="border-b border-slate-700/30">
                                     <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Responsável</th>
+                                    <th class="px-3 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
                                     <th class="px-3 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">Almoço</th>
                                     <th class="px-3 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">Fim Exp.</th>
                                     <th class="px-3 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">Pausa</th>
                                     <th class="px-3 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">Volume</th>
-                                    <th class="px-3 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">Fila</th>
-                                    <th class="px-3 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">Últ. Execução</th>
-                                    <th class="px-3 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">Tipo</th>
+                                    <th class="px-3 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider cursor-pointer select-none hover:text-slate-300 transition" onclick="sortDistCol('fila')">Fila <span id="dist-sort-fila" class="text-[8px]"></span></th>
+                                    <th class="px-3 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider cursor-pointer select-none hover:text-slate-300 transition" onclick="sortDistCol('ultima_execucao')">Últ. Execução <span id="dist-sort-ultima_execucao" class="text-[8px]"></span></th>
+                                    <th class="px-3 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider cursor-pointer select-none hover:text-slate-300 transition" onclick="sortDistCol('tipo_atendimento')">Tipo <span id="dist-sort-tipo_atendimento" class="text-[8px]"></span></th>
                                 </tr>
                             </thead>
                             <tbody id="dist-tbody" class="divide-y divide-slate-700/20 text-sm"></tbody>
@@ -1869,7 +1872,7 @@
                 <!-- Tabs de configuração -->
                 <div class="flex gap-2 mb-6 border-b border-slate-700/30 pb-3">
                     <button onclick="switchConfigTab('ciclos')" id="cfg-tab-ciclos"
-                        class="text-sm font-semibold px-5 py-2 rounded-lg transition bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 flex items-center gap-2">
+                        class="text-sm font-semibold px-5 py-2 rounded-lg transition bg-blue-500/15 text-blue-400 border border-blue-500/30 flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                         Ciclos
                     </button>
@@ -1903,7 +1906,7 @@
 
                         <div class="flex gap-3 mb-5">
                             <button onclick="switchCicloTab('grad')" id="tab-ciclo-grad"
-                                class="text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+                                class="text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-blue-500/15 text-blue-400 border border-blue-500/30">
                                 Graduação
                             </button>
                             <button onclick="switchCicloTab('pos')" id="tab-ciclo-pos"
@@ -1975,7 +1978,7 @@
 
                         <div class="flex gap-3 mb-5">
                             <button onclick="switchTurmaTab('grad')" id="tab-turma-grad"
-                                class="text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+                                class="text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-blue-500/15 text-blue-400 border border-blue-500/30">
                                 Graduação
                             </button>
                             <button onclick="switchTurmaTab('pos')" id="tab-turma-pos"
@@ -2324,12 +2327,12 @@ let _tlGranularity = 'month';
 let _tlDrillMonth = null;
 
 const _tlColors = {
-    novos:       { line: '#818cf8', bg: 'rgba(129,140,248,0.06)' },
-    rematricula: { line: '#34d399', bg: 'rgba(52,211,153,0.06)' },
-    regresso:    { line: '#fbbf24', bg: 'rgba(251,191,36,0.06)' },
-    recompra:    { line: '#22d3ee', bg: 'rgba(34,211,238,0.06)' },
-    total:       { line: '#a78bfa', bg: 'rgba(167,139,250,0.06)' },
-    calouros_agg:{ line: '#818cf8', bg: 'rgba(129,140,248,0.06)' },
+    novos:       { line: '#3b82f6', bg: 'rgba(59,130,246,0.06)' },
+    rematricula: { line: '#10b981', bg: 'rgba(16,185,129,0.06)' },
+    regresso:    { line: '#f59e0b', bg: 'rgba(245,158,11,0.06)' },
+    recompra:    { line: '#06b6d4', bg: 'rgba(6,182,212,0.06)' },
+    total:       { line: '#2563eb', bg: 'rgba(37,99,235,0.08)' },
+    calouros_agg:{ line: '#3b82f6', bg: 'rgba(59,130,246,0.06)' },
 };
 let _tlMode = 'agregado';
 let _tlLastSeries = {};
@@ -3083,8 +3086,8 @@ function updateRateBar() {
     const bar = document.getElementById('rate-bar');
     bar.style.width = pct + '%';
     if (val <= 60) bar.style.background = 'linear-gradient(90deg, #22c55e, #22c55e)';
-    else if (val <= 120) bar.style.background = 'linear-gradient(90deg, #22c55e, #6366f1)';
-    else if (val <= 180) bar.style.background = 'linear-gradient(90deg, #6366f1, #f59e0b)';
+    else if (val <= 120) bar.style.background = 'linear-gradient(90deg, #22c55e, #2563eb)';
+    else if (val <= 180) bar.style.background = 'linear-gradient(90deg, #2563eb, #f59e0b)';
     else bar.style.background = 'linear-gradient(90deg, #f59e0b, #ef4444)';
 }
 
@@ -3507,7 +3510,21 @@ fetch('/api/pipeline/status', { credentials: 'same-origin' }).then(r => r.json()
 // Distribuição
 // ---------------------------------------------------------------------------
 let _distData = [];
-let _distSortOrder = 'asc';
+let _distSortCol = 'fila';
+let _distSortDir = 'asc';
+
+function sortDistCol(col) {
+    if (_distSortCol === col) {
+        _distSortDir = _distSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        _distSortCol = col;
+        _distSortDir = 'asc';
+    }
+    document.querySelectorAll('[id^="dist-sort-"]').forEach(el => el.textContent = '');
+    const indicator = document.getElementById('dist-sort-' + col);
+    if (indicator) indicator.textContent = _distSortDir === 'asc' ? '▲' : '▼';
+    filterDistribuicao();
+}
 
 async function loadDistribuicao() {
     const icon = document.getElementById('dist-refresh-icon');
@@ -3537,7 +3554,7 @@ async function loadDistribuicao() {
         filterDistribuicao();
     } catch(e) {
         console.error('Erro ao carregar distribuição:', e);
-        if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-6 text-center text-rose-400 text-sm">Erro ao carregar: ${e.message}</td></tr>`;
+        if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="px-4 py-6 text-center text-rose-400 text-sm">Erro ao carregar: ${e.message}</td></tr>`;
     } finally {
         if (icon) icon.classList.remove('animate-spin');
         if (loading) loading.classList.add('hidden');
@@ -3548,33 +3565,51 @@ function filterDistribuicao() {
     const filter = document.getElementById('dist-filter').value;
     let items = [..._distData];
     if (filter !== 'Todos') items = items.filter(d => d.tipo_atendimento === filter);
+    document.querySelectorAll('[id^="dist-sort-"]').forEach(el => el.textContent = '');
+    const indicator = document.getElementById('dist-sort-' + _distSortCol);
+    if (indicator) indicator.textContent = _distSortDir === 'asc' ? '▲' : '▼';
     renderDistTable(items);
 }
 
-function sortDistribuicao() {
-    _distSortOrder = _distSortOrder === 'asc' ? 'desc' : 'asc';
-    filterDistribuicao();
-}
-
 function renderDistTable(items) {
-    if (_distSortOrder === 'desc') {
-        items.sort((a, b) => (parseInt(b.fila) || 0) - (parseInt(a.fila) || 0));
-    } else {
-        items.sort((a, b) => (parseInt(a.fila) || 0) - (parseInt(b.fila) || 0));
-    }
+    const col = _distSortCol;
+    const dir = _distSortDir;
+
+    items.sort((a, b) => {
+        let va, vb;
+        if (col === 'fila') {
+            va = parseInt(a.fila) || 0;
+            vb = parseInt(b.fila) || 0;
+            return dir === 'asc' ? va - vb : vb - va;
+        }
+        if (col === 'ultima_execucao') {
+            va = a.ultima_execucao || '';
+            vb = b.ultima_execucao || '';
+        } else if (col === 'tipo_atendimento') {
+            va = a.tipo_atendimento || '';
+            vb = b.tipo_atendimento || '';
+        } else {
+            va = ''; vb = '';
+        }
+        const cmp = va.localeCompare(vb, 'pt-BR');
+        return dir === 'asc' ? cmp : -cmp;
+    });
 
     const tbody = document.getElementById('dist-tbody');
     tbody.innerHTML = items.map(d => {
-        const statusCls = d.status === 'Ativo'
-            ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-            : 'bg-rose-500/15 text-rose-400 border-rose-500/30';
+        const isAtivo = d.status === 'Ativo';
         const filaBg = parseInt(d.fila) > 0 ? 'bg-amber-500/15 text-amber-400' : 'bg-slate-700/30 text-slate-500';
         return `<tr data-id="${esc(d.id)}" class="hover:bg-slate-800/30 transition-colors">
             <td class="px-4 py-2.5">
                 <div class="flex items-center gap-2">
                     <span class="text-sm font-medium text-slate-200">${esc(d.responsavel)}</span>
-                    <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${statusCls}">${esc(d.status)}</span>
                 </div>
+            </td>
+            <td class="px-3 py-2.5 text-center">
+                <select data-field="status" class="input-glass px-2 py-1 text-xs font-bold rounded-full ${isAtivo ? 'text-emerald-400' : 'text-rose-400'}">
+                    <option value="Ativo" ${isAtivo ? 'selected' : ''}>Ativo</option>
+                    <option value="Inativo" ${!isAtivo ? 'selected' : ''}>Inativo</option>
+                </select>
             </td>
             <td class="px-3 py-2.5 text-center"><input type="time" value="${esc(d.almoco || '')}" class="input-glass px-2 py-1 text-xs text-slate-300 w-[90px] text-center"></td>
             <td class="px-3 py-2.5 text-center"><input type="time" value="${esc(d.final_expediente || '')}" class="input-glass px-2 py-1 text-xs text-slate-300 w-[90px] text-center"></td>
@@ -3583,13 +3618,20 @@ function renderDistTable(items) {
             <td class="px-3 py-2.5 text-center"><span class="inline-block px-2.5 py-1 rounded-full text-xs font-bold ${filaBg}">${esc(d.fila || '0')}</span></td>
             <td class="px-3 py-2.5 text-center text-xs text-slate-500">${esc(d.ultima_execucao || '—')}</td>
             <td class="px-3 py-2.5 text-center">
-                <select value="${esc(d.tipo_atendimento)}" class="input-glass px-2 py-1 text-xs text-slate-300">
+                <select data-field="tipo" class="input-glass px-2 py-1 text-xs text-slate-300">
                     <option value="Atendimento" ${d.tipo_atendimento === 'Atendimento' ? 'selected' : ''}>Atendimento</option>
                     <option value="Acolhimento" ${d.tipo_atendimento === 'Acolhimento' ? 'selected' : ''}>Acolhimento</option>
                 </select>
             </td>
         </tr>`;
     }).join('');
+
+    tbody.querySelectorAll('select[data-field="status"]').forEach(sel => {
+        sel.addEventListener('change', function() {
+            this.className = this.className.replace(/text-(emerald|rose)-400/g, '');
+            this.classList.add(this.value === 'Ativo' ? 'text-emerald-400' : 'text-rose-400');
+        });
+    });
 }
 
 async function saveDistribuicao() {
@@ -3597,14 +3639,17 @@ async function saveDistribuicao() {
     const dados = [];
     rows.forEach(row => {
         const id = row.getAttribute('data-id');
-        const inputs = row.querySelectorAll('input, select');
+        const statusSel = row.querySelector('select[data-field="status"]');
+        const tipoSel = row.querySelector('select[data-field="tipo"]');
+        const inputs = row.querySelectorAll('input');
         dados.push({
             id,
+            status: statusSel ? statusSel.value : 'Ativo',
             almoco: inputs[0].value,
             final_expediente: inputs[1].value,
             pausa: inputs[2].value,
             volume: inputs[3].value,
-            tipo_atendimento: inputs[4].value,
+            tipo_atendimento: tipoSel ? tipoSel.value : 'Atendimento',
         });
     });
 
@@ -3737,7 +3782,7 @@ async function loadLogFiles() {
             const size = f.size > 1048576 ? (f.size / 1048576).toFixed(1) + ' MB' : (f.size / 1024).toFixed(0) + ' KB';
             const isActive = _currentLogFile === f.path;
             return `<button onclick="viewLogFile('${esc(f.path)}')"
-                class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800/40 transition ${isActive ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'text-slate-300 border border-transparent'}">
+                class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800/40 transition ${isActive ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'text-slate-300 border border-transparent'}">
                 <div class="font-medium text-xs truncate">${esc(f.name)}</div>
                 <div class="text-[10px] text-slate-600">${esc(f.dir)} &middot; ${size} &middot; ${fmtDate(f.modified) || '—'}</div>
             </button>`;
@@ -3793,7 +3838,7 @@ let _configTab = 'ciclos';
 function switchConfigTab(tab) {
     _configTab = tab;
     const tabs = ['ciclos', 'turmas', 'usuarios'];
-    const activeClass = 'text-sm font-semibold px-5 py-2 rounded-lg transition bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 flex items-center gap-2';
+    const activeClass = 'text-sm font-semibold px-5 py-2 rounded-lg transition bg-blue-500/15 text-blue-400 border border-blue-500/30 flex items-center gap-2';
     const inactiveClass = 'text-sm font-semibold px-5 py-2 rounded-lg transition text-slate-500 hover:text-slate-300 flex items-center gap-2';
     tabs.forEach(t => {
         document.getElementById('cfg-tab-' + t).className = t === tab ? activeClass : inactiveClass;
@@ -3819,10 +3864,10 @@ async function loadTurmas() {
 function switchTurmaTab(tab) {
     _turmaTab = tab;
     document.getElementById('tab-turma-grad').className = tab === 'grad'
-        ? 'text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-indigo-500/15 text-indigo-400 border border-indigo-500/30'
+        ? 'text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-blue-500/15 text-blue-400 border border-blue-500/30'
         : 'text-sm font-semibold px-4 py-1.5 rounded-lg transition text-slate-500 hover:text-slate-300';
     document.getElementById('tab-turma-pos').className = tab === 'pos'
-        ? 'text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-indigo-500/15 text-indigo-400 border border-indigo-500/30'
+        ? 'text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-blue-500/15 text-blue-400 border border-blue-500/30'
         : 'text-sm font-semibold px-4 py-1.5 rounded-lg transition text-slate-500 hover:text-slate-300';
     renderTurmas();
 }
@@ -3924,10 +3969,10 @@ async function loadCiclos() {
 function switchCicloTab(tab) {
     _cicloTab = tab;
     document.getElementById('tab-ciclo-grad').className = tab === 'grad'
-        ? 'text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-indigo-500/15 text-indigo-400 border border-indigo-500/30'
+        ? 'text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-blue-500/15 text-blue-400 border border-blue-500/30'
         : 'text-sm font-semibold px-4 py-1.5 rounded-lg transition text-slate-500 hover:text-slate-300';
     document.getElementById('tab-ciclo-pos').className = tab === 'pos'
-        ? 'text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-indigo-500/15 text-indigo-400 border border-indigo-500/30'
+        ? 'text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-blue-500/15 text-blue-400 border border-blue-500/30'
         : 'text-sm font-semibold px-4 py-1.5 rounded-lg transition text-slate-500 hover:text-slate-300';
     renderCiclos();
 }
@@ -4027,7 +4072,7 @@ async function loadSchedules() {
         }
 
         container.innerHTML = `<div class="space-y-3">${data.schedules.map(s => {
-            const typeColor = s.job_type === 'sync_full' ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30' : 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30';
+            const typeColor = s.job_type === 'sync_full' ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30' : 'bg-blue-500/15 text-blue-400 border border-blue-500/30';
             const enabledColor = s.enabled ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-500 border border-slate-700/30';
             const days = DAY_LABELS[s.cron_days] || s.cron_days;
             const time = String(s.cron_hour).padStart(2, '0') + ':' + String(s.cron_minute).padStart(2, '0');

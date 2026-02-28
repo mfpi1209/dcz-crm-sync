@@ -5,10 +5,12 @@ Lê o relatório enriquecido (duplicatas_enriquecido.csv) e consolida
 negócios que estão em leads diferentes para o mesmo RGM.
 
 Ações por merge:
-  1. PATCH /businesses/{biz_id}  -> move negócio para o lead correto
-  2. PATCH /leads/{lead_id}      -> atualiza telefone se necessário
-  3. GET   /leads/{lead_id}      -> verifica se lead ficou vazio
-  4. DELETE /leads/{lead_id}     -> remove lead vazio
+  1. DELETE /businesses/{biz_id} -> deleta negócio duplicado do lead a remover
+  2. PATCH  /leads/{lead_id}     -> atualiza telefone se necessário
+  3. DELETE /leads/{lead_id}     -> remove lead vazio (sem negócios)
+
+Lógica: o mesmo RGM já existe no lead mantido, então o negócio duplicado
+no lead a remover é deletado. Quando o lead fica vazio, é deletado também.
 
 Fases:
   1 — MANTER + CANDIDATO A MERGE (sem atividade)
@@ -54,6 +56,8 @@ INPUT_FILE = REPORTS_DIR / "duplicatas_enriquecido.csv"
 DEFAULT_RATE = 60
 MULTI_LEAD_THRESHOLD = 7
 
+RGM_FIELD_ID = "2ac4e30f-cfd7-435f-b688-fbce27f76c38"
+
 DB_DSN = dict(
     host=os.getenv("DB_HOST", "localhost"),
     port=os.getenv("DB_PORT", "5432"),
@@ -68,9 +72,24 @@ def get_conn():
 
 
 def get_business_ids_for_lead(conn, lead_id):
-    """Busca IDs dos negócios de um lead no banco de dados local."""
+    """Busca IDs de todos os negócios de um lead no banco local."""
     cur = conn.cursor()
     cur.execute("SELECT id FROM businesses WHERE data->>'leadId' = %s", (lead_id,))
+    ids = [row[0] for row in cur.fetchall()]
+    cur.close()
+    return ids
+
+
+def get_biz_ids_by_rgm_on_lead(conn, lead_id, rgm):
+    """Busca IDs dos negócios com um RGM específico em um lead."""
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT b.id FROM businesses b
+        CROSS JOIN LATERAL jsonb_array_elements(b.data->'additionalFields') elem
+        WHERE b.data->>'leadId' = %s
+          AND elem->'additionalField'->>'id' = %s
+          AND elem->>'value' = %s
+    """, (lead_id, RGM_FIELD_ID, rgm))
     ids = [row[0] for row in cur.fetchall()]
     cur.close()
     return ids
@@ -152,22 +171,17 @@ class ApiClient:
 
         return {"ok": False, "status": 0, "body": "Falha após 4 tentativas"}
 
-    def patch_business(self, biz_id, contact_id):
-        """Move negócio para outro lead."""
-        return self._request("PATCH", f"{API_BASE}/businesses/{biz_id}",
-                             {"contactId": contact_id})
+    def delete_business(self, biz_id):
+        """Deleta um negócio."""
+        return self._request("DELETE", f"{API_BASE}/businesses/{biz_id}")
 
     def patch_lead_phone(self, lead_id, phone_number):
         """Atualiza telefone do lead."""
         return self._request("PATCH", f"{API_BASE}/leads/{lead_id}",
                              {"phone": str(phone_number)})
 
-    def get_lead(self, lead_id):
-        """Busca lead completo para verificar negócios restantes."""
-        return self._request("GET", f"{API_BASE}/leads/{lead_id}")
-
     def delete_lead(self, lead_id):
-        """Deleta um lead."""
+        """Deleta um lead (só funciona se não tiver negócios)."""
         return self._request("DELETE", f"{API_BASE}/leads/{lead_id}")
 
 
@@ -391,13 +405,13 @@ def dry_run_summary(plans, fase_filter=None):
             if len(items) > 10:
                 log.info("      ... e mais %d RGMs", len(items) - 10)
 
-    api_calls = total_merges * 3 + total_phone
+    api_calls = total_merges * 2 + total_phone
     log.info("")
     log.info("  RESUMO")
     log.info("    Total RGMs processáveis: %d", sum(len(by_fase[f]) for f in [1, 2, 3] if not fase_filter or f == fase_filter))
-    log.info("    Total merges (mover biz + deletar lead): %d", total_merges)
+    log.info("    Total merges (deletar biz duplicado + deletar lead): %d", total_merges)
     log.info("    Total atualizações de telefone: %d", total_phone)
-    log.info("    API calls estimadas: %d", api_calls)
+    log.info("    API calls estimadas: ~%d (delete biz + delete lead + patch phone)", api_calls)
     log.info("=" * 60)
 
     # Relatório detalhado fase 4
@@ -433,7 +447,12 @@ def by_rgm_entries(plan):
 # ---------------------------------------------------------------------------
 
 def execute_one(api, plan, csv_writer, conn):
-    """Executa merge de um RGM."""
+    """Executa merge de um RGM.
+
+    Lógica: o negócio com este RGM já existe no lead mantido,
+    então DELETAMOS o negócio duplicado do lead a remover.
+    Se o lead ficar sem nenhum negócio, deletamos o lead também.
+    """
     rgm = plan["rgm"]
     manter = plan["manter"]
     if not manter:
@@ -464,65 +483,62 @@ def execute_one(api, plan, csv_writer, conn):
         rem_id = rem["lead_id"]
         rem_nome = rem["lead_nome"]
 
-        # 1) Buscar negócios do lead a remover via banco de dados local
-        log.info("  [RGM %s] Buscando negócios do lead %s (%s)...",
-                 rgm, rem_nome, rem_id[:12])
-        biz_ids = get_business_ids_for_lead(conn, rem_id)
+        # 1) Buscar negócios com este RGM no lead a remover
+        dup_biz_ids = get_biz_ids_by_rgm_on_lead(conn, rem_id, rgm)
 
-        if not biz_ids:
-            log.info("    Lead sem negócios no DB — tentando deletar")
-        else:
-            log.info("    %d negócio(s) encontrado(s) — movendo para %s",
-                     len(biz_ids), manter_nome)
-            # 2) Mover cada negócio para o lead mantido
-            move_failed = False
-            for biz_id in biz_ids:
-                log.info("    PATCH biz %s → lead %s", biz_id[:12], manter_nome)
-                r = api.patch_business(biz_id, manter_id)
-                status = "OK" if r["ok"] else "ERRO"
-                csv_writer.writerow([
-                    datetime.now(BRT).strftime("%d/%m/%Y %H:%M:%S"),
-                    "PATCH_BIZ", biz_id, rem_nome, rgm,
-                    manter_id, manter_nome, status,
-                    r.get("status", ""), plan["reason"],
-                ])
-                if r["ok"]:
-                    log.info("    OK — negócio movido")
-                    # Atualizar o banco local para refletir a mudança
-                    try:
-                        cur = conn.cursor()
-                        cur.execute(
-                            "UPDATE businesses SET data = jsonb_set(data, '{leadId}', %s) WHERE id = %s",
-                            (f'"{manter_id}"', biz_id),
-                        )
-                        conn.commit()
-                        cur.close()
-                    except Exception:
-                        conn.rollback()
-                else:
-                    log.warning("    ERRO ao mover negócio: %s", r.get("body", ""))
-                    err_count += 1
-                    move_failed = True
+        if not dup_biz_ids:
+            log.info("  [RGM %s] Nenhum negócio com este RGM no lead %s — pulando",
+                     rgm, rem_nome)
+            continue
 
-            if move_failed:
-                log.warning("    Falha ao mover algum negócio — verificando antes de deletar")
+        log.info("  [RGM %s] %d negócio(s) duplicado(s) no lead %s — deletando",
+                 rgm, len(dup_biz_ids), rem_nome)
 
-        # 3) Re-verificar negócios restantes no DB
-        remaining = get_business_ids_for_lead(conn, rem_id)
-        if remaining:
-            log.warning("    Lead %s ainda tem %d negócios — NÃO deletando",
-                        rem_nome, len(remaining))
+        # 2) Deletar cada negócio duplicado
+        del_failed = False
+        for biz_id in dup_biz_ids:
+            log.info("    DELETE biz %s (RGM %s, lead %s)", biz_id[:12], rgm, rem_nome)
+            r = api.delete_business(biz_id)
+            status = "OK" if r["ok"] else "ERRO"
             csv_writer.writerow([
                 datetime.now(BRT).strftime("%d/%m/%Y %H:%M:%S"),
-                "SKIP_DELETE", rem_id, rem_nome, rgm,
+                "DELETE_BIZ", biz_id, rem_nome, rgm,
+                manter_id, manter_nome, status,
+                r.get("status", ""), plan["reason"],
+            ])
+            if r["ok"]:
+                log.info("    OK — negócio deletado")
+                try:
+                    with conn.cursor() as cur:
+                        cur.execute("DELETE FROM businesses WHERE id = %s", (biz_id,))
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+            else:
+                log.warning("    ERRO ao deletar negócio: %s", r.get("body", "")[:200])
+                err_count += 1
+                del_failed = True
+
+        if del_failed:
+            log.warning("    Falha ao deletar algum negócio — não tentará deletar lead")
+            continue
+
+        # 3) Verificar se o lead ficou completamente vazio
+        remaining = get_business_ids_for_lead(conn, rem_id)
+        if remaining:
+            log.info("    Lead %s ainda tem %d outro(s) negócio(s) — mantendo lead",
+                     rem_nome, len(remaining))
+            csv_writer.writerow([
+                datetime.now(BRT).strftime("%d/%m/%Y %H:%M:%S"),
+                "KEEP_LEAD", rem_id, rem_nome, rgm,
                 "", f"Ainda tem {len(remaining)} negócios", "SKIP",
                 "", plan["reason"],
             ])
-            err_count += 1
+            ok_count += 1
             continue
 
-        # 4) Deletar lead vazio
-        log.info("    DELETE lead %s (%s)", rem_nome, rem_id[:12])
+        # 4) Lead vazio — deletar
+        log.info("    Lead %s sem negócios restantes — deletando", rem_nome)
         r = api.delete_lead(rem_id)
         status = "OK" if r["ok"] else "ERRO"
         csv_writer.writerow([
