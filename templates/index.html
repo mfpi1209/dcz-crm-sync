@@ -333,6 +333,24 @@
                         </h3>
                         <div class="flex items-center gap-3 flex-wrap">
                             <div class="flex items-center gap-2">
+                                <label class="text-xs text-slate-500 font-medium">Nível</label>
+                                <select id="students-nivel" onchange="loadStudentMetrics()" class="input-glass px-2.5 py-1.5 text-xs text-slate-300">
+                                    <option value="">Todos</option>
+                                    <option value="Graduação">Graduação</option>
+                                    <option value="Pós-Graduação">Pós-Graduação</option>
+                                </select>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <label class="text-xs text-slate-500 font-medium">Situação</label>
+                                <select id="students-situacao" onchange="loadStudentMetrics()" class="input-glass px-2.5 py-1.5 text-xs text-slate-300">
+                                    <option value="">Todas</option>
+                                    <option value="Em Curso">Em Curso</option>
+                                    <option value="Cancelado">Cancelado</option>
+                                    <option value="Trancado">Trancado</option>
+                                    <option value="Transferido">Transferido</option>
+                                </select>
+                            </div>
+                            <div class="flex items-center gap-2">
                                 <label class="text-xs text-slate-500 font-medium">De</label>
                                 <input type="date" id="students-from" class="input-glass px-2.5 py-1.5 text-xs text-slate-300 w-36">
                             </div>
@@ -982,9 +1000,13 @@ async function loadDashboard() {
 async function loadStudentMetrics() {
     const dtFrom = document.getElementById('students-from').value;
     const dtTo = document.getElementById('students-to').value;
+    const nivel = document.getElementById('students-nivel').value;
+    const situacao = document.getElementById('students-situacao').value;
     const params = new URLSearchParams();
     if (dtFrom) params.set('from', dtFrom);
     if (dtTo) params.set('to', dtTo);
+    if (nivel) params.set('nivel', nivel);
+    if (situacao) params.set('situacao', situacao);
 
     try {
         const res = await api('/api/dashboard/students?' + params);
@@ -1004,8 +1026,12 @@ async function loadStudentMetrics() {
         renderBreakdown('stu-by-polo', d.by_polo);
 
         const badge = document.getElementById('stu-filter-badge');
-        if (dtFrom || dtTo) {
-            badge.textContent = `Filtro: ${dtFrom || '…'} → ${dtTo || '…'}`;
+        const parts = [];
+        if (nivel) parts.push(nivel);
+        if (situacao) parts.push(situacao);
+        if (dtFrom || dtTo) parts.push(`${dtFrom || '…'} → ${dtTo || '…'}`);
+        if (parts.length) {
+            badge.textContent = `Filtro: ${parts.join(' · ')}`;
             badge.classList.remove('hidden');
         } else {
             badge.classList.add('hidden');
@@ -1036,6 +1062,8 @@ function renderBreakdown(elId, data) {
 function clearStudentFilter() {
     document.getElementById('students-from').value = '';
     document.getElementById('students-to').value = '';
+    document.getElementById('students-nivel').value = '';
+    document.getElementById('students-situacao').value = '';
     loadStudentMetrics();
 }
 

@@ -348,6 +348,8 @@ SELECT
 FROM biz_fields
 WHERE (%(dt_from)s IS NULL OR data_matricula >= %(dt_from)s)
   AND (%(dt_to)s   IS NULL OR data_matricula <= %(dt_to)s)
+  AND (%(f_nivel)s IS NULL OR nivel = %(f_nivel)s)
+  AND (%(f_sit)s   IS NULL OR situacao = %(f_sit)s)
 GROUP BY tipo_aluno, situacao, nivel, polo
 ORDER BY total DESC
 """
@@ -357,6 +359,8 @@ ORDER BY total DESC
 def api_dashboard_students():
     dt_from = request.args.get("from", "")
     dt_to = request.args.get("to", "")
+    f_nivel = request.args.get("nivel", "")
+    f_sit = request.args.get("situacao", "")
     conn = get_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -368,6 +372,8 @@ def api_dashboard_students():
                 "polo_id": POLO_FIELD,
                 "dt_from": dt_from or None,
                 "dt_to": dt_to or None,
+                "f_nivel": f_nivel or None,
+                "f_sit": f_sit or None,
             })
             rows = cur.fetchall()
 
