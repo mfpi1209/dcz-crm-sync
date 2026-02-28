@@ -355,7 +355,7 @@ LEFT JOIN LATERAL (
     SELECT ci.nome FROM ciclos ci
     WHERE ci.nivel = bf.nivel
       AND bf.data_matricula IS NOT NULL
-      AND bf.data_matricula ~ '^\d{4}-\d{2}-\d{2}'
+      AND bf.data_matricula ~ '^\\d{4}-\\d{2}-\\d{2}'
       AND bf.data_matricula::date BETWEEN ci.dt_inicio AND ci.dt_fim
     LIMIT 1
 ) c ON TRUE
