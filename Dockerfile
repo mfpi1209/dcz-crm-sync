@@ -10,7 +10,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN mkdir -p logs reports
+RUN mkdir -p /app/logs /app/reports
+
+VOLUME ["/app/reports", "/app/logs"]
 
 EXPOSE 5001
 
