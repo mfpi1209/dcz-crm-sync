@@ -754,8 +754,12 @@ def execute(api, to_restore, to_move, to_lose, reason_ids):
                 if r["ok"]:
                     ok_count += len(batch)
                 else:
-                    err_count += len(batch)
-                    log.warning("  ERRO restore batch %d: %s", bn, r["body"][:200])
+                    body = r.get("body", "")
+                    if "not found" in str(body).lower() or r.get("status") == 404:
+                        log.warning("  Batch %d: %d negócio(s) não encontrado(s) — provável merge anterior", bn, len(batch))
+                    else:
+                        err_count += len(batch)
+                        log.warning("  ERRO restore batch %d: %s", bn, body[:200])
 
         # 2. Move
         for sid, items in to_move.items():
@@ -774,8 +778,12 @@ def execute(api, to_restore, to_move, to_lose, reason_ids):
                 if r["ok"]:
                     ok_count += len(batch)
                 else:
-                    err_count += len(batch)
-                    log.warning("  ERRO move batch %d: %s", bn, r["body"][:200])
+                    body = r.get("body", "")
+                    if "not found" in str(body).lower() or r.get("status") == 404:
+                        log.warning("  Batch %d: %d negócio(s) não encontrado(s) — provável merge anterior", bn, len(batch))
+                    else:
+                        err_count += len(batch)
+                        log.warning("  ERRO move batch %d → %s: %s", bn, label, body[:200])
 
         # 3. Lose
         for reason_key, items in to_lose.items():
@@ -799,8 +807,12 @@ def execute(api, to_restore, to_move, to_lose, reason_ids):
                 if r["ok"]:
                     ok_count += len(batch)
                 else:
-                    err_count += len(batch)
-                    log.warning("  ERRO lose batch %d: %s", bn, r["body"][:200])
+                    body = r.get("body", "")
+                    if "not found" in str(body).lower() or r.get("status") == 404:
+                        log.warning("  Batch %d: %d negócio(s) não encontrado(s) — provável merge anterior", bn, len(batch))
+                    else:
+                        err_count += len(batch)
+                        log.warning("  ERRO lose batch %d (%s): %s", bn, label, body[:200])
 
     elapsed = time.monotonic() - start
     log.info("Concluído em %.1f min. OK: %d | Erros: %d | API calls: %d",
