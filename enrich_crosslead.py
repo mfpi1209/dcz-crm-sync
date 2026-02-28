@@ -115,7 +115,7 @@ class ApiClient:
             return r.json()
         return None
 
-    def paginate(self, path, params=None):
+    def paginate(self, path, params=None, label="registros"):
         all_items = []
         skip = 0
         take = 100
@@ -126,6 +126,7 @@ class ApiClient:
                 break
             items = data.get("data", [])
             all_items.extend(items)
+            log.info("  ... %d %s carregados", len(all_items), label)
             if len(items) < take:
                 break
             skip += take
@@ -161,7 +162,7 @@ def normalize_phone(phone):
 def load_conversations(api):
     """Pré-carrega todas as conversas (abertas e fechadas) para cruzamento por telefone."""
     log.info("Carregando conversas da API...")
-    convs = api.paginate("/conversations", {"filter[opened]": "false"})
+    convs = api.paginate("/conversations", {"filter[opened]": "false"}, label="conversas")
     log.info("  %d conversas carregadas", len(convs))
 
     by_phone = {}
@@ -261,16 +262,17 @@ def main():
 
     convs_by_phone = load_conversations(api)
 
-    log.info("Consultando histórico de %d leads...", len(lead_ids))
+    est_min = len(lead_ids) * (60.0 / rate_limit) / 60
+    log.info("Consultando histórico de %d leads... (estimativa: %.0f min)", len(lead_ids), est_min)
     lead_history = {}
     lead_list = sorted(lead_ids)
     for i, lid in enumerate(lead_list, 1):
         hist = get_lead_history(api, lid)
         lead_history[lid] = hist or {}
 
-        if i % 50 == 0 or i == len(lead_list):
-            log.info("  %d/%d leads consultados (%d API calls)",
-                     i, len(lead_list), api.total_calls)
+        if i % 10 == 0 or i == len(lead_list):
+            pct = i / len(lead_list) * 100
+            log.info("  [%d/%d] %.0f%% — %d API calls", i, len(lead_list), pct, api.total_calls)
 
     REPORTS_DIR.mkdir(exist_ok=True)
     output_path = REPORTS_DIR / "duplicatas_enriquecido.csv"
