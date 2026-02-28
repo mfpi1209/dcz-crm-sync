@@ -262,6 +262,7 @@ def analyze(businesses, leads_info):
                 "lead_nome": li.get("nome", lead_name(b["data"])),
                 "lead_cpf": li.get("cpf", ""),
                 "curso": get_biz_field(b["data"], BIZ_FIELD_IDS["Curso"]),
+                "situacao": get_biz_field(b["data"], BIZ_FIELD_IDS["Situacao"]),
                 "status": b["data"].get("status", ""),
                 "score": biz_score(b["data"]),
                 "total_leads": len(lead_ids),
@@ -337,14 +338,16 @@ def write_cross_lead_report(cross_lead):
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f, delimiter=";")
         w.writerow(["RGM", "negocio_id", "lead_id", "lead_nome", "lead_cpf",
-                     "curso", "status", "score", "total_leads_diferentes"])
+                     "curso", "situacao", "status_crm", "score", "total_leads_diferentes",
+                     "observacao"])
         for r in sorted(cross_lead, key=lambda x: x["rgm"]):
+            obs = "Possível familiar/duplicidade" if r["total_leads"] == 2 else f"{r['total_leads']} leads"
             w.writerow([
                 r["rgm"], r["biz_id"], r["lead_id"], r["lead_nome"],
-                r["lead_cpf"], r["curso"], r["status"], r["score"],
-                r["total_leads"],
+                r["lead_cpf"], r["curso"], r.get("situacao", ""),
+                r["status"], r["score"], r["total_leads"], obs,
             ])
-    log.info("Relatório duplicatas entre leads: %s (%d linhas)", path, len(cross_lead))
+    log.info("Relatório para análise manual: %s (%d linhas)", path, len(cross_lead))
     return path
 
 
@@ -393,7 +396,7 @@ def test_one_delete(api, to_delete):
         return False
 
     d = to_delete[0]
-    log.info("=== TESTE: excluindo 1 negócio ===")
+    log.info("Teste: excluindo 1 negócio")
     log.info("  Negócio: %s", d["biz_id"])
     log.info("  Lead:    %s (%s)", d["lead_nome"], d["lead_id"])
     log.info("  RGM:     %s | Motivo: %s", d["rgm"] or "(vazio)", d["motivo"])
@@ -402,11 +405,11 @@ def test_one_delete(api, to_delete):
     log.info("  Status:  %s", result["status"])
 
     if result["ok"]:
-        log.info("  DELETE OK — endpoint validado!")
-        return True
-    else:
-        log.error("  FALHOU: %s", result.get("body", ""))
-        return False
+            log.info("DELETE OK — endpoint validado.")
+            return True
+        else:
+            log.error("FALHOU: %s", result.get("body", ""))
+            return False
 
 
 def execute_deletes(api, to_delete, conn, limit=None):
@@ -509,11 +512,7 @@ def main():
         api = ApiClient(rate_limit)
 
         if mode == "--test":
-            ok = test_one_delete(api, to_delete)
-            if ok:
-                log.info("Teste OK — endpoint validado.")
-            else:
-                log.error("Teste FALHOU.")
+            test_one_delete(api, to_delete)
             return
 
         if mode == "--execute":
