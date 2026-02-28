@@ -16,6 +16,7 @@ import os
 import csv
 import json
 import time
+import hashlib
 import logging
 import unicodedata
 from datetime import datetime, timezone, timedelta
@@ -435,6 +436,10 @@ def get_conn():
     return psycopg2.connect(**DB_DSN)
 
 
+def _data_hash(data):
+    return hashlib.md5(json.dumps(data, sort_keys=True, default=str).encode()).hexdigest()
+
+
 def update_local_biz_field(conn, biz_id, field_id, new_value):
     """Atualiza o valor de um campo adicional no JSONB local do negócio."""
     with conn.cursor() as cur:
@@ -457,9 +462,10 @@ def update_local_biz_field(conn, biz_id, field_id, new_value):
                 "additionalField": {"id": field_id, "name": fname},
                 "value": str(new_value),
             })
+        jdata = json.dumps(data)
         cur.execute(
-            "UPDATE businesses SET data = %s::jsonb WHERE id = %s",
-            (json.dumps(data), biz_id),
+            "UPDATE businesses SET data = %s::jsonb, data_hash = %s WHERE id = %s",
+            (jdata, _data_hash(data), biz_id),
         )
         conn.commit()
 
@@ -485,9 +491,10 @@ def update_local_lead_field(conn, lead_id, field_id, field_name, new_value):
                 "additionalField": {"id": field_id, "name": field_name},
                 "value": str(new_value),
             })
+        jdata = json.dumps(data)
         cur.execute(
-            "UPDATE leads SET data = %s::jsonb WHERE id = %s",
-            (json.dumps(data), lead_id),
+            "UPDATE leads SET data = %s::jsonb, data_hash = %s WHERE id = %s",
+            (jdata, _data_hash(data), lead_id),
         )
         conn.commit()
 
@@ -509,9 +516,10 @@ def update_local_lead(conn, lead_id, updates):
                 data["address"].update(v)
             else:
                 data[k] = v
+        jdata = json.dumps(data)
         cur.execute(
-            "UPDATE leads SET data = %s::jsonb WHERE id = %s",
-            (json.dumps(data), lead_id),
+            "UPDATE leads SET data = %s::jsonb, data_hash = %s WHERE id = %s",
+            (jdata, _data_hash(data), lead_id),
         )
         conn.commit()
 
@@ -1079,8 +1087,8 @@ def execute_updates(api, updates, limit=None):
                     ok_count += 1
                     try:
                         update_local_lead(conn, upd["lead_id"], payload)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log.warning("  CHECKPOINT FALHOU lead %s: %s", upd["lead_id"], e)
                 else:
                     err_count += 1
                     log.warning("  ERRO lead %s: %s", upd["lead_id"], result["body"][:200])
@@ -1097,8 +1105,8 @@ def execute_updates(api, updates, limit=None):
                     ok_count += 1
                     try:
                         update_local_lead_field(conn, upd["lead_id"], fid, fname, val)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log.warning("  CHECKPOINT FALHOU lead_field %s: %s", fname, e)
                 else:
                     err_count += 1
                     log.warning("  ERRO lead field %s: %s", fname, result["body"][:200])
@@ -1117,8 +1125,9 @@ def execute_updates(api, updates, limit=None):
                         ok_count += 1
                         try:
                             update_local_biz_field(conn, biz["biz_id"], fid, val)
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            log.warning("  CHECKPOINT FALHOU biz %s campo %s: %s",
+                                        biz["biz_id"], fname, e)
                     else:
                         err_count += 1
                         log.warning("  ERRO biz %s campo %s: %s",
