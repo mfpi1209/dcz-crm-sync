@@ -293,6 +293,10 @@
                 <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                 Logs / Relatórios
             </a>
+            <a href="#distribuicao" onclick="navigate('distribuicao')" class="sidebar-link" data-page="distribuicao">
+                <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                Distribuição
+            </a>
             <a href="#config" onclick="navigate('config')" class="sidebar-link" data-page="config">
                 <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                 Configurações
@@ -898,6 +902,93 @@
                 </div>
             </div>
 
+            <!-- ============ PAGE: DISTRIBUIÇÃO ============ -->
+            <div id="page-distribuicao" class="p-4 lg:p-8 max-w-7xl mx-auto hidden">
+                <div class="mb-8">
+                    <h1 class="text-2xl font-bold text-white font-display">Distribuição</h1>
+                    <p class="text-sm text-slate-500 mt-1">Gestão de responsáveis e filas de atendimento</p>
+                </div>
+
+                <!-- Cards de métricas -->
+                <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+                    <div class="glass-card p-4">
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Fila Principal</p>
+                        <div class="space-y-1">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs text-slate-400">Captura</span>
+                                <span class="text-lg font-bold text-indigo-400 font-display" id="dist-fila-atendimento">—</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs text-slate-400">Acolhimento</span>
+                                <span class="text-lg font-bold text-emerald-400 font-display" id="dist-fila-acolhimento">—</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="glass-card p-4">
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Em Atendimento</p>
+                        <p class="text-2xl font-bold text-white font-display" id="dist-em-atendimento">—</p>
+                    </div>
+                    <div class="glass-card p-4">
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Ativos Atendimento</p>
+                        <p class="text-2xl font-bold text-white font-display" id="dist-ativos-atend">—</p>
+                    </div>
+                    <div class="glass-card p-4">
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Ativos Acolhimento</p>
+                        <p class="text-2xl font-bold text-white font-display" id="dist-ativos-acolh">—</p>
+                    </div>
+                    <div class="glass-card p-4">
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Total Ativos</p>
+                        <p class="text-2xl font-bold text-white font-display" id="dist-total-ativos">—</p>
+                    </div>
+                </div>
+
+                <!-- Controles -->
+                <div class="flex flex-wrap items-center gap-3 mb-4">
+                    <button onclick="loadDistribuicao()" id="btn-dist-refresh" class="btn-primary text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                        <svg class="w-4 h-4" id="dist-refresh-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        Atualizar
+                    </button>
+                    <button onclick="saveDistribuicao()" class="text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2" style="background:linear-gradient(135deg,#059669,#10b981)">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        Salvar Alterações
+                    </button>
+                    <div class="flex items-center gap-2 ml-auto">
+                        <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+                        <select id="dist-filter" onchange="filterDistribuicao()" class="input-glass px-3 py-2 text-sm text-slate-300">
+                            <option value="Todos">Todos</option>
+                            <option value="Atendimento">Atendimento</option>
+                            <option value="Acolhimento">Acolhimento</option>
+                        </select>
+                        <button onclick="sortDistribuicao()" class="text-[11px] text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded border border-slate-700/30 hover:border-slate-600/50 transition flex items-center gap-1" title="Ordenar por fila">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>
+                            Fila
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tabela -->
+                <div class="glass-card overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full" id="dist-table">
+                            <thead>
+                                <tr class="border-b border-slate-700/30">
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Responsável</th>
+                                    <th class="px-3 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">Almoço</th>
+                                    <th class="px-3 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">Fim Exp.</th>
+                                    <th class="px-3 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">Pausa</th>
+                                    <th class="px-3 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">Volume</th>
+                                    <th class="px-3 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">Fila</th>
+                                    <th class="px-3 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">Últ. Execução</th>
+                                    <th class="px-3 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">Tipo</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dist-tbody" class="divide-y divide-slate-700/20 text-sm"></tbody>
+                        </table>
+                    </div>
+                    <div id="dist-loading" class="text-center py-8 text-sm text-slate-500">Carregando...</div>
+                </div>
+            </div>
+
             <!-- ============ PAGE: LOGS ============ -->
             <div id="page-logs" class="p-4 lg:p-8 max-w-7xl mx-auto hidden">
                 <div class="mb-8">
@@ -1219,8 +1310,8 @@ async function api(url, opts = {}) {
 // ---------------------------------------------------------------------------
 // SPA Navigation
 // ---------------------------------------------------------------------------
-const PAGES = ['dashboard', 'search', 'sync', 'update', 'pipeline', 'logs', 'config', 'schedule'];
-const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento' };
+const PAGES = ['dashboard', 'search', 'sync', 'update', 'pipeline', 'distribuicao', 'logs', 'config', 'schedule'];
+const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', distribuicao: 'Distribuição', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento' };
 
 function navigate(page) {
     PAGES.forEach(p => {
@@ -1241,6 +1332,7 @@ function navigate(page) {
     if (page === 'update') loadFileInfo();
     if (page === 'logs') { loadLogFiles(); loadDashboard(); }
     if (page === 'config') { loadCiclos(); loadTurmas(); }
+    if (page === 'distribuicao') loadDistribuicao();
     if (page === 'schedule') loadSchedules();
 
     history.replaceState(null, '', '#' + page);
@@ -2474,6 +2566,129 @@ function clearPipelineLog() {
 fetch('/api/pipeline/status', { credentials: 'same-origin' }).then(r => r.json()).then(d => {
     if (d.running) { setPipeBtns(true); startPipePolling(); showPipelineLog('pipeline'); }
 }).catch(() => {});
+
+// ---------------------------------------------------------------------------
+// Distribuição
+// ---------------------------------------------------------------------------
+let _distData = [];
+let _distSortOrder = 'asc';
+
+async function loadDistribuicao() {
+    const icon = document.getElementById('dist-refresh-icon');
+    const loading = document.getElementById('dist-loading');
+    const tbody = document.getElementById('dist-tbody');
+    if (icon) icon.classList.add('animate-spin');
+    if (loading) loading.classList.remove('hidden');
+
+    try {
+        const res = await api('/api/distribuicao');
+        const payload = await res.json();
+        _distData = payload.distribuicao || [];
+
+        document.getElementById('dist-fila-atendimento').textContent = (payload.fila_atendimento ?? 0).toLocaleString('pt-BR');
+        document.getElementById('dist-fila-acolhimento').textContent = (payload.fila_acolhimento ?? 0).toLocaleString('pt-BR');
+
+        const ativos = _distData.filter(d => d.status === 'Ativo');
+        const emAtend = _distData.reduce((a, d) => a + (parseInt(d.fila) || 0), 0);
+        const ativosAtend = ativos.filter(d => d.tipo_atendimento === 'Atendimento').length;
+        const ativosAcolh = ativos.filter(d => d.tipo_atendimento === 'Acolhimento').length;
+
+        document.getElementById('dist-em-atendimento').textContent = emAtend.toLocaleString('pt-BR');
+        document.getElementById('dist-ativos-atend').textContent = ativosAtend;
+        document.getElementById('dist-ativos-acolh').textContent = ativosAcolh;
+        document.getElementById('dist-total-ativos').textContent = ativos.length;
+
+        filterDistribuicao();
+    } catch(e) {
+        console.error('Erro ao carregar distribuição:', e);
+        if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-6 text-center text-rose-400 text-sm">Erro ao carregar: ${e.message}</td></tr>`;
+    } finally {
+        if (icon) icon.classList.remove('animate-spin');
+        if (loading) loading.classList.add('hidden');
+    }
+}
+
+function filterDistribuicao() {
+    const filter = document.getElementById('dist-filter').value;
+    let items = [..._distData];
+    if (filter !== 'Todos') items = items.filter(d => d.tipo_atendimento === filter);
+    renderDistTable(items);
+}
+
+function sortDistribuicao() {
+    _distSortOrder = _distSortOrder === 'asc' ? 'desc' : 'asc';
+    filterDistribuicao();
+}
+
+function renderDistTable(items) {
+    if (_distSortOrder === 'desc') {
+        items.sort((a, b) => (parseInt(b.fila) || 0) - (parseInt(a.fila) || 0));
+    } else {
+        items.sort((a, b) => (parseInt(a.fila) || 0) - (parseInt(b.fila) || 0));
+    }
+
+    const tbody = document.getElementById('dist-tbody');
+    tbody.innerHTML = items.map(d => {
+        const statusCls = d.status === 'Ativo'
+            ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+            : 'bg-rose-500/15 text-rose-400 border-rose-500/30';
+        const filaBg = parseInt(d.fila) > 0 ? 'bg-amber-500/15 text-amber-400' : 'bg-slate-700/30 text-slate-500';
+        return `<tr data-id="${esc(d.id)}" class="hover:bg-slate-800/30 transition-colors">
+            <td class="px-4 py-2.5">
+                <div class="flex items-center gap-2">
+                    <span class="text-sm font-medium text-slate-200">${esc(d.responsavel)}</span>
+                    <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${statusCls}">${esc(d.status)}</span>
+                </div>
+            </td>
+            <td class="px-3 py-2.5 text-center"><input type="time" value="${esc(d.almoco || '')}" class="input-glass px-2 py-1 text-xs text-slate-300 w-[90px] text-center"></td>
+            <td class="px-3 py-2.5 text-center"><input type="time" value="${esc(d.final_expediente || '')}" class="input-glass px-2 py-1 text-xs text-slate-300 w-[90px] text-center"></td>
+            <td class="px-3 py-2.5 text-center"><input type="number" value="${esc(d.pausa || '')}" class="input-glass px-2 py-1 text-xs text-slate-300 w-16 text-center"></td>
+            <td class="px-3 py-2.5 text-center"><input type="number" value="${esc(d.volume || '')}" class="input-glass px-2 py-1 text-xs text-slate-300 w-16 text-center"></td>
+            <td class="px-3 py-2.5 text-center"><span class="inline-block px-2.5 py-1 rounded-full text-xs font-bold ${filaBg}">${esc(d.fila || '0')}</span></td>
+            <td class="px-3 py-2.5 text-center text-xs text-slate-500">${esc(d.ultima_execucao || '—')}</td>
+            <td class="px-3 py-2.5 text-center">
+                <select value="${esc(d.tipo_atendimento)}" class="input-glass px-2 py-1 text-xs text-slate-300">
+                    <option value="Atendimento" ${d.tipo_atendimento === 'Atendimento' ? 'selected' : ''}>Atendimento</option>
+                    <option value="Acolhimento" ${d.tipo_atendimento === 'Acolhimento' ? 'selected' : ''}>Acolhimento</option>
+                </select>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+async function saveDistribuicao() {
+    const rows = document.querySelectorAll('#dist-tbody tr');
+    const dados = [];
+    rows.forEach(row => {
+        const id = row.getAttribute('data-id');
+        const inputs = row.querySelectorAll('input, select');
+        dados.push({
+            id,
+            almoco: inputs[0].value,
+            final_expediente: inputs[1].value,
+            pausa: inputs[2].value,
+            volume: inputs[3].value,
+            tipo_atendimento: inputs[4].value,
+        });
+    });
+
+    try {
+        const res = await api('/api/distribuicao', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(dados),
+        });
+        const d = await res.json();
+        if (d.ok) {
+            alert('Alterações salvas com sucesso!');
+            loadDistribuicao();
+        } else {
+            alert('Erro ao salvar: ' + (d.error || 'desconhecido'));
+        }
+    } catch(e) {
+        alert('Erro ao salvar: ' + e.message);
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Upload

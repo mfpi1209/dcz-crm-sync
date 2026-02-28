@@ -25,6 +25,7 @@ from flask import (
 )
 import psycopg2
 import psycopg2.extras
+import requests as _requests
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent / ".env")
@@ -1672,6 +1673,39 @@ def api_pipeline_stop():
             pass
     _pipeline_running = False
     return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# Rotas — Distribuição (proxy para n8n)
+# ---------------------------------------------------------------------------
+
+N8N_DIST_GET = "https://n8n-new-n8n.ca31ey.easypanel.host/webhook/api/distribuicao"
+N8N_DIST_SAVE = "https://n8n-new-n8n.ca31ey.easypanel.host/webhook/api/atualizar-distribuicao"
+
+
+@app.route("/api/distribuicao", methods=["GET"])
+def api_distribuicao_get():
+    try:
+        r = _requests.get(N8N_DIST_GET, timeout=15)
+        payload = r.json()
+        if isinstance(payload, list):
+            payload = payload[0] if payload else {}
+        return jsonify(payload)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
+
+
+@app.route("/api/distribuicao", methods=["POST"])
+def api_distribuicao_save():
+    try:
+        data = request.json
+        r = _requests.post(N8N_DIST_SAVE, json=data, timeout=15,
+                           headers={"Content-Type": "application/json"})
+        if r.ok:
+            return jsonify({"ok": True})
+        return jsonify({"ok": False, "error": f"n8n respondeu {r.status_code}"}), 502
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 502
 
 
 # ---------------------------------------------------------------------------
