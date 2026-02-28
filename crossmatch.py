@@ -1,5 +1,5 @@
 """
-DataCrazy CRM — Cruzamento Planilha Matriculados x CRM.
+eduit. — Cruzamento Planilha Matriculados x CRM.
 
 Modo DRY-RUN por padrão: apenas gera relatórios em c:\\DCz\\reports\\
 Nenhuma alteração é feita no CRM sem aprovação explícita.

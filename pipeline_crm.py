@@ -1,5 +1,5 @@
 """
-DataCrazy CRM — Movimentação de Pipeline.
+eduit. — Movimentação de Pipeline.
 
 Fase 2: mover negócios para etapas corretas e alterar status (lost/restore)
 com base no cruzamento da planilha de matriculados com o CRM.
@@ -11,7 +11,7 @@ Regras:
   - Cancelado/Trancado/Transferido/outro → Perdido (lost)
   - Lost no CRM mas Em Curso na planilha → Restaurar + mover
 
-Endpoints batch (DataCrazy API):
+Endpoints batch (CRM API):
   POST /businesses/actions/move     {ids, destinationStageId}
   POST /businesses/actions/lose     {ids, lossReasonId, justification}
   POST /businesses/actions/restore  {ids}
@@ -291,6 +291,63 @@ def load_excel():
     return by_rgm
 
 
+def load_sem_rematricula_snapshot(conn):
+    """Carrega RGMs do snapshot de sem_rematricula (se existir)."""
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT id FROM xl_snapshots WHERE tipo='sem_rematricula' ORDER BY id DESC LIMIT 1")
+        snap = cur.fetchone()
+        if not snap:
+            cur.close()
+            return set()
+        cur.execute("SELECT data->>'rgm_digits' AS rgm FROM xl_rows WHERE snapshot_id=%s AND data->>'rgm_digits' != ''", (snap["id"],))
+        rgms = {r["rgm"] for r in cur.fetchall()}
+        cur.close()
+        log.info("  Snapshot sem_rematricula: %d RGMs", len(rgms))
+        return rgms
+    except Exception as e:
+        log.warning("  Sem snapshot de sem_rematricula: %s", e)
+        return set()
+
+
+def load_inadimplentes_snapshot(conn):
+    """Carrega RGMs do snapshot de inadimplentes (se existir)."""
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT id FROM xl_snapshots WHERE tipo='inadimplentes' ORDER BY id DESC LIMIT 1")
+        snap = cur.fetchone()
+        if not snap:
+            cur.close()
+            return set()
+        cur.execute("SELECT data->>'rgm_digits' AS rgm FROM xl_rows WHERE snapshot_id=%s AND data->>'rgm_digits' != ''", (snap["id"],))
+        rgms = {r["rgm"] for r in cur.fetchall()}
+        cur.close()
+        log.info("  Snapshot inadimplentes: %d RGMs", len(rgms))
+        return rgms
+    except Exception as e:
+        log.warning("  Sem snapshot de inadimplentes: %s", e)
+        return set()
+
+
+def load_concluintes_snapshot(conn):
+    """Carrega RGMs do snapshot de concluintes (se existir)."""
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT id FROM xl_snapshots WHERE tipo='concluintes' ORDER BY id DESC LIMIT 1")
+        snap = cur.fetchone()
+        if not snap:
+            cur.close()
+            return set()
+        cur.execute("SELECT data->>'rgm_digits' AS rgm FROM xl_rows WHERE snapshot_id=%s AND data->>'rgm_digits' != ''", (snap["id"],))
+        rgms = {r["rgm"] for r in cur.fetchall()}
+        cur.close()
+        log.info("  Snapshot concluintes: %d RGMs", len(rgms))
+        return rgms
+    except Exception as e:
+        log.warning("  Sem snapshot de concluintes: %s", e)
+        return set()
+
+
 def load_pipeline_stages(conn):
     """Carrega etapas do pipeline do banco local."""
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -395,8 +452,14 @@ def ensure_loss_reasons(api):
 # Análise
 # ---------------------------------------------------------------------------
 
-def analyze(xl_by_rgm, crm_by_rgm, stage_ids):
+def analyze(xl_by_rgm, crm_by_rgm, stage_ids, sem_remat_rgms=None,
+            inadimplentes_rgms=None, concluintes_rgms=None):
     """Cruza planilha com CRM e determina ações necessárias.
+
+    Args:
+        sem_remat_rgms: set de RGMs do snapshot sem_rematricula (reforça identificação)
+        inadimplentes_rgms: set de RGMs do snapshot inadimplentes (informativo/stats)
+        concluintes_rgms: set de RGMs do snapshot concluintes (informativo/stats)
 
     Returns:
         to_restore: list of biz_ids que precisam sair de lost/won para in_process
@@ -404,6 +467,9 @@ def analyze(xl_by_rgm, crm_by_rgm, stage_ids):
         to_lose: dict {loss_reason_key: [list of {biz_id, rgm, nome}]}
         stats: Counter
     """
+    sem_remat_rgms = sem_remat_rgms or set()
+    inadimplentes_rgms = inadimplentes_rgms or set()
+    concluintes_rgms = concluintes_rgms or set()
     to_restore = []
     to_move = {sid: [] for sid in stage_ids.values()}
     to_lose = {}
@@ -495,20 +561,40 @@ def analyze(xl_by_rgm, crm_by_rgm, stage_ids):
                         })
                         stats[f"lose_{reason_key}"] += 1
             else:
+                in_sem_remat = rgm in sem_remat_rgms
                 if crm_sit and crm_sit.lower().strip() == "em curso":
+                    target_stage = stage_ids["sem_rematricula"]
+                    motivo = "Sem Rematrícula (confirmado snapshot)" if in_sem_remat else "Sem Rematrícula (ausente na planilha)"
+                    if crm_stage_id != target_stage:
+                        to_move[target_stage].append({
+                            "biz_id": biz_id, "rgm": rgm, "nome": nome,
+                            "motivo": motivo,
+                        })
+                        stats["move_sem_rematricula"] += 1
+                        if in_sem_remat:
+                            stats["confirmado_snapshot_sem_remat"] += 1
+                    else:
+                        stats["already_correct"] += 1
+                elif in_sem_remat:
                     target_stage = stage_ids["sem_rematricula"]
                     if crm_stage_id != target_stage:
                         to_move[target_stage].append({
                             "biz_id": biz_id, "rgm": rgm, "nome": nome,
-                            "motivo": "Sem Rematrícula (ausente na planilha)",
+                            "motivo": "Sem Rematrícula (snapshot, situação CRM: " + (crm_sit or "N/I") + ")",
                         })
-                        stats["move_sem_rematricula"] += 1
-                    else:
-                        stats["already_correct"] += 1
+                        stats["move_sem_rematricula_snapshot"] += 1
                 else:
                     stats["skip_orfao_outro"] += 1
 
     to_move = {k: v for k, v in to_move.items() if v}
+
+    all_crm_rgms = set(crm_by_rgm.keys())
+    if inadimplentes_rgms:
+        cross_inad = all_crm_rgms & inadimplentes_rgms
+        stats["crm_inadimplentes"] = len(cross_inad)
+    if concluintes_rgms:
+        cross_conc = all_crm_rgms & concluintes_rgms
+        stats["crm_concluintes"] = len(cross_conc)
 
     return to_restore, to_move, to_lose, stats
 
@@ -758,11 +844,17 @@ def main():
             return
 
         crm_by_rgm = load_crm_businesses(conn)
+        sem_remat_rgms = load_sem_rematricula_snapshot(conn)
+        inad_rgms = load_inadimplentes_snapshot(conn)
+        conc_rgms = load_concluintes_snapshot(conn)
     finally:
         conn.close()
 
     log.info("Analisando ações necessárias...")
-    to_restore, to_move, to_lose, stats = analyze(xl_by_rgm, crm_by_rgm, stage_ids)
+    to_restore, to_move, to_lose, stats = analyze(
+        xl_by_rgm, crm_by_rgm, stage_ids, sem_remat_rgms,
+        inadimplentes_rgms=inad_rgms, concluintes_rgms=conc_rgms,
+    )
     log.info("  Restore: %d | Move: %d | Lose: %d",
              len(to_restore),
              sum(len(v) for v in to_move.values()),

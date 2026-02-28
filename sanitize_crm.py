@@ -1,5 +1,5 @@
 """
-DataCrazy CRM — Saneamento de negócios duplicados.
+eduit. — Saneamento de negócios duplicados.
 
 Fase 1 do pipeline: limpar duplicatas ANTES de movimentar etapas.
 

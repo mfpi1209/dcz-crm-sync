@@ -1,4 +1,4 @@
--- DataCrazy CRM Sync - Schema PostgreSQL
+-- eduit. — Schema PostgreSQL
 -- Executado automaticamente pelo sync.py na primeira execução
 
 CREATE TABLE IF NOT EXISTS sync_state (

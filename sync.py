@@ -1,5 +1,5 @@
 """
-DataCrazy CRM Sync — Sincronização delta para PostgreSQL (JSONB).
+eduit. — Sincronização delta para PostgreSQL (JSONB).
 
 Uso:
     python sync.py              # sync incremental
@@ -444,7 +444,7 @@ def main():
     force_full = "--full" in sys.argv
 
     log.info("=" * 50)
-    log.info("DataCrazy CRM Sync")
+    log.info("eduit. CRM Sync")
     log.info("=" * 50)
 
     if not API_TOKEN:

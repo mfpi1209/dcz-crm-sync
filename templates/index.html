@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DataCrazy CRM Sync</title>
+    <title>eduit. — Gestão Acadêmica</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -786,7 +786,7 @@
     </style>
     <script>
         (function() {
-            var t = localStorage.getItem('dcz-theme') || 'dark';
+            var t = localStorage.getItem('eduit-theme') || 'dark';
             document.documentElement.className = t + ' h-full';
         })();
     </script>
@@ -801,12 +801,12 @@
     <aside id="sidebar" class="w-64 glass-sidebar flex flex-col flex-shrink-0 transition-transform duration-300 md:translate-x-0">
         <!-- Logo -->
         <div class="px-5 py-5 flex items-center gap-3 border-b border-slate-700/20">
-            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
-                <span class="text-white font-bold text-lg font-display">DC</span>
+            <div class="w-10 h-10 rounded-xl bg-[#0c1e3a] flex items-center justify-center shadow-lg shadow-cyan-500/15 border border-cyan-500/20">
+                <span class="font-bold text-sm font-display"><span class="text-white">e</span><span class="text-cyan-400">.</span></span>
             </div>
             <div>
-                <h1 class="text-base font-bold text-white font-display">DataCrazy</h1>
-                <p class="text-[11px] text-slate-500 font-medium tracking-wide">CRM Sync</p>
+                <h1 class="text-base font-bold font-display"><span class="text-white">edu</span><span class="text-cyan-400">it.</span></h1>
+                <p class="text-[10px] text-slate-500 font-medium tracking-wider uppercase">Gestão Acadêmica</p>
             </div>
         </div>
 
@@ -839,6 +839,10 @@
             <a href="#distribuicao" onclick="navigate('distribuicao')" class="sidebar-link" data-page="distribuicao">
                 <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
                 Distribuição
+            </a>
+            <a href="#intelligence" onclick="navigate('intelligence')" class="sidebar-link" data-page="intelligence">
+                <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                Inteligência
             </a>
             <a href="#feedback" onclick="navigate('feedback')" class="sidebar-link" data-page="feedback">
                 <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
@@ -1125,10 +1129,47 @@
 
                 <div id="search-error" class="hidden mb-4 p-3 bg-red-900/30 border border-red-800/50 rounded-xl text-red-300 text-sm"></div>
                 <div id="search-empty" class="hidden mb-4 p-3 bg-yellow-900/20 border border-yellow-800/40 rounded-xl text-yellow-300 text-sm">
-                    Nenhum resultado encontrado.
+                    Nenhum resultado encontrado no CRM nem na planilha.
                 </div>
-                <div id="search-loading" class="hidden mb-4 text-slate-400 text-sm">Buscando...</div>
-                <div id="search-results" class="space-y-4"></div>
+                <div id="search-loading" class="hidden mb-4 text-slate-400 text-sm">Buscando no CRM e na planilha...</div>
+
+                <!-- Filtros de Planilha -->
+                <div class="flex flex-wrap items-center gap-3 mb-4">
+                    <label class="text-xs text-slate-500 font-medium">Tipo:</label>
+                    <select id="search-xl-tipo" class="input-glass px-3 py-1.5 text-xs text-slate-300">
+                        <option value="">Todos</option>
+                        <option value="matriculados">Matriculados</option>
+                        <option value="inadimplentes">Inadimplentes</option>
+                        <option value="concluintes">Concluintes</option>
+                        <option value="acesso_ava">Acesso AVA</option>
+                        <option value="sem_rematricula">Sem Rematrícula</option>
+                    </select>
+                    <label class="text-xs text-slate-500 font-medium ml-2">Snapshot:</label>
+                    <select id="search-snapshot-select" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[200px]">
+                        <option value="">Mais recente</option>
+                    </select>
+                    <span class="text-[10px] text-slate-600" id="search-snapshot-info"></span>
+                </div>
+
+                <!-- Resultados da Planilha -->
+                <div id="search-xl-section" class="hidden mb-6">
+                    <h3 class="text-sm font-bold text-amber-400 font-display flex items-center gap-2 mb-3">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        Dados da Planilha
+                        <span class="text-[10px] font-normal text-slate-500" id="search-xl-count"></span>
+                    </h3>
+                    <div id="search-xl-results" class="space-y-3"></div>
+                </div>
+
+                <!-- Resultados do CRM -->
+                <div id="search-crm-section" class="hidden mb-6">
+                    <h3 class="text-sm font-bold text-blue-400 font-display flex items-center gap-2 mb-3">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                        Dados do CRM
+                        <span class="text-[10px] font-normal text-slate-500" id="search-crm-count"></span>
+                    </h3>
+                    <div id="search-results" class="space-y-4"></div>
+                </div>
             </div>
 
             <!-- ============ PAGE: SYNC ============ -->
@@ -1183,39 +1224,131 @@
                     <p class="text-slate-500 text-sm">Atualize leads e negócios com base na planilha de matriculados</p>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
-                    <div class="glass-card p-5">
-                        <h3 class="text-sm font-bold text-slate-300 font-display mb-3">Planilha de Matriculados</h3>
-                        <div id="upload-zone"
-                            class="border-2 border-dashed border-slate-700/40 rounded-xl p-6 text-center cursor-pointer hover:border-indigo-500/60 hover:bg-indigo-950/10 transition-all duration-300"
-                            onclick="document.getElementById('file-input').click()"
-                            ondragover="event.preventDefault(); this.classList.add('border-indigo-500','bg-indigo-950/10')"
-                            ondragleave="this.classList.remove('border-indigo-500','bg-indigo-950/10')"
-                            ondrop="handleDrop(event)">
-                            <input type="file" id="file-input" accept=".xlsx" class="hidden" onchange="handleUpload(this.files[0])">
-                            <svg class="w-8 h-8 mx-auto mb-2 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
-                            </svg>
-                            <p class="text-sm text-slate-400">Arraste o arquivo <span class="text-indigo-400 font-semibold">.xlsx</span> aqui</p>
-                            <p class="text-xs text-slate-600 mt-1">ou clique para selecionar</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-6" id="upload-cards">
+                    <!-- Matriculados -->
+                    <div class="glass-card p-5" data-upload-tipo="matriculados">
+                        <h3 class="text-sm font-bold text-emerald-400 font-display mb-3 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                            Matriculados
+                        </h3>
+                        <div class="upload-dropzone border-2 border-dashed border-slate-700/40 rounded-xl p-4 text-center cursor-pointer hover:border-emerald-500/60 hover:bg-emerald-950/10 transition-all duration-300"
+                            onclick="this.querySelector('input').click()"
+                            ondragover="event.preventDefault(); this.classList.add('border-emerald-500','bg-emerald-950/10')"
+                            ondragleave="this.classList.remove('border-emerald-500','bg-emerald-950/10')"
+                            ondrop="handleDropTyped(event, 'matriculados')">
+                            <input type="file" accept=".xlsx" class="hidden" onchange="handleUploadTyped(this.files[0], 'matriculados')">
+                            <svg class="w-6 h-6 mx-auto mb-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                            <p class="text-xs text-slate-400">Arraste <span class="text-emerald-400 font-semibold">.xlsx</span></p>
                         </div>
-                        <div id="upload-progress" class="hidden mt-3">
-                            <div class="w-full bg-slate-800 rounded-full h-1.5">
-                                <div id="upload-bar" class="bg-gradient-to-r from-indigo-500 to-purple-500 h-1.5 rounded-full transition-all" style="width:0%"></div>
-                            </div>
-                            <p id="upload-status" class="text-xs text-slate-400 mt-1">Enviando...</p>
+                        <div class="upload-progress hidden mt-2">
+                            <div class="w-full bg-slate-800 rounded-full h-1.5"><div class="upload-bar bg-gradient-to-r from-emerald-500 to-green-500 h-1.5 rounded-full transition-all" style="width:0%"></div></div>
+                            <p class="upload-msg text-xs text-slate-400 mt-1">Enviando...</p>
                         </div>
+                        <div class="snap-info mt-3 text-xs text-slate-500" id="snap-info-matriculados">—</div>
                     </div>
 
-                    <div class="glass-card p-5">
-                        <h3 class="text-sm font-bold text-slate-300 font-display mb-3">Arquivo Atual</h3>
-                        <div id="file-info" class="text-sm text-slate-400">Carregando...</div>
-                        <div class="mt-4 pt-3 border-t border-slate-700/20">
-                            <p class="text-xs text-slate-500 leading-relaxed">
-                                Cruza a planilha com o CRM e atualiza campos dos leads e negócios.
-                                Cascata: RGM &rarr; CPF &rarr; Telefone &rarr; Nome.
-                            </p>
+                    <!-- Inadimplentes -->
+                    <div class="glass-card p-5" data-upload-tipo="inadimplentes">
+                        <h3 class="text-sm font-bold text-amber-400 font-display mb-3 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            Inadimplentes
+                        </h3>
+                        <div class="upload-dropzone border-2 border-dashed border-slate-700/40 rounded-xl p-4 text-center cursor-pointer hover:border-amber-500/60 hover:bg-amber-950/10 transition-all duration-300"
+                            onclick="this.querySelector('input').click()"
+                            ondragover="event.preventDefault(); this.classList.add('border-amber-500','bg-amber-950/10')"
+                            ondragleave="this.classList.remove('border-amber-500','bg-amber-950/10')"
+                            ondrop="handleDropTyped(event, 'inadimplentes')">
+                            <input type="file" accept=".xlsx,.xlsm,.zip" class="hidden" onchange="handleUploadTyped(this.files[0], 'inadimplentes')">
+                            <svg class="w-6 h-6 mx-auto mb-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                            <p class="text-xs text-slate-400">Arraste <span class="text-amber-400 font-semibold">.zip / .xlsm</span></p>
                         </div>
+                        <button onclick="processServerFolder('inadimplentes')" class="mt-2 w-full text-xs text-amber-400/80 hover:text-amber-300 border border-amber-500/20 hover:border-amber-500/50 rounded-lg py-1.5 transition flex items-center justify-center gap-1.5">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/></svg>
+                            Processar pasta do servidor
+                        </button>
+                        <div class="upload-progress hidden mt-2">
+                            <div class="w-full bg-slate-800 rounded-full h-1.5"><div class="upload-bar bg-gradient-to-r from-amber-500 to-orange-500 h-1.5 rounded-full transition-all" style="width:0%"></div></div>
+                            <p class="upload-msg text-xs text-slate-400 mt-1">Enviando...</p>
+                        </div>
+                        <div class="snap-info mt-3 text-xs text-slate-500" id="snap-info-inadimplentes">—</div>
+                    </div>
+
+                    <!-- Concluintes -->
+                    <div class="glass-card p-5" data-upload-tipo="concluintes">
+                        <h3 class="text-sm font-bold text-purple-400 font-display mb-3 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
+                            Concluintes
+                        </h3>
+                        <div class="upload-dropzone border-2 border-dashed border-slate-700/40 rounded-xl p-4 text-center cursor-pointer hover:border-purple-500/60 hover:bg-purple-950/10 transition-all duration-300"
+                            onclick="this.querySelector('input').click()"
+                            ondragover="event.preventDefault(); this.classList.add('border-purple-500','bg-purple-950/10')"
+                            ondragleave="this.classList.remove('border-purple-500','bg-purple-950/10')"
+                            ondrop="handleDropTyped(event, 'concluintes')">
+                            <input type="file" accept=".xlsx" class="hidden" onchange="handleUploadTyped(this.files[0], 'concluintes')">
+                            <svg class="w-6 h-6 mx-auto mb-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                            <p class="text-xs text-slate-400">Arraste <span class="text-purple-400 font-semibold">.xlsx</span></p>
+                        </div>
+                        <button onclick="processServerFolder('concluintes')" class="mt-2 w-full text-xs text-purple-400/80 hover:text-purple-300 border border-purple-500/20 hover:border-purple-500/50 rounded-lg py-1.5 transition flex items-center justify-center gap-1.5">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/></svg>
+                            Processar pasta do servidor
+                        </button>
+                        <div class="upload-progress hidden mt-2">
+                            <div class="w-full bg-slate-800 rounded-full h-1.5"><div class="upload-bar bg-gradient-to-r from-purple-500 to-violet-500 h-1.5 rounded-full transition-all" style="width:0%"></div></div>
+                            <p class="upload-msg text-xs text-slate-400 mt-1">Enviando...</p>
+                        </div>
+                        <div class="snap-info mt-3 text-xs text-slate-500" id="snap-info-concluintes">—</div>
+                    </div>
+
+                    <!-- Acesso AVA -->
+                    <div class="glass-card p-5" data-upload-tipo="acesso_ava">
+                        <h3 class="text-sm font-bold text-sky-400 font-display mb-3 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                            Acesso AVA
+                        </h3>
+                        <div class="upload-dropzone border-2 border-dashed border-slate-700/40 rounded-xl p-4 text-center cursor-pointer hover:border-sky-500/60 hover:bg-sky-950/10 transition-all duration-300"
+                            onclick="this.querySelector('input').click()"
+                            ondragover="event.preventDefault(); this.classList.add('border-sky-500','bg-sky-950/10')"
+                            ondragleave="this.classList.remove('border-sky-500','bg-sky-950/10')"
+                            ondrop="handleDropTyped(event, 'acesso_ava')">
+                            <input type="file" accept=".xlsx" class="hidden" onchange="handleUploadTyped(this.files[0], 'acesso_ava')">
+                            <svg class="w-6 h-6 mx-auto mb-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                            <p class="text-xs text-slate-400">Arraste <span class="text-sky-400 font-semibold">.xlsx</span></p>
+                        </div>
+                        <button onclick="processServerFolder('acesso_ava')" class="mt-2 w-full text-xs text-sky-400/80 hover:text-sky-300 border border-sky-500/20 hover:border-sky-500/50 rounded-lg py-1.5 transition flex items-center justify-center gap-1.5">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/></svg>
+                            Processar pasta do servidor
+                        </button>
+                        <div class="upload-progress hidden mt-2">
+                            <div class="w-full bg-slate-800 rounded-full h-1.5"><div class="upload-bar bg-gradient-to-r from-sky-500 to-blue-500 h-1.5 rounded-full transition-all" style="width:0%"></div></div>
+                            <p class="upload-msg text-xs text-slate-400 mt-1">Enviando...</p>
+                        </div>
+                        <div class="snap-info mt-3 text-xs text-slate-500" id="snap-info-acesso_ava">—</div>
+                    </div>
+
+                    <!-- Sem Rematrícula -->
+                    <div class="glass-card p-5" data-upload-tipo="sem_rematricula">
+                        <h3 class="text-sm font-bold text-rose-400 font-display mb-3 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                            Sem Rematrícula
+                        </h3>
+                        <div class="upload-dropzone border-2 border-dashed border-slate-700/40 rounded-xl p-4 text-center cursor-pointer hover:border-rose-500/60 hover:bg-rose-950/10 transition-all duration-300"
+                            onclick="this.querySelector('input').click()"
+                            ondragover="event.preventDefault(); this.classList.add('border-rose-500','bg-rose-950/10')"
+                            ondragleave="this.classList.remove('border-rose-500','bg-rose-950/10')"
+                            ondrop="handleDropTyped(event, 'sem_rematricula')">
+                            <input type="file" accept=".xlsx,.zip" class="hidden" onchange="handleUploadTyped(this.files[0], 'sem_rematricula')">
+                            <svg class="w-6 h-6 mx-auto mb-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                            <p class="text-xs text-slate-400">Arraste <span class="text-rose-400 font-semibold">.zip / .xlsx</span></p>
+                        </div>
+                        <button onclick="processServerFolder('sem_rematricula')" class="mt-2 w-full text-xs text-rose-400/80 hover:text-rose-300 border border-rose-500/20 hover:border-rose-500/50 rounded-lg py-1.5 transition flex items-center justify-center gap-1.5">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/></svg>
+                            Processar pasta do servidor
+                        </button>
+                        <div class="upload-progress hidden mt-2">
+                            <div class="w-full bg-slate-800 rounded-full h-1.5"><div class="upload-bar bg-gradient-to-r from-rose-500 to-pink-500 h-1.5 rounded-full transition-all" style="width:0%"></div></div>
+                            <p class="upload-msg text-xs text-slate-400 mt-1">Enviando...</p>
+                        </div>
+                        <div class="snap-info mt-3 text-xs text-slate-500" id="snap-info-sem_rematricula">—</div>
                     </div>
                 </div>
 
@@ -1486,14 +1619,72 @@
                     </div>
                 </div>
 
+                <!-- FASE 3: Inadimplentes -->
+                <div class="glass-card p-5 mb-6">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-xs font-bold text-amber-400 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-lg">FASE 3</span>
+                        <h3 class="text-sm font-bold text-slate-200 font-display">Atualização de Inadimplentes</h3>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-4">Cruza o snapshot de inadimplentes com os negócios do CRM por RGM e atualiza campos financeiros (valor em aberto, dias de atraso, status financeiro).</p>
+
+                    <div class="flex flex-wrap gap-3 items-end">
+                        <button onclick="startInadimplentes('dry-run')" id="btn-inad-dryrun"
+                            class="btn-warning text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                            Dry-Run
+                        </button>
+                        <button onclick="confirmInadimplentes()" id="btn-inad-execute"
+                            class="btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            Executar
+                        </button>
+                        <button onclick="stopInadimplentes()" id="btn-inad-stop"
+                            class="hidden btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+                            Parar
+                        </button>
+                        <span class="text-[10px] text-slate-600">Requer snapshot de inadimplentes previamente carregado</span>
+                    </div>
+                </div>
+
+                <!-- FASE 4: Concluintes -->
+                <div class="glass-card p-5 mb-6">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-xs font-bold text-purple-400 bg-purple-500/15 border border-purple-500/30 px-2 py-0.5 rounded-lg">FASE 4</span>
+                        <h3 class="text-sm font-bold text-slate-200 font-display">Atualização de Concluintes</h3>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-4">Cruza o snapshot de concluintes com os negócios do CRM por RGM. Move para etapa "Concluinte" e marca como Won.</p>
+
+                    <div class="flex flex-wrap gap-3 items-end">
+                        <button onclick="startConcluintes('dry-run')" id="btn-conc-dryrun"
+                            class="btn-warning text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                            Dry-Run
+                        </button>
+                        <button onclick="confirmConcluintes()" id="btn-conc-execute"
+                            class="btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            Executar
+                        </button>
+                        <button onclick="stopConcluintes()" id="btn-conc-stop"
+                            class="hidden btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+                            Parar
+                        </button>
+                        <span class="text-[10px] text-slate-600">Requer snapshot de concluintes previamente carregado</span>
+                    </div>
+                </div>
+
                 <!-- Log compartilhado -->
                 <div class="log-panel">
                     <div class="log-header flex items-center justify-between">
-                        <div class="flex gap-4">
+                        <div class="flex gap-4 flex-wrap">
                             <button onclick="showPipelineLog('sanitize')" id="tab-san-log" class="text-xs font-semibold text-indigo-400 border-b-2 border-indigo-400 pb-1 transition">Saneamento</button>
                             <button onclick="showPipelineLog('enrich')" id="tab-enrich-log" class="text-xs font-semibold text-slate-500 hover:text-slate-300 pb-1 transition">Enriquecimento</button>
                             <button onclick="showPipelineLog('merge')" id="tab-merge-log" class="text-xs font-semibold text-slate-500 hover:text-slate-300 pb-1 transition">Merge</button>
                             <button onclick="showPipelineLog('pipeline')" id="tab-pipe-log" class="text-xs font-semibold text-slate-500 hover:text-slate-300 pb-1 transition">Pipeline</button>
+                            <button onclick="showPipelineLog('inadimplentes')" id="tab-inad-log" class="text-xs font-semibold text-slate-500 hover:text-slate-300 pb-1 transition">Inadimplentes</button>
+                            <button onclick="showPipelineLog('concluintes')" id="tab-conc-log" class="text-xs font-semibold text-slate-500 hover:text-slate-300 pb-1 transition">Concluintes</button>
                         </div>
                         <button onclick="clearPipelineLog()" class="text-xs text-slate-600 hover:text-slate-400 transition">Limpar</button>
                     </div>
@@ -1501,6 +1692,8 @@
                     <pre id="enrich-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap hidden"></pre>
                     <pre id="merge-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap hidden"></pre>
                     <pre id="pipeline-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap hidden"></pre>
+                    <pre id="inadimplentes-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap hidden"></pre>
+                    <pre id="concluintes-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap hidden"></pre>
                 </div>
             </div>
 
@@ -1650,6 +1843,110 @@
                             </div>
                         </div>
                         <pre id="log-viewer-content" class="log-terminal p-4 h-[65vh] overflow-auto text-slate-400 whitespace-pre-wrap">Clique em um arquivo para visualizar.</pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ PAGE: INTELLIGENCE ============ -->
+            <div id="page-intelligence" class="p-4 lg:p-8 max-w-7xl mx-auto hidden">
+                <div class="mb-8">
+                    <h2 class="text-3xl font-bold text-white font-display mb-1">Inteligência</h2>
+                    <p class="text-slate-500 text-sm">Análise de dados, cruzamentos e evolução temporal</p>
+                </div>
+
+                <!-- Filtros globais -->
+                <div class="glass-card p-5 mb-6">
+                    <div class="flex flex-wrap items-end gap-4">
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1 font-medium">Tipo</label>
+                            <select id="intel-tipo" class="input-glass px-3 py-2 text-xs" onchange="loadIntelligence()">
+                                <option value="matriculados">Matriculados</option>
+                                <option value="inadimplentes">Inadimplentes</option>
+                                <option value="concluintes">Concluintes</option>
+                                <option value="acesso_ava">Acesso AVA</option>
+                                <option value="sem_rematricula">Sem Rematrícula</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1 font-medium">Comparar com</label>
+                            <select id="intel-periodo" class="input-glass px-3 py-2 text-xs" onchange="loadIntelligence()">
+                                <option value="3m">3 meses atrás</option>
+                                <option value="6m" selected>6 meses atrás</option>
+                                <option value="1y">1 ano atrás</option>
+                                <option value="2y">2 anos atrás</option>
+                            </select>
+                        </div>
+                        <button onclick="loadIntelligence()" class="btn-glass px-4 py-2 text-xs flex items-center gap-2">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                            Atualizar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Seção 1: Visão Geral dos Snapshots -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-bold text-white font-display mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+                        Visão Geral
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4" id="intel-overview-cards">
+                        <div class="text-center text-slate-500 text-sm col-span-5">Carregando...</div>
+                    </div>
+                </div>
+
+                <!-- Seção 2: Comparação Temporal -->
+                <div class="glass-card p-5 mb-8">
+                    <h3 class="text-base font-bold text-white font-display mb-4 flex items-center gap-2 cursor-pointer" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                        <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                        Comparação Temporal
+                        <svg class="w-4 h-4 ml-auto text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </h3>
+                    <div id="intel-compare-section">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4" id="intel-compare-cards">
+                            <div class="text-center text-slate-500 text-sm col-span-3">Selecione um tipo para comparar</div>
+                        </div>
+                        <div id="intel-compare-detail" class="mt-4"></div>
+                    </div>
+                </div>
+
+                <!-- Seção 3: Cruzamentos -->
+                <div class="glass-card p-5 mb-8">
+                    <h3 class="text-base font-bold text-white font-display mb-4 flex items-center gap-2 cursor-pointer" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                        <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                        Cruzamentos entre Bases
+                        <svg class="w-4 h-4 ml-auto text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </h3>
+                    <div id="intel-crossref-section">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="intel-crossref-cards">
+                            <div class="text-center text-slate-500 text-sm col-span-4">Carregando cruzamentos...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Seção 4: Evolução Temporal -->
+                <div class="glass-card p-5 mb-8">
+                    <h3 class="text-base font-bold text-white font-display mb-4 flex items-center gap-2 cursor-pointer" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                        <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                        Evolução Temporal
+                        <svg class="w-4 h-4 ml-auto text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </h3>
+                    <div id="intel-timeline-section">
+                        <canvas id="intel-timeline-chart" height="300"></canvas>
+                        <p id="intel-timeline-empty" class="text-center text-sm text-slate-500 mt-4 hidden">Dados insuficientes para gráfico temporal. Faça uploads ao longo do tempo para ver a evolução.</p>
+                    </div>
+                </div>
+
+                <!-- Seção 5: Alertas e Insights -->
+                <div class="glass-card p-5">
+                    <h3 class="text-base font-bold text-white font-display mb-4 flex items-center gap-2 cursor-pointer" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                        <svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                        Alertas e Insights
+                        <svg class="w-4 h-4 ml-auto text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </h3>
+                    <div id="intel-alerts-section">
+                        <div id="intel-alerts-list" class="space-y-3">
+                            <div class="text-center text-slate-500 text-sm">Carregando alertas...</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2178,8 +2475,8 @@ async function api(url, opts = {}) {
 // ---------------------------------------------------------------------------
 // SPA Navigation
 // ---------------------------------------------------------------------------
-const PAGES = ['dashboard', 'search', 'sync', 'update', 'pipeline', 'distribuicao', 'feedback', 'logs', 'config', 'schedule'];
-const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', distribuicao: 'Distribuição', feedback: 'Feedback', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento' };
+const PAGES = ['dashboard', 'search', 'sync', 'update', 'pipeline', 'distribuicao', 'intelligence', 'feedback', 'logs', 'config', 'schedule'];
+const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', distribuicao: 'Distribuição', intelligence: 'Inteligência', feedback: 'Feedback', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento' };
 
 function navigate(page) {
     PAGES.forEach(p => {
@@ -2196,11 +2493,13 @@ function navigate(page) {
 
     // Load page data
     if (page === 'dashboard') loadDashboard();
+    if (page === 'search') loadXlSnapshots();
     if (page === 'sync') loadSyncState();
     if (page === 'update') loadFileInfo();
     if (page === 'logs') { loadLogFiles(); loadDashboard(); }
     if (page === 'config') { loadCiclos(); loadTurmas(); }
     if (page === 'distribuicao') loadDistribuicao();
+    if (page === 'intelligence') loadIntelligence();
     if (page === 'feedback') fbInit();
     if (page === 'schedule') loadSchedules();
 
@@ -2821,32 +3120,112 @@ function clearStudentFilter() {
 // ---------------------------------------------------------------------------
 // Search
 // ---------------------------------------------------------------------------
+async function loadXlSnapshots() {
+    const tipo = document.getElementById('search-xl-tipo').value;
+    const params = tipo ? `?tipo=${tipo}` : '';
+    try {
+        const res = await fetch('/api/xl-snapshots' + params);
+        const data = await res.json();
+        const sel = document.getElementById('search-snapshot-select');
+        sel.innerHTML = '<option value="">Mais recente</option>';
+        (data.snapshots || []).forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.id;
+            const tipoLabel = {'matriculados':'Matr','inadimplentes':'Inad','concluintes':'Conc'}[s.tipo] || s.tipo;
+            opt.textContent = `[${tipoLabel}] ${s.filename} — ${s.uploaded_at} (${s.row_count.toLocaleString('pt-BR')} linhas)`;
+            sel.appendChild(opt);
+        });
+    } catch(e) { /* silent */ }
+}
+
+document.getElementById('search-xl-tipo').addEventListener('change', () => loadXlSnapshots());
+
 document.getElementById('search-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const form = new FormData(e.target);
     const params = new URLSearchParams();
     for (const [k, v] of form) params.set(k, v.trim());
 
+    const snapId = document.getElementById('search-snapshot-select').value;
+    const xlTipo = document.getElementById('search-xl-tipo').value;
+    const xlParams = new URLSearchParams(params);
+    if (snapId) xlParams.set('snapshot_id', snapId);
+    if (xlTipo) xlParams.set('tipo', xlTipo);
+
     document.getElementById('search-error').classList.add('hidden');
     document.getElementById('search-empty').classList.add('hidden');
     document.getElementById('search-results').innerHTML = '';
+    document.getElementById('search-xl-results').innerHTML = '';
+    document.getElementById('search-crm-section').classList.add('hidden');
+    document.getElementById('search-xl-section').classList.add('hidden');
+    document.getElementById('search-snapshot-info').textContent = '';
     document.getElementById('search-loading').classList.remove('hidden');
 
     try {
-        const res = await fetch('/api/search?' + params);
-        const data = await res.json();
+        const xlFetches = [];
+        if (snapId || xlTipo) {
+            xlFetches.push(fetch('/api/search-xl?' + xlParams));
+        } else {
+            for (const t of ['matriculados', 'inadimplentes', 'concluintes']) {
+                const p = new URLSearchParams(params);
+                p.set('tipo', t);
+                xlFetches.push(fetch('/api/search-xl?' + p));
+            }
+        }
+
+        const [resCrm, ...resXls] = await Promise.all([
+            fetch('/api/search?' + params),
+            ...xlFetches,
+        ]);
+        const dataCrm = await resCrm.json();
+        const allXlResults = [];
+        const snapLabels = [];
+        for (const rx of resXls) {
+            const dx = await rx.json();
+            if (dx.results && dx.results.length) {
+                const tipoLabel = dx.snapshot
+                    ? ({'matriculados':'Matriculados','inadimplentes':'Inadimplentes','concluintes':'Concluintes'}[dx.snapshot.tipo] || dx.snapshot.tipo)
+                    : '';
+                dx.results.forEach(r => { r._xl_tipo = tipoLabel; });
+                allXlResults.push(...dx.results);
+            }
+            if (dx.snapshot) snapLabels.push(dx.snapshot);
+        }
+
         document.getElementById('search-loading').classList.add('hidden');
 
-        if (data.error) {
-            document.getElementById('search-error').textContent = data.error;
+        if (dataCrm.error) {
+            document.getElementById('search-error').textContent = dataCrm.error;
             document.getElementById('search-error').classList.remove('hidden');
-            return;
         }
-        if (!data.results.length) {
+
+        if (snapLabels.length) {
+            document.getElementById('search-snapshot-info').textContent =
+                snapLabels.map(s => {
+                    const t = {'matriculados':'Matr','inadimplentes':'Inad','concluintes':'Conc'}[s.tipo] || s.tipo;
+                    return `${t}: ${s.row_count} linhas`;
+                }).join(' | ');
+        }
+
+        const hasCrm = dataCrm.results && dataCrm.results.length > 0;
+        const hasXl = allXlResults.length > 0;
+
+        if (!hasCrm && !hasXl) {
             document.getElementById('search-empty').classList.remove('hidden');
             return;
         }
-        renderResults(data.results);
+
+        if (hasXl) {
+            document.getElementById('search-xl-section').classList.remove('hidden');
+            document.getElementById('search-xl-count').textContent = `(${allXlResults.length} resultado${allXlResults.length > 1 ? 's' : ''})`;
+            renderXlResults(allXlResults);
+        }
+
+        if (hasCrm) {
+            document.getElementById('search-crm-section').classList.remove('hidden');
+            document.getElementById('search-crm-count').textContent = `(${dataCrm.results.length} resultado${dataCrm.results.length > 1 ? 's' : ''})`;
+            renderResults(dataCrm.results);
+        }
     } catch (err) {
         document.getElementById('search-loading').classList.add('hidden');
         document.getElementById('search-error').textContent = 'Erro de conexão: ' + err.message;
@@ -2921,6 +3300,68 @@ function renderResults(results) {
                     ${Object.entries(campos_lead).map(([k,v]) => field(k, v || null)).join('')}
                 </div>
             </details>` : ''}
+        `;
+        container.appendChild(card);
+    });
+}
+
+function renderXlResults(results) {
+    const container = document.getElementById('search-xl-results');
+    container.innerHTML = '';
+
+    const xlLabels = {
+        nome: 'Nome', cpf: 'CPF', rgm: 'RGM', curso: 'Curso', polo: 'Polo',
+        serie: 'Série', situacao: 'Situação', tipo_matricula: 'Tipo Matrícula',
+        data_mat: 'Data Matrícula', email: 'Email', email_acad: 'Email Acadêmico',
+        fone_cel: 'Celular', fone_res: 'Fone Res.', fone_com: 'Fone Com.',
+        negocio: 'Negócio', empresa: 'Empresa', bairro: 'Bairro', cidade: 'Cidade',
+        sexo: 'Sexo', data_nasc: 'Data Nasc.', ciclo: 'Ciclo',
+        valor: 'Valor', parcela: 'Parcela', vencimento: 'Vencimento',
+        status_financeiro: 'Status Financeiro',
+        data_conclusao: 'Data Conclusão', periodo: 'Período',
+        modalidade: 'Modalidade', instituicao: 'Instituição',
+    };
+
+    results.forEach(r => {
+        const sitColor = (r.situacao || '').toLowerCase().includes('em curso')
+            ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+            : 'bg-amber-500/15 text-amber-400 border border-amber-500/30';
+
+        const tipoColors = {
+            'Matriculados': 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
+            'Inadimplentes': 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
+            'Concluintes': 'bg-purple-500/15 text-purple-400 border border-purple-500/30',
+        };
+        const tipoBorder = {
+            'Matriculados': 'border-l-emerald-500/60',
+            'Inadimplentes': 'border-l-amber-500/60',
+            'Concluintes': 'border-l-purple-500/60',
+        };
+        const xlTipo = r._xl_tipo || '';
+        const borderCls = tipoBorder[xlTipo] || 'border-l-amber-500/60';
+        const tipoCls = tipoColors[xlTipo] || 'bg-slate-700/30 text-slate-400 border border-slate-600/30';
+
+        const card = document.createElement('div');
+        card.className = `glass-card p-5 fade-in border-l-4 ${borderCls}`;
+        card.innerHTML = `
+            <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
+                <div>
+                    <h3 class="text-base font-bold text-white font-display">${esc(r.nome || '—')}</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">RGM: ${esc(r.rgm || '—')} &middot; CPF: ${esc(r.cpf || '—')}</p>
+                </div>
+                <div class="flex gap-2 flex-wrap">
+                    ${xlTipo ? `<span class="tag-pill ${tipoCls}">${esc(xlTipo)}</span>` : ''}
+                    ${r.situacao ? `<span class="tag-pill ${sitColor}">${esc(r.situacao)}</span>` : ''}
+                    ${r.tipo_matricula ? `<span class="tag-pill bg-blue-500/15 text-blue-400 border border-blue-500/30">${esc(r.tipo_matricula)}</span>` : ''}
+                </div>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 text-sm">
+                ${Object.entries(xlLabels).map(([k, label]) => {
+                    const v = r[k];
+                    if (!v) return '';
+                    return `<div><span class="text-slate-500 text-xs">${label}</span><p class="text-slate-200 truncate">${esc(v)}</p></div>`;
+                }).join('')}
+            </div>
         `;
         container.appendChild(card);
     });
@@ -3353,9 +3794,9 @@ async function stopPipeline() {
 }
 
 function showPipelineLog(which) {
-    const logs = ['sanitize-log', 'enrich-log', 'merge-log', 'pipeline-log'];
-    const tabs = ['tab-san-log', 'tab-enrich-log', 'tab-merge-log', 'tab-pipe-log'];
-    const map = { sanitize: 0, enrich: 1, merge: 2, pipeline: 3 };
+    const logs = ['sanitize-log', 'enrich-log', 'merge-log', 'pipeline-log', 'inadimplentes-log', 'concluintes-log'];
+    const tabs = ['tab-san-log', 'tab-enrich-log', 'tab-merge-log', 'tab-pipe-log', 'tab-inad-log', 'tab-conc-log'];
+    const map = { sanitize: 0, enrich: 1, merge: 2, pipeline: 3, inadimplentes: 4, concluintes: 5 };
     const idx = map[which] ?? 0;
     logs.forEach((id, i) => {
         const el = document.getElementById(id);
@@ -3426,10 +3867,10 @@ async function stopEnrich() {
 }
 
 function clearPipelineLog() {
-    document.getElementById('sanitize-log').textContent = '';
-    document.getElementById('enrich-log').textContent = '';
-    document.getElementById('merge-log').textContent = '';
-    document.getElementById('pipeline-log').textContent = '';
+    ['sanitize-log','enrich-log','merge-log','pipeline-log','inadimplentes-log','concluintes-log'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = '';
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -3504,6 +3945,130 @@ async function stopMerge() {
 // Check pipeline status on load
 fetch('/api/pipeline/status', { credentials: 'same-origin' }).then(r => r.json()).then(d => {
     if (d.running) { setPipeBtns(true); startPipePolling(); showPipelineLog('pipeline'); }
+}).catch(() => {});
+
+// ---------------------------------------------------------------------------
+// Inadimplentes
+// ---------------------------------------------------------------------------
+let _inadPolling = null;
+
+async function startInadimplentes(mode) {
+    const rate = parseInt(document.getElementById('san-rate-slider')?.value) || 120;
+    showPipelineLog('inadimplentes');
+    try {
+        const res = await api(`/api/inadimplentes/${mode}`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ rate })
+        });
+        const d = await res.json();
+        if (d.error) { alert(d.error); return; }
+        setInadBtns(true);
+        startInadPolling();
+    } catch(e) { alert('Erro: ' + e.message); }
+}
+
+function confirmInadimplentes() {
+    if (!confirm('Executar atualização de inadimplentes no CRM?')) return;
+    startInadimplentes('execute');
+}
+
+function setInadBtns(running) {
+    ['btn-inad-dryrun','btn-inad-execute'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.disabled = running; el.classList.toggle('opacity-50', running); }
+    });
+    const stop = document.getElementById('btn-inad-stop');
+    if (stop) stop.classList.toggle('hidden', !running);
+}
+
+function startInadPolling() {
+    let since = 0;
+    if (_inadPolling) clearInterval(_inadPolling);
+    _inadPolling = setInterval(async () => {
+        try {
+            const res = await api('/api/inadimplentes/logs?since=' + since);
+            const d = await res.json();
+            const el = document.getElementById('inadimplentes-log');
+            if (d.lines && d.lines.length > 0) {
+                d.lines.forEach(l => { el.textContent += l + '\n'; });
+                el.scrollTop = el.scrollHeight;
+            }
+            since = d.total;
+            if (!d.running) { clearInterval(_inadPolling); _inadPolling = null; setInadBtns(false); }
+        } catch(e) { console.error(e); }
+    }, 1500);
+}
+
+async function stopInadimplentes() {
+    if (!confirm('Interromper atualização de inadimplentes?')) return;
+    try { await api('/api/inadimplentes/stop', { method: 'POST' }); } catch(e) { console.error(e); }
+}
+
+fetch('/api/inadimplentes/status', { credentials: 'same-origin' }).then(r => r.json()).then(d => {
+    if (d.running) { setInadBtns(true); startInadPolling(); showPipelineLog('inadimplentes'); }
+}).catch(() => {});
+
+// ---------------------------------------------------------------------------
+// Concluintes
+// ---------------------------------------------------------------------------
+let _concPolling = null;
+
+async function startConcluintes(mode) {
+    const rate = parseInt(document.getElementById('san-rate-slider')?.value) || 120;
+    showPipelineLog('concluintes');
+    try {
+        const res = await api(`/api/concluintes/${mode}`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ rate })
+        });
+        const d = await res.json();
+        if (d.error) { alert(d.error); return; }
+        setConcBtns(true);
+        startConcPolling();
+    } catch(e) { alert('Erro: ' + e.message); }
+}
+
+function confirmConcluintes() {
+    if (!confirm('Executar atualização de concluintes no CRM?')) return;
+    startConcluintes('execute');
+}
+
+function setConcBtns(running) {
+    ['btn-conc-dryrun','btn-conc-execute'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.disabled = running; el.classList.toggle('opacity-50', running); }
+    });
+    const stop = document.getElementById('btn-conc-stop');
+    if (stop) stop.classList.toggle('hidden', !running);
+}
+
+function startConcPolling() {
+    let since = 0;
+    if (_concPolling) clearInterval(_concPolling);
+    _concPolling = setInterval(async () => {
+        try {
+            const res = await api('/api/concluintes/logs?since=' + since);
+            const d = await res.json();
+            const el = document.getElementById('concluintes-log');
+            if (d.lines && d.lines.length > 0) {
+                d.lines.forEach(l => { el.textContent += l + '\n'; });
+                el.scrollTop = el.scrollHeight;
+            }
+            since = d.total;
+            if (!d.running) { clearInterval(_concPolling); _concPolling = null; setConcBtns(false); }
+        } catch(e) { console.error(e); }
+    }, 1500);
+}
+
+async function stopConcluintes() {
+    if (!confirm('Interromper atualização de concluintes?')) return;
+    try { await api('/api/concluintes/stop', { method: 'POST' }); } catch(e) { console.error(e); }
+}
+
+fetch('/api/concluintes/status', { credentials: 'same-origin' }).then(r => r.json()).then(d => {
+    if (d.running) { setConcBtns(true); startConcPolling(); showPipelineLog('concluintes'); }
 }).catch(() => {});
 
 // ---------------------------------------------------------------------------
@@ -3674,29 +4239,36 @@ async function saveDistribuicao() {
 // ---------------------------------------------------------------------------
 // Upload
 // ---------------------------------------------------------------------------
-function handleDrop(e) {
+function handleDropTyped(e, tipo) {
     e.preventDefault();
-    e.currentTarget.classList.remove('border-indigo-500', 'bg-indigo-950/10');
+    e.currentTarget.classList.remove('border-emerald-500', 'bg-emerald-950/10',
+        'border-amber-500', 'bg-amber-950/10', 'border-purple-500', 'bg-purple-950/10',
+        'border-sky-500', 'bg-sky-950/10', 'border-rose-500', 'bg-rose-950/10');
     const file = e.dataTransfer.files[0];
-    if (file) handleUpload(file);
+    if (file) handleUploadTyped(file, tipo);
 }
 
-async function handleUpload(file) {
+async function handleUploadTyped(file, tipo) {
     if (!file) return;
-    if (!file.name.toLowerCase().endsWith('.xlsx')) {
-        alert('Apenas arquivos .xlsx são aceitos.');
+    const ext = file.name.toLowerCase().split('.').pop();
+    const allowed = ['xlsx', 'xlsm', 'zip'];
+    if (!allowed.includes(ext)) {
+        alert('Aceitos: .xlsx, .xlsm ou .zip');
         return;
     }
 
-    const progress = document.getElementById('upload-progress');
-    const bar = document.getElementById('upload-bar');
-    const status = document.getElementById('upload-status');
+    const card = document.querySelector(`[data-upload-tipo="${tipo}"]`);
+    const progress = card.querySelector('.upload-progress');
+    const bar = card.querySelector('.upload-bar');
+    const msg = card.querySelector('.upload-msg');
     progress.classList.remove('hidden');
     bar.style.width = '30%';
-    status.textContent = `Enviando ${file.name}...`;
+    msg.textContent = `Enviando ${file.name}...`;
+    msg.className = 'upload-msg text-xs text-slate-400 mt-1';
 
     const form = new FormData();
     form.append('file', file);
+    form.append('tipo', tipo);
 
     try {
         bar.style.width = '60%';
@@ -3705,61 +4277,83 @@ async function handleUpload(file) {
         bar.style.width = '100%';
 
         if (data.error) {
-            status.textContent = data.error;
-            status.classList.add('text-red-400');
-            setTimeout(() => { progress.classList.add('hidden'); status.classList.remove('text-red-400'); }, 3000);
+            msg.textContent = data.error;
+            msg.classList.add('text-red-400');
+            setTimeout(() => { progress.classList.add('hidden'); }, 3000);
             return;
         }
 
-        status.textContent = 'Upload concluído!';
-        status.classList.add('text-emerald-400');
-        renderFileInfo(data.file);
+        const rowsTxt = data.snapshot_rows >= 0 ? ` (${data.snapshot_rows.toLocaleString('pt-BR')} linhas)` : '';
+        msg.textContent = `Upload concluído!${rowsTxt}`;
+        msg.classList.add('text-emerald-400');
+        loadFileInfo();
 
         setTimeout(() => {
             progress.classList.add('hidden');
             bar.style.width = '0%';
-            status.classList.remove('text-emerald-400');
-            status.textContent = 'Enviando...';
-        }, 2000);
+            msg.className = 'upload-msg text-xs text-slate-400 mt-1';
+        }, 2500);
     } catch (err) {
         bar.style.width = '100%';
-        bar.classList.replace('bg-indigo-500', 'bg-red-500');
-        status.textContent = 'Erro: ' + err.message;
-        status.classList.add('text-red-400');
+        msg.textContent = 'Erro: ' + err.message;
+        msg.classList.add('text-red-400');
         setTimeout(() => {
             progress.classList.add('hidden');
-            bar.classList.replace('bg-red-500', 'bg-indigo-500');
             bar.style.width = '0%';
-            status.classList.remove('text-red-400');
         }, 3000);
     }
 
-    document.getElementById('file-input').value = '';
+    card.querySelector('input[type="file"]').value = '';
 }
 
-function renderFileInfo(info) {
-    const div = document.getElementById('file-info');
-    if (!info) {
-        div.innerHTML = '<span class="text-yellow-400">Nenhum arquivo carregado.</span><br><span class="text-xs text-slate-600">Faça upload de uma planilha .xlsx com "matriculados" no nome.</span>';
-        return;
+async function processServerFolder(tipo) {
+    const card = document.querySelector(`[data-upload-tipo="${tipo}"]`);
+    const progress = card.querySelector('.upload-progress');
+    const bar = card.querySelector('.upload-bar');
+    const msg = card.querySelector('.upload-msg');
+    progress.classList.remove('hidden');
+    bar.style.width = '40%';
+    msg.textContent = 'Processando pasta do servidor...';
+    msg.className = 'upload-msg text-xs text-slate-400 mt-1';
+
+    try {
+        const res = await fetch('/api/upload-folder', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ tipo }),
+        });
+        const data = await res.json();
+        bar.style.width = '100%';
+        if (data.error) {
+            msg.textContent = data.error;
+            msg.classList.add('text-red-400');
+        } else {
+            msg.textContent = `Processado! ${(data.snapshot_rows||0).toLocaleString('pt-BR')} linhas`;
+            msg.classList.add('text-emerald-400');
+            loadFileInfo();
+        }
+    } catch (err) {
+        bar.style.width = '100%';
+        msg.textContent = 'Erro: ' + err.message;
+        msg.classList.add('text-red-400');
     }
-    const size = (info.size / 1024 / 1024).toFixed(1);
-    const date = info.modified ? fmtDate(info.modified) : '—';
-    div.innerHTML = `
-        <div class="flex items-center gap-3 mb-2">
-            <svg class="w-8 h-8 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-            </svg>
-            <div>
-                <p class="text-slate-200 font-medium text-sm">${esc(info.name)}</p>
-                <p class="text-slate-500 text-xs">${size} MB &middot; ${date}</p>
-            </div>
-        </div>
-    `;
+    setTimeout(() => { progress.classList.add('hidden'); bar.style.width = '0%'; msg.className = 'upload-msg text-xs text-slate-400 mt-1'; }, 3000);
 }
 
 function loadFileInfo() {
-    fetch('/api/upload/info').then(r => r.json()).then(d => renderFileInfo(d.file));
+    fetch('/api/upload/info').then(r => r.json()).then(d => {
+        const snaps = d.snapshots || {};
+        for (const tipo of ['matriculados', 'inadimplentes', 'concluintes', 'acesso_ava', 'sem_rematricula']) {
+            const el = document.getElementById('snap-info-' + tipo);
+            if (!el) continue;
+            const s = snaps[tipo];
+            if (s) {
+                el.innerHTML = `<span class="text-slate-300 font-medium">${esc(s.filename)}</span><br>${s.row_count.toLocaleString('pt-BR')} linhas &middot; ${s.uploaded_at}`;
+            } else {
+                el.textContent = 'Nenhum snapshot';
+            }
+        }
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -4340,7 +4934,7 @@ function toggleTheme() {
     const newTheme = isDark ? 'light' : 'dark';
     html.classList.remove('dark', 'light');
     html.classList.add(newTheme);
-    localStorage.setItem('dcz-theme', newTheme);
+    localStorage.setItem('eduit-theme', newTheme);
     updateThemeUI(newTheme);
 }
 
@@ -4362,7 +4956,7 @@ function updateThemeUI(theme) {
 // ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
-const currentTheme = localStorage.getItem('dcz-theme') || 'dark';
+const currentTheme = localStorage.getItem('eduit-theme') || 'dark';
 updateThemeUI(currentTheme);
 
 const hash = window.location.hash.replace('#', '') || 'dashboard';
@@ -4370,6 +4964,242 @@ if (PAGES.includes(hash)) {
     navigate(hash);
 } else {
     navigate('dashboard');
+}
+
+// ===========================================================================
+// INTELLIGENCE PAGE
+// ===========================================================================
+let _intelTimelineChart = null;
+
+const INTEL_TIPO_LABELS = {
+    matriculados: 'Matriculados', inadimplentes: 'Inadimplentes',
+    concluintes: 'Concluintes', acesso_ava: 'Acesso AVA',
+    sem_rematricula: 'Sem Rematrícula',
+};
+const INTEL_TIPO_COLORS = {
+    matriculados: {bg:'from-emerald-500/20 to-green-500/20', border:'border-emerald-500/40', text:'text-emerald-400', bar:'bg-emerald-500'},
+    inadimplentes: {bg:'from-amber-500/20 to-orange-500/20', border:'border-amber-500/40', text:'text-amber-400', bar:'bg-amber-500'},
+    concluintes: {bg:'from-purple-500/20 to-violet-500/20', border:'border-purple-500/40', text:'text-purple-400', bar:'bg-purple-500'},
+    acesso_ava: {bg:'from-sky-500/20 to-blue-500/20', border:'border-sky-500/40', text:'text-sky-400', bar:'bg-sky-500'},
+    sem_rematricula: {bg:'from-rose-500/20 to-pink-500/20', border:'border-rose-500/40', text:'text-rose-400', bar:'bg-rose-500'},
+};
+
+async function loadIntelligence() {
+    await Promise.all([_loadIntelOverview(), _loadIntelCompare(), _loadIntelCrossref(), _loadIntelTimeline(), _loadIntelAlerts()]);
+}
+
+async function _loadIntelOverview() {
+    const container = document.getElementById('intel-overview-cards');
+    try {
+        const res = await fetch('/api/upload/info');
+        const data = await res.json();
+        const snaps = data.snapshots || {};
+        let html = '';
+        for (const tipo of ['matriculados','inadimplentes','concluintes','acesso_ava','sem_rematricula']) {
+            const s = snaps[tipo];
+            const c = INTEL_TIPO_COLORS[tipo];
+            const label = INTEL_TIPO_LABELS[tipo];
+            html += `<div class="glass-card p-4 border ${c.border} bg-gradient-to-br ${c.bg}">
+                <p class="text-xs font-medium text-slate-400 mb-1">${label}</p>
+                <p class="text-2xl font-bold text-white font-display">${s ? s.row_count.toLocaleString('pt-BR') : '—'}</p>
+                <p class="text-[10px] text-slate-500 mt-1">${s ? s.uploaded_at : 'Nenhum snapshot'}</p>
+            </div>`;
+        }
+        container.innerHTML = html;
+    } catch(e) { container.innerHTML = '<p class="text-red-400 text-sm col-span-5">Erro ao carregar visão geral</p>'; }
+}
+
+async function _loadIntelCompare() {
+    const tipo = document.getElementById('intel-tipo').value;
+    const periodo = document.getElementById('intel-periodo').value;
+    const container = document.getElementById('intel-compare-cards');
+    const detail = document.getElementById('intel-compare-detail');
+    try {
+        const res = await fetch(`/api/snapshots/compare?tipo=${tipo}&periodo=${periodo}`);
+        const d = await res.json();
+        if (d.error) { container.innerHTML = `<p class="text-slate-500 text-sm col-span-3">${d.error}</p>`; detail.innerHTML=''; return; }
+        const sa = d.snap_a, sb = d.snap_b;
+        const deltaP = sb && sb.row_count > 0 ? ((sa.row_count - sb.row_count) / sb.row_count * 100).toFixed(1) : '—';
+        const deltaClass = d.delta_total > 0 ? 'text-emerald-400' : d.delta_total < 0 ? 'text-rose-400' : 'text-slate-400';
+        const deltaSign = d.delta_total > 0 ? '+' : '';
+        container.innerHTML = `
+            <div class="glass-card p-4">
+                <p class="text-xs text-slate-500 mb-1">Snapshot Atual</p>
+                <p class="text-xl font-bold text-white">${sa.row_count.toLocaleString('pt-BR')}</p>
+                <p class="text-[10px] text-slate-500">${sa.uploaded_at}</p>
+            </div>
+            <div class="glass-card p-4">
+                <p class="text-xs text-slate-500 mb-1">Snapshot Anterior</p>
+                <p class="text-xl font-bold text-white">${sb ? sb.row_count.toLocaleString('pt-BR') : 'N/D'}</p>
+                <p class="text-[10px] text-slate-500">${sb ? sb.uploaded_at : '—'}</p>
+            </div>
+            <div class="glass-card p-4">
+                <p class="text-xs text-slate-500 mb-1">Variação</p>
+                <p class="text-xl font-bold ${deltaClass}">${deltaSign}${d.delta_total.toLocaleString('pt-BR')} <span class="text-sm">(${deltaP}%)</span></p>
+                <div class="flex gap-3 mt-2 text-[10px]">
+                    <span class="text-emerald-400">+${d.novos} novos</span>
+                    <span class="text-rose-400">-${d.removidos} saíram</span>
+                    <span class="text-slate-400">${d.mantidos} mantidos</span>
+                </div>
+            </div>`;
+
+        let detailHtml = '';
+        const statsA = d.stats_a || {};
+        const statsB = d.stats_b || {};
+        const metricsToShow = Object.keys(statsA).filter(k => typeof statsA[k] === 'number');
+        if (metricsToShow.length > 0) {
+            detailHtml += '<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">';
+            for (const m of metricsToShow) {
+                const va = statsA[m], vb = statsB[m];
+                const delta = vb != null ? va - vb : 0;
+                const cls = delta > 0 ? 'text-emerald-400' : delta < 0 ? 'text-rose-400' : 'text-slate-500';
+                detailHtml += `<div class="bg-slate-800/40 rounded-lg p-3"><p class="text-[10px] text-slate-500 uppercase">${m.replace(/_/g,' ')}</p><p class="text-sm font-bold text-white">${typeof va==='number'?va.toLocaleString('pt-BR'):va}</p>${vb!=null?`<p class="text-[10px] ${cls}">${delta>0?'+':''}${delta.toLocaleString('pt-BR')}</p>`:''}
+                </div>`;
+            }
+            detailHtml += '</div>';
+        }
+        detail.innerHTML = detailHtml;
+    } catch(e) { container.innerHTML = `<p class="text-red-400 text-sm col-span-3">Erro: ${e.message}</p>`; detail.innerHTML=''; }
+}
+
+async function _loadIntelCrossref() {
+    const container = document.getElementById('intel-crossref-cards');
+    const pairs = [
+        ['matriculados','inadimplentes','Matriculados com dívida'],
+        ['matriculados','acesso_ava','Matriculados no AVA'],
+        ['matriculados','sem_rematricula','Matr. sem rematrícula'],
+        ['matriculados','concluintes','Matr. concluintes'],
+    ];
+    try {
+        const results = await Promise.all(pairs.map(([a,b]) => fetch(`/api/snapshots/crossref?tipo_a=${a}&tipo_b=${b}`).then(r=>r.json())));
+        let html = '';
+        results.forEach((d,i) => {
+            const [,, label] = pairs[i];
+            if (d.error || d.total_a === 0) {
+                html += `<div class="glass-card p-4"><p class="text-xs text-slate-500">${label}</p><p class="text-sm text-slate-600 mt-1">Sem dados</p></div>`;
+                return;
+            }
+            const pct = d.total_a > 0 ? (d.em_ambos / d.total_a * 100).toFixed(1) : '0';
+            html += `<div class="glass-card p-4">
+                <p class="text-xs text-slate-500 mb-2">${label}</p>
+                <p class="text-xl font-bold text-white">${d.em_ambos.toLocaleString('pt-BR')} <span class="text-sm text-cyan-400">(${pct}%)</span></p>
+                <div class="w-full bg-slate-800 rounded-full h-1.5 mt-2">
+                    <div class="bg-cyan-500 h-1.5 rounded-full" style="width:${Math.min(pct,100)}%"></div>
+                </div>
+                <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+                    <span>${INTEL_TIPO_LABELS[pairs[i][0]]}: ${d.total_a.toLocaleString('pt-BR')}</span>
+                    <span>${INTEL_TIPO_LABELS[pairs[i][1]]}: ${d.total_b.toLocaleString('pt-BR')}</span>
+                </div>
+            </div>`;
+        });
+        container.innerHTML = html || '<p class="text-slate-500 text-sm col-span-4">Nenhum dado disponível para cruzamento</p>';
+    } catch(e) { container.innerHTML = `<p class="text-red-400 text-sm col-span-4">Erro: ${e.message}</p>`; }
+}
+
+async function _loadIntelTimeline() {
+    const tipo = document.getElementById('intel-tipo').value;
+    const emptyMsg = document.getElementById('intel-timeline-empty');
+    const canvas = document.getElementById('intel-timeline-chart');
+    try {
+        const res = await fetch(`/api/snapshots/timeline?tipo=${tipo}&metric=total&months=24`);
+        const d = await res.json();
+        const points = d.points || [];
+        if (points.length < 2) {
+            emptyMsg.classList.remove('hidden');
+            canvas.style.display = 'none';
+            if (_intelTimelineChart) { _intelTimelineChart.destroy(); _intelTimelineChart = null; }
+            return;
+        }
+        emptyMsg.classList.add('hidden');
+        canvas.style.display = 'block';
+        const labels = points.map(p => p.date);
+        const values = points.map(p => typeof p.value === 'number' ? p.value : 0);
+        const c = INTEL_TIPO_COLORS[tipo];
+        const colorMap = {matriculados:'#10b981',inadimplentes:'#f59e0b',concluintes:'#8b5cf6',acesso_ava:'#0ea5e9',sem_rematricula:'#f43f5e'};
+        const color = colorMap[tipo] || '#6366f1';
+
+        if (_intelTimelineChart) _intelTimelineChart.destroy();
+        _intelTimelineChart = new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label: INTEL_TIPO_LABELS[tipo],
+                    data: values,
+                    borderColor: color,
+                    backgroundColor: color + '20',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 4,
+                    pointBackgroundColor: color,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#94a3b8' } } },
+                scales: {
+                    x: { ticks: { color: '#64748b', maxRotation: 45 }, grid: { color: '#1e293b' } },
+                    y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, beginAtZero: true }
+                }
+            }
+        });
+    } catch(e) {
+        emptyMsg.textContent = 'Erro ao carregar timeline: ' + e.message;
+        emptyMsg.classList.remove('hidden');
+        canvas.style.display = 'none';
+    }
+}
+
+async function _loadIntelAlerts() {
+    const container = document.getElementById('intel-alerts-list');
+    try {
+        const [crossMatrInad, crossMatrAva, crossMatrSem] = await Promise.all([
+            fetch('/api/snapshots/crossref?tipo_a=matriculados&tipo_b=inadimplentes').then(r=>r.json()).catch(()=>({})),
+            fetch('/api/snapshots/crossref?tipo_a=matriculados&tipo_b=acesso_ava').then(r=>r.json()).catch(()=>({})),
+            fetch('/api/snapshots/crossref?tipo_a=matriculados&tipo_b=sem_rematricula').then(r=>r.json()).catch(()=>({})),
+        ]);
+        let alerts = [];
+        if (crossMatrInad.em_ambos > 0) {
+            const pct = (crossMatrInad.em_ambos / Math.max(crossMatrInad.total_a, 1) * 100).toFixed(1);
+            alerts.push({
+                level: pct > 20 ? 'high' : pct > 10 ? 'medium' : 'low',
+                icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+                title: `${crossMatrInad.em_ambos.toLocaleString('pt-BR')} alunos matriculados são inadimplentes (${pct}%)`,
+                desc: `De ${crossMatrInad.total_a.toLocaleString('pt-BR')} matriculados, ${crossMatrInad.em_ambos.toLocaleString('pt-BR')} possuem títulos em aberto.`,
+            });
+        }
+        if (crossMatrAva.total_a > 0 && crossMatrAva.apenas_a > 0) {
+            const pct = (crossMatrAva.apenas_a / Math.max(crossMatrAva.total_a, 1) * 100).toFixed(1);
+            alerts.push({
+                level: pct > 30 ? 'high' : pct > 15 ? 'medium' : 'low',
+                icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
+                title: `${crossMatrAva.apenas_a.toLocaleString('pt-BR')} matriculados sem registro no AVA (${pct}%)`,
+                desc: `Esses alunos não possuem dados de acesso ao ambiente virtual de aprendizagem.`,
+            });
+        }
+        if (crossMatrSem.em_ambos > 0) {
+            alerts.push({
+                level: 'high',
+                icon: 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636',
+                title: `${crossMatrSem.em_ambos.toLocaleString('pt-BR')} alunos matriculados constam como sem rematrícula`,
+                desc: `Inconsistência: presentes na base de matriculados e também na base de sem rematrícula.`,
+            });
+        }
+        if (alerts.length === 0) {
+            alerts.push({level:'low', icon:'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', title:'Nenhum alerta no momento', desc:'Faça upload dos snapshots para gerar alertas automáticos.'});
+        }
+        const levelColors = {high:'border-rose-500/60 bg-rose-500/5',medium:'border-amber-500/60 bg-amber-500/5',low:'border-slate-700/40 bg-slate-800/20'};
+        const levelIcons = {high:'text-rose-400',medium:'text-amber-400',low:'text-slate-500'};
+        container.innerHTML = alerts.map(a => `
+            <div class="border rounded-xl p-4 flex items-start gap-3 ${levelColors[a.level]}">
+                <svg class="w-5 h-5 flex-shrink-0 mt-0.5 ${levelIcons[a.level]}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${a.icon}"/></svg>
+                <div>
+                    <p class="text-sm font-semibold text-white">${a.title}</p>
+                    <p class="text-xs text-slate-400 mt-0.5">${a.desc}</p>
+                </div>
+            </div>`).join('');
+    } catch(e) { container.innerHTML = `<p class="text-red-400 text-sm">Erro: ${e.message}</p>`; }
 }
 
 // ===========================================================================

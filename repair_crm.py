@@ -1,5 +1,5 @@
 """
-DataCrazy CRM — Reparo de RGMs incorretos e relatório de leads afetados.
+eduit. — Reparo de RGMs incorretos e relatório de leads afetados.
 
 O update_crm.py antigo espalhava o RGM de um aluno para negócios de leads
 que matchavam por telefone/nome (match fraco). Este script:

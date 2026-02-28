@@ -1,5 +1,5 @@
 """
-DataCrazy CRM — Atualização em massa a partir da planilha de matriculados.
+eduit. — Atualização em massa a partir da planilha de matriculados.
 
 Apenas atualiza campos (custom fields + lead info). Não move pipeline.
 

@@ -1,5 +1,5 @@
 """
-DataCrazy CRM — Merge de leads duplicados.
+eduit. — Merge de leads duplicados.
 
 Lê o relatório enriquecido (duplicatas_enriquecido.csv) e consolida
 negócios que estão em leads diferentes para o mesmo RGM.

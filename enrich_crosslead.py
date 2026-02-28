@@ -22,6 +22,8 @@ import logging
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 import requests
 import psycopg2
@@ -75,14 +77,24 @@ class ApiClient:
         self._remaining = rate_limit
         self._reset = 0
         self.total_calls = 0
+        self._lock = threading.Lock()
 
     def _throttle(self):
-        if self._remaining <= 5 and self._reset > 0:
-            time.sleep(self._reset + 1)
-            return
-        elapsed = time.monotonic() - self._last_req
-        if elapsed < self.base_delay:
-            time.sleep(self.base_delay - elapsed)
+        with self._lock:
+            if self._remaining <= 5 and self._reset > 0:
+                wait = self._reset + 1
+                self._lock.release()
+                time.sleep(wait)
+                self._lock.acquire()
+                return
+            elapsed = time.monotonic() - self._last_req
+            if elapsed < self.base_delay:
+                gap = self.base_delay - elapsed
+                self._lock.release()
+                time.sleep(gap)
+                self._lock.acquire()
+            self._last_req = time.monotonic()
+            self.total_calls += 1
 
     def _read_headers(self, r):
         self._remaining = int(r.headers.get("X-RateLimit-Remaining", self._remaining))
@@ -91,8 +103,6 @@ class ApiClient:
     def get(self, path, params=None):
         for attempt in range(4):
             self._throttle()
-            self._last_req = time.monotonic()
-            self.total_calls += 1
             try:
                 r = self.s.get(f"{API_BASE}{path}", params=params, timeout=30)
             except (requests.exceptions.ConnectionError,
@@ -109,7 +119,8 @@ class ApiClient:
                 time.sleep(retry + 1)
                 continue
 
-            self._read_headers(r)
+            with self._lock:
+                self._read_headers(r)
             if r.status_code >= 400:
                 return None
             return r.json()
@@ -118,7 +129,7 @@ class ApiClient:
     def paginate(self, path, params=None, label="registros"):
         all_items = []
         skip = 0
-        take = 100
+        take = 1000
         last_logged = 0
         while True:
             p = {**(params or {}), "skip": skip, "take": take}
@@ -194,8 +205,40 @@ def load_conversations(api):
     return by_phone
 
 
+def get_lead_activity_from_db(conn, lead_ids):
+    """Busca atividade recente dos leads via dados locais (negócios)."""
+    if not lead_ids:
+        return {}
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute("""
+        SELECT
+            b.data->>'leadId' AS lead_id,
+            MAX(b.data->>'lastMovedAt') AS last_moved,
+            MAX(b.data->>'createdAt') AS last_created,
+            MAX(b.data->'attendant'->>'name') AS attendant
+        FROM businesses b
+        WHERE b.data->>'leadId' = ANY(%s)
+        GROUP BY b.data->>'leadId'
+    """, (list(lead_ids),))
+    rows = cur.fetchall()
+    cur.close()
+
+    result = {}
+    for r in rows:
+        lid = r["lead_id"]
+        last = r["last_moved"] or r["last_created"] or ""
+        result[lid] = {
+            "last_history_date": last,
+            "last_history_type": "business_move" if r["last_moved"] else "business_create",
+            "last_history_text": "",
+            "last_history_attendant": r["attendant"] or "",
+            "source": "db",
+        }
+    return result
+
+
 def get_lead_history(api, lead_id):
-    """Busca a última atividade/anotação do lead."""
+    """Busca a última atividade/anotação do lead via API."""
     data = api.get(f"/leads/{lead_id}/history", {"take": 1})
     if not data:
         return None
@@ -208,7 +251,38 @@ def get_lead_history(api, lead_id):
         "last_history_type": item.get("type", ""),
         "last_history_text": (item.get("history") or "")[:80],
         "last_history_attendant": (item.get("attendant") or {}).get("name", ""),
+        "source": "api",
     }
+
+
+def fetch_histories_concurrent(api, lead_ids, max_workers=4):
+    """Busca histórico de múltiplos leads em paralelo."""
+    results = {}
+    done_count = [0]
+    total = len(lead_ids)
+    lock = threading.Lock()
+
+    def _fetch_one(lid):
+        hist = get_lead_history(api, lid)
+        with lock:
+            results[lid] = hist or {}
+            done_count[0] += 1
+            c = done_count[0]
+            if c % 100 == 0 or c == total:
+                pct = c / total * 100
+                log.info("  [%d/%d] %.0f%% — %d API calls", c, total, pct, api.total_calls)
+
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = {pool.submit(_fetch_one, lid): lid for lid in lead_ids}
+        for f in as_completed(futures):
+            try:
+                f.result()
+            except Exception as e:
+                lid = futures[f]
+                log.warning("Erro ao buscar histórico de %s: %s", lid[:12], e)
+                results[lid] = {}
+
+    return results
 
 
 def format_date(iso_str):
@@ -258,6 +332,10 @@ def main():
     try:
         lead_info = load_lead_phones(conn, lead_ids)
         log.info("  %d leads com dados locais", len(lead_info))
+
+        log.info("Buscando atividade dos leads no banco local...")
+        db_activity = get_lead_activity_from_db(conn, lead_ids)
+        log.info("  %d leads com atividade no banco local", len(db_activity))
     finally:
         conn.close()
 
@@ -265,17 +343,23 @@ def main():
 
     convs_by_phone = load_conversations(api)
 
-    est_min = len(lead_ids) * (60.0 / rate_limit) / 60
-    log.info("Consultando histórico de %d leads... (estimativa: %.0f min)", len(lead_ids), est_min)
-    lead_history = {}
-    lead_list = sorted(lead_ids)
-    for i, lid in enumerate(lead_list, 1):
-        hist = get_lead_history(api, lid)
-        lead_history[lid] = hist or {}
+    needs_api = sorted(lid for lid in lead_ids if lid not in db_activity)
+    has_db = len(lead_ids) - len(needs_api)
+    log.info("Histórico: %d já resolvidos via DB, %d precisam da API", has_db, len(needs_api))
 
-        if i % 100 == 0 or i == len(lead_list):
-            pct = i / len(lead_list) * 100
-            log.info("  [%d/%d] %.0f%% — %d API calls", i, len(lead_list), pct, api.total_calls)
+    workers = max(1, min(4, rate_limit // 60))
+    if needs_api:
+        est_min = len(needs_api) * (60.0 / rate_limit) / 60 / workers
+        log.info("Consultando histórico de %d leads via API (%d workers, estimativa: %.1f min)",
+                 len(needs_api), workers, est_min)
+        api_history = fetch_histories_concurrent(api, needs_api, max_workers=workers)
+    else:
+        api_history = {}
+
+    lead_history = {**db_activity, **api_history}
+    for lid in lead_ids:
+        if lid not in lead_history:
+            lead_history[lid] = {}
 
     REPORTS_DIR.mkdir(exist_ok=True)
     output_path = REPORTS_DIR / "duplicatas_enriquecido.csv"
