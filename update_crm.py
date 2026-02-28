@@ -855,8 +855,9 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
 
             crm_addr = lead["data"].get("address") or {}
             addr = {}
-            if xl_data["endereco"] and xl_data["endereco"] != (crm_addr.get("street") or "").strip():
-                addr["street"] = xl_data["endereco"]
+            crm_street = (crm_addr.get("address") or crm_addr.get("street") or "").strip()
+            if xl_data["endereco"] and xl_data["endereco"] != crm_street:
+                addr["address"] = xl_data["endereco"]
             if xl_data["bairro"] and xl_data["bairro"] != (crm_addr.get("block") or "").strip():
                 addr["block"] = xl_data["bairro"]
             if xl_data["cidade"] and xl_data["cidade"] != (crm_addr.get("city") or "").strip():
