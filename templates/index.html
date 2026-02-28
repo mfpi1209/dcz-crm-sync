@@ -4284,15 +4284,14 @@ async function handleUploadTyped(file, tipo) {
         }
 
         const rowsTxt = data.snapshot_rows >= 0 ? ` (${data.snapshot_rows.toLocaleString('pt-BR')} linhas)` : '';
-        msg.textContent = `Upload concluído!${rowsTxt}`;
-        msg.classList.add('text-emerald-400');
+        msg.textContent = `✓ Upload concluído!${rowsTxt}`;
+        msg.className = 'upload-msg text-xs text-emerald-400 font-semibold mt-1';
         loadFileInfo();
 
         setTimeout(() => {
-            progress.classList.add('hidden');
             bar.style.width = '0%';
-            msg.className = 'upload-msg text-xs text-slate-400 mt-1';
-        }, 2500);
+            progress.querySelector('.upload-bar').parentElement.classList.add('hidden');
+        }, 1500);
     } catch (err) {
         bar.style.width = '100%';
         msg.textContent = 'Erro: ' + err.message;
@@ -4341,15 +4340,25 @@ async function processServerFolder(tipo) {
 }
 
 function loadFileInfo() {
+    const TIPO_COLORS = {
+        matriculados: 'emerald', inadimplentes: 'amber', concluintes: 'purple',
+        acesso_ava: 'sky', sem_rematricula: 'rose'
+    };
     fetch('/api/upload/info').then(r => r.json()).then(d => {
         const snaps = d.snapshots || {};
         for (const tipo of ['matriculados', 'inadimplentes', 'concluintes', 'acesso_ava', 'sem_rematricula']) {
             const el = document.getElementById('snap-info-' + tipo);
             if (!el) continue;
             const s = snaps[tipo];
+            const c = TIPO_COLORS[tipo] || 'slate';
             if (s) {
-                el.innerHTML = `<span class="text-slate-300 font-medium">${esc(s.filename)}</span><br>${s.row_count.toLocaleString('pt-BR')} linhas &middot; ${s.uploaded_at}`;
+                el.className = `snap-info mt-3 text-xs border border-${c}-500/20 bg-${c}-500/5 rounded-lg p-2.5`;
+                el.innerHTML = `<div class="flex items-center gap-1.5 mb-1">` +
+                    `<svg class="w-3.5 h-3.5 text-${c}-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>` +
+                    `<span class="text-${c}-300 font-semibold truncate">${esc(s.filename)}</span></div>` +
+                    `<div class="text-slate-400 pl-5">${s.row_count.toLocaleString('pt-BR')} linhas &middot; ${s.uploaded_at}</div>`;
             } else {
+                el.className = 'snap-info mt-3 text-xs text-slate-500';
                 el.textContent = 'Nenhum snapshot';
             }
         }
