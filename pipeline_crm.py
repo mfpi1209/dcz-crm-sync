@@ -775,7 +775,7 @@ def analyze(xl_by_rgm, crm_by_rgm, stage_ids, sem_remat_adim=None,
                             "biz_id": biz_id, "rgm": rgm, "nome": nome,
                             "motivo": label,
                         })
-                        stats["move_sem_remat_adim" if in_adim else "move_sem_remat_inadim"] += 1
+                        stats["move_sem_remat_inadim" if in_inadim else "move_sem_remat_adim"] += 1
                     else:
                         stats["already_correct"] += 1
                     continue
