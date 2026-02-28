@@ -782,821 +782,16 @@
         /* ═══════════════════════════════════════════════════════════════
            FEEDBACK PAGE — Usa variáveis do sistema para consistência
            ═══════════════════════════════════════════════════════════════ */
-        #page-feedback {
-            /* Herda variáveis do :root para consistência */
-        }
-
-        /* Ajustes específicos para a página de feedback */
-        #page-feedback .fb-filters {
-            background: var(--bg-card);
-            border-radius: var(--radius-card);
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            box-shadow: var(--shadow);
-            border: 1px solid var(--border);
-        }
-
-        #page-feedback .fb-filters-title {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        #page-feedback .fb-filters-title svg {
-            width: 18px;
-            height: 18px;
-            fill: var(--primary);
-        }
-
-        #page-feedback .fb-filters-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            align-items: end;
-        }
-
-        #page-feedback .fb-fg {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        #page-feedback .fb-fg label {
-            font-size: 12px;
-            font-weight: 500;
-            color: var(--text-secondary);
-        }
-
-        #page-feedback .fb-fg input,
-        #page-feedback .fb-fg select {
-            padding: 12px 14px;
-            border: 1px solid var(--border);
-            border-radius: var(--radius-btn);
-            font-size: 14px;
-            font-family: inherit;
-            color: var(--text-primary);
-            background: var(--bg-card);
-            transition: all var(--transition-base);
-        }
-
-        #page-feedback .fb-fg input:focus,
-        #page-feedback .fb-fg select:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
-        }
-
-        #page-feedback .fb-btn {
-            padding: 12px 24px;
-            border: none;
-            border-radius: var(--radius-btn);
-            font-size: 14px;
-            font-weight: 600;
-            font-family: inherit;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            transition: all var(--transition-base);
-        }
-
-        #page-feedback .fb-btn-primary {
-            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-            color: #fff;
-            box-shadow: 0 4px 14px rgba(37,99,235,0.35);
-        }
-
-        #page-feedback .fb-btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(37,99,235,0.45);
-        }
-
-        #page-feedback .fb-btn-primary:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        #page-feedback .fb-btn svg {
-            width: 18px;
-            height: 18px;
-            fill: currentColor;
-        }
-
-        #page-feedback .fb-btn.loading svg {
-            animation: spin 1s linear infinite;
-        }
-
-        #page-feedback .fb-section-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        #page-feedback .fb-badge {
-            background: var(--primary-light);
-            color: var(--primary);
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 500;
-        }
-
-        #page-feedback .fb-kpis-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 1.25rem;
-            margin-bottom: 1.5rem;
-        }
-
-        #page-feedback .fb-kpi {
-            background: var(--bg-card);
-            border-radius: var(--radius-card);
-            padding: 1.5rem;
-            box-shadow: var(--shadow);
-            position: relative;
-            overflow: hidden;
-            transition: transform var(--transition-base), box-shadow var(--transition-base);
-            border: 1px solid var(--border);
-        }
-
-        #page-feedback .fb-kpi:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-lg);
-        }
-
-        #page-feedback .fb-kpi::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 4px;
-            height: 100%;
-        }
-
-        #page-feedback .fb-kpi.blue::before { background: var(--primary); }
-        #page-feedback .fb-kpi.green::before { background: var(--success); }
-        #page-feedback .fb-kpi.orange::before { background: var(--accent); }
-        #page-feedback .fb-kpi.cyan::before { background: var(--secondary); }
-
-        #page-feedback .fb-kpi-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 1rem;
-        }
-
-        #page-feedback .fb-kpi.blue .fb-kpi-icon { background: var(--primary-light); }
-        #page-feedback .fb-kpi.green .fb-kpi-icon { background: #d1fae5; }
-        #page-feedback .fb-kpi.orange .fb-kpi-icon { background: #fef3c7; }
-        #page-feedback .fb-kpi.cyan .fb-kpi-icon { background: #cffafe; }
-
-        #page-feedback .fb-kpi-icon svg { width: 24px; height: 24px; }
-        #page-feedback .fb-kpi.blue .fb-kpi-icon svg { fill: var(--primary); }
-        #page-feedback .fb-kpi.green .fb-kpi-icon svg { fill: var(--success); }
-        #page-feedback .fb-kpi.orange .fb-kpi-icon svg { fill: var(--accent); }
-        #page-feedback .fb-kpi.cyan .fb-kpi-icon svg { fill: var(--secondary); }
-
-        #page-feedback .fb-kpi-label {
-            font-size: 12px;
-            color: var(--text-muted);
-            margin-bottom: 4px;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-        }
-
-        #page-feedback .fb-kpi-value {
-            font-size: 32px;
-            font-weight: 700;
-            color: var(--text-primary);
-            line-height: 1.1;
-        }
-
-        #page-feedback .fb-kpi-sub {
-            font-size: 13px;
-            color: var(--text-secondary);
-            margin-top: 8px;
-        }
-
-        #page-feedback .fb-table-section {
-            background: var(--bg-card);
-            border-radius: var(--radius-card);
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            box-shadow: var(--shadow);
-            border: 1px solid var(--border);
-        }
-
-        #page-feedback .fb-table-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.25rem;
-            flex-wrap: wrap;
-            gap: 12px;
-        }
-
-        #page-feedback .fb-table-wrapper { overflow-x: auto; }
-
-        #page-feedback .fb-table {
-            width: 100%;
-            border-collapse: collapse;
-            min-width: 600px;
-        }
-
-        #page-feedback .fb-table th {
-            text-align: left;
-            padding: 14px 16px;
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            background: var(--bg-main);
-            border-bottom: 1px solid var(--border);
-        }
-
-        #page-feedback .fb-table td {
-            padding: 16px;
-            font-size: 14px;
-            color: var(--text-primary);
-            border-bottom: 1px solid var(--border-subtle);
-        }
-
-        #page-feedback .fb-table tr:hover td { background: rgba(37,99,235,0.03); }
-        #page-feedback .fb-table tr:last-child td { border-bottom: none; }
-
-        #page-feedback .fb-consultor-name {
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        #page-feedback .fb-avatar {
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
-            font-weight: 600;
-            font-size: 14px;
-            flex-shrink: 0;
-        }
-
-        #page-feedback .fb-nota-badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-weight: 600;
-            font-size: 13px;
-        }
-
-        #page-feedback .fb-nota-badge.high { background: #d1fae5; color: #059669; }
-        #page-feedback .fb-nota-badge.medium { background: #fef3c7; color: #d97706; }
-        #page-feedback .fb-nota-badge.low { background: #fee2e2; color: #dc2626; }
-
-        #page-feedback .fb-btn-detail {
-            padding: 8px 16px;
-            background: var(--primary-light);
-            color: var(--primary);
-            border: none;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all var(--transition-base);
-            display: inline-flex;
-            align-items: center;
-            white-space: nowrap;
-        }
-
-        #page-feedback .fb-btn-detail:hover {
-            background: var(--primary);
-            color: #fff;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(37,99,235,0.3);
-        }
-
-        #page-feedback .fb-detail-header {
-            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-            border-radius: var(--radius-card);
-            padding: 1.5rem;
-            margin-bottom: 1.25rem;
-            color: #fff;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: var(--shadow-lg);
-        }
-
-        #page-feedback .fb-detail-back {
-            background: rgba(255,255,255,0.15);
-            border: 1px solid rgba(255,255,255,0.25);
-            color: #fff;
-            padding: 10px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: all var(--transition-fast);
-        }
-
-        #page-feedback .fb-detail-back:hover {
-            background: rgba(255,255,255,0.25);
-        }
-
-        #page-feedback .fb-card {
-            background: var(--bg-card);
-            border-radius: var(--radius-card);
-            padding: 1.5rem;
-            margin-bottom: 1.25rem;
-            box-shadow: var(--shadow);
-            border: 1px solid var(--border);
-        }
-
-        #page-feedback .fb-card-title {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 1rem;
-            font-weight: 600;
-            font-size: 16px;
-            color: var(--primary);
-        }
-
-        #page-feedback .fb-card-title svg { fill: var(--primary); }
-
-        #page-feedback .fb-fb-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 1.25rem;
-            margin-bottom: 1.25rem;
-        }
-
-        #page-feedback .fb-top-title {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-weight: 600;
-            margin-bottom: 1rem;
-        }
-
-        #page-feedback .fb-top-title.positive { color: var(--success); }
-        #page-feedback .fb-top-title.negative { color: var(--danger); }
-
-        #page-feedback .fb-btn-exemplos {
-            padding: 6px 12px;
-            border: none;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all var(--transition-fast);
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        #page-feedback .fb-btn-exemplos.pos {
-            background: rgba(5,150,105,0.1);
-            color: var(--success);
-        }
-
-        #page-feedback .fb-btn-exemplos.pos:hover {
-            background: var(--success);
-            color: #fff;
-        }
-
-        #page-feedback .fb-btn-exemplos.neg {
-            background: rgba(220,38,38,0.1);
-            color: var(--danger);
-        }
-
-        #page-feedback .fb-btn-exemplos.neg:hover {
-            background: var(--danger);
-            color: #fff;
-        }
-
-        #page-feedback .fb-chart-section {
-            background: var(--bg-card);
-            border-radius: var(--radius-card);
-            padding: 1.5rem;
-            box-shadow: var(--shadow);
-            margin-bottom: 1.5rem;
-            border: 1px solid var(--border);
-        }
-
-        #page-feedback .fb-chart-box { position: relative; height: 300px; }
-
-        #page-feedback .fb-empty {
-            text-align: center;
-            padding: 60px 20px;
-            color: var(--text-muted);
-        }
-
-        #page-feedback .fb-empty svg {
-            width: 64px;
-            height: 64px;
-            fill: var(--border);
-            margin-bottom: 16px;
-        }
-
-        #page-feedback .fb-empty p { font-size: 16px; }
-
-        /* Modal */
-        #fb-modal-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.6);
-            backdrop-filter: blur(4px);
-            z-index: 1100;
-            overflow-y: auto;
-            padding: 40px 20px;
-        }
-
-        #fb-modal-overlay.active {
-            display: flex;
-            justify-content: center;
-        }
-
-        #fb-modal-container {
-            background: var(--bg-card);
-            border-radius: var(--radius-xl);
-            max-width: 900px;
-            width: 100%;
-            max-height: calc(100vh - 80px);
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            box-shadow: var(--shadow-xl);
-            border: 1px solid var(--border);
-        }
-
-        #fb-modal-container .fb-modal-hdr {
-            padding: 1.5rem 1.75rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid var(--border);
-        }
-
-        #fb-modal-container .fb-modal-hdr.positivo {
-            background: linear-gradient(135deg, var(--success), #047857);
-            color: #fff;
-        }
-
-        #fb-modal-container .fb-modal-hdr.negativo {
-            background: linear-gradient(135deg, var(--danger), #b91c1c);
-            color: #fff;
-        }
-
-        #fb-modal-container .fb-modal-hdr h2 {
-            margin: 0;
-            font-size: 20px;
-            font-weight: 700;
-        }
-
-        #fb-modal-container .fb-modal-hdr p {
-            margin: 4px 0 0;
-            opacity: 0.9;
-            font-size: 14px;
-        }
-
-        #fb-modal-container .fb-modal-close {
-            background: rgba(255,255,255,0.15);
-            border: none;
-            border-radius: 8px;
-            padding: 8px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all var(--transition-fast);
-        }
-
-        #fb-modal-container .fb-modal-close svg { fill: #fff; }
-
-        #fb-modal-container .fb-modal-close:hover {
-            background: rgba(255,255,255,0.25);
-        }
-
-        #fb-modal-body {
-            padding: 1.5rem;
-            overflow-y: auto;
-            flex: 1;
-        }
-
-        #page-feedback .fb-ex-card {
-            background: var(--bg-card);
-            border-radius: var(--radius-card);
-            padding: 1.5rem;
-            margin-bottom: 1.25rem;
-            box-shadow: var(--shadow);
-            border-left: 4px solid var(--primary);
-            border: 1px solid var(--border);
-            border-left-width: 4px;
-        }
-
-        #page-feedback .fb-ex-card.positivo { border-left-color: var(--success); }
-        #page-feedback .fb-ex-card.negativo { border-left-color: var(--danger); }
-
-        #page-feedback .fb-ex-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 1rem;
-        }
-
-        #page-feedback .fb-ex-titulo {
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin: 0 0 8px;
-        }
-
-        #page-feedback .fb-ex-nota {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-weight: 600;
-            font-size: 14px;
-        }
-
-        #page-feedback .fb-ex-nota.alta { background: #dcfce7; color: #166534; }
-        #page-feedback .fb-ex-nota.media { background: #fef3c7; color: #92400e; }
-        #page-feedback .fb-ex-nota.baixa { background: #fee2e2; color: #dc2626; }
-
-        #page-feedback .fb-ex-explicacao {
-            font-size: 14px;
-            line-height: 1.7;
-            color: var(--text-secondary);
-            margin-bottom: 1rem;
-            padding: 1rem;
-            background: var(--bg-main);
-            border-radius: 12px;
-        }
-
-        #page-feedback .fb-trecho {
-            padding: 12px 16px;
-            background: var(--primary-light);
-            border-left: 3px solid var(--primary);
-            border-radius: 0 8px 8px 0;
-            font-size: 13px;
-            color: var(--text-secondary);
-            font-style: italic;
-            margin-bottom: 8px;
-        }
-
-        #page-feedback .fb-acao {
-            padding: 10px 14px;
-            background: #fef3c7;
-            border-radius: 8px;
-            font-size: 13px;
-            color: #92400e;
-            display: flex;
-            align-items: flex-start;
-            gap: 8px;
-            margin-bottom: 8px;
-        }
-
-        #page-feedback .fb-conv-toggle {
-            width: 100%;
-            padding: 12px 16px;
-            background: var(--bg-main);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            font-size: 14px;
-            font-weight: 500;
-            color: var(--text-secondary);
-            transition: all var(--transition-fast);
-        }
-
-        #page-feedback .fb-conv-toggle:hover {
-            background: var(--primary-light);
-            color: var(--primary);
-            border-color: var(--primary);
-        }
-
-        #page-feedback .fb-conv-toggle svg {
-            width: 20px;
-            height: 20px;
-            fill: currentColor;
-            transition: transform 0.3s;
-        }
-
-        #page-feedback .fb-conv-toggle.active svg {
-            transform: rotate(180deg);
-        }
-
-        #page-feedback .fb-conv-content {
-            display: none;
-            margin-top: 12px;
-            padding: 16px;
-            background: var(--bg-card);
-            border-radius: 8px;
-            max-height: 400px;
-            overflow-y: auto;
-            border: 1px solid var(--border);
-        }
-
-        #page-feedback .fb-conv-content.active { display: block; }
-
-        #page-feedback .fb-conv-content pre {
-            margin: 0;
-            font-family: 'JetBrains Mono', 'Consolas', monospace;
-            font-size: 12px;
-            line-height: 1.6;
-            color: var(--text-secondary);
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
-
-        /* Toast */
-        #fb-error-toast {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            background: var(--danger);
-            color: #fff;
-            padding: 16px 24px;
-            border-radius: 12px;
-            display: none;
-            align-items: center;
-            gap: 12px;
-            box-shadow: var(--shadow-lg);
-            z-index: 1200;
-        }
-
-        #fb-error-toast.active { display: flex; }
-
-        /* Loading overlay */
-        #fb-loading {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(15,23,42,0.85);
-            backdrop-filter: blur(4px);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 50;
-            border-radius: var(--radius-card);
-        }
-
-        .light #fb-loading { background: rgba(248,250,252,0.9); }
-
-        #fb-loading.active { display: flex; }
-
-        #fb-loading .fb-spinner {
-            width: 48px;
-            height: 48px;
-            border: 4px solid var(--border);
-            border-top-color: var(--primary);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        #page-feedback .fb-filters {
-            background: var(--fb-bg-card); border-radius:16px; padding:24px;
-            margin-bottom:24px; box-shadow: var(--fb-shadow);
-        }
-        #page-feedback .fb-filters-title {
-            font-size:14px; font-weight:600; color:var(--fb-text-secondary);
-            text-transform:uppercase; letter-spacing:.5px; margin-bottom:16px;
-            display:flex; align-items:center; gap:8px;
-        }
-        #page-feedback .fb-filters-title svg { width:18px; height:18px; fill:var(--fb-primary); }
-        #page-feedback .fb-filters-grid {
-            display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
-            gap:16px; align-items:end;
-        }
-        #page-feedback .fb-fg { display:flex; flex-direction:column; gap:6px; }
-        #page-feedback .fb-fg label { font-size:13px; font-weight:500; color:var(--fb-text-secondary); }
-        #page-feedback .fb-fg input,
-        #page-feedback .fb-fg select {
-            padding:12px 14px; border:1px solid var(--fb-border); border-radius:10px;
-            font-size:14px; font-family:inherit; color:var(--fb-text-primary);
-            background:var(--fb-bg-card); transition:all .2s;
-        }
-        #page-feedback .fb-fg input:focus,
-        #page-feedback .fb-fg select:focus {
-            outline:none; border-color:var(--fb-primary);
-            box-shadow:0 0 0 3px var(--fb-primary-light);
-        }
-        #page-feedback .fb-btn {
-            padding:12px 24px; border:none; border-radius:10px; font-size:14px;
-            font-weight:600; font-family:inherit; cursor:pointer;
-            display:flex; align-items:center; justify-content:center; gap:8px; transition:all .2s;
-        }
-        #page-feedback .fb-btn-primary {
-            background:linear-gradient(135deg,var(--fb-primary),var(--fb-primary-dark));
-            color:#fff; box-shadow:0 4px 14px rgba(37,99,235,.3);
-        }
-        #page-feedback .fb-btn-primary:hover { transform:translateY(-1px); box-shadow:0 6px 20px rgba(37,99,235,.4); }
-        #page-feedback .fb-btn-primary:disabled { opacity:.6; cursor:not-allowed; transform:none; }
-        #page-feedback .fb-btn svg { width:18px; height:18px; fill:currentColor; }
-        #page-feedback .fb-btn.loading svg { animation:spin 1s linear infinite; }
-
-        #page-feedback .fb-section-title {
-            font-size:18px; font-weight:600; color:var(--fb-text-primary);
-            margin-bottom:16px; display:flex; align-items:center; gap:10px;
-        }
-        #page-feedback .fb-badge {
-            background:var(--fb-primary-light); color:var(--fb-primary);
-            padding:4px 10px; border-radius:20px; font-size:12px; font-weight:500;
-        }
-        #page-feedback .fb-kpis-grid {
-            display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
-            gap:20px; margin-bottom:24px;
-        }
-        #page-feedback .fb-kpi {
-            background:var(--fb-bg-card); border-radius:16px; padding:24px;
-            box-shadow:var(--fb-shadow); position:relative; overflow:hidden;
-            transition:transform .2s, box-shadow .2s;
-        }
-        #page-feedback .fb-kpi:hover { transform:translateY(-2px); box-shadow:var(--fb-shadow-lg); }
-        #page-feedback .fb-kpi::before {
-            content:''; position:absolute; top:0; left:0; width:4px; height:100%;
-        }
-        #page-feedback .fb-kpi.blue::before  { background:var(--fb-primary); }
-        #page-feedback .fb-kpi.green::before { background:var(--fb-success); }
-        #page-feedback .fb-kpi.orange::before { background:var(--fb-accent); }
-        #page-feedback .fb-kpi.cyan::before  { background:var(--fb-secondary); }
-        #page-feedback .fb-kpi-icon {
-            width:48px; height:48px; border-radius:12px;
-            display:flex; align-items:center; justify-content:center; margin-bottom:16px;
-        }
-        #page-feedback .fb-kpi.blue .fb-kpi-icon  { background:var(--fb-primary-light); }
-        #page-feedback .fb-kpi.green .fb-kpi-icon  { background:#d1fae5; }
-        #page-feedback .fb-kpi.orange .fb-kpi-icon { background:#fef3c7; }
-        #page-feedback .fb-kpi.cyan .fb-kpi-icon   { background:#cffafe; }
-        #page-feedback .fb-kpi-icon svg { width:24px; height:24px; }
-        #page-feedback .fb-kpi.blue .fb-kpi-icon svg  { fill:var(--fb-primary); }
-        #page-feedback .fb-kpi.green .fb-kpi-icon svg  { fill:var(--fb-success); }
-        #page-feedback .fb-kpi.orange .fb-kpi-icon svg { fill:var(--fb-accent); }
-        #page-feedback .fb-kpi.cyan .fb-kpi-icon svg   { fill:var(--fb-secondary); }
-        #page-feedback .fb-kpi-label { font-size:13px; color:var(--fb-text-muted); margin-bottom:4px; text-transform:uppercase; letter-spacing:.3px; }
-        #page-feedback .fb-kpi-value { font-size:32px; font-weight:700; color:var(--fb-text-primary); line-height:1.1; }
-        #page-feedback .fb-kpi-sub { font-size:13px; color:var(--fb-text-secondary); margin-top:8px; }
-
-        #page-feedback .fb-table-section {
-            background:var(--fb-bg-card); border-radius:16px; padding:24px;
-            margin-bottom:24px; box-shadow:var(--fb-shadow);
-        }
-        #page-feedback .fb-table-header {
-            display:flex; justify-content:space-between; align-items:center;
-            margin-bottom:20px; flex-wrap:wrap; gap:12px;
-        }
-        #page-feedback .fb-table-wrapper { overflow-x:auto; }
-        #page-feedback .fb-table { width:100%; border-collapse:collapse; min-width:600px; }
-        #page-feedback .fb-table th {
-            text-align:left; padding:14px 16px; font-size:12px; font-weight:600;
-            color:var(--fb-text-secondary); text-transform:uppercase; letter-spacing:.5px;
-            background:var(--fb-bg-main); border-bottom:1px solid var(--fb-border);
-        }
-        #page-feedback .fb-table td {
-            padding:16px; font-size:14px; color:var(--fb-text-primary);
-            border-bottom:1px solid var(--fb-border);
-        }
-        #page-feedback .fb-table tr:hover td { background:var(--fb-bg-main); }
-        #page-feedback .fb-table tr:last-child td { border-bottom:none; }
+        /* Feedback — estilos mantidos para componentes JS-dinâmicos */
+        /* Feedback — tabela dinâmica (JS) */
+        #page-feedback table tbody tr { transition: background .15s; }
+        #page-feedback table tbody tr:hover { background: rgba(99,102,241,.04); }
+        #page-feedback table tbody td { padding:12px 16px; font-size:13px; color:#cbd5e1; border-bottom:1px solid rgba(255,255,255,.06); }
+        #page-feedback table tbody tr:last-child td { border-bottom:none; }
         #page-feedback .fb-consultor-name { font-weight:600; display:flex; align-items:center; gap:10px; }
         #page-feedback .fb-avatar {
             width:36px; height:36px; border-radius:10px;
-            background:linear-gradient(135deg,var(--fb-primary),var(--fb-secondary));
+            background:linear-gradient(135deg, #6366f1, #06b6d4);
             display:flex; align-items:center; justify-content:center;
             color:#fff; font-weight:600; font-size:14px; flex-shrink:0;
         }
@@ -1604,67 +799,31 @@
             display:inline-flex; align-items:center; padding:6px 12px;
             border-radius:20px; font-weight:600; font-size:13px;
         }
-        #page-feedback .fb-nota-badge.high { background:#d1fae5; color:#059669; }
-        #page-feedback .fb-nota-badge.medium { background:#fef3c7; color:#d97706; }
-        #page-feedback .fb-nota-badge.low { background:#fee2e2; color:#dc2626; }
+        #page-feedback .fb-nota-badge.high { background:rgba(16,185,129,.15); color:#10b981; }
+        #page-feedback .fb-nota-badge.medium { background:rgba(245,158,11,.15); color:#f59e0b; }
+        #page-feedback .fb-nota-badge.low { background:rgba(239,68,68,.15); color:#ef4444; }
         #page-feedback .fb-btn-detail {
-            padding:8px 16px; background:var(--fb-primary-light); color:var(--fb-primary);
+            padding:8px 16px; background:rgba(99,102,241,.12); color:#818cf8;
             border:none; border-radius:8px; font-size:13px; font-weight:500;
             cursor:pointer; transition:all .2s; display:inline-flex; align-items:center; white-space:nowrap;
         }
-        #page-feedback .fb-btn-detail:hover { background:var(--fb-primary); color:#fff; transform:translateY(-1px); box-shadow:0 4px 12px rgba(37,99,235,.3); }
+        #page-feedback .fb-btn-detail:hover { background:#6366f1; color:#fff; transform:translateY(-1px); box-shadow:0 4px 12px rgba(99,102,241,.3); }
 
-        #page-feedback .fb-detail-header {
-            background:linear-gradient(135deg,var(--fb-primary),#1e40af);
-            border-radius:16px; padding:24px; margin-bottom:20px; color:#fff;
-            display:flex; justify-content:space-between; align-items:center;
-        }
-        #page-feedback .fb-detail-back {
-            background:rgba(255,255,255,.2); border:1px solid rgba(255,255,255,.3);
-            color:#fff; padding:10px 20px; border-radius:8px; cursor:pointer;
-            font-size:14px; font-weight:500; display:flex; align-items:center; gap:8px; transition:all .2s;
-        }
-        #page-feedback .fb-detail-back:hover { background:rgba(255,255,255,.3); }
-
-        #page-feedback .fb-card {
-            background:var(--fb-bg-card); border-radius:16px; padding:24px;
-            margin-bottom:20px; box-shadow:var(--fb-shadow);
-        }
-        #page-feedback .fb-card-title {
-            display:flex; align-items:center; gap:10px; margin-bottom:16px;
-            font-weight:600; font-size:16px; color:var(--fb-primary);
-        }
-        #page-feedback .fb-card-title svg { fill:var(--fb-primary); }
-        #page-feedback .fb-fb-grid {
-            display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:20px; margin-bottom:20px;
-        }
-        #page-feedback .fb-top-title { display:flex; align-items:center; gap:10px; font-weight:600; margin-bottom:16px; }
-        #page-feedback .fb-top-title.positive { color:var(--fb-success); }
-        #page-feedback .fb-top-title.negative { color:var(--fb-danger); }
-
+        /* Feedback — botão "Ver exemplos" */
         #page-feedback .fb-btn-exemplos {
-            padding:6px 12px; border:none; border-radius:6px; font-size:12px;
+            padding:6px 12px; border:none; border-radius:8px; font-size:12px;
             font-weight:500; cursor:pointer; transition:all .2s;
             display:inline-flex; align-items:center; gap:6px;
         }
-        #page-feedback .fb-btn-exemplos.pos { background:rgba(5,150,105,.1); color:var(--fb-success); }
-        #page-feedback .fb-btn-exemplos.pos:hover { background:var(--fb-success); color:#fff; }
-        #page-feedback .fb-btn-exemplos.neg { background:rgba(220,38,38,.1); color:var(--fb-danger); }
-        #page-feedback .fb-btn-exemplos.neg:hover { background:var(--fb-danger); color:#fff; }
+        #page-feedback .fb-btn-exemplos.pos { background:rgba(16,185,129,.12); color:#10b981; }
+        #page-feedback .fb-btn-exemplos.pos:hover { background:#10b981; color:#fff; }
+        #page-feedback .fb-btn-exemplos.neg { background:rgba(239,68,68,.12); color:#ef4444; }
+        #page-feedback .fb-btn-exemplos.neg:hover { background:#ef4444; color:#fff; }
 
-        #page-feedback .fb-chart-section {
-            background:var(--fb-bg-card); border-radius:16px; padding:24px;
-            box-shadow:var(--fb-shadow); margin-bottom:24px;
-        }
+        /* Feedback — chart box */
         #page-feedback .fb-chart-box { position:relative; height:300px; }
 
-        #page-feedback .fb-empty {
-            text-align:center; padding:60px 20px; color:var(--fb-text-muted);
-        }
-        #page-feedback .fb-empty svg { width:64px; height:64px; fill:var(--fb-border); margin-bottom:16px; }
-        #page-feedback .fb-empty p { font-size:16px; }
-
-        /* Modal */
+        /* Feedback — Modal */
         #fb-modal-overlay {
             display:none; position:fixed; top:0; left:0; right:0; bottom:0;
             background:rgba(0,0,0,.6); backdrop-filter:blur(4px); z-index:1100;
@@ -1672,66 +831,70 @@
         }
         #fb-modal-overlay.active { display:flex; justify-content:center; }
         #fb-modal-container {
-            background:var(--fb-bg-card,#fff); border-radius:20px; max-width:900px;
+            background:var(--card-bg, #1e293b); border-radius:20px; max-width:900px;
             width:100%; max-height:calc(100vh - 80px); overflow:hidden;
-            display:flex; flex-direction:column; box-shadow:0 25px 50px -12px rgba(0,0,0,.25);
+            display:flex; flex-direction:column; box-shadow:0 25px 50px -12px rgba(0,0,0,.4);
+            border:1px solid rgba(255,255,255,.08);
         }
         #fb-modal-container .fb-modal-hdr {
             padding:24px 28px; display:flex; justify-content:space-between; align-items:center;
-            border-bottom:1px solid var(--fb-border);
+            border-bottom:1px solid rgba(255,255,255,.08);
         }
         #fb-modal-container .fb-modal-hdr.positivo { background:linear-gradient(135deg,#059669,#047857); color:#fff; }
         #fb-modal-container .fb-modal-hdr.negativo { background:linear-gradient(135deg,#dc2626,#b91c1c); color:#fff; }
         #fb-modal-container .fb-modal-hdr h2 { margin:0; font-size:20px; font-weight:700; }
         #fb-modal-container .fb-modal-hdr p  { margin:4px 0 0; opacity:.9; font-size:14px; }
         #fb-modal-container .fb-modal-close {
-            background:rgba(255,255,255,.2); border:none; border-radius:8px;
+            background:rgba(255,255,255,.15); border:none; border-radius:8px;
             padding:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .2s;
         }
         #fb-modal-container .fb-modal-close svg { fill:#fff; }
-        #fb-modal-container .fb-modal-close:hover { background:rgba(255,255,255,.3); }
+        #fb-modal-container .fb-modal-close:hover { background:rgba(255,255,255,.25); }
         #fb-modal-body { padding:24px; overflow-y:auto; flex:1; }
 
+        /* Feedback — example cards (modal) */
         #page-feedback .fb-ex-card {
-            background:var(--fb-bg-card); border-radius:16px; padding:24px;
-            margin-bottom:20px; box-shadow:var(--fb-shadow); border-left:4px solid var(--fb-primary);
+            background:rgba(255,255,255,.04); border-radius:16px; padding:24px;
+            margin-bottom:20px; border-left:4px solid #6366f1;
+            border:1px solid rgba(255,255,255,.06); border-left-width:4px;
         }
-        #page-feedback .fb-ex-card.positivo { border-left-color:var(--fb-success); }
-        #page-feedback .fb-ex-card.negativo { border-left-color:var(--fb-danger); }
+        #page-feedback .fb-ex-card.positivo { border-left-color:#10b981; }
+        #page-feedback .fb-ex-card.negativo { border-left-color:#ef4444; }
         #page-feedback .fb-ex-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; }
-        #page-feedback .fb-ex-titulo { font-size:16px; font-weight:600; color:var(--fb-text-primary); margin:0 0 8px; }
+        #page-feedback .fb-ex-titulo { font-size:16px; font-weight:600; color:#f1f5f9; margin:0 0 8px; }
         #page-feedback .fb-ex-nota {
             display:inline-flex; align-items:center; gap:4px; padding:6px 12px;
             border-radius:20px; font-weight:600; font-size:14px;
         }
-        #page-feedback .fb-ex-nota.alta  { background:#dcfce7; color:#166534; }
-        #page-feedback .fb-ex-nota.media { background:#fef3c7; color:#92400e; }
-        #page-feedback .fb-ex-nota.baixa { background:#fee2e2; color:#dc2626; }
+        #page-feedback .fb-ex-nota.alta  { background:rgba(16,185,129,.15); color:#10b981; }
+        #page-feedback .fb-ex-nota.media { background:rgba(245,158,11,.15); color:#f59e0b; }
+        #page-feedback .fb-ex-nota.baixa { background:rgba(239,68,68,.15); color:#ef4444; }
         #page-feedback .fb-ex-explicacao {
-            font-size:14px; line-height:1.7; color:var(--fb-text-secondary);
-            margin-bottom:16px; padding:16px; background:var(--fb-bg-main); border-radius:12px;
+            font-size:14px; line-height:1.7; color:#94a3b8;
+            margin-bottom:16px; padding:16px; background:rgba(255,255,255,.03); border-radius:12px;
         }
         #page-feedback .fb-trecho {
-            padding:12px 16px; background:#f0f9ff; border-left:3px solid var(--fb-primary);
-            border-radius:0 8px 8px 0; font-size:13px; color:var(--fb-text-secondary);
+            padding:12px 16px; background:rgba(99,102,241,.08); border-left:3px solid #6366f1;
+            border-radius:0 8px 8px 0; font-size:13px; color:#94a3b8;
             font-style:italic; margin-bottom:8px;
         }
         #page-feedback .fb-acao {
-            padding:10px 14px; background:#fef3c7; border-radius:8px;
-            font-size:13px; color:#92400e; display:flex; align-items:flex-start; gap:8px; margin-bottom:8px;
+            padding:10px 14px; background:rgba(245,158,11,.1); border-radius:8px;
+            font-size:13px; color:#f59e0b; display:flex; align-items:flex-start; gap:8px; margin-bottom:8px;
         }
         #page-feedback .fb-conv-toggle {
-            width:100%; padding:12px 16px; background:var(--fb-bg-main);
-            border:1px solid var(--fb-border); border-radius:8px; cursor:pointer;
+            width:100%; padding:12px 16px; background:rgba(255,255,255,.03);
+            border:1px solid rgba(255,255,255,.08); border-radius:8px; cursor:pointer;
             display:flex; align-items:center; justify-content:space-between;
-            font-size:14px; font-weight:500; color:var(--fb-text-secondary); transition:all .2s;
+            font-size:14px; font-weight:500; color:#94a3b8; transition:all .2s;
         }
-        #page-feedback .fb-conv-toggle:hover { background:var(--fb-primary-light); color:var(--fb-primary); border-color:var(--fb-primary); }
+        #page-feedback .fb-conv-toggle:hover { background:rgba(99,102,241,.08); color:#818cf8; border-color:rgba(99,102,241,.3); }
         #page-feedback .fb-conv-toggle svg { width:20px; height:20px; fill:currentColor; transition:transform .3s; }
         #page-feedback .fb-conv-toggle.active svg { transform:rotate(180deg); }
         #page-feedback .fb-conv-content {
-            display:none; margin-top:12px; padding:16px; background:#1e293b;
+            display:none; margin-top:12px; padding:16px; background:#0f172a;
             border-radius:8px; max-height:400px; overflow-y:auto;
+            border:1px solid rgba(255,255,255,.06);
         }
         #page-feedback .fb-conv-content.active { display:block; }
         #page-feedback .fb-conv-content pre {
@@ -1739,25 +902,25 @@
             line-height:1.6; color:#e2e8f0; white-space:pre-wrap; word-break:break-word;
         }
 
-        /* Toast */
+        /* Feedback — Toast */
         #fb-error-toast {
-            position:fixed; bottom:24px; right:24px; background:var(--fb-danger,#dc2626);
+            position:fixed; bottom:24px; right:24px; background:#ef4444;
             color:#fff; padding:16px 24px; border-radius:12px; display:none;
-            align-items:center; gap:12px; box-shadow:var(--fb-shadow-lg); z-index:1200;
+            align-items:center; gap:12px; box-shadow:0 10px 25px rgba(239,68,68,.3); z-index:1200;
         }
         #fb-error-toast.active { display:flex; }
 
-        /* Loading overlay (scoped) */
+        /* Feedback — Loading overlay */
         #fb-loading {
             position:absolute; top:0; left:0; right:0; bottom:0;
-            background:rgba(255,255,255,.85); display:none;
+            background:rgba(15,23,42,.85); backdrop-filter:blur(4px); display:none;
             align-items:center; justify-content:center; z-index:50; border-radius:16px;
         }
-        .dark #fb-loading { background:rgba(15,23,42,.85); }
+        .light #fb-loading { background:rgba(248,250,252,.9); }
         #fb-loading.active { display:flex; }
         #fb-loading .fb-spinner {
-            width:48px; height:48px; border:4px solid var(--fb-border);
-            border-top-color:var(--fb-primary); border-radius:50%; animation:spin 1s linear infinite;
+            width:48px; height:48px; border:4px solid rgba(255,255,255,.1);
+            border-top-color:#6366f1; border-radius:50%; animation:spin 1s linear infinite;
         }
     </style>
     <script>
@@ -3031,171 +2194,199 @@
 
             <!-- ============ PAGE: FEEDBACK ============ -->
             <div id="page-feedback" class="p-4 lg:p-8 max-w-7xl mx-auto hidden" style="position:relative;">
+                <!-- Header -->
                 <div class="mb-8">
-                    <h2 class="text-3xl font-bold text-white font-display mb-1">Feedback Acadêmico</h2>
-                    <p class="text-slate-400 text-sm">Dashboard de Atendimentos</p>
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-3xl font-bold text-white font-display">Feedback Acadêmico</h2>
+                            <p class="text-slate-500 text-sm">Dashboard de Atendimentos</p>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Filters -->
-                <div class="fb-filters">
-                    <div class="fb-filters-title">
-                        <svg viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
-                        Filtros
+                <div class="glass-card p-5 mb-6">
+                    <div class="flex items-center gap-2 mb-4">
+                        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Filtros</span>
                     </div>
-                    <div class="fb-filters-grid">
-                        <div class="fb-fg">
-                            <label>Data Início</label>
-                            <input type="date" id="fbStartDate">
+                    <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Data Início</label>
+                            <input type="date" id="fbStartDate" class="input-glass w-full text-sm px-3 py-2.5">
                         </div>
-                        <div class="fb-fg">
-                            <label>Data Fim</label>
-                            <input type="date" id="fbEndDate">
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Data Fim</label>
+                            <input type="date" id="fbEndDate" class="input-glass w-full text-sm px-3 py-2.5">
                         </div>
-                        <div class="fb-fg">
-                            <label>Consultor (opcional)</label>
-                            <select id="fbConsultorFilter">
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Consultor (opcional)</label>
+                            <select id="fbConsultorFilter" class="input-glass w-full text-sm px-3 py-2.5">
                                 <option value="">Todos os consultores</option>
                             </select>
                         </div>
-                        <button class="fb-btn fb-btn-primary" id="fbBtnBuscar" onclick="fbFetch()">
-                            <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-                            <span>Buscar</span>
+                        <button id="fbBtnBuscar" onclick="fbFetch()" class="btn-primary text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center justify-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            Buscar
                         </button>
                     </div>
                 </div>
 
                 <!-- KPIs -->
-                <div>
-                    <h2 class="fb-section-title">
-                        Visão Geral
-                        <span class="fb-badge" id="fbPeriodBadge">--</span>
-                    </h2>
-                    <div class="fb-kpis-grid">
-                        <div class="fb-kpi blue">
-                            <div class="fb-kpi-icon">
-                                <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                <div class="mb-6">
+                    <div class="flex items-center gap-2 mb-4">
+                        <h3 class="text-sm font-bold text-slate-300 font-display">Visão Geral</h3>
+                        <span class="tag-pill bg-indigo-500/15 text-indigo-400 border border-indigo-500/20" id="fbPeriodBadge">--</span>
+                    </div>
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="glass-card p-5 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-blue-500 to-indigo-500"></div>
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-10 h-10 rounded-xl bg-blue-500/15 flex items-center justify-center">
+                                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                </div>
+                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Atendimentos</p>
                             </div>
-                            <div class="fb-kpi-label">Total de Atendimentos</div>
-                            <div class="fb-kpi-value" id="fbKpiTotal">--</div>
+                            <p class="text-2xl font-bold text-white font-display pl-1" id="fbKpiTotal">--</p>
                         </div>
-                        <div class="fb-kpi green">
-                            <div class="fb-kpi-icon">
-                                <svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                        <div class="glass-card p-5 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-emerald-500 to-green-500"></div>
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center">
+                                    <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+                                </div>
+                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nota Média</p>
                             </div>
-                            <div class="fb-kpi-label">Nota Média</div>
-                            <div class="fb-kpi-value" id="fbKpiNota">--</div>
-                            <div class="fb-kpi-sub" id="fbKpiNotasSub">-- notas informadas</div>
+                            <p class="text-2xl font-bold text-white font-display pl-1" id="fbKpiNota">--</p>
+                            <p class="text-[10px] text-slate-500 pl-1 mt-1" id="fbKpiNotasSub">-- notas informadas</p>
                         </div>
-                        <div class="fb-kpi orange">
-                            <div class="fb-kpi-icon">
-                                <svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+                        <div class="glass-card p-5 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-amber-500 to-orange-500"></div>
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center">
+                                    <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                </div>
+                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">T. Resposta</p>
                             </div>
-                            <div class="fb-kpi-label">Tempo Médio Resposta</div>
-                            <div class="fb-kpi-value" id="fbKpiTempoResposta">--:--</div>
-                            <div class="fb-kpi-sub">min:seg</div>
+                            <p class="text-2xl font-bold text-white font-display pl-1" id="fbKpiTempoResposta">--:--</p>
+                            <p class="text-[10px] text-slate-500 pl-1 mt-1">min:seg</p>
                         </div>
-                        <div class="fb-kpi cyan">
-                            <div class="fb-kpi-icon">
-                                <svg viewBox="0 0 24 24"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg>
+                        <div class="glass-card p-5 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-cyan-500 to-teal-500"></div>
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-10 h-10 rounded-xl bg-cyan-500/15 flex items-center justify-center">
+                                    <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                </div>
+                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">T. Atendimento</p>
                             </div>
-                            <div class="fb-kpi-label">Tempo Médio Atendimento</div>
-                            <div class="fb-kpi-value" id="fbKpiTempoAtend">--:--</div>
-                            <div class="fb-kpi-sub">min:seg</div>
+                            <p class="text-2xl font-bold text-white font-display pl-1" id="fbKpiTempoAtend">--:--</p>
+                            <p class="text-[10px] text-slate-500 pl-1 mt-1">min:seg</p>
                         </div>
                     </div>
                 </div>
 
                 <!-- Detail section (consultor selected) -->
                 <div id="fbDetailSection" style="display:none;">
-                    <div class="fb-detail-header">
-                        <div>
-                            <h2 id="fbDetailName" style="margin:0;font-size:24px;font-weight:700;">Detalhes do Consultor</h2>
-                            <p style="margin:8px 0 0;opacity:.9;">Feedbacks e métricas detalhadas</p>
-                        </div>
-                        <button class="fb-detail-back" onclick="fbVoltarTodos()">
-                            <svg viewBox="0 0 24 24" width="18" height="18" style="fill:white;"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
-                            Voltar para Todos
-                        </button>
-                    </div>
-
-                    <div class="fb-card">
-                        <div class="fb-card-title">
-                            <svg viewBox="0 0 24 24" width="22" height="22"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
-                            Análise Geral
-                        </div>
-                        <div id="fbFeedGeral" style="font-size:14px;line-height:1.8;color:var(--fb-text-secondary);">
-                            <p style="color:var(--fb-text-muted);">Selecione um consultor para ver a análise</p>
+                    <div class="glass-card p-5 mb-6 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border-indigo-500/30">
+                        <div class="flex items-center justify-between flex-wrap gap-3">
+                            <div>
+                                <h2 id="fbDetailName" class="text-xl font-bold text-white font-display">Detalhes do Consultor</h2>
+                                <p class="text-slate-400 text-sm mt-1">Feedbacks e métricas detalhadas</p>
+                            </div>
+                            <button onclick="fbVoltarTodos()" class="btn-secondary text-slate-300 font-medium text-sm px-4 py-2 rounded-xl flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                                Voltar para Todos
+                            </button>
                         </div>
                     </div>
 
-                    <div class="fb-fb-grid">
-                        <div class="fb-card">
-                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-                                <div class="fb-top-title positive">
-                                    <svg viewBox="0 0 24 24" width="22" height="22" style="fill:var(--fb-success);"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>
-                                    Pontos Positivos
+                    <div class="glass-card p-5 mb-6">
+                        <div class="flex items-center gap-2 mb-4">
+                            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+                            <span class="text-sm font-bold text-slate-300">Análise Geral</span>
+                        </div>
+                        <div id="fbFeedGeral" class="text-sm leading-relaxed text-slate-400">
+                            <p class="text-slate-500">Selecione um consultor para ver a análise</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+                        <div class="glass-card p-5">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="flex items-center gap-2">
+                                    <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"/></svg>
+                                    <span class="text-sm font-bold text-emerald-400">Pontos Positivos</span>
                                 </div>
                                 <button class="fb-btn-exemplos pos" onclick="fbVerExemplos('positivo')">
-                                    <svg viewBox="0 0 24 24" width="16" height="16" style="fill:currentColor;"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+                                    <svg viewBox="0 0 24 24" width="14" height="14" style="fill:currentColor;"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
                                     Ver exemplos
                                 </button>
                             </div>
-                            <div id="fbFeedPos" style="font-size:14px;line-height:1.8;color:var(--fb-text-secondary);">
-                                <p style="color:var(--fb-text-muted);">Nenhum feedback disponível</p>
+                            <div id="fbFeedPos" class="text-sm leading-relaxed text-slate-400">
+                                <p class="text-slate-500">Nenhum feedback disponível</p>
                             </div>
                         </div>
-                        <div class="fb-card">
-                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-                                <div class="fb-top-title negative">
-                                    <svg viewBox="0 0 24 24" width="22" height="22" style="fill:var(--fb-danger);"><path d="M15 3H6c-.83 0-1.54.5-1.84 1.22l-3.02 7.05c-.09.23-.14.47-.14.73v2c0 1.1.9 2 2 2h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L9.83 23l6.59-6.59c.36-.36.58-.86.58-1.41V5c0-1.1-.9-2-2-2zm4 0v12h4V3h-4z"/></svg>
-                                    Pontos de Melhoria
+                        <div class="glass-card p-5">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="flex items-center gap-2">
+                                    <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018a2 2 0 01.485.06L17 4m-7 10v2a2 2 0 002 2h.095c.5 0 .905-.405.905-.905 0-.714.211-1.412.608-2.006L17 13V4m-7 10h2m5-6h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5"/></svg>
+                                    <span class="text-sm font-bold text-red-400">Pontos de Melhoria</span>
                                 </div>
                                 <button class="fb-btn-exemplos neg" onclick="fbVerExemplos('negativo')">
-                                    <svg viewBox="0 0 24 24" width="16" height="16" style="fill:currentColor;"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+                                    <svg viewBox="0 0 24 24" width="14" height="14" style="fill:currentColor;"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
                                     Ver exemplos
                                 </button>
                             </div>
-                            <div id="fbFeedNeg" style="font-size:14px;line-height:1.8;color:var(--fb-text-secondary);">
-                                <p style="color:var(--fb-text-muted);">Nenhum feedback disponível</p>
+                            <div id="fbFeedNeg" class="text-sm leading-relaxed text-slate-400">
+                                <p class="text-slate-500">Nenhum feedback disponível</p>
                             </div>
                         </div>
                     </div>
 
-                    <div class="fb-chart-section">
-                        <h3 class="fb-section-title" style="margin-bottom:16px;">Atendimentos e Nota por Dia</h3>
+                    <div class="glass-card p-5 mb-6">
+                        <h3 class="text-sm font-bold text-slate-300 font-display mb-4">Atendimentos e Nota por Dia</h3>
                         <div class="fb-chart-box"><canvas id="fbChartDetail"></canvas></div>
                     </div>
                 </div>
 
                 <!-- Global chart (all consultors) -->
-                <div id="fbGlobalChartSection" class="fb-chart-section">
-                    <h3 class="fb-section-title" style="margin-bottom:16px;">
-                        <svg viewBox="0 0 24 24" width="22" height="22" style="fill:var(--fb-primary);vertical-align:middle;margin-right:8px;"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg>
-                        Atendimentos por Dia
-                    </h3>
+                <div id="fbGlobalChartSection" class="glass-card p-5 mb-6">
+                    <div class="flex items-center gap-2 mb-4">
+                        <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+                        <h3 class="text-sm font-bold text-slate-300 font-display">Atendimentos por Dia</h3>
+                    </div>
                     <div class="fb-chart-box"><canvas id="fbChartGlobal"></canvas></div>
                 </div>
 
                 <!-- Ranking table -->
-                <div id="fbRankingSection" class="fb-table-section">
-                    <div class="fb-table-header">
-                        <h2 class="fb-section-title" style="margin-bottom:0;">Ranking de Consultores</h2>
+                <div id="fbRankingSection" class="glass-card overflow-hidden mb-6">
+                    <div class="p-5 border-b border-slate-700/30">
+                        <div class="flex items-center gap-2">
+                            <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
+                            <h3 class="text-sm font-bold text-slate-300 font-display">Ranking de Consultores</h3>
+                        </div>
                     </div>
-                    <div class="fb-table-wrapper">
-                        <table class="fb-table">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs">
                             <thead>
-                                <tr>
-                                    <th>#</th><th>Consultor</th><th>Atendimentos</th>
-                                    <th>Nota Média</th><th>Notas Inform.</th>
-                                    <th>T. Resposta</th><th>T. Atendimento</th><th>Ação</th>
+                                <tr class="border-b border-slate-700/30">
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">#</th>
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Consultor</th>
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Atendimentos</th>
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nota Média</th>
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Notas Inform.</th>
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">T. Resposta</th>
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">T. Atendimento</th>
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Ação</th>
                                 </tr>
                             </thead>
                             <tbody id="fbTableBody">
-                                <tr><td colspan="8">
-                                    <div class="fb-empty">
-                                        <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
-                                        <p>Clique em "Buscar" para carregar os dados</p>
-                                    </div>
+                                <tr><td colspan="8" class="px-4 py-12 text-center text-slate-500">
+                                    <svg class="w-8 h-8 mx-auto mb-2 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                    <p>Clique em "Buscar" para carregar os dados</p>
                                 </td></tr>
                             </tbody>
                         </table>
@@ -3206,7 +2397,7 @@
                 <div id="fb-loading">
                     <div style="text-align:center;">
                         <div class="fb-spinner"></div>
-                        <p style="margin-top:16px;color:var(--fb-text-muted);">Carregando dados...</p>
+                        <p style="margin-top:16px;" class="text-slate-500">Carregando dados...</p>
                     </div>
                 </div>
             </div>
@@ -3224,7 +2415,7 @@
                         </button>
                     </div>
                     <div id="fb-modal-body">
-                        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px;color:var(--fb-text-muted);">
+                        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px;color:var(--text-muted, #64748b);">
                             <div class="fb-spinner"></div>
                             <p>Carregando exemplos...</p>
                         </div>
@@ -6518,7 +5709,7 @@ function _fbFmtDate(ds) {
 }
 function _fbSetText(id, txt) {
     const el = document.getElementById(id); if (!el) return;
-    if (!txt || txt.trim() === '' || txt === 'Não informado') { el.innerHTML = '<p style="color:var(--fb-text-muted);padding:12px 0;">Nenhum feedback disponível</p>'; return; }
+    if (!txt || txt.trim() === '' || txt === 'Não informado') { el.innerHTML = '<p style="color:var(--text-muted, #64748b);padding:12px 0;">Nenhum feedback disponível</p>'; return; }
     el.innerHTML = '<p>' + txt.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') + '</p>';
 }
 function _fbEscHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
@@ -6547,7 +5738,7 @@ function _fbUpdateKPIs(g) {
 function _fbRenderTable(consultores) {
     const tb = document.getElementById('fbTableBody');
     const valid = _fbValidC(consultores);
-    if (valid.length === 0) { tb.innerHTML = '<tr><td colspan="8"><div class="fb-empty"><p>Nenhum consultor encontrado</p></div></td></tr>'; return; }
+    if (valid.length === 0) { tb.innerHTML = '<tr><td colspan="8" class="px-4 py-12 text-center text-slate-500">Nenhum consultor encontrado</td></tr>'; return; }
     tb.innerHTML = valid.map((c, i) => {
         const nm = c.nomes_originais ? c.nomes_originais[0] : c.consultor;
         return '<tr><td><strong>' + (i+1) + '</strong></td><td><div class="fb-consultor-name"><div class="fb-avatar">' + _fbInitials(c.consultor) + '</div>' + c.consultor + '</div></td><td><strong>' + _fbFmtNum(c.total_atendimentos) + '</strong></td><td><span class="fb-nota-badge ' + _fbBadgeCls(c.nota_media) + '">' + (c.nota_media != null ? _fbFmtDec(c.nota_media) : 'N/A') + '</span></td><td>' + _fbFmtNum(c.notas_informadas) + '</td><td>' + (c.tempo_medio_resposta_min != null ? _fbFmtTime(c.tempo_medio_resposta_min) : 'N/A') + '</td><td>' + (c.tempo_medio_atendimento_min != null ? _fbFmtTime(c.tempo_medio_atendimento_min) : 'N/A') + '</td><td><button class="fb-btn-detail" onclick="fbViewDetail(\'' + nm.replace(/'/g, "\\'") + '\')"><svg viewBox="0 0 24 24" width="16" height="16" style="fill:currentColor;margin-right:4px;"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>Ver detalhes</button></td></tr>';
@@ -6655,7 +5846,7 @@ async function fbVerExemplos(tipo) {
     hdr.className = 'fb-modal-hdr ' + tipo;
     document.getElementById('fbModalTitle').textContent = tipo === 'positivo' ? '👍 Exemplos Positivos' : '👎 Exemplos de Melhoria';
     document.getElementById('fbModalSubtitle').textContent = cons + ' • Carregando...';
-    document.getElementById('fb-modal-body').innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px;color:var(--fb-text-muted);"><div class="fb-spinner"></div><p>Carregando exemplos...</p></div>';
+    document.getElementById('fb-modal-body').innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px;color:var(--text-muted, #64748b);"><div class="fb-spinner"></div><p>Carregando exemplos...</p></div>';
     document.getElementById('fb-modal-overlay').classList.add('active');
     document.body.style.overflow = 'hidden';
     try {
@@ -6666,12 +5857,12 @@ async function fbVerExemplos(tipo) {
         const exs = data.exemplos || [], total = data.total || exs.length;
         document.getElementById('fbModalSubtitle').textContent = total + ' exemplo' + (total !== 1 ? 's' : '') + ' encontrado' + (total !== 1 ? 's' : '');
         if (exs.length === 0) {
-            document.getElementById('fb-modal-body').innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--fb-text-muted);"><p>Nenhum exemplo ' + (tipo === 'positivo' ? 'positivo' : 'de melhoria') + ' encontrado.</p></div>';
+            document.getElementById('fb-modal-body').innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--text-muted, #64748b);"><p>Nenhum exemplo ' + (tipo === 'positivo' ? 'positivo' : 'de melhoria') + ' encontrado.</p></div>';
             return;
         }
         document.getElementById('fb-modal-body').innerHTML = exs.map((ex, i) => _fbRenderEx(ex, i, tipo)).join('');
     } catch (e) {
-        document.getElementById('fb-modal-body').innerHTML = '<div style="text-align:center;padding:60px;color:var(--fb-text-muted);"><p>Erro: ' + e.message + '</p></div>';
+        document.getElementById('fb-modal-body').innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-muted, #64748b);"><p>Erro: ' + e.message + '</p></div>';
     }
 }
 
@@ -6680,10 +5871,10 @@ function _fbRenderEx(ex, idx, tipo) {
     const ts = ex.timestamp ? new Date(ex.timestamp).toLocaleString('pt-BR') : '';
     const trHtml = (ex.trechos || []).map(t => '<div class="fb-trecho">"' + t + '"</div>').join('');
     const acHtml = (ex.acoes_recomendadas || []).map(a => '<div class="fb-acao">💡 ' + a + '</div>').join('');
-    let html = '<div class="fb-ex-card ' + tipo + '"><div class="fb-ex-header"><div><h3 class="fb-ex-titulo">' + (ex.titulo || ex.feedback_base || 'Exemplo') + '</h3><span style="font-size:12px;color:var(--fb-text-muted);">' + ts + '</span></div><div><span class="fb-ex-nota ' + nc + '">⭐ ' + (nota != null ? nota.toFixed(1) : 'N/A') + '</span></div></div>';
+    let html = '<div class="fb-ex-card ' + tipo + '"><div class="fb-ex-header"><div><h3 class="fb-ex-titulo">' + (ex.titulo || ex.feedback_base || 'Exemplo') + '</h3><span style="font-size:12px;color:var(--text-muted, #64748b);">' + ts + '</span></div><div><span class="fb-ex-nota ' + nc + '">⭐ ' + (nota != null ? nota.toFixed(1) : 'N/A') + '</span></div></div>';
     if (ex.explicacao) html += '<div class="fb-ex-explicacao">' + ex.explicacao + '</div>';
-    if (trHtml) html += '<div style="margin-bottom:16px;"><div style="font-size:13px;font-weight:600;color:var(--fb-text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Trechos da Conversa</div>' + trHtml + '</div>';
-    if (acHtml) html += '<div style="margin-bottom:16px;"><div style="font-size:13px;font-weight:600;color:var(--fb-text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Ações Recomendadas</div>' + acHtml + '</div>';
+    if (trHtml) html += '<div style="margin-bottom:16px;"><div style="font-size:13px;font-weight:600;color:var(--text-muted, #64748b);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Trechos da Conversa</div>' + trHtml + '</div>';
+    if (acHtml) html += '<div style="margin-bottom:16px;"><div style="font-size:13px;font-weight:600;color:var(--text-muted, #64748b);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Ações Recomendadas</div>' + acHtml + '</div>';
     if (ex.conversa) html += '<div><button class="fb-conv-toggle" onclick="fbToggleConv(this)"><span>📜 Ver conversa completa</span><svg viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg></button><div class="fb-conv-content"><pre>' + _fbEscHtml(ex.conversa) + '</pre></div></div>';
     html += '</div>';
     return html;
