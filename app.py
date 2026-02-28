@@ -383,8 +383,20 @@ def api_dashboard_students():
     dt_to = request.args.get("to", "")
     f_nivel = request.args.get("nivel", "")
     f_sit = request.args.get("situacao", "")
+    f_ciclo = request.args.get("ciclo", "")
     conn = get_conn()
     try:
+        if f_ciclo:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT MIN(dt_inicio) AS dt_start, MAX(dt_fim) AS dt_end "
+                    "FROM ciclos WHERE nome = %s", (f_ciclo,)
+                )
+                crow = cur.fetchone()
+                if crow and crow["dt_start"]:
+                    dt_from = str(crow["dt_start"])
+                    dt_to = str(crow["dt_end"])
+
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(_STUDENT_METRICS_QUERY, {
                 "tipo_id": TIPO_ALUNO_FIELD,
@@ -676,6 +688,20 @@ def api_dashboard_ciclos():
                 cur.execute("SELECT nome, nivel, dt_inicio, dt_fim FROM ciclos ORDER BY dt_inicio")
             ciclos_config = cur.fetchall()
 
+            cur.execute("""
+                SELECT DISTINCT bf.nivel, COUNT(*) AS total
+                FROM (
+                    SELECT MAX(CASE WHEN af->>'additionalFieldId' = %(niv_id)s
+                                    OR af->'additionalField'->>'id' = %(niv_id)s
+                                THEN af->>'value' END) AS nivel
+                    FROM businesses b, jsonb_array_elements(b.data->'additionalFields') af
+                    GROUP BY b.id
+                ) bf
+                WHERE bf.nivel IS NOT NULL
+                GROUP BY bf.nivel ORDER BY total DESC
+            """, {"niv_id": NIVEL_FIELD})
+            distinct_nivels = {r["nivel"]: r["total"] for r in cur.fetchall()}
+
             cur.execute(_CICLO_COMPARE_QUERY, field_params)
             cycle_rows = cur.fetchall()
             if f_nivel:
@@ -738,6 +764,7 @@ def api_dashboard_ciclos():
         return jsonify({
             "ciclos": sorted(ciclos.values(), key=lambda x: x["nome"], reverse=True),
             "config": config_list,
+            "distinct_nivels": distinct_nivels,
             "comparisons": {
                 "ytd": {
                     "label": f"YTD {today.year}",

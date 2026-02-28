@@ -390,6 +390,7 @@
                                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
                                     Voltar (meses)
                                 </button>
+                                <button id="tl-mode-btn" onclick="toggleTlMode()" class="text-[10px] text-slate-500 hover:text-slate-300 px-2 py-1 rounded border border-slate-700/30 hover:border-slate-600/50 transition-colors">Ver Detalhado</button>
                                 <span id="tl-period-label" class="text-[10px] text-slate-500 font-mono"></span>
                                 <select id="tl-nivel" onchange="loadTimeline()" class="input-glass px-2 py-1 text-[11px] text-slate-300">
                                     <option value="">Todos os Níveis</option>
@@ -406,9 +407,10 @@
                                 <div class="flex items-center gap-4">
                                     <p class="text-xs font-bold text-white uppercase tracking-wider">Visão Geral</p>
                                     <div class="flex items-center gap-3 text-[10px]" id="tl-legend">
-                                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-indigo-400 inline-block"></span><span class="text-slate-400">Calouros</span> <span class="text-white font-mono font-medium" id="tl-novos-total">—</span></span>
+                                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-indigo-400 inline-block"></span><span class="text-slate-400" id="tl-novos-label">Calouros</span> <span class="text-white font-mono font-medium" id="tl-novos-total">—</span></span>
                                         <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span><span class="text-slate-400" id="tl-remat-label">Rematrículas</span> <span class="text-white font-mono font-medium" id="tl-remat-total">—</span></span>
-                                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span><span class="text-slate-400">Regresso</span> <span class="text-white font-mono font-medium" id="tl-regresso-total">—</span></span>
+                                        <span id="tl-leg-regresso" class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span><span class="text-slate-400">Regresso</span> <span class="text-white font-mono font-medium" id="tl-regresso-total">—</span></span>
+                                        <span id="tl-leg-recompra" class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400 inline-block"></span><span class="text-slate-400">Recompra</span> <span class="text-white font-mono font-medium" id="tl-recompra-total">—</span></span>
                                         <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-violet-400 inline-block"></span><span class="text-slate-400">Total</span> <span class="text-white font-mono font-medium" id="tl-total-total">—</span></span>
                                     </div>
                                 </div>
@@ -444,6 +446,7 @@
 
                         <!-- Cycle cards (collapsible) -->
                         <div id="ciclo-cards" class="space-y-2"></div>
+                        <div id="ciclo-diag" class="mt-2 text-[10px] text-slate-600"></div>
                     </div>
                 </div>
 
@@ -466,6 +469,12 @@
 
                         <!-- Filtros (ocultos por padrão) -->
                         <div id="stu-filters" class="hidden mb-3 py-2.5 px-3 rounded-lg bg-slate-800/30 border border-slate-700/20 flex flex-wrap items-center gap-3">
+                            <div class="flex items-center gap-2">
+                                <label class="text-xs text-slate-500 font-medium">Ciclo</label>
+                                <select id="students-ciclo" onchange="applyCicloFilter()" class="input-glass px-2.5 py-1.5 text-xs text-slate-300">
+                                    <option value="">Todos</option>
+                                </select>
+                            </div>
                             <div class="flex items-center gap-2">
                                 <label class="text-xs text-slate-500 font-medium">Nível</label>
                                 <select id="students-nivel" onchange="loadStudentMetrics()" class="input-glass px-2.5 py-1.5 text-xs text-slate-300">
@@ -1343,6 +1352,7 @@ async function loadDashboard() {
     } catch (err) {
         console.error('Dashboard load error:', err);
     }
+    populateCicloFilter();
     loadStudentMetrics();
     loadTimeline();
     loadCicloMaster();
@@ -1359,63 +1369,80 @@ const _tlColors = {
     novos:       { line: '#818cf8', bg: 'rgba(129,140,248,0.06)' },
     rematricula: { line: '#34d399', bg: 'rgba(52,211,153,0.06)' },
     regresso:    { line: '#fbbf24', bg: 'rgba(251,191,36,0.06)' },
+    recompra:    { line: '#22d3ee', bg: 'rgba(34,211,238,0.06)' },
     total:       { line: '#a78bfa', bg: 'rgba(167,139,250,0.06)' },
+    calouros_agg:{ line: '#818cf8', bg: 'rgba(129,140,248,0.06)' },
 };
+let _tlMode = 'agregado';
+let _tlLastSeries = {};
 
-function _makeGeralChart() {
-    const ctx = document.getElementById('chart-geral');
-    if (!ctx) return null;
-    if (_tlCharts['chart-geral']) { _tlCharts['chart-geral'].destroy(); }
-    const rematLabel = document.getElementById('tl-remat-label')?.textContent || 'Rematrículas';
-    const dsCfg = (color, label) => ({
+function toggleTlMode() {
+    _tlMode = _tlMode === 'agregado' ? 'detalhado' : 'agregado';
+    document.getElementById('tl-mode-btn').textContent = _tlMode === 'agregado' ? 'Ver Detalhado' : 'Ver Agregado';
+    _renderGeralChart();
+}
+
+function _buildChartOpts() {
+    return {
+        responsive: true, maintainAspectRatio: false, animation: { duration: 400 },
+        interaction: { mode: 'index', intersect: false },
+        onClick: (evt, elements) => { if (elements.length && _tlGranularity === 'month') timelineDrillDown(elements[0].index); },
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                backgroundColor: 'rgba(15,23,42,0.95)', borderColor: 'rgba(100,116,139,0.3)', borderWidth: 1,
+                titleFont: { family: 'Inter', size: 11 }, bodyFont: { family: 'JetBrains Mono', size: 12 },
+                callbacks: { label: c => c.dataset.label + ': ' + c.parsed.y.toLocaleString('pt-BR') },
+            },
+        },
+        scales: {
+            x: { grid: { color: 'rgba(100,116,139,0.08)' }, ticks: { color: '#64748b', font: { size: 10, family: 'Inter' }, maxRotation: 0 } },
+            y: { grid: { color: 'rgba(100,116,139,0.08)' }, ticks: { color: '#64748b', font: { size: 10, family: 'JetBrains Mono' },
+                callback: v => v >= 1000 ? (v/1000).toFixed(v%1000?1:0)+'k' : v } },
+        },
+    };
+}
+
+function _dsCfg(color, label) {
+    return {
         label, data: [], borderColor: color.line, backgroundColor: color.bg,
         borderWidth: 2, pointRadius: 3, pointHoverRadius: 6, pointBackgroundColor: color.line,
         fill: false, tension: 0.35,
-    });
-    const chart = new Chart(ctx, {
-        type: 'line',
-        data: { labels: [], datasets: [
-            dsCfg(_tlColors.novos, 'Calouros'),
-            dsCfg(_tlColors.rematricula, rematLabel),
-            dsCfg(_tlColors.regresso, 'Regresso'),
-            dsCfg(_tlColors.total, 'Total'),
-        ]},
-        options: {
-            responsive: true, maintainAspectRatio: false, animation: { duration: 400 },
-            interaction: { mode: 'index', intersect: false },
-            onClick: (evt, elements) => { if (elements.length && _tlGranularity === 'month') timelineDrillDown(elements[0].index); },
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    backgroundColor: 'rgba(15,23,42,0.95)', borderColor: 'rgba(100,116,139,0.3)', borderWidth: 1,
-                    titleFont: { family: 'Inter', size: 11 }, bodyFont: { family: 'JetBrains Mono', size: 12 },
-                    callbacks: { label: c => c.dataset.label + ': ' + c.parsed.y.toLocaleString('pt-BR') },
-                },
-            },
-            scales: {
-                x: { grid: { color: 'rgba(100,116,139,0.08)' }, ticks: { color: '#64748b', font: { size: 10, family: 'Inter' }, maxRotation: 0 } },
-                y: { grid: { color: 'rgba(100,116,139,0.08)' }, ticks: { color: '#64748b', font: { size: 10, family: 'JetBrains Mono' },
-                    callback: v => v >= 1000 ? (v/1000).toFixed(v%1000?1:0)+'k' : v } },
-            },
-        },
-    });
-    _tlCharts['chart-geral'] = chart;
-    return chart;
+    };
 }
 
-function _updateGeralChart(labels, series) {
-    let chart = _tlCharts['chart-geral'];
-    if (!chart) chart = _makeGeralChart();
-    if (!chart) return;
+function _renderGeralChart() {
+    const s = _tlLastSeries;
+    const labels = window._tlGeralLabels || [];
     const rematLabel = document.getElementById('tl-remat-label')?.textContent || 'Rematrículas';
-    chart.data.labels = labels;
-    chart.data.datasets[0].data = series.novos || [];
-    chart.data.datasets[0].label = 'Calouros';
-    chart.data.datasets[1].data = series.rematricula || [];
-    chart.data.datasets[1].label = rematLabel;
-    chart.data.datasets[2].data = series.regresso || [];
-    chart.data.datasets[3].data = series.total || [];
-    chart.update();
+
+    if (_tlCharts['chart-geral']) { _tlCharts['chart-geral'].destroy(); delete _tlCharts['chart-geral']; }
+    const ctx = document.getElementById('chart-geral');
+    if (!ctx) return;
+
+    let datasets;
+    if (_tlMode === 'agregado') {
+        const novos = s.novos || [];
+        const regresso = s.regresso || [];
+        const recompra = s.recompra || [];
+        const calouros = novos.map((v, i) => (v || 0) + (regresso[i] || 0) + (recompra[i] || 0));
+        datasets = [
+            { ..._dsCfg(_tlColors.calouros_agg, 'Calouros (Novos+Regresso+Recompra)'), data: calouros },
+            { ..._dsCfg(_tlColors.rematricula, rematLabel), data: s.rematricula || [] },
+            { ..._dsCfg(_tlColors.total, 'Total'), data: s.total || [] },
+        ];
+    } else {
+        datasets = [
+            { ..._dsCfg(_tlColors.novos, 'Novos'), data: s.novos || [] },
+            { ..._dsCfg(_tlColors.rematricula, rematLabel), data: s.rematricula || [] },
+            { ..._dsCfg(_tlColors.regresso, 'Regresso'), data: s.regresso || [] },
+            { ..._dsCfg(_tlColors.recompra, 'Recompra'), data: s.recompra || [] },
+            { ..._dsCfg(_tlColors.total, 'Total'), data: s.total || [] },
+        ];
+    }
+
+    const chart = new Chart(ctx, { type: 'line', data: { labels, datasets }, options: _buildChartOpts() });
+    _tlCharts['chart-geral'] = chart;
 }
 
 function _formatLabel(period, gran) {
@@ -1449,13 +1476,32 @@ async function loadTimeline(from, to) {
         const rematLbl = document.getElementById('tl-remat-label');
         if (rematLbl) rematLbl.textContent = isPosOnly ? 'Veteranos' : 'Rematrículas';
 
-        _updateGeralChart(labels, s);
+        _tlLastSeries = s;
+        window._tlGeralLabels = labels;
 
         const sum = arr => (arr || []).reduce((a,b) => a+b, 0);
-        document.getElementById('tl-remat-total').textContent = fmt(sum(s.rematricula));
-        document.getElementById('tl-novos-total').textContent = fmt(sum(s.novos));
-        document.getElementById('tl-regresso-total').textContent = fmt(sum(s.regresso));
+        const novosSum = sum(s.novos);
+        const regressoSum = sum(s.regresso);
+        const recompraSum = sum(s.recompra);
+        const rematSum = sum(s.rematricula);
+
+        if (_tlMode === 'agregado') {
+            document.getElementById('tl-novos-label').textContent = 'Calouros (N+Rg+Rc)';
+            document.getElementById('tl-novos-total').textContent = fmt(novosSum + regressoSum + recompraSum);
+            document.getElementById('tl-leg-regresso').classList.add('hidden');
+            document.getElementById('tl-leg-recompra').classList.add('hidden');
+        } else {
+            document.getElementById('tl-novos-label').textContent = 'Novos';
+            document.getElementById('tl-novos-total').textContent = fmt(novosSum);
+            document.getElementById('tl-leg-regresso').classList.remove('hidden');
+            document.getElementById('tl-leg-recompra').classList.remove('hidden');
+        }
+        document.getElementById('tl-remat-total').textContent = fmt(rematSum);
+        document.getElementById('tl-regresso-total').textContent = fmt(regressoSum);
+        document.getElementById('tl-recompra-total').textContent = fmt(recompraSum);
         document.getElementById('tl-total-total').textContent = fmt(sum(s.total));
+
+        _renderGeralChart();
 
         document.getElementById('tl-period-label').textContent =
             _tlGranularity === 'day' && _tlDrillMonth ? _tlDrillMonth : (d.range ? d.range.from + ' → ' + d.range.to : '');
@@ -1644,6 +1690,52 @@ function renderCicloMaster(data) {
             </div>
         </div>`;
     }).join('');
+
+    const diag = document.getElementById('ciclo-diag');
+    if (diag && data.distinct_nivels) {
+        const dn = data.distinct_nivels;
+        const cfgNivels = [...new Set((data.config || []).map(c => c.nivel))];
+        const missing = Object.keys(dn).filter(n => !cfgNivels.includes(n));
+        if (missing.length) {
+            diag.innerHTML = missing.map(n =>
+                `<span class="text-amber-500">⚠ Existem ${dn[n].toLocaleString('pt-BR')} negócios com nível "${n}" mas nenhum ciclo configurado para esse nível.</span>`
+            ).join('<br>');
+        } else {
+            diag.innerHTML = '';
+        }
+    }
+}
+
+let _ciclosConfig = [];
+
+async function populateCicloFilter() {
+    try {
+        const res = await api('/api/ciclos');
+        const list = await res.json();
+        _ciclosConfig = list || [];
+        const sel = document.getElementById('students-ciclo');
+        if (!sel) return;
+        const names = [...new Set(list.map(c => c.nome))].sort().reverse();
+        sel.innerHTML = '<option value="">Todos os ciclos</option>' +
+            names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+    } catch(e) { console.error('Erro ao carregar ciclos:', e); }
+}
+
+function applyCicloFilter() {
+    const ciclo = document.getElementById('students-ciclo').value;
+    if (ciclo) {
+        const matching = _ciclosConfig.filter(c => c.nome === ciclo);
+        if (matching.length) {
+            const starts = matching.map(c => c.dt_inicio).sort();
+            const ends = matching.map(c => c.dt_fim).sort().reverse();
+            document.getElementById('students-from').value = starts[0];
+            document.getElementById('students-to').value = ends[0];
+        }
+    } else {
+        document.getElementById('students-from').value = '';
+        document.getElementById('students-to').value = '';
+    }
+    loadStudentMetrics();
 }
 
 async function loadStudentMetrics() {
@@ -1651,7 +1743,9 @@ async function loadStudentMetrics() {
     const dtTo = document.getElementById('students-to').value;
     const nivel = document.getElementById('students-nivel').value;
     const situacao = document.getElementById('students-situacao').value;
+    const ciclo = document.getElementById('students-ciclo').value;
     const params = new URLSearchParams();
+    if (ciclo) params.set('ciclo', ciclo);
     if (dtFrom) params.set('from', dtFrom);
     if (dtTo) params.set('to', dtTo);
     if (nivel) params.set('nivel', nivel);
@@ -1755,6 +1849,7 @@ function renderBreakdown(elId, data) {
 }
 
 function clearStudentFilter() {
+    document.getElementById('students-ciclo').value = '';
     document.getElementById('students-from').value = '';
     document.getElementById('students-to').value = '';
     document.getElementById('students-nivel').value = '';
