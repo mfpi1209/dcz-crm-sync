@@ -457,6 +457,119 @@ def api_dashboard_students():
 
 
 # ---------------------------------------------------------------------------
+# Rotas — Dashboard Timeline (gráficos de linha com drill-down)
+# ---------------------------------------------------------------------------
+
+_TIMELINE_QUERY = """
+WITH biz_fields AS (
+    SELECT
+        b.id,
+        MAX(CASE WHEN af->>'additionalFieldId' = %(tipo_id)s OR af->'additionalField'->>'id' = %(tipo_id)s
+                 THEN af->>'value' END) AS tipo_aluno,
+        MAX(CASE WHEN af->>'additionalFieldId' = %(dt_id)s   OR af->'additionalField'->>'id' = %(dt_id)s
+                 THEN af->>'value' END) AS data_matricula,
+        MAX(CASE WHEN af->>'additionalFieldId' = %(niv_id)s  OR af->'additionalField'->>'id' = %(niv_id)s
+                 THEN af->>'value' END) AS nivel
+    FROM businesses b,
+         jsonb_array_elements(b.data->'additionalFields') af
+    GROUP BY b.id
+)
+SELECT
+    CASE WHEN %(granularity)s = 'month'
+         THEN TO_CHAR(bf.data_matricula::date, 'YYYY-MM')
+         ELSE TO_CHAR(bf.data_matricula::date, 'YYYY-MM-DD')
+    END AS period,
+    COALESCE(bf.tipo_aluno, 'Não informado') AS tipo,
+    COUNT(*) AS total
+FROM biz_fields bf
+WHERE bf.data_matricula IS NOT NULL
+  AND bf.data_matricula ~ '^\\d{4}-\\d{2}-\\d{2}'
+  AND bf.data_matricula::date BETWEEN %(range_start)s AND %(range_end)s
+  AND (%(f_nivel)s IS NULL OR bf.nivel = %(f_nivel)s)
+GROUP BY period, bf.tipo_aluno
+ORDER BY period, total DESC
+"""
+
+
+@app.route("/api/dashboard/timeline")
+def api_dashboard_timeline():
+    """Retorna dados de timeline agrupados por mês ou dia, para gráficos de linha."""
+    from dateutil.relativedelta import relativedelta
+
+    granularity = request.args.get("granularity", "month")
+    f_nivel = request.args.get("nivel") or None
+    dt_from = request.args.get("from", "")
+    dt_to = request.args.get("to", "")
+
+    today = datetime.now().date()
+
+    if dt_from:
+        range_start = datetime.strptime(dt_from, "%Y-%m-%d").date()
+    else:
+        range_start = today - relativedelta(months=6)
+
+    if dt_to:
+        range_end = datetime.strptime(dt_to, "%Y-%m-%d").date()
+    else:
+        range_end = today
+
+    tipo_map = {
+        "Calouro": "novos",
+        "Regresso (Retorno)": "regresso",
+        "Calouro (Recompra)": "recompra",
+        "Veterano": "rematricula",
+    }
+
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(_TIMELINE_QUERY, {
+                "tipo_id": TIPO_ALUNO_FIELD,
+                "dt_id": DATA_MATRICULA_FIELD,
+                "niv_id": NIVEL_FIELD,
+                "granularity": granularity,
+                "range_start": range_start,
+                "range_end": range_end,
+                "f_nivel": f_nivel,
+            })
+            rows = cur.fetchall()
+
+        series = {}
+        all_periods = set()
+        for r in rows:
+            p = r["period"]
+            all_periods.add(p)
+            cat = tipo_map.get(r["tipo"] or "", "outros")
+            if cat not in series:
+                series[cat] = {}
+            series[cat][p] = series[cat].get(p, 0) + r["total"]
+
+        periods = sorted(all_periods)
+
+        result = {
+            "periods": periods,
+            "series": {},
+            "granularity": granularity,
+            "range": {"from": str(range_start), "to": str(range_end)},
+        }
+        for cat in ["novos", "rematricula", "regresso", "recompra"]:
+            if cat in series:
+                result["series"][cat] = [series[cat].get(p, 0) for p in periods]
+
+        total_series = [0] * len(periods)
+        for cat, vals in result["series"].items():
+            for i, v in enumerate(vals):
+                total_series[i] += v
+        result["series"]["total"] = total_series
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
 # Rotas — Dashboard Ciclos (Master Panel)
 # ---------------------------------------------------------------------------
 

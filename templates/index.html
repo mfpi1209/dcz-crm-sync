@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DataCrazy CRM Sync</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -373,6 +374,62 @@
                             </div>
                         </div>
                         <p class="text-2xl font-bold text-white font-display flex items-center gap-2" id="dash-status"><span class="green-dot"></span> Conectado</p>
+                    </div>
+                </div>
+
+                <!-- ── Gráficos de Linha (Timeline) ── -->
+                <div class="glass-card overflow-hidden mb-6">
+                    <div class="px-5 pt-4 pb-2">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
+                                <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+                                Evolução de Matrículas
+                            </h3>
+                            <div class="flex items-center gap-3">
+                                <button id="tl-drillup" onclick="timelineDrillUp()" class="hidden text-[10px] text-slate-500 hover:text-slate-300 flex items-center gap-1 transition-colors px-2 py-1 rounded border border-slate-700/30 hover:border-slate-600/50">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                                    Voltar (meses)
+                                </button>
+                                <span id="tl-period-label" class="text-[10px] text-slate-500 font-mono"></span>
+                                <select id="tl-nivel" onchange="loadTimeline()" class="input-glass px-2 py-1 text-[11px] text-slate-300">
+                                    <option value="">Todos os Níveis</option>
+                                    <option value="Graduação">Graduação</option>
+                                    <option value="Pós-Graduação">Pós-Graduação</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="px-5 pb-5">
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <div class="rounded-xl p-4 bg-slate-800/20 border border-slate-700/20">
+                                <div class="flex items-center justify-between mb-2">
+                                    <p class="text-xs font-bold text-emerald-400 uppercase tracking-wider">Rematrículas</p>
+                                    <p class="text-lg font-bold text-white font-display" id="tl-remat-total">—</p>
+                                </div>
+                                <div style="height:200px"><canvas id="chart-rematricula"></canvas></div>
+                            </div>
+                            <div class="rounded-xl p-4 bg-slate-800/20 border border-slate-700/20">
+                                <div class="flex items-center justify-between mb-2">
+                                    <p class="text-xs font-bold text-indigo-400 uppercase tracking-wider">Calouros</p>
+                                    <p class="text-lg font-bold text-white font-display" id="tl-novos-total">—</p>
+                                </div>
+                                <div style="height:200px"><canvas id="chart-novos"></canvas></div>
+                            </div>
+                            <div class="rounded-xl p-4 bg-slate-800/20 border border-slate-700/20">
+                                <div class="flex items-center justify-between mb-2">
+                                    <p class="text-xs font-bold text-amber-400 uppercase tracking-wider">Regresso</p>
+                                    <p class="text-lg font-bold text-white font-display" id="tl-regresso-total">—</p>
+                                </div>
+                                <div style="height:200px"><canvas id="chart-regresso"></canvas></div>
+                            </div>
+                            <div class="rounded-xl p-4 bg-slate-800/20 border border-slate-700/20">
+                                <div class="flex items-center justify-between mb-2">
+                                    <p class="text-xs font-bold text-violet-400 uppercase tracking-wider">Total Geral</p>
+                                    <p class="text-lg font-bold text-white font-display" id="tl-total-total">—</p>
+                                </div>
+                                <div style="height:200px"><canvas id="chart-total"></canvas></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1275,7 +1332,124 @@ async function loadDashboard() {
         console.error('Dashboard load error:', err);
     }
     loadStudentMetrics();
+    loadTimeline();
     loadCicloMaster();
+}
+
+// ---------------------------------------------------------------------------
+// Timeline Charts (drill-down)
+// ---------------------------------------------------------------------------
+const _tlCharts = {};
+let _tlGranularity = 'month';
+let _tlDrillMonth = null;
+
+const _tlColors = {
+    rematricula: { line: '#34d399', bg: 'rgba(52,211,153,0.08)' },
+    novos:       { line: '#818cf8', bg: 'rgba(129,140,248,0.08)' },
+    regresso:    { line: '#fbbf24', bg: 'rgba(251,191,36,0.08)' },
+    total:       { line: '#a78bfa', bg: 'rgba(167,139,250,0.08)' },
+};
+
+function _makeChart(canvasId, color) {
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return null;
+    if (_tlCharts[canvasId]) { _tlCharts[canvasId].destroy(); }
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: { labels: [], datasets: [{ data: [], borderColor: color.line, backgroundColor: color.bg,
+            borderWidth: 2, pointRadius: 4, pointHoverRadius: 7, pointBackgroundColor: color.line,
+            fill: true, tension: 0.3 }] },
+        options: {
+            responsive: true, maintainAspectRatio: false, animation: { duration: 400 },
+            onClick: (evt, elements) => { if (elements.length && _tlGranularity === 'month') timelineDrillDown(elements[0].index); },
+            plugins: { legend: { display: false }, tooltip: {
+                backgroundColor: 'rgba(15,23,42,0.9)', borderColor: 'rgba(100,116,139,0.3)', borderWidth: 1,
+                titleFont: { family: 'Inter', size: 11 }, bodyFont: { family: 'JetBrains Mono', size: 12 },
+                callbacks: { label: c => c.parsed.y.toLocaleString('pt-BR') }
+            }},
+            scales: {
+                x: { grid: { color: 'rgba(100,116,139,0.08)' }, ticks: { color: '#64748b', font: { size: 10, family: 'Inter' }, maxRotation: 0 } },
+                y: { grid: { color: 'rgba(100,116,139,0.08)' }, ticks: { color: '#64748b', font: { size: 10, family: 'JetBrains Mono' },
+                    callback: v => v >= 1000 ? (v/1000).toFixed(v%1000?1:0)+'k' : v } },
+            },
+        },
+    });
+    _tlCharts[canvasId] = chart;
+    return chart;
+}
+
+function _updateChart(canvasId, labels, data, color) {
+    let chart = _tlCharts[canvasId];
+    if (!chart) chart = _makeChart(canvasId, color);
+    if (!chart) return;
+    chart.data.labels = labels;
+    chart.data.datasets[0].data = data;
+    chart.update();
+}
+
+function _formatLabel(period, gran) {
+    if (gran === 'month') {
+        const [y, m] = period.split('-');
+        const months = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+        return months[parseInt(m)-1] + ' ' + y;
+    }
+    const [y, m, d] = period.split('-');
+    return parseInt(d) + '/' + parseInt(m);
+}
+
+async function loadTimeline(from, to) {
+    const nivel = document.getElementById('tl-nivel').value;
+    const params = new URLSearchParams({ granularity: _tlGranularity });
+    if (nivel) params.set('nivel', nivel);
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+
+    try {
+        const res = await api('/api/dashboard/timeline?' + params);
+        const d = await res.json();
+        if (d.error) return;
+
+        const labels = (d.periods || []).map(p => _formatLabel(p, _tlGranularity));
+        const rawPeriods = d.periods || [];
+        const s = d.series || {};
+        const fmt = n => (n||0).toLocaleString('pt-BR');
+
+        _updateChart('chart-rematricula', labels, s.rematricula || [], _tlColors.rematricula);
+        _updateChart('chart-novos', labels, s.novos || [], _tlColors.novos);
+        _updateChart('chart-regresso', labels, s.regresso || [], _tlColors.regresso);
+        _updateChart('chart-total', labels, s.total || [], _tlColors.total);
+
+        const sum = arr => (arr || []).reduce((a,b) => a+b, 0);
+        document.getElementById('tl-remat-total').textContent = fmt(sum(s.rematricula));
+        document.getElementById('tl-novos-total').textContent = fmt(sum(s.novos));
+        document.getElementById('tl-regresso-total').textContent = fmt(sum(s.regresso));
+        document.getElementById('tl-total-total').textContent = fmt(sum(s.total));
+
+        document.getElementById('tl-period-label').textContent =
+            _tlGranularity === 'day' && _tlDrillMonth ? _tlDrillMonth : (d.range ? d.range.from + ' → ' + d.range.to : '');
+
+        document.getElementById('tl-drillup').classList.toggle('hidden', _tlGranularity !== 'day');
+
+        window._tlRawPeriods = rawPeriods;
+    } catch (e) { console.error('Timeline error:', e); }
+}
+
+function timelineDrillDown(index) {
+    const period = window._tlRawPeriods?.[index];
+    if (!period || _tlGranularity !== 'month') return;
+    const [y, m] = period.split('-');
+    const from = `${y}-${m}-01`;
+    const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate();
+    const to = `${y}-${m}-${String(lastDay).padStart(2,'0')}`;
+    _tlGranularity = 'day';
+    _tlDrillMonth = period;
+    loadTimeline(from, to);
+}
+
+function timelineDrillUp() {
+    _tlGranularity = 'month';
+    _tlDrillMonth = null;
+    loadTimeline();
 }
 
 // ---------------------------------------------------------------------------
