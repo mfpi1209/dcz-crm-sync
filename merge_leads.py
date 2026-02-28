@@ -364,6 +364,47 @@ def classify_all(by_rgm):
     return plans
 
 
+def filter_already_merged(plans):
+    """Remove do plano leads que já foram deletados do banco local."""
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM leads")
+        existing_leads = {row[0] for row in cur.fetchall()}
+        cur.close()
+    finally:
+        conn.close()
+
+    log.info("  %d leads existentes no banco local", len(existing_leads))
+
+    filtered = []
+    skipped = 0
+    for plan in plans:
+        if plan["fase"] == 4:
+            filtered.append(plan)
+            continue
+
+        remaining_remover = [e for e in plan["remover"] if e["lead_id"] in existing_leads]
+        manter_exists = plan["manter"] and plan["manter"]["lead_id"] in existing_leads
+
+        if not manter_exists and plan["manter"]:
+            skipped += len(plan["remover"])
+            continue
+
+        if not remaining_remover:
+            skipped += 1
+            continue
+
+        plan["remover"] = remaining_remover
+        plan["total_leads"] = 1 + len(remaining_remover)
+        filtered.append(plan)
+
+    if skipped:
+        log.info("  %d RGMs/leads já processados (leads inexistentes no banco) — ignorados", skipped)
+
+    return filtered
+
+
 # ---------------------------------------------------------------------------
 # Dry-run
 # ---------------------------------------------------------------------------
@@ -656,6 +697,7 @@ def main():
         return
 
     plans = classify_all(by_rgm)
+    plans = filter_already_merged(plans)
 
     if fase_filter:
         plans = [p for p in plans if p["fase"] == fase_filter]
