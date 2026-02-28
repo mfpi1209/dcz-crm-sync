@@ -740,7 +740,37 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
     _skipped_nivel = []
     _format_samples = {}  # field_name → [(crm_val, xl_val)] first 3 diffs per field
 
-    for r in xl_rows:
+    # Deduplica RGMs — mantém última ocorrência na planilha
+    seen_rgm = {}
+    dupes = {}
+    for idx, r in enumerate(xl_rows):
+        rgm_val = str(r[col["RGM"]]).strip() if r[col["RGM"]] else ""
+        if not rgm_val:
+            continue
+        if rgm_val in seen_rgm:
+            dupes.setdefault(rgm_val, [seen_rgm[rgm_val]]).append(idx)
+        seen_rgm[rgm_val] = idx
+
+    skip_indices = set()
+    for rgm_val, indices in dupes.items():
+        for i in indices[:-1]:
+            skip_indices.add(i)
+
+    if dupes:
+        log.info("  RGMs duplicados na planilha: %d (mantendo última ocorrência)", len(dupes))
+        REPORTS_DIR.mkdir(exist_ok=True)
+        dup_path = REPORTS_DIR / "duplicados_planilha.csv"
+        with open(dup_path, "w", newline="", encoding="utf-8-sig") as f:
+            w = csv.writer(f, delimiter=";")
+            w.writerow(["RGM", "Ocorrencias", "Linhas"])
+            for rgm_val, indices in sorted(dupes.items()):
+                w.writerow([rgm_val, len(indices) + 1, ", ".join(str(i + 2) for i in indices)])
+        log.info("  Relatório: %s", dup_path)
+
+    for idx, r in enumerate(xl_rows):
+        if idx in skip_indices:
+            continue
+
         rgm = str(r[col["RGM"]]).strip() if r[col["RGM"]] else ""
         cpf = clean_cpf(r[col["CPF"]])
         phone = clean_phone(str(r[col["FoneCelular"]] or ""))
