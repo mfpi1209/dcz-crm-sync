@@ -404,6 +404,7 @@ def api_dashboard_students():
         by_polo = {}
         by_turma = {}
         by_ciclo = {}
+        by_tipo_detail = {}
 
         for r in rows:
             tipo = r["tipo"] or "Não informado"
@@ -425,8 +426,22 @@ def api_dashboard_students():
             ciclo = r["ciclo"] or "N/I"
             by_ciclo[ciclo] = by_ciclo.get(ciclo, 0) + r["total"]
 
+            if cat not in by_tipo_detail:
+                by_tipo_detail[cat] = {"by_situacao": {}, "by_nivel": {}, "by_polo": {}}
+            td = by_tipo_detail[cat]
+            td["by_situacao"][sit] = td["by_situacao"].get(sit, 0) + r["total"]
+            td["by_nivel"][niv] = td["by_nivel"].get(niv, 0) + r["total"]
+            td["by_polo"][polo] = td["by_polo"].get(polo, 0) + r["total"]
+
+        for cat in by_tipo_detail:
+            td = by_tipo_detail[cat]
+            td["by_situacao"] = dict(sorted(td["by_situacao"].items(), key=lambda x: -x[1]))
+            td["by_nivel"] = dict(sorted(td["by_nivel"].items(), key=lambda x: -x[1]))
+            td["by_polo"] = dict(sorted(td["by_polo"].items(), key=lambda x: -x[1])[:8])
+
         return jsonify({
             "totals": totals,
+            "by_tipo_detail": by_tipo_detail,
             "by_situacao": dict(sorted(by_situacao.items(), key=lambda x: -x[1])),
             "by_nivel": dict(sorted(by_nivel.items(), key=lambda x: -x[1])),
             "by_polo": dict(sorted(by_polo.items(), key=lambda x: -x[1])),
