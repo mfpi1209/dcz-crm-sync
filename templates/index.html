@@ -1300,7 +1300,8 @@ async function loadCicloMaster() {
     content.classList.add('hidden');
 
     try {
-        const res = await api('/api/dashboard/ciclos');
+        const _nivelParam = document.getElementById('ciclo-filter-nivel').value;
+        const res = await api('/api/dashboard/ciclos' + (_nivelParam ? '?nivel=' + encodeURIComponent(_nivelParam) : ''));
         const d = await res.json();
         if (d.error) { loading.textContent = 'Erro: ' + d.error; return; }
 
@@ -1367,9 +1368,7 @@ function renderCicloMaster(data) {
         temporalCard(cmp.m6_prev?.label||'6m Ant.', cmp.m6_prev?.period||'', m6P, {grand_total:0,totals:{}}, 'slate-400', 'slate-500', 'slate-600', 'slate-600');
 
     // --- Collapsible cycle cards ---
-    const ciclos = data.ciclos || [];
-    const nivelFilter = document.getElementById('ciclo-filter-nivel').value;
-    const filtered = nivelFilter ? ciclos.filter(c => c.nivel === nivelFilter) : ciclos;
+    const filtered = data.ciclos || [];
     const maxTotal = Math.max(...filtered.map(c => c.grand_total), 1);
 
     const colors = ['cyan', 'violet', 'amber', 'emerald', 'rose', 'indigo'];

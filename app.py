@@ -518,6 +518,8 @@ def api_dashboard_ciclos():
     from dateutil.relativedelta import relativedelta
     import traceback
 
+    f_nivel = request.args.get("nivel") or None
+
     conn = get_conn()
     try:
         today = datetime.now().date()
@@ -531,40 +533,40 @@ def api_dashboard_ciclos():
         }
 
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute("SELECT nome, nivel, dt_inicio, dt_fim FROM ciclos ORDER BY dt_inicio")
+            if f_nivel:
+                cur.execute("SELECT nome, nivel, dt_inicio, dt_fim FROM ciclos WHERE nivel = %s ORDER BY dt_inicio", (f_nivel,))
+            else:
+                cur.execute("SELECT nome, nivel, dt_inicio, dt_fim FROM ciclos ORDER BY dt_inicio")
             ciclos_config = cur.fetchall()
 
-            # Per-cycle data
             cur.execute(_CICLO_COMPARE_QUERY, field_params)
             cycle_rows = cur.fetchall()
+            if f_nivel:
+                cycle_rows = [r for r in cycle_rows if r.get("ciclo_nivel") == f_nivel]
 
-            # YTD: Jan 1 of current year → today
             ytd_start = today.replace(month=1, day=1)
             cur.execute(_DATE_RANGE_QUERY, {
-                **field_params, "range_start": ytd_start, "range_end": today, "f_nivel": None,
+                **field_params, "range_start": ytd_start, "range_end": today, "f_nivel": f_nivel,
             })
             ytd_current = cur.fetchall()
 
-            # YTD previous year: same range but 1 year back
             ytd_prev_start = ytd_start.replace(year=today.year - 1)
             ytd_prev_end = today.replace(year=today.year - 1)
             cur.execute(_DATE_RANGE_QUERY, {
-                **field_params, "range_start": ytd_prev_start, "range_end": ytd_prev_end, "f_nivel": None,
+                **field_params, "range_start": ytd_prev_start, "range_end": ytd_prev_end, "f_nivel": f_nivel,
             })
             ytd_previous = cur.fetchall()
 
-            # Last 6 months: today - 6 months → today
             m6_start = today - relativedelta(months=6)
             cur.execute(_DATE_RANGE_QUERY, {
-                **field_params, "range_start": m6_start, "range_end": today, "f_nivel": None,
+                **field_params, "range_start": m6_start, "range_end": today, "f_nivel": f_nivel,
             })
             m6_current = cur.fetchall()
 
-            # Previous 6 months: -12 months → -6 months
             m6_prev_start = today - relativedelta(months=12)
             m6_prev_end = today - relativedelta(months=6)
             cur.execute(_DATE_RANGE_QUERY, {
-                **field_params, "range_start": m6_prev_start, "range_end": m6_prev_end, "f_nivel": None,
+                **field_params, "range_start": m6_prev_start, "range_end": m6_prev_end, "f_nivel": f_nivel,
             })
             m6_previous = cur.fetchall()
 
