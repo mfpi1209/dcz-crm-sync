@@ -418,6 +418,99 @@ def api_dashboard_students():
 
 
 # ---------------------------------------------------------------------------
+# Rotas — Diagnóstico de address
+# ---------------------------------------------------------------------------
+
+@app.route("/api/debug/address")
+def api_debug_address():
+    """Compara address no banco local vs API direta para diagnosticar sync."""
+    import requests as req
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT id, data->>'name' AS nome, data->'address' AS local_address
+                FROM leads
+                WHERE data->'address' IS NOT NULL
+                   AND data->'address' != 'null'::jsonb
+                   AND data->'address' != '{}'::jsonb
+                LIMIT 3
+            """)
+            with_addr = cur.fetchall()
+
+            cur.execute("""
+                SELECT id, data->>'name' AS nome, data->'address' AS local_address
+                FROM leads
+                WHERE data->'address' IS NULL
+                   OR data->'address' = 'null'::jsonb
+                   OR data->'address' = '{}'::jsonb
+                LIMIT 3
+            """)
+            without_addr = cur.fetchall()
+
+            cur.execute("""
+                SELECT
+                    COUNT(*) FILTER (WHERE data->'address' IS NOT NULL
+                        AND data->'address' != 'null'::jsonb
+                        AND data->'address' != '{}'::jsonb) AS com_address,
+                    COUNT(*) FILTER (WHERE data->'address' IS NULL
+                        OR data->'address' = 'null'::jsonb
+                        OR data->'address' = '{}'::jsonb) AS sem_address,
+                    COUNT(*) AS total
+                FROM leads
+            """)
+            stats = dict(cur.fetchone())
+
+        token = os.getenv("DATACRAZY_API_TOKEN", "")
+        headers = {"Authorization": f"Bearer {token}"}
+        api_base = "https://api.g1.datacrazy.io/api/v1"
+
+        api_samples = []
+        sample_ids = [r["id"] for r in (with_addr[:1] + without_addr[:1])]
+        for lid in sample_ids:
+            try:
+                r = req.get(f"{api_base}/leads/{lid}", headers=headers, timeout=15)
+                if r.ok:
+                    d = r.json()
+                    api_samples.append({
+                        "id": lid,
+                        "nome": d.get("name"),
+                        "api_address": d.get("address"),
+                    })
+            except Exception as e:
+                api_samples.append({"id": lid, "error": str(e)})
+
+        list_sample = []
+        try:
+            r = req.get(f"{api_base}/leads", headers=headers, params={
+                "take": 2,
+                "complete[additionalFields]": "true",
+            }, timeout=15)
+            if r.ok:
+                for lead in r.json().get("data", [])[:2]:
+                    list_sample.append({
+                        "id": lead.get("id"),
+                        "nome": lead.get("name"),
+                        "list_address": lead.get("address"),
+                        "has_address_key": "address" in lead,
+                    })
+        except Exception as e:
+            list_sample = [{"error": str(e)}]
+
+        return jsonify({
+            "stats": stats,
+            "local_with_addr_samples": [dict(r) for r in with_addr],
+            "local_without_addr_samples": [dict(r) for r in without_addr],
+            "api_individual_samples": api_samples,
+            "api_list_samples": list_sample,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
 # Rotas — Busca
 # ---------------------------------------------------------------------------
 
