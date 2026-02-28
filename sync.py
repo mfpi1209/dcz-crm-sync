@@ -194,7 +194,7 @@ def set_state(conn, entity: str, now: datetime, is_full: bool):
 # Upsert genérico JSONB (com hash para detectar mudanças reais)
 # ---------------------------------------------------------------------------
 
-_PRESERVE_KEYS = ("address", "additionalFields", "birthDate", "taxId")
+_PRESERVE_KEYS = ("address", "additionalFields", "birthDate", "taxId", "email")
 
 
 def _merge_preserve(api_rec: dict, local_rec: dict) -> dict:
