@@ -110,6 +110,24 @@ def require_auth():
         if request.path.startswith("/api/"):
             return jsonify({"error": "Não autenticado"}), 401
         return redirect(url_for("login"))
+    if "role" not in session:
+        uid = session.get("user_id")
+        if uid and uid != 0:
+            try:
+                conn = get_conn()
+                with conn.cursor() as cur:
+                    cur.execute("SELECT role FROM app_users WHERE id = %s", (uid,))
+                    row = cur.fetchone()
+                conn.close()
+                if row:
+                    session["role"] = row[0]
+                    return
+            except Exception:
+                pass
+        session.clear()
+        if request.path.startswith("/api/"):
+            return jsonify({"error": "Sessão expirada, faça login novamente"}), 401
+        return redirect(url_for("login"))
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -2521,15 +2539,25 @@ def api_upload():
             import shutil
             staging = UPLOAD_DIR / "_staging_sem_rematricula"
             staging.mkdir(exist_ok=True)
-            shutil.copy2(str(dest), str(staging / safe_name))
+            subtipo = request.form.get("subtipo", "").strip().lower()
+            if subtipo in ("adimplente", "inadimplente"):
+                canonical = f"{subtipo}s.xlsx"
+            elif "inadimplente" in safe_name.lower():
+                canonical = "inadimplentes.xlsx"
+            elif "adimplente" in safe_name.lower():
+                canonical = "adimplentes.xlsx"
+            else:
+                canonical = safe_name
+            shutil.copy2(str(dest), str(staging / canonical))
+            staged_files = [p.name for p in staging.iterdir() if p.suffix.lower() in (".xlsx", ".xlsm")]
+            app.logger.info("sem_rematricula staging: salvou '%s' como '%s'. Arquivos: %s", safe_name, canonical, staged_files)
             entries = _parse_sem_rematricula(str(staging))
             if entries:
                 snap_count = _persist_snapshot_entries(entries, tipo, safe_name)
-                staged = [p.name for p in staging.iterdir() if p.suffix.lower() in (".xlsx", ".xlsm")]
-                app.logger.info("sem_rematricula staging: %s → %d linhas", staged, snap_count)
+                app.logger.info("sem_rematricula snapshot criado: %d linhas", snap_count)
             else:
                 snap_count = 0
-                app.logger.info("sem_rematricula: arquivo '%s' salvo no staging, aguardando o outro", safe_name)
+                app.logger.info("sem_rematricula: '%s' salvo, aguardando o outro arquivo", canonical)
         else:
             snap_count = _save_xl_snapshot(str(dest), safe_name, tipo)
     except Exception as e:
@@ -3472,9 +3500,24 @@ def _ensure_users_table():
 # Rotas — Gestão de usuários
 # ---------------------------------------------------------------------------
 
+def _is_admin_or_bootstrap():
+    """Allow access if admin role or no users exist yet (first-time setup)."""
+    if session.get("role") == "admin":
+        return True
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM app_users")
+            count = cur.fetchone()[0]
+        conn.close()
+        return count == 0
+    except Exception:
+        return False
+
+
 @app.route("/api/users", methods=["GET"])
 def api_users_list():
-    if session.get("role") != "admin":
+    if not _is_admin_or_bootstrap():
         return jsonify({"error": "Sem permissão"}), 403
     conn = get_conn()
     with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -3492,7 +3535,7 @@ def api_users_list():
 
 @app.route("/api/users", methods=["POST"])
 def api_users_create():
-    if session.get("role") != "admin":
+    if not _is_admin_or_bootstrap():
         return jsonify({"error": "Sem permissão"}), 403
     body = request.json or {}
     username = (body.get("username") or "").strip()
@@ -3503,6 +3546,9 @@ def api_users_create():
         return jsonify({"error": "Usuário e senha são obrigatórios"}), 400
     if role not in ("admin", "viewer"):
         role = "viewer"
+    is_bootstrap = session.get("role") != "admin"
+    if is_bootstrap:
+        role = "admin"
     conn = get_conn()
     try:
         with conn.cursor() as cur:
@@ -3523,6 +3569,10 @@ def api_users_create():
         conn.close()
         return jsonify({"error": "Usuário já existe"}), 409
     conn.close()
+    if is_bootstrap:
+        session["user_id"] = uid
+        session["username"] = username
+        session["role"] = "admin"
     return jsonify({"ok": True, "id": uid})
 
 

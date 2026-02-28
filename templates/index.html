@@ -1331,14 +1331,29 @@
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
                             Sem Rematrícula
                         </h3>
-                        <div class="upload-dropzone border-2 border-dashed border-slate-700/40 rounded-xl p-4 text-center cursor-pointer hover:border-rose-500/60 hover:bg-rose-950/10 transition-all duration-300"
-                            onclick="this.querySelector('input').click()"
-                            ondragover="event.preventDefault(); this.classList.add('border-rose-500','bg-rose-950/10')"
-                            ondragleave="this.classList.remove('border-rose-500','bg-rose-950/10')"
-                            ondrop="handleDropTyped(event, 'sem_rematricula')">
-                            <input type="file" accept=".xlsx,.zip" class="hidden" onchange="handleUploadTyped(this.files[0], 'sem_rematricula')">
-                            <svg class="w-6 h-6 mx-auto mb-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-                            <p class="text-xs text-slate-400">Arraste <span class="text-rose-400 font-semibold">.zip / .xlsx</span></p>
+                        <div class="grid grid-cols-2 gap-2">
+                            <!-- Adimplente -->
+                            <div class="upload-dropzone border-2 border-dashed border-slate-700/40 rounded-lg p-3 text-center cursor-pointer hover:border-emerald-500/60 hover:bg-emerald-950/10 transition-all duration-300"
+                                onclick="this.querySelector('input').click()"
+                                ondragover="event.preventDefault(); this.classList.add('border-emerald-500','bg-emerald-950/10')"
+                                ondragleave="this.classList.remove('border-emerald-500','bg-emerald-950/10')"
+                                ondrop="handleDropSemRemat(event, 'adimplente')">
+                                <input type="file" accept=".xlsx" class="hidden" onchange="handleUploadSemRemat(this.files[0], 'adimplente')">
+                                <svg class="w-5 h-5 mx-auto mb-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                <p class="text-[10px] text-slate-400 font-semibold">Adimplente</p>
+                                <p id="sem-remat-status-adimplente" class="text-[10px] text-slate-500 mt-1 truncate">—</p>
+                            </div>
+                            <!-- Inadimplente -->
+                            <div class="upload-dropzone border-2 border-dashed border-slate-700/40 rounded-lg p-3 text-center cursor-pointer hover:border-amber-500/60 hover:bg-amber-950/10 transition-all duration-300"
+                                onclick="this.querySelector('input').click()"
+                                ondragover="event.preventDefault(); this.classList.add('border-amber-500','bg-amber-950/10')"
+                                ondragleave="this.classList.remove('border-amber-500','bg-amber-950/10')"
+                                ondrop="handleDropSemRemat(event, 'inadimplente')">
+                                <input type="file" accept=".xlsx" class="hidden" onchange="handleUploadSemRemat(this.files[0], 'inadimplente')">
+                                <svg class="w-5 h-5 mx-auto mb-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                <p class="text-[10px] text-slate-400 font-semibold">Inadimplente</p>
+                                <p id="sem-remat-status-inadimplente" class="text-[10px] text-slate-500 mt-1 truncate">—</p>
+                            </div>
                         </div>
                         <button onclick="processServerFolder('sem_rematricula')" class="mt-2 w-full text-xs text-rose-400/80 hover:text-rose-300 border border-rose-500/20 hover:border-rose-500/50 rounded-lg py-1.5 transition flex items-center justify-center gap-1.5">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/></svg>
@@ -4308,6 +4323,77 @@ async function handleUploadTyped(file, tipo) {
     }
 
     card.querySelector('input[type="file"]').value = '';
+}
+
+function handleDropSemRemat(e, subtipo) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('border-emerald-500', 'bg-emerald-950/10',
+        'border-amber-500', 'bg-amber-950/10');
+    const file = e.dataTransfer.files[0];
+    if (file) handleUploadSemRemat(file, subtipo);
+}
+
+async function handleUploadSemRemat(file, subtipo) {
+    if (!file) return;
+    const ext = file.name.toLowerCase().split('.').pop();
+    if (!['xlsx','xlsm'].includes(ext)) { alert('Aceito: .xlsx'); return; }
+
+    const card = document.querySelector('[data-upload-tipo="sem_rematricula"]');
+    const progress = card.querySelector('.upload-progress');
+    const bar = card.querySelector('.upload-bar');
+    const msg = card.querySelector('.upload-msg');
+    const statusEl = document.getElementById('sem-remat-status-' + subtipo);
+
+    progress.classList.remove('hidden');
+    bar.style.width = '30%';
+    msg.textContent = `Enviando ${subtipo}: ${file.name}...`;
+    msg.className = 'upload-msg text-xs text-slate-400 mt-1';
+
+    const form = new FormData();
+    form.append('file', file);
+    form.append('tipo', 'sem_rematricula');
+    form.append('subtipo', subtipo);
+
+    try {
+        bar.style.width = '60%';
+        const res = await fetch('/api/upload', { method: 'POST', body: form });
+        const data = await res.json();
+        bar.style.width = '100%';
+
+        if (data.error) {
+            msg.textContent = data.error;
+            msg.classList.add('text-red-400');
+            if (statusEl) statusEl.textContent = 'Erro';
+            setTimeout(() => { progress.classList.add('hidden'); }, 3000);
+            return;
+        }
+
+        const color = subtipo === 'adimplente' ? 'emerald' : 'amber';
+        if (statusEl) {
+            statusEl.textContent = '✓ ' + file.name.substring(0, 20);
+            statusEl.className = `text-[10px] text-${color}-400 font-semibold mt-1 truncate`;
+        }
+
+        if (data.snapshot_rows > 0) {
+            msg.textContent = `✓ Snapshot criado! (${data.snapshot_rows.toLocaleString('pt-BR')} linhas)`;
+            msg.className = 'upload-msg text-xs text-emerald-400 font-semibold mt-1';
+        } else {
+            msg.textContent = `✓ ${subtipo} recebido! Envie o outro para criar snapshot.`;
+            msg.className = 'upload-msg text-xs text-amber-400 font-semibold mt-1';
+        }
+        loadFileInfo();
+
+        setTimeout(() => {
+            bar.style.width = '0%';
+            progress.querySelector('.upload-bar').parentElement.classList.add('hidden');
+        }, 1500);
+    } catch (err) {
+        bar.style.width = '100%';
+        msg.textContent = 'Erro: ' + err.message;
+        msg.classList.add('text-red-400');
+        if (statusEl) statusEl.textContent = 'Erro';
+        setTimeout(() => { progress.classList.add('hidden'); bar.style.width = '0%'; }, 3000);
+    }
 }
 
 async function processServerFolder(tipo) {
