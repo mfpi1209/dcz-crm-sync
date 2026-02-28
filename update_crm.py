@@ -66,6 +66,7 @@ BIZ_FIELD_IDS = {
     "SenhaProvisoria":  "cccb3046-1906-4465-901d-329ef2fe08dc",
     "TipoAluno":        "4230e4db-970b-4444-abaf-c3135a03b79c",
     "Turma":            "8815a8de-f755-4597-b6f4-8da6d289b6eb",
+    "Ciclo":            "b9dce12b-30b7-4a0f-a764-298031f5b84e",
     "Nivel":            "233fcf6f-0bed-49d7-89a1-d1cd54fb9c12",
 }
 
@@ -436,6 +437,48 @@ def get_conn():
     return psycopg2.connect(**DB_DSN)
 
 
+def _load_turmas(conn):
+    """Carrega configuração de turmas do banco."""
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute("SELECT nivel, nome, dt_inicio, dt_fim FROM turmas ORDER BY dt_inicio")
+        rows = cur.fetchall()
+    log.info("  %d turmas configuradas no banco", len(rows))
+    return rows
+
+
+def _load_ciclos(conn):
+    """Carrega configuração de ciclos do banco."""
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute("SELECT nivel, nome, dt_inicio, dt_fim FROM ciclos ORDER BY dt_inicio")
+        rows = cur.fetchall()
+    log.info("  %d ciclos configurados no banco", len(rows))
+    return rows
+
+
+def _classify_date_range(data_matricula, nivel, ranges):
+    """Retorna o nome do range (turma ou ciclo) ou '' se nenhum casar."""
+    if not data_matricula or not nivel:
+        return ""
+    from datetime import date as dt_date
+    try:
+        parts = data_matricula.split("-")
+        dt = dt_date(int(parts[0]), int(parts[1]), int(parts[2]))
+    except (ValueError, IndexError):
+        return ""
+    for t in ranges:
+        if t["nivel"] == nivel and t["dt_inicio"] <= dt <= t["dt_fim"]:
+            return t["nome"]
+    return ""
+
+
+def _classify_turma(data_matricula, nivel, turmas):
+    return _classify_date_range(data_matricula, nivel, turmas)
+
+
+def _classify_ciclo(data_matricula, nivel, ciclos):
+    return _classify_date_range(data_matricula, nivel, ciclos)
+
+
 def _data_hash(data):
     return hashlib.md5(json.dumps(data, sort_keys=True, default=str).encode()).hexdigest()
 
@@ -729,7 +772,7 @@ def _compare_field(field_name, crm_val, xl_val):
     return False
 
 
-def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_name, leads_by_id, biz_by_lead):
+def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_name, leads_by_id, biz_by_lead, turmas=None, ciclos=None):
     """Two-stage matching:
     Stage 1 — Find the LEAD (CPF → Phone → Email → Name)
     Stage 2 — Find the BUSINESS within that lead (by RGM)
@@ -923,6 +966,9 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
         biz_updates = []
         fields_to_update = {}
         senha = generate_senha(xl_data["nome"], rgm, cpf)
+        turma_nome = _classify_turma(xl_data["data_matricula"], xl_data["nivel"], turmas or [])
+        ciclo_nome = _classify_ciclo(xl_data["data_matricula"], xl_data["nivel"], ciclos or [])
+
         mapping = {
             "Curso": xl_data["curso"],
             "Polo": xl_data["polo"],
@@ -933,6 +979,8 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
             "EmailAD": xl_data["email_acad"],
             "SenhaProvisoria": senha,
             "Nivel": xl_data["nivel"],
+            "Turma": turma_nome,
+            "Ciclo": ciclo_nome,
         }
         if rgm:
             mapping["RGM"] = rgm
@@ -1292,6 +1340,8 @@ def main():
     conn = get_conn()
     try:
         crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_name, leads_by_id, biz_by_lead = load_crm_data(conn)
+        turmas = _load_turmas(conn)
+        ciclos = _load_ciclos(conn)
     finally:
         conn.close()
 
@@ -1299,6 +1349,7 @@ def main():
     updates = prepare_updates(
         xl_rows, col, crm_by_rgm,
         crm_by_cpf, crm_by_phone, crm_by_name, leads_by_id, biz_by_lead,
+        turmas=turmas, ciclos=ciclos,
     )
     log.info("  %d registros com atualizações pendentes", len(updates))
 

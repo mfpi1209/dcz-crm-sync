@@ -48,6 +48,27 @@ CREATE INDEX IF NOT EXISTS idx_biz_synced ON businesses(synced_at);
 CREATE INDEX IF NOT EXISTS idx_leads_gin ON leads USING GIN(data);
 CREATE INDEX IF NOT EXISTS idx_biz_gin ON businesses USING GIN(data);
 
+CREATE TABLE IF NOT EXISTS turmas (
+    id         SERIAL PRIMARY KEY,
+    nivel      TEXT NOT NULL,
+    nome       TEXT NOT NULL,
+    dt_inicio  DATE NOT NULL,
+    dt_fim     DATE NOT NULL,
+    ano        INTEGER NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(nivel, nome)
+);
+
+CREATE TABLE IF NOT EXISTS ciclos (
+    id         SERIAL PRIMARY KEY,
+    nivel      TEXT NOT NULL,
+    nome       TEXT NOT NULL,
+    dt_inicio  DATE NOT NULL,
+    dt_fim     DATE NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(nivel, nome)
+);
+
 CREATE TABLE IF NOT EXISTS schedules (
     id TEXT PRIMARY KEY,
     job_type TEXT NOT NULL,

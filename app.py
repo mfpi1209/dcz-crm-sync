@@ -320,6 +320,7 @@ DATA_MATRICULA_FIELD = "bf93a8e9-42c0-4517-8518-6f604746a300"
 SITUACAO_FIELD = "fd08d44b-a4a5-4343-b7a9-37f75e2c1caa"
 NIVEL_FIELD = "233fcf6f-0bed-49d7-89a1-d1cd54fb9c12"
 POLO_FIELD = "0ec9d8dc-d547-4482-b9ad-d4a3e6ec1b54"
+TURMA_FIELD = "8815a8de-f755-4597-b6f4-8da6d289b6eb"
 
 _STUDENT_METRICS_QUERY = """
 WITH biz_fields AS (
@@ -334,23 +335,35 @@ WITH biz_fields AS (
         MAX(CASE WHEN af->>'additionalFieldId' = %(niv_id)s  OR af->'additionalField'->>'id' = %(niv_id)s
                  THEN af->>'value' END) AS nivel,
         MAX(CASE WHEN af->>'additionalFieldId' = %(polo_id)s OR af->'additionalField'->>'id' = %(polo_id)s
-                 THEN af->>'value' END) AS polo
+                 THEN af->>'value' END) AS polo,
+        MAX(CASE WHEN af->>'additionalFieldId' = %(turma_id)s OR af->'additionalField'->>'id' = %(turma_id)s
+                 THEN af->>'value' END) AS turma
     FROM businesses b,
          jsonb_array_elements(b.data->'additionalFields') af
     GROUP BY b.id
 )
 SELECT
-    COALESCE(tipo_aluno, 'Não informado') AS tipo,
-    situacao,
-    nivel,
-    polo,
+    COALESCE(bf.tipo_aluno, 'Não informado') AS tipo,
+    bf.situacao,
+    bf.nivel,
+    bf.polo,
+    bf.turma,
+    c.nome AS ciclo,
     COUNT(*) AS total
-FROM biz_fields
-WHERE (%(dt_from)s IS NULL OR data_matricula >= %(dt_from)s)
-  AND (%(dt_to)s   IS NULL OR data_matricula <= %(dt_to)s)
-  AND (%(f_nivel)s IS NULL OR nivel = %(f_nivel)s)
-  AND (%(f_sit)s   IS NULL OR situacao = %(f_sit)s)
-GROUP BY tipo_aluno, situacao, nivel, polo
+FROM biz_fields bf
+LEFT JOIN LATERAL (
+    SELECT ci.nome FROM ciclos ci
+    WHERE ci.nivel = bf.nivel
+      AND bf.data_matricula IS NOT NULL
+      AND bf.data_matricula ~ '^\d{4}-\d{2}-\d{2}'
+      AND bf.data_matricula::date BETWEEN ci.dt_inicio AND ci.dt_fim
+    LIMIT 1
+) c ON TRUE
+WHERE (%(dt_from)s IS NULL OR bf.data_matricula >= %(dt_from)s)
+  AND (%(dt_to)s   IS NULL OR bf.data_matricula <= %(dt_to)s)
+  AND (%(f_nivel)s IS NULL OR bf.nivel = %(f_nivel)s)
+  AND (%(f_sit)s   IS NULL OR bf.situacao = %(f_sit)s)
+GROUP BY bf.tipo_aluno, bf.situacao, bf.nivel, bf.polo, bf.turma, c.nome
 ORDER BY total DESC
 """
 
@@ -370,6 +383,7 @@ def api_dashboard_students():
                 "sit_id": SITUACAO_FIELD,
                 "niv_id": NIVEL_FIELD,
                 "polo_id": POLO_FIELD,
+                "turma_id": TURMA_FIELD,
                 "dt_from": dt_from or None,
                 "dt_to": dt_to or None,
                 "f_nivel": f_nivel or None,
@@ -388,6 +402,8 @@ def api_dashboard_students():
         by_situacao = {}
         by_nivel = {}
         by_polo = {}
+        by_turma = {}
+        by_ciclo = {}
 
         for r in rows:
             tipo = r["tipo"] or "Não informado"
@@ -403,15 +419,414 @@ def api_dashboard_students():
             polo = r["polo"] or "N/I"
             by_polo[polo] = by_polo.get(polo, 0) + r["total"]
 
+            turma = r["turma"] or "N/I"
+            by_turma[turma] = by_turma.get(turma, 0) + r["total"]
+
+            ciclo = r["ciclo"] or "N/I"
+            by_ciclo[ciclo] = by_ciclo.get(ciclo, 0) + r["total"]
+
         return jsonify({
             "totals": totals,
             "by_situacao": dict(sorted(by_situacao.items(), key=lambda x: -x[1])),
             "by_nivel": dict(sorted(by_nivel.items(), key=lambda x: -x[1])),
             "by_polo": dict(sorted(by_polo.items(), key=lambda x: -x[1])),
+            "by_turma": dict(sorted(by_turma.items(), key=lambda x: -x[1])),
+            "by_ciclo": dict(sorted(by_ciclo.items(), key=lambda x: -x[1])),
             "grand_total": sum(totals.values()),
             "filter": {"from": dt_from, "to": dt_to},
         })
     except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Rotas — Dashboard Ciclos (Master Panel)
+# ---------------------------------------------------------------------------
+
+_CICLO_COMPARE_QUERY = """
+WITH biz_fields AS (
+    SELECT
+        b.id,
+        MAX(CASE WHEN af->>'additionalFieldId' = %(tipo_id)s OR af->'additionalField'->>'id' = %(tipo_id)s
+                 THEN af->>'value' END) AS tipo_aluno,
+        MAX(CASE WHEN af->>'additionalFieldId' = %(dt_id)s   OR af->'additionalField'->>'id' = %(dt_id)s
+                 THEN af->>'value' END) AS data_matricula,
+        MAX(CASE WHEN af->>'additionalFieldId' = %(sit_id)s  OR af->'additionalField'->>'id' = %(sit_id)s
+                 THEN af->>'value' END) AS situacao,
+        MAX(CASE WHEN af->>'additionalFieldId' = %(niv_id)s  OR af->'additionalField'->>'id' = %(niv_id)s
+                 THEN af->>'value' END) AS nivel,
+        MAX(CASE WHEN af->>'additionalFieldId' = %(polo_id)s OR af->'additionalField'->>'id' = %(polo_id)s
+                 THEN af->>'value' END) AS polo
+    FROM businesses b,
+         jsonb_array_elements(b.data->'additionalFields') af
+    GROUP BY b.id
+)
+SELECT
+    c.nome AS ciclo,
+    c.nivel AS ciclo_nivel,
+    COALESCE(bf.tipo_aluno, 'Não informado') AS tipo,
+    bf.situacao,
+    bf.nivel,
+    bf.polo,
+    COUNT(*) AS total
+FROM biz_fields bf
+INNER JOIN ciclos c
+    ON c.nivel = bf.nivel
+   AND bf.data_matricula IS NOT NULL
+   AND bf.data_matricula ~ '^\\d{4}-\\d{2}-\\d{2}'
+   AND bf.data_matricula::date BETWEEN c.dt_inicio AND c.dt_fim
+GROUP BY c.nome, c.nivel, bf.tipo_aluno, bf.situacao, bf.nivel, bf.polo
+ORDER BY c.nome, total DESC
+"""
+
+
+@app.route("/api/dashboard/ciclos")
+def api_dashboard_ciclos():
+    """Retorna métricas detalhadas por ciclo para comparação."""
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT nome, nivel, dt_inicio, dt_fim FROM ciclos ORDER BY dt_inicio")
+            ciclos_config = cur.fetchall()
+
+            cur.execute(_CICLO_COMPARE_QUERY, {
+                "tipo_id": TIPO_ALUNO_FIELD,
+                "dt_id": DATA_MATRICULA_FIELD,
+                "sit_id": SITUACAO_FIELD,
+                "niv_id": NIVEL_FIELD,
+                "polo_id": POLO_FIELD,
+            })
+            rows = cur.fetchall()
+
+        tipo_map = {
+            "Calouro": "novos",
+            "Regresso (Retorno)": "regresso",
+            "Calouro (Recompra)": "recompra",
+            "Veterano": "rematricula",
+        }
+
+        ciclos = {}
+        for r in rows:
+            cn = r["ciclo"]
+            if cn not in ciclos:
+                ciclos[cn] = {
+                    "nome": cn,
+                    "nivel": r["ciclo_nivel"],
+                    "totals": {"novos": 0, "regresso": 0, "recompra": 0, "rematricula": 0, "outros": 0},
+                    "by_situacao": {},
+                    "by_polo": {},
+                    "grand_total": 0,
+                }
+            c = ciclos[cn]
+            tipo = r["tipo"] or "Não informado"
+            cat = tipo_map.get(tipo, "outros")
+            c["totals"][cat] += r["total"]
+            c["grand_total"] += r["total"]
+
+            sit = r["situacao"] or "N/I"
+            c["by_situacao"][sit] = c["by_situacao"].get(sit, 0) + r["total"]
+
+            polo = r["polo"] or "N/I"
+            c["by_polo"][polo] = c["by_polo"].get(polo, 0) + r["total"]
+
+        for cn in ciclos:
+            ciclos[cn]["by_situacao"] = dict(sorted(ciclos[cn]["by_situacao"].items(), key=lambda x: -x[1]))
+            ciclos[cn]["by_polo"] = dict(sorted(ciclos[cn]["by_polo"].items(), key=lambda x: -x[1]))
+
+        ciclo_list = sorted(ciclos.values(), key=lambda x: x["nome"], reverse=True)
+
+        config_list = []
+        for cc in ciclos_config:
+            row = dict(cc)
+            for k, v in row.items():
+                if hasattr(v, "isoformat"):
+                    row[k] = v.isoformat()
+            config_list.append(row)
+
+        return jsonify({
+            "ciclos": ciclo_list,
+            "config": config_list,
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Rotas — Turmas
+# ---------------------------------------------------------------------------
+
+GRAD_MONTHS = [2, 3, 4, 5, 8, 9, 10, 11]
+POS_MONTHS = list(range(1, 13))
+MONTH_NAMES = {
+    1: "Janeiro", 2: "Fevereiro", 3: "Março", 4: "Abril",
+    5: "Maio", 6: "Junho", 7: "Julho", 8: "Agosto",
+    9: "Setembro", 10: "Outubro", 11: "Novembro", 12: "Dezembro",
+}
+
+
+def _turma_defaults(nivel, ano):
+    """Gera ranges padrão de turmas para um nível/ano."""
+    import calendar
+    months = GRAD_MONTHS if nivel == "Graduação" else POS_MONTHS
+    rows = []
+    for m in months:
+        last_day = calendar.monthrange(ano, m)[1]
+        rows.append({
+            "nivel": nivel,
+            "nome": f"{MONTH_NAMES[m]} {ano}",
+            "dt_inicio": f"{ano}-{m:02d}-01",
+            "dt_fim": f"{ano}-{m:02d}-{last_day:02d}",
+            "ano": ano,
+        })
+    return rows
+
+
+@app.route("/api/turmas")
+def api_turmas_list():
+    nivel = request.args.get("nivel", "")
+    ano = request.args.get("ano", "")
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            q = "SELECT * FROM turmas WHERE 1=1"
+            params = []
+            if nivel:
+                q += " AND nivel = %s"
+                params.append(nivel)
+            if ano:
+                q += " AND ano = %s"
+                params.append(int(ano))
+            q += " ORDER BY ano, dt_inicio"
+            cur.execute(q, params)
+            rows = []
+            for r in cur.fetchall():
+                row = dict(r)
+                for k, v in row.items():
+                    if hasattr(v, "isoformat"):
+                        row[k] = v.isoformat() if v else None
+                rows.append(row)
+        return jsonify(rows)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/turmas", methods=["POST"])
+def api_turmas_create():
+    body = request.json or {}
+    required = ("nivel", "nome", "dt_inicio", "dt_fim", "ano")
+    if not all(body.get(k) for k in required):
+        return jsonify({"error": "Campos obrigatórios: " + ", ".join(required)}), 400
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO turmas (nivel, nome, dt_inicio, dt_fim, ano) "
+                "VALUES (%s, %s, %s, %s, %s) "
+                "ON CONFLICT (nivel, nome) DO UPDATE SET dt_inicio=EXCLUDED.dt_inicio, dt_fim=EXCLUDED.dt_fim, ano=EXCLUDED.ano "
+                "RETURNING id",
+                (body["nivel"], body["nome"], body["dt_inicio"], body["dt_fim"], int(body["ano"])),
+            )
+            new_id = cur.fetchone()[0]
+        conn.commit()
+        return jsonify({"ok": True, "id": new_id})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/turmas/<int:tid>", methods=["PUT"])
+def api_turmas_update(tid):
+    body = request.json or {}
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE turmas SET nivel=COALESCE(%s,nivel), nome=COALESCE(%s,nome), "
+                "dt_inicio=COALESCE(%s,dt_inicio), dt_fim=COALESCE(%s,dt_fim), ano=COALESCE(%s,ano) "
+                "WHERE id=%s",
+                (body.get("nivel"), body.get("nome"), body.get("dt_inicio"), body.get("dt_fim"),
+                 int(body["ano"]) if body.get("ano") else None, tid),
+            )
+        conn.commit()
+        return jsonify({"ok": True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/turmas/<int:tid>", methods=["DELETE"])
+def api_turmas_delete(tid):
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM turmas WHERE id=%s", (tid,))
+        conn.commit()
+        return jsonify({"ok": True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/turmas/seed", methods=["POST"])
+def api_turmas_seed():
+    body = request.json or {}
+    ano = int(body.get("ano", datetime.now().year))
+    conn = get_conn()
+    try:
+        created = 0
+        with conn.cursor() as cur:
+            for nivel in ("Graduação", "Pós-Graduação"):
+                for t in _turma_defaults(nivel, ano):
+                    cur.execute(
+                        "INSERT INTO turmas (nivel, nome, dt_inicio, dt_fim, ano) "
+                        "VALUES (%s, %s, %s, %s, %s) "
+                        "ON CONFLICT (nivel, nome) DO NOTHING",
+                        (t["nivel"], t["nome"], t["dt_inicio"], t["dt_fim"], t["ano"]),
+                    )
+                    created += cur.rowcount
+        conn.commit()
+        return jsonify({"ok": True, "created": created, "ano": ano})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Rotas — Ciclos
+# ---------------------------------------------------------------------------
+
+@app.route("/api/ciclos")
+def api_ciclos_list():
+    nivel = request.args.get("nivel", "")
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            q = "SELECT * FROM ciclos WHERE 1=1"
+            params = []
+            if nivel:
+                q += " AND nivel = %s"
+                params.append(nivel)
+            q += " ORDER BY dt_inicio"
+            cur.execute(q, params)
+            rows = []
+            for r in cur.fetchall():
+                row = dict(r)
+                for k, v in row.items():
+                    if hasattr(v, "isoformat"):
+                        row[k] = v.isoformat() if v else None
+                rows.append(row)
+        return jsonify(rows)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/ciclos", methods=["POST"])
+def api_ciclos_create():
+    body = request.json or {}
+    required = ("nivel", "nome", "dt_inicio", "dt_fim")
+    if not all(body.get(k) for k in required):
+        return jsonify({"error": "Campos obrigatórios: " + ", ".join(required)}), 400
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO ciclos (nivel, nome, dt_inicio, dt_fim) "
+                "VALUES (%s, %s, %s, %s) "
+                "ON CONFLICT (nivel, nome) DO UPDATE SET dt_inicio=EXCLUDED.dt_inicio, dt_fim=EXCLUDED.dt_fim "
+                "RETURNING id",
+                (body["nivel"], body["nome"], body["dt_inicio"], body["dt_fim"]),
+            )
+            new_id = cur.fetchone()[0]
+        conn.commit()
+        return jsonify({"ok": True, "id": new_id})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/ciclos/<int:cid>", methods=["PUT"])
+def api_ciclos_update(cid):
+    body = request.json or {}
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE ciclos SET nivel=COALESCE(%s,nivel), nome=COALESCE(%s,nome), "
+                "dt_inicio=COALESCE(%s,dt_inicio), dt_fim=COALESCE(%s,dt_fim) "
+                "WHERE id=%s",
+                (body.get("nivel"), body.get("nome"), body.get("dt_inicio"), body.get("dt_fim"), cid),
+            )
+        conn.commit()
+        return jsonify({"ok": True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/ciclos/<int:cid>", methods=["DELETE"])
+def api_ciclos_delete(cid):
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM ciclos WHERE id=%s", (cid,))
+        conn.commit()
+        return jsonify({"ok": True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/ciclos/seed", methods=["POST"])
+def api_ciclos_seed():
+    """Gera ciclos padrão: Graduação semestral, Pós-Graduação semestral."""
+    body = request.json or {}
+    ano = int(body.get("ano", datetime.now().year))
+    conn = get_conn()
+    try:
+        created = 0
+        defaults = [
+            ("Graduação", f"{ano}.1", f"{ano-1}-11-16", f"{ano}-05-15"),
+            ("Graduação", f"{ano}.2", f"{ano}-05-16", f"{ano}-11-15"),
+            ("Pós-Graduação", f"{ano}.1", f"{ano-1}-11-16", f"{ano}-05-15"),
+            ("Pós-Graduação", f"{ano}.2", f"{ano}-05-16", f"{ano}-11-15"),
+        ]
+        with conn.cursor() as cur:
+            for nivel, nome, dt_ini, dt_fim in defaults:
+                cur.execute(
+                    "INSERT INTO ciclos (nivel, nome, dt_inicio, dt_fim) "
+                    "VALUES (%s, %s, %s, %s) "
+                    "ON CONFLICT (nivel, nome) DO NOTHING",
+                    (nivel, nome, dt_ini, dt_fim),
+                )
+                created += cur.rowcount
+        conn.commit()
+        return jsonify({"ok": True, "created": created, "ano": ano})
+    except Exception as e:
+        conn.rollback()
         return jsonify({"error": str(e)}), 500
     finally:
         conn.close()
@@ -1361,8 +1776,55 @@ def _ensure_schedules_table():
         app.logger.warning("Could not ensure schedules table: %s", e)
 
 
+def _ensure_turmas_table():
+    """Create the turmas table if it doesn't exist yet."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS turmas (
+                    id         SERIAL PRIMARY KEY,
+                    nivel      TEXT NOT NULL,
+                    nome       TEXT NOT NULL,
+                    dt_inicio  DATE NOT NULL,
+                    dt_fim     DATE NOT NULL,
+                    ano        INTEGER NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    UNIQUE(nivel, nome)
+                )
+            """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        app.logger.warning("Could not ensure turmas table: %s", e)
+
+
+def _ensure_ciclos_table():
+    """Create the ciclos table if it doesn't exist yet."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS ciclos (
+                    id         SERIAL PRIMARY KEY,
+                    nivel      TEXT NOT NULL,
+                    nome       TEXT NOT NULL,
+                    dt_inicio  DATE NOT NULL,
+                    dt_fim     DATE NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    UNIQUE(nivel, nome)
+                )
+            """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        app.logger.warning("Could not ensure ciclos table: %s", e)
+
+
 # Start scheduler
 _ensure_schedules_table()
+_ensure_turmas_table()
+_ensure_ciclos_table()
 scheduler.start()
 _load_schedules_from_db()
 

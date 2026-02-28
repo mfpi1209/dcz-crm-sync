@@ -244,6 +244,10 @@
                 <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                 Logs / Relatórios
             </a>
+            <a href="#config" onclick="navigate('config')" class="sidebar-link" data-page="config">
+                <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                Configurações
+            </a>
             <a href="#schedule" onclick="navigate('schedule')" class="sidebar-link" data-page="schedule">
                 <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 Agendamento
@@ -324,6 +328,57 @@
                     </div>
                 </div>
 
+                <!-- ── Master Panel: Comparação de Ciclos ── -->
+                <div class="glass-card p-6 mb-6" id="ciclo-master-panel">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-5">
+                        <h3 class="text-base font-bold text-white font-display flex items-center gap-2">
+                            <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                            Comparação de Ciclos
+                        </h3>
+                        <div class="flex items-center gap-3 flex-wrap">
+                            <div class="flex items-center gap-2">
+                                <label class="text-xs text-slate-500 font-medium">Nível</label>
+                                <select id="ciclo-filter-nivel" onchange="loadCicloMaster()" class="input-glass px-2.5 py-1.5 text-xs text-slate-300">
+                                    <option value="">Todos</option>
+                                    <option value="Graduação">Graduação</option>
+                                    <option value="Pós-Graduação">Pós-Graduação</option>
+                                </select>
+                            </div>
+                            <button type="button" onclick="loadCicloMaster()" class="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                Atualizar
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="ciclo-master-loading" class="text-sm text-slate-500 py-8 text-center">
+                        <svg class="animate-spin h-5 w-5 mx-auto mb-2 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                        Carregando comparação de ciclos...
+                    </div>
+                    <div id="ciclo-master-empty" class="hidden text-sm text-slate-500 py-8 text-center">
+                        Nenhum ciclo configurado. <a href="#ciclos" onclick="navigate('ciclos')" class="text-indigo-400 hover:text-indigo-300">Configure ciclos primeiro</a>.
+                    </div>
+                    <div id="ciclo-master-content" class="hidden">
+                        <!-- Cycle comparison cards -->
+                        <div id="ciclo-cards" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6"></div>
+
+                        <!-- Comparison table -->
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm" id="ciclo-compare-table">
+                                <thead>
+                                    <tr class="text-xs text-slate-500 border-b border-slate-700/30">
+                                        <th class="pb-2 pl-2 font-semibold">Indicador</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ciclo-compare-tbody" class="text-slate-300"></tbody>
+                            </table>
+                        </div>
+
+                        <!-- Per-cycle situação breakdown -->
+                        <div id="ciclo-situacao-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-6"></div>
+                    </div>
+                </div>
+
                 <!-- ── Métricas de Alunos ── -->
                 <div class="glass-card p-6 mb-6">
                     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-5">
@@ -386,7 +441,7 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
                         <div class="rounded-xl p-4 bg-slate-800/30 border border-slate-700/30">
                             <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Por Situação</h4>
                             <div id="stu-by-situacao" class="space-y-2 text-sm text-slate-300">—</div>
@@ -398,6 +453,14 @@
                         <div class="rounded-xl p-4 bg-slate-800/30 border border-slate-700/30">
                             <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Por Polo</h4>
                             <div id="stu-by-polo" class="space-y-2 text-sm text-slate-300">—</div>
+                        </div>
+                        <div class="rounded-xl p-4 bg-slate-800/30 border border-slate-700/30">
+                            <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Por Turma</h4>
+                            <div id="stu-by-turma" class="space-y-2 text-sm text-slate-300">—</div>
+                        </div>
+                        <div class="rounded-xl p-4 bg-slate-800/30 border border-slate-700/30">
+                            <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Por Ciclo</h4>
+                            <div id="stu-by-ciclo" class="space-y-2 text-sm text-slate-300">—</div>
                         </div>
                     </div>
 
@@ -782,6 +845,178 @@
                 </div>
             </div>
 
+            <!-- ============ PAGE: CONFIGURAÇÕES ============ -->
+            <div id="page-config" class="p-4 lg:p-8 max-w-7xl mx-auto hidden">
+                <div class="mb-8">
+                    <h2 class="text-3xl font-bold text-white font-display mb-1">Configurações</h2>
+                    <p class="text-slate-500 text-sm">Gerencie ciclos, turmas e parâmetros do sistema</p>
+                </div>
+
+                <!-- Tabs de configuração -->
+                <div class="flex gap-2 mb-6 border-b border-slate-700/30 pb-3">
+                    <button onclick="switchConfigTab('ciclos')" id="cfg-tab-ciclos"
+                        class="text-sm font-semibold px-5 py-2 rounded-lg transition bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        Ciclos
+                    </button>
+                    <button onclick="switchConfigTab('turmas')" id="cfg-tab-turmas"
+                        class="text-sm font-semibold px-5 py-2 rounded-lg transition text-slate-500 hover:text-slate-300 flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        Turmas
+                    </button>
+                </div>
+
+                <!-- ── Seção: Ciclos ── -->
+                <div id="cfg-section-ciclos">
+                    <div class="glass-card p-6 mb-6">
+                        <div class="flex flex-wrap items-end gap-4 mb-6">
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Ano</label>
+                                <input type="number" id="ciclo-ano" value="2026" min="2024" max="2030"
+                                    class="input-glass px-3 py-2 text-sm text-slate-200 w-28">
+                            </div>
+                            <button onclick="seedCiclos()" class="btn-primary text-sm px-5 py-2 rounded-xl flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                                Gerar Ciclos Padrão
+                            </button>
+                            <button onclick="loadCiclos()" class="btn-secondary text-sm px-4 py-2 rounded-xl">Atualizar</button>
+                        </div>
+
+                        <div class="flex gap-3 mb-5">
+                            <button onclick="switchCicloTab('grad')" id="tab-ciclo-grad"
+                                class="text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+                                Graduação
+                            </button>
+                            <button onclick="switchCicloTab('pos')" id="tab-ciclo-pos"
+                                class="text-sm font-semibold px-4 py-1.5 rounded-lg transition text-slate-500 hover:text-slate-300">
+                                Pós-Graduação
+                            </button>
+                        </div>
+
+                        <div id="ciclo-table-container" class="overflow-x-auto">
+                            <table class="w-full text-left text-sm">
+                                <thead>
+                                    <tr class="text-xs text-slate-500 border-b border-slate-700/30">
+                                        <th class="pb-2 font-semibold">Ciclo</th>
+                                        <th class="pb-2 font-semibold">Início</th>
+                                        <th class="pb-2 font-semibold">Fim</th>
+                                        <th class="pb-2 font-semibold w-24">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ciclo-tbody" class="text-slate-300">
+                                    <tr><td colspan="4" class="py-4 text-center text-slate-500">Carregando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="glass-card p-6">
+                        <h3 class="text-base font-bold text-white font-display mb-4">Adicionar Ciclo Manual</h3>
+                        <div class="flex flex-wrap items-end gap-4">
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Nível</label>
+                                <select id="ciclo-new-nivel" class="input-glass px-3 py-2 text-sm text-slate-200">
+                                    <option value="Graduação">Graduação</option>
+                                    <option value="Pós-Graduação">Pós-Graduação</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Nome</label>
+                                <input type="text" id="ciclo-new-nome" placeholder="Ex: 2026.1"
+                                    class="input-glass px-3 py-2 text-sm text-slate-200 w-40">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Início</label>
+                                <input type="date" id="ciclo-new-inicio" class="input-glass px-3 py-2 text-sm text-slate-200">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Fim</label>
+                                <input type="date" id="ciclo-new-fim" class="input-glass px-3 py-2 text-sm text-slate-200">
+                            </div>
+                            <button onclick="createCiclo()" class="btn-primary text-sm px-5 py-2 rounded-xl">Salvar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Seção: Turmas ── -->
+                <div id="cfg-section-turmas" class="hidden">
+                    <div class="glass-card p-6 mb-6">
+                        <div class="flex flex-wrap items-end gap-4 mb-6">
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Ano</label>
+                                <input type="number" id="turma-ano" value="2026" min="2024" max="2030"
+                                    class="input-glass px-3 py-2 text-sm text-slate-200 w-28">
+                            </div>
+                            <button onclick="seedTurmas()" class="btn-primary text-sm px-5 py-2 rounded-xl flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                                Gerar Turmas Padrão
+                            </button>
+                            <button onclick="loadTurmas()" class="btn-secondary text-sm px-4 py-2 rounded-xl">Atualizar</button>
+                        </div>
+
+                        <div class="flex gap-3 mb-5">
+                            <button onclick="switchTurmaTab('grad')" id="tab-turma-grad"
+                                class="text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+                                Graduação
+                            </button>
+                            <button onclick="switchTurmaTab('pos')" id="tab-turma-pos"
+                                class="text-sm font-semibold px-4 py-1.5 rounded-lg transition text-slate-500 hover:text-slate-300">
+                                Pós-Graduação
+                            </button>
+                        </div>
+
+                        <div id="turma-table-container" class="overflow-x-auto">
+                            <table class="w-full text-left text-sm">
+                                <thead>
+                                    <tr class="text-xs text-slate-500 border-b border-slate-700/30">
+                                        <th class="pb-2 font-semibold">Turma</th>
+                                        <th class="pb-2 font-semibold">Início</th>
+                                        <th class="pb-2 font-semibold">Fim</th>
+                                        <th class="pb-2 font-semibold">Ano</th>
+                                        <th class="pb-2 font-semibold w-24">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="turma-tbody" class="text-slate-300">
+                                    <tr><td colspan="5" class="py-4 text-center text-slate-500">Carregando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="glass-card p-6">
+                        <h3 class="text-base font-bold text-white font-display mb-4">Adicionar Turma Manual</h3>
+                        <div class="flex flex-wrap items-end gap-4">
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Nível</label>
+                                <select id="turma-new-nivel" class="input-glass px-3 py-2 text-sm text-slate-200">
+                                    <option value="Graduação">Graduação</option>
+                                    <option value="Pós-Graduação">Pós-Graduação</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Nome</label>
+                                <input type="text" id="turma-new-nome" placeholder="Ex: Fevereiro 2026"
+                                    class="input-glass px-3 py-2 text-sm text-slate-200 w-48">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Início</label>
+                                <input type="date" id="turma-new-inicio" class="input-glass px-3 py-2 text-sm text-slate-200">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Fim</label>
+                                <input type="date" id="turma-new-fim" class="input-glass px-3 py-2 text-sm text-slate-200">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Ano</label>
+                                <input type="number" id="turma-new-ano" value="2026" min="2024" max="2030"
+                                    class="input-glass px-3 py-2 text-sm text-slate-200 w-24">
+                            </div>
+                            <button onclick="createTurma()" class="btn-primary text-sm px-5 py-2 rounded-xl">Salvar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- ============ PAGE: SCHEDULE ============ -->
             <div id="page-schedule" class="p-4 lg:p-8 max-w-7xl mx-auto hidden">
                 <div class="mb-8">
@@ -866,8 +1101,8 @@ async function api(url, opts = {}) {
 // ---------------------------------------------------------------------------
 // SPA Navigation
 // ---------------------------------------------------------------------------
-const PAGES = ['dashboard', 'search', 'sync', 'update', 'pipeline', 'logs', 'schedule'];
-const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', logs: 'Logs / Relatórios', schedule: 'Agendamento' };
+const PAGES = ['dashboard', 'search', 'sync', 'update', 'pipeline', 'logs', 'config', 'schedule'];
+const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento' };
 
 function navigate(page) {
     PAGES.forEach(p => {
@@ -887,6 +1122,7 @@ function navigate(page) {
     if (page === 'sync') loadSyncState();
     if (page === 'update') loadFileInfo();
     if (page === 'logs') loadLogFiles();
+    if (page === 'config') { loadCiclos(); loadTurmas(); }
     if (page === 'schedule') loadSchedules();
 
     history.replaceState(null, '', '#' + page);
@@ -999,11 +1235,185 @@ async function loadDashboard() {
         console.error('Dashboard load error:', err);
     }
     loadStudentMetrics();
+    loadCicloMaster();
 }
 
 // ---------------------------------------------------------------------------
 // Student Metrics
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Ciclo Master Panel
+// ---------------------------------------------------------------------------
+let _cicloMasterData = null;
+
+async function loadCicloMaster() {
+    const loading = document.getElementById('ciclo-master-loading');
+    const empty = document.getElementById('ciclo-master-empty');
+    const content = document.getElementById('ciclo-master-content');
+    loading.classList.remove('hidden');
+    empty.classList.add('hidden');
+    content.classList.add('hidden');
+
+    try {
+        const res = await api('/api/dashboard/ciclos');
+        const d = await res.json();
+        if (d.error) { loading.textContent = 'Erro: ' + d.error; return; }
+
+        _cicloMasterData = d;
+        loading.classList.add('hidden');
+
+        const nivelFilter = document.getElementById('ciclo-filter-nivel').value;
+        let ciclos = d.ciclos || [];
+        if (nivelFilter) ciclos = ciclos.filter(c => c.nivel === nivelFilter);
+
+        if (!ciclos.length) {
+            empty.classList.remove('hidden');
+            return;
+        }
+
+        content.classList.remove('hidden');
+        renderCicloMaster(ciclos);
+    } catch (e) {
+        loading.textContent = 'Erro ao carregar ciclos.';
+        console.error(e);
+    }
+}
+
+function renderCicloMaster(ciclos) {
+    const fmt = n => (n || 0).toLocaleString('pt-BR');
+    const pctChange = (cur, prev) => {
+        if (!prev) return cur > 0 ? { val: 100, txt: 'novo', cls: 'text-emerald-400' } : { val: 0, txt: '—', cls: 'text-slate-500' };
+        const diff = ((cur - prev) / prev * 100);
+        const sign = diff >= 0 ? '+' : '';
+        return {
+            val: diff,
+            txt: sign + diff.toFixed(1) + '%',
+            cls: diff > 0 ? 'text-emerald-400' : diff < 0 ? 'text-rose-400' : 'text-slate-400'
+        };
+    };
+
+    const colors = [
+        { bg: 'from-cyan-500/15 to-blue-500/15', border: 'border-cyan-500/30', accent: 'text-cyan-400', bar: 'from-cyan-500 to-blue-500' },
+        { bg: 'from-violet-500/15 to-purple-500/15', border: 'border-violet-500/30', accent: 'text-violet-400', bar: 'from-violet-500 to-purple-500' },
+        { bg: 'from-amber-500/15 to-orange-500/15', border: 'border-amber-500/30', accent: 'text-amber-400', bar: 'from-amber-500 to-orange-500' },
+        { bg: 'from-emerald-500/15 to-teal-500/15', border: 'border-emerald-500/30', accent: 'text-emerald-400', bar: 'from-emerald-500 to-teal-500' },
+        { bg: 'from-rose-500/15 to-pink-500/15', border: 'border-rose-500/30', accent: 'text-rose-400', bar: 'from-rose-500 to-pink-500' },
+        { bg: 'from-indigo-500/15 to-sky-500/15', border: 'border-indigo-500/30', accent: 'text-indigo-400', bar: 'from-indigo-500 to-sky-500' },
+    ];
+
+    const maxTotal = Math.max(...ciclos.map(c => c.grand_total), 1);
+
+    // --- Cycle summary cards ---
+    const cardsEl = document.getElementById('ciclo-cards');
+    cardsEl.innerHTML = ciclos.map((c, i) => {
+        const col = colors[i % colors.length];
+        const prev = ciclos[i + 1];
+        const chg = prev ? pctChange(c.grand_total, prev.grand_total) : null;
+        const barW = Math.round(c.grand_total / maxTotal * 100);
+        return `
+        <div class="rounded-xl p-4 bg-gradient-to-br ${col.bg} border ${col.border} relative overflow-hidden">
+            <div class="absolute bottom-0 left-0 right-0 h-1 bg-slate-800/50">
+                <div class="h-1 bg-gradient-to-r ${col.bar} transition-all" style="width:${barW}%"></div>
+            </div>
+            <div class="flex items-start justify-between mb-2">
+                <div>
+                    <p class="text-[11px] font-semibold ${col.accent} uppercase tracking-wider">${esc(c.nome)}</p>
+                    <p class="text-[10px] text-slate-500">${esc(c.nivel)}</p>
+                </div>
+                ${chg ? `<span class="text-xs font-bold ${chg.cls}">${chg.txt}</span>` : ''}
+            </div>
+            <p class="text-2xl font-bold text-white font-display mb-2">${fmt(c.grand_total)}</p>
+            <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+                <div class="flex justify-between"><span class="text-slate-400">Novos</span><span class="text-white font-medium">${fmt(c.totals.novos)}</span></div>
+                <div class="flex justify-between"><span class="text-slate-400">Rematr.</span><span class="text-white font-medium">${fmt(c.totals.rematricula)}</span></div>
+                <div class="flex justify-between"><span class="text-slate-400">Regresso</span><span class="text-white font-medium">${fmt(c.totals.regresso)}</span></div>
+                <div class="flex justify-between"><span class="text-slate-400">Recompra</span><span class="text-white font-medium">${fmt(c.totals.recompra)}</span></div>
+            </div>
+        </div>`;
+    }).join('');
+
+    // --- Comparison table ---
+    const thead = document.querySelector('#ciclo-compare-table thead tr');
+    thead.innerHTML = '<th class="pb-2 pl-2 font-semibold text-xs text-slate-500">Indicador</th>' +
+        ciclos.map((c, i) => {
+            const col = colors[i % colors.length];
+            return `<th class="pb-2 text-center font-semibold text-xs ${col.accent}">${esc(c.nome)}</th>`;
+        }).join('') +
+        (ciclos.length >= 2 ? '<th class="pb-2 text-center font-semibold text-xs text-slate-400">Var %</th>' : '');
+
+    const indicators = [
+        { label: 'Total Geral', key: 'grand_total', direct: true },
+        { label: 'Novos (Calouros)', key: 'novos' },
+        { label: 'Rematrículas', key: 'rematricula' },
+        { label: 'Regresso', key: 'regresso' },
+        { label: 'Recompra', key: 'recompra' },
+        { label: 'Outros', key: 'outros' },
+    ];
+
+    const tbody = document.getElementById('ciclo-compare-tbody');
+    let html = '';
+
+    for (const ind of indicators) {
+        const isBold = ind.direct;
+        html += `<tr class="border-b border-slate-700/15 ${isBold ? 'bg-slate-800/20' : ''}">`;
+        html += `<td class="py-2.5 pl-2 ${isBold ? 'font-bold text-white' : 'text-slate-300'}">${ind.label}</td>`;
+        for (const c of ciclos) {
+            const val = ind.direct ? c[ind.key] : (c.totals[ind.key] || 0);
+            html += `<td class="py-2.5 text-center font-mono ${isBold ? 'font-bold text-white' : 'text-slate-300'}">${fmt(val)}</td>`;
+        }
+        if (ciclos.length >= 2) {
+            const cur = ind.direct ? ciclos[0][ind.key] : (ciclos[0].totals[ind.key] || 0);
+            const prev = ind.direct ? ciclos[1][ind.key] : (ciclos[1].totals[ind.key] || 0);
+            const chg = pctChange(cur, prev);
+            html += `<td class="py-2.5 text-center font-mono font-bold ${chg.cls}">${chg.txt}</td>`;
+        }
+        html += '</tr>';
+    }
+
+    // Situações na tabela comparativa
+    const allSits = [...new Set(ciclos.flatMap(c => Object.keys(c.by_situacao)))];
+    if (allSits.length) {
+        html += `<tr class="border-b border-slate-700/30"><td colspan="${ciclos.length + 2}" class="py-2 pl-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider pt-4">Por Situação</td></tr>`;
+        for (const sit of allSits) {
+            html += '<tr class="border-b border-slate-700/15">';
+            html += `<td class="py-2 pl-4 text-slate-400 text-[13px]">${esc(sit)}</td>`;
+            for (const c of ciclos) {
+                html += `<td class="py-2 text-center font-mono text-slate-300">${fmt(c.by_situacao[sit] || 0)}</td>`;
+            }
+            if (ciclos.length >= 2) {
+                const chg = pctChange(ciclos[0].by_situacao[sit] || 0, ciclos[1].by_situacao[sit] || 0);
+                html += `<td class="py-2 text-center font-mono ${chg.cls}">${chg.txt}</td>`;
+            }
+            html += '</tr>';
+        }
+    }
+
+    // Top 10 polos comparativos
+    const allPolos = [...new Set(ciclos.flatMap(c => Object.keys(c.by_polo)))];
+    const poloTotals = {};
+    for (const p of allPolos) {
+        poloTotals[p] = ciclos.reduce((sum, c) => sum + (c.by_polo[p] || 0), 0);
+    }
+    const topPolos = allPolos.sort((a, b) => poloTotals[b] - poloTotals[a]).slice(0, 10);
+    if (topPolos.length) {
+        html += `<tr class="border-b border-slate-700/30"><td colspan="${ciclos.length + 2}" class="py-2 pl-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider pt-4">Top 10 Polos</td></tr>`;
+        for (const polo of topPolos) {
+            html += '<tr class="border-b border-slate-700/15">';
+            html += `<td class="py-2 pl-4 text-slate-400 text-[13px]">${esc(polo)}</td>`;
+            for (const c of ciclos) {
+                html += `<td class="py-2 text-center font-mono text-slate-300">${fmt(c.by_polo[polo] || 0)}</td>`;
+            }
+            if (ciclos.length >= 2) {
+                const chg = pctChange(ciclos[0].by_polo[polo] || 0, ciclos[1].by_polo[polo] || 0);
+                html += `<td class="py-2 text-center font-mono ${chg.cls}">${chg.txt}</td>`;
+            }
+            html += '</tr>';
+        }
+    }
+
+    tbody.innerHTML = html;
+}
+
 async function loadStudentMetrics() {
     const dtFrom = document.getElementById('students-from').value;
     const dtTo = document.getElementById('students-to').value;
@@ -1031,6 +1441,8 @@ async function loadStudentMetrics() {
         renderBreakdown('stu-by-situacao', d.by_situacao);
         renderBreakdown('stu-by-nivel', d.by_nivel);
         renderBreakdown('stu-by-polo', d.by_polo);
+        renderBreakdown('stu-by-turma', d.by_turma);
+        renderBreakdown('stu-by-ciclo', d.by_ciclo);
 
         const badge = document.getElementById('stu-filter-badge');
         const parts = [];
@@ -1790,6 +2202,230 @@ function reloadLogView() {
 function downloadCurrentLog() {
     if (!_currentLogFile) return;
     window.open(`/api/logs/download/${_currentLogFile}`, '_blank');
+}
+
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Configurações (Turmas + Ciclos)
+// ---------------------------------------------------------------------------
+let _configTab = 'ciclos';
+
+function switchConfigTab(tab) {
+    _configTab = tab;
+    const tabs = ['ciclos', 'turmas'];
+    const activeClass = 'text-sm font-semibold px-5 py-2 rounded-lg transition bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 flex items-center gap-2';
+    const inactiveClass = 'text-sm font-semibold px-5 py-2 rounded-lg transition text-slate-500 hover:text-slate-300 flex items-center gap-2';
+    tabs.forEach(t => {
+        document.getElementById('cfg-tab-' + t).className = t === tab ? activeClass : inactiveClass;
+        document.getElementById('cfg-section-' + t).classList.toggle('hidden', t !== tab);
+    });
+    if (tab === 'ciclos') loadCiclos();
+    if (tab === 'turmas') loadTurmas();
+}
+
+// Turmas
+let _turmaTab = 'grad';
+let _turmaData = [];
+
+async function loadTurmas() {
+    try {
+        const res = await api('/api/turmas');
+        _turmaData = await res.json();
+        renderTurmas();
+    } catch (e) { console.error(e); }
+}
+
+function switchTurmaTab(tab) {
+    _turmaTab = tab;
+    document.getElementById('tab-turma-grad').className = tab === 'grad'
+        ? 'text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-indigo-500/15 text-indigo-400 border border-indigo-500/30'
+        : 'text-sm font-semibold px-4 py-1.5 rounded-lg transition text-slate-500 hover:text-slate-300';
+    document.getElementById('tab-turma-pos').className = tab === 'pos'
+        ? 'text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-indigo-500/15 text-indigo-400 border border-indigo-500/30'
+        : 'text-sm font-semibold px-4 py-1.5 rounded-lg transition text-slate-500 hover:text-slate-300';
+    renderTurmas();
+}
+
+function renderTurmas() {
+    const nivel = _turmaTab === 'grad' ? 'Graduação' : 'Pós-Graduação';
+    const filtered = _turmaData.filter(t => t.nivel === nivel).sort((a,b) => a.dt_inicio.localeCompare(b.dt_inicio));
+    const tbody = document.getElementById('turma-tbody');
+    if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-slate-500">Nenhuma turma encontrada</td></tr>';
+        return;
+    }
+    tbody.innerHTML = filtered.map(t => `
+        <tr class="border-b border-slate-700/20 hover:bg-white/[0.02]" data-turma-id="${t.id}">
+            <td class="py-2.5 pr-4">
+                <input type="text" value="${t.nome}" class="bg-transparent border-b border-transparent hover:border-slate-600 focus:border-indigo-500 outline-none text-slate-200 w-full turma-nome" />
+            </td>
+            <td class="py-2.5 pr-4">
+                <input type="date" value="${t.dt_inicio}" class="input-glass px-2 py-1 text-sm text-slate-200 turma-inicio" />
+            </td>
+            <td class="py-2.5 pr-4">
+                <input type="date" value="${t.dt_fim}" class="input-glass px-2 py-1 text-sm text-slate-200 turma-fim" />
+            </td>
+            <td class="py-2.5 pr-4 text-slate-400">${t.ano}</td>
+            <td class="py-2.5 flex gap-2">
+                <button onclick="saveTurma(${t.id})" title="Salvar" class="text-emerald-400 hover:text-emerald-300 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                </button>
+                <button onclick="deleteTurma(${t.id})" title="Excluir" class="text-rose-400 hover:text-rose-300 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function saveTurma(id) {
+    const row = document.querySelector(`tr[data-turma-id="${id}"]`);
+    if (!row) return;
+    const nome = row.querySelector('.turma-nome').value.trim();
+    const dt_inicio = row.querySelector('.turma-inicio').value;
+    const dt_fim = row.querySelector('.turma-fim').value;
+    const nivel = _turmaTab === 'grad' ? 'Graduação' : 'Pós-Graduação';
+    const ano = parseInt(dt_inicio.substring(0, 4)) || 2026;
+    try {
+        await api(`/api/turmas/${id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ nivel, nome, dt_inicio, dt_fim, ano }) });
+        loadTurmas();
+    } catch (e) { alert('Erro ao salvar: ' + e.message); }
+}
+
+async function deleteTurma(id) {
+    if (!confirm('Excluir esta turma?')) return;
+    try {
+        await api(`/api/turmas/${id}`, { method: 'DELETE' });
+        loadTurmas();
+    } catch (e) { alert('Erro ao excluir: ' + e.message); }
+}
+
+async function seedTurmas() {
+    const ano = parseInt(document.getElementById('turma-ano').value) || 2026;
+    try {
+        const res = await api('/api/turmas/seed', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ano }) });
+        const d = await res.json();
+        alert(`Turmas geradas: ${d.created} novas para ${d.ano}`);
+        loadTurmas();
+    } catch (e) { alert('Erro: ' + e.message); }
+}
+
+async function createTurma() {
+    const nivel = document.getElementById('turma-new-nivel').value;
+    const nome = document.getElementById('turma-new-nome').value.trim();
+    const dt_inicio = document.getElementById('turma-new-inicio').value;
+    const dt_fim = document.getElementById('turma-new-fim').value;
+    const ano = parseInt(document.getElementById('turma-new-ano').value) || 2026;
+    if (!nome || !dt_inicio || !dt_fim) { alert('Preencha todos os campos'); return; }
+    try {
+        await api('/api/turmas', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ nivel, nome, dt_inicio, dt_fim, ano }) });
+        document.getElementById('turma-new-nome').value = '';
+        document.getElementById('turma-new-inicio').value = '';
+        document.getElementById('turma-new-fim').value = '';
+        loadTurmas();
+    } catch (e) { alert('Erro: ' + e.message); }
+}
+
+// ---------------------------------------------------------------------------
+// Ciclos
+// ---------------------------------------------------------------------------
+let _cicloTab = 'grad';
+let _cicloData = [];
+
+async function loadCiclos() {
+    try {
+        const res = await api('/api/ciclos');
+        _cicloData = await res.json();
+        renderCiclos();
+    } catch (e) { console.error(e); }
+}
+
+function switchCicloTab(tab) {
+    _cicloTab = tab;
+    document.getElementById('tab-ciclo-grad').className = tab === 'grad'
+        ? 'text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-indigo-500/15 text-indigo-400 border border-indigo-500/30'
+        : 'text-sm font-semibold px-4 py-1.5 rounded-lg transition text-slate-500 hover:text-slate-300';
+    document.getElementById('tab-ciclo-pos').className = tab === 'pos'
+        ? 'text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-indigo-500/15 text-indigo-400 border border-indigo-500/30'
+        : 'text-sm font-semibold px-4 py-1.5 rounded-lg transition text-slate-500 hover:text-slate-300';
+    renderCiclos();
+}
+
+function renderCiclos() {
+    const nivel = _cicloTab === 'grad' ? 'Graduação' : 'Pós-Graduação';
+    const filtered = _cicloData.filter(c => c.nivel === nivel).sort((a,b) => a.dt_inicio.localeCompare(b.dt_inicio));
+    const tbody = document.getElementById('ciclo-tbody');
+    if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-slate-500">Nenhum ciclo encontrado</td></tr>';
+        return;
+    }
+    tbody.innerHTML = filtered.map(c => `
+        <tr class="border-b border-slate-700/20 hover:bg-white/[0.02]" data-ciclo-id="${c.id}">
+            <td class="py-2.5 pr-4">
+                <input type="text" value="${c.nome}" class="bg-transparent border-b border-transparent hover:border-slate-600 focus:border-indigo-500 outline-none text-slate-200 w-full ciclo-nome" />
+            </td>
+            <td class="py-2.5 pr-4">
+                <input type="date" value="${c.dt_inicio}" class="input-glass px-2 py-1 text-sm text-slate-200 ciclo-inicio" />
+            </td>
+            <td class="py-2.5 pr-4">
+                <input type="date" value="${c.dt_fim}" class="input-glass px-2 py-1 text-sm text-slate-200 ciclo-fim" />
+            </td>
+            <td class="py-2.5 flex gap-2">
+                <button onclick="saveCiclo(${c.id})" title="Salvar" class="text-emerald-400 hover:text-emerald-300 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                </button>
+                <button onclick="deleteCiclo(${c.id})" title="Excluir" class="text-rose-400 hover:text-rose-300 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function saveCiclo(id) {
+    const row = document.querySelector(`tr[data-ciclo-id="${id}"]`);
+    if (!row) return;
+    const nome = row.querySelector('.ciclo-nome').value.trim();
+    const dt_inicio = row.querySelector('.ciclo-inicio').value;
+    const dt_fim = row.querySelector('.ciclo-fim').value;
+    const nivel = _cicloTab === 'grad' ? 'Graduação' : 'Pós-Graduação';
+    try {
+        await api(`/api/ciclos/${id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ nivel, nome, dt_inicio, dt_fim }) });
+        loadCiclos();
+    } catch (e) { alert('Erro ao salvar: ' + e.message); }
+}
+
+async function deleteCiclo(id) {
+    if (!confirm('Excluir este ciclo?')) return;
+    try {
+        await api(`/api/ciclos/${id}`, { method: 'DELETE' });
+        loadCiclos();
+    } catch (e) { alert('Erro ao excluir: ' + e.message); }
+}
+
+async function seedCiclos() {
+    const ano = parseInt(document.getElementById('ciclo-ano').value) || 2026;
+    try {
+        const res = await api('/api/ciclos/seed', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ano }) });
+        const d = await res.json();
+        alert(`Ciclos gerados: ${d.created} novos para ${d.ano}`);
+        loadCiclos();
+    } catch (e) { alert('Erro: ' + e.message); }
+}
+
+async function createCiclo() {
+    const nivel = document.getElementById('ciclo-new-nivel').value;
+    const nome = document.getElementById('ciclo-new-nome').value.trim();
+    const dt_inicio = document.getElementById('ciclo-new-inicio').value;
+    const dt_fim = document.getElementById('ciclo-new-fim').value;
+    if (!nome || !dt_inicio || !dt_fim) { alert('Preencha todos os campos'); return; }
+    try {
+        await api('/api/ciclos', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ nivel, nome, dt_inicio, dt_fim }) });
+        document.getElementById('ciclo-new-nome').value = '';
+        document.getElementById('ciclo-new-inicio').value = '';
+        document.getElementById('ciclo-new-fim').value = '';
+        loadCiclos();
+    } catch (e) { alert('Erro: ' + e.message); }
 }
 
 // ---------------------------------------------------------------------------
