@@ -72,10 +72,11 @@ ROUTE_RATE_LIMIT = 60
 BATCH_SIZE = 50
 
 STAGE_NAMES = {
-    "calouro":          ["Calouro", "Calouros", "CALOURO"],
-    "veterano":         ["Veterano", "Veteranos", "VETERANO"],
-    "sem_rematricula":  ["Sem Rematrícula", "Sem Rematricula", "SEM REMATRÍCULA", "SEM REMATRICULA"],
-    "perdido":          ["Perdido", "Perdidos", "PERDIDO"],
+    "calouro":               ["Calouro", "Calouros", "CALOURO"],
+    "veterano":              ["Veterano", "Veteranos", "VETERANO"],
+    "sem_remat_adimplente":  ["Sem Rematricula Adimplente", "SEM REMATRICULA ADIMPLENTE", "Sem Rematrícula Adimplente"],
+    "sem_remat_inadimplente":["Sem Rematricula Inadimplente", "SEM REMATRICULA INADIMPLENTE", "Sem Rematrícula Inadimplente"],
+    "perdido":               ["Perdido", "Perdidos", "PERDIDO"],
 }
 
 LOSS_REASON_NAMES = {
@@ -302,22 +303,32 @@ def load_excel():
 
 
 def load_sem_rematricula_snapshot(conn):
-    """Carrega RGMs do snapshot de sem_rematricula (se existir)."""
+    """Carrega RGMs do snapshot de sem_rematricula separados por status financeiro."""
+    adimplentes = set()
+    inadimplentes = set()
     try:
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("SELECT id FROM xl_snapshots WHERE tipo='sem_rematricula' ORDER BY id DESC LIMIT 1")
         snap = cur.fetchone()
         if not snap:
             cur.close()
-            return set()
-        cur.execute("SELECT data->>'rgm_digits' AS rgm FROM xl_rows WHERE snapshot_id=%s AND data->>'rgm_digits' != ''", (snap["id"],))
-        rgms = {r["rgm"] for r in cur.fetchall()}
+            return adimplentes, inadimplentes
+        cur.execute("""
+            SELECT data->>'rgm_digits' AS rgm, data->>'status_financeiro' AS sf
+            FROM xl_rows WHERE snapshot_id=%s AND data->>'rgm_digits' != ''
+        """, (snap["id"],))
+        for r in cur.fetchall():
+            if r["sf"] == "inadimplente":
+                inadimplentes.add(r["rgm"])
+            else:
+                adimplentes.add(r["rgm"])
         cur.close()
-        log.info("  Snapshot sem_rematricula: %d RGMs", len(rgms))
-        return rgms
+        log.info("  Snapshot sem_rematricula: %d adimplentes, %d inadimplentes",
+                 len(adimplentes), len(inadimplentes))
+        return adimplentes, inadimplentes
     except Exception as e:
         log.warning("  Sem snapshot de sem_rematricula: %s", e)
-        return set()
+        return adimplentes, inadimplentes
 
 
 def load_inadimplentes_snapshot(conn):
@@ -498,13 +509,15 @@ def ensure_loss_reasons(api):
 # Análise
 # ---------------------------------------------------------------------------
 
-def analyze(xl_by_rgm, crm_by_rgm, stage_ids, sem_remat_rgms=None,
+def analyze(xl_by_rgm, crm_by_rgm, stage_ids, sem_remat_adim=None,
+            sem_remat_inadim=None,
             inadimplentes_rgms=None, concluintes_rgms=None,
             ciclo_cutoffs=None):
     """Cruza planilha com CRM e determina ações necessárias.
 
     Args:
-        sem_remat_rgms: set de RGMs do snapshot sem_rematricula (reforça identificação)
+        sem_remat_adim: set de RGMs do snapshot sem_rematricula adimplentes
+        sem_remat_inadim: set de RGMs do snapshot sem_rematricula inadimplentes
         inadimplentes_rgms: set de RGMs do snapshot inadimplentes (informativo/stats)
         concluintes_rgms: set de RGMs do snapshot concluintes (informativo/stats)
         ciclo_cutoffs: dict {nivel: dt_inicio} — trava de data para Sem Rematrícula
@@ -515,7 +528,9 @@ def analyze(xl_by_rgm, crm_by_rgm, stage_ids, sem_remat_rgms=None,
         to_lose: dict {loss_reason_key: [list of {biz_id, rgm, nome}]}
         stats: Counter
     """
-    sem_remat_rgms = sem_remat_rgms or set()
+    sem_remat_adim = sem_remat_adim or set()
+    sem_remat_inadim = sem_remat_inadim or set()
+    sem_remat_rgms = sem_remat_adim | sem_remat_inadim
     inadimplentes_rgms = inadimplentes_rgms or set()
     concluintes_rgms = concluintes_rgms or set()
     ciclo_cutoffs = ciclo_cutoffs or {}
@@ -610,28 +625,36 @@ def analyze(xl_by_rgm, crm_by_rgm, stage_ids, sem_remat_rgms=None,
                         })
                         stats[f"lose_{reason_key}"] += 1
             else:
-                in_sem_remat = rgm in sem_remat_rgms
+                in_adim = rgm in sem_remat_adim
+                in_inadim = rgm in sem_remat_inadim
+                in_sem_remat = in_adim or in_inadim
+
+                if in_inadim:
+                    target_stage = stage_ids["sem_remat_inadimplente"]
+                    label = "Sem Rematrícula Inadimplente"
+                else:
+                    target_stage = stage_ids["sem_remat_adimplente"]
+                    label = "Sem Rematrícula Adimplente"
+
                 if crm_sit and crm_sit.lower().strip() == "em curso":
-                    target_stage = stage_ids["sem_rematricula"]
-                    motivo = "Sem Rematrícula (confirmado snapshot)" if in_sem_remat else "Sem Rematrícula (ausente na planilha)"
+                    motivo = f"{label} (confirmado snapshot)" if in_sem_remat else f"{label} (ausente na planilha)"
                     if crm_stage_id != target_stage:
                         to_move[target_stage].append({
                             "biz_id": biz_id, "rgm": rgm, "nome": nome,
                             "motivo": motivo,
                         })
-                        stats["move_sem_rematricula"] += 1
+                        stats["move_sem_remat_adim" if in_adim else "move_sem_remat_inadim"] += 1
                         if in_sem_remat:
                             stats["confirmado_snapshot_sem_remat"] += 1
                     else:
                         stats["already_correct"] += 1
                 elif in_sem_remat:
-                    target_stage = stage_ids["sem_rematricula"]
                     if crm_stage_id != target_stage:
                         to_move[target_stage].append({
                             "biz_id": biz_id, "rgm": rgm, "nome": nome,
-                            "motivo": "Sem Rematrícula (snapshot, situação CRM: " + (crm_sit or "N/I") + ")",
+                            "motivo": f"{label} (snapshot, situação CRM: {crm_sit or 'N/I'})",
                         })
-                        stats["move_sem_rematricula_snapshot"] += 1
+                        stats["move_sem_remat_adim" if in_adim else "move_sem_remat_inadim"] += 1
                 else:
                     stats["skip_orfao_outro"] += 1
 
@@ -907,7 +930,7 @@ def main():
             return
 
         crm_by_rgm = load_crm_businesses(conn)
-        sem_remat_rgms = load_sem_rematricula_snapshot(conn)
+        sem_adim, sem_inadim = load_sem_rematricula_snapshot(conn)
         inad_rgms = load_inadimplentes_snapshot(conn)
         conc_rgms = load_concluintes_snapshot(conn)
     finally:
@@ -915,7 +938,8 @@ def main():
 
     log.info("Analisando ações necessárias...")
     to_restore, to_move, to_lose, stats = analyze(
-        xl_by_rgm, crm_by_rgm, stage_ids, sem_remat_rgms,
+        xl_by_rgm, crm_by_rgm, stage_ids,
+        sem_remat_adim=sem_adim, sem_remat_inadim=sem_inadim,
         inadimplentes_rgms=inad_rgms, concluintes_rgms=conc_rgms,
     )
     log.info("  Restore: %d | Move: %d | Lose: %d",
