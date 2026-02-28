@@ -445,7 +445,7 @@ def api_dashboard_students():
 # Rotas — Dashboard Ciclos (Master Panel)
 # ---------------------------------------------------------------------------
 
-_CICLO_COMPARE_QUERY = """
+_BIZ_FIELDS_CTE = """
 WITH biz_fields AS (
     SELECT
         b.id,
@@ -463,79 +463,130 @@ WITH biz_fields AS (
          jsonb_array_elements(b.data->'additionalFields') af
     GROUP BY b.id
 )
+"""
+
+_CICLO_COMPARE_QUERY = _BIZ_FIELDS_CTE + """
 SELECT
-    c.nome AS ciclo,
-    c.nivel AS ciclo_nivel,
+    c.nome AS ciclo, c.nivel AS ciclo_nivel,
     COALESCE(bf.tipo_aluno, 'Não informado') AS tipo,
-    bf.situacao,
-    bf.nivel,
-    bf.polo,
-    COUNT(*) AS total
+    bf.situacao, bf.nivel, bf.polo, COUNT(*) AS total
 FROM biz_fields bf
-INNER JOIN ciclos c
-    ON c.nivel = bf.nivel
-   AND bf.data_matricula IS NOT NULL
-   AND bf.data_matricula ~ '^\\d{4}-\\d{2}-\\d{2}'
-   AND bf.data_matricula::date BETWEEN c.dt_inicio AND c.dt_fim
+INNER JOIN ciclos c ON c.nivel = bf.nivel
+    AND bf.data_matricula IS NOT NULL
+    AND bf.data_matricula ~ '^\\d{4}-\\d{2}-\\d{2}'
+    AND bf.data_matricula::date BETWEEN c.dt_inicio AND c.dt_fim
 GROUP BY c.nome, c.nivel, bf.tipo_aluno, bf.situacao, bf.nivel, bf.polo
 ORDER BY c.nome, total DESC
 """
 
+_DATE_RANGE_QUERY = _BIZ_FIELDS_CTE + """
+SELECT
+    COALESCE(bf.tipo_aluno, 'Não informado') AS tipo,
+    bf.situacao, bf.nivel, bf.polo, COUNT(*) AS total
+FROM biz_fields bf
+WHERE bf.data_matricula IS NOT NULL
+  AND bf.data_matricula ~ '^\\d{4}-\\d{2}-\\d{2}'
+  AND bf.data_matricula::date BETWEEN %(range_start)s AND %(range_end)s
+  AND (%(f_nivel)s IS NULL OR bf.nivel = %(f_nivel)s)
+GROUP BY bf.tipo_aluno, bf.situacao, bf.nivel, bf.polo
+ORDER BY total DESC
+"""
+
+
+def _aggregate_rows(rows, tipo_map):
+    result = {
+        "totals": {"novos": 0, "regresso": 0, "recompra": 0, "rematricula": 0, "outros": 0},
+        "by_situacao": {}, "by_polo": {}, "grand_total": 0,
+    }
+    for r in rows:
+        tipo = r["tipo"] or "Não informado"
+        cat = tipo_map.get(tipo, "outros")
+        result["totals"][cat] += r["total"]
+        result["grand_total"] += r["total"]
+        sit = r["situacao"] or "N/I"
+        result["by_situacao"][sit] = result["by_situacao"].get(sit, 0) + r["total"]
+        polo = r["polo"] or "N/I"
+        result["by_polo"][polo] = result["by_polo"].get(polo, 0) + r["total"]
+    result["by_situacao"] = dict(sorted(result["by_situacao"].items(), key=lambda x: -x[1]))
+    result["by_polo"] = dict(sorted(result["by_polo"].items(), key=lambda x: -x[1]))
+    return result
+
 
 @app.route("/api/dashboard/ciclos")
 def api_dashboard_ciclos():
-    """Retorna métricas detalhadas por ciclo para comparação."""
+    """Retorna métricas por ciclo + comparações temporais (YTD vs ano anterior, vs 6 meses)."""
+    from dateutil.relativedelta import relativedelta
+    import traceback
+
     conn = get_conn()
     try:
+        today = datetime.now().date()
+        field_params = {
+            "tipo_id": TIPO_ALUNO_FIELD, "dt_id": DATA_MATRICULA_FIELD,
+            "sit_id": SITUACAO_FIELD, "niv_id": NIVEL_FIELD, "polo_id": POLO_FIELD,
+        }
+        tipo_map = {
+            "Calouro": "novos", "Regresso (Retorno)": "regresso",
+            "Calouro (Recompra)": "recompra", "Veterano": "rematricula",
+        }
+
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute("SELECT nome, nivel, dt_inicio, dt_fim FROM ciclos ORDER BY dt_inicio")
             ciclos_config = cur.fetchall()
 
-            cur.execute(_CICLO_COMPARE_QUERY, {
-                "tipo_id": TIPO_ALUNO_FIELD,
-                "dt_id": DATA_MATRICULA_FIELD,
-                "sit_id": SITUACAO_FIELD,
-                "niv_id": NIVEL_FIELD,
-                "polo_id": POLO_FIELD,
+            # Per-cycle data
+            cur.execute(_CICLO_COMPARE_QUERY, field_params)
+            cycle_rows = cur.fetchall()
+
+            # YTD: Jan 1 of current year → today
+            ytd_start = today.replace(month=1, day=1)
+            cur.execute(_DATE_RANGE_QUERY, {
+                **field_params, "range_start": ytd_start, "range_end": today, "f_nivel": None,
             })
-            rows = cur.fetchall()
+            ytd_current = cur.fetchall()
 
-        tipo_map = {
-            "Calouro": "novos",
-            "Regresso (Retorno)": "regresso",
-            "Calouro (Recompra)": "recompra",
-            "Veterano": "rematricula",
-        }
+            # YTD previous year: same range but 1 year back
+            ytd_prev_start = ytd_start.replace(year=today.year - 1)
+            ytd_prev_end = today.replace(year=today.year - 1)
+            cur.execute(_DATE_RANGE_QUERY, {
+                **field_params, "range_start": ytd_prev_start, "range_end": ytd_prev_end, "f_nivel": None,
+            })
+            ytd_previous = cur.fetchall()
 
+            # Last 6 months: today - 6 months → today
+            m6_start = today - relativedelta(months=6)
+            cur.execute(_DATE_RANGE_QUERY, {
+                **field_params, "range_start": m6_start, "range_end": today, "f_nivel": None,
+            })
+            m6_current = cur.fetchall()
+
+            # Previous 6 months: -12 months → -6 months
+            m6_prev_start = today - relativedelta(months=12)
+            m6_prev_end = today - relativedelta(months=6)
+            cur.execute(_DATE_RANGE_QUERY, {
+                **field_params, "range_start": m6_prev_start, "range_end": m6_prev_end, "f_nivel": None,
+            })
+            m6_previous = cur.fetchall()
+
+        # Aggregate cycle data
         ciclos = {}
-        for r in rows:
+        for r in cycle_rows:
             cn = r["ciclo"]
             if cn not in ciclos:
-                ciclos[cn] = {
-                    "nome": cn,
-                    "nivel": r["ciclo_nivel"],
-                    "totals": {"novos": 0, "regresso": 0, "recompra": 0, "rematricula": 0, "outros": 0},
-                    "by_situacao": {},
-                    "by_polo": {},
-                    "grand_total": 0,
-                }
+                ciclos[cn] = {"nome": cn, "nivel": r["ciclo_nivel"],
+                              "totals": {"novos": 0, "regresso": 0, "recompra": 0, "rematricula": 0, "outros": 0},
+                              "by_situacao": {}, "by_polo": {}, "grand_total": 0}
             c = ciclos[cn]
-            tipo = r["tipo"] or "Não informado"
-            cat = tipo_map.get(tipo, "outros")
+            cat = tipo_map.get(r["tipo"] or "", "outros")
             c["totals"][cat] += r["total"]
             c["grand_total"] += r["total"]
-
             sit = r["situacao"] or "N/I"
             c["by_situacao"][sit] = c["by_situacao"].get(sit, 0) + r["total"]
-
             polo = r["polo"] or "N/I"
             c["by_polo"][polo] = c["by_polo"].get(polo, 0) + r["total"]
-
         for cn in ciclos:
             ciclos[cn]["by_situacao"] = dict(sorted(ciclos[cn]["by_situacao"].items(), key=lambda x: -x[1]))
             ciclos[cn]["by_polo"] = dict(sorted(ciclos[cn]["by_polo"].items(), key=lambda x: -x[1]))
-
-        ciclo_list = sorted(ciclos.values(), key=lambda x: x["nome"], reverse=True)
 
         config_list = []
         for cc in ciclos_config:
@@ -546,11 +597,32 @@ def api_dashboard_ciclos():
             config_list.append(row)
 
         return jsonify({
-            "ciclos": ciclo_list,
+            "ciclos": sorted(ciclos.values(), key=lambda x: x["nome"], reverse=True),
             "config": config_list,
+            "comparisons": {
+                "ytd": {
+                    "label": f"YTD {today.year}",
+                    "period": f"{ytd_start.isoformat()} → {today.isoformat()}",
+                    "current": _aggregate_rows(ytd_current, tipo_map),
+                },
+                "ytd_prev": {
+                    "label": f"YTD {today.year - 1}",
+                    "period": f"{ytd_prev_start.isoformat()} → {ytd_prev_end.isoformat()}",
+                    "current": _aggregate_rows(ytd_previous, tipo_map),
+                },
+                "m6": {
+                    "label": f"Últimos 6 meses",
+                    "period": f"{m6_start.isoformat()} → {today.isoformat()}",
+                    "current": _aggregate_rows(m6_current, tipo_map),
+                },
+                "m6_prev": {
+                    "label": f"6 meses anteriores",
+                    "period": f"{m6_prev_start.isoformat()} → {m6_prev_end.isoformat()}",
+                    "current": _aggregate_rows(m6_previous, tipo_map),
+                },
+            },
         })
     except Exception as e:
-        import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
     finally:
