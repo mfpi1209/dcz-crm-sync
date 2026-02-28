@@ -330,7 +330,7 @@
 
                 <!-- ── Master Panel: Comparação de Ciclos ── -->
                 <div class="glass-card p-6 mb-6" id="ciclo-master-panel">
-                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-5">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
                         <h3 class="text-base font-bold text-white font-display flex items-center gap-2">
                             <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                             Comparação de Ciclos
@@ -344,38 +344,46 @@
                                     <option value="Pós-Graduação">Pós-Graduação</option>
                                 </select>
                             </div>
-                            <button type="button" onclick="loadCicloMaster()" class="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1">
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                                Atualizar
-                            </button>
                         </div>
                     </div>
 
-                    <div id="ciclo-master-loading" class="text-sm text-slate-500 py-8 text-center">
+                    <div id="ciclo-master-loading" class="text-sm text-slate-500 py-6 text-center">
                         <svg class="animate-spin h-5 w-5 mx-auto mb-2 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
-                        Carregando comparação de ciclos...
+                        Carregando...
                     </div>
-                    <div id="ciclo-master-empty" class="hidden text-sm text-slate-500 py-8 text-center">
-                        Nenhum ciclo configurado. <a href="#ciclos" onclick="navigate('ciclos')" class="text-indigo-400 hover:text-indigo-300">Configure ciclos primeiro</a>.
+                    <div id="ciclo-master-empty" class="hidden text-sm text-slate-500 py-6 text-center">
+                        Nenhum ciclo configurado. <a href="#config" onclick="navigate('config')" class="text-indigo-400 hover:text-indigo-300">Configure ciclos primeiro</a>.
                     </div>
                     <div id="ciclo-master-content" class="hidden">
-                        <!-- Cycle comparison cards -->
-                        <div id="ciclo-cards" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6"></div>
+                        <!-- Cycle comparison cards (compact) -->
+                        <div id="ciclo-cards" class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 mb-4"></div>
 
-                        <!-- Comparison table -->
-                        <div class="overflow-x-auto">
+                        <!-- Tabs: Resumo / Situação / Polos -->
+                        <div class="flex gap-2 mb-3">
+                            <button onclick="switchCicloDetailTab('resumo')" id="ciclo-dtab-resumo" class="text-[11px] font-semibold px-3 py-1 rounded-md bg-slate-700/40 text-slate-300 border border-slate-600/30">Resumo</button>
+                            <button onclick="switchCicloDetailTab('situacao')" id="ciclo-dtab-situacao" class="text-[11px] font-semibold px-3 py-1 rounded-md text-slate-500 hover:text-slate-300">Situação</button>
+                            <button onclick="switchCicloDetailTab('polos')" id="ciclo-dtab-polos" class="text-[11px] font-semibold px-3 py-1 rounded-md text-slate-500 hover:text-slate-300">Top Polos</button>
+                        </div>
+
+                        <!-- Detail sections -->
+                        <div id="ciclo-detail-resumo" class="overflow-x-auto">
                             <table class="w-full text-left text-sm" id="ciclo-compare-table">
-                                <thead>
-                                    <tr class="text-xs text-slate-500 border-b border-slate-700/30">
-                                        <th class="pb-2 pl-2 font-semibold">Indicador</th>
-                                    </tr>
-                                </thead>
+                                <thead><tr class="text-xs text-slate-500 border-b border-slate-700/30"><th class="pb-2 pl-2 font-semibold">Indicador</th></tr></thead>
                                 <tbody id="ciclo-compare-tbody" class="text-slate-300"></tbody>
                             </table>
                         </div>
-
-                        <!-- Per-cycle situação breakdown -->
-                        <div id="ciclo-situacao-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-6"></div>
+                        <div id="ciclo-detail-situacao" class="overflow-x-auto hidden">
+                            <table class="w-full text-left text-sm" id="ciclo-sit-table">
+                                <thead><tr class="text-xs text-slate-500 border-b border-slate-700/30" id="ciclo-sit-thead"><th class="pb-2 pl-2 font-semibold">Situação</th></tr></thead>
+                                <tbody id="ciclo-sit-tbody" class="text-slate-300"></tbody>
+                            </table>
+                        </div>
+                        <div id="ciclo-detail-polos" class="overflow-x-auto hidden">
+                            <table class="w-full text-left text-sm" id="ciclo-polo-table">
+                                <thead><tr class="text-xs text-slate-500 border-b border-slate-700/30" id="ciclo-polo-thead"><th class="pb-2 pl-2 font-semibold">Polo</th></tr></thead>
+                                <tbody id="ciclo-polo-tbody" class="text-slate-300"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
@@ -1279,139 +1287,124 @@ async function loadCicloMaster() {
     }
 }
 
+let _cicloDetailTab = 'resumo';
+let _lastCiclos = [];
+
+function switchCicloDetailTab(tab) {
+    _cicloDetailTab = tab;
+    ['resumo', 'situacao', 'polos'].forEach(t => {
+        document.getElementById('ciclo-detail-' + t).classList.toggle('hidden', t !== tab);
+        const btn = document.getElementById('ciclo-dtab-' + t);
+        btn.className = t === tab
+            ? 'text-[11px] font-semibold px-3 py-1 rounded-md bg-slate-700/40 text-slate-300 border border-slate-600/30'
+            : 'text-[11px] font-semibold px-3 py-1 rounded-md text-slate-500 hover:text-slate-300';
+    });
+}
+
 function renderCicloMaster(ciclos) {
+    _lastCiclos = ciclos;
     const fmt = n => (n || 0).toLocaleString('pt-BR');
     const pctChange = (cur, prev) => {
         if (!prev) return cur > 0 ? { val: 100, txt: 'novo', cls: 'text-emerald-400' } : { val: 0, txt: '—', cls: 'text-slate-500' };
         const diff = ((cur - prev) / prev * 100);
         const sign = diff >= 0 ? '+' : '';
-        return {
-            val: diff,
-            txt: sign + diff.toFixed(1) + '%',
-            cls: diff > 0 ? 'text-emerald-400' : diff < 0 ? 'text-rose-400' : 'text-slate-400'
-        };
+        return { val: diff, txt: sign + diff.toFixed(1) + '%', cls: diff > 0 ? 'text-emerald-400' : diff < 0 ? 'text-rose-400' : 'text-slate-400' };
     };
-
     const colors = [
-        { bg: 'from-cyan-500/15 to-blue-500/15', border: 'border-cyan-500/30', accent: 'text-cyan-400', bar: 'from-cyan-500 to-blue-500' },
-        { bg: 'from-violet-500/15 to-purple-500/15', border: 'border-violet-500/30', accent: 'text-violet-400', bar: 'from-violet-500 to-purple-500' },
-        { bg: 'from-amber-500/15 to-orange-500/15', border: 'border-amber-500/30', accent: 'text-amber-400', bar: 'from-amber-500 to-orange-500' },
-        { bg: 'from-emerald-500/15 to-teal-500/15', border: 'border-emerald-500/30', accent: 'text-emerald-400', bar: 'from-emerald-500 to-teal-500' },
-        { bg: 'from-rose-500/15 to-pink-500/15', border: 'border-rose-500/30', accent: 'text-rose-400', bar: 'from-rose-500 to-pink-500' },
-        { bg: 'from-indigo-500/15 to-sky-500/15', border: 'border-indigo-500/30', accent: 'text-indigo-400', bar: 'from-indigo-500 to-sky-500' },
+        { accent: 'text-cyan-400', bg: 'from-cyan-500/12 to-blue-500/12', border: 'border-cyan-500/25', bar: 'from-cyan-500 to-blue-500' },
+        { accent: 'text-violet-400', bg: 'from-violet-500/12 to-purple-500/12', border: 'border-violet-500/25', bar: 'from-violet-500 to-purple-500' },
+        { accent: 'text-amber-400', bg: 'from-amber-500/12 to-orange-500/12', border: 'border-amber-500/25', bar: 'from-amber-500 to-orange-500' },
+        { accent: 'text-emerald-400', bg: 'from-emerald-500/12 to-teal-500/12', border: 'border-emerald-500/25', bar: 'from-emerald-500 to-teal-500' },
+        { accent: 'text-rose-400', bg: 'from-rose-500/12 to-pink-500/12', border: 'border-rose-500/25', bar: 'from-rose-500 to-pink-500' },
+        { accent: 'text-indigo-400', bg: 'from-indigo-500/12 to-sky-500/12', border: 'border-indigo-500/25', bar: 'from-indigo-500 to-sky-500' },
     ];
-
     const maxTotal = Math.max(...ciclos.map(c => c.grand_total), 1);
+    const hasVar = ciclos.length >= 2;
 
-    // --- Cycle summary cards ---
-    const cardsEl = document.getElementById('ciclo-cards');
-    cardsEl.innerHTML = ciclos.map((c, i) => {
+    // --- Cards compactos ---
+    document.getElementById('ciclo-cards').innerHTML = ciclos.map((c, i) => {
         const col = colors[i % colors.length];
         const prev = ciclos[i + 1];
         const chg = prev ? pctChange(c.grand_total, prev.grand_total) : null;
         const barW = Math.round(c.grand_total / maxTotal * 100);
-        return `
-        <div class="rounded-xl p-4 bg-gradient-to-br ${col.bg} border ${col.border} relative overflow-hidden">
-            <div class="absolute bottom-0 left-0 right-0 h-1 bg-slate-800/50">
-                <div class="h-1 bg-gradient-to-r ${col.bar} transition-all" style="width:${barW}%"></div>
+        return `<div class="rounded-xl p-3 bg-gradient-to-br ${col.bg} border ${col.border} relative overflow-hidden">
+            <div class="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-800/50"><div class="h-0.5 bg-gradient-to-r ${col.bar}" style="width:${barW}%"></div></div>
+            <div class="flex items-center justify-between mb-1">
+                <span class="text-[11px] font-bold ${col.accent} uppercase tracking-wider">${esc(c.nome)}</span>
+                ${chg ? `<span class="text-[10px] font-bold ${chg.cls}">${chg.txt}</span>` : ''}
             </div>
-            <div class="flex items-start justify-between mb-2">
-                <div>
-                    <p class="text-[11px] font-semibold ${col.accent} uppercase tracking-wider">${esc(c.nome)}</p>
-                    <p class="text-[10px] text-slate-500">${esc(c.nivel)}</p>
-                </div>
-                ${chg ? `<span class="text-xs font-bold ${chg.cls}">${chg.txt}</span>` : ''}
-            </div>
-            <p class="text-2xl font-bold text-white font-display mb-2">${fmt(c.grand_total)}</p>
-            <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
-                <div class="flex justify-between"><span class="text-slate-400">Novos</span><span class="text-white font-medium">${fmt(c.totals.novos)}</span></div>
-                <div class="flex justify-between"><span class="text-slate-400">Rematr.</span><span class="text-white font-medium">${fmt(c.totals.rematricula)}</span></div>
-                <div class="flex justify-between"><span class="text-slate-400">Regresso</span><span class="text-white font-medium">${fmt(c.totals.regresso)}</span></div>
-                <div class="flex justify-between"><span class="text-slate-400">Recompra</span><span class="text-white font-medium">${fmt(c.totals.recompra)}</span></div>
-            </div>
+            <p class="text-[10px] text-slate-500 mb-1">${esc(c.nivel)}</p>
+            <p class="text-xl font-bold text-white font-display">${fmt(c.grand_total)}</p>
         </div>`;
     }).join('');
 
-    // --- Comparison table ---
+    // --- Helper: build comparison table rows ---
+    function buildRows(items, ciclos, getVal) {
+        return items.map(item => {
+            let row = `<tr class="border-b border-slate-700/15">`;
+            row += `<td class="py-1.5 pl-2 text-slate-300 text-[13px]">${esc(item)}</td>`;
+            for (const c of ciclos) row += `<td class="py-1.5 text-center font-mono text-slate-300 text-[13px]">${fmt(getVal(c, item))}</td>`;
+            if (hasVar) { const ch = pctChange(getVal(ciclos[0], item), getVal(ciclos[1], item)); row += `<td class="py-1.5 text-center font-mono text-[12px] font-bold ${ch.cls}">${ch.txt}</td>`; }
+            return row + '</tr>';
+        }).join('');
+    }
+    function buildHead(el) {
+        el.innerHTML = '<th class="pb-2 pl-2 font-semibold text-xs text-slate-500">' + el.closest('table').id.replace('ciclo-','').replace('-table','') + '</th>' +
+            ciclos.map((c, i) => `<th class="pb-2 text-center font-semibold text-xs ${colors[i % colors.length].accent}">${esc(c.nome)}</th>`).join('') +
+            (hasVar ? '<th class="pb-2 text-center font-semibold text-xs text-slate-400">Var</th>' : '');
+    }
+
+    // --- Tab Resumo ---
     const thead = document.querySelector('#ciclo-compare-table thead tr');
     thead.innerHTML = '<th class="pb-2 pl-2 font-semibold text-xs text-slate-500">Indicador</th>' +
-        ciclos.map((c, i) => {
-            const col = colors[i % colors.length];
-            return `<th class="pb-2 text-center font-semibold text-xs ${col.accent}">${esc(c.nome)}</th>`;
-        }).join('') +
-        (ciclos.length >= 2 ? '<th class="pb-2 text-center font-semibold text-xs text-slate-400">Var %</th>' : '');
+        ciclos.map((c, i) => `<th class="pb-2 text-center font-semibold text-xs ${colors[i % colors.length].accent}">${esc(c.nome)}</th>`).join('') +
+        (hasVar ? '<th class="pb-2 text-center font-semibold text-xs text-slate-400">Var</th>' : '');
 
     const indicators = [
-        { label: 'Total Geral', key: 'grand_total', direct: true },
+        { label: 'Total Geral', key: 'grand_total', direct: true, bold: true },
         { label: 'Novos (Calouros)', key: 'novos' },
         { label: 'Rematrículas', key: 'rematricula' },
         { label: 'Regresso', key: 'regresso' },
         { label: 'Recompra', key: 'recompra' },
         { label: 'Outros', key: 'outros' },
     ];
-
-    const tbody = document.getElementById('ciclo-compare-tbody');
-    let html = '';
-
+    let rhtml = '';
     for (const ind of indicators) {
-        const isBold = ind.direct;
-        html += `<tr class="border-b border-slate-700/15 ${isBold ? 'bg-slate-800/20' : ''}">`;
-        html += `<td class="py-2.5 pl-2 ${isBold ? 'font-bold text-white' : 'text-slate-300'}">${ind.label}</td>`;
+        const b = ind.bold;
+        rhtml += `<tr class="border-b border-slate-700/15 ${b ? 'bg-slate-800/20' : ''}">`;
+        rhtml += `<td class="py-1.5 pl-2 ${b ? 'font-bold text-white' : 'text-slate-300'} text-[13px]">${ind.label}</td>`;
         for (const c of ciclos) {
-            const val = ind.direct ? c[ind.key] : (c.totals[ind.key] || 0);
-            html += `<td class="py-2.5 text-center font-mono ${isBold ? 'font-bold text-white' : 'text-slate-300'}">${fmt(val)}</td>`;
+            const v = ind.direct ? c[ind.key] : (c.totals[ind.key] || 0);
+            rhtml += `<td class="py-1.5 text-center font-mono ${b ? 'font-bold text-white' : 'text-slate-300'} text-[13px]">${fmt(v)}</td>`;
         }
-        if (ciclos.length >= 2) {
+        if (hasVar) {
             const cur = ind.direct ? ciclos[0][ind.key] : (ciclos[0].totals[ind.key] || 0);
             const prev = ind.direct ? ciclos[1][ind.key] : (ciclos[1].totals[ind.key] || 0);
-            const chg = pctChange(cur, prev);
-            html += `<td class="py-2.5 text-center font-mono font-bold ${chg.cls}">${chg.txt}</td>`;
+            const ch = pctChange(cur, prev);
+            rhtml += `<td class="py-1.5 text-center font-mono font-bold text-[12px] ${ch.cls}">${ch.txt}</td>`;
         }
-        html += '</tr>';
+        rhtml += '</tr>';
     }
+    document.getElementById('ciclo-compare-tbody').innerHTML = rhtml;
 
-    // Situações na tabela comparativa
+    // --- Tab Situação ---
+    const sitHead = document.getElementById('ciclo-sit-thead');
+    sitHead.innerHTML = '<th class="pb-2 pl-2 font-semibold text-xs text-slate-500">Situação</th>' +
+        ciclos.map((c, i) => `<th class="pb-2 text-center font-semibold text-xs ${colors[i % colors.length].accent}">${esc(c.nome)}</th>`).join('') +
+        (hasVar ? '<th class="pb-2 text-center font-semibold text-xs text-slate-400">Var</th>' : '');
     const allSits = [...new Set(ciclos.flatMap(c => Object.keys(c.by_situacao)))];
-    if (allSits.length) {
-        html += `<tr class="border-b border-slate-700/30"><td colspan="${ciclos.length + 2}" class="py-2 pl-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider pt-4">Por Situação</td></tr>`;
-        for (const sit of allSits) {
-            html += '<tr class="border-b border-slate-700/15">';
-            html += `<td class="py-2 pl-4 text-slate-400 text-[13px]">${esc(sit)}</td>`;
-            for (const c of ciclos) {
-                html += `<td class="py-2 text-center font-mono text-slate-300">${fmt(c.by_situacao[sit] || 0)}</td>`;
-            }
-            if (ciclos.length >= 2) {
-                const chg = pctChange(ciclos[0].by_situacao[sit] || 0, ciclos[1].by_situacao[sit] || 0);
-                html += `<td class="py-2 text-center font-mono ${chg.cls}">${chg.txt}</td>`;
-            }
-            html += '</tr>';
-        }
-    }
+    document.getElementById('ciclo-sit-tbody').innerHTML = buildRows(allSits, ciclos, (c, s) => c.by_situacao[s] || 0);
 
-    // Top 10 polos comparativos
+    // --- Tab Polos ---
+    const poloHead = document.getElementById('ciclo-polo-thead');
+    poloHead.innerHTML = '<th class="pb-2 pl-2 font-semibold text-xs text-slate-500">Polo</th>' +
+        ciclos.map((c, i) => `<th class="pb-2 text-center font-semibold text-xs ${colors[i % colors.length].accent}">${esc(c.nome)}</th>`).join('') +
+        (hasVar ? '<th class="pb-2 text-center font-semibold text-xs text-slate-400">Var</th>' : '');
     const allPolos = [...new Set(ciclos.flatMap(c => Object.keys(c.by_polo)))];
     const poloTotals = {};
-    for (const p of allPolos) {
-        poloTotals[p] = ciclos.reduce((sum, c) => sum + (c.by_polo[p] || 0), 0);
-    }
-    const topPolos = allPolos.sort((a, b) => poloTotals[b] - poloTotals[a]).slice(0, 10);
-    if (topPolos.length) {
-        html += `<tr class="border-b border-slate-700/30"><td colspan="${ciclos.length + 2}" class="py-2 pl-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider pt-4">Top 10 Polos</td></tr>`;
-        for (const polo of topPolos) {
-            html += '<tr class="border-b border-slate-700/15">';
-            html += `<td class="py-2 pl-4 text-slate-400 text-[13px]">${esc(polo)}</td>`;
-            for (const c of ciclos) {
-                html += `<td class="py-2 text-center font-mono text-slate-300">${fmt(c.by_polo[polo] || 0)}</td>`;
-            }
-            if (ciclos.length >= 2) {
-                const chg = pctChange(ciclos[0].by_polo[polo] || 0, ciclos[1].by_polo[polo] || 0);
-                html += `<td class="py-2 text-center font-mono ${chg.cls}">${chg.txt}</td>`;
-            }
-            html += '</tr>';
-        }
-    }
-
-    tbody.innerHTML = html;
+    for (const p of allPolos) poloTotals[p] = ciclos.reduce((sum, c) => sum + (c.by_polo[p] || 0), 0);
+    const topPolos = allPolos.sort((a, b) => poloTotals[b] - poloTotals[a]).slice(0, 15);
+    document.getElementById('ciclo-polo-tbody').innerHTML = buildRows(topPolos, ciclos, (c, p) => c.by_polo[p] || 0);
 }
 
 async function loadStudentMetrics() {
