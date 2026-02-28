@@ -184,7 +184,8 @@ class ApiClient:
         return self._request("PATCH", f"{API_BASE}/leads/{lead_id}", payload)
 
     def search_leads(self, query):
-        return self._request("GET", f"{API_BASE}/leads?search={query}&take=5")
+        from urllib.parse import quote
+        return self._request("GET", f"{API_BASE}/leads?search={quote(str(query))}&take=5")
 
     def get_lead(self, lead_id):
         return self._request("GET", f"{API_BASE}/leads/{lead_id}")
