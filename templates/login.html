@@ -5,40 +5,439 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login — eduit.</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: { brand: '#2563eb' },
+                    fontFamily: {
+                        display: ['Sora', 'sans-serif'],
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    borderRadius: { '2xl': '1rem', '3xl': '1.5rem' },
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --primary-light: #dbeafe;
+            --secondary: #0891b2;
+            --accent: #f59e0b;
+            --success: #059669;
+            --warning: #d97706;
+            --danger: #dc2626;
+            --bg-main: #0f172a;
+            --bg-card: #1e293b;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border: #334155;
+            --shadow: 0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.08);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.15), 0 4px 6px -2px rgba(0,0,0,.1);
+            --shadow-glow: 0 0 40px rgba(37,99,235,.15);
+            --radius-card: 16px;
+            --radius-btn: 10px;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        h1, h2, h3, h4, h5, h6 { font-family: 'Sora', sans-serif; }
+
+        /* Animated background gradient */
+        .bg-gradient-animate {
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse at 20% 20%, rgba(37,99,235,.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(8,145,178,.1) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(99,102,241,.08) 0%, transparent 60%);
+            animation: bgPulse 8s ease-in-out infinite;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        @keyframes bgPulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: .8; transform: scale(1.05); }
+        }
+
+        /* Glass card */
+        .glass-card {
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(51, 65, 85, 0.6);
+            border-radius: var(--radius-card);
+            box-shadow:
+                var(--shadow-lg),
+                0 0 0 1px rgba(255,255,255,.02) inset,
+                var(--shadow-glow);
+        }
+
+        /* Logo animation */
+        .logo-container {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-glow {
+            position: absolute;
+            inset: -8px;
+            background: linear-gradient(135deg, rgba(37,99,235,.3), rgba(8,145,178,.2));
+            border-radius: 16px;
+            filter: blur(12px);
+            opacity: 0;
+            animation: logoGlow 2s ease-in-out infinite;
+        }
+
+        @keyframes logoGlow {
+            0%, 100% { opacity: 0.3; transform: scale(0.95); }
+            50% { opacity: 0.6; transform: scale(1.05); }
+        }
+
+        .logo-box {
+            width: 64px;
+            height: 64px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, rgba(12,30,58,.9), rgba(30,41,59,.9));
+            border: 1px solid rgba(6,182,212,.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            z-index: 1;
+            box-shadow:
+                0 8px 32px rgba(37,99,235,.2),
+                0 0 0 1px rgba(255,255,255,.05) inset;
+        }
+
+        /* Input styling */
+        .input-glass {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-btn);
+            padding: 14px 16px;
+            font-size: 14px;
+            color: var(--text-primary);
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .input-glass::placeholder { color: var(--text-muted); }
+
+        .input-glass:hover {
+            border-color: rgba(100, 116, 139, 0.8);
+            background: rgba(15, 23, 42, 0.7);
+        }
+
+        .input-glass:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow:
+                0 0 0 3px rgba(37,99,235,.15),
+                0 0 20px rgba(37,99,235,.1);
+            background: rgba(15, 23, 42, 0.8);
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            transition: color 0.25s;
+            pointer-events: none;
+        }
+
+        .input-glass:focus + .input-icon,
+        .input-wrapper:focus-within .input-icon {
+            color: var(--primary);
+        }
+
+        .input-with-icon { padding-left: 44px; }
+
+        /* Button primary */
+        .btn-primary {
+            width: 100%;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border: none;
+            border-radius: var(--radius-btn);
+            padding: 14px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            color: white;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow:
+                0 4px 14px rgba(37,99,235,.35),
+                0 0 0 1px rgba(255,255,255,.1) inset;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,.15), transparent);
+            opacity: 0;
+            transition: opacity 0.25s;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow:
+                0 8px 25px rgba(37,99,235,.45),
+                0 0 0 1px rgba(255,255,255,.15) inset;
+        }
+
+        .btn-primary:hover::before { opacity: 1; }
+
+        .btn-primary:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 8px rgba(37,99,235,.3);
+        }
+
+        /* Error message */
+        .error-message {
+            background: linear-gradient(135deg, rgba(220,38,38,.12), rgba(185,28,28,.08));
+            border: 1px solid rgba(220,38,38,.25);
+            border-radius: var(--radius-btn);
+            padding: 12px 16px;
+            color: #fca5a5;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Label styling */
+        .form-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Floating particles */
+        .particles {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 0;
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: rgba(37,99,235,.3);
+            border-radius: 50%;
+            animation: float 15s infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-100vh) rotate(720deg); opacity: 0; }
+        }
+
+        /* Fade in animation */
+        .fade-in-up {
+            animation: fadeInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        @keyframes fadeInUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .delay-100 { animation-delay: 0.1s; }
+        .delay-200 { animation-delay: 0.2s; }
+        .delay-300 { animation-delay: 0.3s; }
+
+        /* Footer text */
+        .footer-text {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-align: center;
+            margin-top: 24px;
+        }
+
+        /* Version badge */
+        .version-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: rgba(5,150,105,.15);
+            border: 1px solid rgba(5,150,105,.25);
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 600;
+            color: #34d399;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #34d399;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.2); }
+        }
+    </style>
 </head>
-<body class="h-full bg-gray-950 text-gray-100 flex items-center justify-center">
+<body class="flex items-center justify-center p-4">
+    <!-- Animated background -->
+    <div class="bg-gradient-animate"></div>
 
-<div class="w-full max-w-sm">
-    <div class="bg-gray-900 border border-gray-800 rounded-2xl p-8 shadow-xl">
-        <div class="text-center mb-8">
-            <h1 class="text-2xl font-bold"><span class="text-white">edu</span><span class="text-cyan-400">it.</span></h1>
-            <p class="text-[10px] text-gray-500 font-medium tracking-wider uppercase mt-1">Gestão Acadêmica</p>
-        </div>
+    <!-- Floating particles -->
+    <div class="particles" id="particles"></div>
 
-        {% if error %}
-        <div class="mb-4 p-3 bg-red-900/40 border border-red-800 rounded-lg text-red-300 text-sm text-center">
-            {{ error }}
-        </div>
-        {% endif %}
-
-        <form method="POST" class="space-y-4">
-            <div>
-                <label class="block text-xs text-gray-400 mb-1.5">Usuário</label>
-                <input type="text" name="username" required autofocus
-                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:border-indigo-500 focus:outline-none">
+    <!-- Main card -->
+    <div class="w-full max-w-[420px] relative z-10">
+        <div class="glass-card p-8 md:p-10 fade-in-up">
+            <!-- Logo section -->
+            <div class="text-center mb-8 fade-in-up delay-100">
+                <div class="logo-container mb-5">
+                    <div class="logo-glow"></div>
+                    <div class="logo-box">
+                        <span class="font-bold text-2xl font-display">
+                            <span class="text-white">e</span><span class="text-cyan-400">.</span>
+                        </span>
+                    </div>
+                </div>
+                <h1 class="text-2xl font-bold text-white font-display mb-1">
+                    <span class="text-white">edu</span><span class="text-cyan-400">it.</span>
+                </h1>
+                <p class="text-xs text-slate-500 font-medium tracking-wider uppercase">Gestão Acadêmica</p>
+                <div class="mt-4 flex justify-center">
+                    <span class="version-badge">
+                        <span class="status-dot"></span>
+                        Sistema Online
+                    </span>
+                </div>
             </div>
-            <div>
-                <label class="block text-xs text-gray-400 mb-1.5">Senha</label>
-                <input type="password" name="password" required
-                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:border-indigo-500 focus:outline-none">
+
+            <!-- Error message -->
+            {% if error %}
+            <div class="error-message mb-5 fade-in-up delay-100">
+                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <span>{{ error }}</span>
             </div>
-            <button type="submit"
-                class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-5 py-2.5 rounded-lg transition">
-                Entrar
-            </button>
-        </form>
+            {% endif %}
+
+            <!-- Login form -->
+            <form method="POST" class="space-y-5">
+                <div class="fade-in-up delay-200">
+                    <label class="form-label">Usuário</label>
+                    <div class="input-wrapper">
+                        <input
+                            type="text"
+                            name="username"
+                            required
+                            autofocus
+                            placeholder="Digite seu usuário"
+                            class="input-glass input-with-icon"
+                            autocomplete="username"
+                        >
+                        <svg class="input-icon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                        </svg>
+                    </div>
+                </div>
+
+                <div class="fade-in-up delay-200">
+                    <label class="form-label">Senha</label>
+                    <div class="input-wrapper">
+                        <input
+                            type="password"
+                            name="password"
+                            required
+                            placeholder="Digite sua senha"
+                            class="input-glass input-with-icon"
+                            autocomplete="current-password"
+                        >
+                        <svg class="input-icon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                        </svg>
+                    </div>
+                </div>
+
+                <div class="pt-2 fade-in-up delay-300">
+                    <button type="submit" class="btn-primary flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/>
+                        </svg>
+                        Entrar no Sistema
+                    </button>
+                </div>
+            </form>
+
+            <!-- Footer -->
+            <div class="footer-text fade-in-up delay-300">
+                <p>© 2026 eduit. — Todos os direitos reservados</p>
+            </div>
+        </div>
     </div>
-</div>
 
+    <script>
+        // Generate floating particles
+        const particlesContainer = document.getElementById('particles');
+        for (let i = 0; i < 20; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+            particle.style.left = Math.random() * 100 + '%';
+            particle.style.animationDelay = Math.random() * 15 + 's';
+            particle.style.animationDuration = (10 + Math.random() * 10) + 's';
+            particlesContainer.appendChild(particle);
+        }
+
+        // Add subtle parallax effect on mouse move
+        document.addEventListener('mousemove', (e) => {
+            const x = (e.clientX / window.innerWidth - 0.5) * 20;
+            const y = (e.clientY / window.innerHeight - 0.5) * 20;
+            document.querySelector('.glass-card').style.transform =
+                `translate(${x * 0.5}px, ${y * 0.5}px)`;
+        });
+    </script>
 </body>
 </html>
