@@ -79,3 +79,17 @@ CREATE TABLE IF NOT EXISTS schedules (
     last_run_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS app_users (
+    id         SERIAL PRIMARY KEY,
+    username   TEXT NOT NULL UNIQUE,
+    pw_hash    TEXT NOT NULL,
+    role       TEXT NOT NULL DEFAULT 'viewer',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS user_permissions (
+    user_id    INTEGER NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+    page       TEXT NOT NULL,
+    PRIMARY KEY (user_id, page)
+);

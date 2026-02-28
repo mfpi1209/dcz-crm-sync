@@ -35,6 +35,8 @@ from pathlib import Path
 from collections import defaultdict
 
 import requests
+import psycopg2
+import psycopg2.extras
 from dotenv import load_dotenv
 
 BRT = timezone(timedelta(hours=-3))
@@ -51,6 +53,27 @@ INPUT_FILE = REPORTS_DIR / "duplicatas_enriquecido.csv"
 
 DEFAULT_RATE = 60
 MULTI_LEAD_THRESHOLD = 7
+
+DB_DSN = dict(
+    host=os.getenv("DB_HOST", "localhost"),
+    port=os.getenv("DB_PORT", "5432"),
+    user=os.getenv("DB_USER"),
+    password=os.getenv("DB_PASS"),
+    dbname=os.getenv("DB_NAME", "dcz_sync"),
+)
+
+
+def get_conn():
+    return psycopg2.connect(**DB_DSN)
+
+
+def get_business_ids_for_lead(conn, lead_id):
+    """Busca IDs dos negócios de um lead no banco de dados local."""
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM businesses WHERE data->>'leadId' = %s", (lead_id,))
+    ids = [row[0] for row in cur.fetchall()]
+    cur.close()
+    return ids
 
 
 class _BRTFormatter(logging.Formatter):
@@ -137,7 +160,7 @@ class ApiClient:
     def patch_lead_phone(self, lead_id, phone_number):
         """Atualiza telefone do lead."""
         return self._request("PATCH", f"{API_BASE}/leads/{lead_id}",
-                             {"phone": {"phoneNumber": phone_number}})
+                             {"phone": str(phone_number)})
 
     def get_lead(self, lead_id):
         """Busca lead completo para verificar negócios restantes."""
@@ -409,7 +432,7 @@ def by_rgm_entries(plan):
 # Execução
 # ---------------------------------------------------------------------------
 
-def execute_one(api, plan, csv_writer):
+def execute_one(api, plan, csv_writer, conn):
     """Executa merge de um RGM."""
     rgm = plan["rgm"]
     manter = plan["manter"]
@@ -421,7 +444,6 @@ def execute_one(api, plan, csv_writer):
     ok_count = 0
     err_count = 0
 
-    # Atualizar telefone se necessário
     if plan["phone_update"]:
         log.info("  [RGM %s] PATCH telefone → %s no lead %s",
                  rgm, plan["phone_update"], manter_nome)
@@ -435,31 +457,25 @@ def execute_one(api, plan, csv_writer):
         ])
         if not r["ok"]:
             log.warning("    ERRO ao atualizar telefone: %s", r.get("body", ""))
+        else:
+            log.info("    OK — telefone atualizado")
 
     for rem in plan["remover"]:
         rem_id = rem["lead_id"]
         rem_nome = rem["lead_nome"]
 
-        # 1) Buscar negócios do lead a remover
-        log.info("  [RGM %s] Verificando lead %s (%s)...", rgm, rem_nome, rem_id[:12])
-        lead_data = api.get_lead(rem_id)
-        if not lead_data["ok"]:
-            log.warning("    ERRO ao buscar lead: %s", lead_data.get("body", ""))
-            csv_writer.writerow([
-                datetime.now(BRT).strftime("%d/%m/%Y %H:%M:%S"),
-                "GET_LEAD_FAIL", rem_id, rem_nome, rgm,
-                "", "", "ERRO", lead_data.get("status", ""), "",
-            ])
-            err_count += 1
-            continue
-
-        businesses = (lead_data["body"] or {}).get("businesses", [])
-        biz_ids = [b["id"] for b in businesses if isinstance(b, dict) and b.get("id")]
+        # 1) Buscar negócios do lead a remover via banco de dados local
+        log.info("  [RGM %s] Buscando negócios do lead %s (%s)...",
+                 rgm, rem_nome, rem_id[:12])
+        biz_ids = get_business_ids_for_lead(conn, rem_id)
 
         if not biz_ids:
-            log.info("    Lead sem negócios — deletando diretamente")
+            log.info("    Lead sem negócios no DB — tentando deletar")
         else:
+            log.info("    %d negócio(s) encontrado(s) — movendo para %s",
+                     len(biz_ids), manter_nome)
             # 2) Mover cada negócio para o lead mantido
+            move_failed = False
             for biz_id in biz_ids:
                 log.info("    PATCH biz %s → lead %s", biz_id[:12], manter_nome)
                 r = api.patch_business(biz_id, manter_id)
@@ -470,26 +486,40 @@ def execute_one(api, plan, csv_writer):
                     manter_id, manter_nome, status,
                     r.get("status", ""), plan["reason"],
                 ])
-                if not r["ok"]:
+                if r["ok"]:
+                    log.info("    OK — negócio movido")
+                    # Atualizar o banco local para refletir a mudança
+                    try:
+                        cur = conn.cursor()
+                        cur.execute(
+                            "UPDATE businesses SET data = jsonb_set(data, '{leadId}', %s) WHERE id = %s",
+                            (f'"{manter_id}"', biz_id),
+                        )
+                        conn.commit()
+                        cur.close()
+                    except Exception:
+                        conn.rollback()
+                else:
                     log.warning("    ERRO ao mover negócio: %s", r.get("body", ""))
                     err_count += 1
-                    continue
+                    move_failed = True
 
-        # 3) Verificar que o lead ficou sem negócios antes de deletar
-        verify = api.get_lead(rem_id)
-        if verify["ok"]:
-            remaining_biz = (verify["body"] or {}).get("businesses", [])
-            if remaining_biz:
-                log.warning("    Lead %s ainda tem %d negócios — NÃO deletando",
-                            rem_nome, len(remaining_biz))
-                csv_writer.writerow([
-                    datetime.now(BRT).strftime("%d/%m/%Y %H:%M:%S"),
-                    "SKIP_DELETE", rem_id, rem_nome, rgm,
-                    "", f"Ainda tem {len(remaining_biz)} negócios", "SKIP",
-                    "", plan["reason"],
-                ])
-                err_count += 1
-                continue
+            if move_failed:
+                log.warning("    Falha ao mover algum negócio — verificando antes de deletar")
+
+        # 3) Re-verificar negócios restantes no DB
+        remaining = get_business_ids_for_lead(conn, rem_id)
+        if remaining:
+            log.warning("    Lead %s ainda tem %d negócios — NÃO deletando",
+                        rem_nome, len(remaining))
+            csv_writer.writerow([
+                datetime.now(BRT).strftime("%d/%m/%Y %H:%M:%S"),
+                "SKIP_DELETE", rem_id, rem_nome, rgm,
+                "", f"Ainda tem {len(remaining)} negócios", "SKIP",
+                "", plan["reason"],
+            ])
+            err_count += 1
+            continue
 
         # 4) Deletar lead vazio
         log.info("    DELETE lead %s (%s)", rem_nome, rem_id[:12])
@@ -516,45 +546,49 @@ def execute(api, plans, mode, limit=None):
     REPORTS_DIR.mkdir(exist_ok=True)
     log_path = REPORTS_DIR / "merge_execucao.csv"
 
-    with open(log_path, "a", newline="", encoding="utf-8-sig") as f:
-        w = csv.writer(f, delimiter=";")
-        if f.tell() == 0:
-            w.writerow(["timestamp", "acao", "id", "nome", "rgm",
-                         "destino_id", "destino_nome", "resultado",
-                         "http_status", "razao"])
+    conn = get_conn()
+    try:
+        with open(log_path, "a", newline="", encoding="utf-8-sig") as f:
+            w = csv.writer(f, delimiter=";")
+            if f.tell() == 0:
+                w.writerow(["timestamp", "acao", "id", "nome", "rgm",
+                             "destino_id", "destino_nome", "resultado",
+                             "http_status", "razao"])
 
-        if mode == "--test":
-            actionable = [p for p in plans if p["fase"] < 4 and p["remover"]]
-            if not actionable:
-                log.info("Nenhum merge para testar.")
+            if mode == "--test":
+                actionable = [p for p in plans if p["fase"] < 4 and p["remover"]]
+                if not actionable:
+                    log.info("Nenhum merge para testar.")
+                    return
+                plan = actionable[0]
+                log.info("TESTE: RGM %s (fase %d) — %s", plan["rgm"], plan["fase"], plan["reason"])
+                log.info("  Manter: %s (%s)", plan["manter"]["lead_nome"], plan["manter"]["lead_id"][:12])
+                for r in plan["remover"]:
+                    log.info("  Remover: %s (%s)", r["lead_nome"], r["lead_id"][:12])
+                ok, err = execute_one(api, plan, w, conn)
+                log.info("Resultado teste: %d OK, %d erros. API calls: %d", ok, err, api.total_calls)
                 return
-            plan = actionable[0]
-            log.info("TESTE: RGM %s (fase %d) — %s", plan["rgm"], plan["fase"], plan["reason"])
-            log.info("  Manter: %s (%s)", plan["manter"]["lead_nome"], plan["manter"]["lead_id"][:12])
-            for r in plan["remover"]:
-                log.info("  Remover: %s (%s)", r["lead_nome"], r["lead_id"][:12])
-            ok, err = execute_one(api, plan, w)
-            log.info("Resultado teste: %d OK, %d erros. API calls: %d", ok, err, api.total_calls)
-            return
 
-        actionable = [p for p in plans if p["fase"] < 4 and p["remover"]]
-        if limit:
-            actionable = actionable[:limit]
+            actionable = [p for p in plans if p["fase"] < 4 and p["remover"]]
+            if limit:
+                actionable = actionable[:limit]
 
-        total_ok = 0
-        total_err = 0
-        log.info("Executando merge de %d RGMs...", len(actionable))
+            total_ok = 0
+            total_err = 0
+            log.info("Executando merge de %d RGMs...", len(actionable))
 
-        for i, plan in enumerate(actionable, 1):
-            log.info("[%d/%d] RGM %s (fase %d) — %s",
-                     i, len(actionable), plan["rgm"], plan["fase"], plan["reason"])
-            ok, err = execute_one(api, plan, w)
-            total_ok += ok
-            total_err += err
+            for i, plan in enumerate(actionable, 1):
+                log.info("[%d/%d] RGM %s (fase %d) — %s",
+                         i, len(actionable), plan["rgm"], plan["fase"], plan["reason"])
+                ok, err = execute_one(api, plan, w, conn)
+                total_ok += ok
+                total_err += err
 
-            if i % 20 == 0:
-                log.info("  Progresso: %d/%d | OK: %d | Erros: %d | API calls: %d",
-                         i, len(actionable), total_ok, total_err, api.total_calls)
+                if i % 20 == 0:
+                    log.info("  Progresso: %d/%d | OK: %d | Erros: %d | API calls: %d",
+                             i, len(actionable), total_ok, total_err, api.total_calls)
+    finally:
+        conn.close()
 
     log.info("=" * 60)
     log.info("CONCLUÍDO: %d OK, %d erros. Total API calls: %d", total_ok, total_err, api.total_calls)

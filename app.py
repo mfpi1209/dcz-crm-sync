@@ -9,6 +9,7 @@ Uso:
 import os
 import sys
 import json
+import hashlib
 import subprocess
 import threading
 import time
@@ -45,18 +46,62 @@ def to_brt(dt):
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dcz-sync-default-key-change-me")
 
+DB_DSN = dict(
+    host=os.getenv("DB_HOST", "localhost"),
+    port=os.getenv("DB_PORT", "5432"),
+    user=os.getenv("DB_USER"),
+    password=os.getenv("DB_PASS"),
+    dbname=os.getenv("DB_NAME", "dcz_sync"),
+)
+
 # ---------------------------------------------------------------------------
-# Autenticação por sessão
+# Autenticação por sessão (banco de dados)
 # ---------------------------------------------------------------------------
 
-APP_USER = os.getenv("APP_USER", "admin")
-APP_PASS = os.getenv("APP_PASS", "")
+ALL_PAGES = [
+    "dashboard", "search", "sync", "update", "pipeline",
+    "logs", "distribuicao", "feedback", "config", "schedule",
+]
+
+APP_USER_FALLBACK = os.getenv("APP_USER", "admin")
+APP_PASS_FALLBACK = os.getenv("APP_PASS", "")
+
+
+def _hash_pw(password):
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
+
+def _db_auth(username, password):
+    """Authenticate against app_users table. Returns dict or None."""
+    try:
+        conn = psycopg2.connect(**DB_DSN)
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT id, username, pw_hash, role FROM app_users WHERE username = %s",
+                        (username,))
+            row = cur.fetchone()
+        conn.close()
+        if row and row["pw_hash"] == _hash_pw(password):
+            return dict(row)
+    except Exception:
+        pass
+    return None
+
+
+def _get_user_permissions(user_id):
+    """Returns list of page slugs the user can access."""
+    try:
+        conn = psycopg2.connect(**DB_DSN)
+        with conn.cursor() as cur:
+            cur.execute("SELECT page FROM user_permissions WHERE user_id = %s", (user_id,))
+            pages = [r[0] for r in cur.fetchall()]
+        conn.close()
+        return pages
+    except Exception:
+        return []
 
 
 @app.before_request
 def require_auth():
-    if not APP_PASS:
-        return
     if request.path in ("/login",):
         return
     if request.path.startswith("/static/"):
@@ -73,11 +118,19 @@ def login():
     if request.method == "POST":
         user = request.form.get("username", "")
         pwd = request.form.get("password", "")
-        if user == APP_USER and pwd == APP_PASS:
+        db_user = _db_auth(user, pwd)
+        if db_user:
             session["authenticated"] = True
+            session["user_id"] = db_user["id"]
+            session["username"] = db_user["username"]
+            session["role"] = db_user["role"]
             return redirect(url_for("index"))
-        app.logger.warning("Login falhou: user=%r (esperado %r), pass_len=%d (esperado %d)",
-                           user, APP_USER, len(pwd), len(APP_PASS))
+        if APP_PASS_FALLBACK and user == APP_USER_FALLBACK and pwd == APP_PASS_FALLBACK:
+            session["authenticated"] = True
+            session["user_id"] = 0
+            session["username"] = APP_USER_FALLBACK
+            session["role"] = "admin"
+            return redirect(url_for("index"))
         error = "Usuário ou senha incorretos."
     return render_template("login.html", error=error)
 
@@ -87,13 +140,22 @@ def logout():
     session.clear()
     return redirect(url_for("login"))
 
-DB_DSN = dict(
-    host=os.getenv("DB_HOST", "localhost"),
-    port=os.getenv("DB_PORT", "5432"),
-    user=os.getenv("DB_USER"),
-    password=os.getenv("DB_PASS"),
-    dbname=os.getenv("DB_NAME", "dcz_sync"),
-)
+
+@app.route("/api/me")
+def api_me():
+    """Returns current user info + permissions for sidebar rendering."""
+    uid = session.get("user_id", 0)
+    role = session.get("role", "admin")
+    if role == "admin":
+        pages = list(ALL_PAGES)
+    else:
+        pages = _get_user_permissions(uid)
+    return jsonify({
+        "user_id": uid,
+        "username": session.get("username", ""),
+        "role": role,
+        "pages": pages,
+    })
 
 BASE_DIR = Path(__file__).parent
 SYNC_SCRIPT = str(BASE_DIR / "sync.py")
@@ -2254,10 +2316,151 @@ def _ensure_ciclos_table():
         app.logger.warning("Could not ensure ciclos table: %s", e)
 
 
+def _ensure_users_table():
+    """Create app_users + user_permissions tables and seed admin from env."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS app_users (
+                    id         SERIAL PRIMARY KEY,
+                    username   TEXT NOT NULL UNIQUE,
+                    pw_hash    TEXT NOT NULL,
+                    role       TEXT NOT NULL DEFAULT 'viewer',
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS user_permissions (
+                    user_id    INTEGER NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+                    page       TEXT NOT NULL,
+                    PRIMARY KEY (user_id, page)
+                )
+            """)
+            cur.execute("SELECT COUNT(*) FROM app_users")
+            if cur.fetchone()[0] == 0 and APP_PASS_FALLBACK:
+                cur.execute(
+                    "INSERT INTO app_users (username, pw_hash, role) VALUES (%s, %s, 'admin')",
+                    (APP_USER_FALLBACK, _hash_pw(APP_PASS_FALLBACK)),
+                )
+                uid = cur.lastrowid
+                cur.execute("SELECT id FROM app_users WHERE username = %s", (APP_USER_FALLBACK,))
+                uid = cur.fetchone()[0]
+                for page in ALL_PAGES:
+                    cur.execute("INSERT INTO user_permissions (user_id, page) VALUES (%s, %s)",
+                                (uid, page))
+                app.logger.info("Admin user seeded from env vars: %s", APP_USER_FALLBACK)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        app.logger.warning("Could not ensure users table: %s", e)
+
+
+# ---------------------------------------------------------------------------
+# Rotas — Gestão de usuários
+# ---------------------------------------------------------------------------
+
+@app.route("/api/users", methods=["GET"])
+def api_users_list():
+    if session.get("role") != "admin":
+        return jsonify({"error": "Sem permissão"}), 403
+    conn = get_conn()
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute("""
+            SELECT u.id, u.username, u.role, u.created_at,
+                   ARRAY(SELECT p.page FROM user_permissions p WHERE p.user_id = u.id ORDER BY p.page) AS pages
+            FROM app_users u ORDER BY u.id
+        """)
+        users = cur.fetchall()
+    conn.close()
+    for u in users:
+        u["created_at"] = to_brt(u["created_at"])
+    return jsonify({"users": users, "all_pages": ALL_PAGES})
+
+
+@app.route("/api/users", methods=["POST"])
+def api_users_create():
+    if session.get("role") != "admin":
+        return jsonify({"error": "Sem permissão"}), 403
+    body = request.json or {}
+    username = (body.get("username") or "").strip()
+    password = body.get("password", "")
+    role = body.get("role", "viewer")
+    pages = body.get("pages", [])
+    if not username or not password:
+        return jsonify({"error": "Usuário e senha são obrigatórios"}), 400
+    if role not in ("admin", "viewer"):
+        role = "viewer"
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO app_users (username, pw_hash, role) VALUES (%s, %s, %s) RETURNING id",
+                (username, _hash_pw(password), role),
+            )
+            uid = cur.fetchone()[0]
+            if role == "admin":
+                pages = list(ALL_PAGES)
+            for pg in pages:
+                if pg in ALL_PAGES:
+                    cur.execute("INSERT INTO user_permissions (user_id, page) VALUES (%s, %s)",
+                                (uid, pg))
+        conn.commit()
+    except psycopg2.errors.UniqueViolation:
+        conn.rollback()
+        conn.close()
+        return jsonify({"error": "Usuário já existe"}), 409
+    conn.close()
+    return jsonify({"ok": True, "id": uid})
+
+
+@app.route("/api/users/<int:uid>", methods=["PUT"])
+def api_users_update(uid):
+    if session.get("role") != "admin":
+        return jsonify({"error": "Sem permissão"}), 403
+    body = request.json or {}
+    role = body.get("role")
+    pages = body.get("pages")
+    password = body.get("password")
+    conn = get_conn()
+    with conn.cursor() as cur:
+        if password:
+            cur.execute("UPDATE app_users SET pw_hash = %s WHERE id = %s",
+                        (_hash_pw(password), uid))
+        if role and role in ("admin", "viewer"):
+            cur.execute("UPDATE app_users SET role = %s WHERE id = %s", (role, uid))
+        if pages is not None:
+            if role == "admin":
+                pages = list(ALL_PAGES)
+            cur.execute("DELETE FROM user_permissions WHERE user_id = %s", (uid,))
+            for pg in pages:
+                if pg in ALL_PAGES:
+                    cur.execute("INSERT INTO user_permissions (user_id, page) VALUES (%s, %s)",
+                                (uid, pg))
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/users/<int:uid>", methods=["DELETE"])
+def api_users_delete(uid):
+    if session.get("role") != "admin":
+        return jsonify({"error": "Sem permissão"}), 403
+    if uid == session.get("user_id"):
+        return jsonify({"error": "Não é possível deletar o próprio usuário"}), 400
+    conn = get_conn()
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM app_users WHERE id = %s", (uid,))
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
+
+
 # Start scheduler
 _ensure_schedules_table()
 _ensure_turmas_table()
 _ensure_ciclos_table()
+_ensure_users_table()
 scheduler.start()
 _load_schedules_from_db()
 

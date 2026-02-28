@@ -119,6 +119,7 @@ class ApiClient:
         all_items = []
         skip = 0
         take = 100
+        last_logged = 0
         while True:
             p = {**(params or {}), "skip": skip, "take": take}
             data = self.get(path, p)
@@ -126,7 +127,9 @@ class ApiClient:
                 break
             items = data.get("data", [])
             all_items.extend(items)
-            log.info("  ... %d %s carregados", len(all_items), label)
+            if len(all_items) - last_logged >= 1000 or len(items) < take:
+                log.info("  ... %d %s carregados", len(all_items), label)
+                last_logged = len(all_items)
             if len(items) < take:
                 break
             skip += take
@@ -270,7 +273,7 @@ def main():
         hist = get_lead_history(api, lid)
         lead_history[lid] = hist or {}
 
-        if i % 10 == 0 or i == len(lead_list):
+        if i % 100 == 0 or i == len(lead_list):
             pct = i / len(lead_list) * 100
             log.info("  [%d/%d] %.0f%% — %d API calls", i, len(lead_list), pct, api.total_calls)
 
