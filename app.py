@@ -312,6 +312,106 @@ def api_dashboard():
 
 
 # ---------------------------------------------------------------------------
+# Rotas — Dashboard: Métricas de Alunos
+# ---------------------------------------------------------------------------
+
+TIPO_ALUNO_FIELD = "4230e4db-970b-4444-abaf-c3135a03b79c"
+DATA_MATRICULA_FIELD = "bf93a8e9-42c0-4517-8518-6f604746a300"
+SITUACAO_FIELD = "fd08d44b-a4a5-4343-b7a9-37f75e2c1caa"
+NIVEL_FIELD = "233fcf6f-0bed-49d7-89a1-d1cd54fb9c12"
+POLO_FIELD = "0ec9d8dc-d547-4482-b9ad-d4a3e6ec1b54"
+
+_STUDENT_METRICS_QUERY = """
+WITH biz_fields AS (
+    SELECT
+        b.id,
+        MAX(CASE WHEN af->>'additionalFieldId' = %(tipo_id)s OR af->'additionalField'->>'id' = %(tipo_id)s
+                 THEN af->>'value' END) AS tipo_aluno,
+        MAX(CASE WHEN af->>'additionalFieldId' = %(dt_id)s   OR af->'additionalField'->>'id' = %(dt_id)s
+                 THEN af->>'value' END) AS data_matricula,
+        MAX(CASE WHEN af->>'additionalFieldId' = %(sit_id)s  OR af->'additionalField'->>'id' = %(sit_id)s
+                 THEN af->>'value' END) AS situacao,
+        MAX(CASE WHEN af->>'additionalFieldId' = %(niv_id)s  OR af->'additionalField'->>'id' = %(niv_id)s
+                 THEN af->>'value' END) AS nivel,
+        MAX(CASE WHEN af->>'additionalFieldId' = %(polo_id)s OR af->'additionalField'->>'id' = %(polo_id)s
+                 THEN af->>'value' END) AS polo
+    FROM businesses b,
+         jsonb_array_elements(b.data->'additionalFields') af
+    GROUP BY b.id
+)
+SELECT
+    COALESCE(tipo_aluno, 'Não informado') AS tipo,
+    situacao,
+    nivel,
+    polo,
+    COUNT(*) AS total
+FROM biz_fields
+WHERE (%(dt_from)s IS NULL OR data_matricula >= %(dt_from)s)
+  AND (%(dt_to)s   IS NULL OR data_matricula <= %(dt_to)s)
+GROUP BY tipo_aluno, situacao, nivel, polo
+ORDER BY total DESC
+"""
+
+
+@app.route("/api/dashboard/students")
+def api_dashboard_students():
+    dt_from = request.args.get("from", "")
+    dt_to = request.args.get("to", "")
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(_STUDENT_METRICS_QUERY, {
+                "tipo_id": TIPO_ALUNO_FIELD,
+                "dt_id": DATA_MATRICULA_FIELD,
+                "sit_id": SITUACAO_FIELD,
+                "niv_id": NIVEL_FIELD,
+                "polo_id": POLO_FIELD,
+                "dt_from": dt_from or None,
+                "dt_to": dt_to or None,
+            })
+            rows = cur.fetchall()
+
+        tipo_map = {
+            "Calouro": "novos",
+            "Regresso (Retorno)": "regresso",
+            "Calouro (Recompra)": "recompra",
+            "Veterano": "rematricula",
+        }
+
+        totals = {"novos": 0, "regresso": 0, "recompra": 0, "rematricula": 0, "outros": 0}
+        by_situacao = {}
+        by_nivel = {}
+        by_polo = {}
+
+        for r in rows:
+            tipo = r["tipo"] or "Não informado"
+            cat = tipo_map.get(tipo, "outros")
+            totals[cat] += r["total"]
+
+            sit = r["situacao"] or "N/I"
+            by_situacao[sit] = by_situacao.get(sit, 0) + r["total"]
+
+            niv = r["nivel"] or "N/I"
+            by_nivel[niv] = by_nivel.get(niv, 0) + r["total"]
+
+            polo = r["polo"] or "N/I"
+            by_polo[polo] = by_polo.get(polo, 0) + r["total"]
+
+        return jsonify({
+            "totals": totals,
+            "by_situacao": dict(sorted(by_situacao.items(), key=lambda x: -x[1])),
+            "by_nivel": dict(sorted(by_nivel.items(), key=lambda x: -x[1])),
+            "by_polo": dict(sorted(by_polo.items(), key=lambda x: -x[1])),
+            "grand_total": sum(totals.values()),
+            "filter": {"from": dt_from, "to": dt_to},
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
 # Rotas — Busca
 # ---------------------------------------------------------------------------
 
