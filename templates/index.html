@@ -1027,47 +1027,138 @@
 
             <!-- ============ PAGE: DASHBOARD ============ -->
             <div id="page-dashboard" class="p-4 lg:p-8 max-w-7xl mx-auto">
-                <div class="mb-8">
-                    <h2 class="text-3xl font-bold text-white font-display mb-1">Dashboard</h2>
-                    <p class="text-slate-500 text-sm">Bem-vindo ao seu painel de controle de CRM</p>
+                <!-- Header -->
+                <div class="mb-6">
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z"/></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-3xl font-bold text-white font-display">Dashboard</h2>
+                            <p class="text-slate-500 text-sm">Painel de controle acadêmico</p>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-                    <div class="metric-card metric-indigo">
-                        <div class="flex items-start justify-between mb-3">
-                            <p class="text-sm font-medium text-slate-400">Leads</p>
-                            <div class="p-2 rounded-lg bg-gradient-to-br from-indigo-500/30 to-purple-500/30 border border-indigo-500/40">
-                                <svg class="w-5 h-5 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <!-- ══ SEÇÃO PRINCIPAL: Matrículas por Tipo de Aluno ══ -->
+                <div class="glass-card overflow-hidden mb-6">
+                    <div class="p-5">
+                        <!-- Header + Filtros visíveis -->
+                        <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+                            <h3 class="text-lg font-bold text-white font-display flex items-center gap-2">
+                                <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                                Matrículas por Tipo de Aluno
+                            </h3>
+                            <div class="flex flex-wrap items-center gap-3">
+                                <div id="stu-filter-badge" class="text-[10px] text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-full border border-indigo-500/20 hidden"></div>
+                                <select id="students-ciclo" onchange="applyCicloFilter()" class="input-glass px-3 py-1.5 text-xs text-slate-300 rounded-lg">
+                                    <option value="">Todos os ciclos</option>
+                                </select>
+                                <select id="students-nivel" onchange="loadStudentMetrics()" class="input-glass px-3 py-1.5 text-xs text-slate-300 rounded-lg">
+                                    <option value="">Todos os Níveis</option>
+                                    <option value="Graduação">Graduação</option>
+                                    <option value="Pós-Graduação">Pós-Graduação</option>
+                                </select>
+                                <button onclick="clearStudentFilter()" class="text-[10px] text-slate-500 hover:text-slate-300 px-2.5 py-1.5 rounded-lg border border-slate-700/30 hover:border-slate-600/50 transition-colors">Limpar</button>
+                                <button onclick="document.getElementById('stu-filters-extra').classList.toggle('hidden')" class="text-[10px] text-slate-500 hover:text-slate-300 flex items-center gap-1 transition-colors">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+                                    Mais
+                                </button>
                             </div>
                         </div>
-                        <p class="text-3xl font-bold text-white font-display" id="dash-leads">—</p>
+
+                        <!-- Filtros extras (ocultos por padrão) -->
+                        <div id="stu-filters-extra" class="hidden mb-4 py-2.5 px-3 rounded-lg bg-slate-800/30 border border-slate-700/20 flex flex-wrap items-center gap-3">
+                            <div id="stu-filters" class="contents">
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs text-slate-500 font-medium">Situação</label>
+                                    <select id="students-situacao" onchange="loadStudentMetrics()" class="input-glass px-2.5 py-1.5 text-xs text-slate-300">
+                                        <option value="">Todas</option>
+                                        <option value="Em Curso">Em Curso</option>
+                                        <option value="Cancelado">Cancelado</option>
+                                        <option value="Trancado">Trancado</option>
+                                        <option value="Transferido">Transferido</option>
+                                    </select>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs text-slate-500 font-medium">De</label>
+                                    <input type="date" id="students-from" class="input-glass px-2.5 py-1.5 text-xs text-slate-300 w-36">
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs text-slate-500 font-medium">Até</label>
+                                    <input type="date" id="students-to" class="input-glass px-2.5 py-1.5 text-xs text-slate-300 w-36">
+                                </div>
+                                <button type="button" onclick="loadStudentMetrics()" class="btn-primary text-xs px-3 py-1.5">Filtrar</button>
+                            </div>
+                        </div>
+
+                        <!-- Cards de tipo (renderizados por JS — fonte grande) -->
+                        <div id="stu-tipo-cards" class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-5"></div>
+
+                        <!-- Situação (renderizada por JS como cards visuais) -->
+                        <div class="mb-5">
+                            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                Por Situação
+                            </h4>
+                            <div id="stu-by-situacao" class="grid grid-cols-2 lg:grid-cols-4 gap-3 text-[13px] text-slate-300">—</div>
+                        </div>
+
+                        <!-- Nível + Top Polos (visíveis) -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                            <div class="glass-card p-4">
+                                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Por Nível</h4>
+                                <div id="stu-by-nivel" class="space-y-2 text-[13px] text-slate-300">—</div>
+                            </div>
+                            <div class="glass-card p-4">
+                                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Top Polos</h4>
+                                <div id="stu-by-polo" class="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px] text-slate-300">—</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="metric-card metric-emerald">
-                        <div class="flex items-start justify-between mb-3">
-                            <p class="text-sm font-medium text-slate-400">Negócios</p>
-                            <div class="p-2 rounded-lg bg-gradient-to-br from-emerald-500/30 to-cyan-500/30 border border-emerald-500/40">
-                                <svg class="w-5 h-5 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+
+                    <!-- Detalhamento (Turma, Ciclo) -->
+                    <button onclick="document.getElementById('stu-detail').classList.toggle('hidden');this.querySelector('.chevron-icon').classList.toggle('rotate-180')" class="w-full px-5 py-2 flex items-center justify-center gap-2 border-t border-slate-700/20 hover:bg-white/[0.02] transition-all text-[11px] text-slate-500">
+                        <span>Mais detalhes (Turma, Ciclo)</span>
+                        <svg class="w-3.5 h-3.5 transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div id="stu-detail" class="hidden border-t border-slate-700/20">
+                        <div class="px-5 py-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="rounded-xl p-4 bg-slate-800/30 border border-slate-700/30">
+                                    <h4 class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Por Turma</h4>
+                                    <div id="stu-by-turma" class="space-y-1.5 text-[13px] text-slate-300">—</div>
+                                </div>
+                                <div class="rounded-xl p-4 bg-slate-800/30 border border-slate-700/30">
+                                    <h4 class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Por Ciclo</h4>
+                                    <div id="stu-by-ciclo" class="space-y-1.5 text-[13px] text-slate-300">—</div>
+                                </div>
                             </div>
                         </div>
-                        <p class="text-3xl font-bold text-white font-display" id="dash-biz">—</p>
                     </div>
-                    <div class="metric-card metric-amber">
-                        <div class="flex items-start justify-between mb-3">
-                            <p class="text-sm font-medium text-slate-400">Pipelines</p>
-                            <div class="p-2 rounded-lg bg-gradient-to-br from-amber-500/30 to-orange-500/30 border border-amber-500/40">
-                                <svg class="w-5 h-5 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
-                            </div>
-                        </div>
-                        <p class="text-3xl font-bold text-white font-display" id="dash-pipelines">—</p>
+                </div>
+
+                <!-- ── 4 Cards CRM (secundários) ── -->
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    <div class="glass-card p-4 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-indigo-500 to-purple-500"></div>
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Leads</p>
+                        <p class="text-2xl font-bold text-white font-display" id="dash-leads">—</p>
                     </div>
-                    <div class="metric-card metric-cyan">
-                        <div class="flex items-start justify-between mb-3">
-                            <p class="text-sm font-medium text-slate-400">Status</p>
-                            <div class="p-2 rounded-lg bg-gradient-to-br from-cyan-500/30 to-blue-500/30 border border-cyan-500/40">
-                                <svg class="w-5 h-5 text-cyan-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                            </div>
-                        </div>
-                        <p class="text-2xl font-bold text-white font-display flex items-center gap-2" id="dash-status"><span class="green-dot"></span> Conectado</p>
+                    <div class="glass-card p-4 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-emerald-500 to-cyan-500"></div>
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Negócios</p>
+                        <p class="text-2xl font-bold text-white font-display" id="dash-biz">—</p>
+                    </div>
+                    <div class="glass-card p-4 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-amber-500 to-orange-500"></div>
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Pipelines</p>
+                        <p class="text-2xl font-bold text-white font-display" id="dash-pipelines">—</p>
+                    </div>
+                    <div class="glass-card p-4 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-cyan-500 to-blue-500"></div>
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Status</p>
+                        <p class="text-lg font-bold text-white font-display flex items-center gap-2" id="dash-status"><span class="green-dot"></span> Conectado</p>
                     </div>
                 </div>
 
@@ -1095,7 +1186,6 @@
                         </div>
                     </div>
                     <div class="px-5 pb-5">
-                        <!-- Card Geral: todas as linhas sobrepostas -->
                         <div class="rounded-xl p-4 bg-slate-800/20 border border-slate-700/20 mb-4">
                             <div class="flex items-center justify-between mb-2">
                                 <div class="flex items-center gap-4">
@@ -1135,104 +1225,9 @@
                         Nenhum ciclo configurado. <a href="#config" onclick="navigate('config')" class="text-indigo-400 hover:text-indigo-300">Configure ciclos</a>.
                     </div>
                     <div id="ciclo-master-content" class="hidden">
-                        <!-- Temporal comparison cards (YTD, 6m) -->
                         <div id="ciclo-temporal-cards" class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5"></div>
-
-                        <!-- Cycle cards (collapsible) -->
                         <div id="ciclo-cards" class="space-y-2"></div>
                         <div id="ciclo-diag" class="mt-2 text-[10px] text-slate-600"></div>
-                    </div>
-                </div>
-
-                <!-- ── Métricas de Alunos ── -->
-                <div class="glass-card overflow-hidden mb-6">
-                    <div class="px-5 pt-4 pb-2">
-                        <div class="flex items-center justify-between mb-3">
-                            <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                                <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
-                                Matrículas por Tipo de Aluno
-                            </h3>
-                            <div class="flex items-center gap-3">
-                                <div id="stu-filter-badge" class="text-[10px] text-slate-500 hidden"></div>
-                                <button onclick="document.getElementById('stu-filters').classList.toggle('hidden')" class="text-[10px] text-slate-500 hover:text-slate-300 flex items-center gap-1 transition-colors">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
-                                    Filtros
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Filtros (ocultos por padrão) -->
-                        <div id="stu-filters" class="hidden mb-3 py-2.5 px-3 rounded-lg bg-slate-800/30 border border-slate-700/20 flex flex-wrap items-center gap-3">
-                            <div class="flex items-center gap-2">
-                                <label class="text-xs text-slate-500 font-medium">Ciclo</label>
-                                <select id="students-ciclo" onchange="applyCicloFilter()" class="input-glass px-2.5 py-1.5 text-xs text-slate-300">
-                                    <option value="">Todos</option>
-                                </select>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <label class="text-xs text-slate-500 font-medium">Nível</label>
-                                <select id="students-nivel" onchange="loadStudentMetrics()" class="input-glass px-2.5 py-1.5 text-xs text-slate-300">
-                                    <option value="">Todos</option>
-                                    <option value="Graduação">Graduação</option>
-                                    <option value="Pós-Graduação">Pós-Graduação</option>
-                                </select>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <label class="text-xs text-slate-500 font-medium">Situação</label>
-                                <select id="students-situacao" onchange="loadStudentMetrics()" class="input-glass px-2.5 py-1.5 text-xs text-slate-300">
-                                    <option value="">Todas</option>
-                                    <option value="Em Curso">Em Curso</option>
-                                    <option value="Cancelado">Cancelado</option>
-                                    <option value="Trancado">Trancado</option>
-                                    <option value="Transferido">Transferido</option>
-                                </select>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <label class="text-xs text-slate-500 font-medium">De</label>
-                                <input type="date" id="students-from" class="input-glass px-2.5 py-1.5 text-xs text-slate-300 w-36">
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <label class="text-xs text-slate-500 font-medium">Até</label>
-                                <input type="date" id="students-to" class="input-glass px-2.5 py-1.5 text-xs text-slate-300 w-36">
-                            </div>
-                            <button type="button" onclick="loadStudentMetrics()" class="btn-primary text-xs px-3 py-1.5">Filtrar</button>
-                            <button type="button" onclick="clearStudentFilter()" class="btn-secondary text-xs px-3 py-1.5">Limpar</button>
-                        </div>
-
-                        <!-- Cards de tipo renderizados por JS -->
-                        <div id="stu-tipo-cards" class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-3"></div>
-                    </div>
-
-                    <!-- Breakdowns gerais -->
-                    <button onclick="document.getElementById('stu-detail').classList.toggle('hidden');this.querySelector('.chevron-icon').classList.toggle('rotate-180')" class="w-full px-5 py-2 flex items-center justify-center gap-2 border-t border-slate-700/20 hover:bg-white/[0.02] transition-all text-[11px] text-slate-500">
-                        <span>Detalhamento geral</span>
-                        <svg class="w-3.5 h-3.5 transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                    </button>
-                    <div id="stu-detail" class="hidden border-t border-slate-700/20">
-                        <div class="px-5 py-4">
-                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                <div class="rounded-xl p-4 bg-slate-800/30 border border-slate-700/30">
-                                    <h4 class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Por Situação</h4>
-                                    <div id="stu-by-situacao" class="space-y-1.5 text-[13px] text-slate-300">—</div>
-                                </div>
-                                <div class="rounded-xl p-4 bg-slate-800/30 border border-slate-700/30">
-                                    <h4 class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Por Nível</h4>
-                                    <div id="stu-by-nivel" class="space-y-1.5 text-[13px] text-slate-300">—</div>
-                                </div>
-                                <div class="rounded-xl p-4 bg-slate-800/30 border border-slate-700/30">
-                                    <h4 class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Por Turma</h4>
-                                    <div id="stu-by-turma" class="space-y-1.5 text-[13px] text-slate-300">—</div>
-                                </div>
-                                <div class="rounded-xl p-4 bg-slate-800/30 border border-slate-700/30">
-                                    <h4 class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Por Ciclo</h4>
-                                    <div id="stu-by-ciclo" class="space-y-1.5 text-[13px] text-slate-300">—</div>
-                                </div>
-                                <div class="rounded-xl p-4 bg-slate-800/30 border border-slate-700/30 md:col-span-2">
-                                    <h4 class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Top Polos</h4>
-                                    <div id="stu-by-polo" class="grid grid-cols-2 gap-x-6 gap-y-1.5 text-[13px] text-slate-300">—</div>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -3395,6 +3390,10 @@ async function populateCicloFilter() {
         const names = [...new Set(list.map(c => c.nome))].sort().reverse();
         sel.innerHTML = '<option value="">Todos os ciclos</option>' +
             names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+        if (names.length > 0) {
+            sel.value = names[0];
+            applyCicloFilter();
+        }
     } catch(e) { console.error('Erro ao carregar ciclos:', e); }
 }
 
@@ -3440,64 +3439,45 @@ async function loadStudentMetrics() {
         const stuIsPosOnly = nivel === 'Pós-Graduação';
         const stuRematLabel = stuIsPosOnly ? 'Veteranos' : 'Rematrículas';
         const tipoCards = [
-            { key: 'novos', label: 'Novos (Calouros)', accent: 'indigo', bgFrom: 'indigo-500', bgTo: 'blue-500', border: 'indigo-500' },
-            { key: 'rematricula', label: stuRematLabel, accent: 'emerald', bgFrom: 'emerald-500', bgTo: 'teal-500', border: 'emerald-500' },
-            { key: 'regresso', label: 'Regresso', accent: 'amber', bgFrom: 'amber-500', bgTo: 'orange-500', border: 'amber-500' },
-            { key: 'recompra', label: 'Recompra', accent: 'cyan', bgFrom: 'cyan-500', bgTo: 'sky-500', border: 'cyan-500' },
-            { key: '_total', label: 'Total Geral', accent: 'violet', bgFrom: 'violet-500', bgTo: 'pink-500', border: 'violet-500' },
+            { key: 'novos', label: 'Novos (Calouros)', accent: 'indigo', bgFrom: 'indigo-500', bgTo: 'blue-500', border: 'indigo-500', icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>' },
+            { key: 'rematricula', label: stuRematLabel, accent: 'emerald', bgFrom: 'emerald-500', bgTo: 'teal-500', border: 'emerald-500', icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>' },
+            { key: 'regresso', label: 'Regresso', accent: 'amber', bgFrom: 'amber-500', bgTo: 'orange-500', border: 'amber-500', icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>' },
+            { key: 'recompra', label: 'Recompra', accent: 'cyan', bgFrom: 'cyan-500', bgTo: 'sky-500', border: 'cyan-500', icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>' },
+            { key: '_total', label: 'Total Geral', accent: 'violet', bgFrom: 'violet-500', bgTo: 'pink-500', border: 'violet-500', icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>' },
         ];
 
         document.getElementById('stu-tipo-cards').innerHTML = tipoCards.map(tc => {
             const val = tc.key === '_total' ? d.grand_total : (d.totals[tc.key] || 0);
             const pctVal = tc.key === '_total' ? 100 : (gt ? Math.round(val / gt * 100) : 0);
-            const detail = tc.key === '_total' ? null : det[tc.key];
-            const sits = detail ? Object.entries(detail.by_situacao || {}).slice(0, 4) : [];
-            const nivs = detail ? Object.entries(detail.by_nivel || {}).slice(0, 3) : [];
-            const polos = detail ? Object.entries(detail.by_polo || {}).slice(0, 3) : [];
-
-            let innerHtml = '';
-            if (tc.key === '_total') {
-                const t = d.totals || {};
-                innerHtml = `<div class="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px] mt-2">
-                    <div class="flex justify-between"><span class="text-slate-500">Novos</span><span class="text-slate-300 font-medium">${fmt(t.novos||0)}</span></div>
-                    <div class="flex justify-between"><span class="text-slate-500">${stuIsPosOnly ? 'Veter.' : 'Rematr.'}</span><span class="text-slate-300 font-medium">${fmt(t.rematricula||0)}</span></div>
-                    <div class="flex justify-between"><span class="text-slate-500">Regresso</span><span class="text-slate-300 font-medium">${fmt(t.regresso||0)}</span></div>
-                    <div class="flex justify-between"><span class="text-slate-500">Recompra</span><span class="text-slate-300 font-medium">${fmt(t.recompra||0)}</span></div>
-                </div>`;
-            } else {
-                const sitHtml = sits.map(([k,v]) => `<div class="flex justify-between"><span class="text-slate-500 truncate">${esc(k)}</span><span class="text-slate-300 font-medium">${fmt(v)}</span></div>`).join('');
-                const nivelHtml = nivs.map(([k,v]) => `<div class="flex justify-between"><span class="text-slate-500 truncate">${esc(k)}</span><span class="text-slate-300 font-medium">${fmt(v)}</span></div>`).join('');
-                const poloHtml = polos.map(([k,v]) => `<div class="flex justify-between"><span class="text-slate-500 truncate">${esc(k)}</span><span class="text-slate-300 font-medium">${fmt(v)}</span></div>`).join('');
-                innerHtml = `<div class="space-y-2 mt-2">
-                    ${sitHtml ? `<div><p class="text-[9px] text-slate-600 uppercase tracking-wider mb-0.5">Situação</p><div class="space-y-0.5 text-[10px]">${sitHtml}</div></div>` : ''}
-                    ${nivelHtml ? `<div><p class="text-[9px] text-slate-600 uppercase tracking-wider mb-0.5">Nível</p><div class="space-y-0.5 text-[10px]">${nivelHtml}</div></div>` : ''}
-                    ${poloHtml ? `<div><p class="text-[9px] text-slate-600 uppercase tracking-wider mb-0.5">Top Polos</p><div class="space-y-0.5 text-[10px]">${poloHtml}</div></div>` : ''}
-                </div>`;
-            }
-
-            return `<div class="rounded-xl p-3.5 bg-gradient-to-br from-${tc.bgFrom}/10 to-${tc.bgTo}/10 border border-${tc.border}/20">
-                <div class="flex items-center justify-between mb-1">
-                    <span class="text-[10px] font-bold text-${tc.accent}-400 uppercase tracking-wider">${tc.label}</span>
-                    <span class="text-[10px] font-bold text-${tc.accent}-400">${pctVal}%</span>
+            return `<div class="glass-card p-5 relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-${tc.bgFrom} to-${tc.bgTo}"></div>
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-10 h-10 rounded-xl bg-${tc.accent}-500/15 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-${tc.accent}-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">${tc.icon}</svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">${tc.label}</p>
+                        <span class="text-[11px] font-bold text-${tc.accent}-400">${pctVal}%</span>
+                    </div>
                 </div>
-                <p class="text-xl font-bold text-white font-display">${fmt(val)}</p>
-                ${innerHtml}
+                <p class="text-4xl font-bold text-white font-display leading-tight">${fmt(val)}</p>
             </div>`;
         }).join('');
 
-        renderBreakdown('stu-by-situacao', d.by_situacao);
-        renderBreakdown('stu-by-nivel', d.by_nivel);
-        renderBreakdown('stu-by-polo', d.by_polo);
+        renderSituacaoCards('stu-by-situacao', d.by_situacao);
+        renderBreakdownBars('stu-by-nivel', d.by_nivel);
+        renderBreakdownBars('stu-by-polo', d.by_polo);
         renderBreakdown('stu-by-turma', d.by_turma);
         renderBreakdown('stu-by-ciclo', d.by_ciclo);
 
         const badge = document.getElementById('stu-filter-badge');
         const parts = [];
+        if (ciclo) parts.push(`Ciclo ${ciclo}`);
         if (nivel) parts.push(nivel);
         if (situacao) parts.push(situacao);
         if (dtFrom || dtTo) parts.push(`${dtFrom || '…'} → ${dtTo || '…'}`);
         if (parts.length) {
-            badge.textContent = `Filtro: ${parts.join(' · ')}`;
+            badge.textContent = parts.join(' · ');
             badge.classList.remove('hidden');
         } else {
             badge.classList.add('hidden');
@@ -3525,12 +3505,60 @@ function renderBreakdown(elId, data) {
     }).join('');
 }
 
+const _sitColors = {
+    'Em Curso': { from: 'emerald-500', to: 'green-500', text: 'emerald', bg: 'emerald' },
+    'Cancelado': { from: 'rose-500', to: 'red-500', text: 'rose', bg: 'rose' },
+    'Trancado': { from: 'amber-500', to: 'yellow-500', text: 'amber', bg: 'amber' },
+    'Transferido': { from: 'violet-500', to: 'purple-500', text: 'violet', bg: 'violet' },
+    'N/I': { from: 'slate-500', to: 'slate-600', text: 'slate', bg: 'slate' },
+};
+
+function renderSituacaoCards(elId, data) {
+    const el = document.getElementById(elId);
+    if (!data || !Object.keys(data).length) { el.innerHTML = '<span class="text-slate-500 text-sm col-span-4">—</span>'; return; }
+    const total = Object.values(data).reduce((a, b) => a + b, 0);
+    el.innerHTML = Object.entries(data).map(([k, v]) => {
+        const pct = total ? Math.round(v / total * 100) : 0;
+        const c = _sitColors[k] || _sitColors['N/I'];
+        return `<div class="glass-card p-4 relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-${c.from} to-${c.to}"></div>
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-semibold text-${c.text}-400">${esc(k)}</span>
+                <span class="text-[10px] font-bold text-${c.text}-400 bg-${c.bg}-500/10 px-2 py-0.5 rounded-full">${pct}%</span>
+            </div>
+            <p class="text-2xl font-bold text-white font-display mb-2">${v.toLocaleString('pt-BR')}</p>
+            <div class="w-full h-1.5 rounded-full bg-slate-700/50">
+                <div class="h-1.5 rounded-full bg-gradient-to-r from-${c.from} to-${c.to} transition-all" style="width:${pct}%"></div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function renderBreakdownBars(elId, data) {
+    const el = document.getElementById(elId);
+    if (!data || !Object.keys(data).length) { el.textContent = '—'; return; }
+    const total = Object.values(data).reduce((a, b) => a + b, 0);
+    el.innerHTML = Object.entries(data).map(([k, v]) => {
+        const pct = total ? Math.round(v / total * 100) : 0;
+        return `<div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2 min-w-0 flex-1">
+                <span class="truncate text-sm text-slate-300">${esc(k)}</span>
+                <div class="flex-1 h-2 rounded-full bg-slate-700/50 min-w-[60px]">
+                    <div class="h-2 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all" style="width:${pct}%"></div>
+                </div>
+            </div>
+            <span class="text-sm font-mono text-white font-semibold whitespace-nowrap">${v.toLocaleString('pt-BR')} <span class="text-slate-500 text-xs">(${pct}%)</span></span>
+        </div>`;
+    }).join('');
+}
+
 function clearStudentFilter() {
     document.getElementById('students-ciclo').value = '';
     document.getElementById('students-from').value = '';
     document.getElementById('students-to').value = '';
     document.getElementById('students-nivel').value = '';
     document.getElementById('students-situacao').value = '';
+    document.getElementById('stu-filter-badge').classList.add('hidden');
     loadStudentMetrics();
 }
 
