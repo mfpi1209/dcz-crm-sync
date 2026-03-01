@@ -8,6 +8,7 @@ import json
 import glob
 import shutil
 import tempfile
+import unicodedata
 import zipfile
 import traceback
 from datetime import datetime, timedelta
@@ -193,10 +194,10 @@ _XL_COLUMN_MAP = {
     "periodo": ["Período", "Periodo"],
     "modalidade": ["Modalidade"],
     "instituicao": ["Instituição", "Institui"],
-    "ultimo_acesso": ["Ultimo Acesso", "Ult Acesso"],
-    "interacoes": ["Interações", "Interacoes"],
-    "minutos": ["Minutos"],
-    "total_registros": ["Total Registros"],
+    "ultimo_acesso": ["Último Acesso", "Ultimo Acesso", "Ult Acesso", "Last Access"],
+    "interacoes": ["Interações", "Interacoes", "Interações"],
+    "minutos": ["Minutos", "Minutes"],
+    "total_registros": ["Total Registros", "Total Regis"],
     "id_polo": ["ID_POLO"],
     "cod_inst": ["COD_INST"],
     "tipo_titulo": ["TIPO_TIT"],
@@ -228,12 +229,16 @@ def _save_xl_snapshot(filepath, filename, tipo="matriculados"):
     header = [cell.value for cell in first_row]
     col_map = {h: i for i, h in enumerate(header) if h}
 
+    def _strip_accents(s):
+        return unicodedata.normalize("NFD", s).encode("ascii", "ignore").decode("ascii")
+
     def _find(names):
         for n in names:
             if n in col_map:
                 return col_map[n]
+            n_norm = _strip_accents(n.lower())
             for k in col_map:
-                if k and n.lower() in k.lower():
+                if k and (n.lower() in k.lower() or n_norm in _strip_accents(k.lower())):
                     return col_map[k]
         return None
 

@@ -267,14 +267,64 @@ const _statusBadge = {
 };
 
 async function _recalcEngagement() {
+    const btn = document.getElementById('btn-recalc-eng');
+    const originalHtml = btn ? btn.innerHTML : '';
     try {
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<svg class="w-4 h-4 animate-spin inline-block mr-1" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Recalculando...';
+        }
         const res = await api('/api/engagement/recalculate', {method:'POST'});
         const d = await res.json();
-        if (d.error) { alert('Erro: ' + d.error); return; }
-        alert(`Scores recalculados: ${d.processed} alunos processados`);
+        if (d.error) { _showEngAlert('error', 'Erro: ' + d.error); return; }
+
+        let msg = `${d.processed.toLocaleString('pt-BR')} alunos processados.`;
+        if (!d.has_ava_snapshot) {
+            _showEngAlert('warning', `${msg} Nenhum snapshot de Acesso AVA encontrado — todos os scores ficam baixos. Faça upload do relatório AVA na aba Atualização.`);
+        } else if (d.without_ava > 0 && d.with_ava === 0) {
+            _showEngAlert('warning', `${msg} Nenhum aluno teve match com dados AVA (${d.ava_rows_total} registros AVA, ${d.mat_rows_total} matriculados). Verifique se o RGM bate entre os arquivos.`);
+        } else if (d.without_ava > d.with_ava) {
+            _showEngAlert('info', `${msg} ${d.with_ava.toLocaleString('pt-BR')} com dados AVA, ${d.without_ava.toLocaleString('pt-BR')} sem match.`);
+        } else {
+            _showEngAlert('success', `${msg} ${d.with_ava.toLocaleString('pt-BR')} com dados AVA.`);
+        }
         await _loadEngScores();
         await _loadEngCharts();
-    } catch(e) { alert('Erro: ' + e.message); }
+    } catch(e) {
+        _showEngAlert('error', 'Erro: ' + e.message);
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
+    }
+}
+
+function _showEngAlert(type, message) {
+    const colors = {
+        success: 'bg-emerald-900/50 border-emerald-500/40 text-emerald-300',
+        warning: 'bg-amber-900/50 border-amber-500/40 text-amber-300',
+        error: 'bg-rose-900/50 border-rose-500/40 text-rose-300',
+        info: 'bg-sky-900/50 border-sky-500/40 text-sky-300',
+    };
+    const icons = {
+        success: '✓',
+        warning: '⚠',
+        error: '✕',
+        info: 'ℹ',
+    };
+    let container = document.getElementById('eng-alert-container');
+    if (!container) {
+        const section = document.getElementById('eng-total')?.closest('.glass-card')?.parentElement;
+        if (section) {
+            container = document.createElement('div');
+            container.id = 'eng-alert-container';
+            section.prepend(container);
+        }
+    }
+    if (!container) { alert(message); return; }
+    container.innerHTML = `<div class="rounded-lg border px-4 py-3 text-sm mb-4 flex items-start gap-2 ${colors[type] || colors.info}">
+        <span class="font-bold text-base leading-none mt-0.5">${icons[type] || 'ℹ'}</span>
+        <span>${message}</span>
+        <button onclick="this.parentElement.remove()" class="ml-auto opacity-60 hover:opacity-100 text-lg leading-none">&times;</button>
+    </div>`;
 }
 
 async function _triggerEvaluation() {
@@ -300,6 +350,12 @@ async function _loadEngScores() {
         document.getElementById('eng-atencao').textContent = (s.atencao || 0).toLocaleString('pt-BR');
         document.getElementById('eng-risco').textContent = (s.em_risco || 0).toLocaleString('pt-BR');
         document.getElementById('eng-criticos').textContent = (s.critico || 0).toLocaleString('pt-BR');
+
+        if (d.has_ava_snapshot === false && total > 0) {
+            _showEngAlert('warning', 'Nenhum snapshot de Acesso AVA encontrado. Faça upload do relatório AVA na aba Atualização e depois clique em Recalcular.');
+        } else if (total > 0 && (s.engajado || 0) === 0 && (s.atencao || 0) === 0 && (s.em_risco || 0) === 0) {
+            _showEngAlert('warning', 'Todos os alunos estão como Crítico. Verifique se o snapshot AVA foi carregado e se o RGM bate com os matriculados. Tente Recalcular.');
+        }
 
         const tbody = document.getElementById('eng-scores-tbody');
         const scores = d.scores || [];

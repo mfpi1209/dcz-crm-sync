@@ -37,12 +37,32 @@ def _parse_date_flexible(val):
     """Parse a date string in multiple formats, return datetime or None."""
     if not val:
         return None
+    if isinstance(val, (datetime, date)):
+        return val if isinstance(val, datetime) else datetime.combine(val, datetime.min.time())
     val = str(val).strip()
-    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%Y-%m-%d %H:%M:%S", "%d/%m/%Y %H:%M:%S"):
+    if not val:
+        return None
+    clean = val.replace(" AM", "").replace(" PM", "").replace(" am", "").replace(" pm", "")
+    for fmt in (
+        "%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y",
+        "%Y-%m-%d %H:%M:%S", "%d/%m/%Y %H:%M:%S", "%m/%d/%Y %H:%M:%S",
+        "%d/%m/%Y %H:%M", "%m/%d/%Y %H:%M",
+    ):
         try:
-            return datetime.strptime(val[:len(fmt.replace('%', 'X'))], fmt)
+            return datetime.strptime(clean[:len(fmt.replace('%', 'X'))], fmt)
         except (ValueError, IndexError):
             continue
+    # M/D/YYYY fallback (handles single-digit month/day)
+    import re as _re
+    m = _re.match(r"(\d{1,2})/(\d{1,2})/(\d{4})", val)
+    if m:
+        month, day, year = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        if month > 12 and day <= 12:
+            month, day = day, month
+        try:
+            return datetime(year, month, day)
+        except ValueError:
+            pass
     return None
 
 
@@ -89,6 +109,8 @@ def calculate_engagement_scores():
             avg_minutes = sum(all_minutes) / max(len(all_minutes), 1)
 
             processed = 0
+            with_ava = 0
+            without_ava = 0
             for rgm, mat_data in mat_rows.items():
                 sit = (mat_data.get("situacao") or "").strip().lower()
                 if sit and sit not in ("em curso", "ativo", "matriculado"):
@@ -99,6 +121,10 @@ def calculate_engagement_scores():
                 is_new = days_enrolled is not None and days_enrolled <= NEW_STUDENT_DAYS
 
                 ava_data = ava_rows.get(rgm)
+                if ava_data:
+                    with_ava += 1
+                else:
+                    without_ava += 1
                 if ava_data:
                     dt_access = _parse_date_flexible(ava_data.get("ultimo_acesso"))
                     days_no_access = (today - dt_access.date()).days if dt_access else None
@@ -189,7 +215,15 @@ def calculate_engagement_scores():
                 processed += 1
 
         conn.commit()
-        return {"processed": processed, "date": str(today)}
+        return {
+            "processed": processed,
+            "date": str(today),
+            "with_ava": with_ava,
+            "without_ava": without_ava,
+            "has_ava_snapshot": snap_ava is not None,
+            "ava_rows_total": len(ava_rows),
+            "mat_rows_total": len(mat_rows),
+        }
     except Exception as e:
         conn.rollback()
         current_app.logger.error("Engagement score error: %s", e)
@@ -501,12 +535,16 @@ def api_engagement_scores():
             """)
             summary = {r["risk_level"]: r["cnt"] for r in cur.fetchall()}
 
+            cur.execute("SELECT id FROM xl_snapshots WHERE tipo='acesso_ava' ORDER BY id DESC LIMIT 1")
+            has_ava = cur.fetchone() is not None
+
         return jsonify({
             "scores": rows,
             "total": total,
             "page": page,
             "per_page": per_page,
             "summary": summary,
+            "has_ava_snapshot": has_ava,
         })
     finally:
         conn.close()
