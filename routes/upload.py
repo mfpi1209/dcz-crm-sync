@@ -291,14 +291,14 @@ def _save_xl_snapshot(filepath, filename, tipo="matriculados"):
     return _persist_snapshot_entries(entries, tipo, filename)
 
 
-def _persist_snapshot_entries(entries, tipo, filename):
+def _persist_snapshot_entries(entries, tipo, filename, nivel=None):
     """Grava uma lista de dicts no banco como snapshot e retorna row count."""
     conn = get_conn()
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO xl_snapshots (tipo, filename, row_count) VALUES (%s, %s, %s) RETURNING id",
-                (tipo, filename, len(entries)),
+                "INSERT INTO xl_snapshots (tipo, filename, row_count, nivel) VALUES (%s, %s, %s, %s) RETURNING id",
+                (tipo, filename, len(entries), nivel),
             )
             snap_id = cur.fetchone()[0]
 
@@ -737,6 +737,23 @@ def api_snapshots_crossref():
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             def _latest_rgms(tipo):
+                if tipo == 'inadimplentes':
+                    cur.execute("""
+                        SELECT DISTINCT ON (COALESCE(nivel, ''))
+                               id FROM xl_snapshots
+                        WHERE tipo = 'inadimplentes'
+                        ORDER BY COALESCE(nivel, ''), id DESC
+                    """)
+                    snap_ids = [r["id"] for r in cur.fetchall()]
+                    if not snap_ids:
+                        return set(), None
+                    placeholders = ','.join(['%s'] * len(snap_ids))
+                    cur.execute(
+                        f"SELECT data->>'rgm_digits' AS rgm FROM xl_rows "
+                        f"WHERE snapshot_id IN ({placeholders}) AND data->>'rgm_digits' != ''",
+                        snap_ids
+                    )
+                    return {r["rgm"] for r in cur.fetchall()}, snap_ids[0]
                 cur.execute("SELECT id FROM xl_snapshots WHERE tipo=%s ORDER BY id DESC LIMIT 1", (tipo,))
                 snap = cur.fetchone()
                 if not snap:
@@ -880,6 +897,8 @@ def api_upload_batch():
     if tipo not in ("inadimplentes",):
         return jsonify({"error": "Upload em lote só suportado para inadimplentes."}), 400
 
+    nivel = request.form.get("nivel", "").strip() or None
+
     allowed_ext = (".xlsx", ".xlsm")
     tmp_dir = UPLOAD_DIR / f"_tmp_{tipo}"
     if tmp_dir.exists():
@@ -904,7 +923,7 @@ def api_upload_batch():
 
     try:
         entries = _parse_inadimplentes_batch(str(tmp_dir))
-        snap_count = _persist_snapshot_entries(entries, tipo, f"{len(saved)} arquivos") if entries else 0
+        snap_count = _persist_snapshot_entries(entries, tipo, f"{len(saved)} arquivos", nivel=nivel) if entries else 0
     except Exception as e:
         current_app.logger.warning("Erro upload-batch (%s): %s", tipo, e)
         current_app.logger.warning("Traceback: %s", traceback.format_exc())

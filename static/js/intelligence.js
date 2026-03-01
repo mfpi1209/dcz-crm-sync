@@ -1,7 +1,6 @@
 // ===========================================================================
 // INTELLIGENCE PAGE
 // ===========================================================================
-let _intelTimelineChart = null;
 
 const INTEL_TIPO_LABELS = {
     matriculados: 'Matriculados', inadimplentes: 'Inadimplentes',
@@ -19,7 +18,7 @@ const INTEL_TIPO_COLORS = {
 async function loadIntelligence() {
     await Promise.all([
         _loadIntelOverview(), _loadIntelCompare(), _loadIntelCrossref(),
-        _loadIntelTimeline(), _loadIntelAlerts(),
+        _loadIntelAlerts(),
         _loadEngScores(), _loadEngCharts(), _loadCommLog(),
     ]);
 }
@@ -133,58 +132,7 @@ async function _loadIntelCrossref() {
 }
 
 async function _loadIntelTimeline() {
-    const tipo = document.getElementById('intel-tipo').value;
-    const emptyMsg = document.getElementById('intel-timeline-empty');
-    const canvas = document.getElementById('intel-timeline-chart');
-    try {
-        const res = await fetch(`/api/snapshots/timeline?tipo=${tipo}&metric=total&months=24`);
-        const d = await res.json();
-        const points = d.points || [];
-        if (points.length < 2) {
-            emptyMsg.classList.remove('hidden');
-            canvas.style.display = 'none';
-            if (_intelTimelineChart) { _intelTimelineChart.destroy(); _intelTimelineChart = null; }
-            return;
-        }
-        emptyMsg.classList.add('hidden');
-        canvas.style.display = 'block';
-        const labels = points.map(p => p.date);
-        const values = points.map(p => typeof p.value === 'number' ? p.value : 0);
-        const c = INTEL_TIPO_COLORS[tipo];
-        const colorMap = {matriculados:'#10b981',inadimplentes:'#f59e0b',concluintes:'#8b5cf6',acesso_ava:'#0ea5e9',sem_rematricula:'#f43f5e'};
-        const color = colorMap[tipo] || '#6366f1';
-
-        if (_intelTimelineChart) _intelTimelineChart.destroy();
-        _intelTimelineChart = new Chart(canvas, {
-            type: 'line',
-            data: {
-                labels,
-                datasets: [{
-                    label: INTEL_TIPO_LABELS[tipo],
-                    data: values,
-                    borderColor: color,
-                    backgroundColor: color + '20',
-                    fill: true,
-                    tension: 0.3,
-                    pointRadius: 4,
-                    pointBackgroundColor: color,
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { labels: { color: '#94a3b8' } } },
-                scales: {
-                    x: { ticks: { color: '#64748b', maxRotation: 45 }, grid: { color: '#1e293b' } },
-                    y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, beginAtZero: true }
-                }
-            }
-        });
-    } catch(e) {
-        emptyMsg.textContent = 'Erro ao carregar timeline: ' + e.message;
-        emptyMsg.classList.remove('hidden');
-        canvas.style.display = 'none';
-    }
+    // Removido a pedido do usuário
 }
 
 async function _loadIntelAlerts() {

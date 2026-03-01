@@ -215,25 +215,19 @@ function handleDropTyped(e, tipo) {
     if (file) handleUploadTyped(file, tipo);
 }
 
-function handleDropBatchInadimplentes(e) {
+function handleDropBatchInadimplentes(e, nivel) {
     e.preventDefault();
-    e.currentTarget.classList.remove('border-amber-500', 'bg-amber-950/10');
+    e.currentTarget.classList.remove('border-amber-500', 'bg-amber-950/10', 'border-orange-500', 'bg-orange-950/10');
     const files = e.dataTransfer.files;
-    if (files.length === 1 && files[0].name.toLowerCase().endsWith('.zip')) {
-        handleUploadTyped(files[0], 'inadimplentes');
-    } else if (files.length > 0) {
-        handleUploadBatchInadimplentes(files);
+    if (files.length > 0) {
+        handleUploadBatchInadimplentes(files, nivel);
     }
 }
 
-async function handleUploadBatchInadimplentes(fileList) {
+async function handleUploadBatchInadimplentes(fileList, nivel) {
     if (!fileList || fileList.length === 0) return;
 
-    if (fileList.length === 1 && fileList[0].name.toLowerCase().endsWith('.zip')) {
-        return handleUploadTyped(fileList[0], 'inadimplentes');
-    }
-
-    const allowed = ['xlsx', 'xlsm'];
+    const allowed = ['xlsx', 'xlsm', 'zip'];
     const valid = [];
     for (const f of fileList) {
         const ext = f.name.toLowerCase().split('.').pop();
@@ -250,12 +244,14 @@ async function handleUploadBatchInadimplentes(fileList) {
     const msg = card.querySelector('.upload-msg');
     progress.classList.remove('hidden');
     bar.style.width = '20%';
-    msg.textContent = `Enviando ${valid.length} arquivo(s)...`;
+    const nivelLabel = nivel || 'geral';
+    msg.textContent = `Enviando ${valid.length} arquivo(s) [${nivelLabel}]...`;
     msg.className = 'upload-msg text-xs text-slate-400 mt-1';
 
     const form = new FormData();
     for (const f of valid) form.append('files', f);
     form.append('tipo', 'inadimplentes');
+    if (nivel) form.append('nivel', nivel);
 
     try {
         bar.style.width = '60%';

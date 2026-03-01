@@ -143,6 +143,9 @@ def _ensure_xl_snapshots_table():
                 ALTER TABLE xl_snapshots ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'matriculados'
             """)
             cur.execute("""
+                ALTER TABLE xl_snapshots ADD COLUMN IF NOT EXISTS nivel TEXT
+            """)
+            cur.execute("""
                 CREATE TABLE IF NOT EXISTS xl_snapshot_stats (
                     id          SERIAL PRIMARY KEY,
                     snapshot_id INTEGER NOT NULL REFERENCES xl_snapshots(id) ON DELETE CASCADE,
