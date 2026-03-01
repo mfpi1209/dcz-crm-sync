@@ -307,51 +307,16 @@
                         </div>
                     </div>
 
-                    <!-- Filters + Student Table -->
-                    <div class="flex flex-wrap items-end gap-3 mb-4">
-                        <div class="flex flex-col gap-1">
-                            <label class="text-[10px] text-slate-500 font-medium">Risco</label>
-                            <select id="eng-filter-risk" class="input-glass px-2 py-1.5 text-xs text-slate-200 w-32 rounded-lg" onchange="_loadEngScores()">
-                                <option value="">Todos</option>
-                                <option value="critico">Crítico</option>
-                                <option value="em_risco">Em Risco</option>
-                                <option value="atencao">Atenção</option>
-                                <option value="engajado">Engajado</option>
-                            </select>
+                    <!-- Export -->
+                    <div id="eng-export-bar" class="glass-card p-4 flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-slate-300"><span id="eng-sem-ava-count" class="font-bold text-amber-400">—</span> alunos sem dados no AVA</p>
+                            <p class="text-xs text-slate-500 mt-0.5">Matriculados que não foram encontrados no relatório de acesso do Blackboard</p>
                         </div>
-                        <div class="flex flex-col gap-1">
-                            <label class="text-[10px] text-slate-500 font-medium">Polo</label>
-                            <input id="eng-filter-polo" class="input-glass px-2 py-1.5 text-xs text-slate-200 w-32 rounded-lg" placeholder="Filtrar polo" onchange="_loadEngScores()">
-                        </div>
-                        <div class="flex flex-col gap-1">
-                            <label class="text-[10px] text-slate-500 font-medium">Curso</label>
-                            <input id="eng-filter-curso" class="input-glass px-2 py-1.5 text-xs text-slate-200 w-40 rounded-lg" placeholder="Filtrar curso" onchange="_loadEngScores()">
-                        </div>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left text-sm">
-                            <thead>
-                                <tr class="text-[10px] text-slate-500 border-b border-slate-700/30 uppercase tracking-wider">
-                                    <th class="pb-2 font-semibold">Nome</th>
-                                    <th class="pb-2 font-semibold">RGM</th>
-                                    <th class="pb-2 font-semibold">Curso</th>
-                                    <th class="pb-2 font-semibold">Polo</th>
-                                    <th class="pb-2 font-semibold text-center">Score</th>
-                                    <th class="pb-2 font-semibold text-center">Risco</th>
-                                    <th class="pb-2 font-semibold text-center">Dias s/ acesso</th>
-                                </tr>
-                            </thead>
-                            <tbody id="eng-scores-tbody" class="text-slate-300">
-                                <tr><td colspan="7" class="py-4 text-center text-slate-500">Clique em "Recalcular" para gerar scores</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="flex items-center justify-between mt-3" id="eng-pagination">
-                        <p class="text-xs text-slate-500" id="eng-page-info">—</p>
-                        <div class="flex gap-2">
-                            <button onclick="_engPage(-1)" class="btn-secondary text-xs px-3 py-1 rounded-lg">Anterior</button>
-                            <button onclick="_engPage(1)" class="btn-secondary text-xs px-3 py-1 rounded-lg">Próxima</button>
-                        </div>
+                        <button onclick="_exportSemAva()" class="btn-secondary text-xs px-4 py-2 rounded-lg flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                            Exportar CSV
+                        </button>
                     </div>
                 </div>
 

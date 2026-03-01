@@ -6,8 +6,10 @@ from datetime import datetime, timezone, timedelta, date
 
 import psycopg2
 import psycopg2.extras
+import csv
+import io
 import requests as _requests
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, Response
 
 from db import get_conn
 from helpers import BRT, to_brt
@@ -538,6 +540,13 @@ def api_engagement_scores():
             cur.execute("SELECT id FROM xl_snapshots WHERE tipo='acesso_ava' ORDER BY id DESC LIMIT 1")
             has_ava = cur.fetchone() is not None
 
+            cur.execute("""
+                SELECT COUNT(*) as cnt FROM ava_engagement
+                WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM ava_engagement)
+                  AND days_since_last_access IS NULL
+            """)
+            sem_ava_count = cur.fetchone()["cnt"]
+
         return jsonify({
             "scores": rows,
             "total": total,
@@ -545,7 +554,47 @@ def api_engagement_scores():
             "per_page": per_page,
             "summary": summary,
             "has_ava_snapshot": has_ava,
+            "sem_ava_count": sem_ava_count,
         })
+    finally:
+        conn.close()
+
+
+@engagement_bp.route("/api/engagement/export-sem-ava")
+def api_engagement_export_sem_ava():
+    """Exporta CSV dos alunos sem dados no AVA (days_since_last_access IS NULL)."""
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT rgm, score, risk_level,
+                       detail->>'nome' as nome,
+                       detail->>'curso' as curso,
+                       detail->>'polo' as polo,
+                       detail->>'email' as email
+                FROM ava_engagement
+                WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM ava_engagement)
+                  AND days_since_last_access IS NULL
+                ORDER BY detail->>'nome'
+            """)
+            rows = cur.fetchall()
+
+        buf = io.StringIO()
+        writer = csv.writer(buf, delimiter=';')
+        writer.writerow(["Nome", "RGM", "Curso", "Polo", "Email", "Score", "Risco"])
+        for r in rows:
+            writer.writerow([
+                r["nome"] or "", r["rgm"] or "", r["curso"] or "",
+                r["polo"] or "", r["email"] or "",
+                r["score"], r["risk_level"] or "",
+            ])
+
+        output = buf.getvalue()
+        return Response(
+            output,
+            mimetype="text/csv",
+            headers={"Content-Disposition": "attachment; filename=alunos_sem_ava.csv"},
+        )
     finally:
         conn.close()
 

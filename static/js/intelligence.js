@@ -324,11 +324,8 @@ async function _triggerEvaluation() {
 }
 
 async function _loadEngScores() {
-    const risk = (document.getElementById('eng-filter-risk') || {}).value || '';
-    const polo = (document.getElementById('eng-filter-polo') || {}).value || '';
-    const curso = (document.getElementById('eng-filter-curso') || {}).value || '';
     try {
-        const res = await api(`/api/engagement/scores?risk=${encodeURIComponent(risk)}&polo=${encodeURIComponent(polo)}&curso=${encodeURIComponent(curso)}&page=${_engPage_current}&per_page=30`);
+        const res = await api('/api/engagement/scores?per_page=1');
         const d = await res.json();
         const s = d.summary || {};
         const total = Object.values(s).reduce((a,b)=>a+b, 0);
@@ -344,44 +341,17 @@ async function _loadEngScores() {
             _showEngAlert('warning', 'Todos os alunos estão como Crítico. Verifique se o snapshot AVA foi carregado e se o RGM bate com os matriculados. Tente Recalcular.');
         }
 
-        const tbody = document.getElementById('eng-scores-tbody');
-        const scores = d.scores || [];
-        if (!scores.length) {
-            tbody.innerHTML = '<tr><td colspan="7" class="py-4 text-center text-slate-500">Nenhum score encontrado. Faça upload do snapshot AVA e clique em Recalcular.</td></tr>';
-        } else {
-            tbody.innerHTML = scores.map(r => {
-                const det = r.detail || {};
-                const badge = _riskBadge[r.risk_level] || _riskBadge.critico;
-                const dsa = r.days_since_last_access != null ? r.days_since_last_access : 'Nunca';
-                return `<tr class="border-b border-slate-800/40 hover:bg-slate-800/30 transition">
-                    <td class="py-2.5 pr-2">${esc(det.nome || '—')}</td>
-                    <td class="py-2.5 pr-2 font-mono text-xs">${esc(r.rgm)}</td>
-                    <td class="py-2.5 pr-2 text-xs">${esc(det.curso || '—')}</td>
-                    <td class="py-2.5 pr-2 text-xs">${esc(det.polo || '—')}</td>
-                    <td class="py-2.5 text-center">
-                        <div class="w-10 h-10 rounded-full mx-auto flex items-center justify-center text-sm font-bold"
-                             style="background:${_riskColors[r.risk_level]}20; color:${_riskColors[r.risk_level]}">
-                            ${r.score}
-                        </div>
-                    </td>
-                    <td class="py-2.5 text-center">
-                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${badge}">${_riskLabels[r.risk_level] || r.risk_level}</span>
-                    </td>
-                    <td class="py-2.5 text-center text-sm font-mono">${dsa}</td>
-                </tr>`;
-            }).join('');
+        const semAvaEl = document.getElementById('eng-sem-ava-count');
+        if (semAvaEl && d.sem_ava_count != null) {
+            semAvaEl.textContent = d.sem_ava_count.toLocaleString('pt-BR');
         }
-
-        const pageInfo = document.getElementById('eng-page-info');
-        pageInfo.textContent = `Página ${d.page} — ${d.total} alunos`;
     } catch(e) {
         console.error('Erro engagement scores:', e);
     }
 }
 
-function _engPage(dir) {
-    _engPage_current = Math.max(1, _engPage_current + dir);
-    _loadEngScores();
+function _exportSemAva() {
+    window.open('/api/engagement/export-sem-ava', '_blank');
 }
 
 async function _loadEngCharts() {
