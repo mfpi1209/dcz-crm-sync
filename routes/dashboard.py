@@ -1,18 +1,12 @@
-import json
 import traceback
-from datetime import datetime, timezone, timedelta, date
+from datetime import datetime
 
 import psycopg2
 import psycopg2.extras
 from flask import Blueprint, render_template, request, jsonify, current_app
 
 from db import get_conn
-from helpers import (
-    BRT, to_brt, FIELD_RGM,
-    TIPO_ALUNO_FIELD, DATA_MATRICULA_FIELD,
-    SITUACAO_FIELD, NIVEL_FIELD, POLO_FIELD, TURMA_FIELD,
-    SYNC_STATE_QUERY, RECENT_BIZ_UPDATES_QUERY,
-)
+from helpers import BRT, to_brt
 
 dashboard_bp = Blueprint("dashboard", __name__)
 
@@ -20,6 +14,35 @@ dashboard_bp = Blueprint("dashboard", __name__)
 def _get_process_state():
     from routes.crm import _sync_running, _update_running
     return _sync_running, _update_running
+
+
+# ---------------------------------------------------------------------------
+# SQL fragments — snapshot-based queries (xl_rows)
+# ---------------------------------------------------------------------------
+
+_MAT_CTE = """
+WITH mat AS (
+    SELECT
+        r.data->>'tipo_matricula' AS tipo_aluno,
+        CASE
+          WHEN r.data->>'data_mat' ~ '^\\d{2}/\\d{2}/\\d{4}' THEN
+            TO_DATE(SUBSTRING(r.data->>'data_mat' FROM 1 FOR 10), 'DD/MM/YYYY')
+          WHEN r.data->>'data_mat' ~ '^\\d{4}-\\d{2}-\\d{2}' THEN
+            (SUBSTRING(r.data->>'data_mat' FROM 1 FOR 10))::date
+          ELSE NULL
+        END AS data_matricula,
+        r.data->>'situacao' AS situacao,
+        CASE WHEN r.data->>'negocio' ILIKE '%%pos%%'
+             THEN 'Pós-Graduação' ELSE 'Graduação' END AS nivel,
+        r.data->>'polo'  AS polo,
+        r.data->>'curso' AS turma
+    FROM xl_rows r
+    WHERE r.snapshot_id = (
+        SELECT id FROM xl_snapshots
+        WHERE tipo = 'matriculados' ORDER BY id DESC LIMIT 1
+    )
+)
+"""
 
 
 # ---------------------------------------------------------------------------
@@ -42,52 +65,19 @@ def api_dashboard():
     conn = get_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute("SELECT COUNT(*) AS total FROM leads")
-            total_leads = cur.fetchone()["total"]
-
-            cur.execute("SELECT COUNT(*) AS total FROM businesses")
-            total_biz = cur.fetchone()["total"]
-
-            cur.execute(SYNC_STATE_QUERY)
-            states = []
-            for r in cur.fetchall():
-                row = dict(r)
-                for k, v in row.items():
-                    if isinstance(v, datetime):
-                        row[k] = to_brt(v)
-                states.append(row)
-
-            cur.execute(RECENT_BIZ_UPDATES_QUERY)
-            recent = []
-            for r in cur.fetchall():
-                row = dict(r)
-                for k, v in row.items():
-                    if isinstance(v, datetime):
-                        row[k] = to_brt(v)
-                recent.append(row)
-
-            cur.execute("SELECT COUNT(*) AS total FROM pipelines")
-            total_pipelines = cur.fetchone()["total"]
-
-            try:
-                cur.execute("SELECT * FROM schedules ORDER BY created_at")
-                schedules = [dict(r) for r in cur.fetchall()]
-                for s in schedules:
-                    for k, v in s.items():
-                        if isinstance(v, datetime):
-                            s[k] = to_brt(v)
-            except Exception:
-                schedules = []
+            cur.execute("""
+                SELECT id, tipo, filename, row_count, uploaded_at
+                FROM xl_snapshots WHERE tipo = 'matriculados'
+                ORDER BY id DESC LIMIT 1
+            """)
+            snap = cur.fetchone()
+            if snap:
+                snap["uploaded_at"] = to_brt(snap["uploaded_at"])
 
         _sync_running, _update_running = _get_process_state()
 
         return jsonify({
-            "total_leads": total_leads,
-            "total_businesses": total_biz,
-            "total_pipelines": total_pipelines,
-            "sync_states": states,
-            "recent_updates": recent,
-            "schedules": schedules,
+            "snapshot": snap,
             "sync_running": _sync_running,
             "update_running": _update_running,
         })
@@ -98,51 +88,31 @@ def api_dashboard():
 
 
 # ---------------------------------------------------------------------------
-# Rotas — Dashboard: Métricas de Alunos
+# Rotas — Dashboard: Métricas de Alunos (from xl_rows snapshots)
 # ---------------------------------------------------------------------------
 
-_STUDENT_METRICS_QUERY = """
-WITH biz_fields AS (
-    SELECT
-        b.id,
-        MAX(CASE WHEN af->>'additionalFieldId' = %(tipo_id)s OR af->'additionalField'->>'id' = %(tipo_id)s
-                 THEN af->>'value' END) AS tipo_aluno,
-        MAX(CASE WHEN af->>'additionalFieldId' = %(dt_id)s   OR af->'additionalField'->>'id' = %(dt_id)s
-                 THEN af->>'value' END) AS data_matricula,
-        MAX(CASE WHEN af->>'additionalFieldId' = %(sit_id)s  OR af->'additionalField'->>'id' = %(sit_id)s
-                 THEN af->>'value' END) AS situacao,
-        MAX(CASE WHEN af->>'additionalFieldId' = %(niv_id)s  OR af->'additionalField'->>'id' = %(niv_id)s
-                 THEN af->>'value' END) AS nivel,
-        MAX(CASE WHEN af->>'additionalFieldId' = %(polo_id)s OR af->'additionalField'->>'id' = %(polo_id)s
-                 THEN af->>'value' END) AS polo,
-        MAX(CASE WHEN af->>'additionalFieldId' = %(turma_id)s OR af->'additionalField'->>'id' = %(turma_id)s
-                 THEN af->>'value' END) AS turma
-    FROM businesses b,
-         jsonb_array_elements(b.data->'additionalFields') af
-    GROUP BY b.id
-)
+_STUDENT_METRICS_QUERY = _MAT_CTE + """
 SELECT
-    COALESCE(bf.tipo_aluno, 'Não informado') AS tipo,
-    bf.situacao,
-    bf.nivel,
-    bf.polo,
-    bf.turma,
+    COALESCE(m.tipo_aluno, 'Não informado') AS tipo,
+    m.situacao,
+    m.nivel,
+    m.polo,
+    m.turma,
     c.nome AS ciclo,
     COUNT(*) AS total
-FROM biz_fields bf
+FROM mat m
 LEFT JOIN LATERAL (
     SELECT ci.nome FROM ciclos ci
-    WHERE ci.nivel = bf.nivel
-      AND bf.data_matricula IS NOT NULL
-      AND bf.data_matricula ~ '^\\d{4}-\\d{2}-\\d{2}'
-      AND bf.data_matricula::date BETWEEN ci.dt_inicio AND ci.dt_fim
+    WHERE ci.nivel = m.nivel
+      AND m.data_matricula IS NOT NULL
+      AND m.data_matricula BETWEEN ci.dt_inicio AND ci.dt_fim
     LIMIT 1
 ) c ON TRUE
-WHERE (%(dt_from)s IS NULL OR bf.data_matricula >= %(dt_from)s)
-  AND (%(dt_to)s   IS NULL OR bf.data_matricula <= %(dt_to)s)
-  AND (%(f_nivel)s IS NULL OR bf.nivel = %(f_nivel)s)
-  AND (%(f_sit)s   IS NULL OR bf.situacao = %(f_sit)s)
-GROUP BY bf.tipo_aluno, bf.situacao, bf.nivel, bf.polo, bf.turma, c.nome
+WHERE (%(dt_from)s IS NULL OR m.data_matricula >= %(dt_from)s::date)
+  AND (%(dt_to)s   IS NULL OR m.data_matricula <= %(dt_to)s::date)
+  AND (%(f_nivel)s IS NULL OR m.nivel = %(f_nivel)s)
+  AND (%(f_sit)s   IS NULL OR m.situacao = %(f_sit)s)
+GROUP BY m.tipo_aluno, m.situacao, m.nivel, m.polo, m.turma, c.nome
 ORDER BY total DESC
 """
 
@@ -169,12 +139,6 @@ def api_dashboard_students():
 
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(_STUDENT_METRICS_QUERY, {
-                "tipo_id": TIPO_ALUNO_FIELD,
-                "dt_id": DATA_MATRICULA_FIELD,
-                "sit_id": SITUACAO_FIELD,
-                "niv_id": NIVEL_FIELD,
-                "polo_id": POLO_FIELD,
-                "turma_id": TURMA_FIELD,
                 "dt_from": dt_from or None,
                 "dt_to": dt_to or None,
                 "f_nivel": f_nivel or None,
@@ -251,33 +215,19 @@ def api_dashboard_students():
 # Rotas — Dashboard Timeline (gráficos de linha com drill-down)
 # ---------------------------------------------------------------------------
 
-_TIMELINE_QUERY = """
-WITH biz_fields AS (
-    SELECT
-        b.id,
-        MAX(CASE WHEN af->>'additionalFieldId' = %(tipo_id)s OR af->'additionalField'->>'id' = %(tipo_id)s
-                 THEN af->>'value' END) AS tipo_aluno,
-        MAX(CASE WHEN af->>'additionalFieldId' = %(dt_id)s   OR af->'additionalField'->>'id' = %(dt_id)s
-                 THEN af->>'value' END) AS data_matricula,
-        MAX(CASE WHEN af->>'additionalFieldId' = %(niv_id)s  OR af->'additionalField'->>'id' = %(niv_id)s
-                 THEN af->>'value' END) AS nivel
-    FROM businesses b,
-         jsonb_array_elements(b.data->'additionalFields') af
-    GROUP BY b.id
-)
+_TIMELINE_QUERY = _MAT_CTE + """
 SELECT
     CASE WHEN %(granularity)s = 'month'
-         THEN TO_CHAR(bf.data_matricula::date, 'YYYY-MM')
-         ELSE TO_CHAR(bf.data_matricula::date, 'YYYY-MM-DD')
+         THEN TO_CHAR(m.data_matricula, 'YYYY-MM')
+         ELSE TO_CHAR(m.data_matricula, 'YYYY-MM-DD')
     END AS period,
-    COALESCE(bf.tipo_aluno, 'Não informado') AS tipo,
+    COALESCE(m.tipo_aluno, 'Não informado') AS tipo,
     COUNT(*) AS total
-FROM biz_fields bf
-WHERE bf.data_matricula IS NOT NULL
-  AND bf.data_matricula ~ '^\\d{4}-\\d{2}-\\d{2}'
-  AND bf.data_matricula::date BETWEEN %(range_start)s AND %(range_end)s
-  AND (%(f_nivel)s IS NULL OR bf.nivel = %(f_nivel)s)
-GROUP BY period, bf.tipo_aluno
+FROM mat m
+WHERE m.data_matricula IS NOT NULL
+  AND m.data_matricula BETWEEN %(range_start)s AND %(range_end)s
+  AND (%(f_nivel)s IS NULL OR m.nivel = %(f_nivel)s)
+GROUP BY period, m.tipo_aluno
 ORDER BY period, total DESC
 """
 
@@ -315,9 +265,6 @@ def api_dashboard_timeline():
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(_TIMELINE_QUERY, {
-                "tipo_id": TIPO_ALUNO_FIELD,
-                "dt_id": DATA_MATRICULA_FIELD,
-                "niv_id": NIVEL_FIELD,
                 "granularity": granularity,
                 "range_start": range_start,
                 "range_end": range_end,
@@ -364,50 +311,28 @@ def api_dashboard_timeline():
 # Rotas — Dashboard Ciclos (Master Panel)
 # ---------------------------------------------------------------------------
 
-_BIZ_FIELDS_CTE = """
-WITH biz_fields AS (
-    SELECT
-        b.id,
-        MAX(CASE WHEN af->>'additionalFieldId' = %(tipo_id)s OR af->'additionalField'->>'id' = %(tipo_id)s
-                 THEN af->>'value' END) AS tipo_aluno,
-        MAX(CASE WHEN af->>'additionalFieldId' = %(dt_id)s   OR af->'additionalField'->>'id' = %(dt_id)s
-                 THEN af->>'value' END) AS data_matricula,
-        MAX(CASE WHEN af->>'additionalFieldId' = %(sit_id)s  OR af->'additionalField'->>'id' = %(sit_id)s
-                 THEN af->>'value' END) AS situacao,
-        MAX(CASE WHEN af->>'additionalFieldId' = %(niv_id)s  OR af->'additionalField'->>'id' = %(niv_id)s
-                 THEN af->>'value' END) AS nivel,
-        MAX(CASE WHEN af->>'additionalFieldId' = %(polo_id)s OR af->'additionalField'->>'id' = %(polo_id)s
-                 THEN af->>'value' END) AS polo
-    FROM businesses b,
-         jsonb_array_elements(b.data->'additionalFields') af
-    GROUP BY b.id
-)
-"""
-
-_CICLO_COMPARE_QUERY = _BIZ_FIELDS_CTE + """
+_CICLO_COMPARE_QUERY = _MAT_CTE + """
 SELECT
     c.nome AS ciclo, c.nivel AS ciclo_nivel,
-    COALESCE(bf.tipo_aluno, 'Não informado') AS tipo,
-    bf.situacao, bf.nivel, bf.polo, COUNT(*) AS total
-FROM biz_fields bf
-INNER JOIN ciclos c ON c.nivel = bf.nivel
-    AND bf.data_matricula IS NOT NULL
-    AND bf.data_matricula ~ '^\\d{4}-\\d{2}-\\d{2}'
-    AND bf.data_matricula::date BETWEEN c.dt_inicio AND c.dt_fim
-GROUP BY c.nome, c.nivel, bf.tipo_aluno, bf.situacao, bf.nivel, bf.polo
+    COALESCE(m.tipo_aluno, 'Não informado') AS tipo,
+    m.situacao, m.nivel, m.polo, COUNT(*) AS total
+FROM mat m
+INNER JOIN ciclos c ON c.nivel = m.nivel
+    AND m.data_matricula IS NOT NULL
+    AND m.data_matricula BETWEEN c.dt_inicio AND c.dt_fim
+GROUP BY c.nome, c.nivel, m.tipo_aluno, m.situacao, m.nivel, m.polo
 ORDER BY c.nome, total DESC
 """
 
-_DATE_RANGE_QUERY = _BIZ_FIELDS_CTE + """
+_DATE_RANGE_QUERY = _MAT_CTE + """
 SELECT
-    COALESCE(bf.tipo_aluno, 'Não informado') AS tipo,
-    bf.situacao, bf.nivel, bf.polo, COUNT(*) AS total
-FROM biz_fields bf
-WHERE bf.data_matricula IS NOT NULL
-  AND bf.data_matricula ~ '^\\d{4}-\\d{2}-\\d{2}'
-  AND bf.data_matricula::date BETWEEN %(range_start)s AND %(range_end)s
-  AND (%(f_nivel)s IS NULL OR bf.nivel = %(f_nivel)s)
-GROUP BY bf.tipo_aluno, bf.situacao, bf.nivel, bf.polo
+    COALESCE(m.tipo_aluno, 'Não informado') AS tipo,
+    m.situacao, m.nivel, m.polo, COUNT(*) AS total
+FROM mat m
+WHERE m.data_matricula IS NOT NULL
+  AND m.data_matricula BETWEEN %(range_start)s AND %(range_end)s
+  AND (%(f_nivel)s IS NULL OR m.nivel = %(f_nivel)s)
+GROUP BY m.tipo_aluno, m.situacao, m.nivel, m.polo
 ORDER BY total DESC
 """
 
@@ -435,17 +360,12 @@ def _aggregate_rows(rows, tipo_map):
 def api_dashboard_ciclos():
     """Retorna métricas por ciclo + comparações temporais (YTD vs ano anterior, vs 6 meses)."""
     from dateutil.relativedelta import relativedelta
-    import traceback
 
     f_nivel = request.args.get("nivel") or None
 
     conn = get_conn()
     try:
         today = datetime.now().date()
-        field_params = {
-            "tipo_id": TIPO_ALUNO_FIELD, "dt_id": DATA_MATRICULA_FIELD,
-            "sit_id": SITUACAO_FIELD, "niv_id": NIVEL_FIELD, "polo_id": POLO_FIELD,
-        }
         tipo_map = {
             "Calouro": "novos", "Regresso (Retorno)": "regresso",
             "Calouro (Recompra)": "recompra", "Veterano": "rematricula",
@@ -459,47 +379,47 @@ def api_dashboard_ciclos():
             ciclos_config = cur.fetchall()
 
             cur.execute("""
-                SELECT DISTINCT bf.nivel, COUNT(*) AS total
-                FROM (
-                    SELECT MAX(CASE WHEN af->>'additionalFieldId' = %(niv_id)s
-                                    OR af->'additionalField'->>'id' = %(niv_id)s
-                                THEN af->>'value' END) AS nivel
-                    FROM businesses b, jsonb_array_elements(b.data->'additionalFields') af
-                    GROUP BY b.id
-                ) bf
-                WHERE bf.nivel IS NOT NULL
-                GROUP BY bf.nivel ORDER BY total DESC
-            """, {"niv_id": NIVEL_FIELD})
+                SELECT
+                    CASE WHEN r.data->>'negocio' ILIKE '%%pos%%'
+                         THEN 'Pós-Graduação' ELSE 'Graduação' END AS nivel,
+                    COUNT(*) AS total
+                FROM xl_rows r
+                WHERE r.snapshot_id = (
+                    SELECT id FROM xl_snapshots
+                    WHERE tipo = 'matriculados' ORDER BY id DESC LIMIT 1
+                )
+                GROUP BY nivel ORDER BY total DESC
+            """, {})
             distinct_nivels = {r["nivel"]: r["total"] for r in cur.fetchall()}
 
-            cur.execute(_CICLO_COMPARE_QUERY, field_params)
+            cur.execute(_CICLO_COMPARE_QUERY, {})
             cycle_rows = cur.fetchall()
             if f_nivel:
                 cycle_rows = [r for r in cycle_rows if r.get("ciclo_nivel") == f_nivel]
 
             ytd_start = today.replace(month=1, day=1)
             cur.execute(_DATE_RANGE_QUERY, {
-                **field_params, "range_start": ytd_start, "range_end": today, "f_nivel": f_nivel,
+                "range_start": ytd_start, "range_end": today, "f_nivel": f_nivel,
             })
             ytd_current = cur.fetchall()
 
             ytd_prev_start = ytd_start.replace(year=today.year - 1)
             ytd_prev_end = today.replace(year=today.year - 1)
             cur.execute(_DATE_RANGE_QUERY, {
-                **field_params, "range_start": ytd_prev_start, "range_end": ytd_prev_end, "f_nivel": f_nivel,
+                "range_start": ytd_prev_start, "range_end": ytd_prev_end, "f_nivel": f_nivel,
             })
             ytd_previous = cur.fetchall()
 
             m6_start = today - relativedelta(months=6)
             cur.execute(_DATE_RANGE_QUERY, {
-                **field_params, "range_start": m6_start, "range_end": today, "f_nivel": f_nivel,
+                "range_start": m6_start, "range_end": today, "f_nivel": f_nivel,
             })
             m6_current = cur.fetchall()
 
             m6_prev_start = today - relativedelta(months=12)
             m6_prev_end = today - relativedelta(months=6)
             cur.execute(_DATE_RANGE_QUERY, {
-                **field_params, "range_start": m6_prev_start, "range_end": m6_prev_end, "f_nivel": f_nivel,
+                "range_start": m6_prev_start, "range_end": m6_prev_end, "f_nivel": f_nivel,
             })
             m6_previous = cur.fetchall()
 

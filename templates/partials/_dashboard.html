@@ -110,27 +110,21 @@
                     </div>
                 </div>
 
-                <!-- ── 4 Cards CRM (secundários) ── -->
-                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                    <div class="glass-card p-4 relative overflow-hidden">
-                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-indigo-500 to-purple-500"></div>
-                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Leads</p>
-                        <p class="text-2xl font-bold text-white font-display" id="dash-leads">—</p>
-                    </div>
-                    <div class="glass-card p-4 relative overflow-hidden">
-                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-emerald-500 to-cyan-500"></div>
-                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Negócios</p>
-                        <p class="text-2xl font-bold text-white font-display" id="dash-biz">—</p>
-                    </div>
-                    <div class="glass-card p-4 relative overflow-hidden">
-                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-amber-500 to-orange-500"></div>
-                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Pipelines</p>
-                        <p class="text-2xl font-bold text-white font-display" id="dash-pipelines">—</p>
-                    </div>
-                    <div class="glass-card p-4 relative overflow-hidden">
-                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-cyan-500 to-blue-500"></div>
-                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Status</p>
-                        <p class="text-lg font-bold text-white font-display flex items-center gap-2" id="dash-status"><span class="green-dot"></span> Conectado</p>
+                <!-- ── Snapshot Info ── -->
+                <div class="glass-card p-4 mb-6">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-indigo-500/15 flex items-center justify-center">
+                                <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                            </div>
+                            <div>
+                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Fonte de dados</p>
+                                <p class="text-sm font-medium text-white" id="dash-snap-info">Carregando...</p>
+                            </div>
+                        </div>
+                        <div id="dash-process-status" class="flex items-center gap-2 text-xs text-slate-500">
+                            <span class="green-dot"></span> Conectado
+                        </div>
                     </div>
                 </div>
 

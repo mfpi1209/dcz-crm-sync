@@ -7,50 +7,24 @@ async function loadDashboard() {
         const d = await res.json();
         if (d.error) {
             console.warn('Dashboard API error:', d.error);
-        } else {
-            document.getElementById('dash-leads').textContent = (d.total_leads || 0).toLocaleString('pt-BR');
-            document.getElementById('dash-biz').textContent = (d.total_businesses || 0).toLocaleString('pt-BR');
-            document.getElementById('dash-pipelines').textContent = d.total_pipelines || 0;
-
-            const dashStatus = document.getElementById('dash-status');
+        }
+        const snapInfo = document.getElementById('dash-snap-info');
+        const statusEl = document.getElementById('dash-process-status');
+        if (snapInfo) {
+            if (d.snapshot) {
+                snapInfo.textContent = d.snapshot.filename + ' \u2014 ' + d.snapshot.row_count.toLocaleString('pt-BR') + ' registros (' + d.snapshot.uploaded_at + ')';
+            } else {
+                snapInfo.textContent = 'Nenhum snapshot de matriculados carregado';
+                snapInfo.classList.add('text-amber-400');
+            }
+        }
+        if (statusEl) {
             if (d.sync_running) {
-                dashStatus.innerHTML = '<span class="inline-block w-3 h-3 rounded-full bg-indigo-400 animate-pulse"></span> Sync...';
+                statusEl.innerHTML = '<span class="inline-block w-2.5 h-2.5 rounded-full bg-indigo-400 animate-pulse"></span> Sync...';
             } else if (d.update_running) {
-                dashStatus.innerHTML = '<span class="inline-block w-3 h-3 rounded-full bg-amber-400 animate-pulse"></span> Update...';
+                statusEl.innerHTML = '<span class="inline-block w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span> Update...';
             } else {
-                dashStatus.innerHTML = '<span class="green-dot"></span> Conectado';
-            }
-
-            const stateDiv = document.getElementById('dash-sync-state');
-            if (d.sync_states && d.sync_states.length) {
-                stateDiv.innerHTML = `<table class="w-full text-left">
-                    <thead><tr class="text-xs text-slate-500 border-b border-slate-700/20">
-                        <th class="pb-2 font-semibold">Entidade</th><th class="pb-2 font-semibold">Último sync</th><th class="pb-2 font-semibold">Runs</th>
-                    </tr></thead>
-                    <tbody>${d.sync_states.map(s => `<tr class="border-b border-slate-700/10 hover:bg-slate-800/20 transition">
-                        <td class="py-2 text-slate-300 font-mono text-xs">${esc(s.entity_type)}</td>
-                        <td class="py-2 text-slate-400 text-xs">${s.last_sync_at ? fmtDate(s.last_sync_at) : '—'}</td>
-                        <td class="py-2 text-slate-300 font-semibold">${s.run_count || 0}</td>
-                    </tr>`).join('')}</tbody></table>`;
-            } else {
-                stateDiv.textContent = 'Nenhuma sincronização realizada.';
-            }
-
-            const recentDiv = document.getElementById('dash-recent');
-            if (d.recent_updates && d.recent_updates.length) {
-                recentDiv.innerHTML = d.recent_updates.map(u => `
-                    <div class="flex items-center justify-between py-2 border-b border-slate-700/10 hover:bg-slate-800/10 transition">
-                        <div>
-                            <span class="text-slate-300 text-sm font-medium">${esc(u.nome_lead || '—')}</span>
-                            <span class="text-slate-600 text-xs ml-2">${esc(u.pipeline || '')} &rarr; ${esc(u.etapa || '')}</span>
-                        </div>
-                        <span class="tag-pill ${u.status === 'won' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : u.status === 'lost' ? 'bg-red-500/15 text-red-400 border border-red-500/30' : 'bg-blue-500/15 text-blue-400 border border-blue-500/30'}">
-                            ${{won:'Ganho', in_process:'Aberto', lost:'Perdido'}[u.status] || u.status}
-                        </span>
-                    </div>
-                `).join('');
-            } else {
-                recentDiv.textContent = 'Nenhuma atualização recente.';
+                statusEl.innerHTML = '<span class="green-dot"></span> Conectado';
             }
         }
     } catch (err) {
