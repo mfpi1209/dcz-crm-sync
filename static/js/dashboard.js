@@ -520,60 +520,67 @@ function renderBreakdown(elId, data) {
 }
 
 const _sitMeta = {
-    'Em Curso': {
-        from: 'emerald-500', to: 'green-500', text: 'emerald', bg: 'emerald',
-        icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>',
-        desc: 'Alunos ativos',
+    'em curso': {
+        from: 'emerald-500', to: 'green-500', text: 'emerald', bg: 'emerald', primary: true,
+        icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222"/>',
+        desc: 'Alunos ativos cursando',
     },
-    'Cancelado': {
-        from: 'rose-500', to: 'red-500', text: 'rose', bg: 'rose',
+    'cancelado': {
+        from: 'rose-500', to: 'red-600', text: 'rose', bg: 'rose',
         icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>',
-        desc: 'Evadiram',
+        desc: 'Evadiram do curso',
     },
-    'Trancado': {
-        from: 'amber-500', to: 'yellow-500', text: 'amber', bg: 'amber',
+    'trancado': {
+        from: 'amber-500', to: 'orange-500', text: 'amber', bg: 'amber',
         icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>',
-        desc: 'Curso interrompido',
+        desc: 'Interromperam o curso',
     },
-    'Transferido': {
-        from: 'violet-500', to: 'purple-500', text: 'violet', bg: 'violet',
+    'transferido': {
+        from: 'violet-500', to: 'purple-600', text: 'violet', bg: 'violet',
         icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>',
-        desc: 'Mudaram de polo',
+        desc: 'Foram para outro polo',
     },
-    'N/I': {
+    '_default': {
         from: 'slate-500', to: 'slate-600', text: 'slate', bg: 'slate',
         icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>',
-        desc: 'Não informado',
+        desc: '',
     },
 };
-const _sitOrder = ['Em Curso', 'Cancelado', 'Trancado', 'Transferido'];
+const _sitOrder = ['em curso', 'cancelado', 'trancado', 'transferido'];
+
+function _sitLookup(k) { return _sitMeta[k.toLowerCase()] || _sitMeta['_default']; }
 
 function renderSituacaoCards(elId, data) {
     const el = document.getElementById(elId);
     if (!data || !Object.keys(data).length) { el.innerHTML = '<span class="text-slate-500 text-sm col-span-4">—</span>'; return; }
     const total = Object.values(data).reduce((a, b) => a + b, 0);
-    const ordered = _sitOrder.filter(k => k in data).concat(Object.keys(data).filter(k => !_sitOrder.includes(k)));
+    const keys = Object.keys(data);
+    const ordered = _sitOrder
+        .map(sk => keys.find(k => k.toLowerCase() === sk))
+        .filter(Boolean)
+        .concat(keys.filter(k => !_sitOrder.includes(k.toLowerCase())));
     el.innerHTML = ordered.map(k => {
         const v = data[k];
         const pct = total ? Math.round(v / total * 100) : 0;
-        const c = _sitMeta[k] || _sitMeta['N/I'];
-        return `<div class="glass-card p-4 relative overflow-hidden">
-            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-${c.from} to-${c.to}"></div>
+        const c = _sitLookup(k);
+        const highlight = c.primary ? 'ring-1 ring-emerald-500/30' : '';
+        return `<div class="glass-card p-4 relative overflow-hidden ${highlight}">
+            <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-${c.from} to-${c.to}"></div>
             <div class="flex items-center gap-3 mb-3">
-                <div class="w-9 h-9 rounded-xl bg-${c.bg}-500/15 flex items-center justify-center">
-                    <svg class="w-4.5 h-4.5 text-${c.text}-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">${c.icon}</svg>
+                <div class="w-10 h-10 rounded-xl bg-${c.bg}-500/15 flex items-center justify-center ${c.primary ? 'ring-1 ring-emerald-500/20' : ''}">
+                    <svg class="w-5 h-5 text-${c.text}-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">${c.icon}</svg>
                 </div>
                 <div class="flex-1 min-w-0">
                     <div class="flex items-center justify-between">
-                        <span class="text-xs font-semibold text-${c.text}-400">${esc(k)}</span>
+                        <span class="text-xs font-bold text-${c.text}-400 uppercase tracking-wider">${esc(k)}</span>
                         <span class="text-[10px] font-bold text-${c.text}-400 bg-${c.bg}-500/10 px-2 py-0.5 rounded-full">${pct}%</span>
                     </div>
                     <p class="text-[10px] text-slate-500 mt-0.5">${c.desc}</p>
                 </div>
             </div>
-            <p class="text-2xl font-bold text-white font-display mb-2">${v.toLocaleString('pt-BR')}</p>
+            <p class="text-3xl font-bold text-white font-display mb-2">${v.toLocaleString('pt-BR')}</p>
             <div class="w-full h-1.5 rounded-full bg-slate-700/50">
-                <div class="h-1.5 rounded-full bg-gradient-to-r from-${c.from} to-${c.to} transition-all" style="width:${pct}%"></div>
+                <div class="h-1.5 rounded-full bg-gradient-to-r from-${c.from} to-${c.to} transition-all" style="width:${Math.min(pct,100)}%"></div>
             </div>
         </div>`;
     }).join('');
