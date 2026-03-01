@@ -1,13 +1,15 @@
 """
 eduit. — Atualização em massa a partir da planilha de matriculados.
 
-Apenas atualiza campos (custom fields + lead info). Não move pipeline.
+Atualiza campos existentes E cria leads/negócios para registros sem match.
 
 Uso:
-    python update_crm.py --test          # Testa 1 update real para validar a API
-    python update_crm.py --dry-run       # Mostra o que faria, sem executar (padrão)
-    python update_crm.py --execute       # Executa todas as atualizações
-    python update_crm.py --execute --limit 50   # Executa só os primeiros 50
+    python update_crm.py --test                  # Testa 1 update real
+    python update_crm.py --dry-run               # Mostra resumo (padrão)
+    python update_crm.py --execute               # Atualiza + cria tudo
+    python update_crm.py --execute --no-create   # Só atualiza, sem criar
+    python update_crm.py --execute --limit 50    # Primeiros 50 updates (sem criar)
+    python update_crm.py --execute --rate 180    # Rate limit customizado
 """
 
 import sys
@@ -182,7 +184,8 @@ class ApiClient:
             if r.status_code >= 400:
                 return {"ok": False, "status": r.status_code, "body": r.text[:500]}
 
-            return {"ok": True, "status": r.status_code, "body": r.json()}
+            body = r.json() if r.text.strip() else {}
+            return {"ok": True, "status": r.status_code, "body": body}
 
         return {"ok": False, "status": 429, "body": "Falha após 4 tentativas (timeout/429)"}
 
@@ -202,6 +205,9 @@ class ApiClient:
         path = f"/crm/crm/additional-fields/lead/{lead_id}/{field_id}"
         return self.put(path, {"value": str(value)})
 
+    def post(self, path, payload):
+        return self._request("POST", f"{API_BASE}{path}", payload)
+
     def get(self, path, params=None):
         url = f"{API_BASE}{path}"
         self._throttle()
@@ -212,6 +218,19 @@ class ApiClient:
         if r.status_code >= 400:
             return {"ok": False, "status": r.status_code, "body": r.text[:500]}
         return {"ok": True, "status": r.status_code, "body": r.json()}
+
+    def create_lead(self, payload):
+        return self._request("POST", f"{API_BASE}/leads", payload)
+
+    def create_business(self, lead_id, stage_id):
+        return self.post("/businesses", {"leadId": lead_id, "stageId": stage_id})
+
+    def move_businesses(self, ids, destination_stage_id):
+        return self.post("/businesses/actions/move", {"ids": ids, "destinationStageId": destination_stage_id})
+
+    def search_leads(self, query):
+        from urllib.parse import quote
+        return self._request("GET", f"{API_BASE}/leads?search={quote(str(query))}&take=5")
 
 
 # ---------------------------------------------------------------------------
@@ -433,8 +452,41 @@ def get_biz_field_value_id(biz_data, field_id):
     return ""
 
 
+CALOURO_TIPOS = {"calouro", "calouro (recompra)", "nova matrícula", "nova matricula", "recompra", "retorno", "regresso (retorno)"}
+VETERANO_TIPOS = {"veterano", "rematrícula", "rematricula"}
+
+STAGE_NAMES = {
+    "calouro":   ["Calouro", "Calouros", "CALOURO"],
+    "veterano":  ["Veterano", "Veteranos", "VETERANO"],
+}
+
+
 def get_conn():
     return psycopg2.connect(**DB_DSN)
+
+
+def load_pipeline_stages(conn):
+    """Carrega etapas do pipeline do banco local."""
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute("""
+            SELECT ps.id, ps.data->>'name' AS nome
+            FROM pipeline_stages ps
+            ORDER BY ps.data->>'order'
+        """)
+        return cur.fetchall()
+
+
+def resolve_stage_ids(stages):
+    """Encontra IDs das etapas Calouro e Veterano."""
+    found = {}
+    for key, name_variants in STAGE_NAMES.items():
+        lower_variants = [n.lower().strip() for n in name_variants]
+        for stage in stages:
+            sname = (stage["nome"] or "").strip()
+            if sname.lower() in lower_variants:
+                found[key] = stage["id"]
+                break
+    return found
 
 
 def _load_turmas(conn):
@@ -776,10 +828,12 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
     """Two-stage matching:
     Stage 1 — Find the LEAD (CPF → Phone → Email → Name)
     Stage 2 — Find the BUSINESS within that lead (by RGM)
-    Falls back to direct RGM lookup if lead match fails."""
+    Falls back to direct RGM lookup if lead match fails.
+    Returns (updates, unmatched) — unmatched contains records to create."""
     global _debug_diff, _diff_details
     _debug_diff = True
     updates = []
+    unmatched = []
     _skipped_nivel = []
     _format_samples = {}  # field_name → [(crm_val, xl_val)] first 3 diffs per field
 
@@ -882,6 +936,7 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
         match_type = None
         target_biz = None
 
+        no_match_reason = None
         if matched_lead_id:
             lead_bizs = biz_by_lead.get(matched_lead_id, [])
 
@@ -891,17 +946,14 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
             if target_biz:
                 match_type = f"{lead_match}+RGM"
             else:
-                # Lead found but no business with this RGM — assign to empty biz
                 target_biz = _find_empty_biz(lead_bizs)
                 if target_biz:
                     match_type = f"{lead_match}+ASSIGN"
                 elif lead_bizs:
-                    # Lead has businesses but none match — skip to avoid contamination
-                    continue
+                    no_match_reason = "LEAD_SEM_BIZ_RGM"
                 else:
-                    continue
+                    no_match_reason = "LEAD_SEM_BIZ"
         else:
-            # Fallback: direct RGM lookup (business already has the RGM)
             if rgm and rgm in crm_by_rgm:
                 biz_matches = crm_by_rgm[rgm]
                 if len(biz_matches) == 1:
@@ -909,9 +961,17 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
                     matched_lead_id = target_biz["data"].get("leadId", "")
                     match_type = "RGM_DIRETO"
                 else:
-                    continue
+                    no_match_reason = "RGM_MULTIPLO"
             else:
-                continue
+                no_match_reason = "SEM_MATCH"
+
+        if no_match_reason:
+            unmatched.append({
+                "xl_data": xl_data,
+                "reason": no_match_reason,
+                "lead_id": matched_lead_id,
+            })
+            continue
 
         if not target_biz or not match_type:
             continue
@@ -1047,7 +1107,21 @@ def prepare_updates(xl_rows, col, crm_by_rgm, crm_by_cpf, crm_by_phone, crm_by_n
                 w.writerow([s["nome"], s["rgm"], s["cpf"], s["negocio"]])
         log.info("Ignorados por nível (não Graduação/Pós): %d → %s", len(_skipped_nivel), skip_path)
 
-    return updates
+    if unmatched:
+        REPORTS_DIR.mkdir(exist_ok=True)
+        sm_path = REPORTS_DIR / "sem_match.csv"
+        with open(sm_path, "w", newline="", encoding="utf-8-sig") as f:
+            w = csv.writer(f, delimiter=";")
+            w.writerow(["Nome", "RGM", "CPF", "Telefone", "Email", "Curso", "Polo",
+                         "Situacao", "TipoAluno", "Nivel", "Motivo"])
+            for u in unmatched:
+                d = u["xl_data"]
+                w.writerow([d["nome"], d["rgm"], d["cpf"], d["phone_raw"], d["email"],
+                            d["curso"], d["polo"], d["situacao"], d["tipo"], d["nivel"],
+                            u["reason"]])
+        log.info("Sem match (a criar): %d → %s", len(unmatched), sm_path)
+
+    return updates, unmatched
 
 
 # ---------------------------------------------------------------------------
@@ -1225,8 +1299,9 @@ def execute_updates(api, updates, limit=None):
     return ok_count, err_count
 
 
-def dry_run_summary(updates):
-    """Mostra resumo do que seria atualizado."""
+def dry_run_summary(updates, unmatched=None, stage_ids=None):
+    """Mostra resumo do que seria atualizado e criado."""
+    unmatched = unmatched or []
     match_types = Counter(u["match_type"] for u in updates)
     lead_updates_count = sum(1 for u in updates if u["lead_updates"])
     lead_field_calls = sum(len(u.get("lead_field_updates", {})) for u in updates)
@@ -1234,7 +1309,11 @@ def dry_run_summary(updates):
     biz_field_calls = sum(
         len(biz["fields"]) for u in updates for biz in u["biz_updates"]
     )
-    total_api_calls = lead_updates_count + lead_field_calls + biz_field_calls
+    total_update_calls = lead_updates_count + lead_field_calls + biz_field_calls
+
+    n_biz_fields_per_create = len(BIZ_FIELD_IDS)
+    create_api_calls = len(unmatched) * (1 + 1 + n_biz_fields_per_create)
+    total_api_calls = total_update_calls + create_api_calls
 
     base_delay = 60.0 / DEFAULT_TARGET_RATE
     estimated_minutes = total_api_calls * base_delay / 60
@@ -1250,11 +1329,9 @@ def dry_run_summary(updates):
     print(f"  Lead fields (PUT):             {lead_field_calls:,}")
     print(f"  Negócios a atualizar:          {biz_updates_count:,}")
     print(f"  Biz fields (PUT):              {biz_field_calls:,}")
-    print(f"  Total de API calls:            {total_api_calls:,}")
-    print(f"  Tempo estimado (~{DEFAULT_TARGET_RATE} req/min):  {estimated_minutes:.0f} min ({estimated_minutes/60:.1f}h)")
+    print(f"  Subtotal update calls:         {total_update_calls:,}")
     print()
 
-    # Detalhe dos campos de lead (PATCH + PUT)
     lead_fields = Counter()
     for u in updates:
         for k in u["lead_updates"]:
@@ -1266,7 +1343,6 @@ def dry_run_summary(updates):
         for k, c in lead_fields.most_common():
             print(f"    {k:20s}: {c:,}")
 
-    # Detalhe dos campos de negócio
     biz_fields = Counter()
     for u in updates:
         for biz in u["biz_updates"]:
@@ -1280,12 +1356,42 @@ def dry_run_summary(updates):
         for k, c in biz_fields.most_common():
             print(f"    {k:20s}: {c:,}")
 
+    if unmatched:
+        print()
+        print("-" * 60)
+        print(f"  CRIAÇÕES PENDENTES:            {len(unmatched):,}")
+        reasons = Counter(u["reason"] for u in unmatched)
+        for reason, c in reasons.most_common():
+            print(f"    {reason:24s}: {c:,}")
+
+        tipo_counter = Counter()
+        for u in unmatched:
+            tipo = u["xl_data"].get("tipo", "?") or "?"
+            tipo_counter[tipo] += 1
+        print("  Por tipo de aluno:")
+        for tipo, c in tipo_counter.most_common():
+            print(f"    {tipo:24s}: {c:,}")
+
+        have_calouro = "calouro" in (stage_ids or {})
+        have_veterano = "veterano" in (stage_ids or {})
+        if not have_calouro:
+            print("  ⚠ Etapa 'Calouro' não encontrada — criações NÃO executarão")
+        if not have_veterano:
+            print("  ⚠ Etapa 'Veterano' não encontrada — criações NÃO executarão")
+
+        print(f"  API calls p/ criações:         ~{create_api_calls:,}")
+        print(f"    (POST lead + POST biz + ~{n_biz_fields_per_create} PUT fields cada)")
+
+    print()
+    print(f"  Total de API calls:            {total_api_calls:,}")
+    print(f"  Tempo estimado (~{DEFAULT_TARGET_RATE} req/min):  {estimated_minutes:.0f} min ({estimated_minutes/60:.1f}h)")
     print()
     print("  Para executar: python update_crm.py --execute")
     print("  Para testar 1: python update_crm.py --test")
     print("=" * 60)
 
-    # Salvar preview
+    REPORTS_DIR.mkdir(exist_ok=True)
+
     preview_rows = []
     for u in updates[:200]:
         lead_chg = json.dumps(u["lead_updates"], ensure_ascii=False) if u["lead_updates"] else ""
@@ -1298,14 +1404,282 @@ def dry_run_summary(updates):
             u["match_type"], u["xl_rgm"], u["xl_nome"],
             u["lead_id"] or "", lead_chg, biz_chg,
         ])
-
     preview_path = REPORTS_DIR / "update_preview.csv"
-    REPORTS_DIR.mkdir(exist_ok=True)
     with open(preview_path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f, delimiter=";")
         w.writerow(["match_tipo", "rgm", "nome", "lead_id", "lead_mudancas", "biz_mudancas"])
         w.writerows(preview_rows)
     log.info("  Preview salvo: %s (primeiros 200)", preview_path)
+
+    if unmatched:
+        create_path = REPORTS_DIR / "create_preview.csv"
+        with open(create_path, "w", newline="", encoding="utf-8-sig") as f:
+            w = csv.writer(f, delimiter=";")
+            w.writerow(["Nome", "RGM", "CPF", "Telefone", "Email", "Curso", "Polo",
+                         "Situacao", "TipoAluno", "Nivel", "Motivo"])
+            for u in unmatched:
+                d = u["xl_data"]
+                w.writerow([d["nome"], d["rgm"], d["cpf"], d["phone_raw"], d["email"],
+                            d["curso"], d["polo"], d["situacao"], d["tipo"], d["nivel"],
+                            u["reason"]])
+        log.info("  Preview criações: %s (%d registros)", create_path, len(unmatched))
+
+
+# ---------------------------------------------------------------------------
+# Criação de leads + negócios (registros sem match)
+# ---------------------------------------------------------------------------
+
+def _build_lead_payload(xl_data):
+    """Constrói payload para POST /leads a partir de dados da planilha."""
+    payload = {}
+    if xl_data.get("nome"):
+        payload["name"] = xl_data["nome"]
+    cpf = xl_data.get("cpf", "")
+    if cpf:
+        payload["taxId"] = format_cpf(cpf)
+    phone = xl_data.get("phone_raw", "")
+    if phone:
+        digits = "".join(c for c in str(phone) if c.isdigit())
+        if len(digits) >= 10:
+            payload["phone"] = digits
+    email = xl_data.get("email", "")
+    if email:
+        payload["email"] = email
+    bairro = xl_data.get("bairro", "")
+    cidade = xl_data.get("cidade", "")
+    endereco = xl_data.get("endereco", "")
+    addr = {}
+    if endereco:
+        addr["address"] = endereco
+    if bairro:
+        addr["block"] = bairro
+    if cidade:
+        addr["city"] = cidade
+    if addr:
+        payload["address"] = addr
+    if not payload.get("name"):
+        payload["name"] = f"RGM {xl_data.get('rgm', '?')}"
+    payload["source"] = "Planilha Matriculados"
+    return payload
+
+
+def _build_biz_field_list(xl_data, turmas=None, ciclos=None):
+    """Retorna lista de (field_id, value) para popular os campos do negócio."""
+    fields = []
+    mapping = {
+        "RGM": xl_data.get("rgm", ""),
+        "Curso": xl_data.get("curso", ""),
+        "Polo": xl_data.get("polo", ""),
+        "Serie": xl_data.get("serie", ""),
+        "Situacao": xl_data.get("situacao", ""),
+        "DataMatricula": xl_data.get("data_matricula", ""),
+        "EmailAD": xl_data.get("email_acad", ""),
+        "TipoAluno": xl_data.get("tipo", ""),
+        "Nivel": xl_data.get("nivel", ""),
+    }
+
+    senha = generate_senha(xl_data.get("nome", ""), xl_data.get("rgm", ""), xl_data.get("cpf", ""))
+    if senha:
+        mapping["SenhaProvisoria"] = senha
+
+    turma_nome = _classify_turma(xl_data.get("data_matricula", ""), xl_data.get("nivel", ""), turmas or [])
+    ciclo_nome = _classify_ciclo(xl_data.get("data_matricula", ""), xl_data.get("nivel", ""), ciclos or [])
+    if turma_nome:
+        mapping["Turma"] = turma_nome
+    if ciclo_nome:
+        mapping["Ciclo"] = ciclo_nome
+
+    for field_name, value in mapping.items():
+        if not value:
+            continue
+        fid = BIZ_FIELD_IDS.get(field_name, "")
+        if fid:
+            fields.append((fid, str(value).strip()))
+    return fields
+
+
+def _find_lead_by_contact_local(conn, cpf=None, phone=None, email=None):
+    """Busca lead no banco local por CPF, telefone ou e-mail."""
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    if cpf:
+        cpf_clean = clean_cpf(cpf)
+        if cpf_clean:
+            cur.execute(
+                "SELECT id FROM leads WHERE REPLACE(REPLACE(COALESCE(data->>'taxId',''), '.', ''), '-', '') = %s LIMIT 1",
+                (cpf_clean,),
+            )
+            row = cur.fetchone()
+            if row:
+                cur.close()
+                return row["id"]
+    if phone:
+        digits = "".join(c for c in str(phone) if c.isdigit())
+        if len(digits) >= 10:
+            cur.execute(
+                "SELECT id FROM leads WHERE regexp_replace(data->>'phone', '[^0-9]', '', 'g') LIKE %s LIMIT 1",
+                (f"%{digits[-10:]}",),
+            )
+            row = cur.fetchone()
+            if row:
+                cur.close()
+                return row["id"]
+    if email:
+        cur.execute(
+            "SELECT id FROM leads WHERE lower(data->>'email') = lower(%s) LIMIT 1",
+            (email.strip(),),
+        )
+        row = cur.fetchone()
+        if row:
+            cur.close()
+            return row["id"]
+    cur.close()
+    return None
+
+
+def _resolve_target_stage(tipo_aluno, stage_ids):
+    """Determina a etapa (Calouro/Veterano) com base no tipo de aluno."""
+    tipo_lower = (tipo_aluno or "").strip().lower()
+    if tipo_lower in CALOURO_TIPOS:
+        return stage_ids.get("calouro")
+    if tipo_lower in VETERANO_TIPOS:
+        return stage_ids.get("veterano")
+    return stage_ids.get("calouro")
+
+
+def execute_creations(api, unmatched, stage_ids, turmas=None, ciclos=None):
+    """Cria leads e negócios para registros sem match no CRM."""
+    if not stage_ids:
+        log.error("Nenhuma etapa encontrada (Calouro/Veterano). Abortando criações.")
+        return 0, 0
+
+    LOG_DIR.mkdir(exist_ok=True)
+    ts = datetime.now(BRT).strftime("%Y%m%d_%H%M%S")
+    log_file = LOG_DIR / f"create_{ts}.csv"
+
+    conn = get_conn()
+    ok_count = 0
+    err_count = 0
+    start = time.monotonic()
+
+    with open(log_file, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f, delimiter=";")
+        w.writerow(["timestamp", "tipo", "nome", "rgm", "id", "status", "detalhe"])
+
+        for i, item in enumerate(unmatched, 1):
+            xl = item["xl_data"]
+            rgm = xl.get("rgm", "")
+            nome = xl.get("nome", "?")
+            reason = item["reason"]
+
+            target_stage_id = _resolve_target_stage(xl.get("tipo", ""), stage_ids)
+            if not target_stage_id:
+                log.warning("  [%d/%d] %s RGM %s — sem etapa destino, pulando",
+                            i, len(unmatched), nome, rgm)
+                err_count += 1
+                continue
+
+            lead_id = item.get("lead_id")
+
+            if reason in ("LEAD_SEM_BIZ_RGM", "LEAD_SEM_BIZ"):
+                log.info("  [%d/%d] %s | RGM %s | Lead existe → criando negócio | %s",
+                         i, len(unmatched), nome, rgm, reason)
+            else:
+                log.info("  [%d/%d] %s | RGM %s | Criando lead + negócio | %s",
+                         i, len(unmatched), nome, rgm, reason)
+
+                lead_payload = _build_lead_payload(xl)
+                r_lead = api.create_lead(lead_payload)
+
+                if r_lead["ok"]:
+                    body = r_lead["body"]
+                    lead_id = body.get("id") if isinstance(body, dict) else None
+                    if lead_id:
+                        log.info("    Lead criado: %s", lead_id[:12])
+                        w.writerow([datetime.now(BRT).strftime("%H:%M:%S"), "LEAD_OK",
+                                    nome, rgm, lead_id, "OK", ""])
+
+                if not lead_id:
+                    err_body = str(r_lead.get("body", ""))
+                    if "lead-with-same-contact-exists" in err_body or "same-contact" in err_body.lower():
+                        log.info("    Lead já existe — buscando...")
+                        lead_id = _find_lead_by_contact_local(
+                            conn, cpf=xl.get("cpf"), phone=xl.get("phone_raw"), email=xl.get("email")
+                        )
+                        if not lead_id:
+                            search_term = xl.get("email") or xl.get("phone_raw", "")
+                            if search_term:
+                                r_search = api.search_leads(search_term)
+                                if r_search["ok"] and isinstance(r_search["body"], dict):
+                                    items = r_search["body"].get("data", [])
+                                    if items:
+                                        lead_id = items[0].get("id")
+                        if lead_id:
+                            log.info("    Lead existente: %s", lead_id[:12])
+                        else:
+                            log.warning("    Lead não encontrado para RGM %s — pulando", rgm)
+                            err_count += 1
+                            w.writerow([datetime.now(BRT).strftime("%H:%M:%S"), "LEAD_SKIP",
+                                        nome, rgm, "", "SKIP", "lead existe mas não localizado"])
+                            continue
+                    else:
+                        log.warning("    ERRO criar lead RGM %s: %s", rgm, err_body[:200])
+                        err_count += 1
+                        w.writerow([datetime.now(BRT).strftime("%H:%M:%S"), "LEAD_ERRO",
+                                    nome, rgm, "", "ERRO", err_body[:100]])
+                        continue
+
+            r_biz = api.create_business(lead_id, target_stage_id)
+            if not r_biz["ok"]:
+                log.warning("    ERRO criar negócio RGM %s: %s", rgm, str(r_biz["body"])[:200])
+                err_count += 1
+                w.writerow([datetime.now(BRT).strftime("%H:%M:%S"), "BIZ_ERRO",
+                            nome, rgm, lead_id or "", "ERRO", str(r_biz["body"])[:100]])
+                continue
+
+            biz_body = r_biz["body"]
+            biz_id = biz_body.get("id") if isinstance(biz_body, dict) else None
+            if not biz_id:
+                log.warning("    Resposta sem ID de negócio para RGM %s", rgm)
+                err_count += 1
+                continue
+
+            log.info("    Negócio criado: %s → %s",
+                     biz_id[:12], xl.get("tipo", "?"))
+
+            biz_fields = _build_biz_field_list(xl, turmas=turmas, ciclos=ciclos)
+            field_ok = 0
+            for fid, value in biz_fields:
+                rf = api.put_biz_field(biz_id, fid, value)
+                if rf["ok"]:
+                    field_ok += 1
+                else:
+                    log.warning("    ERRO campo %s RGM %s: %s",
+                                field_id_to_name(fid), rgm, str(rf["body"])[:100])
+
+            lead_field_list = []
+            sexo = xl.get("sexo", "")
+            if sexo:
+                sexo_fid = LEAD_FIELD_IDS.get("Sexo")
+                if sexo_fid:
+                    lead_field_list.append((sexo_fid, sexo))
+            for lfid, lval in lead_field_list:
+                api.put_lead_field(lead_id, lfid, lval)
+
+            ok_count += 1
+            w.writerow([datetime.now(BRT).strftime("%H:%M:%S"), "CREATE_OK",
+                        nome, rgm, biz_id, "OK", f"fields={field_ok}/{len(biz_fields)}"])
+
+            if i % 25 == 0 or i == len(unmatched):
+                elapsed = time.monotonic() - start
+                rate = api.total_calls / elapsed * 60 if elapsed > 0 else 0
+                remaining = (len(unmatched) - i) * (elapsed / i) if i > 0 else 0
+                log.info("--- Criações %d/%d (%.0f%%) | OK: %d | Erros: %d | ~%.0f min restantes ---",
+                         i, len(unmatched), i / len(unmatched) * 100,
+                         ok_count, err_count, remaining / 60)
+
+    conn.close()
+    log.info("Criações concluídas. OK: %d | Erros: %d | Log: %s", ok_count, err_count, log_file)
+    return ok_count, err_count
 
 
 # ---------------------------------------------------------------------------
@@ -1317,12 +1691,15 @@ def main():
     mode = "--dry-run"
     limit = None
     rate = None
+    skip_create = False
 
     for arg in sys.argv[1:]:
         if arg in ("--test", "--dry-run", "--execute"):
             mode = arg
         if arg == "--with-address":
             SKIP_ADDRESS = False
+        if arg == "--no-create":
+            skip_create = True
 
     for i, arg in enumerate(sys.argv):
         if arg == "--limit" and i + 1 < len(sys.argv):
@@ -1345,16 +1722,23 @@ def main():
     finally:
         conn.close()
 
+    conn = get_conn()
+    stages = load_pipeline_stages(conn)
+    stage_ids = resolve_stage_ids(stages)
+    conn.close()
+
     log.info("Preparando atualizações...")
-    updates = prepare_updates(
+    updates, unmatched = prepare_updates(
         xl_rows, col, crm_by_rgm,
         crm_by_cpf, crm_by_phone, crm_by_name, leads_by_id, biz_by_lead,
         turmas=turmas, ciclos=ciclos,
     )
     log.info("  %d registros com atualizações pendentes", len(updates))
+    if unmatched:
+        log.info("  %d registros sem match (a criar)", len(unmatched))
 
     if mode == "--dry-run":
-        dry_run_summary(updates)
+        dry_run_summary(updates, unmatched, stage_ids)
         return
 
     api = ApiClient(target_rate=rate)
@@ -1372,6 +1756,16 @@ def main():
         log.info("Iniciando atualização em massa...")
         ok, err = execute_updates(api, updates, limit)
         print(f"\nResultado: {ok} OK, {err} erros de {len(updates)} registros.")
+
+        if unmatched and not limit and not skip_create:
+            print()
+            log.info("=" * 50)
+            log.info("CRIAÇÃO — %d registros sem match no CRM", len(unmatched))
+            log.info("=" * 50)
+            c_ok, c_err = execute_creations(api, unmatched, stage_ids, turmas, ciclos)
+            print(f"\nCriações: {c_ok} OK, {c_err} erros de {len(unmatched)} registros.")
+        elif unmatched and skip_create:
+            log.info("Criações puladas (--no-create). %d registros sem match → sem_match.csv", len(unmatched))
 
 
 if __name__ == "__main__":
