@@ -376,7 +376,7 @@ def _parse_inadimplentes_batch(folder_path):
     for fpath in files:
         fname = os.path.basename(fpath)
         try:
-            wb = openpyxl.load_workbook(fpath, data_only=True, read_only=True)
+            wb = openpyxl.load_workbook(fpath, data_only=True, read_only=False)
             ws = wb[wb.sheetnames[0]]
             header_row = None
             first_cells = []
