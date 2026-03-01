@@ -271,7 +271,7 @@ async function handleUploadBatchInadimplentes(fileList, nivel) {
             msg.className = 'upload-msg text-xs text-amber-400 font-semibold mt-1';
         } else {
             const rowsTxt = data.snapshot_rows >= 0 ? ` (${data.snapshot_rows.toLocaleString('pt-BR')} alunos)` : '';
-            msg.textContent = `✓ ${data.files_count} arquivos processados!${rowsTxt}`;
+            msg.innerHTML = `✓ ${data.files_count} arquivos processados!${rowsTxt} <button onclick="_triggerInadimplentesUpdate(this)" class="ml-2 px-2 py-0.5 text-[10px] rounded bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/30 transition">Atualizar CRM</button>`;
             msg.className = 'upload-msg text-xs text-emerald-400 font-semibold mt-1';
         }
         loadFileInfo();
@@ -291,6 +291,27 @@ async function handleUploadBatchInadimplentes(fileList, nivel) {
     }
 
     card.querySelector('input[type="file"]').value = '';
+}
+
+async function _triggerInadimplentesUpdate(btn) {
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Atualizando...';
+    }
+    try {
+        const res = await api('/api/inadimplentes/execute', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+        const d = await res.json();
+        if (d.ok) {
+            if (btn) {
+                btn.textContent = '✓ Iniciado';
+                btn.className = 'ml-2 px-2 py-0.5 text-[10px] rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+            }
+        } else {
+            if (btn) btn.textContent = d.error || 'Erro';
+        }
+    } catch(e) {
+        if (btn) btn.textContent = 'Erro: ' + e.message;
+    }
 }
 
 function handleDropSemRemat(e, subtipo) {

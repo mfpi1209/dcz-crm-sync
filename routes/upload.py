@@ -17,7 +17,9 @@ from pathlib import Path
 import openpyxl
 import psycopg2
 import psycopg2.extras
-from flask import Blueprint, request, jsonify, current_app
+import csv as _csv
+import io as _io
+from flask import Blueprint, request, jsonify, current_app, Response
 
 from db import get_conn
 from helpers import BRT, to_brt, XL_TIPOS, BASE_DIR, LOG_DIR, REPORTS_DIR, _normalize_digits
@@ -724,11 +726,30 @@ def api_snapshots_timeline():
         conn.close()
 
 
+_POS_RE_UPLOAD = re.compile(r'p[oó]s', re.IGNORECASE)
+_POS_CURSO_RE_UPLOAD = re.compile(r'(mba|especializa[cç][aã]o|p[oó]s.gradua|lato.sensu|stricto)', re.IGNORECASE)
+
+
+def _classify_nivel_row(data):
+    """Classify a row's nivel from its data dict (Python-side counterpart of SQL CASE)."""
+    raw_nivel = data.get("nivel", "")
+    if raw_nivel and _POS_RE_UPLOAD.search(raw_nivel):
+        return "Pós-Graduação"
+    raw_negocio = data.get("negocio", "")
+    if _POS_RE_UPLOAD.search(raw_negocio or ""):
+        return "Pós-Graduação"
+    raw_curso = data.get("curso", "")
+    if _POS_CURSO_RE_UPLOAD.search(raw_curso or ""):
+        return "Pós-Graduação"
+    return "Graduação"
+
+
 @upload_bp.route("/api/snapshots/crossref")
 def api_snapshots_crossref():
-    """Cruzamento entre dois tipos de snapshot por RGM."""
+    """Cruzamento entre dois tipos de snapshot por RGM, com filtro opcional por nivel."""
     tipo_a = request.args.get("tipo_a", "").strip().lower()
     tipo_b = request.args.get("tipo_b", "").strip().lower()
+    nivel = request.args.get("nivel", "").strip()
 
     if not tipo_a or not tipo_b:
         return jsonify({"error": "Informe tipo_a e tipo_b"}), 400
@@ -736,33 +757,62 @@ def api_snapshots_crossref():
     conn = get_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            def _latest_rgms(tipo):
+            def _latest_rgms(tipo, filter_nivel=None):
                 if tipo == 'inadimplentes':
-                    cur.execute("""
-                        SELECT DISTINCT ON (COALESCE(nivel, ''))
-                               id FROM xl_snapshots
-                        WHERE tipo = 'inadimplentes'
-                        ORDER BY COALESCE(nivel, ''), id DESC
-                    """)
-                    snap_ids = [r["id"] for r in cur.fetchall()]
-                    if not snap_ids:
-                        return set(), None
-                    placeholders = ','.join(['%s'] * len(snap_ids))
-                    cur.execute(
-                        f"SELECT data->>'rgm_digits' AS rgm FROM xl_rows "
-                        f"WHERE snapshot_id IN ({placeholders}) AND data->>'rgm_digits' != ''",
-                        snap_ids
-                    )
-                    return {r["rgm"] for r in cur.fetchall()}, snap_ids[0]
+                    if filter_nivel:
+                        cur.execute("""
+                            SELECT id FROM xl_snapshots
+                            WHERE tipo = 'inadimplentes' AND nivel = %s
+                            ORDER BY id DESC LIMIT 1
+                        """, (filter_nivel,))
+                        snap = cur.fetchone()
+                        if not snap:
+                            return set(), None
+                        cur.execute(
+                            "SELECT data->>'rgm_digits' AS rgm FROM xl_rows "
+                            "WHERE snapshot_id = %s AND data->>'rgm_digits' != ''",
+                            (snap["id"],)
+                        )
+                        return {r["rgm"] for r in cur.fetchall()}, snap["id"]
+                    else:
+                        cur.execute("""
+                            SELECT DISTINCT ON (COALESCE(nivel, ''))
+                                   id FROM xl_snapshots
+                            WHERE tipo = 'inadimplentes'
+                            ORDER BY COALESCE(nivel, ''), id DESC
+                        """)
+                        snap_ids = [r["id"] for r in cur.fetchall()]
+                        if not snap_ids:
+                            return set(), None
+                        placeholders = ','.join(['%s'] * len(snap_ids))
+                        cur.execute(
+                            f"SELECT data->>'rgm_digits' AS rgm FROM xl_rows "
+                            f"WHERE snapshot_id IN ({placeholders}) AND data->>'rgm_digits' != ''",
+                            snap_ids
+                        )
+                        return {r["rgm"] for r in cur.fetchall()}, snap_ids[0]
+
                 cur.execute("SELECT id FROM xl_snapshots WHERE tipo=%s ORDER BY id DESC LIMIT 1", (tipo,))
                 snap = cur.fetchone()
                 if not snap:
                     return set(), None
+
+                if filter_nivel and tipo == 'matriculados':
+                    cur.execute("SELECT data FROM xl_rows WHERE snapshot_id=%s AND data->>'rgm_digits' != ''", (snap["id"],))
+                    rgms = set()
+                    for r in cur.fetchall():
+                        row_nivel = _classify_nivel_row(r["data"])
+                        if row_nivel == filter_nivel:
+                            rgm = r["data"].get("rgm_digits", "")
+                            if rgm:
+                                rgms.add(rgm)
+                    return rgms, snap["id"]
+
                 cur.execute("SELECT data->>'rgm_digits' AS rgm FROM xl_rows WHERE snapshot_id=%s AND data->>'rgm_digits' != ''", (snap["id"],))
                 return {r["rgm"] for r in cur.fetchall()}, snap["id"]
 
-            rgms_a, sid_a = _latest_rgms(tipo_a)
-            rgms_b, sid_b = _latest_rgms(tipo_b)
+            rgms_a, sid_a = _latest_rgms(tipo_a, filter_nivel=nivel if nivel else None)
+            rgms_b, sid_b = _latest_rgms(tipo_b, filter_nivel=nivel if nivel else None)
 
         return jsonify({
             "tipo_a": tipo_a, "tipo_b": tipo_b,
@@ -771,7 +821,189 @@ def api_snapshots_crossref():
             "apenas_a": len(rgms_a - rgms_b),
             "apenas_b": len(rgms_b - rgms_a),
             "snap_a": sid_a, "snap_b": sid_b,
+            "nivel": nivel or "Consolidado",
         })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@upload_bp.route("/api/inadimplencia/historico")
+def api_inadimplencia_historico():
+    """Retorna séries temporais de inadimplentes agrupados por nivel, tipo_aluno e turma."""
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT s.id, s.uploaded_at, s.row_count, s.nivel AS snap_nivel
+                FROM xl_snapshots s
+                WHERE s.tipo = 'inadimplentes'
+                ORDER BY s.uploaded_at
+            """)
+            snapshots = cur.fetchall()
+
+            if not snapshots:
+                return jsonify({"snapshots": [], "series": [], "message": "Nenhum snapshot de inadimplentes encontrado."})
+
+            cur.execute("""
+                SELECT s.id AS snap_id, s.uploaded_at, s.nivel AS snap_nivel,
+                       r.data
+                FROM xl_snapshots s
+                JOIN xl_rows r ON r.snapshot_id = s.id
+                WHERE s.tipo = 'inadimplentes'
+                ORDER BY s.uploaded_at
+            """)
+            all_rows = cur.fetchall()
+
+            cur.execute("SELECT id FROM xl_snapshots WHERE tipo='matriculados' ORDER BY id DESC LIMIT 1")
+            snap_mat = cur.fetchone()
+            mat_nivel_map = {}
+            mat_tipo_map = {}
+            mat_turma_map = {}
+            if snap_mat:
+                cur.execute("SELECT data FROM xl_rows WHERE snapshot_id=%s AND data->>'rgm_digits' != ''", (snap_mat["id"],))
+                for r in cur.fetchall():
+                    d = r["data"]
+                    rgm = d.get("rgm_digits", "")
+                    if rgm:
+                        mat_nivel_map[rgm] = _classify_nivel_row(d)
+                        tipo_raw = (d.get("tipo_matricula", "") or "").strip()
+                        mat_tipo_map[rgm] = tipo_raw if tipo_raw else "N/I"
+                        turma_raw = (d.get("serie", "") or d.get("ciclo", "") or "").strip()
+                        mat_turma_map[rgm] = turma_raw if turma_raw else "N/I"
+
+        snapshot_data = {}
+        for row in all_rows:
+            sid = row["snap_id"]
+            uploaded = row["uploaded_at"]
+            snap_nivel = row.get("snap_nivel") or None
+            d = row["data"]
+            rgm = d.get("rgm_digits", "")
+            if not rgm:
+                continue
+
+            if sid not in snapshot_data:
+                snapshot_data[sid] = {
+                    "date": to_brt(uploaded),
+                    "snap_nivel": snap_nivel,
+                    "by_nivel": {},
+                    "by_tipo": {},
+                    "by_turma": {},
+                    "total": 0,
+                }
+            sd = snapshot_data[sid]
+            sd["total"] += 1
+
+            nivel = snap_nivel or mat_nivel_map.get(rgm, "Graduação")
+            sd["by_nivel"][nivel] = sd["by_nivel"].get(nivel, 0) + 1
+
+            tipo = mat_tipo_map.get(rgm, "N/I")
+            sd["by_tipo"][tipo] = sd["by_tipo"].get(tipo, 0) + 1
+
+            turma = mat_turma_map.get(rgm, "N/I")
+            sd["by_turma"][turma] = sd["by_turma"].get(turma, 0) + 1
+
+        series = []
+        for sid in sorted(snapshot_data.keys()):
+            sd = snapshot_data[sid]
+            series.append({
+                "snapshot_id": sid,
+                "date": sd["date"],
+                "snap_nivel": sd["snap_nivel"],
+                "total": sd["total"],
+                "by_nivel": sd["by_nivel"],
+                "by_tipo": sd["by_tipo"],
+                "by_turma": dict(sorted(sd["by_turma"].items(), key=lambda x: -x[1])[:20]),
+            })
+
+        return jsonify({
+            "snapshots_count": len(series),
+            "series": series,
+            "has_history": len(series) >= 2,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@upload_bp.route("/api/snapshots/crossref/export")
+def api_snapshots_crossref_export():
+    """Exporta CSV dos alunos de um subset do cruzamento entre dois tipos."""
+    tipo_a = request.args.get("tipo_a", "").strip().lower()
+    tipo_b = request.args.get("tipo_b", "").strip().lower()
+    subset = request.args.get("subset", "em_ambos").strip()
+    nivel = request.args.get("nivel", "").strip()
+
+    if not tipo_a or not tipo_b:
+        return jsonify({"error": "Informe tipo_a e tipo_b"}), 400
+    if subset not in ("em_ambos", "apenas_a", "apenas_b"):
+        return jsonify({"error": "subset deve ser em_ambos, apenas_a ou apenas_b"}), 400
+
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            def _get_snap_data(tipo, filter_nivel=None):
+                if tipo == 'inadimplentes':
+                    if filter_nivel:
+                        cur.execute("SELECT id FROM xl_snapshots WHERE tipo='inadimplentes' AND nivel=%s ORDER BY id DESC LIMIT 1", (filter_nivel,))
+                    else:
+                        cur.execute("SELECT id FROM xl_snapshots WHERE tipo='inadimplentes' ORDER BY id DESC LIMIT 1")
+                    snap = cur.fetchone()
+                    if not snap:
+                        return {}
+                    cur.execute("SELECT data FROM xl_rows WHERE snapshot_id=%s AND data->>'rgm_digits' != ''", (snap["id"],))
+                    return {r["data"]["rgm_digits"]: r["data"] for r in cur.fetchall()}
+
+                cur.execute("SELECT id FROM xl_snapshots WHERE tipo=%s ORDER BY id DESC LIMIT 1", (tipo,))
+                snap = cur.fetchone()
+                if not snap:
+                    return {}
+                cur.execute("SELECT data FROM xl_rows WHERE snapshot_id=%s AND data->>'rgm_digits' != ''", (snap["id"],))
+                all_data = {r["data"]["rgm_digits"]: r["data"] for r in cur.fetchall()}
+                if filter_nivel and tipo == 'matriculados':
+                    return {k: v for k, v in all_data.items() if _classify_nivel_row(v) == filter_nivel}
+                return all_data
+
+            data_a = _get_snap_data(tipo_a, filter_nivel=nivel if nivel else None)
+            data_b = _get_snap_data(tipo_b, filter_nivel=nivel if nivel else None)
+
+            rgms_a = set(data_a.keys())
+            rgms_b = set(data_b.keys())
+
+            if subset == "em_ambos":
+                target_rgms = rgms_a & rgms_b
+                source = data_a
+            elif subset == "apenas_a":
+                target_rgms = rgms_a - rgms_b
+                source = data_a
+            else:
+                target_rgms = rgms_b - rgms_a
+                source = data_b
+
+        buf = _io.StringIO()
+        writer = _csv.writer(buf, delimiter=';')
+        writer.writerow(["Nome", "RGM", "CPF", "Curso", "Polo", "Email", "Nivel", "Tipo"])
+        for rgm in sorted(target_rgms):
+            d = source.get(rgm, {})
+            row_nivel = _classify_nivel_row(d)
+            writer.writerow([
+                d.get("nome", ""), d.get("rgm", ""), d.get("cpf", ""),
+                d.get("curso", ""), d.get("polo", ""),
+                d.get("email", ""), row_nivel,
+                d.get("tipo_matricula", d.get("tipo_titulo", "")),
+            ])
+
+        output = buf.getvalue()
+        fname = f"crossref_{tipo_a}_{tipo_b}_{subset}"
+        if nivel:
+            fname += f"_{nivel.replace(' ','_').lower()}"
+        return Response(
+            output,
+            mimetype="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={fname}.csv"},
+        )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     finally:

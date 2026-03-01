@@ -55,6 +55,8 @@ BIZ_FIELD_IDS = {
     "StatusFinanceiro": None,
 }
 
+STAGE_NAMES_INADIMPLENTE = ["Inadimplente", "INADIMPLENTE", "Inadimplentes"]
+
 API_RATE_LIMIT = 240
 DEFAULT_TARGET_RATE = 120
 CRITICAL_REMAINING = 20
@@ -144,9 +146,19 @@ class ApiClient:
     def put(self, path, payload):
         return self._request("PUT", f"{API_BASE}{path}", payload)
 
+    def post(self, path, payload):
+        return self._request("POST", f"{API_BASE}{path}", payload)
+
     def put_biz_field(self, biz_id, field_id, value):
         path = f"/crm/crm/additional-fields/business/{biz_id}/{field_id}"
         return self.put(path, {"value": str(value)})
+
+    def move_businesses(self, ids, destination_stage_id):
+        """POST /businesses/actions/move"""
+        return self.post("/businesses/actions/move", {
+            "ids": ids,
+            "destinationStageId": destination_stage_id,
+        })
 
 
 def get_conn():
@@ -193,6 +205,28 @@ def update_local_biz_field(conn, biz_id, field_id, new_value):
             (jdata, _data_hash(data), biz_id),
         )
         conn.commit()
+
+
+def resolve_inadimplente_stage(conn):
+    """Resolve o ID da etapa 'Inadimplente' no pipeline do CRM."""
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute("""
+        SELECT ps.id, ps.data->>'name' AS nome
+        FROM pipeline_stages ps
+        JOIN pipelines p ON p.id = ps.pipeline_id
+    """)
+    rows = cur.fetchall()
+    cur.close()
+
+    lower_variants = [n.lower().strip() for n in STAGE_NAMES_INADIMPLENTE]
+    for row in rows:
+        sname = (row["nome"] or "").strip()
+        if sname.lower() in lower_variants:
+            log.info("  Etapa 'Inadimplente' encontrada → %s", row["id"][:12] + "…")
+            return row["id"]
+
+    log.warning("  Etapa 'Inadimplente' NÃO encontrada no pipeline. Movimentação será ignorada.")
+    return None
 
 
 def load_inadimplentes_snapshot(conn):
@@ -278,9 +312,10 @@ def _discover_field_ids(conn):
         log.warning("  Campos não encontrados no CRM: %s (serão ignorados)", ", ".join(missing))
 
 
-def prepare_updates(inad_by_rgm, crm_by_rgm):
-    """Cruza dados e prepara lista de atualizações."""
+def prepare_updates(inad_by_rgm, crm_by_rgm, inadimplente_stage_id=None):
+    """Cruza dados e prepara lista de atualizações de campos + movimentações de stage."""
     updates = []
+    to_move = []
     stats = Counter()
 
     for rgm, inad_data in inad_by_rgm.items():
@@ -330,7 +365,15 @@ def prepare_updates(inad_by_rgm, crm_by_rgm):
             else:
                 stats["sem_alteracao"] += 1
 
-    return updates, stats
+            if inadimplente_stage_id:
+                current_stage = biz["data"].get("stageId", "")
+                if current_stage != inadimplente_stage_id:
+                    to_move.append(biz_id)
+                    stats["a_mover"] += 1
+                else:
+                    stats["ja_na_etapa"] += 1
+
+    return updates, to_move, stats
 
 
 def main():
@@ -351,6 +394,7 @@ def main():
     conn = get_conn()
     try:
         _discover_field_ids(conn)
+        inadimplente_stage_id = resolve_inadimplente_stage(conn)
         snap, inad_by_rgm = load_inadimplentes_snapshot(conn)
         if not snap:
             log.error("Nenhum snapshot de inadimplentes encontrado. Faça upload primeiro.")
@@ -360,12 +404,13 @@ def main():
     finally:
         conn.close()
 
-    updates, stats = prepare_updates(inad_by_rgm, crm_by_rgm)
+    updates, to_move, stats = prepare_updates(inad_by_rgm, crm_by_rgm, inadimplente_stage_id)
 
     log.info("Resumo:")
     for k, v in sorted(stats.items()):
         log.info("  %s: %d", k, v)
-    log.info("  Total a atualizar: %d negócios", len(updates))
+    log.info("  Total a atualizar campos: %d negócios", len(updates))
+    log.info("  Total a mover para etapa Inadimplente: %d negócios", len(to_move))
 
     if mode == "--dry-run":
         REPORTS_DIR.mkdir(exist_ok=True)
@@ -376,10 +421,12 @@ def main():
             for u in updates[:200]:
                 w.writerow([u["biz_id"], u["rgm"], u["nome"], json.dumps(u["fields"], ensure_ascii=False)])
         log.info("Preview salvo: %s (%d primeiros)", preview, min(len(updates), 200))
+        if to_move:
+            log.info("  %d negócios seriam movidos para a etapa Inadimplente", len(to_move))
         log.info("Para executar: python update_inadimplentes.py --execute")
         return
 
-    if not updates:
+    if not updates and not to_move:
         log.info("Nada a atualizar.")
         return
 
@@ -392,6 +439,8 @@ def main():
 
     ok_count = 0
     err_count = 0
+    move_ok = 0
+    move_err = 0
     start = time.monotonic()
 
     with open(log_file, "w", newline="", encoding="utf-8-sig") as f:
@@ -423,9 +472,26 @@ def main():
                 log.info("[%d/%d] OK:%d ERR:%d API:%d (%.1f min)",
                          idx, len(updates), ok_count, err_count, api.total_calls, elapsed / 60)
 
+    log.info("Campos atualizados. OK: %d | Erros: %d", ok_count, err_count)
+
+    if to_move and inadimplente_stage_id:
+        BATCH_SIZE = 50
+        log.info("Movendo %d negócios para etapa Inadimplente (batches de %d)...", len(to_move), BATCH_SIZE)
+        for i in range(0, len(to_move), BATCH_SIZE):
+            batch = to_move[i:i + BATCH_SIZE]
+            r = api.move_businesses(batch, inadimplente_stage_id)
+            if r["ok"]:
+                move_ok += len(batch)
+                log.info("  Batch %d-%d: %d movidos OK", i + 1, i + len(batch), len(batch))
+            else:
+                move_err += len(batch)
+                log.warning("  Batch %d-%d: ERRO %s — %s", i + 1, i + len(batch), r["status"], str(r["body"])[:200])
+        log.info("Movimentação concluída. OK: %d | Erros: %d", move_ok, move_err)
+
     conn.close()
     elapsed = time.monotonic() - start
-    log.info("Concluído em %.1f min. OK: %d | Erros: %d | API calls: %d", elapsed / 60, ok_count, err_count, api.total_calls)
+    log.info("Concluído em %.1f min. Campos OK: %d | Campos ERR: %d | Movidos: %d | API calls: %d",
+             elapsed / 60, ok_count, err_count, move_ok, api.total_calls)
     log.info("Log: %s", log_file)
 
 

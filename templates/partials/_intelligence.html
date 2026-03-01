@@ -236,6 +236,11 @@
                             Engajamento AVA (Blackboard)
                         </h3>
                         <div class="flex items-center gap-2">
+                            <select id="eng-nivel" onchange="_loadEngScores(); _loadEngCharts()" class="input-glass px-2.5 py-1.5 text-xs text-slate-200 w-36 rounded-lg">
+                                <option value="">Consolidado</option>
+                                <option value="Graduação">Graduação</option>
+                                <option value="Pós-Graduação">Pós-Graduação</option>
+                            </select>
                             <button id="btn-recalc-eng" onclick="_recalcEngagement()" class="btn-secondary text-xs px-3 py-1.5 rounded-lg flex items-center gap-1">
                                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                                 Recalcular
@@ -278,20 +283,11 @@
                         </div>
                     </div>
 
-                    <!-- Risk Distribution (donut) + Score Timeline -->
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
-                        <div class="glass-card p-4">
-                            <p class="text-xs font-bold text-slate-400 uppercase mb-3">Distribuição de Risco</p>
-                            <div class="relative h-52">
-                                <canvas id="eng-risk-chart"></canvas>
-                            </div>
-                        </div>
-                        <div class="glass-card p-4">
-                            <p class="text-xs font-bold text-slate-400 uppercase mb-3">Evolução do Score Médio</p>
-                            <div class="relative h-52">
-                                <canvas id="eng-timeline-chart"></canvas>
-                            </div>
-                            <p id="eng-timeline-empty" class="text-center text-xs text-slate-500 mt-2 hidden">Recalcule diariamente para ver a evolução.</p>
+                    <!-- Risk Distribution (donut) -->
+                    <div class="glass-card p-4 mb-5 max-w-md">
+                        <p class="text-xs font-bold text-slate-400 uppercase mb-3">Distribuição de Risco</p>
+                        <div class="relative h-52">
+                            <canvas id="eng-risk-chart"></canvas>
                         </div>
                     </div>
 

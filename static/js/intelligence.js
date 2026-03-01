@@ -138,21 +138,56 @@ async function _loadIntelTimeline() {
 async function _loadIntelAlerts() {
     const container = document.getElementById('intel-alerts-list');
     try {
-        const [crossMatrInad, crossMatrAva, crossMatrSem] = await Promise.all([
+        const [crossInadAll, crossInadGrad, crossInadPos, crossMatrAva, crossMatrSem] = await Promise.all([
             fetch('/api/snapshots/crossref?tipo_a=matriculados&tipo_b=inadimplentes').then(r=>r.json()).catch(()=>({})),
+            fetch('/api/snapshots/crossref?tipo_a=matriculados&tipo_b=inadimplentes&nivel=Gradua%C3%A7%C3%A3o').then(r=>r.json()).catch(()=>({})),
+            fetch('/api/snapshots/crossref?tipo_a=matriculados&tipo_b=inadimplentes&nivel=P%C3%B3s-Gradua%C3%A7%C3%A3o').then(r=>r.json()).catch(()=>({})),
             fetch('/api/snapshots/crossref?tipo_a=matriculados&tipo_b=acesso_ava').then(r=>r.json()).catch(()=>({})),
             fetch('/api/snapshots/crossref?tipo_a=matriculados&tipo_b=sem_rematricula').then(r=>r.json()).catch(()=>({})),
         ]);
         let alerts = [];
-        if (crossMatrInad.em_ambos > 0) {
-            const pct = (crossMatrInad.em_ambos / Math.max(crossMatrInad.total_a, 1) * 100).toFixed(1);
+        const inadIcon = 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z';
+
+        if (crossInadGrad.em_ambos > 0) {
+            const pct = (crossInadGrad.em_ambos / Math.max(crossInadGrad.total_a, 1) * 100).toFixed(1);
             alerts.push({
                 level: pct > 20 ? 'high' : pct > 10 ? 'medium' : 'low',
-                icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-                title: `${crossMatrInad.em_ambos.toLocaleString('pt-BR')} alunos matriculados são inadimplentes (${pct}%)`,
-                desc: `De ${crossMatrInad.total_a.toLocaleString('pt-BR')} matriculados, ${crossMatrInad.em_ambos.toLocaleString('pt-BR')} possuem títulos em aberto.`,
+                icon: inadIcon,
+                title: `Graduação: ${crossInadGrad.em_ambos.toLocaleString('pt-BR')} inadimplentes (${pct}%)`,
+                desc: `De ${crossInadGrad.total_a.toLocaleString('pt-BR')} matriculados de graduação, ${crossInadGrad.em_ambos.toLocaleString('pt-BR')} possuem títulos em aberto.`,
+                exportParams: 'tipo_a=matriculados&tipo_b=inadimplentes&subset=em_ambos&nivel=Gradua%C3%A7%C3%A3o',
             });
         }
+        if (crossInadPos.em_ambos > 0) {
+            const pct = (crossInadPos.em_ambos / Math.max(crossInadPos.total_a, 1) * 100).toFixed(1);
+            alerts.push({
+                level: pct > 20 ? 'high' : pct > 10 ? 'medium' : 'low',
+                icon: inadIcon,
+                title: `Pós-Graduação: ${crossInadPos.em_ambos.toLocaleString('pt-BR')} inadimplentes (${pct}%)`,
+                desc: `De ${crossInadPos.total_a.toLocaleString('pt-BR')} matriculados de pós, ${crossInadPos.em_ambos.toLocaleString('pt-BR')} possuem títulos em aberto.`,
+                exportParams: 'tipo_a=matriculados&tipo_b=inadimplentes&subset=em_ambos&nivel=P%C3%B3s-Gradua%C3%A7%C3%A3o',
+            });
+        } else if (crossInadAll.em_ambos > 0 && !crossInadGrad.em_ambos) {
+            const pct = (crossInadAll.em_ambos / Math.max(crossInadAll.total_a, 1) * 100).toFixed(1);
+            alerts.push({
+                level: pct > 20 ? 'high' : pct > 10 ? 'medium' : 'low',
+                icon: inadIcon,
+                title: `${crossInadAll.em_ambos.toLocaleString('pt-BR')} alunos inadimplentes (${pct}%)`,
+                desc: `De ${crossInadAll.total_a.toLocaleString('pt-BR')} matriculados, ${crossInadAll.em_ambos.toLocaleString('pt-BR')} possuem títulos em aberto.`,
+                exportParams: 'tipo_a=matriculados&tipo_b=inadimplentes&subset=em_ambos',
+            });
+        }
+
+        if (crossInadAll.apenas_b > 0) {
+            alerts.push({
+                level: 'medium',
+                icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z',
+                title: `${crossInadAll.apenas_b.toLocaleString('pt-BR')} inadimplentes não encontrados como matriculados`,
+                desc: `Alunos na base de inadimplentes que não constam na base de matriculados ativos.`,
+                exportParams: 'tipo_a=matriculados&tipo_b=inadimplentes&subset=apenas_b',
+            });
+        }
+
         if (crossMatrAva.total_a > 0 && crossMatrAva.apenas_a > 0) {
             const pct = (crossMatrAva.apenas_a / Math.max(crossMatrAva.total_a, 1) * 100).toFixed(1);
             alerts.push({
@@ -160,6 +195,7 @@ async function _loadIntelAlerts() {
                 icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
                 title: `${crossMatrAva.apenas_a.toLocaleString('pt-BR')} matriculados sem registro no AVA (${pct}%)`,
                 desc: `Esses alunos não possuem dados de acesso ao ambiente virtual de aprendizagem.`,
+                exportParams: 'tipo_a=matriculados&tipo_b=acesso_ava&subset=apenas_a',
             });
         }
         if (crossMatrSem.em_ambos > 0) {
@@ -168,6 +204,7 @@ async function _loadIntelAlerts() {
                 icon: 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636',
                 title: `${crossMatrSem.em_ambos.toLocaleString('pt-BR')} alunos matriculados constam como sem rematrícula`,
                 desc: `Inconsistência: presentes na base de matriculados e também na base de sem rematrícula.`,
+                exportParams: 'tipo_a=matriculados&tipo_b=sem_rematricula&subset=em_ambos',
             });
         }
         if (alerts.length === 0) {
@@ -178,10 +215,13 @@ async function _loadIntelAlerts() {
         container.innerHTML = alerts.map(a => `
             <div class="border rounded-xl p-4 flex items-start gap-3 ${levelColors[a.level]}">
                 <svg class="w-5 h-5 flex-shrink-0 mt-0.5 ${levelIcons[a.level]}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${a.icon}"/></svg>
-                <div>
+                <div class="flex-1">
                     <p class="text-sm font-semibold text-white">${a.title}</p>
                     <p class="text-xs text-slate-400 mt-0.5">${a.desc}</p>
                 </div>
+                ${a.exportParams ? `<button onclick="window.open('/api/snapshots/crossref/export?${a.exportParams}','_blank')" class="flex-shrink-0 btn-secondary text-[10px] px-2.5 py-1 rounded-lg flex items-center gap-1" title="Exportar CSV">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    CSV</button>` : ''}
             </div>`).join('');
     } catch(e) { container.innerHTML = `<p class="text-red-400 text-sm">Erro: ${e.message}</p>`; }
 }
@@ -189,7 +229,7 @@ async function _loadIntelAlerts() {
 // ===========================================================================
 // ENGAGEMENT AVA + COMMUNICATION MONITOR
 // ===========================================================================
-let _engRiskChart = null, _engTimelineChart = null, _engPage_current = 1;
+let _engRiskChart = null, _engPage_current = 1;
 
 const _riskLabels = {engajado:'Engajado', atencao:'Atenção', em_risco:'Em Risco', critico:'Crítico'};
 const _riskColors = {engajado:'#10b981', atencao:'#f59e0b', em_risco:'#f97316', critico:'#ef4444'};
@@ -271,17 +311,26 @@ async function _triggerEvaluation() {
     } catch(e) { alert('Erro: ' + e.message); }
 }
 
+function _engNivel() {
+    const el = document.getElementById('eng-nivel');
+    return el ? el.value : '';
+}
+
 async function _loadEngScores() {
     try {
-        const res = await api('/api/engagement/scores?per_page=1');
+        const nivel = _engNivel();
+        const qs = nivel ? `per_page=1&nivel=${encodeURIComponent(nivel)}` : 'per_page=1';
+        const res = await api(`/api/engagement/scores?${qs}`);
         const d = await res.json();
         const s = d.summary || {};
         const total = Object.values(s).reduce((a,b)=>a+b, 0);
+        const pct = (v) => total > 0 ? ` (${(v / total * 100).toFixed(1)}%)` : '';
+
         document.getElementById('eng-total').textContent = total.toLocaleString('pt-BR');
-        document.getElementById('eng-engajados').textContent = (s.engajado || 0).toLocaleString('pt-BR');
-        document.getElementById('eng-atencao').textContent = (s.atencao || 0).toLocaleString('pt-BR');
-        document.getElementById('eng-risco').textContent = (s.em_risco || 0).toLocaleString('pt-BR');
-        document.getElementById('eng-criticos').textContent = (s.critico || 0).toLocaleString('pt-BR');
+        document.getElementById('eng-engajados').innerHTML = `${(s.engajado || 0).toLocaleString('pt-BR')}<span class="text-xs text-emerald-400/70 ml-1">${pct(s.engajado || 0)}</span>`;
+        document.getElementById('eng-atencao').innerHTML = `${(s.atencao || 0).toLocaleString('pt-BR')}<span class="text-xs text-amber-400/70 ml-1">${pct(s.atencao || 0)}</span>`;
+        document.getElementById('eng-risco').innerHTML = `${(s.em_risco || 0).toLocaleString('pt-BR')}<span class="text-xs text-orange-400/70 ml-1">${pct(s.em_risco || 0)}</span>`;
+        document.getElementById('eng-criticos').innerHTML = `${(s.critico || 0).toLocaleString('pt-BR')}<span class="text-xs text-rose-400/70 ml-1">${pct(s.critico || 0)}</span>`;
 
         if (d.has_ava_snapshot === false && total > 0) {
             _showEngAlert('warning', 'Nenhum snapshot de Acesso AVA encontrado. Faça upload do relatório AVA na aba Atualização e depois clique em Recalcular.');
@@ -299,14 +348,19 @@ async function _loadEngScores() {
 }
 
 function _exportSemAva() {
-    window.open('/api/engagement/export-sem-ava', '_blank');
+    const nivel = _engNivel();
+    const qs = nivel ? `?nivel=${encodeURIComponent(nivel)}` : '';
+    window.open(`/api/engagement/export-sem-ava${qs}`, '_blank');
 }
 
 async function _loadEngCharts() {
     try {
-        const res = await api('/api/engagement/scores?per_page=1');
+        const nivel = _engNivel();
+        const qs = nivel ? `per_page=1&nivel=${encodeURIComponent(nivel)}` : 'per_page=1';
+        const res = await api(`/api/engagement/scores?${qs}`);
         const d = await res.json();
         const s = d.summary || {};
+        const total = Object.values(s).reduce((a,b)=>a+b, 0);
 
         const canvas = document.getElementById('eng-risk-chart');
         if (_engRiskChart) _engRiskChart.destroy();
@@ -320,50 +374,20 @@ async function _loadEngCharts() {
                 responsive: true, maintainAspectRatio: false,
                 cutout: '65%',
                 plugins: {
-                    legend: { position: 'bottom', labels: { color: '#94a3b8', padding: 12, usePointStyle: true, pointStyleWidth: 8 } }
+                    legend: { position: 'bottom', labels: { color: '#94a3b8', padding: 12, usePointStyle: true, pointStyleWidth: 8 } },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => {
+                                const v = ctx.parsed;
+                                const pct = total > 0 ? (v / total * 100).toFixed(1) : '0';
+                                return ` ${ctx.label}: ${v.toLocaleString('pt-BR')} (${pct}%)`;
+                            }
+                        }
+                    }
                 }
             }
         });
     } catch(e) { console.error('Risk chart error:', e); }
-
-    try {
-        const res2 = await api('/api/engagement/timeline?days=90');
-        const d2 = await res2.json();
-        const pts = d2.points || [];
-        const canvas2 = document.getElementById('eng-timeline-chart');
-        const emptyMsg = document.getElementById('eng-timeline-empty');
-        if (pts.length < 2) {
-            emptyMsg.classList.remove('hidden');
-            canvas2.style.display = 'none';
-            if (_engTimelineChart) { _engTimelineChart.destroy(); _engTimelineChart = null; }
-            return;
-        }
-        emptyMsg.classList.add('hidden');
-        canvas2.style.display = 'block';
-        if (_engTimelineChart) _engTimelineChart.destroy();
-        _engTimelineChart = new Chart(canvas2, {
-            type: 'line',
-            data: {
-                labels: pts.map(p => p.snapshot_date),
-                datasets: [{
-                    label: 'Score Médio',
-                    data: pts.map(p => p.avg_score),
-                    borderColor: '#6366f1',
-                    backgroundColor: '#6366f120',
-                    fill: true, tension: 0.3, pointRadius: 4,
-                    pointBackgroundColor: '#6366f1',
-                }]
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { labels: { color: '#94a3b8' } } },
-                scales: {
-                    x: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } },
-                    y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, min: 0, max: 100 }
-                }
-            }
-        });
-    } catch(e) { console.error('Timeline chart error:', e); }
 }
 
 async function _loadCommLog() {

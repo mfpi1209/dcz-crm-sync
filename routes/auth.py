@@ -50,7 +50,7 @@ def require_auth():
     if not session.get("authenticated"):
         if request.path.startswith("/api/"):
             return jsonify({"error": "Não autenticado"}), 401
-        return redirect(url_for(".login"))
+        return redirect(url_for("auth_bp.login"))
     if "role" not in session:
         uid = session.get("user_id")
         if uid and uid != 0:
@@ -68,7 +68,7 @@ def require_auth():
         session.clear()
         if request.path.startswith("/api/"):
             return jsonify({"error": "Sessão expirada, faça login novamente"}), 401
-        return redirect(url_for(".login"))
+        return redirect(url_for("auth_bp.login"))
 
 
 @auth_bp.route("/login", methods=["GET", "POST"])
@@ -83,13 +83,13 @@ def login():
             session["user_id"] = db_user["id"]
             session["username"] = db_user["username"]
             session["role"] = db_user["role"]
-            return redirect(url_for("index"))
+            return redirect(url_for("dashboard_bp.index"))
         if APP_PASS_FALLBACK and user == APP_USER_FALLBACK and pwd == APP_PASS_FALLBACK:
             session["authenticated"] = True
             session["user_id"] = 0
             session["username"] = APP_USER_FALLBACK
             session["role"] = "admin"
-            return redirect(url_for("index"))
+            return redirect(url_for("dashboard_bp.index"))
         error = "Usuário ou senha incorretos."
     return render_template("login.html", error=error)
 
@@ -97,7 +97,7 @@ def login():
 @auth_bp.route("/logout")
 def logout():
     session.clear()
-    return redirect(url_for(".login"))
+    return redirect(url_for("auth_bp.login"))
 
 
 @auth_bp.route("/api/me")

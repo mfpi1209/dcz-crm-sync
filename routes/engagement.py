@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import logging
 import threading
@@ -29,6 +30,8 @@ N8N_COMM_WEBHOOK = os.getenv(
 
 NEW_STUDENT_DAYS = 30
 RECENCY_WINDOW_DAYS = 45
+_POS_RE = re.compile(r'p[oó]s', re.IGNORECASE)
+_POS_CURSO_RE = re.compile(r'(mba|especializa[cç][aã]o|p[oó]s.gradua|lato.sensu|stricto)', re.IGNORECASE)
 
 # ---------------------------------------------------------------------------
 # Funções auxiliares
@@ -186,13 +189,26 @@ def calculate_engagement_scores():
                 else:
                     risk = "critico"
 
+                raw_nivel = mat_data.get("nivel", "")
+                raw_negocio = mat_data.get("negocio", "")
+                raw_curso = mat_data.get("curso", "")
+                if raw_nivel and _POS_RE.search(raw_nivel):
+                    nivel = "Pós-Graduação"
+                elif _POS_RE.search(raw_negocio or ""):
+                    nivel = "Pós-Graduação"
+                elif _POS_CURSO_RE.search(raw_curso or ""):
+                    nivel = "Pós-Graduação"
+                else:
+                    nivel = "Graduação"
+
                 detail = {
                     "recency": recency, "frequency": frequency,
                     "depth": depth, "phase_penalty": phase_penalty,
                     "is_new": is_new, "nome": mat_data.get("nome", ""),
-                    "curso": mat_data.get("curso", ""),
+                    "curso": raw_curso,
                     "polo": mat_data.get("polo", ""),
                     "email": mat_data.get("email", ""),
+                    "nivel": nivel,
                 }
 
                 cur.execute("""
@@ -492,6 +508,7 @@ def api_engagement_scores():
     risk = request.args.get("risk", "").strip()
     polo = request.args.get("polo", "").strip()
     curso = request.args.get("curso", "").strip()
+    nivel = request.args.get("nivel", "").strip()
     page = int(request.args.get("page", 1))
     per_page = int(request.args.get("per_page", 50))
     offset = (page - 1) * per_page
@@ -510,6 +527,9 @@ def api_engagement_scores():
             if curso:
                 conditions.append("detail->>'curso' ILIKE %s")
                 params.append(f"%{curso}%")
+            if nivel:
+                conditions.append("detail->>'nivel' = %s")
+                params.append(nivel)
 
             where = " AND ".join(conditions)
 
@@ -529,22 +549,36 @@ def api_engagement_scores():
             for r in rows:
                 r["snapshot_date"] = str(r["snapshot_date"]) if r["snapshot_date"] else None
 
-            cur.execute("""
+            summary_conds = ["snapshot_date = (SELECT MAX(snapshot_date) FROM ava_engagement)"]
+            summary_params = []
+            if nivel:
+                summary_conds.append("detail->>'nivel' = %s")
+                summary_params.append(nivel)
+            summary_where = " AND ".join(summary_conds)
+
+            cur.execute(f"""
                 SELECT risk_level, COUNT(*) as cnt
                 FROM ava_engagement
-                WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM ava_engagement)
+                WHERE {summary_where}
                 GROUP BY risk_level
-            """)
+            """, summary_params)
             summary = {r["risk_level"]: r["cnt"] for r in cur.fetchall()}
 
             cur.execute("SELECT id FROM xl_snapshots WHERE tipo='acesso_ava' ORDER BY id DESC LIMIT 1")
             has_ava = cur.fetchone() is not None
 
-            cur.execute("""
+            sem_ava_conds = [
+                "snapshot_date = (SELECT MAX(snapshot_date) FROM ava_engagement)",
+                "days_since_last_access IS NULL",
+            ]
+            sem_ava_params = []
+            if nivel:
+                sem_ava_conds.append("detail->>'nivel' = %s")
+                sem_ava_params.append(nivel)
+            cur.execute(f"""
                 SELECT COUNT(*) as cnt FROM ava_engagement
-                WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM ava_engagement)
-                  AND days_since_last_access IS NULL
-            """)
+                WHERE {' AND '.join(sem_ava_conds)}
+            """, sem_ava_params)
             sem_ava_count = cur.fetchone()["cnt"]
 
         return jsonify({
@@ -563,37 +597,47 @@ def api_engagement_scores():
 @engagement_bp.route("/api/engagement/export-sem-ava")
 def api_engagement_export_sem_ava():
     """Exporta CSV dos alunos sem dados no AVA (days_since_last_access IS NULL)."""
+    nivel = request.args.get("nivel", "").strip()
     conn = get_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute("""
+            conds = [
+                "snapshot_date = (SELECT MAX(snapshot_date) FROM ava_engagement)",
+                "days_since_last_access IS NULL",
+            ]
+            params = []
+            if nivel:
+                conds.append("detail->>'nivel' = %s")
+                params.append(nivel)
+            cur.execute(f"""
                 SELECT rgm, score, risk_level,
                        detail->>'nome' as nome,
                        detail->>'curso' as curso,
                        detail->>'polo' as polo,
-                       detail->>'email' as email
+                       detail->>'email' as email,
+                       detail->>'nivel' as nivel
                 FROM ava_engagement
-                WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM ava_engagement)
-                  AND days_since_last_access IS NULL
+                WHERE {' AND '.join(conds)}
                 ORDER BY detail->>'nome'
-            """)
+            """, params)
             rows = cur.fetchall()
 
         buf = io.StringIO()
         writer = csv.writer(buf, delimiter=';')
-        writer.writerow(["Nome", "RGM", "Curso", "Polo", "Email", "Score", "Risco"])
+        writer.writerow(["Nome", "RGM", "Curso", "Polo", "Email", "Nivel", "Score", "Risco"])
         for r in rows:
             writer.writerow([
                 r["nome"] or "", r["rgm"] or "", r["curso"] or "",
-                r["polo"] or "", r["email"] or "",
+                r["polo"] or "", r["email"] or "", r["nivel"] or "",
                 r["score"], r["risk_level"] or "",
             ])
 
         output = buf.getvalue()
+        suffix = f"_{nivel.replace('-','').replace(' ','_').lower()}" if nivel else ""
         return Response(
             output,
             mimetype="text/csv",
-            headers={"Content-Disposition": "attachment; filename=alunos_sem_ava.csv"},
+            headers={"Content-Disposition": f"attachment; filename=alunos_sem_ava{suffix}.csv"},
         )
     finally:
         conn.close()
@@ -602,10 +646,16 @@ def api_engagement_export_sem_ava():
 @engagement_bp.route("/api/engagement/timeline")
 def api_engagement_timeline():
     days = int(request.args.get("days", 90))
+    nivel = request.args.get("nivel", "").strip()
     conn = get_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute("""
+            conds = ["snapshot_date >= CURRENT_DATE - %s"]
+            params = [days]
+            if nivel:
+                conds.append("detail->>'nivel' = %s")
+                params.append(nivel)
+            cur.execute(f"""
                 SELECT snapshot_date,
                        ROUND(AVG(score)) as avg_score,
                        COUNT(*) as total,
@@ -614,10 +664,10 @@ def api_engagement_timeline():
                        SUM(CASE WHEN risk_level='em_risco' THEN 1 ELSE 0 END) as em_risco,
                        SUM(CASE WHEN risk_level='critico' THEN 1 ELSE 0 END) as criticos
                 FROM ava_engagement
-                WHERE snapshot_date >= CURRENT_DATE - %s
+                WHERE {' AND '.join(conds)}
                 GROUP BY snapshot_date
                 ORDER BY snapshot_date
-            """, (days,))
+            """, params)
             points = cur.fetchall()
             for p in points:
                 p["snapshot_date"] = str(p["snapshot_date"])
