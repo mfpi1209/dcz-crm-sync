@@ -44,6 +44,11 @@ function navigate(page) {
     history.replaceState(null, '', '#' + page);
 }
 
+window.addEventListener('hashchange', () => {
+    const hash = location.hash.replace('#', '') || 'dashboard';
+    if (PAGES.includes(hash)) navigate(hash);
+});
+
 function toggleSidebar() {
     document.getElementById('sidebar').classList.toggle('open');
     document.getElementById('sidebar-overlay').classList.toggle('open');
