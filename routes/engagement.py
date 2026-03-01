@@ -26,6 +26,7 @@ N8N_COMM_WEBHOOK = os.getenv(
 )
 
 NEW_STUDENT_DAYS = 30
+RECENCY_WINDOW_DAYS = 45
 
 # ---------------------------------------------------------------------------
 # Funções auxiliares
@@ -116,7 +117,7 @@ def calculate_engagement_scores():
 
                 recency = 0
                 if days_no_access is not None:
-                    recency = max(0, 100 - int(days_no_access * 100 / 30))
+                    recency = max(0, 100 - int(days_no_access * 100 / RECENCY_WINDOW_DAYS))
                 elif ava_data is None:
                     recency = 0
 
@@ -130,7 +131,7 @@ def calculate_engagement_scores():
 
                 frequency = 0
                 if ava_data and days_no_access is not None and days_no_access <= 14:
-                    frequency = max(0, 100 - days_no_access * 7)
+                    frequency = max(0, 100 - days_no_access * 4)
                 elif ava_data and days_no_access is not None:
                     frequency = max(0, 30 - (days_no_access - 14) * 2)
 
@@ -148,11 +149,11 @@ def calculate_engagement_scores():
                 )
                 score = max(0, min(100, score))
 
-                if score >= 80:
+                if score >= 75:
                     risk = "engajado"
-                elif score >= 60:
+                elif score >= 55:
                     risk = "atencao"
-                elif score >= 30:
+                elif score >= 46:
                     risk = "em_risco"
                 else:
                     risk = "critico"
