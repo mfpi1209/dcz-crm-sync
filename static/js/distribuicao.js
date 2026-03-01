@@ -215,6 +215,83 @@ function handleDropTyped(e, tipo) {
     if (file) handleUploadTyped(file, tipo);
 }
 
+function handleDropBatchInadimplentes(e) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('border-amber-500', 'bg-amber-950/10');
+    const files = e.dataTransfer.files;
+    if (files.length === 1 && files[0].name.toLowerCase().endsWith('.zip')) {
+        handleUploadTyped(files[0], 'inadimplentes');
+    } else if (files.length > 0) {
+        handleUploadBatchInadimplentes(files);
+    }
+}
+
+async function handleUploadBatchInadimplentes(fileList) {
+    if (!fileList || fileList.length === 0) return;
+
+    if (fileList.length === 1 && fileList[0].name.toLowerCase().endsWith('.zip')) {
+        return handleUploadTyped(fileList[0], 'inadimplentes');
+    }
+
+    const allowed = ['xlsx', 'xlsm'];
+    const valid = [];
+    for (const f of fileList) {
+        const ext = f.name.toLowerCase().split('.').pop();
+        if (allowed.includes(ext)) valid.push(f);
+    }
+    if (valid.length === 0) {
+        alert('Nenhum arquivo .xlsx/.xlsm válido selecionado.');
+        return;
+    }
+
+    const card = document.querySelector('[data-upload-tipo="inadimplentes"]');
+    const progress = card.querySelector('.upload-progress');
+    const bar = card.querySelector('.upload-bar');
+    const msg = card.querySelector('.upload-msg');
+    progress.classList.remove('hidden');
+    bar.style.width = '20%';
+    msg.textContent = `Enviando ${valid.length} arquivo(s)...`;
+    msg.className = 'upload-msg text-xs text-slate-400 mt-1';
+
+    const form = new FormData();
+    for (const f of valid) form.append('files', f);
+    form.append('tipo', 'inadimplentes');
+
+    try {
+        bar.style.width = '60%';
+        const res = await fetch('/api/upload-batch', { method: 'POST', body: form });
+        const data = await res.json();
+        bar.style.width = '100%';
+
+        if (data.error) {
+            msg.textContent = data.error;
+            msg.classList.add('text-red-400');
+            setTimeout(() => { progress.classList.add('hidden'); }, 3000);
+            return;
+        }
+
+        const rowsTxt = data.snapshot_rows >= 0 ? ` (${data.snapshot_rows.toLocaleString('pt-BR')} alunos)` : '';
+        msg.textContent = `✓ ${data.files_count} arquivos processados!${rowsTxt}`;
+        msg.className = 'upload-msg text-xs text-emerald-400 font-semibold mt-1';
+        loadFileInfo();
+
+        setTimeout(() => {
+            bar.style.width = '0%';
+            progress.querySelector('.upload-bar').parentElement.classList.add('hidden');
+        }, 1500);
+    } catch (err) {
+        bar.style.width = '100%';
+        msg.textContent = 'Erro: ' + err.message;
+        msg.classList.add('text-red-400');
+        setTimeout(() => {
+            progress.classList.add('hidden');
+            bar.style.width = '0%';
+        }, 3000);
+    }
+
+    card.querySelector('input[type="file"]').value = '';
+}
+
 function handleDropSemRemat(e, subtipo) {
     e.preventDefault();
     e.currentTarget.classList.remove('border-emerald-500', 'bg-emerald-950/10',

@@ -354,8 +354,8 @@ def _parse_inadimplentes_batch(folder_path):
     DESCRICA_COLS = ["descricao_titulo", "portador_nome"]
 
     files = sorted(
-        _glob.glob(os.path.join(folder_path, "*.xlsm"))
-        + _glob.glob(os.path.join(folder_path, "*.xlsx"))
+        _glob.glob(os.path.join(folder_path, "**", "*.xlsm"), recursive=True)
+        + _glob.glob(os.path.join(folder_path, "**", "*.xlsx"), recursive=True)
     )
     if not files:
         return []
@@ -839,6 +839,55 @@ def api_upload():
             "size": stat.st_size,
             "modified": to_brt(datetime.fromtimestamp(stat.st_mtime, tz=BRT)),
         },
+        "snapshot_rows": snap_count,
+    })
+
+
+@upload_bp.route("/api/upload-batch", methods=["POST"])
+def api_upload_batch():
+    """Recebe múltiplos arquivos .xlsm/.xlsx para inadimplentes e processa em lote."""
+    files = request.files.getlist("files")
+    if not files:
+        return jsonify({"error": "Nenhum arquivo enviado."}), 400
+
+    tipo = request.form.get("tipo", "").strip().lower()
+    if tipo not in ("inadimplentes",):
+        return jsonify({"error": "Upload em lote só suportado para inadimplentes."}), 400
+
+    allowed_ext = (".xlsx", ".xlsm")
+    tmp_dir = UPLOAD_DIR / f"_tmp_{tipo}"
+    if tmp_dir.exists():
+        shutil.rmtree(str(tmp_dir), ignore_errors=True)
+    tmp_dir.mkdir(exist_ok=True)
+
+    saved = []
+    for f in files:
+        if not f.filename:
+            continue
+        fname_lower = f.filename.lower()
+        if not any(fname_lower.endswith(ext) for ext in allowed_ext):
+            continue
+        dest = tmp_dir / f.filename
+        f.save(str(dest))
+        saved.append(f.filename)
+
+    if not saved:
+        return jsonify({"error": "Nenhum arquivo .xlsx/.xlsm válido encontrado."}), 400
+
+    try:
+        entries = _parse_inadimplentes_batch(str(tmp_dir))
+        snap_count = _persist_snapshot_entries(entries, tipo, f"{len(saved)} arquivos") if entries else 0
+    except Exception as e:
+        current_app.logger.warning("Erro upload-batch (%s): %s", tipo, e)
+        current_app.logger.warning("Traceback: %s", traceback.format_exc())
+        return jsonify({"error": f"Erro ao processar: {e}"}), 500
+    finally:
+        shutil.rmtree(str(tmp_dir), ignore_errors=True)
+
+    return jsonify({
+        "ok": True,
+        "tipo": tipo,
+        "files_count": len(saved),
         "snapshot_rows": snap_count,
     })
 
