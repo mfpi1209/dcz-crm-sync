@@ -5,53 +5,53 @@ async function loadDashboard() {
     try {
         const res = await api('/api/dashboard');
         const d = await res.json();
-        if (d.error) return;
-
-        document.getElementById('dash-leads').textContent = (d.total_leads || 0).toLocaleString('pt-BR');
-        document.getElementById('dash-biz').textContent = (d.total_businesses || 0).toLocaleString('pt-BR');
-        document.getElementById('dash-pipelines').textContent = d.total_pipelines || 0;
-
-        const dashStatus = document.getElementById('dash-status');
-        if (d.sync_running) {
-            dashStatus.innerHTML = '<span class="inline-block w-3 h-3 rounded-full bg-indigo-400 animate-pulse"></span> Sync...';
-        } else if (d.update_running) {
-            dashStatus.innerHTML = '<span class="inline-block w-3 h-3 rounded-full bg-amber-400 animate-pulse"></span> Update...';
+        if (d.error) {
+            console.warn('Dashboard API error:', d.error);
         } else {
-            dashStatus.innerHTML = '<span class="green-dot"></span> Conectado';
-        }
+            document.getElementById('dash-leads').textContent = (d.total_leads || 0).toLocaleString('pt-BR');
+            document.getElementById('dash-biz').textContent = (d.total_businesses || 0).toLocaleString('pt-BR');
+            document.getElementById('dash-pipelines').textContent = d.total_pipelines || 0;
 
-        // Sync state
-        const stateDiv = document.getElementById('dash-sync-state');
-        if (d.sync_states && d.sync_states.length) {
-            stateDiv.innerHTML = `<table class="w-full text-left">
-                <thead><tr class="text-xs text-slate-500 border-b border-slate-700/20">
-                    <th class="pb-2 font-semibold">Entidade</th><th class="pb-2 font-semibold">Último sync</th><th class="pb-2 font-semibold">Runs</th>
-                </tr></thead>
-                <tbody>${d.sync_states.map(s => `<tr class="border-b border-slate-700/10 hover:bg-slate-800/20 transition">
-                    <td class="py-2 text-slate-300 font-mono text-xs">${esc(s.entity_type)}</td>
-                    <td class="py-2 text-slate-400 text-xs">${s.last_sync_at ? fmtDate(s.last_sync_at) : '—'}</td>
-                    <td class="py-2 text-slate-300 font-semibold">${s.run_count || 0}</td>
-                </tr>`).join('')}</tbody></table>`;
-        } else {
-            stateDiv.textContent = 'Nenhuma sincronização realizada.';
-        }
+            const dashStatus = document.getElementById('dash-status');
+            if (d.sync_running) {
+                dashStatus.innerHTML = '<span class="inline-block w-3 h-3 rounded-full bg-indigo-400 animate-pulse"></span> Sync...';
+            } else if (d.update_running) {
+                dashStatus.innerHTML = '<span class="inline-block w-3 h-3 rounded-full bg-amber-400 animate-pulse"></span> Update...';
+            } else {
+                dashStatus.innerHTML = '<span class="green-dot"></span> Conectado';
+            }
 
-        // Recent
-        const recentDiv = document.getElementById('dash-recent');
-        if (d.recent_updates && d.recent_updates.length) {
-            recentDiv.innerHTML = d.recent_updates.map(u => `
-                <div class="flex items-center justify-between py-2 border-b border-slate-700/10 hover:bg-slate-800/10 transition">
-                    <div>
-                        <span class="text-slate-300 text-sm font-medium">${esc(u.nome_lead || '—')}</span>
-                        <span class="text-slate-600 text-xs ml-2">${esc(u.pipeline || '')} &rarr; ${esc(u.etapa || '')}</span>
+            const stateDiv = document.getElementById('dash-sync-state');
+            if (d.sync_states && d.sync_states.length) {
+                stateDiv.innerHTML = `<table class="w-full text-left">
+                    <thead><tr class="text-xs text-slate-500 border-b border-slate-700/20">
+                        <th class="pb-2 font-semibold">Entidade</th><th class="pb-2 font-semibold">Último sync</th><th class="pb-2 font-semibold">Runs</th>
+                    </tr></thead>
+                    <tbody>${d.sync_states.map(s => `<tr class="border-b border-slate-700/10 hover:bg-slate-800/20 transition">
+                        <td class="py-2 text-slate-300 font-mono text-xs">${esc(s.entity_type)}</td>
+                        <td class="py-2 text-slate-400 text-xs">${s.last_sync_at ? fmtDate(s.last_sync_at) : '—'}</td>
+                        <td class="py-2 text-slate-300 font-semibold">${s.run_count || 0}</td>
+                    </tr>`).join('')}</tbody></table>`;
+            } else {
+                stateDiv.textContent = 'Nenhuma sincronização realizada.';
+            }
+
+            const recentDiv = document.getElementById('dash-recent');
+            if (d.recent_updates && d.recent_updates.length) {
+                recentDiv.innerHTML = d.recent_updates.map(u => `
+                    <div class="flex items-center justify-between py-2 border-b border-slate-700/10 hover:bg-slate-800/10 transition">
+                        <div>
+                            <span class="text-slate-300 text-sm font-medium">${esc(u.nome_lead || '—')}</span>
+                            <span class="text-slate-600 text-xs ml-2">${esc(u.pipeline || '')} &rarr; ${esc(u.etapa || '')}</span>
+                        </div>
+                        <span class="tag-pill ${u.status === 'won' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : u.status === 'lost' ? 'bg-red-500/15 text-red-400 border border-red-500/30' : 'bg-blue-500/15 text-blue-400 border border-blue-500/30'}">
+                            ${{won:'Ganho', in_process:'Aberto', lost:'Perdido'}[u.status] || u.status}
+                        </span>
                     </div>
-                    <span class="tag-pill ${u.status === 'won' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : u.status === 'lost' ? 'bg-red-500/15 text-red-400 border border-red-500/30' : 'bg-blue-500/15 text-blue-400 border border-blue-500/30'}">
-                        ${{won:'Ganho', in_process:'Aberto', lost:'Perdido'}[u.status] || u.status}
-                    </span>
-                </div>
-            `).join('');
-        } else {
-            recentDiv.textContent = 'Nenhuma atualização recente.';
+                `).join('');
+            } else {
+                recentDiv.textContent = 'Nenhuma atualização recente.';
+            }
         }
     } catch (err) {
         console.error('Dashboard load error:', err);
@@ -456,10 +456,17 @@ async function loadStudentMetrics() {
     if (nivel) params.set('nivel', nivel);
     if (situacao) params.set('situacao', situacao);
 
+    const stuContainer = document.getElementById('stu-tipo-cards');
+    if (stuContainer) stuContainer.innerHTML = '<div class="col-span-full text-center py-8 text-slate-500"><svg class="w-6 h-6 animate-spin inline-block mr-2 text-slate-600" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Carregando métricas...</div>';
+
     try {
         const res = await api('/api/dashboard/students?' + params);
         const d = await res.json();
-        if (d.error) return;
+        if (d.error) {
+            console.warn('Student metrics error:', d.error);
+            if (stuContainer) stuContainer.innerHTML = '<div class="col-span-full text-center py-4 text-rose-400 text-sm">Erro ao carregar: ' + esc(d.error) + '</div>';
+            return;
+        }
 
         const fmt = n => (n || 0).toLocaleString('pt-BR');
         const gt = d.grand_total || 1;
@@ -513,6 +520,7 @@ async function loadStudentMetrics() {
         }
     } catch (err) {
         console.error('Student metrics error:', err);
+        if (stuContainer) stuContainer.innerHTML = '<div class="col-span-full text-center py-4 text-rose-400 text-sm">Erro ao carregar métricas</div>';
     }
 }
 
