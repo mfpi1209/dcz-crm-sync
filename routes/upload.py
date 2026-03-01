@@ -180,6 +180,7 @@ _XL_COLUMN_MAP = {
     "fone_res": ["Fone Residencial"],
     "fone_com": ["Fone Comercial"],
     "negocio": ["Negócio", "Neg"],
+    "nivel": ["Nível", "Nivel", "Nível de Ensino", "Nível Ensino", "Tipo Curso"],
     "empresa": ["Empresa", "NOM_FILI"],
     "bairro": ["Bairro"],
     "cidade": ["Cidade"],

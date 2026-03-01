@@ -53,9 +53,16 @@ WITH mat AS (
           ELSE NULL
         END AS data_matricula,
         r.data->>'situacao' AS situacao,
-        CASE WHEN r.data->>'negocio' ILIKE '%%pos%%'
-             THEN 'Pós-Graduação' ELSE 'Graduação' END AS nivel,
-        r.data->>'polo'  AS polo,
+        CASE
+          WHEN COALESCE(r.data->>'nivel','') != '' THEN
+            CASE WHEN r.data->>'nivel' ILIKE '%%pos%%' THEN 'Pós-Graduação'
+                 ELSE 'Graduação' END
+          WHEN r.data->>'negocio' ILIKE '%%pos%%' THEN 'Pós-Graduação'
+          WHEN r.data->>'curso' ~* '(mba|especializa|pos.gradua|lato.sensu|stricto)'
+               THEN 'Pós-Graduação'
+          ELSE 'Graduação'
+        END AS nivel,
+        TRIM(REGEXP_REPLACE(COALESCE(r.data->>'polo',''), '^\d+\s*[-–]\s*', '')) AS polo,
         r.data->>'curso' AS turma
     FROM xl_rows r
     WHERE r.snapshot_id = (
@@ -385,16 +392,22 @@ def api_dashboard_ciclos():
             ciclos_config = cur.fetchall()
 
             cur.execute("""
-                SELECT
-                    CASE WHEN r.data->>'negocio' ILIKE '%%pos%%'
-                         THEN 'Pós-Graduação' ELSE 'Graduação' END AS nivel,
-                    COUNT(*) AS total
-                FROM xl_rows r
-                WHERE r.snapshot_id = (
-                    SELECT id FROM xl_snapshots
-                    WHERE tipo = 'matriculados' ORDER BY id DESC LIMIT 1
-                )
-                GROUP BY nivel ORDER BY total DESC
+                SELECT nivel, COUNT(*) AS total FROM (
+                    SELECT CASE
+                      WHEN COALESCE(r.data->>'nivel','') != '' THEN
+                        CASE WHEN r.data->>'nivel' ILIKE '%%pos%%' THEN 'Pós-Graduação'
+                             ELSE 'Graduação' END
+                      WHEN r.data->>'negocio' ILIKE '%%pos%%' THEN 'Pós-Graduação'
+                      WHEN r.data->>'curso' ~* '(mba|especializa|pos.gradua|lato.sensu|stricto)'
+                           THEN 'Pós-Graduação'
+                      ELSE 'Graduação'
+                    END AS nivel
+                    FROM xl_rows r
+                    WHERE r.snapshot_id = (
+                        SELECT id FROM xl_snapshots
+                        WHERE tipo = 'matriculados' ORDER BY id DESC LIMIT 1
+                    )
+                ) sub GROUP BY nivel ORDER BY total DESC
             """, {})
             distinct_nivels = {r["nivel"]: r["total"] for r in cur.fetchall()}
 
