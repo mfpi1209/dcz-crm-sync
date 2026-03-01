@@ -304,21 +304,8 @@ function _showEngAlert(type, message) {
         error: 'bg-rose-900/50 border-rose-500/40 text-rose-300',
         info: 'bg-sky-900/50 border-sky-500/40 text-sky-300',
     };
-    const icons = {
-        success: '✓',
-        warning: '⚠',
-        error: '✕',
-        info: 'ℹ',
-    };
-    let container = document.getElementById('eng-alert-container');
-    if (!container) {
-        const section = document.getElementById('eng-total')?.closest('.glass-card')?.parentElement;
-        if (section) {
-            container = document.createElement('div');
-            container.id = 'eng-alert-container';
-            section.prepend(container);
-        }
-    }
+    const icons = { success: '✓', warning: '⚠', error: '✕', info: 'ℹ' };
+    const container = document.getElementById('eng-alert-container');
     if (!container) { alert(message); return; }
     container.innerHTML = `<div class="rounded-lg border px-4 py-3 text-sm mb-4 flex items-start gap-2 ${colors[type] || colors.info}">
         <span class="font-bold text-base leading-none mt-0.5">${icons[type] || 'ℹ'}</span>
