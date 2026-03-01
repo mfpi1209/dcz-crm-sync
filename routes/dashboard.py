@@ -1,4 +1,5 @@
 import traceback
+import unicodedata
 from datetime import datetime
 
 import psycopg2
@@ -9,6 +10,26 @@ from db import get_conn
 from helpers import BRT, to_brt
 
 dashboard_bp = Blueprint("dashboard", __name__)
+
+
+def _strip_accents_lower(s):
+    return unicodedata.normalize('NFD', s).encode('ascii', 'ignore').decode('ascii').lower()
+
+
+def _classify_tipo(raw):
+    """Classifica tipo_matricula por substring, tolerante a acentos e variações."""
+    if not raw or raw.strip() in ('', 'Não informado', 'N/I'):
+        return 'outros'
+    s = _strip_accents_lower(raw)
+    if 'remat' in s or 'renovacao' in s or 'veterano' in s:
+        return 'rematricula'
+    if 'regresso' in s or 'retorno' in s:
+        return 'regresso'
+    if 'recompra' in s:
+        return 'recompra'
+    if 'matricula' in s or 'calouro' in s:
+        return 'novos'
+    return 'outros'
 
 
 def _get_process_state():
@@ -146,13 +167,6 @@ def api_dashboard_students():
             })
             rows = cur.fetchall()
 
-        tipo_map = {
-            "Calouro": "novos",
-            "Regresso (Retorno)": "regresso",
-            "Calouro (Recompra)": "recompra",
-            "Veterano": "rematricula",
-        }
-
         totals = {"novos": 0, "regresso": 0, "recompra": 0, "rematricula": 0, "outros": 0}
         by_situacao = {}
         by_nivel = {}
@@ -160,11 +174,13 @@ def api_dashboard_students():
         by_turma = {}
         by_ciclo = {}
         by_tipo_detail = {}
+        raw_tipos = {}
 
         for r in rows:
             tipo = r["tipo"] or "Não informado"
-            cat = tipo_map.get(tipo, "outros")
+            cat = _classify_tipo(tipo)
             totals[cat] += r["total"]
+            raw_tipos[tipo] = raw_tipos.get(tipo, 0) + r["total"]
 
             sit = r["situacao"] or "N/I"
             by_situacao[sit] = by_situacao.get(sit, 0) + r["total"]
@@ -203,6 +219,7 @@ def api_dashboard_students():
             "by_turma": dict(sorted(by_turma.items(), key=lambda x: -x[1])),
             "by_ciclo": dict(sorted(by_ciclo.items(), key=lambda x: -x[1])),
             "grand_total": sum(totals.values()),
+            "raw_tipos": dict(sorted(raw_tipos.items(), key=lambda x: -x[1])),
             "filter": {"from": dt_from, "to": dt_to},
         })
     except Exception as e:
@@ -254,13 +271,6 @@ def api_dashboard_timeline():
     else:
         range_end = today
 
-    tipo_map = {
-        "Calouro": "novos",
-        "Regresso (Retorno)": "regresso",
-        "Calouro (Recompra)": "recompra",
-        "Veterano": "rematricula",
-    }
-
     conn = get_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -277,7 +287,7 @@ def api_dashboard_timeline():
         for r in rows:
             p = r["period"]
             all_periods.add(p)
-            cat = tipo_map.get(r["tipo"] or "", "outros")
+            cat = _classify_tipo(r["tipo"] or "")
             if cat not in series:
                 series[cat] = {}
             series[cat][p] = series[cat].get(p, 0) + r["total"]
@@ -337,14 +347,14 @@ ORDER BY total DESC
 """
 
 
-def _aggregate_rows(rows, tipo_map):
+def _aggregate_rows(rows):
     result = {
         "totals": {"novos": 0, "regresso": 0, "recompra": 0, "rematricula": 0, "outros": 0},
         "by_situacao": {}, "by_polo": {}, "grand_total": 0,
     }
     for r in rows:
         tipo = r["tipo"] or "Não informado"
-        cat = tipo_map.get(tipo, "outros")
+        cat = _classify_tipo(tipo)
         result["totals"][cat] += r["total"]
         result["grand_total"] += r["total"]
         sit = r["situacao"] or "N/I"
@@ -366,10 +376,6 @@ def api_dashboard_ciclos():
     conn = get_conn()
     try:
         today = datetime.now().date()
-        tipo_map = {
-            "Calouro": "novos", "Regresso (Retorno)": "regresso",
-            "Calouro (Recompra)": "recompra", "Veterano": "rematricula",
-        }
 
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             if f_nivel:
@@ -431,7 +437,7 @@ def api_dashboard_ciclos():
                               "totals": {"novos": 0, "regresso": 0, "recompra": 0, "rematricula": 0, "outros": 0},
                               "by_situacao": {}, "by_polo": {}, "grand_total": 0}
             c = ciclos[cn]
-            cat = tipo_map.get(r["tipo"] or "", "outros")
+            cat = _classify_tipo(r["tipo"] or "")
             c["totals"][cat] += r["total"]
             c["grand_total"] += r["total"]
             sit = r["situacao"] or "N/I"
@@ -458,22 +464,22 @@ def api_dashboard_ciclos():
                 "ytd": {
                     "label": f"YTD {today.year}",
                     "period": f"{ytd_start.isoformat()} → {today.isoformat()}",
-                    "current": _aggregate_rows(ytd_current, tipo_map),
+                    "current": _aggregate_rows(ytd_current),
                 },
                 "ytd_prev": {
                     "label": f"YTD {today.year - 1}",
                     "period": f"{ytd_prev_start.isoformat()} → {ytd_prev_end.isoformat()}",
-                    "current": _aggregate_rows(ytd_previous, tipo_map),
+                    "current": _aggregate_rows(ytd_previous),
                 },
                 "m6": {
                     "label": "Últimos 6 meses",
                     "period": f"{m6_start.isoformat()} → {today.isoformat()}",
-                    "current": _aggregate_rows(m6_current, tipo_map),
+                    "current": _aggregate_rows(m6_current),
                 },
                 "m6_prev": {
                     "label": "6 meses anteriores",
                     "period": f"{m6_prev_start.isoformat()} → {m6_prev_end.isoformat()}",
-                    "current": _aggregate_rows(m6_previous, tipo_map),
+                    "current": _aggregate_rows(m6_previous),
                 },
             },
         })
