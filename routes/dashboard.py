@@ -99,8 +99,17 @@ def api_dashboard():
                 ORDER BY id DESC LIMIT 1
             """)
             snap = cur.fetchone()
+            diag = None
             if snap:
                 snap["uploaded_at"] = to_brt(snap["uploaded_at"])
+                cur.execute("""
+                    SELECT
+                        ARRAY_AGG(DISTINCT r.data->>'negocio') FILTER (WHERE r.data->>'negocio' IS NOT NULL AND r.data->>'negocio' != '') AS negocio_vals,
+                        ARRAY_AGG(DISTINCT r.data->>'nivel')   FILTER (WHERE r.data->>'nivel' IS NOT NULL AND r.data->>'nivel' != '')     AS nivel_vals,
+                        ARRAY_AGG(DISTINCT r.data->>'tipo_matricula') FILTER (WHERE r.data->>'tipo_matricula' IS NOT NULL AND r.data->>'tipo_matricula' != '') AS tipo_vals
+                    FROM (SELECT r.data FROM xl_rows r WHERE r.snapshot_id = %s LIMIT 500) r
+                """, (snap["id"],))
+                diag = cur.fetchone()
 
         _sync_running, _update_running = _get_process_state()
 
@@ -108,6 +117,7 @@ def api_dashboard():
             "snapshot": snap,
             "sync_running": _sync_running,
             "update_running": _update_running,
+            "diag": diag,
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500

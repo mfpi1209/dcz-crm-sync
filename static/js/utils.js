@@ -155,9 +155,11 @@ function updateThemeUI(theme) {
 const currentTheme = localStorage.getItem('eduit-theme') || 'dark';
 updateThemeUI(currentTheme);
 
-const hash = window.location.hash.replace('#', '') || 'dashboard';
-if (PAGES.includes(hash)) {
-    navigate(hash);
-} else {
-    navigate('dashboard');
-}
+document.addEventListener('DOMContentLoaded', () => {
+    const hash = window.location.hash.replace('#', '') || 'dashboard';
+    if (PAGES.includes(hash)) {
+        navigate(hash);
+    } else {
+        navigate('dashboard');
+    }
+});

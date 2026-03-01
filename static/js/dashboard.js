@@ -27,6 +27,9 @@ async function loadDashboard() {
                 statusEl.innerHTML = '<span class="green-dot"></span> Conectado';
             }
         }
+        if (d.diag) {
+            console.info('[Dashboard diag] negocio:', d.diag.negocio_vals, '| nivel:', d.diag.nivel_vals, '| tipo_matricula:', d.diag.tipo_vals);
+        }
     } catch (err) {
         console.error('Dashboard load error:', err);
     }
