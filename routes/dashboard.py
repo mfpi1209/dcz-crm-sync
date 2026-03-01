@@ -55,10 +55,10 @@ WITH mat AS (
         r.data->>'situacao' AS situacao,
         CASE
           WHEN COALESCE(r.data->>'nivel','') != '' THEN
-            CASE WHEN r.data->>'nivel' ILIKE '%%pos%%' THEN 'Pós-Graduação'
+            CASE WHEN r.data->>'nivel' ~* 'p[oó]s' THEN 'Pós-Graduação'
                  ELSE 'Graduação' END
-          WHEN r.data->>'negocio' ILIKE '%%pos%%' THEN 'Pós-Graduação'
-          WHEN r.data->>'curso' ~* '(mba|especializa|pos.gradua|lato.sensu|stricto)'
+          WHEN r.data->>'negocio' ~* 'p[oó]s' THEN 'Pós-Graduação'
+          WHEN r.data->>'curso' ~* '(mba|especializa[cç][aã]o|p[oó]s.gradua|lato.sensu|stricto)'
                THEN 'Pós-Graduação'
           ELSE 'Graduação'
         END AS nivel,
@@ -405,10 +405,10 @@ def api_dashboard_ciclos():
                 SELECT nivel, COUNT(*) AS total FROM (
                     SELECT CASE
                       WHEN COALESCE(r.data->>'nivel','') != '' THEN
-                        CASE WHEN r.data->>'nivel' ILIKE '%%pos%%' THEN 'Pós-Graduação'
+                        CASE WHEN r.data->>'nivel' ~* 'p[oó]s' THEN 'Pós-Graduação'
                              ELSE 'Graduação' END
-                      WHEN r.data->>'negocio' ILIKE '%%pos%%' THEN 'Pós-Graduação'
-                      WHEN r.data->>'curso' ~* '(mba|especializa|pos.gradua|lato.sensu|stricto)'
+                      WHEN r.data->>'negocio' ~* 'p[oó]s' THEN 'Pós-Graduação'
+                      WHEN r.data->>'curso' ~* '(mba|especializa[cç][aã]o|p[oó]s.gradua|lato.sensu|stricto)'
                            THEN 'Pós-Graduação'
                       ELSE 'Graduação'
                     END AS nivel
