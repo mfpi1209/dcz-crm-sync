@@ -358,25 +358,38 @@ def _parse_inadimplentes_batch(folder_path):
     }
     DESCRICA_COLS = ["descricao_titulo", "portador_nome"]
 
-    files = sorted(
-        _glob.glob(os.path.join(folder_path, "**", "*.xlsm"), recursive=True)
+    files = sorted(set(
+        _glob.glob(os.path.join(folder_path, "*.xlsm"))
+        + _glob.glob(os.path.join(folder_path, "*.xlsx"))
+        + _glob.glob(os.path.join(folder_path, "**", "*.xlsm"), recursive=True)
         + _glob.glob(os.path.join(folder_path, "**", "*.xlsx"), recursive=True)
-    )
+    ))
+    current_app.logger.info("[INADIMPLENTES] Pasta: %s | Arquivos encontrados: %d", folder_path, len(files))
     if not files:
+        current_app.logger.warning("[INADIMPLENTES] Nenhum .xlsm/.xlsx encontrado em %s", folder_path)
         return []
 
     raw_rows = []
+    files_ok = 0
+    files_no_header = 0
+    files_error = 0
     for fpath in files:
+        fname = os.path.basename(fpath)
         try:
             wb = openpyxl.load_workbook(fpath, data_only=True, read_only=True)
             ws = wb[wb.sheetnames[0]]
             header_row = None
+            first_cells = []
             for i, row in enumerate(ws.iter_rows(max_col=18, values_only=True), 1):
+                if i <= 5 and row and row[0]:
+                    first_cells.append(f"L{i}:{str(row[0]).strip()[:30]}")
                 if row and row[0] and str(row[0]).strip().upper() == "ID_POLO":
                     header_row = i
                     headers = [str(c).strip() if c else f"col_{j}" for j, c in enumerate(row)]
                     break
             if not header_row:
+                files_no_header += 1
+                current_app.logger.warning("[INADIMPLENTES] %s: cabeçalho ID_POLO não encontrado. Primeiras células: %s", fname, first_cells)
                 wb.close()
                 continue
             for row in ws.iter_rows(min_row=header_row + 1, max_col=18, values_only=True):
@@ -412,9 +425,16 @@ def _parse_inadimplentes_batch(folder_path):
                     except (ValueError, TypeError):
                         pass
                 raw_rows.append(entry)
+            files_ok += 1
             wb.close()
         except Exception as exc:
-            current_app.logger.warning("Erro ao processar %s: %s", fpath, exc)
+            files_error += 1
+            current_app.logger.warning("[INADIMPLENTES] Erro ao processar %s: %s", fname, exc)
+
+    current_app.logger.info(
+        "[INADIMPLENTES] Resultado: %d arquivos OK, %d sem cabeçalho, %d com erro. Total linhas brutas: %d",
+        files_ok, files_no_header, files_error, len(raw_rows),
+    )
 
     aggregated = {}
     for row in raw_rows:
@@ -879,6 +899,8 @@ def api_upload_batch():
     if not saved:
         return jsonify({"error": "Nenhum arquivo .xlsx/.xlsm válido encontrado."}), 400
 
+    current_app.logger.info("[UPLOAD-BATCH] %d arquivos salvos em %s: %s", len(saved), tmp_dir, saved[:5])
+
     try:
         entries = _parse_inadimplentes_batch(str(tmp_dir))
         snap_count = _persist_snapshot_entries(entries, tipo, f"{len(saved)} arquivos") if entries else 0
@@ -888,6 +910,15 @@ def api_upload_batch():
         return jsonify({"error": f"Erro ao processar: {e}"}), 500
     finally:
         shutil.rmtree(str(tmp_dir), ignore_errors=True)
+
+    if snap_count == 0 and saved:
+        return jsonify({
+            "ok": True,
+            "tipo": tipo,
+            "files_count": len(saved),
+            "snapshot_rows": 0,
+            "warning": "Arquivos recebidos mas nenhum dado extraído. Verifique se os arquivos contêm a linha de cabeçalho com ID_POLO na primeira coluna.",
+        })
 
     return jsonify({
         "ok": True,

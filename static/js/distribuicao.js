@@ -270,9 +270,14 @@ async function handleUploadBatchInadimplentes(fileList) {
             return;
         }
 
-        const rowsTxt = data.snapshot_rows >= 0 ? ` (${data.snapshot_rows.toLocaleString('pt-BR')} alunos)` : '';
-        msg.textContent = `✓ ${data.files_count} arquivos processados!${rowsTxt}`;
-        msg.className = 'upload-msg text-xs text-emerald-400 font-semibold mt-1';
+        if (data.warning) {
+            msg.textContent = `⚠ ${data.files_count} arquivos recebidos mas 0 alunos extraídos. Verifique o formato dos arquivos.`;
+            msg.className = 'upload-msg text-xs text-amber-400 font-semibold mt-1';
+        } else {
+            const rowsTxt = data.snapshot_rows >= 0 ? ` (${data.snapshot_rows.toLocaleString('pt-BR')} alunos)` : '';
+            msg.textContent = `✓ ${data.files_count} arquivos processados!${rowsTxt}`;
+            msg.className = 'upload-msg text-xs text-emerald-400 font-semibold mt-1';
+        }
         loadFileInfo();
 
         setTimeout(() => {
