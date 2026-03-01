@@ -1,0 +1,170 @@
+            <div id="page-distribuicao" class="p-4 lg:p-8 max-w-7xl mx-auto hidden">
+                <!-- Header -->
+                <div class="mb-8">
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-3xl font-bold text-white font-display">Distribuição</h2>
+                            <p class="text-slate-500 text-sm">Gestão de responsáveis e filas de atendimento</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cards de métricas com ícones e gradientes -->
+                <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+                    <!-- Fila Principal -->
+                    <div class="glass-card p-5 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-indigo-500 to-purple-500"></div>
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-10 h-10 rounded-xl bg-indigo-500/15 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </div>
+                            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Fila Principal</p>
+                        </div>
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs text-slate-400 flex items-center gap-1">
+                                    <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+                                    Captura
+                                </span>
+                                <span class="text-xl font-bold text-indigo-400 font-display" id="dist-fila-atendimento">—</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs text-slate-400 flex items-center gap-1">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                                    Acolhimento
+                                </span>
+                                <span class="text-xl font-bold text-emerald-400 font-display" id="dist-fila-acolhimento">—</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Em Atendimento -->
+                    <div class="glass-card p-5 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-blue-500 to-cyan-500"></div>
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-10 h-10 rounded-xl bg-blue-500/15 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </div>
+                            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Em Atendimento</p>
+                        </div>
+                        <p class="text-3xl font-bold text-white font-display" id="dist-em-atendimento">—</p>
+                        <p class="text-xs text-slate-500 mt-1">Consultores ativos</p>
+                    </div>
+
+                    <!-- Ativos Atendimento -->
+                    <div class="glass-card p-5 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-emerald-500 to-teal-500"></div>
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            </div>
+                            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Ativos Atend.</p>
+                        </div>
+                        <p class="text-3xl font-bold text-white font-display" id="dist-ativos-atend">—</p>
+                        <p class="text-xs text-slate-500 mt-1">Disponíveis</p>
+                    </div>
+
+                    <!-- Ativos Acolhimento -->
+                    <div class="glass-card p-5 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-amber-500 to-orange-500"></div>
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </div>
+                            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Ativos Acolh.</p>
+                        </div>
+                        <p class="text-3xl font-bold text-white font-display" id="dist-ativos-acolh">—</p>
+                        <p class="text-xs text-slate-500 mt-1">Disponíveis</p>
+                    </div>
+
+                    <!-- Total Ativos -->
+                    <div class="glass-card p-5 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-purple-500 to-pink-500"></div>
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-10 h-10 rounded-xl bg-purple-500/15 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            </div>
+                            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Ativos</p>
+                        </div>
+                        <p class="text-3xl font-bold text-white font-display" id="dist-total-ativos">—</p>
+                        <p class="text-xs text-slate-500 mt-1">Todos os consultores</p>
+                    </div>
+                </div>
+
+                <!-- Barra de controles estilizada -->
+                <div class="glass-card p-4 mb-5">
+                    <div class="flex flex-wrap items-center justify-between gap-4">
+                        <div class="flex items-center gap-3">
+                            <button onclick="loadDistribuicao()" id="btn-dist-refresh" class="btn-primary text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center gap-2">
+                                <svg class="w-4 h-4" id="dist-refresh-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                Atualizar
+                            </button>
+                            <button onclick="saveDistribuicao()" class="btn-success text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center gap-2" style="background:linear-gradient(135deg,#059669,#10b981); box-shadow:0 4px 14px rgba(5,150,105,0.3);">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                Salvar Alterações
+                            </button>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <div class="flex items-center gap-2 px-3 py-2 bg-slate-800/50 rounded-xl border border-slate-700/50">
+                                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+                                <select id="dist-filter" onchange="filterDistribuicao()" class="bg-transparent text-sm text-slate-300 border-none outline-none cursor-pointer">
+                                    <option value="Todos">Todos</option>
+                                    <option value="Atendimento">Atendimento</option>
+                                    <option value="Acolhimento">Acolhimento</option>
+                                </select>
+                            </div>
+                            <span class="text-xs text-slate-500 flex items-center gap-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                Clique nos cabeçalhos para ordenar
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabela estilizada -->
+                <div class="glass-card overflow-hidden">
+                    <div class="px-4 py-3 bg-slate-800/50 border-b border-slate-700/30 flex items-center justify-between">
+                        <h3 class="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                            Lista de Responsáveis
+                        </h3>
+                        <span class="text-xs text-slate-500" id="dist-count">0 registros</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full" id="dist-table">
+                            <thead>
+                                <tr class="bg-slate-800/30">
+                                    <th class="px-4 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Responsável</th>
+                                    <th class="px-3 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Status</th>
+                                    <th class="px-3 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Almoço</th>
+                                    <th class="px-3 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Fim Exp.</th>
+                                    <th class="px-3 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Pausa</th>
+                                    <th class="px-3 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Volume</th>
+                                    <th class="px-3 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-wider cursor-pointer select-none hover:text-indigo-400 transition-colors" onclick="sortDistCol('fila')">
+                                        <span class="flex items-center justify-center gap-1">Fila <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg></span>
+                                        <span id="dist-sort-fila" class="text-[8px]"></span>
+                                    </th>
+                                    <th class="px-3 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-wider cursor-pointer select-none hover:text-indigo-400 transition-colors" onclick="sortDistCol('ultima_execucao')">
+                                        <span class="flex items-center justify-center gap-1">Últ. Execução <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></span>
+                                        <span id="dist-sort-ultima_execucao" class="text-[8px]"></span>
+                                    </th>
+                                    <th class="px-3 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-wider cursor-pointer select-none hover:text-indigo-400 transition-colors" onclick="sortDistCol('tipo_atendimento')">
+                                        <span class="flex items-center justify-center gap-1">Tipo <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg></span>
+                                        <span id="dist-sort-tipo_atendimento" class="text-[8px]"></span>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="dist-tbody" class="divide-y divide-slate-700/20 text-sm"></tbody>
+                        </table>
+                    </div>
+                    <div id="dist-loading" class="text-center py-12">
+                        <div class="inline-flex items-center gap-3 text-slate-500">
+                            <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                            Carregando dados...
+                        </div>
+                    </div>
+                </div>
+            </div>

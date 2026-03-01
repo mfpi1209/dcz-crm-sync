@@ -1,0 +1,253 @@
+            <div id="page-pipeline" class="p-4 lg:p-8 max-w-7xl mx-auto hidden">
+                <div class="mb-8">
+                    <h2 class="text-3xl font-bold text-white font-display mb-1">Saneamento / Pipeline</h2>
+                    <p class="text-slate-500 text-sm">Sanitize duplicatas e gerencie pipeline de alunos</p>
+                </div>
+
+                <!-- FASE 1: Saneamento -->
+                <div class="glass-card p-5 mb-6">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-xs font-bold text-amber-400 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-lg">FASE 1</span>
+                        <h3 class="text-sm font-bold text-slate-200 font-display">Saneamento de Duplicatas</h3>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-4">Remove negócios duplicados (mesmo RGM no mesmo lead) e negócios sem RGM. Gera relatório de RGMs em leads diferentes para análise manual.</p>
+
+                    <!-- Rate limit slider -->
+                    <div class="mb-4 p-3 rounded-lg bg-slate-800/30 border border-slate-700/20">
+                        <div class="flex items-center gap-2 mb-2">
+                            <svg class="w-3.5 h-3.5 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                            <label class="text-xs font-bold text-slate-400">Rate Limit</label>
+                            <span id="san-rate-value" class="text-xs font-mono font-bold text-amber-400">60</span>
+                            <span class="text-[10px] text-slate-600">req/min (API max: 240/min)</span>
+                        </div>
+                        <input type="range" id="san-rate-slider" min="10" max="240" step="5" value="60"
+                            class="w-full h-1.5 bg-slate-700/60 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                            oninput="document.getElementById('san-rate-value').textContent=this.value">
+                        <div class="flex justify-between text-[9px] text-slate-600 mt-1">
+                            <span>10</span><span>60</span><span>120</span><span>180</span><span>240</span>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap gap-3 items-end">
+                        <button onclick="startSanitize('dry-run')" id="btn-san-dryrun"
+                            class="btn-warning text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                            Dry-Run
+                        </button>
+                        <button onclick="startSanitize('test')" id="btn-san-test"
+                            class="btn-primary text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            Testar 1
+                        </button>
+                        <div class="flex items-end gap-2">
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Limite</label>
+                                <input type="number" id="sanitize-limit" placeholder="todos" min="1"
+                                    class="input-glass px-3 py-2.5 text-sm w-24 text-slate-200">
+                            </div>
+                            <button onclick="confirmSanitize()" id="btn-san-execute"
+                                class="btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                Executar DELETEs
+                            </button>
+                        </div>
+                        <button onclick="stopSanitize()" id="btn-san-stop"
+                            class="hidden btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+                            Parar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Enriquecimento de Duplicatas -->
+                <div class="glass-card p-5 mb-6">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-xs font-bold text-blue-400 bg-blue-500/15 border border-blue-500/30 px-2 py-0.5 rounded-lg">ANÁLISE</span>
+                        <h3 class="text-sm font-bold text-slate-200 font-display">Enriquecimento — RGMs em Leads Diferentes</h3>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-4">Consulta histórico e conversas de cada lead do relatório de duplicatas entre leads. Gera CSV enriquecido com última atividade, conversas e recomendação para análise manual.</p>
+
+                    <div class="flex flex-wrap gap-3 items-center">
+                        <button onclick="startEnrich()" id="btn-enrich-start"
+                            class="btn-primary text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            Investigar Duplicatas
+                        </button>
+                        <button onclick="stopEnrich()" id="btn-enrich-stop"
+                            class="hidden btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+                            Parar
+                        </button>
+                        <span class="text-[10px] text-slate-600">Requer relatório de saneamento (dry-run) prévio</span>
+                    </div>
+                </div>
+
+                <!-- MERGE: Consolidar leads duplicados -->
+                <div class="glass-card p-5 mb-6">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-xs font-bold text-violet-400 bg-violet-500/15 border border-violet-500/30 px-2 py-0.5 rounded-lg">MERGE</span>
+                        <h3 class="text-sm font-bold text-slate-200 font-display">Merge de Leads Duplicados</h3>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-4">Move negócios para o lead correto, atualiza telefone do último contato e remove o lead vazio. Requer relatório enriquecido prévio.</p>
+
+                    <div class="mb-4 p-3 rounded-lg bg-slate-800/30 border border-slate-700/20">
+                        <div class="flex items-center gap-2 mb-2">
+                            <svg class="w-3.5 h-3.5 text-violet-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+                            <label class="text-xs font-bold text-slate-400">Fase</label>
+                            <select id="merge-fase" class="input-glass text-xs px-2 py-1 text-slate-200 w-auto">
+                                <option value="">Todas</option>
+                                <option value="1">1 — Fáceis (MANTER + CANDIDATO)</option>
+                                <option value="2">2 — in_process vs lost</option>
+                                <option value="3">3 — Mesmo status</option>
+                                <option value="4">4 — Multi-lead (relatório)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap gap-3 items-end">
+                        <button onclick="startMerge('dry-run')" id="btn-merge-dryrun"
+                            class="btn-warning text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                            Dry-Run
+                        </button>
+                        <button onclick="startMerge('test')" id="btn-merge-test"
+                            class="btn-primary text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            Testar 1
+                        </button>
+                        <div class="flex items-end gap-2">
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Limite</label>
+                                <input type="number" id="merge-limit" placeholder="todos" min="1"
+                                    class="input-glass px-3 py-2.5 text-sm w-24 text-slate-200">
+                            </div>
+                            <button onclick="confirmMerge()" id="btn-merge-execute"
+                                class="btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                                Executar Merge
+                            </button>
+                        </div>
+                        <button onclick="stopMerge()" id="btn-merge-stop"
+                            class="hidden btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+                            Parar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- FASE 2: Pipeline -->
+                <div class="glass-card p-5 mb-6">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-xs font-bold text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-lg">FASE 2</span>
+                        <h3 class="text-sm font-bold text-slate-200 font-display">Movimentação de Pipeline</h3>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-4">Move negócios para etapas corretas (Calouro, Veterano, Sem Rematrícula, Perdido) e altera status (lost/restore). Execute o saneamento antes.</p>
+
+                    <div class="flex flex-wrap gap-3 items-end">
+                        <button onclick="startPipeline('dry-run')" id="btn-pipe-dryrun"
+                            class="btn-warning text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                            Dry-Run
+                        </button>
+                        <button onclick="startPipeline('test')" id="btn-pipe-test"
+                            class="btn-primary text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            Testar 1
+                        </button>
+                        <div class="flex items-end gap-2">
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Limite</label>
+                                <input type="number" id="pipeline-limit" placeholder="todos" min="1"
+                                    class="input-glass px-3 py-2.5 text-sm w-24 text-slate-200">
+                            </div>
+                            <button onclick="confirmPipeline()" id="btn-pipe-execute"
+                                class="btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                                Executar Pipeline
+                            </button>
+                        </div>
+                        <button onclick="stopPipeline()" id="btn-pipe-stop"
+                            class="hidden btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+                            Parar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- FASE 3: Inadimplentes -->
+                <div class="glass-card p-5 mb-6">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-xs font-bold text-amber-400 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-lg">FASE 3</span>
+                        <h3 class="text-sm font-bold text-slate-200 font-display">Atualização de Inadimplentes</h3>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-4">Cruza o snapshot de inadimplentes com os negócios do CRM por RGM e atualiza campos financeiros (valor em aberto, dias de atraso, status financeiro).</p>
+
+                    <div class="flex flex-wrap gap-3 items-end">
+                        <button onclick="startInadimplentes('dry-run')" id="btn-inad-dryrun"
+                            class="btn-warning text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                            Dry-Run
+                        </button>
+                        <button onclick="confirmInadimplentes()" id="btn-inad-execute"
+                            class="btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            Executar
+                        </button>
+                        <button onclick="stopInadimplentes()" id="btn-inad-stop"
+                            class="hidden btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+                            Parar
+                        </button>
+                        <span class="text-[10px] text-slate-600">Requer snapshot de inadimplentes previamente carregado</span>
+                    </div>
+                </div>
+
+                <!-- FASE 4: Concluintes -->
+                <div class="glass-card p-5 mb-6">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-xs font-bold text-purple-400 bg-purple-500/15 border border-purple-500/30 px-2 py-0.5 rounded-lg">FASE 4</span>
+                        <h3 class="text-sm font-bold text-slate-200 font-display">Atualização de Concluintes</h3>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-4">Cruza o snapshot de concluintes com os negócios do CRM por RGM. Move para etapa "Concluinte" e marca como Won.</p>
+
+                    <div class="flex flex-wrap gap-3 items-end">
+                        <button onclick="startConcluintes('dry-run')" id="btn-conc-dryrun"
+                            class="btn-warning text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                            Dry-Run
+                        </button>
+                        <button onclick="confirmConcluintes()" id="btn-conc-execute"
+                            class="btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            Executar
+                        </button>
+                        <button onclick="stopConcluintes()" id="btn-conc-stop"
+                            class="hidden btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+                            Parar
+                        </button>
+                        <span class="text-[10px] text-slate-600">Requer snapshot de concluintes previamente carregado</span>
+                    </div>
+                </div>
+
+                <!-- Log compartilhado -->
+                <div class="log-panel">
+                    <div class="log-header flex items-center justify-between">
+                        <div class="flex gap-4 flex-wrap">
+                            <button onclick="showPipelineLog('sanitize')" id="tab-san-log" class="text-xs font-semibold text-indigo-400 border-b-2 border-indigo-400 pb-1 transition">Saneamento</button>
+                            <button onclick="showPipelineLog('enrich')" id="tab-enrich-log" class="text-xs font-semibold text-slate-500 hover:text-slate-300 pb-1 transition">Enriquecimento</button>
+                            <button onclick="showPipelineLog('merge')" id="tab-merge-log" class="text-xs font-semibold text-slate-500 hover:text-slate-300 pb-1 transition">Merge</button>
+                            <button onclick="showPipelineLog('pipeline')" id="tab-pipe-log" class="text-xs font-semibold text-slate-500 hover:text-slate-300 pb-1 transition">Pipeline</button>
+                            <button onclick="showPipelineLog('inadimplentes')" id="tab-inad-log" class="text-xs font-semibold text-slate-500 hover:text-slate-300 pb-1 transition">Inadimplentes</button>
+                            <button onclick="showPipelineLog('concluintes')" id="tab-conc-log" class="text-xs font-semibold text-slate-500 hover:text-slate-300 pb-1 transition">Concluintes</button>
+                        </div>
+                        <button onclick="clearPipelineLog()" class="text-xs text-slate-600 hover:text-slate-400 transition">Limpar</button>
+                    </div>
+                    <pre id="sanitize-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap"></pre>
+                    <pre id="enrich-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap hidden"></pre>
+                    <pre id="merge-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap hidden"></pre>
+                    <pre id="pipeline-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap hidden"></pre>
+                    <pre id="inadimplentes-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap hidden"></pre>
+                    <pre id="concluintes-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap hidden"></pre>
+                </div>
+            </div>
