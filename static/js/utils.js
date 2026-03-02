@@ -114,12 +114,18 @@ function refreshBadge() {
 // ---------------------------------------------------------------------------
 // Sidebar — permissões dinâmicas
 // ---------------------------------------------------------------------------
+const SIDEBAR_GROUPS = {
+    academico: ['distribuicao', 'intelligence', 'inadimplencia', 'feedback'],
+    comercial: ['pipeline', 'update'],
+};
+
 async function applySidebarPermissions() {
     try {
         const res = await api('/api/me');
         const d = await res.json();
         const pages = d.pages || [];
         const role = d.role || '';
+
         document.querySelectorAll('#sidebar .sidebar-link[data-page]').forEach(link => {
             const page = link.getAttribute('data-page');
             if (role === 'admin' || pages.includes(page)) {
@@ -128,6 +134,26 @@ async function applySidebarPermissions() {
                 link.style.display = 'none';
             }
         });
+
+        Object.entries(SIDEBAR_GROUPS).forEach(([group, groupPages]) => {
+            const el = document.querySelector(`.sidebar-group[data-group="${group}"]`);
+            if (!el) return;
+            const hasAny = role === 'admin' || groupPages.some(p => pages.includes(p));
+            el.style.display = hasAny ? '' : 'none';
+        });
+
+        const operacaoLabel = document.getElementById('sidebar-section-operacao');
+        if (operacaoLabel) {
+            const anyOp = role === 'admin' || [...SIDEBAR_GROUPS.academico, ...SIDEBAR_GROUPS.comercial].some(p => pages.includes(p));
+            operacaoLabel.style.display = anyOp ? '' : 'none';
+        }
+        const sistemaLabel = document.getElementById('sidebar-section-sistema');
+        if (sistemaLabel) {
+            const sysPages = ['sync', 'logs', 'config', 'schedule'];
+            const anySys = role === 'admin' || sysPages.some(p => pages.includes(p));
+            sistemaLabel.style.display = anySys ? '' : 'none';
+        }
+
         const cfgTab = document.getElementById('cfg-tab-usuarios');
         if (cfgTab) cfgTab.style.display = role === 'admin' ? '' : 'none';
     } catch (e) { console.error('sidebar permissions', e); }
