@@ -206,6 +206,58 @@
             flex-shrink: 0;
         }
 
+        .sidebar-sub {
+            padding-left: 2rem;
+            font-size: 0.82rem;
+        }
+
+        .sidebar-section-label {
+            font-size: 0.6rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: var(--text-muted);
+            padding: 0 0.75rem;
+        }
+
+        .sidebar-group-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            border: none;
+            background: none;
+            cursor: pointer;
+            border-radius: var(--radius-btn);
+            transition: all var(--transition-base);
+        }
+        .sidebar-group-toggle:hover {
+            color: var(--text-primary);
+            background: rgba(255,255,255,0.03);
+        }
+
+        .sidebar-group-chevron {
+            transition: transform var(--transition-base);
+        }
+        .sidebar-group.collapsed .sidebar-group-chevron {
+            transform: rotate(-90deg);
+        }
+        .sidebar-group.collapsed .sidebar-group-items {
+            display: none;
+        }
+        .sidebar-group-items {
+            margin-top: 2px;
+            space-y: 1px;
+        }
+
+        .light .sidebar-section-label { color: #94a3b8; }
+        .light .sidebar-group-toggle { color: #64748b; }
+        .light .sidebar-group-toggle:hover { color: #0f172a; background: #f1f5f9; }
+
         /* ═══════════════════════════════════════════════════════════════
            COMPONENTES — Metric Cards
            ═══════════════════════════════════════════════════════════════ */

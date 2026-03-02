@@ -8,7 +8,7 @@
                         </div>
                         <div>
                             <h2 class="text-3xl font-bold text-white font-display">Inadimplência</h2>
-                            <p class="text-slate-500 text-sm">Histórico e análise de inadimplentes por nível, tipo e turma</p>
+                            <p class="text-slate-500 text-sm">Análise comparativa e evolução de inadimplentes</p>
                         </div>
                     </div>
                 </div>
@@ -16,6 +16,14 @@
                 <!-- Filters -->
                 <div class="glass-card p-5 mb-6">
                     <div class="flex flex-wrap items-end gap-4">
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs font-medium text-slate-500">Período De</label>
+                            <input type="date" id="inad-date-from" class="input-glass px-3 py-2 text-sm text-slate-200 w-40 rounded-lg" onchange="loadInadimplencia()">
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs font-medium text-slate-500">Até</label>
+                            <input type="date" id="inad-date-to" class="input-glass px-3 py-2 text-sm text-slate-200 w-40 rounded-lg" onchange="loadInadimplencia()">
+                        </div>
                         <div class="flex flex-col gap-1.5">
                             <label class="text-xs font-medium text-slate-500">Nível</label>
                             <select id="inad-filter-nivel" class="input-glass px-3 py-2 text-sm text-slate-200 w-44 rounded-lg" onchange="loadInadimplencia()">
@@ -32,10 +40,15 @@
                                 <option value="turma">Turma / Série</option>
                             </select>
                         </div>
-                        <button onclick="loadInadimplencia()" class="btn-primary text-white font-medium text-sm px-6 py-2.5 rounded-xl flex items-center gap-2">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                            Atualizar
-                        </button>
+                        <div class="flex gap-2">
+                            <button onclick="loadInadimplencia()" class="btn-primary text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                Atualizar
+                            </button>
+                            <button onclick="_inadClearDates()" class="btn-secondary text-slate-300 font-medium text-sm px-4 py-2.5 rounded-xl" title="Limpar datas">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -45,54 +58,79 @@
                         <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-amber-500 to-orange-500"></div>
                         <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Inadimplentes</p>
                         <p class="text-2xl font-bold text-white font-display mt-1" id="inad-total">—</p>
-                        <p class="text-xs text-slate-500 mt-1" id="inad-total-sub">Último snapshot</p>
-                    </div>
-                    <div class="glass-card p-5 relative overflow-hidden">
-                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-emerald-500 to-green-500"></div>
-                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Snapshots</p>
-                        <p class="text-2xl font-bold text-white font-display mt-1" id="inad-snap-count">—</p>
-                        <p class="text-xs text-slate-500 mt-1">Registros no histórico</p>
+                        <p class="text-xs mt-1" id="inad-total-var"></p>
                     </div>
                     <div class="glass-card p-5 relative overflow-hidden">
                         <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-sky-500 to-blue-500"></div>
                         <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Graduação</p>
                         <p class="text-2xl font-bold text-white font-display mt-1" id="inad-grad">—</p>
-                        <p class="text-xs text-slate-500 mt-1">Último snapshot</p>
+                        <p class="text-xs mt-1" id="inad-grad-var"></p>
                     </div>
                     <div class="glass-card p-5 relative overflow-hidden">
                         <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-purple-500 to-violet-500"></div>
                         <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Pós-Graduação</p>
                         <p class="text-2xl font-bold text-white font-display mt-1" id="inad-pos">—</p>
-                        <p class="text-xs text-slate-500 mt-1">Último snapshot</p>
+                        <p class="text-xs mt-1" id="inad-pos-var"></p>
+                    </div>
+                    <div class="glass-card p-5 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-emerald-500 to-green-500"></div>
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Snapshots</p>
+                        <p class="text-2xl font-bold text-white font-display mt-1" id="inad-snap-count">—</p>
+                        <p class="text-xs text-slate-500 mt-1" id="inad-snap-range">Registros no histórico</p>
                     </div>
                 </div>
 
-                <!-- Chart: Evolução Histórica -->
+                <!-- Charts row -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    <!-- Trend line -->
+                    <div class="glass-card p-5 lg:col-span-2">
+                        <h3 class="text-sm font-bold text-white font-display flex items-center gap-2 mb-4">
+                            <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+                            Tendência — Total de Inadimplentes
+                        </h3>
+                        <div class="relative h-72" id="inad-trend-container">
+                            <canvas id="inad-trend-chart"></canvas>
+                            <p id="inad-trend-empty" class="absolute inset-0 flex items-center justify-center text-sm text-slate-500 hidden">
+                                Aguardando dados de mais de um snapshot para visualizar tendência.
+                            </p>
+                        </div>
+                    </div>
+                    <!-- Breakdown doughnut -->
+                    <div class="glass-card p-5">
+                        <h3 class="text-sm font-bold text-white font-display flex items-center gap-2 mb-4">
+                            <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/></svg>
+                            <span id="inad-breakdown-title">Distribuição por Nível</span>
+                        </h3>
+                        <div class="relative h-64">
+                            <canvas id="inad-breakdown-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stacked evolution -->
                 <div class="glass-card p-5 mb-6">
                     <h3 class="text-sm font-bold text-white font-display flex items-center gap-2 mb-4">
-                        <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-                        Evolução Histórica de Inadimplentes
+                        <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                        Evolução por Agrupamento
                     </h3>
                     <div class="relative h-72" id="inad-chart-container">
                         <canvas id="inad-history-chart"></canvas>
                         <p id="inad-chart-empty" class="absolute inset-0 flex items-center justify-center text-sm text-slate-500 hidden">
-                            Histórico insuficiente. Faça upload de snapshots em períodos diferentes para ver a evolução.
+                            Histórico insuficiente. Faça upload de snapshots em períodos diferentes.
                         </p>
                     </div>
                 </div>
 
-                <!-- Chart: Breakdown -->
-                <div class="glass-card p-5 mb-6">
+                <!-- Comparison card -->
+                <div class="glass-card p-5 mb-6" id="inad-comparison-card" style="display:none">
                     <h3 class="text-sm font-bold text-white font-display flex items-center gap-2 mb-4">
-                        <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/></svg>
-                        <span id="inad-breakdown-title">Distribuição por Nível</span>
+                        <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                        Comparação: Primeiro vs Último Snapshot
                     </h3>
-                    <div class="relative h-64">
-                        <canvas id="inad-breakdown-chart"></canvas>
-                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="inad-comparison-body"></div>
                 </div>
 
-                <!-- Table: Resumo por Snapshot -->
+                <!-- Table -->
                 <div class="glass-card p-5">
                     <h3 class="text-sm font-bold text-white font-display flex items-center gap-2 mb-4">
                         <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
@@ -107,10 +145,11 @@
                                     <th class="pb-2 font-semibold text-right">Total</th>
                                     <th class="pb-2 font-semibold text-right">Graduação</th>
                                     <th class="pb-2 font-semibold text-right">Pós-Grad</th>
+                                    <th class="pb-2 font-semibold text-right">Variação</th>
                                 </tr>
                             </thead>
                             <tbody id="inad-history-tbody" class="text-slate-300">
-                                <tr><td colspan="5" class="py-4 text-center text-slate-500">Carregando...</td></tr>
+                                <tr><td colspan="6" class="py-4 text-center text-slate-500">Carregando...</td></tr>
                             </tbody>
                         </table>
                     </div>

@@ -55,6 +55,19 @@ function toggleSidebar() {
     document.getElementById('sidebar-overlay').classList.toggle('open');
 }
 
+function toggleSidebarGroup(name) {
+    const group = document.querySelector(`.sidebar-group[data-group="${name}"]`);
+    if (group) group.classList.toggle('collapsed');
+    localStorage.setItem('sb-' + name, group.classList.contains('collapsed') ? '0' : '1');
+}
+
+(function restoreSidebarGroups() {
+    document.querySelectorAll('.sidebar-group[data-group]').forEach(g => {
+        const key = 'sb-' + g.dataset.group;
+        if (localStorage.getItem(key) === '0') g.classList.add('collapsed');
+    });
+})();
+
 // ---------------------------------------------------------------------------
 // Utils
 // ---------------------------------------------------------------------------

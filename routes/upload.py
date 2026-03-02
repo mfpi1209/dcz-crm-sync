@@ -832,28 +832,40 @@ def api_snapshots_crossref():
 @upload_bp.route("/api/inadimplencia/historico")
 def api_inadimplencia_historico():
     """Retorna séries temporais de inadimplentes agrupados por nivel, tipo_aluno e turma."""
+    date_from = request.args.get("date_from", "").strip()
+    date_to = request.args.get("date_to", "").strip()
+
     conn = get_conn()
     try:
+        date_clause = ""
+        params = []
+        if date_from:
+            date_clause += " AND s.uploaded_at >= %s::date"
+            params.append(date_from)
+        if date_to:
+            date_clause += " AND s.uploaded_at < (%s::date + interval '1 day')"
+            params.append(date_to)
+
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute("""
+            cur.execute(f"""
                 SELECT s.id, s.uploaded_at, s.row_count, s.nivel AS snap_nivel
                 FROM xl_snapshots s
-                WHERE s.tipo = 'inadimplentes'
+                WHERE s.tipo = 'inadimplentes'{date_clause}
                 ORDER BY s.uploaded_at
-            """)
+            """, params)
             snapshots = cur.fetchall()
 
             if not snapshots:
                 return jsonify({"snapshots": [], "series": [], "message": "Nenhum snapshot de inadimplentes encontrado."})
 
-            cur.execute("""
+            cur.execute(f"""
                 SELECT s.id AS snap_id, s.uploaded_at, s.nivel AS snap_nivel,
                        r.data
                 FROM xl_snapshots s
                 JOIN xl_rows r ON r.snapshot_id = s.id
-                WHERE s.tipo = 'inadimplentes'
+                WHERE s.tipo = 'inadimplentes'{date_clause}
                 ORDER BY s.uploaded_at
-            """)
+            """, params)
             all_rows = cur.fetchall()
 
             cur.execute("SELECT id FROM xl_snapshots WHERE tipo='matriculados' ORDER BY id DESC LIMIT 1")
