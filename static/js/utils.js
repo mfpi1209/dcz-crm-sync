@@ -13,8 +13,8 @@ async function api(url, opts = {}) {
 // ---------------------------------------------------------------------------
 // SPA Navigation
 // ---------------------------------------------------------------------------
-const PAGES = ['dashboard', 'search', 'sync', 'update', 'pipeline', 'distribuicao', 'intelligence', 'inadimplencia', 'feedback', 'logs', 'config', 'schedule'];
-const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', distribuicao: 'Distribuição', intelligence: 'Inteligência', inadimplencia: 'Inadimplência', feedback: 'Feedback', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento' };
+const PAGES = ['dashboard', 'search', 'sync', 'kommo_sync', 'update', 'pipeline', 'distribuicao', 'intelligence', 'inadimplencia', 'feedback', 'logs', 'config', 'schedule'];
+const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', kommo_sync: 'Sync Comercial', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', distribuicao: 'Distribuição', intelligence: 'Inteligência', inadimplencia: 'Inadimplência', feedback: 'Feedback', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento' };
 
 function navigate(page) {
     PAGES.forEach(p => {
@@ -39,6 +39,7 @@ function navigate(page) {
     if (page === 'distribuicao') loadDistribuicao();
     if (page === 'intelligence') loadIntelligence();
     if (page === 'inadimplencia') loadInadimplencia();
+    if (page === 'kommo_sync') loadKommoSync();
     if (page === 'feedback') fbInit();
     if (page === 'schedule') loadSchedules();
 
@@ -149,7 +150,7 @@ async function applySidebarPermissions() {
         }
         const sistemaLabel = document.getElementById('sidebar-section-sistema');
         if (sistemaLabel) {
-            const sysPages = ['sync', 'logs', 'config', 'schedule'];
+            const sysPages = ['sync', 'kommo_sync', 'logs', 'config', 'schedule'];
             const anySys = role === 'admin' || sysPages.some(p => pages.includes(p));
             sistemaLabel.style.display = anySys ? '' : 'none';
         }

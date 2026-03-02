@@ -391,6 +391,7 @@ async function deleteSchedule(id) {
 // ---------------------------------------------------------------------------
 const PAGE_LABELS = {
     dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização',
+    kommo_sync: 'Sync Comercial',
     update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline',
     logs: 'Logs / Relatórios', distribuicao: 'Distribuição',
     intelligence: 'Inteligência', inadimplencia: 'Inadimplência',
@@ -401,7 +402,7 @@ const PAGE_GROUPS_CONFIG = [
     { label: 'Geral', pages: ['dashboard', 'search'] },
     { label: 'Operação — Acadêmico', pages: ['distribuicao', 'intelligence', 'inadimplencia', 'feedback'] },
     { label: 'Operação — Comercial', pages: ['pipeline', 'update'] },
-    { label: 'Sistema', pages: ['sync', 'logs', 'config', 'schedule'] },
+    { label: 'Sistema', pages: ['sync', 'kommo_sync', 'logs', 'config', 'schedule'] },
 ];
 let _allPages = [];
 let _usersData = [];

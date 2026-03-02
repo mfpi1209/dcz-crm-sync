@@ -34,7 +34,7 @@ def to_brt(dt):
 # ---------------------------------------------------------------------------
 
 ALL_PAGES = [
-    "dashboard", "search", "sync", "update", "pipeline",
+    "dashboard", "search", "sync", "kommo_sync", "update", "pipeline",
     "logs", "distribuicao", "intelligence", "inadimplencia", "feedback", "config", "schedule",
 ]
 
