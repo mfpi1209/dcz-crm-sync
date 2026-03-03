@@ -395,12 +395,13 @@ const PAGE_LABELS = {
     logs: 'Logs / Relatórios', distribuicao: 'Distribuição',
     intelligence: 'Inteligência', inadimplencia: 'Inadimplência',
     feedback: 'Feedback', config: 'Configurações', schedule: 'Agendamento',
+    inscricao: 'Inscrição Automática',
 };
 
 const PAGE_GROUPS_CONFIG = [
     { label: 'Geral', pages: ['dashboard', 'search'] },
     { label: 'Operação — Acadêmico', pages: ['distribuicao', 'intelligence', 'inadimplencia', 'feedback'] },
-    { label: 'Operação — Comercial', pages: ['pipeline', 'update'] },
+    { label: 'Operação — Comercial', pages: ['pipeline', 'update', 'inscricao'] },
     { label: 'Sistema', pages: ['sync', 'logs', 'config', 'schedule'] },
 ];
 let _allPages = [];
