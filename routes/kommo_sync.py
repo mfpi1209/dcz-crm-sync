@@ -11,7 +11,7 @@ import logging
 import threading
 import subprocess
 import time as _time
-from datetime import datetime, date
+from datetime import datetime, date, timezone, timedelta
 from pathlib import Path
 
 import requests as _requests
@@ -341,10 +341,56 @@ def _kommo_get(path, params=None):
     return _requests.get(url, headers=headers, params=params, timeout=30)
 
 
+def _count_new_today():
+    """Count leads created today in the pipeline using Kommo's native date filter."""
+    BRT = timezone(timedelta(hours=-3))
+    today_brt = datetime.now(BRT).replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = int(today_brt.timestamp())
+
+    count = 0
+    page = 1
+    seen_ids = set()
+
+    while True:
+        params = {
+            "limit": 250,
+            "page": page,
+            "filter[pipeline_id]": FUNNEL_PIPELINE,
+            "filter[created_at][from]": today_start,
+        }
+        try:
+            r = _kommo_get("/leads", params)
+        except Exception as e:
+            logger.error("Kommo API new-today error: %s", e)
+            break
+
+        if r.status_code != 200:
+            break
+
+        data = r.json()
+        leads = data.get("_embedded", {}).get("leads", [])
+        if not leads:
+            break
+
+        for lead in leads:
+            lid = lead.get("id")
+            if lid and lid not in seen_ids:
+                seen_ids.add(lid)
+                count += 1
+
+        if "_links" not in data or "next" not in data["_links"]:
+            break
+        page += 1
+        _time.sleep(0.15)
+
+    return count
+
+
 def _fetch_funnel_live():
     """Fetch all leads in the funnel pipeline from Kommo API v4, count by status."""
     stage_ids = [s["id"] for s in FUNNEL_STAGES_DEF]
     all_leads = []
+    seen_ids = set()
     page = 1
 
     while True:
@@ -367,7 +413,12 @@ def _fetch_funnel_live():
         leads = data.get("_embedded", {}).get("leads", [])
         if not leads:
             break
-        all_leads.extend(leads)
+
+        for lead in leads:
+            lid = lead.get("id")
+            if lid and lid not in seen_ids:
+                seen_ids.add(lid)
+                all_leads.append(lead)
 
         if "_links" not in data or "next" not in data["_links"]:
             break
@@ -375,16 +426,9 @@ def _fetch_funnel_live():
         _time.sleep(0.2)
 
     counts = {}
-    today_start = int(_time.mktime(
-        datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timetuple()
-    ))
-    new_today = 0
-
     for lead in all_leads:
         sid = lead.get("status_id")
         counts[sid] = counts.get(sid, 0) + 1
-        if lead.get("created_at", 0) >= today_start:
-            new_today += 1
 
     stages = []
     total = 0
@@ -401,6 +445,8 @@ def _fetch_funnel_live():
 
     for s in stages:
         s["pct"] = round(s["count"] / total * 100, 1) if total > 0 else 0
+
+    new_today = _count_new_today()
 
     return {
         "stages": stages,
@@ -429,7 +475,8 @@ def _save_snapshot(snapshots):
 
 def _get_snapshot_d0(current_stages):
     """Get or create today's D0 snapshot. Returns yesterday's snapshot for delta."""
-    today = date.today().isoformat()
+    BRT = timezone(timedelta(hours=-3))
+    today = datetime.now(BRT).date().isoformat()
     snapshots = _load_snapshot()
 
     if today not in snapshots:
@@ -482,8 +529,9 @@ def api_kommo_funnel_live():
                 s["yesterday"] = None
                 s["delta_yesterday"] = None
 
-        result["d0_date"] = date.today().isoformat()
-        result["fetched_at"] = datetime.now().strftime("%H:%M:%S")
+        BRT = timezone(timedelta(hours=-3))
+        result["d0_date"] = datetime.now(BRT).date().isoformat()
+        result["fetched_at"] = datetime.now(BRT).strftime("%H:%M:%S")
 
         _funnel_cache["data"] = result
         _funnel_cache["ts"] = now
