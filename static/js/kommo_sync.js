@@ -11,16 +11,18 @@ const _kommoColors = [
     '#a855f7', '#22d3ee', '#fb923c', '#4ade80', '#f43f5e',
 ];
 
-const _FUNNEL_STAGES = {
-    aguardando_inscricao: { id: 99045180, el: 'kommo-funnel-aguardando' },
-    inscricao:            { id: 48539249, el: 'kommo-funnel-inscricao' },
-    processo_seletivo:    { id: 48566195, el: 'kommo-funnel-procseletivo' },
-    em_processo:          { id: 48566198, el: 'kommo-funnel-emprocesso' },
-    aprovado_reprovado:   { id: 48566201, el: 'kommo-funnel-aprovado' },
-    aceite:               { id: 48566207, el: 'kommo-funnel-aceite' },
+const _FUNNEL_GRADIENTS = {
+    aguardando_inscricao: { from: '#3b82f6', to: '#6366f1', border: 'border-blue-500/30',   shadow: 'shadow-blue-500/20' },
+    inscricao:            { from: '#6366f1', to: '#8b5cf6', border: 'border-indigo-500/30', shadow: 'shadow-indigo-500/20' },
+    processo_seletivo:    { from: '#8b5cf6', to: '#a855f7', border: 'border-violet-500/30', shadow: 'shadow-violet-500/20' },
+    em_processo:          { from: '#06b6d4', to: '#0ea5e9', border: 'border-cyan-500/30',   shadow: 'shadow-cyan-500/20' },
+    aprovado_reprovado:   { from: '#f59e0b', to: '#f97316', border: 'border-amber-500/30',  shadow: 'shadow-amber-500/20' },
+    aceite:               { from: '#10b981', to: '#14b8a6', border: 'border-emerald-500/30', shadow: 'shadow-emerald-500/20' },
 };
 
 async function loadKommoSync() {
+    _kommoRefreshFunnel(false);
+
     try {
         const hours = document.getElementById('kommo-hours').value;
         const [statusRes, stagesRes, changesRes] = await Promise.all([
@@ -34,12 +36,97 @@ async function loadKommoSync() {
         const changes = await changesRes.json();
 
         if (status.ok) _kommoRenderStatus(status.data);
-        if (stages.ok) _kommoRenderFunnelCards(stages.data, status.ok ? status.data.new_today : 0);
         if (stages.ok) _kommoRenderStagesTable(stages.data);
         if (changes.ok) _kommoRenderChanges(changes.data);
     } catch (e) {
         console.error('Erro ao carregar Sync Comercial:', e);
     }
+}
+
+async function _kommoRefreshFunnel(force) {
+    const btn = document.getElementById('kommo-funnel-refresh-btn');
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
+
+    try {
+        const url = '/api/kommo/funnel-live' + (force ? '?force=1' : '');
+        const res = await api(url);
+        const d = await res.json();
+        if (d.ok) {
+            _kommoRenderFunnelLive(d.data);
+        } else {
+            console.error('funnel-live error:', d.error);
+        }
+    } catch (e) {
+        console.error('funnel-live fetch error:', e);
+    } finally {
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+    }
+}
+
+function _kommoRenderFunnelLive(data) {
+    const newEl = document.getElementById('kommo-funnel-new');
+    const totalEl = document.getElementById('kommo-funnel-total');
+    if (newEl) newEl.textContent = (data.new_today || 0).toLocaleString('pt-BR');
+    if (totalEl) totalEl.textContent = (data.total || 0).toLocaleString('pt-BR');
+
+    const tsEl = document.getElementById('kommo-funnel-ts');
+    if (tsEl) {
+        const label = data.fetched_at ? `Live ${data.fetched_at}` : '';
+        tsEl.textContent = label;
+    }
+
+    const container = document.getElementById('kommo-funnel-cards');
+    if (!container) return;
+
+    const highlight = (data.stages || []).filter(s => s.highlight);
+    if (!highlight.length) {
+        container.innerHTML = '<div class="col-span-full text-center py-8 text-slate-500 text-sm">Nenhum dado de funil</div>';
+        return;
+    }
+
+    container.innerHTML = highlight.map(s => {
+        const g = _FUNNEL_GRADIENTS[s.key] || { from: '#64748b', to: '#475569', border: 'border-slate-500/30', shadow: 'shadow-slate-500/20' };
+
+        let deltaHtml = '';
+        if (s.delta !== 0 && s.delta !== undefined) {
+            const sign = s.delta > 0 ? '+' : '';
+            const color = s.delta > 0 ? 'text-emerald-400' : 'text-red-400';
+            const arrow = s.delta > 0
+                ? '<svg class="w-3 h-3 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 15l7-7 7 7"/></svg>'
+                : '<svg class="w-3 h-3 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7"/></svg>';
+            deltaHtml = `<span class="${color} text-xs font-bold flex items-center gap-0.5">${arrow} ${sign}${s.delta}</span>`;
+        } else {
+            deltaHtml = '<span class="text-slate-600 text-xs">—</span>';
+        }
+
+        let deltaPctHtml = '';
+        if (s.delta_pct !== 0 && s.delta_pct !== undefined) {
+            const sign = s.delta_pct > 0 ? '+' : '';
+            const color = s.delta_pct > 0 ? 'text-emerald-400/70' : 'text-red-400/70';
+            deltaPctHtml = `<span class="${color} text-[10px]">${sign}${s.delta_pct}%</span>`;
+        }
+
+        return `
+        <div class="group relative rounded-2xl overflow-hidden border ${g.border} ${g.shadow} shadow-lg
+                    bg-slate-900/80 hover:bg-slate-800/90 transition-all duration-300 hover:scale-[1.02] cursor-default">
+            <div class="absolute inset-0 opacity-[0.08] group-hover:opacity-[0.14] transition-opacity"
+                 style="background:linear-gradient(135deg, ${g.from}, ${g.to})"></div>
+            <div class="absolute top-0 left-0 right-0 h-1 rounded-t-2xl"
+                 style="background:linear-gradient(90deg, ${g.from}, ${g.to})"></div>
+            <div class="relative p-5">
+                <div class="flex items-start justify-between mb-3">
+                    <p class="text-[10px] font-bold uppercase tracking-widest" style="color:${g.from}">${s.label}</p>
+                    <span class="text-[10px] text-slate-500 font-mono">${s.pct || 0}%</span>
+                </div>
+                <p class="text-4xl font-black text-white font-display mb-2">${s.count.toLocaleString('pt-BR')}</p>
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] text-slate-500">D0:</span>
+                    ${deltaHtml}
+                    ${deltaPctHtml}
+                </div>
+            </div>
+        </div>`;
+    }).join('');
 }
 
 function _kommoRenderStatus(d) {
@@ -108,18 +195,6 @@ function _kommoRenderChanges(d) {
                 y: { ticks: { color: '#94a3b8', font: { size: 11 } }, grid: { display: false } }
             }
         }
-    });
-}
-
-function _kommoRenderFunnelCards(stagesData, newToday) {
-    document.getElementById('kommo-funnel-new').textContent = (newToday || 0).toLocaleString('pt-BR');
-
-    const byId = {};
-    stagesData.forEach(s => { byId[s.stage_id] = s.total; });
-
-    Object.values(_FUNNEL_STAGES).forEach(cfg => {
-        const el = document.getElementById(cfg.el);
-        if (el) el.textContent = (byId[cfg.id] || 0).toLocaleString('pt-BR');
     });
 }
 
