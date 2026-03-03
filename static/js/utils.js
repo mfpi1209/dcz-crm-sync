@@ -13,8 +13,8 @@ async function api(url, opts = {}) {
 // ---------------------------------------------------------------------------
 // SPA Navigation
 // ---------------------------------------------------------------------------
-const PAGES = ['dashboard', 'search', 'sync', 'kommo_sync', 'update', 'pipeline', 'match_merge', 'distribuicao', 'intelligence', 'inadimplencia', 'feedback', 'logs', 'config', 'schedule'];
-const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', kommo_sync: 'Sync Comercial', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', match_merge: 'Match & Merge', distribuicao: 'Distribuição', intelligence: 'Inteligência', inadimplencia: 'Inadimplência', feedback: 'Feedback', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento' };
+const PAGES = ['dashboard', 'search', 'sync', 'kommo_sync', 'update', 'pipeline', 'match_merge', 'distribuicao', 'intelligence', 'inadimplencia', 'feedback', 'logs', 'config', 'schedule', 'inscricao'];
+const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', kommo_sync: 'Sync Comercial', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', match_merge: 'Match & Merge', distribuicao: 'Distribuição', intelligence: 'Inteligência', inadimplencia: 'Inadimplência', feedback: 'Feedback', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento', inscricao: 'Inscrição Automática' };
 
 function navigate(page) {
     PAGES.forEach(p => {
@@ -42,6 +42,7 @@ function navigate(page) {
     if (page === 'kommo_sync') loadKommoSync();
     if (page === 'match_merge') loadMatchMerge();
     if (page === 'feedback') fbInit();
+    if (page === 'inscricao') loadInscricao();
     if (page === 'schedule') loadSchedules();
 
     history.replaceState(null, '', '#' + page);
@@ -118,7 +119,7 @@ function refreshBadge() {
 // ---------------------------------------------------------------------------
 const SIDEBAR_GROUPS = {
     academico: ['distribuicao', 'intelligence', 'inadimplencia', 'feedback'],
-    comercial: ['pipeline', 'update', 'match_merge'],
+    comercial: ['pipeline', 'update', 'match_merge', 'inscricao'],
 };
 
 async function applySidebarPermissions() {
