@@ -341,51 +341,6 @@ def _kommo_get(path, params=None):
     return _requests.get(url, headers=headers, params=params, timeout=30)
 
 
-def _count_new_today():
-    """Count leads created today in the pipeline using Kommo's native date filter."""
-    BRT = timezone(timedelta(hours=-3))
-    today_brt = datetime.now(BRT).replace(hour=0, minute=0, second=0, microsecond=0)
-    today_start = int(today_brt.timestamp())
-
-    count = 0
-    page = 1
-    seen_ids = set()
-
-    while True:
-        params = {
-            "limit": 250,
-            "page": page,
-            "filter[pipeline_id]": FUNNEL_PIPELINE,
-            "filter[created_at][from]": today_start,
-        }
-        try:
-            r = _kommo_get("/leads", params)
-        except Exception as e:
-            logger.error("Kommo API new-today error: %s", e)
-            break
-
-        if r.status_code != 200:
-            break
-
-        data = r.json()
-        leads = data.get("_embedded", {}).get("leads", [])
-        if not leads:
-            break
-
-        for lead in leads:
-            lid = lead.get("id")
-            if lid and lid not in seen_ids:
-                seen_ids.add(lid)
-                count += 1
-
-        if "_links" not in data or "next" not in data["_links"]:
-            break
-        page += 1
-        _time.sleep(0.15)
-
-    return count
-
-
 def _fetch_funnel_live():
     """Fetch all leads in the funnel pipeline from Kommo API v4, count by status."""
     stage_ids = [s["id"] for s in FUNNEL_STAGES_DEF]
@@ -425,10 +380,28 @@ def _fetch_funnel_live():
         page += 1
         _time.sleep(0.2)
 
+    BRT = timezone(timedelta(hours=-3))
+    today_brt = datetime.now(BRT).replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = int(today_brt.timestamp())
+
     counts = {}
+    new_today = 0
+    new_by_stage = {}
+    wrong_pipeline = 0
     for lead in all_leads:
         sid = lead.get("status_id")
+        pid = lead.get("pipeline_id")
         counts[sid] = counts.get(sid, 0) + 1
+        if pid != FUNNEL_PIPELINE:
+            wrong_pipeline += 1
+        if lead.get("created_at", 0) >= today_start:
+            new_today += 1
+            new_by_stage[sid] = new_by_stage.get(sid, 0) + 1
+
+    if wrong_pipeline:
+        logger.warning("funnel-live: %d leads from wrong pipeline!", wrong_pipeline)
+
+    stage_key_map = {s["id"]: s["key"] for s in FUNNEL_STAGES_DEF}
 
     stages = []
     total = 0
@@ -440,13 +413,16 @@ def _fetch_funnel_live():
             "id": sdef["id"],
             "label": sdef["label"],
             "count": c,
+            "new_today": new_by_stage.get(sdef["id"], 0),
             "highlight": sdef["key"] in FUNNEL_HIGHLIGHT,
         })
 
     for s in stages:
         s["pct"] = round(s["count"] / total * 100, 1) if total > 0 else 0
 
-    new_today = _count_new_today()
+    logger.info("funnel-live: total=%d new_today=%d wrong_pipeline=%d breakdown=%s",
+                total, new_today, wrong_pipeline,
+                {stage_key_map.get(k, k): v for k, v in new_by_stage.items()})
 
     return {
         "stages": stages,
@@ -454,6 +430,12 @@ def _fetch_funnel_live():
         "new_today": new_today,
         "leads_fetched": len(all_leads),
         "pages": page,
+        "debug": {
+            "wrong_pipeline": wrong_pipeline,
+            "new_by_stage": {stage_key_map.get(k, str(k)): v for k, v in new_by_stage.items()},
+            "today_start_ts": today_start,
+            "today_start_brt": today_brt.isoformat(),
+        },
     }
 
 
