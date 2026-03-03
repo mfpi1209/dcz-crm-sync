@@ -403,8 +403,8 @@ const PAGE_LABELS = {
 const PAGE_GROUPS_CONFIG = [
     { label: 'Geral', pages: ['dashboard', 'search'] },
     { label: 'Operação — Acadêmico', pages: ['distribuicao', 'intelligence', 'inadimplencia', 'feedback'] },
-    { label: 'Operação — Comercial', pages: ['pipeline', 'update', 'inscricao'] },
-    { label: 'Sistema', pages: ['sync', 'logs', 'config', 'schedule'] },
+    { label: 'Operação — Comercial', pages: ['pipeline', 'update', 'match_merge', 'inscricao'] },
+    { label: 'Sistema', pages: ['sync', 'kommo_sync', 'logs', 'config', 'schedule'] },
 ];
 let _allPages = [];
 let _usersData = [];
