@@ -20,7 +20,8 @@ logger = logging.getLogger(__name__)
 
 kommo_bp = Blueprint("kommo_bp", __name__)
 
-KOMMO_DIR = str(Path(__file__).resolve().parent.parent / "Kommo_Update")
+_kommo_candidate = Path(__file__).resolve().parent.parent / "Kommo_Update"
+KOMMO_DIR = str(_kommo_candidate) if _kommo_candidate.is_dir() else None
 
 PG_KOMMO = {
     "host": os.getenv("KOMMO_PG_HOST", "31.97.91.47"),
@@ -174,6 +175,13 @@ def api_kommo_pipelines():
 
 @kommo_bp.route("/api/kommo/sync", methods=["POST"])
 def api_kommo_sync():
+    if not KOMMO_DIR:
+        return jsonify({
+            "ok": False,
+            "error": "Sync indisponível neste ambiente. A pasta Kommo_Update não está presente. "
+                     "Execute a sincronização pelo servidor local (Windows).",
+        }), 400
+
     for t in _tasks.values():
         if t.get("type") == "sync" and t.get("status") == "running":
             return jsonify({"ok": False, "error": "Sincronização já em andamento."}), 409
