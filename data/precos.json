@@ -1,0 +1,1604 @@
+[
+  {
+    "chave": "ADMINISTRAÇÃO (EAD Digital)BACHARELADO",
+    "preco": "127",
+    "area": "Administração e Negócios",
+    "curso_site": "Administração",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ADMINISTRAÇÃO 2.0 (EAD Digital)BACHARELADO",
+    "preco": "135",
+    "area": "Administração e Negócios",
+    "curso_site": "Administração 2.0",
+    "semestres": 4,
+    "tipo": "2ª Graduação EAD",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ADMINISTRAÇÃO PÚBLICA (EAD Digital)BACHARELADO",
+    "preco": "119",
+    "area": "Administração e Negócios",
+    "curso_site": "Administração Pública",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ANÁLISE E DESENVOLVIMENTO DE SISTEMAS (EAD Digital)TECNÓLOGO",
+    "preco": "167",
+    "area": "Tecnologia",
+    "curso_site": "Análise e Desenvolvimento de Sistemas",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "ARTES VISUAIS (EAD Digital)LICENCIATURA",
+    "preco": "159",
+    "area": "Educação",
+    "curso_site": "Artes Visuais",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "ARTES VISUAIS 2.0 (EAD Digital)LICENCIATURA",
+    "preco": "127",
+    "area": "Educação",
+    "curso_site": "Artes Visuais 2.0",
+    "semestres": 2,
+    "tipo": "2ª Graduação EAD",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "BANCO DE DADOS (EAD Digital)TECNÓLOGO",
+    "preco": "111",
+    "area": "Tecnologia",
+    "curso_site": "Banco de Dados",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "ANÁLISE DE DADOS DE ALTA PERFORMANCE (EAD Digital)TECNÓLOGO",
+    "preco": "143",
+    "area": "Tecnologia",
+    "curso_site": "Análise de Dados de Alta Performance",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "CIBERSEGURANCA (EAD Digital)TECNÓLOGO",
+    "preco": "151",
+    "area": "Tecnologia",
+    "curso_site": "Ciberseguranca",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "CIÊNCIA DE DADOS (EAD Digital)TECNÓLOGO",
+    "preco": "143",
+    "area": "Tecnologia",
+    "curso_site": "Ciência de Dados",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "CIÊNCIAS BIOLÓGICAS (EAD Digital)LICENCIATURA",
+    "preco": "143",
+    "area": "Saúde",
+    "curso_site": "Ciências Biológicas",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "CIÊNCIAS BIOLÓGICAS (EAD Digital)BACHARELADO",
+    "preco": "175",
+    "area": "Saúde",
+    "curso_site": "Ciências Biológicas",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "CIÊNCIAS BIOLÓGICAS 2.0 (EAD Digital)LICENCIATURA",
+    "preco": "127",
+    "area": "Educação",
+    "curso_site": "Ciências Biológicas 2.0",
+    "semestres": 2,
+    "tipo": "2ª Graduação EAD",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "CIÊNCIAS CONTÁBEIS (EAD Digital)BACHARELADO",
+    "preco": "143",
+    "area": "Administração e Negócios",
+    "curso_site": "Ciências Contábeis",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "CIÊNCIAS CONTÁBEIS 2.0 (EAD Digital)BACHARELADO",
+    "preco": "151",
+    "area": "Administração e Negócios",
+    "curso_site": "Ciências Contábeis 2.0",
+    "semestres": 2,
+    "tipo": "2ª Graduação EAD",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "CIÊNCIAS DA COMPUTAÇÃO (EAD Digital)BACHARELADO",
+    "preco": "175",
+    "area": "Tecnologia",
+    "curso_site": "Ciência da Computação",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "CIÊNCIAS ECONÔMICAS (EAD Digital)BACHARELADO",
+    "preco": "143",
+    "area": "Administração e Negócios",
+    "curso_site": "Ciências Econômicas",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "CIÊNCIAS ECONÔMICAS 2.0 (EAD Digital)BACHARELADO",
+    "preco": "143",
+    "area": "Administração e Negócios",
+    "curso_site": "Ciências Econômicas 2.0",
+    "semestres": 4,
+    "tipo": "2ª Graduação EAD",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "CIÊNCIAS POLÍTICAS (EAD Digital)BACHARELADO",
+    "preco": "127",
+    "area": "Humanas e Social",
+    "curso_site": "Ciências Políticas",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "CIÊNCIAS SOCIAIS (EAD Digital)LICENCIATURA",
+    "preco": "159",
+    "area": "Educação",
+    "curso_site": "Ciências Sociais",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "CIÊNCIAS SOCIAIS 2.0 (EAD Digital)LICENCIATURA",
+    "preco": "135",
+    "area": "Educação",
+    "curso_site": "Ciências Sociais 2.0",
+    "semestres": 2,
+    "tipo": "2ª Graduação EAD",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "COACHING E MENTORING (EAD Digital)TECNÓLOGO",
+    "preco": "127",
+    "area": "Administração e Negócios",
+    "curso_site": "Coaching e Mentoring",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "CODING (EAD Digital)TECNÓLOGO",
+    "preco": "143",
+    "area": "Tecnologia",
+    "curso_site": "Coding",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "COMÉRCIO EXTERIOR (EAD Digital)TECNÓLOGO",
+    "preco": "143",
+    "area": "Administração e Negócios",
+    "curso_site": "Comércio Exterior",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "CONCILIAÇÃO, MEDIAÇÃO E ARBITRAGEM (EAD Digital)TECNÓLOGO",
+    "preco": "135",
+    "area": "Administração e Negócios",
+    "curso_site": "Conciliação, Mediação e Arbitragem",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "CRIMINOLOGIA (EAD Digital)TECNÓLOGO",
+    "preco": "119",
+    "area": "Humanas e Social",
+    "curso_site": "Criminologia",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "DESENVOLVIMENTO BACK-END (EAD Digital)TECNÓLOGO",
+    "preco": "135",
+    "area": "Tecnologia",
+    "curso_site": "Desenvolvimento Back-End",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "DESENVOLVIMENTO MOBILE (EAD Digital)TECNÓLOGO",
+    "preco": "143",
+    "area": "Tecnologia",
+    "curso_site": "Desenvolvimento Mobile",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "DESIGN DE ANIMAÇÃO (EAD Digital)TECNÓLOGO",
+    "preco": "175",
+    "area": "Comunicação",
+    "curso_site": "Design De Animação",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "DESIGN DE INTERIORES (EAD Digital)TECNÓLOGO",
+    "preco": "135",
+    "area": "Comunicação e Design",
+    "curso_site": "Design de Interiores",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "DESIGN DE MODA (EAD Digital)TECNÓLOGO",
+    "preco": "143",
+    "area": "Comunicação e Design",
+    "curso_site": "Design de Moda",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "DESIGN DE PRODUTO (EAD Digital)TECNÓLOGO",
+    "preco": "151",
+    "area": "Comunicação e Design",
+    "curso_site": "Design de Produto",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "DESIGN DE EXPERIÊNCIA (EAD Digital)TECNÓLOGO",
+    "preco": "167",
+    "area": "Comunicação",
+    "curso_site": "Design De Experiência",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "DESIGN GRÁFICO (EAD Digital)TECNÓLOGO",
+    "preco": "135",
+    "area": "Comunicação e Design",
+    "curso_site": "Design Gráfico",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "INFLUENCIADOR DIGITAL (EAD Digital)TECNÓLOGO",
+    "preco": "151",
+    "area": "Comunicação",
+    "curso_site": "Influenciador Digital",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "EDUCAÇÃO ESPECIAL (EAD Digital)LICENCIATURA",
+    "preco": "159",
+    "area": "Educação",
+    "curso_site": "Educação Especial",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "EDUCAÇÃO FÍSICA 2.0 (EAD Digital)BACHARELADO",
+    "preco": "183",
+    "area": "Educação",
+    "curso_site": "Educação Física 2.0",
+    "semestres": 4,
+    "tipo": "2ª Graduação EAD",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "EMPREENDEDORISMO (EAD Digital)TECNÓLOGO",
+    "preco": "99",
+    "area": "Administração e Negócios",
+    "curso_site": "Empreendedorismo",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "ENGENHARIA AMBIENTAL 2.0 (EAD Digital)BACHARELADO",
+    "preco": "191",
+    "area": "Engenharia e Produção",
+    "curso_site": "Engenharia Ambiental 2.0",
+    "semestres": 6,
+    "tipo": "2ª Graduação EAD",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ENGENHARIA DA COMPUTAÇÃO (EAD Digital)BACHARELADO",
+    "preco": "215",
+    "area": "Engenharia e Produção",
+    "curso_site": "Engenharia Da Computação",
+    "semestres": 10,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ENGENHARIA DE PRODUÇÃO (EAD Digital)BACHARELADO",
+    "preco": "215",
+    "area": "Engenharia e Produção",
+    "curso_site": "Engenharia de Produção",
+    "semestres": 10,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ENGENHARIA DE PRODUÇÃO 2.0 (EAD Digital)BACHARELADO",
+    "preco": "199",
+    "area": "Engenharia e Produção",
+    "curso_site": "Engenharia de Produção 2.0",
+    "semestres": 10,
+    "tipo": "2ª Graduação EAD",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ENGENHARIA DE SOFTWARE (EAD Digital)BACHARELADO",
+    "preco": "223",
+    "area": "Engenharia e Produção",
+    "curso_site": "Engenharia de Software",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ESTÉTICA E COSMÉTICA (EAD Digital)TECNÓLOGO",
+    "preco": "167",
+    "area": "Saúde",
+    "curso_site": "Estética e Cosmética",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "EVENTOS (EAD Digital)TECNÓLOGO",
+    "preco": "143",
+    "area": "Comunicação e Design",
+    "curso_site": "Eventos",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "PRODUÇÃO MIDIÁTICA (EAD Digital)TECNÓLOGO",
+    "preco": "143",
+    "area": "Comunicação",
+    "curso_site": "Produção Midiática",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "FILOSOFIA (EAD Digital)BACHARELADO",
+    "preco": "167",
+    "area": "Educação",
+    "curso_site": "Filosofia",
+    "semestres": 6,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "FILOSOFIA (EAD Digital)LICENCIATURA",
+    "preco": "135",
+    "area": "Educação",
+    "curso_site": "Filosofia",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "FILOSOFIA 2.0 (EAD Digital)LICENCIATURA",
+    "preco": "135",
+    "area": "Educação",
+    "curso_site": "Filosofia 2.0",
+    "semestres": 2,
+    "tipo": "2ª Graduação EAD",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "FÍSICA (EAD Digital)LICENCIATURA",
+    "preco": "151",
+    "area": "Educação",
+    "curso_site": "Física",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "FÍSICA (EAD Digital)BACHARELADO",
+    "preco": "183",
+    "area": "Educação",
+    "curso_site": "Física",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "FOTOGRAFIA (EAD Digital)TECNÓLOGO",
+    "preco": "127",
+    "area": "Comunicação e Design",
+    "curso_site": "Fotografia",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "DESENVOLVIMENTO FULL STACK (EAD Digital)TECNÓLOGO",
+    "preco": "199",
+    "area": "Tecnologia",
+    "curso_site": "Desenvolvimento Full Stack",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "GASTRONOMIA (EAD Digital)TECNÓLOGO",
+    "preco": "167",
+    "area": "Administração e Negócios",
+    "curso_site": "Gastronomia",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "GEOGRAFIA (EAD Digital)BACHARELADO",
+    "preco": "127",
+    "area": "Educação",
+    "curso_site": "Geografia",
+    "semestres": 6,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "GEOGRAFIA (EAD Digital)LICENCIATURA",
+    "preco": "143",
+    "area": "Educação",
+    "curso_site": "Geografia",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "GEOGRAFIA 2.0 (EAD Digital)LICENCIATURA",
+    "preco": "127",
+    "area": "Educação",
+    "curso_site": "Geografia 2.0",
+    "semestres": 2,
+    "tipo": "2ª Graduação EAD",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "GESTÃO AMBIENTAL (EAD Digital)TECNÓLOGO",
+    "preco": "127",
+    "area": "Administração e Negócios",
+    "curso_site": "Gestão Ambiental",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "GESTÃO COMERCIAL (EAD Digital)TECNÓLOGO",
+    "preco": "143",
+    "area": "Administração e Negócios",
+    "curso_site": "Gestão Comercial",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "GESTÃO DA SAÚDE PÚBLICA (EAD Digital)TECNÓLOGO",
+    "preco": "143",
+    "area": "Saúde",
+    "curso_site": "Gestão da Saúde Pública",
+    "semestres": 6,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "GESTÃO DE COOPERATIVAS (EAD Digital)TECNÓLOGO",
+    "preco": "119",
+    "area": "Administração e Negócios",
+    "curso_site": "Gestão de Cooperativas",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "GESTÃO DE PRODUÇÃO INDUSTRIAL (EAD Digital)TECNÓLOGO",
+    "preco": "151",
+    "area": "Engenharia e Produção",
+    "curso_site": "Gestão de Produção Industrial",
+    "semestres": 6,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "GESTÃO DE QUALIDADE (EAD Digital)TECNÓLOGO",
+    "preco": "143",
+    "area": "Administração e Negócios",
+    "curso_site": "Gestão de Qualidade",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "GESTÃO DE RECURSOS HUMANOS (EAD Digital)TECNÓLOGO",
+    "preco": "135",
+    "area": "Administração e Negócios",
+    "curso_site": "Gestão de Recursos Humanos",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "GESTÃO DE SEGURANÇA PRIVADA (EAD Digital)TECNÓLOGO",
+    "preco": "143",
+    "area": "Administração e Negócios",
+    "curso_site": "Gestão de Segurança Privada",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "GESTÃO DE TECNOLOGIA DA INFORMAÇÃO (EAD Digital)TECNÓLOGO",
+    "preco": "143",
+    "area": "Tecnologia",
+    "curso_site": "Gestão de Tecnologia da Informação",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "GESTÃO DE TURISMO (EAD Digital)TECNÓLOGO",
+    "preco": "151",
+    "area": "Administração e Negócios",
+    "curso_site": "Gestão de Turismo",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "GESTÃO DESPORTIVA E DE LAZER (EAD Digital)TECNÓLOGO",
+    "preco": "119",
+    "area": "Saúde",
+    "curso_site": "Gestão Desportiva e de Lazer",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "GESTÃO DO AGRONEGÓCIO (EAD Digital)TECNÓLOGO",
+    "preco": "143",
+    "area": "Administração e Negócios",
+    "curso_site": "Gestão do Agronegócio",
+    "semestres": 6,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "GESTÃO DO TERCEIRO SETOR (EAD Digital)TECNÓLOGO",
+    "preco": "167",
+    "area": "Humanas e Social",
+    "curso_site": "Gestão Do Terceiro Setor",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "GESTÃO FINANCEIRA (EAD Digital)TECNÓLOGO",
+    "preco": "151",
+    "area": "Administração e Negócios",
+    "curso_site": "Gestão Financeira",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "GESTÃO HOSPITALAR (EAD Digital)TECNÓLOGO",
+    "preco": "135",
+    "area": "Saúde",
+    "curso_site": "Gestão Hospitalar",
+    "semestres": 6,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "GESTÃO PÚBLICA (EAD Digital)TECNÓLOGO",
+    "preco": "159",
+    "area": "Administração e Negócios",
+    "curso_site": "Gestão Pública",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "HISTÓRIA (EAD Digital)BACHARELADO",
+    "preco": "151",
+    "area": "Educação",
+    "curso_site": "História",
+    "semestres": 6,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "HISTÓRIA (EAD Digital)LICENCIATURA",
+    "preco": "127",
+    "area": "Educação",
+    "curso_site": "História",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "HISTÓRIA 2.0 (EAD Digital)LICENCIATURA",
+    "preco": "127",
+    "area": "Educação",
+    "curso_site": "História 2.0",
+    "semestres": 2,
+    "tipo": "2ª Graduação EAD",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "INTELIGÊNCIA ARTIFICIAL (EAD Digital)TECNÓLOGO",
+    "preco": "191",
+    "area": "Tecnologia",
+    "curso_site": "Inteligência Artificial",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "INTERDISCIPLINAR EM HUMANIDADES (EAD Digital)BACHARELADO",
+    "preco": "159",
+    "area": "Educação",
+    "curso_site": "Interdisciplinar em Humanidades",
+    "semestres": 6,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "INTERNET DAS COISAS (EAD Digital)TECNÓLOGO",
+    "preco": "111",
+    "area": "Tecnologia",
+    "curso_site": "Internet das Coisas",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "JOGOS DIGITAIS (EAD Digital)TECNÓLOGO",
+    "preco": "119",
+    "area": "Comunicação e Design",
+    "curso_site": "Jogos Digitais",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "JORNALISMO (EAD Digital)BACHARELADO",
+    "preco": "159",
+    "area": "Comunicação e Design",
+    "curso_site": "Jornalismo",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "LETRAS - LIBRAS (EAD Digital)LICENCIATURA",
+    "preco": "135",
+    "area": "Educação",
+    "curso_site": "Letras - Libras",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "LETRAS - PORTUGUÊS E ESPANHOL (EAD Digital)LICENCIATURA",
+    "preco": "127",
+    "area": "Educação",
+    "curso_site": "Letras - Português e Espanhol",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "LETRAS - PORTUGUÊS E ESPANHOL 2.0 (EAD Digital)LICENCIATURA",
+    "preco": "127",
+    "area": "Educação",
+    "curso_site": "Letras - Português e Espanhol 2.0",
+    "semestres": 2,
+    "tipo": "2ª Graduação EAD",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "LETRAS - PORTUGUÊS E INGLÊS (EAD Digital)LICENCIATURA",
+    "preco": "151",
+    "area": "Educação",
+    "curso_site": "Letras - Português e Inglês",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "LETRAS - PORTUGUÊS E INGLÊS 2.0 (EAD Digital)LICENCIATURA",
+    "preco": "127",
+    "area": "Educação",
+    "curso_site": "Letras - Português e Inglês 2.0",
+    "semestres": 2,
+    "tipo": "2ª Graduação EAD",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "LETRAS - PORTUGUÊS E JAPONÊS (EAD Digital)LICENCIATURA",
+    "preco": "135",
+    "area": "Educação",
+    "curso_site": "Letras - Português e Japonês",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "LOGÍSTICA (EAD Digital)TECNÓLOGO",
+    "preco": "143",
+    "area": "Administração e Negócios",
+    "curso_site": "Logística",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "MARKETING (EAD Digital)TECNÓLOGO",
+    "preco": "143",
+    "area": "Administração e Negócios",
+    "curso_site": "Marketing",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "MARKETING DIGITAL (EAD Digital)TECNÓLOGO",
+    "preco": "151",
+    "area": "Administração e Negócios",
+    "curso_site": "Marketing Digital",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "MATEMÁTICA (EAD Digital)BACHARELADO",
+    "preco": "167",
+    "area": "Educação",
+    "curso_site": "Matemática",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "MATEMÁTICA (EAD Digital)LICENCIATURA",
+    "preco": "127",
+    "area": "Educação",
+    "curso_site": "Matemática",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "MATEMÁTICA 2.0 (EAD Digital)LICENCIATURA",
+    "preco": "127",
+    "area": "Educação",
+    "curso_site": "Matemática 2.0",
+    "semestres": 2,
+    "tipo": "2ª Graduação EAD",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "NEGÓCIOS IMOBILIÁRIOS (EAD Digital)TECNÓLOGO",
+    "preco": "127",
+    "area": "Administração e Negócios",
+    "curso_site": "Negócios Imobiliários",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "PEDAGOGIA (EAD Digital)LICENCIATURA",
+    "preco": "127",
+    "area": "Educação",
+    "curso_site": "Pedagogia",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "PERÍCIA JUDICIAL E EXTRAJUDICIAL (EAD Digital)TECNÓLOGO",
+    "preco": "159",
+    "area": "Gestão E Negócios",
+    "curso_site": "Perícia Judicial E Extrajudicial",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "PODOLOGIA (EAD Digital)TECNÓLOGO",
+    "preco": "151",
+    "area": "Saúde",
+    "curso_site": "Podologia",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "PROCESSOS GERENCIAIS (EAD Digital)TECNÓLOGO",
+    "preco": "151",
+    "area": "Administração e Negócios",
+    "curso_site": "Processos Gerenciais",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "PRODUÇÃO AUDIOVISUAL (EAD Digital)TECNÓLOGO",
+    "preco": "191",
+    "area": "Comunicação",
+    "curso_site": "Produção Audiovisual",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "PRODUÇÃO CULTURAL (EAD Digital)TECNÓLOGO",
+    "preco": "135",
+    "area": "Comunicação e Design",
+    "curso_site": "Produção Cultural",
+    "semestres": 6,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "PSICOPEDAGOGIA (EAD Digital)BACHARELADO",
+    "preco": "159",
+    "area": "Saúde",
+    "curso_site": "Psicopedagogia",
+    "semestres": 6,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "PUBLICIDADE E PROPAGANDA (EAD Digital)BACHARELADO",
+    "preco": "159",
+    "area": "Comunicação e Design",
+    "curso_site": "Publicidade e Propaganda",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "QUÍMICA (EAD Digital)LICENCIATURA",
+    "preco": "143",
+    "area": "Educação",
+    "curso_site": "Química",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "QUÍMICA (EAD Digital)BACHARELADO",
+    "preco": "159",
+    "area": "Educação",
+    "curso_site": "Química",
+    "semestres": 6,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "R2 - FORMAÇÃO DE PROFESSORES - BIOLOGIA (EAD Digital)LICENCIATURA",
+    "preco": "127",
+    "area": "Educação",
+    "curso_site": "Formação de Professores - Biologia",
+    "semestres": 2,
+    "tipo": "EAD Digital",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "R2 - FORMAÇÃO DE PROFESSORES - GEOGRAFIA (EAD Digital)LICENCIATURA",
+    "preco": "127",
+    "area": "Educação",
+    "curso_site": "Formação de Professores - Geografia",
+    "semestres": 2,
+    "tipo": "EAD Digital",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "R2 - FORMAÇÃO DE PROFESSORES - HISTÓRIA (EAD Digital)LICENCIATURA",
+    "preco": "143",
+    "area": "Educação",
+    "curso_site": "Formação de Professores - História",
+    "semestres": 2,
+    "tipo": "EAD Digital",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "R2 - FORMAÇÃO DE PROFESSORES - MATEMÁTICA (EAD Digital)LICENCIATURA",
+    "preco": "111",
+    "area": "Educação",
+    "curso_site": "Formação de Professores - Matemática",
+    "semestres": 2,
+    "tipo": "EAD Digital",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "R2 - FORMAÇÃO DE PROFESSORES - PORTUGUÊS E ESPANHOL (EAD Digital)LICENCIATURA",
+    "preco": "127",
+    "area": "Educação",
+    "curso_site": "R2 - Formação De Professores - Português E Espanhol",
+    "semestres": 2,
+    "tipo": "EAD Digital",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "R2 - FORMAÇÃO DE PROFESSORES - QUÍMICA (EAD Digital)LICENCIATURA",
+    "preco": "127",
+    "area": "Educação",
+    "curso_site": "Formação de Professores - Química",
+    "semestres": 2,
+    "tipo": "EAD Digital",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "REDES DE COMPUTADORES (EAD Digital)TECNÓLOGO",
+    "preco": "135",
+    "area": "Tecnologia",
+    "curso_site": "Redes de Computadores",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "RELAÇÕES INTERNACIONAIS (EAD Digital)BACHARELADO",
+    "preco": "191",
+    "area": "Administração e Negócios",
+    "curso_site": "Relações Internacionais",
+    "semestres": 6,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "RELAÇÕES PÚBLICAS (EAD Digital)BACHARELADO",
+    "preco": "159",
+    "area": "Comunicação e Design",
+    "curso_site": "Relações Públicas",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "SECRETARIADO (EAD Digital)TECNÓLOGO",
+    "preco": "135",
+    "area": "Administração e Negócios",
+    "curso_site": "Secretariado",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "SEGURANÇA DA INFORMAÇÃO (EAD Digital)TECNÓLOGO",
+    "preco": "135",
+    "area": "Tecnologia",
+    "curso_site": "SEGURANÇA DA INFORMAÇÃO",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "SEGURANÇA DO TRABALHO (EAD Digital)TECNÓLOGO",
+    "preco": "127",
+    "area": "Engenharia e Produção",
+    "curso_site": "Segurança do Trabalho",
+    "semestres": 6,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "SEGURANÇA NO TRÂNSITO (EAD Digital)TECNÓLOGO",
+    "preco": "135",
+    "area": "Administração e Negócios",
+    "curso_site": "Segurança no Trânsito",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "SEGURANÇA PÚBLICA (EAD Digital)TECNÓLOGO",
+    "preco": "135",
+    "area": "Administração e Negócios",
+    "curso_site": "Segurança Pública",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "SERVIÇO SOCIAL (EAD Digital)BACHARELADO",
+    "preco": "143",
+    "area": "Humanas e Social",
+    "curso_site": "Serviço Social",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "SERVIÇOS JURÍDICOS E NOTARIAIS (EAD Digital)TECNÓLOGO",
+    "preco": "127",
+    "area": "Administração e Negócios",
+    "curso_site": "Serviços Jurídicos e Notariais",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "SERVIÇOS PENAIS (EAD Digital)TECNÓLOGO",
+    "preco": "143",
+    "area": "Administração e Negócios",
+    "curso_site": "Serviços Penais",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "SISTEMAS DE INFORMAÇÃO (EAD Digital)BACHARELADO",
+    "preco": "151",
+    "area": "Tecnologia",
+    "curso_site": "Sistemas de Informação",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "SISTEMAS PARA INTERNET (EAD Digital)TECNÓLOGO",
+    "preco": "127",
+    "area": "Tecnologia",
+    "curso_site": "Sistemas Para Internet",
+    "semestres": 4,
+    "tipo": "EAD Digital",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "TEOLOGIA (EAD Digital)BACHARELADO",
+    "preco": "151",
+    "area": "Educação",
+    "curso_site": "Teologia",
+    "semestres": 6,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ADMINISTRAÇÃO (EAD com aulas ao vivo)BACHARELADO",
+    "preco": "187",
+    "area": "Administração e Negócios",
+    "curso_site": "Administração",
+    "semestres": 8,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ANÁLISE E DESENVOLVIMENTO DE SISTEMAS (EAD com aulas ao vivo)TECNÓLOGO",
+    "preco": "224",
+    "area": "Tecnologia",
+    "curso_site": "Análise e Desenvolvimento de Sistemas",
+    "semestres": 4,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "ARQUITETURA E URBANISMO (EAD com aulas ao vivo)BACHARELADO",
+    "preco": "299",
+    "area": "Engenharia e Produção",
+    "curso_site": "Arquitetura e Urbanismo",
+    "semestres": 10,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "BIOMEDICINA (EAD com aulas ao vivo)BACHARELADO",
+    "preco": "292",
+    "area": "Saúde",
+    "curso_site": "Biomedicina",
+    "semestres": 8,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "CIÊNCIA DE DADOS (EAD com aulas ao vivo)TECNÓLOGO",
+    "preco": "202",
+    "area": "Tecnologia",
+    "curso_site": "Ciência de Dados",
+    "semestres": 4,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "CIÊNCIAS CONTÁBEIS (EAD com aulas ao vivo)BACHARELADO",
+    "preco": "254",
+    "area": "Administração e Negócios",
+    "curso_site": "Ciências Contábeis",
+    "semestres": 8,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "CIÊNCIAS ECONÔMICAS (EAD com aulas ao vivo)BACHARELADO",
+    "preco": "209",
+    "area": "Administração e Negócios",
+    "curso_site": "Ciências Econômicas",
+    "semestres": 8,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "COMPUTAÇÃO NA NUVEM (EAD com aulas ao vivo)TECNÓLOGO",
+    "preco": "247",
+    "area": "Tecnologia",
+    "curso_site": "Computação na Nuvem",
+    "semestres": 4,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "ENGENHARIA CIVIL (EAD com aulas ao vivo)BACHARELADO",
+    "preco": "314",
+    "area": "Engenharia e Produção",
+    "curso_site": "Engenharia Civil",
+    "semestres": 10,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ENGENHARIA DA COMPUTAÇÃO (EAD com aulas ao vivo)BACHARELADO",
+    "preco": "329",
+    "area": "Engenharia e Produção",
+    "curso_site": "Engenharia da Computação",
+    "semestres": 10,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ENGENHARIA DE PRODUÇÃO (EAD com aulas ao vivo)BACHARELADO",
+    "preco": "314",
+    "area": "Engenharia e Produção",
+    "curso_site": "Engenharia de Produção",
+    "semestres": 10,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ENGENHARIA ELÉTRICA (EAD com aulas ao vivo)BACHARELADO",
+    "preco": "329",
+    "area": "Engenharia e Produção",
+    "curso_site": "Engenharia Elétrica",
+    "semestres": 10,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ENGENHARIA MECÂNICA (EAD com aulas ao vivo)BACHARELADO",
+    "preco": "314",
+    "area": "Engenharia e Produção",
+    "curso_site": "Engenharia Mecânica",
+    "semestres": 10,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ENGENHARIA MECATRÔNICA (EAD com aulas ao vivo)BACHARELADO",
+    "preco": "329",
+    "area": "Engenharia e Produção",
+    "curso_site": "Engenharia Mecatrônica",
+    "semestres": 10,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "FARMÁCIA (EAD com aulas ao vivo)BACHARELADO",
+    "preco": "292",
+    "area": "Saúde",
+    "curso_site": "Farmácia",
+    "semestres": 8,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "FISIOTERAPIA (EAD com aulas ao vivo)BACHARELADO",
+    "preco": "299",
+    "area": "Saúde",
+    "curso_site": "Fisioterapia",
+    "semestres": 8,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "GESTÃO DE RECURSOS HUMANOS (EAD com aulas ao vivo)TECNÓLOGO",
+    "preco": "232",
+    "area": "Administração e Negócios",
+    "curso_site": "Gestão de Recursos Humanos",
+    "semestres": 4,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "MARKETING DIGITAL (EAD com aulas ao vivo)TECNÓLOGO",
+    "preco": "262",
+    "area": "Administração e Negócios",
+    "curso_site": "Marketing Digital",
+    "semestres": 4,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "NATUROLOGIA (EAD com aulas ao vivo)BACHARELADO",
+    "preco": "299",
+    "area": "Saúde",
+    "curso_site": "Naturologia",
+    "semestres": 6,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "NUTRIÇÃO (EAD com aulas ao vivo)BACHARELADO",
+    "preco": "277",
+    "area": "Saúde",
+    "curso_site": "Nutrição",
+    "semestres": 8,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "PEDAGOGIA (EAD com aulas ao vivo)LICENCIATURA",
+    "preco": "202",
+    "area": "Educação",
+    "curso_site": "Pedagogia",
+    "semestres": 8,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "PSICANÁLISE (EAD com aulas ao vivo)BACHARELADO",
+    "preco": "239",
+    "area": "Saúde",
+    "curso_site": "Psicanálise",
+    "semestres": 8,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "PSICOPEDAGOGIA (EAD com aulas ao vivo)BACHARELADO",
+    "preco": "322",
+    "area": "Saúde",
+    "curso_site": "Psicopedagogia",
+    "semestres": 6,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "RELAÇÕES INTERNACIONAIS (EAD com aulas ao vivo)BACHARELADO",
+    "preco": "299",
+    "area": "Administração e Negócios",
+    "curso_site": "Relações Internacionais",
+    "semestres": 6,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "TERAPIA OCUPACIONAL (EAD com aulas ao vivo)BACHARELADO",
+    "preco": "269",
+    "area": "Saúde",
+    "curso_site": "Terapia Ocupacional",
+    "semestres": 8,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "TERAPIAS INTEGRATIVAS COMPLEMENTARES (EAD com aulas ao vivo)TECNÓLOGO",
+    "preco": "224",
+    "area": "Saúde",
+    "curso_site": "Terapias Integrativas Complementares",
+    "semestres": 4,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "ARQUITETURA E URBANISMO (EAD Semipresencial)BACHARELADO",
+    "preco": "265",
+    "area": "Engenharia e Produção",
+    "curso_site": "Arquitetura e Urbanismo",
+    "semestres": 10,
+    "tipo": "EaD Semipresencial",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "BIOMEDICINA (EAD Semipresencial)BACHARELADO",
+    "preco": "251",
+    "area": "Saúde",
+    "curso_site": "Biomedicina",
+    "semestres": 8,
+    "tipo": "EaD Semipresencial",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ENFERMAGEM (EAD Semipresencial)BACHARELADO",
+    "preco": "359",
+    "area": "Saúde",
+    "curso_site": "Enfermagem",
+    "semestres": 8,
+    "tipo": "EaD Semipresencial",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ENGENHARIA AMBIENTAL (EAD Semipresencial)BACHARELADO",
+    "preco": "293",
+    "area": "Engenharia e Produção",
+    "curso_site": "Engenharia Ambiental",
+    "semestres": 10,
+    "tipo": "EaD Semipresencial",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ENGENHARIA CIVIL (EAD Semipresencial)BACHARELADO",
+    "preco": "286",
+    "area": "Engenharia e Produção",
+    "curso_site": "Engenharia Civil",
+    "semestres": 10,
+    "tipo": "EaD Semipresencial",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ENGENHARIA DE PRODUÇÃO (EAD Semipresencial)BACHARELADO",
+    "preco": "293",
+    "area": "Engenharia e Produção",
+    "curso_site": "Engenharia de Produção",
+    "semestres": 10,
+    "tipo": "EaD Semipresencial",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ENGENHARIA ELÉTRICA (EAD Semipresencial)BACHARELADO",
+    "preco": "293",
+    "area": "Engenharia e Produção",
+    "curso_site": "Engenharia Elétrica",
+    "semestres": 10,
+    "tipo": "EaD Semipresencial",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ENGENHARIA MECÂNICA (EAD Semipresencial)BACHARELADO",
+    "preco": "265",
+    "area": "Engenharia e Produção",
+    "curso_site": "Engenharia Mecânica",
+    "semestres": 10,
+    "tipo": "EaD Semipresencial",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ENGENHARIA MECATRÔNICA (EAD Semipresencial)BACHARELADO",
+    "preco": "300",
+    "area": "Engenharia e Produção",
+    "curso_site": "Engenharia Mecatrônica",
+    "semestres": 10,
+    "tipo": "EaD Semipresencial",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ESTÉTICA E COSMÉTICA (EAD Semipresencial)TECNÓLOGO",
+    "preco": "237",
+    "area": "Saúde",
+    "curso_site": "Estética e Cosmética",
+    "semestres": 4,
+    "tipo": "EaD Semipresencial",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "FARMÁCIA (EAD Semipresencial)BACHARELADO",
+    "preco": "286",
+    "area": "Saúde",
+    "curso_site": "Farmácia",
+    "semestres": 8,
+    "tipo": "EaD Semipresencial",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "FISIOTERAPIA (EAD Semipresencial)BACHARELADO",
+    "preco": "258",
+    "area": "Saúde",
+    "curso_site": "Fisioterapia",
+    "semestres": 8,
+    "tipo": "EaD Semipresencial",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "FONOAUDIOLOGIA (EAD Semipresencial)BACHARELADO",
+    "preco": "258",
+    "area": "Saúde",
+    "curso_site": "Fonoaudiologia",
+    "semestres": 8,
+    "tipo": "EaD Semipresencial",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "GASTRONOMIA (EAD Semipresencial)TECNÓLOGO",
+    "preco": "279",
+    "area": "Administração e Negócios",
+    "curso_site": "Gastronomia",
+    "semestres": 4,
+    "tipo": "EaD Semipresencial",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "NUTRIÇÃO (EAD Semipresencial)BACHARELADO",
+    "preco": "258",
+    "area": "Saúde",
+    "curso_site": "Nutrição",
+    "semestres": 8,
+    "tipo": "EaD Semipresencial",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ÓPTICA E OPTOMETRIA (EAD Semipresencial)BACHARELADO",
+    "preco": "454",
+    "area": "Saúde",
+    "curso_site": "Óptica e Optometria",
+    "semestres": 8,
+    "tipo": "EaD Semipresencial",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "ZOOTECNIA (EAD Semipresencial)BACHARELADO",
+    "preco": "279",
+    "area": "Saúde",
+    "curso_site": "Zootecnia",
+    "semestres": 10,
+    "tipo": "EaD Semipresencial",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "SERVIÇO SOCIAL (EAD com aulas ao vivo)BACHARELADO",
+    "preco": "157",
+    "area": "Humanas e Social",
+    "curso_site": "Serviço Social",
+    "semestres": 8,
+    "tipo": "EaD com aulas ao vivo",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "DESIGN GRÁFICO (EAD com aulas ao vivo)TECNÓLOGO",
+    "preco": "209",
+    "area": "Comunicação e Design",
+    "curso_site": "Design Gráfico",
+    "semestres": 4,
+    "tipo": "EAD com aulas ao vivo",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "GESTÃO COMERCIAL (EAD com aulas ao vivo)TECNÓLOGO",
+    "preco": "202",
+    "area": "Administração e Negócios",
+    "curso_site": "Gestão Comercial",
+    "semestres": 4,
+    "tipo": "EAD com aulas ao vivo",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "LOGÍSTICA (EAD com aulas ao vivo)TECNÓLOGO",
+    "preco": "202",
+    "area": "Administração e Negócios",
+    "curso_site": "Logística",
+    "semestres": 4,
+    "tipo": "EAD com aulas ao vivo",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "CRIMINOLOGIA (EAD com aulas ao vivo)TECNÓLOGO",
+    "preco": "224",
+    "area": "Humanas e Social",
+    "curso_site": "Criminologia",
+    "semestres": 4,
+    "tipo": "EAD com aulas ao vivo",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "AGRONOMIA (EAD Semipresencial)BACHARELADO",
+    "preco": "265",
+    "area": "Engenharia e Produção",
+    "curso_site": "Agronomia",
+    "semestres": 10,
+    "tipo": "EAD Semipresencial",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "GERONTOLOGIA (EAD Semipresencial)TECNÓLOGO",
+    "preco": "244",
+    "area": "Saúde",
+    "curso_site": "Gerontologia",
+    "semestres": 6,
+    "tipo": "EAD Semipresencial",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "RADIOLOGIA (EAD Semipresencial)TECNÓLOGO",
+    "preco": "265",
+    "area": "Saúde",
+    "curso_site": "Radiologia",
+    "semestres": 6,
+    "tipo": "EAD Semipresencial",
+    "grau": "Tecnólogo"
+  },
+  {
+    "chave": "R2 - FORMAÇÃO DE PROFESSORES - PORTUGUÊS E INGLÊS (EAD Digital)LICENCIATURA",
+    "preco": "151",
+    "area": "Educação",
+    "curso_site": "R2 - Formação De Professores - Português E Inglês",
+    "semestres": 2,
+    "tipo": "EAD Digital",
+    "grau": "Licenciatura"
+  },
+  {
+    "chave": "EDUCAÇÃO FÍSICA (EAD Digital)BACHARELADO",
+    "preco": "199",
+    "area": "Saúde",
+    "curso_site": "Educação Física",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Bacharelado"
+  },
+  {
+    "chave": "EDUCAÇÃO FÍSICA (EAD Digital)LICENCIATURA",
+    "preco": "199",
+    "area": "Saúde",
+    "curso_site": "Educação Física",
+    "semestres": 8,
+    "tipo": "EAD Digital",
+    "grau": "Licenciatura"
+  }
+]

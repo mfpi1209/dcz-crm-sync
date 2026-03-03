@@ -5,13 +5,16 @@ Integração com o projeto Kommo_Update para sincronização de leads/contatos.
 
 import os
 import sys
+import json
 import uuid
 import logging
 import threading
 import subprocess
-from datetime import datetime
+import time as _time
+from datetime import datetime, date
 from pathlib import Path
 
+import requests as _requests
 import psycopg2
 import psycopg2.extras
 from flask import Blueprint, request, jsonify
@@ -294,3 +297,198 @@ def api_kommo_task(task_id):
     if "log" in t and len(t["log"]) > 30:
         t["log"] = t["log"][-30:]
     return jsonify({"ok": True, "data": t})
+
+
+# ── Funnel LIVE (Kommo API v4) ────────────────────────────────────────────
+
+KOMMO_API_BASE = os.getenv("KOMMO_BASE_URL", "https://admamoeduitcombr.kommo.com")
+KOMMO_TOKEN = os.getenv("KOMMO_TOKEN", "")
+
+FUNNEL_PIPELINE = 5481944
+FUNNEL_STAGES_DEF = [
+    {"key": "contato_inicial",       "id": 48539240, "label": "Contato Inicial"},
+    {"key": "sem_resposta",          "id": 48539243, "label": "Sem Resposta"},
+    {"key": "em_atendimento",        "id": 48539246, "label": "Em Atendimento"},
+    {"key": "aguardando_resposta",   "id": 74941508, "label": "Aguardando Resposta"},
+    {"key": "aguardando_inscricao",  "id": 99045180, "label": "Aguardando Inscrição"},
+    {"key": "inscricao",             "id": 48539249, "label": "Inscrição"},
+    {"key": "processo_seletivo",     "id": 48566195, "label": "Processo Seletivo"},
+    {"key": "em_processo",           "id": 48566198, "label": "Em Processo"},
+    {"key": "aprovado_reprovado",    "id": 48566201, "label": "Aprovados/Reprovados"},
+    {"key": "boleto_enviado",        "id": 48566204, "label": "Boleto Enviado"},
+    {"key": "aceite",                "id": 48566207, "label": "Aceite"},
+    {"key": "pagamento_confirmado",  "id": 77728584, "label": "Pagamento Confirmado"},
+]
+
+FUNNEL_HIGHLIGHT = [
+    "aguardando_inscricao", "inscricao", "processo_seletivo",
+    "em_processo", "aprovado_reprovado", "aceite",
+]
+
+_funnel_cache = {"data": None, "ts": 0}
+_FUNNEL_CACHE_TTL = 300
+
+SNAPSHOT_FILE = Path(__file__).resolve().parent.parent / "data" / "funnel_snapshot.json"
+
+
+def _kommo_get(path, params=None):
+    base = KOMMO_API_BASE.rstrip("/")
+    if "/api/v4" not in base:
+        url = f"{base}/api/v4{path}"
+    else:
+        url = f"{base}{path}"
+    headers = {"Authorization": f"Bearer {KOMMO_TOKEN}"}
+    return _requests.get(url, headers=headers, params=params, timeout=30)
+
+
+def _fetch_funnel_live():
+    """Fetch all leads in the funnel pipeline from Kommo API v4, count by status."""
+    stage_ids = [s["id"] for s in FUNNEL_STAGES_DEF]
+    all_leads = []
+    page = 1
+
+    while True:
+        params = {"limit": 250, "page": page}
+        for i, sid in enumerate(stage_ids):
+            params[f"filter[statuses][{i}][pipeline_id]"] = FUNNEL_PIPELINE
+            params[f"filter[statuses][{i}][status_id]"] = sid
+
+        try:
+            r = _kommo_get("/leads", params)
+        except Exception as e:
+            logger.error("Kommo API error: %s", e)
+            break
+
+        if r.status_code != 200:
+            logger.warning("Kommo API %d: %s", r.status_code, r.text[:200])
+            break
+
+        data = r.json()
+        leads = data.get("_embedded", {}).get("leads", [])
+        if not leads:
+            break
+        all_leads.extend(leads)
+
+        if "_links" not in data or "next" not in data["_links"]:
+            break
+        page += 1
+        _time.sleep(0.2)
+
+    counts = {}
+    today_start = int(_time.mktime(
+        datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timetuple()
+    ))
+    new_today = 0
+
+    for lead in all_leads:
+        sid = lead.get("status_id")
+        counts[sid] = counts.get(sid, 0) + 1
+        if lead.get("created_at", 0) >= today_start:
+            new_today += 1
+
+    stages = []
+    total = 0
+    for sdef in FUNNEL_STAGES_DEF:
+        c = counts.get(sdef["id"], 0)
+        total += c
+        stages.append({
+            "key": sdef["key"],
+            "id": sdef["id"],
+            "label": sdef["label"],
+            "count": c,
+            "highlight": sdef["key"] in FUNNEL_HIGHLIGHT,
+        })
+
+    for s in stages:
+        s["pct"] = round(s["count"] / total * 100, 1) if total > 0 else 0
+
+    return {
+        "stages": stages,
+        "total": total,
+        "new_today": new_today,
+        "leads_fetched": len(all_leads),
+        "pages": page,
+    }
+
+
+def _load_snapshot():
+    try:
+        if SNAPSHOT_FILE.exists():
+            with open(SNAPSHOT_FILE, encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+
+def _save_snapshot(snapshots):
+    SNAPSHOT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(SNAPSHOT_FILE, "w", encoding="utf-8") as f:
+        json.dump(snapshots, f, indent=2, ensure_ascii=False)
+
+
+def _get_snapshot_d0(current_stages):
+    """Get or create today's D0 snapshot. Returns yesterday's snapshot for delta."""
+    today = date.today().isoformat()
+    snapshots = _load_snapshot()
+
+    if today not in snapshots:
+        snapshots[today] = {s["key"]: s["count"] for s in current_stages}
+        snapshots[today]["_total"] = sum(s["count"] for s in current_stages)
+        old = sorted(k for k in snapshots if k != today)
+        for k in old[:-7]:
+            del snapshots[k]
+        _save_snapshot(snapshots)
+
+    d0 = snapshots.get(today, {})
+
+    dates_sorted = sorted(snapshots.keys())
+    yesterday = None
+    for dt in dates_sorted:
+        if dt < today:
+            yesterday = snapshots[dt]
+
+    return d0, yesterday
+
+
+@kommo_bp.route("/api/kommo/funnel-live")
+def api_kommo_funnel_live():
+    """Fetch real-time funnel data from Kommo API v4."""
+    force = request.args.get("force", "0") == "1"
+    now = _time.time()
+
+    if not force and _funnel_cache["data"] and (now - _funnel_cache["ts"]) < _FUNNEL_CACHE_TTL:
+        return jsonify({"ok": True, "data": _funnel_cache["data"], "cached": True})
+
+    if not KOMMO_TOKEN:
+        return jsonify({"ok": False, "error": "KOMMO_TOKEN não configurado"}), 500
+
+    try:
+        result = _fetch_funnel_live()
+        d0, yesterday = _get_snapshot_d0(result["stages"])
+
+        for s in result["stages"]:
+            d0_val = d0.get(s["key"], s["count"])
+            s["d0"] = d0_val
+            delta = s["count"] - d0_val
+            s["delta"] = delta
+            s["delta_pct"] = round(delta / d0_val * 100, 1) if d0_val > 0 else 0
+
+            if yesterday:
+                yd = yesterday.get(s["key"], 0)
+                s["yesterday"] = yd
+                s["delta_yesterday"] = s["count"] - yd
+            else:
+                s["yesterday"] = None
+                s["delta_yesterday"] = None
+
+        result["d0_date"] = date.today().isoformat()
+        result["fetched_at"] = datetime.now().strftime("%H:%M:%S")
+
+        _funnel_cache["data"] = result
+        _funnel_cache["ts"] = now
+
+        return jsonify({"ok": True, "data": result})
+    except Exception as e:
+        logger.error("funnel-live error: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
