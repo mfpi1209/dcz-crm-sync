@@ -391,7 +391,9 @@ async function deleteSchedule(id) {
 // ---------------------------------------------------------------------------
 const PAGE_LABELS = {
     dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização',
+    kommo_sync: 'Sync Comercial',
     update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline',
+    match_merge: 'Match & Merge',
     logs: 'Logs / Relatórios', distribuicao: 'Distribuição',
     intelligence: 'Inteligência', inadimplencia: 'Inadimplência',
     feedback: 'Feedback', config: 'Configurações', schedule: 'Agendamento',

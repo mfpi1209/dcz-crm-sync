@@ -39,6 +39,8 @@ function navigate(page) {
     if (page === 'distribuicao') loadDistribuicao();
     if (page === 'intelligence') loadIntelligence();
     if (page === 'inadimplencia') loadInadimplencia();
+    if (page === 'kommo_sync') loadKommoSync();
+    if (page === 'match_merge') loadMatchMerge();
     if (page === 'feedback') fbInit();
     if (page === 'schedule') loadSchedules();
     if (page === 'inscricao') loadInscricao();
@@ -150,7 +152,7 @@ async function applySidebarPermissions() {
         }
         const sistemaLabel = document.getElementById('sidebar-section-sistema');
         if (sistemaLabel) {
-            const sysPages = ['sync', 'logs', 'config', 'schedule'];
+            const sysPages = ['sync', 'kommo_sync', 'logs', 'config', 'schedule'];
             const anySys = role === 'admin' || sysPages.some(p => pages.includes(p));
             sistemaLabel.style.display = anySys ? '' : 'none';
         }

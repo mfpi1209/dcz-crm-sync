@@ -83,13 +83,13 @@ def login():
             session["user_id"] = db_user["id"]
             session["username"] = db_user["username"]
             session["role"] = db_user["role"]
-            return redirect(url_for("dashboard_bp.index"))
+            return redirect("/")
         if APP_PASS_FALLBACK and user == APP_USER_FALLBACK and pwd == APP_PASS_FALLBACK:
             session["authenticated"] = True
             session["user_id"] = 0
             session["username"] = APP_USER_FALLBACK
             session["role"] = "admin"
-            return redirect(url_for("dashboard_bp.index"))
+            return redirect("/")
         error = "Usuário ou senha incorretos."
     return render_template("login.html", error=error)
 
