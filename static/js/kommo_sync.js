@@ -1,7 +1,6 @@
 // ===========================================================================
 // SYNC COMERCIAL — Kommo CRM
 // ===========================================================================
-let _kommoPipeChart = null;
 let _kommoActChart = null;
 let _kommoTaskId = null;
 let _kommoPolling = null;
@@ -11,6 +10,15 @@ const _kommoColors = [
     '#ec4899', '#14b8a6', '#f97316', '#06b6d4', '#84cc16',
     '#a855f7', '#22d3ee', '#fb923c', '#4ade80', '#f43f5e',
 ];
+
+const _FUNNEL_STAGES = {
+    aguardando_inscricao: { id: 99045180, el: 'kommo-funnel-aguardando' },
+    inscricao:            { id: 48539249, el: 'kommo-funnel-inscricao' },
+    processo_seletivo:    { id: 48566195, el: 'kommo-funnel-procseletivo' },
+    em_processo:          { id: 48566198, el: 'kommo-funnel-emprocesso' },
+    aprovado_reprovado:   { id: 48566201, el: 'kommo-funnel-aprovado' },
+    aceite:               { id: 48566207, el: 'kommo-funnel-aceite' },
+};
 
 async function loadKommoSync() {
     try {
@@ -26,7 +34,8 @@ async function loadKommoSync() {
         const changes = await changesRes.json();
 
         if (status.ok) _kommoRenderStatus(status.data);
-        if (stages.ok) _kommoRenderPipeline(stages.data);
+        if (stages.ok) _kommoRenderFunnelCards(stages.data, status.ok ? status.data.new_today : 0);
+        if (stages.ok) _kommoRenderStagesTable(stages.data);
         if (changes.ok) _kommoRenderChanges(changes.data);
     } catch (e) {
         console.error('Erro ao carregar Sync Comercial:', e);
@@ -102,18 +111,25 @@ function _kommoRenderChanges(d) {
     });
 }
 
-function _kommoRenderPipeline(data) {
-    const canvas = document.getElementById('kommo-pipeline-chart');
-    if (_kommoPipeChart) { _kommoPipeChart.destroy(); _kommoPipeChart = null; }
+function _kommoRenderFunnelCards(stagesData, newToday) {
+    document.getElementById('kommo-funnel-new').textContent = (newToday || 0).toLocaleString('pt-BR');
 
+    const byId = {};
+    stagesData.forEach(s => { byId[s.stage_id] = s.total; });
+
+    Object.values(_FUNNEL_STAGES).forEach(cfg => {
+        const el = document.getElementById(cfg.el);
+        if (el) el.textContent = (byId[cfg.id] || 0).toLocaleString('pt-BR');
+    });
+}
+
+function _kommoRenderStagesTable(data) {
     const totalAll = data.reduce((s, d) => s + d.total, 0);
-
     const tbody = document.getElementById('kommo-stages-tbody');
     if (!data.length) {
         tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-slate-500">Nenhum dado</td></tr>';
         return;
     }
-
     tbody.innerHTML = data.map(s => {
         const pct = totalAll > 0 ? ((s.total / totalAll) * 100).toFixed(1) : '0';
         return `<tr class="border-b border-slate-800/40 hover:bg-slate-800/30 transition">
@@ -123,52 +139,6 @@ function _kommoRenderPipeline(data) {
             <td class="py-2 text-right text-xs text-slate-400">${pct}%</td>
         </tr>`;
     }).join('');
-
-    const pipelines = {};
-    data.forEach(s => {
-        if (!pipelines[s.pipeline_name]) pipelines[s.pipeline_name] = [];
-        pipelines[s.pipeline_name].push(s);
-    });
-
-    const pipeNames = Object.keys(pipelines);
-    if (pipeNames.length === 0) return;
-
-    const mainPipe = pipeNames.reduce((a, b) =>
-        pipelines[a].reduce((s, x) => s + x.total, 0) >= pipelines[b].reduce((s, x) => s + x.total, 0) ? a : b
-    );
-
-    const stagesData = pipelines[mainPipe] || [];
-    const labels = stagesData.map(s => s.stage_name);
-    const values = stagesData.map(s => s.total);
-    const total = values.reduce((a, b) => a + b, 0);
-
-    _kommoPipeChart = new Chart(canvas, {
-        type: 'doughnut',
-        data: {
-            labels,
-            datasets: [{
-                data: values,
-                backgroundColor: labels.map((_, i) => _kommoColors[i % _kommoColors.length]),
-                borderWidth: 0,
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: '55%',
-            plugins: {
-                legend: { position: 'right', labels: { color: '#94a3b8', padding: 8, usePointStyle: true, pointStyleWidth: 8, font: { size: 11 } } },
-                tooltip: {
-                    callbacks: {
-                        label: ctx => {
-                            const pct = total > 0 ? (ctx.parsed / total * 100).toFixed(1) : '0';
-                            return ` ${ctx.label}: ${ctx.parsed.toLocaleString('pt-BR')} (${pct}%)`;
-                        }
-                    }
-                }
-            }
-        }
-    });
 }
 
 async function _kommoStartSync(mode) {

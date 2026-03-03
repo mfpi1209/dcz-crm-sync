@@ -75,27 +75,59 @@
                     </div>
                 </div>
 
-                <!-- Charts row -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                    <!-- Pipeline chart -->
-                    <div class="glass-card p-5">
-                        <h3 class="text-sm font-bold text-white font-display flex items-center gap-2 mb-4">
-                            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-                            Leads por Etapa do Funil
-                        </h3>
-                        <div class="relative h-80">
-                            <canvas id="kommo-pipeline-chart"></canvas>
+                <!-- Funnel cards -->
+                <div class="mb-6">
+                    <h3 class="text-sm font-bold text-white font-display flex items-center gap-2 mb-4">
+                        <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+                        Funil de Vendas
+                    </h3>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3" id="kommo-funnel-cards">
+                        <div class="glass-card p-4 relative overflow-hidden" data-funnel="new_today">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-green-400 to-emerald-500"></div>
+                            <p class="text-[9px] font-bold text-slate-500 uppercase tracking-wider pl-2">Novos (hoje)</p>
+                            <p class="text-2xl font-bold text-white font-display mt-1 pl-2" id="kommo-funnel-new">—</p>
+                        </div>
+                        <div class="glass-card p-4 relative overflow-hidden" data-funnel="aguardando_inscricao">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-blue-400 to-blue-600"></div>
+                            <p class="text-[9px] font-bold text-slate-500 uppercase tracking-wider pl-2">Aguard. Inscrição</p>
+                            <p class="text-2xl font-bold text-white font-display mt-1 pl-2" id="kommo-funnel-aguardando">—</p>
+                        </div>
+                        <div class="glass-card p-4 relative overflow-hidden" data-funnel="inscricao">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-indigo-400 to-indigo-600"></div>
+                            <p class="text-[9px] font-bold text-slate-500 uppercase tracking-wider pl-2">Inscrição</p>
+                            <p class="text-2xl font-bold text-white font-display mt-1 pl-2" id="kommo-funnel-inscricao">—</p>
+                        </div>
+                        <div class="glass-card p-4 relative overflow-hidden" data-funnel="processo_seletivo">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-violet-400 to-violet-600"></div>
+                            <p class="text-[9px] font-bold text-slate-500 uppercase tracking-wider pl-2">Proc. Seletivo</p>
+                            <p class="text-2xl font-bold text-white font-display mt-1 pl-2" id="kommo-funnel-procseletivo">—</p>
+                        </div>
+                        <div class="glass-card p-4 relative overflow-hidden" data-funnel="em_processo">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-cyan-400 to-cyan-600"></div>
+                            <p class="text-[9px] font-bold text-slate-500 uppercase tracking-wider pl-2">Em Processo</p>
+                            <p class="text-2xl font-bold text-white font-display mt-1 pl-2" id="kommo-funnel-emprocesso">—</p>
+                        </div>
+                        <div class="glass-card p-4 relative overflow-hidden" data-funnel="aprovado_reprovado">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-amber-400 to-amber-600"></div>
+                            <p class="text-[9px] font-bold text-slate-500 uppercase tracking-wider pl-2">Aprov./Reprov.</p>
+                            <p class="text-2xl font-bold text-white font-display mt-1 pl-2" id="kommo-funnel-aprovado">—</p>
+                        </div>
+                        <div class="glass-card p-4 relative overflow-hidden" data-funnel="aceite">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-emerald-400 to-teal-600"></div>
+                            <p class="text-[9px] font-bold text-slate-500 uppercase tracking-wider pl-2">Aceite</p>
+                            <p class="text-2xl font-bold text-white font-display mt-1 pl-2" id="kommo-funnel-aceite">—</p>
                         </div>
                     </div>
-                    <!-- Recent activity chart -->
-                    <div class="glass-card p-5">
-                        <h3 class="text-sm font-bold text-white font-display flex items-center gap-2 mb-4">
-                            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
-                            Atividade Recente por Etapa
-                        </h3>
-                        <div class="relative h-80">
-                            <canvas id="kommo-activity-chart"></canvas>
-                        </div>
+                </div>
+
+                <!-- Activity chart -->
+                <div class="glass-card p-5 mb-6">
+                    <h3 class="text-sm font-bold text-white font-display flex items-center gap-2 mb-4">
+                        <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                        Atividade Recente por Etapa
+                    </h3>
+                    <div class="relative h-80">
+                        <canvas id="kommo-activity-chart"></canvas>
                     </div>
                 </div>
 

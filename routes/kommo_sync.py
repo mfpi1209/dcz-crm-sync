@@ -62,6 +62,16 @@ def api_kommo_status():
         """)
         history = [dict(r) for r in cur.fetchall()]
 
+        import time as _time
+        today_start = int(_time.mktime(
+            datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timetuple()
+        ))
+        cur.execute(
+            "SELECT COUNT(*) AS cnt FROM leads WHERE created_at >= %s AND is_deleted = false",
+            (today_start,)
+        )
+        new_today = cur.fetchone()["cnt"]
+
         conn.close()
         return jsonify({
             "ok": True,
@@ -70,6 +80,7 @@ def api_kommo_status():
                 "leads_count": leads,
                 "contacts_count": contacts,
                 "history": history,
+                "new_today": new_today,
             }
         })
     except Exception as e:
