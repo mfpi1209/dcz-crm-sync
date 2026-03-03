@@ -52,7 +52,7 @@ async function _kommoRefreshFunnel(force) {
         const res = await api(url);
         const d = await res.json();
         if (d.ok) {
-            _kommoRenderFunnelLive(d.data);
+            _renderFunnelCards(d.data, 'kommo-funnel');
         } else {
             console.error('funnel-live error:', d.error);
         }
@@ -63,19 +63,19 @@ async function _kommoRefreshFunnel(force) {
     }
 }
 
-function _kommoRenderFunnelLive(data) {
-    const newEl = document.getElementById('kommo-funnel-new');
-    const totalEl = document.getElementById('kommo-funnel-total');
+function _renderFunnelCards(data, prefix) {
+    const newEl = document.getElementById(prefix + '-new');
+    const totalEl = document.getElementById(prefix + '-total');
     if (newEl) newEl.textContent = (data.new_today || 0).toLocaleString('pt-BR');
     if (totalEl) totalEl.textContent = (data.total || 0).toLocaleString('pt-BR');
 
-    const tsEl = document.getElementById('kommo-funnel-ts');
+    const tsEl = document.getElementById(prefix + '-ts');
     if (tsEl) {
         const label = data.fetched_at ? `Live ${data.fetched_at}` : '';
         tsEl.textContent = label;
     }
 
-    const container = document.getElementById('kommo-funnel-cards');
+    const container = document.getElementById(prefix + '-cards');
     if (!container) return;
 
     const highlight = (data.stages || []).filter(s => s.highlight);

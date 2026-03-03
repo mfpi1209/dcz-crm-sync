@@ -2,6 +2,8 @@
 // Dashboard
 // ---------------------------------------------------------------------------
 async function loadDashboard() {
+    _dashRefreshFunnel(false);
+
     try {
         const res = await api('/api/dashboard');
         const d = await res.json();
@@ -37,6 +39,26 @@ async function loadDashboard() {
     loadStudentMetrics();
     loadTimeline();
     loadCicloMaster();
+}
+
+async function _dashRefreshFunnel(force) {
+    const btn = document.getElementById('dash-funnel-refresh-btn');
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
+
+    try {
+        const url = '/api/kommo/funnel-live' + (force ? '?force=1' : '');
+        const res = await api(url);
+        const d = await res.json();
+        if (d.ok) {
+            _renderFunnelCards(d.data, 'dash-funnel');
+        } else {
+            console.error('dash funnel-live error:', d.error);
+        }
+    } catch (e) {
+        console.error('dash funnel-live fetch error:', e);
+    } finally {
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+    }
 }
 
 // ---------------------------------------------------------------------------

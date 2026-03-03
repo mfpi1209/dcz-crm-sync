@@ -119,18 +119,18 @@ function renderDistTable(items) {
                 </div>
             </td>
             <td class="px-3 py-3 text-center">
-                <select data-field="status" class="input-glass px-3 py-1.5 text-xs font-semibold rounded-lg border ${isAtivo ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' : 'text-rose-400 border-rose-500/30 bg-rose-500/10'} cursor-pointer hover:opacity-80 transition-opacity">
+                <select data-field="status" class="px-4 py-2 text-xs font-bold rounded-xl border-2 cursor-pointer transition-all duration-200 outline-none ${isAtivo
+                    ? 'text-emerald-300 border-emerald-500 bg-emerald-500/25 shadow-[0_0_12px_rgba(16,185,129,0.25)] hover:bg-emerald-500/35'
+                    : 'text-rose-300 border-rose-500 bg-rose-500/25 shadow-[0_0_12px_rgba(244,63,94,0.25)] hover:bg-rose-500/35'}">
                     <option value="Ativo" ${isAtivo ? 'selected' : ''}>● Ativo</option>
                     <option value="Inativo" ${!isAtivo ? 'selected' : ''}>● Inativo</option>
                 </select>
             </td>
             <td class="px-3 py-3 text-center">
-                <div class="relative">
-                    <input type="time" value="${esc(d.almoco || '')}" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-[85px] text-center rounded-lg">
-                </div>
+                <input type="time" value="${esc(d.almoco || '')}" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-28 text-center rounded-lg">
             </td>
             <td class="px-3 py-3 text-center">
-                <input type="time" value="${esc(d.final_expediente || '')}" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-[85px] text-center rounded-lg">
+                <input type="time" value="${esc(d.final_expediente || '')}" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-28 text-center rounded-lg">
             </td>
             <td class="px-3 py-3 text-center">
                 <input type="number" value="${esc(d.pausa || '')}" placeholder="0" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-16 text-center rounded-lg">
@@ -143,9 +143,9 @@ function renderDistTable(items) {
                     ${esc(d.fila || '0')}
                 </span>
             </td>
-            <td class="px-3 py-3 text-center">
-                <span class="text-xs text-slate-400 flex items-center justify-center gap-1">
-                    <svg class="w-3 h-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <td class="px-3 py-3 text-center whitespace-nowrap">
+                <span class="text-xs text-slate-400 inline-flex items-center gap-1">
+                    <svg class="w-3 h-3 text-slate-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     ${esc(d.ultima_execucao || '—')}
                 </span>
             </td>
@@ -160,8 +160,10 @@ function renderDistTable(items) {
 
     tbody.querySelectorAll('select[data-field="status"]').forEach(sel => {
         sel.addEventListener('change', function() {
-            this.className = this.className.replace(/text-(emerald|rose)-400/g, '');
-            this.classList.add(this.value === 'Ativo' ? 'text-emerald-400' : 'text-rose-400');
+            const isActive = this.value === 'Ativo';
+            this.className = `px-4 py-2 text-xs font-bold rounded-xl border-2 cursor-pointer transition-all duration-200 outline-none ${isActive
+                ? 'text-emerald-300 border-emerald-500 bg-emerald-500/25 shadow-[0_0_12px_rgba(16,185,129,0.25)] hover:bg-emerald-500/35'
+                : 'text-rose-300 border-rose-500 bg-rose-500/25 shadow-[0_0_12px_rgba(244,63,94,0.25)] hover:bg-rose-500/35'}`;
         });
     });
 }
