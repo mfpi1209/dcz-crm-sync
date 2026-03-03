@@ -200,52 +200,72 @@ def api_kommo_sync():
         "log": [],
     }
 
+    def _log(msg, progress=None):
+        t = datetime.now().strftime("%H:%M:%S")
+        _tasks[task_id]["log"].append({"time": t, "msg": msg})
+        _tasks[task_id]["message"] = msg
+        if progress is not None:
+            _tasks[task_id]["progress"] = progress
+
+    def _stream(proc, label, base_pct, end_pct):
+        """Lê stdout linha a linha e atualiza o log em tempo real."""
+        lines_read = 0
+        for raw in iter(proc.stdout.readline, ""):
+            line = raw.strip()
+            if not line:
+                continue
+            lines_read += 1
+            _log(line)
+            if lines_read % 5 == 0:
+                pct = min(base_pct + int((end_pct - base_pct) * 0.8), end_pct - 1)
+                _tasks[task_id]["progress"] = pct
+        proc.stdout.close()
+        proc.wait()
+        return proc.returncode
+
     def _run():
-        ts = lambda: datetime.now().strftime("%H:%M:%S")
         try:
-            cmd = [sys.executable, "main.py"]
+            env = {**os.environ}
+            cmd = [sys.executable, "-u", "main.py"]
             if mode == "full":
                 cmd.append("--full")
 
-            _tasks[task_id]["log"].append({"time": ts(), "msg": f"Executando: {' '.join(cmd)}"})
-            _tasks[task_id]["progress"] = 10
+            _log(f"Executando: {' '.join(cmd)}", 5)
 
-            proc = subprocess.run(
-                cmd, cwd=KOMMO_DIR, capture_output=True, text=True, timeout=900,
+            proc = subprocess.Popen(
+                cmd, cwd=KOMMO_DIR,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, bufsize=1, env=env,
             )
 
-            output_lines = (proc.stdout or "").strip().split("\n")[-30:]
-            for line in output_lines:
-                if line.strip():
-                    _tasks[task_id]["log"].append({"time": ts(), "msg": line.strip()})
+            rc = _stream(proc, "sync", 5, 80)
 
-            if proc.returncode == 0:
-                _tasks[task_id]["progress"] = 85
-                _tasks[task_id]["log"].append({"time": ts(), "msg": "Sync concluído. Migrando para PostgreSQL..."})
+            if rc == 0:
+                _log("Sync concluído. Migrando para PostgreSQL...", 82)
 
-                mig_cmd = [sys.executable, "migrate_to_postgres.py", "--light"]
-                mig = subprocess.run(mig_cmd, cwd=KOMMO_DIR, capture_output=True, text=True, timeout=300)
-                if mig.returncode == 0:
-                    _tasks[task_id]["log"].append({"time": ts(), "msg": "PostgreSQL atualizado!"})
+                mig = subprocess.Popen(
+                    [sys.executable, "-u", "migrate_to_postgres.py", "--light"],
+                    cwd=KOMMO_DIR,
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    text=True, bufsize=1, env=env,
+                )
+                mig_rc = _stream(mig, "migrate", 82, 98)
+
+                if mig_rc == 0:
+                    _log("PostgreSQL atualizado!", 99)
                 else:
-                    _tasks[task_id]["log"].append({"time": ts(), "msg": f"Aviso PG: {(mig.stderr or '')[-200:]}"})
+                    _log(f"Aviso PG: retorno {mig_rc}", 99)
 
                 _tasks[task_id]["progress"] = 100
                 _tasks[task_id]["status"] = "completed"
-                _tasks[task_id]["message"] = "Sincronização concluída com sucesso!"
+                _log("Sincronização concluída com sucesso!", 100)
             else:
                 _tasks[task_id]["status"] = "error"
-                err_tail = (proc.stderr or "")[-300:]
-                _tasks[task_id]["message"] = f"Erro: {err_tail}"
-                _tasks[task_id]["log"].append({"time": ts(), "msg": f"ERRO: {err_tail}"})
+                _log(f"Sync falhou (código {rc})")
 
-        except subprocess.TimeoutExpired:
-            _tasks[task_id]["status"] = "error"
-            _tasks[task_id]["message"] = "Timeout (15 min)"
         except Exception as e:
             _tasks[task_id]["status"] = "error"
-            _tasks[task_id]["message"] = f"Erro: {e}"
-            _tasks[task_id]["log"].append({"time": ts(), "msg": f"Exceção: {e}"})
+            _log(f"Exceção: {e}")
 
     thread = threading.Thread(target=_run, daemon=True)
     thread.start()
