@@ -20,8 +20,9 @@ logger = logging.getLogger(__name__)
 
 kommo_bp = Blueprint("kommo_bp", __name__)
 
-_kommo_candidate = Path(__file__).resolve().parent.parent / "Kommo_Update"
-KOMMO_DIR = str(_kommo_candidate) if _kommo_candidate.is_dir() else None
+_kommo_lib = Path(__file__).resolve().parent.parent / "kommo_lib"
+_kommo_ext = Path(__file__).resolve().parent.parent / "Kommo_Update"
+KOMMO_DIR = str(_kommo_ext) if _kommo_ext.is_dir() else (str(_kommo_lib) if _kommo_lib.is_dir() else None)
 
 PG_KOMMO = {
     "host": os.getenv("KOMMO_PG_HOST", "31.97.91.47"),
