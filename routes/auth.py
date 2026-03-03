@@ -41,9 +41,14 @@ def _get_user_permissions(user_id):
         return []
 
 
+@auth_bp.route("/health")
+def health():
+    return "ok", 200
+
+
 @auth_bp.before_app_request
 def require_auth():
-    if request.path in ("/login",):
+    if request.path in ("/login", "/health"):
         return
     if request.path.startswith("/static/"):
         return
