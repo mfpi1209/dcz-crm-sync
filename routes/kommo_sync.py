@@ -306,6 +306,7 @@ KOMMO_TOKEN = os.getenv("KOMMO_TOKEN", "")
 
 FUNNEL_PIPELINE = 5481944
 FUNNEL_STAGES_DEF = [
+    {"key": "incoming",              "id": 48539237, "label": "Incoming"},
     {"key": "contato_inicial",       "id": 48539240, "label": "Contato Inicial"},
     {"key": "sem_resposta",          "id": 48539243, "label": "Sem Resposta"},
     {"key": "em_atendimento",        "id": 48539246, "label": "Em Atendimento"},
@@ -317,6 +318,7 @@ FUNNEL_STAGES_DEF = [
     {"key": "aprovado_reprovado",    "id": 48566201, "label": "Aprovados/Reprovados"},
     {"key": "boleto_enviado",        "id": 48566204, "label": "Boleto Enviado"},
     {"key": "aceite",                "id": 48566207, "label": "Aceite"},
+    {"key": "qualificacao",          "id": 53917599, "label": "Qualificação"},
     {"key": "pagamento_confirmado",  "id": 77728584, "label": "Pagamento Confirmado"},
 ]
 
@@ -339,97 +341,6 @@ def _kommo_get(path, params=None):
         url = f"{base}{path}"
     headers = {"Authorization": f"Bearer {KOMMO_TOKEN}"}
     return _requests.get(url, headers=headers, params=params, timeout=30)
-
-
-def _count_new_via_events():
-    """Count new leads entering the pipeline today using Kommo Events API."""
-    BRT = timezone(timedelta(hours=-3))
-    today_brt = datetime.now(BRT).replace(hour=0, minute=0, second=0, microsecond=0)
-    today_start = int(today_brt.timestamp())
-
-    count = 0
-    page = 1
-    seen_ids = set()
-
-    while True:
-        params = {
-            "limit": 100,
-            "page": page,
-            "filter[type]": "lead_added",
-            "filter[created_at][from]": today_start,
-        }
-        try:
-            r = _kommo_get("/events", params)
-        except Exception as e:
-            logger.error("Kommo events API error: %s", e)
-            break
-
-        if r.status_code != 200:
-            logger.warning("Events API %d — falling back to created_at", r.status_code)
-            return _count_new_fallback()
-
-        data = r.json()
-        events = data.get("_embedded", {}).get("events", [])
-        if not events:
-            break
-
-        for ev in events:
-            entity_id = ev.get("entity_id")
-            if not entity_id or entity_id in seen_ids:
-                continue
-            seen_ids.add(entity_id)
-
-            vafter = ev.get("value_after") or []
-            for va in vafter:
-                if isinstance(va, dict) and va.get("lead_status", {}).get("pipeline_id") == FUNNEL_PIPELINE:
-                    count += 1
-                    break
-
-        if "_links" not in data or "next" not in data["_links"]:
-            break
-        page += 1
-        _time.sleep(0.15)
-
-    logger.info("funnel new_today (events): %d", count)
-    return count
-
-
-def _count_new_fallback():
-    """Fallback: count leads with created_at >= today in the pipeline stages."""
-    BRT = timezone(timedelta(hours=-3))
-    today_start = int(datetime.now(BRT).replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
-    stage_ids = [s["id"] for s in FUNNEL_STAGES_DEF]
-    count = 0
-    seen_ids = set()
-    page = 1
-
-    while True:
-        params = {"limit": 250, "page": page, "filter[created_at][from]": today_start}
-        for i, sid in enumerate(stage_ids):
-            params[f"filter[statuses][{i}][pipeline_id]"] = FUNNEL_PIPELINE
-            params[f"filter[statuses][{i}][status_id]"] = sid
-        try:
-            r = _kommo_get("/leads", params)
-        except Exception:
-            break
-        if r.status_code != 200:
-            break
-        data = r.json()
-        leads = data.get("_embedded", {}).get("leads", [])
-        if not leads:
-            break
-        for lead in leads:
-            lid = lead.get("id")
-            if lid and lid not in seen_ids:
-                seen_ids.add(lid)
-                count += 1
-        if "_links" not in data or "next" not in data["_links"]:
-            break
-        page += 1
-        _time.sleep(0.15)
-
-    logger.info("funnel new_today (fallback): %d", count)
-    return count
 
 
 def _fetch_funnel_live():
@@ -471,10 +382,16 @@ def _fetch_funnel_live():
         page += 1
         _time.sleep(0.2)
 
+    BRT = timezone(timedelta(hours=-3))
+    today_start = int(datetime.now(BRT).replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
+
     counts = {}
+    new_today = 0
     for lead in all_leads:
         sid = lead.get("status_id")
         counts[sid] = counts.get(sid, 0) + 1
+        if lead.get("created_at", 0) >= today_start:
+            new_today += 1
 
     stages = []
     total = 0
@@ -491,8 +408,6 @@ def _fetch_funnel_live():
 
     for s in stages:
         s["pct"] = round(s["count"] / total * 100, 1) if total > 0 else 0
-
-    new_today = _count_new_via_events()
 
     return {
         "stages": stages,
@@ -525,9 +440,16 @@ def _get_snapshot_d0(current_stages):
     today = datetime.now(BRT).date().isoformat()
     snapshots = _load_snapshot()
 
-    if today not in snapshots:
+    current_total = sum(s["count"] for s in current_stages)
+    existing = snapshots.get(today)
+    needs_create = existing is None
+    if existing and existing.get("_total", 0) < 100 and current_total > 100:
+        logger.warning("D0 snapshot for %s looks invalid (_total=%s), recreating", today, existing.get("_total"))
+        needs_create = True
+
+    if needs_create:
         snapshots[today] = {s["key"]: s["count"] for s in current_stages}
-        snapshots[today]["_total"] = sum(s["count"] for s in current_stages)
+        snapshots[today]["_total"] = current_total
         old = sorted(k for k in snapshots if k != today)
         for k in old[:-7]:
             del snapshots[k]
