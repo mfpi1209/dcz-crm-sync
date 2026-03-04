@@ -343,6 +343,49 @@ def _kommo_get(path, params=None):
     return _requests.get(url, headers=headers, params=params, timeout=30)
 
 
+def _count_new_leads_today():
+    """Count ALL leads created today across every pipeline (matches Kommo dashboard)."""
+    BRT = timezone(timedelta(hours=-3))
+    today_start = int(datetime.now(BRT).replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
+
+    count = 0
+    seen = set()
+    page = 1
+    while True:
+        try:
+            r = _kommo_get("/leads", {
+                "filter[created_at][from]": today_start,
+                "limit": 250,
+                "page": page,
+            })
+        except Exception as e:
+            logger.error("count_new_leads API error: %s", e)
+            break
+
+        if r.status_code != 200:
+            logger.warning("count_new_leads API %d: %s", r.status_code, r.text[:200])
+            break
+
+        data = r.json()
+        leads = data.get("_embedded", {}).get("leads", [])
+        if not leads:
+            break
+
+        for lead in leads:
+            lid = lead.get("id")
+            if lid and lid not in seen:
+                seen.add(lid)
+                count += 1
+
+        if "next" not in data.get("_links", {}):
+            break
+        page += 1
+        _time.sleep(0.15)
+
+    logger.info("count_new_leads_today: %d leads (pages=%d)", count, page)
+    return count
+
+
 def _fetch_funnel_live():
     """Fetch all leads in the funnel pipeline from Kommo API v4, count by status."""
     stage_ids = [s["id"] for s in FUNNEL_STAGES_DEF]
@@ -382,16 +425,10 @@ def _fetch_funnel_live():
         page += 1
         _time.sleep(0.2)
 
-    BRT = timezone(timedelta(hours=-3))
-    today_start = int(datetime.now(BRT).replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
-
     counts = {}
-    new_today = 0
     for lead in all_leads:
         sid = lead.get("status_id")
         counts[sid] = counts.get(sid, 0) + 1
-        if lead.get("created_at", 0) >= today_start:
-            new_today += 1
 
     stages = []
     total = 0
@@ -412,7 +449,6 @@ def _fetch_funnel_live():
     return {
         "stages": stages,
         "total": total,
-        "new_today": new_today,
         "leads_fetched": len(all_leads),
         "pages": page,
     }
@@ -480,6 +516,13 @@ def api_kommo_funnel_live():
 
     try:
         result = _fetch_funnel_live()
+
+        try:
+            result["new_today"] = _count_new_leads_today()
+        except Exception as e:
+            logger.error("count_new_leads_today failed: %s", e)
+            result["new_today"] = 0
+
         d0, yesterday = _get_snapshot_d0(result["stages"])
 
         for s in result["stages"]:
