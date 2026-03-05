@@ -48,6 +48,14 @@ DB_DSN = dict(
     dbname=os.getenv("DB_NAME", "dcz_sync"),
 )
 
+KOMMO_DB_DSN = dict(
+    host=os.getenv("KOMMO_PG_HOST", os.getenv("DB_HOST", "localhost")),
+    port=os.getenv("KOMMO_PG_PORT", os.getenv("DB_PORT", "5432")),
+    user=os.getenv("KOMMO_PG_USER", os.getenv("DB_USER")),
+    password=os.getenv("KOMMO_PG_PASS", os.getenv("DB_PASS")),
+    dbname=os.getenv("KOMMO_PG_DB", "kommo_sync"),
+)
+
 KOMMO_BASE_URL = os.getenv("KOMMO_BASE_URL", "https://eduitbr.kommo.com")
 KOMMO_TOKEN = os.getenv("KOMMO_TOKEN", "")
 
@@ -59,6 +67,10 @@ PREPOSICOES = {"de", "da", "do", "dos", "das", "e"}
 
 def get_conn():
     return psycopg2.connect(**DB_DSN)
+
+
+def get_kommo_conn():
+    return psycopg2.connect(**KOMMO_DB_DSN)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -712,6 +724,12 @@ def cruzar():
 #  MATCH SIAA × KOMMO
 # ════════════════════════════════════════════════════════════════
 
+_MM_INSCRITOS_COLS_FOR_MATCH = [
+    "id", "nome", "cpf", "telefone", "inscricao", "curso_raw", "curso_limpo",
+    "situacao_raw", "situacao_final", "polo_normalizado", "email",
+    "data_inscr", "marca_instituicao", "modalidade", "grau_curso",
+]
+
 COMPARE_SQL = """
 WITH leads_ativos AS (
     SELECT id AS lead_id FROM leads WHERE status_id != 142
@@ -753,7 +771,7 @@ kommo_situacao AS (
 match_cpf_curso AS (
     SELECT DISTINCT ON (s.id)
         s.id AS siaa_id, kc.lead_id, 'cpf+curso' AS match_tipo
-    FROM mm_inscritos s
+    FROM _tmp_mm_inscritos s
     JOIN kommo_cpf kc ON s.cpf IS NOT NULL AND kc.cpf = s.cpf
     JOIN kommo_curso kcur ON kcur.lead_id = kc.lead_id
         AND s.curso_limpo IS NOT NULL
@@ -763,7 +781,7 @@ match_cpf_curso AS (
 match_cpf AS (
     SELECT DISTINCT ON (s.id)
         s.id AS siaa_id, kc.lead_id, 'cpf' AS match_tipo
-    FROM mm_inscritos s
+    FROM _tmp_mm_inscritos s
     JOIN kommo_cpf kc ON s.cpf IS NOT NULL AND kc.cpf = s.cpf
     LEFT JOIN kommo_curso kcur ON kcur.lead_id = kc.lead_id
     WHERE kcur.lead_id IS NULL
@@ -773,7 +791,7 @@ match_cpf AS (
 match_tel_curso AS (
     SELECT DISTINCT ON (s.id)
         s.id AS siaa_id, kt.lead_id, 'tel+curso' AS match_tipo
-    FROM mm_inscritos s
+    FROM _tmp_mm_inscritos s
     JOIN kommo_telefone kt ON s.telefone IS NOT NULL AND kt.telefone = s.telefone
     JOIN kommo_curso kcur ON kcur.lead_id = kt.lead_id
         AND s.curso_limpo IS NOT NULL
@@ -785,7 +803,7 @@ match_tel_curso AS (
 match_tel AS (
     SELECT DISTINCT ON (s.id)
         s.id AS siaa_id, kt.lead_id, 'tel' AS match_tipo
-    FROM mm_inscritos s
+    FROM _tmp_mm_inscritos s
     JOIN kommo_telefone kt ON s.telefone IS NOT NULL AND kt.telefone = s.telefone
     LEFT JOIN kommo_curso kcur ON kcur.lead_id = kt.lead_id
     WHERE kcur.lead_id IS NULL
@@ -807,25 +825,69 @@ SELECT
     s.data_inscr, s.marca_instituicao, s.modalidade, s.grau_curso,
     m.lead_id AS lead_id_match, m.match_tipo,
     ks.situacao_kommo,
-    l.data->>'name' AS lead_name,
+    l.name AS lead_name,
     CASE WHEN m.lead_id IS NOT NULL THEN TRUE ELSE FALSE END AS tem_match
-FROM mm_inscritos s
+FROM _tmp_mm_inscritos s
 LEFT JOIN all_matches m ON m.siaa_id = s.id
 LEFT JOIN kommo_situacao ks ON ks.lead_id = m.lead_id
 LEFT JOIN leads l ON l.id = m.lead_id
 ORDER BY s.id;
 """
 
+_TMP_TABLE_DDL = """
+CREATE TEMP TABLE _tmp_mm_inscritos (
+    id              INTEGER PRIMARY KEY,
+    nome            TEXT,
+    cpf             TEXT,
+    telefone        TEXT,
+    inscricao       TEXT,
+    curso_raw       TEXT,
+    curso_limpo     TEXT,
+    situacao_raw    TEXT,
+    situacao_final  TEXT,
+    polo_normalizado TEXT,
+    email           TEXT,
+    data_inscr      TEXT,
+    marca_instituicao TEXT,
+    modalidade      TEXT,
+    grau_curso      TEXT
+) ON COMMIT DROP;
+"""
+
 
 def match_kommo():
-    """Compare mm_inscritos with Kommo leads. Returns stats + detail rows."""
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute(COMPARE_SQL)
-    cols = [desc[0] for desc in cur.description]
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    """Compare mm_inscritos (dcz_sync) with Kommo leads (kommo_sync)."""
+    dcz = get_conn()
+    dcz_cur = dcz.cursor()
+    cols_sql = ", ".join(_MM_INSCRITOS_COLS_FOR_MATCH)
+    dcz_cur.execute(f"SELECT {cols_sql} FROM mm_inscritos")
+    inscritos_rows = dcz_cur.fetchall()
+    dcz_cur.close()
+    dcz.close()
+
+    if not inscritos_rows:
+        return {"total": 0, "com_match": 0, "sem_match": 0,
+                "tipos": {}, "divergencias": {}, "detalhes": []}
+
+    kommo = get_kommo_conn()
+    kommo.autocommit = False
+    kcur = kommo.cursor()
+    kcur.execute(_TMP_TABLE_DDL)
+
+    placeholders = ", ".join(["%s"] * len(_MM_INSCRITOS_COLS_FOR_MATCH))
+    insert_sql = f"INSERT INTO _tmp_mm_inscritos ({cols_sql}) VALUES ({placeholders})"
+    execute_values(
+        kcur,
+        f"INSERT INTO _tmp_mm_inscritos ({cols_sql}) VALUES %s",
+        inscritos_rows,
+    )
+
+    kcur.execute(COMPARE_SQL)
+    cols = [desc[0] for desc in kcur.description]
+    rows = kcur.fetchall()
+    kommo.rollback()
+    kcur.close()
+    kommo.close()
 
     total = len(rows)
     com_match = sum(1 for r in rows if r[cols.index("tem_match")])
