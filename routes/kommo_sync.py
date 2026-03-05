@@ -380,7 +380,7 @@ def _count_new_leads_today():
         if "next" not in data.get("_links", {}):
             break
         page += 1
-        _time.sleep(0.15)
+        _time.sleep(0.05)
 
     logger.info("count_new_leads_today: %d leads (pages=%d)", count, page)
     return count
@@ -423,7 +423,7 @@ def _fetch_funnel_live():
         if "_links" not in data or "next" not in data["_links"]:
             break
         page += 1
-        _time.sleep(0.2)
+        _time.sleep(0.05)
 
     counts = {}
     for lead in all_leads:
@@ -515,10 +515,14 @@ def api_kommo_funnel_live():
         return jsonify({"ok": False, "error": "KOMMO_TOKEN não configurado"}), 500
 
     try:
-        result = _fetch_funnel_live()
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            fut_funnel = pool.submit(_fetch_funnel_live)
+            fut_count = pool.submit(_count_new_leads_today)
 
+        result = fut_funnel.result()
         try:
-            result["new_today"] = _count_new_leads_today()
+            result["new_today"] = fut_count.result()
         except Exception as e:
             logger.error("count_new_leads_today failed: %s", e)
             result["new_today"] = 0
