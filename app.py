@@ -28,6 +28,7 @@ from routes.logs import logs_bp
 from routes.kommo_sync import kommo_bp
 from routes.match_merge import match_merge_bp
 from routes.comercial_rgm import comercial_rgm_bp
+from routes.ativacoes import ativacoes_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(dashboard_bp)
@@ -39,6 +40,7 @@ app.register_blueprint(logs_bp)
 app.register_blueprint(kommo_bp)
 app.register_blueprint(match_merge_bp)
 app.register_blueprint(comercial_rgm_bp)
+app.register_blueprint(ativacoes_bp)
 
 # ── Inicialização do banco ────────────────────────────────────────────────
 
