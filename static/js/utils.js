@@ -13,8 +13,8 @@ async function api(url, opts = {}) {
 // ---------------------------------------------------------------------------
 // SPA Navigation
 // ---------------------------------------------------------------------------
-const PAGES = ['dashboard', 'search', 'sync', 'kommo_sync', 'update', 'pipeline', 'match_merge', 'distribuicao', 'intelligence', 'inadimplencia', 'feedback', 'logs', 'config', 'schedule', 'inscricao'];
-const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', kommo_sync: 'Sync Comercial', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', match_merge: 'Match & Merge', distribuicao: 'Distribuição', intelligence: 'Inteligência', inadimplencia: 'Inadimplência', feedback: 'Feedback', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento', inscricao: 'Inscrição Automática' };
+const PAGES = ['dashboard', 'search', 'sync', 'kommo_sync', 'update', 'pipeline', 'match_merge', 'distribuicao', 'ativacoes', 'intelligence', 'inadimplencia', 'feedback', 'logs', 'config', 'schedule', 'inscricao'];
+const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', kommo_sync: 'Sync Comercial', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', match_merge: 'Match & Merge', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas', intelligence: 'Inteligência', inadimplencia: 'Inadimplência', feedback: 'Feedback', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento', inscricao: 'Inscrição Automática' };
 
 function navigate(page) {
     PAGES.forEach(p => {
@@ -37,6 +37,7 @@ function navigate(page) {
     if (page === 'logs') { loadLogFiles(); loadDashboard(); }
     if (page === 'config') { loadCiclos(); loadTurmas(); }
     if (page === 'distribuicao') loadDistribuicao();
+    if (page === 'ativacoes') loadAtivacoes();
     if (page === 'intelligence') loadIntelligence();
     if (page === 'inadimplencia') loadInadimplencia();
     if (page === 'kommo_sync') loadKommoSync();
@@ -118,7 +119,7 @@ function refreshBadge() {
 // Sidebar — permissões dinâmicas
 // ---------------------------------------------------------------------------
 const SIDEBAR_GROUPS = {
-    academico: ['distribuicao', 'intelligence', 'inadimplencia', 'feedback'],
+    academico: ['ativacoes', 'distribuicao', 'intelligence', 'inadimplencia', 'feedback'],
     comercial: ['pipeline', 'update', 'match_merge', 'inscricao'],
 };
 

@@ -394,7 +394,7 @@ const PAGE_LABELS = {
     kommo_sync: 'Sync Comercial',
     update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline',
     match_merge: 'Match & Merge',
-    logs: 'Logs / Relatórios', distribuicao: 'Distribuição',
+    logs: 'Logs / Relatórios', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas',
     intelligence: 'Inteligência', inadimplencia: 'Inadimplência',
     feedback: 'Feedback', config: 'Configurações', schedule: 'Agendamento',
     inscricao: 'Inscrição Automática',
@@ -402,7 +402,7 @@ const PAGE_LABELS = {
 
 const PAGE_GROUPS_CONFIG = [
     { label: 'Geral', pages: ['dashboard', 'search'] },
-    { label: 'Operação — Acadêmico', pages: ['distribuicao', 'intelligence', 'inadimplencia', 'feedback'] },
+    { label: 'Operação — Acadêmico', pages: ['ativacoes', 'distribuicao', 'intelligence', 'inadimplencia', 'feedback'] },
     { label: 'Operação — Comercial', pages: ['pipeline', 'update', 'match_merge', 'inscricao'] },
     { label: 'Sistema', pages: ['sync', 'kommo_sync', 'logs', 'config', 'schedule'] },
 ];
