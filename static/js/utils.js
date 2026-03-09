@@ -13,8 +13,8 @@ async function api(url, opts = {}) {
 // ---------------------------------------------------------------------------
 // SPA Navigation
 // ---------------------------------------------------------------------------
-const PAGES = ['dashboard', 'search', 'sync', 'kommo_sync', 'update', 'pipeline', 'match_merge', 'distribuicao', 'ativacoes', 'intelligence', 'inadimplencia', 'feedback', 'comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos', 'logs', 'config', 'schedule', 'inscricao'];
-const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', kommo_sync: 'Sync Comercial', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', match_merge: 'Match & Merge', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas', intelligence: 'Inteligência', inadimplencia: 'Inadimplência', feedback: 'Feedback', comparar_cursos: 'Comparar Cursos', recomendacao_cursos: 'Recomendação', localizacao_polos: 'Localização', info_cursos: 'Informações de Cursos', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento', inscricao: 'Inscrição Automática' };
+const PAGES = ['dashboard', 'search', 'sync', 'kommo_sync', 'update', 'pipeline', 'match_merge', 'comercial_rgm', 'distribuicao', 'ativacoes', 'intelligence', 'inadimplencia', 'feedback', 'comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos', 'logs', 'config', 'schedule', 'inscricao'];
+const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', kommo_sync: 'Sync Comercial', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', match_merge: 'Match & Merge', comercial_rgm: 'Comercial RGM', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas', intelligence: 'Inteligência', inadimplencia: 'Inadimplência', feedback: 'Feedback', comparar_cursos: 'Comparar Cursos', recomendacao_cursos: 'Recomendação', localizacao_polos: 'Localização', info_cursos: 'Informações de Cursos', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento', inscricao: 'Inscrição Automática' };
 
 function navigate(page) {
     PAGES.forEach(p => {
@@ -42,6 +42,7 @@ function navigate(page) {
     if (page === 'inadimplencia') loadInadimplencia();
     if (page === 'kommo_sync') loadKommoSync();
     if (page === 'match_merge') loadMatchMerge();
+    if (page === 'comercial_rgm') loadComercialRgm();
     if (page === 'feedback') fbInit();
     if (page === 'inscricao') loadInscricao();
     if (page === 'schedule') loadSchedules();
@@ -122,7 +123,7 @@ function refreshBadge() {
 const SIDEBAR_GROUPS = {
     academico: ['ativacoes', 'distribuicao', 'intelligence', 'inadimplencia', 'feedback'],
     ferramentas: ['comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos'],
-    comercial: ['pipeline', 'update', 'match_merge', 'inscricao'],
+    comercial: ['pipeline', 'update', 'match_merge', 'comercial_rgm', 'inscricao'],
 };
 
 async function applySidebarPermissions() {
