@@ -64,6 +64,35 @@
                 </div>
             </div>
 
+            <!-- Ferramentas -->
+            <div class="sidebar-group" data-group="ferramentas">
+                <button class="sidebar-group-toggle" onclick="toggleSidebarGroup('ferramentas')">
+                    <span class="flex items-center gap-2">
+                        <svg class="w-3.5 h-3.5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                        Ferramentas
+                    </span>
+                    <svg class="sidebar-group-chevron w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div class="sidebar-group-items">
+                    <a href="#comparar_cursos" onclick="navigate('comparar_cursos')" class="sidebar-link sidebar-sub" data-page="comparar_cursos">
+                        <svg class="w-[16px] h-[16px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 4v11M7 4l-3 3M7 4l3 3M17 20V9M17 20l-3-3M17 20l3-3"/></svg>
+                        Comparar Cursos
+                    </a>
+                    <a href="#recomendacao_cursos" onclick="navigate('recomendacao_cursos')" class="sidebar-link sidebar-sub" data-page="recomendacao_cursos">
+                        <svg class="w-[16px] h-[16px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 3.5 9.6 9.2l-6.1.4 4.7 3.7-1.5 5.9L12 16l5.3 3.2-1.5-5.9 4.7-3.7-6.1-.4L12 3.5Z"/></svg>
+                        Recomendação
+                    </a>
+                    <a href="#localizacao_polos" onclick="navigate('localizacao_polos')" class="sidebar-link sidebar-sub" data-page="localizacao_polos">
+                        <svg class="w-[16px] h-[16px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 21s6-5.1 6-10a6 6 0 1 0-12 0c0 4.9 6 10 6 10Z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/></svg>
+                        Localização
+                    </a>
+                    <a href="#info_cursos" onclick="navigate('info_cursos')" class="sidebar-link sidebar-sub" data-page="info_cursos">
+                        <svg class="w-[16px] h-[16px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Informações de Cursos
+                    </a>
+                </div>
+            </div>
+
             <!-- Comercial -->
             <div class="sidebar-group" data-group="comercial">
                 <button class="sidebar-group-toggle" onclick="toggleSidebarGroup('comercial')">

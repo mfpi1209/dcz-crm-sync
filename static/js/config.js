@@ -398,11 +398,16 @@ const PAGE_LABELS = {
     intelligence: 'Inteligência', inadimplencia: 'Inadimplência',
     feedback: 'Feedback', config: 'Configurações', schedule: 'Agendamento',
     inscricao: 'Inscrição Automática',
+    comparar_cursos: 'Comparar Cursos',
+    recomendacao_cursos: 'Recomendação',
+    localizacao_polos: 'Localização',
+    info_cursos: 'Informações de Cursos',
 };
 
 const PAGE_GROUPS_CONFIG = [
     { label: 'Geral', pages: ['dashboard', 'search'] },
     { label: 'Operação — Acadêmico', pages: ['ativacoes', 'distribuicao', 'intelligence', 'inadimplencia', 'feedback'] },
+    { label: 'Ferramentas', pages: ['comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos'] },
     { label: 'Operação — Comercial', pages: ['pipeline', 'update', 'match_merge', 'inscricao'] },
     { label: 'Sistema', pages: ['sync', 'kommo_sync', 'logs', 'config', 'schedule'] },
 ];
