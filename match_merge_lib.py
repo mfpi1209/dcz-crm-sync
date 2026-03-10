@@ -1338,6 +1338,7 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
             "grau": row.get("grau_curso"),
             "data_inscr": data_inscr,
             "lead_fase": row.get("lead_fase") or "",
+            "lead_pipeline_id": row.get("lead_pipeline_id"),
         }
 
         if lead_id and lead_fechado:
@@ -1620,7 +1621,10 @@ def executar_acoes(acoes, limit=None, log_callback=None):
             resp = api.patch_lead(lead_id, payload)
 
         elif tipo == "MOVER_PERDIDO" and lead_id:
+            pipe = acao.get("lead_pipeline_id")
             payload = {"status_id": 143}
+            if pipe:
+                payload["pipeline_id"] = pipe
             if loss_reason_id:
                 payload["loss_reason_id"] = loss_reason_id
             resp = api.patch_lead(lead_id, payload)
@@ -1661,7 +1665,7 @@ def executar_acoes(acoes, limit=None, log_callback=None):
             msg = f"[{i+1}/{len(to_process)}] OK {tipo} lead={lead_id or 'NOVO'} {acao.get('nome','')}"
         else:
             results["erro"] += 1
-            msg = f"[{i+1}/{len(to_process)}] ERRO {tipo} lead={lead_id or 'NOVO'}: {resp.get('body','')[:100]}"
+            msg = f"[{i+1}/{len(to_process)}] ERRO {tipo} lead={lead_id or 'NOVO'} (HTTP {resp.get('status','')}): {resp.get('body','')[:200]}"
 
         log.info(msg)
         if log_callback:
