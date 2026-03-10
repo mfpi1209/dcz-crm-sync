@@ -59,6 +59,8 @@ KOMMO_DB_DSN = dict(
 KOMMO_BASE_URL = os.getenv("KOMMO_BASE_URL", "https://eduitbr.kommo.com")
 KOMMO_TOKEN = os.getenv("KOMMO_TOKEN", "")
 
+ACEITE_STATUS_ID = 48566207
+
 DATACRAZY_API_BASE = "https://api.g1.datacrazy.io/api/v1"
 DATACRAZY_API_TOKEN = os.getenv("DATACRAZY_API_TOKEN", "")
 
@@ -1038,6 +1040,13 @@ match_telefone AS (
 all_matches AS (
     SELECT * FROM match_cpf
     UNION ALL SELECT * FROM match_telefone
+),
+ganho_por_cpf AS (
+    SELECT DISTINCT ON (kc.cpf)
+        kc.cpf, kc.lead_id AS ganho_lead_id, l.closed_at AS ganho_closed_at
+    FROM kommo_cpf kc
+    JOIN leads l ON l.id = kc.lead_id AND l.status_id = 142
+    ORDER BY kc.cpf, l.closed_at DESC NULLS LAST
 )
 SELECT
     s.id AS siaa_id, s.nome, s.cpf, s.telefone, s.inscricao,
@@ -1049,11 +1058,16 @@ SELECT
     l.name AS lead_name,
     l.status_id AS lead_status_id,
     CASE WHEN m.lead_id IS NOT NULL THEN TRUE ELSE FALSE END AS tem_match,
-    CASE WHEN m.lead_id IS NOT NULL AND l.status_id IN (142, 143) THEN TRUE ELSE FALSE END AS lead_fechado
+    CASE WHEN m.lead_id IS NOT NULL AND l.status_id IN (142, 143) THEN TRUE ELSE FALSE END AS lead_fechado,
+    gc.ganho_lead_id,
+    CASE WHEN l.closed_at IS NOT NULL
+         THEN to_char(to_timestamp(l.closed_at), 'YYYY-MM-DD')
+         ELSE NULL END AS lead_closed_date
 FROM _tmp_mm_inscritos s
 LEFT JOIN all_matches m ON m.siaa_id = s.id
 LEFT JOIN kommo_situacao ks ON ks.lead_id = m.lead_id
 LEFT JOIN leads l ON l.id = m.lead_id
+LEFT JOIN ganho_por_cpf gc ON gc.cpf = s.cpf
 ORDER BY s.id;
 """
 
@@ -1283,22 +1297,26 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
     """Generate actions from inscritos + matriculados match results.
 
     Action types:
-      NOVO       - inscrito sem match no CRM -> criar lead
-      ATUALIZAR  - inscrito com match, lead precisa dados da inscricao
-      MATRICULADO - matriculado com match por RGM -> mover para ganho
+      NOVO          - inscrito sem match no CRM -> criar lead
+      ATUALIZAR     - inscrito com match, lead precisa dados da inscricao
+      MOVER_PERDIDO - lead ativo duplicado (ja tem ganho) fora do Aceite -> fechar
+      RESTAURAR     - lead perdido cuja inscricao SIAA e mais nova -> reativar
+      MATRICULADO   - matriculado com match por RGM -> mover para ganho
     """
     acoes = []
 
     n_ja_existe = 0
+    n_mover_perdido = 0
+    n_restaurar = 0
     for row in inscritos_match.get("detalhes", []):
         lead_id = row.get("lead_id_match")
         lead_fechado = row.get("lead_fechado", False)
+        lead_status_id = row.get("lead_status_id")
         siaa_sit = row.get("siaa_situacao")
         kommo_sit = row.get("situacao_kommo")
-
-        if lead_id and lead_fechado:
-            n_ja_existe += 1
-            continue
+        ganho_lead_id = row.get("ganho_lead_id")
+        lead_closed_date = row.get("lead_closed_date")
+        data_inscr = str(row.get("data_inscr") or "")
 
         base = {
             "siaa_id": row["siaa_id"],
@@ -1315,17 +1333,29 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
             "inscricao": row.get("inscricao"),
             "modalidade": row.get("modalidade"),
             "grau": row.get("grau_curso"),
-            "data_inscr": str(row.get("data_inscr") or ""),
+            "data_inscr": data_inscr,
         }
 
+        if lead_id and lead_fechado:
+            if lead_status_id == 143 and data_inscr and lead_closed_date and data_inscr > lead_closed_date:
+                n_restaurar += 1
+                acoes.append({**base, "acao": "RESTAURAR", "lead_id": lead_id})
+            else:
+                n_ja_existe += 1
+            continue
+
         if lead_id:
-            needs_update = (
-                kommo_sit is None
-                or kommo_sit == ""
-                or kommo_sit != siaa_sit
-            )
-            if needs_update:
-                acoes.append({**base, "acao": "ATUALIZAR", "lead_id": lead_id})
+            if ganho_lead_id and lead_status_id != ACEITE_STATUS_ID:
+                n_mover_perdido += 1
+                acoes.append({**base, "acao": "MOVER_PERDIDO", "lead_id": lead_id})
+            else:
+                needs_update = (
+                    kommo_sit is None
+                    or kommo_sit == ""
+                    or kommo_sit != siaa_sit
+                )
+                if needs_update:
+                    acoes.append({**base, "acao": "ATUALIZAR", "lead_id": lead_id})
         else:
             acoes.append({**base, "acao": "NOVO", "lead_id": None})
 
@@ -1356,8 +1386,10 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
     n_novo = sum(1 for a in acoes if a["acao"] == "NOVO")
     n_atualizar = sum(1 for a in acoes if a["acao"] == "ATUALIZAR")
     n_matriculado = sum(1 for a in acoes if a["acao"] == "MATRICULADO")
-    log.info("Acoes: %d total (NOVO=%d, ATUALIZAR=%d, MATRICULADO=%d, JA_EXISTE=%d)",
-             len(acoes), n_novo, n_atualizar, n_matriculado, n_ja_existe)
+    log.info("Acoes: %d total (NOVO=%d, ATUALIZAR=%d, MATRICULADO=%d, "
+             "MOVER_PERDIDO=%d, RESTAURAR=%d, JA_EXISTE=%d)",
+             len(acoes), n_novo, n_atualizar, n_matriculado,
+             n_mover_perdido, n_restaurar, n_ja_existe)
     return acoes
 
 
@@ -1453,6 +1485,30 @@ class KommoApiClient:
         conn.close()
         return stages
 
+    def get_or_create_loss_reason(self, name="Duplicado - Já Matriculado"):
+        """Get existing loss reason by name, or create it via Kommo API."""
+        resp = self._request("GET", "/api/v4/leads/loss_reasons")
+        if resp["ok"]:
+            reasons = resp["body"]
+            if isinstance(reasons, dict):
+                reasons = reasons.get("_embedded", {}).get("loss_reasons", [])
+            for r in reasons:
+                if r.get("name", "").strip().lower() == name.strip().lower():
+                    log.info("Loss reason encontrado: %s (id=%s)", name, r["id"])
+                    return r["id"]
+
+        create_resp = self._request("POST", "/api/v4/leads/loss_reasons", [{"name": name}])
+        if create_resp["ok"]:
+            body = create_resp["body"]
+            items = body if isinstance(body, list) else body.get("_embedded", {}).get("loss_reasons", [body])
+            if items:
+                rid = items[0].get("id")
+                log.info("Loss reason criado: %s (id=%s)", name, rid)
+                return rid
+
+        log.warning("Nao conseguiu obter/criar loss reason '%s': %s", name, create_resp)
+        return None
+
 
 # ════════════════════════════════════════════════════════════════
 #  EXECUTE ACTIONS
@@ -1501,12 +1557,16 @@ def executar_acoes(acoes, limit=None, log_callback=None):
     if not matriculado_stage:
         matriculado_stage, matriculado_pipe = _find_stage_id(stages, "matriculado")
 
-    log.info("Stages: Aprovado=%s (pipe=%s), Matriculado=%s (pipe=%s)",
-             aprovado_stage, aprovado_pipe, matriculado_stage, matriculado_pipe)
+    has_perdido = any(a["acao"] in ("MOVER_PERDIDO",) for a in acoes)
+    loss_reason_id = api.get_or_create_loss_reason() if has_perdido else None
+
+    log.info("Stages: Aprovado=%s (pipe=%s), Matriculado=%s (pipe=%s), LossReason=%s",
+             aprovado_stage, aprovado_pipe, matriculado_stage, matriculado_pipe, loss_reason_id)
     log.info("Fields: %s", field_ids)
 
     to_process = acoes[:limit] if limit else acoes
-    results = {"ok": 0, "erro": 0, "skip": 0, "novo_ok": 0}
+    results = {"ok": 0, "erro": 0, "skip": 0, "novo_ok": 0,
+               "perdido_ok": 0, "restaurar_ok": 0}
 
     update_fields_map = {
         "Situação": "situacao_siaa",
@@ -1555,6 +1615,26 @@ def executar_acoes(acoes, limit=None, log_callback=None):
                 payload["status_id"] = matriculado_stage
             resp = api.patch_lead(lead_id, payload)
 
+        elif tipo == "MOVER_PERDIDO" and lead_id:
+            payload = {"status_id": 143}
+            if loss_reason_id:
+                payload["loss_reason_id"] = loss_reason_id
+            resp = api.patch_lead(lead_id, payload)
+            if resp["ok"]:
+                results["perdido_ok"] += 1
+
+        elif tipo == "RESTAURAR" and lead_id:
+            cf = _build_custom_fields(field_ids, acao, update_fields_map)
+            payload = {}
+            if cf:
+                payload["custom_fields_values"] = cf
+            if aprovado_stage:
+                payload["pipeline_id"] = aprovado_pipe
+                payload["status_id"] = aprovado_stage
+            resp = api.patch_lead(lead_id, payload)
+            if resp["ok"]:
+                results["restaurar_ok"] += 1
+
         elif tipo == "NOVO":
             cf = _build_custom_fields(field_ids, acao, update_fields_map)
             nome = acao.get("nome") or "Lead SIAA"
@@ -1583,9 +1663,10 @@ def executar_acoes(acoes, limit=None, log_callback=None):
         if log_callback:
             log_callback(msg)
 
-    log.info("Execucao: ok=%d, erro=%d, skip=%d, novos=%d, API calls=%d",
+    log.info("Execucao: ok=%d, erro=%d, skip=%d, novos=%d, perdido=%d, restaurar=%d, API calls=%d",
              results["ok"], results["erro"], results["skip"],
-             results["novo_ok"], api.total_calls)
+             results["novo_ok"], results["perdido_ok"], results["restaurar_ok"],
+             api.total_calls)
     return results
 
 
@@ -1662,10 +1743,13 @@ def run_pipeline(candidatos_files, matriculados_files, nivel="grad", log_callbac
     n_novo = sum(1 for a in acoes if a["acao"] == "NOVO")
     n_atualizar = sum(1 for a in acoes if a["acao"] == "ATUALIZAR")
     n_matriculado = sum(1 for a in acoes if a["acao"] == "MATRICULADO")
+    n_mover_perdido = sum(1 for a in acoes if a["acao"] == "MOVER_PERDIDO")
+    n_restaurar = sum(1 for a in acoes if a["acao"] == "RESTAURAR")
 
     elapsed = (datetime.now(BRT) - start).total_seconds()
     _log(f"Pipeline concluido em {elapsed:.0f}s.")
-    _log(f"  NOVO={n_novo} | ATUALIZAR={n_atualizar} | MATRICULADO={n_matriculado} | Total={len(acoes)}")
+    _log(f"  NOVO={n_novo} | ATUALIZAR={n_atualizar} | MATRICULADO={n_matriculado} "
+         f"| MOVER_PERDIDO={n_mover_perdido} | RESTAURAR={n_restaurar} | Total={len(acoes)}")
 
     return {
         "inscritos": n_insc,

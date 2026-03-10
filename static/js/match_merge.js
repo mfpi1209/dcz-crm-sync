@@ -203,6 +203,8 @@ function mmLoadPreview() {
             document.getElementById('mm-act-aprovado').textContent = (ap.NOVO || 0).toLocaleString();
             document.getElementById('mm-act-matriculado').textContent = (ap.MATRICULADO || 0).toLocaleString();
             document.getElementById('mm-act-sematch').textContent = (ap.ATUALIZAR || 0).toLocaleString();
+            document.getElementById('mm-act-perdido').textContent = (ap.MOVER_PERDIDO || 0).toLocaleString();
+            document.getElementById('mm-act-restaurar').textContent = (ap.RESTAURAR || 0).toLocaleString();
             document.getElementById('mm-act-fechado').textContent = (m.lead_fechado || 0).toLocaleString();
 
             const tbody = document.getElementById('mm-preview-tbody');
@@ -213,10 +215,14 @@ function mmLoadPreview() {
                 tbody.innerHTML = acoes.map(a => {
                     const acaoColor = a.acao === 'NOVO' ? 'text-emerald-400' :
                                       a.acao === 'ATUALIZAR' ? 'text-amber-400' :
-                                      a.acao === 'MATRICULADO' ? 'text-blue-400' : 'text-slate-400';
+                                      a.acao === 'MATRICULADO' ? 'text-blue-400' :
+                                      a.acao === 'MOVER_PERDIDO' ? 'text-red-400' :
+                                      a.acao === 'RESTAURAR' ? 'text-teal-400' : 'text-slate-400';
                     const acaoBg = a.acao === 'NOVO' ? 'bg-emerald-500/10' :
                                    a.acao === 'ATUALIZAR' ? 'bg-amber-500/10' :
-                                   a.acao === 'MATRICULADO' ? 'bg-blue-500/10' : 'bg-slate-500/10';
+                                   a.acao === 'MATRICULADO' ? 'bg-blue-500/10' :
+                                   a.acao === 'MOVER_PERDIDO' ? 'bg-red-500/10' :
+                                   a.acao === 'RESTAURAR' ? 'bg-teal-500/10' : 'bg-slate-500/10';
                     return `<tr class="hover:bg-slate-800/30">
                         <td class="py-2 px-3"><span class="${acaoBg} ${acaoColor} text-[10px] font-bold px-2 py-0.5 rounded-full">${a.acao}</span></td>
                         <td class="py-2 px-3 text-slate-300">${a.nome || ''}</td>
