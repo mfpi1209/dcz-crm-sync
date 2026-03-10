@@ -1057,6 +1057,8 @@ SELECT
     ks.situacao_kommo,
     l.name AS lead_name,
     l.status_id AS lead_status_id,
+    ps.name AS lead_fase,
+    l.pipeline_id AS lead_pipeline_id,
     CASE WHEN m.lead_id IS NOT NULL THEN TRUE ELSE FALSE END AS tem_match,
     CASE WHEN m.lead_id IS NOT NULL AND l.status_id IN (142, 143) THEN TRUE ELSE FALSE END AS lead_fechado,
     gc.ganho_lead_id,
@@ -1067,6 +1069,7 @@ FROM _tmp_mm_inscritos s
 LEFT JOIN all_matches m ON m.siaa_id = s.id
 LEFT JOIN kommo_situacao ks ON ks.lead_id = m.lead_id
 LEFT JOIN leads l ON l.id = m.lead_id
+LEFT JOIN pipeline_statuses ps ON ps.id = l.status_id
 LEFT JOIN ganho_por_cpf gc ON gc.cpf = s.cpf
 ORDER BY s.id;
 """
@@ -1334,6 +1337,7 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
             "modalidade": row.get("modalidade"),
             "grau": row.get("grau_curso"),
             "data_inscr": data_inscr,
+            "lead_fase": row.get("lead_fase") or "",
         }
 
         if lead_id and lead_fechado:

@@ -210,7 +210,7 @@ function mmLoadPreview() {
             const tbody = document.getElementById('mm-preview-tbody');
             const acoes = data.acoes || [];
             if (!acoes.length) {
-                tbody.innerHTML = '<tr><td colspan="9" class="text-center text-slate-600 py-4">Nenhuma ação</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" class="text-center text-slate-600 py-4">Nenhuma ação</td></tr>';
             } else {
                 tbody.innerHTML = acoes.map(a => {
                     const acaoColor = a.acao === 'NOVO' ? 'text-emerald-400' :
@@ -231,6 +231,7 @@ function mmLoadPreview() {
                         <td class="py-2 px-3 text-slate-400">${a.polo || ''}</td>
                         <td class="py-2 px-3 text-slate-300">${a.situacao_siaa || ''}</td>
                         <td class="py-2 px-3 text-slate-500">${a.situacao_kommo || '—'}</td>
+                        <td class="py-2 px-3 text-slate-400">${a.lead_fase || '—'}</td>
                         <td class="py-2 px-3 text-slate-500">${a.match_tipo || '—'}</td>
                         <td class="py-2 px-3 text-slate-500 font-mono">${a.lead_id || '—'}</td>
                     </tr>`;
