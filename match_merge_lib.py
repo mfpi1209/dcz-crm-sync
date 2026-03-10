@@ -953,14 +953,12 @@ _MM_INSCRITOS_COLS_FOR_MATCH = [
 ]
 
 COMPARE_SQL = """
-WITH leads_ativos AS (
-    SELECT id AS lead_id FROM leads WHERE status_id NOT IN (142, 143)
-),
+WITH
 kommo_cpf AS (
     SELECT lcf.lead_id,
            LPAD(regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g'), 11, '0') AS cpf
     FROM lead_custom_field_values lcf
-    JOIN leads_ativos la ON la.lead_id = lcf.lead_id
+    JOIN leads l ON l.id = lcf.lead_id
     WHERE lcf.field_name = 'CPF'
       AND length(regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g')) >= 11
 ),
@@ -968,7 +966,7 @@ kommo_telefone AS (
     SELECT DISTINCT lcf.lead_id,
            RIGHT(regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g'), 11) AS telefone
     FROM lead_custom_field_values lcf
-    JOIN leads_ativos la ON la.lead_id = lcf.lead_id
+    JOIN leads l ON l.id = lcf.lead_id
     WHERE lcf.field_name IN ('Telefone Comercial', 'Telefone Inscricao')
       AND length(regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g')) >= 10
 ),
@@ -984,7 +982,10 @@ match_cpf AS (
         s.id AS siaa_id, kc.lead_id, 'cpf' AS match_tipo
     FROM _tmp_mm_inscritos s
     JOIN kommo_cpf kc ON s.cpf IS NOT NULL AND kc.cpf = s.cpf
-    ORDER BY s.id, kc.lead_id
+    JOIN leads l2 ON l2.id = kc.lead_id
+    ORDER BY s.id,
+             CASE WHEN l2.status_id NOT IN (142, 143) THEN 0 ELSE 1 END,
+             kc.lead_id
 ),
 match_telefone AS (
     SELECT DISTINCT ON (s.id)
@@ -992,8 +993,11 @@ match_telefone AS (
     FROM _tmp_mm_inscritos s
     JOIN kommo_telefone kt ON s.telefone IS NOT NULL
         AND RIGHT(s.telefone, 11) = kt.telefone
+    JOIN leads l2 ON l2.id = kt.lead_id
     WHERE s.id NOT IN (SELECT siaa_id FROM match_cpf)
-    ORDER BY s.id, kt.lead_id
+    ORDER BY s.id,
+             CASE WHEN l2.status_id NOT IN (142, 143) THEN 0 ELSE 1 END,
+             kt.lead_id
 ),
 all_matches AS (
     SELECT * FROM match_cpf
@@ -1007,7 +1011,9 @@ SELECT
     m.lead_id AS lead_id_match, m.match_tipo,
     ks.situacao_kommo,
     l.name AS lead_name,
-    CASE WHEN m.lead_id IS NOT NULL THEN TRUE ELSE FALSE END AS tem_match
+    l.status_id AS lead_status_id,
+    CASE WHEN m.lead_id IS NOT NULL THEN TRUE ELSE FALSE END AS tem_match,
+    CASE WHEN m.lead_id IS NOT NULL AND l.status_id IN (142, 143) THEN TRUE ELSE FALSE END AS lead_fechado
 FROM _tmp_mm_inscritos s
 LEFT JOIN all_matches m ON m.siaa_id = s.id
 LEFT JOIN kommo_situacao ks ON ks.lead_id = m.lead_id
@@ -1110,6 +1116,7 @@ def match_kommo():
 
     if not inscritos_rows:
         return {"total": 0, "com_match": 0, "sem_match": 0,
+                "lead_fechado": 0,
                 "tipos": {}, "divergencias": {}, "detalhes": []}
 
     kommo = get_kommo_conn()
@@ -1135,6 +1142,7 @@ def match_kommo():
     total = len(rows)
     com_match = sum(1 for r in rows if r[cols.index("tem_match")])
     sem_match = total - com_match
+    n_lead_fechado = sum(1 for r in rows if r[cols.index("lead_fechado")])
 
     tipos = {}
     for r in rows:
@@ -1143,9 +1151,11 @@ def match_kommo():
             tipos[tipo] = tipos.get(tipo, 0) + 1
 
     divergencias = {"atualizar_matriculado": 0, "atualizar_aprovado": 0,
-                    "ok": 0, "sem_situacao_kommo": 0}
+                    "ok": 0, "sem_situacao_kommo": 0, "lead_fechado": n_lead_fechado}
     for r in rows:
         if not r[cols.index("tem_match")]:
+            continue
+        if r[cols.index("lead_fechado")]:
             continue
         siaa_sit = r[cols.index("siaa_situacao")]
         kommo_sit = r[cols.index("situacao_kommo")]
@@ -1158,7 +1168,8 @@ def match_kommo():
         else:
             divergencias["ok"] += 1
 
-    log.info("Match Inscritos x Kommo: total=%d, match=%d, sem=%d", total, com_match, sem_match)
+    log.info("Match Inscritos x Kommo: total=%d, match=%d, sem=%d, fechado=%d",
+             total, com_match, sem_match, n_lead_fechado)
     log.info("  Tipos: %s", tipos)
     log.info("  Divergencias: %s", divergencias)
 
@@ -1166,6 +1177,7 @@ def match_kommo():
 
     return {
         "total": total, "com_match": com_match, "sem_match": sem_match,
+        "lead_fechado": n_lead_fechado,
         "tipos": tipos, "divergencias": divergencias, "detalhes": detalhes,
     }
 
@@ -1241,10 +1253,16 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
     """
     acoes = []
 
+    n_ja_existe = 0
     for row in inscritos_match.get("detalhes", []):
         lead_id = row.get("lead_id_match")
+        lead_fechado = row.get("lead_fechado", False)
         siaa_sit = row.get("siaa_situacao")
         kommo_sit = row.get("situacao_kommo")
+
+        if lead_id and lead_fechado:
+            n_ja_existe += 1
+            continue
 
         base = {
             "siaa_id": row["siaa_id"],
@@ -1302,8 +1320,8 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
     n_novo = sum(1 for a in acoes if a["acao"] == "NOVO")
     n_atualizar = sum(1 for a in acoes if a["acao"] == "ATUALIZAR")
     n_matriculado = sum(1 for a in acoes if a["acao"] == "MATRICULADO")
-    log.info("Acoes: %d total (NOVO=%d, ATUALIZAR=%d, MATRICULADO=%d)",
-             len(acoes), n_novo, n_atualizar, n_matriculado)
+    log.info("Acoes: %d total (NOVO=%d, ATUALIZAR=%d, MATRICULADO=%d, JA_EXISTE=%d)",
+             len(acoes), n_novo, n_atualizar, n_matriculado, n_ja_existe)
     return acoes
 
 
@@ -1593,7 +1611,7 @@ def run_pipeline(candidatos_files, matriculados_files, nivel="grad", log_callbac
     # 5. Match Inscritos x Kommo (CPF + Telefone)
     _log(">>> ETAPA 5: MATCH INSCRITOS x KOMMO (CPF + Telefone)")
     inscritos_match = match_kommo()
-    _log(f"  Total: {inscritos_match['total']} | Match: {inscritos_match['com_match']} | Sem: {inscritos_match['sem_match']}")
+    _log(f"  Total: {inscritos_match['total']} | Match: {inscritos_match['com_match']} | Sem: {inscritos_match['sem_match']} | Lead Fechado: {inscritos_match.get('lead_fechado', 0)}")
     _log(f"  Tipos: {inscritos_match['tipos']}")
 
     # 6. Match Matriculados x Kommo (RGM)
@@ -1621,6 +1639,7 @@ def run_pipeline(candidatos_files, matriculados_files, nivel="grad", log_callbac
             "total": inscritos_match["total"],
             "com_match": inscritos_match["com_match"],
             "sem_match": inscritos_match["sem_match"],
+            "lead_fechado": inscritos_match.get("lead_fechado", 0),
             "tipos": inscritos_match["tipos"],
             "divergencias": inscritos_match.get("divergencias", {}),
         },

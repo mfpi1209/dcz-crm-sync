@@ -96,7 +96,7 @@
                 <div id="mm-results-section" class="hidden">
 
                     <!-- KPI Cards -->
-                    <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+                    <div class="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
                         <div class="glass-card p-4 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-cyan-500 to-blue-500"></div>
                             <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Inscritos</p>
@@ -113,6 +113,11 @@
                             <p class="text-xl font-bold text-white font-display mt-1" id="mm-kpi-match">0</p>
                         </div>
                         <div class="glass-card p-4 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-slate-500 to-slate-600"></div>
+                            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Já Existe</p>
+                            <p class="text-xl font-bold text-slate-300 font-display mt-1" id="mm-kpi-fechado">0</p>
+                        </div>
+                        <div class="glass-card p-4 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-amber-500 to-orange-500"></div>
                             <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Sem Match</p>
                             <p class="text-xl font-bold text-white font-display mt-1" id="mm-kpi-sematch">0</p>
@@ -125,10 +130,10 @@
                     </div>
 
                     <!-- Action summary cards -->
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                         <div class="glass-card p-4 flex items-center gap-4">
                             <div class="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
-                                <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
                             </div>
                             <div>
                                 <p class="text-xs text-slate-500">Novos (Criar)</p>
@@ -146,11 +151,20 @@
                         </div>
                         <div class="glass-card p-4 flex items-center gap-4">
                             <div class="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                                <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                             </div>
                             <div>
                                 <p class="text-xs text-slate-500">Atualizar</p>
                                 <p class="text-lg font-bold text-amber-400" id="mm-act-sematch">0</p>
+                            </div>
+                        </div>
+                        <div class="glass-card p-4 flex items-center gap-4">
+                            <div class="w-10 h-10 rounded-lg bg-slate-500/10 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-500">Já Existe (Fechado)</p>
+                                <p class="text-lg font-bold text-slate-400" id="mm-act-fechado">0</p>
                             </div>
                         </div>
                     </div>

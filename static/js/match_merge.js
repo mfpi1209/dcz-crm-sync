@@ -195,6 +195,7 @@ function mmLoadPreview() {
             document.getElementById('mm-kpi-inscritos').textContent = (s.inscritos || 0).toLocaleString();
             document.getElementById('mm-kpi-matriculados').textContent = (s.matriculados || 0).toLocaleString();
             document.getElementById('mm-kpi-match').textContent = (m.com_match || 0).toLocaleString();
+            document.getElementById('mm-kpi-fechado').textContent = (m.lead_fechado || 0).toLocaleString();
             document.getElementById('mm-kpi-sematch').textContent = (m.sem_match || 0).toLocaleString();
             document.getElementById('mm-kpi-acoes').textContent = (data.acoes_total || 0).toLocaleString();
 
@@ -202,6 +203,7 @@ function mmLoadPreview() {
             document.getElementById('mm-act-aprovado').textContent = (ap.NOVO || 0).toLocaleString();
             document.getElementById('mm-act-matriculado').textContent = (ap.MATRICULADO || 0).toLocaleString();
             document.getElementById('mm-act-sematch').textContent = (ap.ATUALIZAR || 0).toLocaleString();
+            document.getElementById('mm-act-fechado').textContent = (m.lead_fechado || 0).toLocaleString();
 
             const tbody = document.getElementById('mm-preview-tbody');
             const acoes = data.acoes || [];
