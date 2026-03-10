@@ -4,6 +4,8 @@ let _mmLogSince = 0;
 let _mmExecLogSince = 0;
 let _mmPollTimer = null;
 let _mmExecPollTimer = null;
+let _mmUnifPollTimer = null;
+let _mmUnifLogSince = 0;
 let _mmPreviewPage = 1;
 
 function loadMatchMerge() {
@@ -205,7 +207,16 @@ function mmLoadPreview() {
             document.getElementById('mm-act-sematch').textContent = (ap.ATUALIZAR || 0).toLocaleString();
             document.getElementById('mm-act-perdido').textContent = (ap.MOVER_PERDIDO || 0).toLocaleString();
             document.getElementById('mm-act-restaurar').textContent = (ap.RESTAURAR || 0).toLocaleString();
+            const uAuto = ap.UNIFICAR_AUTO || 0;
+            const uManual = ap.UNIFICAR_MANUAL || 0;
             document.getElementById('mm-act-unificar').textContent = (ap.UNIFICAR || 0).toLocaleString();
+            const unifDetail = document.getElementById('mm-act-unificar-detail');
+            if (unifDetail) unifDetail.textContent = `${uAuto} auto / ${uManual} manual`;
+            const unifLoteBtn = document.getElementById('mm-btn-unif-lote');
+            if (unifLoteBtn) {
+                if (uAuto > 0) { unifLoteBtn.classList.remove('hidden'); unifLoteBtn.querySelector('.mm-unif-auto-count').textContent = uAuto; }
+                else unifLoteBtn.classList.add('hidden');
+            }
             document.getElementById('mm-act-fechado').textContent = (m.lead_fechado || 0).toLocaleString();
 
             const tbody = document.getElementById('mm-preview-tbody');
@@ -237,7 +248,12 @@ function mmLoadPreview() {
 
                     let extraBtn = '';
                     if (a.acao === 'UNIFICAR' && a.dup_lead_ids) {
-                        extraBtn = `<button onclick="mmOpenMergeModal('${a.cpf}', ${JSON.stringify(a.dup_lead_ids)})" class="ml-2 text-[10px] font-bold text-purple-300 bg-purple-500/20 hover:bg-purple-500/30 px-2 py-0.5 rounded-full transition">Unificar</button>`;
+                        if (a.auto_decided) {
+                            extraBtn = `<span class="ml-1 text-[9px] font-bold text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded-full" title="Manter #${a.auto_keep_id}">Auto: ${a.auto_reason || '?'}</span>`;
+                        } else {
+                            extraBtn = `<span class="ml-1 text-[9px] font-bold text-yellow-400 bg-yellow-500/10 px-1.5 py-0.5 rounded-full">Manual</span>`;
+                        }
+                        extraBtn += ` <button onclick="mmOpenMergeModal('${a.cpf}', ${JSON.stringify(a.dup_lead_ids)})" class="ml-1 text-[10px] font-bold text-purple-300 bg-purple-500/20 hover:bg-purple-500/30 px-2 py-0.5 rounded-full transition">Unificar</button>`;
                     }
 
                     return `<tr class="hover:bg-slate-800/30">
@@ -524,4 +540,70 @@ function _mmPollMergeJob(jobKey) {
             });
     };
     setTimeout(poll, 2000);
+}
+
+/* ── Execute UNIFICAR em Lote ──────────────────── */
+
+function mmExecuteUnifLote() {
+    const countEl = document.querySelector('.mm-unif-auto-count');
+    const total = countEl ? countEl.textContent : '?';
+    if (!confirm(`Executar ${total} unificações automáticas no Kommo?`)) return;
+
+    const btn = document.getElementById('mm-btn-unif-lote');
+    btn.disabled = true;
+    btn.classList.add('opacity-50');
+    _mmUnifLogSince = 0;
+
+    fetch('/api/match-merge/execute-unificar-lote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+                btn.disabled = false;
+                btn.classList.remove('opacity-50');
+                return;
+            }
+            _mmStartUnifPoll();
+        })
+        .catch(err => {
+            alert('Erro: ' + err);
+            btn.disabled = false;
+            btn.classList.remove('opacity-50');
+        });
+}
+
+function _mmStartUnifPoll() {
+    if (_mmUnifPollTimer) clearInterval(_mmUnifPollTimer);
+    _mmUnifPollTimer = setInterval(_mmPollUnif, 2000);
+}
+
+function _mmPollUnif() {
+    fetch(`/api/match-merge/unif-status?since=${_mmUnifLogSince}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.lines && data.lines.length) {
+                const el = document.getElementById('mm-log-content');
+                el.textContent += data.lines.join('\n') + '\n';
+                el.scrollTop = el.scrollHeight;
+                _mmUnifLogSince = data.total;
+            }
+
+            if (!data.running) {
+                clearInterval(_mmUnifPollTimer);
+                _mmUnifPollTimer = null;
+                const btn = document.getElementById('mm-btn-unif-lote');
+                btn.disabled = false;
+                btn.classList.remove('opacity-50');
+
+                const r = data.result || {};
+                if (r.error && typeof r.error === 'string') {
+                    alert(`Erro na unificação: ${r.error}`);
+                } else {
+                    alert(`Unificação concluída: ${r.ok || 0} OK, ${r.error || 0} erros de ${r.total || 0}`);
+                }
+            }
+        });
 }

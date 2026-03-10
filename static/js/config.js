@@ -393,7 +393,7 @@ const PAGE_LABELS = {
     dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização',
     kommo_sync: 'Sync Comercial',
     update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline',
-    match_merge: 'Match & Merge', comercial_rgm: 'Comercial RGM',
+    match_merge: 'Match & Merge', comercial_rgm: 'Dashboard Comercial',
     logs: 'Logs / Relatórios', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas',
     intelligence: 'Inteligência', inadimplencia: 'Inadimplência',
     feedback: 'Feedback', config: 'Configurações', schedule: 'Agendamento',

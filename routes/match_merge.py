@@ -35,6 +35,9 @@ _result = None
 _exec_running = False
 _exec_logs: deque = deque(maxlen=MAX_LOG_LINES)
 _exec_result = None
+_unif_running = False
+_unif_logs: deque = deque(maxlen=MAX_LOG_LINES)
+_unif_result = None
 _uploaded = {"candidatos": [], "matriculados": []}
 
 
@@ -183,8 +186,10 @@ def mm_status():
     return jsonify({
         "running": _running,
         "exec_running": _exec_running,
+        "unif_running": _unif_running,
         "has_result": _result is not None,
         "has_exec_result": _exec_result is not None,
+        "has_unif_result": _unif_result is not None,
     })
 
 
@@ -235,6 +240,8 @@ def mm_preview():
             "MOVER_PERDIDO": sum(1 for a in _result.get("acoes", []) if a["acao"] == "MOVER_PERDIDO"),
             "RESTAURAR": sum(1 for a in _result.get("acoes", []) if a["acao"] == "RESTAURAR"),
             "UNIFICAR": sum(1 for a in _result.get("acoes", []) if a["acao"] == "UNIFICAR"),
+            "UNIFICAR_AUTO": sum(1 for a in _result.get("acoes", []) if a["acao"] == "UNIFICAR" and a.get("auto_decided")),
+            "UNIFICAR_MANUAL": sum(1 for a in _result.get("acoes", []) if a["acao"] == "UNIFICAR" and not a.get("auto_decided")),
         },
         "acoes": paginated,
         "page": page,
@@ -299,6 +306,86 @@ def mm_exec_status():
     return jsonify({
         "running": _exec_running,
         "result": _exec_result,
+        "lines": lines[since:],
+        "total": len(lines),
+    })
+
+
+# ── Execute UNIFICAR em lote ─────────────────────────────────────
+
+def _add_unif_log(line: str):
+    _unif_logs.append(f"{_ts()} {line.rstrip()}")
+
+
+@match_merge_bp.route("/api/match-merge/execute-unificar-lote", methods=["POST"])
+def mm_execute_unificar_lote():
+    """Execute auto-decided UNIFICAR merges in batch."""
+    global _unif_running, _unif_result
+    if _unif_running:
+        return jsonify({"error": "Unificação em lote já em andamento."}), 409
+    if _result is None or "error" in (_result or {}):
+        return jsonify({"error": "Execute o pipeline primeiro."}), 400
+
+    acoes = _result.get("acoes", [])
+    auto_unif = [a for a in acoes if a["acao"] == "UNIFICAR" and a.get("auto_decided")]
+
+    if not auto_unif:
+        return jsonify({"error": "Nenhuma unificação automática disponível."}), 400
+
+    _unif_logs.clear()
+    _unif_result = None
+
+    def _run():
+        global _unif_running, _unif_result
+        _unif_running = True
+        ok_count = 0
+        err_count = 0
+        try:
+            from kommo_merge import merge_lead_pair
+            total = len(auto_unif)
+            _add_unif_log(f"Iniciando unificação em lote: {total} pares")
+            for i, a in enumerate(auto_unif, 1):
+                keep = a["auto_keep_id"]
+                remove = a["auto_remove_id"]
+                nome = a.get("nome", "?")
+                reason = a.get("auto_reason", "")
+                _add_unif_log(f"[{i}/{total}] {nome} — manter {keep}, remover {remove} ({reason})")
+                try:
+                    result = merge_lead_pair(keep, remove)
+                    if result.get("ok"):
+                        ok_count += 1
+                        _add_unif_log(f"  OK — job {result.get('job_id', '?')}")
+                    else:
+                        err_count += 1
+                        _add_unif_log(f"  ERRO: {result.get('error', 'desconhecido')}")
+                except Exception as e:
+                    err_count += 1
+                    _add_unif_log(f"  ERRO: {e}")
+                time.sleep(1)
+            _add_unif_log(f"Concluído: {ok_count} ok, {err_count} erros de {total}")
+            _unif_result = {"ok": ok_count, "error": err_count, "total": total}
+        except Exception as e:
+            import traceback
+            _add_unif_log(f"ERRO FATAL: {e}")
+            _add_unif_log(traceback.format_exc())
+            _unif_result = {"error": str(e)}
+        finally:
+            _unif_running = False
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+
+    return jsonify({"ok": True, "msg": f"Unificando {len(auto_unif)} pares...",
+                    "total": len(auto_unif)})
+
+
+@match_merge_bp.route("/api/match-merge/unif-status", methods=["GET"])
+def mm_unif_status():
+    since = int(request.args.get("since", 0))
+    lines = list(_unif_logs)
+    return jsonify({
+        "running": _unif_running,
+        "result": _unif_result,
         "lines": lines[since:],
         "total": len(lines),
     })

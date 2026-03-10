@@ -863,6 +863,76 @@ def db_upload_matriculados(dados):
     return len(dados)
 
 
+def db_snapshot_hist(nivel="grad"):
+    """Copy current mm_inscritos/mm_matriculados to historical tables."""
+    snap_id = datetime.now(BRT).strftime("%Y%m%d_%H%M%S")
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+
+        cur.execute("SELECT COUNT(*) FROM mm_inscritos")
+        n_insc = cur.fetchone()[0] or 0
+        cur.execute("SELECT COUNT(*) FROM mm_matriculados")
+        n_mat = cur.fetchone()[0] or 0
+        cur.execute("SELECT COUNT(*) FROM mm_cruzado")
+        n_cruz = cur.fetchone()[0] or 0
+
+        if n_insc > 0:
+            cur.execute("""
+                INSERT INTO mm_inscritos_hist (
+                    snapshot_id, tipo, status, dt_pag_insc, inscricao,
+                    nome, sexo, cpf, rg, curso_raw, curso_limpo, grau_curso,
+                    modalidade, polo_raw, polo_normalizado, marca_instituicao,
+                    data_inscr, data_prova, telefone, telefone_res, telefone_com,
+                    email, cep, endereco, bairro, cidade, estado,
+                    data_pagamento, data_matricula, situacao_raw, situacao_final,
+                    observacao, captador, trimestre_ingresso,
+                    chave_preco, preco_balcao, area_curso, semestres, arquivo_origem
+                )
+                SELECT %s, tipo, status, dt_pag_insc, inscricao,
+                    nome, sexo, cpf, rg, curso_raw, curso_limpo, grau_curso,
+                    modalidade, polo_raw, polo_normalizado, marca_instituicao,
+                    data_inscr, data_prova, telefone, telefone_res, telefone_com,
+                    email, cep, endereco, bairro, cidade, estado,
+                    data_pagamento, data_matricula, situacao_raw, situacao_final,
+                    observacao, captador, trimestre_ingresso,
+                    chave_preco, preco_balcao, area_curso, semestres, arquivo_origem
+                FROM mm_inscritos
+            """, (snap_id,))
+
+        if n_mat > 0:
+            cur.execute("""
+                INSERT INTO mm_matriculados_hist (
+                    snapshot_id, tipo, nome, cpf, rgm, rg, sexo, data_nasc,
+                    polo_captador, tipo_polo, polo_aulas, curso_raw, curso_limpo,
+                    prouni, serie, data_matricula, ano_tri_ingresso, tipo_matricula,
+                    situacao_raw, situacao, fone_res, fone_com, fone_cel,
+                    email, email_ad, endereco, bairro, cidade, arquivo_origem
+                )
+                SELECT %s, tipo, nome, cpf, rgm, rg, sexo, data_nasc,
+                    polo_captador, tipo_polo, polo_aulas, curso_raw, curso_limpo,
+                    prouni, serie, data_matricula, ano_tri_ingresso, tipo_matricula,
+                    situacao_raw, situacao, fone_res, fone_com, fone_cel,
+                    email, email_ad, endereco, bairro, cidade, arquivo_origem
+                FROM mm_matriculados
+            """, (snap_id,))
+
+        cur.execute("""
+            INSERT INTO mm_snapshots (snapshot_id, nivel, total_inscritos, total_matriculados, total_cruzados)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (snap_id, nivel, n_insc, n_mat, n_cruz))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+        log.info("Snapshot %s salvo: %d inscritos, %d matriculados, %d cruzados",
+                 snap_id, n_insc, n_mat, n_cruz)
+        return snap_id
+    except Exception as e:
+        log.warning("Erro ao salvar snapshot histórico: %s", e)
+        return None
+
+
 # ════════════════════════════════════════════════════════════════
 #  CRUZAMENTO inscritos × matriculados
 # ════════════════════════════════════════════════════════════════
@@ -1456,6 +1526,154 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
 
 
 # ════════════════════════════════════════════════════════════════
+#  ENRICH UNIFICAR — auto-decision rules
+# ════════════════════════════════════════════════════════════════
+
+def enriquecer_unificar(acoes):
+    """Enrich UNIFICAR actions with auto-decision based on lead status and data."""
+    unificar = [a for a in acoes if a["acao"] == "UNIFICAR"]
+    if not unificar:
+        return acoes
+
+    all_ids = []
+    for a in unificar:
+        all_ids.extend(a.get("dup_lead_ids", []))
+    all_ids = list(set(all_ids))
+
+    if not all_ids:
+        return acoes
+
+    leads_info = {}
+    try:
+        conn = get_kommo_conn()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT id, status_id, custom_fields_json, created_at
+                FROM leads WHERE id = ANY(%s)
+            """, (all_ids,))
+            for row in cur.fetchall():
+                leads_info[row["id"]] = row
+        conn.close()
+    except Exception as e:
+        log.warning("enriquecer_unificar: falha ao buscar leads: %s", e)
+        return acoes
+
+    n_auto = 0
+    for a in unificar:
+        ids = a.get("dup_lead_ids", [])
+        if len(ids) != 2:
+            a.update({"auto_decided": False, "auto_keep_id": None,
+                       "auto_remove_id": None, "auto_reason": None})
+            continue
+
+        l1 = leads_info.get(ids[0], {})
+        l2 = leads_info.get(ids[1], {})
+        s1 = l1.get("status_id")
+        s2 = l2.get("status_id")
+
+        keep_id, remove_id, reason = _auto_decide(ids[0], s1, l1, ids[1], s2, l2)
+
+        if keep_id:
+            a.update({"auto_decided": True, "auto_keep_id": keep_id,
+                       "auto_remove_id": remove_id, "auto_reason": reason})
+            n_auto += 1
+        else:
+            a.update({"auto_decided": False, "auto_keep_id": None,
+                       "auto_remove_id": None, "auto_reason": None})
+
+    n_manual = len(unificar) - n_auto
+    log.info("UNIFICAR enriquecido: %d auto, %d manual (total %d)",
+             n_auto, n_manual, len(unificar))
+    return acoes
+
+
+def _auto_decide(id1, s1, lead1, id2, s2, lead2):
+    """Apply auto-decision rules. Returns (keep_id, remove_id, reason) or (None, None, None)."""
+    GANHO = 142
+    PERDIDO = 143
+
+    if s1 == GANHO and s2 == PERDIDO:
+        return id1, id2, "Ganho vs Perdido"
+    if s2 == GANHO and s1 == PERDIDO:
+        return id2, id1, "Ganho vs Perdido"
+
+    if s1 == GANHO and s2 == GANHO:
+        return None, None, None
+    if s1 not in (GANHO, PERDIDO) and s2 == PERDIDO:
+        return id1, id2, "Ativo vs Perdido"
+    if s2 not in (GANHO, PERDIDO) and s1 == PERDIDO:
+        return id2, id1, "Ativo vs Perdido"
+
+    if s1 not in (GANHO, PERDIDO) and s2 not in (GANHO, PERDIDO):
+        return None, None, None
+
+    if s1 == PERDIDO and s2 == PERDIDO:
+        cf1 = _count_filled_fields(lead1.get("custom_fields_json"))
+        cf2 = _count_filled_fields(lead2.get("custom_fields_json"))
+        if cf1 > cf2:
+            return id1, id2, "Mais informações"
+        if cf2 > cf1:
+            return id2, id1, "Mais informações"
+
+        dt1 = _extract_inscricao_date(lead1.get("custom_fields_json"))
+        dt2 = _extract_inscricao_date(lead2.get("custom_fields_json"))
+        if dt1 and dt2 and dt1 > dt2:
+            return id1, id2, "Inscrição mais recente"
+        if dt1 and dt2 and dt2 > dt1:
+            return id2, id1, "Inscrição mais recente"
+
+    return None, None, None
+
+
+def _count_filled_fields(cf_json):
+    """Count non-empty custom field values from JSON."""
+    if not cf_json:
+        return 0
+    import json as _json
+    try:
+        cf_list = _json.loads(cf_json) if isinstance(cf_json, str) else cf_json
+        if not isinstance(cf_list, list):
+            return 0
+        count = 0
+        for cf in cf_list:
+            vals = cf.get("values", [])
+            for v in vals:
+                val = v.get("value")
+                if val is not None and str(val).strip():
+                    count += 1
+        return count
+    except Exception:
+        return 0
+
+
+def _extract_inscricao_date(cf_json):
+    """Extract 'Inscrição' date from custom_fields_json. Returns string for comparison."""
+    if not cf_json:
+        return None
+    import json as _json
+    try:
+        cf_list = _json.loads(cf_json) if isinstance(cf_json, str) else cf_json
+        if not isinstance(cf_list, list):
+            return None
+        for cf in cf_list:
+            name = (cf.get("field_name") or "").lower()
+            if "inscri" in name:
+                vals = cf.get("values", [])
+                if vals:
+                    raw = str(vals[0].get("value", "")).strip()
+                    if not raw:
+                        return None
+                    if "/" in raw:
+                        parts = raw.split("/")
+                        if len(parts) == 3:
+                            return f"{parts[2]}-{parts[1].zfill(2)}-{parts[0].zfill(2)}"
+                    return raw
+    except Exception:
+        pass
+    return None
+
+
+# ════════════════════════════════════════════════════════════════
 #  KOMMO API CLIENT (for updates)
 # ════════════════════════════════════════════════════════════════
 
@@ -1797,6 +2015,11 @@ def run_pipeline(candidatos_files, matriculados_files, nivel="grad", log_callbac
     n_mat = db_upload_matriculados(matriculados_norm) if matriculados_norm else 0
     _log(f"  Banco: {n_insc} inscritos + {n_mat} matriculados")
 
+    # 3b. Snapshot histórico
+    _log(">>> ETAPA 3b: SNAPSHOT HISTÓRICO")
+    snap_id = db_snapshot_hist(nivel=nivel)
+    _log(f"  Snapshot: {snap_id or 'falha'}")
+
     # 4. Cruzamento inscritos x matriculados
     _log(">>> ETAPA 4: CRUZAMENTO INSCRITOS x MATRICULADOS")
     cruz_result = cruzar()
@@ -1817,6 +2040,13 @@ def run_pipeline(candidatos_files, matriculados_files, nivel="grad", log_callbac
     _log(">>> ETAPA 7: GERAR ACOES")
     acoes = gerar_acoes(inscritos_match, matriculados_match)
 
+    # 7b. Enrich UNIFICAR with auto-decision
+    _log(">>> ETAPA 7b: AUTO-DECISAO UNIFICAR")
+    acoes = enriquecer_unificar(acoes)
+    n_unificar_auto = sum(1 for a in acoes if a["acao"] == "UNIFICAR" and a.get("auto_decided"))
+    n_unificar_manual = sum(1 for a in acoes if a["acao"] == "UNIFICAR" and not a.get("auto_decided"))
+    _log(f"  UNIFICAR: {n_unificar_auto} auto, {n_unificar_manual} manual")
+
     n_novo = sum(1 for a in acoes if a["acao"] == "NOVO")
     n_atualizar = sum(1 for a in acoes if a["acao"] == "ATUALIZAR")
     n_matriculado = sum(1 for a in acoes if a["acao"] == "MATRICULADO")
@@ -1826,7 +2056,8 @@ def run_pipeline(candidatos_files, matriculados_files, nivel="grad", log_callbac
     elapsed = (datetime.now(BRT) - start).total_seconds()
     _log(f"Pipeline concluido em {elapsed:.0f}s.")
     _log(f"  NOVO={n_novo} | ATUALIZAR={n_atualizar} | MATRICULADO={n_matriculado} "
-         f"| MOVER_PERDIDO={n_mover_perdido} | RESTAURAR={n_restaurar} | Total={len(acoes)}")
+         f"| MOVER_PERDIDO={n_mover_perdido} | RESTAURAR={n_restaurar} "
+         f"| UNIFICAR={n_unificar_auto + n_unificar_manual} (auto={n_unificar_auto}) | Total={len(acoes)}")
 
     return {
         "inscritos": n_insc,
