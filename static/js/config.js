@@ -402,10 +402,11 @@ const PAGE_LABELS = {
     recomendacao_cursos: 'Recomendação',
     localizacao_polos: 'Localização',
     info_cursos: 'Informações de Cursos',
+    avisos: 'Avisos',
 };
 
 const PAGE_GROUPS_CONFIG = [
-    { label: 'Geral', pages: ['dashboard', 'search'] },
+    { label: 'Geral', pages: ['dashboard', 'search', 'avisos'] },
     { label: 'Operação — Acadêmico', pages: ['ativacoes', 'distribuicao', 'intelligence', 'inadimplencia', 'feedback'] },
     { label: 'Ferramentas', pages: ['comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos'] },
     { label: 'Operação — Comercial', pages: ['pipeline', 'update', 'match_merge', 'comercial_rgm', 'inscricao'] },

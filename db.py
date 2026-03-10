@@ -320,3 +320,36 @@ def _seed_default_comm_rules(cur):
                 cooldown_days, max_per_week, priority)
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, r)
+
+
+def _ensure_avisos_tables():
+    """Create avisos + aviso_lido tables."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS avisos (
+                    id              SERIAL PRIMARY KEY,
+                    titulo          TEXT NOT NULL,
+                    corpo           TEXT NOT NULL,
+                    prioridade      TEXT NOT NULL DEFAULT 'normal',
+                    target_role     TEXT NOT NULL DEFAULT 'todos',
+                    target_user_ids INTEGER[] DEFAULT '{}',
+                    created_by      INTEGER REFERENCES app_users(id),
+                    created_at      TIMESTAMPTZ DEFAULT NOW(),
+                    expires_at      TIMESTAMPTZ,
+                    active          BOOLEAN DEFAULT TRUE
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS aviso_lido (
+                    aviso_id  INTEGER NOT NULL REFERENCES avisos(id) ON DELETE CASCADE,
+                    user_id   INTEGER NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+                    read_at   TIMESTAMPTZ DEFAULT NOW(),
+                    PRIMARY KEY (aviso_id, user_id)
+                )
+            """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure avisos tables: %s", e)

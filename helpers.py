@@ -36,7 +36,7 @@ def to_brt(dt):
 ALL_PAGES = [
     "dashboard", "search", "sync", "kommo_sync", "update", "pipeline", "match_merge",
     "comercial_rgm", "logs", "distribuicao", "ativacoes", "intelligence", "inadimplencia",
-    "feedback", "config", "schedule", "inscricao",
+    "feedback", "config", "schedule", "inscricao", "avisos",
 ]
 
 APP_USER_FALLBACK = os.getenv("APP_USER", "admin")
