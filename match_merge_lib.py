@@ -1077,6 +1077,7 @@ SELECT
     s.curso_raw, s.curso_limpo, s.situacao_final AS siaa_situacao,
     s.polo_normalizado, s.email,
     s.data_inscr, s.marca_instituicao, s.modalidade, s.grau_curso,
+    s.chave_preco, s.preco_balcao, s.semestres,
     m.lead_id AS lead_id_match, m.match_tipo,
     ks.situacao_kommo,
     l.name AS lead_name,
@@ -1366,6 +1367,11 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
             "data_inscr": data_inscr,
             "lead_fase": row.get("lead_fase") or "",
             "lead_pipeline_id": row.get("lead_pipeline_id"),
+            "chave_siaa": row.get("chave_preco") or "",
+            "preco_siaa": row.get("preco_balcao") or "",
+            "duracao_siaa": row.get("semestres") or "",
+            "email_academico": row.get("email") or "",
+            "origem": "SIAA",
         }
 
         if lead_id and lead_fechado:
@@ -1569,6 +1575,8 @@ class KommoApiClient:
 _FIELD_NAMES_FOR_UPDATE = [
     "Situação", "Curso_SIAA", "Modalidade_SIAA", "Grau_SIAA",
     "Polo", "Marca", "CPF", "Inscrição", "Telefone Inscricao",
+    "Chave_SIAA", "Origem", "Email Acadêmico",
+    "Modalidade", "Grau", "Preço_SIAA", "Duração_SIAA",
 ]
 
 _FIELD_NAMES_FOR_MATRICULA = [
@@ -1630,6 +1638,13 @@ def executar_acoes(acoes, limit=None, log_callback=None):
         "CPF": "cpf",
         "Inscrição": "inscricao",
         "Telefone Inscricao": "telefone",
+        "Chave_SIAA": "chave_siaa",
+        "Origem": "origem",
+        "Email Acadêmico": "email_academico",
+        "Modalidade": "modalidade",
+        "Grau": "grau",
+        "Preço_SIAA": "preco_siaa",
+        "Duração_SIAA": "duracao_siaa",
     }
 
     for i, acao in enumerate(to_process):
