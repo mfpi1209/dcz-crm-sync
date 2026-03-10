@@ -96,8 +96,11 @@ function _crgmRenderKPIs(k) {
     document.getElementById('crgm-valor-total').textContent = 'R$ ' + (k.valor_total / 1000).toFixed(0) + 'k';
     document.getElementById('crgm-dias').textContent = k.dias;
 
+    document.getElementById('crgm-1a-val').textContent = k.vendas_1a.toLocaleString('pt-BR');
+    _crgmSetBadge('crgm-1a-badge', k.pct_1a);
     document.getElementById('crgm-6m-val').textContent = k.vendas_6m.toLocaleString('pt-BR');
     _crgmSetBadge('crgm-6m-badge', k.pct_6m);
+    document.getElementById('crgm-ytd-prev').textContent = (k.vendas_prev_ytd || 0).toLocaleString('pt-BR');
     _crgmSetBadge('crgm-ytd-badge', k.pct_ytd);
 }
 

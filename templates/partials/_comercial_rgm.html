@@ -58,16 +58,23 @@
         <div class="glass-card p-5 flex flex-col gap-2 border-l-4 border-blue-500">
             <span class="text-[10px] uppercase tracking-wider font-bold text-blue-400">Vendas</span>
             <span id="crgm-vendas" class="text-3xl font-extrabold text-white">—</span>
-            <div class="flex gap-2 text-[10px]">
-                <span class="text-slate-500">6M <span id="crgm-6m-val" class="font-bold">—</span></span>
-                <span id="crgm-6m-badge" class="font-bold px-1.5 py-0.5 rounded text-white">—</span>
+            <div class="flex flex-col gap-1 text-[10px]">
+                <div class="flex items-center gap-2">
+                    <span class="text-slate-500">vs 1 ano: <span id="crgm-1a-val" class="font-bold text-slate-400">—</span></span>
+                    <span id="crgm-1a-badge" class="font-bold px-1.5 py-0.5 rounded text-white">—</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-slate-500">vs 6M: <span id="crgm-6m-val" class="font-bold text-slate-400">—</span></span>
+                    <span id="crgm-6m-badge" class="font-bold px-1.5 py-0.5 rounded text-white">—</span>
+                </div>
             </div>
         </div>
         <!-- YTD -->
         <div class="glass-card p-5 flex flex-col gap-2 border-l-4 border-indigo-500">
             <span class="text-[10px] uppercase tracking-wider font-bold text-indigo-400">YTD</span>
             <span id="crgm-ytd" class="text-3xl font-extrabold text-white">—</span>
-            <div class="flex gap-2 text-[10px]">
+            <div class="flex items-center gap-2 text-[10px]">
+                <span class="text-slate-500">ano ant: <span id="crgm-ytd-prev" class="font-bold text-slate-400">—</span></span>
                 <span id="crgm-ytd-badge" class="font-bold px-1.5 py-0.5 rounded text-white">—</span>
             </div>
         </div>
