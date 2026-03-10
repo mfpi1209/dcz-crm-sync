@@ -1047,6 +1047,14 @@ ganho_por_cpf AS (
     FROM kommo_cpf kc
     JOIN leads l ON l.id = kc.lead_id AND l.status_id = 142
     ORDER BY kc.cpf, l.closed_at DESC NULLS LAST
+),
+duplicados_cpf AS (
+    SELECT kc.cpf,
+           array_agg(DISTINCT kc.lead_id ORDER BY kc.lead_id) AS all_lead_ids,
+           COUNT(DISTINCT kc.lead_id) AS n_leads
+    FROM kommo_cpf kc
+    GROUP BY kc.cpf
+    HAVING COUNT(DISTINCT kc.lead_id) > 1
 )
 SELECT
     s.id AS siaa_id, s.nome, s.cpf, s.telefone, s.inscricao,
@@ -1064,13 +1072,16 @@ SELECT
     gc.ganho_lead_id,
     CASE WHEN l.closed_at IS NOT NULL
          THEN to_char(to_timestamp(l.closed_at), 'YYYY-MM-DD')
-         ELSE NULL END AS lead_closed_date
+         ELSE NULL END AS lead_closed_date,
+    dc.all_lead_ids AS dup_lead_ids,
+    dc.n_leads AS dup_count
 FROM _tmp_mm_inscritos s
 LEFT JOIN all_matches m ON m.siaa_id = s.id
 LEFT JOIN kommo_situacao ks ON ks.lead_id = m.lead_id
 LEFT JOIN leads l ON l.id = m.lead_id
 LEFT JOIN pipeline_statuses ps ON ps.id = l.status_id
 LEFT JOIN ganho_por_cpf gc ON gc.cpf = s.cpf
+LEFT JOIN duplicados_cpf dc ON dc.cpf = s.cpf
 ORDER BY s.id;
 """
 
@@ -1364,6 +1375,25 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
         else:
             acoes.append({**base, "acao": "NOVO", "lead_id": None})
 
+    # --- UNIFICAR: 1 acao por CPF com leads duplicados no Kommo ---
+    cpfs_unificar = {}
+    for row in inscritos_match.get("detalhes", []):
+        dup_count = row.get("dup_count")
+        dup_lead_ids = row.get("dup_lead_ids")
+        cpf = row.get("cpf")
+        if dup_count and dup_count > 1 and cpf and cpf not in cpfs_unificar:
+            ids_list = [int(x) for x in (dup_lead_ids if isinstance(dup_lead_ids, list) else list(dup_lead_ids or []))]
+            cpfs_unificar[cpf] = {
+                "acao": "UNIFICAR",
+                "nome": row["nome"],
+                "cpf": cpf,
+                "dup_lead_ids": ids_list,
+                "dup_count": int(dup_count),
+                "lead_id": ids_list[0] if ids_list else None,
+            }
+    for info in cpfs_unificar.values():
+        acoes.append(info)
+
     if matriculados_match:
         for row in matriculados_match.get("detalhes", []):
             lead_id = row.get("lead_id_match")
@@ -1391,10 +1421,11 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
     n_novo = sum(1 for a in acoes if a["acao"] == "NOVO")
     n_atualizar = sum(1 for a in acoes if a["acao"] == "ATUALIZAR")
     n_matriculado = sum(1 for a in acoes if a["acao"] == "MATRICULADO")
+    n_unificar = len(cpfs_unificar)
     log.info("Acoes: %d total (NOVO=%d, ATUALIZAR=%d, MATRICULADO=%d, "
-             "MOVER_PERDIDO=%d, RESTAURAR=%d, JA_EXISTE=%d)",
+             "MOVER_PERDIDO=%d, RESTAURAR=%d, UNIFICAR=%d, JA_EXISTE=%d)",
              len(acoes), n_novo, n_atualizar, n_matriculado,
-             n_mover_perdido, n_restaurar, n_ja_existe)
+             n_mover_perdido, n_restaurar, n_unificar, n_ja_existe)
     return acoes
 
 
@@ -1655,6 +1686,10 @@ def executar_acoes(acoes, limit=None, log_callback=None):
             resp = api.create_lead(lead_payload)
             if resp["ok"]:
                 results["novo_ok"] += 1
+
+        elif tipo == "UNIFICAR":
+            results["skip"] += 1
+            continue
 
         else:
             results["skip"] += 1
