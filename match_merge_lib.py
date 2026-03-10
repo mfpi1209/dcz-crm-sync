@@ -448,68 +448,261 @@ def normalizar_situacao_matriculado(situacao_raw):
         return "Matriculado"
     if s.startswith("5") or "cancelado" in s.lower():
         return "Cancelado"
-    return "Transferido"
+    if "trancado" in s.lower() or "transferido" in s.lower():
+        return "Transferido"
+    return s
 
 
 # ════════════════════════════════════════════════════════════════
-#  NORMALIZE ROWS
+#  HEADER-BASED COLUMN MAPPING
 # ════════════════════════════════════════════════════════════════
 
-def normalizar_inscritos(rows, tipo="grad"):
-    """Normalise candidatos inscritos rows (SVREL28 format, 31 columns)."""
+def _build_col_map(header_row):
+    """Build a case-insensitive header-name -> index map."""
+    col_map = {}
+    for idx, val in enumerate(header_row):
+        if val is not None:
+            col_map[str(val).strip().lower()] = idx
+    return col_map
+
+
+def _get_col(col_map, *aliases):
+    """Find column index by trying multiple name aliases (case-insensitive)."""
+    for alias in aliases:
+        key = alias.strip().lower()
+        if key in col_map:
+            return col_map[key]
+    return None
+
+
+def _cell(row, idx):
+    """Safely get cell value by index."""
+    if idx is None or idx >= len(row):
+        return None
+    return row[idx]
+
+
+def limpar_data_flex(val):
+    """Parse date from datetime objects or various string formats."""
+    if val is None:
+        return None
+    from datetime import date as _date
+    if isinstance(val, datetime):
+        return val.date()
+    if isinstance(val, _date):
+        return val
+    s = str(val).strip()
+    if s in ("", "----", "None"):
+        return None
+    for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def limpar_telefone_unico(val):
+    """Clean a single phone number value (no DDD+number split)."""
+    if not val or str(val).strip() in ("", "----"):
+        return None
+    try:
+        return str(int(float(str(val))))
+    except (ValueError, TypeError):
+        digits = re.sub(r"\D", "", str(val))
+        return digits if digits else None
+
+
+_STATUS_INSCRITO_MAP = {
+    "APROVADOS": "Aprovado", "APROVADO": "Aprovado",
+    "MATRICULADO": "Matriculado", "MATRICULADOS": "Matriculado",
+    "REPROVADO": "Reprovado", "REPROVADOS": "Reprovado",
+    "INSCRITO": "Inscrito", "INSCRITOS": "Inscrito",
+    "CANCELADO": "Cancelado", "CANCELADOS": "Cancelado",
+    "DESISTENTE": "Desistente", "DESISTENTES": "Desistente",
+}
+
+
+def _normalizar_status_inscrito(val):
+    """Normalize inscrito status values to consistent casing."""
+    if not val:
+        return None
+    s = str(val).strip()
+    return _STATUS_INSCRITO_MAP.get(s.upper(), s)
+
+
+# ════════════════════════════════════════════════════════════════
+#  NORMALIZE ROWS  (header-aware)
+# ════════════════════════════════════════════════════════════════
+
+def normalizar_inscritos(rows, header=None, tipo="grad"):
+    """Normalise candidatos inscritos rows using header-based column mapping."""
+    if not header:
+        log.error("normalizar_inscritos: header obrigatório para mapeamento de colunas")
+        return []
+
+    cm = _build_col_map(header)
+
+    i_nome      = _get_col(cm, "nome", "name")
+    i_sexo      = _get_col(cm, "sexo", "sex")
+    i_cpf       = _get_col(cm, "cpf")
+    i_rg        = _get_col(cm, "rg")
+    i_email     = _get_col(cm, "email", "e-mail")
+    i_celular   = _get_col(cm, "celular", "fone celular", "telefone")
+    i_inscricao = _get_col(cm, "inscrição", "inscricao", "código inscrição")
+    i_modalidade = _get_col(cm, "modalidade")
+    i_curso     = _get_col(cm, "curso")
+    i_instituicao = _get_col(cm, "instituição", "instituicao")
+    i_polo      = _get_col(cm, "polo")
+    i_status    = _get_col(cm, "status", "situação", "situacao")
+    i_data_inscr = _get_col(cm, "data inscrição", "data inscricao")
+    i_data_aprov = _get_col(cm, "data aprovação", "data aprovacao")
+    i_ciclo     = _get_col(cm, "ciclo vestibular", "ciclo")
+    i_regional  = _get_col(cm, "regional")
+    i_arquivo   = _get_col(cm, "arquivo_origem")
+
+    log.info("Col-map inscritos: nome=%s cpf=%s curso=%s polo=%s status=%s",
+             i_nome, i_cpf, i_curso, i_polo, i_status)
+
     dados = []
     for row in rows:
-        r = list(row) + [None] * (31 - len(row))
-        curso_raw = r[8]
-        polo_raw = r[9]
+        curso_raw = _cell(row, i_curso)
+        polo_raw  = _cell(row, i_polo)
         polo_curto, marca = normalizar_polo_procvs(polo_raw)
+        if not marca:
+            inst = _cell(row, i_instituicao)
+            if inst:
+                marca = str(inst).strip()
+
         chave = construir_chave_preco(curso_raw)
         info_preco = get_precos().get(chave.upper(), {}) if chave else {}
-        situacao_final = calcular_situacao_final(r[26], r[24])
+
+        status_raw  = limpar_valor(_cell(row, i_status))
+        status_norm = _normalizar_status_inscrito(status_raw)
+
+        modalidade_val = limpar_valor(_cell(row, i_modalidade))
+        if not modalidade_val or modalidade_val.upper() in ("SEM INFORMAÇÃO", "SEM INFORMACAO"):
+            modalidade_val = detectar_modalidade(curso_raw)
 
         dados.append((
-            tipo, limpar_valor(r[1]), limpar_valor(r[2]), limpar_valor(r[3]),
-            limpar_nome(r[4]), limpar_valor(r[5]), limpar_cpf(r[6]),
-            limpar_valor(r[7]), limpar_valor(curso_raw), limpar_curso(curso_raw),
-            detectar_grau(curso_raw), detectar_modalidade(curso_raw),
-            limpar_valor(polo_raw), polo_curto, marca,
-            limpar_data(r[10]), limpar_data(r[11]),
-            limpar_telefone(r[14], r[15]), limpar_telefone(r[12], r[13]),
-            limpar_telefone(r[16], r[17]),
-            limpar_valor(r[18]), limpar_cep(r[19]),
-            limpar_valor(r[20]), limpar_valor(r[21]),
-            limpar_valor(r[22]), limpar_valor(r[23]),
-            limpar_valor(r[24]), limpar_valor(r[25]),
-            limpar_valor(r[26]), situacao_final,
-            limpar_valor(r[27]), limpar_valor(r[28]),
-            limpar_valor(r[29]), chave,
-            info_preco.get("preco"), info_preco.get("area"),
-            info_preco.get("semestres"),
-            limpar_valor(r[30]) if len(r) > 30 else None,
+            tipo,                                            # tipo
+            status_norm,                                     # status
+            None,                                            # dt_pag_insc
+            limpar_valor(_cell(row, i_inscricao)),           # inscricao
+            limpar_nome(_cell(row, i_nome)),                 # nome
+            limpar_valor(_cell(row, i_sexo)),                # sexo
+            limpar_cpf(_cell(row, i_cpf)),                   # cpf
+            limpar_valor(_cell(row, i_rg)),                  # rg
+            limpar_valor(curso_raw),                         # curso_raw
+            limpar_curso(curso_raw),                         # curso_limpo
+            detectar_grau(curso_raw),                        # grau_curso
+            modalidade_val,                                  # modalidade
+            limpar_valor(polo_raw),                          # polo_raw
+            polo_curto,                                      # polo_normalizado
+            marca,                                           # marca_instituicao
+            limpar_data_flex(_cell(row, i_data_inscr)),      # data_inscr
+            limpar_data_flex(_cell(row, i_data_aprov)),      # data_prova
+            limpar_telefone_unico(_cell(row, i_celular)),    # telefone
+            None,                                            # telefone_res
+            None,                                            # telefone_com
+            limpar_valor(_cell(row, i_email)),               # email
+            None,                                            # cep
+            None,                                            # endereco
+            None,                                            # bairro
+            None,                                            # cidade
+            limpar_valor(_cell(row, i_regional)),            # estado
+            None,                                            # data_pagamento
+            None,                                            # data_matricula
+            status_raw,                                      # situacao_raw
+            status_norm,                                     # situacao_final
+            None,                                            # observacao
+            None,                                            # captador
+            limpar_valor(_cell(row, i_ciclo)),               # trimestre_ingresso
+            chave,                                           # chave_preco
+            info_preco.get("preco"),                         # preco_balcao
+            info_preco.get("area"),                          # area_curso
+            info_preco.get("semestres"),                     # semestres
+            limpar_valor(_cell(row, i_arquivo)),             # arquivo_origem
         ))
     return dados
 
 
-def normalizar_matriculados(rows, tipo="grad"):
-    """Normalise matriculados rows (WACDREL19 format, 25 columns)."""
+def normalizar_matriculados(rows, header=None, tipo="grad"):
+    """Normalise matriculados rows using header-based column mapping."""
+    if not header:
+        log.error("normalizar_matriculados: header obrigatório para mapeamento de colunas")
+        return []
+
+    cm = _build_col_map(header)
+
+    i_ciclo     = _get_col(cm, "ciclo")
+    i_nome      = _get_col(cm, "nome", "name")
+    i_cpf       = _get_col(cm, "cpf")
+    i_rgm       = _get_col(cm, "rgm")
+    i_rg        = _get_col(cm, "rg")
+    i_sexo      = _get_col(cm, "sexo", "sex")
+    i_curso     = _get_col(cm, "curso")
+    i_instituicao = _get_col(cm, "instituição", "instituicao")
+    i_empresa   = _get_col(cm, "empresa")
+    i_polo      = _get_col(cm, "polo")
+    i_negocio   = _get_col(cm, "negócio", "negocio")
+    i_serie     = _get_col(cm, "série", "serie")
+    i_data_nasc = _get_col(cm, "data nascimento")
+    i_tipo_mat  = _get_col(cm, "tipo matrícula", "tipo matricula")
+    i_data_mat  = _get_col(cm, "data matrícula", "data matricula")
+    i_situacao  = _get_col(cm, "situação matrícula", "situacao matricula",
+                           "situação", "situacao")
+    i_fone_res  = _get_col(cm, "fone residencial")
+    i_fone_com  = _get_col(cm, "fone comercial")
+    i_fone_cel  = _get_col(cm, "fone celular", "celular")
+    i_email     = _get_col(cm, "email", "e-mail")
+    i_email_ad  = _get_col(cm, "email acadêmico", "email academico")
+    i_endereco  = _get_col(cm, "endereço", "endereco")
+    i_bairro    = _get_col(cm, "bairro")
+    i_cidade    = _get_col(cm, "cidade")
+    i_arquivo   = _get_col(cm, "arquivo_origem")
+
+    log.info("Col-map matriculados: nome=%s cpf=%s curso=%s polo=%s sit=%s tipo_mat=%s",
+             i_nome, i_cpf, i_curso, i_polo, i_situacao, i_tipo_mat)
+
     dados = []
     for row in rows:
-        r = list(row) + [None] * (25 - len(row))
-        situacao_norm = normalizar_situacao_matriculado(r[15])
+        curso_raw    = _cell(row, i_curso)
+        situacao_raw = limpar_valor(_cell(row, i_situacao))
+        situacao_norm = normalizar_situacao_matriculado(situacao_raw)
+
+        dn = limpar_data_flex(_cell(row, i_data_nasc))
+        dm = limpar_data_flex(_cell(row, i_data_mat))
+
         dados.append((
-            tipo, limpar_nome(r[0]), limpar_cpf(r[1]), limpar_rgm(r[2]),
-            limpar_valor(r[3]), limpar_valor(r[4]), limpar_valor(r[5]),
-            limpar_valor(r[6]), limpar_valor(r[7]), limpar_valor(r[8]),
-            limpar_valor(r[9]), limpar_curso(r[9]),
-            limpar_valor(r[10]), limpar_valor(r[11]),
-            limpar_valor(r[12]), limpar_valor(r[13]),
-            limpar_valor(r[14]), limpar_valor(r[15]), situacao_norm,
-            limpar_valor(r[16]), limpar_valor(r[17]),
-            limpar_valor(r[18]), limpar_valor(r[19]),
-            limpar_valor(r[20]),
-            limpar_valor(r[21]), limpar_valor(r[22]),
-            limpar_valor(r[23]),
-            limpar_valor(r[24]) if len(r) > 24 else None,
+            tipo,                                            # tipo
+            limpar_nome(_cell(row, i_nome)),                 # nome
+            limpar_cpf(_cell(row, i_cpf)),                   # cpf
+            limpar_rgm(_cell(row, i_rgm)),                   # rgm
+            limpar_valor(_cell(row, i_rg)),                  # rg
+            limpar_valor(_cell(row, i_sexo)),                # sexo
+            str(dn) if dn else None,                         # data_nasc
+            limpar_valor(_cell(row, i_instituicao)),         # polo_captador
+            limpar_valor(_cell(row, i_negocio)),             # tipo_polo
+            limpar_valor(_cell(row, i_polo)),                # polo_aulas
+            limpar_valor(curso_raw),                         # curso_raw
+            limpar_curso(curso_raw),                         # curso_limpo
+            None,                                            # prouni
+            limpar_valor(_cell(row, i_serie)),               # serie
+            str(dm) if dm else None,                         # data_matricula
+            limpar_valor(_cell(row, i_ciclo)),               # ano_tri_ingresso
+            limpar_valor(_cell(row, i_tipo_mat)),            # tipo_matricula
+            situacao_raw,                                    # situacao_raw
+            situacao_norm,                                   # situacao
+            limpar_telefone_unico(_cell(row, i_fone_res)),   # fone_res
+            limpar_telefone_unico(_cell(row, i_fone_com)),   # fone_com
+            limpar_telefone_unico(_cell(row, i_fone_cel)),   # fone_cel
+            limpar_valor(_cell(row, i_email)),               # email
+            limpar_valor(_cell(row, i_email_ad)),            # email_ad
+            limpar_valor(_cell(row, i_endereco)),            # endereco
+            limpar_valor(_cell(row, i_bairro)),              # bairro
+            limpar_valor(_cell(row, i_cidade)),              # cidade
+            limpar_valor(_cell(row, i_arquivo)),             # arquivo_origem
         ))
     return dados
 
@@ -645,7 +838,8 @@ def cruzar():
     cur.execute("""
         SELECT id, cpf, curso_limpo, nome, situacao_final, tipo
         FROM mm_inscritos
-        WHERE situacao_raw = 'Matriculado' AND cpf IS NOT NULL
+        WHERE UPPER(COALESCE(situacao_final,'')) IN ('MATRICULADO')
+          AND cpf IS NOT NULL
     """)
     inscritos = cur.fetchall()
     log.info("Inscritos com situação Matriculado: %d", len(inscritos))
@@ -653,7 +847,11 @@ def cruzar():
     cur.execute("""
         SELECT id, cpf, curso_limpo, rgm, situacao, data_matricula, nome
         FROM mm_matriculados
-        WHERE UPPER(tipo_matricula) = 'INGRESSANTE' AND cpf IS NOT NULL
+        WHERE cpf IS NOT NULL
+          AND UPPER(COALESCE(tipo_matricula,'')) IN (
+              'INGRESSANTE', 'NOVA MATRICULA', 'NOVA MATRÍCULA',
+              'RETORNO', 'RECOMPRA'
+          )
     """)
     mat_rows = cur.fetchall()
     log.info("Matriculados ingressantes: %d", len(mat_rows))
@@ -1209,11 +1407,13 @@ def run_pipeline(candidatos_files, matriculados_files, nivel="grad", log_callbac
     insc_rows = merge_uploaded_files(candidatos_files, f"inscritos-{nivel}")
     mat_rows = merge_uploaded_files(matriculados_files, f"matriculados-{nivel}")
 
+    insc_header = insc_rows[0] if insc_rows else []
+    mat_header = mat_rows[0] if mat_rows else []
     insc_data = insc_rows[1:] if len(insc_rows) > 1 else []
     mat_data = mat_rows[1:] if len(mat_rows) > 1 else []
 
-    _log(f"  Inscritos: {len(insc_data)} linhas")
-    _log(f"  Matriculados: {len(mat_data)} linhas")
+    _log(f"  Inscritos: {len(insc_data)} linhas (cols: {len(insc_header)})")
+    _log(f"  Matriculados: {len(mat_data)} linhas (cols: {len(mat_header)})")
 
     if not insc_data and not mat_data:
         _log("ERRO: Nenhum dado para processar.")
@@ -1222,8 +1422,8 @@ def run_pipeline(candidatos_files, matriculados_files, nivel="grad", log_callbac
     # 2. Normalize
     _log(">>> ETAPA 2: NORMALIZAÇÃO")
     tipo = nivel  # "grad" or "pos"
-    inscritos_norm = normalizar_inscritos(insc_data, tipo=tipo) if insc_data else []
-    matriculados_norm = normalizar_matriculados(mat_data, tipo=tipo) if mat_data else []
+    inscritos_norm = normalizar_inscritos(insc_data, header=insc_header, tipo=tipo) if insc_data else []
+    matriculados_norm = normalizar_matriculados(mat_data, header=mat_header, tipo=tipo) if mat_data else []
     _log(f"  Inscritos normalizados: {len(inscritos_norm)}")
     _log(f"  Matriculados normalizados: {len(matriculados_norm)}")
 
