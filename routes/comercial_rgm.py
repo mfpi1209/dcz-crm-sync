@@ -101,6 +101,23 @@ def _parse_decimal_br(s):
         return None
 
 
+def _shift_months(d, months):
+    """Desloca uma data por N meses, ajustando dia se necessário."""
+    m = d.month + months
+    y = d.year + (m - 1) // 12
+    m = (m - 1) % 12 + 1
+    import calendar
+    max_day = calendar.monthrange(y, m)[1]
+    return date(y, m, min(d.day, max_day))
+
+
+def _safe_date(year, month, day):
+    """Cria date ajustando dia para o máximo do mês (ex: 29/Fev → 28/Fev)."""
+    import calendar
+    max_day = calendar.monthrange(year, month)[1]
+    return date(year, month, min(day, max_day))
+
+
 COL_MAP = {
     "RGM": "rgm",
     "Polo": "polo",
@@ -283,60 +300,72 @@ def crgm_data():
         dias = kpi[3] or 1
         media_diaria = round(vendas / dias, 1) if dias > 0 else 0
 
-        # --- 6M comparison ---
+        # --- 6M + YTD comparisons ---
+        vendas_6m = 0
+        vendas_ytd = 0
+        vendas_prev_ytd = 0
+
         if dt_ini and dt_fim:
             try:
                 d_ini = date.fromisoformat(dt_ini)
                 d_fim = date.fromisoformat(dt_fim)
-                delta_days = (d_fim - d_ini).days
 
-                d_6m_fim = d_ini - timedelta(days=1)
-                d_6m_ini = d_6m_fim - timedelta(days=delta_days)
+                # -- 6M: mesmo intervalo deslocado 6 meses para trás --
+                d_6m_ini = _shift_months(d_ini, -6)
+                d_6m_fim = _shift_months(d_fim, -6)
 
-                w_6m = list(where)
-                p_6m = list(params)
-                for i, clause in enumerate(w_6m):
-                    if "data_matricula >=" in clause:
-                        w_6m[i] = "data_matricula >= %s"
-                        p_6m[i] = d_6m_ini.isoformat()
-                    elif "data_matricula <=" in clause:
-                        w_6m[i] = "data_matricula <= %s"
-                        p_6m[i] = d_6m_fim.isoformat()
+                cmp_where = []
+                cmp_params = []
+                cmp_where.append("data_matricula >= %s")
+                cmp_params.append(d_6m_ini.isoformat())
+                cmp_where.append("data_matricula <= %s")
+                cmp_params.append(d_6m_fim.isoformat())
+                if polo:
+                    cmp_where.append("polo = %s")
+                    cmp_params.append(polo)
+                if nivel:
+                    cmp_where.append("nivel = %s")
+                    cmp_params.append(nivel)
 
-                w_6m_sql = ("WHERE " + " AND ".join(w_6m)) if w_6m else ""
-                cur.execute(f"SELECT COUNT(*) FROM comercial_rgm {w_6m_sql}", p_6m)
+                cmp_sql = "WHERE " + " AND ".join(cmp_where)
+                cur.execute(f"SELECT COUNT(*) FROM comercial_rgm {cmp_sql}", cmp_params)
                 vendas_6m = cur.fetchone()[0] or 0
 
-                ytd_ini = date(d_fim.year, 1, 1)
-                cur.execute(f"""
-                    SELECT COUNT(*) FROM comercial_rgm
-                    WHERE data_matricula >= %s AND data_matricula <= %s
-                    {"AND polo = %s" if polo else ""}
-                    {"AND nivel = %s" if nivel else ""}
-                """, [ytd_ini.isoformat(), d_fim.isoformat()] +
-                     ([polo] if polo else []) +
-                     ([nivel] if nivel else []))
+                # -- YTD atual: 1/Jan do ano de d_fim até d_fim --
+                ytd_where = ["data_matricula >= %s", "data_matricula <= %s"]
+                ytd_params = [date(d_fim.year, 1, 1).isoformat(), d_fim.isoformat()]
+                if polo:
+                    ytd_where.append("polo = %s")
+                    ytd_params.append(polo)
+                if nivel:
+                    ytd_where.append("nivel = %s")
+                    ytd_params.append(nivel)
+
+                cur.execute(
+                    f"SELECT COUNT(*) FROM comercial_rgm WHERE {' AND '.join(ytd_where)}",
+                    ytd_params,
+                )
                 vendas_ytd = cur.fetchone()[0] or 0
 
-                prev_ytd_ini = date(d_fim.year - 1, 1, 1)
-                prev_ytd_fim = date(d_fim.year - 1, d_fim.month, d_fim.day)
-                cur.execute(f"""
-                    SELECT COUNT(*) FROM comercial_rgm
-                    WHERE data_matricula >= %s AND data_matricula <= %s
-                    {"AND polo = %s" if polo else ""}
-                    {"AND nivel = %s" if nivel else ""}
-                """, [prev_ytd_ini.isoformat(), prev_ytd_fim.isoformat()] +
-                     ([polo] if polo else []) +
-                     ([nivel] if nivel else []))
+                # -- YTD anterior: 1/Jan do ano anterior até mesma data do ano anterior --
+                prev_year = d_fim.year - 1
+                prev_ytd_fim = _safe_date(prev_year, d_fim.month, d_fim.day)
+                pytd_where = ["data_matricula >= %s", "data_matricula <= %s"]
+                pytd_params = [date(prev_year, 1, 1).isoformat(), prev_ytd_fim.isoformat()]
+                if polo:
+                    pytd_where.append("polo = %s")
+                    pytd_params.append(polo)
+                if nivel:
+                    pytd_where.append("nivel = %s")
+                    pytd_params.append(nivel)
+
+                cur.execute(
+                    f"SELECT COUNT(*) FROM comercial_rgm WHERE {' AND '.join(pytd_where)}",
+                    pytd_params,
+                )
                 vendas_prev_ytd = cur.fetchone()[0] or 0
-            except Exception:
-                vendas_6m = 0
-                vendas_ytd = 0
-                vendas_prev_ytd = 0
-        else:
-            vendas_6m = 0
-            vendas_ytd = 0
-            vendas_prev_ytd = 0
+            except Exception as exc:
+                logger.warning("Erro no cálculo 6M/YTD: %s", exc)
 
         pct_6m = round((vendas / vendas_6m - 1) * 100, 1) if vendas_6m > 0 else 0
         pct_ytd = round((vendas_ytd / vendas_prev_ytd - 1) * 100, 1) if vendas_prev_ytd > 0 else 0
