@@ -1018,7 +1018,7 @@ all_matches AS (
 )
 SELECT
     s.id AS siaa_id, s.nome, s.cpf, s.telefone, s.inscricao,
-    s.curso_raw, s.curso_limpo, s.situacao_raw AS siaa_situacao,
+    s.curso_raw, s.curso_limpo, s.situacao_final AS siaa_situacao,
     s.situacao_final, s.polo_normalizado, s.email,
     s.data_inscr, s.marca_instituicao, s.modalidade, s.grau_curso,
     m.lead_id AS lead_id_match, m.match_tipo,
