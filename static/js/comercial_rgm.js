@@ -7,8 +7,12 @@ let _crgmChartRanking = null;
 let _crgmChartAgentes = null;
 
 async function loadComercialRgm() {
-    await _crgmLoadFilters();
+    const filtersData = await _crgmLoadFilters();
     await _crgmLoadSnapshotInfo();
+
+    if (filtersData && (!filtersData.agentes || filtersData.agentes.length === 0)) {
+        await _crgmAutoSyncUsers();
+    }
 
     const hoje = new Date();
     const ini = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
@@ -20,11 +24,23 @@ async function loadComercialRgm() {
     crgmAtualizar();
 }
 
+async function _crgmAutoSyncUsers() {
+    try {
+        const res = await api('/api/comercial-rgm/sync-users', { method: 'POST' });
+        const d = await res.json();
+        if (d.ok && d.synced > 0) {
+            await _crgmLoadFilters();
+        }
+    } catch (e) {
+        console.error('auto-sync users', e);
+    }
+}
+
 async function _crgmLoadFilters() {
     try {
         const res = await api('/api/comercial-rgm/filters');
         const d = await res.json();
-        if (!d.ok) return;
+        if (!d.ok) return null;
 
         const selPolo = document.getElementById('crgm-polo');
         const selNivel = document.getElementById('crgm-nivel');
@@ -47,8 +63,10 @@ async function _crgmLoadFilters() {
         if (curPolo) selPolo.value = curPolo;
         if (curNivel) selNivel.value = curNivel;
         if (curAgente && selAgente) selAgente.value = curAgente;
+        return d;
     } catch (e) {
         console.error('crgm filters', e);
+        return null;
     }
 }
 
