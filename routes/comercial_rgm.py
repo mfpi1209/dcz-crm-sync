@@ -321,7 +321,7 @@ def crgm_snapshot_info():
 
 @comercial_rgm_bp.route("/api/comercial-rgm/sync-users", methods=["POST"])
 def crgm_sync_users():
-    """Sync Kommo users via API v4 and store locally."""
+    """Sync Kommo users via API v4 and store in both databases."""
     if not KOMMO_TOKEN:
         return jsonify({"error": "KOMMO_TOKEN não configurado"}), 500
     try:
@@ -331,7 +331,9 @@ def crgm_sync_users():
         page = 1
         while True:
             resp = requests.get(url, headers=headers, params={"page": page, "limit": 250}, timeout=15)
+            logger.info("sync-users page %d -> status %d", page, resp.status_code)
             if resp.status_code != 200:
+                logger.warning("sync-users API returned %d: %s", resp.status_code, resp.text[:300])
                 break
             data = resp.json()
             embedded = data.get("_embedded", {}).get("users", [])
@@ -341,7 +343,7 @@ def crgm_sync_users():
             page += 1
 
         if not all_users:
-            return jsonify({"ok": True, "synced": 0, "msg": "Nenhum usuário encontrado"})
+            return jsonify({"ok": True, "synced": 0, "msg": "Nenhum usuário retornado pela API"})
 
         conn = _pg()
         cur = conn.cursor()
@@ -354,6 +356,27 @@ def crgm_sync_users():
         conn.commit()
         cur.close()
         conn.close()
+
+        try:
+            kconn = _pg_kommo()
+            kcur = kconn.cursor()
+            kcur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY, name TEXT, email TEXT,
+                    lang TEXT, rights_json JSONB, synced_at TEXT
+                )
+            """)
+            for u in all_users:
+                kcur.execute("""
+                    INSERT INTO users (id, name, email, synced_at)
+                    VALUES (%s, %s, %s, NOW())
+                    ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email, synced_at = NOW()
+                """, (u["id"], u.get("name", ""), u.get("email", "")))
+            kconn.commit()
+            kcur.close()
+            kconn.close()
+        except Exception as e:
+            logger.warning("sync-users kommo_sync write: %s", e)
 
         return jsonify({"ok": True, "synced": len(all_users)})
     except Exception as e:
@@ -382,45 +405,46 @@ def crgm_filters():
 
 
 def _fetch_kommo_user_names(user_ids):
-    """Get user names: first from local cache, then from Kommo API for missing ones."""
+    """Get user names from kommo_sync.users table (populated by kommo_lib sync)."""
     user_map = {}
     if not user_ids:
         return user_map
 
     try:
-        conn = _pg()
+        conn = _pg_kommo()
         cur = conn.cursor()
-        cur.execute("SELECT id, name FROM kommo_users WHERE id = ANY(%s)", (user_ids,))
+        cur.execute("SELECT id, name FROM users WHERE id = ANY(%s)", (user_ids,))
         user_map = {r[0]: r[1] for r in cur.fetchall()}
         cur.close()
         conn.close()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("fetch user names from kommo_sync.users: %s", e)
+
+    if not user_map:
+        try:
+            conn = _pg()
+            cur = conn.cursor()
+            cur.execute("SELECT id, name FROM kommo_users WHERE id = ANY(%s)", (user_ids,))
+            user_map = {r[0]: r[1] for r in cur.fetchall()}
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
     missing = [uid for uid in user_ids if uid not in user_map]
     if missing and KOMMO_TOKEN:
         try:
             headers = {"Authorization": f"Bearer {KOMMO_TOKEN}"}
-            for uid in missing:
-                resp = requests.get(
-                    f"{KOMMO_BASE_URL}/api/v4/users/{uid}",
-                    headers=headers, timeout=10
-                )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    name = data.get("name", f"User #{uid}")
-                    user_map[uid] = name
-                    try:
-                        c2 = _pg().cursor()
-                        c2.execute("""
-                            INSERT INTO kommo_users (id, name, email, synced_at)
-                            VALUES (%s, %s, %s, NOW())
-                            ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, synced_at = NOW()
-                        """, (uid, name, data.get("email", "")))
-                        c2.connection.commit()
-                        c2.connection.close()
-                    except Exception:
-                        pass
+            all_resp = requests.get(
+                f"{KOMMO_BASE_URL}/api/v4/users",
+                headers=headers, params={"limit": 250}, timeout=15
+            )
+            if all_resp.status_code == 200:
+                api_users = all_resp.json().get("_embedded", {}).get("users", [])
+                for u in api_users:
+                    uid = u.get("id")
+                    if uid in missing:
+                        user_map[uid] = u.get("name", f"User #{uid}")
         except Exception as e:
             logger.warning("fetch user names from API: %s", e)
 

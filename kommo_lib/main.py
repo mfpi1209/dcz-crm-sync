@@ -34,6 +34,7 @@ from sync_pipelines import sync_pipelines
 from sync_custom_fields import sync_custom_fields
 from sync_leads import sync_leads
 from sync_contacts import sync_contacts
+from sync_users import sync_users
 
 
 def setup_logging():
@@ -114,6 +115,14 @@ def run_sync(force_full: bool = False, only: str = None):
 
     results = {}
     errors = []
+
+    # === 0. Users ===
+    if only is None or only == "users":
+        try:
+            results["users"] = sync_users(client)
+        except Exception as e:
+            errors.append(("users", str(e)))
+            logger.error("FALHA no sync de users: %s", e)
 
     # === 1. Pipelines e Stages ===
     if only is None or only == "pipelines":
@@ -201,7 +210,7 @@ Exemplos:
     )
     parser.add_argument(
         "--only",
-        choices=["leads", "contacts", "pipelines", "fields"],
+        choices=["leads", "contacts", "pipelines", "fields", "users"],
         help="Sincronizar apenas uma entidade específica"
     )
     parser.add_argument(
