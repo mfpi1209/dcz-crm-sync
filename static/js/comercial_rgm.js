@@ -258,7 +258,7 @@ function _crgmRenderAgentes(agentes) {
     const countEl = document.getElementById('crgm-agentes-count');
 
     if (!agentes || !agentes.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="px-5 py-6 text-center text-slate-600">Sincronize os agentes para visualizar</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="px-5 py-6 text-center text-slate-600">Sincronize os agentes para visualizar</td></tr>';
         if (countEl) countEl.textContent = '';
         return;
     }
@@ -269,21 +269,24 @@ function _crgmRenderAgentes(agentes) {
         filtered = agentes.filter(a => String(a.user_id) === agenteFilter);
     }
 
+    filtered.sort((a, b) => (b.ganhos_periodo || 0) - (a.ganhos_periodo || 0));
+
     if (countEl) countEl.textContent = `${filtered.length} agentes`;
 
-    const totalLeads = filtered.reduce((s, a) => s + a.total, 0);
-
     tbody.innerHTML = filtered.map((a, i) => {
-        const pct = totalLeads > 0 ? (a.total / totalLeads * 100).toFixed(1) : 0;
         const medalClass = i === 0 ? 'text-amber-400' : i === 1 ? 'text-slate-300' : i === 2 ? 'text-orange-400' : 'text-slate-500';
         const taxaClass = a.taxa_conversao >= 30 ? 'text-emerald-400' : a.taxa_conversao >= 15 ? 'text-amber-400' : 'text-red-400';
+        const gp = a.ganhos_periodo || 0;
+        const pp = a.perdidos_periodo || 0;
+        const np = a.novos_periodo || 0;
 
         return `<tr class="hover:bg-white/[0.02]">
             <td class="text-center px-3 py-2.5 ${medalClass} font-bold">${i + 1}</td>
             <td class="px-4 py-2.5 text-slate-200 font-medium">${esc(a.nome)}</td>
-            <td class="px-4 py-2.5 text-right text-slate-300 font-semibold">${a.total.toLocaleString('pt-BR')} <span class="text-[10px] text-slate-500">(${pct}%)</span></td>
-            <td class="px-4 py-2.5 text-right text-emerald-400 font-semibold">${a.ganhos.toLocaleString('pt-BR')}</td>
-            <td class="px-4 py-2.5 text-right text-red-400">${a.perdidos.toLocaleString('pt-BR')}</td>
+            <td class="px-4 py-2.5 text-right text-blue-400 font-semibold">${np.toLocaleString('pt-BR')}</td>
+            <td class="px-4 py-2.5 text-right text-emerald-400 font-semibold">${gp.toLocaleString('pt-BR')}</td>
+            <td class="px-4 py-2.5 text-right text-red-400">${pp.toLocaleString('pt-BR')}</td>
+            <td class="px-4 py-2.5 text-right text-slate-400">${a.total.toLocaleString('pt-BR')}</td>
             <td class="px-4 py-2.5 text-right text-cyan-400">${a.ativos.toLocaleString('pt-BR')}</td>
             <td class="px-4 py-2.5 text-right ${taxaClass} font-bold">${a.taxa_conversao}%</td>
         </tr>`;
@@ -300,10 +303,11 @@ function _crgmRenderAgentesChart(agentes) {
     }
 
     const agenteFilter = document.getElementById('crgm-agente').value;
-    let data = agentes;
+    let data = [...agentes];
     if (agenteFilter) {
-        data = agentes.filter(a => String(a.user_id) === agenteFilter);
+        data = data.filter(a => String(a.user_id) === agenteFilter);
     }
+    data.sort((a, b) => (b.ganhos_periodo || 0) - (a.ganhos_periodo || 0));
 
     const top = data.slice(0, 15);
     const labels = top.map(a => a.nome);
@@ -314,22 +318,22 @@ function _crgmRenderAgentesChart(agentes) {
             labels,
             datasets: [
                 {
-                    label: 'Ganhos',
-                    data: top.map(a => a.ganhos),
+                    label: 'Ganhos (período)',
+                    data: top.map(a => a.ganhos_periodo || 0),
                     backgroundColor: 'rgba(52,211,153,0.7)',
                     borderColor: '#34d399',
                     borderWidth: 1,
                 },
                 {
-                    label: 'Perdidos',
-                    data: top.map(a => a.perdidos),
+                    label: 'Perdidos (período)',
+                    data: top.map(a => a.perdidos_periodo || 0),
                     backgroundColor: 'rgba(248,113,113,0.5)',
                     borderColor: '#f87171',
                     borderWidth: 1,
                 },
                 {
-                    label: 'Ativos',
-                    data: top.map(a => a.ativos),
+                    label: 'Novos (período)',
+                    data: top.map(a => a.novos_periodo || 0),
                     backgroundColor: 'rgba(56,189,248,0.5)',
                     borderColor: '#38bdf8',
                     borderWidth: 1,
