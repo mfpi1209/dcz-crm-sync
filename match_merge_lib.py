@@ -968,6 +968,7 @@ _MM_INSCRITOS_COLS_FOR_MATCH = [
     "id", "nome", "cpf", "telefone", "inscricao", "curso_raw", "curso_limpo",
     "situacao_raw", "situacao_final", "polo_normalizado", "email",
     "data_inscr", "marca_instituicao", "modalidade", "grau_curso",
+    "chave_preco", "preco_balcao", "semestres",
 ]
 
 COMPARE_SQL = """
@@ -1118,7 +1119,10 @@ CREATE TEMP TABLE _tmp_mm_inscritos (
     data_inscr      TEXT,
     marca_instituicao TEXT,
     modalidade      TEXT,
-    grau_curso      TEXT
+    grau_curso      TEXT,
+    chave_preco     TEXT,
+    preco_balcao    TEXT,
+    semestres       TEXT
 ) ON COMMIT DROP;
 """
 
