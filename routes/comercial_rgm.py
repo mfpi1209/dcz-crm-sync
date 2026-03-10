@@ -1,20 +1,22 @@
 """
-eduit. — Dashboard Comercial RGM.
+eduit. — Dashboard Comercial.
 
-Upload de CSV de matrículas (Power BI), armazenamento no banco e
-dashboard com KPIs, evolução diária e ranking por polo.
+Upload de CSV de matrículas (Power BI), integração com dados do Match & Merge,
+ranking de agentes comerciais via Kommo, e dashboard com KPIs e comparativos.
 
 Endpoints:
   POST /api/comercial-rgm/upload        upload CSV e importa para o banco
   GET  /api/comercial-rgm/data          dados filtrados (KPIs + evolução + ranking)
-  GET  /api/comercial-rgm/filters       listas de polos e níveis disponíveis
+  GET  /api/comercial-rgm/filters       listas de polos, níveis e agentes
   GET  /api/comercial-rgm/snapshot-info info do último upload
+  POST /api/comercial-rgm/sync-users    sincroniza usuários do Kommo
 """
 
 import os
 import csv
 import io
 import logging
+import requests
 from datetime import datetime, date, timedelta
 from pathlib import Path
 
@@ -34,9 +36,24 @@ DB_DSN = dict(
     dbname=os.getenv("DB_NAME", "dcz_sync"),
 )
 
+KOMMO_DB_DSN = dict(
+    host=os.getenv("KOMMO_PG_HOST", os.getenv("DB_HOST", "localhost")),
+    port=os.getenv("KOMMO_PG_PORT", os.getenv("DB_PORT", "5432")),
+    user=os.getenv("KOMMO_PG_USER", os.getenv("DB_USER")),
+    password=os.getenv("KOMMO_PG_PASS", os.getenv("DB_PASS")),
+    dbname=os.getenv("KOMMO_PG_DB", "kommo_sync"),
+)
+
+KOMMO_BASE_URL = os.getenv("KOMMO_BASE_URL", "https://eduitbr.kommo.com").rstrip("/")
+KOMMO_TOKEN = os.getenv("KOMMO_TOKEN", "")
+
 
 def _pg():
     return psycopg2.connect(**DB_DSN)
+
+
+def _pg_kommo():
+    return psycopg2.connect(**KOMMO_DB_DSN)
 
 
 # ── Schema ────────────────────────────────────────────────────────────────
@@ -60,6 +77,59 @@ CREATE TABLE IF NOT EXISTS comercial_rgm (
 CREATE INDEX IF NOT EXISTS idx_crgm_data  ON comercial_rgm(data_matricula);
 CREATE INDEX IF NOT EXISTS idx_crgm_polo  ON comercial_rgm(polo);
 CREATE INDEX IF NOT EXISTS idx_crgm_nivel ON comercial_rgm(nivel);
+
+CREATE TABLE IF NOT EXISTS kommo_users (
+    id          INTEGER PRIMARY KEY,
+    name        TEXT,
+    email       TEXT,
+    synced_at   TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS mm_snapshots (
+    id               SERIAL PRIMARY KEY,
+    snapshot_id      TEXT NOT NULL,
+    executed_at      TIMESTAMP DEFAULT NOW(),
+    nivel            TEXT,
+    total_inscritos  INTEGER,
+    total_matriculados INTEGER,
+    total_cruzados   INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS mm_inscritos_hist (
+    id SERIAL PRIMARY KEY,
+    snapshot_id TEXT NOT NULL,
+    tipo TEXT, status TEXT, dt_pag_insc TEXT, inscricao TEXT,
+    nome TEXT, sexo TEXT, cpf TEXT, rg TEXT,
+    curso_raw TEXT, curso_limpo TEXT, grau_curso TEXT, modalidade TEXT,
+    polo_raw TEXT, polo_normalizado TEXT, marca_instituicao TEXT,
+    data_inscr DATE, data_prova DATE,
+    telefone TEXT, telefone_res TEXT, telefone_com TEXT,
+    email TEXT, cep TEXT, endereco TEXT, bairro TEXT, cidade TEXT, estado TEXT,
+    data_pagamento TEXT, data_matricula TEXT,
+    situacao_raw TEXT, situacao_final TEXT,
+    observacao TEXT, captador TEXT, trimestre_ingresso TEXT,
+    chave_preco TEXT, preco_balcao TEXT, area_curso TEXT, semestres TEXT,
+    arquivo_origem TEXT, uploaded_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_mmih_snap ON mm_inscritos_hist(snapshot_id);
+CREATE INDEX IF NOT EXISTS idx_mmih_cpf  ON mm_inscritos_hist(cpf);
+CREATE INDEX IF NOT EXISTS idx_mmih_data ON mm_inscritos_hist(data_inscr);
+
+CREATE TABLE IF NOT EXISTS mm_matriculados_hist (
+    id SERIAL PRIMARY KEY,
+    snapshot_id TEXT NOT NULL,
+    tipo TEXT, nome TEXT, cpf TEXT, rgm TEXT, rg TEXT, sexo TEXT, data_nasc TEXT,
+    polo_captador TEXT, tipo_polo TEXT, polo_aulas TEXT,
+    curso_raw TEXT, curso_limpo TEXT,
+    prouni TEXT, serie TEXT, data_matricula TEXT, ano_tri_ingresso TEXT,
+    tipo_matricula TEXT, situacao_raw TEXT, situacao TEXT,
+    fone_res TEXT, fone_com TEXT, fone_cel TEXT, email TEXT, email_ad TEXT,
+    endereco TEXT, bairro TEXT, cidade TEXT,
+    arquivo_origem TEXT, uploaded_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_mmhm_snap ON mm_matriculados_hist(snapshot_id);
+CREATE INDEX IF NOT EXISTS idx_mmhm_cpf  ON mm_matriculados_hist(cpf);
+CREATE INDEX IF NOT EXISTS idx_mmhm_data ON mm_matriculados_hist(data_matricula);
 """
 
 
@@ -227,6 +297,12 @@ def crgm_snapshot_info():
             FROM comercial_rgm
         """)
         row = cur.fetchone()
+
+        cur.execute("SELECT COUNT(*) FROM mm_inscritos_hist")
+        mm_insc = cur.fetchone()[0] or 0
+        cur.execute("SELECT COUNT(*) FROM mm_matriculados_hist")
+        mm_mat = cur.fetchone()[0] or 0
+
         cur.close()
         conn.close()
         return jsonify({
@@ -235,10 +311,54 @@ def crgm_snapshot_info():
             "min_date": row[1].isoformat() if row[1] else None,
             "max_date": row[2].isoformat() if row[2] else None,
             "uploaded_at": row[3].isoformat() if row[3] else None,
+            "mm_inscritos": mm_insc,
+            "mm_matriculados": mm_mat,
         })
     except Exception as e:
         logger.exception("snapshot-info error")
         return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@comercial_rgm_bp.route("/api/comercial-rgm/sync-users", methods=["POST"])
+def crgm_sync_users():
+    """Sync Kommo users via API v4 and store locally."""
+    if not KOMMO_TOKEN:
+        return jsonify({"error": "KOMMO_TOKEN não configurado"}), 500
+    try:
+        headers = {"Authorization": f"Bearer {KOMMO_TOKEN}"}
+        url = f"{KOMMO_BASE_URL}/api/v4/users"
+        all_users = []
+        page = 1
+        while True:
+            resp = requests.get(url, headers=headers, params={"page": page, "limit": 250}, timeout=15)
+            if resp.status_code != 200:
+                break
+            data = resp.json()
+            embedded = data.get("_embedded", {}).get("users", [])
+            if not embedded:
+                break
+            all_users.extend(embedded)
+            page += 1
+
+        if not all_users:
+            return jsonify({"ok": True, "synced": 0, "msg": "Nenhum usuário encontrado"})
+
+        conn = _pg()
+        cur = conn.cursor()
+        for u in all_users:
+            cur.execute("""
+                INSERT INTO kommo_users (id, name, email, synced_at)
+                VALUES (%s, %s, %s, NOW())
+                ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email, synced_at = NOW()
+            """, (u["id"], u.get("name", ""), u.get("email", "")))
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"ok": True, "synced": len(all_users)})
+    except Exception as e:
+        logger.exception("sync-users error")
+        return jsonify({"error": str(e)}), 500
 
 
 @comercial_rgm_bp.route("/api/comercial-rgm/filters")
@@ -252,11 +372,76 @@ def crgm_filters():
         niveis = [r[0] for r in cur.fetchall()]
         cur.execute("SELECT DISTINCT ciclo FROM comercial_rgm WHERE ciclo IS NOT NULL ORDER BY ciclo")
         ciclos = [r[0] for r in cur.fetchall()]
+        cur.execute("SELECT id, name FROM kommo_users ORDER BY name")
+        agentes = [{"id": r[0], "name": r[1]} for r in cur.fetchall()]
         cur.close()
         conn.close()
-        return jsonify({"ok": True, "polos": polos, "niveis": niveis, "ciclos": ciclos})
+        return jsonify({"ok": True, "polos": polos, "niveis": niveis, "ciclos": ciclos, "agentes": agentes})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+
+
+def _build_agent_ranking(dt_ini=None, dt_fim=None):
+    """Build agent ranking by cross-referencing kommo_sync leads with local kommo_users."""
+    try:
+        kconn = _pg_kommo()
+        kcur = kconn.cursor()
+
+        date_where = ""
+        date_params = []
+        if dt_ini:
+            date_where += " AND l.created_at >= EXTRACT(EPOCH FROM TIMESTAMP %s)"
+            date_params.append(dt_ini)
+        if dt_fim:
+            date_where += " AND l.created_at <= EXTRACT(EPOCH FROM TIMESTAMP %s)"
+            date_params.append(dt_fim + " 23:59:59")
+
+        kcur.execute(f"""
+            SELECT l.responsible_user_id,
+                   COUNT(*) AS total,
+                   SUM(CASE WHEN l.status_id = 142 THEN 1 ELSE 0 END) AS ganhos,
+                   SUM(CASE WHEN l.status_id = 143 THEN 1 ELSE 0 END) AS perdidos,
+                   SUM(CASE WHEN l.status_id NOT IN (142, 143) THEN 1 ELSE 0 END) AS ativos
+            FROM leads l
+            WHERE l.responsible_user_id IS NOT NULL
+                  AND l.is_deleted = FALSE
+                  {date_where}
+            GROUP BY l.responsible_user_id
+            ORDER BY total DESC
+        """, date_params)
+        rows = kcur.fetchall()
+        kcur.close()
+        kconn.close()
+
+        if not rows:
+            return []
+
+        user_ids = [r[0] for r in rows]
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("SELECT id, name FROM kommo_users WHERE id = ANY(%s)", (user_ids,))
+        user_map = {r[0]: r[1] for r in cur.fetchall()}
+        cur.close()
+        conn.close()
+
+        ranking = []
+        for r in rows:
+            uid, total, ganhos, perdidos, ativos = r
+            name = user_map.get(uid, f"User #{uid}")
+            taxa = round(ganhos / total * 100, 1) if total > 0 else 0
+            ranking.append({
+                "user_id": uid,
+                "nome": name,
+                "total": total,
+                "ganhos": ganhos,
+                "perdidos": perdidos,
+                "ativos": ativos,
+                "taxa_conversao": taxa,
+            })
+        return ranking
+    except Exception as e:
+        logger.warning("agent ranking error: %s", e)
+        return []
 
 
 @comercial_rgm_bp.route("/api/comercial-rgm/data")
@@ -303,6 +488,23 @@ def crgm_data():
         dias = kpi[3] or 1
         media_diaria = round(vendas / dias, 1) if dias > 0 else 0
 
+        # --- MM Inscritos no período ---
+        mm_insc_count = 0
+        mm_where = []
+        mm_params = []
+        if dt_ini:
+            mm_where.append("data_inscr >= %s")
+            mm_params.append(dt_ini)
+        if dt_fim:
+            mm_where.append("data_inscr <= %s")
+            mm_params.append(dt_fim)
+        if polo:
+            mm_where.append("polo_normalizado = %s")
+            mm_params.append(polo)
+        mm_w = ("WHERE " + " AND ".join(mm_where)) if mm_where else ""
+        cur.execute(f"SELECT COUNT(*) FROM mm_inscritos_hist {mm_w}", mm_params)
+        mm_insc_count = cur.fetchone()[0] or 0
+
         # --- Comparações: 6M / 1 ano / YTD ---
         vendas_6m = 0
         vendas_1a = 0
@@ -310,7 +512,6 @@ def crgm_data():
         vendas_prev_ytd = 0
 
         def _count_period(cur_, d_start, d_end, polo_=polo, nivel_=nivel):
-            """Helper: conta vendas num período com filtros opcionais."""
             cw = ["data_matricula >= %s", "data_matricula <= %s"]
             cp = [d_start.isoformat(), d_end.isoformat()]
             if polo_:
@@ -327,22 +528,15 @@ def crgm_data():
                 d_ini = date.fromisoformat(dt_ini)
                 d_fim = date.fromisoformat(dt_fim)
 
-                # 6M: mesmo intervalo deslocado 6 meses
                 vendas_6m = _count_period(
                     cur, _shift_months(d_ini, -6), _shift_months(d_fim, -6)
                 )
-
-                # 1 ano: mesmo intervalo deslocado 12 meses
                 vendas_1a = _count_period(
                     cur, _shift_months(d_ini, -12), _shift_months(d_fim, -12)
                 )
-
-                # YTD atual: 1/Jan do ano de d_fim até d_fim
                 vendas_ytd = _count_period(
                     cur, date(d_fim.year, 1, 1), d_fim
                 )
-
-                # YTD ano anterior: 1/Jan(ano-1) até mesma data(ano-1)
                 prev_year = d_fim.year - 1
                 vendas_prev_ytd = _count_period(
                     cur,
@@ -384,6 +578,9 @@ def crgm_data():
         cur.close()
         conn.close()
 
+        # --- Ranking de agentes (cross-database) ---
+        ranking_agentes = _build_agent_ranking(dt_ini or None, dt_fim or None)
+
         return jsonify({
             "ok": True,
             "kpis": {
@@ -399,10 +596,12 @@ def crgm_data():
                 "valor_total": valor_total,
                 "media_diaria": media_diaria,
                 "dias": dias,
+                "mm_inscritos": mm_insc_count,
             },
             "evolucao": evolucao,
             "ranking_polo": ranking_polo,
             "ranking_ciclo": ranking_ciclo,
+            "ranking_agentes": ranking_agentes,
         })
     except Exception as e:
         logger.exception("comercial_rgm data error")

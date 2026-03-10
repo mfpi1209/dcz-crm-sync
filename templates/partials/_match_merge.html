@@ -183,6 +183,7 @@
                             <div>
                                 <p class="text-xs text-slate-500">Unificar</p>
                                 <p class="text-lg font-bold text-purple-400" id="mm-act-unificar">0</p>
+                                <p class="text-[10px] text-slate-500 mt-0.5" id="mm-act-unificar-detail"></p>
                             </div>
                         </div>
                         <div class="glass-card p-4 flex items-center gap-4">
@@ -270,6 +271,10 @@
                             <button onclick="mmExecute()" id="mm-btn-execute" class="btn-primary text-white font-medium text-sm px-6 py-2.5 rounded-xl flex items-center gap-2">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3l14 9-14 9V3z"/></svg>
                                 Executar
+                            </button>
+                            <button onclick="mmExecuteUnifLote()" id="mm-btn-unif-lote" class="hidden bg-purple-600 hover:bg-purple-500 text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center gap-2 transition">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                                Unificar Lote (<span class="mm-unif-auto-count">0</span>)
                             </button>
                             <span id="mm-exec-status" class="text-xs text-slate-500"></span>
                         </div>
