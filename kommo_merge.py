@@ -14,15 +14,26 @@ Fluxo:
 
 import os
 import time
+import json
 import logging
 from urllib.parse import urlencode
 
+import psycopg2
+import psycopg2.extras
 import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
 log = logging.getLogger("kommo_merge")
+
+KOMMO_DB_DSN = dict(
+    host=os.getenv("KOMMO_PG_HOST", os.getenv("DB_HOST", "localhost")),
+    port=os.getenv("KOMMO_PG_PORT", os.getenv("DB_PORT", "5432")),
+    user=os.getenv("KOMMO_PG_USER", os.getenv("DB_USER")),
+    password=os.getenv("KOMMO_PG_PASS", os.getenv("DB_PASS")),
+    dbname=os.getenv("KOMMO_PG_DB", "kommo_sync"),
+)
 
 KOMMO_CHAT_URL = os.getenv("KOMMO_CHAT_URL", "http://banco-kommo-dispatcher:8000")
 KOMMO_WEB_URL = os.getenv("KOMMO_WEB_URL", "https://admamoeduitcombr.kommo.com")
@@ -90,21 +101,131 @@ def _api_v4_get(path, params=None):
 
 
 def fetch_lead_full(lead_id):
-    """Busca lead com custom_fields e contacts via API v4."""
+    """Busca lead com custom_fields e contacts via API v4, fallback para banco local."""
     data = _api_v4_get(f"/api/v4/leads/{lead_id}", {"with": "contacts"})
-    if not data:
-        log.error("Falha ao buscar lead %s", lead_id)
+    if data:
+        return data
+    log.warning("API v4 falhou para lead %s, tentando banco local", lead_id)
+    return _fetch_lead_from_db(lead_id)
+
+
+def _fetch_lead_from_db(lead_id):
+    """Busca lead do banco kommo_sync e converte para formato API v4."""
+    try:
+        conn = psycopg2.connect(**KOMMO_DB_DSN, connect_timeout=15)
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT id, name, price, responsible_user_id, status_id, pipeline_id,
+                   created_at, custom_fields_json, tags_json, contacts_json
+            FROM leads WHERE id = %s
+        """, (lead_id,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if not row:
+            log.error("Lead %s não encontrado no banco local", lead_id)
+            return None
+
+        cf_json = row.get("custom_fields_json")
+        if isinstance(cf_json, str):
+            cf_json = json.loads(cf_json)
+
+        cf_values = []
+        if isinstance(cf_json, list):
+            for cf in cf_json:
+                fid = cf.get("field_id")
+                vals = cf.get("values", [])
+                cf_values.append({
+                    "field_id": fid,
+                    "field_name": cf.get("field_name", ""),
+                    "values": vals,
+                })
+
+        tags_json = row.get("tags_json")
+        if isinstance(tags_json, str):
+            tags_json = json.loads(tags_json)
+        tags = tags_json if isinstance(tags_json, list) else []
+
+        contacts_json = row.get("contacts_json")
+        if isinstance(contacts_json, str):
+            contacts_json = json.loads(contacts_json)
+        contacts = contacts_json if isinstance(contacts_json, list) else []
+
+        created_at = row.get("created_at")
+        if isinstance(created_at, int):
+            from datetime import datetime
+            created_at = datetime.utcfromtimestamp(created_at).strftime("%Y-%m-%d %H:%M:%S")
+
+        lead = {
+            "id": row["id"],
+            "name": row.get("name", ""),
+            "price": row.get("price", 0),
+            "responsible_user_id": row.get("responsible_user_id"),
+            "status_id": row.get("status_id"),
+            "pipeline_id": row.get("pipeline_id"),
+            "created_at": created_at,
+            "custom_fields_values": cf_values,
+            "_embedded": {
+                "tags": tags,
+                "contacts": contacts,
+            },
+        }
+        log.info("Lead %s carregado do banco local", lead_id)
+        return lead
+    except Exception as e:
+        log.error("Erro ao buscar lead %s do banco: %s", lead_id, e)
         return None
-    return data
 
 
 def fetch_contact_full(contact_id):
-    """Busca contato com custom_fields via API v4."""
+    """Busca contato com custom_fields via API v4, fallback para banco local."""
     data = _api_v4_get(f"/api/v4/contacts/{contact_id}")
-    if not data:
-        log.error("Falha ao buscar contato %s", contact_id)
+    if data:
+        return data
+    log.warning("API v4 falhou para contato %s, tentando banco local", contact_id)
+    return _fetch_contact_from_db(contact_id)
+
+
+def _fetch_contact_from_db(contact_id):
+    """Busca contato do banco kommo_sync e converte para formato API v4."""
+    try:
+        conn = psycopg2.connect(**KOMMO_DB_DSN, connect_timeout=15)
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT id, name, first_name, last_name, custom_fields_json
+            FROM contacts WHERE id = %s
+        """, (contact_id,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if not row:
+            return None
+
+        cf_json = row.get("custom_fields_json")
+        if isinstance(cf_json, str):
+            cf_json = json.loads(cf_json)
+
+        cf_values = []
+        if isinstance(cf_json, list):
+            for cf in cf_json:
+                cf_values.append({
+                    "field_id": cf.get("field_id"),
+                    "field_name": cf.get("field_name", ""),
+                    "values": cf.get("values", []),
+                })
+
+        return {
+            "id": row["id"],
+            "name": row.get("name", ""),
+            "first_name": row.get("first_name", ""),
+            "last_name": row.get("last_name", ""),
+            "custom_fields_values": cf_values,
+        }
+    except Exception as e:
+        log.error("Erro ao buscar contato %s do banco: %s", contact_id, e)
         return None
-    return data
 
 
 # ---------------------------------------------------------------------------
