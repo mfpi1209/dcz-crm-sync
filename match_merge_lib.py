@@ -1575,7 +1575,7 @@ class KommoApiClient:
 _FIELD_NAMES_FOR_UPDATE = [
     "Situação", "Curso_SIAA", "Modalidade_SIAA", "Grau_SIAA",
     "Polo", "Marca", "CPF", "Inscrição", "Telefone Inscricao",
-    "Chave_SIAA", "Origem", "Email Acadêmico",
+    "Chave_SIAA", "Email Acadêmico",
     "Modalidade", "Grau", "Preço_SIAA", "Duração_SIAA",
 ]
 
@@ -1639,7 +1639,6 @@ def executar_acoes(acoes, limit=None, log_callback=None):
         "Inscrição": "inscricao",
         "Telefone Inscricao": "telefone",
         "Chave_SIAA": "chave_siaa",
-        "Origem": "origem",
         "Email Acadêmico": "email_academico",
         "Modalidade": "modalidade",
         "Grau": "grau",
