@@ -119,7 +119,7 @@ def api_merge_session_status():
 @kommo_merge_bp.route("/api/kommo/merge/preview", methods=["POST"])
 def api_merge_preview():
     """
-    Preview de N leads para selecao de merge.
+    Preview de N leads para selecao de merge (busca do banco local kommo_sync).
 
     Body JSON:
       { "lead_ids": [15815745, 20387845] }
@@ -133,62 +133,62 @@ def api_merge_preview():
     if not lead_ids or len(lead_ids) < 2:
         return jsonify({"error": "lead_ids deve conter pelo menos 2 IDs"}), 400
 
-    status_map = _load_pipeline_statuses()
-    leads_out = []
-    for lid in lead_ids:
-        lead_data = fetch_lead_full(int(lid))
-        if lead_data:
-            leads_out.append(_summarize_lead(lead_data, status_map))
-
-    return jsonify({"leads": leads_out})
-
-
-def _load_pipeline_statuses():
-    """Carrega mapa status_id -> (status_name, pipeline_name) do banco kommo_sync."""
     try:
         conn = psycopg2.connect(**KOMMO_DB_DSN)
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute("""
-                SELECT ps.id AS status_id, ps.name AS status_name,
+                SELECT l.id, l.name, l.status_id, l.pipeline_id, l.price,
+                       l.created_at, l.custom_fields_json,
+                       ps.name AS status_name,
                        p.name AS pipeline_name
-                FROM pipeline_statuses ps
-                LEFT JOIN pipelines p ON p.id::text = ps.pipeline_id::text
-            """)
+                FROM leads l
+                LEFT JOIN pipeline_statuses ps ON ps.id = l.status_id
+                LEFT JOIN pipelines p ON p.id::text = l.pipeline_id::text
+                WHERE l.id = ANY(%s)
+            """, ([int(x) for x in lead_ids],))
             rows = cur.fetchall()
         conn.close()
-        return {r["status_id"]: (r["status_name"], r["pipeline_name"]) for r in rows}
     except Exception as e:
-        log.warning("Falha ao carregar pipeline_statuses: %s", e)
-        return {}
+        log.error("Erro ao buscar leads para preview: %s", e)
+        return jsonify({"error": f"Erro no banco: {e}"}), 500
+
+    leads_out = []
+    for row in rows:
+        leads_out.append(_summarize_lead_from_db(row))
+
+    return jsonify({"leads": leads_out})
 
 
-def _summarize_lead(lead, status_map=None):
-    """Resume dados do lead para preview."""
+def _summarize_lead_from_db(row):
+    """Resume dados do lead a partir de uma row do banco kommo_sync."""
+    import json as _json
+
     cf_values = {}
-    for cf in (lead.get("custom_fields_values") or []):
-        name = cf.get("field_name", cf.get("field_id"))
-        vals = cf.get("values", [])
-        if vals:
-            cf_values[str(name)] = vals[0].get("value", "") if len(vals) == 1 else ", ".join(str(v.get("value", "")) for v in vals)
+    cf_raw = row.get("custom_fields_json")
+    if cf_raw:
+        try:
+            cf_list = _json.loads(cf_raw) if isinstance(cf_raw, str) else cf_raw
+            if isinstance(cf_list, list):
+                for cf in cf_list:
+                    name = cf.get("field_name", str(cf.get("field_id", "")))
+                    vals = cf.get("values", [])
+                    if vals:
+                        cf_values[name] = vals[0].get("value", "") if len(vals) == 1 else ", ".join(str(v.get("value", "")) for v in vals)
+        except Exception:
+            pass
 
-    status_id = lead.get("status_id")
-    status_name = ""
-    pipeline_name = ""
-    if status_map and status_id in status_map:
-        status_name, pipeline_name = status_map[status_id]
-
-    created_at = lead.get("created_at")
-    if isinstance(created_at, (int, float)):
+    created_at = row.get("created_at")
+    if isinstance(created_at, (int, float)) and created_at > 0:
         created_at = time.strftime("%Y-%m-%d %H:%M", time.localtime(created_at))
 
     return {
-        "id": lead["id"],
-        "name": lead.get("name", ""),
-        "status_id": status_id,
-        "status_name": status_name,
-        "pipeline_name": pipeline_name,
-        "pipeline_id": lead.get("pipeline_id"),
-        "price": lead.get("price"),
+        "id": row["id"],
+        "name": row.get("name") or "",
+        "status_id": row.get("status_id"),
+        "status_name": row.get("status_name") or "",
+        "pipeline_name": row.get("pipeline_name") or "",
+        "pipeline_id": row.get("pipeline_id"),
+        "price": row.get("price"),
         "created_at": created_at,
         "custom_fields": cf_values,
     }
