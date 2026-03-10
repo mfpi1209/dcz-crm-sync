@@ -961,6 +961,18 @@ kommo_cpf AS (
     JOIN leads l ON l.id = lcf.lead_id
     WHERE lcf.field_name = 'CPF'
       AND length(regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g')) >= 11
+    UNION ALL
+    SELECT l.id AS lead_id,
+           LPAD(regexp_replace(elem->>'value', '[^0-9]', '', 'g'), 11, '0') AS cpf
+    FROM leads l
+    CROSS JOIN LATERAL jsonb_array_elements(l.custom_fields_json) AS cf
+    CROSS JOIN LATERAL jsonb_array_elements(cf->'values') AS elem
+    WHERE cf->>'field_name' = 'CPF'
+      AND length(regexp_replace(elem->>'value', '[^0-9]', '', 'g')) >= 11
+      AND NOT EXISTS (
+          SELECT 1 FROM lead_custom_field_values lcf2
+          WHERE lcf2.lead_id = l.id AND lcf2.field_name = 'CPF'
+      )
 ),
 kommo_telefone AS (
     SELECT DISTINCT lcf.lead_id,
@@ -969,6 +981,18 @@ kommo_telefone AS (
     JOIN leads l ON l.id = lcf.lead_id
     WHERE lcf.field_name IN ('Telefone Comercial', 'Telefone Inscricao')
       AND length(regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g')) >= 10
+    UNION ALL
+    SELECT DISTINCT l.id AS lead_id,
+           RIGHT(regexp_replace(elem->>'value', '[^0-9]', '', 'g'), 11) AS telefone
+    FROM leads l
+    CROSS JOIN LATERAL jsonb_array_elements(l.custom_fields_json) AS cf
+    CROSS JOIN LATERAL jsonb_array_elements(cf->'values') AS elem
+    WHERE cf->>'field_name' IN ('Telefone Comercial', 'Telefone Inscricao')
+      AND length(regexp_replace(elem->>'value', '[^0-9]', '', 'g')) >= 10
+      AND NOT EXISTS (
+          SELECT 1 FROM lead_custom_field_values lcf2
+          WHERE lcf2.lead_id = l.id AND lcf2.field_name IN ('Telefone Comercial', 'Telefone Inscricao')
+      )
 ),
 kommo_situacao AS (
     SELECT lcf.lead_id,
@@ -976,6 +1000,18 @@ kommo_situacao AS (
     FROM lead_custom_field_values lcf
     WHERE lcf.field_name = 'Situação'
       AND lcf.values_json->0->>'value' IS NOT NULL
+    UNION ALL
+    SELECT l.id AS lead_id,
+           elem->>'value' AS situacao_kommo
+    FROM leads l
+    CROSS JOIN LATERAL jsonb_array_elements(l.custom_fields_json) AS cf
+    CROSS JOIN LATERAL jsonb_array_elements(cf->'values') AS elem
+    WHERE cf->>'field_name' = 'Situação'
+      AND elem->>'value' IS NOT NULL
+      AND NOT EXISTS (
+          SELECT 1 FROM lead_custom_field_values lcf2
+          WHERE lcf2.lead_id = l.id AND lcf2.field_name = 'Situação'
+      )
 ),
 match_cpf AS (
     SELECT DISTINCT ON (s.id)
