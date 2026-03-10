@@ -69,12 +69,28 @@ PREPOSICOES = {"de", "da", "do", "dos", "das", "e"}
 EMPRESAS_PERMITIDAS = {"1", "7", "12"}
 
 
-def get_conn():
-    return psycopg2.connect(**DB_DSN)
+def get_conn(retries=3, base_delay=5):
+    for attempt in range(retries):
+        try:
+            return psycopg2.connect(**DB_DSN, connect_timeout=30)
+        except psycopg2.OperationalError:
+            if attempt == retries - 1:
+                raise
+            wait = base_delay * (2 ** attempt)
+            log.warning("get_conn falhou (tentativa %d/%d), retry em %ds", attempt + 1, retries, wait)
+            time.sleep(wait)
 
 
-def get_kommo_conn():
-    return psycopg2.connect(**KOMMO_DB_DSN)
+def get_kommo_conn(retries=3, base_delay=5):
+    for attempt in range(retries):
+        try:
+            return psycopg2.connect(**KOMMO_DB_DSN, connect_timeout=30)
+        except psycopg2.OperationalError:
+            if attempt == retries - 1:
+                raise
+            wait = base_delay * (2 ** attempt)
+            log.warning("get_kommo_conn falhou (tentativa %d/%d), retry em %ds", attempt + 1, retries, wait)
+            time.sleep(wait)
 
 
 # ════════════════════════════════════════════════════════════════

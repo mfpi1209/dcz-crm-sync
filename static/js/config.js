@@ -403,6 +403,7 @@ const PAGE_LABELS = {
     localizacao_polos: 'Localização',
     info_cursos: 'Informações de Cursos',
     avisos: 'Avisos',
+    kommo_dispatcher: 'Kommo Dispatcher',
 };
 
 const PAGE_GROUPS_CONFIG = [
@@ -410,7 +411,7 @@ const PAGE_GROUPS_CONFIG = [
     { label: 'Operação — Acadêmico', pages: ['ativacoes', 'distribuicao', 'intelligence', 'inadimplencia', 'feedback'] },
     { label: 'Ferramentas', pages: ['comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos'] },
     { label: 'Operação — Comercial', pages: ['pipeline', 'update', 'match_merge', 'comercial_rgm', 'inscricao'] },
-    { label: 'Sistema', pages: ['sync', 'kommo_sync', 'logs', 'config', 'schedule'] },
+    { label: 'Sistema', pages: ['sync', 'kommo_sync', 'kommo_dispatcher', 'logs', 'config', 'schedule'] },
 ];
 let _allPages = [];
 let _usersData = [];

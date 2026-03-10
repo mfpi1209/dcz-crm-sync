@@ -1,0 +1,48 @@
+            <script>
+            function loadKommoDispatcher() {
+                const iframe = document.getElementById('kommo-dispatcher-iframe');
+                const url = 'https://banco-kommo-dispatcher.6tqx2r.easypanel.host/dashboard';
+                if (iframe.src !== url) {
+                    iframe.src = url;
+                } else {
+                    iframe.src = '';
+                    setTimeout(() => { iframe.src = url; }, 100);
+                }
+            }
+            </script>
+            <div id="page-kommo_dispatcher" class="p-4 lg:p-8 max-w-full mx-auto hidden" style="height: calc(100vh - 2rem);">
+
+                <!-- Header -->
+                <div class="mb-4">
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-lg shadow-orange-500/20">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-3xl font-bold text-white font-display">Kommo Dispatcher</h2>
+                            <p class="text-slate-500 text-sm">Monitoramento de mensagens, fila n8n e rate limit</p>
+                        </div>
+                        <div class="ml-auto flex items-center gap-2">
+                            <button onclick="loadKommoDispatcher()" class="btn-secondary text-slate-300 font-medium text-sm px-4 py-2 rounded-xl flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                Recarregar
+                            </button>
+                            <a href="https://banco-kommo-dispatcher.6tqx2r.easypanel.host/dashboard" target="_blank"
+                               class="btn-secondary text-slate-300 font-medium text-sm px-4 py-2 rounded-xl flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                Abrir externo
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Iframe container -->
+                <div class="glass-card rounded-xl overflow-hidden" style="height: calc(100% - 5rem);">
+                    <iframe id="kommo-dispatcher-iframe"
+                            src=""
+                            class="w-full h-full border-0"
+                            allow="clipboard-read; clipboard-write"
+                            loading="lazy">
+                    </iframe>
+                </div>
+            </div>
