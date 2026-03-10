@@ -131,7 +131,7 @@
                                 <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                             </div>
                             <div>
-                                <p class="text-xs text-slate-500">Aprovados</p>
+                                <p class="text-xs text-slate-500">Novos (Criar)</p>
                                 <p class="text-lg font-bold text-green-400" id="mm-act-aprovado">0</p>
                             </div>
                         </div>
@@ -149,7 +149,7 @@
                                 <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
                             </div>
                             <div>
-                                <p class="text-xs text-slate-500">Sem Match</p>
+                                <p class="text-xs text-slate-500">Atualizar</p>
                                 <p class="text-lg font-bold text-amber-400" id="mm-act-sematch">0</p>
                             </div>
                         </div>
@@ -165,9 +165,9 @@
                             <div class="flex items-center gap-3">
                                 <select id="mm-filtro-acao" class="input-glass px-3 py-1.5 text-sm text-slate-200 rounded-lg" onchange="mmLoadPreview()">
                                     <option value="">Todas</option>
-                                    <option value="APROVADO">Aprovados</option>
+                                    <option value="NOVO">Novos (Criar)</option>
+                                    <option value="ATUALIZAR">Atualizar</option>
                                     <option value="MATRICULADO">Matriculados</option>
-                                    <option value="SEM_MATCH">Sem Match</option>
                                 </select>
                             </div>
                         </div>
@@ -209,9 +209,10 @@
                         </div>
                         <div class="flex flex-wrap items-center gap-3">
                             <select id="mm-exec-filtro" class="input-glass px-3 py-2 text-sm text-slate-200 rounded-lg w-40">
-                                <option value="">Todas as ações</option>
-                                <option value="APROVADO">Só Aprovados</option>
-                                <option value="MATRICULADO">Só Matriculados</option>
+                                <option value="">Todas as acoes</option>
+                                <option value="NOVO">Novos (Criar)</option>
+                                <option value="ATUALIZAR">Atualizar</option>
+                                <option value="MATRICULADO">Matriculados</option>
                             </select>
                             <div class="flex items-center gap-2">
                                 <label class="text-xs text-slate-400">Limite:</label>

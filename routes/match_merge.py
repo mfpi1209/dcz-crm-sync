@@ -229,9 +229,9 @@ def mm_preview():
         },
         "acoes_total": total,
         "acoes_por_tipo": {
-            "APROVADO": sum(1 for a in _result.get("acoes", []) if a["acao"] == "APROVADO"),
+            "NOVO": sum(1 for a in _result.get("acoes", []) if a["acao"] == "NOVO"),
+            "ATUALIZAR": sum(1 for a in _result.get("acoes", []) if a["acao"] == "ATUALIZAR"),
             "MATRICULADO": sum(1 for a in _result.get("acoes", []) if a["acao"] == "MATRICULADO"),
-            "SEM_MATCH": sum(1 for a in _result.get("acoes", []) if a["acao"] == "SEM_MATCH"),
         },
         "acoes": paginated,
         "page": page,

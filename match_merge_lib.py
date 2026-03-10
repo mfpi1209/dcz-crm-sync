@@ -954,34 +954,23 @@ _MM_INSCRITOS_COLS_FOR_MATCH = [
 
 COMPARE_SQL = """
 WITH leads_ativos AS (
-    SELECT id AS lead_id FROM leads WHERE status_id != 142
+    SELECT id AS lead_id FROM leads WHERE status_id NOT IN (142, 143)
 ),
 kommo_cpf AS (
     SELECT lcf.lead_id,
-           regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g') AS cpf
+           LPAD(regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g'), 11, '0') AS cpf
     FROM lead_custom_field_values lcf
     JOIN leads_ativos la ON la.lead_id = lcf.lead_id
     WHERE lcf.field_name = 'CPF'
-      AND lcf.values_json->0->>'value' IS NOT NULL
-      AND lcf.values_json->0->>'value' != ''
+      AND length(regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g')) >= 11
 ),
 kommo_telefone AS (
-    SELECT lcf.lead_id,
-           regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g') AS telefone
+    SELECT DISTINCT lcf.lead_id,
+           RIGHT(regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g'), 11) AS telefone
     FROM lead_custom_field_values lcf
     JOIN leads_ativos la ON la.lead_id = lcf.lead_id
-    WHERE lcf.field_name = 'Telefone Inscricao'
-      AND lcf.values_json->0->>'value' IS NOT NULL
-      AND lcf.values_json->0->>'value' != ''
-),
-kommo_curso AS (
-    SELECT lcf.lead_id,
-           LOWER(lcf.values_json->0->>'value') AS curso_siaa
-    FROM lead_custom_field_values lcf
-    JOIN leads_ativos la ON la.lead_id = lcf.lead_id
-    WHERE lcf.field_name = 'Curso_SIAA'
-      AND lcf.values_json->0->>'value' IS NOT NULL
-      AND lcf.values_json->0->>'value' != ''
+    WHERE lcf.field_name IN ('Telefone Comercial', 'Telefone Inscricao')
+      AND length(regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g')) >= 10
 ),
 kommo_situacao AS (
     SELECT lcf.lead_id,
@@ -990,60 +979,30 @@ kommo_situacao AS (
     WHERE lcf.field_name = 'Situação'
       AND lcf.values_json->0->>'value' IS NOT NULL
 ),
-match_cpf_curso AS (
-    SELECT DISTINCT ON (s.id)
-        s.id AS siaa_id, kc.lead_id, 'cpf+curso' AS match_tipo
-    FROM _tmp_mm_inscritos s
-    JOIN kommo_cpf kc ON s.cpf IS NOT NULL AND kc.cpf = s.cpf
-    JOIN kommo_curso kcur ON kcur.lead_id = kc.lead_id
-        AND s.curso_limpo IS NOT NULL
-        AND kcur.curso_siaa = LOWER(s.curso_limpo)
-    ORDER BY s.id, kc.lead_id
-),
 match_cpf AS (
     SELECT DISTINCT ON (s.id)
         s.id AS siaa_id, kc.lead_id, 'cpf' AS match_tipo
     FROM _tmp_mm_inscritos s
     JOIN kommo_cpf kc ON s.cpf IS NOT NULL AND kc.cpf = s.cpf
-    LEFT JOIN kommo_curso kcur ON kcur.lead_id = kc.lead_id
-    WHERE kcur.lead_id IS NULL
-      AND s.id NOT IN (SELECT siaa_id FROM match_cpf_curso)
     ORDER BY s.id, kc.lead_id
 ),
-match_tel_curso AS (
+match_telefone AS (
     SELECT DISTINCT ON (s.id)
-        s.id AS siaa_id, kt.lead_id, 'tel+curso' AS match_tipo
+        s.id AS siaa_id, kt.lead_id, 'telefone' AS match_tipo
     FROM _tmp_mm_inscritos s
-    JOIN kommo_telefone kt ON s.telefone IS NOT NULL AND kt.telefone = s.telefone
-    JOIN kommo_curso kcur ON kcur.lead_id = kt.lead_id
-        AND s.curso_limpo IS NOT NULL
-        AND kcur.curso_siaa = LOWER(s.curso_limpo)
-    WHERE s.id NOT IN (SELECT siaa_id FROM match_cpf_curso)
-      AND s.id NOT IN (SELECT siaa_id FROM match_cpf)
-    ORDER BY s.id, kt.lead_id
-),
-match_tel AS (
-    SELECT DISTINCT ON (s.id)
-        s.id AS siaa_id, kt.lead_id, 'tel' AS match_tipo
-    FROM _tmp_mm_inscritos s
-    JOIN kommo_telefone kt ON s.telefone IS NOT NULL AND kt.telefone = s.telefone
-    LEFT JOIN kommo_curso kcur ON kcur.lead_id = kt.lead_id
-    WHERE kcur.lead_id IS NULL
-      AND s.id NOT IN (SELECT siaa_id FROM match_cpf_curso)
-      AND s.id NOT IN (SELECT siaa_id FROM match_cpf)
-      AND s.id NOT IN (SELECT siaa_id FROM match_tel_curso)
+    JOIN kommo_telefone kt ON s.telefone IS NOT NULL
+        AND RIGHT(s.telefone, 11) = kt.telefone
+    WHERE s.id NOT IN (SELECT siaa_id FROM match_cpf)
     ORDER BY s.id, kt.lead_id
 ),
 all_matches AS (
-    SELECT * FROM match_cpf_curso
-    UNION ALL SELECT * FROM match_cpf
-    UNION ALL SELECT * FROM match_tel_curso
-    UNION ALL SELECT * FROM match_tel
+    SELECT * FROM match_cpf
+    UNION ALL SELECT * FROM match_telefone
 )
 SELECT
     s.id AS siaa_id, s.nome, s.cpf, s.telefone, s.inscricao,
     s.curso_raw, s.curso_limpo, s.situacao_final AS siaa_situacao,
-    s.situacao_final, s.polo_normalizado, s.email,
+    s.polo_normalizado, s.email,
     s.data_inscr, s.marca_instituicao, s.modalidade, s.grau_curso,
     m.lead_id AS lead_id_match, m.match_tipo,
     ks.situacao_kommo,
@@ -1075,6 +1034,68 @@ CREATE TEMP TABLE _tmp_mm_inscritos (
     grau_curso      TEXT
 ) ON COMMIT DROP;
 """
+
+
+COMPARE_SQL_MATRICULADOS = """
+WITH kommo_rgm AS (
+    SELECT lcf.lead_id,
+           regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g') AS rgm
+    FROM lead_custom_field_values lcf
+    JOIN leads l ON l.id = lcf.lead_id AND l.status_id NOT IN (142, 143)
+    WHERE lcf.field_name = 'RGM'
+      AND lcf.values_json->0->>'value' IS NOT NULL
+      AND lcf.values_json->0->>'value' != ''
+),
+kommo_situacao AS (
+    SELECT lcf.lead_id,
+           lcf.values_json->0->>'value' AS situacao_kommo
+    FROM lead_custom_field_values lcf
+    WHERE lcf.field_name = 'Situação'
+      AND lcf.values_json->0->>'value' IS NOT NULL
+),
+match_rgm AS (
+    SELECT DISTINCT ON (s.id)
+        s.id AS mat_id, kr.lead_id, 'rgm' AS match_tipo
+    FROM _tmp_mm_matriculados s
+    JOIN kommo_rgm kr ON s.rgm IS NOT NULL AND kr.rgm = s.rgm
+    ORDER BY s.id, kr.lead_id
+)
+SELECT
+    s.id AS mat_id, s.nome, s.cpf, s.rgm,
+    s.curso_raw, s.curso_limpo,
+    s.situacao AS mat_situacao,
+    s.polo_aulas, s.data_matricula, s.tipo_matricula,
+    m.lead_id AS lead_id_match, m.match_tipo,
+    ks.situacao_kommo,
+    l.name AS lead_name, l.status_id,
+    CASE WHEN m.lead_id IS NOT NULL THEN TRUE ELSE FALSE END AS tem_match
+FROM _tmp_mm_matriculados s
+LEFT JOIN match_rgm m ON m.mat_id = s.id
+LEFT JOIN kommo_situacao ks ON ks.lead_id = m.lead_id
+LEFT JOIN leads l ON l.id = m.lead_id
+ORDER BY s.id;
+"""
+
+_TMP_TABLE_MATRICULADOS_DDL = """
+CREATE TEMP TABLE _tmp_mm_matriculados (
+    id              INTEGER PRIMARY KEY,
+    nome            TEXT,
+    cpf             TEXT,
+    rgm             TEXT,
+    curso_raw       TEXT,
+    curso_limpo     TEXT,
+    situacao_raw    TEXT,
+    situacao        TEXT,
+    polo_aulas      TEXT,
+    data_matricula  TEXT,
+    tipo_matricula  TEXT
+) ON COMMIT DROP;
+"""
+
+_MM_MATRICULADOS_COLS_FOR_MATCH = [
+    "id", "nome", "cpf", "rgm", "curso_raw", "curso_limpo",
+    "situacao_raw", "situacao", "polo_aulas", "data_matricula", "tipo_matricula",
+]
 
 
 def match_kommo():
@@ -1137,9 +1158,9 @@ def match_kommo():
         else:
             divergencias["ok"] += 1
 
-    log.info("Match SIAA×Kommo: total=%d, match=%d, sem=%d", total, com_match, sem_match)
+    log.info("Match Inscritos x Kommo: total=%d, match=%d, sem=%d", total, com_match, sem_match)
     log.info("  Tipos: %s", tipos)
-    log.info("  Divergências: %s", divergencias)
+    log.info("  Divergencias: %s", divergencias)
 
     detalhes = [dict(zip(cols, r)) for r in rows]
 
@@ -1149,77 +1170,140 @@ def match_kommo():
     }
 
 
+def match_matriculados_kommo():
+    """Compare mm_matriculados (dcz_sync) with Kommo leads by RGM (kommo_sync)."""
+    dcz = get_conn()
+    dcz_cur = dcz.cursor()
+    cols_sql = ", ".join(_MM_MATRICULADOS_COLS_FOR_MATCH)
+    dcz_cur.execute(f"""
+        SELECT {cols_sql} FROM mm_matriculados
+        WHERE rgm IS NOT NULL AND rgm != ''
+          AND UPPER(COALESCE(situacao,'')) = 'MATRICULADO'
+    """)
+    mat_rows = dcz_cur.fetchall()
+    dcz_cur.close()
+    dcz.close()
+
+    if not mat_rows:
+        return {"total": 0, "com_match": 0, "sem_match": 0,
+                "tipos": {}, "detalhes": []}
+
+    kommo = get_kommo_conn()
+    kommo.autocommit = False
+    kcur = kommo.cursor()
+    kcur.execute(_TMP_TABLE_MATRICULADOS_DDL)
+
+    execute_values(
+        kcur,
+        f"INSERT INTO _tmp_mm_matriculados ({cols_sql}) VALUES %s",
+        mat_rows,
+    )
+
+    kcur.execute(COMPARE_SQL_MATRICULADOS)
+    cols = [desc[0] for desc in kcur.description]
+    rows = kcur.fetchall()
+    kommo.rollback()
+    kcur.close()
+    kommo.close()
+
+    total = len(rows)
+    com_match = sum(1 for r in rows if r[cols.index("tem_match")])
+    sem_match = total - com_match
+
+    tipos = {}
+    for r in rows:
+        tipo = r[cols.index("match_tipo")]
+        if tipo:
+            tipos[tipo] = tipos.get(tipo, 0) + 1
+
+    log.info("Match Matriculados x Kommo (RGM): total=%d, match=%d, sem=%d",
+             total, com_match, sem_match)
+
+    detalhes = [dict(zip(cols, r)) for r in rows]
+
+    return {
+        "total": total, "com_match": com_match, "sem_match": sem_match,
+        "tipos": tipos, "detalhes": detalhes,
+    }
+
+
 # ════════════════════════════════════════════════════════════════
 #  ACTION GENERATION
 # ════════════════════════════════════════════════════════════════
 
-def gerar_acoes(match_result):
-    """Generate actions from match results."""
+def gerar_acoes(inscritos_match, matriculados_match=None):
+    """Generate actions from inscritos + matriculados match results.
+
+    Action types:
+      NOVO       - inscrito sem match no CRM -> criar lead
+      ATUALIZAR  - inscrito com match, lead precisa dados da inscricao
+      MATRICULADO - matriculado com match por RGM -> mover para ganho
+    """
     acoes = []
-    for row in match_result["detalhes"]:
+
+    for row in inscritos_match.get("detalhes", []):
         lead_id = row.get("lead_id_match")
         siaa_sit = row.get("siaa_situacao")
         kommo_sit = row.get("situacao_kommo")
 
-        if lead_id:
-            if siaa_sit == "Matriculado" and kommo_sit != "Matriculado":
-                acoes.append({
-                    "acao": "MATRICULADO",
-                    "lead_id": lead_id,
-                    "siaa_id": row["siaa_id"],
-                    "nome": row["nome"],
-                    "cpf": row["cpf"],
-                    "curso_siaa": row["curso_limpo"],
-                    "polo": row["polo_normalizado"],
-                    "situacao_siaa": siaa_sit,
-                    "situacao_kommo": kommo_sit,
-                    "match_tipo": row["match_tipo"],
-                    "telefone": row.get("telefone"),
-                    "email": row.get("email"),
-                    "marca": row.get("marca_instituicao"),
-                    "inscricao": row.get("inscricao"),
-                })
-            elif siaa_sit == "Aprovado" and kommo_sit not in ("Aprovado", "Matriculado"):
-                acoes.append({
-                    "acao": "APROVADO",
-                    "lead_id": lead_id,
-                    "siaa_id": row["siaa_id"],
-                    "nome": row["nome"],
-                    "cpf": row["cpf"],
-                    "curso_siaa": row["curso_limpo"],
-                    "polo": row["polo_normalizado"],
-                    "situacao_siaa": siaa_sit,
-                    "situacao_kommo": kommo_sit,
-                    "match_tipo": row["match_tipo"],
-                    "telefone": row.get("telefone"),
-                    "email": row.get("email"),
-                    "marca": row.get("marca_instituicao"),
-                    "inscricao": row.get("inscricao"),
-                })
-        else:
-            if siaa_sit in ("Aprovado", "Matriculado"):
-                acoes.append({
-                    "acao": "SEM_MATCH",
-                    "lead_id": None,
-                    "siaa_id": row["siaa_id"],
-                    "nome": row["nome"],
-                    "cpf": row["cpf"],
-                    "curso_siaa": row["curso_limpo"],
-                    "polo": row["polo_normalizado"],
-                    "situacao_siaa": siaa_sit,
-                    "situacao_kommo": None,
-                    "match_tipo": None,
-                    "telefone": row.get("telefone"),
-                    "email": row.get("email"),
-                    "marca": row.get("marca_instituicao"),
-                    "inscricao": row.get("inscricao"),
-                })
+        base = {
+            "siaa_id": row["siaa_id"],
+            "nome": row["nome"],
+            "cpf": row["cpf"],
+            "curso_siaa": row.get("curso_limpo"),
+            "polo": row.get("polo_normalizado"),
+            "situacao_siaa": siaa_sit,
+            "situacao_kommo": kommo_sit,
+            "match_tipo": row.get("match_tipo"),
+            "telefone": row.get("telefone"),
+            "email": row.get("email"),
+            "marca": row.get("marca_instituicao"),
+            "inscricao": row.get("inscricao"),
+            "modalidade": row.get("modalidade"),
+            "grau": row.get("grau_curso"),
+            "data_inscr": str(row.get("data_inscr") or ""),
+        }
 
-    log.info("Ações geradas: %d (APROVADO=%d, MATRICULADO=%d, SEM_MATCH=%d)",
-             len(acoes),
-             sum(1 for a in acoes if a["acao"] == "APROVADO"),
-             sum(1 for a in acoes if a["acao"] == "MATRICULADO"),
-             sum(1 for a in acoes if a["acao"] == "SEM_MATCH"))
+        if lead_id:
+            needs_update = (
+                kommo_sit is None
+                or kommo_sit == ""
+                or kommo_sit != siaa_sit
+            )
+            if needs_update:
+                acoes.append({**base, "acao": "ATUALIZAR", "lead_id": lead_id})
+        else:
+            acoes.append({**base, "acao": "NOVO", "lead_id": None})
+
+    if matriculados_match:
+        for row in matriculados_match.get("detalhes", []):
+            lead_id = row.get("lead_id_match")
+            if not lead_id:
+                continue
+            kommo_sit = row.get("situacao_kommo")
+            if kommo_sit == "Matriculado":
+                continue
+            acoes.append({
+                "acao": "MATRICULADO",
+                "lead_id": lead_id,
+                "siaa_id": row.get("mat_id"),
+                "nome": row.get("nome"),
+                "cpf": row.get("cpf"),
+                "rgm": row.get("rgm"),
+                "curso_siaa": row.get("curso_limpo"),
+                "polo": row.get("polo_aulas"),
+                "situacao_siaa": row.get("mat_situacao"),
+                "situacao_kommo": kommo_sit,
+                "match_tipo": row.get("match_tipo"),
+                "data_matricula": str(row.get("data_matricula") or ""),
+                "tipo_matricula": row.get("tipo_matricula"),
+            })
+
+    n_novo = sum(1 for a in acoes if a["acao"] == "NOVO")
+    n_atualizar = sum(1 for a in acoes if a["acao"] == "ATUALIZAR")
+    n_matriculado = sum(1 for a in acoes if a["acao"] == "MATRICULADO")
+    log.info("Acoes: %d total (NOVO=%d, ATUALIZAR=%d, MATRICULADO=%d)",
+             len(acoes), n_novo, n_atualizar, n_matriculado)
     return acoes
 
 
@@ -1282,9 +1366,13 @@ class KommoApiClient:
     def patch_lead(self, lead_id, payload):
         return self._request("PATCH", f"/api/v4/leads/{lead_id}", payload)
 
+    def create_lead(self, payload):
+        """POST /api/v4/leads — create one or more leads."""
+        return self._request("POST", "/api/v4/leads", payload)
+
     def get_custom_field_ids(self, field_names):
-        """Lookup numeric field_id for given field names from the database."""
-        conn = get_conn()
+        """Lookup numeric field_id for given field names from the kommo_sync database."""
+        conn = get_kommo_conn()
         cur = conn.cursor()
         placeholders = ",".join(["%s"] * len(field_names))
         cur.execute(f"""
@@ -1298,14 +1386,13 @@ class KommoApiClient:
         return result
 
     def get_pipeline_stages(self):
-        """Load pipeline stages from database."""
-        conn = get_conn()
+        """Load pipeline stages from kommo_sync database."""
+        conn = get_kommo_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("""
-            SELECT ps.id, ps.pipeline_id,
-                   ps.data->>'name' AS nome
-            FROM pipeline_stages ps
-            ORDER BY ps.pipeline_id, (ps.data->>'sort')::int NULLS LAST
+            SELECT id, pipeline_id, name
+            FROM pipeline_statuses
+            ORDER BY pipeline_id, sort NULLS LAST
         """)
         stages = cur.fetchall()
         cur.close()
@@ -1317,21 +1404,42 @@ class KommoApiClient:
 #  EXECUTE ACTIONS
 # ════════════════════════════════════════════════════════════════
 
+_FIELD_NAMES_FOR_UPDATE = [
+    "Situação", "Curso_SIAA", "Modalidade_SIAA", "Grau_SIAA",
+    "Polo", "Marca", "CPF", "Inscrição", "Telefone Inscricao",
+]
+
+_FIELD_NAMES_FOR_MATRICULA = [
+    "Situação", "RGM", "Matrícula",
+]
+
+
 def _find_stage_id(stages, name_fragment):
     """Find a pipeline stage by name fragment (case-insensitive)."""
     frag = name_fragment.lower()
     for s in stages:
-        if frag in (s["nome"] or "").lower():
+        if frag in (s.get("name") or s.get("nome") or "").lower():
             return s["id"], s["pipeline_id"]
     return None, None
 
 
+def _build_custom_fields(field_ids, acao, fields_map):
+    """Build custom_fields_values array for Kommo API payload."""
+    cf = []
+    for field_name, acao_key in fields_map.items():
+        fid = field_ids.get(field_name)
+        val = acao.get(acao_key)
+        if fid and val:
+            cf.append({"field_id": fid, "values": [{"value": str(val)}]})
+    return cf
+
+
 def executar_acoes(acoes, limit=None, log_callback=None):
-    """Execute Kommo updates for the given actions."""
+    """Execute Kommo updates/creates for the given actions."""
     api = KommoApiClient()
 
-    field_names = ["Situação", "Curso_SIAA", "Polo", "Telefone Inscricao"]
-    field_ids = api.get_custom_field_ids(field_names)
+    all_fields = list(set(_FIELD_NAMES_FOR_UPDATE + _FIELD_NAMES_FOR_MATRICULA))
+    field_ids = api.get_custom_field_ids(all_fields)
     stages = api.get_pipeline_stages()
 
     aprovado_stage, aprovado_pipe = _find_stage_id(stages, "aprovad")
@@ -1343,68 +1451,87 @@ def executar_acoes(acoes, limit=None, log_callback=None):
              aprovado_stage, aprovado_pipe, matriculado_stage, matriculado_pipe)
     log.info("Fields: %s", field_ids)
 
-    sit_field = field_ids.get("Situação")
-    curso_field = field_ids.get("Curso_SIAA")
-    polo_field = field_ids.get("Polo")
-    tel_field = field_ids.get("Telefone Inscricao")
-
     to_process = acoes[:limit] if limit else acoes
-    results = {"ok": 0, "erro": 0, "skip": 0}
+    results = {"ok": 0, "erro": 0, "skip": 0, "novo_ok": 0}
+
+    update_fields_map = {
+        "Situação": "situacao_siaa",
+        "Curso_SIAA": "curso_siaa",
+        "Modalidade_SIAA": "modalidade",
+        "Grau_SIAA": "grau",
+        "Polo": "polo",
+        "Marca": "marca",
+        "CPF": "cpf",
+        "Inscrição": "inscricao",
+        "Telefone Inscricao": "telefone",
+    }
 
     for i, acao in enumerate(to_process):
-        lead_id = acao.get("lead_id")
-        if not lead_id:
-            results["skip"] += 1
-            continue
-
         tipo = acao["acao"]
-        custom_fields = []
+        lead_id = acao.get("lead_id")
 
-        if sit_field and acao.get("situacao_siaa"):
-            custom_fields.append({
-                "field_id": sit_field,
-                "values": [{"value": acao["situacao_siaa"]}],
+        if tipo == "ATUALIZAR" and lead_id:
+            cf = _build_custom_fields(field_ids, acao, update_fields_map)
+            payload = {}
+            if cf:
+                payload["custom_fields_values"] = cf
+            if aprovado_stage and acao.get("situacao_siaa") == "Aprovado":
+                payload["pipeline_id"] = aprovado_pipe
+                payload["status_id"] = aprovado_stage
+            if not payload:
+                results["skip"] += 1
+                continue
+            resp = api.patch_lead(lead_id, payload)
+
+        elif tipo == "MATRICULADO" and lead_id:
+            cf = _build_custom_fields(field_ids, acao, {
+                "Situação": "situacao_siaa",
+                "RGM": "rgm",
             })
-        if curso_field and acao.get("curso_siaa"):
-            custom_fields.append({
-                "field_id": curso_field,
-                "values": [{"value": acao["curso_siaa"]}],
-            })
-        if polo_field and acao.get("polo"):
-            custom_fields.append({
-                "field_id": polo_field,
-                "values": [{"value": acao["polo"]}],
-            })
+            payload = {}
+            if cf:
+                payload["custom_fields_values"] = cf
+            else:
+                payload["custom_fields_values"] = [{
+                    "field_id": field_ids.get("Situação"),
+                    "values": [{"value": "Matriculado"}],
+                }]
+            if matriculado_stage:
+                payload["pipeline_id"] = matriculado_pipe
+                payload["status_id"] = matriculado_stage
+            resp = api.patch_lead(lead_id, payload)
 
-        payload = {}
-        if custom_fields:
-            payload["custom_fields_values"] = custom_fields
+        elif tipo == "NOVO":
+            cf = _build_custom_fields(field_ids, acao, update_fields_map)
+            nome = acao.get("nome") or "Lead SIAA"
+            lead_payload = [{"name": nome}]
+            if aprovado_stage:
+                lead_payload[0]["pipeline_id"] = aprovado_pipe
+                lead_payload[0]["status_id"] = aprovado_stage
+            if cf:
+                lead_payload[0]["custom_fields_values"] = cf
+            resp = api.create_lead(lead_payload)
+            if resp["ok"]:
+                results["novo_ok"] += 1
 
-        if tipo == "APROVADO" and aprovado_stage:
-            payload["pipeline_id"] = aprovado_pipe
-            payload["status_id"] = aprovado_stage
-        elif tipo == "MATRICULADO" and matriculado_stage:
-            payload["pipeline_id"] = matriculado_pipe
-            payload["status_id"] = matriculado_stage
-
-        if not payload:
+        else:
             results["skip"] += 1
             continue
 
-        resp = api.patch_lead(lead_id, payload)
         if resp["ok"]:
             results["ok"] += 1
-            msg = f"[{i+1}/{len(to_process)}] OK {tipo} lead={lead_id} {acao['nome']}"
+            msg = f"[{i+1}/{len(to_process)}] OK {tipo} lead={lead_id or 'NOVO'} {acao.get('nome','')}"
         else:
             results["erro"] += 1
-            msg = f"[{i+1}/{len(to_process)}] ERRO {tipo} lead={lead_id}: {resp['body'][:100]}"
+            msg = f"[{i+1}/{len(to_process)}] ERRO {tipo} lead={lead_id or 'NOVO'}: {resp.get('body','')[:100]}"
 
         log.info(msg)
         if log_callback:
             log_callback(msg)
 
-    log.info("Execução concluída: ok=%d, erro=%d, skip=%d, API calls=%d",
-             results["ok"], results["erro"], results["skip"], api.total_calls)
+    log.info("Execucao: ok=%d, erro=%d, skip=%d, novos=%d, API calls=%d",
+             results["ok"], results["erro"], results["skip"],
+             results["novo_ok"], api.total_calls)
     return results
 
 
@@ -1458,34 +1585,49 @@ def run_pipeline(candidatos_files, matriculados_files, nivel="grad", log_callbac
     n_mat = db_upload_matriculados(matriculados_norm) if matriculados_norm else 0
     _log(f"  Banco: {n_insc} inscritos + {n_mat} matriculados")
 
-    # 4. Cruzamento
-    _log(">>> ETAPA 4: CRUZAMENTO")
+    # 4. Cruzamento inscritos x matriculados
+    _log(">>> ETAPA 4: CRUZAMENTO INSCRITOS x MATRICULADOS")
     cruz_result = cruzar()
     _log(f"  Cruzados: {cruz_result['total']} (match={cruz_result['matched']}, sem={cruz_result['no_match']})")
 
-    # 5. Match Kommo
-    _log(">>> ETAPA 5: MATCH SIAA × KOMMO")
-    match_result = match_kommo()
-    _log(f"  Total: {match_result['total']} | Match: {match_result['com_match']} | Sem: {match_result['sem_match']}")
-    _log(f"  Divergências: {match_result['divergencias']}")
+    # 5. Match Inscritos x Kommo (CPF + Telefone)
+    _log(">>> ETAPA 5: MATCH INSCRITOS x KOMMO (CPF + Telefone)")
+    inscritos_match = match_kommo()
+    _log(f"  Total: {inscritos_match['total']} | Match: {inscritos_match['com_match']} | Sem: {inscritos_match['sem_match']}")
+    _log(f"  Tipos: {inscritos_match['tipos']}")
 
-    # 6. Generate actions
-    _log(">>> ETAPA 6: GERAR AÇÕES")
-    acoes = gerar_acoes(match_result)
+    # 6. Match Matriculados x Kommo (RGM)
+    _log(">>> ETAPA 6: MATCH MATRICULADOS x KOMMO (RGM)")
+    matriculados_match = match_matriculados_kommo()
+    _log(f"  Total: {matriculados_match['total']} | Match: {matriculados_match['com_match']} | Sem: {matriculados_match['sem_match']}")
+
+    # 7. Generate actions
+    _log(">>> ETAPA 7: GERAR ACOES")
+    acoes = gerar_acoes(inscritos_match, matriculados_match)
+
+    n_novo = sum(1 for a in acoes if a["acao"] == "NOVO")
+    n_atualizar = sum(1 for a in acoes if a["acao"] == "ATUALIZAR")
+    n_matriculado = sum(1 for a in acoes if a["acao"] == "MATRICULADO")
 
     elapsed = (datetime.now(BRT) - start).total_seconds()
-    _log(f"Pipeline concluído em {elapsed:.0f}s. {len(acoes)} ações geradas.")
+    _log(f"Pipeline concluido em {elapsed:.0f}s.")
+    _log(f"  NOVO={n_novo} | ATUALIZAR={n_atualizar} | MATRICULADO={n_matriculado} | Total={len(acoes)}")
 
     return {
         "inscritos": n_insc,
         "matriculados": n_mat,
         "cruzamento": cruz_result,
         "match": {
-            "total": match_result["total"],
-            "com_match": match_result["com_match"],
-            "sem_match": match_result["sem_match"],
-            "tipos": match_result["tipos"],
-            "divergencias": match_result["divergencias"],
+            "total": inscritos_match["total"],
+            "com_match": inscritos_match["com_match"],
+            "sem_match": inscritos_match["sem_match"],
+            "tipos": inscritos_match["tipos"],
+            "divergencias": inscritos_match.get("divergencias", {}),
+        },
+        "match_matriculados": {
+            "total": matriculados_match["total"],
+            "com_match": matriculados_match["com_match"],
+            "sem_match": matriculados_match["sem_match"],
         },
         "acoes": acoes,
         "elapsed": elapsed,
