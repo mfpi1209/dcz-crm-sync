@@ -3,8 +3,8 @@
 
     <div class="flex flex-col sm:flex-row sm:items-end gap-4 justify-between">
         <div>
-            <h2 class="text-2xl font-bold font-display text-white">Ativações Acadêmicas</h2>
-            <p class="text-sm text-slate-500">Disparos e retorno de atendimento</p>
+            <h2 class="text-2xl font-bold font-display text-white">Dashboard de Ativação</h2>
+            <p class="text-sm text-slate-500">Ativações por dia e Retornos por status</p>
         </div>
 
         <div class="flex items-end gap-3">
@@ -16,30 +16,43 @@
                 <label for="ativ-data-fim" class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">Fim</label>
                 <input type="date" id="ativ-data-fim" class="input-glass px-3 py-2 text-sm text-slate-200">
             </div>
-            <button onclick="ativAtualizar()" class="btn-primary text-white text-sm px-5 py-2 rounded-xl flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            <button onclick="ativAtualizar()" id="ativ-btn-atualizar"
+                    class="btn-primary text-white text-sm px-5 py-2 rounded-xl flex items-center gap-2">
+                <svg id="ativ-btn-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 Atualizar
             </button>
         </div>
     </div>
 
-    <!-- KPI Cards -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4" id="ativ-cards">
-        <div class="glass-card p-5 flex flex-col items-center gap-2 border-l-4 border-blue-500">
-            <span class="text-[10px] uppercase tracking-wider font-bold text-blue-400">Total Ativados</span>
-            <span id="ativ-total" class="text-3xl font-extrabold text-white">—</span>
+    <!-- KPI Cards — Total Ativações + Total Retornos -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Total de Ativações -->
+        <div class="glass-card p-6 space-y-3">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-slate-300">Total de Ativações</h3>
+                <span id="ativ-kpi-ativ-icon" class="text-sm"></span>
+            </div>
+            <p id="ativ-kpi-ativ-val" class="text-3xl font-extrabold text-blue-400">—</p>
+            <div class="flex items-center gap-2 text-xs">
+                <span class="text-slate-500">Período anterior:</span>
+                <span id="ativ-kpi-ativ-prev" class="text-slate-300 font-medium">—</span>
+                <span id="ativ-kpi-ativ-badge" class="px-2 py-0.5 rounded-full font-semibold">—</span>
+            </div>
         </div>
-        <div class="glass-card p-5 flex flex-col items-center gap-2 border-l-4 border-indigo-500">
-            <span class="text-[10px] uppercase tracking-wider font-bold text-indigo-400">Entrou em Atendimento</span>
-            <span id="ativ-entrou" class="text-3xl font-extrabold text-white">—</span>
-        </div>
-        <div class="glass-card p-5 flex flex-col items-center gap-2 border-l-4 border-amber-500">
-            <span class="text-[10px] uppercase tracking-wider font-bold text-amber-400">Sem Resposta</span>
-            <span id="ativ-sem-resp" class="text-3xl font-extrabold text-white">—</span>
-        </div>
-        <div class="glass-card p-5 flex flex-col items-center gap-2 border-l-4 border-emerald-500">
-            <span class="text-[10px] uppercase tracking-wider font-bold text-emerald-400">Conseguiu Fazer</span>
-            <span id="ativ-conseguiu" class="text-3xl font-extrabold text-white">—</span>
+
+        <!-- Total de Retornos -->
+        <div class="glass-card p-6 space-y-3">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-slate-300">Total de Retornos</h3>
+                <span id="ativ-kpi-ret-icon" class="text-sm"></span>
+            </div>
+            <p id="ativ-kpi-ret-val" class="text-3xl font-extrabold text-teal-400">—</p>
+            <div class="flex items-center gap-2 text-xs">
+                <span class="text-slate-500">Período anterior:</span>
+                <span id="ativ-kpi-ret-prev" class="text-slate-300 font-medium">—</span>
+                <span id="ativ-kpi-ret-badge" class="px-2 py-0.5 rounded-full font-semibold">—</span>
+            </div>
+            <p class="text-[10px] text-slate-600">* Excluindo "sem resposta"</p>
         </div>
     </div>
 
@@ -49,24 +62,96 @@
         Buscando dados...
     </div>
     <div id="ativ-erro" class="hidden text-center py-2 text-sm text-red-400"></div>
+    <div id="ativ-status" class="hidden text-center py-1 text-xs text-slate-500"></div>
 
-    <!-- Tabela Evolução Diária -->
+    <!-- Tabelas lado a lado -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Ativações por dia -->
+        <div class="glass-card overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-700/20">
+                <h3 class="text-sm font-semibold text-slate-300">Ativações por dia</h3>
+            </div>
+            <div class="overflow-x-auto max-h-[420px] overflow-y-auto">
+                <table class="w-full text-sm">
+                    <thead class="sticky top-0 bg-slate-800/90 backdrop-blur">
+                        <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-700/20">
+                            <th class="text-left px-5 py-3">Dia</th>
+                            <th class="text-right px-5 py-3">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ativ-tbl-ativacoes" class="divide-y divide-slate-700/10">
+                        <tr><td colspan="2" class="px-5 py-6 text-center text-slate-600">Selecione o período e clique em Atualizar</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Retornos por status -->
+        <div class="glass-card overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-700/20">
+                <h3 class="text-sm font-semibold text-slate-300">Retornos por status</h3>
+            </div>
+            <div class="overflow-x-auto max-h-[420px] overflow-y-auto">
+                <table class="w-full text-sm">
+                    <thead class="sticky top-0 bg-slate-800/90 backdrop-blur">
+                        <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-700/20">
+                            <th class="text-left px-5 py-3">Retorno</th>
+                            <th class="text-right px-5 py-3">Quantidade</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ativ-tbl-retornos" class="divide-y divide-slate-700/10">
+                        <tr><td colspan="2" class="px-5 py-6 text-center text-slate-600">Selecione o período e clique em Atualizar</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comparativo de Períodos -->
     <div class="glass-card overflow-hidden">
         <div class="px-5 py-3 border-b border-slate-700/20">
-            <h3 class="text-sm font-semibold text-slate-300">Evolução Diária</h3>
+            <h3 class="text-sm font-semibold text-slate-300">Comparativo de Períodos</h3>
         </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-700/20">
-                        <th class="text-left px-5 py-3">Data</th>
-                        <th class="text-left px-5 py-3">Total IDs</th>
-                    </tr>
-                </thead>
-                <tbody id="ativ-evolucao-body" class="divide-y divide-slate-700/10">
-                    <tr><td colspan="2" class="px-5 py-6 text-center text-slate-600">Selecione o período e clique em Atualizar</td></tr>
-                </tbody>
-            </table>
+        <div class="p-5">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Ativações comparativo -->
+                <div class="bg-blue-500/10 rounded-xl p-6 text-center space-y-4">
+                    <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Ativações</h4>
+                    <div class="flex items-center justify-center gap-8">
+                        <div>
+                            <p id="ativ-cmp-ativ-cur" class="text-3xl font-bold text-blue-400">—</p>
+                            <p class="text-[10px] text-slate-500 mt-1">Atual</p>
+                        </div>
+                        <span class="text-2xl text-slate-600">→</span>
+                        <div>
+                            <p id="ativ-cmp-ativ-prev" class="text-3xl font-bold text-slate-400">—</p>
+                            <p class="text-[10px] text-slate-500 mt-1">Anterior</p>
+                        </div>
+                    </div>
+                    <div class="flex justify-center">
+                        <span id="ativ-cmp-ativ-badge" class="px-3 py-1 rounded-full text-sm font-semibold">—</span>
+                    </div>
+                </div>
+
+                <!-- Retornos comparativo -->
+                <div class="bg-teal-500/10 rounded-xl p-6 text-center space-y-4">
+                    <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Retornos (sem "sem resposta")</h4>
+                    <div class="flex items-center justify-center gap-8">
+                        <div>
+                            <p id="ativ-cmp-ret-cur" class="text-3xl font-bold text-teal-400">—</p>
+                            <p class="text-[10px] text-slate-500 mt-1">Atual</p>
+                        </div>
+                        <span class="text-2xl text-slate-600">→</span>
+                        <div>
+                            <p id="ativ-cmp-ret-prev" class="text-3xl font-bold text-slate-400">—</p>
+                            <p class="text-[10px] text-slate-500 mt-1">Anterior</p>
+                        </div>
+                    </div>
+                    <div class="flex justify-center">
+                        <span id="ativ-cmp-ret-badge" class="px-3 py-1 rounded-full text-sm font-semibold">—</span>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 

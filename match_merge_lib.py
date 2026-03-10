@@ -59,18 +59,38 @@ KOMMO_DB_DSN = dict(
 KOMMO_BASE_URL = os.getenv("KOMMO_BASE_URL", "https://eduitbr.kommo.com")
 KOMMO_TOKEN = os.getenv("KOMMO_TOKEN", "")
 
+ACEITE_STATUS_ID = 48566207
+
 DATACRAZY_API_BASE = "https://api.g1.datacrazy.io/api/v1"
 DATACRAZY_API_TOKEN = os.getenv("DATACRAZY_API_TOKEN", "")
 
 PREPOSICOES = {"de", "da", "do", "dos", "das", "e"}
 
-
-def get_conn():
-    return psycopg2.connect(**DB_DSN)
+EMPRESAS_PERMITIDAS = {"1", "7", "12"}
 
 
-def get_kommo_conn():
-    return psycopg2.connect(**KOMMO_DB_DSN)
+def get_conn(retries=3, base_delay=5):
+    for attempt in range(retries):
+        try:
+            return psycopg2.connect(**DB_DSN, connect_timeout=30)
+        except psycopg2.OperationalError:
+            if attempt == retries - 1:
+                raise
+            wait = base_delay * (2 ** attempt)
+            log.warning("get_conn falhou (tentativa %d/%d), retry em %ds", attempt + 1, retries, wait)
+            time.sleep(wait)
+
+
+def get_kommo_conn(retries=3, base_delay=5):
+    for attempt in range(retries):
+        try:
+            return psycopg2.connect(**KOMMO_DB_DSN, connect_timeout=30)
+        except psycopg2.OperationalError:
+            if attempt == retries - 1:
+                raise
+            wait = base_delay * (2 ** attempt)
+            log.warning("get_kommo_conn falhou (tentativa %d/%d), retry em %ds", attempt + 1, retries, wait)
+            time.sleep(wait)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -448,69 +468,284 @@ def normalizar_situacao_matriculado(situacao_raw):
         return "Matriculado"
     if s.startswith("5") or "cancelado" in s.lower():
         return "Cancelado"
-    return "Transferido"
+    if "trancado" in s.lower() or "transferido" in s.lower():
+        return "Transferido"
+    return s
 
 
 # ════════════════════════════════════════════════════════════════
-#  NORMALIZE ROWS
+#  HEADER-BASED COLUMN MAPPING
 # ════════════════════════════════════════════════════════════════
 
-def normalizar_inscritos(rows, tipo="grad"):
-    """Normalise candidatos inscritos rows (SVREL28 format, 31 columns)."""
+def _build_col_map(header_row):
+    """Build a case-insensitive header-name -> index map."""
+    col_map = {}
+    for idx, val in enumerate(header_row):
+        if val is not None:
+            col_map[str(val).strip().lower()] = idx
+    return col_map
+
+
+def _get_col(col_map, *aliases):
+    """Find column index by trying multiple name aliases (case-insensitive)."""
+    for alias in aliases:
+        key = alias.strip().lower()
+        if key in col_map:
+            return col_map[key]
+    return None
+
+
+def _cell(row, idx):
+    """Safely get cell value by index."""
+    if idx is None or idx >= len(row):
+        return None
+    return row[idx]
+
+
+def limpar_data_flex(val):
+    """Parse date from datetime objects or various string formats."""
+    if val is None:
+        return None
+    from datetime import date as _date
+    if isinstance(val, datetime):
+        return val.date()
+    if isinstance(val, _date):
+        return val
+    s = str(val).strip()
+    if s in ("", "----", "None"):
+        return None
+    for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def limpar_telefone_unico(val):
+    """Clean a single phone number value (no DDD+number split)."""
+    if not val or str(val).strip() in ("", "----"):
+        return None
+    try:
+        return str(int(float(str(val))))
+    except (ValueError, TypeError):
+        digits = re.sub(r"\D", "", str(val))
+        return digits if digits else None
+
+
+_STATUS_INSCRITO_MAP = {
+    "APROVADOS": "Aprovado", "APROVADO": "Aprovado",
+    "MATRICULADO": "Matriculado", "MATRICULADOS": "Matriculado",
+    "REPROVADO": "Reprovado", "REPROVADOS": "Reprovado",
+    "INSCRITO": "Inscrito", "INSCRITOS": "Inscrito",
+    "CANCELADO": "Cancelado", "CANCELADOS": "Cancelado",
+    "DESISTENTE": "Desistente", "DESISTENTES": "Desistente",
+}
+
+
+def _normalizar_status_inscrito(val):
+    """Normalize inscrito status values to consistent casing."""
+    if not val:
+        return None
+    s = str(val).strip()
+    return _STATUS_INSCRITO_MAP.get(s.upper(), s)
+
+
+def _empresa_permitida(val):
+    """Check if the Empresa value prefix is in the allowed set."""
+    if not val:
+        return False
+    s = str(val).strip()
+    prefix = s.split(" - ")[0].strip() if " - " in s else s
+    return prefix in EMPRESAS_PERMITIDAS
+
+
+# ════════════════════════════════════════════════════════════════
+#  NORMALIZE ROWS  (header-aware)
+# ════════════════════════════════════════════════════════════════
+
+def normalizar_inscritos(rows, header=None, tipo="grad"):
+    """Normalise candidatos inscritos rows using header-based column mapping."""
+    if not header:
+        log.error("normalizar_inscritos: header obrigatório para mapeamento de colunas")
+        return []
+
+    cm = _build_col_map(header)
+
+    i_nome      = _get_col(cm, "nome", "name")
+    i_sexo      = _get_col(cm, "sexo", "sex")
+    i_cpf       = _get_col(cm, "cpf")
+    i_rg        = _get_col(cm, "rg")
+    i_email     = _get_col(cm, "email", "e-mail")
+    i_celular   = _get_col(cm, "celular", "fone celular", "telefone")
+    i_inscricao = _get_col(cm, "inscrição", "inscricao", "código inscrição")
+    i_modalidade = _get_col(cm, "modalidade")
+    i_curso     = _get_col(cm, "curso")
+    i_instituicao = _get_col(cm, "instituição", "instituicao")
+    i_polo      = _get_col(cm, "polo")
+    i_status    = _get_col(cm, "status", "situação", "situacao")
+    i_data_inscr = _get_col(cm, "data inscrição", "data inscricao")
+    i_data_aprov = _get_col(cm, "data aprovação", "data aprovacao")
+    i_ciclo     = _get_col(cm, "ciclo vestibular", "ciclo")
+    i_regional  = _get_col(cm, "regional")
+    i_empresa   = _get_col(cm, "empresa")
+    i_arquivo   = _get_col(cm, "arquivo_origem")
+
+    log.info("Col-map inscritos: nome=%s cpf=%s curso=%s polo=%s status=%s empresa=%s",
+             i_nome, i_cpf, i_curso, i_polo, i_status, i_empresa)
+
     dados = []
+    skipped = 0
     for row in rows:
-        r = list(row) + [None] * (31 - len(row))
-        curso_raw = r[8]
-        polo_raw = r[9]
+        if i_empresa is not None and not _empresa_permitida(_cell(row, i_empresa)):
+            skipped += 1
+            continue
+        curso_raw = _cell(row, i_curso)
+        polo_raw  = _cell(row, i_polo)
         polo_curto, marca = normalizar_polo_procvs(polo_raw)
+        if not marca:
+            inst = _cell(row, i_instituicao)
+            if inst:
+                marca = str(inst).strip()
+
         chave = construir_chave_preco(curso_raw)
         info_preco = get_precos().get(chave.upper(), {}) if chave else {}
-        situacao_final = calcular_situacao_final(r[26], r[24])
+
+        status_raw  = limpar_valor(_cell(row, i_status))
+        status_norm = _normalizar_status_inscrito(status_raw)
+
+        modalidade_val = limpar_valor(_cell(row, i_modalidade))
+        if not modalidade_val or modalidade_val.upper() in ("SEM INFORMAÇÃO", "SEM INFORMACAO"):
+            modalidade_val = detectar_modalidade(curso_raw)
 
         dados.append((
-            tipo, limpar_valor(r[1]), limpar_valor(r[2]), limpar_valor(r[3]),
-            limpar_nome(r[4]), limpar_valor(r[5]), limpar_cpf(r[6]),
-            limpar_valor(r[7]), limpar_valor(curso_raw), limpar_curso(curso_raw),
-            detectar_grau(curso_raw), detectar_modalidade(curso_raw),
-            limpar_valor(polo_raw), polo_curto, marca,
-            limpar_data(r[10]), limpar_data(r[11]),
-            limpar_telefone(r[14], r[15]), limpar_telefone(r[12], r[13]),
-            limpar_telefone(r[16], r[17]),
-            limpar_valor(r[18]), limpar_cep(r[19]),
-            limpar_valor(r[20]), limpar_valor(r[21]),
-            limpar_valor(r[22]), limpar_valor(r[23]),
-            limpar_valor(r[24]), limpar_valor(r[25]),
-            limpar_valor(r[26]), situacao_final,
-            limpar_valor(r[27]), limpar_valor(r[28]),
-            limpar_valor(r[29]), chave,
-            info_preco.get("preco"), info_preco.get("area"),
-            info_preco.get("semestres"),
-            limpar_valor(r[30]) if len(r) > 30 else None,
+            tipo,                                            # tipo
+            status_norm,                                     # status
+            None,                                            # dt_pag_insc
+            limpar_valor(_cell(row, i_inscricao)),           # inscricao
+            limpar_nome(_cell(row, i_nome)),                 # nome
+            limpar_valor(_cell(row, i_sexo)),                # sexo
+            limpar_cpf(_cell(row, i_cpf)),                   # cpf
+            limpar_valor(_cell(row, i_rg)),                  # rg
+            limpar_valor(curso_raw),                         # curso_raw
+            limpar_curso(curso_raw),                         # curso_limpo
+            detectar_grau(curso_raw),                        # grau_curso
+            modalidade_val,                                  # modalidade
+            limpar_valor(polo_raw),                          # polo_raw
+            polo_curto,                                      # polo_normalizado
+            marca,                                           # marca_instituicao
+            limpar_data_flex(_cell(row, i_data_inscr)),      # data_inscr
+            limpar_data_flex(_cell(row, i_data_aprov)),      # data_prova
+            limpar_telefone_unico(_cell(row, i_celular)),    # telefone
+            None,                                            # telefone_res
+            None,                                            # telefone_com
+            limpar_valor(_cell(row, i_email)),               # email
+            None,                                            # cep
+            None,                                            # endereco
+            None,                                            # bairro
+            None,                                            # cidade
+            limpar_valor(_cell(row, i_regional)),            # estado
+            None,                                            # data_pagamento
+            None,                                            # data_matricula
+            status_raw,                                      # situacao_raw
+            status_norm,                                     # situacao_final
+            None,                                            # observacao
+            None,                                            # captador
+            limpar_valor(_cell(row, i_ciclo)),               # trimestre_ingresso
+            chave,                                           # chave_preco
+            info_preco.get("preco"),                         # preco_balcao
+            info_preco.get("area"),                          # area_curso
+            info_preco.get("semestres"),                     # semestres
+            limpar_valor(_cell(row, i_arquivo)),             # arquivo_origem
         ))
+    if skipped:
+        log.info("Inscritos filtrados por Empresa: %d excluídos, %d mantidos", skipped, len(dados))
     return dados
 
 
-def normalizar_matriculados(rows, tipo="grad"):
-    """Normalise matriculados rows (WACDREL19 format, 25 columns)."""
+def normalizar_matriculados(rows, header=None, tipo="grad"):
+    """Normalise matriculados rows using header-based column mapping."""
+    if not header:
+        log.error("normalizar_matriculados: header obrigatório para mapeamento de colunas")
+        return []
+
+    cm = _build_col_map(header)
+
+    i_ciclo     = _get_col(cm, "ciclo")
+    i_nome      = _get_col(cm, "nome", "name")
+    i_cpf       = _get_col(cm, "cpf")
+    i_rgm       = _get_col(cm, "rgm")
+    i_rg        = _get_col(cm, "rg")
+    i_sexo      = _get_col(cm, "sexo", "sex")
+    i_curso     = _get_col(cm, "curso")
+    i_instituicao = _get_col(cm, "instituição", "instituicao")
+    i_empresa   = _get_col(cm, "empresa")
+    i_polo      = _get_col(cm, "polo")
+    i_negocio   = _get_col(cm, "negócio", "negocio")
+    i_serie     = _get_col(cm, "série", "serie")
+    i_data_nasc = _get_col(cm, "data nascimento")
+    i_tipo_mat  = _get_col(cm, "tipo matrícula", "tipo matricula")
+    i_data_mat  = _get_col(cm, "data matrícula", "data matricula")
+    i_situacao  = _get_col(cm, "situação matrícula", "situacao matricula",
+                           "situação", "situacao")
+    i_fone_res  = _get_col(cm, "fone residencial")
+    i_fone_com  = _get_col(cm, "fone comercial")
+    i_fone_cel  = _get_col(cm, "fone celular", "celular")
+    i_email     = _get_col(cm, "email", "e-mail")
+    i_email_ad  = _get_col(cm, "email acadêmico", "email academico")
+    i_endereco  = _get_col(cm, "endereço", "endereco")
+    i_bairro    = _get_col(cm, "bairro")
+    i_cidade    = _get_col(cm, "cidade")
+    i_arquivo   = _get_col(cm, "arquivo_origem")
+
+    log.info("Col-map matriculados: nome=%s cpf=%s curso=%s polo=%s sit=%s tipo_mat=%s empresa=%s",
+             i_nome, i_cpf, i_curso, i_polo, i_situacao, i_tipo_mat, i_empresa)
+
     dados = []
+    skipped = 0
     for row in rows:
-        r = list(row) + [None] * (25 - len(row))
-        situacao_norm = normalizar_situacao_matriculado(r[15])
+        if i_empresa is not None and not _empresa_permitida(_cell(row, i_empresa)):
+            skipped += 1
+            continue
+        curso_raw    = _cell(row, i_curso)
+        situacao_raw = limpar_valor(_cell(row, i_situacao))
+        situacao_norm = normalizar_situacao_matriculado(situacao_raw)
+
+        dn = limpar_data_flex(_cell(row, i_data_nasc))
+        dm = limpar_data_flex(_cell(row, i_data_mat))
+
         dados.append((
-            tipo, limpar_nome(r[0]), limpar_cpf(r[1]), limpar_rgm(r[2]),
-            limpar_valor(r[3]), limpar_valor(r[4]), limpar_valor(r[5]),
-            limpar_valor(r[6]), limpar_valor(r[7]), limpar_valor(r[8]),
-            limpar_valor(r[9]), limpar_curso(r[9]),
-            limpar_valor(r[10]), limpar_valor(r[11]),
-            limpar_valor(r[12]), limpar_valor(r[13]),
-            limpar_valor(r[14]), limpar_valor(r[15]), situacao_norm,
-            limpar_valor(r[16]), limpar_valor(r[17]),
-            limpar_valor(r[18]), limpar_valor(r[19]),
-            limpar_valor(r[20]),
-            limpar_valor(r[21]), limpar_valor(r[22]),
-            limpar_valor(r[23]),
-            limpar_valor(r[24]) if len(r) > 24 else None,
+            tipo,                                            # tipo
+            limpar_nome(_cell(row, i_nome)),                 # nome
+            limpar_cpf(_cell(row, i_cpf)),                   # cpf
+            limpar_rgm(_cell(row, i_rgm)),                   # rgm
+            limpar_valor(_cell(row, i_rg)),                  # rg
+            limpar_valor(_cell(row, i_sexo)),                # sexo
+            str(dn) if dn else None,                         # data_nasc
+            limpar_valor(_cell(row, i_instituicao)),         # polo_captador
+            limpar_valor(_cell(row, i_negocio)),             # tipo_polo
+            limpar_valor(_cell(row, i_polo)),                # polo_aulas
+            limpar_valor(curso_raw),                         # curso_raw
+            limpar_curso(curso_raw),                         # curso_limpo
+            None,                                            # prouni
+            limpar_valor(_cell(row, i_serie)),               # serie
+            str(dm) if dm else None,                         # data_matricula
+            limpar_valor(_cell(row, i_ciclo)),               # ano_tri_ingresso
+            limpar_valor(_cell(row, i_tipo_mat)),            # tipo_matricula
+            situacao_raw,                                    # situacao_raw
+            situacao_norm,                                   # situacao
+            limpar_telefone_unico(_cell(row, i_fone_res)),   # fone_res
+            limpar_telefone_unico(_cell(row, i_fone_com)),   # fone_com
+            limpar_telefone_unico(_cell(row, i_fone_cel)),   # fone_cel
+            limpar_valor(_cell(row, i_email)),               # email
+            limpar_valor(_cell(row, i_email_ad)),            # email_ad
+            limpar_valor(_cell(row, i_endereco)),            # endereco
+            limpar_valor(_cell(row, i_bairro)),              # bairro
+            limpar_valor(_cell(row, i_cidade)),              # cidade
+            limpar_valor(_cell(row, i_arquivo)),             # arquivo_origem
         ))
+    if skipped:
+        log.info("Matriculados filtrados por Empresa: %d excluídos, %d mantidos", skipped, len(dados))
     return dados
 
 
@@ -645,7 +880,8 @@ def cruzar():
     cur.execute("""
         SELECT id, cpf, curso_limpo, nome, situacao_final, tipo
         FROM mm_inscritos
-        WHERE situacao_raw = 'Matriculado' AND cpf IS NOT NULL
+        WHERE UPPER(COALESCE(situacao_final,'')) IN ('MATRICULADO')
+          AND cpf IS NOT NULL
     """)
     inscritos = cur.fetchall()
     log.info("Inscritos com situação Matriculado: %d", len(inscritos))
@@ -653,7 +889,11 @@ def cruzar():
     cur.execute("""
         SELECT id, cpf, curso_limpo, rgm, situacao, data_matricula, nome
         FROM mm_matriculados
-        WHERE UPPER(tipo_matricula) = 'INGRESSANTE' AND cpf IS NOT NULL
+        WHERE cpf IS NOT NULL
+          AND UPPER(COALESCE(tipo_matricula,'')) IN (
+              'INGRESSANTE', 'NOVA MATRICULA', 'NOVA MATRÍCULA',
+              'RETORNO', 'RECOMPRA'
+          )
     """)
     mat_rows = cur.fetchall()
     log.info("Matriculados ingressantes: %d", len(mat_rows))
@@ -728,38 +968,50 @@ _MM_INSCRITOS_COLS_FOR_MATCH = [
     "id", "nome", "cpf", "telefone", "inscricao", "curso_raw", "curso_limpo",
     "situacao_raw", "situacao_final", "polo_normalizado", "email",
     "data_inscr", "marca_instituicao", "modalidade", "grau_curso",
+    "chave_preco", "preco_balcao", "semestres",
 ]
 
 COMPARE_SQL = """
-WITH leads_ativos AS (
-    SELECT id AS lead_id FROM leads WHERE status_id != 142
-),
+WITH
 kommo_cpf AS (
     SELECT lcf.lead_id,
-           regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g') AS cpf
+           LPAD(regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g'), 11, '0') AS cpf
     FROM lead_custom_field_values lcf
-    JOIN leads_ativos la ON la.lead_id = lcf.lead_id
+    JOIN leads l ON l.id = lcf.lead_id
     WHERE lcf.field_name = 'CPF'
-      AND lcf.values_json->0->>'value' IS NOT NULL
-      AND lcf.values_json->0->>'value' != ''
+      AND length(regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g')) >= 11
+    UNION ALL
+    SELECT l.id AS lead_id,
+           LPAD(regexp_replace(elem->>'value', '[^0-9]', '', 'g'), 11, '0') AS cpf
+    FROM leads l
+    CROSS JOIN LATERAL jsonb_array_elements(l.custom_fields_json) AS cf
+    CROSS JOIN LATERAL jsonb_array_elements(cf->'values') AS elem
+    WHERE cf->>'field_name' = 'CPF'
+      AND length(regexp_replace(elem->>'value', '[^0-9]', '', 'g')) >= 11
+      AND NOT EXISTS (
+          SELECT 1 FROM lead_custom_field_values lcf2
+          WHERE lcf2.lead_id = l.id AND lcf2.field_name = 'CPF'
+      )
 ),
 kommo_telefone AS (
-    SELECT lcf.lead_id,
-           regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g') AS telefone
+    SELECT DISTINCT lcf.lead_id,
+           RIGHT(regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g'), 11) AS telefone
     FROM lead_custom_field_values lcf
-    JOIN leads_ativos la ON la.lead_id = lcf.lead_id
-    WHERE lcf.field_name = 'Telefone Inscricao'
-      AND lcf.values_json->0->>'value' IS NOT NULL
-      AND lcf.values_json->0->>'value' != ''
-),
-kommo_curso AS (
-    SELECT lcf.lead_id,
-           LOWER(lcf.values_json->0->>'value') AS curso_siaa
-    FROM lead_custom_field_values lcf
-    JOIN leads_ativos la ON la.lead_id = lcf.lead_id
-    WHERE lcf.field_name = 'Curso_SIAA'
-      AND lcf.values_json->0->>'value' IS NOT NULL
-      AND lcf.values_json->0->>'value' != ''
+    JOIN leads l ON l.id = lcf.lead_id
+    WHERE lcf.field_name IN ('Telefone Comercial', 'Telefone Inscricao')
+      AND length(regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g')) >= 10
+    UNION ALL
+    SELECT DISTINCT l.id AS lead_id,
+           RIGHT(regexp_replace(elem->>'value', '[^0-9]', '', 'g'), 11) AS telefone
+    FROM leads l
+    CROSS JOIN LATERAL jsonb_array_elements(l.custom_fields_json) AS cf
+    CROSS JOIN LATERAL jsonb_array_elements(cf->'values') AS elem
+    WHERE cf->>'field_name' IN ('Telefone Comercial', 'Telefone Inscricao')
+      AND length(regexp_replace(elem->>'value', '[^0-9]', '', 'g')) >= 10
+      AND NOT EXISTS (
+          SELECT 1 FROM lead_custom_field_values lcf2
+          WHERE lcf2.lead_id = l.id AND lcf2.field_name IN ('Telefone Comercial', 'Telefone Inscricao')
+      )
 ),
 kommo_situacao AS (
     SELECT lcf.lead_id,
@@ -767,70 +1019,87 @@ kommo_situacao AS (
     FROM lead_custom_field_values lcf
     WHERE lcf.field_name = 'Situação'
       AND lcf.values_json->0->>'value' IS NOT NULL
-),
-match_cpf_curso AS (
-    SELECT DISTINCT ON (s.id)
-        s.id AS siaa_id, kc.lead_id, 'cpf+curso' AS match_tipo
-    FROM _tmp_mm_inscritos s
-    JOIN kommo_cpf kc ON s.cpf IS NOT NULL AND kc.cpf = s.cpf
-    JOIN kommo_curso kcur ON kcur.lead_id = kc.lead_id
-        AND s.curso_limpo IS NOT NULL
-        AND kcur.curso_siaa = LOWER(s.curso_limpo)
-    ORDER BY s.id, kc.lead_id
+    UNION ALL
+    SELECT l.id AS lead_id,
+           elem->>'value' AS situacao_kommo
+    FROM leads l
+    CROSS JOIN LATERAL jsonb_array_elements(l.custom_fields_json) AS cf
+    CROSS JOIN LATERAL jsonb_array_elements(cf->'values') AS elem
+    WHERE cf->>'field_name' = 'Situação'
+      AND elem->>'value' IS NOT NULL
+      AND NOT EXISTS (
+          SELECT 1 FROM lead_custom_field_values lcf2
+          WHERE lcf2.lead_id = l.id AND lcf2.field_name = 'Situação'
+      )
 ),
 match_cpf AS (
     SELECT DISTINCT ON (s.id)
         s.id AS siaa_id, kc.lead_id, 'cpf' AS match_tipo
     FROM _tmp_mm_inscritos s
     JOIN kommo_cpf kc ON s.cpf IS NOT NULL AND kc.cpf = s.cpf
-    LEFT JOIN kommo_curso kcur ON kcur.lead_id = kc.lead_id
-    WHERE kcur.lead_id IS NULL
-      AND s.id NOT IN (SELECT siaa_id FROM match_cpf_curso)
-    ORDER BY s.id, kc.lead_id
+    JOIN leads l2 ON l2.id = kc.lead_id
+    ORDER BY s.id,
+             CASE WHEN l2.status_id NOT IN (142, 143) THEN 0 ELSE 1 END,
+             kc.lead_id
 ),
-match_tel_curso AS (
+match_telefone AS (
     SELECT DISTINCT ON (s.id)
-        s.id AS siaa_id, kt.lead_id, 'tel+curso' AS match_tipo
+        s.id AS siaa_id, kt.lead_id, 'telefone' AS match_tipo
     FROM _tmp_mm_inscritos s
-    JOIN kommo_telefone kt ON s.telefone IS NOT NULL AND kt.telefone = s.telefone
-    JOIN kommo_curso kcur ON kcur.lead_id = kt.lead_id
-        AND s.curso_limpo IS NOT NULL
-        AND kcur.curso_siaa = LOWER(s.curso_limpo)
-    WHERE s.id NOT IN (SELECT siaa_id FROM match_cpf_curso)
-      AND s.id NOT IN (SELECT siaa_id FROM match_cpf)
-    ORDER BY s.id, kt.lead_id
-),
-match_tel AS (
-    SELECT DISTINCT ON (s.id)
-        s.id AS siaa_id, kt.lead_id, 'tel' AS match_tipo
-    FROM _tmp_mm_inscritos s
-    JOIN kommo_telefone kt ON s.telefone IS NOT NULL AND kt.telefone = s.telefone
-    LEFT JOIN kommo_curso kcur ON kcur.lead_id = kt.lead_id
-    WHERE kcur.lead_id IS NULL
-      AND s.id NOT IN (SELECT siaa_id FROM match_cpf_curso)
-      AND s.id NOT IN (SELECT siaa_id FROM match_cpf)
-      AND s.id NOT IN (SELECT siaa_id FROM match_tel_curso)
-    ORDER BY s.id, kt.lead_id
+    JOIN kommo_telefone kt ON s.telefone IS NOT NULL
+        AND RIGHT(s.telefone, 11) = kt.telefone
+    JOIN leads l2 ON l2.id = kt.lead_id
+    WHERE s.id NOT IN (SELECT siaa_id FROM match_cpf)
+    ORDER BY s.id,
+             CASE WHEN l2.status_id NOT IN (142, 143) THEN 0 ELSE 1 END,
+             kt.lead_id
 ),
 all_matches AS (
-    SELECT * FROM match_cpf_curso
-    UNION ALL SELECT * FROM match_cpf
-    UNION ALL SELECT * FROM match_tel_curso
-    UNION ALL SELECT * FROM match_tel
+    SELECT * FROM match_cpf
+    UNION ALL SELECT * FROM match_telefone
+),
+ganho_por_cpf AS (
+    SELECT DISTINCT ON (kc.cpf)
+        kc.cpf, kc.lead_id AS ganho_lead_id, l.closed_at AS ganho_closed_at
+    FROM kommo_cpf kc
+    JOIN leads l ON l.id = kc.lead_id AND l.status_id = 142
+    ORDER BY kc.cpf, l.closed_at DESC NULLS LAST
+),
+duplicados_cpf AS (
+    SELECT kc.cpf,
+           array_agg(DISTINCT kc.lead_id ORDER BY kc.lead_id) AS all_lead_ids,
+           COUNT(DISTINCT kc.lead_id) AS n_leads
+    FROM kommo_cpf kc
+    GROUP BY kc.cpf
+    HAVING COUNT(DISTINCT kc.lead_id) > 1
 )
 SELECT
     s.id AS siaa_id, s.nome, s.cpf, s.telefone, s.inscricao,
-    s.curso_raw, s.curso_limpo, s.situacao_raw AS siaa_situacao,
-    s.situacao_final, s.polo_normalizado, s.email,
+    s.curso_raw, s.curso_limpo, s.situacao_final AS siaa_situacao,
+    s.polo_normalizado, s.email,
     s.data_inscr, s.marca_instituicao, s.modalidade, s.grau_curso,
+    s.chave_preco, s.preco_balcao, s.semestres,
     m.lead_id AS lead_id_match, m.match_tipo,
     ks.situacao_kommo,
     l.name AS lead_name,
-    CASE WHEN m.lead_id IS NOT NULL THEN TRUE ELSE FALSE END AS tem_match
+    l.status_id AS lead_status_id,
+    ps.name AS lead_fase,
+    l.pipeline_id AS lead_pipeline_id,
+    CASE WHEN m.lead_id IS NOT NULL THEN TRUE ELSE FALSE END AS tem_match,
+    CASE WHEN m.lead_id IS NOT NULL AND l.status_id IN (142, 143) THEN TRUE ELSE FALSE END AS lead_fechado,
+    gc.ganho_lead_id,
+    CASE WHEN l.closed_at IS NOT NULL
+         THEN to_char(to_timestamp(l.closed_at), 'YYYY-MM-DD')
+         ELSE NULL END AS lead_closed_date,
+    dc.all_lead_ids AS dup_lead_ids,
+    dc.n_leads AS dup_count
 FROM _tmp_mm_inscritos s
 LEFT JOIN all_matches m ON m.siaa_id = s.id
 LEFT JOIN kommo_situacao ks ON ks.lead_id = m.lead_id
 LEFT JOIN leads l ON l.id = m.lead_id
+LEFT JOIN pipeline_statuses ps ON ps.id = l.status_id
+LEFT JOIN ganho_por_cpf gc ON gc.cpf = s.cpf
+LEFT JOIN duplicados_cpf dc ON dc.cpf = s.cpf
 ORDER BY s.id;
 """
 
@@ -850,9 +1119,74 @@ CREATE TEMP TABLE _tmp_mm_inscritos (
     data_inscr      TEXT,
     marca_instituicao TEXT,
     modalidade      TEXT,
-    grau_curso      TEXT
+    grau_curso      TEXT,
+    chave_preco     TEXT,
+    preco_balcao    TEXT,
+    semestres       TEXT
 ) ON COMMIT DROP;
 """
+
+
+COMPARE_SQL_MATRICULADOS = """
+WITH kommo_rgm AS (
+    SELECT lcf.lead_id,
+           regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g') AS rgm
+    FROM lead_custom_field_values lcf
+    JOIN leads l ON l.id = lcf.lead_id AND l.status_id NOT IN (142, 143)
+    WHERE lcf.field_name = 'RGM'
+      AND lcf.values_json->0->>'value' IS NOT NULL
+      AND lcf.values_json->0->>'value' != ''
+),
+kommo_situacao AS (
+    SELECT lcf.lead_id,
+           lcf.values_json->0->>'value' AS situacao_kommo
+    FROM lead_custom_field_values lcf
+    WHERE lcf.field_name = 'Situação'
+      AND lcf.values_json->0->>'value' IS NOT NULL
+),
+match_rgm AS (
+    SELECT DISTINCT ON (s.id)
+        s.id AS mat_id, kr.lead_id, 'rgm' AS match_tipo
+    FROM _tmp_mm_matriculados s
+    JOIN kommo_rgm kr ON s.rgm IS NOT NULL AND kr.rgm = s.rgm
+    ORDER BY s.id, kr.lead_id
+)
+SELECT
+    s.id AS mat_id, s.nome, s.cpf, s.rgm,
+    s.curso_raw, s.curso_limpo,
+    s.situacao AS mat_situacao,
+    s.polo_aulas, s.data_matricula, s.tipo_matricula,
+    m.lead_id AS lead_id_match, m.match_tipo,
+    ks.situacao_kommo,
+    l.name AS lead_name, l.status_id,
+    CASE WHEN m.lead_id IS NOT NULL THEN TRUE ELSE FALSE END AS tem_match
+FROM _tmp_mm_matriculados s
+LEFT JOIN match_rgm m ON m.mat_id = s.id
+LEFT JOIN kommo_situacao ks ON ks.lead_id = m.lead_id
+LEFT JOIN leads l ON l.id = m.lead_id
+ORDER BY s.id;
+"""
+
+_TMP_TABLE_MATRICULADOS_DDL = """
+CREATE TEMP TABLE _tmp_mm_matriculados (
+    id              INTEGER PRIMARY KEY,
+    nome            TEXT,
+    cpf             TEXT,
+    rgm             TEXT,
+    curso_raw       TEXT,
+    curso_limpo     TEXT,
+    situacao_raw    TEXT,
+    situacao        TEXT,
+    polo_aulas      TEXT,
+    data_matricula  TEXT,
+    tipo_matricula  TEXT
+) ON COMMIT DROP;
+"""
+
+_MM_MATRICULADOS_COLS_FOR_MATCH = [
+    "id", "nome", "cpf", "rgm", "curso_raw", "curso_limpo",
+    "situacao_raw", "situacao", "polo_aulas", "data_matricula", "tipo_matricula",
+]
 
 
 def match_kommo():
@@ -867,6 +1201,7 @@ def match_kommo():
 
     if not inscritos_rows:
         return {"total": 0, "com_match": 0, "sem_match": 0,
+                "lead_fechado": 0,
                 "tipos": {}, "divergencias": {}, "detalhes": []}
 
     kommo = get_kommo_conn()
@@ -892,6 +1227,7 @@ def match_kommo():
     total = len(rows)
     com_match = sum(1 for r in rows if r[cols.index("tem_match")])
     sem_match = total - com_match
+    n_lead_fechado = sum(1 for r in rows if r[cols.index("lead_fechado")])
 
     tipos = {}
     for r in rows:
@@ -900,9 +1236,11 @@ def match_kommo():
             tipos[tipo] = tipos.get(tipo, 0) + 1
 
     divergencias = {"atualizar_matriculado": 0, "atualizar_aprovado": 0,
-                    "ok": 0, "sem_situacao_kommo": 0}
+                    "ok": 0, "sem_situacao_kommo": 0, "lead_fechado": n_lead_fechado}
     for r in rows:
         if not r[cols.index("tem_match")]:
+            continue
+        if r[cols.index("lead_fechado")]:
             continue
         siaa_sit = r[cols.index("siaa_situacao")]
         kommo_sit = r[cols.index("situacao_kommo")]
@@ -915,15 +1253,74 @@ def match_kommo():
         else:
             divergencias["ok"] += 1
 
-    log.info("Match SIAA×Kommo: total=%d, match=%d, sem=%d", total, com_match, sem_match)
+    log.info("Match Inscritos x Kommo: total=%d, match=%d, sem=%d, fechado=%d",
+             total, com_match, sem_match, n_lead_fechado)
     log.info("  Tipos: %s", tipos)
-    log.info("  Divergências: %s", divergencias)
+    log.info("  Divergencias: %s", divergencias)
 
     detalhes = [dict(zip(cols, r)) for r in rows]
 
     return {
         "total": total, "com_match": com_match, "sem_match": sem_match,
+        "lead_fechado": n_lead_fechado,
         "tipos": tipos, "divergencias": divergencias, "detalhes": detalhes,
+    }
+
+
+def match_matriculados_kommo():
+    """Compare mm_matriculados (dcz_sync) with Kommo leads by RGM (kommo_sync)."""
+    dcz = get_conn()
+    dcz_cur = dcz.cursor()
+    cols_sql = ", ".join(_MM_MATRICULADOS_COLS_FOR_MATCH)
+    dcz_cur.execute(f"""
+        SELECT {cols_sql} FROM mm_matriculados
+        WHERE rgm IS NOT NULL AND rgm != ''
+          AND UPPER(COALESCE(situacao,'')) = 'MATRICULADO'
+    """)
+    mat_rows = dcz_cur.fetchall()
+    dcz_cur.close()
+    dcz.close()
+
+    if not mat_rows:
+        return {"total": 0, "com_match": 0, "sem_match": 0,
+                "tipos": {}, "detalhes": []}
+
+    kommo = get_kommo_conn()
+    kommo.autocommit = False
+    kcur = kommo.cursor()
+    kcur.execute(_TMP_TABLE_MATRICULADOS_DDL)
+
+    execute_values(
+        kcur,
+        f"INSERT INTO _tmp_mm_matriculados ({cols_sql}) VALUES %s",
+        mat_rows,
+    )
+
+    kcur.execute(COMPARE_SQL_MATRICULADOS)
+    cols = [desc[0] for desc in kcur.description]
+    rows = kcur.fetchall()
+    kommo.rollback()
+    kcur.close()
+    kommo.close()
+
+    total = len(rows)
+    com_match = sum(1 for r in rows if r[cols.index("tem_match")])
+    sem_match = total - com_match
+
+    tipos = {}
+    for r in rows:
+        tipo = r[cols.index("match_tipo")]
+        if tipo:
+            tipos[tipo] = tipos.get(tipo, 0) + 1
+
+    log.info("Match Matriculados x Kommo (RGM): total=%d, match=%d, sem=%d",
+             total, com_match, sem_match)
+
+    detalhes = [dict(zip(cols, r)) for r in rows]
+
+    return {
+        "total": total, "com_match": com_match, "sem_match": sem_match,
+        "tipos": tipos, "detalhes": detalhes,
     }
 
 
@@ -931,73 +1328,130 @@ def match_kommo():
 #  ACTION GENERATION
 # ════════════════════════════════════════════════════════════════
 
-def gerar_acoes(match_result):
-    """Generate actions from match results."""
+def gerar_acoes(inscritos_match, matriculados_match=None):
+    """Generate actions from inscritos + matriculados match results.
+
+    Action types:
+      NOVO          - inscrito sem match no CRM -> criar lead
+      ATUALIZAR     - inscrito com match, lead precisa dados da inscricao
+      MOVER_PERDIDO - lead ativo duplicado (ja tem ganho) fora do Aceite -> fechar
+      RESTAURAR     - lead perdido cuja inscricao SIAA e mais nova -> reativar
+      MATRICULADO   - matriculado com match por RGM -> mover para ganho
+    """
     acoes = []
-    for row in match_result["detalhes"]:
+
+    n_ja_existe = 0
+    n_mover_perdido = 0
+    n_restaurar = 0
+    for row in inscritos_match.get("detalhes", []):
         lead_id = row.get("lead_id_match")
+        lead_fechado = row.get("lead_fechado", False)
+        lead_status_id = row.get("lead_status_id")
         siaa_sit = row.get("siaa_situacao")
         kommo_sit = row.get("situacao_kommo")
+        ganho_lead_id = row.get("ganho_lead_id")
+        lead_closed_date = row.get("lead_closed_date")
+        data_inscr = str(row.get("data_inscr") or "")
+
+        base = {
+            "siaa_id": row["siaa_id"],
+            "nome": row["nome"],
+            "cpf": row["cpf"],
+            "curso_siaa": row.get("curso_limpo"),
+            "polo": row.get("polo_normalizado"),
+            "situacao_siaa": siaa_sit,
+            "situacao_kommo": kommo_sit,
+            "match_tipo": row.get("match_tipo"),
+            "telefone": row.get("telefone"),
+            "email": row.get("email"),
+            "marca": row.get("marca_instituicao"),
+            "inscricao": row.get("inscricao"),
+            "modalidade": row.get("modalidade"),
+            "grau": row.get("grau_curso"),
+            "data_inscr": data_inscr,
+            "lead_fase": row.get("lead_fase") or "",
+            "lead_pipeline_id": row.get("lead_pipeline_id"),
+            "chave_siaa": row.get("chave_preco") or "",
+            "preco_siaa": row.get("preco_balcao") or "",
+            "duracao_siaa": row.get("semestres") or "",
+            "email_academico": row.get("email") or "",
+            "origem": "SIAA",
+        }
+
+        if lead_id and lead_fechado:
+            if lead_status_id == 143 and data_inscr and lead_closed_date and data_inscr > lead_closed_date:
+                n_restaurar += 1
+                acoes.append({**base, "acao": "RESTAURAR", "lead_id": lead_id})
+            else:
+                n_ja_existe += 1
+            continue
 
         if lead_id:
-            if siaa_sit == "Matriculado" and kommo_sit != "Matriculado":
-                acoes.append({
-                    "acao": "MATRICULADO",
-                    "lead_id": lead_id,
-                    "siaa_id": row["siaa_id"],
-                    "nome": row["nome"],
-                    "cpf": row["cpf"],
-                    "curso_siaa": row["curso_limpo"],
-                    "polo": row["polo_normalizado"],
-                    "situacao_siaa": siaa_sit,
-                    "situacao_kommo": kommo_sit,
-                    "match_tipo": row["match_tipo"],
-                    "telefone": row.get("telefone"),
-                    "email": row.get("email"),
-                    "marca": row.get("marca_instituicao"),
-                    "inscricao": row.get("inscricao"),
-                })
-            elif siaa_sit == "Aprovado" and kommo_sit not in ("Aprovado", "Matriculado"):
-                acoes.append({
-                    "acao": "APROVADO",
-                    "lead_id": lead_id,
-                    "siaa_id": row["siaa_id"],
-                    "nome": row["nome"],
-                    "cpf": row["cpf"],
-                    "curso_siaa": row["curso_limpo"],
-                    "polo": row["polo_normalizado"],
-                    "situacao_siaa": siaa_sit,
-                    "situacao_kommo": kommo_sit,
-                    "match_tipo": row["match_tipo"],
-                    "telefone": row.get("telefone"),
-                    "email": row.get("email"),
-                    "marca": row.get("marca_instituicao"),
-                    "inscricao": row.get("inscricao"),
-                })
+            if ganho_lead_id and lead_status_id != ACEITE_STATUS_ID:
+                n_mover_perdido += 1
+                acoes.append({**base, "acao": "MOVER_PERDIDO", "lead_id": lead_id})
+            else:
+                needs_update = (
+                    kommo_sit is None
+                    or kommo_sit == ""
+                    or kommo_sit != siaa_sit
+                )
+                if needs_update:
+                    acoes.append({**base, "acao": "ATUALIZAR", "lead_id": lead_id})
         else:
-            if siaa_sit in ("Aprovado", "Matriculado"):
-                acoes.append({
-                    "acao": "SEM_MATCH",
-                    "lead_id": None,
-                    "siaa_id": row["siaa_id"],
-                    "nome": row["nome"],
-                    "cpf": row["cpf"],
-                    "curso_siaa": row["curso_limpo"],
-                    "polo": row["polo_normalizado"],
-                    "situacao_siaa": siaa_sit,
-                    "situacao_kommo": None,
-                    "match_tipo": None,
-                    "telefone": row.get("telefone"),
-                    "email": row.get("email"),
-                    "marca": row.get("marca_instituicao"),
-                    "inscricao": row.get("inscricao"),
-                })
+            acoes.append({**base, "acao": "NOVO", "lead_id": None})
 
-    log.info("Ações geradas: %d (APROVADO=%d, MATRICULADO=%d, SEM_MATCH=%d)",
-             len(acoes),
-             sum(1 for a in acoes if a["acao"] == "APROVADO"),
-             sum(1 for a in acoes if a["acao"] == "MATRICULADO"),
-             sum(1 for a in acoes if a["acao"] == "SEM_MATCH"))
+    # --- UNIFICAR: 1 acao por CPF com leads duplicados no Kommo ---
+    cpfs_unificar = {}
+    for row in inscritos_match.get("detalhes", []):
+        dup_count = row.get("dup_count")
+        dup_lead_ids = row.get("dup_lead_ids")
+        cpf = row.get("cpf")
+        if dup_count and dup_count > 1 and cpf and cpf not in cpfs_unificar:
+            ids_list = [int(x) for x in (dup_lead_ids if isinstance(dup_lead_ids, list) else list(dup_lead_ids or []))]
+            cpfs_unificar[cpf] = {
+                "acao": "UNIFICAR",
+                "nome": row["nome"],
+                "cpf": cpf,
+                "dup_lead_ids": ids_list,
+                "dup_count": int(dup_count),
+                "lead_id": ids_list[0] if ids_list else None,
+            }
+    for info in cpfs_unificar.values():
+        acoes.append(info)
+
+    if matriculados_match:
+        for row in matriculados_match.get("detalhes", []):
+            lead_id = row.get("lead_id_match")
+            if not lead_id:
+                continue
+            kommo_sit = row.get("situacao_kommo")
+            if kommo_sit == "Matriculado":
+                continue
+            acoes.append({
+                "acao": "MATRICULADO",
+                "lead_id": lead_id,
+                "siaa_id": row.get("mat_id"),
+                "nome": row.get("nome"),
+                "cpf": row.get("cpf"),
+                "rgm": row.get("rgm"),
+                "curso_siaa": row.get("curso_limpo"),
+                "polo": row.get("polo_aulas"),
+                "situacao_siaa": row.get("mat_situacao"),
+                "situacao_kommo": kommo_sit,
+                "match_tipo": row.get("match_tipo"),
+                "data_matricula": str(row.get("data_matricula") or ""),
+                "tipo_matricula": row.get("tipo_matricula"),
+            })
+
+    n_novo = sum(1 for a in acoes if a["acao"] == "NOVO")
+    n_atualizar = sum(1 for a in acoes if a["acao"] == "ATUALIZAR")
+    n_matriculado = sum(1 for a in acoes if a["acao"] == "MATRICULADO")
+    n_unificar = len(cpfs_unificar)
+    log.info("Acoes: %d total (NOVO=%d, ATUALIZAR=%d, MATRICULADO=%d, "
+             "MOVER_PERDIDO=%d, RESTAURAR=%d, UNIFICAR=%d, JA_EXISTE=%d)",
+             len(acoes), n_novo, n_atualizar, n_matriculado,
+             n_mover_perdido, n_restaurar, n_unificar, n_ja_existe)
     return acoes
 
 
@@ -1060,9 +1514,13 @@ class KommoApiClient:
     def patch_lead(self, lead_id, payload):
         return self._request("PATCH", f"/api/v4/leads/{lead_id}", payload)
 
+    def create_lead(self, payload):
+        """POST /api/v4/leads — create one or more leads."""
+        return self._request("POST", "/api/v4/leads", payload)
+
     def get_custom_field_ids(self, field_names):
-        """Lookup numeric field_id for given field names from the database."""
-        conn = get_conn()
+        """Lookup numeric field_id for given field names from the kommo_sync database."""
+        conn = get_kommo_conn()
         cur = conn.cursor()
         placeholders = ",".join(["%s"] * len(field_names))
         cur.execute(f"""
@@ -1076,40 +1534,86 @@ class KommoApiClient:
         return result
 
     def get_pipeline_stages(self):
-        """Load pipeline stages from database."""
-        conn = get_conn()
+        """Load pipeline stages from kommo_sync database."""
+        conn = get_kommo_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("""
-            SELECT ps.id, ps.pipeline_id,
-                   ps.data->>'name' AS nome
-            FROM pipeline_stages ps
-            ORDER BY ps.pipeline_id, (ps.data->>'sort')::int NULLS LAST
+            SELECT id, pipeline_id, name
+            FROM pipeline_statuses
+            ORDER BY pipeline_id, sort NULLS LAST
         """)
         stages = cur.fetchall()
         cur.close()
         conn.close()
         return stages
 
+    def get_or_create_loss_reason(self, name="Duplicado - Já Matriculado"):
+        """Get existing loss reason by name, or create it via Kommo API."""
+        resp = self._request("GET", "/api/v4/leads/loss_reasons")
+        if resp["ok"]:
+            reasons = resp["body"]
+            if isinstance(reasons, dict):
+                reasons = reasons.get("_embedded", {}).get("loss_reasons", [])
+            for r in reasons:
+                if r.get("name", "").strip().lower() == name.strip().lower():
+                    log.info("Loss reason encontrado: %s (id=%s)", name, r["id"])
+                    return r["id"]
+
+        create_resp = self._request("POST", "/api/v4/leads/loss_reasons", [{"name": name}])
+        if create_resp["ok"]:
+            body = create_resp["body"]
+            items = body if isinstance(body, list) else body.get("_embedded", {}).get("loss_reasons", [body])
+            if items:
+                rid = items[0].get("id")
+                log.info("Loss reason criado: %s (id=%s)", name, rid)
+                return rid
+
+        log.warning("Nao conseguiu obter/criar loss reason '%s': %s", name, create_resp)
+        return None
+
 
 # ════════════════════════════════════════════════════════════════
 #  EXECUTE ACTIONS
 # ════════════════════════════════════════════════════════════════
 
+_FIELD_NAMES_FOR_UPDATE = [
+    "Situação", "Curso_SIAA", "Modalidade_SIAA", "Grau_SIAA",
+    "Polo", "Marca", "CPF", "Inscrição", "Telefone Inscricao",
+    "Chave_SIAA", "Email Acadêmico",
+    "Modalidade", "Grau", "Preço_SIAA", "Duração_SIAA",
+]
+
+_FIELD_NAMES_FOR_MATRICULA = [
+    "Situação", "RGM", "Matrícula",
+]
+
+
 def _find_stage_id(stages, name_fragment):
     """Find a pipeline stage by name fragment (case-insensitive)."""
     frag = name_fragment.lower()
     for s in stages:
-        if frag in (s["nome"] or "").lower():
+        if frag in (s.get("name") or s.get("nome") or "").lower():
             return s["id"], s["pipeline_id"]
     return None, None
 
 
+def _build_custom_fields(field_ids, acao, fields_map):
+    """Build custom_fields_values array for Kommo API payload."""
+    cf = []
+    for field_name, acao_key in fields_map.items():
+        fid = field_ids.get(field_name)
+        val = acao.get(acao_key)
+        if fid and val:
+            cf.append({"field_id": fid, "values": [{"value": str(val)}]})
+    return cf
+
+
 def executar_acoes(acoes, limit=None, log_callback=None):
-    """Execute Kommo updates for the given actions."""
+    """Execute Kommo updates/creates for the given actions."""
     api = KommoApiClient()
 
-    field_names = ["Situação", "Curso_SIAA", "Polo", "Telefone Inscricao"]
-    field_ids = api.get_custom_field_ids(field_names)
+    all_fields = list(set(_FIELD_NAMES_FOR_UPDATE + _FIELD_NAMES_FOR_MATRICULA))
+    field_ids = api.get_custom_field_ids(all_fields)
     stages = api.get_pipeline_stages()
 
     aprovado_stage, aprovado_pipe = _find_stage_id(stages, "aprovad")
@@ -1117,72 +1621,129 @@ def executar_acoes(acoes, limit=None, log_callback=None):
     if not matriculado_stage:
         matriculado_stage, matriculado_pipe = _find_stage_id(stages, "matriculado")
 
-    log.info("Stages: Aprovado=%s (pipe=%s), Matriculado=%s (pipe=%s)",
-             aprovado_stage, aprovado_pipe, matriculado_stage, matriculado_pipe)
+    has_perdido = any(a["acao"] in ("MOVER_PERDIDO",) for a in acoes)
+    loss_reason_id = api.get_or_create_loss_reason() if has_perdido else None
+
+    log.info("Stages: Aprovado=%s (pipe=%s), Matriculado=%s (pipe=%s), LossReason=%s",
+             aprovado_stage, aprovado_pipe, matriculado_stage, matriculado_pipe, loss_reason_id)
     log.info("Fields: %s", field_ids)
 
-    sit_field = field_ids.get("Situação")
-    curso_field = field_ids.get("Curso_SIAA")
-    polo_field = field_ids.get("Polo")
-    tel_field = field_ids.get("Telefone Inscricao")
-
     to_process = acoes[:limit] if limit else acoes
-    results = {"ok": 0, "erro": 0, "skip": 0}
+    results = {"ok": 0, "erro": 0, "skip": 0, "novo_ok": 0,
+               "perdido_ok": 0, "restaurar_ok": 0}
+
+    update_fields_map = {
+        "Situação": "situacao_siaa",
+        "Curso_SIAA": "curso_siaa",
+        "Modalidade_SIAA": "modalidade",
+        "Grau_SIAA": "grau",
+        "Polo": "polo",
+        "Marca": "marca",
+        "CPF": "cpf",
+        "Inscrição": "inscricao",
+        "Telefone Inscricao": "telefone",
+        "Chave_SIAA": "chave_siaa",
+        "Email Acadêmico": "email_academico",
+        "Modalidade": "modalidade",
+        "Grau": "grau",
+        "Preço_SIAA": "preco_siaa",
+        "Duração_SIAA": "duracao_siaa",
+    }
 
     for i, acao in enumerate(to_process):
-        lead_id = acao.get("lead_id")
-        if not lead_id:
-            results["skip"] += 1
-            continue
-
         tipo = acao["acao"]
-        custom_fields = []
+        lead_id = acao.get("lead_id")
 
-        if sit_field and acao.get("situacao_siaa"):
-            custom_fields.append({
-                "field_id": sit_field,
-                "values": [{"value": acao["situacao_siaa"]}],
+        if tipo == "ATUALIZAR" and lead_id:
+            cf = _build_custom_fields(field_ids, acao, update_fields_map)
+            payload = {}
+            if cf:
+                payload["custom_fields_values"] = cf
+            if aprovado_stage and acao.get("situacao_siaa") == "Aprovado":
+                payload["pipeline_id"] = aprovado_pipe
+                payload["status_id"] = aprovado_stage
+            if not payload:
+                results["skip"] += 1
+                continue
+            resp = api.patch_lead(lead_id, payload)
+
+        elif tipo == "MATRICULADO" and lead_id:
+            cf = _build_custom_fields(field_ids, acao, {
+                "Situação": "situacao_siaa",
+                "RGM": "rgm",
             })
-        if curso_field and acao.get("curso_siaa"):
-            custom_fields.append({
-                "field_id": curso_field,
-                "values": [{"value": acao["curso_siaa"]}],
-            })
-        if polo_field and acao.get("polo"):
-            custom_fields.append({
-                "field_id": polo_field,
-                "values": [{"value": acao["polo"]}],
-            })
+            payload = {}
+            if cf:
+                payload["custom_fields_values"] = cf
+            else:
+                payload["custom_fields_values"] = [{
+                    "field_id": field_ids.get("Situação"),
+                    "values": [{"value": "Matriculado"}],
+                }]
+            if matriculado_stage:
+                payload["pipeline_id"] = matriculado_pipe
+                payload["status_id"] = matriculado_stage
+            resp = api.patch_lead(lead_id, payload)
 
-        payload = {}
-        if custom_fields:
-            payload["custom_fields_values"] = custom_fields
+        elif tipo == "MOVER_PERDIDO" and lead_id:
+            pipe = acao.get("lead_pipeline_id")
+            payload = {"status_id": 143}
+            if pipe:
+                payload["pipeline_id"] = pipe
+            if loss_reason_id:
+                payload["loss_reason_id"] = loss_reason_id
+            resp = api.patch_lead(lead_id, payload)
+            if resp["ok"]:
+                results["perdido_ok"] += 1
 
-        if tipo == "APROVADO" and aprovado_stage:
-            payload["pipeline_id"] = aprovado_pipe
-            payload["status_id"] = aprovado_stage
-        elif tipo == "MATRICULADO" and matriculado_stage:
-            payload["pipeline_id"] = matriculado_pipe
-            payload["status_id"] = matriculado_stage
+        elif tipo == "RESTAURAR" and lead_id:
+            cf = _build_custom_fields(field_ids, acao, update_fields_map)
+            payload = {}
+            if cf:
+                payload["custom_fields_values"] = cf
+            if aprovado_stage:
+                payload["pipeline_id"] = aprovado_pipe
+                payload["status_id"] = aprovado_stage
+            resp = api.patch_lead(lead_id, payload)
+            if resp["ok"]:
+                results["restaurar_ok"] += 1
 
-        if not payload:
+        elif tipo == "NOVO":
+            cf = _build_custom_fields(field_ids, acao, update_fields_map)
+            nome = acao.get("nome") or "Lead SIAA"
+            lead_payload = [{"name": nome}]
+            if aprovado_stage:
+                lead_payload[0]["pipeline_id"] = aprovado_pipe
+                lead_payload[0]["status_id"] = aprovado_stage
+            if cf:
+                lead_payload[0]["custom_fields_values"] = cf
+            resp = api.create_lead(lead_payload)
+            if resp["ok"]:
+                results["novo_ok"] += 1
+
+        elif tipo == "UNIFICAR":
             results["skip"] += 1
             continue
 
-        resp = api.patch_lead(lead_id, payload)
+        else:
+            results["skip"] += 1
+            continue
+
         if resp["ok"]:
             results["ok"] += 1
-            msg = f"[{i+1}/{len(to_process)}] OK {tipo} lead={lead_id} {acao['nome']}"
+            msg = f"[{i+1}/{len(to_process)}] OK {tipo} lead={lead_id or 'NOVO'} {acao.get('nome','')}"
         else:
             results["erro"] += 1
-            msg = f"[{i+1}/{len(to_process)}] ERRO {tipo} lead={lead_id}: {resp['body'][:100]}"
+            msg = f"[{i+1}/{len(to_process)}] ERRO {tipo} lead={lead_id or 'NOVO'} (HTTP {resp.get('status','')}): {resp.get('body','')[:200]}"
 
         log.info(msg)
         if log_callback:
             log_callback(msg)
 
-    log.info("Execução concluída: ok=%d, erro=%d, skip=%d, API calls=%d",
-             results["ok"], results["erro"], results["skip"], api.total_calls)
+    log.info("Execucao: ok=%d, erro=%d, skip=%d, novos=%d, perdido=%d, restaurar=%d, API calls=%d",
+             results["ok"], results["erro"], results["skip"],
+             results["novo_ok"], results["perdido_ok"], results["restaurar_ok"],
+             api.total_calls)
     return results
 
 
@@ -1209,11 +1770,13 @@ def run_pipeline(candidatos_files, matriculados_files, nivel="grad", log_callbac
     insc_rows = merge_uploaded_files(candidatos_files, f"inscritos-{nivel}")
     mat_rows = merge_uploaded_files(matriculados_files, f"matriculados-{nivel}")
 
+    insc_header = insc_rows[0] if insc_rows else []
+    mat_header = mat_rows[0] if mat_rows else []
     insc_data = insc_rows[1:] if len(insc_rows) > 1 else []
     mat_data = mat_rows[1:] if len(mat_rows) > 1 else []
 
-    _log(f"  Inscritos: {len(insc_data)} linhas")
-    _log(f"  Matriculados: {len(mat_data)} linhas")
+    _log(f"  Inscritos: {len(insc_data)} linhas (cols: {len(insc_header)})")
+    _log(f"  Matriculados: {len(mat_data)} linhas (cols: {len(mat_header)})")
 
     if not insc_data and not mat_data:
         _log("ERRO: Nenhum dado para processar.")
@@ -1222,8 +1785,8 @@ def run_pipeline(candidatos_files, matriculados_files, nivel="grad", log_callbac
     # 2. Normalize
     _log(">>> ETAPA 2: NORMALIZAÇÃO")
     tipo = nivel  # "grad" or "pos"
-    inscritos_norm = normalizar_inscritos(insc_data, tipo=tipo) if insc_data else []
-    matriculados_norm = normalizar_matriculados(mat_data, tipo=tipo) if mat_data else []
+    inscritos_norm = normalizar_inscritos(insc_data, header=insc_header, tipo=tipo) if insc_data else []
+    matriculados_norm = normalizar_matriculados(mat_data, header=mat_header, tipo=tipo) if mat_data else []
     _log(f"  Inscritos normalizados: {len(inscritos_norm)}")
     _log(f"  Matriculados normalizados: {len(matriculados_norm)}")
 
@@ -1234,34 +1797,53 @@ def run_pipeline(candidatos_files, matriculados_files, nivel="grad", log_callbac
     n_mat = db_upload_matriculados(matriculados_norm) if matriculados_norm else 0
     _log(f"  Banco: {n_insc} inscritos + {n_mat} matriculados")
 
-    # 4. Cruzamento
-    _log(">>> ETAPA 4: CRUZAMENTO")
+    # 4. Cruzamento inscritos x matriculados
+    _log(">>> ETAPA 4: CRUZAMENTO INSCRITOS x MATRICULADOS")
     cruz_result = cruzar()
     _log(f"  Cruzados: {cruz_result['total']} (match={cruz_result['matched']}, sem={cruz_result['no_match']})")
 
-    # 5. Match Kommo
-    _log(">>> ETAPA 5: MATCH SIAA × KOMMO")
-    match_result = match_kommo()
-    _log(f"  Total: {match_result['total']} | Match: {match_result['com_match']} | Sem: {match_result['sem_match']}")
-    _log(f"  Divergências: {match_result['divergencias']}")
+    # 5. Match Inscritos x Kommo (CPF + Telefone)
+    _log(">>> ETAPA 5: MATCH INSCRITOS x KOMMO (CPF + Telefone)")
+    inscritos_match = match_kommo()
+    _log(f"  Total: {inscritos_match['total']} | Match: {inscritos_match['com_match']} | Sem: {inscritos_match['sem_match']} | Lead Fechado: {inscritos_match.get('lead_fechado', 0)}")
+    _log(f"  Tipos: {inscritos_match['tipos']}")
 
-    # 6. Generate actions
-    _log(">>> ETAPA 6: GERAR AÇÕES")
-    acoes = gerar_acoes(match_result)
+    # 6. Match Matriculados x Kommo (RGM)
+    _log(">>> ETAPA 6: MATCH MATRICULADOS x KOMMO (RGM)")
+    matriculados_match = match_matriculados_kommo()
+    _log(f"  Total: {matriculados_match['total']} | Match: {matriculados_match['com_match']} | Sem: {matriculados_match['sem_match']}")
+
+    # 7. Generate actions
+    _log(">>> ETAPA 7: GERAR ACOES")
+    acoes = gerar_acoes(inscritos_match, matriculados_match)
+
+    n_novo = sum(1 for a in acoes if a["acao"] == "NOVO")
+    n_atualizar = sum(1 for a in acoes if a["acao"] == "ATUALIZAR")
+    n_matriculado = sum(1 for a in acoes if a["acao"] == "MATRICULADO")
+    n_mover_perdido = sum(1 for a in acoes if a["acao"] == "MOVER_PERDIDO")
+    n_restaurar = sum(1 for a in acoes if a["acao"] == "RESTAURAR")
 
     elapsed = (datetime.now(BRT) - start).total_seconds()
-    _log(f"Pipeline concluído em {elapsed:.0f}s. {len(acoes)} ações geradas.")
+    _log(f"Pipeline concluido em {elapsed:.0f}s.")
+    _log(f"  NOVO={n_novo} | ATUALIZAR={n_atualizar} | MATRICULADO={n_matriculado} "
+         f"| MOVER_PERDIDO={n_mover_perdido} | RESTAURAR={n_restaurar} | Total={len(acoes)}")
 
     return {
         "inscritos": n_insc,
         "matriculados": n_mat,
         "cruzamento": cruz_result,
         "match": {
-            "total": match_result["total"],
-            "com_match": match_result["com_match"],
-            "sem_match": match_result["sem_match"],
-            "tipos": match_result["tipos"],
-            "divergencias": match_result["divergencias"],
+            "total": inscritos_match["total"],
+            "com_match": inscritos_match["com_match"],
+            "sem_match": inscritos_match["sem_match"],
+            "lead_fechado": inscritos_match.get("lead_fechado", 0),
+            "tipos": inscritos_match["tipos"],
+            "divergencias": inscritos_match.get("divergencias", {}),
+        },
+        "match_matriculados": {
+            "total": matriculados_match["total"],
+            "com_match": matriculados_match["com_match"],
+            "sem_match": matriculados_match["sem_match"],
         },
         "acoes": acoes,
         "elapsed": elapsed,

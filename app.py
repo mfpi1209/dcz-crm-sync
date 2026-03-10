@@ -27,6 +27,11 @@ from routes.config import config_bp, init_scheduler, _load_schedules_from_db
 from routes.logs import logs_bp
 from routes.kommo_sync import kommo_bp
 from routes.match_merge import match_merge_bp
+from routes.comercial_rgm import comercial_rgm_bp
+from routes.ativacoes import ativacoes_bp
+from routes.avisos import avisos_bp
+from routes.kommo_merge_route import kommo_merge_bp
+from routes.kommo_dispatcher import kommo_dispatcher_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(dashboard_bp)
@@ -37,6 +42,11 @@ app.register_blueprint(config_bp)
 app.register_blueprint(logs_bp)
 app.register_blueprint(kommo_bp)
 app.register_blueprint(match_merge_bp)
+app.register_blueprint(comercial_rgm_bp)
+app.register_blueprint(ativacoes_bp)
+app.register_blueprint(avisos_bp)
+app.register_blueprint(kommo_merge_bp)
+app.register_blueprint(kommo_dispatcher_bp)
 
 # ── Inicialização do banco ────────────────────────────────────────────────
 
@@ -47,6 +57,7 @@ from db import (
     _ensure_users_table,
     _ensure_xl_snapshots_table,
     _ensure_engagement_tables,
+    _ensure_avisos_tables,
 )
 
 _ensure_schedules_table()
@@ -55,6 +66,7 @@ _ensure_ciclos_table()
 _ensure_users_table()
 _ensure_xl_snapshots_table()
 _ensure_engagement_tables()
+_ensure_avisos_tables()
 
 # ── APScheduler ───────────────────────────────────────────────────────────
 
