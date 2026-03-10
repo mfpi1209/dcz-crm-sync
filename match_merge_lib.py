@@ -64,6 +64,8 @@ DATACRAZY_API_TOKEN = os.getenv("DATACRAZY_API_TOKEN", "")
 
 PREPOSICOES = {"de", "da", "do", "dos", "das", "e"}
 
+EMPRESAS_PERMITIDAS = {"1", "7", "12"}
+
 
 def get_conn():
     return psycopg2.connect(**DB_DSN)
@@ -531,6 +533,15 @@ def _normalizar_status_inscrito(val):
     return _STATUS_INSCRITO_MAP.get(s.upper(), s)
 
 
+def _empresa_permitida(val):
+    """Check if the Empresa value prefix is in the allowed set."""
+    if not val:
+        return False
+    s = str(val).strip()
+    prefix = s.split(" - ")[0].strip() if " - " in s else s
+    return prefix in EMPRESAS_PERMITIDAS
+
+
 # ════════════════════════════════════════════════════════════════
 #  NORMALIZE ROWS  (header-aware)
 # ════════════════════════════════════════════════════════════════
@@ -559,13 +570,18 @@ def normalizar_inscritos(rows, header=None, tipo="grad"):
     i_data_aprov = _get_col(cm, "data aprovação", "data aprovacao")
     i_ciclo     = _get_col(cm, "ciclo vestibular", "ciclo")
     i_regional  = _get_col(cm, "regional")
+    i_empresa   = _get_col(cm, "empresa")
     i_arquivo   = _get_col(cm, "arquivo_origem")
 
-    log.info("Col-map inscritos: nome=%s cpf=%s curso=%s polo=%s status=%s",
-             i_nome, i_cpf, i_curso, i_polo, i_status)
+    log.info("Col-map inscritos: nome=%s cpf=%s curso=%s polo=%s status=%s empresa=%s",
+             i_nome, i_cpf, i_curso, i_polo, i_status, i_empresa)
 
     dados = []
+    skipped = 0
     for row in rows:
+        if i_empresa is not None and not _empresa_permitida(_cell(row, i_empresa)):
+            skipped += 1
+            continue
         curso_raw = _cell(row, i_curso)
         polo_raw  = _cell(row, i_polo)
         polo_curto, marca = normalizar_polo_procvs(polo_raw)
@@ -624,6 +640,8 @@ def normalizar_inscritos(rows, header=None, tipo="grad"):
             info_preco.get("semestres"),                     # semestres
             limpar_valor(_cell(row, i_arquivo)),             # arquivo_origem
         ))
+    if skipped:
+        log.info("Inscritos filtrados por Empresa: %d excluídos, %d mantidos", skipped, len(dados))
     return dados
 
 
@@ -662,11 +680,15 @@ def normalizar_matriculados(rows, header=None, tipo="grad"):
     i_cidade    = _get_col(cm, "cidade")
     i_arquivo   = _get_col(cm, "arquivo_origem")
 
-    log.info("Col-map matriculados: nome=%s cpf=%s curso=%s polo=%s sit=%s tipo_mat=%s",
-             i_nome, i_cpf, i_curso, i_polo, i_situacao, i_tipo_mat)
+    log.info("Col-map matriculados: nome=%s cpf=%s curso=%s polo=%s sit=%s tipo_mat=%s empresa=%s",
+             i_nome, i_cpf, i_curso, i_polo, i_situacao, i_tipo_mat, i_empresa)
 
     dados = []
+    skipped = 0
     for row in rows:
+        if i_empresa is not None and not _empresa_permitida(_cell(row, i_empresa)):
+            skipped += 1
+            continue
         curso_raw    = _cell(row, i_curso)
         situacao_raw = limpar_valor(_cell(row, i_situacao))
         situacao_norm = normalizar_situacao_matriculado(situacao_raw)
@@ -704,6 +726,8 @@ def normalizar_matriculados(rows, header=None, tipo="grad"):
             limpar_valor(_cell(row, i_cidade)),              # cidade
             limpar_valor(_cell(row, i_arquivo)),             # arquivo_origem
         ))
+    if skipped:
+        log.info("Matriculados filtrados por Empresa: %d excluídos, %d mantidos", skipped, len(dados))
     return dados
 
 
