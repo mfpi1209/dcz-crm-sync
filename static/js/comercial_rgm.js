@@ -161,11 +161,19 @@ function _crgmRenderCicloTable(ciclos) {
 }
 
 // ── Agentes (tabela) ────────────────────────────────────
+function _crgmTierLabel(mp, meta, intermediaria, supermeta) {
+    if (supermeta > 0 && mp >= supermeta) return { label: 'SUPERMETA', cls: 'text-emerald-400 font-bold', icon: '\u2B50' };
+    if (intermediaria > 0 && mp >= intermediaria) return { label: 'INTERMED.', cls: 'text-amber-400 font-semibold', icon: '\u26A1' };
+    if (meta > 0 && mp >= meta) return { label: 'META', cls: 'text-blue-400 font-semibold', icon: '\u2705' };
+    if (meta > 0) return { label: `${Math.round(mp/meta*100)}%`, cls: 'text-red-400', icon: '' };
+    return { label: '\u2014', cls: 'text-slate-600', icon: '' };
+}
+
 function _crgmRenderAgentes(agentes) {
     const tbody = document.getElementById('crgm-agentes-body');
     const countEl = document.getElementById('crgm-agentes-count');
     if (!agentes || !agentes.length) {
-        tbody.innerHTML = '<tr><td colspan="10" class="px-5 py-8 text-center text-slate-600">Nenhum agente encontrado</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12" class="px-5 py-8 text-center text-slate-600">Nenhum agente encontrado</td></tr>';
         if (countEl) countEl.textContent = ''; return;
     }
     const agenteFilter = document.getElementById('crgm-agente').value;
@@ -177,27 +185,29 @@ function _crgmRenderAgentes(agentes) {
     tbody.innerHTML = filtered.map((a,i) => {
         const mp = a.matriculas_periodo||0, pp = a.perdidos_periodo||0, np = a.novos_periodo||0;
         const meta = a.meta||0;
-        const pctMeta = meta > 0 ? Math.round(mp/meta*100) : 0;
-        const metaClass = meta===0 ? 'text-slate-600' : pctMeta>=100 ? 'text-emerald-400' : pctMeta>=70 ? 'text-amber-400' : 'text-red-400';
+        const intermediaria = a.meta_intermediaria||0;
+        const supermeta = a.supermeta||0;
+        const tier = _crgmTierLabel(mp, meta, intermediaria, supermeta);
         const taxaClass = a.taxa_conversao>=20 ? 'text-emerald-400' : a.taxa_conversao>=8 ? 'text-amber-400' : 'text-red-400';
         const rank = i<3 ? medals[i] : (i+1);
         const rowBg = i<3 ? 'bg-blue-500/[0.03]' : '';
 
-        // Build tooltip with all category metas
-        let tooltip = '';
+        // Tooltip with all category metas
         const mc = a.metas_cat || {};
-        if (Object.keys(mc).length > 0) {
-            tooltip = Object.entries(mc).map(([cat, val]) => `${_crgmCatLabel(cat)}: ${val}`).join(' | ');
-        } else {
-            tooltip = 'Sem meta definida';
-        }
+        let tooltip = Object.entries(mc).length > 0
+            ? Object.entries(mc).map(([cat, v]) =>
+                `${_crgmCatLabel(cat)}: M=${v.meta} I=${v.intermediaria} S=${v.supermeta}`
+            ).join(' | ')
+            : 'Sem meta definida';
 
         return `<tr class="hover:bg-white/[0.03] transition-colors ${rowBg}" title="${tooltip}">
             <td class="text-center px-3 py-2.5 font-bold text-slate-400">${rank}</td>
             <td class="px-4 py-2.5 font-medium ${a.nome&&a.nome.startsWith('User #')?'text-slate-500 italic':'text-white'}">${esc(a.nome)}</td>
             <td class="px-4 py-2.5 text-right font-mono text-blue-400 font-semibold">${mp.toLocaleString('pt-BR')}</td>
-            <td class="px-4 py-2.5 text-right font-mono text-slate-500">${meta>0?meta:'\u2014'}</td>
-            <td class="px-4 py-2.5 text-right font-mono font-bold ${metaClass}">${meta>0?pctMeta+'%':'\u2014'}</td>
+            <td class="px-4 py-2.5 text-right font-mono text-blue-300/70">${meta>0?meta:'\u2014'}</td>
+            <td class="px-4 py-2.5 text-right font-mono text-amber-300/70">${intermediaria>0?intermediaria:'\u2014'}</td>
+            <td class="px-4 py-2.5 text-right font-mono text-emerald-300/70">${supermeta>0?supermeta:'\u2014'}</td>
+            <td class="px-4 py-2.5 text-right font-mono ${tier.cls}">${tier.icon} ${tier.label}</td>
             <td class="px-4 py-2.5 text-right font-mono text-cyan-400">${np.toLocaleString('pt-BR')}</td>
             <td class="px-4 py-2.5 text-right font-mono text-red-400">${pp.toLocaleString('pt-BR')}</td>
             <td class="px-4 py-2.5 text-right font-mono text-slate-300">${a.total.toLocaleString('pt-BR')}</td>
@@ -220,23 +230,38 @@ function _crgmRenderAgentesChart(agentes) {
     const labels = top.map(a=>a.nome||`#${a.user_id}`);
     const ds = [{
         label:'Matrículas', data:top.map(a=>a.matriculas_periodo||0),
-        backgroundColor:'#3b82f6', borderColor:'#2563eb', borderWidth:1, borderRadius:4, barPercentage:0.6, categoryPercentage:0.85,
+        backgroundColor:'#3b82f6', borderColor:'#2563eb', borderWidth:1, borderRadius:4, barPercentage:0.5, categoryPercentage:0.85,
     }];
-    if (top.some(a=>(a.meta||0)>0)) {
-        ds.push({
-            label:'Meta', data:top.map(a=>a.meta||0),
-            backgroundColor:'transparent', borderColor:'#f59e0b', borderWidth:2, borderDash:[4,3], borderRadius:4,
-            barPercentage:0.6, categoryPercentage:0.85, type:'bar',
-        });
-    }
+    const hasMeta = top.some(a=>(a.meta||0)>0);
+    const hasInter = top.some(a=>(a.meta_intermediaria||0)>0);
+    const hasSuper = top.some(a=>(a.supermeta||0)>0);
+    if (hasMeta) ds.push({
+        label:'Meta', data:top.map(a=>a.meta||0),
+        backgroundColor:'transparent', borderColor:'#60a5fa', borderWidth:2, borderDash:[4,3], borderRadius:4,
+        barPercentage:0.5, categoryPercentage:0.85, type:'bar',
+    });
+    if (hasInter) ds.push({
+        label:'Intermediária', data:top.map(a=>a.meta_intermediaria||0),
+        backgroundColor:'transparent', borderColor:'#fbbf24', borderWidth:2, borderDash:[6,3], borderRadius:4,
+        barPercentage:0.5, categoryPercentage:0.85, type:'bar',
+    });
+    if (hasSuper) ds.push({
+        label:'Supermeta', data:top.map(a=>a.supermeta||0),
+        backgroundColor:'transparent', borderColor:'#34d399', borderWidth:2, borderDash:[8,4], borderRadius:4,
+        barPercentage:0.5, categoryPercentage:0.85, type:'bar',
+    });
     _crgmChartAgentes = new Chart(ctx, {type:'bar', data:{labels, datasets:ds}, options:{
         indexAxis:'y', responsive:true, maintainAspectRatio:false,
         plugins:{
             legend:{position:'top',align:'end',labels:{color:'#94a3b8',font:{size:10},boxWidth:10,padding:12}},
-            tooltip:{callbacks:{afterBody:function(ctx){
-                const a=top[ctx[0].dataIndex]; const meta=a.meta||0; const pct=meta>0?Math.round((a.matriculas_periodo||0)/meta*100):0;
-                let l=[`Ganhos CRM: ${(a.ganhos||0).toLocaleString('pt-BR')} | Conv.: ${a.taxa_conversao}%`];
-                if(meta>0) l.push(`Meta: ${meta} | Progresso: ${pct}%`); return l;
+            tooltip:{callbacks:{afterBody:function(items){
+                const a=top[items[0].dataIndex];
+                const mp=a.matriculas_periodo||0, m=a.meta||0, mi=a.meta_intermediaria||0, s=a.supermeta||0;
+                const tier = _crgmTierLabel(mp, m, mi, s);
+                const lines = [`Conv.: ${a.taxa_conversao}%`];
+                if(m>0) lines.push(`Meta: ${m} | Interm.: ${mi||'\u2014'} | Super: ${s||'\u2014'}`);
+                lines.push(`N\u00edvel: ${tier.icon} ${tier.label}`);
+                return lines;
             }}}
         },
         scales:{ x:{beginAtZero:true,ticks:{color:'#64748b',font:{size:10}},grid:{color:'rgba(100,116,139,0.08)'}}, y:{ticks:{color:'#e2e8f0',font:{size:11,weight:500}},grid:{display:false}} }
@@ -296,11 +321,15 @@ async function _crgmLoadMetasPanel() {
         const agentes = filtersRes.ok ? (filtersRes.agentes||[]).filter(a=>!['Admin','T.I','Suporte'].includes(a.name)) : [];
         if (!agentes.length) { grid.innerHTML='<p class="text-slate-500 text-xs col-span-full">Sync agentes primeiro.</p>'; return; }
 
+        const _inp = (uid, uname, cls, ph, color) =>
+            `<input type="number" min="0" step="any" data-uid="${uid}" data-uname="${esc(uname)}" placeholder="${ph}"
+                class="w-20 text-right text-xs font-mono bg-slate-900/50 border border-slate-700 rounded px-2 py-1 ${color} focus:outline-none ${cls}">`;
         grid.innerHTML = agentes.map(a =>
-            `<div class="flex items-center gap-2 bg-slate-800/30 rounded-lg px-3 py-2">
-                <span class="text-xs text-slate-300 flex-1 truncate">${esc(a.name)}</span>
-                <input type="number" min="0" step="any" data-uid="${a.id}" data-uname="${esc(a.name)}" placeholder="0"
-                    class="w-20 text-right text-xs font-mono bg-slate-900/50 border border-slate-700 rounded px-2 py-1 text-white focus:border-amber-500 focus:outline-none crgm-meta-input">
+            `<div class="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 bg-slate-800/30 rounded-lg px-3 py-1.5">
+                <span class="text-xs text-slate-300 truncate">${esc(a.name)}</span>
+                ${_inp(a.id, a.name, 'crgm-meta-val', '0', 'text-white focus:border-blue-500')}
+                ${_inp(a.id, a.name, 'crgm-meta-int', '0', 'text-amber-300 focus:border-amber-500')}
+                ${_inp(a.id, a.name, 'crgm-meta-sup', '0', 'text-emerald-300 focus:border-emerald-500')}
             </div>`
         ).join('');
 
@@ -330,12 +359,18 @@ function _crgmRenderHistorico(filterCat) {
     hist.innerHTML = Object.values(groups).map(g => {
         const catColor = _CAT_COLORS[g.categoria] || 'text-slate-400';
         const catLabel = _crgmCatLabel(g.categoria);
-        const agentsList = g.items.map(m =>
-            `<span class="inline-flex items-center gap-1 bg-slate-700/40 rounded px-2 py-0.5">
-                ${esc(m.user_name||'?')}: <b>${m.meta}</b>
+        const agentsList = g.items.map(m => {
+            const parts = [`M:${m.meta}`];
+            if (m.meta_intermediaria > 0) parts.push(`I:${m.meta_intermediaria}`);
+            if (m.supermeta > 0) parts.push(`S:${m.supermeta}`);
+            return `<span class="inline-flex items-center gap-1 bg-slate-700/40 rounded px-2 py-0.5">
+                <b class="text-white">${esc(m.user_name||'?')}</b>
+                <span class="text-blue-300">${parts[0]}</span>
+                ${parts[1]?`<span class="text-amber-300">${parts[1]}</span>`:''}
+                ${parts[2]?`<span class="text-emerald-300">${parts[2]}</span>`:''}
                 <button onclick="crgmDeleteMeta(${m.id})" class="text-red-500/60 hover:text-red-400 ml-0.5 text-[10px]" title="Excluir">&times;</button>
-            </span>`
-        ).join(' ');
+            </span>`;
+        }).join(' ');
         return `<div class="bg-slate-800/30 rounded-lg px-4 py-3 text-xs border-l-2 ${catColor.replace('text-','border-')}">
             <div class="flex items-center gap-2 mb-1.5">
                 <span class="font-semibold ${catColor}">${esc(catLabel)}</span>
@@ -358,16 +393,25 @@ async function crgmSaveMetas() {
     const desc = document.getElementById('crgm-meta-desc').value || '';
     const cat = document.getElementById('crgm-meta-cat').value || 'matriculas';
     if (!dtIni || !dtFim) { _crgmErro('Defina o período da meta'); return; }
-    const inputs = document.querySelectorAll('.crgm-meta-input');
+
+    // Collect values per agent (3 inputs each)
+    const metaInputs = document.querySelectorAll('.crgm-meta-val');
+    const intInputs = document.querySelectorAll('.crgm-meta-int');
+    const supInputs = document.querySelectorAll('.crgm-meta-sup');
     const metas = [];
-    inputs.forEach(inp => {
-        const v = parseFloat(inp.value);
-        if (v > 0) metas.push({
-            user_id: parseInt(inp.dataset.uid), meta: v,
-            user_name: inp.dataset.uname||'',
-            dt_inicio: dtIni, dt_fim: dtFim,
-            descricao: desc, categoria: cat,
-        });
+    metaInputs.forEach((inp, i) => {
+        const m = parseFloat(inp.value) || 0;
+        const mi = parseFloat(intInputs[i]?.value) || 0;
+        const s = parseFloat(supInputs[i]?.value) || 0;
+        if (m > 0 || mi > 0 || s > 0) {
+            metas.push({
+                user_id: parseInt(inp.dataset.uid),
+                user_name: inp.dataset.uname || '',
+                meta: m, meta_intermediaria: mi, supermeta: s,
+                dt_inicio: dtIni, dt_fim: dtFim,
+                descricao: desc, categoria: cat,
+            });
+        }
     });
     if (!metas.length) { _crgmErro('Defina ao menos uma meta > 0'); return; }
     try {

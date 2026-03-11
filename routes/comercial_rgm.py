@@ -148,15 +148,17 @@ METAS_CATEGORIAS = [
 
 _METAS_DDL = """
 CREATE TABLE IF NOT EXISTS comercial_metas (
-    id         SERIAL PRIMARY KEY,
-    user_id    INTEGER NOT NULL,
-    user_name  TEXT,
-    meta       NUMERIC NOT NULL DEFAULT 0,
-    categoria  TEXT NOT NULL DEFAULT 'matriculas',
-    dt_inicio  DATE NOT NULL,
-    dt_fim     DATE NOT NULL,
-    descricao  TEXT DEFAULT '',
-    created_at TIMESTAMP DEFAULT NOW()
+    id                  SERIAL PRIMARY KEY,
+    user_id             INTEGER NOT NULL,
+    user_name           TEXT,
+    meta                NUMERIC NOT NULL DEFAULT 0,
+    meta_intermediaria  NUMERIC NOT NULL DEFAULT 0,
+    supermeta           NUMERIC NOT NULL DEFAULT 0,
+    categoria           TEXT NOT NULL DEFAULT 'matriculas',
+    dt_inicio           DATE NOT NULL,
+    dt_fim              DATE NOT NULL,
+    descricao           TEXT DEFAULT '',
+    created_at          TIMESTAMP DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_cm_user ON comercial_metas(user_id);
 CREATE INDEX IF NOT EXISTS idx_cm_dates ON comercial_metas(dt_inicio, dt_fim);
@@ -185,18 +187,25 @@ def _ensure_table():
         cur.execute(_METAS_DDL)
         conn.commit()
 
-        # Add categoria column if missing (table exists but column doesn't)
-        cur.execute("""
-            SELECT column_name FROM information_schema.columns
-            WHERE table_name = 'comercial_metas' AND column_name = 'categoria'
-        """)
-        if not cur.fetchone():
-            cur.execute("ALTER TABLE comercial_metas ADD COLUMN categoria TEXT NOT NULL DEFAULT 'matriculas'")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_cm_cat ON comercial_metas(categoria)")
-            conn.commit()
-            logger.info("comercial_metas: added 'categoria' column")
+        # Add missing columns incrementally
+        for col, defn in [
+            ("categoria", "TEXT NOT NULL DEFAULT 'matriculas'"),
+            ("meta_intermediaria", "NUMERIC NOT NULL DEFAULT 0"),
+            ("supermeta", "NUMERIC NOT NULL DEFAULT 0"),
+        ]:
+            cur.execute("""
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'comercial_metas' AND column_name = %s
+            """, (col,))
+            if not cur.fetchone():
+                cur.execute(f"ALTER TABLE comercial_metas ADD COLUMN {col} {defn}")
+                conn.commit()
+                logger.info("comercial_metas: added '%s' column", col)
 
-        # Ensure meta column is NUMERIC (was INTEGER before)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_cm_cat ON comercial_metas(categoria)")
+        conn.commit()
+
+        # Ensure meta column is NUMERIC
         cur.execute("""
             SELECT data_type FROM information_schema.columns
             WHERE table_name = 'comercial_metas' AND column_name = 'meta'
@@ -205,7 +214,7 @@ def _ensure_table():
         if row and row[0] == 'integer':
             cur.execute("ALTER TABLE comercial_metas ALTER COLUMN meta TYPE NUMERIC")
             conn.commit()
-            logger.info("comercial_metas: changed 'meta' from INTEGER to NUMERIC")
+            logger.info("comercial_metas: changed 'meta' to NUMERIC")
 
     except Exception as e:
         conn.rollback()
@@ -1108,18 +1117,26 @@ def crgm_data():
         ranking_agentes = _build_agent_ranking(dt_ini or None, dt_fim or None, polo or None)
 
         # --- Metas por agente (overlapping date range), agrupadas por categoria ---
+        # Structure: {cat: {uid: {meta, intermediaria, supermeta}}}
         metas_by_cat = {}
         try:
             conn2 = _pg()
             cur2 = conn2.cursor()
             cur2.execute("""
-                SELECT user_id, meta, categoria FROM comercial_metas
+                SELECT user_id, meta, COALESCE(meta_intermediaria,0),
+                       COALESCE(supermeta,0), categoria
+                FROM comercial_metas
                 WHERE dt_inicio <= %s AND dt_fim >= %s
             """, (dt_fim or '9999-12-31', dt_ini or '1900-01-01'))
             for r in cur2.fetchall():
-                uid, val, cat = r[0], float(r[1]), r[2] or "matriculas"
+                uid = r[0]
+                cat = r[4] or "matriculas"
                 metas_by_cat.setdefault(cat, {})
-                metas_by_cat[cat][uid] = metas_by_cat[cat].get(uid, 0) + val
+                prev = metas_by_cat[cat].get(uid, {"meta": 0, "intermediaria": 0, "supermeta": 0})
+                prev["meta"] += float(r[1])
+                prev["intermediaria"] += float(r[2])
+                prev["supermeta"] += float(r[3])
+                metas_by_cat[cat][uid] = prev
             cur2.close()
             conn2.close()
         except Exception:
@@ -1127,11 +1144,15 @@ def crgm_data():
 
         mat_metas = metas_by_cat.get("matriculas", {})
         for ag in ranking_agentes:
-            ag["meta"] = mat_metas.get(ag["user_id"], 0)
+            uid = ag["user_id"]
+            m = mat_metas.get(uid, {})
+            ag["meta"] = m.get("meta", 0)
+            ag["meta_intermediaria"] = m.get("intermediaria", 0)
+            ag["supermeta"] = m.get("supermeta", 0)
             ag["metas_cat"] = {}
             for cat, users in metas_by_cat.items():
-                if ag["user_id"] in users:
-                    ag["metas_cat"][cat] = users[ag["user_id"]]
+                if uid in users:
+                    ag["metas_cat"][cat] = users[uid]
 
         return jsonify({
             "ok": True,
@@ -1184,14 +1205,18 @@ def crgm_get_metas():
             params.append(categoria)
         w = ("WHERE " + " AND ".join(wheres)) if wheres else ""
         cur.execute(f"""
-            SELECT id, user_id, user_name, meta, dt_inicio, dt_fim, descricao, categoria
+            SELECT id, user_id, user_name, meta,
+                   COALESCE(meta_intermediaria,0), COALESCE(supermeta,0),
+                   dt_inicio, dt_fim, descricao, categoria
             FROM comercial_metas {w}
             ORDER BY dt_inicio DESC, categoria, user_name
         """, params)
-        rows = [{"id": r[0], "user_id": r[1], "user_name": r[2], "meta": float(r[3]),
-                 "dt_inicio": r[4].isoformat() if r[4] else None,
-                 "dt_fim": r[5].isoformat() if r[5] else None,
-                 "descricao": r[6], "categoria": r[7] or "matriculas"}
+        rows = [{"id": r[0], "user_id": r[1], "user_name": r[2],
+                 "meta": float(r[3]), "meta_intermediaria": float(r[4]),
+                 "supermeta": float(r[5]),
+                 "dt_inicio": r[6].isoformat() if r[6] else None,
+                 "dt_fim": r[7].isoformat() if r[7] else None,
+                 "descricao": r[8], "categoria": r[9] or "matriculas"}
                 for r in cur.fetchall()]
         cur.close()
         conn.close()
@@ -1214,6 +1239,8 @@ def crgm_save_metas():
         for m in metas:
             uid = int(m["user_id"])
             meta_val = float(m.get("meta", 0))
+            intermediaria = float(m.get("meta_intermediaria", 0))
+            supermeta = float(m.get("supermeta", 0))
             name = m.get("user_name", "")
             dt_inicio = m.get("dt_inicio")
             dt_fim = m.get("dt_fim")
@@ -1223,11 +1250,15 @@ def crgm_save_metas():
                 categoria = "matriculas"
             if not dt_inicio or not dt_fim:
                 continue
+            if meta_val <= 0 and intermediaria <= 0 and supermeta <= 0:
+                continue
             cur.execute("""
                 INSERT INTO comercial_metas
-                    (user_id, user_name, meta, categoria, dt_inicio, dt_fim, descricao)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """, (uid, name, meta_val, categoria, dt_inicio, dt_fim, descricao))
+                    (user_id, user_name, meta, meta_intermediaria, supermeta,
+                     categoria, dt_inicio, dt_fim, descricao)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (uid, name, meta_val, intermediaria, supermeta,
+                  categoria, dt_inicio, dt_fim, descricao))
             saved += 1
         conn.commit()
         cur.close()

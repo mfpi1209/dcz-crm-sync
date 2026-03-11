@@ -68,7 +68,14 @@
                     Salvar
                 </button>
             </div>
-            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mt-3" id="crgm-metas-grid"></div>
+            <!-- Header for agent grid -->
+            <div class="grid grid-cols-[1fr_auto_auto_auto] gap-2 mt-3 text-[10px] text-slate-500 uppercase tracking-wider px-3 font-semibold">
+                <span>Agente</span>
+                <span class="w-20 text-center">Meta</span>
+                <span class="w-20 text-center">Intermed.</span>
+                <span class="w-20 text-center">Supermeta</span>
+            </div>
+            <div class="space-y-1 mt-1 max-h-64 overflow-y-auto" id="crgm-metas-grid"></div>
         </div>
         <!-- Histórico de metas agrupado por categoria -->
         <div>
@@ -232,7 +239,9 @@
                         <th class="text-left px-4 py-3">Agente</th>
                         <th class="text-right px-4 py-3">Matr. <span class="text-slate-600">(per.)</span></th>
                         <th class="text-right px-4 py-3">Meta</th>
-                        <th class="text-right px-4 py-3">% Meta</th>
+                        <th class="text-right px-4 py-3">Interm.</th>
+                        <th class="text-right px-4 py-3">Super</th>
+                        <th class="text-right px-4 py-3">Nível</th>
                         <th class="text-right px-4 py-3">Novos <span class="text-slate-600">(per.)</span></th>
                         <th class="text-right px-4 py-3">Perdidos <span class="text-slate-600">(per.)</span></th>
                         <th class="text-right px-4 py-3">Total</th>
@@ -241,7 +250,7 @@
                     </tr>
                 </thead>
                 <tbody id="crgm-agentes-body" class="divide-y divide-slate-700/10">
-                    <tr><td colspan="10" class="px-5 py-8 text-center text-slate-600">Carregando...</td></tr>
+                    <tr><td colspan="12" class="px-5 py-8 text-center text-slate-600">Carregando...</td></tr>
                 </tbody>
             </table>
         </div>
