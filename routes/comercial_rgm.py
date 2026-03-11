@@ -134,6 +134,10 @@ CREATE TABLE IF NOT EXISTS mm_matriculados_hist (
 CREATE INDEX IF NOT EXISTS idx_mmhm_snap ON mm_matriculados_hist(snapshot_id);
 CREATE INDEX IF NOT EXISTS idx_mmhm_cpf  ON mm_matriculados_hist(cpf);
 
+CREATE INDEX IF NOT EXISTS idx_mmhm_data ON mm_matriculados_hist(data_matricula);
+"""
+
+_METAS_DDL = """
 CREATE TABLE IF NOT EXISTS comercial_metas (
     id         SERIAL PRIMARY KEY,
     user_id    INTEGER NOT NULL,
@@ -146,7 +150,6 @@ CREATE TABLE IF NOT EXISTS comercial_metas (
 );
 CREATE INDEX IF NOT EXISTS idx_cm_user ON comercial_metas(user_id);
 CREATE INDEX IF NOT EXISTS idx_cm_dates ON comercial_metas(dt_inicio, dt_fim);
-CREATE INDEX IF NOT EXISTS idx_mmhm_data ON mm_matriculados_hist(data_matricula);
 """
 
 
@@ -154,30 +157,34 @@ def _ensure_table():
     conn = _pg()
     cur = conn.cursor()
     cur.execute(_CREATE_SQL)
+    conn.commit()
+
+    # Migrate comercial_metas if old schema exists
     try:
         cur.execute("""
             SELECT column_name FROM information_schema.columns
             WHERE table_name = 'comercial_metas' AND column_name = 'dt_inicio'
         """)
-        if not cur.fetchone():
-            cur.execute("DROP TABLE IF EXISTS comercial_metas")
-            cur.execute("""
-                CREATE TABLE comercial_metas (
-                    id         SERIAL PRIMARY KEY,
-                    user_id    INTEGER NOT NULL,
-                    user_name  TEXT,
-                    meta       INTEGER NOT NULL DEFAULT 0,
-                    dt_inicio  DATE NOT NULL,
-                    dt_fim     DATE NOT NULL,
-                    descricao  TEXT DEFAULT '',
-                    created_at TIMESTAMP DEFAULT NOW()
-                )
-            """)
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_cm_user ON comercial_metas(user_id)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_cm_dates ON comercial_metas(dt_inicio, dt_fim)")
+        has_new_schema = cur.fetchone() is not None
+
+        if not has_new_schema:
+            cur.execute("DROP TABLE IF EXISTS comercial_metas CASCADE")
+            conn.commit()
+
+        cur.execute(_METAS_DDL)
+        conn.commit()
     except Exception as e:
+        conn.rollback()
         logger.warning("comercial_metas migration: %s", e)
-    conn.commit()
+        try:
+            cur.execute("DROP TABLE IF EXISTS comercial_metas CASCADE")
+            conn.commit()
+            cur.execute(_METAS_DDL)
+            conn.commit()
+        except Exception as e2:
+            conn.rollback()
+            logger.error("comercial_metas create failed: %s", e2)
+
     cur.close()
     conn.close()
 
