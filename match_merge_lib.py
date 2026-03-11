@@ -66,7 +66,7 @@ DATACRAZY_API_TOKEN = os.getenv("DATACRAZY_API_TOKEN", "")
 
 PREPOSICOES = {"de", "da", "do", "dos", "das", "e"}
 
-EMPRESAS_PERMITIDAS = {"1", "7", "12"}
+EMPRESAS_PERMITIDAS = {"7", "12"}
 
 
 def get_conn(retries=3, base_delay=5):

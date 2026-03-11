@@ -28,6 +28,10 @@ logger = logging.getLogger(__name__)
 
 comercial_rgm_bp = Blueprint("comercial_rgm", __name__)
 
+MM_TIPO_MAT_VALIDOS = (
+    'INGRESSANTE', 'NOVA MATRICULA', 'NOVA MATRÍCULA', 'RETORNO', 'RECOMPRA'
+)
+
 DB_DSN = dict(
     host=os.getenv("DB_HOST", "localhost"),
     port=os.getenv("DB_PORT", "5432"),
@@ -393,9 +397,11 @@ def crgm_filters():
             SELECT DISTINCT polo FROM (
                 SELECT polo FROM comercial_rgm WHERE polo IS NOT NULL
                 UNION
-                SELECT polo_aulas AS polo FROM mm_matriculados WHERE polo_aulas IS NOT NULL
+                SELECT polo_aulas AS polo FROM mm_matriculados
+                WHERE polo_aulas IS NOT NULL
+                  AND UPPER(COALESCE(tipo_matricula,'')) IN %s
             ) sub ORDER BY polo
-        """)
+        """, (MM_TIPO_MAT_VALIDOS,))
         polos = [r[0] for r in cur.fetchall()]
         cur.execute("SELECT DISTINCT nivel FROM comercial_rgm WHERE nivel IS NOT NULL ORDER BY nivel")
         niveis = [r[0] for r in cur.fetchall()]
@@ -594,9 +600,9 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None, polo=None):
         csv_rgms = [r[0] for r in cur.fetchall() if r[0]]
         all_rgms.extend(csv_rgms)
 
-        # Source B: M&M matriculados (mm_matriculados)
-        mm_where = []
-        mm_params = []
+        # Source B: M&M matriculados (mm_matriculados) - only empresas 7/12
+        mm_where = ["UPPER(COALESCE(tipo_matricula,'')) IN %s"]
+        mm_params = [MM_TIPO_MAT_VALIDOS]
         if dt_ini:
             mm_where.append("data_matricula >= %s")
             mm_params.append(dt_ini)
@@ -606,7 +612,7 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None, polo=None):
         if polo:
             mm_where.append("polo_aulas = %s")
             mm_params.append(polo)
-        mm_w = ("WHERE " + " AND ".join(mm_where)) if mm_where else ""
+        mm_w = "WHERE " + " AND ".join(mm_where)
 
         cur.execute(f"SELECT rgm FROM mm_matriculados {mm_w}", mm_params)
         mm_rgms = [r[0] for r in cur.fetchall() if r[0]]
@@ -702,8 +708,8 @@ def crgm_data():
         cur.execute(f"SELECT rgm FROM comercial_rgm {w}", params)
         kpi_csv_rgms = set(r[0].strip() for r in cur.fetchall() if r[0])
 
-        mm_kpi_where = []
-        mm_kpi_params = []
+        mm_kpi_where = ["UPPER(COALESCE(tipo_matricula,'')) IN %s"]
+        mm_kpi_params = [MM_TIPO_MAT_VALIDOS]
         if polo:
             mm_kpi_where.append("polo_aulas = %s")
             mm_kpi_params.append(polo)
@@ -713,7 +719,7 @@ def crgm_data():
         if dt_fim:
             mm_kpi_where.append("data_matricula <= %s")
             mm_kpi_params.append(dt_fim)
-        mm_kpi_w = ("WHERE " + " AND ".join(mm_kpi_where)) if mm_kpi_where else ""
+        mm_kpi_w = "WHERE " + " AND ".join(mm_kpi_where)
 
         cur.execute(f"SELECT rgm FROM mm_matriculados {mm_kpi_w}", mm_kpi_params)
         mm_kpi_rgms = set(r[0].strip() for r in cur.fetchall() if r[0])
@@ -820,8 +826,9 @@ def crgm_data():
             if nivel_:
                 cw.append("nivel = %s"); cp.append(nivel_)
 
-            mw = ["data_matricula >= %s", "data_matricula <= %s"]
-            mp = [d_start.isoformat(), d_end.isoformat()]
+            mw = ["UPPER(COALESCE(tipo_matricula,'')) IN %s",
+                  "data_matricula >= %s", "data_matricula <= %s"]
+            mp = [MM_TIPO_MAT_VALIDOS, d_start.isoformat(), d_end.isoformat()]
             if polo_:
                 mw.append("polo_aulas = %s"); mp.append(polo_)
 
