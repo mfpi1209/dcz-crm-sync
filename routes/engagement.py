@@ -244,7 +244,7 @@ def calculate_engagement_scores():
         }
     except Exception as e:
         conn.rollback()
-        current_app.logger.error("Engagement score error: %s", e)
+        _log.error("Engagement score error: %s", e)
         return {"error": str(e), "processed": 0}
     finally:
         conn.close()
@@ -262,14 +262,14 @@ def evaluate_comm_triggers():
     """Daily job: recalculate scores, evaluate rules, enqueue communications."""
     _log.info("[ENGAGEMENT] Iniciando avaliação diária de gatilhos")
     calc_result = calculate_engagement_scores()
-    current_app.logger.info("[ENGAGEMENT] Scores recalculados: %s", calc_result)
+    _log.info("[ENGAGEMENT] Scores recalculados: %s", calc_result)
 
     conn = get_conn()
     today = datetime.now(BRT)
     today_date = today.date()
     weekday = today.weekday()
     if weekday >= 5:
-        current_app.logger.info("[ENGAGEMENT] Fim de semana — disparos adiados")
+        _log.info("[ENGAGEMENT] Fim de semana — disparos adiados")
         conn.close()
         return
 
@@ -279,7 +279,7 @@ def evaluate_comm_triggers():
             cur.execute("SELECT * FROM comm_rules WHERE enabled = TRUE ORDER BY priority")
             rules = cur.fetchall()
             if not rules:
-                current_app.logger.info("[ENGAGEMENT] Nenhuma regra ativa")
+                _log.info("[ENGAGEMENT] Nenhuma regra ativa")
                 conn.close()
                 return
 
@@ -397,13 +397,13 @@ def evaluate_comm_triggers():
                     break
 
         conn.commit()
-        current_app.logger.info("[ENGAGEMENT] %d comunicações enfileiradas", enqueued)
+        _log.info("[ENGAGEMENT] %d comunicações enfileiradas", enqueued)
 
         _dispatch_pending_comms()
 
     except Exception as e:
         conn.rollback()
-        current_app.logger.error("[ENGAGEMENT] Erro na avaliação: %s", e)
+        _log.error("[ENGAGEMENT] Erro na avaliação: %s", e)
     finally:
         conn.close()
 
@@ -458,14 +458,14 @@ def _dispatch_pending_comms():
                               "FALHA NO ENVIO", json.dumps(n8n_resp)))
 
                 except Exception as e:
-                    current_app.logger.warning("[COMM] Erro ao enviar para n8n (queue %d): %s", item["id"], e)
+                    _log.warning("[COMM] Erro ao enviar para n8n (queue %d): %s", item["id"], e)
                     cur.execute("UPDATE comm_queue SET status='falha' WHERE id=%s", (item["id"],))
 
         conn.commit()
-        current_app.logger.info("[COMM] %d/%d comunicações enviadas ao n8n", sent, len(pending))
+        _log.info("[COMM] %d/%d comunicações enviadas ao n8n", sent, len(pending))
     except Exception as e:
         conn.rollback()
-        current_app.logger.error("[COMM] Erro no dispatch: %s", e)
+        _log.error("[COMM] Erro no dispatch: %s", e)
     finally:
         conn.close()
 
