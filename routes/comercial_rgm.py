@@ -747,23 +747,29 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None, polo=None):
             mm_params.append(polo)
         mm_w = "WHERE " + " AND ".join(mm_where)
 
-        cur.execute(f"SELECT rgm, cpf FROM mm_matriculados {mm_w}", mm_params)
+        cur.execute(f"SELECT rgm, cpf, nome FROM mm_matriculados {mm_w}", mm_params)
+        nome_to_rgm = {}
         for r in cur.fetchall():
             rgm = _normalize_rgm(r[0])
             if rgm:
                 all_rgms.add(rgm)
                 if r[1] and r[1].strip():
                     cpf_to_rgm[r[1].strip()] = rgm
+                if r[2] and r[2].strip():
+                    nome_to_rgm[r[2].strip().upper()] = rgm
 
         cur.close()
         conn.close()
 
-        # Fallback: CPF -> Kommo contact -> lead -> responsible_user_id
-        unmatched_rgms = [r for r in all_rgms if r not in rgm_to_user]
+        pre_fallback = len(rgm_to_user)
+
+        # Fallback 1: CPF -> Kommo contact -> lead -> responsible_user_id
+        unmatched_rgms = {r for r in all_rgms if r not in rgm_to_user}
         if unmatched_rgms and cpf_to_rgm:
             try:
                 kconn2 = _pg_kommo()
                 kcur2 = kconn2.cursor()
+                # Source A: contact_custom_field_values
                 kcur2.execute("""
                     SELECT
                         regexp_replace(ccf.values_json->0->>'value', '[^0-9]', '', 'g') AS cpf,
@@ -772,7 +778,7 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None, polo=None):
                     JOIN contacts c ON c.id = ccf.contact_id AND c.is_deleted = FALSE
                     JOIN lead_contacts lc ON lc.contact_id = c.id
                     JOIN leads l ON l.id = lc.lead_id AND l.is_deleted = FALSE
-                    WHERE ccf.field_name IN ('CPF', 'Cpf', 'cpf')
+                    WHERE LOWER(ccf.field_name) IN ('cpf')
                       AND ccf.values_json->0->>'value' IS NOT NULL
                       AND ccf.values_json->0->>'value' != ''
                     ORDER BY CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END
@@ -782,17 +788,73 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None, polo=None):
                     cpf_val, uid = row[0], row[1]
                     if cpf_val and uid and cpf_val not in cpf_to_uid:
                         cpf_to_uid[cpf_val] = uid
+
+                # Source B: contacts.custom_fields_json (fallback)
+                kcur2.execute("""
+                    SELECT regexp_replace(cf_elem->'values'->0->>'value', '[^0-9]', '', 'g') AS cpf,
+                           l.responsible_user_id
+                    FROM contacts c,
+                         jsonb_array_elements(COALESCE(c.custom_fields_json, '[]'::jsonb)) cf_elem,
+                         lead_contacts lc,
+                         leads l
+                    WHERE c.is_deleted = FALSE
+                      AND LOWER(cf_elem->>'field_name') = 'cpf'
+                      AND cf_elem->'values'->0->>'value' IS NOT NULL
+                      AND cf_elem->'values'->0->>'value' != ''
+                      AND lc.contact_id = c.id
+                      AND l.id = lc.lead_id AND l.is_deleted = FALSE
+                    ORDER BY CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END
+                """)
+                for row in kcur2.fetchall():
+                    cpf_val, uid = row[0], row[1]
+                    if cpf_val and uid and cpf_val not in cpf_to_uid:
+                        cpf_to_uid[cpf_val] = uid
+
                 kcur2.close()
                 kconn2.close()
 
+                cpf_added = 0
                 for cpf, rgm in cpf_to_rgm.items():
                     if rgm not in rgm_to_user and cpf in cpf_to_uid:
                         rgm_to_user[rgm] = cpf_to_uid[cpf]
-
-                logger.info("CPF fallback: added %d extra RGM->user mappings",
-                            len(rgm_to_user) - len([r for r in rgm_to_user if r]))
+                        cpf_added += 1
+                logger.info("CPF fallback: %d CPFs in Kommo, %d new RGM->user mapped", len(cpf_to_uid), cpf_added)
             except Exception as e:
                 logger.warning("CPF fallback error: %s", e)
+
+        # Fallback 2: nome (student name) -> Kommo lead name or contact name
+        unmatched_rgms = {r for r in all_rgms if r not in rgm_to_user}
+        if unmatched_rgms and nome_to_rgm:
+            try:
+                kconn3 = _pg_kommo()
+                kcur3 = kconn3.cursor()
+                kcur3.execute("""
+                    SELECT UPPER(l.name), l.responsible_user_id
+                    FROM leads l
+                    WHERE l.is_deleted = FALSE
+                      AND l.name IS NOT NULL AND l.name != ''
+                      AND l.responsible_user_id IS NOT NULL
+                    ORDER BY CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END
+                """)
+                nome_to_uid = {}
+                for row in kcur3.fetchall():
+                    n, uid = row[0], row[1]
+                    if n and uid and n not in nome_to_uid:
+                        nome_to_uid[n] = uid
+                kcur3.close()
+                kconn3.close()
+
+                nome_added = 0
+                for nome, rgm in nome_to_rgm.items():
+                    if rgm not in rgm_to_user and nome in nome_to_uid:
+                        rgm_to_user[rgm] = nome_to_uid[nome]
+                        nome_added += 1
+                logger.info("Nome fallback: %d names in Kommo, %d new RGM->user mapped", len(nome_to_uid), nome_added)
+            except Exception as e:
+                logger.warning("Nome fallback error: %s", e)
+
+        logger.info("RGM->user total: %d (base: %d, +fallbacks: %d)",
+                     len(rgm_to_user), pre_fallback, len(rgm_to_user) - pre_fallback)
 
         mat_per_agent = {}
         matched_count = 0
@@ -805,7 +867,8 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None, polo=None):
             elif len(unmatched_sample) < 10:
                 unmatched_sample.append(rgm)
         if unmatched_sample:
-            logger.info("Sample unmatched RGMs: %s", unmatched_sample)
+            logger.info("Sample unmatched RGMs (%d total): %s",
+                        len(all_rgms) - matched_count, unmatched_sample)
 
         # --- Step 3: merge CRM stats + CSV matrículas ---
         all_uids = set(crm_stats.keys()) | set(mat_per_agent.keys())
