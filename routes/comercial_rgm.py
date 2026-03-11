@@ -16,6 +16,7 @@ import os
 import csv
 import io
 import logging
+import re
 import requests
 from datetime import datetime, date, timedelta
 from pathlib import Path
@@ -194,6 +195,19 @@ _ensure_table()
 
 # ── Helpers ───────────────────────────────────────────────────────────────
 
+def _normalize_rgm(val):
+    """Normalize RGM: strip non-digits, remove leading zeros."""
+    if not val:
+        return None
+    digits = re.sub(r"\D", "", str(val))
+    if not digits:
+        return None
+    try:
+        return str(int(digits))
+    except ValueError:
+        return digits
+
+
 def _parse_date_br(s):
     """Parse dd/mm/yyyy or dd/m/yyyy to date object."""
     if not s or not s.strip():
@@ -268,7 +282,8 @@ def _import_csv(stream, encoding="utf-8-sig"):
             if not db_col:
                 continue
             row[db_col] = val
-        if not row.get("rgm"):
+        row["rgm"] = _normalize_rgm(row.get("rgm"))
+        if not row["rgm"]:
             continue
 
         row["data_matricula"] = _parse_date_br(row.get("data_matricula", ""))
@@ -584,7 +599,7 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None, polo=None):
         """)
         rgm_to_user = {}
         for row in kcur.fetchall():
-            rgm, uid = row[0], row[1]
+            rgm, uid = _normalize_rgm(row[0]), row[1]
             if rgm and uid and rgm not in rgm_to_user:
                 rgm_to_user[rgm] = uid
 
@@ -648,8 +663,9 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None, polo=None):
 
         cur.execute(f"SELECT rgm FROM comercial_rgm {csv_w}", csv_params)
         for r in cur.fetchall():
-            if r[0] and r[0].strip():
-                all_rgms.add(r[0].strip())
+            n = _normalize_rgm(r[0])
+            if n:
+                all_rgms.add(n)
 
         # Source B: M&M matriculados (dedup via set)
         mm_where = ["UPPER(COALESCE(tipo_matricula,'')) IN %s"]
@@ -667,8 +683,8 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None, polo=None):
 
         cur.execute(f"SELECT rgm, cpf FROM mm_matriculados {mm_w}", mm_params)
         for r in cur.fetchall():
-            if r[0] and r[0].strip():
-                rgm = r[0].strip()
+            rgm = _normalize_rgm(r[0])
+            if rgm:
                 all_rgms.add(rgm)
                 if r[1] and r[1].strip():
                     cpf_to_rgm[r[1].strip()] = rgm
@@ -714,11 +730,16 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None, polo=None):
 
         mat_per_agent = {}
         matched_count = 0
+        unmatched_sample = []
         for rgm in all_rgms:
             uid = rgm_to_user.get(rgm)
             if uid:
                 mat_per_agent[uid] = mat_per_agent.get(uid, 0) + 1
                 matched_count += 1
+            elif len(unmatched_sample) < 10:
+                unmatched_sample.append(rgm)
+        if unmatched_sample:
+            logger.info("Sample unmatched RGMs: %s", unmatched_sample)
 
         # --- Step 3: merge CRM stats + CSV matrículas ---
         all_uids = set(crm_stats.keys()) | set(mat_per_agent.keys())
@@ -797,8 +818,9 @@ def crgm_data():
         cur.execute(f"SELECT rgm, data_matricula, polo FROM comercial_rgm {w}", params)
         mat = {}
         for r in cur.fetchall():
-            if r[0] and r[0].strip():
-                mat[r[0].strip()] = {"dt": r[1], "polo": r[2]}
+            n = _normalize_rgm(r[0])
+            if n:
+                mat[n] = {"dt": r[1], "polo": r[2]}
 
         mm_kpi_where = ["UPPER(COALESCE(tipo_matricula,'')) IN %s"]
         mm_kpi_params = [MM_TIPO_MAT_VALIDOS]
@@ -815,8 +837,8 @@ def crgm_data():
 
         cur.execute(f"SELECT rgm, data_matricula, polo_aulas FROM mm_matriculados {mm_kpi_w}", mm_kpi_params)
         for r in cur.fetchall():
-            if r[0] and r[0].strip():
-                rgm = r[0].strip()
+            rgm = _normalize_rgm(r[0])
+            if rgm:
                 try:
                     dt = date.fromisoformat(r[1]) if isinstance(r[1], str) else r[1]
                 except (ValueError, TypeError):
@@ -847,7 +869,11 @@ def crgm_data():
                   AND lcf.values_json->0->>'value' != ''
                   AND l.price IS NOT NULL AND l.price > 0
             """)
-            rgm_price = {r[0]: r[1] for r in kcur.fetchall() if r[0]}
+            rgm_price = {}
+            for r in kcur.fetchall():
+                n = _normalize_rgm(r[0])
+                if n:
+                    rgm_price[n] = r[1]
             kcur.close()
             kconn.close()
 
@@ -920,8 +946,9 @@ def crgm_data():
             cur_.execute(f"SELECT rgm FROM comercial_rgm WHERE {' AND '.join(cw)}", cp)
             p_rgms = set()
             for r in cur_.fetchall():
-                if r[0] and r[0].strip():
-                    p_rgms.add(r[0].strip())
+                n = _normalize_rgm(r[0])
+                if n:
+                    p_rgms.add(n)
 
             mw = ["UPPER(COALESCE(tipo_matricula,'')) IN %s",
                   "data_matricula >= %s", "data_matricula <= %s"]
@@ -931,8 +958,9 @@ def crgm_data():
 
             cur_.execute(f"SELECT rgm FROM mm_matriculados WHERE {' AND '.join(mw)}", mp)
             for r in cur_.fetchall():
-                if r[0] and r[0].strip():
-                    p_rgms.add(r[0].strip())
+                n = _normalize_rgm(r[0])
+                if n:
+                    p_rgms.add(n)
 
             return len(p_rgms)
 
@@ -993,8 +1021,9 @@ def crgm_data():
                 cur.execute(f"SELECT rgm, data_matricula FROM comercial_rgm {pcw}", prev_csv_p)
                 prev_mat = {}
                 for r in cur.fetchall():
-                    if r[0] and r[0].strip():
-                        prev_mat[r[0].strip()] = r[1]
+                    n = _normalize_rgm(r[0])
+                    if n:
+                        prev_mat[n] = r[1]
 
                 prev_mm_w = ["UPPER(COALESCE(tipo_matricula,'')) IN %s",
                              "data_matricula >= %s", "data_matricula <= %s"]
@@ -1006,8 +1035,8 @@ def crgm_data():
 
                 cur.execute(f"SELECT rgm, data_matricula FROM mm_matriculados {pmw}", prev_mm_p)
                 for r in cur.fetchall():
-                    if r[0] and r[0].strip():
-                        rgm = r[0].strip()
+                    rgm = _normalize_rgm(r[0])
+                    if rgm:
                         try:
                             dt = date.fromisoformat(r[1]) if isinstance(r[1], str) else r[1]
                         except (ValueError, TypeError):
