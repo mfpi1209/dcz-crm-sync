@@ -627,25 +627,49 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None, polo=None):
         kconn = _pg_kommo()
         kcur = kconn.cursor()
 
-        # Priority: Ganho leads first, then any lead with RGM
+        # Build RGM->user map from TWO sources (lead_custom_field_values + leads.custom_fields_json)
+        # Source 1: lead_custom_field_values (case-insensitive)
         kcur.execute("""
             SELECT regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g') AS rgm,
                    l.responsible_user_id,
                    l.status_id
             FROM lead_custom_field_values lcf
             JOIN leads l ON l.id = lcf.lead_id AND l.is_deleted = FALSE
-            WHERE lcf.field_name = 'RGM'
+            WHERE LOWER(lcf.field_name) = 'rgm'
               AND lcf.values_json->0->>'value' IS NOT NULL
               AND lcf.values_json->0->>'value' != ''
             ORDER BY CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END
         """)
         rgm_to_user = {}
+        src1_count = 0
         for row in kcur.fetchall():
             rgm, uid = _normalize_rgm(row[0]), row[1]
             if rgm and uid and rgm not in rgm_to_user:
                 rgm_to_user[rgm] = uid
+                src1_count += 1
 
-        logger.info("rgm_to_user map: %d entries from Kommo leads", len(rgm_to_user))
+        # Source 2: leads.custom_fields_json (fallback for leads not in cf_values table)
+        kcur.execute("""
+            SELECT regexp_replace(cf_elem->'values'->0->>'value', '[^0-9]', '', 'g') AS rgm,
+                   l.responsible_user_id,
+                   l.status_id
+            FROM leads l,
+                 jsonb_array_elements(COALESCE(l.custom_fields_json, '[]'::jsonb)) cf_elem
+            WHERE l.is_deleted = FALSE
+              AND LOWER(cf_elem->>'field_name') = 'rgm'
+              AND cf_elem->'values'->0->>'value' IS NOT NULL
+              AND cf_elem->'values'->0->>'value' != ''
+            ORDER BY CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END
+        """)
+        src2_count = 0
+        for row in kcur.fetchall():
+            rgm, uid = _normalize_rgm(row[0]), row[1]
+            if rgm and uid and rgm not in rgm_to_user:
+                rgm_to_user[rgm] = uid
+                src2_count += 1
+
+        logger.info("rgm_to_user map: %d total (%d from cf_values, %d extra from custom_fields_json)",
+                     len(rgm_to_user), src1_count, src2_count)
 
         # --- CRM totals per agent (all-time) ---
         ep_ini = _date_to_epoch(dt_ini)
@@ -900,21 +924,31 @@ def crgm_data():
             kconn = _pg_kommo()
             kcur = kconn.cursor()
             kcur.execute("""
-                SELECT regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g') AS rgm,
-                       l.price
-                FROM lead_custom_field_values lcf
-                JOIN leads l ON l.id = lcf.lead_id
-                              AND l.status_id = 142
-                              AND l.is_deleted = FALSE
-                WHERE lcf.field_name = 'RGM'
-                  AND lcf.values_json->0->>'value' IS NOT NULL
-                  AND lcf.values_json->0->>'value' != ''
-                  AND l.price IS NOT NULL AND l.price > 0
+                SELECT rgm_val, price FROM (
+                    SELECT regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g') AS rgm_val,
+                           l.price
+                    FROM lead_custom_field_values lcf
+                    JOIN leads l ON l.id = lcf.lead_id AND l.status_id = 142 AND l.is_deleted = FALSE
+                    WHERE LOWER(lcf.field_name) = 'rgm'
+                      AND lcf.values_json->0->>'value' IS NOT NULL
+                      AND lcf.values_json->0->>'value' != ''
+                      AND l.price IS NOT NULL AND l.price > 0
+                    UNION ALL
+                    SELECT regexp_replace(cf_elem->'values'->0->>'value', '[^0-9]', '', 'g'),
+                           l.price
+                    FROM leads l,
+                         jsonb_array_elements(COALESCE(l.custom_fields_json, '[]'::jsonb)) cf_elem
+                    WHERE l.status_id = 142 AND l.is_deleted = FALSE
+                      AND LOWER(cf_elem->>'field_name') = 'rgm'
+                      AND cf_elem->'values'->0->>'value' IS NOT NULL
+                      AND cf_elem->'values'->0->>'value' != ''
+                      AND l.price IS NOT NULL AND l.price > 0
+                ) sub WHERE rgm_val IS NOT NULL AND rgm_val != ''
             """)
             rgm_price = {}
             for r in kcur.fetchall():
                 n = _normalize_rgm(r[0])
-                if n:
+                if n and n not in rgm_price:
                     rgm_price[n] = r[1]
             kcur.close()
             kconn.close()
@@ -1185,6 +1219,124 @@ def crgm_data():
 @comercial_rgm_bp.route("/api/comercial-rgm/metas/categorias")
 def crgm_metas_categorias():
     return jsonify({"ok": True, "categorias": METAS_CATEGORIAS})
+
+
+@comercial_rgm_bp.route("/api/comercial-rgm/diagnostics")
+def crgm_diagnostics():
+    """Diagnostic endpoint to debug RGM matching between CSV/MM and Kommo."""
+    try:
+        # RGMs from CSV
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("SELECT rgm FROM comercial_rgm")
+        csv_rgms = set()
+        csv_raw_samples = []
+        for r in cur.fetchall():
+            raw = r[0]
+            n = _normalize_rgm(raw)
+            if n:
+                csv_rgms.add(n)
+                if len(csv_raw_samples) < 5:
+                    csv_raw_samples.append({"raw": raw, "normalized": n})
+
+        # RGMs from MM
+        cur.execute("SELECT rgm, tipo_matricula FROM mm_matriculados LIMIT 500")
+        mm_rgms = set()
+        mm_raw_samples = []
+        for r in cur.fetchall():
+            n = _normalize_rgm(r[0])
+            if n:
+                mm_rgms.add(n)
+                if len(mm_raw_samples) < 5:
+                    mm_raw_samples.append({"raw": r[0], "normalized": n, "tipo": r[1]})
+
+        cur.close()
+        conn.close()
+
+        # RGMs from Kommo (source 1: cf_values)
+        kconn = _pg_kommo()
+        kcur = kconn.cursor()
+        kcur.execute("""
+            SELECT lcf.field_name,
+                   lcf.values_json->0->>'value' AS raw_val,
+                   l.responsible_user_id, l.status_id
+            FROM lead_custom_field_values lcf
+            JOIN leads l ON l.id = lcf.lead_id AND l.is_deleted = FALSE
+            WHERE LOWER(lcf.field_name) = 'rgm'
+              AND lcf.values_json->0->>'value' IS NOT NULL
+              AND lcf.values_json->0->>'value' != ''
+        """)
+        kommo_cf_rgms = {}
+        cf_samples = []
+        for r in kcur.fetchall():
+            n = _normalize_rgm(r[1])
+            if n:
+                kommo_cf_rgms[n] = r[2]
+                if len(cf_samples) < 5:
+                    cf_samples.append({"field_name": r[0], "raw": r[1], "normalized": n,
+                                       "user_id": r[2], "status": r[3]})
+
+        # RGMs from Kommo (source 2: custom_fields_json)
+        kcur.execute("""
+            SELECT cf_elem->>'field_name' AS fname,
+                   cf_elem->'values'->0->>'value' AS raw_val,
+                   l.responsible_user_id, l.status_id
+            FROM leads l,
+                 jsonb_array_elements(COALESCE(l.custom_fields_json, '[]'::jsonb)) cf_elem
+            WHERE l.is_deleted = FALSE
+              AND LOWER(cf_elem->>'field_name') = 'rgm'
+              AND cf_elem->'values'->0->>'value' IS NOT NULL
+              AND cf_elem->'values'->0->>'value' != ''
+        """)
+        kommo_json_rgms = {}
+        json_samples = []
+        for r in kcur.fetchall():
+            n = _normalize_rgm(r[1])
+            if n:
+                kommo_json_rgms[n] = r[2]
+                if len(json_samples) < 5:
+                    json_samples.append({"field_name": r[0], "raw": r[1], "normalized": n,
+                                          "user_id": r[2], "status": r[3]})
+
+        # Also check distinct field_name values that contain 'rgm'
+        kcur.execute("""
+            SELECT DISTINCT field_name FROM lead_custom_field_values
+            WHERE LOWER(field_name) LIKE '%rgm%'
+        """)
+        rgm_field_names = [r[0] for r in kcur.fetchall()]
+
+        kcur.close()
+        kconn.close()
+
+        all_kommo = set(kommo_cf_rgms.keys()) | set(kommo_json_rgms.keys())
+        all_base = csv_rgms | mm_rgms
+        matched = all_base & all_kommo
+        unmatched = all_base - all_kommo
+
+        return jsonify({
+            "ok": True,
+            "csv_rgms": len(csv_rgms),
+            "mm_rgms": len(mm_rgms),
+            "all_base_rgms": len(all_base),
+            "kommo_cf_values_rgms": len(kommo_cf_rgms),
+            "kommo_json_rgms": len(kommo_json_rgms),
+            "kommo_total_unique": len(all_kommo),
+            "matched": len(matched),
+            "unmatched": len(unmatched),
+            "match_rate": f"{len(matched)/max(len(all_base),1)*100:.1f}%",
+            "rgm_field_names_in_kommo": rgm_field_names,
+            "samples": {
+                "csv": csv_raw_samples,
+                "mm": mm_raw_samples,
+                "kommo_cf": cf_samples,
+                "kommo_json": json_samples,
+                "unmatched": sorted(list(unmatched))[:15],
+                "matched": sorted(list(matched))[:15],
+            }
+        })
+    except Exception as e:
+        logger.exception("diagnostics error")
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @comercial_rgm_bp.route("/api/comercial-rgm/metas", methods=["GET"])
