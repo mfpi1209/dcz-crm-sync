@@ -182,7 +182,17 @@ function _crgmRenderAgentes(agentes) {
         const taxaClass = a.taxa_conversao>=20 ? 'text-emerald-400' : a.taxa_conversao>=8 ? 'text-amber-400' : 'text-red-400';
         const rank = i<3 ? medals[i] : (i+1);
         const rowBg = i<3 ? 'bg-blue-500/[0.03]' : '';
-        return `<tr class="hover:bg-white/[0.03] transition-colors ${rowBg}" title="${meta>0?'Meta: '+meta+' | '+pctMeta+'%':'Sem meta'}">
+
+        // Build tooltip with all category metas
+        let tooltip = '';
+        const mc = a.metas_cat || {};
+        if (Object.keys(mc).length > 0) {
+            tooltip = Object.entries(mc).map(([cat, val]) => `${_crgmCatLabel(cat)}: ${val}`).join(' | ');
+        } else {
+            tooltip = 'Sem meta definida';
+        }
+
+        return `<tr class="hover:bg-white/[0.03] transition-colors ${rowBg}" title="${tooltip}">
             <td class="text-center px-3 py-2.5 font-bold text-slate-400">${rank}</td>
             <td class="px-4 py-2.5 font-medium ${a.nome&&a.nome.startsWith('User #')?'text-slate-500 italic':'text-white'}">${esc(a.nome)}</td>
             <td class="px-4 py-2.5 text-right font-mono text-blue-400 font-semibold">${mp.toLocaleString('pt-BR')}</td>
@@ -234,6 +244,19 @@ function _crgmRenderAgentesChart(agentes) {
 }
 
 // ── Metas (painel) ──────────────────────────────────────
+let _crgmMetasCategorias = [];
+let _crgmMetasAll = [];
+
+function _crgmCatLabel(catId) {
+    const c = _crgmMetasCategorias.find(x => x.id === catId);
+    return c ? c.label : catId;
+}
+
+const _CAT_COLORS = {
+    matriculas:'text-blue-400', inscricoes:'text-cyan-400', valor:'text-emerald-400',
+    novos_leads:'text-amber-400', conversao:'text-purple-400',
+};
+
 function crgmToggleMetas() {
     const panel = document.getElementById('crgm-metas-panel');
     const isHidden = panel.classList.contains('hidden');
@@ -257,45 +280,101 @@ async function _crgmLoadMetasPanel() {
             api('/api/comercial-rgm/metas').then(r=>r.json()),
             api('/api/comercial-rgm/filters').then(r=>r.json()),
         ]);
+
+        // Populate category dropdowns
+        if (metasRes.categorias) {
+            _crgmMetasCategorias = metasRes.categorias;
+            const catSelect = document.getElementById('crgm-meta-cat');
+            const histFilter = document.getElementById('crgm-metas-hist-filter');
+            catSelect.innerHTML = metasRes.categorias.map(c =>
+                `<option value="${c.id}">${esc(c.label)}</option>`
+            ).join('');
+            histFilter.innerHTML = '<option value="">Todas categorias</option>' +
+                metasRes.categorias.map(c => `<option value="${c.id}">${esc(c.label)}</option>`).join('');
+        }
+
         const agentes = filtersRes.ok ? (filtersRes.agentes||[]).filter(a=>!['Admin','T.I','Suporte'].includes(a.name)) : [];
         if (!agentes.length) { grid.innerHTML='<p class="text-slate-500 text-xs col-span-full">Sync agentes primeiro.</p>'; return; }
 
         grid.innerHTML = agentes.map(a =>
             `<div class="flex items-center gap-2 bg-slate-800/30 rounded-lg px-3 py-2">
                 <span class="text-xs text-slate-300 flex-1 truncate">${esc(a.name)}</span>
-                <input type="number" min="0" data-uid="${a.id}" data-uname="${esc(a.name)}" placeholder="0"
-                    class="w-16 text-right text-xs font-mono bg-slate-900/50 border border-slate-700 rounded px-2 py-1 text-white focus:border-amber-500 focus:outline-none crgm-meta-input">
+                <input type="number" min="0" step="any" data-uid="${a.id}" data-uname="${esc(a.name)}" placeholder="0"
+                    class="w-20 text-right text-xs font-mono bg-slate-900/50 border border-slate-700 rounded px-2 py-1 text-white focus:border-amber-500 focus:outline-none crgm-meta-input">
             </div>`
         ).join('');
 
-        if (metasRes.ok && metasRes.metas.length) {
-            hist.innerHTML = metasRes.metas.map(m =>
-                `<div class="flex items-center gap-3 bg-slate-800/30 rounded-lg px-4 py-2 text-xs">
-                    <span class="text-slate-400 flex-1">${esc(m.descricao||'')} <span class="text-slate-600">(${m.dt_inicio} a ${m.dt_fim})</span></span>
-                    <span class="text-white font-medium">${esc(m.user_name||'')}: ${m.meta}</span>
-                    <button onclick="crgmDeleteMeta(${m.id})" class="text-red-500 hover:text-red-400 ml-1" title="Excluir">&times;</button>
-                </div>`
-            ).join('');
-        } else {
-            hist.innerHTML = '<p class="text-slate-600 text-xs">Nenhuma meta cadastrada.</p>';
-        }
+        _crgmMetasAll = (metasRes.ok && metasRes.metas) ? metasRes.metas : [];
+        _crgmRenderHistorico();
     } catch (e) { grid.innerHTML=`<p class="text-red-400 text-xs col-span-full">Erro: ${e.message}</p>`; }
+}
+
+function _crgmRenderHistorico(filterCat) {
+    const hist = document.getElementById('crgm-metas-historico');
+    let metas = _crgmMetasAll;
+    if (filterCat) metas = metas.filter(m => m.categoria === filterCat);
+
+    if (!metas.length) {
+        hist.innerHTML = '<p class="text-slate-600 text-xs">Nenhuma meta cadastrada.</p>';
+        return;
+    }
+
+    // Group by (categoria + dt_inicio + dt_fim + descricao)
+    const groups = {};
+    metas.forEach(m => {
+        const key = `${m.categoria}|${m.dt_inicio}|${m.dt_fim}|${m.descricao||''}`;
+        if (!groups[key]) groups[key] = { ...m, items: [] };
+        groups[key].items.push(m);
+    });
+
+    hist.innerHTML = Object.values(groups).map(g => {
+        const catColor = _CAT_COLORS[g.categoria] || 'text-slate-400';
+        const catLabel = _crgmCatLabel(g.categoria);
+        const agentsList = g.items.map(m =>
+            `<span class="inline-flex items-center gap-1 bg-slate-700/40 rounded px-2 py-0.5">
+                ${esc(m.user_name||'?')}: <b>${m.meta}</b>
+                <button onclick="crgmDeleteMeta(${m.id})" class="text-red-500/60 hover:text-red-400 ml-0.5 text-[10px]" title="Excluir">&times;</button>
+            </span>`
+        ).join(' ');
+        return `<div class="bg-slate-800/30 rounded-lg px-4 py-3 text-xs border-l-2 ${catColor.replace('text-','border-')}">
+            <div class="flex items-center gap-2 mb-1.5">
+                <span class="font-semibold ${catColor}">${esc(catLabel)}</span>
+                <span class="text-slate-500">${g.dt_inicio} a ${g.dt_fim}</span>
+                ${g.descricao ? `<span class="text-slate-600 italic">${esc(g.descricao)}</span>` : ''}
+            </div>
+            <div class="flex flex-wrap gap-1.5">${agentsList}</div>
+        </div>`;
+    }).join('');
+}
+
+function _crgmFilterHistorico() {
+    const cat = document.getElementById('crgm-metas-hist-filter').value;
+    _crgmRenderHistorico(cat || null);
 }
 
 async function crgmSaveMetas() {
     const dtIni = document.getElementById('crgm-meta-ini').value;
     const dtFim = document.getElementById('crgm-meta-fim').value;
     const desc = document.getElementById('crgm-meta-desc').value || '';
+    const cat = document.getElementById('crgm-meta-cat').value || 'matriculas';
     if (!dtIni || !dtFim) { _crgmErro('Defina o período da meta'); return; }
     const inputs = document.querySelectorAll('.crgm-meta-input');
     const metas = [];
     inputs.forEach(inp => {
-        const v = parseInt(inp.value);
-        if (v > 0) metas.push({user_id:parseInt(inp.dataset.uid), meta:v, user_name:inp.dataset.uname||'', dt_inicio:dtIni, dt_fim:dtFim, descricao:desc});
+        const v = parseFloat(inp.value);
+        if (v > 0) metas.push({
+            user_id: parseInt(inp.dataset.uid), meta: v,
+            user_name: inp.dataset.uname||'',
+            dt_inicio: dtIni, dt_fim: dtFim,
+            descricao: desc, categoria: cat,
+        });
     });
     if (!metas.length) { _crgmErro('Defina ao menos uma meta > 0'); return; }
     try {
-        const res = await api('/api/comercial-rgm/metas', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({metas})});
+        const res = await api('/api/comercial-rgm/metas', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({metas}),
+        });
         const d = await res.json();
         if (d.ok) { document.getElementById('crgm-metas-panel').classList.add('hidden'); crgmAtualizar(); }
         else _crgmErro(d.error||'Erro ao salvar');

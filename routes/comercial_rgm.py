@@ -138,12 +138,21 @@ CREATE INDEX IF NOT EXISTS idx_mmhm_cpf  ON mm_matriculados_hist(cpf);
 CREATE INDEX IF NOT EXISTS idx_mmhm_data ON mm_matriculados_hist(data_matricula);
 """
 
+METAS_CATEGORIAS = [
+    {"id": "matriculas",  "label": "Matrículas"},
+    {"id": "inscricoes",  "label": "Inscrições"},
+    {"id": "valor",       "label": "Valor vendido (R$)"},
+    {"id": "novos_leads", "label": "Novos leads"},
+    {"id": "conversao",   "label": "Taxa conversão (%)"},
+]
+
 _METAS_DDL = """
 CREATE TABLE IF NOT EXISTS comercial_metas (
     id         SERIAL PRIMARY KEY,
     user_id    INTEGER NOT NULL,
     user_name  TEXT,
-    meta       INTEGER NOT NULL DEFAULT 0,
+    meta       NUMERIC NOT NULL DEFAULT 0,
+    categoria  TEXT NOT NULL DEFAULT 'matriculas',
     dt_inicio  DATE NOT NULL,
     dt_fim     DATE NOT NULL,
     descricao  TEXT DEFAULT '',
@@ -151,6 +160,7 @@ CREATE TABLE IF NOT EXISTS comercial_metas (
 );
 CREATE INDEX IF NOT EXISTS idx_cm_user ON comercial_metas(user_id);
 CREATE INDEX IF NOT EXISTS idx_cm_dates ON comercial_metas(dt_inicio, dt_fim);
+CREATE INDEX IF NOT EXISTS idx_cm_cat ON comercial_metas(categoria);
 """
 
 
@@ -160,20 +170,43 @@ def _ensure_table():
     cur.execute(_CREATE_SQL)
     conn.commit()
 
-    # Migrate comercial_metas if old schema exists
+    # Migrate comercial_metas
     try:
         cur.execute("""
             SELECT column_name FROM information_schema.columns
             WHERE table_name = 'comercial_metas' AND column_name = 'dt_inicio'
         """)
-        has_new_schema = cur.fetchone() is not None
+        has_dt_inicio = cur.fetchone() is not None
 
-        if not has_new_schema:
+        if not has_dt_inicio:
             cur.execute("DROP TABLE IF EXISTS comercial_metas CASCADE")
             conn.commit()
 
         cur.execute(_METAS_DDL)
         conn.commit()
+
+        # Add categoria column if missing (table exists but column doesn't)
+        cur.execute("""
+            SELECT column_name FROM information_schema.columns
+            WHERE table_name = 'comercial_metas' AND column_name = 'categoria'
+        """)
+        if not cur.fetchone():
+            cur.execute("ALTER TABLE comercial_metas ADD COLUMN categoria TEXT NOT NULL DEFAULT 'matriculas'")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_cm_cat ON comercial_metas(categoria)")
+            conn.commit()
+            logger.info("comercial_metas: added 'categoria' column")
+
+        # Ensure meta column is NUMERIC (was INTEGER before)
+        cur.execute("""
+            SELECT data_type FROM information_schema.columns
+            WHERE table_name = 'comercial_metas' AND column_name = 'meta'
+        """)
+        row = cur.fetchone()
+        if row and row[0] == 'integer':
+            cur.execute("ALTER TABLE comercial_metas ALTER COLUMN meta TYPE NUMERIC")
+            conn.commit()
+            logger.info("comercial_metas: changed 'meta' from INTEGER to NUMERIC")
+
     except Exception as e:
         conn.rollback()
         logger.warning("comercial_metas migration: %s", e)
@@ -1074,24 +1107,31 @@ def crgm_data():
         # --- Ranking de agentes (CSV x Kommo cross-ref) ---
         ranking_agentes = _build_agent_ranking(dt_ini or None, dt_fim or None, polo or None)
 
-        # --- Metas por agente (overlapping date range) ---
-        metas = {}
+        # --- Metas por agente (overlapping date range), agrupadas por categoria ---
+        metas_by_cat = {}
         try:
             conn2 = _pg()
             cur2 = conn2.cursor()
             cur2.execute("""
-                SELECT user_id, meta FROM comercial_metas
+                SELECT user_id, meta, categoria FROM comercial_metas
                 WHERE dt_inicio <= %s AND dt_fim >= %s
             """, (dt_fim or '9999-12-31', dt_ini or '1900-01-01'))
             for r in cur2.fetchall():
-                metas[r[0]] = metas.get(r[0], 0) + r[1]
+                uid, val, cat = r[0], float(r[1]), r[2] or "matriculas"
+                metas_by_cat.setdefault(cat, {})
+                metas_by_cat[cat][uid] = metas_by_cat[cat].get(uid, 0) + val
             cur2.close()
             conn2.close()
         except Exception:
             pass
 
+        mat_metas = metas_by_cat.get("matriculas", {})
         for ag in ranking_agentes:
-            ag["meta"] = metas.get(ag["user_id"], 0)
+            ag["meta"] = mat_metas.get(ag["user_id"], 0)
+            ag["metas_cat"] = {}
+            for cat, users in metas_by_cat.items():
+                if ag["user_id"] in users:
+                    ag["metas_cat"][cat] = users[ag["user_id"]]
 
         return jsonify({
             "ok": True,
@@ -1121,6 +1161,11 @@ def crgm_data():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@comercial_rgm_bp.route("/api/comercial-rgm/metas/categorias")
+def crgm_metas_categorias():
+    return jsonify({"ok": True, "categorias": METAS_CATEGORIAS})
+
+
 @comercial_rgm_bp.route("/api/comercial-rgm/metas", methods=["GET"])
 def crgm_get_metas():
     try:
@@ -1128,26 +1173,29 @@ def crgm_get_metas():
         cur = conn.cursor()
         dt_ini = request.args.get("dt_ini", "")
         dt_fim = request.args.get("dt_fim", "")
+        categoria = request.args.get("categoria", "")
+        wheres = []
+        params = []
         if dt_ini and dt_fim:
-            cur.execute("""
-                SELECT id, user_id, user_name, meta, dt_inicio, dt_fim, descricao
-                FROM comercial_metas
-                WHERE dt_inicio <= %s AND dt_fim >= %s
-                ORDER BY dt_inicio DESC, user_name
-            """, (dt_fim, dt_ini))
-        else:
-            cur.execute("""
-                SELECT id, user_id, user_name, meta, dt_inicio, dt_fim, descricao
-                FROM comercial_metas ORDER BY dt_inicio DESC, user_name
-            """)
-        rows = [{"id": r[0], "user_id": r[1], "user_name": r[2], "meta": r[3],
+            wheres.append("dt_inicio <= %s AND dt_fim >= %s")
+            params.extend([dt_fim, dt_ini])
+        if categoria:
+            wheres.append("categoria = %s")
+            params.append(categoria)
+        w = ("WHERE " + " AND ".join(wheres)) if wheres else ""
+        cur.execute(f"""
+            SELECT id, user_id, user_name, meta, dt_inicio, dt_fim, descricao, categoria
+            FROM comercial_metas {w}
+            ORDER BY dt_inicio DESC, categoria, user_name
+        """, params)
+        rows = [{"id": r[0], "user_id": r[1], "user_name": r[2], "meta": float(r[3]),
                  "dt_inicio": r[4].isoformat() if r[4] else None,
                  "dt_fim": r[5].isoformat() if r[5] else None,
-                 "descricao": r[6]}
+                 "descricao": r[6], "categoria": r[7] or "matriculas"}
                 for r in cur.fetchall()]
         cur.close()
         conn.close()
-        return jsonify({"ok": True, "metas": rows})
+        return jsonify({"ok": True, "metas": rows, "categorias": METAS_CATEGORIAS})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -1158,23 +1206,28 @@ def crgm_save_metas():
     metas = data.get("metas", [])
     if not metas:
         return jsonify({"error": "Nenhuma meta enviada"}), 400
+    valid_cats = {c["id"] for c in METAS_CATEGORIAS}
     try:
         conn = _pg()
         cur = conn.cursor()
         saved = 0
         for m in metas:
             uid = int(m["user_id"])
-            meta_val = int(m.get("meta", 0))
+            meta_val = float(m.get("meta", 0))
             name = m.get("user_name", "")
             dt_inicio = m.get("dt_inicio")
             dt_fim = m.get("dt_fim")
             descricao = m.get("descricao", "")
+            categoria = m.get("categoria", "matriculas")
+            if categoria not in valid_cats:
+                categoria = "matriculas"
             if not dt_inicio or not dt_fim:
                 continue
             cur.execute("""
-                INSERT INTO comercial_metas (user_id, user_name, meta, dt_inicio, dt_fim, descricao)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (uid, name, meta_val, dt_inicio, dt_fim, descricao))
+                INSERT INTO comercial_metas
+                    (user_id, user_name, meta, categoria, dt_inicio, dt_fim, descricao)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (uid, name, meta_val, categoria, dt_inicio, dt_fim, descricao))
             saved += 1
         conn.commit()
         cur.close()
