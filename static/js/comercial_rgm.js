@@ -319,13 +319,12 @@ function _crgmRenderAgentesChart(agentes) {
     if (agenteFilter) {
         data = data.filter(a => String(a.user_id) === agenteFilter);
     }
-    data.sort((a, b) => (b.ganhos_periodo || 0) - (a.ganhos_periodo || 0));
 
-    const top = data.slice(0, 15);
-    const labels = top.map(a => {
-        const name = a.nome || '';
-        return name.length > 18 ? name.substring(0, 16) + '...' : name;
-    });
+    data = data.filter(a => (a.ganhos_periodo || 0) > 0 || (a.perdidos_periodo || 0) > 0);
+    data.sort((a, b) => (a.ganhos_periodo || 0) - (b.ganhos_periodo || 0));
+
+    const top = data.slice(-12);
+    const labels = top.map(a => a.nome || `#${a.user_id}`);
 
     _crgmChartAgentes = new Chart(ctx, {
         type: 'bar',
@@ -333,50 +332,56 @@ function _crgmRenderAgentesChart(agentes) {
             labels,
             datasets: [
                 {
-                    label: 'Ganhos',
+                    label: 'Ganhos (per.)',
                     data: top.map(a => a.ganhos_periodo || 0),
-                    backgroundColor: 'rgba(52,211,153,0.7)',
-                    borderColor: '#34d399',
+                    backgroundColor: '#34d399',
+                    borderColor: '#10b981',
                     borderWidth: 1,
-                    borderRadius: 3,
+                    borderRadius: 4,
+                    barPercentage: 0.7,
+                    categoryPercentage: 0.8,
                 },
                 {
-                    label: 'Perdidos',
+                    label: 'Perdidos (per.)',
                     data: top.map(a => a.perdidos_periodo || 0),
-                    backgroundColor: 'rgba(248,113,113,0.5)',
+                    backgroundColor: 'rgba(248,113,113,0.55)',
                     borderColor: '#f87171',
                     borderWidth: 1,
-                    borderRadius: 3,
-                },
-                {
-                    label: 'Novos',
-                    data: top.map(a => a.novos_periodo || 0),
-                    backgroundColor: 'rgba(139,92,246,0.5)',
-                    borderColor: '#8b5cf6',
-                    borderWidth: 1,
-                    borderRadius: 3,
+                    borderRadius: 4,
+                    barPercentage: 0.7,
+                    categoryPercentage: 0.8,
                 },
             ]
         },
         options: {
+            indexAxis: 'y',
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    labels: { color: '#94a3b8', font: { size: 11 }, boxWidth: 12, padding: 16 }
+                    position: 'top',
+                    align: 'end',
+                    labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 10, padding: 12 }
+                },
+                tooltip: {
+                    callbacks: {
+                        afterBody: function(ctx) {
+                            const i = ctx[0].dataIndex;
+                            const a = top[i];
+                            return `Taxa Conv.: ${a.taxa_conversao}%`;
+                        }
+                    }
                 }
             },
             scales: {
                 x: {
-                    stacked: true,
-                    ticks: { color: '#cbd5e1', font: { size: 9 }, maxRotation: 45 },
-                    grid: { color: 'rgba(100,116,139,0.08)' }
-                },
-                y: {
-                    stacked: true,
                     beginAtZero: true,
                     ticks: { color: '#64748b', font: { size: 10 } },
                     grid: { color: 'rgba(100,116,139,0.08)' }
+                },
+                y: {
+                    ticks: { color: '#e2e8f0', font: { size: 11, weight: 500 } },
+                    grid: { display: false }
                 }
             }
         }

@@ -399,33 +399,72 @@ def crgm_filters():
         agentes = [{"id": r[0], "name": r[1]} for r in cur.fetchall()]
         cur.close()
         conn.close()
+
+        if not agentes:
+            agentes = [{"id": k, "name": v} for k, v in sorted(_KNOWN_USERS.items(), key=lambda x: x[1])]
+
         return jsonify({"ok": True, "polos": polos, "niveis": niveis, "ciclos": ciclos, "agentes": agentes})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+_KNOWN_USERS = {
+    8239958:  "Fran",
+    8240165:  "Isabela",
+    8240189:  "Juliana",
+    8240438:  "Claudia",
+    8261837:  "Admin",
+    9718419:  "Felipe",
+    10329248: "Andreina",
+    10729260: "Jessica",
+    11741316: "Bruno",
+    12158628: "Hugo",
+    12209212: "Gabriela",
+    12908868: "Diogo",
+    13018348: "Kamily",
+    13304804: "T.I",
+    14205944: "Thainá",
+    14464488: "Tamires",
+    14482884: "Eduardo",
+    14546744: "Suporte",
+    14546760: "Jessica C",
+    14932700: "Beatriz",
+}
+
+
 def _fetch_kommo_user_names(user_ids):
-    """Get user names from kommo_sync.users table (populated by kommo_lib sync)."""
+    """Get user names: known map -> kommo_sync.users -> dcz_sync.kommo_users -> API."""
     user_map = {}
     if not user_ids:
+        return user_map
+
+    for uid in user_ids:
+        if uid in _KNOWN_USERS:
+            user_map[uid] = _KNOWN_USERS[uid]
+
+    missing = [uid for uid in user_ids if uid not in user_map]
+    if not missing:
         return user_map
 
     try:
         conn = _pg_kommo()
         cur = conn.cursor()
-        cur.execute("SELECT id, name FROM users WHERE id = ANY(%s)", (user_ids,))
-        user_map = {r[0]: r[1] for r in cur.fetchall()}
+        cur.execute("SELECT id, name FROM users WHERE id = ANY(%s)", (missing,))
+        for r in cur.fetchall():
+            user_map[r[0]] = r[1]
         cur.close()
         conn.close()
     except Exception as e:
         logger.warning("fetch user names from kommo_sync.users: %s", e)
 
-    if not user_map:
+    missing = [uid for uid in user_ids if uid not in user_map]
+    if missing:
         try:
             conn = _pg()
             cur = conn.cursor()
-            cur.execute("SELECT id, name FROM kommo_users WHERE id = ANY(%s)", (user_ids,))
-            user_map = {r[0]: r[1] for r in cur.fetchall()}
+            cur.execute("SELECT id, name FROM kommo_users WHERE id = ANY(%s)", (missing,))
+            for r in cur.fetchall():
+                user_map[r[0]] = r[1]
             cur.close()
             conn.close()
         except Exception:
