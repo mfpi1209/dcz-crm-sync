@@ -500,21 +500,40 @@ def _date_to_epoch(dt_str):
         return None
 
 
-def _build_agent_ranking(dt_ini=None, dt_fim=None):
-    """Build agent ranking from kommo_sync leads.
+def _build_agent_ranking(dt_ini=None, dt_fim=None, polo=None):
+    """Build agent ranking by cross-referencing CSV matrículas with Kommo leads.
 
-    - Total/Ganhos/Perdidos/Ativos: all-time per agent
-    - ganhos_periodo/perdidos_periodo: closed_at within date range
-    - novos_periodo: created_at within date range
+    Logic (matches the BI):
+      1. kommo_sync: leads with status=142 (Ganho) -> extract RGM from custom fields
+         -> build RGM->responsible_user_id map
+      2. dcz_sync: comercial_rgm (CSV) filtered by date/polo
+         -> count matrículas per agent using the RGM map
+      3. Also include CRM-only stats (total leads, novos, perdidos, ativos)
     """
     try:
+        # --- Step 1: build RGM -> responsible_user_id from Kommo Ganhos ---
         kconn = _pg_kommo()
         kcur = kconn.cursor()
+        kcur.execute("""
+            SELECT regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g') AS rgm,
+                   l.responsible_user_id
+            FROM lead_custom_field_values lcf
+            JOIN leads l ON l.id = lcf.lead_id AND l.status_id = 142 AND l.is_deleted = FALSE
+            WHERE lcf.field_name = 'RGM'
+              AND lcf.values_json->0->>'value' IS NOT NULL
+              AND lcf.values_json->0->>'value' != ''
+        """)
+        rgm_to_user = {}
+        for row in kcur.fetchall():
+            rgm, uid = row[0], row[1]
+            if rgm and uid:
+                rgm_to_user[rgm] = uid
 
+        # --- CRM totals per agent (all-time) ---
         ep_ini = _date_to_epoch(dt_ini)
         ep_fim = _date_to_epoch(dt_fim)
         if ep_fim is not None:
-            ep_fim += 86399  # end of day
+            ep_fim += 86399
 
         kcur.execute("""
             SELECT l.responsible_user_id,
@@ -522,10 +541,6 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None):
                    SUM(CASE WHEN l.status_id = 142 THEN 1 ELSE 0 END) AS ganhos,
                    SUM(CASE WHEN l.status_id = 143 THEN 1 ELSE 0 END) AS perdidos,
                    SUM(CASE WHEN l.status_id NOT IN (142, 143) THEN 1 ELSE 0 END) AS ativos,
-                   SUM(CASE WHEN l.status_id = 142 AND l.closed_at IS NOT NULL
-                            AND (%(ep_ini)s IS NULL OR l.closed_at >= %(ep_ini)s)
-                            AND (%(ep_fim)s IS NULL OR l.closed_at <= %(ep_fim)s)
-                       THEN 1 ELSE 0 END) AS ganhos_periodo,
                    SUM(CASE WHEN l.status_id = 143 AND l.closed_at IS NOT NULL
                             AND (%(ep_ini)s IS NULL OR l.closed_at >= %(ep_ini)s)
                             AND (%(ep_fim)s IS NULL OR l.closed_at <= %(ep_fim)s)
@@ -538,23 +553,58 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None):
             WHERE l.responsible_user_id IS NOT NULL
                   AND l.is_deleted = FALSE
             GROUP BY l.responsible_user_id
-            ORDER BY ganhos_periodo DESC, total DESC
         """, {"ep_ini": ep_ini, "ep_fim": ep_fim})
-        rows = kcur.fetchall()
+        crm_stats = {}
+        for r in kcur.fetchall():
+            crm_stats[r[0]] = {
+                "total": r[1], "ganhos": r[2], "perdidos": r[3],
+                "ativos": r[4], "perdidos_periodo": r[5], "novos_periodo": r[6],
+            }
         kcur.close()
         kconn.close()
 
-        if not rows:
-            return []
+        # --- Step 2: count CSV matrículas per agent via RGM ---
+        conn = _pg()
+        cur = conn.cursor()
 
-        user_ids = [r[0] for r in rows]
-        user_map = _fetch_kommo_user_names(user_ids)
+        where = []
+        params = []
+        if dt_ini:
+            where.append("data_matricula >= %s")
+            params.append(dt_ini)
+        if dt_fim:
+            where.append("data_matricula <= %s")
+            params.append(dt_fim)
+        if polo:
+            where.append("polo = %s")
+            params.append(polo)
+        w = ("WHERE " + " AND ".join(where)) if where else ""
+
+        cur.execute(f"SELECT rgm FROM comercial_rgm {w}", params)
+        csv_rgms = [r[0] for r in cur.fetchall() if r[0]]
+        cur.close()
+        conn.close()
+
+        mat_per_agent = {}
+        for rgm in csv_rgms:
+            uid = rgm_to_user.get(rgm.strip())
+            if uid:
+                mat_per_agent[uid] = mat_per_agent.get(uid, 0) + 1
+
+        # --- Step 3: merge CRM stats + CSV matrículas ---
+        all_uids = set(crm_stats.keys()) | set(mat_per_agent.keys())
+        user_map = _fetch_kommo_user_names(list(all_uids))
 
         ranking = []
-        for r in rows:
-            uid = r[0]
-            total, ganhos, perdidos, ativos = r[1], r[2], r[3], r[4]
-            ganhos_p, perdidos_p, novos_p = r[5], r[6], r[7]
+        for uid in all_uids:
+            cs = crm_stats.get(uid, {})
+            total = cs.get("total", 0)
+            ganhos = cs.get("ganhos", 0)
+            perdidos = cs.get("perdidos", 0)
+            ativos = cs.get("ativos", 0)
+            mat_periodo = mat_per_agent.get(uid, 0)
+            perdidos_p = cs.get("perdidos_periodo", 0)
+            novos_p = cs.get("novos_periodo", 0)
             name = user_map.get(uid, f"User #{uid}")
             taxa = round(ganhos / total * 100, 1) if total > 0 else 0
             ranking.append({
@@ -565,13 +615,22 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None):
                 "perdidos": perdidos,
                 "ativos": ativos,
                 "taxa_conversao": taxa,
-                "ganhos_periodo": ganhos_p,
+                "matriculas_periodo": mat_periodo,
                 "perdidos_periodo": perdidos_p,
                 "novos_periodo": novos_p,
             })
+
+        ranking.sort(key=lambda x: x["matriculas_periodo"], reverse=True)
+        logger.info(
+            "Agent ranking: %d agents, %d CSV RGMs, %d matched (%.0f%%)",
+            len(ranking), len(csv_rgms), sum(mat_per_agent.values()),
+            sum(mat_per_agent.values()) / max(len(csv_rgms), 1) * 100
+        )
         return ranking
     except Exception as e:
         logger.warning("agent ranking error: %s", e)
+        import traceback
+        logger.warning(traceback.format_exc())
         return []
 
 
@@ -709,8 +768,8 @@ def crgm_data():
         cur.close()
         conn.close()
 
-        # --- Ranking de agentes (cross-database) ---
-        ranking_agentes = _build_agent_ranking(dt_ini or None, dt_fim or None)
+        # --- Ranking de agentes (CSV x Kommo cross-ref) ---
+        ranking_agentes = _build_agent_ranking(dt_ini or None, dt_fim or None, polo or None)
 
         return jsonify({
             "ok": True,

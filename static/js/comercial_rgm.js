@@ -277,7 +277,8 @@ function _crgmRenderAgentes(agentes) {
         filtered = agentes.filter(a => String(a.user_id) === agenteFilter);
     }
 
-    filtered.sort((a, b) => (b.ganhos_periodo || 0) - (a.ganhos_periodo || 0));
+    filtered.sort((a, b) => (b.matriculas_periodo || 0) - (a.matriculas_periodo || 0));
+    filtered = filtered.filter(a => (a.matriculas_periodo || 0) > 0 || (a.ganhos || 0) > 0);
 
     if (countEl) countEl.textContent = `${filtered.length} agentes`;
 
@@ -285,7 +286,7 @@ function _crgmRenderAgentes(agentes) {
 
     tbody.innerHTML = filtered.map((a, i) => {
         const taxaClass = a.taxa_conversao >= 20 ? 'text-emerald-400' : a.taxa_conversao >= 8 ? 'text-amber-400' : 'text-red-400';
-        const gp = a.ganhos_periodo || 0;
+        const mp = a.matriculas_periodo || 0;
         const pp = a.perdidos_periodo || 0;
         const np = a.novos_periodo || 0;
         const rank = i < 3 ? medals[i] : (i + 1);
@@ -295,8 +296,8 @@ function _crgmRenderAgentes(agentes) {
         return `<tr class="hover:bg-white/[0.03] transition-colors ${rowClass}">
             <td class="text-center px-3 py-2.5 font-bold text-slate-400">${rank}</td>
             <td class="px-4 py-2.5 font-medium ${nameIsId ? 'text-slate-500 italic' : 'text-white'}">${esc(a.nome)}</td>
+            <td class="px-4 py-2.5 text-right font-mono text-violet-400 font-semibold">${mp.toLocaleString('pt-BR')}</td>
             <td class="px-4 py-2.5 text-right font-mono text-blue-400">${np.toLocaleString('pt-BR')}</td>
-            <td class="px-4 py-2.5 text-right font-mono text-emerald-400 font-semibold">${gp.toLocaleString('pt-BR')}</td>
             <td class="px-4 py-2.5 text-right font-mono text-red-400">${pp.toLocaleString('pt-BR')}</td>
             <td class="px-4 py-2.5 text-right font-mono text-slate-300">${a.total.toLocaleString('pt-BR')}</td>
             <td class="px-4 py-2.5 text-right font-mono text-cyan-400">${a.ativos.toLocaleString('pt-BR')}</td>
@@ -320,8 +321,8 @@ function _crgmRenderAgentesChart(agentes) {
         data = data.filter(a => String(a.user_id) === agenteFilter);
     }
 
-    data = data.filter(a => (a.ganhos_periodo || 0) > 0 || (a.perdidos_periodo || 0) > 0);
-    data.sort((a, b) => (a.ganhos_periodo || 0) - (b.ganhos_periodo || 0));
+    data = data.filter(a => (a.matriculas_periodo || 0) > 0);
+    data.sort((a, b) => (a.matriculas_periodo || 0) - (b.matriculas_periodo || 0));
 
     const top = data.slice(-12);
     const labels = top.map(a => a.nome || `#${a.user_id}`);
@@ -332,24 +333,14 @@ function _crgmRenderAgentesChart(agentes) {
             labels,
             datasets: [
                 {
-                    label: 'Ganhos (per.)',
-                    data: top.map(a => a.ganhos_periodo || 0),
-                    backgroundColor: '#34d399',
-                    borderColor: '#10b981',
+                    label: 'Matrículas (per.)',
+                    data: top.map(a => a.matriculas_periodo || 0),
+                    backgroundColor: '#a78bfa',
+                    borderColor: '#8b5cf6',
                     borderWidth: 1,
                     borderRadius: 4,
-                    barPercentage: 0.7,
-                    categoryPercentage: 0.8,
-                },
-                {
-                    label: 'Perdidos (per.)',
-                    data: top.map(a => a.perdidos_periodo || 0),
-                    backgroundColor: 'rgba(248,113,113,0.55)',
-                    borderColor: '#f87171',
-                    borderWidth: 1,
-                    borderRadius: 4,
-                    barPercentage: 0.7,
-                    categoryPercentage: 0.8,
+                    barPercentage: 0.6,
+                    categoryPercentage: 0.85,
                 },
             ]
         },
@@ -368,7 +359,7 @@ function _crgmRenderAgentesChart(agentes) {
                         afterBody: function(ctx) {
                             const i = ctx[0].dataIndex;
                             const a = top[i];
-                            return `Taxa Conv.: ${a.taxa_conversao}%`;
+                            return `Ganhos CRM: ${(a.ganhos||0).toLocaleString('pt-BR')} | Conv.: ${a.taxa_conversao}%`;
                         }
                     }
                 }
