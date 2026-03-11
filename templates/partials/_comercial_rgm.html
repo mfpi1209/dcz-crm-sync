@@ -1,166 +1,239 @@
 <!-- ═══════════════  Dashboard Comercial  ═══════════════ -->
-<section id="page-comercial_rgm" class="hidden p-4 md:p-8 space-y-6">
+<section id="page-comercial_rgm" class="hidden p-4 lg:p-8 max-w-7xl mx-auto">
 
-    <!-- Header + Filtros -->
-    <div class="flex flex-col gap-4">
-        <div class="flex flex-col sm:flex-row sm:items-end gap-4 justify-between">
-            <div>
-                <h2 class="text-2xl font-bold font-display text-white">Dashboard Comercial</h2>
-                <p class="text-sm text-slate-500" id="crgm-snapshot-info">Visão geral de matrículas e performance comercial</p>
+    <!-- Header -->
+    <div class="mb-6">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                </div>
+                <div>
+                    <h2 class="text-3xl font-bold text-white font-display">Dashboard Comercial</h2>
+                    <p class="text-slate-500 text-sm" id="crgm-snapshot-info">Performance comercial e ranking de agentes</p>
+                </div>
             </div>
             <div class="flex items-center gap-2">
-                <button onclick="crgmSyncUsers()" id="crgm-btn-sync" class="btn-secondary text-sm px-4 py-2 rounded-xl flex items-center gap-2" title="Sincronizar usuários do Kommo">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <button onclick="crgmSyncUsers()" id="crgm-btn-sync"
+                    class="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-violet-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                     Sync Agentes
                 </button>
-                <label class="btn-secondary text-sm px-4 py-2 rounded-xl cursor-pointer flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                <label class="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-violet-500 px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
                     Upload CSV
                     <input type="file" accept=".csv" class="hidden" onchange="crgmUpload(this)">
                 </label>
             </div>
         </div>
+    </div>
 
+    <!-- Filtros -->
+    <div class="glass-card p-4 mb-6">
         <div class="flex flex-wrap items-end gap-3">
             <div>
                 <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">Polo</label>
-                <select id="crgm-polo" class="input-glass px-3 py-2 text-sm text-slate-200 min-w-[160px]">
+                <select id="crgm-polo" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[140px]">
                     <option value="">Todos</option>
                 </select>
             </div>
             <div>
                 <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">Nível</label>
-                <select id="crgm-nivel" class="input-glass px-3 py-2 text-sm text-slate-200 min-w-[140px]">
+                <select id="crgm-nivel" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[120px]">
                     <option value="">Todos</option>
                 </select>
             </div>
             <div>
                 <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">Agente</label>
-                <select id="crgm-agente" class="input-glass px-3 py-2 text-sm text-slate-200 min-w-[180px]">
+                <select id="crgm-agente" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[160px]">
                     <option value="">Todos</option>
                 </select>
             </div>
             <div>
-                <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">Início</label>
-                <input type="date" id="crgm-dt-ini" class="input-glass px-3 py-2 text-sm text-slate-200">
+                <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">De</label>
+                <input type="date" id="crgm-dt-ini" class="input-glass px-3 py-1.5 text-xs text-slate-300">
             </div>
             <div>
-                <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">Fim</label>
-                <input type="date" id="crgm-dt-fim" class="input-glass px-3 py-2 text-sm text-slate-200">
+                <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">Até</label>
+                <input type="date" id="crgm-dt-fim" class="input-glass px-3 py-1.5 text-xs text-slate-300">
             </div>
-            <button onclick="crgmAtualizar()" class="btn-primary text-white text-sm px-5 py-2 rounded-xl flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            <button onclick="crgmAtualizar()" class="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 Atualizar
             </button>
         </div>
     </div>
 
-    <!-- Loading -->
-    <div id="crgm-loading" class="hidden text-center py-4 text-sm text-cyan-400 flex items-center justify-center gap-2">
+    <!-- Loading / Error -->
+    <div id="crgm-loading" class="hidden text-center py-6 text-sm text-violet-400 flex items-center justify-center gap-2">
         <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
         Carregando dados...
     </div>
-    <div id="crgm-erro" class="hidden text-center py-2 text-sm text-red-400"></div>
+    <div id="crgm-erro" class="hidden text-center py-2 text-sm text-red-400 glass-card mb-4 p-3"></div>
 
-    <!-- KPI Cards -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4" id="crgm-kpi-grid">
-        <div class="glass-card p-5 flex flex-col gap-2 border-l-4 border-blue-500">
-            <span class="text-[10px] uppercase tracking-wider font-bold text-blue-400">Matrículas</span>
-            <span id="crgm-vendas" class="text-3xl font-extrabold text-white">—</span>
-            <div class="flex flex-col gap-1 text-[10px]">
-                <div class="flex items-center gap-2">
-                    <span class="text-slate-500">vs 1 ano: <span id="crgm-1a-val" class="font-bold text-slate-400">—</span></span>
-                    <span id="crgm-1a-badge" class="font-bold px-1.5 py-0.5 rounded text-white">—</span>
+    <!-- KPI Hero: Matrículas no Período -->
+    <div class="mb-6">
+        <div class="relative rounded-2xl overflow-hidden bg-gradient-to-r from-violet-600/20 to-fuchsia-600/10 border border-violet-500/20 p-4 flex items-center gap-5">
+            <div class="flex-shrink-0 w-14 h-14 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center shadow-lg shadow-violet-500/30">
+                <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-violet-400/70 uppercase tracking-widest">Matrículas no Período</p>
+                <p class="text-4xl font-black text-white font-display" id="crgm-vendas">—</p>
+            </div>
+            <div class="ml-auto flex items-center gap-6">
+                <div class="text-right">
+                    <p class="text-[10px] text-slate-500 uppercase tracking-wider">YTD</p>
+                    <p class="text-2xl font-bold text-slate-300 font-display" id="crgm-ytd">—</p>
                 </div>
-                <div class="flex items-center gap-2">
-                    <span class="text-slate-500">vs 6M: <span id="crgm-6m-val" class="font-bold text-slate-400">—</span></span>
-                    <span id="crgm-6m-badge" class="font-bold px-1.5 py-0.5 rounded text-white">—</span>
+                <div class="text-right">
+                    <p class="text-[10px] text-slate-500 uppercase tracking-wider">Inscritos M&M</p>
+                    <p class="text-2xl font-bold text-cyan-400 font-display" id="crgm-mm-inscritos">—</p>
                 </div>
-            </div>
-        </div>
-        <div class="glass-card p-5 flex flex-col gap-2 border-l-4 border-indigo-500">
-            <span class="text-[10px] uppercase tracking-wider font-bold text-indigo-400">YTD</span>
-            <span id="crgm-ytd" class="text-3xl font-extrabold text-white">—</span>
-            <div class="flex items-center gap-2 text-[10px]">
-                <span class="text-slate-500">ano ant: <span id="crgm-ytd-prev" class="font-bold text-slate-400">—</span></span>
-                <span id="crgm-ytd-badge" class="font-bold px-1.5 py-0.5 rounded text-white">—</span>
-            </div>
-        </div>
-        <div class="glass-card p-5 flex flex-col gap-2 border-l-4 border-cyan-500">
-            <span class="text-[10px] uppercase tracking-wider font-bold text-cyan-400">Média Diária</span>
-            <span id="crgm-media" class="text-3xl font-extrabold text-white">—</span>
-        </div>
-        <div class="glass-card p-5 flex flex-col gap-2 border-l-4 border-emerald-500">
-            <span class="text-[10px] uppercase tracking-wider font-bold text-emerald-400">Ticket Médio</span>
-            <span id="crgm-ticket" class="text-3xl font-extrabold text-white">—</span>
-        </div>
-        <div class="glass-card p-5 flex flex-col gap-2 border-l-4 border-amber-500">
-            <span class="text-[10px] uppercase tracking-wider font-bold text-amber-400">Valor Total</span>
-            <span id="crgm-valor-total" class="text-3xl font-extrabold text-white">—</span>
-        </div>
-        <div class="glass-card p-5 flex flex-col gap-2 border-l-4 border-purple-500">
-            <span class="text-[10px] uppercase tracking-wider font-bold text-purple-400">Dias no Período</span>
-            <span id="crgm-dias" class="text-3xl font-extrabold text-white">—</span>
-        </div>
-        <div class="glass-card p-5 flex flex-col gap-2 border-l-4 border-rose-500">
-            <span class="text-[10px] uppercase tracking-wider font-bold text-rose-400">Inscritos (M&M)</span>
-            <span id="crgm-mm-inscritos" class="text-3xl font-extrabold text-white">—</span>
-        </div>
-    </div>
-
-    <!-- Charts row -->
-    <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        <div class="lg:col-span-3 glass-card p-5">
-            <h3 class="text-sm font-semibold text-slate-300 mb-4">Matrículas por Dia</h3>
-            <div style="position:relative; height:280px;">
-                <canvas id="crgm-chart-evolucao"></canvas>
-            </div>
-        </div>
-        <div class="lg:col-span-2 glass-card p-5">
-            <h3 class="text-sm font-semibold text-slate-300 mb-4">Ranking por Polo</h3>
-            <div style="position:relative; height:280px;">
-                <canvas id="crgm-chart-ranking"></canvas>
             </div>
         </div>
     </div>
 
-    <!-- Ranking Agentes + Ciclos -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Ranking Agentes (2/3) -->
-        <div class="lg:col-span-2 glass-card overflow-hidden">
-            <div class="px-5 py-3 border-b border-slate-700/20 flex items-center justify-between">
-                <h3 class="text-sm font-semibold text-slate-300 flex items-center gap-2">
-                    <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-                    Ranking de Agentes Comerciais
+    <!-- KPI Cards Row -->
+    <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+        <div class="glass-card p-4">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-[10px] uppercase tracking-wider font-bold text-slate-500">Média Diária</span>
+                <div class="w-7 h-7 rounded-lg bg-cyan-500/15 flex items-center justify-center">
+                    <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                </div>
+            </div>
+            <p class="text-2xl font-black text-white" id="crgm-media">—</p>
+            <p class="text-[10px] text-slate-500 mt-1"><span id="crgm-dias" class="text-slate-400 font-medium">—</span> dias no período</p>
+        </div>
+        <div class="glass-card p-4">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-[10px] uppercase tracking-wider font-bold text-slate-500">Ticket Médio</span>
+                <div class="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center">
+                    <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+            </div>
+            <p class="text-2xl font-black text-white" id="crgm-ticket">—</p>
+        </div>
+        <div class="glass-card p-4">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-[10px] uppercase tracking-wider font-bold text-slate-500">Valor Total</span>
+                <div class="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center">
+                    <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                </div>
+            </div>
+            <p class="text-2xl font-black text-white" id="crgm-valor-total">—</p>
+        </div>
+        <div class="glass-card p-4">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-[10px] uppercase tracking-wider font-bold text-slate-500">vs 6 Meses</span>
+                <span id="crgm-6m-badge" class="font-bold px-1.5 py-0.5 rounded text-[10px]">—</span>
+            </div>
+            <p class="text-2xl font-black text-white" id="crgm-6m-val">—</p>
+            <p class="text-[10px] text-slate-500 mt-1">mesmo período</p>
+        </div>
+        <div class="glass-card p-4">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-[10px] uppercase tracking-wider font-bold text-slate-500">vs 1 Ano</span>
+                <span id="crgm-1a-badge" class="font-bold px-1.5 py-0.5 rounded text-[10px]">—</span>
+            </div>
+            <p class="text-2xl font-black text-white" id="crgm-1a-val">—</p>
+            <div class="flex items-center gap-2 mt-1 text-[10px]">
+                <span class="text-slate-500">YTD ant: <span id="crgm-ytd-prev" class="text-slate-400 font-medium">—</span></span>
+                <span id="crgm-ytd-badge" class="font-bold px-1.5 py-0.5 rounded">—</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts: Evolução + Polo -->
+    <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
+        <div class="lg:col-span-3 glass-card overflow-hidden">
+            <div class="px-5 pt-4 pb-2">
+                <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
+                    <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+                    Matrículas por Dia
                 </h3>
-                <span id="crgm-agentes-count" class="text-[10px] text-slate-500"></span>
             </div>
-            <div class="overflow-x-auto max-h-[400px] overflow-y-auto">
-                <table class="w-full text-sm">
-                    <thead class="sticky top-0 z-10">
-                        <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-700/20 bg-slate-900/95 backdrop-blur">
-                            <th class="text-center px-3 py-3 w-12">#</th>
-                            <th class="text-left px-4 py-3">Agente</th>
-                            <th class="text-right px-4 py-3">Total Leads</th>
-                            <th class="text-right px-4 py-3">Ganhos</th>
-                            <th class="text-right px-4 py-3">Perdidos</th>
-                            <th class="text-right px-4 py-3">Ativos</th>
-                            <th class="text-right px-4 py-3">Taxa Conv.</th>
-                        </tr>
-                    </thead>
-                    <tbody id="crgm-agentes-body" class="divide-y divide-slate-700/10">
-                        <tr><td colspan="7" class="px-5 py-6 text-center text-slate-600">Sincronize os agentes para visualizar</td></tr>
-                    </tbody>
-                </table>
+            <div class="px-5 pb-5">
+                <div class="rounded-xl p-3 bg-slate-800/20 border border-slate-700/20" style="height:280px;">
+                    <canvas id="crgm-chart-evolucao"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="lg:col-span-2 glass-card overflow-hidden">
+            <div class="px-5 pt-4 pb-2">
+                <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
+                    <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    Ranking por Polo
+                </h3>
+            </div>
+            <div class="px-5 pb-5">
+                <div class="rounded-xl p-3 bg-slate-800/20 border border-slate-700/20" style="height:280px;">
+                    <canvas id="crgm-chart-ranking"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ranking de Agentes Comerciais -->
+    <div class="glass-card overflow-hidden mb-6">
+        <div class="px-5 py-3 border-b border-slate-700/20 flex items-center justify-between">
+            <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
+                <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                Ranking de Agentes Comerciais
+            </h3>
+            <span id="crgm-agentes-count" class="text-[10px] text-slate-500"></span>
+        </div>
+        <div class="overflow-x-auto max-h-[500px] overflow-y-auto">
+            <table class="w-full text-sm">
+                <thead class="sticky top-0 z-10">
+                    <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-700/20 bg-slate-900/95 backdrop-blur">
+                        <th class="text-center px-3 py-3 w-10">#</th>
+                        <th class="text-left px-4 py-3">Agente</th>
+                        <th class="text-right px-4 py-3">Novos <span class="text-slate-600">(per.)</span></th>
+                        <th class="text-right px-4 py-3">Ganhos <span class="text-slate-600">(per.)</span></th>
+                        <th class="text-right px-4 py-3">Perdidos <span class="text-slate-600">(per.)</span></th>
+                        <th class="text-right px-4 py-3">Total</th>
+                        <th class="text-right px-4 py-3">Ativos</th>
+                        <th class="text-right px-4 py-3">Conv.</th>
+                    </tr>
+                </thead>
+                <tbody id="crgm-agentes-body" class="divide-y divide-slate-700/10">
+                    <tr><td colspan="8" class="px-5 py-8 text-center text-slate-600">
+                        <div class="flex flex-col items-center gap-2">
+                            <svg class="w-8 h-8 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            <span>Clique em "Sync Agentes" para carregar</span>
+                        </div>
+                    </td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Chart Agentes + Ciclos -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 glass-card overflow-hidden">
+            <div class="px-5 pt-4 pb-2">
+                <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
+                    <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    Performance por Agente
+                </h3>
+            </div>
+            <div class="px-5 pb-5">
+                <div class="rounded-xl p-3 bg-slate-800/20 border border-slate-700/20" style="height:340px;">
+                    <canvas id="crgm-chart-agentes"></canvas>
+                </div>
             </div>
         </div>
 
-        <!-- Tabela Ciclos (1/3) -->
         <div class="glass-card overflow-hidden">
             <div class="px-5 py-3 border-b border-slate-700/20">
-                <h3 class="text-sm font-semibold text-slate-300">Matrículas por Ciclo</h3>
+                <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
+                    <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    Matrículas por Ciclo
+                </h3>
             </div>
-            <div class="overflow-x-auto max-h-[400px] overflow-y-auto">
+            <div class="overflow-x-auto max-h-[370px] overflow-y-auto">
                 <table class="w-full text-sm">
                     <thead class="sticky top-0 z-10">
                         <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-700/20 bg-slate-900/95 backdrop-blur">
@@ -173,14 +246,6 @@
                     </tbody>
                 </table>
             </div>
-        </div>
-    </div>
-
-    <!-- Chart Agentes -->
-    <div class="glass-card p-5">
-        <h3 class="text-sm font-semibold text-slate-300 mb-4">Performance por Agente</h3>
-        <div style="position:relative; height:320px;">
-            <canvas id="crgm-chart-agentes"></canvas>
         </div>
     </div>
 

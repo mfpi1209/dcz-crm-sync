@@ -77,11 +77,12 @@ async function _crgmLoadSnapshotInfo() {
         if (!d.ok || !d.total) return;
 
         const dt = d.uploaded_at ? new Date(d.uploaded_at).toLocaleString('pt-BR') : '';
-        let info = `${d.total.toLocaleString('pt-BR')} registros CSV | ${d.min_date || ''} a ${d.max_date || ''}`;
+        let info = `${d.total.toLocaleString('pt-BR')} registros CSV`;
+        if (d.min_date && d.max_date) info += ` | ${d.min_date} a ${d.max_date}`;
         if (d.mm_inscritos > 0 || d.mm_matriculados > 0) {
             info += ` | M&M: ${(d.mm_inscritos || 0).toLocaleString('pt-BR')} insc. / ${(d.mm_matriculados || 0).toLocaleString('pt-BR')} matr.`;
         }
-        if (dt) info += ` | Atualizado: ${dt}`;
+        if (dt) info += ` | ${dt}`;
         document.getElementById('crgm-snapshot-info').textContent = info;
     } catch (e) {
         console.error('crgm snapshot-info', e);
@@ -142,7 +143,8 @@ function _crgmRenderKPIs(k) {
 
 function _crgmSetBadge(id, pct) {
     const el = document.getElementById(id);
-    const sign = pct >= 0 ? '↑' : '↓';
+    if (!el) return;
+    const sign = pct >= 0 ? '\u2191' : '\u2193';
     el.textContent = `${sign} ${Math.abs(pct)}%`;
     el.className = pct >= 0
         ? 'font-bold px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400'
@@ -166,13 +168,13 @@ function _crgmRenderEvolucao(evolucao) {
             datasets: [{
                 label: 'Matrículas',
                 data: values,
-                borderColor: '#06b6d4',
-                backgroundColor: 'rgba(6,182,212,0.1)',
+                borderColor: '#a78bfa',
+                backgroundColor: 'rgba(167,139,250,0.08)',
                 borderWidth: 2,
                 fill: true,
                 tension: 0.3,
                 pointRadius: evolucao.length > 60 ? 0 : 3,
-                pointBackgroundColor: '#06b6d4',
+                pointBackgroundColor: '#a78bfa',
             }]
         },
         options: {
@@ -182,12 +184,12 @@ function _crgmRenderEvolucao(evolucao) {
             scales: {
                 x: {
                     ticks: { color: '#64748b', maxTicksLimit: 12, font: { size: 10 } },
-                    grid: { color: 'rgba(100,116,139,0.1)' }
+                    grid: { color: 'rgba(100,116,139,0.08)' }
                 },
                 y: {
                     beginAtZero: true,
                     ticks: { color: '#64748b', font: { size: 10 } },
-                    grid: { color: 'rgba(100,116,139,0.1)' }
+                    grid: { color: 'rgba(100,116,139,0.08)' }
                 }
             }
         }
@@ -203,7 +205,7 @@ function _crgmRenderRanking(ranking) {
     const values = sorted.map(r => r.total);
 
     const colors = [
-        '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7',
+        '#8b5cf6', '#a78bfa', '#c084fc', '#d946ef',
         '#06b6d4', '#14b8a6', '#22c55e', '#eab308',
         '#f97316', '#ef4444', '#ec4899', '#64748b',
     ];
@@ -214,9 +216,10 @@ function _crgmRenderRanking(ranking) {
             labels,
             datasets: [{
                 data: values,
-                backgroundColor: labels.map((_, i) => colors[i % colors.length] + '99'),
+                backgroundColor: labels.map((_, i) => colors[i % colors.length] + '66'),
                 borderColor: labels.map((_, i) => colors[i % colors.length]),
                 borderWidth: 1,
+                borderRadius: 4,
             }]
         },
         options: {
@@ -228,10 +231,10 @@ function _crgmRenderRanking(ranking) {
                 x: {
                     beginAtZero: true,
                     ticks: { color: '#64748b', font: { size: 10 } },
-                    grid: { color: 'rgba(100,116,139,0.1)' }
+                    grid: { color: 'rgba(100,116,139,0.08)' }
                 },
                 y: {
-                    ticks: { color: '#cbd5e1', font: { size: 11 } },
+                    ticks: { color: '#cbd5e1', font: { size: 10 } },
                     grid: { display: false }
                 }
             }
@@ -246,9 +249,9 @@ function _crgmRenderCicloTable(ciclos) {
         return;
     }
     tbody.innerHTML = ciclos.map(c =>
-        `<tr class="hover:bg-white/[0.02]">
+        `<tr class="hover:bg-white/[0.02] transition-colors">
             <td class="px-5 py-2.5 text-slate-300">${esc(c.nome)}</td>
-            <td class="px-5 py-2.5 text-right text-slate-200 font-semibold">${c.total.toLocaleString('pt-BR')}</td>
+            <td class="px-5 py-2.5 text-right text-white font-semibold">${c.total.toLocaleString('pt-BR')}</td>
         </tr>`
     ).join('');
 }
@@ -258,7 +261,12 @@ function _crgmRenderAgentes(agentes) {
     const countEl = document.getElementById('crgm-agentes-count');
 
     if (!agentes || !agentes.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="px-5 py-6 text-center text-slate-600">Sincronize os agentes para visualizar</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="8" class="px-5 py-8 text-center text-slate-600">
+            <div class="flex flex-col items-center gap-2">
+                <svg class="w-8 h-8 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <span>Clique em "Sync Agentes" para carregar</span>
+            </div>
+        </td></tr>`;
         if (countEl) countEl.textContent = '';
         return;
     }
@@ -269,23 +277,30 @@ function _crgmRenderAgentes(agentes) {
         filtered = agentes.filter(a => String(a.user_id) === agenteFilter);
     }
 
+    filtered.sort((a, b) => (b.ganhos_periodo || 0) - (a.ganhos_periodo || 0));
+
     if (countEl) countEl.textContent = `${filtered.length} agentes`;
 
-    const totalLeads = filtered.reduce((s, a) => s + a.total, 0);
+    const medals = ['\uD83E\uDD47', '\uD83E\uDD48', '\uD83E\uDD49'];
 
     tbody.innerHTML = filtered.map((a, i) => {
-        const pct = totalLeads > 0 ? (a.total / totalLeads * 100).toFixed(1) : 0;
-        const medalClass = i === 0 ? 'text-amber-400' : i === 1 ? 'text-slate-300' : i === 2 ? 'text-orange-400' : 'text-slate-500';
-        const taxaClass = a.taxa_conversao >= 30 ? 'text-emerald-400' : a.taxa_conversao >= 15 ? 'text-amber-400' : 'text-red-400';
+        const taxaClass = a.taxa_conversao >= 20 ? 'text-emerald-400' : a.taxa_conversao >= 8 ? 'text-amber-400' : 'text-red-400';
+        const gp = a.ganhos_periodo || 0;
+        const pp = a.perdidos_periodo || 0;
+        const np = a.novos_periodo || 0;
+        const rank = i < 3 ? medals[i] : (i + 1);
+        const rowClass = i < 3 ? 'bg-violet-500/[0.03]' : '';
+        const nameIsId = a.nome && a.nome.startsWith('User #');
 
-        return `<tr class="hover:bg-white/[0.02]">
-            <td class="text-center px-3 py-2.5 ${medalClass} font-bold">${i + 1}</td>
-            <td class="px-4 py-2.5 text-slate-200 font-medium">${esc(a.nome)}</td>
-            <td class="px-4 py-2.5 text-right text-slate-300 font-semibold">${a.total.toLocaleString('pt-BR')} <span class="text-[10px] text-slate-500">(${pct}%)</span></td>
-            <td class="px-4 py-2.5 text-right text-emerald-400 font-semibold">${a.ganhos.toLocaleString('pt-BR')}</td>
-            <td class="px-4 py-2.5 text-right text-red-400">${a.perdidos.toLocaleString('pt-BR')}</td>
-            <td class="px-4 py-2.5 text-right text-cyan-400">${a.ativos.toLocaleString('pt-BR')}</td>
-            <td class="px-4 py-2.5 text-right ${taxaClass} font-bold">${a.taxa_conversao}%</td>
+        return `<tr class="hover:bg-white/[0.03] transition-colors ${rowClass}">
+            <td class="text-center px-3 py-2.5 font-bold text-slate-400">${rank}</td>
+            <td class="px-4 py-2.5 font-medium ${nameIsId ? 'text-slate-500 italic' : 'text-white'}">${esc(a.nome)}</td>
+            <td class="px-4 py-2.5 text-right font-mono text-blue-400">${np.toLocaleString('pt-BR')}</td>
+            <td class="px-4 py-2.5 text-right font-mono text-emerald-400 font-semibold">${gp.toLocaleString('pt-BR')}</td>
+            <td class="px-4 py-2.5 text-right font-mono text-red-400">${pp.toLocaleString('pt-BR')}</td>
+            <td class="px-4 py-2.5 text-right font-mono text-slate-300">${a.total.toLocaleString('pt-BR')}</td>
+            <td class="px-4 py-2.5 text-right font-mono text-cyan-400">${a.ativos.toLocaleString('pt-BR')}</td>
+            <td class="px-4 py-2.5 text-right font-mono font-bold ${taxaClass}">${a.taxa_conversao}%</td>
         </tr>`;
     }).join('');
 }
@@ -300,13 +315,17 @@ function _crgmRenderAgentesChart(agentes) {
     }
 
     const agenteFilter = document.getElementById('crgm-agente').value;
-    let data = agentes;
+    let data = [...agentes];
     if (agenteFilter) {
-        data = agentes.filter(a => String(a.user_id) === agenteFilter);
+        data = data.filter(a => String(a.user_id) === agenteFilter);
     }
+    data.sort((a, b) => (b.ganhos_periodo || 0) - (a.ganhos_periodo || 0));
 
     const top = data.slice(0, 15);
-    const labels = top.map(a => a.nome);
+    const labels = top.map(a => {
+        const name = a.nome || '';
+        return name.length > 18 ? name.substring(0, 16) + '...' : name;
+    });
 
     _crgmChartAgentes = new Chart(ctx, {
         type: 'bar',
@@ -315,24 +334,27 @@ function _crgmRenderAgentesChart(agentes) {
             datasets: [
                 {
                     label: 'Ganhos',
-                    data: top.map(a => a.ganhos),
+                    data: top.map(a => a.ganhos_periodo || 0),
                     backgroundColor: 'rgba(52,211,153,0.7)',
                     borderColor: '#34d399',
                     borderWidth: 1,
+                    borderRadius: 3,
                 },
                 {
                     label: 'Perdidos',
-                    data: top.map(a => a.perdidos),
+                    data: top.map(a => a.perdidos_periodo || 0),
                     backgroundColor: 'rgba(248,113,113,0.5)',
                     borderColor: '#f87171',
                     borderWidth: 1,
+                    borderRadius: 3,
                 },
                 {
-                    label: 'Ativos',
-                    data: top.map(a => a.ativos),
-                    backgroundColor: 'rgba(56,189,248,0.5)',
-                    borderColor: '#38bdf8',
+                    label: 'Novos',
+                    data: top.map(a => a.novos_periodo || 0),
+                    backgroundColor: 'rgba(139,92,246,0.5)',
+                    borderColor: '#8b5cf6',
                     borderWidth: 1,
+                    borderRadius: 3,
                 },
             ]
         },
@@ -341,20 +363,20 @@ function _crgmRenderAgentesChart(agentes) {
             maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    labels: { color: '#94a3b8', font: { size: 11 } }
+                    labels: { color: '#94a3b8', font: { size: 11 }, boxWidth: 12, padding: 16 }
                 }
             },
             scales: {
                 x: {
                     stacked: true,
-                    ticks: { color: '#cbd5e1', font: { size: 10 }, maxRotation: 45 },
-                    grid: { color: 'rgba(100,116,139,0.1)' }
+                    ticks: { color: '#cbd5e1', font: { size: 9 }, maxRotation: 45 },
+                    grid: { color: 'rgba(100,116,139,0.08)' }
                 },
                 y: {
                     stacked: true,
                     beginAtZero: true,
                     ticks: { color: '#64748b', font: { size: 10 } },
-                    grid: { color: 'rgba(100,116,139,0.1)' }
+                    grid: { color: 'rgba(100,116,139,0.08)' }
                 }
             }
         }

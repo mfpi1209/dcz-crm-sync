@@ -321,7 +321,7 @@ def crgm_snapshot_info():
 
 @comercial_rgm_bp.route("/api/comercial-rgm/sync-users", methods=["POST"])
 def crgm_sync_users():
-    """Sync Kommo users via API v4 and store locally."""
+    """Sync Kommo users via API v4 and store in both databases."""
     if not KOMMO_TOKEN:
         return jsonify({"error": "KOMMO_TOKEN não configurado"}), 500
     try:
@@ -331,7 +331,9 @@ def crgm_sync_users():
         page = 1
         while True:
             resp = requests.get(url, headers=headers, params={"page": page, "limit": 250}, timeout=15)
+            logger.info("sync-users page %d -> status %d", page, resp.status_code)
             if resp.status_code != 200:
+                logger.warning("sync-users API returned %d: %s", resp.status_code, resp.text[:300])
                 break
             data = resp.json()
             embedded = data.get("_embedded", {}).get("users", [])
@@ -341,7 +343,7 @@ def crgm_sync_users():
             page += 1
 
         if not all_users:
-            return jsonify({"ok": True, "synced": 0, "msg": "Nenhum usuário encontrado"})
+            return jsonify({"ok": True, "synced": 0, "msg": "Nenhum usuário retornado pela API"})
 
         conn = _pg()
         cur = conn.cursor()
@@ -354,6 +356,27 @@ def crgm_sync_users():
         conn.commit()
         cur.close()
         conn.close()
+
+        try:
+            kconn = _pg_kommo()
+            kcur = kconn.cursor()
+            kcur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY, name TEXT, email TEXT,
+                    lang TEXT, rights_json JSONB, synced_at TEXT
+                )
+            """)
+            for u in all_users:
+                kcur.execute("""
+                    INSERT INTO users (id, name, email, synced_at)
+                    VALUES (%s, %s, %s, NOW())
+                    ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email, synced_at = NOW()
+                """, (u["id"], u.get("name", ""), u.get("email", "")))
+            kconn.commit()
+            kcur.close()
+            kconn.close()
+        except Exception as e:
+            logger.warning("sync-users kommo_sync write: %s", e)
 
         return jsonify({"ok": True, "synced": len(all_users)})
     except Exception as e:
@@ -381,34 +404,103 @@ def crgm_filters():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+def _fetch_kommo_user_names(user_ids):
+    """Get user names from kommo_sync.users table (populated by kommo_lib sync)."""
+    user_map = {}
+    if not user_ids:
+        return user_map
+
+    try:
+        conn = _pg_kommo()
+        cur = conn.cursor()
+        cur.execute("SELECT id, name FROM users WHERE id = ANY(%s)", (user_ids,))
+        user_map = {r[0]: r[1] for r in cur.fetchall()}
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logger.warning("fetch user names from kommo_sync.users: %s", e)
+
+    if not user_map:
+        try:
+            conn = _pg()
+            cur = conn.cursor()
+            cur.execute("SELECT id, name FROM kommo_users WHERE id = ANY(%s)", (user_ids,))
+            user_map = {r[0]: r[1] for r in cur.fetchall()}
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
+
+    missing = [uid for uid in user_ids if uid not in user_map]
+    if missing and KOMMO_TOKEN:
+        try:
+            headers = {"Authorization": f"Bearer {KOMMO_TOKEN}"}
+            all_resp = requests.get(
+                f"{KOMMO_BASE_URL}/api/v4/users",
+                headers=headers, params={"limit": 250}, timeout=15
+            )
+            if all_resp.status_code == 200:
+                api_users = all_resp.json().get("_embedded", {}).get("users", [])
+                for u in api_users:
+                    uid = u.get("id")
+                    if uid in missing:
+                        user_map[uid] = u.get("name", f"User #{uid}")
+        except Exception as e:
+            logger.warning("fetch user names from API: %s", e)
+
+    return user_map
+
+
+def _date_to_epoch(dt_str):
+    """Convert 'YYYY-MM-DD' to Unix epoch int, or None."""
+    if not dt_str:
+        return None
+    try:
+        return int(datetime.strptime(dt_str, "%Y-%m-%d").timestamp())
+    except Exception:
+        return None
+
+
 def _build_agent_ranking(dt_ini=None, dt_fim=None):
-    """Build agent ranking by cross-referencing kommo_sync leads with local kommo_users."""
+    """Build agent ranking from kommo_sync leads.
+
+    - Total/Ganhos/Perdidos/Ativos: all-time per agent
+    - ganhos_periodo/perdidos_periodo: closed_at within date range
+    - novos_periodo: created_at within date range
+    """
     try:
         kconn = _pg_kommo()
         kcur = kconn.cursor()
 
-        date_where = ""
-        date_params = []
-        if dt_ini:
-            date_where += " AND l.created_at >= EXTRACT(EPOCH FROM TIMESTAMP %s)"
-            date_params.append(dt_ini)
-        if dt_fim:
-            date_where += " AND l.created_at <= EXTRACT(EPOCH FROM TIMESTAMP %s)"
-            date_params.append(dt_fim + " 23:59:59")
+        ep_ini = _date_to_epoch(dt_ini)
+        ep_fim = _date_to_epoch(dt_fim)
+        if ep_fim is not None:
+            ep_fim += 86399  # end of day
 
-        kcur.execute(f"""
+        kcur.execute("""
             SELECT l.responsible_user_id,
                    COUNT(*) AS total,
                    SUM(CASE WHEN l.status_id = 142 THEN 1 ELSE 0 END) AS ganhos,
                    SUM(CASE WHEN l.status_id = 143 THEN 1 ELSE 0 END) AS perdidos,
-                   SUM(CASE WHEN l.status_id NOT IN (142, 143) THEN 1 ELSE 0 END) AS ativos
+                   SUM(CASE WHEN l.status_id NOT IN (142, 143) THEN 1 ELSE 0 END) AS ativos,
+                   SUM(CASE WHEN l.status_id = 142 AND l.closed_at IS NOT NULL
+                            AND (%(ep_ini)s IS NULL OR l.closed_at >= %(ep_ini)s)
+                            AND (%(ep_fim)s IS NULL OR l.closed_at <= %(ep_fim)s)
+                       THEN 1 ELSE 0 END) AS ganhos_periodo,
+                   SUM(CASE WHEN l.status_id = 143 AND l.closed_at IS NOT NULL
+                            AND (%(ep_ini)s IS NULL OR l.closed_at >= %(ep_ini)s)
+                            AND (%(ep_fim)s IS NULL OR l.closed_at <= %(ep_fim)s)
+                       THEN 1 ELSE 0 END) AS perdidos_periodo,
+                   SUM(CASE WHEN l.created_at IS NOT NULL
+                            AND (%(ep_ini)s IS NULL OR l.created_at >= %(ep_ini)s)
+                            AND (%(ep_fim)s IS NULL OR l.created_at <= %(ep_fim)s)
+                       THEN 1 ELSE 0 END) AS novos_periodo
             FROM leads l
             WHERE l.responsible_user_id IS NOT NULL
                   AND l.is_deleted = FALSE
-                  {date_where}
             GROUP BY l.responsible_user_id
-            ORDER BY total DESC
-        """, date_params)
+            ORDER BY ganhos_periodo DESC, total DESC
+        """, {"ep_ini": ep_ini, "ep_fim": ep_fim})
         rows = kcur.fetchall()
         kcur.close()
         kconn.close()
@@ -417,16 +509,13 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None):
             return []
 
         user_ids = [r[0] for r in rows]
-        conn = _pg()
-        cur = conn.cursor()
-        cur.execute("SELECT id, name FROM kommo_users WHERE id = ANY(%s)", (user_ids,))
-        user_map = {r[0]: r[1] for r in cur.fetchall()}
-        cur.close()
-        conn.close()
+        user_map = _fetch_kommo_user_names(user_ids)
 
         ranking = []
         for r in rows:
-            uid, total, ganhos, perdidos, ativos = r
+            uid = r[0]
+            total, ganhos, perdidos, ativos = r[1], r[2], r[3], r[4]
+            ganhos_p, perdidos_p, novos_p = r[5], r[6], r[7]
             name = user_map.get(uid, f"User #{uid}")
             taxa = round(ganhos / total * 100, 1) if total > 0 else 0
             ranking.append({
@@ -437,6 +526,9 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None):
                 "perdidos": perdidos,
                 "ativos": ativos,
                 "taxa_conversao": taxa,
+                "ganhos_periodo": ganhos_p,
+                "perdidos_periodo": perdidos_p,
+                "novos_periodo": novos_p,
             })
         return ranking
     except Exception as e:
