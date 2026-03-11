@@ -389,7 +389,13 @@ def crgm_filters():
     try:
         conn = _pg()
         cur = conn.cursor()
-        cur.execute("SELECT DISTINCT polo FROM comercial_rgm WHERE polo IS NOT NULL ORDER BY polo")
+        cur.execute("""
+            SELECT DISTINCT polo FROM (
+                SELECT polo FROM comercial_rgm WHERE polo IS NOT NULL
+                UNION
+                SELECT polo_aulas AS polo FROM mm_matriculados WHERE polo_aulas IS NOT NULL
+            ) sub ORDER BY polo
+        """)
         polos = [r[0] for r in cur.fetchall()]
         cur.execute("SELECT DISTINCT nivel FROM comercial_rgm WHERE nivel IS NOT NULL ORDER BY nivel")
         niveis = [r[0] for r in cur.fetchall()]
@@ -563,30 +569,58 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None, polo=None):
         kcur.close()
         kconn.close()
 
-        # --- Step 2: count CSV matrículas per agent via RGM ---
+        # --- Step 2: count matrículas per agent via RGM ---
+        # Sources: comercial_rgm (CSV upload) + mm_matriculados (M&M upload)
         conn = _pg()
         cur = conn.cursor()
 
-        where = []
-        params = []
-        if dt_ini:
-            where.append("data_matricula >= %s")
-            params.append(dt_ini)
-        if dt_fim:
-            where.append("data_matricula <= %s")
-            params.append(dt_fim)
-        if polo:
-            where.append("polo = %s")
-            params.append(polo)
-        w = ("WHERE " + " AND ".join(where)) if where else ""
+        all_rgms = []
 
-        cur.execute(f"SELECT rgm FROM comercial_rgm {w}", params)
+        # Source A: CSV (comercial_rgm)
+        csv_where = []
+        csv_params = []
+        if dt_ini:
+            csv_where.append("data_matricula >= %s")
+            csv_params.append(dt_ini)
+        if dt_fim:
+            csv_where.append("data_matricula <= %s")
+            csv_params.append(dt_fim)
+        if polo:
+            csv_where.append("polo = %s")
+            csv_params.append(polo)
+        csv_w = ("WHERE " + " AND ".join(csv_where)) if csv_where else ""
+
+        cur.execute(f"SELECT rgm FROM comercial_rgm {csv_w}", csv_params)
         csv_rgms = [r[0] for r in cur.fetchall() if r[0]]
+        all_rgms.extend(csv_rgms)
+
+        # Source B: M&M matriculados (mm_matriculados)
+        mm_where = []
+        mm_params = []
+        if dt_ini:
+            mm_where.append("data_matricula >= %s")
+            mm_params.append(dt_ini)
+        if dt_fim:
+            mm_where.append("data_matricula <= %s")
+            mm_params.append(dt_fim)
+        if polo:
+            mm_where.append("polo_aulas = %s")
+            mm_params.append(polo)
+        mm_w = ("WHERE " + " AND ".join(mm_where)) if mm_where else ""
+
+        cur.execute(f"SELECT rgm FROM mm_matriculados {mm_w}", mm_params)
+        mm_rgms = [r[0] for r in cur.fetchall() if r[0]]
+
+        csv_rgm_set = set(r.strip() for r in csv_rgms if r)
+        for rgm in mm_rgms:
+            if rgm.strip() not in csv_rgm_set:
+                all_rgms.append(rgm)
+
         cur.close()
         conn.close()
 
         mat_per_agent = {}
-        for rgm in csv_rgms:
+        for rgm in all_rgms:
             uid = rgm_to_user.get(rgm.strip())
             if uid:
                 mat_per_agent[uid] = mat_per_agent.get(uid, 0) + 1
@@ -622,9 +656,10 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None, polo=None):
 
         ranking.sort(key=lambda x: x["matriculas_periodo"], reverse=True)
         logger.info(
-            "Agent ranking: %d agents, %d CSV RGMs, %d matched (%.0f%%)",
-            len(ranking), len(csv_rgms), sum(mat_per_agent.values()),
-            sum(mat_per_agent.values()) / max(len(csv_rgms), 1) * 100
+            "Agent ranking: %d agents, %d total RGMs (CSV=%d, MM=%d), %d matched (%.0f%%)",
+            len(ranking), len(all_rgms), len(csv_rgms), len(mm_rgms),
+            sum(mat_per_agent.values()),
+            sum(mat_per_agent.values()) / max(len(all_rgms), 1) * 100
         )
         return ranking
     except Exception as e:
@@ -663,15 +698,38 @@ def crgm_data():
         conn = _pg()
         cur = conn.cursor()
 
-        # --- KPIs ---
+        # --- KPIs (combina comercial_rgm + mm_matriculados, dedup por RGM) ---
+        cur.execute(f"SELECT rgm FROM comercial_rgm {w}", params)
+        kpi_csv_rgms = set(r[0].strip() for r in cur.fetchall() if r[0])
+
+        mm_kpi_where = []
+        mm_kpi_params = []
+        if polo:
+            mm_kpi_where.append("polo_aulas = %s")
+            mm_kpi_params.append(polo)
+        if dt_ini:
+            mm_kpi_where.append("data_matricula >= %s")
+            mm_kpi_params.append(dt_ini)
+        if dt_fim:
+            mm_kpi_where.append("data_matricula <= %s")
+            mm_kpi_params.append(dt_fim)
+        mm_kpi_w = ("WHERE " + " AND ".join(mm_kpi_where)) if mm_kpi_where else ""
+
+        cur.execute(f"SELECT rgm FROM mm_matriculados {mm_kpi_w}", mm_kpi_params)
+        mm_kpi_rgms = set(r[0].strip() for r in cur.fetchall() if r[0])
+
+        all_kpi_rgms = kpi_csv_rgms | mm_kpi_rgms
+        vendas = len(all_kpi_rgms)
+
+        mm_date_filter = f"{mm_kpi_w} {'AND' if mm_kpi_w else 'WHERE'} data_matricula IS NOT NULL AND data_matricula != ''"
         cur.execute(f"""
-            SELECT COUNT(*) AS vendas,
-                   COUNT(DISTINCT data_matricula) AS dias
-            FROM comercial_rgm {w}
-        """, params)
-        kpi = cur.fetchone()
-        vendas = kpi[0] or 0
-        dias = kpi[1] or 1
+            SELECT COUNT(DISTINCT dt) FROM (
+                SELECT data_matricula AS dt FROM comercial_rgm {w}
+                UNION
+                SELECT data_matricula::date AS dt FROM mm_matriculados {mm_date_filter}
+            ) sub
+        """, params + mm_kpi_params)
+        dias = cur.fetchone()[0] or 1
         media_diaria = round(vendas / dias, 1) if dias > 0 else 0
 
         # --- Ticket médio via Kommo lead price (cruzado por RGM) ---
@@ -696,32 +754,57 @@ def crgm_data():
             kcur.close()
             kconn.close()
 
-            cur.execute(f"SELECT rgm FROM comercial_rgm {w}", params)
-            csv_rgms = [r[0].strip() for r in cur.fetchall() if r[0]]
-
-            prices = [rgm_price[rgm] for rgm in csv_rgms if rgm in rgm_price and rgm_price[rgm] > 0]
+            prices = [rgm_price[rgm] for rgm in all_kpi_rgms if rgm in rgm_price and rgm_price[rgm] > 0]
             if prices:
                 valor_total = round(sum(prices) / 100, 2)
                 ticket_medio = round(valor_total / len(prices), 2)
         except Exception as e:
             logger.warning("ticket medio kommo: %s", e)
 
-        # --- MM Inscritos no período ---
+        # --- MM Inscritos no período (hist + atual) ---
         mm_insc_count = 0
-        mm_where = []
-        mm_params = []
+
+        insc_where_hist = []
+        insc_params_hist = []
         if dt_ini:
-            mm_where.append("data_inscr >= %s")
-            mm_params.append(dt_ini)
+            insc_where_hist.append("data_inscr >= %s")
+            insc_params_hist.append(dt_ini)
         if dt_fim:
-            mm_where.append("data_inscr <= %s")
-            mm_params.append(dt_fim)
+            insc_where_hist.append("data_inscr <= %s")
+            insc_params_hist.append(dt_fim)
         if polo:
-            mm_where.append("polo_normalizado = %s")
-            mm_params.append(polo)
-        mm_w = ("WHERE " + " AND ".join(mm_where)) if mm_where else ""
-        cur.execute(f"SELECT COUNT(*) FROM mm_inscritos_hist {mm_w}", mm_params)
-        mm_insc_count = cur.fetchone()[0] or 0
+            insc_where_hist.append("polo_normalizado = %s")
+            insc_params_hist.append(polo)
+        insc_w_hist = ("WHERE " + " AND ".join(insc_where_hist)) if insc_where_hist else ""
+
+        insc_where_cur = []
+        insc_params_cur = []
+        if dt_ini:
+            insc_where_cur.append("data_inscr >= %s")
+            insc_params_cur.append(dt_ini)
+        if dt_fim:
+            insc_where_cur.append("data_inscr <= %s")
+            insc_params_cur.append(dt_fim)
+        if polo:
+            insc_where_cur.append("polo_normalizado = %s")
+            insc_params_cur.append(polo)
+        insc_w_cur = ("WHERE " + " AND ".join(insc_where_cur)) if insc_where_cur else ""
+
+        try:
+            cur.execute(f"""
+                SELECT COUNT(DISTINCT cpf) FROM (
+                    SELECT cpf FROM mm_inscritos_hist {insc_w_hist}
+                    UNION
+                    SELECT cpf FROM mm_inscritos {insc_w_cur}
+                ) sub WHERE cpf IS NOT NULL
+            """, insc_params_hist + insc_params_cur)
+            mm_insc_count = cur.fetchone()[0] or 0
+        except Exception:
+            try:
+                cur.execute(f"SELECT COUNT(*) FROM mm_inscritos_hist {insc_w_hist}", insc_params_hist)
+                mm_insc_count = cur.fetchone()[0] or 0
+            except Exception:
+                mm_insc_count = 0
 
         # --- Comparações: 6M / 1 ano / YTD ---
         vendas_6m = 0
@@ -736,9 +819,19 @@ def crgm_data():
                 cw.append("polo = %s"); cp.append(polo_)
             if nivel_:
                 cw.append("nivel = %s"); cp.append(nivel_)
-            cur_.execute(
-                f"SELECT COUNT(*) FROM comercial_rgm WHERE {' AND '.join(cw)}", cp
-            )
+
+            mw = ["data_matricula >= %s", "data_matricula <= %s"]
+            mp = [d_start.isoformat(), d_end.isoformat()]
+            if polo_:
+                mw.append("polo_aulas = %s"); mp.append(polo_)
+
+            cur_.execute(f"""
+                SELECT COUNT(DISTINCT rgm) FROM (
+                    SELECT rgm FROM comercial_rgm WHERE {' AND '.join(cw)}
+                    UNION
+                    SELECT rgm FROM mm_matriculados WHERE {' AND '.join(mw)}
+                ) sub WHERE rgm IS NOT NULL AND rgm != ''
+            """, cp + mp)
             return cur_.fetchone()[0] or 0
 
         if dt_ini and dt_fim:
@@ -768,21 +861,30 @@ def crgm_data():
         pct_1a = round((vendas / vendas_1a - 1) * 100, 1) if vendas_1a > 0 else 0
         pct_ytd = round((vendas_ytd / vendas_prev_ytd - 1) * 100, 1) if vendas_prev_ytd > 0 else 0
 
-        # --- Evolução diária ---
+        # --- Evolução diária (CSV + M&M combinados) ---
         cur.execute(f"""
-            SELECT data_matricula, COUNT(*)
-            FROM comercial_rgm {w}
-            GROUP BY data_matricula
-            ORDER BY data_matricula
-        """, params)
+            SELECT dt, SUM(cnt) FROM (
+                SELECT data_matricula AS dt, COUNT(*) AS cnt
+                FROM comercial_rgm {w}
+                GROUP BY data_matricula
+                UNION ALL
+                SELECT data_matricula::date AS dt, COUNT(*) AS cnt
+                FROM mm_matriculados {mm_date_filter}
+                GROUP BY data_matricula::date
+            ) sub
+            GROUP BY dt ORDER BY dt
+        """, params + mm_kpi_params)
         evolucao = [{"data": r[0].isoformat(), "count": r[1]} for r in cur.fetchall() if r[0]]
 
-        # --- Ranking por polo ---
+        # --- Ranking por polo (CSV + M&M) ---
         cur.execute(f"""
-            SELECT polo, COUNT(*) AS total
-            FROM comercial_rgm {w} {"AND" if w else "WHERE"} polo IS NOT NULL
+            SELECT polo, COUNT(*) AS total FROM (
+                SELECT polo FROM comercial_rgm {w} {"AND" if w else "WHERE"} polo IS NOT NULL
+                UNION ALL
+                SELECT polo_aulas AS polo FROM mm_matriculados {mm_kpi_w} {"AND" if mm_kpi_w else "WHERE"} polo_aulas IS NOT NULL
+            ) sub
             GROUP BY polo ORDER BY total DESC
-        """, params)
+        """, params + mm_kpi_params)
         ranking_polo = [{"nome": r[0], "total": r[1]} for r in cur.fetchall()]
 
         # --- Ranking por ciclo ---
