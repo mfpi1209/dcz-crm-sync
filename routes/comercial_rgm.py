@@ -139,11 +139,13 @@ CREATE TABLE IF NOT EXISTS comercial_metas (
     user_id    INTEGER NOT NULL,
     user_name  TEXT,
     meta       INTEGER NOT NULL DEFAULT 0,
-    ano        INTEGER NOT NULL DEFAULT EXTRACT(YEAR FROM NOW()),
-    mes        INTEGER DEFAULT 0,
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(user_id, ano, mes)
+    dt_inicio  DATE NOT NULL,
+    dt_fim     DATE NOT NULL,
+    descricao  TEXT DEFAULT '',
+    created_at TIMESTAMP DEFAULT NOW()
 );
+CREATE INDEX IF NOT EXISTS idx_cm_user ON comercial_metas(user_id);
+CREATE INDEX IF NOT EXISTS idx_cm_dates ON comercial_metas(dt_inicio, dt_fim);
 CREATE INDEX IF NOT EXISTS idx_mmhm_data ON mm_matriculados_hist(data_matricula);
 """
 
@@ -152,6 +154,29 @@ def _ensure_table():
     conn = _pg()
     cur = conn.cursor()
     cur.execute(_CREATE_SQL)
+    try:
+        cur.execute("""
+            SELECT column_name FROM information_schema.columns
+            WHERE table_name = 'comercial_metas' AND column_name = 'dt_inicio'
+        """)
+        if not cur.fetchone():
+            cur.execute("DROP TABLE IF EXISTS comercial_metas")
+            cur.execute("""
+                CREATE TABLE comercial_metas (
+                    id         SERIAL PRIMARY KEY,
+                    user_id    INTEGER NOT NULL,
+                    user_name  TEXT,
+                    meta       INTEGER NOT NULL DEFAULT 0,
+                    dt_inicio  DATE NOT NULL,
+                    dt_fim     DATE NOT NULL,
+                    descricao  TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_cm_user ON comercial_metas(user_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_cm_dates ON comercial_metas(dt_inicio, dt_fim)")
+    except Exception as e:
+        logger.warning("comercial_metas migration: %s", e)
     conn.commit()
     cur.close()
     conn.close()
@@ -597,7 +622,8 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None, polo=None):
         conn = _pg()
         cur = conn.cursor()
 
-        all_rgms = []
+        all_rgms = set()
+        cpf_to_rgm = {}
 
         # Source A: CSV (comercial_rgm)
         csv_where = []
@@ -614,10 +640,11 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None, polo=None):
         csv_w = ("WHERE " + " AND ".join(csv_where)) if csv_where else ""
 
         cur.execute(f"SELECT rgm FROM comercial_rgm {csv_w}", csv_params)
-        csv_rgms = [r[0] for r in cur.fetchall() if r[0]]
-        all_rgms.extend(csv_rgms)
+        for r in cur.fetchall():
+            if r[0] and r[0].strip():
+                all_rgms.add(r[0].strip())
 
-        # Source B: M&M matriculados (mm_matriculados) - only empresas 7/12
+        # Source B: M&M matriculados (dedup via set)
         mm_where = ["UPPER(COALESCE(tipo_matricula,'')) IN %s"]
         mm_params = [MM_TIPO_MAT_VALIDOS]
         if dt_ini:
@@ -632,23 +659,18 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None, polo=None):
         mm_w = "WHERE " + " AND ".join(mm_where)
 
         cur.execute(f"SELECT rgm, cpf FROM mm_matriculados {mm_w}", mm_params)
-        mm_rows = [(r[0], r[1]) for r in cur.fetchall() if r[0]]
-
-        csv_rgm_set = set(r.strip() for r in csv_rgms if r)
-        mm_rgms = []
-        cpf_to_rgm = {}
-        for rgm, cpf in mm_rows:
-            mm_rgms.append(rgm)
-            if rgm.strip() not in csv_rgm_set:
-                all_rgms.append(rgm)
-            if cpf and rgm:
-                cpf_to_rgm[cpf.strip()] = rgm.strip()
+        for r in cur.fetchall():
+            if r[0] and r[0].strip():
+                rgm = r[0].strip()
+                all_rgms.add(rgm)
+                if r[1] and r[1].strip():
+                    cpf_to_rgm[r[1].strip()] = rgm
 
         cur.close()
         conn.close()
 
         # Fallback: CPF -> Kommo contact -> lead -> responsible_user_id
-        unmatched_rgms = [r for r in all_rgms if r.strip() not in rgm_to_user]
+        unmatched_rgms = [r for r in all_rgms if r not in rgm_to_user]
         if unmatched_rgms and cpf_to_rgm:
             try:
                 kconn2 = _pg_kommo()
@@ -686,7 +708,7 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None, polo=None):
         mat_per_agent = {}
         matched_count = 0
         for rgm in all_rgms:
-            uid = rgm_to_user.get(rgm.strip())
+            uid = rgm_to_user.get(rgm)
             if uid:
                 mat_per_agent[uid] = mat_per_agent.get(uid, 0) + 1
                 matched_count += 1
@@ -722,8 +744,8 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None, polo=None):
 
         ranking.sort(key=lambda x: x["matriculas_periodo"], reverse=True)
         logger.info(
-            "Agent ranking: %d agents, %d total RGMs (CSV=%d, MM=%d), %d matched (%.0f%%)",
-            len(ranking), len(all_rgms), len(csv_rgms), len(mm_rgms),
+            "Agent ranking: %d agents, %d unique RGMs, %d matched (%.0f%%)",
+            len(ranking), len(all_rgms),
             sum(mat_per_agent.values()),
             sum(mat_per_agent.values()) / max(len(all_rgms), 1) * 100
         )
@@ -764,9 +786,12 @@ def crgm_data():
         conn = _pg()
         cur = conn.cursor()
 
-        # --- KPIs (combina comercial_rgm + mm_matriculados, dedup por RGM) ---
-        cur.execute(f"SELECT rgm FROM comercial_rgm {w}", params)
-        kpi_csv_rgms = set(r[0].strip() for r in cur.fetchall() if r[0])
+        # --- Load deduplicated matrículas (CSV + MM, dedup by RGM; MM wins) ---
+        cur.execute(f"SELECT rgm, data_matricula, polo FROM comercial_rgm {w}", params)
+        mat = {}
+        for r in cur.fetchall():
+            if r[0] and r[0].strip():
+                mat[r[0].strip()] = {"dt": r[1], "polo": r[2]}
 
         mm_kpi_where = ["UPPER(COALESCE(tipo_matricula,'')) IN %s"]
         mm_kpi_params = [MM_TIPO_MAT_VALIDOS]
@@ -781,22 +806,21 @@ def crgm_data():
             mm_kpi_params.append(dt_fim)
         mm_kpi_w = "WHERE " + " AND ".join(mm_kpi_where)
 
-        cur.execute(f"SELECT rgm FROM mm_matriculados {mm_kpi_w}", mm_kpi_params)
-        mm_kpi_rgms = set(r[0].strip() for r in cur.fetchall() if r[0])
+        cur.execute(f"SELECT rgm, data_matricula, polo_aulas FROM mm_matriculados {mm_kpi_w}", mm_kpi_params)
+        for r in cur.fetchall():
+            if r[0] and r[0].strip():
+                rgm = r[0].strip()
+                try:
+                    dt = date.fromisoformat(r[1]) if isinstance(r[1], str) else r[1]
+                except (ValueError, TypeError):
+                    dt = None
+                mat[rgm] = {"dt": dt, "polo": r[2]}
 
-        all_kpi_rgms = kpi_csv_rgms | mm_kpi_rgms
-        vendas = len(all_kpi_rgms)
-
-        mm_date_filter = f"{mm_kpi_w} {'AND' if mm_kpi_w else 'WHERE'} data_matricula IS NOT NULL AND data_matricula != ''"
-        cur.execute(f"""
-            SELECT COUNT(DISTINCT dt) FROM (
-                SELECT data_matricula AS dt FROM comercial_rgm {w}
-                UNION
-                SELECT data_matricula::date AS dt FROM mm_matriculados {mm_date_filter}
-            ) sub
-        """, params + mm_kpi_params)
-        dias = cur.fetchone()[0] or 1
-        media_diaria = round(vendas / dias, 1) if dias > 0 else 0
+        all_kpi_rgms = set(mat.keys())
+        vendas = len(mat)
+        all_days = set(v["dt"] for v in mat.values() if v["dt"])
+        dias = len(all_days) or 1
+        media_diaria = round(vendas / dias, 1)
 
         # --- Ticket médio via Kommo lead price (cruzado por RGM) ---
         ticket_medio = 0.0
@@ -886,20 +910,24 @@ def crgm_data():
             if nivel_:
                 cw.append("nivel = %s"); cp.append(nivel_)
 
+            cur_.execute(f"SELECT rgm FROM comercial_rgm WHERE {' AND '.join(cw)}", cp)
+            p_rgms = set()
+            for r in cur_.fetchall():
+                if r[0] and r[0].strip():
+                    p_rgms.add(r[0].strip())
+
             mw = ["UPPER(COALESCE(tipo_matricula,'')) IN %s",
                   "data_matricula >= %s", "data_matricula <= %s"]
             mp = [MM_TIPO_MAT_VALIDOS, d_start.isoformat(), d_end.isoformat()]
             if polo_:
                 mw.append("polo_aulas = %s"); mp.append(polo_)
 
-            cur_.execute(f"""
-                SELECT COUNT(DISTINCT rgm) FROM (
-                    SELECT rgm FROM comercial_rgm WHERE {' AND '.join(cw)}
-                    UNION
-                    SELECT rgm FROM mm_matriculados WHERE {' AND '.join(mw)}
-                ) sub WHERE rgm IS NOT NULL AND rgm != ''
-            """, cp + mp)
-            return cur_.fetchone()[0] or 0
+            cur_.execute(f"SELECT rgm FROM mm_matriculados WHERE {' AND '.join(mw)}", mp)
+            for r in cur_.fetchall():
+                if r[0] and r[0].strip():
+                    p_rgms.add(r[0].strip())
+
+            return len(p_rgms)
 
         if dt_ini and dt_fim:
             try:
@@ -928,22 +956,15 @@ def crgm_data():
         pct_1a = round((vendas / vendas_1a - 1) * 100, 1) if vendas_1a > 0 else 0
         pct_ytd = round((vendas_ytd / vendas_prev_ytd - 1) * 100, 1) if vendas_prev_ytd > 0 else 0
 
-        # --- Evolução diária (CSV + M&M combinados) ---
-        cur.execute(f"""
-            SELECT dt, SUM(cnt) FROM (
-                SELECT data_matricula AS dt, COUNT(*) AS cnt
-                FROM comercial_rgm {w}
-                GROUP BY data_matricula
-                UNION ALL
-                SELECT data_matricula::date AS dt, COUNT(*) AS cnt
-                FROM mm_matriculados {mm_date_filter}
-                GROUP BY data_matricula::date
-            ) sub
-            GROUP BY dt ORDER BY dt
-        """, params + mm_kpi_params)
-        evolucao = [{"data": r[0].isoformat(), "count": r[1]} for r in cur.fetchall() if r[0]]
+        # --- Evolução diária (from deduplicated mat) ---
+        day_counts = {}
+        for v in mat.values():
+            if v["dt"]:
+                d = v["dt"]
+                day_counts[d] = day_counts.get(d, 0) + 1
+        evolucao = [{"data": d.isoformat(), "count": c} for d, c in sorted(day_counts.items())]
 
-        # --- Evolução ano anterior (para comparação YoY) ---
+        # --- Evolução ano anterior (deduplicated by RGM) ---
         evolucao_prev = []
         if dt_ini and dt_fim:
             try:
@@ -962,6 +983,12 @@ def crgm_data():
                     prev_csv_p.append(nivel)
                 pcw = "WHERE " + " AND ".join(prev_csv_w)
 
+                cur.execute(f"SELECT rgm, data_matricula FROM comercial_rgm {pcw}", prev_csv_p)
+                prev_mat = {}
+                for r in cur.fetchall():
+                    if r[0] and r[0].strip():
+                        prev_mat[r[0].strip()] = r[1]
+
                 prev_mm_w = ["UPPER(COALESCE(tipo_matricula,'')) IN %s",
                              "data_matricula >= %s", "data_matricula <= %s"]
                 prev_mm_p = [MM_TIPO_MAT_VALIDOS, prev_ini.isoformat(), prev_fim.isoformat()]
@@ -969,33 +996,33 @@ def crgm_data():
                     prev_mm_w.append("polo_aulas = %s")
                     prev_mm_p.append(polo)
                 pmw = "WHERE " + " AND ".join(prev_mm_w)
-                pmw += " AND data_matricula IS NOT NULL AND data_matricula != ''"
 
-                cur.execute(f"""
-                    SELECT dt, SUM(cnt) FROM (
-                        SELECT data_matricula AS dt, COUNT(*) AS cnt
-                        FROM comercial_rgm {pcw}
-                        GROUP BY data_matricula
-                        UNION ALL
-                        SELECT data_matricula::date AS dt, COUNT(*) AS cnt
-                        FROM mm_matriculados {pmw}
-                        GROUP BY data_matricula::date
-                    ) sub GROUP BY dt ORDER BY dt
-                """, prev_csv_p + prev_mm_p)
-                evolucao_prev = [{"data": r[0].isoformat(), "count": r[1]} for r in cur.fetchall() if r[0]]
+                cur.execute(f"SELECT rgm, data_matricula FROM mm_matriculados {pmw}", prev_mm_p)
+                for r in cur.fetchall():
+                    if r[0] and r[0].strip():
+                        rgm = r[0].strip()
+                        try:
+                            dt = date.fromisoformat(r[1]) if isinstance(r[1], str) else r[1]
+                        except (ValueError, TypeError):
+                            dt = None
+                        prev_mat[rgm] = dt
+
+                prev_day_counts = {}
+                for dt_val in prev_mat.values():
+                    if dt_val:
+                        prev_day_counts[dt_val] = prev_day_counts.get(dt_val, 0) + 1
+                evolucao_prev = [{"data": d.isoformat(), "count": c}
+                                 for d, c in sorted(prev_day_counts.items())]
             except Exception as exc:
                 logger.warning("evolucao prev year: %s", exc)
 
-        # --- Ranking por polo (CSV + M&M) ---
-        cur.execute(f"""
-            SELECT polo, COUNT(*) AS total FROM (
-                SELECT polo FROM comercial_rgm {w} {"AND" if w else "WHERE"} polo IS NOT NULL
-                UNION ALL
-                SELECT polo_aulas AS polo FROM mm_matriculados {mm_kpi_w} {"AND" if mm_kpi_w else "WHERE"} polo_aulas IS NOT NULL
-            ) sub
-            GROUP BY polo ORDER BY total DESC
-        """, params + mm_kpi_params)
-        ranking_polo = [{"nome": r[0], "total": r[1]} for r in cur.fetchall()]
+        # --- Ranking por polo (from deduplicated mat) ---
+        polo_counts = {}
+        for v in mat.values():
+            if v["polo"]:
+                polo_counts[v["polo"]] = polo_counts.get(v["polo"], 0) + 1
+        ranking_polo = [{"nome": p, "total": c}
+                        for p, c in sorted(polo_counts.items(), key=lambda x: -x[1])]
 
         # --- Ranking por ciclo ---
         cur.execute(f"""
@@ -1011,13 +1038,17 @@ def crgm_data():
         # --- Ranking de agentes (CSV x Kommo cross-ref) ---
         ranking_agentes = _build_agent_ranking(dt_ini or None, dt_fim or None, polo or None)
 
-        # --- Metas por agente ---
+        # --- Metas por agente (overlapping date range) ---
         metas = {}
         try:
             conn2 = _pg()
             cur2 = conn2.cursor()
-            cur2.execute("SELECT user_id, meta FROM comercial_metas")
-            metas = {r[0]: r[1] for r in cur2.fetchall()}
+            cur2.execute("""
+                SELECT user_id, meta FROM comercial_metas
+                WHERE dt_inicio <= %s AND dt_fim >= %s
+            """, (dt_fim or '9999-12-31', dt_ini or '1900-01-01'))
+            for r in cur2.fetchall():
+                metas[r[0]] = metas.get(r[0], 0) + r[1]
             cur2.close()
             conn2.close()
         except Exception:
@@ -1059,8 +1090,24 @@ def crgm_get_metas():
     try:
         conn = _pg()
         cur = conn.cursor()
-        cur.execute("SELECT user_id, user_name, meta, ano, mes FROM comercial_metas ORDER BY user_name")
-        rows = [{"user_id": r[0], "user_name": r[1], "meta": r[2], "ano": r[3], "mes": r[4]}
+        dt_ini = request.args.get("dt_ini", "")
+        dt_fim = request.args.get("dt_fim", "")
+        if dt_ini and dt_fim:
+            cur.execute("""
+                SELECT id, user_id, user_name, meta, dt_inicio, dt_fim, descricao
+                FROM comercial_metas
+                WHERE dt_inicio <= %s AND dt_fim >= %s
+                ORDER BY dt_inicio DESC, user_name
+            """, (dt_fim, dt_ini))
+        else:
+            cur.execute("""
+                SELECT id, user_id, user_name, meta, dt_inicio, dt_fim, descricao
+                FROM comercial_metas ORDER BY dt_inicio DESC, user_name
+            """)
+        rows = [{"id": r[0], "user_id": r[1], "user_name": r[2], "meta": r[3],
+                 "dt_inicio": r[4].isoformat() if r[4] else None,
+                 "dt_fim": r[5].isoformat() if r[5] else None,
+                 "descricao": r[6]}
                 for r in cur.fetchall()]
         cur.close()
         conn.close()
@@ -1078,22 +1125,40 @@ def crgm_save_metas():
     try:
         conn = _pg()
         cur = conn.cursor()
+        saved = 0
         for m in metas:
             uid = int(m["user_id"])
             meta_val = int(m.get("meta", 0))
             name = m.get("user_name", "")
-            ano = int(m.get("ano", date.today().year))
-            mes = int(m.get("mes") or 0)
+            dt_inicio = m.get("dt_inicio")
+            dt_fim = m.get("dt_fim")
+            descricao = m.get("descricao", "")
+            if not dt_inicio or not dt_fim:
+                continue
             cur.execute("""
-                INSERT INTO comercial_metas (user_id, user_name, meta, ano, mes)
-                VALUES (%s, %s, %s, %s, %s)
-                ON CONFLICT (user_id, ano, mes)
-                DO UPDATE SET meta = EXCLUDED.meta, user_name = EXCLUDED.user_name
-            """, (uid, name, meta_val, ano, mes))
+                INSERT INTO comercial_metas (user_id, user_name, meta, dt_inicio, dt_fim, descricao)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (uid, name, meta_val, dt_inicio, dt_fim, descricao))
+            saved += 1
         conn.commit()
         cur.close()
         conn.close()
-        return jsonify({"ok": True, "saved": len(metas)})
+        return jsonify({"ok": True, "saved": saved})
     except Exception as e:
         logger.exception("save metas error")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@comercial_rgm_bp.route("/api/comercial-rgm/metas/<int:meta_id>", methods=["DELETE"])
+def crgm_delete_meta(meta_id):
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM comercial_metas WHERE id = %s", (meta_id,))
+        conn.commit()
+        deleted = cur.rowcount
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True, "deleted": deleted})
+    except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500

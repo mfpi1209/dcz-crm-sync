@@ -5,7 +5,7 @@
     <div class="mb-6">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
                     <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                 </div>
                 <div>
@@ -15,7 +15,7 @@
             </div>
             <div class="flex items-center gap-2">
                 <button onclick="crgmSyncUsers()" id="crgm-btn-sync"
-                    class="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-violet-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                    class="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-blue-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                     Sync Agentes
                 </button>
@@ -24,7 +24,7 @@
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
                     Metas
                 </button>
-                <label class="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-violet-500 px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5">
+                <label class="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-blue-500 px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
                     Upload CSV
                     <input type="file" accept=".csv" class="hidden" onchange="crgmUpload(this)">
@@ -38,15 +38,36 @@
         <div class="flex items-center justify-between mb-4">
             <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
                 <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
-                Definir Metas por Consultor
+                Metas por Período
             </h3>
-            <button onclick="crgmSaveMetas()" class="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                Salvar Metas
-            </button>
         </div>
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3" id="crgm-metas-grid">
-            <p class="text-slate-500 text-xs col-span-full">Carregando agentes...</p>
+        <!-- Criar nova meta -->
+        <div class="bg-slate-800/40 rounded-xl p-4 mb-4 border border-slate-700/30">
+            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Nova Meta</p>
+            <div class="flex flex-wrap items-end gap-3">
+                <div>
+                    <label class="block text-[10px] text-slate-500 mb-1">De</label>
+                    <input type="date" id="crgm-meta-ini" class="input-glass px-3 py-1.5 text-xs text-slate-300">
+                </div>
+                <div>
+                    <label class="block text-[10px] text-slate-500 mb-1">Até</label>
+                    <input type="date" id="crgm-meta-fim" class="input-glass px-3 py-1.5 text-xs text-slate-300">
+                </div>
+                <div>
+                    <label class="block text-[10px] text-slate-500 mb-1">Descrição</label>
+                    <input type="text" id="crgm-meta-desc" placeholder="Ex: Meta Março" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-40">
+                </div>
+                <button onclick="crgmSaveMetas()" class="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    Salvar
+                </button>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mt-3" id="crgm-metas-grid"></div>
+        </div>
+        <!-- Histórico de metas -->
+        <div>
+            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Histórico de Metas</p>
+            <div id="crgm-metas-historico" class="space-y-2 max-h-60 overflow-y-auto"></div>
         </div>
     </div>
 
@@ -87,20 +108,20 @@
     </div>
 
     <!-- Loading / Error -->
-    <div id="crgm-loading" class="hidden text-center py-6 text-sm text-violet-400 flex items-center justify-center gap-2">
+    <div id="crgm-loading" class="hidden text-center py-6 text-sm text-blue-400 flex items-center justify-center gap-2">
         <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
         Carregando dados...
     </div>
     <div id="crgm-erro" class="hidden text-center py-2 text-sm text-red-400 glass-card mb-4 p-3"></div>
 
-    <!-- KPI Hero: Matrículas no Período -->
+    <!-- KPI Hero -->
     <div class="mb-6">
-        <div class="relative rounded-2xl overflow-hidden bg-gradient-to-r from-violet-600/20 to-fuchsia-600/10 border border-violet-500/20 p-4 flex items-center gap-5">
-            <div class="flex-shrink-0 w-14 h-14 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center shadow-lg shadow-violet-500/30">
+        <div class="relative rounded-2xl overflow-hidden bg-gradient-to-r from-blue-600/20 to-cyan-600/10 border border-blue-500/20 p-4 flex items-center gap-5">
+            <div class="flex-shrink-0 w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
                 <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
             </div>
             <div>
-                <p class="text-[10px] font-bold text-violet-400/70 uppercase tracking-widest">Matrículas no Período</p>
+                <p class="text-[10px] font-bold text-blue-400/70 uppercase tracking-widest">Matrículas no Período</p>
                 <p class="text-4xl font-black text-white font-display" id="crgm-vendas">—</p>
             </div>
             <div class="ml-auto flex items-center gap-6">
@@ -167,14 +188,14 @@
         </div>
     </div>
 
-    <!-- Chart: Evolução (full width com YoY) -->
+    <!-- Chart: Evolução (full width) -->
     <div class="glass-card overflow-hidden mb-6">
-        <div class="px-5 pt-4 pb-2">
+        <div class="px-5 pt-4 pb-2 flex items-center justify-between">
             <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+                <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
                 Matrículas por Dia
-                <span class="text-[10px] text-slate-500 font-normal ml-2">Linha tracejada = mesmo período ano anterior</span>
             </h3>
+            <span class="text-[10px] text-slate-600">tracejado = ano anterior</span>
         </div>
         <div class="px-5 pb-5">
             <div class="rounded-xl p-3 bg-slate-800/20 border border-slate-700/20" style="height:300px;">
@@ -183,11 +204,11 @@
         </div>
     </div>
 
-    <!-- Ranking de Agentes Comerciais -->
+    <!-- Ranking de Agentes -->
     <div class="glass-card overflow-hidden mb-6">
         <div class="px-5 py-3 border-b border-slate-700/20 flex items-center justify-between">
             <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                 Ranking de Agentes Comerciais
             </h3>
             <span id="crgm-agentes-count" class="text-[10px] text-slate-500"></span>
@@ -209,12 +230,7 @@
                     </tr>
                 </thead>
                 <tbody id="crgm-agentes-body" class="divide-y divide-slate-700/10">
-                    <tr><td colspan="10" class="px-5 py-8 text-center text-slate-600">
-                        <div class="flex flex-col items-center gap-2">
-                            <svg class="w-8 h-8 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                            <span>Clique em "Sync Agentes" para carregar</span>
-                        </div>
-                    </td></tr>
+                    <tr><td colspan="10" class="px-5 py-8 text-center text-slate-600">Carregando...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -235,7 +251,6 @@
                 </div>
             </div>
         </div>
-
         <div class="glass-card overflow-hidden">
             <div class="px-5 py-3 border-b border-slate-700/20">
                 <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
@@ -252,25 +267,35 @@
                         </tr>
                     </thead>
                     <tbody id="crgm-ciclo-body" class="divide-y divide-slate-700/10">
-                        <tr><td colspan="2" class="px-5 py-6 text-center text-slate-600">Carregue dados para visualizar</td></tr>
+                        <tr><td colspan="2" class="px-5 py-6 text-center text-slate-600">Carregando...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <!-- Ranking por Polo (moved to bottom) -->
+    <!-- Ranking por Polo (tabela limpa no final) -->
     <div class="glass-card overflow-hidden">
-        <div class="px-5 pt-4 pb-2">
+        <div class="px-5 py-3 border-b border-slate-700/20">
             <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
                 <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                Ranking por Polo
+                Matrículas por Polo
             </h3>
         </div>
-        <div class="px-5 pb-5">
-            <div class="rounded-xl p-3 bg-slate-800/20 border border-slate-700/20" style="height:300px;">
-                <canvas id="crgm-chart-ranking"></canvas>
-            </div>
+        <div class="overflow-x-auto max-h-[400px] overflow-y-auto">
+            <table class="w-full text-sm">
+                <thead class="sticky top-0 z-10">
+                    <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-700/20 bg-slate-900/95 backdrop-blur">
+                        <th class="text-center px-3 py-3 w-10">#</th>
+                        <th class="text-left px-4 py-3">Polo</th>
+                        <th class="text-right px-4 py-3">Total</th>
+                        <th class="text-left px-4 py-3 w-48">Proporção</th>
+                    </tr>
+                </thead>
+                <tbody id="crgm-polo-body" class="divide-y divide-slate-700/10">
+                    <tr><td colspan="4" class="px-5 py-6 text-center text-slate-600">Carregando...</td></tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
