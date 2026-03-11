@@ -666,17 +666,45 @@ def crgm_data():
         # --- KPIs ---
         cur.execute(f"""
             SELECT COUNT(*) AS vendas,
-                   COALESCE(AVG(valor_real), 0) AS ticket_medio,
-                   COALESCE(SUM(valor_real), 0) AS valor_total,
                    COUNT(DISTINCT data_matricula) AS dias
             FROM comercial_rgm {w}
         """, params)
         kpi = cur.fetchone()
         vendas = kpi[0] or 0
-        ticket_medio = round(float(kpi[1]), 2)
-        valor_total = round(float(kpi[2]), 2)
-        dias = kpi[3] or 1
+        dias = kpi[1] or 1
         media_diaria = round(vendas / dias, 1) if dias > 0 else 0
+
+        # --- Ticket médio via Kommo lead price (cruzado por RGM) ---
+        ticket_medio = 0.0
+        valor_total = 0.0
+        try:
+            kconn = _pg_kommo()
+            kcur = kconn.cursor()
+            kcur.execute("""
+                SELECT regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g') AS rgm,
+                       l.price
+                FROM lead_custom_field_values lcf
+                JOIN leads l ON l.id = lcf.lead_id
+                              AND l.status_id = 142
+                              AND l.is_deleted = FALSE
+                WHERE lcf.field_name = 'RGM'
+                  AND lcf.values_json->0->>'value' IS NOT NULL
+                  AND lcf.values_json->0->>'value' != ''
+                  AND l.price IS NOT NULL AND l.price > 0
+            """)
+            rgm_price = {r[0]: r[1] for r in kcur.fetchall() if r[0]}
+            kcur.close()
+            kconn.close()
+
+            cur.execute(f"SELECT rgm FROM comercial_rgm {w}", params)
+            csv_rgms = [r[0].strip() for r in cur.fetchall() if r[0]]
+
+            prices = [rgm_price[rgm] for rgm in csv_rgms if rgm in rgm_price and rgm_price[rgm] > 0]
+            if prices:
+                valor_total = round(sum(prices) / 100, 2)
+                ticket_medio = round(valor_total / len(prices), 2)
+        except Exception as e:
+            logger.warning("ticket medio kommo: %s", e)
 
         # --- MM Inscritos no período ---
         mm_insc_count = 0
