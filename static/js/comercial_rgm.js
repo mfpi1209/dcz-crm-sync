@@ -5,6 +5,7 @@
 let _crgmChartEvolucao = null;
 let _crgmChartRanking = null;
 let _crgmChartAgentes = null;
+let _crgmLastData = null;
 
 async function loadComercialRgm() {
     const filtersData = await _crgmLoadFilters();
@@ -109,8 +110,9 @@ async function crgmAtualizar() {
         const d = await res.json();
         if (!d.ok) { _crgmErro(d.error || 'Erro'); return; }
 
+        _crgmLastData = d;
         _crgmRenderKPIs(d.kpis);
-        _crgmRenderEvolucao(d.evolucao);
+        _crgmRenderEvolucao(d.evolucao, d.evolucao_prev || []);
         _crgmRenderRanking(d.ranking_polo);
         _crgmRenderCicloTable(d.ranking_ciclo);
         _crgmRenderAgentes(d.ranking_agentes || []);
@@ -127,7 +129,7 @@ function _crgmRenderKPIs(k) {
     document.getElementById('crgm-ytd').textContent = k.vendas_ytd.toLocaleString('pt-BR');
     document.getElementById('crgm-media').textContent = k.media_diaria.toLocaleString('pt-BR');
     document.getElementById('crgm-ticket').textContent = 'R$ ' + k.ticket_medio.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-    document.getElementById('crgm-valor-total').textContent = 'R$ ' + (k.valor_total / 1000).toFixed(0) + 'k';
+    document.getElementById('crgm-valor-total').textContent = 'R$ ' + (k.valor_total >= 1000 ? (k.valor_total / 1000).toFixed(0) + 'k' : k.valor_total.toLocaleString('pt-BR'));
     document.getElementById('crgm-dias').textContent = k.dias;
 
     const mmEl = document.getElementById('crgm-mm-inscritos');
@@ -151,7 +153,7 @@ function _crgmSetBadge(id, pct) {
         : 'font-bold px-1.5 py-0.5 rounded text-[10px] bg-red-500/20 text-red-400';
 }
 
-function _crgmRenderEvolucao(evolucao) {
+function _crgmRenderEvolucao(evolucao, evolucaoPrev) {
     const ctx = document.getElementById('crgm-chart-evolucao');
     if (_crgmChartEvolucao) _crgmChartEvolucao.destroy();
 
@@ -161,29 +163,70 @@ function _crgmRenderEvolucao(evolucao) {
     });
     const values = evolucao.map(e => e.count);
 
+    const datasets = [{
+        label: 'Matrículas',
+        data: values,
+        borderColor: '#a78bfa',
+        backgroundColor: 'rgba(167,139,250,0.08)',
+        borderWidth: 2.5,
+        fill: true,
+        tension: 0.3,
+        pointRadius: evolucao.length > 60 ? 0 : 4,
+        pointBackgroundColor: '#a78bfa',
+        pointHoverRadius: 6,
+    }];
+
+    if (evolucaoPrev && evolucaoPrev.length > 0) {
+        const prevMap = {};
+        evolucaoPrev.forEach(e => {
+            const d = new Date(e.data + 'T00:00:00');
+            const key = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+            prevMap[key] = (prevMap[key] || 0) + e.count;
+        });
+
+        const prevValues = evolucao.map(e => {
+            const d = new Date(e.data + 'T00:00:00');
+            const key = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+            return prevMap[key] || 0;
+        });
+
+        datasets.push({
+            label: 'Ano Anterior',
+            data: prevValues,
+            borderColor: '#64748b',
+            backgroundColor: 'transparent',
+            borderWidth: 1.5,
+            borderDash: [6, 4],
+            fill: false,
+            tension: 0.3,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            pointBackgroundColor: '#64748b',
+        });
+    }
+
     _crgmChartEvolucao = new Chart(ctx, {
         type: 'line',
-        data: {
-            labels,
-            datasets: [{
-                label: 'Matrículas',
-                data: values,
-                borderColor: '#a78bfa',
-                backgroundColor: 'rgba(167,139,250,0.08)',
-                borderWidth: 2,
-                fill: true,
-                tension: 0.3,
-                pointRadius: evolucao.length > 60 ? 0 : 3,
-                pointBackgroundColor: '#a78bfa',
-            }]
-        },
+        data: { labels, datasets },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: {
+                    display: evolucaoPrev && evolucaoPrev.length > 0,
+                    position: 'top',
+                    align: 'end',
+                    labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 12, padding: 12 }
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                }
+            },
             scales: {
                 x: {
-                    ticks: { color: '#64748b', maxTicksLimit: 12, font: { size: 10 } },
+                    ticks: { color: '#64748b', maxTicksLimit: 15, font: { size: 10 } },
                     grid: { color: 'rgba(100,116,139,0.08)' }
                 },
                 y: {
@@ -261,7 +304,7 @@ function _crgmRenderAgentes(agentes) {
     const countEl = document.getElementById('crgm-agentes-count');
 
     if (!agentes || !agentes.length) {
-        tbody.innerHTML = `<tr><td colspan="8" class="px-5 py-8 text-center text-slate-600">
+        tbody.innerHTML = `<tr><td colspan="10" class="px-5 py-8 text-center text-slate-600">
             <div class="flex flex-col items-center gap-2">
                 <svg class="w-8 h-8 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                 <span>Clique em "Sync Agentes" para carregar</span>
@@ -289,14 +332,19 @@ function _crgmRenderAgentes(agentes) {
         const mp = a.matriculas_periodo || 0;
         const pp = a.perdidos_periodo || 0;
         const np = a.novos_periodo || 0;
+        const meta = a.meta || 0;
+        const pctMeta = meta > 0 ? Math.round(mp / meta * 100) : 0;
+        const metaClass = meta === 0 ? 'text-slate-600' : pctMeta >= 100 ? 'text-emerald-400' : pctMeta >= 70 ? 'text-amber-400' : 'text-red-400';
         const rank = i < 3 ? medals[i] : (i + 1);
         const rowClass = i < 3 ? 'bg-violet-500/[0.03]' : '';
         const nameIsId = a.nome && a.nome.startsWith('User #');
 
-        return `<tr class="hover:bg-white/[0.03] transition-colors ${rowClass}">
+        return `<tr class="hover:bg-white/[0.03] transition-colors ${rowClass}" title="${meta > 0 ? 'Meta: ' + meta + ' | Progresso: ' + pctMeta + '%' : 'Sem meta definida'}">
             <td class="text-center px-3 py-2.5 font-bold text-slate-400">${rank}</td>
             <td class="px-4 py-2.5 font-medium ${nameIsId ? 'text-slate-500 italic' : 'text-white'}">${esc(a.nome)}</td>
             <td class="px-4 py-2.5 text-right font-mono text-violet-400 font-semibold">${mp.toLocaleString('pt-BR')}</td>
+            <td class="px-4 py-2.5 text-right font-mono text-slate-500">${meta > 0 ? meta : '—'}</td>
+            <td class="px-4 py-2.5 text-right font-mono font-bold ${metaClass}">${meta > 0 ? pctMeta + '%' : '—'}</td>
             <td class="px-4 py-2.5 text-right font-mono text-blue-400">${np.toLocaleString('pt-BR')}</td>
             <td class="px-4 py-2.5 text-right font-mono text-red-400">${pp.toLocaleString('pt-BR')}</td>
             <td class="px-4 py-2.5 text-right font-mono text-slate-300">${a.total.toLocaleString('pt-BR')}</td>
@@ -321,29 +369,44 @@ function _crgmRenderAgentesChart(agentes) {
         data = data.filter(a => String(a.user_id) === agenteFilter);
     }
 
-    data = data.filter(a => (a.matriculas_periodo || 0) > 0);
+    data = data.filter(a => (a.matriculas_periodo || 0) > 0 || (a.meta || 0) > 0);
     data.sort((a, b) => (a.matriculas_periodo || 0) - (b.matriculas_periodo || 0));
 
     const top = data.slice(-12);
     const labels = top.map(a => a.nome || `#${a.user_id}`);
 
+    const datasets = [
+        {
+            label: 'Matrículas (per.)',
+            data: top.map(a => a.matriculas_periodo || 0),
+            backgroundColor: '#a78bfa',
+            borderColor: '#8b5cf6',
+            borderWidth: 1,
+            borderRadius: 4,
+            barPercentage: 0.6,
+            categoryPercentage: 0.85,
+        },
+    ];
+
+    const hasMetas = top.some(a => (a.meta || 0) > 0);
+    if (hasMetas) {
+        datasets.push({
+            label: 'Meta',
+            data: top.map(a => a.meta || 0),
+            backgroundColor: 'transparent',
+            borderColor: '#f59e0b',
+            borderWidth: 2,
+            borderDash: [4, 3],
+            borderRadius: 4,
+            barPercentage: 0.6,
+            categoryPercentage: 0.85,
+            type: 'bar',
+        });
+    }
+
     _crgmChartAgentes = new Chart(ctx, {
         type: 'bar',
-        data: {
-            labels,
-            datasets: [
-                {
-                    label: 'Matrículas (per.)',
-                    data: top.map(a => a.matriculas_periodo || 0),
-                    backgroundColor: '#a78bfa',
-                    borderColor: '#8b5cf6',
-                    borderWidth: 1,
-                    borderRadius: 4,
-                    barPercentage: 0.6,
-                    categoryPercentage: 0.85,
-                },
-            ]
-        },
+        data: { labels, datasets },
         options: {
             indexAxis: 'y',
             responsive: true,
@@ -359,7 +422,11 @@ function _crgmRenderAgentesChart(agentes) {
                         afterBody: function(ctx) {
                             const i = ctx[0].dataIndex;
                             const a = top[i];
-                            return `Ganhos CRM: ${(a.ganhos||0).toLocaleString('pt-BR')} | Conv.: ${a.taxa_conversao}%`;
+                            const meta = a.meta || 0;
+                            const pct = meta > 0 ? Math.round((a.matriculas_periodo || 0) / meta * 100) : 0;
+                            let lines = [`Ganhos CRM: ${(a.ganhos||0).toLocaleString('pt-BR')} | Conv.: ${a.taxa_conversao}%`];
+                            if (meta > 0) lines.push(`Meta: ${meta} | Progresso: ${pct}%`);
+                            return lines;
                         }
                     }
                 }
@@ -378,6 +445,82 @@ function _crgmRenderAgentesChart(agentes) {
         }
     });
 }
+
+// --- Metas management ---
+
+function crgmToggleMetas() {
+    const panel = document.getElementById('crgm-metas-panel');
+    const isHidden = panel.classList.contains('hidden');
+    panel.classList.toggle('hidden');
+    if (isHidden) _crgmLoadMetasPanel();
+}
+
+async function _crgmLoadMetasPanel() {
+    const grid = document.getElementById('crgm-metas-grid');
+    grid.innerHTML = '<p class="text-slate-500 text-xs col-span-full">Carregando...</p>';
+
+    try {
+        const [metasRes, filtersRes] = await Promise.all([
+            api('/api/comercial-rgm/metas').then(r => r.json()),
+            api('/api/comercial-rgm/filters').then(r => r.json()),
+        ]);
+
+        const agentes = filtersRes.ok ? filtersRes.agentes || [] : [];
+        const metasMap = {};
+        if (metasRes.ok) {
+            metasRes.metas.forEach(m => { metasMap[m.user_id] = m.meta; });
+        }
+
+        if (!agentes.length) {
+            grid.innerHTML = '<p class="text-slate-500 text-xs col-span-full">Nenhum agente encontrado. Clique em "Sync Agentes" primeiro.</p>';
+            return;
+        }
+
+        grid.innerHTML = agentes
+            .filter(a => !['Admin', 'T.I', 'Suporte'].includes(a.name))
+            .map(a => {
+                const val = metasMap[a.id] || '';
+                return `<div class="flex items-center gap-2 bg-slate-800/30 rounded-lg px-3 py-2">
+                    <span class="text-xs text-slate-300 flex-1 truncate">${esc(a.name)}</span>
+                    <input type="number" min="0" data-uid="${a.id}" data-uname="${esc(a.name)}"
+                        value="${val}" placeholder="0"
+                        class="w-16 text-right text-xs font-mono bg-slate-900/50 border border-slate-700 rounded px-2 py-1 text-white focus:border-amber-500 focus:outline-none crgm-meta-input">
+                </div>`;
+            }).join('');
+    } catch (e) {
+        grid.innerHTML = `<p class="text-red-400 text-xs col-span-full">Erro: ${e.message}</p>`;
+    }
+}
+
+async function crgmSaveMetas() {
+    const inputs = document.querySelectorAll('.crgm-meta-input');
+    const metas = [];
+    inputs.forEach(inp => {
+        const uid = parseInt(inp.dataset.uid);
+        const meta = parseInt(inp.value) || 0;
+        const name = inp.dataset.uname || '';
+        metas.push({ user_id: uid, meta, user_name: name });
+    });
+
+    try {
+        const res = await api('/api/comercial-rgm/metas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ metas })
+        });
+        const d = await res.json();
+        if (d.ok) {
+            document.getElementById('crgm-metas-panel').classList.add('hidden');
+            crgmAtualizar();
+        } else {
+            _crgmErro(d.error || 'Erro ao salvar metas');
+        }
+    } catch (e) {
+        _crgmErro('Erro ao salvar metas: ' + e.message);
+    }
+}
+
+// --- Utilities ---
 
 async function crgmSyncUsers() {
     const btn = document.getElementById('crgm-btn-sync');

@@ -133,6 +133,17 @@ CREATE TABLE IF NOT EXISTS mm_matriculados_hist (
 );
 CREATE INDEX IF NOT EXISTS idx_mmhm_snap ON mm_matriculados_hist(snapshot_id);
 CREATE INDEX IF NOT EXISTS idx_mmhm_cpf  ON mm_matriculados_hist(cpf);
+
+CREATE TABLE IF NOT EXISTS comercial_metas (
+    id         SERIAL PRIMARY KEY,
+    user_id    INTEGER NOT NULL,
+    user_name  TEXT,
+    meta       INTEGER NOT NULL DEFAULT 0,
+    ano        INTEGER NOT NULL DEFAULT EXTRACT(YEAR FROM NOW()),
+    mes        INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(user_id, ano, mes)
+);
 CREATE INDEX IF NOT EXISTS idx_mmhm_data ON mm_matriculados_hist(data_matricula);
 """
 
@@ -523,23 +534,29 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None, polo=None):
       3. Also include CRM-only stats (total leads, novos, perdidos, ativos)
     """
     try:
-        # --- Step 1: build RGM -> responsible_user_id from Kommo Ganhos ---
+        # --- Step 1: build RGM -> responsible_user_id from Kommo leads ---
         kconn = _pg_kommo()
         kcur = kconn.cursor()
+
+        # Priority: Ganho leads first, then any lead with RGM
         kcur.execute("""
             SELECT regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g') AS rgm,
-                   l.responsible_user_id
+                   l.responsible_user_id,
+                   l.status_id
             FROM lead_custom_field_values lcf
-            JOIN leads l ON l.id = lcf.lead_id AND l.status_id = 142 AND l.is_deleted = FALSE
+            JOIN leads l ON l.id = lcf.lead_id AND l.is_deleted = FALSE
             WHERE lcf.field_name = 'RGM'
               AND lcf.values_json->0->>'value' IS NOT NULL
               AND lcf.values_json->0->>'value' != ''
+            ORDER BY CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END
         """)
         rgm_to_user = {}
         for row in kcur.fetchall():
             rgm, uid = row[0], row[1]
-            if rgm and uid:
+            if rgm and uid and rgm not in rgm_to_user:
                 rgm_to_user[rgm] = uid
+
+        logger.info("rgm_to_user map: %d entries from Kommo leads", len(rgm_to_user))
 
         # --- CRM totals per agent (all-time) ---
         ep_ini = _date_to_epoch(dt_ini)
@@ -614,22 +631,65 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None, polo=None):
             mm_params.append(polo)
         mm_w = "WHERE " + " AND ".join(mm_where)
 
-        cur.execute(f"SELECT rgm FROM mm_matriculados {mm_w}", mm_params)
-        mm_rgms = [r[0] for r in cur.fetchall() if r[0]]
+        cur.execute(f"SELECT rgm, cpf FROM mm_matriculados {mm_w}", mm_params)
+        mm_rows = [(r[0], r[1]) for r in cur.fetchall() if r[0]]
 
         csv_rgm_set = set(r.strip() for r in csv_rgms if r)
-        for rgm in mm_rgms:
+        mm_rgms = []
+        cpf_to_rgm = {}
+        for rgm, cpf in mm_rows:
+            mm_rgms.append(rgm)
             if rgm.strip() not in csv_rgm_set:
                 all_rgms.append(rgm)
+            if cpf and rgm:
+                cpf_to_rgm[cpf.strip()] = rgm.strip()
 
         cur.close()
         conn.close()
 
+        # Fallback: CPF -> Kommo contact -> lead -> responsible_user_id
+        unmatched_rgms = [r for r in all_rgms if r.strip() not in rgm_to_user]
+        if unmatched_rgms and cpf_to_rgm:
+            try:
+                kconn2 = _pg_kommo()
+                kcur2 = kconn2.cursor()
+                kcur2.execute("""
+                    SELECT
+                        regexp_replace(ccf.values_json->0->>'value', '[^0-9]', '', 'g') AS cpf,
+                        l.responsible_user_id
+                    FROM contact_custom_field_values ccf
+                    JOIN contacts c ON c.id = ccf.contact_id AND c.is_deleted = FALSE
+                    JOIN lead_contacts lc ON lc.contact_id = c.id
+                    JOIN leads l ON l.id = lc.lead_id AND l.is_deleted = FALSE
+                    WHERE ccf.field_name IN ('CPF', 'Cpf', 'cpf')
+                      AND ccf.values_json->0->>'value' IS NOT NULL
+                      AND ccf.values_json->0->>'value' != ''
+                    ORDER BY CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END
+                """)
+                cpf_to_uid = {}
+                for row in kcur2.fetchall():
+                    cpf_val, uid = row[0], row[1]
+                    if cpf_val and uid and cpf_val not in cpf_to_uid:
+                        cpf_to_uid[cpf_val] = uid
+                kcur2.close()
+                kconn2.close()
+
+                for cpf, rgm in cpf_to_rgm.items():
+                    if rgm not in rgm_to_user and cpf in cpf_to_uid:
+                        rgm_to_user[rgm] = cpf_to_uid[cpf]
+
+                logger.info("CPF fallback: added %d extra RGM->user mappings",
+                            len(rgm_to_user) - len([r for r in rgm_to_user if r]))
+            except Exception as e:
+                logger.warning("CPF fallback error: %s", e)
+
         mat_per_agent = {}
+        matched_count = 0
         for rgm in all_rgms:
             uid = rgm_to_user.get(rgm.strip())
             if uid:
                 mat_per_agent[uid] = mat_per_agent.get(uid, 0) + 1
+                matched_count += 1
 
         # --- Step 3: merge CRM stats + CSV matrículas ---
         all_uids = set(crm_stats.keys()) | set(mat_per_agent.keys())
@@ -883,6 +943,49 @@ def crgm_data():
         """, params + mm_kpi_params)
         evolucao = [{"data": r[0].isoformat(), "count": r[1]} for r in cur.fetchall() if r[0]]
 
+        # --- Evolução ano anterior (para comparação YoY) ---
+        evolucao_prev = []
+        if dt_ini and dt_fim:
+            try:
+                d_ini = date.fromisoformat(dt_ini)
+                d_fim_d = date.fromisoformat(dt_fim)
+                prev_ini = _shift_months(d_ini, -12)
+                prev_fim = _shift_months(d_fim_d, -12)
+
+                prev_csv_w = ["data_matricula >= %s", "data_matricula <= %s"]
+                prev_csv_p = [prev_ini.isoformat(), prev_fim.isoformat()]
+                if polo:
+                    prev_csv_w.append("polo = %s")
+                    prev_csv_p.append(polo)
+                if nivel:
+                    prev_csv_w.append("nivel = %s")
+                    prev_csv_p.append(nivel)
+                pcw = "WHERE " + " AND ".join(prev_csv_w)
+
+                prev_mm_w = ["UPPER(COALESCE(tipo_matricula,'')) IN %s",
+                             "data_matricula >= %s", "data_matricula <= %s"]
+                prev_mm_p = [MM_TIPO_MAT_VALIDOS, prev_ini.isoformat(), prev_fim.isoformat()]
+                if polo:
+                    prev_mm_w.append("polo_aulas = %s")
+                    prev_mm_p.append(polo)
+                pmw = "WHERE " + " AND ".join(prev_mm_w)
+                pmw += " AND data_matricula IS NOT NULL AND data_matricula != ''"
+
+                cur.execute(f"""
+                    SELECT dt, SUM(cnt) FROM (
+                        SELECT data_matricula AS dt, COUNT(*) AS cnt
+                        FROM comercial_rgm {pcw}
+                        GROUP BY data_matricula
+                        UNION ALL
+                        SELECT data_matricula::date AS dt, COUNT(*) AS cnt
+                        FROM mm_matriculados {pmw}
+                        GROUP BY data_matricula::date
+                    ) sub GROUP BY dt ORDER BY dt
+                """, prev_csv_p + prev_mm_p)
+                evolucao_prev = [{"data": r[0].isoformat(), "count": r[1]} for r in cur.fetchall() if r[0]]
+            except Exception as exc:
+                logger.warning("evolucao prev year: %s", exc)
+
         # --- Ranking por polo (CSV + M&M) ---
         cur.execute(f"""
             SELECT polo, COUNT(*) AS total FROM (
@@ -908,6 +1011,21 @@ def crgm_data():
         # --- Ranking de agentes (CSV x Kommo cross-ref) ---
         ranking_agentes = _build_agent_ranking(dt_ini or None, dt_fim or None, polo or None)
 
+        # --- Metas por agente ---
+        metas = {}
+        try:
+            conn2 = _pg()
+            cur2 = conn2.cursor()
+            cur2.execute("SELECT user_id, meta FROM comercial_metas")
+            metas = {r[0]: r[1] for r in cur2.fetchall()}
+            cur2.close()
+            conn2.close()
+        except Exception:
+            pass
+
+        for ag in ranking_agentes:
+            ag["meta"] = metas.get(ag["user_id"], 0)
+
         return jsonify({
             "ok": True,
             "kpis": {
@@ -926,10 +1044,56 @@ def crgm_data():
                 "mm_inscritos": mm_insc_count,
             },
             "evolucao": evolucao,
+            "evolucao_prev": evolucao_prev,
             "ranking_polo": ranking_polo,
             "ranking_ciclo": ranking_ciclo,
             "ranking_agentes": ranking_agentes,
         })
     except Exception as e:
         logger.exception("comercial_rgm data error")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@comercial_rgm_bp.route("/api/comercial-rgm/metas", methods=["GET"])
+def crgm_get_metas():
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("SELECT user_id, user_name, meta, ano, mes FROM comercial_metas ORDER BY user_name")
+        rows = [{"user_id": r[0], "user_name": r[1], "meta": r[2], "ano": r[3], "mes": r[4]}
+                for r in cur.fetchall()]
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True, "metas": rows})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@comercial_rgm_bp.route("/api/comercial-rgm/metas", methods=["POST"])
+def crgm_save_metas():
+    data = request.get_json(force=True)
+    metas = data.get("metas", [])
+    if not metas:
+        return jsonify({"error": "Nenhuma meta enviada"}), 400
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        for m in metas:
+            uid = int(m["user_id"])
+            meta_val = int(m.get("meta", 0))
+            name = m.get("user_name", "")
+            ano = int(m.get("ano", date.today().year))
+            mes = int(m.get("mes") or 0)
+            cur.execute("""
+                INSERT INTO comercial_metas (user_id, user_name, meta, ano, mes)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (user_id, ano, mes)
+                DO UPDATE SET meta = EXCLUDED.meta, user_name = EXCLUDED.user_name
+            """, (uid, name, meta_val, ano, mes))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True, "saved": len(metas)})
+    except Exception as e:
+        logger.exception("save metas error")
         return jsonify({"ok": False, "error": str(e)}), 500
