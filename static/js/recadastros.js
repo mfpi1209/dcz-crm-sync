@@ -38,8 +38,15 @@ async function loadRecadastros() {
     const errorMsg = document.getElementById('recad-error-msg');
     const lastUpdateEl = document.getElementById('recad-last-update');
 
-    const fromDate = document.getElementById('recad-filter-from')?.value || '';
-    const toDate = document.getElementById('recad-filter-to')?.value || '';
+    const fromInput = document.getElementById('recad-filter-from');
+    const toInput = document.getElementById('recad-filter-to');
+    
+    const today = new Date().toISOString().split('T')[0];
+    if (fromInput && !fromInput.value) fromInput.value = today;
+    if (toInput && !toInput.value) toInput.value = today;
+    
+    const fromDate = fromInput?.value || today;
+    const toDate = toInput?.value || today;
 
     try {
         if (btn) btn.disabled = true;
@@ -61,11 +68,12 @@ async function loadRecadastros() {
         if (!res.ok) throw new Error(`Falha ao consultar webhook (${res.status})`);
 
         const payload = await res.json();
-        recadastrosData = normalizeRecadResponse(payload.data || payload);
-
-        if (!recadastrosData.length) {
-            throw new Error('A webhook respondeu, mas não retornou linhas no formato esperado.');
+        
+        if (payload.status === 'ERROR' || payload.status === 'TIMEOUT') {
+            throw new Error(payload.error || 'Erro ao consultar webhook');
         }
+        
+        recadastrosData = normalizeRecadResponse(payload.data || payload);
 
         renderRecadastros();
         updateRecadMetrics();
@@ -73,6 +81,11 @@ async function loadRecadastros() {
         const now = new Date();
         if (lastUpdateEl) {
             lastUpdateEl.textContent = `Atualizado em ${now.toLocaleString('pt-BR')}`;
+        }
+        
+        if (recadastrosData.length === 0) {
+            if (errorEl) errorEl.classList.remove('hidden');
+            if (errorMsg) errorMsg.textContent = 'Nenhum recadastro encontrado para o período selecionado.';
         }
 
         console.log('Recadastros carregados:', recadastrosData.length, 'origens');
@@ -158,31 +171,75 @@ function renderRecadChart() {
 
     const labels = recadastrosData.map(item => item.origem);
     const data = recadastrosData.map(item => item.total_recadastros);
+    const total = data.reduce((a, b) => a + b, 0);
 
-    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-    gradient.addColorStop(0, 'rgba(34, 211, 238, 0.9)');
-    gradient.addColorStop(1, 'rgba(99, 102, 241, 0.9)');
+    const colors = [
+        'rgba(34, 211, 238, 0.85)',
+        'rgba(99, 102, 241, 0.85)',
+        'rgba(168, 85, 247, 0.85)',
+        'rgba(236, 72, 153, 0.85)',
+        'rgba(251, 146, 60, 0.85)',
+        'rgba(34, 197, 94, 0.85)',
+        'rgba(14, 165, 233, 0.85)',
+        'rgba(244, 63, 94, 0.85)',
+        'rgba(132, 204, 22, 0.85)',
+        'rgba(245, 158, 11, 0.85)'
+    ];
+
+    const borderColors = [
+        'rgba(34, 211, 238, 1)',
+        'rgba(99, 102, 241, 1)',
+        'rgba(168, 85, 247, 1)',
+        'rgba(236, 72, 153, 1)',
+        'rgba(251, 146, 60, 1)',
+        'rgba(34, 197, 94, 1)',
+        'rgba(14, 165, 233, 1)',
+        'rgba(244, 63, 94, 1)',
+        'rgba(132, 204, 22, 1)',
+        'rgba(245, 158, 11, 1)'
+    ];
 
     recadChart = new Chart(ctx, {
-        type: 'bar',
+        type: 'doughnut',
         data: {
             labels: labels,
             datasets: [{
-                label: 'Recadastros',
                 data: data,
-                backgroundColor: gradient,
-                borderColor: 'rgba(34, 211, 238, 0.5)',
-                borderWidth: 1,
-                borderRadius: 8,
-                borderSkipped: false
+                backgroundColor: colors.slice(0, data.length),
+                borderColor: borderColors.slice(0, data.length),
+                borderWidth: 2,
+                hoverOffset: 8
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            cutout: '60%',
             plugins: {
                 legend: {
-                    display: false
+                    position: 'right',
+                    labels: {
+                        color: 'rgba(203, 213, 225, 0.9)',
+                        font: { size: 12 },
+                        padding: 16,
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                        generateLabels: function(chart) {
+                            const dataset = chart.data.datasets[0];
+                            return chart.data.labels.map((label, i) => {
+                                const value = dataset.data[i];
+                                const percent = ((value / total) * 100).toFixed(1);
+                                return {
+                                    text: `${label} (${percent}%)`,
+                                    fillStyle: dataset.backgroundColor[i],
+                                    strokeStyle: dataset.borderColor[i],
+                                    lineWidth: 2,
+                                    hidden: false,
+                                    index: i
+                                };
+                            });
+                        }
+                    }
                 },
                 tooltip: {
                     backgroundColor: 'rgba(15, 23, 42, 0.95)',
@@ -190,38 +247,14 @@ function renderRecadChart() {
                     borderWidth: 1,
                     titleColor: '#cbd5e1',
                     bodyColor: '#fff',
-                    padding: 12,
+                    padding: 14,
                     cornerRadius: 12,
-                    displayColors: false,
+                    displayColors: true,
                     callbacks: {
                         label: function(context) {
-                            return `${context.parsed.y.toLocaleString('pt-BR')} recadastros`;
-                        }
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    grid: {
-                        display: false
-                    },
-                    ticks: {
-                        color: 'rgba(148, 163, 184, 0.7)',
-                        font: { size: 11 },
-                        maxRotation: 45,
-                        minRotation: 0
-                    }
-                },
-                y: {
-                    beginAtZero: true,
-                    grid: {
-                        color: 'rgba(148, 163, 184, 0.08)'
-                    },
-                    ticks: {
-                        color: 'rgba(148, 163, 184, 0.7)',
-                        font: { size: 11 },
-                        callback: function(value) {
-                            return value.toLocaleString('pt-BR');
+                            const value = context.parsed;
+                            const percent = ((value / total) * 100).toFixed(1);
+                            return ` ${value.toLocaleString('pt-BR')} recadastros (${percent}%)`;
                         }
                     }
                 }

@@ -610,7 +610,14 @@ def api_meta_campaigns():
 @dashboard_bp.route("/api/recadastros")
 def api_recadastros():
     """Busca dados de recadastros por origem via webhook do n8n."""
-    import requests
+    try:
+        import requests
+    except ImportError:
+        return jsonify({
+            "data": [],
+            "status": "ERROR",
+            "error": "Módulo requests não instalado"
+        }), 200
     
     WEBHOOK_URL = "https://n8n-new-n8n.ca31ey.easypanel.host/webhook/recadastro_csv"
     
@@ -632,27 +639,26 @@ def api_recadastros():
         return jsonify({
             "data": data,
             "status": "OK"
-        })
+        }), 200
     except requests.exceptions.Timeout:
         return jsonify({
             "data": [],
             "status": "TIMEOUT",
             "error": "Webhook não respondeu a tempo"
-        })
+        }), 200
     except requests.exceptions.RequestException as e:
-        traceback.print_exc()
         return jsonify({
             "data": [],
             "status": "ERROR",
             "error": str(e)
-        })
+        }), 200
     except Exception as e:
         traceback.print_exc()
         return jsonify({
             "data": [],
             "status": "ERROR",
             "error": str(e)
-        })
+        }), 200
 
 
 @dashboard_bp.route("/api/meta/webhook", methods=["POST"])
