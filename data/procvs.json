@@ -1,0 +1,236 @@
+{
+  "polos": [
+    {
+      "de": "POLO SP_BARRA FUNDA",
+      "para": "Barra Funda",
+      "marca": "Cruzeiro do Sul Educacional/UNICID"
+    },
+    {
+      "de": "CEB POLO SP_BARRA FUNDA",
+      "para": "Barra Funda",
+      "marca": "Cruzeiro do Sul Educacional/Braz Cubas"
+    },
+    {
+      "de": "POLO CAMPINAS_JD CRISTINA",
+      "para": "Campinas",
+      "marca": "Universidade Cruzeiro do Sul"
+    },
+    {
+      "de": "POLO CAPIVARI",
+      "para": "Capivari",
+      "marca": "Universidade Cruzeiro do Sul"
+    },
+    {
+      "de": "CEB POLO CAPIVARI",
+      "para": "Capivari",
+      "marca": "Cruzeiro do Sul Educacional/Braz Cubas"
+    },
+    {
+      "de": "POLO SP_FREGUESIA DO Ó",
+      "para": "Freguesia do Ó",
+      "marca": "Cruzeiro do Sul Educacional/UNICID"
+    },
+    {
+      "de": "CEB POLO SP_FREGUESIA DO Ó",
+      "para": "Freguesia do Ó",
+      "marca": "Cruzeiro do Sul Educacional/Braz Cubas"
+    },
+    {
+      "de": "POLO SP_IBIRAPUERA (INDIANÓPOLIS)",
+      "para": "Ibirapuera",
+      "marca": "Universidade Cruzeiro do Sul"
+    },
+    {
+      "de": "POLO ITAPIRA",
+      "para": "Itapira",
+      "marca": "Universidade Cruzeiro do Sul"
+    },
+    {
+      "de": "CEB POLO SP_MORUMBI (VILA PROGREDIOR)",
+      "para": "Morumbi",
+      "marca": "Cruzeiro do Sul Educacional/Braz Cubas"
+    },
+    {
+      "de": "POLO SP_MORUMBI (VILA PROGREDIOR)",
+      "para": "Morumbi",
+      "marca": "Cruzeiro do Sul Educacional/UNICID"
+    },
+    {
+      "de": "CEB POLO SP_SAPOPEMBA (VILA EMA)",
+      "para": "Sapopemba",
+      "marca": "Cruzeiro do Sul Educacional/Braz Cubas"
+    },
+    {
+      "de": "POLO SP_SAPOPEMBA (VILA EMA)",
+      "para": "Sapopemba",
+      "marca": "Cruzeiro do Sul Educacional/UNICID"
+    },
+    {
+      "de": "POLO TABOÃO DA SERRA_JARDIM MITUZI",
+      "para": "Taboão da Serra",
+      "marca": "Cruzeiro do Sul Educacional/UNICID"
+    },
+    {
+      "de": "CEB POLO TABOÃO DA SERRA_JARDIM MITUIZI",
+      "para": "Taboão da Serra",
+      "marca": "Cruzeiro do Sul Educacional/Braz Cubas"
+    },
+    {
+      "de": "CEB POLO TABOÃO DA SERRA_CENTRO PARQUE SANTOS DUMONT",
+      "para": "Taboão da Serra - Centro",
+      "marca": "Cruzeiro do Sul Educacional/Braz Cubas"
+    },
+    {
+      "de": "POLO TABOÃO DA SERRA_CENTRO PARQUE SANTOS DUMONT",
+      "para": "Taboão da Serra - Centro",
+      "marca": "Universidade Cruzeiro do Sul"
+    },
+    {
+      "de": "CEB POLO SP_VILA PRUDENTE",
+      "para": "Vila Prudente",
+      "marca": "Cruzeiro do Sul Educacional/Braz Cubas"
+    },
+    {
+      "de": "POLO SP_VILA PRUDENTE",
+      "para": "Vila Prudente",
+      "marca": "Cruzeiro do Sul Educacional/UNICID"
+    },
+    {
+      "de": "POLO SP_SANTANA 2",
+      "para": "Santana",
+      "marca": "Cruzeiro do Sul Educacional/UNICID"
+    },
+    {
+      "de": "CEB POLO SP_IBIRAPUERA (INDIANÓPOLIS)",
+      "para": "Ibirapuera",
+      "marca": "Cruzeiro do Sul Educacional/Braz Cubas"
+    },
+    {
+      "de": "POLO SP_VILA MARIANA",
+      "para": "Vila Mariana",
+      "marca": "Universidade Cruzeiro do Sul"
+    }
+  ],
+  "cursos": [
+    {
+      "de": "CIBERSEGURANÇA (EAD Digital)TECNÓLOGO",
+      "para": "CIBERSEGURANCA (EAD Digital)TECNÓLOGO"
+    },
+    {
+      "de": "COMPUTAÇÃO EM NUVEM (EaD com aulas ao vivo)TECNÓLOGO",
+      "para": "COMPUTAÇÃO NA NUVEM (EAD com aulas ao vivo)TECNÓLOGO"
+    },
+    {
+      "de": "CRIMINILOGIA (EaD com aulas ao vivo)TECNÓLOGO",
+      "para": "CRIMINOLOGIA (EAD com aulas ao vivo)TECNÓLOGO"
+    },
+    {
+      "de": "EDUCAÇÃO FÍSICA (EAD Digital)LICENCIATURA",
+      "para": "EDUCAÇÃO FÍSICA (EAD Digital)BACH / LICENC"
+    },
+    {
+      "de": "GERONTOLOGIA (EAD Digital)TECNÓLOGO",
+      "para": "GERONTOLOGIA (EAD Semipresencial)TECNÓLOGO"
+    },
+    {
+      "de": "GESTÃO DA PRODUÇÃO INDUSTRIAL (EAD Digital)TECNÓLOGO",
+      "para": "GESTÃO DE PRODUÇÃO INDUSTRIAL (EAD Digital)TECNÓLOGO"
+    },
+    {
+      "de": "GESTÃO DA QUALIDADE (EAD Digital)TECNÓLOGO",
+      "para": "GESTÃO DE QUALIDADE (EAD Digital)TECNÓLOGO"
+    },
+    {
+      "de": "GESTÃO DA TECNOLOGIA DA INFORMAÇÃO (EAD Digital)TECNÓLOGO",
+      "para": "GESTÃO DE TECNOLOGIA DA INFORMAÇÃO (EAD Digital)TECNÓLOGO"
+    },
+    {
+      "de": "GESTÃO DAS ORGANIZAÇÕES DO TERCEIRO SETOR (EAD Digital)TECNÓLOGO",
+      "para": "GESTÃO DO TERCEIRO SETOR (EAD Digital)TECNÓLOGO"
+    },
+    {
+      "de": "R2 EM BIOLOGIA (EAD Digital)LICENCIATURA",
+      "para": "R2 - FORMAÇÃO DE PROFESSORES - BIOLOGIA (EAD Digital)LICENCIATURA"
+    },
+    {
+      "de": "R2 EM FÍSICA (EAD Digital)LICENCIATURA",
+      "para": "R2 - FORMAÇÃO DE PROFESSORES - FÍSICA (EAD Digital)LICENCIATURA"
+    },
+    {
+      "de": "R2 EM GEOGRAFIA (EAD Digital)LICENCIATURA",
+      "para": "R2 - FORMAÇÃO DE PROFESSORES - GEOGRAFIA (EAD Digital)LICENCIATURA"
+    },
+    {
+      "de": "R2 EM HISTÓRIA (EAD Digital)LICENCIATURA",
+      "para": "R2 - FORMAÇÃO DE PROFESSORES - HISTÓRIA (EAD Digital)LICENCIATURA"
+    },
+    {
+      "de": "R2 EM MATEMÁTICA (EAD Digital)LICENCIATURA",
+      "para": "R2 - FORMAÇÃO DE PROFESSORES - MATEMÁTICA (EAD Digital)LICENCIATURA"
+    },
+    {
+      "de": "R2 EM LETRAS - PORTUGUÊS E ESPANHOL (EAD Digital)LICENCIATURA",
+      "para": "R2 - FORMAÇÃO DE PROFESSORES - PORTUGUÊS E ESPANHOL (EAD Digital)LICENCIATURA"
+    },
+    {
+      "de": "R2 EM LETRAS - PORTUGUÊS E INGLÊS (EAD Digital)LICENCIATURA",
+      "para": "R2 - FORMAÇÃO DE PROFESSORES - PORTUGUÊS E INGLÊS (EAD Digital)LICENCIATURA"
+    },
+    {
+      "de": "R2 EM QUÍMICA (EAD Digital)LICENCIATURA",
+      "para": "R2 - FORMAÇÃO DE PROFESSORES - QUÍMICA (EAD Digital)LICENCIATURA"
+    },
+    {
+      "de": "SEGURANÇA NO TRABALHO (EAD Digital)TECNÓLOGO",
+      "para": "SEGURANÇA DO TRABALHO (EAD Digital)TECNÓLOGO"
+    },
+    {
+      "de": "TERAPIAS INTEGRATIVAS E COMPLEMENTARES (EaD com aulas ao vivo)TECNÓLOGO",
+      "para": "TERAPIAS INTEGRATIVAS COMPLEMENTARES (EAD com aulas ao vivo)TECNÓLOGO"
+    },
+    {
+      "de": "CIÊNCIA DA COMPUTAÇÃO (EAD Digital)BACHARELADO",
+      "para": "CIÊNCIAS DA COMPUTAÇÃO (EAD Digital)BACHARELADO"
+    },
+    {
+      "de": "ENGENHARIA DE COMPUTAÇÃO (EAD Digital)BACHARELADO",
+      "para": "ENGENHARIA DA COMPUTAÇÃO (EAD com aulas ao vivo)BACHARELADO"
+    },
+    {
+      "de": "FISICA (EAD Digital)BACHARELADO",
+      "para": "FÍSICA (EAD Digital)BACHARELADO"
+    },
+    {
+      "de": "AGRONOMIA (EAD Digital)BACHARELADO",
+      "para": "AGRONOMIA (EAD Semipresencial)BACHARELADO"
+    },
+    {
+      "de": "EDUCAÇÃO FÍSICA (EAD Digital)BACHARELADO",
+      "para": "EDUCAÇÃO FÍSICA 2.0 (EAD Digital)BACHARELADO"
+    },
+    {
+      "de": "ENGENHARIA AMBIENTAL (EAD Digital)BACHARELADO",
+      "para": "ENGENHARIA AMBIENTAL 2.0 (EAD Digital)BACHARELADO"
+    },
+    {
+      "de": "ENGENHARIA AMBIENTAL (EaD com aulas ao vivo)BACHARELADO",
+      "para": "ENGENHARIA AMBIENTAL (EAD Semipresencial)BACHARELADO"
+    },
+    {
+      "de": "CIÊNCIA POLÍTICA (EAD Digital)BACHARELADO",
+      "para": "CIÊNCIAS POLÍTICAS (EAD Digital)BACHARELADO"
+    },
+    {
+      "de": "RELACOES INTERNACIONAIS (EaD com aulas ao vivo)BACHARELADO",
+      "para": "RELAÇÕES INTERNACIONAIS (EAD com aulas ao vivo)BACHARELADO"
+    },
+    {
+      "de": "ENGENHARIA AMBIENTAL (EAD Digital)",
+      "para": "ENGENHARIA AMBIENTAL 2.0 (EAD Digital)BACHARELADO"
+    },
+    {
+      "de": "EDUCAÇÃO FÍSICA (EAD Digital)",
+      "para": "EDUCAÇÃO FÍSICA (EAD Digital)BACH / LICENC"
+    }
+  ]
+}

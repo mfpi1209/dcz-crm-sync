@@ -1,0 +1,204 @@
+            <div id="page-kommo_dispatcher" class="p-4 lg:p-8 max-w-7xl mx-auto hidden">
+
+                <!-- Header -->
+                <div class="mb-8">
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-lg shadow-orange-500/20">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-3xl font-bold text-white font-display">Kommo Dispatcher</h2>
+                            <p class="text-slate-500 text-sm">Monitoramento de mensagens, fila n8n e rate limit</p>
+                        </div>
+                        <div class="ml-auto flex items-center gap-3">
+                            <span id="kd-last-update" class="text-[10px] text-slate-600"></span>
+                            <div id="kd-status-badge" class="text-xs px-2.5 py-1 rounded-full bg-slate-800 text-slate-500 flex items-center gap-1.5">
+                                <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> Carregando
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KPI Cards -->
+                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
+                    <div class="glass-card p-4 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-cyan-500 to-blue-500"></div>
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Chats Monit.</p>
+                        <p class="text-xl font-bold text-cyan-400 font-display mt-1" id="kd-chats-monit">—</p>
+                    </div>
+                    <div class="glass-card p-4 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-blue-500 to-indigo-500"></div>
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Chats Sync</p>
+                        <p class="text-xl font-bold text-blue-400 font-display mt-1" id="kd-chats-sync">—</p>
+                    </div>
+                    <div class="glass-card p-4 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-amber-500 to-orange-500"></div>
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Aguard. Sync</p>
+                        <p class="text-xl font-bold text-amber-400 font-display mt-1" id="kd-pending-sync">—</p>
+                    </div>
+                    <div class="glass-card p-4 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-emerald-500 to-green-500"></div>
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Msgs Capt.</p>
+                        <p class="text-xl font-bold text-emerald-400 font-display mt-1" id="kd-total-msgs">—</p>
+                    </div>
+                    <div class="glass-card p-4 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-green-500 to-teal-500"></div>
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Enviadas N8N</p>
+                        <p class="text-xl font-bold text-green-400 font-display mt-1" id="kd-n8n-sent">—</p>
+                    </div>
+                    <div class="glass-card p-4 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-rose-500 to-red-500"></div>
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Falhas N8N</p>
+                        <p class="text-xl font-bold text-rose-400 font-display mt-1" id="kd-n8n-failed">—</p>
+                    </div>
+                    <div class="glass-card p-4 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-violet-500 to-purple-500"></div>
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Na Fila</p>
+                        <p class="text-xl font-bold text-violet-400 font-display mt-1" id="kd-n8n-pending">—</p>
+                    </div>
+                    <div class="glass-card p-4 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-fuchsia-500 to-pink-500"></div>
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Áudios</p>
+                        <p class="text-xl font-bold text-fuchsia-400 font-display mt-1" id="kd-audios">—</p>
+                    </div>
+                </div>
+
+                <!-- Middle row: Fila n8n + Token + Rate Limit + Polling -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+
+                    <!-- Fila n8n -->
+                    <div class="glass-card p-5">
+                        <h3 class="text-xs font-bold text-orange-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-orange-400"></span>
+                            Fila n8n
+                        </h3>
+                        <div class="space-y-2 text-xs">
+                            <div class="flex justify-between"><span class="text-slate-500">Pendentes na fila</span><span class="text-slate-200 font-mono" id="kd-fila-pending">—</span></div>
+                            <div class="flex justify-between"><span class="text-slate-500">Total enfileiradas</span><span class="text-slate-200 font-mono" id="kd-fila-total">—</span></div>
+                            <div class="flex justify-between"><span class="text-slate-500">Enviadas com sucesso</span><span class="text-green-400 font-mono" id="kd-fila-ok">—</span></div>
+                            <div class="flex justify-between"><span class="text-slate-500">Falhas</span><span class="text-rose-400 font-mono" id="kd-fila-fail">—</span></div>
+                            <div class="flex justify-between pt-1 border-t border-slate-700/30"><span class="text-slate-500">Webhook</span><span class="text-slate-400 font-mono text-[10px] truncate max-w-[180px]" id="kd-fila-webhook" title="">—</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Token Amojo -->
+                    <div class="glass-card p-5">
+                        <h3 class="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full" id="kd-token-dot"></span>
+                            Token Amojo
+                        </h3>
+                        <div class="space-y-2 text-xs">
+                            <div class="flex justify-between"><span class="text-slate-500">Status</span><span class="font-bold" id="kd-token-status">—</span></div>
+                            <div class="flex justify-between"><span class="text-slate-500">Expira em</span><span class="text-slate-200" id="kd-token-expiry">—</span></div>
+                            <div class="flex justify-between"><span class="text-slate-500">Token</span><span class="text-slate-500 font-mono text-[10px]" id="kd-token-preview">—</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Rate Limit -->
+                    <div class="glass-card p-5">
+                        <h3 class="text-xs font-bold text-rose-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                            Rate Limit Kommo
+                        </h3>
+                        <div class="mb-2">
+                            <div class="w-full bg-slate-800 rounded-full h-3 overflow-hidden">
+                                <div id="kd-rate-bar" class="h-3 rounded-full transition-all duration-500" style="width: 0%; background: linear-gradient(90deg, #22c55e, #f59e0b, #ef4444);"></div>
+                            </div>
+                        </div>
+                        <div class="flex justify-between text-xs">
+                            <span class="text-slate-500">Requisições/min</span>
+                            <span class="text-slate-200 font-mono" id="kd-rate-text">— / —</span>
+                        </div>
+                    </div>
+
+                    <!-- Polling por Camada -->
+                    <div class="glass-card p-5">
+                        <h3 class="text-xs font-bold text-sky-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                            Polling por Camada
+                        </h3>
+                        <div class="space-y-2 text-xs">
+                            <div class="flex justify-between items-center"><span class="text-slate-500">HOT <span class="text-slate-600">(&lt; 30 min)</span></span><span class="text-rose-400 font-bold font-mono" id="kd-tier-hot">—</span></div>
+                            <div class="flex justify-between items-center"><span class="text-slate-500">WARM <span class="text-slate-600">(&lt; 6h)</span></span><span class="text-amber-400 font-bold font-mono" id="kd-tier-warm">—</span></div>
+                            <div class="flex justify-between items-center"><span class="text-slate-500">COLD <span class="text-slate-600">(&lt; 48h)</span></span><span class="text-blue-400 font-bold font-mono" id="kd-tier-cold">—</span></div>
+                            <div class="flex justify-between items-center"><span class="text-slate-500">FROZEN <span class="text-slate-600">(&gt; 48h)</span></span><span class="text-slate-400 font-mono" id="kd-tier-frozen">—</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dispatches table -->
+                <div class="glass-card p-5 mb-6">
+                    <h3 class="text-xs font-bold text-white uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <svg class="w-3.5 h-3.5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        Últimos Dispatches n8n
+                    </h3>
+                    <div class="overflow-x-auto max-h-[260px] overflow-y-auto">
+                        <table class="w-full text-xs text-left">
+                            <thead class="sticky top-0 z-10">
+                                <tr class="text-slate-500 border-b border-slate-700/40 bg-slate-900/95 backdrop-blur">
+                                    <th class="py-2 px-3">Hora</th>
+                                    <th class="py-2 px-3">Evento</th>
+                                    <th class="py-2 px-3">Lead</th>
+                                    <th class="py-2 px-3">Tipo</th>
+                                    <th class="py-2 px-3">HTTP</th>
+                                    <th class="py-2 px-3">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="kd-dispatches-tbody" class="divide-y divide-slate-800/40">
+                                <tr><td colspan="6" class="py-4 text-center text-slate-600">Carregando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Bottom: Recent Messages + Top Chats -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+                    <!-- Recent Messages -->
+                    <div class="glass-card p-5">
+                        <h3 class="text-xs font-bold text-white uppercase tracking-wider mb-3 flex items-center gap-2">
+                            <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                            Mensagens Recentes
+                        </h3>
+                        <div class="overflow-x-auto max-h-[300px] overflow-y-auto">
+                            <table class="w-full text-xs text-left">
+                                <thead class="sticky top-0 z-10">
+                                    <tr class="text-slate-500 border-b border-slate-700/40 bg-slate-900/95 backdrop-blur">
+                                        <th class="py-2 px-2">Hora</th>
+                                        <th class="py-2 px-2">Chat</th>
+                                        <th class="py-2 px-2">Remetente</th>
+                                        <th class="py-2 px-2">Dir</th>
+                                        <th class="py-2 px-2">Tipo</th>
+                                        <th class="py-2 px-2">Mensagem</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="kd-messages-tbody" class="divide-y divide-slate-800/40">
+                                    <tr><td colspan="6" class="py-4 text-center text-slate-600">Carregando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Top Chats -->
+                    <div class="glass-card p-5">
+                        <h3 class="text-xs font-bold text-white uppercase tracking-wider mb-3 flex items-center gap-2">
+                            <svg class="w-3.5 h-3.5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            Chats Mais Ativos
+                        </h3>
+                        <div class="overflow-x-auto max-h-[300px] overflow-y-auto">
+                            <table class="w-full text-xs text-left">
+                                <thead class="sticky top-0 z-10">
+                                    <tr class="text-slate-500 border-b border-slate-700/40 bg-slate-900/95 backdrop-blur">
+                                        <th class="py-2 px-2">Chat</th>
+                                        <th class="py-2 px-2">Mensagens</th>
+                                        <th class="py-2 px-2">Última msg</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="kd-topchats-tbody" class="divide-y divide-slate-800/40">
+                                    <tr><td colspan="3" class="py-4 text-center text-slate-600">Carregando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>

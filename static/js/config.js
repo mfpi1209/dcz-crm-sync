@@ -391,10 +391,28 @@ async function deleteSchedule(id) {
 // ---------------------------------------------------------------------------
 const PAGE_LABELS = {
     dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização',
+    kommo_sync: 'Sync Comercial',
     update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline',
-    logs: 'Logs / Relatórios', distribuicao: 'Distribuição',
+    match_merge: 'Match & Merge', comercial_rgm: 'Dashboard Comercial',
+    logs: 'Logs / Relatórios', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas',
+    intelligence: 'Inteligência', inadimplencia: 'Inadimplência',
     feedback: 'Feedback', config: 'Configurações', schedule: 'Agendamento',
+    inscricao: 'Inscrição Automática',
+    comparar_cursos: 'Comparar Cursos',
+    recomendacao_cursos: 'Recomendação',
+    localizacao_polos: 'Localização',
+    info_cursos: 'Informações de Cursos',
+    avisos: 'Avisos',
+    kommo_dispatcher: 'Kommo Dispatcher',
 };
+
+const PAGE_GROUPS_CONFIG = [
+    { label: 'Geral', pages: ['dashboard', 'search', 'avisos'] },
+    { label: 'Operação — Acadêmico', pages: ['ativacoes', 'distribuicao', 'intelligence', 'inadimplencia', 'feedback'] },
+    { label: 'Ferramentas', pages: ['comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos'] },
+    { label: 'Operação — Comercial', pages: ['pipeline', 'update', 'match_merge', 'comercial_rgm', 'inscricao'] },
+    { label: 'Sistema', pages: ['sync', 'kommo_sync', 'kommo_dispatcher', 'logs', 'config', 'schedule'] },
+];
 let _allPages = [];
 let _usersData = [];
 
@@ -437,14 +455,28 @@ function renderUsers() {
     }).join('');
 }
 
+function _renderPermsGrouped(cbClass, checkedPages, disabled) {
+    return PAGE_GROUPS_CONFIG.map(g => {
+        const groupPages = g.pages.filter(p => _allPages.includes(p));
+        if (!groupPages.length) return '';
+        const items = groupPages.map(p => {
+            const ck = checkedPages.includes(p) ? 'checked' : '';
+            const dis = disabled ? 'disabled' : '';
+            return `<label class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                <input type="checkbox" value="${p}" class="${cbClass} accent-indigo-500 w-4 h-4" ${ck} ${dis}>
+                ${PAGE_LABELS[p] || p}
+            </label>`;
+        }).join('');
+        return `<div class="mb-3">
+            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">${g.label}</p>
+            <div class="grid grid-cols-2 gap-1.5 pl-2">${items}</div>
+        </div>`;
+    }).join('');
+}
+
 function renderNewUserPermsGrid() {
     const grid = document.getElementById('user-new-perms-grid');
-    grid.innerHTML = _allPages.map(p =>
-        `<label class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
-            <input type="checkbox" value="${p}" class="user-new-page-cb accent-indigo-500 w-4 h-4" checked>
-            ${PAGE_LABELS[p] || p}
-        </label>`
-    ).join('');
+    grid.innerHTML = _renderPermsGrouped('user-new-page-cb', _allPages, false);
 }
 
 function toggleNewUserPerms() {
@@ -486,13 +518,8 @@ async function deleteUser(uid, name) {
 async function editUser(uid) {
     const u = _usersData.find(x => x.id === uid);
     if (!u) return;
-    const permsHtml = _allPages.map(p => {
-        const checked = u.role === 'admin' || (u.pages || []).includes(p) ? 'checked' : '';
-        return `<label class="flex items-center gap-2 text-sm cursor-pointer">
-            <input type="checkbox" value="${p}" class="edit-perm-cb accent-indigo-500 w-4 h-4" ${checked} ${u.role === 'admin' ? 'disabled' : ''}>
-            ${PAGE_LABELS[p] || p}
-        </label>`;
-    }).join('');
+    const userPages = u.role === 'admin' ? _allPages : (u.pages || []);
+    const permsHtml = _renderPermsGrouped('edit-perm-cb', userPages, u.role === 'admin');
 
     const modal = document.createElement('div');
     modal.id = 'user-edit-modal';

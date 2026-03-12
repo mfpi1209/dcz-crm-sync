@@ -62,7 +62,7 @@ WITH mat AS (
                THEN 'Pós-Graduação'
           ELSE 'Graduação'
         END AS nivel,
-        TRIM(REGEXP_REPLACE(COALESCE(r.data->>'polo',''), '^\d+\s*[-–]\s*', '')) AS polo,
+        TRIM(REGEXP_REPLACE(COALESCE(r.data->>'polo',''), '^\\d+\\s*[-–]\\s*', '')) AS polo,
         r.data->>'curso' AS turma
     FROM xl_rows r
     WHERE r.snapshot_id = (

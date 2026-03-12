@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>eduit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <link rel="stylesheet" href="./index.css">
+
+  <script>
+    (function() {
+      var hash = window.location.hash.replace('#', '');
+      if (!hash || hash === 'inicio') return;
+      var s = document.createElement('style');
+      s.id = 'instant-nav';
+      s.textContent =
+        '.content-section { display: none !important; }' +
+        '#section-' + hash + ' { display: block !important; }';
+      document.head.appendChild(s);
+    })();
+  </script>
+
+  <!-- Base layout: always applied (hides eduit chrome, fits iframe) -->
+  <style id="base-layout">
+    .sidebar, .sidebar-overlay, .mobile-header, .topbar, .user-avatar { display: none !important; }
+    body { padding-top: 0 !important; margin: 0; overflow-x: hidden; }
+    .main { padding: 24px 28px; width: 100%; max-width: 100%; margin: 0; }
+  </style>
+
+  <!-- Dark theme: injected/removed dynamically by JS below -->
+  <style id="dark-theme">
+    body, .app, .main { background: #0f172a !important; color: #e2e8f0 !important; }
+    .cards { max-width: 100%; }
+    .card {
+      background: rgba(30,41,59,.7) !important;
+      border: 1px solid rgba(51,65,85,.4) !important;
+      box-shadow: 0 4px 16px rgba(0,0,0,.2) !important;
+      backdrop-filter: blur(12px);
+    }
+    .card:hover {
+      background: rgba(30,41,59,.9) !important;
+      box-shadow: 0 8px 24px rgba(0,0,0,.3) !important;
+      border-color: rgba(56,189,248,.3) !important;
+    }
+    .card-title { color: #e2e8f0 !important; }
+    .card-icon-purple { background: rgba(99,102,241,.15) !important; }
+    .card-icon-pink   { background: rgba(244,114,182,.15) !important; }
+    .card-icon-yellow  { background: rgba(251,191,36,.15) !important; }
+    .card-icon-blue    { background: rgba(56,189,248,.15) !important; }
+    .card-icon-green   { background: rgba(16,185,129,.15) !important; }
+
+    .form-card {
+      background: rgba(30,41,59,.6) !important;
+      border: 1px solid rgba(51,65,85,.4) !important;
+      box-shadow: 0 4px 16px rgba(0,0,0,.15) !important;
+      backdrop-filter: blur(12px);
+    }
+    .form-card-header h2 { color: #f1f5f9 !important; }
+    input[type="text"], textarea {
+      background: rgba(15,23,42,.8) !important;
+      border: 1.5px solid rgba(51,65,85,.6) !important;
+      color: #e2e8f0 !important;
+    }
+    input[type="text"]:focus, textarea:focus {
+      border-color: #38bdf8 !important;
+      box-shadow: 0 0 0 3px rgba(56,189,248,.15) !important;
+    }
+    input[type="text"]::placeholder, textarea::placeholder { color: #64748b !important; }
+    label { color: #94a3b8 !important; }
+    .radio-label {
+      background: rgba(15,23,42,.6) !important;
+      border-color: rgba(51,65,85,.5) !important;
+      color: #cbd5e1 !important;
+    }
+    .radio-label:hover { border-color: #38bdf8 !important; background: rgba(30,41,59,.8) !important; }
+    .radio-label:has(input[type="radio"]:checked) {
+      border-color: #38bdf8 !important;
+      background: rgba(56,189,248,.1) !important;
+      color: #38bdf8 !important;
+    }
+    .radio-custom { border-color: rgba(71,85,105,.8) !important; }
+    .radio-label input[type="radio"]:checked ~ .radio-custom {
+      border-color: #38bdf8 !important; background: #38bdf8 !important;
+    }
+    .btn-submit {
+      background: linear-gradient(135deg, #0ea5e9, #0284c7) !important;
+      box-shadow: 0 4px 12px rgba(14,165,233,.3) !important;
+    }
+    .btn-submit:hover {
+      background: linear-gradient(135deg, #38bdf8, #0ea5e9) !important;
+      box-shadow: 0 6px 20px rgba(56,189,248,.4) !important;
+    }
+    .btn-clear {
+      background: rgba(239,68,68,.15) !important;
+      color: #f87171 !important;
+      border: 1px solid rgba(239,68,68,.3) !important;
+    }
+    .btn-clear:hover { background: rgba(239,68,68,.25) !important; }
+    .divider-text { color: #38bdf8 !important; }
+
+    /* Response card */
+    .response-card {
+      background: rgba(30,41,59,.6) !important;
+      border: 1px solid rgba(51,65,85,.4) !important;
+      box-shadow: 0 4px 16px rgba(0,0,0,.2) !important;
+    }
+    .response-card::before {
+      background: linear-gradient(90deg, #0ea5e9, #8b5cf6, #0ea5e9) !important;
+    }
+    .response-header {
+      background: linear-gradient(135deg, rgba(14,165,233,.9), rgba(6,182,212,.9)) !important;
+    }
+    .response-content {
+      background: rgba(15,23,42,.8) !important;
+      color: #cbd5e1 !important;
+    }
+    .response-content.empty {
+      background: rgba(15,23,42,.5) !important;
+      color: #64748b !important;
+    }
+    .response-content h1, .response-content h2,
+    .response-content h3, .response-content h4 { color: #f1f5f9 !important; }
+    .response-content strong { color: #e2e8f0 !important; }
+    .response-content p, .response-content li { color: #cbd5e1 !important; }
+    .response-content table { border-color: rgba(51,65,85,.4) !important; }
+    .response-content table th {
+      background: linear-gradient(135deg, #0ea5e9, #0284c7) !important;
+    }
+    .response-content table td {
+      background: rgba(15,23,42,.6) !important;
+      border-color: rgba(51,65,85,.3) !important;
+      color: #cbd5e1 !important;
+    }
+    .response-content table td:first-child {
+      background: rgba(30,41,59,.8) !important;
+      color: #e2e8f0 !important;
+    }
+    .response-content table tr:nth-child(2n) td { background: rgba(30,41,59,.4) !important; }
+    .response-content table tr:nth-child(2n) td:first-child { background: rgba(30,41,59,.6) !important; }
+    .response-content table tr:hover td { background: rgba(56,189,248,.08) !important; }
+
+    .loading { background: rgba(30,41,59,.5) !important; border-color: rgba(14,165,233,.1) !important; }
+    .loading p { color: #38bdf8 !important; }
+    .spinner { border-color: rgba(14,165,233,.15) !important; border-top-color: #38bdf8 !important; }
+
+    .comparison-section { box-shadow: 0 2px 8px rgba(0,0,0,.2) !important; }
+    .section-header {
+      background: linear-gradient(135deg, rgba(14,165,233,.9), rgba(6,182,212,.9)) !important;
+    }
+    .section-content {
+      background: rgba(15,23,42,.8) !important;
+      color: #cbd5e1 !important;
+    }
+
+    .feedback-card {
+      background: rgba(30,41,59,.6) !important;
+      border: 1px solid rgba(51,65,85,.4) !important;
+    }
+    .feedback-header {
+      background: rgba(30,41,59,.8) !important;
+      border-bottom-color: rgba(51,65,85,.4) !important;
+      color: #38bdf8 !important;
+    }
+    .feedback-card form { background: transparent !important; }
+    .btn-feedback-submit {
+      background: linear-gradient(135deg, #10b981, #059669) !important;
+      box-shadow: 0 4px 12px rgba(16,185,129,.3) !important;
+    }
+    .btn-feedback-submit:hover { background: linear-gradient(135deg, #34d399, #10b981) !important; }
+
+    .recommendation-item {
+      background: rgba(30,41,59,.6) !important;
+      border: 1px solid rgba(51,65,85,.4) !important;
+      border-left: 3px solid #f472b6 !important;
+    }
+    .recommendation-item:hover {
+      background: rgba(30,41,59,.8) !important;
+      box-shadow: 0 4px 14px rgba(0,0,0,.25) !important;
+    }
+    .recommendation-course { color: #e2e8f0 !important; }
+    .recommendation-number { color: #f472b6 !important; }
+    .recommendation-button {
+      background: transparent !important; color: #38bdf8 !important;
+      border: 1.5px solid rgba(56,189,248,.4) !important;
+    }
+    .recommendation-button:hover {
+      background: rgba(56,189,248,.15) !important;
+      color: #7dd3fc !important; border-color: #38bdf8 !important;
+    }
+    .btn-info-curso {
+      background: rgba(16,185,129,.15) !important;
+      color: #34d399 !important;
+      border: 1.5px solid rgba(16,185,129,.4) !important;
+    }
+    .btn-info-curso:hover { background: rgba(16,185,129,.25) !important; border-color: #34d399 !important; }
+    .recommendation-justification {
+      background: rgba(15,23,42,.6) !important;
+      border: 1px solid rgba(51,65,85,.4) !important;
+      border-left: 3px solid #0ea5e9 !important;
+    }
+    .recommendation-justification-title { color: #38bdf8 !important; }
+    .recommendation-justification-content {
+      background: rgba(30,41,59,.5) !important;
+      color: #cbd5e1 !important;
+    }
+
+    .feedback-btn { border-color: rgba(71,85,105,.5) !important; }
+    .feedback-btn svg { color: #64748b !important; }
+    .feedback-btn:hover { border-color: #38bdf8 !important; }
+    .feedback-btn.positive:hover { border-color: #10b981 !important; background: rgba(16,185,129,.1) !important; }
+    .feedback-btn.positive:hover svg { color: #10b981 !important; }
+    .feedback-btn.negative:hover { border-color: #ef4444 !important; background: rgba(239,68,68,.1) !important; }
+    .feedback-btn.negative:hover svg { color: #ef4444 !important; }
+
+    .info-tabs { border-bottom-color: rgba(51,65,85,.4) !important; }
+    .info-tab { color: #64748b !important; }
+    .info-tab:hover { color: #38bdf8 !important; background: rgba(56,189,248,.08) !important; }
+    .info-tab.active {
+      color: #38bdf8 !important;
+      border-bottom-color: #38bdf8 !important;
+      background: rgba(56,189,248,.08) !important;
+    }
+    .download-table-btn {
+      background: linear-gradient(135deg, rgba(30,41,59,.8), rgba(51,65,85,.6)) !important;
+      border: 1px solid rgba(56,189,248,.3) !important;
+      color: #38bdf8 !important;
+    }
+    .download-table-btn:hover {
+      background: linear-gradient(135deg, rgba(56,189,248,.15), rgba(30,41,59,.9)) !important;
+    }
+    .location-link { background: linear-gradient(135deg, #0ea5e9, #0284c7) !important; }
+
+    /* ═══════════════════════════════════════════════════════
+       DYNAMIC CONTENT — override inline styles from index.js
+       (Location cards, Course info cards, Recommendation desc)
+    ═══════════════════════════════════════════════════════ */
+
+    /* --- Location (pe function) --- */
+    .section-content h3[style] { color: #818cf8 !important; }
+    .section-content h4[style] { color: #a78bfa !important; }
+    .section-content p[style]  { color: #cbd5e1 !important; }
+    .section-content strong[style] { color: #c4b5fd !important; }
+
+    .section-content div[style*="background: white"],
+    .section-content div[style*="background:white"] {
+      background: rgba(30,41,59,.6) !important;
+      border-color: rgba(51,65,85,.4) !important;
+    }
+
+    /* --- Course Info (me function) --- */
+    .response-content div[style*="background: #ffffff"],
+    .response-content div[style*="background: #fff"],
+    .response-content div[style*="background:#ffffff"] {
+      background: rgba(30,41,59,.65) !important;
+      border-color: rgba(51,65,85,.4) !important;
+    }
+    .response-content div[style*="background: #f9fafb"],
+    .response-content div[style*="background:#f9fafb"] {
+      background: rgba(15,23,42,.5) !important;
+      border-color: rgba(51,65,85,.3) !important;
+    }
+    .response-content div[style*="background: #f0f9ff"],
+    .response-content div[style*="background:#f0f9ff"] {
+      background: rgba(14,165,233,.1) !important;
+      border-color: rgba(14,165,233,.25) !important;
+    }
+    .response-content div[style*="background: #fff3cd"],
+    .response-content div[style*="background:#fff3cd"] {
+      background: rgba(251,191,36,.1) !important;
+      border-color: rgba(251,191,36,.25) !important;
+    }
+    .response-content div[style*="background: linear-gradient(135deg, #ffffff"],
+    .response-content div[style*="background: linear-gradient(135deg, #f0f9ff"] {
+      background: rgba(16,185,129,.1) !important;
+      border-color: rgba(51,65,85,.4) !important;
+    }
+
+    /* Course info text */
+    .response-content h2[style*="color"] { color: #38bdf8 !important; }
+    .response-content h3[style*="color"] { color: #cbd5e1 !important; }
+    .response-content div[style*="color: #1f2937"],
+    .response-content div[style*="color:#1f2937"] { color: #e2e8f0 !important; }
+    .response-content div[style*="color: #6b7280"],
+    .response-content div[style*="color:#6b7280"] { color: #94a3b8 !important; }
+    .response-content p[style*="color: #0369a1"],
+    .response-content p[style*="color:#0369a1"] { color: #38bdf8 !important; }
+    .response-content p[style*="color: #4b5563"],
+    .response-content p[style*="color:#4b5563"] { color: #94a3b8 !important; }
+    .response-content p[style*="color: #856404"],
+    .response-content p[style*="color:#856404"] { color: #fbbf24 !important; }
+    .response-content span[style*="color: #374151"],
+    .response-content span[style*="color:#374151"] { color: #cbd5e1 !important; }
+
+    /* Tags / badges */
+    .response-content span[style*="background: #e0f2fe"],
+    .response-content span[style*="background:#e0f2fe"] {
+      background: rgba(14,165,233,.2) !important;
+      color: #38bdf8 !important;
+    }
+    .response-content span[style*="background: #f3e8ff"],
+    .response-content span[style*="background:#f3e8ff"] {
+      background: rgba(139,92,246,.2) !important;
+      color: #a78bfa !important;
+    }
+
+    /* Recommendation descriptions */
+    .recommendation-item div[style*="color: #666"],
+    .recommendation-item [style*="color: #666"] {
+      color: #94a3b8 !important;
+    }
+
+    /* Border overrides on inline-styled elements */
+    .response-content div[style*="border-bottom: 2px solid #e5e7eb"],
+    .response-content div[style*="border: 1px solid #e5e7eb"] {
+      border-color: rgba(51,65,85,.4) !important;
+    }
+    .section-content div[style*="border-left: 4px solid"] {
+      border-color: rgba(51,65,85,.4) !important;
+    }
+    .section-content div[style*="border-left: 4px solid #5b3ff6"] {
+      border-left-color: #818cf8 !important;
+    }
+    .section-content div[style*="border-left: 4px solid #764ba2"] {
+      border-left-color: #a78bfa !important;
+    }
+    .response-content div[style*="border-left: 3px solid #10b981"] {
+      border-left-color: #34d399 !important;
+    }
+    .response-content div[style*="border-left: 4px solid #169DBB"] {
+      border-left-color: #38bdf8 !important;
+    }
+    .response-content div[style*="border-left: 4px solid #ffc107"] {
+      border-left-color: #fbbf24 !important;
+    }
+
+    /* Vocacional result cards */
+    .response-content .curso-recomendado-item,
+    .response-content div[style*="background: #ffffff"][style*="border-left: 4px solid"] {
+      background: rgba(30,41,59,.6) !important;
+      border-color: rgba(51,65,85,.4) !important;
+    }
+    .response-content div[style*="background: linear-gradient(135deg, #f0f9ff"] {
+      background: rgba(14,165,233,.08) !important;
+      border-color: rgba(56,189,248,.2) !important;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-logo-container"><img src="./logo.png" alt="Eduit Logo" class="sidebar-logo"></div>
+      <div class="sidebar-header"><img src="./logo.png" alt="Eduit Logo" class="sidebar-header-logo"><button class="sidebar-close" id="sidebar-close" aria-label="Fechar menu"><svg width="24" height="24" fill="none" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+      <nav class="nav">
+        <button class="nav-item active" data-section="inicio" id="nav-inicio"><span class="icon"><svg fill="none" viewBox="0 0 24 24"><path d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Início</span></button>
+        <button class="nav-item" data-section="comparar" id="nav-comparar"><span class="icon"><svg fill="none" viewBox="0 0 24 24"><path d="M7 4v11M7 4l-3 3M7 4l3 3M17 20V9M17 20l-3-3M17 20l3-3" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Comparar Cursos</span></button>
+        <button class="nav-item" data-section="recomendacao" id="nav-recomendacao"><span class="icon"><svg fill="none" viewBox="0 0 24 24"><path d="M12 3.5 9.6 9.2l-6.1.4 4.7 3.7-1.5 5.9L12 16l5.3 3.2-1.5-5.9 4.7-3.7-6.1-.4L12 3.5Z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Recomendações</span></button>
+        <button class="nav-item" data-section="localizacao" id="nav-localizacao"><span class="icon"><svg fill="none" viewBox="0 0 24 24"><path d="M12 21s6-5.1 6-10a6 6 0 1 0-12 0c0 4.9 6 10 6 10Z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Localizações</span></button>
+        <button class="nav-item" data-section="teste-vocacional" id="nav-teste-vocacional"><span class="icon"><svg fill="none" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Teste Vocacional</span></button>
+        <button class="nav-item" data-section="informacoes-cursos" id="nav-informacoes-cursos"><span class="icon"><svg fill="none" viewBox="0 0 24 24"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Informações de Cursos</span></button>
+      </nav>
+    </aside>
+
+    <div class="mobile-header"><img src="./logo.png" alt="Eduit Logo" class="mobile-logo"><button class="hamburger-btn" id="hamburger-btn" aria-label="Menu"><span class="hamburger-line"></span><span class="hamburger-line"></span><span class="hamburger-line"></span></button></div>
+
+    <div class="main">
+      <main>
+        <section class="content-section active" id="section-inicio">
+          <div class="cards">
+            <article class="card" data-action="comparar"><div class="card-icon card-icon-purple"><svg fill="none" viewBox="0 0 24 24"><path d="M7 4v11M7 4l-3 3M7 4l3 3M17 20V9M17 20l-3-3M17 20l3-3" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="card-title">Comparar Cursos</div></article>
+            <article class="card" data-action="recomendacao"><div class="card-icon card-icon-pink"><svg fill="none" viewBox="0 0 24 24"><path d="M12 3.5 9.6 9.2l-6.1.4 4.7 3.7-1.5 5.9L12 16l5.3 3.2-1.5-5.9 4.7-3.7-6.1-.4L12 3.5Z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="card-title">Recomendação</div></article>
+            <article class="card" data-action="localizacao"><div class="card-icon card-icon-yellow"><svg fill="none" viewBox="0 0 24 24"><path d="M12 21s6-5.1 6-10a6 6 0 1 0-12 0c0 4.9 6 10 6 10Z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="card-title">Localização</div></article>
+            <article class="card" data-action="informacoes-cursos"><div class="card-icon card-icon-green"><svg fill="none" viewBox="0 0 24 24"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="card-title">Informações de Cursos</div></article>
+          </div>
+        </section>
+
+        <section class="content-section" id="section-comparar">
+          <div class="form-card"><div class="form-card-header"><h2>Comparar Cursos</h2><button class="btn-clear" id="clear-comparar">Limpar</button></div><form id="form-comparar"><div class="form-group"><label for="curso1">Digite o primeiro curso:</label><input type="text" id="curso1" required placeholder="Ex: Administração"></div><div class="form-group"><label for="curso2">Digite o segundo curso:</label><input type="text" id="curso2" required placeholder="Ex: Ciências Contábeis"></div><button type="submit" class="btn-submit" id="btn-comparar">Buscar</button></form></div>
+          <div class="loading" id="loading-comparar"><div class="spinner"></div><p>Processando sua solicitação...</p></div>
+          <div class="response-card" id="response-comparar"><div class="response-header"><span class="response-icon"><svg fill="none" viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Análise Inteligente</span></div><div class="response-content empty">Aguardando sua solicitação...</div></div>
+          <div class="feedback-card" id="feedback-comparar"><div class="feedback-header"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" style="display:inline-block;vertical-align:middle;margin-right:8px;"><path d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Feedback sobre a comparação</span></div><form id="form-feedback-comparar"><textarea id="feedback-comparar-text" placeholder="Escreva seu feedback sobre a comparação aqui..." required></textarea><button type="submit" class="btn-feedback-submit">Enviar avaliação</button></form></div>
+        </section>
+
+        <section class="content-section" id="section-recomendacao">
+          <div class="form-card"><div class="form-card-header"><h2>Recomendação de Cursos</h2><button class="btn-clear" id="clear-recomendacao">Limpar</button></div><form id="form-recomendacao"><div class="form-group"><label for="curso-recomendacao">Digite o nome do curso:</label><input type="text" id="curso-recomendacao" required placeholder="Ex: Administração"></div><div class="form-group"><label>Tipo de curso:</label><div class="radio-group"><label class="radio-label"><input type="radio" name="tipo-curso" value="graduacao" checked><span class="radio-custom"></span><span class="radio-text">Graduação</span></label><label class="radio-label"><input type="radio" name="tipo-curso" value="pos-graduacao"><span class="radio-custom"></span><span class="radio-text">Pós-graduação</span></label></div></div><button type="submit" class="btn-submit" id="btn-recomendacao">Buscar</button></form></div>
+          <div class="loading" id="loading-recomendacao"><div class="spinner"></div><p>Processando sua solicitação...</p></div>
+          <div class="response-card" id="response-recomendacao"><div class="response-header"><span class="response-icon"><svg fill="none" viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Análise Inteligente</span></div><div class="response-content empty">Aguardando sua solicitação...</div></div>
+        </section>
+
+        <section class="content-section" id="section-localizacao">
+          <div class="form-card"><div class="form-card-header"><h2>Localização de Polos</h2><button class="btn-clear" id="clear-localizacao">Limpar</button></div><form id="form-localizacao"><div class="form-group"><label for="rua">Rua:</label><input type="text" id="rua" placeholder="Ex: Rua das Flores"></div><div class="form-group"><label for="numero">Número:</label><input type="text" id="numero" placeholder="Ex: 123"></div><div class="form-group"><label for="cidade">Cidade:</label><input type="text" id="cidade" placeholder="Ex: São Paulo, SP"></div><div class="divider-text">OU</div><div class="form-group"><label for="cep">CEP:</label><input type="text" id="cep" placeholder="Ex: 01234-567"></div><button type="submit" class="btn-submit" id="btn-localizacao">Buscar</button></form></div>
+          <div class="loading" id="loading-localizacao"><div class="spinner"></div><p>Processando sua solicitação...</p></div>
+          <div class="response-card" id="response-localizacao"><div class="response-header"><span class="response-icon"><svg fill="none" viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Análise Inteligente</span></div><div class="response-content empty">Aguardando sua solicitação...</div></div>
+        </section>
+
+        <section class="content-section" id="section-teste-vocacional">
+          <div class="form-card" id="card-inicio-teste"><div class="form-card-header"><h2>Teste Vocacional</h2></div><div class="teste-vocacional-intro"><p>Descubra qual curso combina mais com o seu perfil!</p></div><button type="button" class="btn-submit" id="btn-iniciar-teste">Iniciar Teste</button></div>
+          <div class="loading" id="loading-teste-vocacional"><div class="spinner"></div><p>Carregando teste...</p></div>
+          <div class="form-card" id="card-selecao-palavras" style="display:none;"><div class="form-card-header"><h2>Selecione suas preferências</h2></div><div class="teste-vocacional-instrucoes"><p>Escolha entre <strong>6 e 10 palavras</strong> que mais combinam com você:</p><p class="contador-palavras"><span id="contador-selecionadas">0</span> / 10 palavras selecionadas</p></div><div class="palavras-grid" id="palavras-grid"></div><button type="button" class="btn-submit" id="btn-finalizar-teste" disabled>Finalizar Teste</button></div>
+          <div class="response-card" id="response-teste-vocacional" style="display:none;"><div class="response-header"><span class="response-icon"><svg fill="none" viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Resultado do Teste</span></div><div class="response-content empty">Aguardando resultado...</div></div>
+        </section>
+
+        <section class="content-section" id="section-informacoes-cursos">
+          <div class="info-tabs"><button class="info-tab active" data-tab="graduacao" id="tab-graduacao"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" style="margin-right:8px;"><path d="M12 14l9-5-9-5-9 5 9 5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Graduação</button><button class="info-tab" data-tab="pos-graduacao" id="tab-pos-graduacao"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" style="margin-right:8px;"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Pós-graduação</button></div>
+          <div class="info-content active" id="content-graduacao"><div class="form-card"><div class="form-card-header"><h2>Informações de Graduação</h2><button class="btn-clear" id="clear-graduacao">Limpar</button></div><form id="form-graduacao"><div class="form-group"><label for="curso-graduacao">Digite o nome do curso:</label><input type="text" id="curso-graduacao" required placeholder="Ex: Administração"></div><button type="submit" class="btn-submit">Buscar</button></form></div><div class="loading" id="loading-graduacao"><div class="spinner"></div><p>Processando sua solicitação...</p></div><div class="response-card" id="response-graduacao"><div class="response-header"><span class="response-icon"><svg fill="none" viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Análise Inteligente</span></div><div class="response-content empty">Aguardando sua solicitação...</div></div></div>
+          <div class="info-content" id="content-pos-graduacao"><div class="form-card"><div class="form-card-header"><h2>Informações de Pós-graduação</h2><button class="btn-clear" id="clear-pos-graduacao">Limpar</button></div><form id="form-pos-graduacao"><div class="form-group"><label for="curso-pos-graduacao">Digite o nome do curso:</label><input type="text" id="curso-pos-graduacao" required placeholder="Ex: MBA em Gestão"></div><button type="submit" class="btn-submit">Buscar</button></form></div><div class="loading" id="loading-pos-graduacao"><div class="spinner"></div><p>Processando sua solicitação...</p></div><div class="response-card" id="response-pos-graduacao"><div class="response-header"><span class="response-icon"><svg fill="none" viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Análise Inteligente</span></div><div class="response-content empty">Aguardando sua solicitação...</div></div></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script type="module" src="./index.js"></script>
+
+  <script>
+    (function() {
+      /* ── Theme management ── */
+      function applyTheme() {
+        var theme = localStorage.getItem('eduit-theme') || 'dark';
+        var darkStyle = document.getElementById('dark-theme');
+        if (theme === 'light') {
+          if (darkStyle) darkStyle.disabled = true;
+        } else {
+          if (darkStyle) darkStyle.disabled = false;
+        }
+      }
+
+      applyTheme();
+      window.addEventListener('storage', function(e) {
+        if (e.key === 'eduit-theme') applyTheme();
+      });
+      setInterval(applyTheme, 500);
+
+      /* ── Section navigation ── */
+      var hash = window.location.hash.replace('#', '');
+      if (hash && hash !== 'inicio') {
+        function activate() {
+          document.querySelectorAll('.content-section').forEach(function(s) { s.classList.remove('active'); });
+          document.querySelectorAll('.nav-item').forEach(function(n) { n.classList.remove('active'); });
+          var sec = document.getElementById('section-' + hash);
+          var nav = document.getElementById('nav-' + hash);
+          if (sec) sec.classList.add('active');
+          if (nav) nav.classList.add('active');
+          var old = document.getElementById('instant-nav');
+          if (old) old.remove();
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', activate);
+        } else {
+          activate();
+        }
+      }
+
+      window.addEventListener('hashchange', function() {
+        var h = window.location.hash.replace('#', '');
+        if (!h) return;
+        var btn = document.getElementById('nav-' + h);
+        if (btn) btn.click();
+      });
+    })();
+  </script>
+</body>
+</html>
