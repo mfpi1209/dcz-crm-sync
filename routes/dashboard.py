@@ -541,3 +541,211 @@ def _turma_defaults(nivel, ano):
             "ano": ano,
         })
     return rows
+
+
+# ---------------------------------------------------------------------------
+# Rotas — Meta Campaigns (Marketing Performance Dashboard)
+# ---------------------------------------------------------------------------
+
+@dashboard_bp.route("/api/meta/campaigns")
+def api_meta_campaigns():
+    """Busca dados de campanhas do Meta Ads via webhook do n8n."""
+    import requests
+    
+    WEBHOOK_URL = "https://n8n-new-n8n.ca31ey.easypanel.host/webhook/count_leads_meta"
+    
+    from_date = request.args.get("from", "")
+    to_date = request.args.get("to", "")
+    
+    try:
+        payload = {}
+        if from_date:
+            payload["from"] = from_date
+        if to_date:
+            payload["to"] = to_date
+        
+        response = requests.post(WEBHOOK_URL, json=payload, timeout=30)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        if isinstance(data, list):
+            campaigns = data
+        elif isinstance(data, dict) and "campaigns" in data:
+            campaigns = data["campaigns"]
+        else:
+            campaigns = [data] if data else []
+        
+        return jsonify({
+            "campaigns": campaigns,
+            "status": "OK",
+            "count": len(campaigns)
+        })
+    except requests.exceptions.Timeout:
+        return jsonify({
+            "campaigns": [],
+            "status": "TIMEOUT",
+            "error": "Webhook não respondeu a tempo"
+        })
+    except requests.exceptions.RequestException as e:
+        traceback.print_exc()
+        return jsonify({
+            "campaigns": [],
+            "status": "ERROR",
+            "error": str(e)
+        })
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({
+            "campaigns": [],
+            "status": "ERROR",
+            "error": str(e)
+        })
+
+
+# ---------------------------------------------------------------------------
+# Rotas — Recadastros (Dashboard de Recadastros por Origem)
+# ---------------------------------------------------------------------------
+
+@dashboard_bp.route("/api/recadastros")
+def api_recadastros():
+    """Busca dados de recadastros por origem via webhook do n8n."""
+    import requests
+    
+    WEBHOOK_URL = "https://n8n-new-n8n.ca31ey.easypanel.host/webhook/recadastro_csv"
+    
+    from_date = request.args.get("from", "")
+    to_date = request.args.get("to", "")
+    
+    try:
+        payload = {}
+        if from_date:
+            payload["from"] = from_date
+        if to_date:
+            payload["to"] = to_date
+        
+        response = requests.post(WEBHOOK_URL, json=payload, timeout=30)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        return jsonify({
+            "data": data,
+            "status": "OK"
+        })
+    except requests.exceptions.Timeout:
+        return jsonify({
+            "data": [],
+            "status": "TIMEOUT",
+            "error": "Webhook não respondeu a tempo"
+        })
+    except requests.exceptions.RequestException as e:
+        traceback.print_exc()
+        return jsonify({
+            "data": [],
+            "status": "ERROR",
+            "error": str(e)
+        })
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({
+            "data": [],
+            "status": "ERROR",
+            "error": str(e)
+        })
+
+
+@dashboard_bp.route("/api/meta/webhook", methods=["POST"])
+def api_meta_webhook():
+    """Webhook para receber dados do Meta Ads."""
+    from flask import request
+    
+    data = request.get_json(force=True, silent=True) or {}
+    
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS meta_campaigns (
+                    id SERIAL PRIMARY KEY,
+                    campaign_id VARCHAR(255),
+                    campaign_name VARCHAR(500),
+                    creative_type VARCHAR(100),
+                    status VARCHAR(50) DEFAULT 'ACTIVE',
+                    leads INTEGER DEFAULT 0,
+                    conversions INTEGER DEFAULT 0,
+                    impressions INTEGER DEFAULT 0,
+                    clicks INTEGER DEFAULT 0,
+                    spend DECIMAL(10,2) DEFAULT 0,
+                    ctr DECIMAL(5,2) DEFAULT 0,
+                    cpc DECIMAL(10,2) DEFAULT 0,
+                    cpl DECIMAL(10,2) DEFAULT 0,
+                    date DATE DEFAULT CURRENT_DATE,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS meta_webhook_config (
+                    id SERIAL PRIMARY KEY,
+                    connected BOOLEAN DEFAULT TRUE,
+                    last_sync TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            
+            if data.get("campaigns"):
+                for campaign in data["campaigns"]:
+                    cur.execute("""
+                        INSERT INTO meta_campaigns (
+                            campaign_id, campaign_name, creative_type, status,
+                            leads, conversions, impressions, clicks, spend,
+                            ctr, cpc, cpl, date
+                        ) VALUES (
+                            %(campaign_id)s, %(campaign_name)s, %(creative_type)s, %(status)s,
+                            %(leads)s, %(conversions)s, %(impressions)s, %(clicks)s, %(spend)s,
+                            %(ctr)s, %(cpc)s, %(cpl)s, %(date)s
+                        )
+                        ON CONFLICT (campaign_id, date) DO UPDATE SET
+                            leads = EXCLUDED.leads,
+                            conversions = EXCLUDED.conversions,
+                            impressions = EXCLUDED.impressions,
+                            clicks = EXCLUDED.clicks,
+                            spend = EXCLUDED.spend,
+                            ctr = EXCLUDED.ctr,
+                            cpc = EXCLUDED.cpc,
+                            cpl = EXCLUDED.cpl,
+                            updated_at = NOW()
+                    """, {
+                        "campaign_id": campaign.get("campaign_id", ""),
+                        "campaign_name": campaign.get("campaign_name", ""),
+                        "creative_type": campaign.get("creative_type", ""),
+                        "status": campaign.get("status", "ACTIVE"),
+                        "leads": campaign.get("leads", 0),
+                        "conversions": campaign.get("conversions", 0),
+                        "impressions": campaign.get("impressions", 0),
+                        "clicks": campaign.get("clicks", 0),
+                        "spend": campaign.get("spend", 0),
+                        "ctr": campaign.get("ctr", 0),
+                        "cpc": campaign.get("cpc", 0),
+                        "cpl": campaign.get("cpl", 0),
+                        "date": campaign.get("date", datetime.now().date()),
+                    })
+            
+            cur.execute("""
+                INSERT INTO meta_webhook_config (connected, last_sync)
+                VALUES (TRUE, NOW())
+                ON CONFLICT (id) DO UPDATE SET
+                    connected = TRUE,
+                    last_sync = NOW()
+            """)
+            
+            conn.commit()
+            
+        return jsonify({"status": "ok", "message": "Dados recebidos com sucesso"})
+    except Exception as e:
+        traceback.print_exc()
+        conn.rollback()
+        return jsonify({"status": "error", "error": str(e)}), 500
+    finally:
+        conn.close()
