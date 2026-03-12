@@ -603,6 +603,58 @@ def api_meta_campaigns():
         })
 
 
+# ---------------------------------------------------------------------------
+# Rotas — Recadastros (Dashboard de Recadastros por Origem)
+# ---------------------------------------------------------------------------
+
+@dashboard_bp.route("/api/recadastros")
+def api_recadastros():
+    """Busca dados de recadastros por origem via webhook do n8n."""
+    import requests
+    
+    WEBHOOK_URL = "https://n8n-new-n8n.ca31ey.easypanel.host/webhook/recadastro_csv"
+    
+    from_date = request.args.get("from", "")
+    to_date = request.args.get("to", "")
+    
+    try:
+        payload = {}
+        if from_date:
+            payload["from"] = from_date
+        if to_date:
+            payload["to"] = to_date
+        
+        response = requests.post(WEBHOOK_URL, json=payload, timeout=30)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        return jsonify({
+            "data": data,
+            "status": "OK"
+        })
+    except requests.exceptions.Timeout:
+        return jsonify({
+            "data": [],
+            "status": "TIMEOUT",
+            "error": "Webhook não respondeu a tempo"
+        })
+    except requests.exceptions.RequestException as e:
+        traceback.print_exc()
+        return jsonify({
+            "data": [],
+            "status": "ERROR",
+            "error": str(e)
+        })
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({
+            "data": [],
+            "status": "ERROR",
+            "error": str(e)
+        })
+
+
 @dashboard_bp.route("/api/meta/webhook", methods=["POST"])
 def api_meta_webhook():
     """Webhook para receber dados do Meta Ads."""

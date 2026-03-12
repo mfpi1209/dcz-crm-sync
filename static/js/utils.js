@@ -13,8 +13,8 @@ async function api(url, opts = {}) {
 // ---------------------------------------------------------------------------
 // SPA Navigation
 // ---------------------------------------------------------------------------
-const PAGES = ['dashboard', 'search', 'sync', 'update', 'pipeline', 'distribuicao', 'intelligence', 'inadimplencia', 'feedback', 'logs', 'config', 'schedule', 'meta-campaigns'];
-const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', distribuicao: 'Distribuição', intelligence: 'Inteligência', inadimplencia: 'Inadimplência', feedback: 'Feedback', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento', 'meta-campaigns': 'Campaign Performance' };
+const PAGES = ['dashboard', 'search', 'sync', 'update', 'pipeline', 'distribuicao', 'intelligence', 'inadimplencia', 'feedback', 'logs', 'config', 'schedule', 'meta-campaigns', 'recadastros'];
+const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', distribuicao: 'Distribuição', intelligence: 'Inteligência', inadimplencia: 'Inadimplência', feedback: 'Feedback', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento', 'meta-campaigns': 'Campaign Performance', recadastros: 'Recadastros' };
 
 function navigate(page) {
     PAGES.forEach(p => {
@@ -42,6 +42,7 @@ function navigate(page) {
     if (page === 'feedback') fbInit();
     if (page === 'schedule') loadSchedules();
     if (page === 'meta-campaigns') loadMetaCampaigns();
+    if (page === 'recadastros') loadRecadastros();
 
     history.replaceState(null, '', '#' + page);
 }
