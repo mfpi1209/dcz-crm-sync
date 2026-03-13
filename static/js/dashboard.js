@@ -766,7 +766,8 @@ function clearStudentFilter() {
 // ---------------------------------------------------------------------------
 // Saúde Financeira (Lista de Alunos) — cards clicáveis no Dashboard
 // ---------------------------------------------------------------------------
-let _inadActiveCard = null;
+let _inadGeneration = 0;
+let _inadAbort = null;
 
 function _inadToggleCard(key) {
     navigate('inadimplencia');
@@ -780,35 +781,28 @@ function _inadRenderCards() {
     const pct = d.pct_inadimplencia || 0;
     const pctAdim = d.total_alunos ? ((d.adimplentes / d.total_alunos) * 100).toFixed(1) : '0';
 
-    const ring = 'ring-2 ring-offset-2 ring-offset-slate-900 scale-[1.02]';
-    const ringColors = { total: 'ring-teal-400', adim: 'ring-emerald-400', inadim: 'ring-amber-400', pct: 'ring-rose-400' };
-
-    function cardCls(key) {
-        return _inadActiveCard === key ? `${ring} ${ringColors[key]}` : '';
-    }
-
     container.innerHTML = `
-        <div class="glass-card p-4 relative overflow-hidden cursor-pointer transition-all hover:bg-white/[0.03] ${cardCls('total')}"
+        <div class="glass-card p-4 relative overflow-hidden cursor-pointer transition-all hover:bg-white/[0.03]"
              onclick="_inadToggleCard('total')">
             <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-teal-500 to-cyan-500"></div>
             <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Alunos</p>
             <p class="text-2xl font-bold text-white font-display mt-1">${fmt(d.total_alunos)}</p>
         </div>
-        <div class="glass-card p-4 relative overflow-hidden cursor-pointer transition-all hover:bg-white/[0.03] ${cardCls('adim')}"
+        <div class="glass-card p-4 relative overflow-hidden cursor-pointer transition-all hover:bg-white/[0.03]"
              onclick="_inadToggleCard('adim')">
             <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-emerald-500 to-green-500"></div>
             <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Adimplentes</p>
             <p class="text-2xl font-bold text-emerald-400 font-display mt-1">${fmt(d.adimplentes)}</p>
             <p class="text-[10px] text-emerald-400/70 mt-0.5">${pctAdim.replace('.', ',')}% do total</p>
         </div>
-        <div class="glass-card p-4 relative overflow-hidden cursor-pointer transition-all hover:bg-white/[0.03] ${cardCls('inadim')}"
+        <div class="glass-card p-4 relative overflow-hidden cursor-pointer transition-all hover:bg-white/[0.03]"
              onclick="_inadToggleCard('inadim')">
             <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-amber-500 to-orange-500"></div>
             <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Inadimplentes</p>
             <p class="text-2xl font-bold text-amber-400 font-display mt-1">${fmt(d.inadimplentes)}</p>
             <p class="text-[10px] text-amber-400/70 mt-0.5">${pct.toFixed(1).replace('.', ',')}% do total</p>
         </div>
-        <div class="glass-card p-4 relative overflow-hidden cursor-pointer transition-all hover:bg-white/[0.03] ${cardCls('pct')}"
+        <div class="glass-card p-4 relative overflow-hidden cursor-pointer transition-all hover:bg-white/[0.03]"
              onclick="_inadToggleCard('pct')">
             <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-rose-500 to-red-500"></div>
             <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">% Inadimplência</p>
@@ -820,22 +814,36 @@ function _inadRenderCards() {
 }
 
 async function _loadInadimplenciaCard() {
+    const gen = ++_inadGeneration;
+
+    if (_inadAbort) { _inadAbort.abort(); _inadAbort = null; }
+    const ctrl = new AbortController();
+    _inadAbort = ctrl;
+
     const section = document.getElementById('dash-inadimplencia-card');
     if (!section) return;
 
     const cardsEl = document.getElementById('dash-inad-cards');
     if (cardsEl) cardsEl.style.opacity = '0.5';
 
+    const tipo = _stuActiveTipo;
+    const situacao = _stuActiveSituacao;
+
     try {
-        const _inadParams = new URLSearchParams();
-        if (_stuActiveTipo) _inadParams.set('tipo', _stuActiveTipo);
-        if (_stuActiveSituacao) _inadParams.set('situacao', _stuActiveSituacao);
-        const qs = _inadParams.toString();
+        const p = new URLSearchParams();
+        if (tipo) p.set('tipo', tipo);
+        if (situacao) p.set('situacao', situacao);
+        const qs = p.toString();
         const url = '/api/lista-alunos/latest' + (qs ? '?' + qs : '');
-        console.log('[SF] Fetching:', url);
-        const res = await api(url);
+
+        const res = await fetch(url, { signal: ctrl.signal });
+        if (res.status === 401) { window.location.href = '/login'; return; }
+
+        if (gen !== _inadGeneration) return;
+
         const d = await res.json();
-        console.log('[SF] Response:', d);
+
+        if (gen !== _inadGeneration) return;
 
         if (!d.ok && d.error) {
             console.error('[SF] Backend error:', d.error);
@@ -861,6 +869,7 @@ async function _loadInadimplenciaCard() {
             dateEl.textContent = label;
         }
     } catch (e) {
+        if (e.name === 'AbortError') return;
         console.error('[SF] Exception:', e);
         if (cardsEl) cardsEl.style.opacity = '1';
     }

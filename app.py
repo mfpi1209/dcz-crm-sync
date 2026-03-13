@@ -7,6 +7,7 @@ Uso:
 """
 
 import os
+import time
 from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask
@@ -15,6 +16,7 @@ load_dotenv(Path(__file__).parent / ".env")
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dcz-sync-default-key-change-me")
+app.config["CACHE_BUST"] = str(int(time.time()))
 
 # ── Registrar Blueprints ──────────────────────────────────────────────────
 

@@ -43,20 +43,21 @@
     </div>
 </div>
 
-<script src="{{ url_for('static', filename='js/utils.js') }}"></script>
-<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
-<script src="{{ url_for('static', filename='js/search.js') }}"></script>
-<script src="{{ url_for('static', filename='js/sync.js') }}"></script>
-<script src="{{ url_for('static', filename='js/update.js') }}"></script>
-<script src="{{ url_for('static', filename='js/pipeline.js') }}"></script>
-<script src="{{ url_for('static', filename='js/ativacoes.js') }}"></script>
-<script src="{{ url_for('static', filename='js/distribuicao.js') }}"></script>
-<script src="{{ url_for('static', filename='js/intelligence.js') }}"></script>
-<script src="{{ url_for('static', filename='js/inadimplencia.js') }}"></script>
-<script src="{{ url_for('static', filename='js/kommo_sync.js') }}"></script>
-<script src="{{ url_for('static', filename='js/match_merge.js') }}"></script>
-<script src="{{ url_for('static', filename='js/comercial_rgm.js') }}"></script>
-<script src="{{ url_for('static', filename='js/feedback.js') }}"></script>
+{% set _v = config.get('CACHE_BUST', '') %}
+<script src="{{ url_for('static', filename='js/utils.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/search.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/sync.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/update.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/pipeline.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/ativacoes.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/distribuicao.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/intelligence.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/inadimplencia.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/kommo_sync.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/match_merge.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/comercial_rgm.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/feedback.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/inscricao.js') }}"></script>
 <script src="{{ url_for('static', filename='js/ferramentas.js') }}"></script>
 <script src="{{ url_for('static', filename='js/avisos.js') }}"></script>
