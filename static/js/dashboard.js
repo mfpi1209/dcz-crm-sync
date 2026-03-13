@@ -297,20 +297,20 @@ function renderCicloMaster(data) {
         const prevTotal = prev.grand_total || 0;
         const ch = pct(total, prevTotal);
         const t = cur.totals || {};
-        return `<div class="rounded-xl p-3.5 bg-gradient-to-br from-${bgFrom}/10 to-${bgTo}/10 border border-${borderC}/20">
+        return `<div class="bg-white dark:bg-slate-900/60 rounded-xl p-3.5 border border-slate-200 dark:border-${borderC}/20 shadow-sm">
             <div class="flex items-center justify-between mb-1">
                 <span class="text-[10px] font-bold text-${accent} uppercase tracking-wider">${label}</span>
-                <span class="text-[10px] font-bold ${ch.cls}">${ch.txt}</span>
+                <span class="text-[10px] font-bold ${ch.cls} bg-slate-50 dark:bg-transparent px-1.5 py-0.5 rounded-full">${ch.txt}</span>
             </div>
-            <p class="text-[9px] text-slate-600 mb-1.5">${period}</p>
-            <p class="text-xl font-bold text-white font-display mb-1.5">${fmt(total)}</p>
+            <p class="text-[9px] text-slate-400 dark:text-slate-600 mb-1.5">${period}</p>
+            <p class="text-xl font-bold text-slate-900 dark:text-white font-display mb-1.5">${fmt(total)}</p>
             <div class="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px]">
-                <div class="flex justify-between"><span class="text-slate-500">Novos</span><span class="text-slate-300 font-medium">${fmt(t.novos||0)}</span></div>
-                <div class="flex justify-between"><span class="text-slate-500">${rematLabel}</span><span class="text-slate-300 font-medium">${fmt(t.rematricula||0)}</span></div>
-                <div class="flex justify-between"><span class="text-slate-500">Regresso</span><span class="text-slate-300 font-medium">${fmt(t.regresso||0)}</span></div>
-                <div class="flex justify-between"><span class="text-slate-500">Recompra</span><span class="text-slate-300 font-medium">${fmt(t.recompra||0)}</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Novos</span><span class="text-slate-700 dark:text-slate-300 font-medium">${fmt(t.novos||0)}</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">${rematLabel}</span><span class="text-slate-700 dark:text-slate-300 font-medium">${fmt(t.rematricula||0)}</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Regresso</span><span class="text-slate-700 dark:text-slate-300 font-medium">${fmt(t.regresso||0)}</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Recompra</span><span class="text-slate-700 dark:text-slate-300 font-medium">${fmt(t.recompra||0)}</span></div>
             </div>
-            <div class="mt-1.5 pt-1.5 border-t border-slate-700/20 text-[9px] text-slate-600">vs anterior: <span class="text-slate-400 font-medium">${fmt(prevTotal)}</span></div>
+            <div class="mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-700/20 text-[9px] text-slate-400 dark:text-slate-600">vs anterior: <span class="text-slate-600 dark:text-slate-400 font-medium">${fmt(prevTotal)}</span></div>
         </div>`;
     }
 
@@ -340,51 +340,51 @@ function renderCicloMaster(data) {
         const cardRematShort = cardIsPos ? 'Veteranos' : 'Rematr.';
         const cardRematFull  = cardIsPos ? 'Veteranos' : 'Rematrículas';
 
-        return `<div class="rounded-xl border border-${color}-500/20 overflow-hidden">
-            <button onclick="document.getElementById('${id}').classList.toggle('hidden')" class="w-full px-4 py-3 flex items-center justify-between bg-gradient-to-r from-${color}-500/8 to-transparent hover:from-${color}-500/12 transition-all">
+        return `<div class="bg-white dark:bg-slate-900/40 rounded-xl border border-slate-200 dark:border-${color}-500/20 shadow-sm overflow-hidden">
+            <button onclick="document.getElementById('${id}').classList.toggle('hidden')" class="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-all">
                 <div class="flex items-center gap-4 min-w-0">
                     <div class="flex items-center gap-2">
-                        <span class="text-xs font-bold text-${color}-400 uppercase tracking-wider">${esc(c.nome)}</span>
+                        <span class="text-xs font-bold text-${color}-600 dark:text-${color}-400 uppercase tracking-wider">${esc(c.nome)}</span>
                         <span class="text-[10px] text-slate-500">${esc(c.nivel)}</span>
                     </div>
                     <div class="flex items-center gap-3 text-[11px]">
-                        <span class="text-slate-500">Novos <span class="text-slate-300 font-medium">${fmt(t.novos||0)}</span></span>
-                        <span class="text-slate-500">${cardRematShort} <span class="text-slate-300 font-medium">${fmt(t.rematricula||0)}</span></span>
-                        <span class="text-slate-500">Regresso <span class="text-slate-300 font-medium">${fmt(t.regresso||0)}</span></span>
-                        <span class="text-slate-500">Recompra <span class="text-slate-300 font-medium">${fmt(t.recompra||0)}</span></span>
+                        <span class="text-slate-500">Novos <span class="text-slate-700 dark:text-slate-300 font-medium">${fmt(t.novos||0)}</span></span>
+                        <span class="text-slate-500">${cardRematShort} <span class="text-slate-700 dark:text-slate-300 font-medium">${fmt(t.rematricula||0)}</span></span>
+                        <span class="text-slate-500">Regresso <span class="text-slate-700 dark:text-slate-300 font-medium">${fmt(t.regresso||0)}</span></span>
+                        <span class="text-slate-500">Recompra <span class="text-slate-700 dark:text-slate-300 font-medium">${fmt(t.recompra||0)}</span></span>
                     </div>
                 </div>
                 <div class="flex items-center gap-3 flex-shrink-0">
-                    <span class="text-lg font-bold text-white font-display">${fmt(c.grand_total)}</span>
+                    <span class="text-lg font-bold text-slate-900 dark:text-white font-display">${fmt(c.grand_total)}</span>
                     ${chg ? `<span class="text-[10px] font-bold ${chg.cls}">${chg.txt}</span>` : ''}
-                    <svg class="w-4 h-4 text-slate-500 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    <span class="material-symbols-outlined text-base text-slate-400">expand_more</span>
                 </div>
             </button>
-            <div class="relative h-0.5 bg-slate-800/40"><div class="h-0.5 bg-gradient-to-r from-${color}-500/60 to-${color}-500/20" style="width:${barW}%"></div></div>
-            <div id="${id}" class="hidden px-4 py-3 bg-slate-900/30">
+            <div class="relative h-0.5 bg-slate-100 dark:bg-slate-800/40"><div class="h-0.5 bg-${color}-500" style="width:${barW}%"></div></div>
+            <div id="${id}" class="hidden px-4 py-3 bg-slate-50 dark:bg-slate-900/30">
                 <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
                         <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Por Tipo</p>
                         <div class="space-y-1 text-[12px]">
-                            <div class="flex justify-between"><span class="text-slate-400">Novos (Calouros)</span><span class="text-white font-mono">${fmt(t.novos||0)}</span></div>
-                            <div class="flex justify-between"><span class="text-slate-400">${cardRematFull}</span><span class="text-white font-mono">${fmt(t.rematricula||0)}</span></div>
-                            <div class="flex justify-between"><span class="text-slate-400">Regresso</span><span class="text-white font-mono">${fmt(t.regresso||0)}</span></div>
-                            <div class="flex justify-between"><span class="text-slate-400">Recompra</span><span class="text-white font-mono">${fmt(t.recompra||0)}</span></div>
-                            <div class="flex justify-between border-t border-slate-700/30 pt-1 mt-1"><span class="text-white font-bold">Total</span><span class="text-white font-mono font-bold">${fmt(c.grand_total)}</span></div>
+                            <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400">Novos (Calouros)</span><span class="text-slate-900 dark:text-white font-mono">${fmt(t.novos||0)}</span></div>
+                            <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400">${cardRematFull}</span><span class="text-slate-900 dark:text-white font-mono">${fmt(t.rematricula||0)}</span></div>
+                            <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400">Regresso</span><span class="text-slate-900 dark:text-white font-mono">${fmt(t.regresso||0)}</span></div>
+                            <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400">Recompra</span><span class="text-slate-900 dark:text-white font-mono">${fmt(t.recompra||0)}</span></div>
+                            <div class="flex justify-between border-t border-slate-200 dark:border-slate-700/30 pt-1 mt-1"><span class="text-slate-900 dark:text-white font-bold">Total</span><span class="text-slate-900 dark:text-white font-mono font-bold">${fmt(c.grand_total)}</span></div>
                         </div>
                     </div>
                     <div>
                         <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Por Situação</p>
                         <div class="space-y-1 text-[12px]">${sits.map(([k,v]) => {
                             const sp = c.grand_total ? Math.round(v/c.grand_total*100) : 0;
-                            return `<div class="flex items-center gap-2"><span class="text-slate-400 flex-1 truncate">${esc(k)}</span><span class="text-white font-mono">${fmt(v)}</span><span class="text-slate-600 text-[10px] w-8 text-right">${sp}%</span></div>`;
+                            return `<div class="flex items-center gap-2"><span class="text-slate-500 dark:text-slate-400 flex-1 truncate">${esc(k)}</span><span class="text-slate-900 dark:text-white font-mono">${fmt(v)}</span><span class="text-slate-400 dark:text-slate-600 text-[10px] w-8 text-right">${sp}%</span></div>`;
                         }).join('')}</div>
                     </div>
                     <div>
                         <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Top Polos</p>
                         <div class="space-y-1 text-[12px]">${polos.map(([k,v]) => {
                             const pp = c.grand_total ? Math.round(v/c.grand_total*100) : 0;
-                            return `<div class="flex items-center gap-2"><span class="text-slate-400 flex-1 truncate">${esc(k)}</span><span class="text-white font-mono">${fmt(v)}</span><span class="text-slate-600 text-[10px] w-8 text-right">${pp}%</span></div>`;
+                            return `<div class="flex items-center gap-2"><span class="text-slate-500 dark:text-slate-400 flex-1 truncate">${esc(k)}</span><span class="text-slate-900 dark:text-white font-mono">${fmt(v)}</span><span class="text-slate-400 dark:text-slate-600 text-[10px] w-8 text-right">${pp}%</span></div>`;
                         }).join('')}</div>
                     </div>
                 </div>
@@ -513,7 +513,7 @@ async function loadStudentMetrics() {
     if (_stuActiveTipo) params.set('tipo', _stuActiveTipo);
 
     const stuContainer = document.getElementById('stu-tipo-cards');
-    if (stuContainer) stuContainer.innerHTML = '<div class="text-center py-8 text-slate-500"><svg class="w-6 h-6 animate-spin inline-block mr-2 text-slate-600" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Carregando métricas...</div>';
+    if (stuContainer) stuContainer.innerHTML = '<div class="text-center py-8 text-slate-500"><svg class="w-6 h-6 animate-spin inline-block mr-2 text-primary" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Carregando métricas...</div>';
 
     try {
         const res = await api('/api/dashboard/students?' + params);
@@ -540,75 +540,58 @@ async function loadStudentMetrics() {
         const isRegresso = _stuActiveTipo === 'regresso';
         const isRecompra = _stuActiveTipo === 'recompra';
 
-        const ringActive = 'ring-2 ring-offset-2 ring-offset-slate-900 scale-[1.02]';
+        const ringActive = 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 scale-[1.02]';
+
+        const pctNovos = gt ? Math.round(novosAgg / gt * 100) : 0;
+        const pctRemat = gt ? Math.round(remat / gt * 100) : 0;
 
         stuContainer.innerHTML = `
             <div class="flex items-center justify-end mb-3">
-                <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/40 border border-slate-700/20">
-                    <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-                    </svg>
+                <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700/20">
+                    <span class="material-symbols-outlined text-base text-violet-500 dark:text-violet-400">groups</span>
                     <span class="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Total</span>
-                    <span class="text-lg font-bold text-white font-display">${fmt(gt)}</span>
+                    <span class="text-lg font-bold text-slate-900 dark:text-white font-display">${fmt(gt)}</span>
                 </div>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <!-- Big Number: Novos -->
-                <div class="glass-card p-5 relative overflow-hidden cursor-pointer transition-all hover:bg-white/[0.03] ${isNovosAgg ? ringActive + ' ring-indigo-400' : ''}"
+                <div class="bg-white dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm relative overflow-hidden cursor-pointer transition-all hover:shadow-md ${isNovosAgg ? ringActive + ' ring-blue-500' : ''}"
                      onclick="_stuToggleTipo('novos_agg')">
-                    <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-indigo-500 to-blue-500"></div>
-                    <div class="flex items-center gap-3 mb-2">
-                        <div class="w-12 h-12 rounded-xl bg-indigo-500/15 flex items-center justify-center">
-                            <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
-                            </svg>
-                        </div>
-                        <div>
-                            <p class="text-[10px] font-bold text-indigo-400/70 uppercase tracking-widest">Novos</p>
-                            <p class="text-[10px] text-slate-500">Calouros + Regresso + Recompra</p>
-                        </div>
-                        <div class="ml-auto text-right">
-                            <span class="text-[11px] font-bold text-indigo-400">${gt ? Math.round(novosAgg / gt * 100) : 0}%</span>
-                        </div>
+                    <div class="flex items-center justify-between mb-4">
+                        <span class="p-2 bg-blue-50 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400 rounded-lg material-symbols-outlined">person_add</span>
+                        <span class="text-blue-600 dark:text-blue-400 text-xs font-bold bg-blue-50 dark:bg-blue-500/10 px-2 py-1 rounded-full">${pctNovos}%</span>
                     </div>
-                    <p class="text-5xl font-black text-white font-display leading-tight mb-3">${fmt(novosAgg)}</p>
-                    <div class="grid grid-cols-3 gap-2">
-                        <div class="rounded-lg px-3 py-2 cursor-pointer transition-all ${isNovos ? 'bg-indigo-500/20 ring-1 ring-indigo-400/50' : 'bg-slate-800/40 hover:bg-slate-700/40'}"
+                    <p class="text-slate-500 text-sm font-medium">Novos</p>
+                    <p class="text-[10px] text-slate-400 mb-1">Calouros + Regresso + Recompra</p>
+                    <p class="text-3xl font-black text-slate-900 dark:text-white mt-1">${fmt(novosAgg)}</p>
+                    <div class="grid grid-cols-3 gap-2 mt-4">
+                        <div class="rounded-lg px-3 py-2 cursor-pointer transition-all ${isNovos ? 'bg-blue-50 dark:bg-indigo-500/20 ring-1 ring-blue-300 dark:ring-indigo-400/50' : 'bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-700/40'}"
                              onclick="event.stopPropagation(); _stuToggleTipo('novos')">
                             <p class="text-[9px] text-slate-500 uppercase tracking-wider font-bold">Calouros</p>
-                            <p class="text-lg font-bold text-white font-display">${fmt(t.novos || 0)}</p>
+                            <p class="text-lg font-bold text-slate-900 dark:text-white font-display">${fmt(t.novos || 0)}</p>
                         </div>
-                        <div class="rounded-lg px-3 py-2 cursor-pointer transition-all ${isRegresso ? 'bg-amber-500/20 ring-1 ring-amber-400/50' : 'bg-slate-800/40 hover:bg-slate-700/40'}"
+                        <div class="rounded-lg px-3 py-2 cursor-pointer transition-all ${isRegresso ? 'bg-amber-50 dark:bg-amber-500/20 ring-1 ring-amber-300 dark:ring-amber-400/50' : 'bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-700/40'}"
                              onclick="event.stopPropagation(); _stuToggleTipo('regresso')">
-                            <p class="text-[9px] text-amber-500/70 uppercase tracking-wider font-bold">Regresso</p>
-                            <p class="text-lg font-bold text-white font-display">${fmt(t.regresso || 0)}</p>
+                            <p class="text-[9px] text-amber-600 dark:text-amber-500/70 uppercase tracking-wider font-bold">Regresso</p>
+                            <p class="text-lg font-bold text-slate-900 dark:text-white font-display">${fmt(t.regresso || 0)}</p>
                         </div>
-                        <div class="rounded-lg px-3 py-2 cursor-pointer transition-all ${isRecompra ? 'bg-cyan-500/20 ring-1 ring-cyan-400/50' : 'bg-slate-800/40 hover:bg-slate-700/40'}"
+                        <div class="rounded-lg px-3 py-2 cursor-pointer transition-all ${isRecompra ? 'bg-cyan-50 dark:bg-cyan-500/20 ring-1 ring-cyan-300 dark:ring-cyan-400/50' : 'bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-700/40'}"
                              onclick="event.stopPropagation(); _stuToggleTipo('recompra')">
-                            <p class="text-[9px] text-cyan-500/70 uppercase tracking-wider font-bold">Recompra</p>
-                            <p class="text-lg font-bold text-white font-display">${fmt(t.recompra || 0)}</p>
+                            <p class="text-[9px] text-cyan-600 dark:text-cyan-500/70 uppercase tracking-wider font-bold">Recompra</p>
+                            <p class="text-lg font-bold text-slate-900 dark:text-white font-display">${fmt(t.recompra || 0)}</p>
                         </div>
                     </div>
                 </div>
                 <!-- Big Number: Rematrículas -->
-                <div class="glass-card p-5 relative overflow-hidden cursor-pointer transition-all hover:bg-white/[0.03] ${isRemat ? ringActive + ' ring-emerald-400' : ''}"
+                <div class="bg-white dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm relative overflow-hidden cursor-pointer transition-all hover:shadow-md ${isRemat ? ringActive + ' ring-emerald-500' : ''}"
                      onclick="_stuToggleTipo('rematricula')">
-                    <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-emerald-500 to-teal-500"></div>
-                    <div class="flex items-center gap-3 mb-2">
-                        <div class="w-12 h-12 rounded-xl bg-emerald-500/15 flex items-center justify-center">
-                            <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                            </svg>
-                        </div>
-                        <div>
-                            <p class="text-[10px] font-bold text-emerald-400/70 uppercase tracking-widest">${esc(stuRematLabel)}</p>
-                            <p class="text-[10px] text-slate-500">Renovações de matrícula</p>
-                        </div>
-                        <div class="ml-auto text-right">
-                            <span class="text-[11px] font-bold text-emerald-400">${gt ? Math.round(remat / gt * 100) : 0}%</span>
-                        </div>
+                    <div class="flex items-center justify-between mb-4">
+                        <span class="p-2 bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 rounded-lg material-symbols-outlined">autorenew</span>
+                        <span class="text-emerald-600 dark:text-emerald-400 text-xs font-bold bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-full">${pctRemat}%</span>
                     </div>
-                    <p class="text-5xl font-black text-white font-display leading-tight">${fmt(remat)}</p>
+                    <p class="text-slate-500 text-sm font-medium">${esc(stuRematLabel)}</p>
+                    <p class="text-[10px] text-slate-400 mb-1">Renovações de matrícula</p>
+                    <p class="text-3xl font-black text-slate-900 dark:text-white mt-1">${fmt(remat)}</p>
                 </div>
             </div>`;
 
@@ -645,12 +628,12 @@ function renderBreakdown(elId, data) {
         const pct = total ? Math.round(v / total * 100) : 0;
         return `<div class="flex items-center justify-between gap-2">
             <div class="flex items-center gap-2 min-w-0 flex-1">
-                <span class="truncate">${esc(k)}</span>
-                <div class="flex-1 h-1.5 rounded-full bg-slate-700/50 min-w-[40px]">
-                    <div class="h-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500" style="width:${pct}%"></div>
+                <span class="truncate text-slate-700 dark:text-slate-300">${esc(k)}</span>
+                <div class="flex-1 h-1.5 rounded-full bg-slate-100 dark:bg-slate-700/50 min-w-[40px]">
+                    <div class="h-1.5 rounded-full bg-primary" style="width:${pct}%"></div>
                 </div>
             </div>
-            <span class="text-xs font-mono text-slate-400 whitespace-nowrap">${v.toLocaleString('pt-BR')} <span class="text-slate-600">(${pct}%)</span></span>
+            <span class="text-xs font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">${v.toLocaleString('pt-BR')} <span class="text-slate-400 dark:text-slate-600">(${pct}%)</span></span>
         </div>`;
     }).join('');
 }
@@ -690,6 +673,14 @@ function renderSituacaoCards(elId, data) {
     _renderSituacaoCardsClickable(elId, data);
 }
 
+const _sitIcons = {
+    'em curso': 'school',
+    'cancelado': 'cancel',
+    'trancado': 'pause_circle',
+    'transferido': 'swap_horiz',
+    '_default': 'help',
+};
+
 function _renderSituacaoCardsClickable(elId, data) {
     const el = document.getElementById(elId);
     if (!data || !Object.keys(data).length) { el.innerHTML = '<span class="text-slate-500 text-sm col-span-4">—</span>'; return; }
@@ -700,33 +691,27 @@ function _renderSituacaoCardsClickable(elId, data) {
         .filter(Boolean)
         .concat(keys.filter(k => !_sitOrder.includes(k.toLowerCase())));
 
-    const ringActive = 'ring-2 ring-offset-2 ring-offset-slate-900 scale-[1.02]';
+    const ringActive = 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 scale-[1.02]';
 
     el.innerHTML = ordered.map(k => {
         const v = data[k];
         const pct = total ? Math.round(v / total * 100) : 0;
         const c = _sitLookup(k);
+        const icon = _sitIcons[k.toLowerCase()] || _sitIcons['_default'];
         const isActive = _stuActiveSituacao === k;
-        const activeRing = isActive ? `${ringActive} ring-${c.text}-400` : '';
-        const highlight = (!isActive && c.primary) ? 'ring-1 ring-emerald-500/30' : '';
-        return `<div class="glass-card p-4 relative overflow-hidden cursor-pointer transition-all hover:bg-white/[0.03] ${highlight} ${activeRing}"
+        const activeRing = isActive ? `${ringActive} ring-${c.text}-500` : '';
+
+        return `<div class="bg-white dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm relative overflow-hidden cursor-pointer transition-all hover:shadow-md ${activeRing}"
                      onclick="_stuToggleSituacao('${esc(k)}')">
-            <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-${c.from} to-${c.to}"></div>
-            <div class="flex items-center gap-3 mb-3">
-                <div class="w-10 h-10 rounded-xl bg-${c.bg}-500/15 flex items-center justify-center ${!isActive && c.primary ? 'ring-1 ring-emerald-500/20' : ''}">
-                    <svg class="w-5 h-5 text-${c.text}-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">${c.icon}</svg>
-                </div>
-                <div class="flex-1 min-w-0">
-                    <div class="flex items-center justify-between">
-                        <span class="text-xs font-bold text-${c.text}-400 uppercase tracking-wider">${esc(k)}</span>
-                        <span class="text-[10px] font-bold text-${c.text}-400 bg-${c.bg}-500/10 px-2 py-0.5 rounded-full">${pct}%</span>
-                    </div>
-                    <p class="text-[10px] text-slate-500 mt-0.5">${c.desc}</p>
-                </div>
+            <div class="flex items-center justify-between mb-3">
+                <span class="p-2 bg-${c.bg}-50 dark:bg-${c.bg}-500/15 text-${c.text}-600 dark:text-${c.text}-400 rounded-lg material-symbols-outlined">${icon}</span>
+                <span class="text-${c.text}-600 dark:text-${c.text}-400 text-xs font-bold bg-${c.bg}-50 dark:bg-${c.bg}-500/10 px-2 py-1 rounded-full">${pct}%</span>
             </div>
-            <p class="text-3xl font-bold text-white font-display mb-2">${v.toLocaleString('pt-BR')}</p>
-            <div class="w-full h-1.5 rounded-full bg-slate-700/50">
-                <div class="h-1.5 rounded-full bg-gradient-to-r from-${c.from} to-${c.to} transition-all" style="width:${Math.min(pct,100)}%"></div>
+            <p class="text-slate-500 text-sm font-medium">${esc(k)}</p>
+            <p class="text-[10px] text-slate-400 mb-1">${c.desc}</p>
+            <p class="text-2xl font-black text-slate-900 dark:text-white mt-1">${v.toLocaleString('pt-BR')}</p>
+            <div class="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-700/50 mt-3">
+                <div class="h-2 rounded-full bg-${c.from} transition-all" style="width:${Math.min(pct,100)}%"></div>
             </div>
         </div>`;
     }).join('');
@@ -740,12 +725,12 @@ function renderBreakdownBars(elId, data) {
         const pct = total ? Math.round(v / total * 100) : 0;
         return `<div class="flex items-center justify-between gap-3">
             <div class="flex items-center gap-2 min-w-0 flex-1">
-                <span class="truncate text-sm text-slate-300">${esc(k)}</span>
-                <div class="flex-1 h-2 rounded-full bg-slate-700/50 min-w-[60px]">
-                    <div class="h-2 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all" style="width:${pct}%"></div>
+                <span class="truncate text-sm text-slate-700 dark:text-slate-300">${esc(k)}</span>
+                <div class="flex-1 h-2.5 rounded-full bg-slate-100 dark:bg-slate-700/50 min-w-[60px] overflow-hidden">
+                    <div class="h-2.5 rounded-full bg-primary transition-all" style="width:${pct}%"></div>
                 </div>
             </div>
-            <span class="text-sm font-mono text-white font-semibold whitespace-nowrap">${v.toLocaleString('pt-BR')} <span class="text-slate-500 text-xs">(${pct}%)</span></span>
+            <span class="text-sm font-mono text-slate-900 dark:text-white font-semibold whitespace-nowrap">${v.toLocaleString('pt-BR')} <span class="text-slate-400 dark:text-slate-500 text-xs">(${pct}%)</span></span>
         </div>`;
     }).join('');
 }
@@ -781,33 +766,41 @@ function _inadRenderCards() {
     const pctAdim = d.total_alunos ? ((d.adimplentes / d.total_alunos) * 100).toFixed(1) : '0';
 
     container.innerHTML = `
-        <div class="glass-card p-4 relative overflow-hidden cursor-pointer transition-all hover:bg-white/[0.03]"
+        <div class="bg-white dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer transition-all hover:shadow-md"
              onclick="_inadToggleCard('total')">
-            <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-teal-500 to-cyan-500"></div>
-            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Alunos</p>
-            <p class="text-2xl font-bold text-white font-display mt-1">${fmt(d.total_alunos)}</p>
+            <div class="flex items-center justify-between mb-3">
+                <span class="p-2 bg-teal-50 dark:bg-teal-500/15 text-teal-600 dark:text-teal-400 rounded-lg material-symbols-outlined">group</span>
+            </div>
+            <p class="text-slate-500 text-sm font-medium">Total Alunos</p>
+            <p class="text-2xl font-black text-slate-900 dark:text-white mt-1">${fmt(d.total_alunos)}</p>
         </div>
-        <div class="glass-card p-4 relative overflow-hidden cursor-pointer transition-all hover:bg-white/[0.03]"
+        <div class="bg-white dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer transition-all hover:shadow-md"
              onclick="_inadToggleCard('adim')">
-            <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-emerald-500 to-green-500"></div>
-            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Adimplentes</p>
-            <p class="text-2xl font-bold text-emerald-400 font-display mt-1">${fmt(d.adimplentes)}</p>
-            <p class="text-[10px] text-emerald-400/70 mt-0.5">${pctAdim.replace('.', ',')}% do total</p>
+            <div class="flex items-center justify-between mb-3">
+                <span class="p-2 bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 rounded-lg material-symbols-outlined">check_circle</span>
+                <span class="text-emerald-600 dark:text-emerald-400 text-xs font-bold bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-full">${pctAdim.replace('.', ',')}%</span>
+            </div>
+            <p class="text-slate-500 text-sm font-medium">Adimplentes</p>
+            <p class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">${fmt(d.adimplentes)}</p>
         </div>
-        <div class="glass-card p-4 relative overflow-hidden cursor-pointer transition-all hover:bg-white/[0.03]"
+        <div class="bg-white dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer transition-all hover:shadow-md"
              onclick="_inadToggleCard('inadim')">
-            <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-amber-500 to-orange-500"></div>
-            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Inadimplentes</p>
-            <p class="text-2xl font-bold text-amber-400 font-display mt-1">${fmt(d.inadimplentes)}</p>
-            <p class="text-[10px] text-amber-400/70 mt-0.5">${pct.toFixed(1).replace('.', ',')}% do total</p>
+            <div class="flex items-center justify-between mb-3">
+                <span class="p-2 bg-amber-50 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400 rounded-lg material-symbols-outlined">warning</span>
+                <span class="text-amber-600 dark:text-amber-400 text-xs font-bold bg-amber-50 dark:bg-amber-500/10 px-2 py-1 rounded-full">${pct.toFixed(1).replace('.', ',')}%</span>
+            </div>
+            <p class="text-slate-500 text-sm font-medium">Inadimplentes</p>
+            <p class="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">${fmt(d.inadimplentes)}</p>
         </div>
-        <div class="glass-card p-4 relative overflow-hidden cursor-pointer transition-all hover:bg-white/[0.03]"
+        <div class="bg-white dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer transition-all hover:shadow-md"
              onclick="_inadToggleCard('pct')">
-            <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-rose-500 to-red-500"></div>
-            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">% Inadimplência</p>
-            <p class="text-2xl font-bold text-white font-display mt-1">${pct.toFixed(1).replace('.', ',')}%</p>
-            <div class="w-full h-1.5 rounded-full bg-slate-700/50 mt-2">
-                <div class="h-1.5 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 transition-all" style="width:${Math.min(pct, 100)}%"></div>
+            <div class="flex items-center justify-between mb-3">
+                <span class="p-2 bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400 rounded-lg material-symbols-outlined">percent</span>
+            </div>
+            <p class="text-slate-500 text-sm font-medium">% Inadimplência</p>
+            <p class="text-2xl font-black text-slate-900 dark:text-white mt-1">${pct.toFixed(1).replace('.', ',')}%</p>
+            <div class="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-700/50 mt-3">
+                <div class="h-2 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 transition-all" style="width:${Math.min(pct, 100)}%"></div>
             </div>
         </div>`;
 }
