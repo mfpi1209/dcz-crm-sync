@@ -39,6 +39,7 @@ async function loadDashboard() {
     loadStudentMetrics();
     loadTimeline();
     loadCicloMaster();
+    _loadInadimplenciaCard();
 }
 
 async function _dashRefreshFunnel(force) {
@@ -756,4 +757,38 @@ function clearStudentFilter() {
     _stuActiveTipo = null;
     _stuActiveSituacao = null;
     loadStudentMetrics();
+}
+
+// ---------------------------------------------------------------------------
+// Saúde Financeira (Lista de Alunos) — card no Dashboard
+// ---------------------------------------------------------------------------
+async function _loadInadimplenciaCard() {
+    try {
+        const res = await api('/api/lista-alunos/latest');
+        const d = await res.json();
+        const card = document.getElementById('dash-inadimplencia-card');
+        if (!card) return;
+        if (!d.ok || !d.has_data) { card.classList.add('hidden'); return; }
+
+        card.classList.remove('hidden');
+        const fmt = n => (n || 0).toLocaleString('pt-BR');
+
+        document.getElementById('dash-inad-total').textContent = fmt(d.total_alunos);
+        document.getElementById('dash-inad-adim').textContent = fmt(d.adimplentes);
+        document.getElementById('dash-inad-inadim').textContent = fmt(d.inadimplentes);
+
+        const pct = d.pct_inadimplencia || 0;
+        document.getElementById('dash-inad-pct').textContent = pct.toFixed(1).replace('.', ',') + '%';
+        document.getElementById('dash-inad-bar').style.width = Math.min(pct, 100) + '%';
+
+        const pctAdim = d.total_alunos ? ((d.adimplentes / d.total_alunos) * 100).toFixed(1) : '0';
+        document.getElementById('dash-inad-adim-pct').textContent = pctAdim.replace('.', ',') + '% do total';
+        document.getElementById('dash-inad-inadim-pct').textContent = pct.toFixed(1).replace('.', ',') + '% do total';
+
+        if (d.snapshot) {
+            document.getElementById('dash-inad-date').textContent = d.snapshot.uploaded_at;
+        }
+    } catch (e) {
+        console.error('Erro ao carregar card de inadimplência:', e);
+    }
 }
