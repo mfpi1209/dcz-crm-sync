@@ -25,17 +25,17 @@
                     </div>
 
                     <div class="mb-4">
-                        <div class="relative rounded-xl overflow-hidden bg-white dark:bg-gradient-to-r dark:from-emerald-600/20 dark:to-teal-600/10 border border-slate-200 dark:border-emerald-500/20 p-4 flex items-center gap-5 shadow-sm">
-                            <div class="flex-shrink-0 w-14 h-14 rounded-xl bg-emerald-50 dark:bg-gradient-to-br dark:from-emerald-500 dark:to-green-600 flex items-center justify-center">
-                                <span class="material-symbols-outlined text-2xl text-emerald-600 dark:text-white">person_add</span>
+                        <div class="relative rounded-2xl overflow-hidden bg-white dark:bg-card-bg border border-slate-200 dark:border-slate-800 p-6 flex items-center gap-6 shadow-sm">
+                            <div class="flex-shrink-0 w-16 h-16 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center">
+                                <span class="material-symbols-outlined text-3xl text-emerald-600 dark:text-emerald-400">person_add</span>
                             </div>
                             <div>
-                                <p class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400/70 uppercase tracking-widest">Novos Leads Hoje</p>
-                                <p class="text-4xl font-black text-slate-900 dark:text-white font-display" id="dash-funnel-new">—</p>
+                                <p class="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Novos Leads Hoje</p>
+                                <p class="text-5xl font-black text-slate-900 dark:text-white font-display mt-1" id="dash-funnel-new">—</p>
                             </div>
-                            <div class="ml-auto text-right">
-                                <p class="text-[10px] text-slate-500 uppercase tracking-wider">Total no Funil</p>
-                                <p class="text-2xl font-bold text-slate-600 dark:text-slate-300 font-display" id="dash-funnel-total">—</p>
+                            <div class="ml-auto text-right hidden sm:block">
+                                <p class="text-[11px] text-slate-400 uppercase tracking-wider font-bold">Total no Funil</p>
+                                <p class="text-3xl font-bold text-slate-700 dark:text-slate-300 font-display" id="dash-funnel-total">—</p>
                             </div>
                         </div>
                     </div>
@@ -49,8 +49,8 @@
                 </div>
 
                 <!-- ══ SEÇÃO PRINCIPAL: Matrículas por Tipo de Aluno ══ -->
-                <div class="bg-white dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm overflow-hidden mb-6">
-                    <div class="p-5">
+                <div class="bg-white dark:bg-card-bg rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-6">
+                    <div class="p-6">
                         <!-- Header + Filtros visíveis -->
                         <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
                             <h3 class="text-lg font-bold text-slate-900 dark:text-white font-display flex items-center gap-2">
@@ -76,7 +76,7 @@
                         </div>
 
                         <!-- Filtros extras (ocultos por padrão) -->
-                        <div id="stu-filters-extra" class="hidden mb-4 py-2.5 px-3 rounded-lg bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/20 flex flex-wrap items-center gap-3">
+                        <div id="stu-filters-extra" class="hidden mb-6 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/20 flex flex-wrap items-center gap-4">
                             <div id="stu-filters" class="contents">
                                 <div class="flex items-center gap-2">
                                     <label class="text-xs text-slate-500 font-medium">Situação</label>
@@ -132,7 +132,7 @@
                         <!-- Nível -->
                         <div class="mb-4">
                             <div class="bg-slate-50 dark:bg-slate-800/30 rounded-xl p-4 border border-slate-100 dark:border-slate-700/20">
-                                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Por Nível</h4>
+                                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Por Nível</h4>
                                 <div id="stu-by-nivel" class="space-y-2 text-[13px]">—</div>
                             </div>
                         </div>
@@ -174,7 +174,7 @@
                 </div>
 
                 <!-- ── Snapshot Info ── -->
-                <div class="bg-white dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm p-4 mb-6">
+                <div class="bg-white dark:bg-card-bg rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 mb-6">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-3">
                             <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -192,8 +192,8 @@
                 </div>
 
                 <!-- ── Gráficos de Linha (Timeline) ── -->
-                <div class="bg-white dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm overflow-hidden mb-6">
-                    <div class="px-5 pt-4 pb-2">
+                <div class="bg-white dark:bg-card-bg rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-6">
+                    <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-800">
                         <div class="flex items-center justify-between mb-3">
                             <h3 class="text-sm font-bold text-slate-900 dark:text-white font-display flex items-center gap-2">
                                 <span class="material-symbols-outlined text-base text-primary">show_chart</span>
@@ -214,7 +214,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="px-5 pb-5">
+                    <div class="p-6">
                         <div class="rounded-xl p-4 bg-slate-50 dark:bg-slate-800/20 border border-slate-100 dark:border-slate-700/20 mb-4">
                             <div class="flex items-center justify-between mb-2">
                                 <div class="flex items-center gap-4">
@@ -234,7 +234,7 @@
                 </div>
 
                 <!-- ── Master Panel: Comparação de Ciclos ── -->
-                <div class="bg-white dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm p-5 mb-6" id="ciclo-master-panel">
+                <div class="bg-white dark:bg-card-bg rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 mb-6" id="ciclo-master-panel">
                     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
                         <h3 class="text-sm font-bold text-slate-900 dark:text-white font-display flex items-center gap-2">
                             <span class="material-symbols-outlined text-base text-cyan-500 dark:text-cyan-400">compare_arrows</span>
