@@ -1,14 +1,15 @@
             <div id="page-dashboard" class="p-4 lg:p-8 max-w-7xl mx-auto">
-                <!-- Header -->
-                <div class="mb-6">
+
+                <!-- ═══ HEADER ═══ -->
+                <header class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div class="flex flex-col gap-1">
                         <h2 class="text-2xl font-bold text-slate-900 dark:text-white font-display">Dashboard Acadêmico</h2>
                         <p class="text-slate-500 text-sm">Visão geral da performance e crescimento institucional.</p>
                     </div>
-                </div>
+                </header>
 
-                <!-- ═══════ FUNIL DE VENDAS — LIVE ═══════ -->
-                <div class="mb-6">
+                <!-- ═══ FUNIL DE VENDAS — LIVE ═══ -->
+                <section class="mb-8">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-lg font-bold text-slate-900 dark:text-white font-display flex items-center gap-2">
                             <span class="material-symbols-outlined text-primary">filter_alt</span>
@@ -17,14 +18,15 @@
                         <div class="flex items-center gap-3">
                             <span id="dash-funnel-ts" class="text-[10px] text-slate-500 font-mono"></span>
                             <button onclick="_dashRefreshFunnel(true)" id="dash-funnel-refresh-btn"
-                                    class="text-xs text-slate-500 dark:text-slate-400 hover:text-primary border border-slate-200 dark:border-slate-700 hover:border-primary px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                                    class="text-xs text-slate-500 dark:text-slate-400 hover:text-primary border border-slate-200 dark:border-slate-700 hover:border-primary px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 bg-white dark:bg-card-bg">
                                 <span class="material-symbols-outlined text-sm">refresh</span>
                                 Atualizar
                             </button>
                         </div>
                     </div>
 
-                    <div class="mb-4">
+                    <!-- Highlight Card -->
+                    <div class="mb-6">
                         <div class="relative rounded-2xl overflow-hidden bg-white dark:bg-card-bg border border-slate-200 dark:border-slate-800 p-6 flex items-center gap-6 shadow-sm">
                             <div class="flex-shrink-0 w-16 h-16 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center">
                                 <span class="material-symbols-outlined text-3xl text-emerald-600 dark:text-emerald-400">person_add</span>
@@ -40,24 +42,24 @@
                         </div>
                     </div>
 
+                    <!-- Funnel Grid -->
                     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4" id="dash-funnel-cards">
                         <div class="col-span-full text-center py-8 text-slate-500 text-sm flex flex-col items-center gap-3">
                             <svg class="animate-spin h-6 w-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                             Buscando dados do Kommo...
                         </div>
                     </div>
-                </div>
+                </section>
 
-                <!-- ══ SEÇÃO PRINCIPAL: Matrículas por Tipo de Aluno ══ -->
-                <div class="bg-white dark:bg-card-bg rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-6">
+                <!-- ═══ MATRÍCULAS POR TIPO DE ALUNO ═══ -->
+                <div class="bg-white dark:bg-card-bg rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-8">
                     <div class="p-6">
-                        <!-- Header + Filtros visíveis -->
-                        <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+                        <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
                             <h3 class="text-lg font-bold text-slate-900 dark:text-white font-display flex items-center gap-2">
-                                <span class="material-symbols-outlined text-violet-500 dark:text-violet-400">menu_book</span>
+                                <span class="material-symbols-outlined text-violet-500 dark:text-violet-400">groups</span>
                                 Matrículas por Tipo de Aluno
                             </h3>
-                            <div class="flex flex-wrap items-center gap-3">
+                            <div class="flex flex-wrap items-center gap-2">
                                 <div id="stu-filter-badge" class="text-[10px] text-primary bg-primary/10 px-2.5 py-1 rounded-full border border-primary/20 hidden"></div>
                                 <select id="students-ciclo" onchange="applyCicloFilter()" class="input-glass px-3 py-1.5 text-xs rounded-lg">
                                     <option value="">Todos os ciclos</option>
@@ -68,19 +70,19 @@
                                     <option value="Pós-Graduação">Pós-Graduação</option>
                                 </select>
                                 <button onclick="clearStudentFilter()" class="text-[10px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700/30 hover:border-slate-300 dark:hover:border-slate-600/50 transition-colors">Limpar</button>
-                                <button onclick="document.getElementById('stu-filters-extra').classList.toggle('hidden')" class="text-[10px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 flex items-center gap-1 transition-colors">
+                                <button onclick="document.getElementById('stu-filters-extra').classList.toggle('hidden')" class="bg-white dark:bg-card-bg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 hover:border-slate-300 dark:hover:border-slate-600 transition-colors">
                                     <span class="material-symbols-outlined text-sm">tune</span>
-                                    Mais
+                                    Filtros
                                 </button>
                             </div>
                         </div>
 
-                        <!-- Filtros extras (ocultos por padrão) -->
+                        <!-- Filtros extras -->
                         <div id="stu-filters-extra" class="hidden mb-6 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/20 flex flex-wrap items-center gap-4">
                             <div id="stu-filters" class="contents">
-                                <div class="flex items-center gap-2">
-                                    <label class="text-xs text-slate-500 font-medium">Situação</label>
-                                    <select id="students-situacao" onchange="loadStudentMetrics()" class="input-glass px-2.5 py-1.5 text-xs">
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-[10px] text-slate-400 font-bold uppercase">Situação</label>
+                                    <select id="students-situacao" onchange="loadStudentMetrics()" class="input-glass px-2.5 py-1 text-xs rounded-lg">
                                         <option value="">Todas</option>
                                         <option value="Em Curso">Em Curso</option>
                                         <option value="Cancelado">Cancelado</option>
@@ -88,92 +90,81 @@
                                         <option value="Transferido">Transferido</option>
                                     </select>
                                 </div>
-                                <div class="flex items-center gap-2">
-                                    <label class="text-xs text-slate-500 font-medium">De</label>
-                                    <input type="date" id="students-from" class="input-glass px-2.5 py-1.5 text-xs w-36">
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-[10px] text-slate-400 font-bold uppercase">Período De</label>
+                                    <input type="date" id="students-from" class="input-glass px-2.5 py-1 text-xs rounded-lg">
                                 </div>
-                                <div class="flex items-center gap-2">
-                                    <label class="text-xs text-slate-500 font-medium">Até</label>
-                                    <input type="date" id="students-to" class="input-glass px-2.5 py-1.5 text-xs w-36">
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-[10px] text-slate-400 font-bold uppercase">Até</label>
+                                    <input type="date" id="students-to" class="input-glass px-2.5 py-1 text-xs rounded-lg">
                                 </div>
-                                <button type="button" onclick="loadStudentMetrics()" class="btn-primary text-xs px-3 py-1.5">Filtrar</button>
+                                <button type="button" onclick="loadStudentMetrics()" class="btn-primary px-4 py-2 mt-auto text-xs rounded-lg">Aplicar</button>
                             </div>
                         </div>
 
-                        <!-- Filtro ativo (tipo/situação) -->
+                        <!-- Filtro ativo -->
                         <div id="stu-active-filter-bar" class="hidden mb-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
                             <span class="material-symbols-outlined text-sm text-primary">filter_alt</span>
                             <span id="stu-active-filter-text" class="text-xs text-primary font-medium"></span>
                             <button onclick="_stuClearTipoSitFilter()" class="ml-auto text-[10px] text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700/30 hover:border-primary px-2 py-0.5 rounded transition-all">Limpar</button>
                         </div>
 
-                        <!-- Big numbers + subtipo (renderizados por JS) -->
-                        <div id="stu-tipo-cards" class="mb-5"></div>
+                        <!-- Big numbers (JS) -->
+                        <div id="stu-tipo-cards" class="mb-6"></div>
 
-                        <!-- Situação (renderizada por JS como cards visuais) -->
-                        <div class="mb-5">
-                            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <!-- Situação cards (JS) -->
+                        <div class="mb-6">
+                            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                                 <span class="material-symbols-outlined text-sm text-slate-400">check_circle</span>
-                                Por Situação
+                                Matrículas por Situação
                             </h4>
-                            <div id="stu-by-situacao" class="grid grid-cols-2 lg:grid-cols-4 gap-3 text-[13px]">—</div>
+                            <div id="stu-by-situacao" class="grid grid-cols-2 lg:grid-cols-4 gap-4 text-[13px]">—</div>
                         </div>
 
-                        <!-- Saúde Financeira (renderizado abaixo dos cards principais) -->
-                        <div id="dash-inadimplencia-card" class="hidden mb-5">
-                            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <!-- Saúde Financeira (JS) -->
+                        <div id="dash-inadimplencia-card" class="hidden mb-6">
+                            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                                 <span class="material-symbols-outlined text-sm text-teal-500 dark:text-teal-400">account_balance_wallet</span>
                                 Saúde Financeira
                                 <span id="dash-inad-date" class="text-[10px] text-slate-500 font-mono font-normal ml-auto"></span>
                             </h4>
-                            <div id="dash-inad-cards" class="grid grid-cols-2 lg:grid-cols-4 gap-3"></div>
+                            <div id="dash-inad-cards" class="grid grid-cols-2 lg:grid-cols-4 gap-4"></div>
                         </div>
 
-                        <!-- Nível -->
-                        <div class="mb-4">
-                            <div class="bg-slate-50 dark:bg-slate-800/30 rounded-xl p-4 border border-slate-100 dark:border-slate-700/20">
-                                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Por Nível</h4>
-                                <div id="stu-by-nivel" class="space-y-2 text-[13px]">—</div>
+                        <!-- Breakdowns -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div>
+                                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Distribuição por Polo</h4>
+                                <div id="stu-by-polo" class="space-y-3">—</div>
                             </div>
-                        </div>
-
-                        <!-- Top Polos (recolhível) -->
-                        <div class="mb-4">
-                            <button onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('.polo-chevron').classList.toggle('rotate-180')" class="w-full bg-slate-50 dark:bg-slate-800/30 rounded-xl px-4 py-3 flex items-center justify-between hover:bg-slate-100 dark:hover:bg-white/[0.02] transition-all border border-slate-100 dark:border-slate-700/20">
-                                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                                    <span class="material-symbols-outlined text-sm text-slate-400">location_on</span>
-                                    Distribuição por Polo
-                                </h4>
-                                <span class="material-symbols-outlined text-base text-slate-400 transition-transform polo-chevron">expand_more</span>
-                            </button>
-                            <div class="hidden bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/20 border-t-0 rounded-b-xl p-4">
-                                <div id="stu-by-polo" class="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">—</div>
+                            <div>
+                                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Por Nível</h4>
+                                <div id="stu-by-nivel" class="space-y-2">—</div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Detalhamento (Turma, Ciclo) -->
-                    <button onclick="document.getElementById('stu-detail').classList.toggle('hidden');this.querySelector('.chevron-icon').classList.toggle('rotate-180')" class="w-full px-5 py-2 flex items-center justify-center gap-2 border-t border-slate-100 dark:border-slate-700/20 hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-all text-[11px] text-slate-500">
-                        <span>Mais detalhes (Turma, Ciclo)</span>
+                    <!-- Detalhamento -->
+                    <button onclick="document.getElementById('stu-detail').classList.toggle('hidden');this.querySelector('.chevron-icon').classList.toggle('rotate-180')"
+                            class="w-full py-4 bg-slate-50 dark:bg-slate-800/20 hover:bg-slate-100 dark:hover:bg-slate-800/40 transition-all border-t border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-500 flex items-center justify-center gap-2">
+                        Mais detalhes (Turma, Ciclo)
                         <span class="material-symbols-outlined text-sm transition-transform chevron-icon">expand_more</span>
                     </button>
-                    <div id="stu-detail" class="hidden border-t border-slate-100 dark:border-slate-700/20">
-                        <div class="px-5 py-4">
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div class="rounded-xl p-4 bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/30">
-                                    <h4 class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Por Turma</h4>
-                                    <div id="stu-by-turma" class="space-y-1.5 text-[13px]">—</div>
-                                </div>
-                                <div class="rounded-xl p-4 bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/30">
-                                    <h4 class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Por Ciclo</h4>
-                                    <div id="stu-by-ciclo" class="space-y-1.5 text-[13px]">—</div>
-                                </div>
+                    <div id="stu-detail" class="hidden p-6 border-t border-slate-200 dark:border-slate-800">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="rounded-xl p-4 bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/20">
+                                <h5 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Por Turma</h5>
+                                <div id="stu-by-turma" class="space-y-1.5 text-[13px]">—</div>
+                            </div>
+                            <div class="rounded-xl p-4 bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/20">
+                                <h5 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Por Ciclo</h5>
+                                <div id="stu-by-ciclo" class="space-y-1.5 text-[13px]">—</div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- ── Snapshot Info ── -->
+                <!-- ═══ SNAPSHOT INFO ═══ -->
                 <div class="bg-white dark:bg-card-bg rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 mb-6">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-3">
@@ -181,8 +172,8 @@
                                 <span class="material-symbols-outlined text-base text-primary">database</span>
                             </div>
                             <div>
-                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Fonte de dados</p>
-                                <p class="text-sm font-medium text-slate-900 dark:text-white" id="dash-snap-info">Carregando...</p>
+                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider leading-none">Fonte de dados</p>
+                                <p class="text-xs font-medium text-slate-900 dark:text-white mt-1" id="dash-snap-info">Carregando...</p>
                             </div>
                         </div>
                         <div id="dash-process-status" class="flex items-center gap-2 text-xs text-slate-500">
@@ -191,72 +182,89 @@
                     </div>
                 </div>
 
-                <!-- ── Gráficos de Linha (Timeline) ── -->
-                <div class="bg-white dark:bg-card-bg rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-6">
-                    <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-800">
-                        <div class="flex items-center justify-between mb-3">
-                            <h3 class="text-sm font-bold text-slate-900 dark:text-white font-display flex items-center gap-2">
-                                <span class="material-symbols-outlined text-base text-primary">show_chart</span>
-                                Evolução de Matrículas
-                            </h3>
-                            <div class="flex items-center gap-3">
-                                <button id="tl-drillup" onclick="timelineDrillUp()" class="hidden text-[10px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 flex items-center gap-1 transition-colors px-2 py-1 rounded border border-slate-200 dark:border-slate-700/30 hover:border-slate-300 dark:hover:border-slate-600/50">
-                                    <span class="material-symbols-outlined text-sm">arrow_back</span>
-                                    Voltar (meses)
-                                </button>
-                                <button id="tl-mode-btn" onclick="toggleTlMode()" class="text-[10px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 px-2 py-1 rounded border border-slate-200 dark:border-slate-700/30 hover:border-slate-300 dark:hover:border-slate-600/50 transition-colors">Ver Detalhado</button>
-                                <span id="tl-period-label" class="text-[10px] text-slate-500 font-mono"></span>
-                                <select id="tl-nivel" onchange="loadTimeline()" class="input-glass px-2 py-1 text-[11px]">
-                                    <option value="">Todos os Níveis</option>
-                                    <option value="Graduação">Graduação</option>
-                                    <option value="Pós-Graduação">Pós-Graduação</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="p-6">
-                        <div class="rounded-xl p-4 bg-slate-50 dark:bg-slate-800/20 border border-slate-100 dark:border-slate-700/20 mb-4">
-                            <div class="flex items-center justify-between mb-2">
-                                <div class="flex items-center gap-4">
-                                    <p class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">Visão Geral</p>
-                                    <div class="flex items-center gap-3 text-[10px]" id="tl-legend">
-                                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-indigo-400 inline-block"></span><span class="text-slate-500 dark:text-slate-400" id="tl-novos-label">Calouros</span> <span class="text-slate-900 dark:text-white font-mono font-medium" id="tl-novos-total">—</span></span>
-                                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span><span class="text-slate-500 dark:text-slate-400" id="tl-remat-label">Rematrículas</span> <span class="text-slate-900 dark:text-white font-mono font-medium" id="tl-remat-total">—</span></span>
-                                        <span id="tl-leg-regresso" class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span><span class="text-slate-500 dark:text-slate-400">Regresso</span> <span class="text-slate-900 dark:text-white font-mono font-medium" id="tl-regresso-total">—</span></span>
-                                        <span id="tl-leg-recompra" class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400 inline-block"></span><span class="text-slate-500 dark:text-slate-400">Recompra</span> <span class="text-slate-900 dark:text-white font-mono font-medium" id="tl-recompra-total">—</span></span>
-                                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-violet-400 inline-block"></span><span class="text-slate-500 dark:text-slate-400">Total</span> <span class="text-slate-900 dark:text-white font-mono font-medium" id="tl-total-total">—</span></span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div style="height:280px"><canvas id="chart-geral"></canvas></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ── Master Panel: Comparação de Ciclos ── -->
-                <div class="bg-white dark:bg-card-bg rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 mb-6" id="ciclo-master-panel">
-                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
-                        <h3 class="text-sm font-bold text-slate-900 dark:text-white font-display flex items-center gap-2">
-                            <span class="material-symbols-outlined text-base text-cyan-500 dark:text-cyan-400">compare_arrows</span>
-                            Comparação de Ciclos
+                <!-- ═══ EVOLUÇÃO DE MATRÍCULAS (Timeline) ═══ -->
+                <div class="bg-white dark:bg-card-bg rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-8">
+                    <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4">
+                        <h3 class="text-lg font-bold text-slate-900 dark:text-white font-display flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary">show_chart</span>
+                            Evolução de Matrículas
                         </h3>
                         <div class="flex items-center gap-2">
-                            <select id="ciclo-filter-nivel" onchange="loadCicloMaster()" class="input-glass px-2 py-1 text-[11px]">
+                            <button id="tl-drillup" onclick="timelineDrillUp()" class="hidden text-[10px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 flex items-center gap-1 transition-colors px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700/30 hover:border-slate-300 dark:hover:border-slate-600/50">
+                                <span class="material-symbols-outlined text-sm">arrow_back</span> Voltar
+                            </button>
+                            <select id="tl-nivel" onchange="loadTimeline()" class="input-glass px-3 py-1.5 text-xs rounded-lg">
                                 <option value="">Todos os Níveis</option>
                                 <option value="Graduação">Graduação</option>
                                 <option value="Pós-Graduação">Pós-Graduação</option>
                             </select>
+                            <button id="tl-mode-btn" onclick="toggleTlMode()" class="bg-slate-50 dark:bg-slate-800/40 text-slate-600 dark:text-slate-400 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/40 transition-all">
+                                Ver Detalhado
+                            </button>
+                            <span id="tl-period-label" class="text-[10px] text-slate-500 font-mono"></span>
                         </div>
                     </div>
+                    <div class="p-6">
+                        <div class="flex flex-wrap items-center gap-6 mb-6" id="tl-legend">
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-indigo-500"></span>
+                                <span class="text-xs font-medium text-slate-500 dark:text-slate-400" id="tl-novos-label">Calouros</span>
+                                <span class="text-sm font-bold text-slate-900 dark:text-white font-mono" id="tl-novos-total">—</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-emerald-400"></span>
+                                <span class="text-xs font-medium text-slate-500 dark:text-slate-400" id="tl-remat-label">Rematrículas</span>
+                                <span class="text-sm font-bold text-slate-900 dark:text-white font-mono" id="tl-remat-total">—</span>
+                            </div>
+                            <div id="tl-leg-regresso" class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-amber-400"></span>
+                                <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Regresso</span>
+                                <span class="text-sm font-bold text-slate-900 dark:text-white font-mono" id="tl-regresso-total">—</span>
+                            </div>
+                            <div id="tl-leg-recompra" class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-cyan-400"></span>
+                                <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Recompra</span>
+                                <span class="text-sm font-bold text-slate-900 dark:text-white font-mono" id="tl-recompra-total">—</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-violet-400"></span>
+                                <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Total</span>
+                                <span class="text-sm font-bold text-slate-900 dark:text-white font-mono" id="tl-total-total">—</span>
+                            </div>
+                        </div>
+                        <div class="h-[300px] w-full bg-slate-50 dark:bg-slate-800/20 rounded-xl p-2">
+                            <canvas id="chart-geral"></canvas>
+                        </div>
+                    </div>
+                </div>
 
-                    <div id="ciclo-master-loading" class="text-sm text-slate-500 py-4 text-center">Carregando...</div>
+                <!-- ═══ COMPARAÇÃO DE CICLOS ═══ -->
+                <div class="bg-white dark:bg-card-bg rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 mb-8" id="ciclo-master-panel">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
+                        <h3 class="text-lg font-bold text-slate-900 dark:text-white font-display flex items-center gap-2">
+                            <span class="material-symbols-outlined text-cyan-500 dark:text-cyan-400">compare_arrows</span>
+                            Comparação de Ciclos
+                        </h3>
+                        <select id="ciclo-filter-nivel" onchange="loadCicloMaster()" class="input-glass px-3 py-1.5 text-xs rounded-lg">
+                            <option value="">Todos os Níveis</option>
+                            <option value="Graduação">Graduação</option>
+                            <option value="Pós-Graduação">Pós-Graduação</option>
+                        </select>
+                    </div>
+
+                    <div id="ciclo-master-loading" class="text-sm text-slate-400 dark:text-slate-500 py-12 text-center">
+                        <div class="animate-pulse flex flex-col items-center gap-2">
+                            <span class="material-symbols-outlined text-4xl">sync</span>
+                            Carregando dados comparativos...
+                        </div>
+                    </div>
                     <div id="ciclo-master-empty" class="hidden text-sm text-slate-500 py-4 text-center">
-                        Nenhum ciclo configurado. <a href="#config" onclick="navigate('config')" class="text-primary hover:text-primary/80">Configure ciclos</a>.
+                        Nenhum ciclo configurado. <a href="#config" onclick="navigate('config')" class="text-primary hover:underline">Configure ciclos</a>.
                     </div>
                     <div id="ciclo-master-content" class="hidden">
-                        <div id="ciclo-temporal-cards" class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5"></div>
-                        <div id="ciclo-cards" class="space-y-2"></div>
-                        <div id="ciclo-diag" class="mt-2 text-[10px] text-slate-600"></div>
+                        <div id="ciclo-temporal-cards" class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6"></div>
+                        <div id="ciclo-cards" class="space-y-4"></div>
+                        <div id="ciclo-diag" class="mt-2 text-[10px] text-slate-500"></div>
                     </div>
                 </div>
 
