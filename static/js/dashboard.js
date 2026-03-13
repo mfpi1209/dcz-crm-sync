@@ -39,6 +39,7 @@ async function loadDashboard() {
     loadStudentMetrics();
     loadTimeline();
     loadCicloMaster();
+    _loadInadimplenciaCard();
 }
 
 async function _dashRefreshFunnel(force) {
@@ -442,6 +443,58 @@ function applyCicloFilter() {
     loadStudentMetrics();
 }
 
+// ---------------------------------------------------------------------------
+// Filtro ativo por tipo / situação (cards clicáveis)
+// ---------------------------------------------------------------------------
+let _stuActiveTipo = null;
+let _stuActiveSituacao = null;
+
+const _TIPO_LABELS = {
+    novos_agg: 'Novos (Calouros+Regresso+Recompra)',
+    novos: 'Calouros',
+    rematricula: 'Rematrículas',
+    regresso: 'Regresso',
+    recompra: 'Recompra',
+};
+
+function _stuToggleTipo(tipo) {
+    _stuActiveTipo = _stuActiveTipo === tipo ? null : tipo;
+    loadStudentMetrics();
+}
+
+function _stuToggleSituacao(sit) {
+    if (_stuActiveSituacao === sit) {
+        _stuActiveSituacao = null;
+        document.getElementById('students-situacao').value = '';
+    } else {
+        _stuActiveSituacao = sit;
+        document.getElementById('students-situacao').value = sit;
+    }
+    loadStudentMetrics();
+}
+
+function _stuClearTipoSitFilter() {
+    _stuActiveTipo = null;
+    _stuActiveSituacao = null;
+    document.getElementById('students-situacao').value = '';
+    loadStudentMetrics();
+}
+
+function _stuUpdateActiveFilterBar() {
+    const bar = document.getElementById('stu-active-filter-bar');
+    const text = document.getElementById('stu-active-filter-text');
+    if (!bar) return;
+    const parts = [];
+    if (_stuActiveTipo) parts.push('Tipo: ' + (_TIPO_LABELS[_stuActiveTipo] || _stuActiveTipo));
+    if (_stuActiveSituacao) parts.push('Situação: ' + _stuActiveSituacao);
+    if (parts.length) {
+        text.textContent = 'Filtrando por: ' + parts.join(' · ');
+        bar.classList.remove('hidden');
+    } else {
+        bar.classList.add('hidden');
+    }
+}
+
 async function loadStudentMetrics() {
     const dtFrom = document.getElementById('students-from').value;
     const dtTo = document.getElementById('students-to').value;
@@ -454,62 +507,120 @@ async function loadStudentMetrics() {
     if (dtTo) params.set('to', dtTo);
     if (nivel) params.set('nivel', nivel);
     if (situacao) params.set('situacao', situacao);
+    if (_stuActiveTipo) params.set('tipo', _stuActiveTipo);
 
     const stuContainer = document.getElementById('stu-tipo-cards');
-    if (stuContainer) stuContainer.innerHTML = '<div class="col-span-full text-center py-8 text-slate-500"><svg class="w-6 h-6 animate-spin inline-block mr-2 text-slate-600" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Carregando métricas...</div>';
+    if (stuContainer) stuContainer.innerHTML = '<div class="text-center py-8 text-slate-500"><svg class="w-6 h-6 animate-spin inline-block mr-2 text-slate-600" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Carregando métricas...</div>';
 
     try {
         const res = await api('/api/dashboard/students?' + params);
         const d = await res.json();
         if (d.error) {
             console.warn('Student metrics error:', d.error);
-            if (stuContainer) stuContainer.innerHTML = '<div class="col-span-full text-center py-4 text-rose-400 text-sm">Erro ao carregar: ' + esc(d.error) + '</div>';
+            if (stuContainer) stuContainer.innerHTML = '<div class="text-center py-4 text-rose-400 text-sm">Erro ao carregar: ' + esc(d.error) + '</div>';
             return;
         }
 
         const fmt = n => (n || 0).toLocaleString('pt-BR');
-        const gt = d.grand_total || 1;
-        const det = d.by_tipo_detail || {};
+        const t = d.totals || {};
+        const gt = d.grand_total || 0;
 
         const stuIsPosOnly = nivel === 'Pós-Graduação';
         const stuRematLabel = stuIsPosOnly ? 'Veteranos' : 'Rematrículas';
-        const tipoCards = [
-            { key: 'novos', label: 'Novos (Calouros)', accent: 'indigo', bgFrom: 'indigo-500', bgTo: 'blue-500', border: 'indigo-500', icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>' },
-            { key: 'rematricula', label: stuRematLabel, accent: 'emerald', bgFrom: 'emerald-500', bgTo: 'teal-500', border: 'emerald-500', icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>' },
-            { key: 'regresso', label: 'Regresso', accent: 'amber', bgFrom: 'amber-500', bgTo: 'orange-500', border: 'amber-500', icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>' },
-            { key: 'recompra', label: 'Recompra', accent: 'cyan', bgFrom: 'cyan-500', bgTo: 'sky-500', border: 'cyan-500', icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>' },
-            { key: '_total', label: 'Total Geral', accent: 'violet', bgFrom: 'violet-500', bgTo: 'pink-500', border: 'violet-500', icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>' },
-        ];
 
-        document.getElementById('stu-tipo-cards').innerHTML = tipoCards.map(tc => {
-            const val = tc.key === '_total' ? d.grand_total : (d.totals[tc.key] || 0);
-            const pctVal = tc.key === '_total' ? 100 : (gt ? Math.round(val / gt * 100) : 0);
-            return `<div class="glass-card p-5 relative overflow-hidden">
-                <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-${tc.bgFrom} to-${tc.bgTo}"></div>
-                <div class="flex items-center gap-3 mb-3">
-                    <div class="w-10 h-10 rounded-xl bg-${tc.accent}-500/15 flex items-center justify-center">
-                        <svg class="w-5 h-5 text-${tc.accent}-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">${tc.icon}</svg>
+        const novosAgg = (t.novos || 0) + (t.regresso || 0) + (t.recompra || 0);
+        const remat = t.rematricula || 0;
+
+        const isNovosAgg = _stuActiveTipo === 'novos_agg';
+        const isRemat = _stuActiveTipo === 'rematricula';
+        const isNovos = _stuActiveTipo === 'novos';
+        const isRegresso = _stuActiveTipo === 'regresso';
+        const isRecompra = _stuActiveTipo === 'recompra';
+
+        const ringActive = 'ring-2 ring-offset-2 ring-offset-slate-900 scale-[1.02]';
+
+        stuContainer.innerHTML = `
+            <div class="flex items-center justify-end mb-3">
+                <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/40 border border-slate-700/20">
+                    <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                    <span class="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Total</span>
+                    <span class="text-lg font-bold text-white font-display">${fmt(gt)}</span>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <!-- Big Number: Novos -->
+                <div class="glass-card p-5 relative overflow-hidden cursor-pointer transition-all hover:bg-white/[0.03] ${isNovosAgg ? ringActive + ' ring-indigo-400' : ''}"
+                     onclick="_stuToggleTipo('novos_agg')">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-indigo-500 to-blue-500"></div>
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-12 h-12 rounded-xl bg-indigo-500/15 flex items-center justify-center">
+                            <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-[10px] font-bold text-indigo-400/70 uppercase tracking-widest">Novos</p>
+                            <p class="text-[10px] text-slate-500">Calouros + Regresso + Recompra</p>
+                        </div>
+                        <div class="ml-auto text-right">
+                            <span class="text-[11px] font-bold text-indigo-400">${gt ? Math.round(novosAgg / gt * 100) : 0}%</span>
+                        </div>
                     </div>
-                    <div class="flex-1 min-w-0">
-                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">${tc.label}</p>
-                        <span class="text-[11px] font-bold text-${tc.accent}-400">${pctVal}%</span>
+                    <p class="text-5xl font-black text-white font-display leading-tight mb-3">${fmt(novosAgg)}</p>
+                    <div class="grid grid-cols-3 gap-2">
+                        <div class="rounded-lg px-3 py-2 cursor-pointer transition-all ${isNovos ? 'bg-indigo-500/20 ring-1 ring-indigo-400/50' : 'bg-slate-800/40 hover:bg-slate-700/40'}"
+                             onclick="event.stopPropagation(); _stuToggleTipo('novos')">
+                            <p class="text-[9px] text-slate-500 uppercase tracking-wider font-bold">Calouros</p>
+                            <p class="text-lg font-bold text-white font-display">${fmt(t.novos || 0)}</p>
+                        </div>
+                        <div class="rounded-lg px-3 py-2 cursor-pointer transition-all ${isRegresso ? 'bg-amber-500/20 ring-1 ring-amber-400/50' : 'bg-slate-800/40 hover:bg-slate-700/40'}"
+                             onclick="event.stopPropagation(); _stuToggleTipo('regresso')">
+                            <p class="text-[9px] text-amber-500/70 uppercase tracking-wider font-bold">Regresso</p>
+                            <p class="text-lg font-bold text-white font-display">${fmt(t.regresso || 0)}</p>
+                        </div>
+                        <div class="rounded-lg px-3 py-2 cursor-pointer transition-all ${isRecompra ? 'bg-cyan-500/20 ring-1 ring-cyan-400/50' : 'bg-slate-800/40 hover:bg-slate-700/40'}"
+                             onclick="event.stopPropagation(); _stuToggleTipo('recompra')">
+                            <p class="text-[9px] text-cyan-500/70 uppercase tracking-wider font-bold">Recompra</p>
+                            <p class="text-lg font-bold text-white font-display">${fmt(t.recompra || 0)}</p>
+                        </div>
                     </div>
                 </div>
-                <p class="text-4xl font-bold text-white font-display leading-tight">${fmt(val)}</p>
+                <!-- Big Number: Rematrículas -->
+                <div class="glass-card p-5 relative overflow-hidden cursor-pointer transition-all hover:bg-white/[0.03] ${isRemat ? ringActive + ' ring-emerald-400' : ''}"
+                     onclick="_stuToggleTipo('rematricula')">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-emerald-500 to-teal-500"></div>
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-12 h-12 rounded-xl bg-emerald-500/15 flex items-center justify-center">
+                            <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-[10px] font-bold text-emerald-400/70 uppercase tracking-widest">${esc(stuRematLabel)}</p>
+                            <p class="text-[10px] text-slate-500">Renovações de matrícula</p>
+                        </div>
+                        <div class="ml-auto text-right">
+                            <span class="text-[11px] font-bold text-emerald-400">${gt ? Math.round(remat / gt * 100) : 0}%</span>
+                        </div>
+                    </div>
+                    <p class="text-5xl font-black text-white font-display leading-tight">${fmt(remat)}</p>
+                </div>
             </div>`;
-        }).join('');
 
-        renderSituacaoCards('stu-by-situacao', d.by_situacao);
+        _renderSituacaoCardsClickable('stu-by-situacao', d.by_situacao);
         renderBreakdownBars('stu-by-nivel', d.by_nivel);
         renderBreakdownBars('stu-by-polo', d.by_polo);
         renderBreakdown('stu-by-turma', d.by_turma);
         renderBreakdown('stu-by-ciclo', d.by_ciclo);
 
+        _stuUpdateActiveFilterBar();
+
         const badge = document.getElementById('stu-filter-badge');
         const parts = [];
         if (ciclo) parts.push(`Ciclo ${ciclo}`);
         if (nivel) parts.push(nivel);
-        if (situacao) parts.push(situacao);
         if (dtFrom || dtTo) parts.push(`${dtFrom || '…'} → ${dtTo || '…'}`);
         if (parts.length) {
             badge.textContent = parts.join(' · ');
@@ -519,7 +630,7 @@ async function loadStudentMetrics() {
         }
     } catch (err) {
         console.error('Student metrics error:', err);
-        if (stuContainer) stuContainer.innerHTML = '<div class="col-span-full text-center py-4 text-rose-400 text-sm">Erro ao carregar métricas</div>';
+        if (stuContainer) stuContainer.innerHTML = '<div class="text-center py-4 text-rose-400 text-sm">Erro ao carregar métricas</div>';
     }
 }
 
@@ -573,6 +684,10 @@ const _sitOrder = ['em curso', 'cancelado', 'trancado', 'transferido'];
 function _sitLookup(k) { return _sitMeta[k.toLowerCase()] || _sitMeta['_default']; }
 
 function renderSituacaoCards(elId, data) {
+    _renderSituacaoCardsClickable(elId, data);
+}
+
+function _renderSituacaoCardsClickable(elId, data) {
     const el = document.getElementById(elId);
     if (!data || !Object.keys(data).length) { el.innerHTML = '<span class="text-slate-500 text-sm col-span-4">—</span>'; return; }
     const total = Object.values(data).reduce((a, b) => a + b, 0);
@@ -581,15 +696,21 @@ function renderSituacaoCards(elId, data) {
         .map(sk => keys.find(k => k.toLowerCase() === sk))
         .filter(Boolean)
         .concat(keys.filter(k => !_sitOrder.includes(k.toLowerCase())));
+
+    const ringActive = 'ring-2 ring-offset-2 ring-offset-slate-900 scale-[1.02]';
+
     el.innerHTML = ordered.map(k => {
         const v = data[k];
         const pct = total ? Math.round(v / total * 100) : 0;
         const c = _sitLookup(k);
-        const highlight = c.primary ? 'ring-1 ring-emerald-500/30' : '';
-        return `<div class="glass-card p-4 relative overflow-hidden ${highlight}">
+        const isActive = _stuActiveSituacao === k;
+        const activeRing = isActive ? `${ringActive} ring-${c.text}-400` : '';
+        const highlight = (!isActive && c.primary) ? 'ring-1 ring-emerald-500/30' : '';
+        return `<div class="glass-card p-4 relative overflow-hidden cursor-pointer transition-all hover:bg-white/[0.03] ${highlight} ${activeRing}"
+                     onclick="_stuToggleSituacao('${esc(k)}')">
             <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-${c.from} to-${c.to}"></div>
             <div class="flex items-center gap-3 mb-3">
-                <div class="w-10 h-10 rounded-xl bg-${c.bg}-500/15 flex items-center justify-center ${c.primary ? 'ring-1 ring-emerald-500/20' : ''}">
+                <div class="w-10 h-10 rounded-xl bg-${c.bg}-500/15 flex items-center justify-center ${!isActive && c.primary ? 'ring-1 ring-emerald-500/20' : ''}">
                     <svg class="w-5 h-5 text-${c.text}-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">${c.icon}</svg>
                 </div>
                 <div class="flex-1 min-w-0">
@@ -633,5 +754,41 @@ function clearStudentFilter() {
     document.getElementById('students-nivel').value = '';
     document.getElementById('students-situacao').value = '';
     document.getElementById('stu-filter-badge').classList.add('hidden');
+    _stuActiveTipo = null;
+    _stuActiveSituacao = null;
     loadStudentMetrics();
+}
+
+// ---------------------------------------------------------------------------
+// Saúde Financeira (Lista de Alunos) — card no Dashboard
+// ---------------------------------------------------------------------------
+async function _loadInadimplenciaCard() {
+    try {
+        const res = await api('/api/lista-alunos/latest');
+        const d = await res.json();
+        const card = document.getElementById('dash-inadimplencia-card');
+        if (!card) return;
+        if (!d.ok || !d.has_data) { card.classList.add('hidden'); return; }
+
+        card.classList.remove('hidden');
+        const fmt = n => (n || 0).toLocaleString('pt-BR');
+
+        document.getElementById('dash-inad-total').textContent = fmt(d.total_alunos);
+        document.getElementById('dash-inad-adim').textContent = fmt(d.adimplentes);
+        document.getElementById('dash-inad-inadim').textContent = fmt(d.inadimplentes);
+
+        const pct = d.pct_inadimplencia || 0;
+        document.getElementById('dash-inad-pct').textContent = pct.toFixed(1).replace('.', ',') + '%';
+        document.getElementById('dash-inad-bar').style.width = Math.min(pct, 100) + '%';
+
+        const pctAdim = d.total_alunos ? ((d.adimplentes / d.total_alunos) * 100).toFixed(1) : '0';
+        document.getElementById('dash-inad-adim-pct').textContent = pctAdim.replace('.', ',') + '% do total';
+        document.getElementById('dash-inad-inadim-pct').textContent = pct.toFixed(1).replace('.', ',') + '% do total';
+
+        if (d.snapshot) {
+            document.getElementById('dash-inad-date').textContent = d.snapshot.uploaded_at;
+        }
+    } catch (e) {
+        console.error('Erro ao carregar card de inadimplência:', e);
+    }
 }

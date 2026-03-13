@@ -4,6 +4,7 @@
 let _inadTrendChart = null;
 let _inadHistoryChart = null;
 let _inadBreakdownChart = null;
+let _inadSfTrendChart = null;
 
 const _inadColors = [
     '#f59e0b', '#6366f1', '#10b981', '#ef4444', '#8b5cf6',
@@ -17,6 +18,7 @@ function _inadClearDates() {
 }
 
 async function loadInadimplencia() {
+    _loadSaudeFinanceira();
     try {
         const df = document.getElementById('inad-date-from').value;
         const dt = document.getElementById('inad-date-to').value;
@@ -366,6 +368,176 @@ function _renderInadTable(series) {
             <td class="py-2 pr-2 text-right font-bold text-white">${s.total.toLocaleString('pt-BR')}</td>
             <td class="py-2 pr-2 text-right text-sky-400">${grad.toLocaleString('pt-BR')}</td>
             <td class="py-2 pr-2 text-right text-purple-400">${pos.toLocaleString('pt-BR')}</td>
+            <td class="py-2 text-right text-xs">${varHtml}</td>
+        </tr>`;
+    }).join('');
+}
+
+// ===========================================================================
+// SAÚDE FINANCEIRA (Lista de Alunos)
+// ===========================================================================
+
+async function _loadSaudeFinanceira() {
+    const section = document.getElementById('inad-saude-section');
+    if (!section) return;
+
+    try {
+        const res = await api('/api/lista-alunos/historico');
+        const d = await res.json();
+        const series = d.series || [];
+
+        if (!series.length) { section.classList.add('hidden'); return; }
+        section.classList.remove('hidden');
+
+        const last = series[series.length - 1];
+        _renderSfKPIs(last);
+        _renderSfTrendChart(series);
+        _renderSfPolos(last.inad_by_polo || {}, last.total_alunos || 1);
+        _renderSfHistoryTable(series);
+
+        const dateEl = document.getElementById('inad-saude-date');
+        if (dateEl) dateEl.textContent = last.date;
+    } catch (e) {
+        console.error('Erro ao carregar saúde financeira:', e);
+    }
+}
+
+function _renderSfKPIs(data) {
+    const fmt = n => (n || 0).toLocaleString('pt-BR');
+    document.getElementById('inad-sf-total').textContent = fmt(data.total_alunos);
+    document.getElementById('inad-sf-adim').textContent = fmt(data.adimplentes);
+    document.getElementById('inad-sf-inadim').textContent = fmt(data.inadimplentes);
+
+    const pct = data.pct_inadimplencia || 0;
+    document.getElementById('inad-sf-pct').textContent = pct.toFixed(1).replace('.', ',') + '%';
+    document.getElementById('inad-sf-bar').style.width = Math.min(pct, 100) + '%';
+
+    const pctAdim = data.total_alunos ? ((data.adimplentes / data.total_alunos) * 100).toFixed(1) : '0';
+    document.getElementById('inad-sf-adim-pct').textContent = pctAdim.replace('.', ',') + '% do total';
+    document.getElementById('inad-sf-inadim-pct').textContent = pct.toFixed(1).replace('.', ',') + '% do total';
+}
+
+function _renderSfTrendChart(series) {
+    const canvas = document.getElementById('inad-sf-trend-chart');
+    const emptyMsg = document.getElementById('inad-sf-trend-empty');
+    if (!canvas) return;
+
+    if (_inadSfTrendChart) { _inadSfTrendChart.destroy(); _inadSfTrendChart = null; }
+
+    if (series.length < 2) {
+        if (emptyMsg) emptyMsg.classList.remove('hidden');
+        canvas.style.display = 'none';
+        return;
+    }
+    if (emptyMsg) emptyMsg.classList.add('hidden');
+    canvas.style.display = 'block';
+
+    const labels = series.map(s => s.date.split(' ')[0]);
+    const pcts = series.map(s => s.pct_inadimplencia || 0);
+    const inadims = series.map(s => s.inadimplentes || 0);
+
+    _inadSfTrendChart = new Chart(canvas, {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: '% Inadimplência',
+                    data: pcts,
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'rgba(245,158,11,0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    borderWidth: 2.5,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#f59e0b',
+                    yAxisID: 'y',
+                },
+                {
+                    label: 'Inadimplentes (abs)',
+                    data: inadims,
+                    borderColor: '#ef4444',
+                    borderWidth: 1.5,
+                    borderDash: [5, 3],
+                    tension: 0.3,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#ef4444',
+                    yAxisID: 'y1',
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { position: 'bottom', labels: { color: '#94a3b8', padding: 12, usePointStyle: true } },
+                tooltip: {
+                    callbacks: {
+                        label: c => c.dataset.yAxisID === 'y'
+                            ? `${c.dataset.label}: ${c.parsed.y.toFixed(1)}%`
+                            : `${c.dataset.label}: ${c.parsed.y.toLocaleString('pt-BR')}`,
+                    },
+                },
+            },
+            scales: {
+                x: { ticks: { color: '#64748b', maxRotation: 45 }, grid: { color: '#1e293b' } },
+                y: {
+                    type: 'linear', position: 'left',
+                    ticks: { color: '#f59e0b', callback: v => v + '%' },
+                    grid: { color: '#1e293b' },
+                },
+                y1: {
+                    type: 'linear', position: 'right',
+                    ticks: { color: '#ef4444' },
+                    grid: { drawOnChartArea: false },
+                },
+            },
+        },
+    });
+}
+
+function _renderSfPolos(inadByPolo, totalAlunos) {
+    const el = document.getElementById('inad-sf-polos');
+    if (!el) return;
+    const entries = Object.entries(inadByPolo).sort((a, b) => b[1] - a[1]).slice(0, 10);
+    if (!entries.length) { el.textContent = '—'; return; }
+    const maxVal = entries[0][1];
+
+    el.innerHTML = entries.map(([polo, count]) => {
+        const w = Math.round((count / maxVal) * 100);
+        return `<div class="flex items-center gap-2">
+            <span class="text-[11px] text-slate-400 truncate w-32 flex-shrink-0" title="${esc(polo)}">${esc(polo.replace(/^\d+\s*[-–]\s*/, ''))}</span>
+            <div class="flex-1 h-2 rounded-full bg-slate-700/50">
+                <div class="h-2 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 transition-all" style="width:${w}%"></div>
+            </div>
+            <span class="text-[11px] font-mono text-white font-semibold w-10 text-right">${count.toLocaleString('pt-BR')}</span>
+        </div>`;
+    }).join('');
+}
+
+function _renderSfHistoryTable(series) {
+    const tbody = document.getElementById('inad-sf-history-tbody');
+    if (!tbody) return;
+    if (!series.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="py-4 text-center text-slate-500">Nenhum snapshot encontrado.</td></tr>';
+        return;
+    }
+
+    const reversed = series.slice().reverse();
+    tbody.innerHTML = reversed.map((s, idx) => {
+        const realIdx = series.length - 1 - idx;
+        const prev = realIdx > 0 ? series[realIdx - 1] : null;
+        const varHtml = prev
+            ? _varBadge(s.inadimplentes, prev.inadimplentes)
+            : '<span class="text-slate-600">—</span>';
+
+        return `<tr class="border-b border-slate-800/40 hover:bg-slate-800/30 transition">
+            <td class="py-2 pr-2 text-xs text-slate-400">${s.date}</td>
+            <td class="py-2 pr-2 text-right font-bold text-white">${(s.total_alunos || 0).toLocaleString('pt-BR')}</td>
+            <td class="py-2 pr-2 text-right text-emerald-400">${(s.adimplentes || 0).toLocaleString('pt-BR')}</td>
+            <td class="py-2 pr-2 text-right text-amber-400">${(s.inadimplentes || 0).toLocaleString('pt-BR')}</td>
+            <td class="py-2 pr-2 text-right text-white">${(s.pct_inadimplencia || 0).toFixed(1).replace('.', ',')}%</td>
             <td class="py-2 text-right text-xs">${varHtml}</td>
         </tr>`;
     }).join('');

@@ -13,6 +13,94 @@
                     </div>
                 </div>
 
+                <!-- ══ Saúde Financeira (Lista de Alunos) ══ -->
+                <div id="inad-saude-section" class="hidden mb-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-white font-display flex items-center gap-2">
+                            <svg class="w-5 h-5 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+                            Saúde Financeira
+                        </h3>
+                        <span id="inad-saude-date" class="text-[10px] text-slate-500 font-mono"></span>
+                    </div>
+
+                    <!-- KPIs -->
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+                        <div class="glass-card p-5 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-teal-500 to-cyan-500"></div>
+                            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Alunos</p>
+                            <p class="text-3xl font-bold text-white font-display mt-1" id="inad-sf-total">—</p>
+                        </div>
+                        <div class="glass-card p-5 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-emerald-500 to-green-500"></div>
+                            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Adimplentes</p>
+                            <p class="text-3xl font-bold text-emerald-400 font-display mt-1" id="inad-sf-adim">—</p>
+                            <p class="text-xs text-emerald-400/70 mt-1" id="inad-sf-adim-pct"></p>
+                        </div>
+                        <div class="glass-card p-5 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-amber-500 to-orange-500"></div>
+                            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Inadimplentes</p>
+                            <p class="text-3xl font-bold text-amber-400 font-display mt-1" id="inad-sf-inadim">—</p>
+                            <p class="text-xs text-amber-400/70 mt-1" id="inad-sf-inadim-pct"></p>
+                        </div>
+                        <div class="glass-card p-5 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-rose-500 to-red-500"></div>
+                            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">% Inadimplência</p>
+                            <p class="text-3xl font-bold text-white font-display mt-1" id="inad-sf-pct">—</p>
+                            <div class="w-full h-2 rounded-full bg-slate-700/50 mt-2">
+                                <div id="inad-sf-bar" class="h-2 rounded-full bg-gradient-to-r from-emerald-500 via-amber-500 to-rose-500 transition-all" style="width:0%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts row -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
+                        <!-- Tendência -->
+                        <div class="glass-card p-5 lg:col-span-2">
+                            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                <svg class="w-3.5 h-3.5 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+                                Evolução % Inadimplência
+                            </h4>
+                            <div class="relative h-56">
+                                <canvas id="inad-sf-trend-chart"></canvas>
+                                <p id="inad-sf-trend-empty" class="absolute inset-0 flex items-center justify-center text-sm text-slate-500 hidden">
+                                    Envie mais de um snapshot para ver tendência.
+                                </p>
+                            </div>
+                        </div>
+                        <!-- Top Polos Inadimplentes -->
+                        <div class="glass-card p-5">
+                            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                Top Polos Inadimplentes
+                            </h4>
+                            <div id="inad-sf-polos" class="space-y-2 text-[13px] text-slate-300">—</div>
+                        </div>
+                    </div>
+
+                    <!-- Tabela histórico -->
+                    <div class="glass-card p-5">
+                        <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Histórico de Snapshots</h4>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm">
+                                <thead>
+                                    <tr class="text-[10px] text-slate-500 border-b border-slate-700/30 uppercase tracking-wider">
+                                        <th class="pb-2 font-semibold">Data</th>
+                                        <th class="pb-2 font-semibold text-right">Total</th>
+                                        <th class="pb-2 font-semibold text-right">Adimpl.</th>
+                                        <th class="pb-2 font-semibold text-right">Inadimpl.</th>
+                                        <th class="pb-2 font-semibold text-right">% Inad.</th>
+                                        <th class="pb-2 font-semibold text-right">Variação</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="inad-sf-history-tbody" class="text-slate-300">
+                                    <tr><td colspan="6" class="py-4 text-center text-slate-500">Carregando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ══ Histórico de Inadimplentes (fonte antiga) ══ -->
                 <!-- Filters -->
                 <div class="glass-card p-5 mb-6">
                     <div class="flex flex-wrap items-end gap-4">

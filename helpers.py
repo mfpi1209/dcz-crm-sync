@@ -190,4 +190,4 @@ def _normalize_digits(s):
 # Tipos de planilha
 # ---------------------------------------------------------------------------
 
-XL_TIPOS = ["matriculados", "inadimplentes", "concluintes", "acesso_ava", "sem_rematricula"]
+XL_TIPOS = ["matriculados", "inadimplentes", "concluintes", "acesso_ava", "sem_rematricula", "lista_alunos"]
