@@ -760,34 +760,77 @@ function clearStudentFilter() {
 }
 
 // ---------------------------------------------------------------------------
-// Saúde Financeira (Lista de Alunos) — card no Dashboard
+// Saúde Financeira (Lista de Alunos) — cards clicáveis no Dashboard
 // ---------------------------------------------------------------------------
+let _inadActiveCard = null;
+
+function _inadToggleCard(key) {
+    _inadActiveCard = _inadActiveCard === key ? null : key;
+    _inadRenderCards();
+    navigate('inadimplencia');
+}
+
+function _inadRenderCards() {
+    const container = document.getElementById('dash-inad-cards');
+    if (!container || !window._inadLatest) return;
+    const d = window._inadLatest;
+    const fmt = n => (n || 0).toLocaleString('pt-BR');
+    const pct = d.pct_inadimplencia || 0;
+    const pctAdim = d.total_alunos ? ((d.adimplentes / d.total_alunos) * 100).toFixed(1) : '0';
+
+    const ring = 'ring-2 ring-offset-2 ring-offset-slate-900 scale-[1.02]';
+    const ringColors = { total: 'ring-teal-400', adim: 'ring-emerald-400', inadim: 'ring-amber-400', pct: 'ring-rose-400' };
+
+    function cardCls(key) {
+        return _inadActiveCard === key ? `${ring} ${ringColors[key]}` : '';
+    }
+
+    container.innerHTML = `
+        <div class="glass-card p-4 relative overflow-hidden cursor-pointer transition-all hover:bg-white/[0.03] ${cardCls('total')}"
+             onclick="_inadToggleCard('total')">
+            <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-teal-500 to-cyan-500"></div>
+            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Alunos</p>
+            <p class="text-2xl font-bold text-white font-display mt-1">${fmt(d.total_alunos)}</p>
+        </div>
+        <div class="glass-card p-4 relative overflow-hidden cursor-pointer transition-all hover:bg-white/[0.03] ${cardCls('adim')}"
+             onclick="_inadToggleCard('adim')">
+            <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-emerald-500 to-green-500"></div>
+            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Adimplentes</p>
+            <p class="text-2xl font-bold text-emerald-400 font-display mt-1">${fmt(d.adimplentes)}</p>
+            <p class="text-[10px] text-emerald-400/70 mt-0.5">${pctAdim.replace('.', ',')}% do total</p>
+        </div>
+        <div class="glass-card p-4 relative overflow-hidden cursor-pointer transition-all hover:bg-white/[0.03] ${cardCls('inadim')}"
+             onclick="_inadToggleCard('inadim')">
+            <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-amber-500 to-orange-500"></div>
+            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Inadimplentes</p>
+            <p class="text-2xl font-bold text-amber-400 font-display mt-1">${fmt(d.inadimplentes)}</p>
+            <p class="text-[10px] text-amber-400/70 mt-0.5">${pct.toFixed(1).replace('.', ',')}% do total</p>
+        </div>
+        <div class="glass-card p-4 relative overflow-hidden cursor-pointer transition-all hover:bg-white/[0.03] ${cardCls('pct')}"
+             onclick="_inadToggleCard('pct')">
+            <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-rose-500 to-red-500"></div>
+            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">% Inadimplência</p>
+            <p class="text-2xl font-bold text-white font-display mt-1">${pct.toFixed(1).replace('.', ',')}%</p>
+            <div class="w-full h-1.5 rounded-full bg-slate-700/50 mt-2">
+                <div class="h-1.5 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 transition-all" style="width:${Math.min(pct, 100)}%"></div>
+            </div>
+        </div>`;
+}
+
 async function _loadInadimplenciaCard() {
     try {
         const res = await api('/api/lista-alunos/latest');
         const d = await res.json();
-        const card = document.getElementById('dash-inadimplencia-card');
-        if (!card) return;
-        if (!d.ok || !d.has_data) { card.classList.add('hidden'); return; }
+        const section = document.getElementById('dash-inadimplencia-card');
+        if (!section) return;
+        if (!d.ok || !d.has_data) { section.classList.add('hidden'); return; }
 
-        card.classList.remove('hidden');
-        const fmt = n => (n || 0).toLocaleString('pt-BR');
+        section.classList.remove('hidden');
+        window._inadLatest = d;
+        _inadRenderCards();
 
-        document.getElementById('dash-inad-total').textContent = fmt(d.total_alunos);
-        document.getElementById('dash-inad-adim').textContent = fmt(d.adimplentes);
-        document.getElementById('dash-inad-inadim').textContent = fmt(d.inadimplentes);
-
-        const pct = d.pct_inadimplencia || 0;
-        document.getElementById('dash-inad-pct').textContent = pct.toFixed(1).replace('.', ',') + '%';
-        document.getElementById('dash-inad-bar').style.width = Math.min(pct, 100) + '%';
-
-        const pctAdim = d.total_alunos ? ((d.adimplentes / d.total_alunos) * 100).toFixed(1) : '0';
-        document.getElementById('dash-inad-adim-pct').textContent = pctAdim.replace('.', ',') + '% do total';
-        document.getElementById('dash-inad-inadim-pct').textContent = pct.toFixed(1).replace('.', ',') + '% do total';
-
-        if (d.snapshot) {
-            document.getElementById('dash-inad-date').textContent = d.snapshot.uploaded_at;
-        }
+        const dateEl = document.getElementById('dash-inad-date');
+        if (dateEl && d.snapshot) dateEl.textContent = d.snapshot.uploaded_at;
     } catch (e) {
         console.error('Erro ao carregar card de inadimplência:', e);
     }
