@@ -472,6 +472,7 @@ function _stuToggleSituacao(sit) {
         document.getElementById('students-situacao').value = sit;
     }
     loadStudentMetrics();
+    _loadInadimplenciaCard();
 }
 
 function _stuClearTipoSitFilter() {
@@ -819,13 +820,28 @@ function _inadRenderCards() {
 }
 
 async function _loadInadimplenciaCard() {
+    const section = document.getElementById('dash-inadimplencia-card');
+    if (!section) return;
+
+    const cardsEl = document.getElementById('dash-inad-cards');
+    if (cardsEl) cardsEl.style.opacity = '0.5';
+
     try {
-        let url = '/api/lista-alunos/latest';
-        if (_stuActiveTipo) url += '?tipo=' + encodeURIComponent(_stuActiveTipo);
+        const _inadParams = new URLSearchParams();
+        if (_stuActiveTipo) _inadParams.set('tipo', _stuActiveTipo);
+        if (_stuActiveSituacao) _inadParams.set('situacao', _stuActiveSituacao);
+        const qs = _inadParams.toString();
+        const url = '/api/lista-alunos/latest' + (qs ? '?' + qs : '');
+        console.log('[SF] Fetching:', url);
         const res = await api(url);
         const d = await res.json();
-        const section = document.getElementById('dash-inadimplencia-card');
-        if (!section) return;
+        console.log('[SF] Response:', d);
+
+        if (!d.ok && d.error) {
+            console.error('[SF] Backend error:', d.error);
+            if (cardsEl) cardsEl.style.opacity = '1';
+            return;
+        }
         if (!d.ok || !d.has_data) { section.classList.add('hidden'); return; }
 
         section.classList.remove('hidden');
@@ -835,13 +851,17 @@ async function _loadInadimplenciaCard() {
         const dateEl = document.getElementById('dash-inad-date');
         if (dateEl && d.snapshot) {
             let label = d.snapshot.uploaded_at;
+            const filterParts = [];
             if (d.filtered_tipo) {
                 const tipoLabels = { novos: 'Calouros', rematricula: 'Rematrículas', regresso: 'Regresso', recompra: 'Recompra', novos_agg: 'Novos (Calouros+Regresso+Recompra)' };
-                label += '  ·  Filtro: ' + (tipoLabels[d.filtered_tipo] || d.filtered_tipo);
+                filterParts.push(tipoLabels[d.filtered_tipo] || d.filtered_tipo);
             }
+            if (d.filtered_situacao) filterParts.push(d.filtered_situacao);
+            if (filterParts.length) label += '  ·  Filtro: ' + filterParts.join(' + ');
             dateEl.textContent = label;
         }
     } catch (e) {
-        console.error('Erro ao carregar card de inadimplência:', e);
+        console.error('[SF] Exception:', e);
+        if (cardsEl) cardsEl.style.opacity = '1';
     }
 }

@@ -1050,8 +1050,12 @@ _TIPO_SQL_CASES = {
 
 @upload_bp.route("/api/lista-alunos/latest")
 def api_lista_alunos_latest():
-    """Retorna dados do ultimo snapshot de lista_alunos para o Dashboard."""
+    """Retorna dados do ultimo snapshot de lista_alunos para o Dashboard.
+    Aceita filtros opcionais: tipo (tipo_matricula) e situacao (cruzamento por RGM com matriculados).
+    """
     f_tipo = request.args.get("tipo", "").strip().lower()
+    f_situacao = request.args.get("situacao", "").strip()
+    current_app.logger.info("[SAUDE-FIN] latest called: tipo=%r, situacao=%r", f_tipo, f_situacao)
     conn = get_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -1065,8 +1069,10 @@ def api_lista_alunos_latest():
                 return jsonify({"ok": True, "has_data": False})
 
             snap_id = snap["id"]
+            has_filter = (f_tipo and f_tipo in _TIPO_SQL_CASES) or f_situacao
+            current_app.logger.info("[SAUDE-FIN] has_filter=%s, f_tipo_in_cases=%s", has_filter, f_tipo in _TIPO_SQL_CASES if f_tipo else 'N/A')
 
-            if f_tipo and f_tipo in _TIPO_SQL_CASES:
+            if has_filter:
                 cur.execute("""
                     SELECT id FROM xl_snapshots
                     WHERE tipo = 'matriculados' ORDER BY id DESC LIMIT 1
@@ -1075,8 +1081,26 @@ def api_lista_alunos_latest():
                 if not mat_snap:
                     return jsonify({"ok": True, "has_data": False})
 
-                tipo_where = _TIPO_SQL_CASES[f_tipo]
-                cur.execute(f"""
+                mat_conditions = []
+                params = [mat_snap["id"]]
+
+                if f_tipo and f_tipo in _TIPO_SQL_CASES:
+                    mat_conditions.append(f"({_TIPO_SQL_CASES[f_tipo]})")
+
+                if f_situacao:
+                    sit_norm = f"{_TIPO_NORM}".replace("m.data->>'tipo_matricula'", "m.data->>'situacao'")
+                    mat_conditions.append(
+                        f"TRANSLATE(LOWER(COALESCE(m.data->>'situacao','')), "
+                        f"'áàãâéèêíìîóòõôúùûçñ', 'aaaaeeeiiioooouuucn') = %s"
+                    )
+                    import unicodedata as _ud
+                    sit_clean = _ud.normalize('NFD', f_situacao.lower()).encode('ascii', 'ignore').decode('ascii')
+                    params.append(sit_clean)
+
+                where_extra = (" AND " + " AND ".join(mat_conditions)) if mat_conditions else ""
+                params.append(snap_id)
+
+                sql = f"""
                     SELECT
                         COUNT(*) AS total_alunos,
                         SUM(CASE WHEN la.data->>'inadimplente' = 'sim' THEN 1 ELSE 0 END) AS inadimplentes
@@ -1086,14 +1110,17 @@ def api_lista_alunos_latest():
                         FROM xl_rows m
                         WHERE m.snapshot_id = %s
                           AND COALESCE(m.data->>'rgm_digits', '') != ''
-                          AND ({tipo_where})
+                          {where_extra}
                     ) mat ON mat.rgm = la.data->>'rgm_digits'
                     WHERE la.snapshot_id = %s
                       AND COALESCE(la.data->>'rgm_digits', '') != ''
-                """, (mat_snap["id"], snap_id))
+                """
+                current_app.logger.info("[SAUDE-FIN] SQL where_extra=%r, params=%r", where_extra, params)
+                cur.execute(sql, params)
                 row = cur.fetchone()
                 total = int(row["total_alunos"] or 0)
                 inadim = int(row["inadimplentes"] or 0)
+                current_app.logger.info("[SAUDE-FIN] Result: total=%d, inadim=%d", total, inadim)
                 adim = total - inadim
                 pct = round(inadim / total * 100, 1) if total else 0.0
 
@@ -1106,7 +1133,8 @@ def api_lista_alunos_latest():
                     },
                     "total_alunos": total, "inadimplentes": inadim,
                     "adimplentes": adim, "pct_inadimplencia": pct,
-                    "filtered_tipo": f_tipo,
+                    "filtered_tipo": f_tipo or None,
+                    "filtered_situacao": f_situacao or None,
                     "inad_by_polo": {}, "inad_by_curso": {}, "by_status": {},
                 })
 
