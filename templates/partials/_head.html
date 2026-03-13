@@ -5,19 +5,24 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
     <script>
         tailwind.config = {
             darkMode: 'class',
             theme: {
                 extend: {
-                    colors: { brand: '#2563eb' },
+                    colors: {
+                        primary: '#1152d4',
+                        'background-light': '#f6f6f8',
+                        'background-dark': '#101622',
+                    },
                     fontFamily: {
-                        display: ['Sora', 'sans-serif'],
+                        display: ['Inter', 'sans-serif'],
                         sans: ['Inter', 'sans-serif'],
                         mono: ['JetBrains Mono', 'monospace'],
                     },
-                    borderRadius: { '2xl': '1rem', '3xl': '1.5rem' },
+                    borderRadius: { 'xl': '0.75rem', '2xl': '1rem', '3xl': '1.5rem' },
                 }
             }
         }
@@ -30,8 +35,8 @@
 
         :root {
             /* Cores primárias */
-            --primary: #2563eb;
-            --primary-dark: #1d4ed8;
+            --primary: #1152d4;
+            --primary-dark: #0e44b3;
             --primary-light: #dbeafe;
             --secondary: #0891b2;
             --accent: #f59e0b;
@@ -95,7 +100,11 @@
             -moz-osx-font-smoothing: grayscale;
         }
 
-        h1, h2, h3, h4, h5, h6 { font-family: 'Sora', sans-serif; font-weight: 600; }
+        h1, h2, h3, h4, h5, h6 { font-family: 'Inter', sans-serif; font-weight: 700; }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
 
         .log-terminal {
             font-family: 'JetBrains Mono', 'Consolas', monospace;
@@ -517,12 +526,12 @@
 
         .light body,
         .light .bg-base {
-            background: #f8fafc !important;
+            background: #f6f6f8 !important;
             color: #0f172a !important;
         }
 
         .light {
-            --bg-main: #f8fafc;
+            --bg-main: #f6f6f8;
             --bg-card: #ffffff;
             --bg-elevated: #f1f5f9;
             --text-primary: #0f172a;
@@ -531,28 +540,33 @@
             --border: #e2e8f0;
             --border-subtle: rgba(226, 232, 240, 0.6);
             --border-hover: #cbd5e1;
-            --shadow: 0 1px 3px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.04);
-            --shadow-lg: 0 10px 15px -3px rgba(15,23,42,.08), 0 4px 6px -2px rgba(15,23,42,.04);
-            --shadow-glow: 0 0 40px rgba(37,99,235,.08);
+            --shadow: 0 1px 2px rgba(15,23,42,.04);
+            --shadow-lg: 0 4px 6px -1px rgba(15,23,42,.06), 0 2px 4px -2px rgba(15,23,42,.04);
+            --shadow-glow: 0 0 20px rgba(17,82,212,.06);
+            --radius-card: 12px;
         }
 
         /* ── Sidebar ── */
         .light .glass-sidebar {
             background: #ffffff !important;
-            border-color: transparent !important;
-            box-shadow: 4px 0 24px rgba(15,23,42,0.06), 1px 0 0 rgba(226,232,240,0.6) !important;
+            border-right: 1px solid #e2e8f0 !important;
+            box-shadow: none !important;
         }
-        .light .sidebar-link { color: #64748b; }
-        .light .sidebar-link:hover { background: #f1f5f9; color: #0f172a; }
-        .light .sidebar-link svg { color: #94a3b8; }
-        .light .sidebar-link:hover svg { color: var(--primary); }
+        .light .sidebar-link { color: #475569; }
+        .light .sidebar-link:hover { background: #f8fafc; color: #0f172a; }
+        .light .sidebar-link svg,
+        .light .sidebar-link .material-symbols-outlined { color: #94a3b8; }
+        .light .sidebar-link:hover svg,
+        .light .sidebar-link:hover .material-symbols-outlined { color: var(--primary); }
         .light .sidebar-link.active {
-            background: linear-gradient(135deg, rgba(37,99,235,0.1), rgba(37,99,235,0.05)) !important;
+            background: rgba(17,82,212,0.1) !important;
             color: var(--primary) !important;
             border-color: transparent !important;
-            box-shadow: 0 2px 8px rgba(37,99,235,0.1);
+            box-shadow: none;
+            font-weight: 600;
         }
-        .light .sidebar-link.active svg { color: var(--primary) !important; }
+        .light .sidebar-link.active svg,
+        .light .sidebar-link.active .material-symbols-outlined { color: var(--primary) !important; }
         .light #sidebar .border-slate-700\/20,
         .light #sidebar .border-t { border-color: #f1f5f9 !important; }
         .light #sidebar .text-slate-500 { color: #94a3b8 !important; }
@@ -564,23 +578,23 @@
         .light .glass-card {
             background: #ffffff !important;
             border: 1px solid #e2e8f0 !important;
-            border-radius: var(--radius-card) !important;
-            box-shadow: var(--shadow) !important;
+            border-radius: 12px !important;
+            box-shadow: 0 1px 2px rgba(15,23,42,.04) !important;
         }
         .light .glass-card:hover {
-            box-shadow: var(--shadow-lg) !important;
-            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(15,23,42,.06) !important;
+            transform: translateY(-1px);
         }
 
         /* ── Metric cards ── */
         .light .metric-card {
-            border: none !important;
-            border-radius: var(--radius-card) !important;
-            box-shadow: var(--shadow) !important;
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 12px !important;
+            box-shadow: 0 1px 2px rgba(15,23,42,.04) !important;
             background: #ffffff !important;
         }
         .light .metric-card:hover {
-            box-shadow: var(--shadow-lg) !important;
+            box-shadow: 0 4px 6px -1px rgba(15,23,42,.06) !important;
         }
         .light .metric-indigo {
             background: linear-gradient(135deg, rgba(37,99,235,0.08), rgba(37,99,235,0.02)) !important;

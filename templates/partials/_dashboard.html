@@ -1,91 +1,86 @@
             <div id="page-dashboard" class="p-4 lg:p-8 max-w-7xl mx-auto">
                 <!-- Header -->
                 <div class="mb-6">
-                    <div class="flex items-center gap-3 mb-2">
-                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z"/></svg>
-                        </div>
-                        <div>
-                            <h2 class="text-3xl font-bold text-white font-display">Dashboard</h2>
-                            <p class="text-slate-500 text-sm">Painel de controle acadêmico</p>
-                        </div>
+                    <div class="flex flex-col gap-1">
+                        <h2 class="text-2xl font-bold text-slate-900 dark:text-white font-display">Dashboard Acadêmico</h2>
+                        <p class="text-slate-500 text-sm">Visão geral da performance e crescimento institucional.</p>
                     </div>
                 </div>
 
                 <!-- ═══════ FUNIL DE VENDAS — LIVE ═══════ -->
                 <div class="mb-6">
                     <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-lg font-bold text-white font-display flex items-center gap-2">
-                            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+                        <h3 class="text-lg font-bold text-slate-900 dark:text-white font-display flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary">filter_alt</span>
                             Funil de Vendas
                         </h3>
                         <div class="flex items-center gap-3">
                             <span id="dash-funnel-ts" class="text-[10px] text-slate-500 font-mono"></span>
                             <button onclick="_dashRefreshFunnel(true)" id="dash-funnel-refresh-btn"
-                                    class="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-indigo-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                    class="text-xs text-slate-500 dark:text-slate-400 hover:text-primary border border-slate-200 dark:border-slate-700 hover:border-primary px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                                <span class="material-symbols-outlined text-sm">refresh</span>
                                 Atualizar
                             </button>
                         </div>
                     </div>
 
                     <div class="mb-4">
-                        <div class="relative rounded-2xl overflow-hidden bg-gradient-to-r from-emerald-600/20 to-teal-600/10 border border-emerald-500/20 p-4 flex items-center gap-5">
-                            <div class="flex-shrink-0 w-14 h-14 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
-                                <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                        <div class="relative rounded-xl overflow-hidden bg-white dark:bg-gradient-to-r dark:from-emerald-600/20 dark:to-teal-600/10 border border-slate-200 dark:border-emerald-500/20 p-4 flex items-center gap-5 shadow-sm">
+                            <div class="flex-shrink-0 w-14 h-14 rounded-xl bg-emerald-50 dark:bg-gradient-to-br dark:from-emerald-500 dark:to-green-600 flex items-center justify-center">
+                                <span class="material-symbols-outlined text-2xl text-emerald-600 dark:text-white">person_add</span>
                             </div>
                             <div>
-                                <p class="text-[10px] font-bold text-emerald-400/70 uppercase tracking-widest">Novos Leads Hoje</p>
-                                <p class="text-4xl font-black text-white font-display" id="dash-funnel-new">—</p>
+                                <p class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400/70 uppercase tracking-widest">Novos Leads Hoje</p>
+                                <p class="text-4xl font-black text-slate-900 dark:text-white font-display" id="dash-funnel-new">—</p>
                             </div>
                             <div class="ml-auto text-right">
                                 <p class="text-[10px] text-slate-500 uppercase tracking-wider">Total no Funil</p>
-                                <p class="text-2xl font-bold text-slate-300 font-display" id="dash-funnel-total">—</p>
+                                <p class="text-2xl font-bold text-slate-600 dark:text-slate-300 font-display" id="dash-funnel-total">—</p>
                             </div>
                         </div>
                     </div>
 
                     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4" id="dash-funnel-cards">
                         <div class="col-span-full text-center py-8 text-slate-500 text-sm flex flex-col items-center gap-3">
-                            <svg class="animate-spin h-6 w-6 text-cyan-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                            <svg class="animate-spin h-6 w-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                             Buscando dados do Kommo...
                         </div>
                     </div>
                 </div>
 
                 <!-- ══ SEÇÃO PRINCIPAL: Matrículas por Tipo de Aluno ══ -->
-                <div class="glass-card overflow-hidden mb-6">
+                <div class="bg-white dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm overflow-hidden mb-6">
                     <div class="p-5">
                         <!-- Header + Filtros visíveis -->
                         <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
-                            <h3 class="text-lg font-bold text-white font-display flex items-center gap-2">
-                                <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                            <h3 class="text-lg font-bold text-slate-900 dark:text-white font-display flex items-center gap-2">
+                                <span class="material-symbols-outlined text-violet-500 dark:text-violet-400">menu_book</span>
                                 Matrículas por Tipo de Aluno
                             </h3>
                             <div class="flex flex-wrap items-center gap-3">
-                                <div id="stu-filter-badge" class="text-[10px] text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-full border border-indigo-500/20 hidden"></div>
-                                <select id="students-ciclo" onchange="applyCicloFilter()" class="input-glass px-3 py-1.5 text-xs text-slate-300 rounded-lg">
+                                <div id="stu-filter-badge" class="text-[10px] text-primary bg-primary/10 px-2.5 py-1 rounded-full border border-primary/20 hidden"></div>
+                                <select id="students-ciclo" onchange="applyCicloFilter()" class="input-glass px-3 py-1.5 text-xs rounded-lg">
                                     <option value="">Todos os ciclos</option>
                                 </select>
-                                <select id="students-nivel" onchange="loadStudentMetrics()" class="input-glass px-3 py-1.5 text-xs text-slate-300 rounded-lg">
+                                <select id="students-nivel" onchange="loadStudentMetrics()" class="input-glass px-3 py-1.5 text-xs rounded-lg">
                                     <option value="">Todos os Níveis</option>
                                     <option value="Graduação">Graduação</option>
                                     <option value="Pós-Graduação">Pós-Graduação</option>
                                 </select>
-                                <button onclick="clearStudentFilter()" class="text-[10px] text-slate-500 hover:text-slate-300 px-2.5 py-1.5 rounded-lg border border-slate-700/30 hover:border-slate-600/50 transition-colors">Limpar</button>
-                                <button onclick="document.getElementById('stu-filters-extra').classList.toggle('hidden')" class="text-[10px] text-slate-500 hover:text-slate-300 flex items-center gap-1 transition-colors">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+                                <button onclick="clearStudentFilter()" class="text-[10px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700/30 hover:border-slate-300 dark:hover:border-slate-600/50 transition-colors">Limpar</button>
+                                <button onclick="document.getElementById('stu-filters-extra').classList.toggle('hidden')" class="text-[10px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 flex items-center gap-1 transition-colors">
+                                    <span class="material-symbols-outlined text-sm">tune</span>
                                     Mais
                                 </button>
                             </div>
                         </div>
 
                         <!-- Filtros extras (ocultos por padrão) -->
-                        <div id="stu-filters-extra" class="hidden mb-4 py-2.5 px-3 rounded-lg bg-slate-800/30 border border-slate-700/20 flex flex-wrap items-center gap-3">
+                        <div id="stu-filters-extra" class="hidden mb-4 py-2.5 px-3 rounded-lg bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/20 flex flex-wrap items-center gap-3">
                             <div id="stu-filters" class="contents">
                                 <div class="flex items-center gap-2">
                                     <label class="text-xs text-slate-500 font-medium">Situação</label>
-                                    <select id="students-situacao" onchange="loadStudentMetrics()" class="input-glass px-2.5 py-1.5 text-xs text-slate-300">
+                                    <select id="students-situacao" onchange="loadStudentMetrics()" class="input-glass px-2.5 py-1.5 text-xs">
                                         <option value="">Todas</option>
                                         <option value="Em Curso">Em Curso</option>
                                         <option value="Cancelado">Cancelado</option>
@@ -95,21 +90,21 @@
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <label class="text-xs text-slate-500 font-medium">De</label>
-                                    <input type="date" id="students-from" class="input-glass px-2.5 py-1.5 text-xs text-slate-300 w-36">
+                                    <input type="date" id="students-from" class="input-glass px-2.5 py-1.5 text-xs w-36">
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <label class="text-xs text-slate-500 font-medium">Até</label>
-                                    <input type="date" id="students-to" class="input-glass px-2.5 py-1.5 text-xs text-slate-300 w-36">
+                                    <input type="date" id="students-to" class="input-glass px-2.5 py-1.5 text-xs w-36">
                                 </div>
                                 <button type="button" onclick="loadStudentMetrics()" class="btn-primary text-xs px-3 py-1.5">Filtrar</button>
                             </div>
                         </div>
 
                         <!-- Filtro ativo (tipo/situação) -->
-                        <div id="stu-active-filter-bar" class="hidden mb-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
-                            <svg class="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
-                            <span id="stu-active-filter-text" class="text-xs text-indigo-300 font-medium"></span>
-                            <button onclick="_stuClearTipoSitFilter()" class="ml-auto text-[10px] text-slate-400 hover:text-white border border-slate-700/30 hover:border-indigo-500 px-2 py-0.5 rounded transition-all">Limpar</button>
+                        <div id="stu-active-filter-bar" class="hidden mb-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
+                            <span class="material-symbols-outlined text-sm text-primary">filter_alt</span>
+                            <span id="stu-active-filter-text" class="text-xs text-primary font-medium"></span>
+                            <button onclick="_stuClearTipoSitFilter()" class="ml-auto text-[10px] text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700/30 hover:border-primary px-2 py-0.5 rounded transition-all">Limpar</button>
                         </div>
 
                         <!-- Big numbers + subtipo (renderizados por JS) -->
@@ -118,16 +113,16 @@
                         <!-- Situação (renderizada por JS como cards visuais) -->
                         <div class="mb-5">
                             <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                                <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                <span class="material-symbols-outlined text-sm text-slate-400">check_circle</span>
                                 Por Situação
                             </h4>
-                            <div id="stu-by-situacao" class="grid grid-cols-2 lg:grid-cols-4 gap-3 text-[13px] text-slate-300">—</div>
+                            <div id="stu-by-situacao" class="grid grid-cols-2 lg:grid-cols-4 gap-3 text-[13px]">—</div>
                         </div>
 
                         <!-- Saúde Financeira (renderizado abaixo dos cards principais) -->
                         <div id="dash-inadimplencia-card" class="hidden mb-5">
                             <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                                <svg class="w-3.5 h-3.5 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                <span class="material-symbols-outlined text-sm text-teal-500 dark:text-teal-400">account_balance_wallet</span>
                                 Saúde Financeira
                                 <span id="dash-inad-date" class="text-[10px] text-slate-500 font-mono font-normal ml-auto"></span>
                             </h4>
@@ -136,42 +131,42 @@
 
                         <!-- Nível -->
                         <div class="mb-4">
-                            <div class="glass-card p-4">
+                            <div class="bg-slate-50 dark:bg-slate-800/30 rounded-xl p-4 border border-slate-100 dark:border-slate-700/20">
                                 <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Por Nível</h4>
-                                <div id="stu-by-nivel" class="space-y-2 text-[13px] text-slate-300">—</div>
+                                <div id="stu-by-nivel" class="space-y-2 text-[13px]">—</div>
                             </div>
                         </div>
 
                         <!-- Top Polos (recolhível) -->
                         <div class="mb-4">
-                            <button onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('.polo-chevron').classList.toggle('rotate-180')" class="w-full glass-card px-4 py-3 flex items-center justify-between hover:bg-white/[0.02] transition-all">
+                            <button onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('.polo-chevron').classList.toggle('rotate-180')" class="w-full bg-slate-50 dark:bg-slate-800/30 rounded-xl px-4 py-3 flex items-center justify-between hover:bg-slate-100 dark:hover:bg-white/[0.02] transition-all border border-slate-100 dark:border-slate-700/20">
                                 <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                                    <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                    <span class="material-symbols-outlined text-sm text-slate-400">location_on</span>
                                     Distribuição por Polo
                                 </h4>
-                                <svg class="w-4 h-4 text-slate-500 transition-transform polo-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                <span class="material-symbols-outlined text-base text-slate-400 transition-transform polo-chevron">expand_more</span>
                             </button>
-                            <div class="hidden glass-card border-t-0 rounded-t-none p-4">
-                                <div id="stu-by-polo" class="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px] text-slate-300">—</div>
+                            <div class="hidden bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/20 border-t-0 rounded-b-xl p-4">
+                                <div id="stu-by-polo" class="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">—</div>
                             </div>
                         </div>
                     </div>
 
                     <!-- Detalhamento (Turma, Ciclo) -->
-                    <button onclick="document.getElementById('stu-detail').classList.toggle('hidden');this.querySelector('.chevron-icon').classList.toggle('rotate-180')" class="w-full px-5 py-2 flex items-center justify-center gap-2 border-t border-slate-700/20 hover:bg-white/[0.02] transition-all text-[11px] text-slate-500">
+                    <button onclick="document.getElementById('stu-detail').classList.toggle('hidden');this.querySelector('.chevron-icon').classList.toggle('rotate-180')" class="w-full px-5 py-2 flex items-center justify-center gap-2 border-t border-slate-100 dark:border-slate-700/20 hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-all text-[11px] text-slate-500">
                         <span>Mais detalhes (Turma, Ciclo)</span>
-                        <svg class="w-3.5 h-3.5 transition-transform chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        <span class="material-symbols-outlined text-sm transition-transform chevron-icon">expand_more</span>
                     </button>
-                    <div id="stu-detail" class="hidden border-t border-slate-700/20">
+                    <div id="stu-detail" class="hidden border-t border-slate-100 dark:border-slate-700/20">
                         <div class="px-5 py-4">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div class="rounded-xl p-4 bg-slate-800/30 border border-slate-700/30">
+                                <div class="rounded-xl p-4 bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/30">
                                     <h4 class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Por Turma</h4>
-                                    <div id="stu-by-turma" class="space-y-1.5 text-[13px] text-slate-300">—</div>
+                                    <div id="stu-by-turma" class="space-y-1.5 text-[13px]">—</div>
                                 </div>
-                                <div class="rounded-xl p-4 bg-slate-800/30 border border-slate-700/30">
+                                <div class="rounded-xl p-4 bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/30">
                                     <h4 class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Por Ciclo</h4>
-                                    <div id="stu-by-ciclo" class="space-y-1.5 text-[13px] text-slate-300">—</div>
+                                    <div id="stu-by-ciclo" class="space-y-1.5 text-[13px]">—</div>
                                 </div>
                             </div>
                         </div>
@@ -179,15 +174,15 @@
                 </div>
 
                 <!-- ── Snapshot Info ── -->
-                <div class="glass-card p-4 mb-6">
+                <div class="bg-white dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm p-4 mb-6">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-lg bg-indigo-500/15 flex items-center justify-center">
-                                <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                            <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                                <span class="material-symbols-outlined text-base text-primary">database</span>
                             </div>
                             <div>
                                 <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Fonte de dados</p>
-                                <p class="text-sm font-medium text-white" id="dash-snap-info">Carregando...</p>
+                                <p class="text-sm font-medium text-slate-900 dark:text-white" id="dash-snap-info">Carregando...</p>
                             </div>
                         </div>
                         <div id="dash-process-status" class="flex items-center gap-2 text-xs text-slate-500">
@@ -197,21 +192,21 @@
                 </div>
 
                 <!-- ── Gráficos de Linha (Timeline) ── -->
-                <div class="glass-card overflow-hidden mb-6">
+                <div class="bg-white dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm overflow-hidden mb-6">
                     <div class="px-5 pt-4 pb-2">
                         <div class="flex items-center justify-between mb-3">
-                            <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                                <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+                            <h3 class="text-sm font-bold text-slate-900 dark:text-white font-display flex items-center gap-2">
+                                <span class="material-symbols-outlined text-base text-primary">show_chart</span>
                                 Evolução de Matrículas
                             </h3>
                             <div class="flex items-center gap-3">
-                                <button id="tl-drillup" onclick="timelineDrillUp()" class="hidden text-[10px] text-slate-500 hover:text-slate-300 flex items-center gap-1 transition-colors px-2 py-1 rounded border border-slate-700/30 hover:border-slate-600/50">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                                <button id="tl-drillup" onclick="timelineDrillUp()" class="hidden text-[10px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 flex items-center gap-1 transition-colors px-2 py-1 rounded border border-slate-200 dark:border-slate-700/30 hover:border-slate-300 dark:hover:border-slate-600/50">
+                                    <span class="material-symbols-outlined text-sm">arrow_back</span>
                                     Voltar (meses)
                                 </button>
-                                <button id="tl-mode-btn" onclick="toggleTlMode()" class="text-[10px] text-slate-500 hover:text-slate-300 px-2 py-1 rounded border border-slate-700/30 hover:border-slate-600/50 transition-colors">Ver Detalhado</button>
+                                <button id="tl-mode-btn" onclick="toggleTlMode()" class="text-[10px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 px-2 py-1 rounded border border-slate-200 dark:border-slate-700/30 hover:border-slate-300 dark:hover:border-slate-600/50 transition-colors">Ver Detalhado</button>
                                 <span id="tl-period-label" class="text-[10px] text-slate-500 font-mono"></span>
-                                <select id="tl-nivel" onchange="loadTimeline()" class="input-glass px-2 py-1 text-[11px] text-slate-300">
+                                <select id="tl-nivel" onchange="loadTimeline()" class="input-glass px-2 py-1 text-[11px]">
                                     <option value="">Todos os Níveis</option>
                                     <option value="Graduação">Graduação</option>
                                     <option value="Pós-Graduação">Pós-Graduação</option>
@@ -220,16 +215,16 @@
                         </div>
                     </div>
                     <div class="px-5 pb-5">
-                        <div class="rounded-xl p-4 bg-slate-800/20 border border-slate-700/20 mb-4">
+                        <div class="rounded-xl p-4 bg-slate-50 dark:bg-slate-800/20 border border-slate-100 dark:border-slate-700/20 mb-4">
                             <div class="flex items-center justify-between mb-2">
                                 <div class="flex items-center gap-4">
-                                    <p class="text-xs font-bold text-white uppercase tracking-wider">Visão Geral</p>
+                                    <p class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">Visão Geral</p>
                                     <div class="flex items-center gap-3 text-[10px]" id="tl-legend">
-                                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-indigo-400 inline-block"></span><span class="text-slate-400" id="tl-novos-label">Calouros</span> <span class="text-white font-mono font-medium" id="tl-novos-total">—</span></span>
-                                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span><span class="text-slate-400" id="tl-remat-label">Rematrículas</span> <span class="text-white font-mono font-medium" id="tl-remat-total">—</span></span>
-                                        <span id="tl-leg-regresso" class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span><span class="text-slate-400">Regresso</span> <span class="text-white font-mono font-medium" id="tl-regresso-total">—</span></span>
-                                        <span id="tl-leg-recompra" class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400 inline-block"></span><span class="text-slate-400">Recompra</span> <span class="text-white font-mono font-medium" id="tl-recompra-total">—</span></span>
-                                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-violet-400 inline-block"></span><span class="text-slate-400">Total</span> <span class="text-white font-mono font-medium" id="tl-total-total">—</span></span>
+                                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-indigo-400 inline-block"></span><span class="text-slate-500 dark:text-slate-400" id="tl-novos-label">Calouros</span> <span class="text-slate-900 dark:text-white font-mono font-medium" id="tl-novos-total">—</span></span>
+                                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span><span class="text-slate-500 dark:text-slate-400" id="tl-remat-label">Rematrículas</span> <span class="text-slate-900 dark:text-white font-mono font-medium" id="tl-remat-total">—</span></span>
+                                        <span id="tl-leg-regresso" class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span><span class="text-slate-500 dark:text-slate-400">Regresso</span> <span class="text-slate-900 dark:text-white font-mono font-medium" id="tl-regresso-total">—</span></span>
+                                        <span id="tl-leg-recompra" class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400 inline-block"></span><span class="text-slate-500 dark:text-slate-400">Recompra</span> <span class="text-slate-900 dark:text-white font-mono font-medium" id="tl-recompra-total">—</span></span>
+                                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-violet-400 inline-block"></span><span class="text-slate-500 dark:text-slate-400">Total</span> <span class="text-slate-900 dark:text-white font-mono font-medium" id="tl-total-total">—</span></span>
                                     </div>
                                 </div>
                             </div>
@@ -239,14 +234,14 @@
                 </div>
 
                 <!-- ── Master Panel: Comparação de Ciclos ── -->
-                <div class="glass-card p-5 mb-6" id="ciclo-master-panel">
+                <div class="bg-white dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm p-5 mb-6" id="ciclo-master-panel">
                     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
-                        <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                            <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        <h3 class="text-sm font-bold text-slate-900 dark:text-white font-display flex items-center gap-2">
+                            <span class="material-symbols-outlined text-base text-cyan-500 dark:text-cyan-400">compare_arrows</span>
                             Comparação de Ciclos
                         </h3>
                         <div class="flex items-center gap-2">
-                            <select id="ciclo-filter-nivel" onchange="loadCicloMaster()" class="input-glass px-2 py-1 text-[11px] text-slate-300">
+                            <select id="ciclo-filter-nivel" onchange="loadCicloMaster()" class="input-glass px-2 py-1 text-[11px]">
                                 <option value="">Todos os Níveis</option>
                                 <option value="Graduação">Graduação</option>
                                 <option value="Pós-Graduação">Pós-Graduação</option>
@@ -256,7 +251,7 @@
 
                     <div id="ciclo-master-loading" class="text-sm text-slate-500 py-4 text-center">Carregando...</div>
                     <div id="ciclo-master-empty" class="hidden text-sm text-slate-500 py-4 text-center">
-                        Nenhum ciclo configurado. <a href="#config" onclick="navigate('config')" class="text-indigo-400 hover:text-indigo-300">Configure ciclos</a>.
+                        Nenhum ciclo configurado. <a href="#config" onclick="navigate('config')" class="text-primary hover:text-primary/80">Configure ciclos</a>.
                     </div>
                     <div id="ciclo-master-content" class="hidden">
                         <div id="ciclo-temporal-cards" class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5"></div>
