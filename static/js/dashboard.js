@@ -767,7 +767,6 @@ function clearStudentFilter() {
 // Saúde Financeira (Lista de Alunos) — cards clicáveis no Dashboard
 // ---------------------------------------------------------------------------
 let _inadGeneration = 0;
-let _inadAbort = null;
 
 function _inadToggleCard(key) {
     navigate('inadimplencia');
@@ -816,10 +815,6 @@ function _inadRenderCards() {
 async function _loadInadimplenciaCard() {
     const gen = ++_inadGeneration;
 
-    if (_inadAbort) { _inadAbort.abort(); _inadAbort = null; }
-    const ctrl = new AbortController();
-    _inadAbort = ctrl;
-
     const section = document.getElementById('dash-inadimplencia-card');
     if (!section) return;
 
@@ -836,8 +831,7 @@ async function _loadInadimplenciaCard() {
         const qs = p.toString();
         const url = '/api/lista-alunos/latest' + (qs ? '?' + qs : '');
 
-        const res = await fetch(url, { signal: ctrl.signal });
-        if (res.status === 401) { window.location.href = '/login'; return; }
+        const res = await api(url);
 
         if (gen !== _inadGeneration) return;
 
@@ -846,7 +840,6 @@ async function _loadInadimplenciaCard() {
         if (gen !== _inadGeneration) return;
 
         if (!d.ok && d.error) {
-            console.error('[SF] Backend error:', d.error);
             if (cardsEl) cardsEl.style.opacity = '1';
             return;
         }
@@ -869,8 +862,6 @@ async function _loadInadimplenciaCard() {
             dateEl.textContent = label;
         }
     } catch (e) {
-        if (e.name === 'AbortError') return;
-        console.error('[SF] Exception:', e);
         if (cardsEl) cardsEl.style.opacity = '1';
     }
 }
