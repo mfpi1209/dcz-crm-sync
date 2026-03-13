@@ -460,6 +460,7 @@ const _TIPO_LABELS = {
 function _stuToggleTipo(tipo) {
     _stuActiveTipo = _stuActiveTipo === tipo ? null : tipo;
     loadStudentMetrics();
+    _loadInadimplenciaCard();
 }
 
 function _stuToggleSituacao(sit) {
@@ -478,6 +479,7 @@ function _stuClearTipoSitFilter() {
     _stuActiveSituacao = null;
     document.getElementById('students-situacao').value = '';
     loadStudentMetrics();
+    _loadInadimplenciaCard();
 }
 
 function _stuUpdateActiveFilterBar() {
@@ -757,6 +759,7 @@ function clearStudentFilter() {
     _stuActiveTipo = null;
     _stuActiveSituacao = null;
     loadStudentMetrics();
+    _loadInadimplenciaCard();
 }
 
 // ---------------------------------------------------------------------------
@@ -765,8 +768,6 @@ function clearStudentFilter() {
 let _inadActiveCard = null;
 
 function _inadToggleCard(key) {
-    _inadActiveCard = _inadActiveCard === key ? null : key;
-    _inadRenderCards();
     navigate('inadimplencia');
 }
 
@@ -819,7 +820,9 @@ function _inadRenderCards() {
 
 async function _loadInadimplenciaCard() {
     try {
-        const res = await api('/api/lista-alunos/latest');
+        let url = '/api/lista-alunos/latest';
+        if (_stuActiveTipo) url += '?tipo=' + encodeURIComponent(_stuActiveTipo);
+        const res = await api(url);
         const d = await res.json();
         const section = document.getElementById('dash-inadimplencia-card');
         if (!section) return;
@@ -830,7 +833,14 @@ async function _loadInadimplenciaCard() {
         _inadRenderCards();
 
         const dateEl = document.getElementById('dash-inad-date');
-        if (dateEl && d.snapshot) dateEl.textContent = d.snapshot.uploaded_at;
+        if (dateEl && d.snapshot) {
+            let label = d.snapshot.uploaded_at;
+            if (d.filtered_tipo) {
+                const tipoLabels = { novos: 'Calouros', rematricula: 'Rematrículas', regresso: 'Regresso', recompra: 'Recompra', novos_agg: 'Novos (Calouros+Regresso+Recompra)' };
+                label += '  ·  Filtro: ' + (tipoLabels[d.filtered_tipo] || d.filtered_tipo);
+            }
+            dateEl.textContent = label;
+        }
     } catch (e) {
         console.error('Erro ao carregar card de inadimplência:', e);
     }

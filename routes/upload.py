@@ -1036,9 +1036,22 @@ def api_inadimplencia_historico():
         conn.close()
 
 
+_TIPO_NORM = "TRANSLATE(LOWER(COALESCE(m.data->>'tipo_matricula','')), 'áàãâéèêíìîóòõôúùûçñ', 'aaaaeeeiiioooouuucn')"
+
+_TIPO_SQL_CASES = {
+    "novos":       f"({_TIPO_NORM} ~ '(matricula|calouro)' AND {_TIPO_NORM} !~ '(remat|renovacao|veterano|regresso|retorno|recompra)')",
+    "rematricula": f"{_TIPO_NORM} ~ '(remat|renovacao|veterano)'",
+    "regresso":    f"{_TIPO_NORM} ~ '(regresso|retorno)'",
+    "recompra":    f"{_TIPO_NORM} ~ 'recompra'",
+    "novos_agg":   f"(({_TIPO_NORM} ~ '(matricula|calouro)' AND {_TIPO_NORM} !~ '(remat|renovacao|veterano)') "
+                   f"OR {_TIPO_NORM} ~ '(regresso|retorno|recompra)')",
+}
+
+
 @upload_bp.route("/api/lista-alunos/latest")
 def api_lista_alunos_latest():
     """Retorna dados do ultimo snapshot de lista_alunos para o Dashboard."""
+    f_tipo = request.args.get("tipo", "").strip().lower()
     conn = get_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -1052,6 +1065,51 @@ def api_lista_alunos_latest():
                 return jsonify({"ok": True, "has_data": False})
 
             snap_id = snap["id"]
+
+            if f_tipo and f_tipo in _TIPO_SQL_CASES:
+                cur.execute("""
+                    SELECT id FROM xl_snapshots
+                    WHERE tipo = 'matriculados' ORDER BY id DESC LIMIT 1
+                """)
+                mat_snap = cur.fetchone()
+                if not mat_snap:
+                    return jsonify({"ok": True, "has_data": False})
+
+                tipo_where = _TIPO_SQL_CASES[f_tipo]
+                cur.execute(f"""
+                    SELECT
+                        COUNT(*) AS total_alunos,
+                        SUM(CASE WHEN la.data->>'inadimplente' = 'sim' THEN 1 ELSE 0 END) AS inadimplentes
+                    FROM xl_rows la
+                    INNER JOIN (
+                        SELECT DISTINCT m.data->>'rgm_digits' AS rgm
+                        FROM xl_rows m
+                        WHERE m.snapshot_id = %s
+                          AND COALESCE(m.data->>'rgm_digits', '') != ''
+                          AND ({tipo_where})
+                    ) mat ON mat.rgm = la.data->>'rgm_digits'
+                    WHERE la.snapshot_id = %s
+                      AND COALESCE(la.data->>'rgm_digits', '') != ''
+                """, (mat_snap["id"], snap_id))
+                row = cur.fetchone()
+                total = int(row["total_alunos"] or 0)
+                inadim = int(row["inadimplentes"] or 0)
+                adim = total - inadim
+                pct = round(inadim / total * 100, 1) if total else 0.0
+
+                return jsonify({
+                    "ok": True, "has_data": True,
+                    "snapshot": {
+                        "id": snap["id"], "filename": snap["filename"],
+                        "row_count": snap["row_count"],
+                        "uploaded_at": to_brt(snap["uploaded_at"]),
+                    },
+                    "total_alunos": total, "inadimplentes": inadim,
+                    "adimplentes": adim, "pct_inadimplencia": pct,
+                    "filtered_tipo": f_tipo,
+                    "inad_by_polo": {}, "inad_by_curso": {}, "by_status": {},
+                })
+
             cur.execute("""
                 SELECT metric, value, detail
                 FROM xl_snapshot_stats WHERE snapshot_id = %s
