@@ -1,10 +1,8 @@
-            <div id="page-dashboard" class="p-4 lg:p-8 max-w-7xl mx-auto">
+            <div id="page-dashboard" class="p-4 lg:p-8 max-w-7xl mx-auto space-y-8">
                 <!-- Header -->
-                <div class="mb-6">
-                    <div class="flex flex-col gap-1">
-                        <h2 class="text-2xl font-bold text-slate-900 dark:text-white font-display">Dashboard Acadêmico</h2>
-                        <p class="text-slate-500 text-sm">Visão geral da performance e crescimento institucional.</p>
-                    </div>
+                <div>
+                    <h2 class="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white font-display">Dashboard <span class="text-primary">Acadêmico</span></h2>
+                    <p class="text-slate-500 dark:text-slate-400 text-sm mt-1">Visão geral da performance e crescimento institucional.</p>
                 </div>
 
                 <!-- ═══════ FUNIL DE VENDAS — LIVE ═══════ -->
@@ -25,18 +23,21 @@
                     </div>
 
                     <div class="mb-4">
-                        <div class="relative rounded-xl overflow-hidden bg-white dark:bg-gradient-to-r dark:from-emerald-600/20 dark:to-teal-600/10 border border-slate-200 dark:border-emerald-500/20 p-4 flex items-center gap-5 shadow-sm">
-                            <div class="flex-shrink-0 w-14 h-14 rounded-xl bg-emerald-50 dark:bg-gradient-to-br dark:from-emerald-500 dark:to-green-600 flex items-center justify-center">
-                                <span class="material-symbols-outlined text-2xl text-emerald-600 dark:text-white">person_add</span>
+                        <div class="relative overflow-hidden group rounded-3xl">
+                            <div class="bg-white dark:bg-gradient-to-r dark:from-accent-emerald/20 dark:via-surface-dark dark:to-surface-dark border border-slate-200 dark:border-accent-emerald/30 p-6 flex items-center gap-5 shadow-sm rounded-3xl relative z-10">
+                                <div class="flex-shrink-0 w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-accent-emerald/20 flex items-center justify-center">
+                                    <span class="material-symbols-outlined text-2xl text-emerald-600 dark:text-accent-emerald">person_add</span>
+                                </div>
+                                <div>
+                                    <p class="text-[10px] font-bold text-emerald-600 dark:text-accent-emerald uppercase tracking-widest">Novos Leads Hoje</p>
+                                    <p class="text-4xl font-black text-slate-900 dark:text-white font-display" id="dash-funnel-new">—</p>
+                                </div>
+                                <div class="ml-auto text-right">
+                                    <p class="text-[10px] text-slate-500 uppercase tracking-wider">Total no Funil</p>
+                                    <p class="text-2xl font-bold text-slate-600 dark:text-slate-300 font-display" id="dash-funnel-total">—</p>
+                                </div>
                             </div>
-                            <div>
-                                <p class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400/70 uppercase tracking-widest">Novos Leads Hoje</p>
-                                <p class="text-4xl font-black text-slate-900 dark:text-white font-display" id="dash-funnel-new">—</p>
-                            </div>
-                            <div class="ml-auto text-right">
-                                <p class="text-[10px] text-slate-500 uppercase tracking-wider">Total no Funil</p>
-                                <p class="text-2xl font-bold text-slate-600 dark:text-slate-300 font-display" id="dash-funnel-total">—</p>
-                            </div>
+                            <div class="absolute -right-6 -bottom-6 w-40 h-40 bg-accent-emerald/10 rounded-full blur-3xl group-hover:bg-accent-emerald/20 transition-all"></div>
                         </div>
                     </div>
 
@@ -49,7 +50,7 @@
                 </div>
 
                 <!-- ══ SEÇÃO PRINCIPAL: Matrículas por Tipo de Aluno ══ -->
-                <div class="bg-white dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm overflow-hidden mb-6">
+                <div class="glass-card gradient-border rounded-3xl overflow-hidden">
                     <div class="p-5">
                         <!-- Header + Filtros visíveis -->
                         <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
@@ -76,7 +77,7 @@
                         </div>
 
                         <!-- Filtros extras (ocultos por padrão) -->
-                        <div id="stu-filters-extra" class="hidden mb-4 py-2.5 px-3 rounded-lg bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/20 flex flex-wrap items-center gap-3">
+                        <div id="stu-filters-extra" class="hidden mb-4 py-2.5 px-3 rounded-2xl bg-slate-50 dark:bg-slate-800/20 border border-slate-100 dark:border-white/5 flex flex-wrap items-center gap-3">
                             <div id="stu-filters" class="contents">
                                 <div class="flex items-center gap-2">
                                     <label class="text-xs text-slate-500 font-medium">Situação</label>
@@ -131,7 +132,7 @@
 
                         <!-- Nível -->
                         <div class="mb-4">
-                            <div class="bg-slate-50 dark:bg-slate-800/30 rounded-xl p-4 border border-slate-100 dark:border-slate-700/20">
+                            <div class="bg-slate-50 dark:bg-slate-800/20 rounded-2xl p-4 border border-slate-100 dark:border-white/5">
                                 <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Por Nível</h4>
                                 <div id="stu-by-nivel" class="space-y-2 text-[13px]">—</div>
                             </div>
@@ -139,14 +140,14 @@
 
                         <!-- Top Polos (recolhível) -->
                         <div class="mb-4">
-                            <button onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('.polo-chevron').classList.toggle('rotate-180')" class="w-full bg-slate-50 dark:bg-slate-800/30 rounded-xl px-4 py-3 flex items-center justify-between hover:bg-slate-100 dark:hover:bg-white/[0.02] transition-all border border-slate-100 dark:border-slate-700/20">
+                            <button onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('.polo-chevron').classList.toggle('rotate-180')" class="w-full bg-slate-50 dark:bg-slate-800/20 rounded-2xl px-4 py-3 flex items-center justify-between hover:bg-slate-100 dark:hover:bg-white/[0.02] transition-all border border-slate-100 dark:border-white/5">
                                 <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
                                     <span class="material-symbols-outlined text-sm text-slate-400">location_on</span>
                                     Distribuição por Polo
                                 </h4>
                                 <span class="material-symbols-outlined text-base text-slate-400 transition-transform polo-chevron">expand_more</span>
                             </button>
-                            <div class="hidden bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/20 border-t-0 rounded-b-xl p-4">
+                            <div class="hidden bg-slate-50 dark:bg-slate-800/20 border border-slate-100 dark:border-white/5 border-t-0 rounded-b-2xl p-4">
                                 <div id="stu-by-polo" class="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">—</div>
                             </div>
                         </div>
@@ -160,11 +161,11 @@
                     <div id="stu-detail" class="hidden border-t border-slate-100 dark:border-slate-700/20">
                         <div class="px-5 py-4">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div class="rounded-xl p-4 bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/30">
+                                <div class="rounded-2xl p-4 bg-slate-50 dark:bg-slate-800/20 border border-slate-100 dark:border-white/5">
                                     <h4 class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Por Turma</h4>
                                     <div id="stu-by-turma" class="space-y-1.5 text-[13px]">—</div>
                                 </div>
-                                <div class="rounded-xl p-4 bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/30">
+                                <div class="rounded-2xl p-4 bg-slate-50 dark:bg-slate-800/20 border border-slate-100 dark:border-white/5">
                                     <h4 class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Por Ciclo</h4>
                                     <div id="stu-by-ciclo" class="space-y-1.5 text-[13px]">—</div>
                                 </div>
@@ -174,7 +175,7 @@
                 </div>
 
                 <!-- ── Snapshot Info ── -->
-                <div class="bg-white dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm p-4 mb-6">
+                <div class="glass-card rounded-3xl p-4">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-3">
                             <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -192,7 +193,7 @@
                 </div>
 
                 <!-- ── Gráficos de Linha (Timeline) ── -->
-                <div class="bg-white dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm overflow-hidden mb-6">
+                <div class="glass-card gradient-border rounded-3xl overflow-hidden">
                     <div class="px-5 pt-4 pb-2">
                         <div class="flex items-center justify-between mb-3">
                             <h3 class="text-sm font-bold text-slate-900 dark:text-white font-display flex items-center gap-2">
@@ -215,7 +216,7 @@
                         </div>
                     </div>
                     <div class="px-5 pb-5">
-                        <div class="rounded-xl p-4 bg-slate-50 dark:bg-slate-800/20 border border-slate-100 dark:border-slate-700/20 mb-4">
+                        <div class="rounded-2xl p-4 bg-slate-50 dark:bg-slate-800/20 border border-slate-100 dark:border-white/5 mb-4">
                             <div class="flex items-center justify-between mb-2">
                                 <div class="flex items-center gap-4">
                                     <p class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">Visão Geral</p>
@@ -234,7 +235,7 @@
                 </div>
 
                 <!-- ── Master Panel: Comparação de Ciclos ── -->
-                <div class="bg-white dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm p-5 mb-6" id="ciclo-master-panel">
+                <div class="glass-card gradient-border rounded-3xl p-5" id="ciclo-master-panel">
                     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
                         <h3 class="text-sm font-bold text-slate-900 dark:text-white font-display flex items-center gap-2">
                             <span class="material-symbols-outlined text-base text-cyan-500 dark:text-cyan-400">compare_arrows</span>

@@ -297,20 +297,22 @@ function renderCicloMaster(data) {
         const prevTotal = prev.grand_total || 0;
         const ch = pct(total, prevTotal);
         const t = cur.totals || {};
-        return `<div class="bg-white dark:bg-slate-900/60 rounded-xl p-3.5 border border-slate-200 dark:border-${borderC}/20 shadow-sm">
-            <div class="flex items-center justify-between mb-1">
-                <span class="text-[10px] font-bold text-${accent} uppercase tracking-wider">${label}</span>
-                <span class="text-[10px] font-bold ${ch.cls} bg-slate-50 dark:bg-transparent px-1.5 py-0.5 rounded-full">${ch.txt}</span>
+        return `<div class="relative overflow-hidden group">
+            <div class="glass-card p-4 rounded-3xl h-full relative z-10">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-[10px] font-bold text-${accent} uppercase tracking-wider">${label}</span>
+                    <span class="text-[10px] font-bold ${ch.cls} px-2 py-0.5 rounded-full bg-slate-800/30">${ch.txt}</span>
+                </div>
+                <p class="text-[9px] text-slate-500 mb-1.5">${period}</p>
+                <p class="text-xl font-black text-white font-display mb-1.5">${fmt(total)}</p>
+                <div class="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px]">
+                    <div class="flex justify-between"><span class="text-slate-500">Novos</span><span class="text-slate-300 font-medium">${fmt(t.novos||0)}</span></div>
+                    <div class="flex justify-between"><span class="text-slate-500">${rematLabel}</span><span class="text-slate-300 font-medium">${fmt(t.rematricula||0)}</span></div>
+                    <div class="flex justify-between"><span class="text-slate-500">Regresso</span><span class="text-slate-300 font-medium">${fmt(t.regresso||0)}</span></div>
+                    <div class="flex justify-between"><span class="text-slate-500">Recompra</span><span class="text-slate-300 font-medium">${fmt(t.recompra||0)}</span></div>
+                </div>
+                <div class="mt-1.5 pt-1.5 border-t border-white/5 text-[9px] text-slate-500">vs anterior: <span class="text-slate-400 font-medium">${fmt(prevTotal)}</span></div>
             </div>
-            <p class="text-[9px] text-slate-400 dark:text-slate-600 mb-1.5">${period}</p>
-            <p class="text-xl font-bold text-slate-900 dark:text-white font-display mb-1.5">${fmt(total)}</p>
-            <div class="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px]">
-                <div class="flex justify-between"><span class="text-slate-500">Novos</span><span class="text-slate-700 dark:text-slate-300 font-medium">${fmt(t.novos||0)}</span></div>
-                <div class="flex justify-between"><span class="text-slate-500">${rematLabel}</span><span class="text-slate-700 dark:text-slate-300 font-medium">${fmt(t.rematricula||0)}</span></div>
-                <div class="flex justify-between"><span class="text-slate-500">Regresso</span><span class="text-slate-700 dark:text-slate-300 font-medium">${fmt(t.regresso||0)}</span></div>
-                <div class="flex justify-between"><span class="text-slate-500">Recompra</span><span class="text-slate-700 dark:text-slate-300 font-medium">${fmt(t.recompra||0)}</span></div>
-            </div>
-            <div class="mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-700/20 text-[9px] text-slate-400 dark:text-slate-600">vs anterior: <span class="text-slate-600 dark:text-slate-400 font-medium">${fmt(prevTotal)}</span></div>
         </div>`;
     }
 
@@ -340,8 +342,8 @@ function renderCicloMaster(data) {
         const cardRematShort = cardIsPos ? 'Veteranos' : 'Rematr.';
         const cardRematFull  = cardIsPos ? 'Veteranos' : 'Rematrículas';
 
-        return `<div class="bg-white dark:bg-slate-900/40 rounded-xl border border-slate-200 dark:border-${color}-500/20 shadow-sm overflow-hidden">
-            <button onclick="document.getElementById('${id}').classList.toggle('hidden')" class="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-all">
+        return `<div class="glass-card rounded-3xl overflow-hidden border-${color}-500/20">
+            <button onclick="document.getElementById('${id}').classList.toggle('hidden')" class="w-full px-4 py-3 flex items-center justify-between hover:bg-white/[0.02] transition-all">
                 <div class="flex items-center gap-4 min-w-0">
                     <div class="flex items-center gap-2">
                         <span class="text-xs font-bold text-${color}-600 dark:text-${color}-400 uppercase tracking-wider">${esc(c.nome)}</span>
@@ -360,8 +362,8 @@ function renderCicloMaster(data) {
                     <span class="material-symbols-outlined text-base text-slate-400">expand_more</span>
                 </div>
             </button>
-            <div class="relative h-0.5 bg-slate-100 dark:bg-slate-800/40"><div class="h-0.5 bg-${color}-500" style="width:${barW}%"></div></div>
-            <div id="${id}" class="hidden px-4 py-3 bg-slate-50 dark:bg-slate-900/30">
+            <div class="relative h-0.5 bg-slate-800/40"><div class="h-0.5 bg-${color}-500" style="width:${barW}%"></div></div>
+            <div id="${id}" class="hidden px-4 py-3 bg-slate-800/20">
                 <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
                         <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Por Tipo</p>
@@ -370,7 +372,7 @@ function renderCicloMaster(data) {
                             <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400">${cardRematFull}</span><span class="text-slate-900 dark:text-white font-mono">${fmt(t.rematricula||0)}</span></div>
                             <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400">Regresso</span><span class="text-slate-900 dark:text-white font-mono">${fmt(t.regresso||0)}</span></div>
                             <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400">Recompra</span><span class="text-slate-900 dark:text-white font-mono">${fmt(t.recompra||0)}</span></div>
-                            <div class="flex justify-between border-t border-slate-200 dark:border-slate-700/30 pt-1 mt-1"><span class="text-slate-900 dark:text-white font-bold">Total</span><span class="text-slate-900 dark:text-white font-mono font-bold">${fmt(c.grand_total)}</span></div>
+                            <div class="flex justify-between border-t border-white/5 pt-1 mt-1"><span class="text-white font-bold">Total</span><span class="text-white font-mono font-bold">${fmt(c.grand_total)}</span></div>
                         </div>
                     </div>
                     <div>
@@ -540,58 +542,66 @@ async function loadStudentMetrics() {
         const isRegresso = _stuActiveTipo === 'regresso';
         const isRecompra = _stuActiveTipo === 'recompra';
 
-        const ringActive = 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 scale-[1.02]';
+        const ringActive = 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-[#0a0e17] scale-[1.02]';
 
         const pctNovos = gt ? Math.round(novosAgg / gt * 100) : 0;
         const pctRemat = gt ? Math.round(remat / gt * 100) : 0;
 
         stuContainer.innerHTML = `
             <div class="flex items-center justify-end mb-3">
-                <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700/20">
-                    <span class="material-symbols-outlined text-base text-violet-500 dark:text-violet-400">groups</span>
+                <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-white/5">
+                    <span class="material-symbols-outlined text-base text-primary">groups</span>
                     <span class="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Total</span>
-                    <span class="text-lg font-bold text-slate-900 dark:text-white font-display">${fmt(gt)}</span>
+                    <span class="text-lg font-extrabold text-slate-900 dark:text-white font-display">${fmt(gt)}</span>
                 </div>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                 <!-- Big Number: Novos -->
-                <div class="bg-white dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm relative overflow-hidden cursor-pointer transition-all hover:shadow-md ${isNovosAgg ? ringActive + ' ring-blue-500' : ''}"
+                <div class="relative overflow-hidden group cursor-pointer transition-all hover:scale-[1.01] ${isNovosAgg ? ringActive + ' ring-primary' : ''}"
                      onclick="_stuToggleTipo('novos_agg')">
-                    <div class="flex items-center justify-between mb-4">
-                        <span class="p-2 bg-blue-50 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400 rounded-lg material-symbols-outlined">person_add</span>
-                        <span class="text-blue-600 dark:text-blue-400 text-xs font-bold bg-blue-50 dark:bg-blue-500/10 px-2 py-1 rounded-full">${pctNovos}%</span>
+                    <div class="p-6 rounded-3xl bg-white dark:bg-gradient-to-br dark:from-primary/20 dark:to-surface-dark border border-slate-200 dark:border-primary/30 shadow-sm h-full relative z-10">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="p-3 bg-blue-50 dark:bg-primary/20 rounded-2xl">
+                                <span class="material-symbols-outlined text-blue-600 dark:text-primary">person_add</span>
+                            </div>
+                            <span class="px-3 py-1 bg-blue-50 dark:bg-primary/20 text-blue-600 dark:text-primary text-xs font-bold rounded-full uppercase tracking-wider">${pctNovos}%</span>
+                        </div>
+                        <p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Novos</p>
+                        <p class="text-3xl font-black text-slate-900 dark:text-white mt-1">${fmt(novosAgg)}</p>
+                        <div class="grid grid-cols-3 gap-2 mt-4">
+                            <div class="rounded-xl px-3 py-2 cursor-pointer transition-all ${isNovos ? 'bg-blue-50 dark:bg-primary/20 ring-1 ring-blue-300 dark:ring-primary/50' : 'bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-100 dark:hover:bg-slate-800/50'}"
+                                 onclick="event.stopPropagation(); _stuToggleTipo('novos')">
+                                <p class="text-[9px] text-slate-500 uppercase tracking-wider font-bold">Calouros</p>
+                                <p class="text-lg font-bold text-slate-900 dark:text-white font-display">${fmt(t.novos || 0)}</p>
+                            </div>
+                            <div class="rounded-xl px-3 py-2 cursor-pointer transition-all ${isRegresso ? 'bg-amber-50 dark:bg-amber-500/20 ring-1 ring-amber-300 dark:ring-amber-400/50' : 'bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-100 dark:hover:bg-slate-800/50'}"
+                                 onclick="event.stopPropagation(); _stuToggleTipo('regresso')">
+                                <p class="text-[9px] text-amber-600 dark:text-amber-400 uppercase tracking-wider font-bold">Regresso</p>
+                                <p class="text-lg font-bold text-slate-900 dark:text-white font-display">${fmt(t.regresso || 0)}</p>
+                            </div>
+                            <div class="rounded-xl px-3 py-2 cursor-pointer transition-all ${isRecompra ? 'bg-cyan-50 dark:bg-accent-cyan/20 ring-1 ring-cyan-300 dark:ring-accent-cyan/50' : 'bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-100 dark:hover:bg-slate-800/50'}"
+                                 onclick="event.stopPropagation(); _stuToggleTipo('recompra')">
+                                <p class="text-[9px] text-cyan-600 dark:text-accent-cyan uppercase tracking-wider font-bold">Recompra</p>
+                                <p class="text-lg font-bold text-slate-900 dark:text-white font-display">${fmt(t.recompra || 0)}</p>
+                            </div>
+                        </div>
                     </div>
-                    <p class="text-slate-500 text-sm font-medium">Novos</p>
-                    <p class="text-[10px] text-slate-400 mb-1">Calouros + Regresso + Recompra</p>
-                    <p class="text-3xl font-black text-slate-900 dark:text-white mt-1">${fmt(novosAgg)}</p>
-                    <div class="grid grid-cols-3 gap-2 mt-4">
-                        <div class="rounded-lg px-3 py-2 cursor-pointer transition-all ${isNovos ? 'bg-blue-50 dark:bg-indigo-500/20 ring-1 ring-blue-300 dark:ring-indigo-400/50' : 'bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-700/40'}"
-                             onclick="event.stopPropagation(); _stuToggleTipo('novos')">
-                            <p class="text-[9px] text-slate-500 uppercase tracking-wider font-bold">Calouros</p>
-                            <p class="text-lg font-bold text-slate-900 dark:text-white font-display">${fmt(t.novos || 0)}</p>
-                        </div>
-                        <div class="rounded-lg px-3 py-2 cursor-pointer transition-all ${isRegresso ? 'bg-amber-50 dark:bg-amber-500/20 ring-1 ring-amber-300 dark:ring-amber-400/50' : 'bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-700/40'}"
-                             onclick="event.stopPropagation(); _stuToggleTipo('regresso')">
-                            <p class="text-[9px] text-amber-600 dark:text-amber-500/70 uppercase tracking-wider font-bold">Regresso</p>
-                            <p class="text-lg font-bold text-slate-900 dark:text-white font-display">${fmt(t.regresso || 0)}</p>
-                        </div>
-                        <div class="rounded-lg px-3 py-2 cursor-pointer transition-all ${isRecompra ? 'bg-cyan-50 dark:bg-cyan-500/20 ring-1 ring-cyan-300 dark:ring-cyan-400/50' : 'bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-700/40'}"
-                             onclick="event.stopPropagation(); _stuToggleTipo('recompra')">
-                            <p class="text-[9px] text-cyan-600 dark:text-cyan-500/70 uppercase tracking-wider font-bold">Recompra</p>
-                            <p class="text-lg font-bold text-slate-900 dark:text-white font-display">${fmt(t.recompra || 0)}</p>
-                        </div>
-                    </div>
+                    <div class="absolute -right-4 -bottom-4 w-32 h-32 bg-primary/10 rounded-full blur-3xl group-hover:bg-primary/20 transition-all"></div>
                 </div>
                 <!-- Big Number: Rematrículas -->
-                <div class="bg-white dark:bg-slate-900/60 p-6 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm relative overflow-hidden cursor-pointer transition-all hover:shadow-md ${isRemat ? ringActive + ' ring-emerald-500' : ''}"
+                <div class="relative overflow-hidden group cursor-pointer transition-all hover:scale-[1.01] ${isRemat ? ringActive + ' ring-accent-emerald' : ''}"
                      onclick="_stuToggleTipo('rematricula')">
-                    <div class="flex items-center justify-between mb-4">
-                        <span class="p-2 bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 rounded-lg material-symbols-outlined">autorenew</span>
-                        <span class="text-emerald-600 dark:text-emerald-400 text-xs font-bold bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-full">${pctRemat}%</span>
+                    <div class="p-6 rounded-3xl bg-white dark:bg-gradient-to-br dark:from-accent-emerald/20 dark:to-surface-dark border border-slate-200 dark:border-accent-emerald/30 shadow-sm h-full relative z-10">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="p-3 bg-emerald-50 dark:bg-accent-emerald/20 rounded-2xl">
+                                <span class="material-symbols-outlined text-emerald-600 dark:text-accent-emerald">autorenew</span>
+                            </div>
+                            <span class="px-3 py-1 bg-emerald-50 dark:bg-accent-emerald/20 text-emerald-600 dark:text-accent-emerald text-xs font-bold rounded-full uppercase tracking-wider">${pctRemat}%</span>
+                        </div>
+                        <p class="text-slate-500 dark:text-slate-400 text-sm font-medium">${esc(stuRematLabel)}</p>
+                        <p class="text-3xl font-black text-slate-900 dark:text-white mt-1">${fmt(remat)}</p>
                     </div>
-                    <p class="text-slate-500 text-sm font-medium">${esc(stuRematLabel)}</p>
-                    <p class="text-[10px] text-slate-400 mb-1">Renovações de matrícula</p>
-                    <p class="text-3xl font-black text-slate-900 dark:text-white mt-1">${fmt(remat)}</p>
+                    <div class="absolute -right-4 -bottom-4 w-32 h-32 bg-accent-emerald/10 rounded-full blur-3xl group-hover:bg-accent-emerald/20 transition-all"></div>
                 </div>
             </div>`;
 
@@ -691,7 +701,7 @@ function _renderSituacaoCardsClickable(elId, data) {
         .filter(Boolean)
         .concat(keys.filter(k => !_sitOrder.includes(k.toLowerCase())));
 
-    const ringActive = 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 scale-[1.02]';
+    const ringActive = 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-[#0a0e17] scale-[1.02]';
 
     el.innerHTML = ordered.map(k => {
         const v = data[k];
@@ -701,18 +711,22 @@ function _renderSituacaoCardsClickable(elId, data) {
         const isActive = _stuActiveSituacao === k;
         const activeRing = isActive ? `${ringActive} ring-${c.text}-500` : '';
 
-        return `<div class="bg-white dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm relative overflow-hidden cursor-pointer transition-all hover:shadow-md ${activeRing}"
+        return `<div class="relative overflow-hidden group cursor-pointer transition-all hover:scale-[1.01] ${activeRing}"
                      onclick="_stuToggleSituacao('${esc(k)}')">
-            <div class="flex items-center justify-between mb-3">
-                <span class="p-2 bg-${c.bg}-50 dark:bg-${c.bg}-500/15 text-${c.text}-600 dark:text-${c.text}-400 rounded-lg material-symbols-outlined">${icon}</span>
-                <span class="text-${c.text}-600 dark:text-${c.text}-400 text-xs font-bold bg-${c.bg}-50 dark:bg-${c.bg}-500/10 px-2 py-1 rounded-full">${pct}%</span>
+            <div class="p-5 rounded-3xl bg-white dark:bg-gradient-to-br dark:from-${c.bg}-500/20 dark:to-surface-dark border border-slate-200 dark:border-${c.bg}-500/30 shadow-sm h-full relative z-10">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="p-3 bg-${c.bg}-50 dark:bg-${c.bg}-500/20 rounded-2xl">
+                        <span class="material-symbols-outlined text-${c.text}-600 dark:text-${c.text}-400">${icon}</span>
+                    </div>
+                    <span class="px-3 py-1 bg-${c.bg}-50 dark:bg-${c.bg}-500/20 text-${c.text}-600 dark:text-${c.text}-400 text-xs font-bold rounded-full uppercase tracking-wider">${pct}%</span>
+                </div>
+                <p class="text-slate-500 dark:text-slate-400 text-sm font-medium">${esc(k)}</p>
+                <p class="text-2xl font-black text-slate-900 dark:text-white mt-1">${v.toLocaleString('pt-BR')}</p>
+                <div class="w-full h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 mt-3">
+                    <div class="h-1.5 rounded-full bg-${c.from} transition-all" style="width:${Math.min(pct,100)}%"></div>
+                </div>
             </div>
-            <p class="text-slate-500 text-sm font-medium">${esc(k)}</p>
-            <p class="text-[10px] text-slate-400 mb-1">${c.desc}</p>
-            <p class="text-2xl font-black text-slate-900 dark:text-white mt-1">${v.toLocaleString('pt-BR')}</p>
-            <div class="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-700/50 mt-3">
-                <div class="h-2 rounded-full bg-${c.from} transition-all" style="width:${Math.min(pct,100)}%"></div>
-            </div>
+            <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-${c.bg}-500/10 rounded-full blur-3xl group-hover:bg-${c.bg}-500/20 transition-all"></div>
         </div>`;
     }).join('');
 }
@@ -766,42 +780,62 @@ function _inadRenderCards() {
     const pctAdim = d.total_alunos ? ((d.adimplentes / d.total_alunos) * 100).toFixed(1) : '0';
 
     container.innerHTML = `
-        <div class="bg-white dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer transition-all hover:shadow-md"
+        <div class="relative overflow-hidden group cursor-pointer transition-all hover:scale-[1.01]"
              onclick="_inadToggleCard('total')">
-            <div class="flex items-center justify-between mb-3">
-                <span class="p-2 bg-teal-50 dark:bg-teal-500/15 text-teal-600 dark:text-teal-400 rounded-lg material-symbols-outlined">group</span>
+            <div class="p-5 rounded-3xl bg-white dark:bg-gradient-to-br dark:from-accent-cyan/20 dark:to-surface-dark border border-slate-200 dark:border-accent-cyan/30 shadow-sm h-full relative z-10">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="p-3 bg-teal-50 dark:bg-accent-cyan/20 rounded-2xl">
+                        <span class="material-symbols-outlined text-teal-600 dark:text-accent-cyan">group</span>
+                    </div>
+                </div>
+                <p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Total Alunos</p>
+                <p class="text-2xl font-black text-slate-900 dark:text-white mt-1">${fmt(d.total_alunos)}</p>
             </div>
-            <p class="text-slate-500 text-sm font-medium">Total Alunos</p>
-            <p class="text-2xl font-black text-slate-900 dark:text-white mt-1">${fmt(d.total_alunos)}</p>
+            <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-accent-cyan/10 rounded-full blur-3xl group-hover:bg-accent-cyan/20 transition-all"></div>
         </div>
-        <div class="bg-white dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer transition-all hover:shadow-md"
+        <div class="relative overflow-hidden group cursor-pointer transition-all hover:scale-[1.01]"
              onclick="_inadToggleCard('adim')">
-            <div class="flex items-center justify-between mb-3">
-                <span class="p-2 bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 rounded-lg material-symbols-outlined">check_circle</span>
-                <span class="text-emerald-600 dark:text-emerald-400 text-xs font-bold bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-full">${pctAdim.replace('.', ',')}%</span>
+            <div class="p-5 rounded-3xl bg-white dark:bg-gradient-to-br dark:from-accent-emerald/20 dark:to-surface-dark border border-slate-200 dark:border-accent-emerald/30 shadow-sm h-full relative z-10">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="p-3 bg-emerald-50 dark:bg-accent-emerald/20 rounded-2xl">
+                        <span class="material-symbols-outlined text-emerald-600 dark:text-accent-emerald">check_circle</span>
+                    </div>
+                    <span class="px-3 py-1 bg-emerald-50 dark:bg-accent-emerald/20 text-emerald-600 dark:text-accent-emerald text-xs font-bold rounded-full uppercase tracking-wider">${pctAdim.replace('.', ',')}%</span>
+                </div>
+                <p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Adimplentes</p>
+                <p class="text-2xl font-black text-emerald-600 dark:text-accent-emerald mt-1">${fmt(d.adimplentes)}</p>
             </div>
-            <p class="text-slate-500 text-sm font-medium">Adimplentes</p>
-            <p class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">${fmt(d.adimplentes)}</p>
+            <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-accent-emerald/10 rounded-full blur-3xl group-hover:bg-accent-emerald/20 transition-all"></div>
         </div>
-        <div class="bg-white dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer transition-all hover:shadow-md"
+        <div class="relative overflow-hidden group cursor-pointer transition-all hover:scale-[1.01]"
              onclick="_inadToggleCard('inadim')">
-            <div class="flex items-center justify-between mb-3">
-                <span class="p-2 bg-amber-50 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400 rounded-lg material-symbols-outlined">warning</span>
-                <span class="text-amber-600 dark:text-amber-400 text-xs font-bold bg-amber-50 dark:bg-amber-500/10 px-2 py-1 rounded-full">${pct.toFixed(1).replace('.', ',')}%</span>
+            <div class="p-5 rounded-3xl bg-white dark:bg-gradient-to-br dark:from-amber-500/20 dark:to-surface-dark border border-slate-200 dark:border-amber-500/30 shadow-sm h-full relative z-10">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="p-3 bg-amber-50 dark:bg-amber-500/20 rounded-2xl">
+                        <span class="material-symbols-outlined text-amber-600 dark:text-amber-400">warning</span>
+                    </div>
+                    <span class="px-3 py-1 bg-amber-50 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 text-xs font-bold rounded-full uppercase tracking-wider">${pct.toFixed(1).replace('.', ',')}%</span>
+                </div>
+                <p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Inadimplentes</p>
+                <p class="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">${fmt(d.inadimplentes)}</p>
             </div>
-            <p class="text-slate-500 text-sm font-medium">Inadimplentes</p>
-            <p class="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">${fmt(d.inadimplentes)}</p>
+            <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-amber-500/10 rounded-full blur-3xl group-hover:bg-amber-500/20 transition-all"></div>
         </div>
-        <div class="bg-white dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer transition-all hover:shadow-md"
+        <div class="relative overflow-hidden group cursor-pointer transition-all hover:scale-[1.01]"
              onclick="_inadToggleCard('pct')">
-            <div class="flex items-center justify-between mb-3">
-                <span class="p-2 bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400 rounded-lg material-symbols-outlined">percent</span>
+            <div class="p-5 rounded-3xl bg-white dark:bg-gradient-to-br dark:from-rose-500/20 dark:to-surface-dark border border-slate-200 dark:border-rose-500/30 shadow-sm h-full relative z-10">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="p-3 bg-rose-50 dark:bg-rose-500/20 rounded-2xl">
+                        <span class="material-symbols-outlined text-rose-600 dark:text-rose-400">percent</span>
+                    </div>
+                </div>
+                <p class="text-slate-500 dark:text-slate-400 text-sm font-medium">% Inadimplência</p>
+                <p class="text-2xl font-black text-slate-900 dark:text-white mt-1">${pct.toFixed(1).replace('.', ',')}%</p>
+                <div class="w-full h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 mt-3">
+                    <div class="h-1.5 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 transition-all" style="width:${Math.min(pct, 100)}%"></div>
+                </div>
             </div>
-            <p class="text-slate-500 text-sm font-medium">% Inadimplência</p>
-            <p class="text-2xl font-black text-slate-900 dark:text-white mt-1">${pct.toFixed(1).replace('.', ',')}%</p>
-            <div class="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-700/50 mt-3">
-                <div class="h-2 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 transition-all" style="width:${Math.min(pct, 100)}%"></div>
-            </div>
+            <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-rose-500/10 rounded-full blur-3xl group-hover:bg-rose-500/20 transition-all"></div>
         </div>`;
 }
 

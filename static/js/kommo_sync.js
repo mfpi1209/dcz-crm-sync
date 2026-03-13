@@ -106,13 +106,11 @@ function _renderFunnelCards(data, prefix) {
         }
 
         return `
-        <div class="bg-white dark:bg-slate-900/80 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm
-                    hover:shadow-md transition-all duration-300 cursor-default overflow-hidden">
-            <div class="h-1 rounded-t-xl" style="background:linear-gradient(90deg, ${g.from}, ${g.to})"></div>
-            <div class="p-5">
+        <div class="relative overflow-hidden group transition-all duration-300 cursor-default hover:scale-[1.01]">
+            <div class="glass-card gradient-border p-5 rounded-3xl h-full relative z-10">
                 <div class="flex items-start justify-between mb-3">
                     <p class="text-[10px] font-bold uppercase tracking-widest" style="color:${g.from}">${s.label}</p>
-                    <span class="text-[10px] text-slate-400 dark:text-slate-500 font-mono">${s.pct || 0}%</span>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold" style="background:${g.from}20; color:${g.from}">${s.pct || 0}%</span>
                 </div>
                 <p class="text-3xl font-black text-slate-900 dark:text-white font-display mb-2">${s.count.toLocaleString('pt-BR')}</p>
                 <div class="flex items-center gap-2">
