@@ -1055,6 +1055,7 @@ def api_lista_alunos_latest():
     """
     f_tipo = request.args.get("tipo", "").strip().lower()
     f_situacao = request.args.get("situacao", "").strip()
+    current_app.logger.info("[SAUDE-FIN] latest called: tipo=%r, situacao=%r", f_tipo, f_situacao)
     conn = get_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -1069,6 +1070,7 @@ def api_lista_alunos_latest():
 
             snap_id = snap["id"]
             has_filter = (f_tipo and f_tipo in _TIPO_SQL_CASES) or f_situacao
+            current_app.logger.info("[SAUDE-FIN] has_filter=%s, f_tipo_in_cases=%s", has_filter, f_tipo in _TIPO_SQL_CASES if f_tipo else 'N/A')
 
             if has_filter:
                 cur.execute("""
@@ -1098,7 +1100,7 @@ def api_lista_alunos_latest():
                 where_extra = (" AND " + " AND ".join(mat_conditions)) if mat_conditions else ""
                 params.append(snap_id)
 
-                cur.execute(f"""
+                sql = f"""
                     SELECT
                         COUNT(*) AS total_alunos,
                         SUM(CASE WHEN la.data->>'inadimplente' = 'sim' THEN 1 ELSE 0 END) AS inadimplentes
@@ -1112,10 +1114,13 @@ def api_lista_alunos_latest():
                     ) mat ON mat.rgm = la.data->>'rgm_digits'
                     WHERE la.snapshot_id = %s
                       AND COALESCE(la.data->>'rgm_digits', '') != ''
-                """, params)
+                """
+                current_app.logger.info("[SAUDE-FIN] SQL where_extra=%r, params=%r", where_extra, params)
+                cur.execute(sql, params)
                 row = cur.fetchone()
                 total = int(row["total_alunos"] or 0)
                 inadim = int(row["inadimplentes"] or 0)
+                current_app.logger.info("[SAUDE-FIN] Result: total=%d, inadim=%d", total, inadim)
                 adim = total - inadim
                 pct = round(inadim / total * 100, 1) if total else 0.0
 

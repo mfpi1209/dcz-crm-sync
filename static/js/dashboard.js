@@ -820,16 +820,28 @@ function _inadRenderCards() {
 }
 
 async function _loadInadimplenciaCard() {
+    const section = document.getElementById('dash-inadimplencia-card');
+    if (!section) return;
+
+    const cardsEl = document.getElementById('dash-inad-cards');
+    if (cardsEl) cardsEl.style.opacity = '0.5';
+
     try {
         const _inadParams = new URLSearchParams();
         if (_stuActiveTipo) _inadParams.set('tipo', _stuActiveTipo);
         if (_stuActiveSituacao) _inadParams.set('situacao', _stuActiveSituacao);
         const qs = _inadParams.toString();
-        let url = '/api/lista-alunos/latest' + (qs ? '?' + qs : '');
+        const url = '/api/lista-alunos/latest' + (qs ? '?' + qs : '');
+        console.log('[SF] Fetching:', url);
         const res = await api(url);
         const d = await res.json();
-        const section = document.getElementById('dash-inadimplencia-card');
-        if (!section) return;
+        console.log('[SF] Response:', d);
+
+        if (!d.ok && d.error) {
+            console.error('[SF] Backend error:', d.error);
+            if (cardsEl) cardsEl.style.opacity = '1';
+            return;
+        }
         if (!d.ok || !d.has_data) { section.classList.add('hidden'); return; }
 
         section.classList.remove('hidden');
@@ -849,6 +861,7 @@ async function _loadInadimplenciaCard() {
             dateEl.textContent = label;
         }
     } catch (e) {
-        console.error('Erro ao carregar card de inadimplência:', e);
+        console.error('[SF] Exception:', e);
+        if (cardsEl) cardsEl.style.opacity = '1';
     }
 }
