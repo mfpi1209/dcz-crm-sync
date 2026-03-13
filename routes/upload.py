@@ -1036,15 +1036,15 @@ def api_inadimplencia_historico():
         conn.close()
 
 
+_TIPO_NORM = "TRANSLATE(LOWER(COALESCE(m.data->>'tipo_matricula','')), 'áàãâéèêíìîóòõôúùûçñ', 'aaaaeeeiiioooouuucn')"
+
 _TIPO_SQL_CASES = {
-    "novos":       "LOWER(m.data->>'tipo_matricula') ~* '(matricula|calouro)' "
-                   "AND LOWER(m.data->>'tipo_matricula') !~* '(remat|renovacao|veterano|regresso|retorno|recompra)'",
-    "rematricula": "LOWER(m.data->>'tipo_matricula') ~* '(remat|renovacao|veterano)'",
-    "regresso":    "LOWER(m.data->>'tipo_matricula') ~* '(regresso|retorno)'",
-    "recompra":    "LOWER(m.data->>'tipo_matricula') ~* 'recompra'",
-    "novos_agg":   "(LOWER(m.data->>'tipo_matricula') ~* '(matricula|calouro)' "
-                   "AND LOWER(m.data->>'tipo_matricula') !~* '(remat|renovacao|veterano)') "
-                   "OR LOWER(m.data->>'tipo_matricula') ~* '(regresso|retorno|recompra)'",
+    "novos":       f"({_TIPO_NORM} ~ '(matricula|calouro)' AND {_TIPO_NORM} !~ '(remat|renovacao|veterano|regresso|retorno|recompra)')",
+    "rematricula": f"{_TIPO_NORM} ~ '(remat|renovacao|veterano)'",
+    "regresso":    f"{_TIPO_NORM} ~ '(regresso|retorno)'",
+    "recompra":    f"{_TIPO_NORM} ~ 'recompra'",
+    "novos_agg":   f"(({_TIPO_NORM} ~ '(matricula|calouro)' AND {_TIPO_NORM} !~ '(remat|renovacao|veterano)') "
+                   f"OR {_TIPO_NORM} ~ '(regresso|retorno|recompra)')",
 }
 
 
