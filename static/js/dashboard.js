@@ -297,7 +297,7 @@ function renderCicloMaster(data) {
         const prevTotal = prev.grand_total || 0;
         const ch = pct(total, prevTotal);
         const t = cur.totals || {};
-        return `<div class="bg-white dark:bg-card-bg rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
+        return `<div class="bg-white dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-700/50 shadow-sm">
             <div class="flex items-center justify-between mb-1">
                 <span class="text-[10px] font-bold text-${accent} dark:text-${accent} uppercase tracking-wider">${label}</span>
                 <span class="text-[10px] font-bold ${ch.cls} bg-slate-50 dark:bg-slate-800/40 px-1.5 py-0.5 rounded-full">${ch.txt}</span>
@@ -340,7 +340,7 @@ function renderCicloMaster(data) {
         const cardRematShort = cardIsPos ? 'Veteranos' : 'Rematr.';
         const cardRematFull  = cardIsPos ? 'Veteranos' : 'Rematrículas';
 
-        return `<div class="bg-white dark:bg-card-bg rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        return `<div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm overflow-hidden">
             <button onclick="document.getElementById('${id}').classList.toggle('hidden')" class="w-full px-5 py-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-all">
                 <div class="flex items-center gap-4 min-w-0">
                     <div class="flex items-center gap-2">
@@ -540,7 +540,7 @@ async function loadStudentMetrics() {
         const isRegresso = _stuActiveTipo === 'regresso';
         const isRecompra = _stuActiveTipo === 'recompra';
 
-        const ringActive = 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-[#0B0F19] scale-[1.02]';
+        const ringActive = 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-[#101f22] scale-[1.02]';
 
         const pctNovos = gt ? Math.round(novosAgg / gt * 100) : 0;
         const pctRemat = gt ? Math.round(remat / gt * 100) : 0;
@@ -555,7 +555,7 @@ async function loadStudentMetrics() {
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                 <!-- Big Number: Novos -->
-                <div class="bg-white dark:bg-card-bg p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden cursor-pointer transition-all hover:shadow-md ${isNovosAgg ? ringActive + ' ring-blue-500' : ''}"
+                <div class="bg-white dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm relative overflow-hidden cursor-pointer transition-all hover:shadow-md ${isNovosAgg ? ringActive + ' ring-blue-500' : ''}"
                      onclick="_stuToggleTipo('novos_agg')">
                     <div class="flex items-center justify-between mb-4">
                         <div class="w-12 h-12 bg-blue-50 dark:bg-blue-500/10 rounded-xl flex items-center justify-center">
@@ -585,7 +585,7 @@ async function loadStudentMetrics() {
                     </div>
                 </div>
                 <!-- Big Number: Rematrículas -->
-                <div class="bg-white dark:bg-card-bg p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden cursor-pointer transition-all hover:shadow-md ${isRemat ? ringActive + ' ring-emerald-500' : ''}"
+                <div class="bg-white dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm relative overflow-hidden cursor-pointer transition-all hover:shadow-md ${isRemat ? ringActive + ' ring-emerald-500' : ''}"
                      onclick="_stuToggleTipo('rematricula')">
                     <div class="flex items-center justify-between mb-4">
                         <div class="w-12 h-12 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl flex items-center justify-center">
@@ -695,7 +695,7 @@ function _renderSituacaoCardsClickable(elId, data) {
         .filter(Boolean)
         .concat(keys.filter(k => !_sitOrder.includes(k.toLowerCase())));
 
-    const ringActive = 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-[#0B0F19] scale-[1.02]';
+    const ringActive = 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-[#101f22] scale-[1.02]';
 
     el.innerHTML = ordered.map(k => {
         const v = data[k];
@@ -705,7 +705,7 @@ function _renderSituacaoCardsClickable(elId, data) {
         const isActive = _stuActiveSituacao === k;
         const activeRing = isActive ? `${ringActive} ring-${c.text}-500` : '';
 
-        return `<div class="bg-white dark:bg-card-bg p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden cursor-pointer transition-all hover:shadow-md ${activeRing}"
+        return `<div class="bg-white dark:bg-slate-800/50 p-5 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm relative overflow-hidden cursor-pointer transition-all hover:shadow-md ${activeRing}"
                      onclick="_stuToggleSituacao('${esc(k)}')">
             <div class="flex items-center justify-between mb-3">
                 <div class="w-10 h-10 bg-${c.bg}-50 dark:bg-${c.bg}-500/10 rounded-xl flex items-center justify-center">
@@ -771,7 +771,7 @@ function _inadRenderCards() {
     const pctAdim = d.total_alunos ? ((d.adimplentes / d.total_alunos) * 100).toFixed(1) : '0';
 
     container.innerHTML = `
-        <div class="bg-white dark:bg-card-bg p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm cursor-pointer transition-all hover:shadow-md"
+        <div class="bg-white dark:bg-slate-800/50 p-5 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer transition-all hover:shadow-md"
              onclick="_inadToggleCard('total')">
             <div class="flex items-center justify-between mb-3">
                 <div class="w-10 h-10 bg-teal-50 dark:bg-teal-500/10 rounded-xl flex items-center justify-center">
@@ -781,7 +781,7 @@ function _inadRenderCards() {
             <p class="text-slate-500 text-sm font-medium">Total Alunos</p>
             <p class="text-2xl font-black text-slate-900 dark:text-white mt-1">${fmt(d.total_alunos)}</p>
         </div>
-        <div class="bg-white dark:bg-card-bg p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm cursor-pointer transition-all hover:shadow-md"
+        <div class="bg-white dark:bg-slate-800/50 p-5 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer transition-all hover:shadow-md"
              onclick="_inadToggleCard('adim')">
             <div class="flex items-center justify-between mb-3">
                 <div class="w-10 h-10 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl flex items-center justify-center">
@@ -792,7 +792,7 @@ function _inadRenderCards() {
             <p class="text-slate-500 text-sm font-medium">Adimplentes</p>
             <p class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">${fmt(d.adimplentes)}</p>
         </div>
-        <div class="bg-white dark:bg-card-bg p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm cursor-pointer transition-all hover:shadow-md"
+        <div class="bg-white dark:bg-slate-800/50 p-5 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer transition-all hover:shadow-md"
              onclick="_inadToggleCard('inadim')">
             <div class="flex items-center justify-between mb-3">
                 <div class="w-10 h-10 bg-amber-50 dark:bg-amber-500/10 rounded-xl flex items-center justify-center">
@@ -803,7 +803,7 @@ function _inadRenderCards() {
             <p class="text-slate-500 text-sm font-medium">Inadimplentes</p>
             <p class="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">${fmt(d.inadimplentes)}</p>
         </div>
-        <div class="bg-white dark:bg-card-bg p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm cursor-pointer transition-all hover:shadow-md"
+        <div class="bg-white dark:bg-slate-800/50 p-5 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer transition-all hover:shadow-md"
              onclick="_inadToggleCard('pct')">
             <div class="flex items-center justify-between mb-3">
                 <div class="w-10 h-10 bg-rose-50 dark:bg-rose-500/10 rounded-xl flex items-center justify-center">

@@ -106,7 +106,7 @@ function _renderFunnelCards(data, prefix) {
         }
 
         return `
-        <div class="bg-white dark:bg-card-bg rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm
+        <div class="bg-white dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm
                     hover:shadow-md transition-all duration-300 cursor-default overflow-hidden">
             <div class="h-1 rounded-t-xl" style="background:linear-gradient(90deg, ${g.from}, ${g.to})"></div>
             <div class="p-5">
