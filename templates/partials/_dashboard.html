@@ -18,7 +18,7 @@
                         <div class="flex items-center gap-3">
                             <span id="dash-funnel-ts" class="text-[10px] text-slate-500 font-mono"></span>
                             <button onclick="_dashRefreshFunnel(true)" id="dash-funnel-refresh-btn"
-                                    class="text-xs text-slate-500 dark:text-slate-400 hover:text-primary border border-slate-200 dark:border-slate-700 hover:border-primary px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 bg-white dark:bg-card-bg">
+                                    class="text-xs text-slate-500 dark:text-slate-400 hover:text-primary border border-slate-200 dark:border-slate-700 hover:border-primary px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 bg-white dark:bg-slate-800/50">
                                 <span class="material-symbols-outlined text-sm">refresh</span>
                                 Atualizar
                             </button>
@@ -27,7 +27,7 @@
 
                     <!-- Highlight Card -->
                     <div class="mb-6">
-                        <div class="relative rounded-2xl overflow-hidden bg-white dark:bg-card-bg border border-slate-200 dark:border-slate-800 p-6 flex items-center gap-6 shadow-sm">
+                        <div class="relative rounded-2xl overflow-hidden bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 p-6 flex items-center gap-6 shadow-sm">
                             <div class="flex-shrink-0 w-16 h-16 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center">
                                 <span class="material-symbols-outlined text-3xl text-emerald-600 dark:text-emerald-400">person_add</span>
                             </div>
@@ -52,7 +52,7 @@
                 </section>
 
                 <!-- ═══ MATRÍCULAS POR TIPO DE ALUNO ═══ -->
-                <div class="bg-white dark:bg-card-bg rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-8">
+                <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm overflow-hidden mb-8">
                     <div class="p-6">
                         <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
                             <h3 class="text-lg font-bold text-slate-900 dark:text-white font-display flex items-center gap-2">
@@ -70,7 +70,7 @@
                                     <option value="Pós-Graduação">Pós-Graduação</option>
                                 </select>
                                 <button onclick="clearStudentFilter()" class="text-[10px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700/30 hover:border-slate-300 dark:hover:border-slate-600/50 transition-colors">Limpar</button>
-                                <button onclick="document.getElementById('stu-filters-extra').classList.toggle('hidden')" class="bg-white dark:bg-card-bg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 hover:border-slate-300 dark:hover:border-slate-600 transition-colors">
+                                <button onclick="document.getElementById('stu-filters-extra').classList.toggle('hidden')" class="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 hover:border-slate-300 dark:hover:border-slate-600 transition-colors">
                                     <span class="material-symbols-outlined text-sm">tune</span>
                                     Filtros
                                 </button>
@@ -146,11 +146,11 @@
 
                     <!-- Detalhamento -->
                     <button onclick="document.getElementById('stu-detail').classList.toggle('hidden');this.querySelector('.chevron-icon').classList.toggle('rotate-180')"
-                            class="w-full py-4 bg-slate-50 dark:bg-slate-800/20 hover:bg-slate-100 dark:hover:bg-slate-800/40 transition-all border-t border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-500 flex items-center justify-center gap-2">
+                            class="w-full py-4 bg-slate-50 dark:bg-slate-800/20 hover:bg-slate-100 dark:hover:bg-slate-800/40 transition-all border-t border-slate-200 dark:border-slate-700/50 text-xs font-bold text-slate-500 flex items-center justify-center gap-2">
                         Mais detalhes (Turma, Ciclo)
                         <span class="material-symbols-outlined text-sm transition-transform chevron-icon">expand_more</span>
                     </button>
-                    <div id="stu-detail" class="hidden p-6 border-t border-slate-200 dark:border-slate-800">
+                    <div id="stu-detail" class="hidden p-6 border-t border-slate-200 dark:border-slate-700/50">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div class="rounded-xl p-4 bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/20">
                                 <h5 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Por Turma</h5>
@@ -165,7 +165,7 @@
                 </div>
 
                 <!-- ═══ SNAPSHOT INFO ═══ -->
-                <div class="bg-white dark:bg-card-bg rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 mb-6">
+                <div class="bg-white dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm p-4 mb-6">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-3">
                             <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -183,8 +183,8 @@
                 </div>
 
                 <!-- ═══ EVOLUÇÃO DE MATRÍCULAS (Timeline) ═══ -->
-                <div class="bg-white dark:bg-card-bg rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden mb-8">
-                    <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4">
+                <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm overflow-hidden mb-8">
+                    <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-700/50 flex flex-wrap items-center justify-between gap-4">
                         <h3 class="text-lg font-bold text-slate-900 dark:text-white font-display flex items-center gap-2">
                             <span class="material-symbols-outlined text-primary">show_chart</span>
                             Evolução de Matrículas
@@ -239,7 +239,7 @@
                 </div>
 
                 <!-- ═══ COMPARAÇÃO DE CICLOS ═══ -->
-                <div class="bg-white dark:bg-card-bg rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 mb-8" id="ciclo-master-panel">
+                <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm p-6 mb-8" id="ciclo-master-panel">
                     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
                         <h3 class="text-lg font-bold text-slate-900 dark:text-white font-display flex items-center gap-2">
                             <span class="material-symbols-outlined text-cyan-500 dark:text-cyan-400">compare_arrows</span>
