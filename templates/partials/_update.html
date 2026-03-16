@@ -160,6 +160,29 @@
                         </div>
                         <div class="snap-info mt-3 text-xs text-slate-500" id="snap-info-sem_rematricula">—</div>
                     </div>
+
+                    <!-- Lista de Alunos (Inadimplência) -->
+                    <div class="glass-card p-5" data-upload-tipo="lista_alunos">
+                        <h3 class="text-sm font-bold text-teal-400 font-display mb-3 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+                            Lista de Alunos
+                        </h3>
+                        <p class="text-[10px] text-slate-500 mb-2">Relatório com coluna Inadimplente (Sim/Não)</p>
+                        <div class="upload-dropzone border-2 border-dashed border-slate-700/40 rounded-xl p-4 text-center cursor-pointer hover:border-teal-500/60 hover:bg-teal-950/10 transition-all duration-300"
+                            onclick="this.querySelector('input').click()"
+                            ondragover="event.preventDefault(); this.classList.add('border-teal-500','bg-teal-950/10')"
+                            ondragleave="this.classList.remove('border-teal-500','bg-teal-950/10')"
+                            ondrop="event.preventDefault(); this.classList.remove('border-teal-500','bg-teal-950/10'); handleUploadTyped(event.dataTransfer.files[0], 'lista_alunos')">
+                            <input type="file" accept=".xlsx" class="hidden" onchange="handleUploadTyped(this.files[0], 'lista_alunos')">
+                            <svg class="w-6 h-6 mx-auto mb-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                            <p class="text-[10px] text-slate-400">.xlsx</p>
+                        </div>
+                        <div class="upload-progress hidden mt-2">
+                            <div class="w-full bg-slate-800 rounded-full h-1.5"><div class="upload-bar bg-gradient-to-r from-teal-500 to-emerald-500 h-1.5 rounded-full transition-all" style="width:0%"></div></div>
+                            <p class="upload-msg text-xs text-slate-400 mt-1">Enviando...</p>
+                        </div>
+                        <div class="snap-info mt-3 text-xs text-slate-500" id="snap-info-lista_alunos">—</div>
+                    </div>
                 </div>
 
                 <div class="glass-card p-5 mb-5">

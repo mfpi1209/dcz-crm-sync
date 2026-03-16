@@ -96,7 +96,7 @@
                 <div id="mm-results-section" class="hidden">
 
                     <!-- KPI Cards -->
-                    <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+                    <div class="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
                         <div class="glass-card p-4 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-cyan-500 to-blue-500"></div>
                             <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Inscritos</p>
@@ -113,6 +113,11 @@
                             <p class="text-xl font-bold text-white font-display mt-1" id="mm-kpi-match">0</p>
                         </div>
                         <div class="glass-card p-4 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-slate-500 to-slate-600"></div>
+                            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Já Existe</p>
+                            <p class="text-xl font-bold text-slate-300 font-display mt-1" id="mm-kpi-fechado">0</p>
+                        </div>
+                        <div class="glass-card p-4 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-amber-500 to-orange-500"></div>
                             <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Sem Match</p>
                             <p class="text-xl font-bold text-white font-display mt-1" id="mm-kpi-sematch">0</p>
@@ -125,13 +130,13 @@
                     </div>
 
                     <!-- Action summary cards -->
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
                         <div class="glass-card p-4 flex items-center gap-4">
                             <div class="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
-                                <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
                             </div>
                             <div>
-                                <p class="text-xs text-slate-500">Aprovados</p>
+                                <p class="text-xs text-slate-500">Novos (Criar)</p>
                                 <p class="text-lg font-bold text-green-400" id="mm-act-aprovado">0</p>
                             </div>
                         </div>
@@ -146,11 +151,48 @@
                         </div>
                         <div class="glass-card p-4 flex items-center gap-4">
                             <div class="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                                <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                             </div>
                             <div>
-                                <p class="text-xs text-slate-500">Sem Match</p>
+                                <p class="text-xs text-slate-500">Atualizar</p>
                                 <p class="text-lg font-bold text-amber-400" id="mm-act-sematch">0</p>
+                            </div>
+                        </div>
+                        <div class="glass-card p-4 flex items-center gap-4">
+                            <div class="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-500">Mover Perdido</p>
+                                <p class="text-lg font-bold text-red-400" id="mm-act-perdido">0</p>
+                            </div>
+                        </div>
+                        <div class="glass-card p-4 flex items-center gap-4">
+                            <div class="w-10 h-10 rounded-lg bg-teal-500/10 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-500">Restaurar</p>
+                                <p class="text-lg font-bold text-teal-400" id="mm-act-restaurar">0</p>
+                            </div>
+                        </div>
+                        <div class="glass-card p-4 flex items-center gap-4">
+                            <div class="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-500">Unificar</p>
+                                <p class="text-lg font-bold text-purple-400" id="mm-act-unificar">0</p>
+                                <p class="text-[10px] text-slate-500 mt-0.5" id="mm-act-unificar-detail"></p>
+                            </div>
+                        </div>
+                        <div class="glass-card p-4 flex items-center gap-4">
+                            <div class="w-10 h-10 rounded-lg bg-slate-500/10 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-500">Já Existe (Fechado)</p>
+                                <p class="text-lg font-bold text-slate-400" id="mm-act-fechado">0</p>
                             </div>
                         </div>
                     </div>
@@ -165,9 +207,12 @@
                             <div class="flex items-center gap-3">
                                 <select id="mm-filtro-acao" class="input-glass px-3 py-1.5 text-sm text-slate-200 rounded-lg" onchange="mmLoadPreview()">
                                     <option value="">Todas</option>
-                                    <option value="APROVADO">Aprovados</option>
+                                    <option value="NOVO">Novos (Criar)</option>
+                                    <option value="ATUALIZAR">Atualizar</option>
                                     <option value="MATRICULADO">Matriculados</option>
-                                    <option value="SEM_MATCH">Sem Match</option>
+                                    <option value="MOVER_PERDIDO">Mover Perdido</option>
+                                    <option value="RESTAURAR">Restaurar</option>
+                                    <option value="UNIFICAR">Unificar</option>
                                 </select>
                             </div>
                         </div>
@@ -183,6 +228,8 @@
                                         <th class="py-2 px-3">Polo</th>
                                         <th class="py-2 px-3">Sit. SIAA</th>
                                         <th class="py-2 px-3">Sit. Kommo</th>
+                                        <th class="py-2 px-3">Dt. Inscrição</th>
+                                        <th class="py-2 px-3">Fase Funil</th>
                                         <th class="py-2 px-3">Match</th>
                                         <th class="py-2 px-3">Lead ID</th>
                                     </tr>
@@ -209,9 +256,13 @@
                         </div>
                         <div class="flex flex-wrap items-center gap-3">
                             <select id="mm-exec-filtro" class="input-glass px-3 py-2 text-sm text-slate-200 rounded-lg w-40">
-                                <option value="">Todas as ações</option>
-                                <option value="APROVADO">Só Aprovados</option>
-                                <option value="MATRICULADO">Só Matriculados</option>
+                                <option value="">Todas as acoes</option>
+                                <option value="NOVO">Novos (Criar)</option>
+                                <option value="ATUALIZAR">Atualizar</option>
+                                <option value="MATRICULADO">Matriculados</option>
+                                <option value="MOVER_PERDIDO">Mover Perdido</option>
+                                <option value="RESTAURAR">Restaurar</option>
+                                <option value="UNIFICAR">Unificar</option>
                             </select>
                             <div class="flex items-center gap-2">
                                 <label class="text-xs text-slate-400">Limite:</label>
@@ -220,6 +271,10 @@
                             <button onclick="mmExecute()" id="mm-btn-execute" class="btn-primary text-white font-medium text-sm px-6 py-2.5 rounded-xl flex items-center gap-2">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3l14 9-14 9V3z"/></svg>
                                 Executar
+                            </button>
+                            <button onclick="mmExecuteUnifLote()" id="mm-btn-unif-lote" class="hidden bg-purple-600 hover:bg-purple-500 text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center gap-2 transition">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                                Unificar Lote (<span class="mm-unif-auto-count">0</span>)
                             </button>
                             <span id="mm-exec-status" class="text-xs text-slate-500"></span>
                         </div>
@@ -236,5 +291,35 @@
                         <button onclick="document.getElementById('mm-log-content').textContent=''" class="text-xs text-slate-500 hover:text-white">Limpar</button>
                     </div>
                     <pre id="mm-log-content" class="bg-slate-950/50 rounded-lg p-3 text-xs text-slate-400 font-mono max-h-[300px] overflow-y-auto whitespace-pre-wrap"></pre>
+                </div>
+
+                <!-- Modal: Unificar Leads -->
+                <div id="mm-merge-modal" class="fixed inset-0 z-50 hidden">
+                    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="mmCloseMergeModal()"></div>
+                    <div class="relative z-10 flex items-center justify-center min-h-screen p-4">
+                        <div class="bg-slate-900 border border-slate-700/60 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+                            <div class="flex items-center justify-between p-5 border-b border-slate-700/40">
+                                <h3 class="text-lg font-bold text-white font-display flex items-center gap-2">
+                                    <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                                    Unificar Leads
+                                </h3>
+                                <button onclick="mmCloseMergeModal()" class="text-slate-400 hover:text-white">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+                            <div class="p-5">
+                                <p class="text-sm text-slate-400 mb-4">Selecione qual lead <strong class="text-purple-400">manter</strong>. O outro sera mesclado e removido.</p>
+                                <div id="mm-merge-leads" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5"></div>
+                                <div id="mm-merge-status" class="text-xs text-slate-500 mb-3 hidden"></div>
+                                <div class="flex items-center justify-end gap-3">
+                                    <button onclick="mmCloseMergeModal()" class="btn-secondary text-slate-300 text-sm px-5 py-2.5 rounded-xl">Cancelar</button>
+                                    <button onclick="mmConfirmMerge()" id="mm-merge-confirm-btn" class="btn-primary text-white font-medium text-sm px-6 py-2.5 rounded-xl flex items-center gap-2 disabled:opacity-40" disabled>
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                        Confirmar Merge
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>

@@ -393,8 +393,8 @@ const PAGE_LABELS = {
     dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização',
     kommo_sync: 'Sync Comercial',
     update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline',
-    match_merge: 'Match & Merge',
-    logs: 'Logs / Relatórios', distribuicao: 'Distribuição',
+    match_merge: 'Match & Merge', comercial_rgm: 'Dashboard Comercial',
+    logs: 'Logs / Relatórios', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas',
     intelligence: 'Inteligência', inadimplencia: 'Inadimplência',
     feedback: 'Feedback', config: 'Configurações', schedule: 'Agendamento',
     inscricao: 'Inscrição Automática',
@@ -402,14 +402,16 @@ const PAGE_LABELS = {
     recomendacao_cursos: 'Recomendação',
     localizacao_polos: 'Localização',
     info_cursos: 'Informações de Cursos',
+    avisos: 'Avisos',
+    kommo_dispatcher: 'Kommo Dispatcher',
 };
 
 const PAGE_GROUPS_CONFIG = [
-    { label: 'Geral', pages: ['dashboard', 'search'] },
-    { label: 'Operação — Acadêmico', pages: ['distribuicao', 'intelligence', 'inadimplencia', 'feedback'] },
+    { label: 'Geral', pages: ['dashboard', 'search', 'avisos'] },
+    { label: 'Operação — Acadêmico', pages: ['ativacoes', 'distribuicao', 'intelligence', 'inadimplencia', 'feedback'] },
     { label: 'Ferramentas', pages: ['comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos'] },
-    { label: 'Operação — Comercial', pages: ['pipeline', 'update', 'match_merge', 'inscricao'] },
-    { label: 'Sistema', pages: ['sync', 'kommo_sync', 'logs', 'config', 'schedule'] },
+    { label: 'Operação — Comercial', pages: ['pipeline', 'update', 'match_merge', 'comercial_rgm', 'inscricao'] },
+    { label: 'Sistema', pages: ['sync', 'kommo_sync', 'kommo_dispatcher', 'logs', 'config', 'schedule'] },
 ];
 let _allPages = [];
 let _usersData = [];

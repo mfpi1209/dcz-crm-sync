@@ -1,22 +1,51 @@
 """
-Módulo de banco de dados SQLite.
+Módulo de banco de dados SQLite + PostgreSQL.
 Gerencia schema, conexões e operações CRUD para sincronização Kommo.
 
 Estratégia: UPSERT incremental
 - Não faz DROP TABLE; usa INSERT OR REPLACE
 - Mantém dados disponíveis durante o sync
-- Tabela sync_metadata rastreia última sincronização por entidade
+- sync_metadata fica no PostgreSQL (persiste entre deploys)
+- Dados de staging (leads, contacts, etc.) ficam no SQLite
 """
 
+import os
 import sqlite3
 import json
 import logging
 from datetime import datetime
 from contextlib import contextmanager
 
+import psycopg2
+import psycopg2.extras
+
 from config import DB_PATH
 
 logger = logging.getLogger(__name__)
+
+# PostgreSQL (kommo_sync) — usado para sync_metadata persistente
+_PG_DSN = dict(
+    host=os.getenv("KOMMO_PG_HOST", os.getenv("DB_HOST", "31.97.91.47")),
+    port=int(os.getenv("KOMMO_PG_PORT", os.getenv("DB_PORT", "5432"))),
+    user=os.getenv("KOMMO_PG_USER", os.getenv("DB_USER", "adm_eduit")),
+    password=os.getenv("KOMMO_PG_PASS", os.getenv("DB_PASS", "IaDm24Sx3HxrYoqT")),
+    dbname=os.getenv("KOMMO_PG_DB", "kommo_sync"),
+)
+
+
+def _pg():
+    return psycopg2.connect(**_PG_DSN)
+
+
+_PG_SYNC_META_DDL = """
+CREATE TABLE IF NOT EXISTS sync_metadata (
+    entity_type     TEXT PRIMARY KEY,
+    last_sync_at    TEXT,
+    last_full_sync_at TEXT,
+    records_synced  INTEGER DEFAULT 0,
+    status          TEXT DEFAULT 'pending'
+);
+"""
 
 
 # ============================
@@ -205,11 +234,22 @@ def get_db():
 
 
 def init_database():
-    """Inicializa o banco de dados criando todas as tabelas e índices."""
-    logger.info("Inicializando banco de dados: %s", DB_PATH)
+    """Inicializa SQLite (staging) e PostgreSQL (sync_metadata persistente)."""
+    logger.info("Inicializando banco SQLite: %s", DB_PATH)
     with get_db() as conn:
         conn.executescript(SCHEMA_SQL)
-    logger.info("Banco de dados inicializado com sucesso.")
+    logger.info("SQLite inicializado.")
+
+    try:
+        pg = _pg()
+        cur = pg.cursor()
+        cur.execute(_PG_SYNC_META_DDL)
+        pg.commit()
+        cur.close()
+        pg.close()
+        logger.info("PostgreSQL sync_metadata inicializado.")
+    except Exception as e:
+        logger.error("Falha ao inicializar sync_metadata no PG: %s", e)
 
 
 # ============================
@@ -217,69 +257,86 @@ def init_database():
 # ============================
 
 def get_last_sync(entity_type: str) -> dict | None:
-    """Retorna metadados da última sincronização para uma entidade."""
-    with get_db() as conn:
-        row = conn.execute(
-            "SELECT * FROM sync_metadata WHERE entity_type = ?",
-            (entity_type,)
-        ).fetchone()
-        if row:
-            return dict(row)
-    return None
+    """Retorna metadados da última sincronização (do PostgreSQL persistente)."""
+    try:
+        pg = _pg()
+        cur = pg.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT * FROM sync_metadata WHERE entity_type = %s", (entity_type,))
+        row = cur.fetchone()
+        cur.close()
+        pg.close()
+        return dict(row) if row else None
+    except Exception as e:
+        logger.error("get_last_sync PG error: %s", e)
+        return None
 
 
 def update_sync_metadata(entity_type: str, records_synced: int, is_full_sync: bool = False):
-    """Atualiza os metadados de sincronização após conclusão.
-    
+    """Atualiza os metadados de sincronização no PostgreSQL.
+
     PROTEÇÃO: Em delta sync, só avança o cursor se registros foram encontrados.
     Isso evita criar gaps quando a API retorna 0 por erro/bug temporário.
     """
     now = datetime.utcnow().isoformat()
-    with get_db() as conn:
-        existing = conn.execute(
-            "SELECT * FROM sync_metadata WHERE entity_type = ?",
-            (entity_type,)
-        ).fetchone()
+    try:
+        pg = _pg()
+        cur = pg.cursor()
+        cur.execute("SELECT 1 FROM sync_metadata WHERE entity_type = %s", (entity_type,))
+        exists = cur.fetchone() is not None
 
-        if existing:
+        if exists:
             if is_full_sync:
-                conn.execute("""
-                    UPDATE sync_metadata 
-                    SET last_sync_at = ?, last_full_sync_at = ?, 
-                        records_synced = ?, status = 'completed'
-                    WHERE entity_type = ?
+                cur.execute("""
+                    UPDATE sync_metadata
+                    SET last_sync_at = %s, last_full_sync_at = %s,
+                        records_synced = %s, status = 'completed'
+                    WHERE entity_type = %s
                 """, (now, now, records_synced, entity_type))
             elif records_synced > 0:
-                conn.execute("""
-                    UPDATE sync_metadata 
-                    SET last_sync_at = ?, records_synced = ?, status = 'completed'
-                    WHERE entity_type = ?
+                cur.execute("""
+                    UPDATE sync_metadata
+                    SET last_sync_at = %s, records_synced = %s, status = 'completed'
+                    WHERE entity_type = %s
                 """, (now, records_synced, entity_type))
             else:
                 logger.info(
                     "Delta sync para %s retornou 0 registros — cursor NÃO avançado "
                     "(protege contra gaps).", entity_type
                 )
-                conn.execute("""
-                    UPDATE sync_metadata 
-                    SET records_synced = ?, status = 'completed'
-                    WHERE entity_type = ?
+                cur.execute("""
+                    UPDATE sync_metadata
+                    SET records_synced = %s, status = 'completed'
+                    WHERE entity_type = %s
                 """, (records_synced, entity_type))
         else:
-            conn.execute("""
-                INSERT INTO sync_metadata (entity_type, last_sync_at, last_full_sync_at, records_synced, status)
-                VALUES (?, ?, ?, ?, 'completed')
+            cur.execute("""
+                INSERT INTO sync_metadata
+                    (entity_type, last_sync_at, last_full_sync_at, records_synced, status)
+                VALUES (%s, %s, %s, %s, 'completed')
             """, (entity_type, now, now if is_full_sync else None, records_synced))
+
+        pg.commit()
+        cur.close()
+        pg.close()
+    except Exception as e:
+        logger.error("update_sync_metadata PG error: %s", e)
 
 
 def set_sync_status(entity_type: str, status: str):
-    """Define o status da sincronização (running, completed, failed)."""
-    with get_db() as conn:
-        conn.execute("""
-            INSERT INTO sync_metadata (entity_type, status) 
-            VALUES (?, ?)
-            ON CONFLICT(entity_type) DO UPDATE SET status = ?
-        """, (entity_type, status, status))
+    """Define o status da sincronização no PostgreSQL."""
+    try:
+        pg = _pg()
+        cur = pg.cursor()
+        cur.execute("""
+            INSERT INTO sync_metadata (entity_type, status)
+            VALUES (%s, %s)
+            ON CONFLICT(entity_type) DO UPDATE SET status = excluded.status
+        """, (entity_type, status))
+        pg.commit()
+        cur.close()
+        pg.close()
+    except Exception as e:
+        logger.error("set_sync_status PG error: %s", e)
 
 
 # ============================
@@ -501,7 +558,15 @@ def get_contacts_count() -> int:
 
 
 def get_sync_summary() -> list[dict]:
-    """Retorna resumo de todas as sincronizações."""
-    with get_db() as conn:
-        rows = conn.execute("SELECT * FROM sync_metadata ORDER BY entity_type").fetchall()
-        return [dict(r) for r in rows]
+    """Retorna resumo de todas as sincronizações (do PostgreSQL)."""
+    try:
+        pg = _pg()
+        cur = pg.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT * FROM sync_metadata ORDER BY entity_type")
+        rows = [dict(r) for r in cur.fetchall()]
+        cur.close()
+        pg.close()
+        return rows
+    except Exception as e:
+        logger.error("get_sync_summary PG error: %s", e)
+        return []

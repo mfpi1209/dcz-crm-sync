@@ -13,8 +13,8 @@ async function api(url, opts = {}) {
 // ---------------------------------------------------------------------------
 // SPA Navigation
 // ---------------------------------------------------------------------------
-const PAGES = ['dashboard', 'search', 'sync', 'kommo_sync', 'update', 'pipeline', 'match_merge', 'distribuicao', 'intelligence', 'inadimplencia', 'feedback', 'comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos', 'logs', 'config', 'schedule', 'inscricao', 'comercial_dashboard', 'vocacional'];
-const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', kommo_sync: 'Sync Comercial', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', match_merge: 'Match & Merge', distribuicao: 'Distribuição', intelligence: 'Inteligência', inadimplencia: 'Inadimplência', feedback: 'Feedback', comparar_cursos: 'Comparar Cursos', recomendacao_cursos: 'Recomendação', localizacao_polos: 'Localização', info_cursos: 'Informações de Cursos', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento', inscricao: 'Inscrição Automática', comercial_dashboard: 'Dashboard Atendimentos', vocacional: 'Dashboard Vocacional' };
+const PAGES = ['dashboard', 'search', 'sync', 'kommo_sync', 'update', 'pipeline', 'match_merge', 'comercial_rgm', 'distribuicao', 'ativacoes', 'intelligence', 'inadimplencia', 'feedback', 'comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos', 'logs', 'config', 'schedule', 'inscricao', 'avisos', 'kommo_dispatcher', 'meta-campaigns', 'recadastros', 'comercial_dashboard', 'vocacional'];
+const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', kommo_sync: 'Sync Comercial', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', match_merge: 'Match & Merge', comercial_rgm: 'Dashboard Comercial', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas', intelligence: 'Inteligência', inadimplencia: 'Inadimplência', feedback: 'Feedback', comparar_cursos: 'Comparar Cursos', recomendacao_cursos: 'Recomendação', localizacao_polos: 'Localização', info_cursos: 'Informações de Cursos', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento', inscricao: 'Inscrição Automática', avisos: 'Avisos', kommo_dispatcher: 'Kommo Dispatcher', 'meta-campaigns': 'Campaign Performance', recadastros: 'Recadastros', comercial_dashboard: 'Dashboard Atendimentos', vocacional: 'Dashboard Vocacional' };
 
 function navigate(page) {
     PAGES.forEach(p => {
@@ -37,16 +37,22 @@ function navigate(page) {
     if (page === 'logs') { loadLogFiles(); loadDashboard(); }
     if (page === 'config') { loadCiclos(); loadTurmas(); }
     if (page === 'distribuicao') loadDistribuicao();
+    if (page === 'ativacoes') loadAtivacoes();
     if (page === 'intelligence') loadIntelligence();
     if (page === 'inadimplencia') loadInadimplencia();
     if (page === 'kommo_sync') loadKommoSync();
     if (page === 'match_merge') loadMatchMerge();
+    if (page === 'comercial_rgm') loadComercialRgm();
     if (page === 'feedback') fbInit();
     if (page === 'inscricao') loadInscricao();
     if (page === 'comercial_dashboard') cdLoadPage();
     if (page === 'vocacional') vocLoadPage();
     if (page === 'schedule') loadSchedules();
+    if (page === 'avisos') loadAvisos();
+    if (page === 'kommo_dispatcher') loadKommoDispatcher();
     if (FERRAMENTA_MAP && FERRAMENTA_MAP[page]) loadFerramenta(page);
+    if (page === 'meta-campaigns') loadMetaCampaigns();
+    if (page === 'recadastros') loadRecadastros();
 
     history.replaceState(null, '', '#' + page);
 }
@@ -136,9 +142,9 @@ function refreshBadge() {
 // Sidebar — permissões dinâmicas
 // ---------------------------------------------------------------------------
 const SIDEBAR_GROUPS = {
-    academico: ['distribuicao', 'intelligence', 'inadimplencia', 'feedback'],
+    academico: ['ativacoes', 'distribuicao', 'intelligence', 'inadimplencia', 'feedback'],
     ferramentas: ['comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos'],
-    comercial: ['pipeline', 'update', 'match_merge', 'inscricao'],
+    comercial: ['pipeline', 'update', 'match_merge', 'comercial_rgm', 'inscricao'],
 };
 
 async function applySidebarPermissions() {
@@ -171,17 +177,94 @@ async function applySidebarPermissions() {
         }
         const sistemaLabel = document.getElementById('sidebar-section-sistema');
         if (sistemaLabel) {
-            const sysPages = ['sync', 'kommo_sync', 'logs', 'config', 'schedule'];
+            const sysPages = ['sync', 'kommo_sync', 'logs', 'config', 'schedule', 'kommo_dispatcher'];
             const anySys = role === 'admin' || sysPages.some(p => pages.includes(p));
             sistemaLabel.style.display = anySys ? '' : 'none';
         }
 
         const cfgTab = document.getElementById('cfg-tab-usuarios');
         if (cfgTab) cfgTab.style.display = role === 'admin' ? '' : 'none';
+
+        document.body.dataset.role = role;
     } catch (e) { console.error('sidebar permissions', e); }
 }
 
-applySidebarPermissions();
+applySidebarPermissions().then(() => checkAvisosNaoLidos());
+
+// ---------------------------------------------------------------------------
+// Avisos — popup ao logar + badge sidebar
+// ---------------------------------------------------------------------------
+async function checkAvisosNaoLidos() {
+    try {
+        const res = await api('/api/avisos/nao-lidos');
+        const data = await res.json();
+        const count = data.count || 0;
+
+        const badge = document.getElementById('av-sidebar-badge');
+        if (badge) {
+            if (count > 0) { badge.textContent = count; badge.classList.remove('hidden'); }
+            else badge.classList.add('hidden');
+        }
+
+        if (count > 0 && !sessionStorage.getItem('avisos_popup_shown')) {
+            _showAvisosPopup(data.avisos);
+            sessionStorage.setItem('avisos_popup_shown', '1');
+        }
+    } catch (e) { console.error('checkAvisosNaoLidos', e); }
+}
+
+function _showAvisosPopup(avisos) {
+    if (!avisos || !avisos.length) return;
+    const existing = document.getElementById('avisos-popup-overlay');
+    if (existing) existing.remove();
+
+    const prioBadge = { urgente: 'bg-red-500/20 text-red-400', importante: 'bg-amber-500/20 text-amber-400', normal: 'bg-slate-500/20 text-slate-400' };
+
+    const cards = avisos.slice(0, 10).map(a => {
+        const pb = prioBadge[a.prioridade] || prioBadge.normal;
+        const dt = a.created_at ? new Date(a.created_at).toLocaleDateString('pt-BR') : '';
+        return `<div class="p-3 rounded-lg bg-slate-800/50 border border-slate-700/40 mb-2">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${pb}">${a.prioridade}</span>
+                <span class="text-sm font-semibold text-white">${a.titulo}</span>
+            </div>
+            <p class="text-xs text-slate-300 whitespace-pre-line">${a.corpo}</p>
+            <p class="text-[10px] text-slate-600 mt-1">${dt} — ${a.autor || 'Sistema'}</p>
+        </div>`;
+    }).join('');
+
+    const overlay = document.createElement('div');
+    overlay.id = 'avisos-popup-overlay';
+    overlay.className = 'fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm';
+    overlay.innerHTML = `
+        <div class="glass-card w-full max-w-lg mx-4 max-h-[80vh] flex flex-col rounded-2xl shadow-2xl border border-slate-700/50">
+            <div class="flex items-center justify-between p-5 border-b border-slate-700/40">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                    </div>
+                    <h3 class="text-base font-bold text-white">Avisos (${avisos.length} não lido${avisos.length > 1 ? 's' : ''})</h3>
+                </div>
+                <button onclick="document.getElementById('avisos-popup-overlay').remove()" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+            </div>
+            <div class="overflow-y-auto p-5 flex-1">${cards}</div>
+            <div class="flex items-center justify-between p-4 border-t border-slate-700/40">
+                <button onclick="_popupMarcarTodos()" class="text-xs text-violet-400 hover:text-violet-300 transition">Marcar todos como lidos</button>
+                <button onclick="document.getElementById('avisos-popup-overlay').remove(); navigate('avisos');" class="btn-primary text-white font-medium text-xs px-4 py-2 rounded-lg">Ver todos</button>
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+function _popupMarcarTodos() {
+    api('/api/avisos/marcar-todos-lidos', { method: 'POST' }).then(() => {
+        const overlay = document.getElementById('avisos-popup-overlay');
+        if (overlay) overlay.remove();
+        checkAvisosNaoLidos();
+        if (typeof _loadNaoLidos === 'function') _loadNaoLidos();
+    });
+}
 
 // ---------------------------------------------------------------------------
 // Theme toggle

@@ -306,6 +306,7 @@ KOMMO_TOKEN = os.getenv("KOMMO_TOKEN", "")
 
 FUNNEL_PIPELINE = 5481944
 FUNNEL_STAGES_DEF = [
+    {"key": "incoming",              "id": 48539237, "label": "Incoming"},
     {"key": "contato_inicial",       "id": 48539240, "label": "Contato Inicial"},
     {"key": "sem_resposta",          "id": 48539243, "label": "Sem Resposta"},
     {"key": "em_atendimento",        "id": 48539246, "label": "Em Atendimento"},
@@ -317,6 +318,7 @@ FUNNEL_STAGES_DEF = [
     {"key": "aprovado_reprovado",    "id": 48566201, "label": "Aprovados/Reprovados"},
     {"key": "boleto_enviado",        "id": 48566204, "label": "Boleto Enviado"},
     {"key": "aceite",                "id": 48566207, "label": "Aceite"},
+    {"key": "qualificacao",          "id": 53917599, "label": "Qualificação"},
     {"key": "pagamento_confirmado",  "id": 77728584, "label": "Pagamento Confirmado"},
 ]
 
@@ -339,6 +341,49 @@ def _kommo_get(path, params=None):
         url = f"{base}{path}"
     headers = {"Authorization": f"Bearer {KOMMO_TOKEN}"}
     return _requests.get(url, headers=headers, params=params, timeout=30)
+
+
+def _count_new_leads_today():
+    """Count ALL leads created today across every pipeline (matches Kommo dashboard)."""
+    BRT = timezone(timedelta(hours=-3))
+    today_start = int(datetime.now(BRT).replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
+
+    count = 0
+    seen = set()
+    page = 1
+    while True:
+        try:
+            r = _kommo_get("/leads", {
+                "filter[created_at][from]": today_start,
+                "limit": 250,
+                "page": page,
+            })
+        except Exception as e:
+            logger.error("count_new_leads API error: %s", e)
+            break
+
+        if r.status_code != 200:
+            logger.warning("count_new_leads API %d: %s", r.status_code, r.text[:200])
+            break
+
+        data = r.json()
+        leads = data.get("_embedded", {}).get("leads", [])
+        if not leads:
+            break
+
+        for lead in leads:
+            lid = lead.get("id")
+            if lid and lid not in seen:
+                seen.add(lid)
+                count += 1
+
+        if "next" not in data.get("_links", {}):
+            break
+        page += 1
+        _time.sleep(0.05)
+
+    logger.info("count_new_leads_today: %d leads (pages=%d)", count, page)
+    return count
 
 
 def _fetch_funnel_live():
@@ -378,30 +423,12 @@ def _fetch_funnel_live():
         if "_links" not in data or "next" not in data["_links"]:
             break
         page += 1
-        _time.sleep(0.2)
-
-    BRT = timezone(timedelta(hours=-3))
-    today_brt = datetime.now(BRT).replace(hour=0, minute=0, second=0, microsecond=0)
-    today_start = int(today_brt.timestamp())
+        _time.sleep(0.05)
 
     counts = {}
-    new_today = 0
-    new_by_stage = {}
-    wrong_pipeline = 0
     for lead in all_leads:
         sid = lead.get("status_id")
-        pid = lead.get("pipeline_id")
         counts[sid] = counts.get(sid, 0) + 1
-        if pid != FUNNEL_PIPELINE:
-            wrong_pipeline += 1
-        if lead.get("created_at", 0) >= today_start:
-            new_today += 1
-            new_by_stage[sid] = new_by_stage.get(sid, 0) + 1
-
-    if wrong_pipeline:
-        logger.warning("funnel-live: %d leads from wrong pipeline!", wrong_pipeline)
-
-    stage_key_map = {s["id"]: s["key"] for s in FUNNEL_STAGES_DEF}
 
     stages = []
     total = 0
@@ -413,29 +440,17 @@ def _fetch_funnel_live():
             "id": sdef["id"],
             "label": sdef["label"],
             "count": c,
-            "new_today": new_by_stage.get(sdef["id"], 0),
             "highlight": sdef["key"] in FUNNEL_HIGHLIGHT,
         })
 
     for s in stages:
         s["pct"] = round(s["count"] / total * 100, 1) if total > 0 else 0
 
-    logger.info("funnel-live: total=%d new_today=%d wrong_pipeline=%d breakdown=%s",
-                total, new_today, wrong_pipeline,
-                {stage_key_map.get(k, k): v for k, v in new_by_stage.items()})
-
     return {
         "stages": stages,
         "total": total,
-        "new_today": new_today,
         "leads_fetched": len(all_leads),
         "pages": page,
-        "debug": {
-            "wrong_pipeline": wrong_pipeline,
-            "new_by_stage": {stage_key_map.get(k, str(k)): v for k, v in new_by_stage.items()},
-            "today_start_ts": today_start,
-            "today_start_brt": today_brt.isoformat(),
-        },
     }
 
 
@@ -461,9 +476,16 @@ def _get_snapshot_d0(current_stages):
     today = datetime.now(BRT).date().isoformat()
     snapshots = _load_snapshot()
 
-    if today not in snapshots:
+    current_total = sum(s["count"] for s in current_stages)
+    existing = snapshots.get(today)
+    needs_create = existing is None
+    if existing and existing.get("_total", 0) < 100 and current_total > 100:
+        logger.warning("D0 snapshot for %s looks invalid (_total=%s), recreating", today, existing.get("_total"))
+        needs_create = True
+
+    if needs_create:
         snapshots[today] = {s["key"]: s["count"] for s in current_stages}
-        snapshots[today]["_total"] = sum(s["count"] for s in current_stages)
+        snapshots[today]["_total"] = current_total
         old = sorted(k for k in snapshots if k != today)
         for k in old[:-7]:
             del snapshots[k]
@@ -493,7 +515,18 @@ def api_kommo_funnel_live():
         return jsonify({"ok": False, "error": "KOMMO_TOKEN não configurado"}), 500
 
     try:
-        result = _fetch_funnel_live()
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            fut_funnel = pool.submit(_fetch_funnel_live)
+            fut_count = pool.submit(_count_new_leads_today)
+
+        result = fut_funnel.result()
+        try:
+            result["new_today"] = fut_count.result()
+        except Exception as e:
+            logger.error("count_new_leads_today failed: %s", e)
+            result["new_today"] = 0
+
         d0, yesterday = _get_snapshot_d0(result["stages"])
 
         for s in result["stages"]:
