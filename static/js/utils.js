@@ -56,6 +56,21 @@ window.addEventListener('hashchange', () => {
     if (PAGES.includes(hash)) navigate(hash);
 });
 
+function navigateVoc(tab) {
+    PAGES.forEach(p => {
+        document.getElementById('page-' + p).classList.toggle('hidden', p !== 'vocacional');
+    });
+    document.querySelectorAll('.sidebar-link').forEach(el => {
+        el.classList.toggle('active', el.dataset.page === 'voc_' + tab);
+    });
+    document.getElementById('mobile-title').textContent = PAGE_TITLES['vocacional'] || 'Vocacional';
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebar-overlay').classList.remove('open');
+    vocLoadPage();
+    vocSwitchTab(tab);
+    history.replaceState(null, '', '#vocacional');
+}
+
 function toggleSidebar() {
     document.getElementById('sidebar').classList.toggle('open');
     document.getElementById('sidebar-overlay').classList.toggle('open');

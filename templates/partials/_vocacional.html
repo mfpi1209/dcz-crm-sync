@@ -36,21 +36,6 @@
         --text-3: #94a3b8;
     }
 
-    /* ── Tab Navigation ── */
-    #page-vocacional .voc-tab {
-        display: inline-flex; align-items: center; gap: 6px;
-        padding: 8px 16px; border-radius: 10px;
-        color: var(--text-2); font-size: 13px; font-weight: 500;
-        cursor: pointer; transition: all .2s;
-        border: 1px solid var(--border); background: transparent;
-        font-family: inherit;
-    }
-    #page-vocacional .voc-tab:hover { background: rgba(59,130,246,.08); color: var(--text-1); }
-    #page-vocacional .voc-tab.active {
-        background: rgba(59,130,246,.15); color: var(--blue);
-        font-weight: 600; border-color: var(--blue);
-    }
-
     /* ── Pages ── */
     #page-vocacional .voc-page { display: none; padding: 8px 0; }
     #page-vocacional .voc-page.active { display: block; }
@@ -280,33 +265,6 @@
         #page-vocacional .voc-rates-grid { grid-template-columns: 1fr; }
     }
 </style>
-
-<!-- ═══════════════════════════════════════════
-     TAB NAVIGATION
-     ═══════════════════════════════════════════ -->
-<div class="flex flex-wrap gap-2 mb-6">
-    <button class="voc-tab active" data-voctab="funil" onclick="vocSwitchTab('funil')">
-        <span class="material-icons-round text-sm">filter_alt</span> Visão Geral
-    </button>
-    <button class="voc-tab" data-voctab="trafego" onclick="vocSwitchTab('trafego')">
-        <span class="material-icons-round text-sm">ads_click</span> Tráfego
-    </button>
-    <button class="voc-tab" data-voctab="quiz" onclick="vocSwitchTab('quiz')">
-        <span class="material-icons-round text-sm">psychology</span> Quiz
-    </button>
-    <button class="voc-tab" data-voctab="leads" onclick="vocSwitchTab('leads')">
-        <span class="material-icons-round text-sm">person_add</span> Leads
-    </button>
-    <button class="voc-tab" data-voctab="cursos" onclick="vocSwitchTab('cursos')">
-        <span class="material-icons-round text-sm">school</span> Cursos
-    </button>
-    <button class="voc-tab" data-voctab="canal" onclick="vocSwitchTab('canal')">
-        <span class="material-icons-round text-sm">mediation</span> Canal
-    </button>
-    <button class="voc-tab" data-voctab="status" onclick="vocSwitchTab('status')">
-        <span class="material-icons-round text-sm">phone_callback</span> Status
-    </button>
-</div>
 
 <!-- ═══════════════════════════════════════════
      PAGE: Funil
