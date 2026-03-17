@@ -1,520 +1,285 @@
 // ---------------------------------------------------------------------------
-// Distribuição
+// Distribuição Comercial — Dashboard
 // ---------------------------------------------------------------------------
-let _distData = [];
-let _distSortCol = 'fila';
-let _distSortDir = 'asc';
 
-function sortDistCol(col) {
-    if (_distSortCol === col) {
-        _distSortDir = _distSortDir === 'asc' ? 'desc' : 'asc';
-    } else {
-        _distSortCol = col;
-        _distSortDir = 'asc';
-    }
-    document.querySelectorAll('[id^="dist-sort-"]').forEach(el => el.textContent = '');
-    const indicator = document.getElementById('dist-sort-' + col);
-    if (indicator) indicator.textContent = _distSortDir === 'asc' ? '▲' : '▼';
-    filterDistribuicao();
-}
+const DIST_API_LOAD = 'https://n8n-new-n8n.ca31ey.easypanel.host/webhook/distribuicaocomercial';
+const DIST_API_SAVE = 'https://n8n-new-n8n.ca31ey.easypanel.host/webhook/edicao_distrib';
 
-async function loadDistribuicao() {
-    const icon = document.getElementById('dist-refresh-icon');
-    const loading = document.getElementById('dist-loading');
-    const tbody = document.getElementById('dist-tbody');
-    if (icon) icon.classList.add('animate-spin');
-    if (loading) loading.classList.remove('hidden');
+const distState = {
+    data: [],
+    initialData: [],
+    loading: false,
+    initialized: false
+};
 
+async function distCarregarDados() {
+    const btnRefresh = document.getElementById('dist-btn-refresh');
+    const content = document.getElementById('dist-content');
+    
+    distState.loading = true;
+    if (btnRefresh) btnRefresh.disabled = true;
+    
+    content.innerHTML = `
+        <div class="dist-loading">
+            <div class="dist-spinner"></div>
+            <p class="dist-loading-text">Carregando dados...</p>
+        </div>
+    `;
+    
     try {
-        const res = await api('/api/distribuicao');
-        const payload = await res.json();
-        _distData = payload.distribuicao || [];
-
-        document.getElementById('dist-fila-atendimento').textContent = (payload.fila_atendimento ?? 0).toLocaleString('pt-BR');
-        document.getElementById('dist-fila-acolhimento').textContent = (payload.fila_acolhimento ?? 0).toLocaleString('pt-BR');
-
-        const ativos = _distData.filter(d => d.status === 'Ativo');
-        const emAtend = _distData.reduce((a, d) => a + (parseInt(d.fila) || 0), 0);
-        const ativosAtend = ativos.filter(d => d.tipo_atendimento === 'Atendimento').length;
-        const ativosAcolh = ativos.filter(d => d.tipo_atendimento === 'Acolhimento').length;
-
-        document.getElementById('dist-em-atendimento').textContent = emAtend.toLocaleString('pt-BR');
-        document.getElementById('dist-ativos-atend').textContent = ativosAtend;
-        document.getElementById('dist-ativos-acolh').textContent = ativosAcolh;
-        document.getElementById('dist-total-ativos').textContent = ativos.length;
-
-        filterDistribuicao();
-    } catch(e) {
-        console.error('Erro ao carregar distribuição:', e);
-        if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="px-4 py-6 text-center text-rose-400 text-sm">Erro ao carregar: ${e.message}</td></tr>`;
+        const response = await fetch(DIST_API_LOAD, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (!response.ok) throw new Error('Erro ao carregar dados');
+        
+        const dados = await response.json();
+        distState.data = dados;
+        distState.initialData = JSON.parse(JSON.stringify(dados));
+        
+        document.getElementById('dist-count').textContent = `${dados.length} registros`;
+        distRenderTable();
+        distShowNotification(`${dados.length} registros carregados com sucesso!`, 'success');
+        
+    } catch (error) {
+        console.error('Erro ao carregar dados:', error);
+        content.innerHTML = `
+            <div class="dist-empty">
+                <p>Erro ao carregar dados. Tente novamente.</p>
+            </div>
+        `;
     } finally {
-        if (icon) icon.classList.remove('animate-spin');
-        if (loading) loading.classList.add('hidden');
+        distState.loading = false;
+        if (btnRefresh) btnRefresh.disabled = false;
     }
 }
 
-function filterDistribuicao() {
-    const filter = document.getElementById('dist-filter').value;
-    let items = [..._distData];
-    if (filter !== 'Todos') items = items.filter(d => d.tipo_atendimento === filter);
-    document.querySelectorAll('[id^="dist-sort-"]').forEach(el => el.textContent = '');
-    const indicator = document.getElementById('dist-sort-' + _distSortCol);
-    if (indicator) indicator.textContent = _distSortDir === 'asc' ? '▲' : '▼';
-    renderDistTable(items);
-}
-
-function renderDistTable(items) {
-    const col = _distSortCol;
-    const dir = _distSortDir;
-
-    // Atualizar contador
-    const countEl = document.getElementById('dist-count');
-    if (countEl) countEl.textContent = `${items.length} registro${items.length !== 1 ? 's' : ''}`;
-
-    items.sort((a, b) => {
-        let va, vb;
-        if (col === 'fila') {
-            va = parseInt(a.fila) || 0;
-            vb = parseInt(b.fila) || 0;
-            return dir === 'asc' ? va - vb : vb - va;
-        }
-        if (col === 'ultima_execucao') {
-            va = a.ultima_execucao || '';
-            vb = b.ultima_execucao || '';
-        } else if (col === 'tipo_atendimento') {
-            va = a.tipo_atendimento || '';
-            vb = b.tipo_atendimento || '';
-        } else {
-            va = ''; vb = '';
-        }
-        const cmp = va.localeCompare(vb, 'pt-BR');
-        return dir === 'asc' ? cmp : -cmp;
-    });
-
-    const tbody = document.getElementById('dist-tbody');
-    tbody.innerHTML = items.map((d, idx) => {
-        const isAtivo = d.status === 'Ativo';
-        const filaNum = parseInt(d.fila) || 0;
-        const filaBg = filaNum > 5 ? 'bg-rose-500/15 text-rose-400 border-rose-500/30' :
-                       filaNum > 0 ? 'bg-amber-500/15 text-amber-400 border-amber-500/30' :
-                       'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-
-        // Avatar com iniciais
-        const initials = d.responsavel ? d.responsavel.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '??';
-        const avatarColors = ['from-indigo-500 to-purple-500', 'from-emerald-500 to-teal-500', 'from-amber-500 to-orange-500', 'from-rose-500 to-pink-500', 'from-cyan-500 to-blue-500'];
-        const avatarColor = avatarColors[idx % avatarColors.length];
-
-        // Tipo badge
-        const tipoBadge = d.tipo_atendimento === 'Atendimento'
-            ? 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30'
-            : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
-
-        return `<tr data-id="${esc(d.id)}" class="group hover:bg-slate-800/40 transition-all duration-200">
-            <td class="px-4 py-3">
-                <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br ${avatarColor} flex items-center justify-center text-white text-xs font-bold shadow-lg">
-                        ${initials}
-                    </div>
-                    <span class="text-sm font-medium text-slate-200 group-hover:text-white transition-colors">${esc(d.responsavel)}</span>
+function distRenderTable() {
+    const content = document.getElementById('dist-content');
+    const filtro = document.getElementById('dist-filtro').value;
+    
+    let dados = distState.data;
+    if (filtro !== 'TODOS') {
+        dados = dados.filter(p => p.status === filtro);
+    }
+    
+    if (dados.length === 0) {
+        content.innerHTML = `
+            <div class="dist-empty">
+                <p>Nenhum registro encontrado.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const rows = dados.map(pessoa => `
+        <tr data-id="${pessoa.id}">
+            <td>
+                <div class="dist-nome-cell">
+                    <span class="dist-nome">${pessoa.nome || '—'}</span>
+                    <span class="dist-status-badge ${pessoa.status === 'ATIVO' ? 'ativo' : 'inativo'}">
+                        ${pessoa.status === 'ATIVO' ? 'Ativo' : 'Inativo'}
+                    </span>
                 </div>
             </td>
-            <td class="px-3 py-3 text-center">
-                <select data-field="status" class="px-4 py-2 text-xs font-bold rounded-xl border-2 cursor-pointer transition-all duration-200 outline-none ${isAtivo
-                    ? 'text-emerald-300 border-emerald-500 bg-emerald-500/25 shadow-[0_0_12px_rgba(16,185,129,0.25)] hover:bg-emerald-500/35'
-                    : 'text-rose-300 border-rose-500 bg-rose-500/25 shadow-[0_0_12px_rgba(244,63,94,0.25)] hover:bg-rose-500/35'}">
-                    <option value="Ativo" ${isAtivo ? 'selected' : ''}>● Ativo</option>
-                    <option value="Inativo" ${!isAtivo ? 'selected' : ''}>● Inativo</option>
+            <td class="center">
+                <select class="dist-select" onchange="distUpdatePessoa(${pessoa.id}, 'status', this.value)">
+                    <option value="ATIVO" ${pessoa.status === 'ATIVO' ? 'selected' : ''}>Ativo</option>
+                    <option value="INATIVO" ${pessoa.status === 'INATIVO' ? 'selected' : ''}>Inativo</option>
                 </select>
             </td>
-            <td class="px-2 py-2 text-center">
-                <input type="time" value="${esc(d.almoco || '')}" class="text-xs text-slate-300 text-center rounded-lg outline-none" style="background:rgba(15,23,42,0.6);border:1px solid rgba(51,65,85,0.5);padding:6px 8px;width:90px;">
+            <td class="center">
+                <input type="number" 
+                       class="dist-input dist-input-number" 
+                       value="${pessoa.quantidade_leads || 1}" 
+                       min="1" 
+                       max="5"
+                       onchange="distUpdatePessoa(${pessoa.id}, 'quantidade_leads', parseInt(this.value) || 1)">
             </td>
-            <td class="px-2 py-2 text-center">
-                <input type="time" value="${esc(d.final_expediente || '')}" class="text-xs text-slate-300 text-center rounded-lg outline-none" style="background:rgba(15,23,42,0.6);border:1px solid rgba(51,65,85,0.5);padding:6px 8px;width:90px;">
+            <td>
+                <input type="text" 
+                       class="dist-input dist-input-obs" 
+                       value="${pessoa.observacao || ''}" 
+                       placeholder="Digite uma observação..."
+                       onchange="distUpdatePessoa(${pessoa.id}, 'observacao', this.value)">
             </td>
-            <td class="px-2 py-2 text-center">
-                <input type="number" value="${esc(d.pausa || '')}" placeholder="0" class="text-xs text-slate-300 text-center rounded-lg outline-none" style="background:rgba(15,23,42,0.6);border:1px solid rgba(51,65,85,0.5);padding:6px 4px;width:52px;">
-            </td>
-            <td class="px-2 py-2 text-center">
-                <input type="number" value="${esc(d.volume || '')}" placeholder="0" class="text-xs text-slate-300 text-center rounded-lg outline-none" style="background:rgba(15,23,42,0.6);border:1px solid rgba(51,65,85,0.5);padding:6px 4px;width:52px;">
-            </td>
-            <td class="px-3 py-3 text-center">
-                <span class="inline-flex items-center justify-center min-w-[40px] px-2.5 py-1 rounded-lg text-xs font-bold border ${filaBg}">
-                    ${esc(d.fila || '0')}
-                </span>
-            </td>
-            <td class="px-3 py-3 text-center whitespace-nowrap">
-                <span class="text-xs text-slate-400 inline-flex items-center gap-1">
-                    <svg class="w-3 h-3 text-slate-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    ${esc(d.ultima_execucao || '—')}
-                </span>
-            </td>
-            <td class="px-3 py-3 text-center">
-                <select data-field="tipo" class="input-glass px-3 py-1.5 text-xs rounded-lg border ${tipoBadge} cursor-pointer hover:opacity-80 transition-opacity">
-                    <option value="Atendimento" ${d.tipo_atendimento === 'Atendimento' ? 'selected' : ''}>Atendimento</option>
-                    <option value="Acolhimento" ${d.tipo_atendimento === 'Acolhimento' ? 'selected' : ''}>Acolhimento</option>
-                </select>
-            </td>
-        </tr>`;
-    }).join('');
-
-    tbody.querySelectorAll('select[data-field="status"]').forEach(sel => {
-        sel.addEventListener('change', function() {
-            const isActive = this.value === 'Ativo';
-            this.className = `px-4 py-2 text-xs font-bold rounded-xl border-2 cursor-pointer transition-all duration-200 outline-none ${isActive
-                ? 'text-emerald-300 border-emerald-500 bg-emerald-500/25 shadow-[0_0_12px_rgba(16,185,129,0.25)] hover:bg-emerald-500/35'
-                : 'text-rose-300 border-rose-500 bg-rose-500/25 shadow-[0_0_12px_rgba(244,63,94,0.25)] hover:bg-rose-500/35'}`;
-        });
-    });
+        </tr>
+    `).join('');
+    
+    content.innerHTML = `
+        <div class="dist-table-wrapper">
+            <table class="dist-table">
+                <thead>
+                    <tr>
+                        <th style="min-width: 220px;">Nome</th>
+                        <th class="center" style="min-width: 140px;">Status</th>
+                        <th class="center" style="min-width: 160px;">Quantidade Leads</th>
+                        <th style="min-width: 320px;">Observação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows}
+                </tbody>
+            </table>
+        </div>
+    `;
 }
 
-async function saveDistribuicao() {
-    const rows = document.querySelectorAll('#dist-tbody tr');
-    const dados = [];
-    rows.forEach(row => {
-        const id = row.getAttribute('data-id');
-        const statusSel = row.querySelector('select[data-field="status"]');
-        const tipoSel = row.querySelector('select[data-field="tipo"]');
-        const inputs = row.querySelectorAll('input');
-        dados.push({
-            id,
-            status: statusSel ? statusSel.value : 'Ativo',
-            almoco: inputs[0].value,
-            final_expediente: inputs[1].value,
-            pausa: inputs[2].value,
-            volume: inputs[3].value,
-            tipo_atendimento: tipoSel ? tipoSel.value : 'Atendimento',
-        });
-    });
+function distUpdatePessoa(id, field, value) {
+    const pessoa = distState.data.find(p => p.id === id);
+    if (pessoa) {
+        pessoa[field] = value;
+        
+        // Atualizar badge visual se mudou status
+        if (field === 'status') {
+            const row = document.querySelector(`tr[data-id="${id}"]`);
+            if (row) {
+                const badge = row.querySelector('.dist-status-badge');
+                if (badge) {
+                    badge.className = `dist-status-badge ${value === 'ATIVO' ? 'ativo' : 'inativo'}`;
+                    badge.textContent = value === 'ATIVO' ? 'Ativo' : 'Inativo';
+                }
+            }
+        }
+    }
+}
 
+function distDetectarAlteracoes() {
+    const alteracoes = [];
+    
+    distState.data.forEach(pessoaAtual => {
+        const pessoaInicial = distState.initialData.find(p => p.id === pessoaAtual.id);
+        if (!pessoaInicial) return;
+        
+        if (pessoaAtual.status !== pessoaInicial.status) {
+            alteracoes.push({
+                id_lead: pessoaAtual.id_lead,
+                nome: pessoaAtual.nome,
+                campo: 'status',
+                valorAnterior: pessoaInicial.status,
+                valorNovo: pessoaAtual.status,
+                status: pessoaAtual.status
+            });
+        }
+        
+        if (pessoaAtual.quantidade_leads !== pessoaInicial.quantidade_leads) {
+            alteracoes.push({
+                id_lead: pessoaAtual.id_lead,
+                nome: pessoaAtual.nome,
+                campo: 'quantidade_leads',
+                valorAnterior: pessoaInicial.quantidade_leads,
+                valorNovo: pessoaAtual.quantidade_leads,
+                status: pessoaAtual.status
+            });
+        }
+        
+        if (pessoaAtual.observacao !== pessoaInicial.observacao) {
+            alteracoes.push({
+                id_lead: pessoaAtual.id_lead,
+                nome: pessoaAtual.nome,
+                campo: 'observacao',
+                valorAnterior: pessoaInicial.observacao || '(vazio)',
+                valorNovo: pessoaAtual.observacao || '(vazio)',
+                status: pessoaAtual.status
+            });
+        }
+    });
+    
+    return alteracoes;
+}
+
+async function distSalvar() {
+    const alteracoes = distDetectarAlteracoes();
+    
+    if (alteracoes.length === 0) {
+        distShowNotification('Nenhuma alteração detectada', 'info');
+        return;
+    }
+    
+    const btnSave = document.getElementById('dist-btn-save');
+    if (btnSave) btnSave.disabled = true;
+    
     try {
-        const res = await api('/api/distribuicao', {
+        const response = await fetch(DIST_API_SAVE, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(dados),
+            body: JSON.stringify({
+                alteracoes,
+                timestamp: new Date().toISOString()
+            })
         });
-        const d = await res.json();
-        if (d.ok) {
-            alert('Alterações salvas com sucesso!');
-            loadDistribuicao();
+        
+        if (response.ok) {
+            distState.initialData = JSON.parse(JSON.stringify(distState.data));
+            distShowNotification(`${alteracoes.length} alteração(ões) salva(s) com sucesso!`, 'success');
         } else {
-            alert('Erro ao salvar: ' + (d.error || 'desconhecido'));
+            throw new Error('Erro ao salvar');
         }
-    } catch(e) {
-        alert('Erro ao salvar: ' + e.message);
+    } catch (error) {
+        console.error('Erro ao salvar:', error);
+        distShowNotification('Erro ao salvar alterações. Tente novamente.', 'error');
+    } finally {
+        if (btnSave) btnSave.disabled = false;
     }
 }
 
-// ---------------------------------------------------------------------------
-// Upload
-// ---------------------------------------------------------------------------
-function handleDropTyped(e, tipo) {
-    e.preventDefault();
-    e.currentTarget.classList.remove('border-emerald-500', 'bg-emerald-950/10',
-        'border-amber-500', 'bg-amber-950/10', 'border-purple-500', 'bg-purple-950/10',
-        'border-sky-500', 'bg-sky-950/10', 'border-rose-500', 'bg-rose-950/10');
-    const file = e.dataTransfer.files[0];
-    if (file) handleUploadTyped(file, tipo);
+function loadDistribuicao() {
+    if (!distState.initialized) {
+        distState.initialized = true;
+    }
+    distCarregarDados();
 }
 
-function handleDropBatchInadimplentes(e, nivel) {
-    e.preventDefault();
-    e.currentTarget.classList.remove('border-amber-500', 'bg-amber-950/10', 'border-orange-500', 'bg-orange-950/10');
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-        handleUploadBatchInadimplentes(files, nivel);
-    }
-}
-
-async function handleUploadBatchInadimplentes(fileList, nivel) {
-    if (!fileList || fileList.length === 0) return;
-
-    const allowed = ['xlsx', 'xlsm', 'zip'];
-    const valid = [];
-    for (const f of fileList) {
-        const ext = f.name.toLowerCase().split('.').pop();
-        if (allowed.includes(ext)) valid.push(f);
-    }
-    if (valid.length === 0) {
-        alert('Nenhum arquivo .xlsx/.xlsm válido selecionado.');
-        return;
-    }
-
-    const card = document.querySelector('[data-upload-tipo="inadimplentes"]');
-    const progress = card.querySelector('.upload-progress');
-    const bar = card.querySelector('.upload-bar');
-    const msg = card.querySelector('.upload-msg');
-    progress.classList.remove('hidden');
-    bar.style.width = '20%';
-    const nivelLabel = nivel || 'geral';
-    msg.textContent = `Enviando ${valid.length} arquivo(s) [${nivelLabel}]...`;
-    msg.className = 'upload-msg text-xs text-slate-400 mt-1';
-
-    const form = new FormData();
-    for (const f of valid) form.append('files', f);
-    form.append('tipo', 'inadimplentes');
-    if (nivel) form.append('nivel', nivel);
-
-    try {
-        bar.style.width = '60%';
-        const res = await fetch('/api/upload-batch', { method: 'POST', body: form });
-        const data = await res.json();
-        bar.style.width = '100%';
-
-        if (data.error) {
-            msg.textContent = data.error;
-            msg.classList.add('text-red-400');
-            setTimeout(() => { progress.classList.add('hidden'); }, 3000);
-            return;
-        }
-
-        if (data.warning) {
-            msg.textContent = `⚠ ${data.files_count} arquivos recebidos mas 0 alunos extraídos. Verifique o formato dos arquivos.`;
-            msg.className = 'upload-msg text-xs text-amber-400 font-semibold mt-1';
-        } else {
-            const rowsTxt = data.snapshot_rows >= 0 ? ` (${data.snapshot_rows.toLocaleString('pt-BR')} alunos)` : '';
-            msg.innerHTML = `✓ ${data.files_count} arquivos processados!${rowsTxt} <button onclick="_triggerInadimplentesUpdate(this)" class="ml-2 px-2 py-0.5 text-[10px] rounded bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/30 transition">Atualizar CRM</button>`;
-            msg.className = 'upload-msg text-xs text-emerald-400 font-semibold mt-1';
-        }
-        loadFileInfo();
-
-        setTimeout(() => {
-            bar.style.width = '0%';
-            progress.querySelector('.upload-bar').parentElement.classList.add('hidden');
-        }, 1500);
-    } catch (err) {
-        bar.style.width = '100%';
-        msg.textContent = 'Erro: ' + err.message;
-        msg.classList.add('text-red-400');
-        setTimeout(() => {
-            progress.classList.add('hidden');
-            bar.style.width = '0%';
-        }, 3000);
-    }
-
-    card.querySelector('input[type="file"]').value = '';
-}
-
-async function _triggerInadimplentesUpdate(btn) {
-    if (btn) {
-        btn.disabled = true;
-        btn.textContent = 'Atualizando...';
-    }
-    try {
-        const res = await api('/api/inadimplentes/execute', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
-        const d = await res.json();
-        if (d.ok) {
-            if (btn) {
-                btn.textContent = '✓ Iniciado';
-                btn.className = 'ml-2 px-2 py-0.5 text-[10px] rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
-            }
-        } else {
-            if (btn) btn.textContent = d.error || 'Erro';
-        }
-    } catch(e) {
-        if (btn) btn.textContent = 'Erro: ' + e.message;
-    }
-}
-
-function handleDropSemRemat(e, subtipo) {
-    e.preventDefault();
-    e.currentTarget.classList.remove('border-emerald-500', 'bg-emerald-950/10',
-        'border-amber-500', 'bg-amber-950/10');
-    const file = e.dataTransfer.files[0];
-    if (file) handleUploadSemRemat(file, subtipo);
-}
-
-async function handleUploadSemRemat(file, subtipo) {
-    if (!file) return;
-    const ext = file.name.toLowerCase().split('.').pop();
-    if (!['xlsx', 'xlsm'].includes(ext)) {
-        alert('Aceitos: .xlsx ou .xlsm');
-        return;
-    }
-
-    const card = document.querySelector('[data-upload-tipo="sem_rematricula"]');
-    const progress = card.querySelector('.upload-progress');
-    const bar = card.querySelector('.upload-bar');
-    const msg = card.querySelector('.upload-msg');
-    const statusEl = document.getElementById('sem-remat-status-' + subtipo);
-
-    progress.classList.remove('hidden');
-    bar.style.width = '30%';
-    msg.textContent = `Enviando ${subtipo}: ${file.name}...`;
-    msg.className = 'upload-msg text-xs text-slate-400 mt-1';
-    if (statusEl) statusEl.textContent = 'Enviando...';
-
-    const form = new FormData();
-    form.append('file', file);
-    form.append('tipo', 'sem_rematricula');
-    form.append('subtipo', subtipo);
-
-    try {
-        bar.style.width = '60%';
-        const res = await fetch('/api/upload', { method: 'POST', body: form });
-        const data = await res.json();
-        bar.style.width = '100%';
-
-        if (data.error) {
-            msg.textContent = data.error;
-            msg.classList.add('text-red-400');
-            if (statusEl) statusEl.textContent = 'Erro';
-            setTimeout(() => { progress.classList.add('hidden'); }, 3000);
-            return;
-        }
-
-        const color = subtipo === 'adimplente' ? 'emerald' : 'amber';
-        if (data.snapshot_rows > 0) {
-            msg.textContent = `✓ Snapshot criado! (${data.snapshot_rows.toLocaleString('pt-BR')} linhas)`;
-            msg.className = 'upload-msg text-xs text-emerald-400 font-semibold mt-1';
-            if (statusEl) {
-                statusEl.textContent = `✓ ${data.snapshot_rows.toLocaleString('pt-BR')} linhas`;
-                statusEl.className = `text-[10px] text-${color}-400 font-semibold mt-1 truncate`;
-            }
-        } else {
-            msg.textContent = `✓ ${subtipo} recebido! Envie o outro arquivo.`;
-            msg.className = 'upload-msg text-xs text-amber-400 font-semibold mt-1';
-            if (statusEl) {
-                statusEl.textContent = `✓ Recebido`;
-                statusEl.className = `text-[10px] text-${color}-400 font-semibold mt-1 truncate`;
-            }
-        }
-        loadFileInfo();
-
-        setTimeout(() => {
-            bar.style.width = '0%';
-            progress.querySelector('.upload-bar').parentElement.classList.add('hidden');
-        }, 1500);
-    } catch (err) {
-        bar.style.width = '100%';
-        msg.textContent = 'Erro: ' + err.message;
-        msg.classList.add('text-red-400');
-        if (statusEl) statusEl.textContent = 'Erro';
-        setTimeout(() => {
-            progress.classList.add('hidden');
-            bar.style.width = '0%';
-        }, 3000);
-    }
-}
-
-async function handleUploadTyped(file, tipo) {
-    if (!file) return;
-    const ext = file.name.toLowerCase().split('.').pop();
-    const allowed = ['xlsx', 'xlsm', 'zip'];
-    if (!allowed.includes(ext)) {
-        alert('Aceitos: .xlsx, .xlsm ou .zip');
-        return;
-    }
-
-    const card = document.querySelector(`[data-upload-tipo="${tipo}"]`);
-    const progress = card.querySelector('.upload-progress');
-    const bar = card.querySelector('.upload-bar');
-    const msg = card.querySelector('.upload-msg');
-    progress.classList.remove('hidden');
-    bar.style.width = '30%';
-    msg.textContent = `Enviando ${file.name}...`;
-    msg.className = 'upload-msg text-xs text-slate-400 mt-1';
-
-    const form = new FormData();
-    form.append('file', file);
-    form.append('tipo', tipo);
-
-    try {
-        bar.style.width = '60%';
-        const res = await fetch('/api/upload', { method: 'POST', body: form });
-        const data = await res.json();
-        bar.style.width = '100%';
-
-        if (data.error) {
-            msg.textContent = data.error;
-            msg.classList.add('text-red-400');
-            setTimeout(() => { progress.classList.add('hidden'); }, 3000);
-            return;
-        }
-
-        if (tipo === 'sem_rematricula' && data.snapshot_rows === 0) {
-            msg.textContent = `✓ Arquivo recebido! Envie o outro arquivo (adimplente/inadimplente).`;
-            msg.className = 'upload-msg text-xs text-amber-400 font-semibold mt-1';
-        } else {
-            const rowsTxt = data.snapshot_rows >= 0 ? ` (${data.snapshot_rows.toLocaleString('pt-BR')} linhas)` : '';
-            msg.textContent = `✓ Upload concluído!${rowsTxt}`;
-            msg.className = 'upload-msg text-xs text-emerald-400 font-semibold mt-1';
-        }
-        loadFileInfo();
-
-        setTimeout(() => {
-            bar.style.width = '0%';
-            progress.querySelector('.upload-bar').parentElement.classList.add('hidden');
-        }, 1500);
-    } catch (err) {
-        bar.style.width = '100%';
-        msg.textContent = 'Erro: ' + err.message;
-        msg.classList.add('text-red-400');
-        setTimeout(() => {
-            progress.classList.add('hidden');
-            bar.style.width = '0%';
-        }, 3000);
-    }
-
-    card.querySelector('input[type="file"]').value = '';
-}
-
-async function processServerFolder(tipo) {
-    const card = document.querySelector(`[data-upload-tipo="${tipo}"]`);
-    const progress = card.querySelector('.upload-progress');
-    const bar = card.querySelector('.upload-bar');
-    const msg = card.querySelector('.upload-msg');
-    progress.classList.remove('hidden');
-    bar.style.width = '40%';
-    msg.textContent = 'Processando pasta do servidor...';
-    msg.className = 'upload-msg text-xs text-slate-400 mt-1';
-
-    try {
-        const res = await fetch('/api/upload-folder', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ tipo }),
-        });
-        const data = await res.json();
-        bar.style.width = '100%';
-        if (data.error) {
-            msg.textContent = data.error;
-            msg.classList.add('text-red-400');
-        } else {
-            msg.textContent = `Processado! ${(data.snapshot_rows||0).toLocaleString('pt-BR')} linhas`;
-            msg.classList.add('text-emerald-400');
-            loadFileInfo();
-        }
-    } catch (err) {
-        bar.style.width = '100%';
-        msg.textContent = 'Erro: ' + err.message;
-        msg.classList.add('text-red-400');
-    }
-    setTimeout(() => { progress.classList.add('hidden'); bar.style.width = '0%'; msg.className = 'upload-msg text-xs text-slate-400 mt-1'; }, 3000);
-}
-
-function loadFileInfo() {
-    const TIPO_COLORS = {
-        matriculados: 'emerald', inadimplentes: 'amber', concluintes: 'purple',
-        acesso_ava: 'sky', sem_rematricula: 'rose'
+function distShowNotification(message, type = 'success') {
+    const existing = document.getElementById('dist-notification');
+    if (existing) existing.remove();
+    
+    const colors = {
+        success: { bg: '#dcfce7', border: '#86efac', text: '#16a34a', icon: '✓' },
+        error: { bg: '#fee2e2', border: '#fca5a5', text: '#dc2626', icon: '✕' },
+        info: { bg: '#dbeafe', border: '#93c5fd', text: '#2563eb', icon: 'ℹ' }
     };
-    fetch('/api/upload/info').then(r => r.json()).then(d => {
-        const snaps = d.snapshots || {};
-        for (const tipo of ['matriculados', 'inadimplentes', 'concluintes', 'acesso_ava', 'sem_rematricula']) {
-            const el = document.getElementById('snap-info-' + tipo);
-            if (!el) continue;
-            const s = snaps[tipo];
-            const c = TIPO_COLORS[tipo] || 'slate';
-            if (s) {
-                el.className = `snap-info mt-3 text-xs border border-${c}-500/20 bg-${c}-500/5 rounded-lg p-2.5`;
-                el.innerHTML = `<div class="flex items-center gap-1.5 mb-1">` +
-                    `<svg class="w-3.5 h-3.5 text-${c}-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>` +
-                    `<span class="text-${c}-300 font-semibold truncate">${esc(s.filename)}</span></div>` +
-                    `<div class="text-slate-400 pl-5">${s.row_count.toLocaleString('pt-BR')} linhas &middot; ${s.uploaded_at}</div>`;
-            } else {
-                el.className = 'snap-info mt-3 text-xs text-slate-500';
-                el.textContent = 'Nenhum snapshot';
-            }
+    const c = colors[type] || colors.success;
+    
+    const notification = document.createElement('div');
+    notification.id = 'dist-notification';
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${c.bg};
+        border: 1px solid ${c.border};
+        color: ${c.text};
+        padding: 14px 20px;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 9999;
+        animation: distSlideIn 0.3s ease;
+    `;
+    notification.innerHTML = `<span style="font-size:18px;">${c.icon}</span> ${message}`;
+    
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes distSlideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
         }
-    });
+        @keyframes distSlideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+    `;
+    document.head.appendChild(style);
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.style.animation = 'distSlideOut 0.3s ease';
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
 }

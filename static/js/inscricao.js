@@ -125,6 +125,14 @@ function inscSwitchToErrors() {
     inscFetchData();
 }
 
+function inscSwitchToCpfInscrito() {
+    inscSyncFilters();
+    inscState.view = 'cpf_inscrito';
+    inscState.offset = 0;
+    inscUpdateToolbarButtons();
+    inscFetchData();
+}
+
 function inscSwitchToHome() {
     inscSyncFilters();
     inscState.view = 'home';
@@ -144,9 +152,15 @@ function inscPrevPage() {
 
 function inscUpdateToolbarButtons() {
     const isHome = inscState.view === 'home';
+    const isErrors = inscState.view === 'errors';
+    const isCpfInscrito = inscState.view === 'cpf_inscrito';
+    
     document.getElementById('insc-btnErrors').style.display = isHome ? '' : 'none';
-    document.getElementById('insc-btnHome').style.display   = isHome ? 'none' : '';
-    document.getElementById('insc-btnErrors').classList.toggle('active', !isHome);
+    document.getElementById('insc-btnCpfInscrito').style.display = isHome ? '' : 'none';
+    document.getElementById('insc-btnHome').style.display = isHome ? 'none' : '';
+    
+    document.getElementById('insc-btnErrors').classList.toggle('active', isErrors);
+    document.getElementById('insc-btnCpfInscrito').classList.toggle('active', isCpfInscrito);
 }
 
 function inscToggleOutput(id) {
@@ -162,6 +176,8 @@ function inscRender() {
     inscRenderViewIndicator();
     if (inscState.view === 'home') {
         inscRenderHome();
+    } else if (inscState.view === 'cpf_inscrito') {
+        inscRenderCpfInscrito();
     } else {
         inscRenderErrors();
     }
@@ -169,7 +185,7 @@ function inscRender() {
 
 function inscRenderViewIndicator() {
     const d = inscState.data;
-    const isHome = inscState.view === 'home';
+    const view = inscState.view;
     const filters = d.filters || {};
     const fromStr = inscFormatDate(filters.from);
     const toStr   = inscFormatDate(filters.to);
@@ -177,12 +193,20 @@ function inscRenderViewIndicator() {
         ? `Período: ${fromStr} a ${toStr}`
         : 'Sem filtro de data';
 
+    let badgeClass = 'home';
+    let badgeContent = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg> Home';
+    
+    if (view === 'errors') {
+        badgeClass = 'errors';
+        badgeContent = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg> Erros';
+    } else if (view === 'cpf_inscrito') {
+        badgeClass = 'cpf-inscrito';
+        badgeContent = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg> CPF\'s com Inscrição';
+    }
+
     document.getElementById('insc-viewIndicator').innerHTML = `
-        <span class="insc-view-badge ${isHome ? 'home' : 'errors'}">
-            ${isHome
-                ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg> Home'
-                : '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg> Erros'
-            }
+        <span class="insc-view-badge ${badgeClass}">
+            ${badgeContent}
         </span>
         <span class="insc-filter-display">${filterText}</span>
     `;
@@ -250,10 +274,95 @@ function inscRenderHome() {
     `;
 }
 
+function inscIsCpfJaInscrito(row) {
+    const msg = (row.erro_mensagem || '').toLowerCase();
+    const output = (row.output || '').toLowerCase();
+    const combined = msg + ' ' + output;
+    
+    const patterns = [
+        'cpf já possui inscrição',
+        'cpf ja possui inscricao',
+        'já possui inscrição',
+        'ja possui inscricao',
+        'cpf já possui inscri',
+        'possui inscrição',
+        'cpf já cadastrado',
+        'cpf ja cadastrado',
+        'já está inscrito',
+        'ja esta inscrito',
+        'inscrição já existe',
+        'inscricao ja existe',
+        'cpf already',
+        'already registered',
+        'já inscrito',
+        'ja inscrito'
+    ];
+    
+    return patterns.some(p => combined.includes(p));
+}
+
+function inscRenderCpfInscrito() {
+    const d = inscState.data;
+    const allRows = d.rows || [];
+    const rows = allRows.filter(r => inscIsCpfJaInscrito(r));
+    const totalReturned = rows.length;
+    const pagination = d.pagination || {};
+    const limit  = pagination.limit  != null ? pagination.limit  : inscState.limit;
+    const offset = pagination.offset != null ? pagination.offset : inscState.offset;
+
+    let rowsHTML = '';
+    if (rows.length === 0) {
+        rowsHTML = inscRenderEmptyState('Nenhum CPF com inscrição', 'Não há registros de CPF que já possuem inscrição neste período.');
+    } else {
+        rowsHTML = rows.map((r, i) => {
+            const uid = `insc-cpf-output-${offset}-${i}`;
+            const endTimeRaw = inscGetEndTime(r);
+            const endTimeFormatted = inscFormatDateTime(endTimeRaw);
+            return `
+            <div class="insc-error-card insc-cpf-card insc-animate-in">
+                <div class="insc-error-card-header" style="background: linear-gradient(180deg, #f0fdf4 0%, white 100%);">
+                    <span class="insc-error-id" title="${inscSafe(r.execution_id)}">${inscSafe(r.execution_id)}</span>
+                    <div class="insc-error-card-header-right">
+                        ${endTimeFormatted ? `
+                        <span class="insc-error-timestamp" title="Fim da execução">
+                            <svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>
+                            ${endTimeFormatted}
+                        </span>` : ''}
+                        <span class="insc-error-etapa" style="background: #dcfce7; color: #16a34a;">${inscSafe(r.etapa_erro, 'Etapa desconhecida')}</span>
+                    </div>
+                </div>
+                <div class="insc-error-card-body">
+                    <div class="insc-error-msg-label">Mensagem</div>
+                    <div class="insc-error-msg" style="color: #16a34a;">${inscSafe(r.erro_mensagem, 'Sem mensagem')}</div>
+                    ${r.output ? `
+                        <button class="insc-error-output-toggle" onclick="inscToggleOutput('${uid}')">
+                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
+                            Ver output completo
+                        </button>
+                        <div class="insc-error-output" id="${uid}">${inscEscapeHtml(r.output)}</div>
+                    ` : ''}
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    document.getElementById('insc-contentArea').innerHTML = `
+        <div class="insc-errors-header">
+            <div class="insc-errors-stats">
+                <span class="insc-stat-chip" style="background: #f0fdf4; border-color: #bbf7d0; color: #16a34a;">CPF's com inscrição: <strong>&nbsp;${inscSafe(totalReturned)}</strong></span>
+            </div>
+        </div>
+        <div class="insc-errors-list">
+            ${rowsHTML}
+        </div>
+    `;
+}
+
 function inscRenderErrors() {
     const d = inscState.data;
-    const rows = d.rows || [];
-    const totalReturned = d.total_returned != null ? d.total_returned : rows.length;
+    const allRows = d.rows || [];
+    const rows = allRows.filter(r => !inscIsCpfJaInscrito(r));
+    const totalReturned = rows.length;
     const pagination = d.pagination || {};
     const limit  = pagination.limit  != null ? pagination.limit  : inscState.limit;
     const offset = pagination.offset != null ? pagination.offset : inscState.offset;
