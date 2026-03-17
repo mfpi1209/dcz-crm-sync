@@ -570,11 +570,13 @@ def api_meta_campaigns():
         data = response.json()
         
         if isinstance(data, list):
-            campaigns = data
+            raw_data = data
         elif isinstance(data, dict) and "campaigns" in data:
-            campaigns = data["campaigns"]
+            raw_data = data["campaigns"]
         else:
-            campaigns = [data] if data else []
+            raw_data = [data] if data else []
+        
+        campaigns = _process_meta_campaigns_data(raw_data)
         
         return jsonify({
             "campaigns": campaigns,
@@ -601,6 +603,122 @@ def api_meta_campaigns():
             "status": "ERROR",
             "error": str(e)
         })
+
+
+def _process_meta_campaigns_data(raw_data):
+    """
+    Processa os dados brutos do webhook para o formato esperado pelo front-end.
+    
+    Dados de entrada podem ter dois formatos:
+    1. Dados de leads por dia: {bandeira, total, novos, recadastro, dia_sp}
+    2. Dados de status: {consultor, status, bandeira, total}
+    
+    Ou já podem vir no formato correto com utm_campaign.
+    """
+    if not raw_data:
+        return []
+    
+    first_item = raw_data[0] if raw_data else {}
+    
+    if 'utm_campaign' in first_item:
+        return raw_data
+    
+    if 'bandeira' in first_item or 'consultor' in first_item:
+        return _convert_crm_format_to_campaigns(raw_data)
+    
+    return raw_data
+
+
+def _convert_crm_format_to_campaigns(raw_data):
+    """
+    Converte dados no formato CRM (bandeira/consultor) para formato de campanhas.
+    
+    O problema original era que:
+    - Dados de leads (com dia_sp) são leads NOVOS no período
+    - Dados de status (GANHO/PERDIDO) são processamentos históricos acumulados,
+      não filtrados pelo período
+    
+    A solução: usar proporção de ganhos/perdidos históricos para estimar
+    ganhos/perdidos dentro do universo de leads novos do período.
+    Isso garante que: Ganhos + Perdidos <= Total (novos)
+    """
+    lead_data = []
+    status_data = []
+    
+    for item in raw_data:
+        if 'dia_sp' in item:
+            lead_data.append(item)
+        elif 'status' in item and 'consultor' in item:
+            status_data.append(item)
+    
+    campaigns_by_key = {}
+    
+    for item in lead_data:
+        bandeira = item.get('bandeira', 'Sem bandeira')
+        key = bandeira.lower()
+        
+        if key not in campaigns_by_key:
+            campaigns_by_key[key] = {
+                'utm_campaign': bandeira,
+                'utm_source': 'Meta',
+                'utm_medium': 'leads',
+                'novos': 0,
+                'ganhos': 0,
+                'perdidos': 0
+            }
+        
+        campaigns_by_key[key]['novos'] += int(item.get('total', 0) or 0)
+    
+    status_totals = {}
+    for item in status_data:
+        bandeira = item.get('bandeira', 'Sem bandeira')
+        key = bandeira.lower()
+        status = item.get('status', '').upper()
+        total = int(item.get('total', 0) or 0)
+        
+        if key not in status_totals:
+            status_totals[key] = {'ganhos': 0, 'perdidos': 0}
+        
+        if status == 'GANHO':
+            status_totals[key]['ganhos'] += total
+        elif status == 'PERDIDO':
+            status_totals[key]['perdidos'] += total
+    
+    for key, totals in status_totals.items():
+        if key not in campaigns_by_key:
+            campaigns_by_key[key] = {
+                'utm_campaign': key.capitalize(),
+                'utm_source': 'Meta',
+                'utm_medium': 'leads',
+                'novos': 0,
+                'ganhos': 0,
+                'perdidos': 0
+            }
+        
+        total_processados = totals['ganhos'] + totals['perdidos']
+        total_novos = campaigns_by_key[key]['novos']
+        
+        if total_novos > 0 and total_processados > 0:
+            proporcao_ganhos = totals['ganhos'] / total_processados
+            proporcao_perdidos = totals['perdidos'] / total_processados
+            
+            campaigns_by_key[key]['ganhos'] = round(total_novos * proporcao_ganhos)
+            campaigns_by_key[key]['perdidos'] = round(total_novos * proporcao_perdidos)
+            
+            if campaigns_by_key[key]['ganhos'] + campaigns_by_key[key]['perdidos'] > total_novos:
+                campaigns_by_key[key]['perdidos'] = total_novos - campaigns_by_key[key]['ganhos']
+        else:
+            ganhos_brutos = totals['ganhos']
+            perdidos_brutos = totals['perdidos']
+            
+            if total_novos > 0:
+                campaigns_by_key[key]['ganhos'] = min(ganhos_brutos, total_novos)
+                campaigns_by_key[key]['perdidos'] = min(perdidos_brutos, total_novos - campaigns_by_key[key]['ganhos'])
+            else:
+                campaigns_by_key[key]['ganhos'] = ganhos_brutos
+                campaigns_by_key[key]['perdidos'] = perdidos_brutos
+    
+    return list(campaigns_by_key.values())
 
 
 # ---------------------------------------------------------------------------

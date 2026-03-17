@@ -18,18 +18,29 @@ function consolidateCampaigns(campaigns) {
                 utm_medium: c.utm_medium,
                 novos: 0,
                 ganhos: 0,
-                perdidos: 0
+                perdidos: 0,
+                total_funil: 0
             };
         }
         
         grouped[key].novos += parseInt(c.novos) || 0;
         grouped[key].ganhos += parseInt(c.ganhos) || 0;
         grouped[key].perdidos += parseInt(c.perdidos) || 0;
+        grouped[key].total_funil += parseInt(c.total_funil) || parseInt(c.novos) || 0;
     });
     
     return Object.values(grouped).map(c => {
-        c.total_funil = c.novos;
-        c.conv_ganho_sobre_novo_pct = c.novos > 0 ? ((c.ganhos / c.novos) * 100) : 0;
+        const totalBase = Math.max(c.total_funil, c.novos, c.ganhos + c.perdidos);
+        
+        if (c.ganhos + c.perdidos > totalBase) {
+            const totalProcessados = c.ganhos + c.perdidos;
+            const propGanhos = c.ganhos / totalProcessados;
+            c.ganhos = Math.round(totalBase * propGanhos);
+            c.perdidos = totalBase - c.ganhos;
+        }
+        
+        c.total_funil = totalBase;
+        c.conv_ganho_sobre_novo_pct = totalBase > 0 ? ((c.ganhos / totalBase) * 100) : 0;
         return c;
     });
 }
