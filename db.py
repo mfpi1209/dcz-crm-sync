@@ -28,8 +28,6 @@ DB_DSN = dict(
     dbname=os.getenv("DB_NAME", "dcz_sync"),
 )
 
-print(f"[DB] DB_DSN configurado: host={DB_DSN['host']}, dbname={DB_DSN['dbname']}, user={DB_DSN['user']}")
-
 
 def get_conn():
     return psycopg2.connect(**DB_DSN)

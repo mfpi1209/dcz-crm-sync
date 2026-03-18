@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Distribui├º├úo Comercial ÔÇö Dashboard
+// Distribuição Comercial — Dashboard
 // ---------------------------------------------------------------------------
 
 const DIST_API_LOAD = 'https://n8n-new-n8n.ca31ey.easypanel.host/webhook/distribuicaocomercial';
@@ -77,7 +77,7 @@ function dcRenderTable() {
         <tr data-id="${pessoa.id}">
             <td>
                 <div class="dist-nome-cell">
-                    <span class="dist-nome">${pessoa.nome || 'ÔÇö'}</span>
+                    <span class="dist-nome">${pessoa.nome || '—'}</span>
                     <span class="dist-status-badge ${pessoa.status === 'ATIVO' ? 'ativo' : 'inativo'}">
                         ${pessoa.status === 'ATIVO' ? 'Ativo' : 'Inativo'}
                     </span>
@@ -101,7 +101,7 @@ function dcRenderTable() {
                 <input type="text" 
                        class="dist-input dist-input-obs" 
                        value="${pessoa.observacao || ''}" 
-                       placeholder="Digite uma observa├º├úo..."
+                       placeholder="Digite uma observação..."
                        onchange="dcUpdatePessoa(${pessoa.id}, 'observacao', this.value)">
             </td>
         </tr>
@@ -115,7 +115,7 @@ function dcRenderTable() {
                         <th style="min-width: 220px;">Nome</th>
                         <th class="center" style="min-width: 140px;">Status</th>
                         <th class="center" style="min-width: 160px;">Quantidade Leads</th>
-                        <th style="min-width: 320px;">Observa├º├úo</th>
+                        <th style="min-width: 320px;">Observação</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -193,7 +193,7 @@ async function dcSalvar() {
     const alteracoes = dcDetectarAlteracoes();
     
     if (alteracoes.length === 0) {
-        dcShowNotification('Nenhuma altera├º├úo detectada', 'info');
+        dcShowNotification('Nenhuma alteração detectada', 'info');
         return;
     }
     
@@ -212,13 +212,13 @@ async function dcSalvar() {
         
         if (response.ok) {
             dcState.initialData = JSON.parse(JSON.stringify(dcState.data));
-            dcShowNotification(`${alteracoes.length} altera├º├úo(├Áes) salva(s) com sucesso!`, 'success');
+            dcShowNotification(`${alteracoes.length} alteração(ões) salva(s) com sucesso!`, 'success');
         } else {
             throw new Error('Erro ao salvar');
         }
     } catch (error) {
         console.error('Erro ao salvar:', error);
-        dcShowNotification('Erro ao salvar altera├º├Áes. Tente novamente.', 'error');
+        dcShowNotification('Erro ao salvar alterações. Tente novamente.', 'error');
     } finally {
         if (btnSave) btnSave.disabled = false;
     }
@@ -236,9 +236,9 @@ function dcShowNotification(message, type = 'success') {
     if (existing) existing.remove();
     
     const colors = {
-        success: { bg: '#dcfce7', border: '#86efac', text: '#16a34a', icon: 'Ô£ô' },
-        error: { bg: '#fee2e2', border: '#fca5a5', text: '#dc2626', icon: 'Ô£ò' },
-        info: { bg: '#dbeafe', border: '#93c5fd', text: '#2563eb', icon: 'Ôä╣' }
+        success: { bg: '#dcfce7', border: '#86efac', text: '#16a34a', icon: '✔' },
+        error: { bg: '#fee2e2', border: '#fca5a5', text: '#dc2626', icon: '✘' },
+        info: { bg: '#dbeafe', border: '#93c5fd', text: '#2563eb', icon: 'ℹ' }
     };
     const c = colors[type] || colors.success;
     

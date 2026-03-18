@@ -92,7 +92,7 @@ function toggleSidebarGroup(name) {
 (function restoreSidebarGroups() {
     document.querySelectorAll('.sidebar-group[data-group]').forEach(g => {
         const key = 'sb-' + g.dataset.group;
-        if (localStorage.getItem(key) === '0') g.classList.add('collapsed');
+        if (localStorage.getItem(key) !== '1') g.classList.add('collapsed');
     });
 })();
 

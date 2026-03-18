@@ -271,30 +271,6 @@
                         color: var(--insc-danger);
                     }
 
-                    #page-inscricao .insc-view-badge.cpf-inscrito {
-                        background: #f0fdf4;
-                        color: #16a34a;
-                    }
-
-                    #page-inscricao .insc-btn-cpf-inscrito {
-                        background: #f0fdf4;
-                        color: #16a34a;
-                        border-color: #bbf7d0;
-                    }
-
-                    #page-inscricao .insc-btn-cpf-inscrito:hover {
-                        background: #dcfce7;
-                        border-color: #86efac;
-                        transform: translateY(-1px);
-                    }
-
-                    #page-inscricao .insc-btn-cpf-inscrito.active {
-                        background: #16a34a;
-                        color: white;
-                        border-color: #16a34a;
-                        box-shadow: 0 2px 8px rgba(22,163,74,0.25);
-                    }
-
                     #page-inscricao .insc-view-badge svg { width: 14px; height: 14px; }
 
                     #page-inscricao .insc-filter-display {
@@ -822,10 +798,6 @@
                             <button class="insc-btn insc-btn-danger" id="insc-btnErrors" onclick="inscSwitchToErrors()">
                                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
                                 Erros
-                            </button>
-                            <button class="insc-btn insc-btn-cpf-inscrito" id="insc-btnCpfInscrito" onclick="inscSwitchToCpfInscrito()">
-                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-                                CPF's com Inscrição
                             </button>
                             <button class="insc-btn insc-btn-home" id="insc-btnHome" onclick="inscSwitchToHome()" style="display:none;">
                                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
