@@ -124,7 +124,7 @@
                         <span class="material-symbols-outlined text-base">storefront</span>
                         Dashboard Comercial
                     </a>
-                    <a href="#distribuicao" onclick="navigate('distribuicao')" class="sidebar-link sidebar-sub" data-page="distribuicao">
+                    <a href="#dist_comercial" onclick="navigate('dist_comercial')" class="sidebar-link sidebar-sub" data-page="dist_comercial">
                         <svg class="w-[16px] h-[16px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
                         Distribuição
                     </a>
@@ -202,34 +202,40 @@
             </div>
 
             <!-- SISTEMA -->
-            <div class="mt-5 mb-1" id="sidebar-section-sistema">
-                <p class="sidebar-section-label">Sistema</p>
-            </div>
-            <div class="space-y-1">
-                <a href="#sync" onclick="navigate('sync')" class="sidebar-link" data-page="sync">
-                    <span class="material-symbols-outlined text-lg">sync</span>
-                    Sincronização
-                </a>
-                <a href="#kommo_sync" onclick="navigate('kommo_sync')" class="sidebar-link" data-page="kommo_sync">
-                    <span class="material-symbols-outlined text-lg">cloud_sync</span>
-                    Sync Comercial
-                </a>
-                <a href="#kommo_dispatcher" onclick="navigate('kommo_dispatcher')" class="sidebar-link" data-page="kommo_dispatcher">
-                    <span class="material-symbols-outlined text-lg">send</span>
-                    Kommo Dispatcher
-                </a>
-                <a href="#logs" onclick="navigate('logs')" class="sidebar-link" data-page="logs">
-                    <span class="material-symbols-outlined text-lg">description</span>
-                    Logs / Relatórios
-                </a>
-                <a href="#config" onclick="navigate('config')" class="sidebar-link" data-page="config">
-                    <span class="material-symbols-outlined text-lg">settings</span>
-                    Configurações
-                </a>
-                <a href="#schedule" onclick="navigate('schedule')" class="sidebar-link" data-page="schedule">
-                    <span class="material-symbols-outlined text-lg">schedule</span>
-                    Agendamento
-                </a>
+            <div class="sidebar-group mt-5" data-group="sistema">
+                <button class="sidebar-group-toggle" onclick="toggleSidebarGroup('sistema')">
+                    <span class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-sm text-slate-400">settings</span>
+                        Sistema
+                    </span>
+                    <span class="material-symbols-outlined text-sm sidebar-group-chevron">expand_more</span>
+                </button>
+                <div class="sidebar-group-items">
+                    <a href="#sync" onclick="navigate('sync')" class="sidebar-link sidebar-sub" data-page="sync">
+                        <span class="material-symbols-outlined text-base">sync</span>
+                        Sincronização
+                    </a>
+                    <a href="#kommo_sync" onclick="navigate('kommo_sync')" class="sidebar-link sidebar-sub" data-page="kommo_sync">
+                        <span class="material-symbols-outlined text-base">cloud_sync</span>
+                        Sync Comercial
+                    </a>
+                    <a href="#kommo_dispatcher" onclick="navigate('kommo_dispatcher')" class="sidebar-link sidebar-sub" data-page="kommo_dispatcher">
+                        <span class="material-symbols-outlined text-base">send</span>
+                        Kommo Dispatcher
+                    </a>
+                    <a href="#logs" onclick="navigate('logs')" class="sidebar-link sidebar-sub" data-page="logs">
+                        <span class="material-symbols-outlined text-base">description</span>
+                        Logs / Relatórios
+                    </a>
+                    <a href="#config" onclick="navigate('config')" class="sidebar-link sidebar-sub" data-page="config">
+                        <span class="material-symbols-outlined text-base">settings</span>
+                        Configurações
+                    </a>
+                    <a href="#schedule" onclick="navigate('schedule')" class="sidebar-link sidebar-sub" data-page="schedule">
+                        <span class="material-symbols-outlined text-base">schedule</span>
+                        Agendamento
+                    </a>
+                </div>
             </div>
         </nav>
 
