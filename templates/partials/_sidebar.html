@@ -124,6 +124,10 @@
                         <span class="material-symbols-outlined text-base">storefront</span>
                         Dashboard Comercial
                     </a>
+                    <a href="#distribuicao" onclick="navigate('distribuicao')" class="sidebar-link sidebar-sub" data-page="distribuicao">
+                        <svg class="w-[16px] h-[16px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                        Distribuição
+                    </a>
                     <a href="#inscricao" onclick="navigate('inscricao')" class="sidebar-link sidebar-sub" data-page="inscricao">
                         <span class="material-symbols-outlined text-base">assignment</span>
                         Inscrição Automática
@@ -135,6 +139,47 @@
                     <a href="#comercial_dashboard" onclick="navigate('comercial_dashboard')" class="sidebar-link sidebar-sub" data-page="comercial_dashboard">
                         <span class="material-symbols-outlined text-base">monitoring</span>
                         Dashboard Atendimentos
+                    </a>
+                </div>
+            </div>
+
+            <!-- Vocacional -->
+            <div class="sidebar-group" data-group="vocacional">
+                <button class="sidebar-group-toggle" onclick="toggleSidebarGroup('vocacional')">
+                    <span class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-sm text-violet-400">lightbulb</span>
+                        Vocacional
+                    </span>
+                    <span class="material-symbols-outlined text-sm sidebar-group-chevron">expand_more</span>
+                </button>
+                <div class="sidebar-group-items">
+                    <a href="#vocacional" onclick="navigateVoc('funil')" class="sidebar-link sidebar-sub" data-page="voc_funil">
+                        <span class="material-symbols-outlined text-base">filter_alt</span>
+                        Visão Geral do Funil
+                    </a>
+                    <a href="#vocacional" onclick="navigateVoc('trafego')" class="sidebar-link sidebar-sub" data-page="voc_trafego">
+                        <span class="material-symbols-outlined text-base">ads_click</span>
+                        Análise de Tráfego
+                    </a>
+                    <a href="#vocacional" onclick="navigateVoc('quiz')" class="sidebar-link sidebar-sub" data-page="voc_quiz">
+                        <span class="material-symbols-outlined text-base">quiz</span>
+                        Comportamento Quiz
+                    </a>
+                    <a href="#vocacional" onclick="navigateVoc('leads')" class="sidebar-link sidebar-sub" data-page="voc_leads">
+                        <span class="material-symbols-outlined text-base">person_add</span>
+                        Conversão de Leads
+                    </a>
+                    <a href="#vocacional" onclick="navigateVoc('cursos')" class="sidebar-link sidebar-sub" data-page="voc_cursos">
+                        <span class="material-symbols-outlined text-base">school</span>
+                        Interesse em Cursos
+                    </a>
+                    <a href="#vocacional" onclick="navigateVoc('canal')" class="sidebar-link sidebar-sub" data-page="voc_canal">
+                        <span class="material-symbols-outlined text-base">swap_horiz</span>
+                        Funil por Canal
+                    </a>
+                    <a href="#vocacional" onclick="navigateVoc('status')" class="sidebar-link sidebar-sub" data-page="voc_status">
+                        <span class="material-symbols-outlined text-base">phone_in_talk</span>
+                        Status Comercial
                     </a>
                 </div>
             </div>

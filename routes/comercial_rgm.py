@@ -232,7 +232,10 @@ def _ensure_table():
     conn.close()
 
 
-_ensure_table()
+try:
+    _ensure_table()
+except Exception as e:
+    logger.warning("Could not ensure comercial_rgm tables (DB not available): %s", e)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────

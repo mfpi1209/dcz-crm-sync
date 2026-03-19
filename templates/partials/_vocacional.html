@@ -1,0 +1,2659 @@
+<div id="page-vocacional" class="hidden">
+
+<style>
+    /* ═══════════════════════════════════════════
+       VOCACIONAL DASHBOARD — Scoped CSS
+       All variables and selectors scoped under #page-vocacional
+       ═══════════════════════════════════════════ */
+
+    #page-vocacional {
+        --bg-card: #1a2236;
+        --bg-card-hover: #232d44;
+        --border: #2a3452;
+        --text-1: #f1f5f9;
+        --text-2: #94a3b8;
+        --text-3: #64748b;
+        --blue: #3b82f6;
+        --indigo: #6366f1;
+        --violet: #8b5cf6;
+        --purple: #a855f7;
+        --pink: #ec4899;
+        --green: #10b981;
+        --amber: #f59e0b;
+        --cyan: #06b6d4;
+        --red: #ef4444;
+        --radius: 12px;
+        font-family: 'Inter', sans-serif;
+        color: var(--text-1);
+    }
+
+    .light #page-vocacional {
+        --bg-card: #ffffff;
+        --bg-card-hover: #f8fafc;
+        --border: #e2e8f0;
+        --text-1: #1e293b;
+        --text-2: #475569;
+        --text-3: #94a3b8;
+    }
+
+    /* ── Pages ── */
+    #page-vocacional .voc-page { display: none; padding: 8px 0; }
+    #page-vocacional .voc-page.active { display: block; }
+
+    #page-vocacional .voc-page-header {
+        display: flex; align-items: flex-start; justify-content: space-between;
+        flex-wrap: wrap; gap: 16px; margin-bottom: 28px;
+    }
+
+    #page-vocacional .voc-page-title h1 {
+        font-size: 24px; font-weight: 700;
+        display: flex; align-items: center; gap: 10px;
+    }
+    #page-vocacional .voc-page-title h1 .material-icons-round { color: var(--blue); font-size: 28px; }
+    #page-vocacional .voc-page-title p { color: var(--text-3); font-size: 13px; margin-top: 4px; }
+
+    /* ── Filters ── */
+    #page-vocacional .voc-filters {
+        display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    }
+    #page-vocacional .voc-filter-btn {
+        padding: 7px 16px; border-radius: 8px; font-size: 12.5px;
+        font-weight: 500; border: 1px solid var(--border);
+        background: transparent; color: var(--text-2); cursor: pointer;
+        transition: all .2s; font-family: inherit;
+    }
+    #page-vocacional .voc-filter-btn:hover { border-color: var(--blue); color: var(--text-1); }
+    #page-vocacional .voc-filter-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+
+    #page-vocacional .voc-filter-select {
+        padding: 7px 12px; border-radius: 8px; font-size: 12.5px;
+        font-weight: 500; border: 1px solid var(--border);
+        background: var(--bg-card); color: var(--text-2); cursor: pointer;
+        font-family: inherit; min-width: 140px;
+    }
+    #page-vocacional .voc-filter-select:focus { outline: none; border-color: var(--blue); }
+
+    /* ── KPI Cards ── */
+    #page-vocacional .voc-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 16px; margin-bottom: 24px;
+    }
+    #page-vocacional .voc-kpi-card {
+        background: var(--bg-card); border: 1px solid var(--border);
+        border-radius: var(--radius); padding: 20px;
+        transition: transform .2s, border-color .2s;
+    }
+    #page-vocacional .voc-kpi-card:hover { transform: translateY(-2px); border-color: var(--text-3); }
+    #page-vocacional .voc-kpi-card .voc-kpi-header {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 12px;
+    }
+    #page-vocacional .voc-kpi-card .voc-kpi-label {
+        font-size: 12.5px; font-weight: 500; color: var(--text-2);
+    }
+    #page-vocacional .voc-kpi-card .voc-kpi-icon {
+        width: 34px; height: 34px; border-radius: 9px;
+        display: flex; align-items: center; justify-content: center;
+    }
+    #page-vocacional .voc-kpi-card .voc-kpi-icon .material-icons-round { font-size: 18px; color: #fff; }
+    #page-vocacional .voc-kpi-card .voc-kpi-value {
+        font-size: 30px; font-weight: 800; letter-spacing: -1px;
+        line-height: 1;
+    }
+    #page-vocacional .voc-kpi-card .voc-kpi-sub {
+        font-size: 11.5px; color: var(--text-3); margin-top: 6px;
+    }
+
+    /* ── Rate Cards ── */
+    #page-vocacional .voc-rates-grid {
+        display: grid; grid-template-columns: repeat(5, 1fr);
+        gap: 16px; margin-bottom: 28px;
+    }
+    #page-vocacional .voc-rate-card {
+        background: var(--bg-card); border: 1px solid var(--border);
+        border-radius: var(--radius); padding: 18px;
+    }
+    #page-vocacional .voc-rate-card .voc-rate-label {
+        font-size: 11.5px; font-weight: 500; color: var(--text-2); margin-bottom: 10px;
+    }
+    #page-vocacional .voc-rate-card .voc-rate-value { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
+    #page-vocacional .voc-rate-card .voc-rate-bar {
+        width: 100%; height: 6px; border-radius: 3px;
+        background: rgba(255,255,255,.06); margin-top: 10px; overflow: hidden;
+    }
+    #page-vocacional .voc-rate-card .voc-rate-bar-fill {
+        height: 100%; border-radius: 3px; transition: width .8s ease;
+    }
+    #page-vocacional .voc-rate-card .voc-rate-detail {
+        font-size: 11px; color: var(--text-3); margin-top: 8px;
+    }
+
+    /* ── Sections ── */
+    #page-vocacional .voc-section {
+        background: var(--bg-card); border: 1px solid var(--border);
+        border-radius: var(--radius); padding: 24px; margin-bottom: 24px;
+    }
+    #page-vocacional .voc-section-title {
+        font-size: 15px; font-weight: 600; margin-bottom: 20px;
+        display: flex; align-items: center; gap: 8px;
+    }
+    #page-vocacional .voc-section-title .material-icons-round { font-size: 20px; color: var(--blue); }
+
+    /* ── Funnel ── */
+    #page-vocacional .voc-funnel-container { max-width: 700px; margin: 0 auto; }
+    #page-vocacional .voc-funnel-step {
+        display: flex; align-items: center; margin-bottom: 6px;
+    }
+    #page-vocacional .voc-funnel-label {
+        width: 140px; text-align: right; padding-right: 16px;
+        font-size: 12px; font-weight: 500; color: var(--text-2);
+        flex-shrink: 0;
+    }
+    #page-vocacional .voc-funnel-bar-wrap { flex: 1; position: relative; }
+    #page-vocacional .voc-funnel-bar {
+        height: 38px; border-radius: 6px;
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 0 14px;
+        transition: width .8s cubic-bezier(.22,1,.36,1);
+        min-width: 80px;
+    }
+    #page-vocacional .voc-funnel-bar .voc-fb-count { font-size: 14px; font-weight: 700; color: #fff; }
+    #page-vocacional .voc-funnel-bar .voc-fb-pct { font-size: 11px; font-weight: 600; color: rgba(255,255,255,.8); }
+    #page-vocacional .voc-funnel-drop {
+        font-size: 10.5px; color: var(--text-3);
+        text-align: center; padding: 2px 0 2px 156px;
+    }
+
+    /* ── Chart ── */
+    #page-vocacional .voc-chart-wrap { position: relative; height: 320px; }
+
+    /* ── Table ── */
+    #page-vocacional .voc-data-table { width: 100%; border-collapse: collapse; }
+    #page-vocacional .voc-data-table th {
+        text-align: left; padding: 12px 14px; font-size: 11.5px;
+        font-weight: 600; color: var(--text-3); text-transform: uppercase;
+        letter-spacing: .5px; border-bottom: 1px solid var(--border);
+        background: transparent;
+    }
+    #page-vocacional .voc-data-table td {
+        padding: 12px 14px; font-size: 13px; color: var(--text-2);
+        border-bottom: 1px solid rgba(255,255,255,.04);
+    }
+    #page-vocacional .voc-data-table tbody tr:hover td { background: rgba(255,255,255,.02); }
+    #page-vocacional .voc-data-table .voc-td-num { font-weight: 600; color: var(--text-1); font-variant-numeric: tabular-nums; }
+    #page-vocacional .voc-data-table .voc-td-rate { font-weight: 600; }
+
+    /* ── Badges ── */
+    #page-vocacional .voc-badge {
+        display: inline-block; padding: 3px 10px; border-radius: 6px;
+        font-size: 11.5px; font-weight: 600;
+    }
+    #page-vocacional .voc-badge-blue { background: rgba(59,130,246,.15); color: var(--blue); }
+    #page-vocacional .voc-badge-green { background: rgba(16,185,129,.15); color: var(--green); }
+
+    /* ── Empty state ── */
+    #page-vocacional .voc-empty-state {
+        text-align: center; padding: 48px 20px; color: var(--text-3);
+    }
+    #page-vocacional .voc-empty-state .material-icons-round { font-size: 48px; margin-bottom: 12px; opacity: .4; }
+
+    /* ── Heatmap table ── */
+    #page-vocacional .voc-heatmap-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+    #page-vocacional .voc-heatmap-table th {
+        padding: 10px 12px; font-size: 10.5px; font-weight: 700;
+        color: var(--text-3); text-transform: uppercase; letter-spacing: .5px;
+        border-bottom: 2px solid var(--border); text-align: center; white-space: nowrap;
+        background: transparent;
+    }
+    #page-vocacional .voc-heatmap-table th:first-child { text-align: left; }
+    #page-vocacional .voc-heatmap-table td {
+        padding: 10px 12px; text-align: center; font-size: 13px;
+        font-weight: 600; font-variant-numeric: tabular-nums;
+        border-bottom: 1px solid rgba(255,255,255,.03); position: relative;
+    }
+    .light #page-vocacional .voc-heatmap-table td { border-bottom-color: rgba(0,0,0,.04); }
+    #page-vocacional .voc-heatmap-table td:first-child { text-align: left; font-weight: 500; }
+    #page-vocacional .voc-heatmap-table tbody tr:hover td { filter: brightness(1.15); }
+    #page-vocacional .voc-hm-cell { border-radius: 6px; padding: 8px 10px; display: inline-block; min-width: 48px; }
+    #page-vocacional .voc-hm-rate { display: block; font-size: 10px; font-weight: 500; margin-top: 2px; opacity: .7; }
+
+    /* ── Status Badges ── */
+    #page-vocacional .voc-status-badge {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 3px 10px; border-radius: 20px;
+        font-size: 11.5px; font-weight: 600; white-space: nowrap;
+    }
+    #page-vocacional .voc-status-badge.ganho { background: rgba(16,185,129,.15); color: #10b981; }
+    #page-vocacional .voc-status-badge.perdido { background: rgba(239,68,68,.15); color: #ef4444; }
+    #page-vocacional .voc-status-badge.novo { background: rgba(59,130,246,.15); color: #3b82f6; }
+    #page-vocacional .voc-status-badge.sem_match { background: rgba(148,163,184,.15); color: #94a3b8; }
+
+    #page-vocacional .voc-path-cell {
+        display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+    }
+    #page-vocacional .voc-path-step {
+        background: var(--bg-card-hover); border: 1px solid var(--border);
+        padding: 2px 8px; border-radius: 6px;
+        font-size: 10.5px; font-weight: 500; color: var(--text-2); white-space: nowrap;
+    }
+    #page-vocacional .voc-path-arrow { color: var(--text-3); font-size: 11px; }
+
+    /* ── Light mode overrides ── */
+    .light #page-vocacional .voc-kpi-card { box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    .light #page-vocacional .voc-section { box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    .light #page-vocacional .voc-rate-card { box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    .light #page-vocacional .voc-filter-select { background: #fff; }
+    .light #page-vocacional .voc-rate-card .voc-rate-bar { background: rgba(0,0,0,.06); }
+    .light #page-vocacional .voc-data-table td { border-bottom-color: rgba(0,0,0,.04); }
+    .light #page-vocacional .voc-data-table tbody tr:hover td { background: rgba(0,0,0,.02); }
+
+    /* ── Responsive ── */
+    @media (max-width: 1200px) {
+        #page-vocacional .voc-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+        #page-vocacional .voc-rates-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 768px) {
+        #page-vocacional .voc-page { padding: 8px 0; }
+        #page-vocacional .voc-kpi-grid { grid-template-columns: 1fr; }
+        #page-vocacional .voc-rates-grid { grid-template-columns: 1fr 1fr; }
+        #page-vocacional .voc-page-header { flex-direction: column; }
+        #page-vocacional .voc-funnel-label { width: 90px; font-size: 10.5px; }
+        #page-vocacional [style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+    }
+    @media (max-width: 480px) {
+        #page-vocacional .voc-rates-grid { grid-template-columns: 1fr; }
+    }
+</style>
+
+<!-- ═══════════════════════════════════════════
+     PAGE: Funil
+     ═══════════════════════════════════════════ -->
+<section class="voc-page active" id="voc-page-funil">
+    <div class="voc-page-header">
+        <div class="voc-page-title">
+            <h1>
+                <span class="material-icons-round">filter_alt</span>
+                Visão Geral do Funil
+            </h1>
+            <p>Acompanhe a jornada completa do quiz vocacional</p>
+        </div>
+        <div class="voc-filters">
+            <button class="voc-filter-btn active" data-period="all">Tudo</button>
+            <button class="voc-filter-btn" data-period="today">Hoje</button>
+            <button class="voc-filter-btn" data-period="7d">7 dias</button>
+            <button class="voc-filter-btn" data-period="30d">30 dias</button>
+            <select class="voc-filter-select" id="filterSource">
+                <option value="">Todas as fontes</option>
+            </select>
+            <select class="voc-filter-select" id="filterCampaign">
+                <option value="">Todas as campanhas</option>
+            </select>
+        </div>
+    </div>
+    <div class="voc-kpi-grid" id="kpiGrid"></div>
+    <div class="voc-rates-grid" id="ratesGrid"></div>
+    <div class="voc-section">
+        <div class="voc-section-title">
+            <span class="material-icons-round">filter_alt</span>
+            Funil de Conversão
+        </div>
+        <div class="voc-funnel-container" id="funnelContainer"></div>
+    </div>
+    <div class="voc-section">
+        <div class="voc-section-title">
+            <span class="material-icons-round">show_chart</span>
+            Evolução Diária
+        </div>
+        <div class="voc-chart-wrap">
+            <canvas id="timelineChart"></canvas>
+        </div>
+    </div>
+    <div class="voc-section">
+        <div class="voc-section-title">
+            <span class="material-icons-round">campaign</span>
+            Desempenho por Fonte / Campanha
+        </div>
+        <div style="overflow-x:auto">
+            <table class="voc-data-table" id="campaignTable">
+                <thead>
+                    <tr>
+                        <th>Fonte</th>
+                        <th>Campanha</th>
+                        <th>Sessões</th>
+                        <th>Quiz Iniciados</th>
+                        <th>Quiz Completos</th>
+                        <th>Leads</th>
+                        <th>Taxa Lead</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     PAGE: Tráfego
+     ═══════════════════════════════════════════ -->
+<section class="voc-page" id="voc-page-trafego">
+    <div class="voc-page-header">
+        <div class="voc-page-title">
+            <h1>
+                <span class="material-icons-round">ads_click</span>
+                Análise de Tráfego
+            </h1>
+            <p>Entenda de onde vêm seus usuários e quais canais convertem melhor</p>
+        </div>
+        <div class="voc-filters">
+            <button class="voc-filter-btn active" data-period="all">Tudo</button>
+            <button class="voc-filter-btn" data-period="today">Hoje</button>
+            <button class="voc-filter-btn" data-period="7d">7 dias</button>
+            <button class="voc-filter-btn" data-period="30d">30 dias</button>
+            <select class="voc-filter-select" id="trafficFilterCategory">
+                <option value="">Todas as categorias</option>
+            </select>
+        </div>
+    </div>
+    <div class="voc-kpi-grid" id="trafficKpiGrid"></div>
+    <div class="voc-section">
+        <div class="voc-section-title">
+            <span class="material-icons-round">bar_chart</span>
+            Sessões e Leads por Origem
+        </div>
+        <div class="voc-chart-wrap">
+            <canvas id="sourceBarChart"></canvas>
+        </div>
+    </div>
+    <div class="voc-section">
+        <div class="voc-section-title">
+            <span class="material-icons-round">table_chart</span>
+            Detalhamento por Fonte / Meio / Campanha
+        </div>
+        <div style="overflow-x:auto">
+            <table class="voc-data-table" id="trafficTable">
+                <thead>
+                    <tr>
+                        <th>Categoria</th>
+                        <th>Fonte</th>
+                        <th>Meio</th>
+                        <th>Campanha</th>
+                        <th>Sessões</th>
+                        <th>Quiz Iniciado</th>
+                        <th>Quiz Completo</th>
+                        <th>Leads</th>
+                        <th>Taxa Lead</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+    <div class="voc-section">
+        <div class="voc-section-title">
+            <span class="material-icons-round">timeline</span>
+            Evolução Diária por Origem
+        </div>
+        <div class="voc-chart-wrap">
+            <canvas id="trafficTimelineChart"></canvas>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     PAGE: Quiz Behavior
+     ═══════════════════════════════════════════ -->
+<section class="voc-page" id="voc-page-quiz">
+    <div class="voc-page-header">
+        <div class="voc-page-title">
+            <h1>
+                <span class="material-icons-round">psychology</span>
+                Comportamento no Quiz
+            </h1>
+            <p>Entenda como as pessoas interagem com o teste vocacional</p>
+        </div>
+        <div class="voc-filters">
+            <button class="voc-filter-btn active" data-period="all">Tudo</button>
+            <button class="voc-filter-btn" data-period="today">Hoje</button>
+            <button class="voc-filter-btn" data-period="7d">7 dias</button>
+            <button class="voc-filter-btn" data-period="30d">30 dias</button>
+        </div>
+    </div>
+    <div class="voc-kpi-grid" id="quizKpiGrid"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px">
+        <div class="voc-section" style="margin-bottom:0">
+            <div class="voc-section-title">
+                <span class="material-icons-round">thumb_up</span>
+                Palavras Mais Escolhidas
+            </div>
+            <div class="voc-chart-wrap" style="height:360px">
+                <canvas id="wordRankingChart"></canvas>
+            </div>
+        </div>
+        <div class="voc-section" style="margin-bottom:0">
+            <div class="voc-section-title">
+                <span class="material-icons-round">thumb_down</span>
+                Palavras Removidas
+            </div>
+            <div class="voc-chart-wrap" style="height:360px">
+                <canvas id="wordRemovedChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="voc-section">
+        <div class="voc-section-title">
+            <span class="material-icons-round">equalizer</span>
+            Distribuição: Quantas Palavras por Sessão
+        </div>
+        <div class="voc-chart-wrap">
+            <canvas id="wordDistChart"></canvas>
+        </div>
+    </div>
+    <div class="voc-section">
+        <div class="voc-section-title">
+            <span class="material-icons-round">show_chart</span>
+            Evolução Diária do Quiz
+        </div>
+        <div class="voc-chart-wrap">
+            <canvas id="quizTimelineChart"></canvas>
+        </div>
+    </div>
+    <div class="voc-section">
+        <div class="voc-section-title">
+            <span class="material-icons-round">compare</span>
+            Comparação por Fonte
+        </div>
+        <div style="overflow-x:auto">
+            <table class="voc-data-table" id="quizSourceTable">
+                <thead>
+                    <tr>
+                        <th>Fonte</th>
+                        <th>Quiz Iniciado</th>
+                        <th>Quiz Completo</th>
+                        <th>Abandono</th>
+                        <th>Taxa Abandono</th>
+                        <th>Média Palavras</th>
+                        <th>Total Seleções</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     PAGE: Leads
+     ═══════════════════════════════════════════ -->
+<section class="voc-page" id="voc-page-leads">
+    <div class="voc-page-header">
+        <div class="voc-page-title">
+            <h1>
+                <span class="material-icons-round">person_add</span>
+                Conversão de Leads
+            </h1>
+            <p>Analise quem converteu, de onde veio e qual perfil gerou mais leads</p>
+        </div>
+        <div class="voc-filters">
+            <button class="voc-filter-btn active" data-period="all">Tudo</button>
+            <button class="voc-filter-btn" data-period="today">Hoje</button>
+            <button class="voc-filter-btn" data-period="7d">7 dias</button>
+            <button class="voc-filter-btn" data-period="30d">30 dias</button>
+        </div>
+    </div>
+    <div class="voc-kpi-grid" id="leadKpiGrid"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px">
+        <div class="voc-section" style="margin-bottom:0">
+            <div class="voc-section-title">
+                <span class="material-icons-round">donut_large</span>
+                Leads por Perfil Vocacional
+            </div>
+            <div class="voc-chart-wrap" style="height:300px;display:flex;align-items:center;justify-content:center">
+                <canvas id="leadProfileChart"></canvas>
+            </div>
+        </div>
+        <div class="voc-section" style="margin-bottom:0">
+            <div class="voc-section-title">
+                <span class="material-icons-round">school</span>
+                Leads por Curso Recomendado
+            </div>
+            <div class="voc-chart-wrap" style="height:300px">
+                <canvas id="leadCourseChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="voc-section">
+        <div class="voc-section-title">
+            <span class="material-icons-round">show_chart</span>
+            Leads por Dia
+        </div>
+        <div class="voc-chart-wrap">
+            <canvas id="leadTimelineChart"></canvas>
+        </div>
+    </div>
+    <div class="voc-section">
+        <div class="voc-section-title">
+            <span class="material-icons-round">list_alt</span>
+            Lista de Leads
+        </div>
+        <div style="overflow-x:auto">
+            <table class="voc-data-table" id="leadDetailTable">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Nome</th>
+                        <th>Telefone</th>
+                        <th>Perfil</th>
+                        <th>Curso</th>
+                        <th>Fonte</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     PAGE: Cursos
+     ═══════════════════════════════════════════ -->
+<section class="voc-page" id="voc-page-cursos">
+    <div class="voc-page-header">
+        <div class="voc-page-title">
+            <h1>
+                <span class="material-icons-round">school</span>
+                Interesse em Cursos
+            </h1>
+            <p>Quais cursos atraem mais cliques e de onde vem esse interesse</p>
+        </div>
+        <div class="voc-filters">
+            <button class="voc-filter-btn active" data-period="all">Tudo</button>
+            <button class="voc-filter-btn" data-period="today">Hoje</button>
+            <button class="voc-filter-btn" data-period="7d">7 dias</button>
+            <button class="voc-filter-btn" data-period="30d">30 dias</button>
+        </div>
+    </div>
+    <div class="voc-kpi-grid" id="cursosKpiGrid"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px">
+        <div class="voc-section" style="margin-bottom:0">
+            <div class="voc-section-title">
+                <span class="material-icons-round">emoji_events</span>
+                Ranking de Cursos Mais Clicados
+            </div>
+            <div class="voc-chart-wrap" style="height:320px">
+                <canvas id="courseRankingChart"></canvas>
+            </div>
+        </div>
+        <div class="voc-section" style="margin-bottom:0">
+            <div class="voc-section-title">
+                <span class="material-icons-round">compare_arrows</span>
+                Cliques: Após Quiz vs Direto
+            </div>
+            <div class="voc-chart-wrap" style="height:320px">
+                <canvas id="courseOriginChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="voc-section">
+        <div class="voc-section-title">
+            <span class="material-icons-round">show_chart</span>
+            Cliques em Cursos por Dia
+        </div>
+        <div class="voc-chart-wrap">
+            <canvas id="courseTimelineChart"></canvas>
+        </div>
+    </div>
+    <div class="voc-section">
+        <div class="voc-section-title">
+            <span class="material-icons-round">table_chart</span>
+            Interesse por Fonte / Perfil
+        </div>
+        <div style="overflow-x:auto">
+            <table class="voc-data-table" id="courseSourceTable">
+                <thead>
+                    <tr>
+                        <th>Fonte</th>
+                        <th>Cliques Curso</th>
+                        <th>Cliques Direto</th>
+                        <th>Total</th>
+                        <th>Curso Mais Clicado</th>
+                        <th>Taxa Clique (após resultado)</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     PAGE: Funil por Canal
+     ═══════════════════════════════════════════ -->
+<section class="voc-page" id="voc-page-canal">
+    <div class="voc-page-header">
+        <div class="voc-page-title">
+            <h1>
+                <span class="material-icons-round">mediation</span>
+                Funil por Canal
+            </h1>
+            <p>Compare o desempenho completo do funil entre cada fonte de tráfego</p>
+        </div>
+        <div class="voc-filters">
+            <button class="voc-filter-btn active" data-period="all">Tudo</button>
+            <button class="voc-filter-btn" data-period="today">Hoje</button>
+            <button class="voc-filter-btn" data-period="7d">7 dias</button>
+            <button class="voc-filter-btn" data-period="30d">30 dias</button>
+        </div>
+    </div>
+    <div class="voc-section">
+        <div class="voc-section-title">
+            <span class="material-icons-round">grid_on</span>
+            Funil Completo por Canal — Heatmap
+        </div>
+        <div style="overflow-x:auto" id="canalHeatmapWrap"></div>
+    </div>
+    <div class="voc-section">
+        <div class="voc-section-title">
+            <span class="material-icons-round">swap_vert</span>
+            Taxas de Conversão entre Etapas por Canal
+        </div>
+        <div style="overflow-x:auto" id="canalRatesWrap"></div>
+    </div>
+    <div class="voc-section">
+        <div class="voc-section-title">
+            <span class="material-icons-round">stacked_bar_chart</span>
+            Comparação Visual do Funil por Canal
+        </div>
+        <div class="voc-chart-wrap" style="height:380px">
+            <canvas id="canalStackedChart"></canvas>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     PAGE: Status Comercial
+     ═══════════════════════════════════════════ -->
+<section class="voc-page" id="voc-page-status">
+    <div class="voc-page-header">
+        <div class="voc-page-title">
+            <h1>
+                <span class="material-icons-round">phone_callback</span>
+                Status Comercial
+            </h1>
+            <p>Cruzamento de leads do quiz com o status comercial por telefone</p>
+        </div>
+        <div class="voc-filters">
+            <button class="voc-filter-btn active" data-period="all">Tudo</button>
+            <button class="voc-filter-btn" data-period="today">Hoje</button>
+            <button class="voc-filter-btn" data-period="7d">7 dias</button>
+            <button class="voc-filter-btn" data-period="30d">30 dias</button>
+        </div>
+    </div>
+    <div class="voc-kpi-grid" id="statusKpiGrid"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px">
+        <div class="voc-section" style="margin-bottom:0">
+            <div class="voc-section-title">
+                <span class="material-icons-round">donut_large</span>
+                Distribuição por Status
+            </div>
+            <div class="voc-chart-wrap" style="height:300px">
+                <canvas id="statusPieChart"></canvas>
+            </div>
+        </div>
+        <div class="voc-section" style="margin-bottom:0">
+            <div class="voc-section-title">
+                <span class="material-icons-round">leaderboard</span>
+                Status por Fonte de Tráfego
+            </div>
+            <div class="voc-chart-wrap" style="height:300px">
+                <canvas id="statusSourceChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="voc-section">
+        <div class="voc-section-title">
+            <span class="material-icons-round">timeline</span>
+            Evolução por Dia
+        </div>
+        <div class="voc-chart-wrap" style="height:300px">
+            <canvas id="statusDayChart"></canvas>
+        </div>
+    </div>
+    <div class="voc-section">
+        <div class="voc-section-title">
+            <span class="material-icons-round">route</span>
+            Caminhos Mais Comuns por Status
+        </div>
+        <div style="overflow-x:auto" id="statusPathsWrap"></div>
+    </div>
+    <div class="voc-section">
+        <div class="voc-section-title">
+            <span class="material-icons-round">table_chart</span>
+            Detalhamento de Leads
+        </div>
+        <div style="overflow-x:auto" id="statusDetailWrap"></div>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     JAVASCRIPT
+     ═══════════════════════════════════════════ -->
+<script>
+(function() {
+
+if (!document.querySelector('link[href*="Material+Icons+Round"]')) {
+    var _vocLink = document.createElement('link');
+    _vocLink.rel = 'stylesheet';
+    _vocLink.href = 'https://fonts.googleapis.com/icon?family=Material+Icons+Round';
+    document.head.appendChild(_vocLink);
+}
+
+/* ═══════════════════════════════════════════
+   CONFIG
+   ═══════════════════════════════════════════ */
+const VOC_SUPABASE_URL = 'https://rpasqowtwtwnxsbaexsb.supabase.co';
+const VOC_SUPABASE_KEY = 'sb_publishable_v6thTQCJOfhSVT84xrvMtA_sK-Ob9sm';
+
+const VOC_SUPABASE2_URL = 'https://vtlbndvcgajcoajhcnnx.supabase.co';
+const VOC_SUPABASE2_KEY = 'sb_publishable_sW0h7aqgrjiwqGqKpawm4g_FuMi5xU_';
+
+const VOC_FUNNEL_COLORS = ['#3b82f6','#6366f1','#8b5cf6','#a855f7','#ec4899','#10b981','#06b6d4'];
+
+const VOC_KPI_CONFIG = [
+    { key:'landing',     label:'Visitantes',      icon:'people',       bg:'#3b82f6' },
+    { key:'quiz_start',  label:'Quiz Iniciados',   icon:'play_circle',  bg:'#8b5cf6' },
+    { key:'quiz_submit', label:'Quiz Completos',   icon:'check_circle', bg:'#a855f7' },
+    { key:'form_view',   label:'Formulário',       icon:'description',  bg:'#ec4899' },
+    { key:'leads',       label:'Leads Enviados',   icon:'person_add',   bg:'#10b981' },
+    { key:'lead_rate',   label:'Taxa de Lead',     icon:'percent',      bg:'#f59e0b', isRate: true },
+    { key:'result_view', label:'Resultado',        icon:'emoji_events', bg:'#f59e0b' },
+    { key:'course_click',label:'Cliques em Curso', icon:'school',       bg:'#06b6d4' },
+];
+
+const VOC_SOURCE_CAT_COLORS = {
+    'Google Ads': '#4285f4',
+    'Meta Ads': '#e1306c',
+    'Direto / Orgânico': '#10b981',
+};
+const VOC_DEFAULT_CAT_COLORS = ['#f59e0b','#8b5cf6','#06b6d4','#ef4444','#ec4899','#6366f1','#3b82f6'];
+
+const VOC_STATUS_COLORS = { ganho: '#10b981', perdido: '#ef4444', novo: '#3b82f6', sem_match: '#94a3b8' };
+const VOC_STATUS_LABELS = { ganho: 'Ganho', perdido: 'Perdido', novo: 'Novo', sem_match: 'Sem Match' };
+
+/* ═══════════════════════════════════════════
+   DATA STORE
+   ═══════════════════════════════════════════ */
+let VOC_RAW = { sessions: [], events: [], leads: [], campanhas: [] };
+let vocTimelineChartInstance = null;
+let vocSourceBarChartInstance = null;
+let vocTrafficTimelineInstance = null;
+
+/* ═══════════════════════════════════════════
+   SUPABASE FETCH
+   ═══════════════════════════════════════════ */
+async function supaFetch(table, select = '*') {
+    const pageSize = 1000;
+    let all = [], offset = 0;
+    while (true) {
+        const res = await fetch(
+            `${VOC_SUPABASE_URL}/rest/v1/${table}?select=${encodeURIComponent(select)}&limit=${pageSize}&offset=${offset}&order=created_at.asc`,
+            { headers: { 'apikey': VOC_SUPABASE_KEY, 'Authorization': `Bearer ${VOC_SUPABASE_KEY}` } }
+        );
+        if (!res.ok) throw new Error(`Erro ao buscar ${table}: ${res.status}`);
+        const data = await res.json();
+        all = all.concat(data);
+        if (data.length < pageSize) break;
+        offset += pageSize;
+    }
+    return all;
+}
+
+async function supaFetch2(table, select = '*') {
+    const pageSize = 1000;
+    let all = [], offset = 0;
+    while (true) {
+        const res = await fetch(
+            `${VOC_SUPABASE2_URL}/rest/v1/${table}?select=${encodeURIComponent(select)}&limit=${pageSize}&offset=${offset}&order=data_criacao.asc`,
+            { headers: { 'apikey': VOC_SUPABASE2_KEY, 'Authorization': `Bearer ${VOC_SUPABASE2_KEY}` } }
+        );
+        if (!res.ok) throw new Error(`Erro ao buscar ${table}: ${res.status}`);
+        const data = await res.json();
+        all = all.concat(data);
+        if (data.length < pageSize) break;
+        offset += pageSize;
+    }
+    return all;
+}
+
+async function loadData() {
+    const [sessions, events, leads, campanhas] = await Promise.all([
+        supaFetch('vocacional_sessions'),
+        supaFetch('vocacional_events'),
+        supaFetch('vocacional_leads'),
+        supaFetch2('campanhas_meta'),
+    ]);
+    VOC_RAW = { sessions, events, leads, campanhas };
+}
+
+/* ═══════════════════════════════════════════
+   SOURCE CATEGORIZATION
+   ═══════════════════════════════════════════ */
+function classifySource(s) {
+    if (s.gclid) return 'Google Ads';
+    if (s.fbclid) return 'Meta Ads';
+    if (s.utm_source) {
+        const src = s.utm_source.toLowerCase();
+        if (src.includes('google')) return 'Google Ads';
+        if (src.includes('meta') || src.includes('facebook') || src.includes('instagram') || src.includes('fb')) return 'Meta Ads';
+        return s.utm_source;
+    }
+    return 'Direto / Orgânico';
+}
+
+function getCatColor(cat, i) {
+    return VOC_SOURCE_CAT_COLORS[cat] || VOC_DEFAULT_CAT_COLORS[i % VOC_DEFAULT_CAT_COLORS.length];
+}
+
+/* ═══════════════════════════════════════════
+   SHARED UTILITIES
+   ═══════════════════════════════════════════ */
+function uniqueSessions(events, eventName) {
+    const ids = new Set();
+    events.filter(e => e.event_name === eventName).forEach(e => ids.add(e.session_id));
+    return ids.size;
+}
+
+function pct(a, b) { return b > 0 ? ((a / b) * 100) : 0; }
+function fmtPct(v) { return v.toFixed(1).replace('.', ',') + '%'; }
+
+function dateRangeForPeriod(period) {
+    if (period === 'all') return { start: null, end: null };
+    const now = new Date();
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    let start;
+    if (period === 'today') {
+        start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    } else if (period === '7d') {
+        start = new Date(end); start.setDate(start.getDate() - 6); start.setHours(0,0,0,0);
+    } else if (period === '30d') {
+        start = new Date(end); start.setDate(start.getDate() - 29); start.setHours(0,0,0,0);
+    }
+    return { start, end };
+}
+
+function filterByDateAndSessions(sessionIds, start, end) {
+    let events = VOC_RAW.events.filter(e => sessionIds.has(e.session_id));
+    if (start) events = events.filter(e => new Date(e.created_at) >= start && new Date(e.created_at) <= end);
+    let leads = VOC_RAW.leads.filter(l => sessionIds.has(l.session_id));
+    if (start) leads = leads.filter(l => new Date(l.created_at) >= start && new Date(l.created_at) <= end);
+    return { events, leads };
+}
+
+function isLight() { return document.documentElement.classList.contains('light'); }
+
+function chartDefaults() {
+    const light = isLight();
+    return {
+        legend: { labels: { color: light ? '#475569' : '#94a3b8', font: { family: 'Inter', size: 11 }, boxWidth: 14, padding: 16 } },
+        tooltip: {
+            backgroundColor: light ? '#ffffff' : '#1a2236',
+            borderColor: light ? '#e2e8f0' : '#2a3452', borderWidth: 1,
+            titleColor: light ? '#1e293b' : '#f1f5f9',
+            bodyColor: light ? '#475569' : '#94a3b8',
+            titleFont: { family: 'Inter', weight: '600' },
+            bodyFont: { family: 'Inter' }, padding: 12, cornerRadius: 8,
+        }
+    };
+}
+
+function axisDefaults() {
+    const light = isLight();
+    const grid = light ? 'rgba(0,0,0,.07)' : 'rgba(255,255,255,.04)';
+    const tick = light ? '#94a3b8' : '#64748b';
+    return {
+        x: { grid: { color: grid }, ticks: { color: tick, font: { family: 'Inter', size: 11 } } },
+        y: { beginAtZero: true, grid: { color: grid }, ticks: { color: tick, font: { family: 'Inter', size: 11 }, stepSize: 1 } },
+    };
+}
+
+function fmtDate(d) { const p = d.split('-'); return p[2]+'/'+p[1]; }
+
+/* ═══════════════════════════════════════════
+   PAGE 1: FUNIL — FILTERS
+   ═══════════════════════════════════════════ */
+function getFunilFilterState() {
+    const btn = document.querySelector('#voc-page-funil .voc-filter-btn.active');
+    return {
+        period: btn ? btn.dataset.period : 'all',
+        source: document.getElementById('filterSource').value,
+        campaign: document.getElementById('filterCampaign').value,
+    };
+}
+
+function applyFunilFilters() {
+    const f = getFunilFilterState();
+    const { start, end } = dateRangeForPeriod(f.period);
+    let sessions = VOC_RAW.sessions;
+    if (start) sessions = sessions.filter(s => new Date(s.created_at) >= start && new Date(s.created_at) <= end);
+    if (f.source) sessions = sessions.filter(s => (s.utm_source || '') === f.source);
+    if (f.campaign) sessions = sessions.filter(s => (s.utm_campaign || '') === f.campaign);
+    const sessionIds = new Set(sessions.map(s => s.session_id));
+    const { events, leads } = filterByDateAndSessions(sessionIds, start, end);
+    return { sessions, events, leads };
+}
+
+/* ═══════════════════════════════════════════
+   PAGE 1: FUNIL — METRICS
+   ═══════════════════════════════════════════ */
+function calcKPIs(data) {
+    const landing = uniqueSessions(data.events, 'landing_view');
+    const leads = uniqueSessions(data.events, 'lead_form_submit');
+    return {
+        landing,
+        quiz_start:   uniqueSessions(data.events, 'quiz_start'),
+        quiz_submit:  uniqueSessions(data.events, 'quiz_submit'),
+        form_view:    uniqueSessions(data.events, 'lead_form_view'),
+        leads,
+        lead_rate:    fmtPct(pct(leads, landing)),
+        result_view:  uniqueSessions(data.events, 'result_view'),
+        course_click: uniqueSessions(data.events, 'course_click'),
+        direct_click: uniqueSessions(data.events, 'courses_direct_click'),
+    };
+}
+
+/* ═══════════════════════════════════════════
+   PAGE 1: FUNIL — RENDERS
+   ═══════════════════════════════════════════ */
+function renderKPIs(kpis) {
+    document.getElementById('kpiGrid').innerHTML = VOC_KPI_CONFIG.map(c => `
+        <div class="voc-kpi-card">
+            <div class="voc-kpi-header">
+                <span class="voc-kpi-label">${c.label}</span>
+                <div class="voc-kpi-icon" style="background:${c.bg}20">
+                    <span class="material-icons-round" style="color:${c.bg}">${c.icon}</span>
+                </div>
+            </div>
+            <div class="voc-kpi-value" style="color:${c.bg}">${kpis[c.key]}</div>
+            <div class="voc-kpi-sub">${c.isRate ? 'leads / visitantes' : 'sessões únicas'}</div>
+        </div>
+    `).join('');
+}
+
+function renderRates(kpis) {
+    const rates = [
+        { label:'Taxa Início Quiz', val: pct(kpis.quiz_start, kpis.landing), color:'var(--violet)', detail:`${kpis.quiz_start} de ${kpis.landing}` },
+        { label:'Taxa Conclusão Quiz', val: pct(kpis.quiz_submit, kpis.quiz_start), color:'var(--purple)', detail:`${kpis.quiz_submit} de ${kpis.quiz_start}` },
+        { label:'Taxa de Lead', val: pct(kpis.leads, kpis.form_view), color:'var(--green)', detail:`${kpis.leads} de ${kpis.form_view}` },
+        { label:'Taxa Clique Curso', val: pct(kpis.course_click, kpis.result_view), color:'var(--cyan)', detail:`${kpis.course_click} de ${kpis.result_view}` },
+        { label:'Taxa Ver Curso sem Quiz', val: pct(kpis.direct_click, kpis.landing), color:'var(--amber)', detail:`${kpis.direct_click} de ${kpis.landing}` },
+    ];
+    document.getElementById('ratesGrid').innerHTML = rates.map(r => `
+        <div class="voc-rate-card">
+            <div class="voc-rate-label">${r.label}</div>
+            <div class="voc-rate-value" style="color:${r.color}">${fmtPct(r.val)}</div>
+            <div class="voc-rate-bar"><div class="voc-rate-bar-fill" style="width:${Math.min(r.val,100)}%;background:${r.color}"></div></div>
+            <div class="voc-rate-detail">${r.detail}</div>
+        </div>
+    `).join('');
+}
+
+function renderFunnel(kpis) {
+    const steps = [
+        { label:'Visitantes',      count: kpis.landing },
+        { label:'Quiz Iniciados',  count: kpis.quiz_start },
+        { label:'Quiz Completos',  count: kpis.quiz_submit },
+        { label:'Formulário',      count: kpis.form_view },
+        { label:'Leads Enviados',  count: kpis.leads },
+        { label:'Resultado',       count: kpis.result_view },
+        { label:'Cliques em Curso',count: kpis.course_click },
+    ];
+    const maxCount = Math.max(steps[0].count, 1);
+    let html = '';
+    steps.forEach((s, i) => {
+        const widthPct = Math.max((s.count / maxCount) * 100, 12);
+        const fromTop = pct(s.count, steps[0].count);
+        const color = VOC_FUNNEL_COLORS[i];
+        html += `<div class="voc-funnel-step">
+            <div class="voc-funnel-label">${s.label}</div>
+            <div class="voc-funnel-bar-wrap">
+                <div class="voc-funnel-bar" style="width:${widthPct}%;background:${color}">
+                    <span class="voc-fb-count">${s.count}</span>
+                    <span class="voc-fb-pct">${fmtPct(fromTop)}</span>
+                </div>
+            </div>
+        </div>`;
+        if (i < steps.length - 1) {
+            const drop = steps[i].count - steps[i+1].count;
+            const conv = pct(steps[i+1].count, s.count);
+            html += `<div class="voc-funnel-drop">▼ ${drop >= 0 ? '-' + drop : '+' + Math.abs(drop)} (${fmtPct(conv)} de conversão)</div>`;
+        }
+    });
+    document.getElementById('funnelContainer').innerHTML = html;
+}
+
+function renderTimeline(data) {
+    const dateMap = {};
+    const tracked = ['landing_view','quiz_start','quiz_submit','lead_form_submit','result_view','course_click'];
+    const labels = ['Visitantes','Quiz Iniciado','Quiz Completo','Lead','Resultado','Clique Curso'];
+    const colors = ['#6366f1','#8b5cf6','#a855f7','#10b981','#f59e0b','#06b6d4'];
+
+    data.events.forEach(e => {
+        if (!tracked.includes(e.event_name)) return;
+        const d = e.created_at.substring(0, 10);
+        if (!dateMap[d]) dateMap[d] = {};
+        if (!dateMap[d][e.event_name]) dateMap[d][e.event_name] = new Set();
+        dateMap[d][e.event_name].add(e.session_id);
+    });
+
+    const dates = Object.keys(dateMap).sort();
+    if (dates.length === 0) {
+        document.getElementById('timelineChart').parentElement.innerHTML = '<div class="voc-empty-state"><span class="material-icons-round">bar_chart</span><p>Sem dados para o período</p></div>';
+        return;
+    }
+
+    const datasets = tracked.map((name, i) => ({
+        label: labels[i], data: dates.map(d => dateMap[d]?.[name]?.size || 0),
+        borderColor: colors[i], backgroundColor: colors[i] + '22',
+        fill: false, tension: 0.35, borderWidth: 2.5, pointRadius: 4, pointHoverRadius: 6,
+    }));
+
+    const ctx = document.getElementById('timelineChart');
+    if (!ctx) return;
+    if (vocTimelineChartInstance) vocTimelineChartInstance.destroy();
+    vocTimelineChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: { labels: dates.map(fmtDate), datasets },
+        options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: chartDefaults(), scales: axisDefaults() }
+    });
+}
+
+function renderCampaignTable(data) {
+    const groups = {};
+    data.sessions.forEach(s => {
+        const src = s.utm_source || 'Direto';
+        const cmp = s.utm_campaign || '—';
+        const key = src + '||' + cmp;
+        if (!groups[key]) groups[key] = { source: src, campaign: cmp, sessionIds: new Set() };
+        groups[key].sessionIds.add(s.session_id);
+    });
+    const rows = Object.values(groups).map(g => {
+        const evts = data.events.filter(e => g.sessionIds.has(e.session_id));
+        const quizStarts = new Set(evts.filter(e => e.event_name === 'quiz_start').map(e => e.session_id)).size;
+        const quizSubmits = new Set(evts.filter(e => e.event_name === 'quiz_submit').map(e => e.session_id)).size;
+        const leads = new Set(evts.filter(e => e.event_name === 'lead_form_submit').map(e => e.session_id)).size;
+        return { ...g, sessions: g.sessionIds.size, quizStarts, quizSubmits, leads, rate: pct(leads, g.sessionIds.size) };
+    }).sort((a, b) => b.sessions - a.sessions);
+
+    const tbody = document.querySelector('#campaignTable tbody');
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:24px">Sem dados</td></tr>'; return; }
+    tbody.innerHTML = rows.map(r => `<tr>
+        <td><span class="voc-badge voc-badge-blue">${r.source}</span></td><td>${r.campaign}</td>
+        <td class="voc-td-num">${r.sessions}</td><td class="voc-td-num">${r.quizStarts}</td><td class="voc-td-num">${r.quizSubmits}</td><td class="voc-td-num">${r.leads}</td>
+        <td class="voc-td-rate" style="color:${r.rate >= 30 ? 'var(--green)' : r.rate >= 15 ? 'var(--amber)' : 'var(--red)'}">${fmtPct(r.rate)}</td>
+    </tr>`).join('');
+}
+
+function renderFunilPage() {
+    const data = applyFunilFilters();
+    const kpis = calcKPIs(data);
+    renderKPIs(kpis); renderRates(kpis); renderFunnel(kpis); renderTimeline(data); renderCampaignTable(data);
+}
+
+/* ═══════════════════════════════════════════
+   PAGE 2: TRÁFEGO — FILTERS
+   ═══════════════════════════════════════════ */
+function getTrafficFilterState() {
+    const btn = document.querySelector('#voc-page-trafego .voc-filter-btn.active');
+    return {
+        period: btn ? btn.dataset.period : 'all',
+        category: document.getElementById('trafficFilterCategory').value,
+    };
+}
+
+function applyTrafficFilters() {
+    const f = getTrafficFilterState();
+    const { start, end } = dateRangeForPeriod(f.period);
+    let sessions = VOC_RAW.sessions.map(s => ({ ...s, _category: classifySource(s) }));
+    if (start) sessions = sessions.filter(s => new Date(s.created_at) >= start && new Date(s.created_at) <= end);
+    if (f.category) sessions = sessions.filter(s => s._category === f.category);
+    const sessionIds = new Set(sessions.map(s => s.session_id));
+    const { events, leads } = filterByDateAndSessions(sessionIds, start, end);
+    return { sessions, events, leads };
+}
+
+/* ═══════════════════════════════════════════
+   PAGE 2: TRÁFEGO — RENDERS
+   ═══════════════════════════════════════════ */
+function renderTrafficKPIs(data) {
+    const cats = new Set(data.sessions.map(s => s._category));
+    document.getElementById('trafficKpiGrid').innerHTML = `
+        <div class="voc-kpi-card">
+            <div class="voc-kpi-header">
+                <span class="voc-kpi-label">Fontes Ativas</span>
+                <div class="voc-kpi-icon" style="background:#06b6d420">
+                    <span class="material-icons-round" style="color:#06b6d4">hub</span>
+                </div>
+            </div>
+            <div class="voc-kpi-value" style="color:#06b6d4">${cats.size}</div>
+            <div class="voc-kpi-sub">categorias de origem</div>
+        </div>
+    `;
+}
+
+function renderSourceBarChart(data) {
+    const sessionCatMap = {};
+    const catMap = {};
+    data.sessions.forEach(s => {
+        sessionCatMap[s.session_id] = s._category;
+        if (!catMap[s._category]) catMap[s._category] = { sessions: 0, leads: new Set(), quizStarts: new Set() };
+        catMap[s._category].sessions++;
+    });
+    data.events.forEach(e => {
+        const cat = sessionCatMap[e.session_id];
+        if (!cat || !catMap[cat]) return;
+        if (e.event_name === 'lead_form_submit') catMap[cat].leads.add(e.session_id);
+        if (e.event_name === 'quiz_start') catMap[cat].quizStarts.add(e.session_id);
+    });
+
+    const categories = Object.keys(catMap).sort((a, b) => catMap[b].sessions - catMap[a].sessions);
+    const colors = categories.map((c, i) => getCatColor(c, i));
+
+    const ctx = document.getElementById('sourceBarChart');
+    if (!ctx) return;
+    if (vocSourceBarChartInstance) vocSourceBarChartInstance.destroy();
+
+    vocSourceBarChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: categories,
+            datasets: [
+                { label: 'Sessões', data: categories.map(c => catMap[c].sessions), backgroundColor: colors.map(c => c + 'cc'), borderColor: colors, borderWidth: 1 },
+                { label: 'Leads', data: categories.map(c => catMap[c].leads.size), backgroundColor: '#10b981aa', borderColor: '#10b981', borderWidth: 1 },
+                { label: 'Quiz Iniciados', data: categories.map(c => catMap[c].quizStarts.size), backgroundColor: '#8b5cf6aa', borderColor: '#8b5cf6', borderWidth: 1 },
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+            plugins: chartDefaults(),
+            scales: {
+                x: { beginAtZero: true, grid: { color: isLight() ? 'rgba(0,0,0,.07)' : 'rgba(255,255,255,.04)' }, ticks: { color: isLight() ? '#94a3b8' : '#64748b', font: { family: 'Inter', size: 11 }, stepSize: 1 } },
+                y: { grid: { display: false }, ticks: { color: isLight() ? '#475569' : '#94a3b8', font: { family: 'Inter', size: 12, weight: '500' } } },
+            }
+        }
+    });
+}
+
+function renderTrafficTable(data) {
+    const groups = {};
+    data.sessions.forEach(s => {
+        const cat = s._category;
+        const src = s.utm_source || '—';
+        const med = s.utm_medium || '—';
+        const cmp = s.utm_campaign || '—';
+        const key = `${cat}||${src}||${med}||${cmp}`;
+        if (!groups[key]) groups[key] = { category: cat, source: src, medium: med, campaign: cmp, sessionIds: new Set() };
+        groups[key].sessionIds.add(s.session_id);
+    });
+
+    const rows = Object.values(groups).map(g => {
+        const evts = data.events.filter(e => g.sessionIds.has(e.session_id));
+        const quizStarts = new Set(evts.filter(e => e.event_name === 'quiz_start').map(e => e.session_id)).size;
+        const quizSubmits = new Set(evts.filter(e => e.event_name === 'quiz_submit').map(e => e.session_id)).size;
+        const leads = new Set(evts.filter(e => e.event_name === 'lead_form_submit').map(e => e.session_id)).size;
+        const n = g.sessionIds.size;
+        return { ...g, sessions: n, quizStarts, quizSubmits, leads, rate: pct(leads, n) };
+    }).sort((a, b) => b.sessions - a.sessions);
+
+    const tbody = document.querySelector('#trafficTable tbody');
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-3);padding:24px">Sem dados</td></tr>'; return; }
+
+    tbody.innerHTML = rows.map(r => {
+        const cc = getCatColor(r.category, 0);
+        return `<tr>
+            <td><span class="voc-badge" style="background:${cc}22;color:${cc}">${r.category}</span></td>
+            <td>${r.source}</td><td>${r.medium}</td><td>${r.campaign}</td>
+            <td class="voc-td-num">${r.sessions}</td><td class="voc-td-num">${r.quizStarts}</td><td class="voc-td-num">${r.quizSubmits}</td><td class="voc-td-num">${r.leads}</td>
+            <td class="voc-td-rate" style="color:${r.rate >= 30 ? 'var(--green)' : r.rate >= 15 ? 'var(--amber)' : 'var(--red)'}">${fmtPct(r.rate)}</td>
+        </tr>`;
+    }).join('');
+}
+
+function renderTrafficTimeline(data) {
+    const catDateMap = {};
+    data.sessions.forEach(s => {
+        const cat = s._category;
+        const d = s.created_at.substring(0, 10);
+        if (!catDateMap[cat]) catDateMap[cat] = {};
+        if (!catDateMap[cat][d]) catDateMap[cat][d] = 0;
+        catDateMap[cat][d]++;
+    });
+
+    const allDates = [...new Set(data.sessions.map(s => s.created_at.substring(0, 10)))].sort();
+    const categories = Object.keys(catDateMap).sort();
+
+    if (!allDates.length) {
+        document.getElementById('trafficTimelineChart').parentElement.innerHTML = '<div class="voc-empty-state"><span class="material-icons-round">bar_chart</span><p>Sem dados</p></div>';
+        return;
+    }
+
+    const datasets = categories.map((cat, i) => ({
+        label: cat, data: allDates.map(d => catDateMap[cat]?.[d] || 0),
+        borderColor: getCatColor(cat, i), backgroundColor: getCatColor(cat, i) + '22',
+        fill: true, tension: 0.35, borderWidth: 2.5, pointRadius: 4, pointHoverRadius: 6,
+    }));
+
+    const ctx = document.getElementById('trafficTimelineChart');
+    if (!ctx) return;
+    if (vocTrafficTimelineInstance) vocTrafficTimelineInstance.destroy();
+
+    vocTrafficTimelineInstance = new Chart(ctx, {
+        type: 'line',
+        data: { labels: allDates.map(fmtDate), datasets },
+        options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: chartDefaults(), scales: axisDefaults() }
+    });
+}
+
+function renderTrafficPage() {
+    const data = applyTrafficFilters();
+    renderTrafficKPIs(data);
+    renderSourceBarChart(data);
+    renderTrafficTable(data);
+    renderTrafficTimeline(data);
+}
+
+/* ═══════════════════════════════════════════
+   PAGE 3: QUIZ — FILTERS
+   ═══════════════════════════════════════════ */
+function getQuizFilterState() {
+    const btn = document.querySelector('#voc-page-quiz .voc-filter-btn.active');
+    return { period: btn ? btn.dataset.period : 'all' };
+}
+
+function applyQuizFilters() {
+    const f = getQuizFilterState();
+    const { start, end } = dateRangeForPeriod(f.period);
+    let sessions = VOC_RAW.sessions;
+    if (start) sessions = sessions.filter(s => new Date(s.created_at) >= start && new Date(s.created_at) <= end);
+    const sessionIds = new Set(sessions.map(s => s.session_id));
+    const { events } = filterByDateAndSessions(sessionIds, start, end);
+    return { sessions, events };
+}
+
+/* ═══════════════════════════════════════════
+   PAGE 3: QUIZ — RENDERS
+   ═══════════════════════════════════════════ */
+function renderQuizKPIs(data) {
+    const totalSelections = data.events.filter(e => e.event_name === 'word_selected').length;
+
+    const submitEvts = data.events.filter(e => e.event_name === 'quiz_submit');
+    let avgWords = 0;
+    if (submitEvts.length > 0) {
+        const sum = submitEvts.reduce((s, e) => s + (e.metadata?.total_words || e.metadata?.words?.length || 0), 0);
+        avgWords = sum / submitEvts.length;
+    }
+
+    const quizStarts = uniqueSessions(data.events, 'quiz_start');
+    const quizSubmits = uniqueSessions(data.events, 'quiz_submit');
+    const abandonRate = pct(quizStarts - quizSubmits, quizStarts);
+
+    const items = [
+        { label:'Seleções de Palavras', value: totalSelections, icon:'touch_app', bg:'#8b5cf6' },
+        { label:'Média Palavras / Sessão', value: avgWords.toFixed(1), icon:'calculate', bg:'#3b82f6' },
+        { label:'Quiz Completos', value: quizSubmits, icon:'check_circle', bg:'#10b981' },
+        { label:'Taxa de Abandono do Quiz', value: fmtPct(abandonRate), icon:'exit_to_app', bg:'#ef4444' },
+    ];
+    document.getElementById('quizKpiGrid').innerHTML = items.map(c => `
+        <div class="voc-kpi-card">
+            <div class="voc-kpi-header">
+                <span class="voc-kpi-label">${c.label}</span>
+                <div class="voc-kpi-icon" style="background:${c.bg}20">
+                    <span class="material-icons-round" style="color:${c.bg}">${c.icon}</span>
+                </div>
+            </div>
+            <div class="voc-kpi-value" style="color:${c.bg}">${c.value}</div>
+        </div>
+    `).join('');
+}
+
+let vocWordRankingChartInstance = null;
+function renderWordRanking(data) {
+    const wc = {};
+    data.events.filter(e => e.event_name === 'word_selected').forEach(e => {
+        const w = e.metadata?.word; if (w) wc[w] = (wc[w] || 0) + 1;
+    });
+    const sorted = Object.entries(wc).sort((a, b) => b[1] - a[1]);
+
+    const ctx = document.getElementById('wordRankingChart');
+    if (!ctx) return;
+    if (vocWordRankingChartInstance) vocWordRankingChartInstance.destroy();
+
+    if (!sorted.length) {
+        ctx.parentElement.innerHTML = '<div class="voc-empty-state"><span class="material-icons-round">bar_chart</span><p>Sem dados</p></div>';
+        return;
+    }
+
+    vocWordRankingChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: sorted.map(s => s[0]),
+            datasets: [{ label:'Seleções', data: sorted.map(s => s[1]), backgroundColor:'#8b5cf6aa', borderColor:'#8b5cf6', borderWidth:1, borderRadius:4 }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, indexAxis:'y',
+            plugins: { ...chartDefaults(), legend: { display: false } },
+            scales: {
+                x: { beginAtZero:true, grid:{ color: isLight()?'rgba(0,0,0,.07)':'rgba(255,255,255,.04)' }, ticks:{ color: isLight()?'#94a3b8':'#64748b', font:{ family:'Inter', size:11 }, stepSize:1 } },
+                y: { grid:{ display:false }, ticks:{ color: isLight()?'#475569':'#94a3b8', font:{ family:'Inter', size:12, weight:'500' } } },
+            }
+        }
+    });
+}
+
+let vocWordRemovedChartInstance = null;
+function renderWordRemoved(data) {
+    const wc = {};
+    data.events.filter(e => e.event_name === 'word_unselected').forEach(e => {
+        const w = e.metadata?.word; if (w) wc[w] = (wc[w] || 0) + 1;
+    });
+    const sorted = Object.entries(wc).sort((a, b) => b[1] - a[1]);
+
+    const ctx = document.getElementById('wordRemovedChart');
+    if (!ctx) return;
+    if (vocWordRemovedChartInstance) vocWordRemovedChartInstance.destroy();
+
+    if (!sorted.length) {
+        ctx.parentElement.innerHTML = '<div class="voc-empty-state"><span class="material-icons-round">do_not_disturb</span><p>Sem remoções registradas</p></div>';
+        return;
+    }
+
+    vocWordRemovedChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: sorted.map(s => s[0]),
+            datasets: [{ label:'Remoções', data: sorted.map(s => s[1]), backgroundColor:'#ef4444aa', borderColor:'#ef4444', borderWidth:1, borderRadius:4 }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, indexAxis:'y',
+            plugins: { ...chartDefaults(), legend: { display: false } },
+            scales: {
+                x: { beginAtZero:true, grid:{ color: isLight()?'rgba(0,0,0,.07)':'rgba(255,255,255,.04)' }, ticks:{ color: isLight()?'#94a3b8':'#64748b', font:{ family:'Inter', size:11 }, stepSize:1 } },
+                y: { grid:{ display:false }, ticks:{ color: isLight()?'#475569':'#94a3b8', font:{ family:'Inter', size:12, weight:'500' } } },
+            }
+        }
+    });
+}
+
+let vocWordDistChartInstance = null;
+function renderWordDistribution(data) {
+    const dist = {};
+    data.events.filter(e => e.event_name === 'quiz_submit').forEach(e => {
+        const n = e.metadata?.total_words || e.metadata?.words?.length || 0;
+        if (n > 0) dist[n] = (dist[n] || 0) + 1;
+    });
+
+    const labels = Object.keys(dist).sort((a, b) => +a - +b);
+    const values = labels.map(l => dist[l]);
+
+    const ctx = document.getElementById('wordDistChart');
+    if (!ctx) return;
+    if (vocWordDistChartInstance) vocWordDistChartInstance.destroy();
+
+    if (!labels.length) {
+        ctx.parentElement.innerHTML = '<div class="voc-empty-state"><span class="material-icons-round">bar_chart</span><p>Sem dados</p></div>';
+        return;
+    }
+
+    const gradient = ctx.getContext('2d');
+    const grd = gradient.createLinearGradient(0, 0, 0, 300);
+    grd.addColorStop(0, '#8b5cf6');
+    grd.addColorStop(1, '#3b82f6');
+
+    vocWordDistChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels.map(l => l + ' palavras'),
+            datasets: [{
+                label: 'Sessões',
+                data: values,
+                backgroundColor: grd,
+                borderColor: 'transparent',
+                borderWidth: 0,
+                borderRadius: 8,
+                borderSkipped: false,
+                maxBarThickness: 64,
+                barPercentage: 0.5,
+                categoryPercentage: 0.6,
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                ...chartDefaults(),
+                legend: { display: false },
+                tooltip: {
+                    ...chartDefaults().tooltip,
+                    callbacks: {
+                        label: function(ctx) { return ctx.parsed.y + (ctx.parsed.y === 1 ? ' sessão' : ' sessões'); }
+                    }
+                }
+            },
+            scales: {
+                x: { grid: { display: false }, ticks: { color: isLight() ? '#475569' : '#94a3b8', font: { family: 'Inter', size: 12, weight: '600' } } },
+                y: { beginAtZero: true, grid: { color: isLight() ? 'rgba(0,0,0,.06)' : 'rgba(255,255,255,.04)', drawBorder: false }, ticks: { color: isLight() ? '#94a3b8' : '#64748b', font: { family: 'Inter', size: 11 }, stepSize: 1, padding: 8 } },
+            }
+        }
+    });
+}
+
+let vocQuizTimelineInstance = null;
+function renderQuizTimeline(data) {
+    const dateMap = {};
+    const tracked = ['quiz_start','quiz_submit','word_selected'];
+    const lbl = ['Quiz Iniciado','Quiz Completo','Seleções'];
+    const clr = ['#8b5cf6','#10b981','#3b82f6'];
+
+    data.events.forEach(e => {
+        if (!tracked.includes(e.event_name)) return;
+        const d = e.created_at.substring(0, 10);
+        if (!dateMap[d]) dateMap[d] = {};
+        dateMap[d][e.event_name] = (dateMap[d][e.event_name] || 0) + 1;
+    });
+
+    const dates = Object.keys(dateMap).sort();
+    const ctx = document.getElementById('quizTimelineChart');
+    if (!ctx) return;
+    if (vocQuizTimelineInstance) vocQuizTimelineInstance.destroy();
+
+    if (!dates.length) {
+        ctx.parentElement.innerHTML = '<div class="voc-empty-state"><span class="material-icons-round">bar_chart</span><p>Sem dados</p></div>';
+        return;
+    }
+
+    vocQuizTimelineInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: dates.map(fmtDate),
+            datasets: tracked.map((name, i) => ({
+                label: lbl[i], data: dates.map(d => dateMap[d]?.[name] || 0),
+                borderColor: clr[i], backgroundColor: clr[i] + '22',
+                fill: false, tension: 0.35, borderWidth: 2.5, pointRadius: 4, pointHoverRadius: 6,
+            }))
+        },
+        options: { responsive: true, maintainAspectRatio: false, interaction: { mode:'index', intersect:false }, plugins: chartDefaults(), scales: axisDefaults() }
+    });
+}
+
+function renderQuizSourceTable(data) {
+    const sessionCatMap = {};
+    VOC_RAW.sessions.forEach(s => { sessionCatMap[s.session_id] = classifySource(s); });
+
+    const groups = {};
+    const quizSids = new Set(data.events.filter(e => ['quiz_start','quiz_submit','word_selected'].includes(e.event_name)).map(e => e.session_id));
+
+    quizSids.forEach(sid => {
+        const cat = sessionCatMap[sid] || 'Desconhecido';
+        if (!groups[cat]) groups[cat] = { category: cat, sids: new Set() };
+        groups[cat].sids.add(sid);
+    });
+
+    const rows = Object.values(groups).map(g => {
+        const evts = data.events.filter(e => g.sids.has(e.session_id));
+        const qs = new Set(evts.filter(e => e.event_name === 'quiz_start').map(e => e.session_id)).size;
+        const qsub = new Set(evts.filter(e => e.event_name === 'quiz_submit').map(e => e.session_id)).size;
+        const ab = qs - qsub;
+        const subEvts = evts.filter(e => e.event_name === 'quiz_submit');
+        const avg = qsub > 0 ? (subEvts.reduce((s, e) => s + (e.metadata?.total_words || e.metadata?.words?.length || 0), 0) / qsub).toFixed(1) : '—';
+        const sel = evts.filter(e => e.event_name === 'word_selected').length;
+        return { ...g, qs, qsub, ab, abRate: pct(ab, qs), avg, sel };
+    }).sort((a, b) => b.qs - a.qs);
+
+    const tbody = document.querySelector('#quizSourceTable tbody');
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:24px">Sem dados</td></tr>'; return; }
+
+    tbody.innerHTML = rows.map(r => {
+        const cc = getCatColor(r.category, 0);
+        return `<tr>
+            <td><span class="voc-badge" style="background:${cc}22;color:${cc}">${r.category}</span></td>
+            <td class="voc-td-num">${r.qs}</td><td class="voc-td-num">${r.qsub}</td><td class="voc-td-num">${r.ab}</td>
+            <td class="voc-td-rate" style="color:${r.abRate >= 50 ? 'var(--red)' : r.abRate >= 25 ? 'var(--amber)' : 'var(--green)'}">${fmtPct(r.abRate)}</td>
+            <td class="voc-td-num">${r.avg}</td><td class="voc-td-num">${r.sel}</td>
+        </tr>`;
+    }).join('');
+}
+
+function renderQuizPage() {
+    const data = applyQuizFilters();
+    renderQuizKPIs(data); renderWordRanking(data); renderWordRemoved(data);
+    renderWordDistribution(data); renderQuizTimeline(data); renderQuizSourceTable(data);
+}
+
+/* ═══════════════════════════════════════════
+   PAGE 4: LEADS — FILTERS
+   ═══════════════════════════════════════════ */
+function getLeadFilterState() {
+    const btn = document.querySelector('#voc-page-leads .voc-filter-btn.active');
+    return { period: btn ? btn.dataset.period : 'all' };
+}
+
+function applyLeadFilters() {
+    const f = getLeadFilterState();
+    const { start, end } = dateRangeForPeriod(f.period);
+
+    const realLeadSids = new Set(
+        VOC_RAW.events.filter(e => e.event_name === 'lead_form_submit').map(e => e.session_id)
+    );
+
+    let leads = VOC_RAW.leads.filter(l => realLeadSids.has(l.session_id));
+
+    const seen = new Set();
+    leads = leads.filter(l => {
+        if (!l.session_id || seen.has(l.session_id)) return false;
+        seen.add(l.session_id);
+        return true;
+    });
+
+    if (start) leads = leads.filter(l => new Date(l.created_at) >= start && new Date(l.created_at) <= end);
+    return leads;
+}
+
+/* ═══════════════════════════════════════════
+   PAGE 4: LEADS — RENDERS
+   ═══════════════════════════════════════════ */
+function renderLeadKPIs(leads) {
+    const total = leads.length;
+    const profiles = new Set(leads.map(l => l.quiz_profile).filter(Boolean));
+    const courses = new Set(leads.map(l => l.recommended_course).filter(Boolean));
+
+    const today = new Date().toISOString().substring(0, 10);
+    const todayCount = leads.filter(l => l.created_at.substring(0, 10) === today).length;
+
+    const items = [
+        { label:'Total de Leads', value: total, icon:'people', bg:'#10b981' },
+        { label:'Leads Hoje', value: todayCount, icon:'today', bg:'#3b82f6' },
+        { label:'Perfis Diferentes', value: profiles.size, icon:'fingerprint', bg:'#8b5cf6' },
+        { label:'Cursos Recomendados', value: courses.size, icon:'school', bg:'#f59e0b' },
+    ];
+
+    document.getElementById('leadKpiGrid').innerHTML = items.map(c => `
+        <div class="voc-kpi-card">
+            <div class="voc-kpi-header">
+                <span class="voc-kpi-label">${c.label}</span>
+                <div class="voc-kpi-icon" style="background:${c.bg}20">
+                    <span class="material-icons-round" style="color:${c.bg}">${c.icon}</span>
+                </div>
+            </div>
+            <div class="voc-kpi-value" style="color:${c.bg}">${c.value}</div>
+        </div>
+    `).join('');
+}
+
+let vocLeadProfileChartInstance = null;
+function renderLeadProfileChart(leads) {
+    const counts = {};
+    leads.forEach(l => {
+        const p = l.quiz_profile || 'Sem perfil';
+        counts[p] = (counts[p] || 0) + 1;
+    });
+    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    const colors = ['#8b5cf6','#3b82f6','#10b981','#f59e0b','#ef4444','#ec4899','#06b6d4','#6366f1'];
+
+    const ctx = document.getElementById('leadProfileChart');
+    if (!ctx) return;
+    if (vocLeadProfileChartInstance) vocLeadProfileChartInstance.destroy();
+
+    if (!sorted.length) {
+        ctx.parentElement.innerHTML = '<div class="voc-empty-state"><span class="material-icons-round">donut_large</span><p>Sem dados</p></div>';
+        return;
+    }
+
+    vocLeadProfileChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: sorted.map(s => s[0]),
+            datasets: [{
+                data: sorted.map(s => s[1]),
+                backgroundColor: sorted.map((_, i) => colors[i % colors.length]),
+                borderColor: isLight() ? '#ffffff' : '#1a2236',
+                borderWidth: 3, hoverOffset: 8,
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            cutout: '55%',
+            plugins: {
+                legend: { position:'bottom', labels: { color: isLight() ? '#475569' : '#94a3b8', font: { family:'Inter', size:11 }, padding:14, boxWidth:12 } },
+                tooltip: chartDefaults().tooltip,
+            }
+        }
+    });
+}
+
+let vocLeadCourseChartInstance = null;
+function renderLeadCourseChart(leads) {
+    const counts = {};
+    leads.forEach(l => {
+        const c = l.recommended_course || 'Sem curso';
+        counts[c] = (counts[c] || 0) + 1;
+    });
+    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+    const ctx = document.getElementById('leadCourseChart');
+    if (!ctx) return;
+    if (vocLeadCourseChartInstance) vocLeadCourseChartInstance.destroy();
+
+    if (!sorted.length) {
+        ctx.parentElement.innerHTML = '<div class="voc-empty-state"><span class="material-icons-round">school</span><p>Sem dados</p></div>';
+        return;
+    }
+
+    const gradient = ctx.getContext('2d');
+    const grd = gradient.createLinearGradient(0, 0, 0, 280);
+    grd.addColorStop(0, '#10b981');
+    grd.addColorStop(1, '#06b6d4');
+
+    vocLeadCourseChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: sorted.map(s => s[0]),
+            datasets: [{
+                label: 'Leads', data: sorted.map(s => s[1]),
+                backgroundColor: grd, borderColor:'transparent', borderWidth:0,
+                borderRadius:8, borderSkipped:false, maxBarThickness:56, barPercentage:0.5, categoryPercentage:0.6,
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { ...chartDefaults(), legend: { display:false } },
+            scales: {
+                x: { grid:{ display:false }, ticks:{ color: isLight()?'#475569':'#94a3b8', font:{ family:'Inter', size:11, weight:'500' } } },
+                y: { beginAtZero:true, grid:{ color: isLight()?'rgba(0,0,0,.06)':'rgba(255,255,255,.04)' }, ticks:{ color: isLight()?'#94a3b8':'#64748b', font:{ family:'Inter', size:11 }, stepSize:1 } },
+            }
+        }
+    });
+}
+
+let vocLeadTimelineInstance = null;
+function renderLeadTimeline(leads) {
+    const dateMap = {};
+    leads.forEach(l => {
+        const d = l.created_at.substring(0, 10);
+        dateMap[d] = (dateMap[d] || 0) + 1;
+    });
+
+    const dates = Object.keys(dateMap).sort();
+    const ctx = document.getElementById('leadTimelineChart');
+    if (!ctx) return;
+    if (vocLeadTimelineInstance) vocLeadTimelineInstance.destroy();
+
+    if (!dates.length) {
+        ctx.parentElement.innerHTML = '<div class="voc-empty-state"><span class="material-icons-round">bar_chart</span><p>Sem dados</p></div>';
+        return;
+    }
+
+    vocLeadTimelineInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: dates.map(fmtDate),
+            datasets: [{
+                label: 'Leads', data: dates.map(d => dateMap[d]),
+                borderColor:'#10b981', backgroundColor:'#10b98122',
+                fill:true, tension:0.35, borderWidth:2.5, pointRadius:5, pointHoverRadius:7,
+                pointBackgroundColor:'#10b981',
+            }]
+        },
+        options: { responsive:true, maintainAspectRatio:false, interaction:{ mode:'index', intersect:false }, plugins:chartDefaults(), scales:axisDefaults() }
+    });
+}
+
+function renderLeadCampaignTable(leads) {
+    const sessionCatMap = {};
+    const sessionSrcMap = {};
+    const sessionCmpMap = {};
+    VOC_RAW.sessions.forEach(s => {
+        sessionCatMap[s.session_id] = classifySource(s);
+        sessionSrcMap[s.session_id] = s.utm_source || '—';
+        sessionCmpMap[s.session_id] = s.utm_campaign || '—';
+    });
+
+    const groups = {};
+    leads.forEach(l => {
+        const cat = sessionCatMap[l.session_id] || 'Desconhecido';
+        const src = sessionSrcMap[l.session_id] || '—';
+        const cmp = sessionCmpMap[l.session_id] || '—';
+        const key = `${cat}||${src}||${cmp}`;
+        if (!groups[key]) groups[key] = { category: cat, source: src, campaign: cmp, leads: [], profiles: {}, courses: {} };
+        groups[key].leads.push(l);
+        const p = l.quiz_profile || 'Sem perfil';
+        const c = l.recommended_course || 'Sem curso';
+        groups[key].profiles[p] = (groups[key].profiles[p] || 0) + 1;
+        groups[key].courses[c] = (groups[key].courses[c] || 0) + 1;
+    });
+
+    function topKey(obj) {
+        const entries = Object.entries(obj);
+        if (!entries.length) return '—';
+        entries.sort((a, b) => b[1] - a[1]);
+        return entries[0][0];
+    }
+
+    const rows = Object.values(groups).map(g => ({
+        ...g, count: g.leads.length, topProfile: topKey(g.profiles), topCourse: topKey(g.courses),
+    })).sort((a, b) => b.count - a.count);
+
+    const tbody = document.querySelector('#leadCampaignTable tbody');
+    if (!tbody) return;
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-3);padding:24px">Sem dados</td></tr>'; return; }
+
+    tbody.innerHTML = rows.map(r => {
+        const cc = getCatColor(r.category, 0);
+        return `<tr>
+            <td><span class="voc-badge" style="background:${cc}22;color:${cc}">${r.category}</span></td>
+            <td>${r.source}</td><td>${r.campaign}</td>
+            <td class="voc-td-num">${r.count}</td>
+            <td><span class="voc-badge" style="background:#8b5cf622;color:#8b5cf6">${r.topProfile}</span></td>
+            <td><span class="voc-badge" style="background:#10b98122;color:#10b981">${r.topCourse}</span></td>
+        </tr>`;
+    }).join('');
+}
+
+function renderLeadDetailTable(leads) {
+    const sessionSrcMap = {};
+    VOC_RAW.sessions.forEach(s => { sessionSrcMap[s.session_id] = classifySource(s); });
+
+    const sorted = [...leads].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    const tbody = document.querySelector('#leadDetailTable tbody');
+    if (!sorted.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-3);padding:24px">Sem leads</td></tr>'; return; }
+
+    tbody.innerHTML = sorted.map(l => {
+        const dt = new Date(l.created_at);
+        const dateStr = dt.toLocaleDateString('pt-BR') + ' ' + dt.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+        const src = sessionSrcMap[l.session_id] || '—';
+        const cc = getCatColor(src, 0);
+        return `<tr>
+            <td style="white-space:nowrap">${dateStr}</td>
+            <td>${l.name || '—'}</td>
+            <td>${l.phone || '—'}</td>
+            <td>${l.quiz_profile ? `<span class="voc-badge" style="background:#8b5cf622;color:#8b5cf6">${l.quiz_profile}</span>` : '—'}</td>
+            <td>${l.recommended_course ? `<span class="voc-badge" style="background:#10b98122;color:#10b981">${l.recommended_course}</span>` : '—'}</td>
+            <td><span class="voc-badge" style="background:${cc}22;color:${cc}">${src}</span></td>
+        </tr>`;
+    }).join('');
+}
+
+function renderLeadsPage() {
+    const leads = applyLeadFilters();
+    renderLeadKPIs(leads); renderLeadProfileChart(leads); renderLeadCourseChart(leads);
+    renderLeadTimeline(leads); renderLeadDetailTable(leads);
+}
+
+/* ═══════════════════════════════════════════
+   PAGE 5: CURSOS — FILTERS
+   ═══════════════════════════════════════════ */
+function getCursosFilterState() {
+    const btn = document.querySelector('#voc-page-cursos .voc-filter-btn.active');
+    return { period: btn ? btn.dataset.period : 'all' };
+}
+
+function applyCursosFilters() {
+    const f = getCursosFilterState();
+    const { start, end } = dateRangeForPeriod(f.period);
+    let sessions = VOC_RAW.sessions;
+    if (start) sessions = sessions.filter(s => new Date(s.created_at) >= start && new Date(s.created_at) <= end);
+    const sessionIds = new Set(sessions.map(s => s.session_id));
+    const { events } = filterByDateAndSessions(sessionIds, start, end);
+    return { sessions, events };
+}
+
+/* ═══════════════════════════════════════════
+   PAGE 5: CURSOS — RENDERS
+   ═══════════════════════════════════════════ */
+function renderCursosKPIs(data) {
+    const courseClicks = data.events.filter(e => e.event_name === 'course_click');
+    const directClicks = data.events.filter(e => e.event_name === 'courses_direct_click');
+    const resultViews = uniqueSessions(data.events, 'result_view');
+    const courseAfterResult = new Set(courseClicks.filter(e => e.metadata?.origin === 'result').map(e => e.session_id)).size;
+    const rateAfterResult = pct(courseAfterResult, resultViews);
+    const landing = uniqueSessions(data.events, 'landing_view');
+    const rateDirect = pct(new Set(directClicks.map(e => e.session_id)).size, landing);
+
+    const courses = {};
+    courseClicks.forEach(e => { const c = e.metadata?.course_name; if (c) courses[c] = (courses[c] || 0) + 1; });
+    const topCourse = Object.entries(courses).sort((a, b) => b[1] - a[1])[0];
+
+    const items = [
+        { label:'Cliques em Curso', value: courseClicks.length, icon:'ads_click', bg:'#3b82f6' },
+        { label:'Cliques Direto (sem quiz)', value: directClicks.length, icon:'shortcut', bg:'#f59e0b' },
+        { label:'Curso Mais Clicado', value: topCourse ? topCourse[0] : '—', icon:'emoji_events', bg:'#10b981', small: true },
+        { label:'Taxa Clique Após Resultado', value: fmtPct(rateAfterResult), icon:'percent', bg:'#8b5cf6' },
+        { label:'Taxa Clique Direto', value: fmtPct(rateDirect), icon:'percent', bg:'#ef4444' },
+    ];
+
+    document.getElementById('cursosKpiGrid').innerHTML = items.map(c => `
+        <div class="voc-kpi-card">
+            <div class="voc-kpi-header">
+                <span class="voc-kpi-label">${c.label}</span>
+                <div class="voc-kpi-icon" style="background:${c.bg}20">
+                    <span class="material-icons-round" style="color:${c.bg}">${c.icon}</span>
+                </div>
+            </div>
+            <div class="voc-kpi-value" style="color:${c.bg};${c.small ? 'font-size:20px;letter-spacing:0' : ''}">${c.value}</div>
+        </div>
+    `).join('');
+}
+
+let vocCourseRankingChartInstance = null;
+function renderCourseRanking(data) {
+    const counts = {};
+    data.events.filter(e => e.event_name === 'course_click').forEach(e => {
+        const c = e.metadata?.course_name || 'Desconhecido';
+        counts[c] = (counts[c] || 0) + 1;
+    });
+    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+    const ctx = document.getElementById('courseRankingChart');
+    if (!ctx) return;
+    if (vocCourseRankingChartInstance) vocCourseRankingChartInstance.destroy();
+
+    if (!sorted.length) {
+        ctx.parentElement.innerHTML = '<div class="voc-empty-state"><span class="material-icons-round">school</span><p>Sem cliques em cursos</p></div>';
+        return;
+    }
+
+    const gradient = ctx.getContext('2d');
+    const grd = gradient.createLinearGradient(0, 0, 400, 0);
+    grd.addColorStop(0, '#10b981');
+    grd.addColorStop(1, '#06b6d4');
+
+    vocCourseRankingChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: sorted.map(s => s[0]),
+            datasets: [{ label:'Cliques', data: sorted.map(s => s[1]), backgroundColor: grd, borderColor:'transparent', borderWidth:0, borderRadius:6, borderSkipped:false, maxBarThickness:48, barPercentage:0.5 }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, indexAxis:'y',
+            plugins: { ...chartDefaults(), legend: { display:false } },
+            scales: {
+                x: { beginAtZero:true, grid:{ color: isLight()?'rgba(0,0,0,.06)':'rgba(255,255,255,.04)' }, ticks:{ color: isLight()?'#94a3b8':'#64748b', font:{ family:'Inter', size:11 }, stepSize:1 } },
+                y: { grid:{ display:false }, ticks:{ color: isLight()?'#475569':'#94a3b8', font:{ family:'Inter', size:12, weight:'500' } } },
+            }
+        }
+    });
+}
+
+let vocCourseOriginChartInstance = null;
+function renderCourseOriginChart(data) {
+    const afterQuiz = {};
+    const direct = {};
+
+    data.events.filter(e => e.event_name === 'course_click').forEach(e => {
+        const c = e.metadata?.course_name || 'Desconhecido';
+        if (e.metadata?.origin === 'result') afterQuiz[c] = (afterQuiz[c] || 0) + 1;
+        else afterQuiz[c] = (afterQuiz[c] || 0) + 1;
+    });
+    data.events.filter(e => e.event_name === 'courses_direct_click').forEach(e => {
+        direct['Direto (sem quiz)'] = (direct['Direto (sem quiz)'] || 0) + 1;
+    });
+
+    const allCourses = [...new Set([...Object.keys(afterQuiz), ...Object.keys(direct)])].sort();
+
+    const ctx = document.getElementById('courseOriginChart');
+    if (!ctx) return;
+    if (vocCourseOriginChartInstance) vocCourseOriginChartInstance.destroy();
+
+    if (!allCourses.length && !Object.keys(direct).length) {
+        ctx.parentElement.innerHTML = '<div class="voc-empty-state"><span class="material-icons-round">compare_arrows</span><p>Sem dados</p></div>';
+        return;
+    }
+
+    const labels = [...Object.keys(afterQuiz), ...Object.keys(direct).filter(k => !afterQuiz[k])];
+    const quizData = labels.map(l => afterQuiz[l] || 0);
+    const directData = labels.map(l => direct[l] || 0);
+
+    vocCourseOriginChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                { label:'Após Quiz', data: quizData, backgroundColor:'#8b5cf6aa', borderColor:'#8b5cf6', borderWidth:1, borderRadius:6, maxBarThickness:40 },
+                { label:'Direto', data: directData, backgroundColor:'#f59e0baa', borderColor:'#f59e0b', borderWidth:1, borderRadius:6, maxBarThickness:40 },
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: chartDefaults(),
+            scales: {
+                x: { grid:{ display:false }, ticks:{ color: isLight()?'#475569':'#94a3b8', font:{ family:'Inter', size:11 } } },
+                y: { beginAtZero:true, grid:{ color: isLight()?'rgba(0,0,0,.06)':'rgba(255,255,255,.04)' }, ticks:{ color: isLight()?'#94a3b8':'#64748b', font:{ family:'Inter', size:11 }, stepSize:1 } },
+            }
+        }
+    });
+}
+
+let vocCourseTimelineInstance = null;
+function renderCourseTimeline(data) {
+    const dateMap = {};
+    data.events.filter(e => e.event_name === 'course_click' || e.event_name === 'courses_direct_click').forEach(e => {
+        const d = e.created_at.substring(0, 10);
+        if (!dateMap[d]) dateMap[d] = { course: 0, direct: 0 };
+        if (e.event_name === 'course_click') dateMap[d].course++;
+        else dateMap[d].direct++;
+    });
+
+    const dates = Object.keys(dateMap).sort();
+    const ctx = document.getElementById('courseTimelineChart');
+    if (!ctx) return;
+    if (vocCourseTimelineInstance) vocCourseTimelineInstance.destroy();
+
+    if (!dates.length) {
+        ctx.parentElement.innerHTML = '<div class="voc-empty-state"><span class="material-icons-round">show_chart</span><p>Sem dados</p></div>';
+        return;
+    }
+
+    vocCourseTimelineInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: dates.map(fmtDate),
+            datasets: [
+                { label:'Clique em Curso', data: dates.map(d => dateMap[d].course), borderColor:'#10b981', backgroundColor:'#10b98122', fill:true, tension:0.35, borderWidth:2.5, pointRadius:5, pointHoverRadius:7 },
+                { label:'Clique Direto', data: dates.map(d => dateMap[d].direct), borderColor:'#f59e0b', backgroundColor:'#f59e0b22', fill:true, tension:0.35, borderWidth:2.5, pointRadius:5, pointHoverRadius:7 },
+            ]
+        },
+        options: { responsive:true, maintainAspectRatio:false, interaction:{ mode:'index', intersect:false }, plugins:chartDefaults(), scales:axisDefaults() }
+    });
+}
+
+function renderCourseSourceTable(data) {
+    const sessionCatMap = {};
+    VOC_RAW.sessions.forEach(s => { sessionCatMap[s.session_id] = classifySource(s); });
+
+    const groups = {};
+    const relevantEvents = data.events.filter(e => e.event_name === 'course_click' || e.event_name === 'courses_direct_click' || e.event_name === 'result_view');
+
+    relevantEvents.forEach(e => {
+        const cat = sessionCatMap[e.session_id] || 'Desconhecido';
+        if (!groups[cat]) groups[cat] = { category: cat, courseClicks: 0, directClicks: 0, resultSids: new Set(), courses: {} };
+        if (e.event_name === 'course_click') {
+            groups[cat].courseClicks++;
+            const c = e.metadata?.course_name || '—';
+            groups[cat].courses[c] = (groups[cat].courses[c] || 0) + 1;
+        }
+        if (e.event_name === 'courses_direct_click') groups[cat].directClicks++;
+        if (e.event_name === 'result_view') groups[cat].resultSids.add(e.session_id);
+    });
+
+    const rows = Object.values(groups).map(g => {
+        const entries = Object.entries(g.courses).sort((a, b) => b[1] - a[1]);
+        const topCourse = entries.length ? entries[0][0] : '—';
+        const rateAfter = pct(g.courseClicks, g.resultSids.size);
+        return { ...g, total: g.courseClicks + g.directClicks, topCourse, rateAfter };
+    }).sort((a, b) => b.total - a.total);
+
+    const tbody = document.querySelector('#courseSourceTable tbody');
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-3);padding:24px">Sem dados</td></tr>'; return; }
+
+    tbody.innerHTML = rows.map(r => {
+        const cc = getCatColor(r.category, 0);
+        return `<tr>
+            <td><span class="voc-badge" style="background:${cc}22;color:${cc}">${r.category}</span></td>
+            <td class="voc-td-num">${r.courseClicks}</td>
+            <td class="voc-td-num">${r.directClicks}</td>
+            <td class="voc-td-num" style="font-weight:700">${r.total}</td>
+            <td><span class="voc-badge" style="background:#10b98122;color:#10b981">${r.topCourse}</span></td>
+            <td class="voc-td-rate" style="color:${r.rateAfter >= 30 ? 'var(--green)' : r.rateAfter >= 15 ? 'var(--amber)' : 'var(--red)'}">${fmtPct(r.rateAfter)}</td>
+        </tr>`;
+    }).join('');
+}
+
+function renderCursosPage() {
+    const data = applyCursosFilters();
+    renderCursosKPIs(data); renderCourseRanking(data); renderCourseOriginChart(data);
+    renderCourseTimeline(data); renderCourseSourceTable(data);
+}
+
+/* ═══════════════════════════════════════════
+   PAGE 6: FUNIL POR CANAL — FILTERS
+   ═══════════════════════════════════════════ */
+function getCanalFilterState() {
+    const btn = document.querySelector('#voc-page-canal .voc-filter-btn.active');
+    return { period: btn ? btn.dataset.period : 'all' };
+}
+
+function applyCanalFilters() {
+    const f = getCanalFilterState();
+    const { start, end } = dateRangeForPeriod(f.period);
+    let sessions = VOC_RAW.sessions.map(s => ({ ...s, _category: classifySource(s) }));
+    if (start) sessions = sessions.filter(s => new Date(s.created_at) >= start && new Date(s.created_at) <= end);
+    const sessionIds = new Set(sessions.map(s => s.session_id));
+    const { events } = filterByDateAndSessions(sessionIds, start, end);
+    return { sessions, events };
+}
+
+/* ═══════════════════════════════════════════
+   PAGE 6: FUNIL POR CANAL — RENDERS
+   ═══════════════════════════════════════════ */
+const VOC_FUNNEL_STEPS = [
+    { key:'landing_view',       label:'Visitantes' },
+    { key:'quiz_start',         label:'Quiz Iniciado' },
+    { key:'quiz_submit',        label:'Quiz Completo' },
+    { key:'lead_form_view',     label:'Formulário' },
+    { key:'lead_form_submit',   label:'Lead' },
+    { key:'result_view',        label:'Resultado' },
+    { key:'course_click',       label:'Clique Curso' },
+];
+
+function buildCanalData(data) {
+    const sessionCatMap = {};
+    data.sessions.forEach(s => { sessionCatMap[s.session_id] = s._category; });
+
+    const channels = {};
+    data.sessions.forEach(s => {
+        if (!channels[s._category]) channels[s._category] = {};
+        VOC_FUNNEL_STEPS.forEach(step => { if (!channels[s._category][step.key]) channels[s._category][step.key] = new Set(); });
+    });
+
+    data.events.forEach(e => {
+        const cat = sessionCatMap[e.session_id];
+        if (!cat || !channels[cat]) return;
+        const step = VOC_FUNNEL_STEPS.find(s => s.key === e.event_name);
+        if (step) channels[cat][step.key].add(e.session_id);
+    });
+
+    return Object.entries(channels).map(([name, steps]) => ({
+        name,
+        counts: VOC_FUNNEL_STEPS.map(s => steps[s.key]?.size || 0),
+    })).sort((a, b) => b.counts[0] - a.counts[0]);
+}
+
+function heatColor(val, max) {
+    if (max === 0 || val === 0) return isLight() ? 'rgba(0,0,0,.03)' : 'rgba(255,255,255,.04)';
+    const intensity = val / max;
+    if (isLight()) {
+        const r = Math.round(59 + (255 - 59) * (1 - intensity));
+        const g = Math.round(130 + (255 - 130) * (1 - intensity));
+        const b = Math.round(246 + (255 - 246) * (1 - intensity));
+        return `rgba(${r},${g},${b},${0.15 + intensity * 0.55})`;
+    }
+    return `rgba(59,130,246,${0.08 + intensity * 0.5})`;
+}
+
+function renderCanalHeatmap(data) {
+    const rows = buildCanalData(data);
+    const colMax = VOC_FUNNEL_STEPS.map((_, i) => Math.max(...rows.map(r => r.counts[i]), 1));
+
+    let html = `<table class="voc-heatmap-table"><thead><tr><th>Canal</th>`;
+    VOC_FUNNEL_STEPS.forEach(s => { html += `<th>${s.label}</th>`; });
+    html += `</tr></thead><tbody>`;
+
+    rows.forEach(r => {
+        const cc = getCatColor(r.name, 0);
+        html += `<tr><td><span class="voc-badge" style="background:${cc}22;color:${cc}">${r.name}</span></td>`;
+        r.counts.forEach((v, i) => {
+            const bg = heatColor(v, colMax[i]);
+            const rateFromFirst = r.counts[0] > 0 ? pct(v, r.counts[0]) : 0;
+            const textColor = isLight() ? '#1e293b' : '#f1f5f9';
+            html += `<td><span class="voc-hm-cell" style="background:${bg};color:${textColor}">${v}<span class="voc-hm-rate">${i > 0 ? fmtPct(rateFromFirst) : '—'}</span></span></td>`;
+        });
+        html += `</tr>`;
+    });
+
+    if (!rows.length) html += `<tr><td colspan="${VOC_FUNNEL_STEPS.length + 1}" style="text-align:center;color:var(--text-3);padding:24px">Sem dados</td></tr>`;
+    html += `</tbody></table>`;
+    document.getElementById('canalHeatmapWrap').innerHTML = html;
+}
+
+function renderCanalRates(data) {
+    const rows = buildCanalData(data);
+    const rateLabels = [];
+    for (let i = 1; i < VOC_FUNNEL_STEPS.length; i++) {
+        rateLabels.push(VOC_FUNNEL_STEPS[i-1].label + ' → ' + VOC_FUNNEL_STEPS[i].label);
+    }
+
+    let html = `<table class="voc-heatmap-table"><thead><tr><th>Canal</th>`;
+    rateLabels.forEach(l => { html += `<th>${l}</th>`; });
+    html += `</tr></thead><tbody>`;
+
+    rows.forEach(r => {
+        const cc = getCatColor(r.name, 0);
+        html += `<tr><td><span class="voc-badge" style="background:${cc}22;color:${cc}">${r.name}</span></td>`;
+        for (let i = 1; i < VOC_FUNNEL_STEPS.length; i++) {
+            const rate = pct(r.counts[i], r.counts[i-1]);
+            let color, bg;
+            if (rate >= 60) { color = '#10b981'; bg = isLight() ? 'rgba(16,185,129,.12)' : 'rgba(16,185,129,.2)'; }
+            else if (rate >= 30) { color = '#f59e0b'; bg = isLight() ? 'rgba(245,158,11,.12)' : 'rgba(245,158,11,.15)'; }
+            else { color = '#ef4444'; bg = isLight() ? 'rgba(239,68,68,.1)' : 'rgba(239,68,68,.12)'; }
+            if (r.counts[i-1] === 0) { color = 'var(--text-3)'; bg = 'transparent'; }
+            html += `<td><span class="voc-hm-cell" style="background:${bg};color:${color}">${r.counts[i-1] > 0 ? fmtPct(rate) : '—'}</span></td>`;
+        }
+        html += `</tr>`;
+    });
+
+    if (!rows.length) html += `<tr><td colspan="${rateLabels.length + 1}" style="text-align:center;color:var(--text-3);padding:24px">Sem dados</td></tr>`;
+    html += `</tbody></table>`;
+    document.getElementById('canalRatesWrap').innerHTML = html;
+}
+
+let vocCanalStackedChartInstance = null;
+function renderCanalStackedChart(data) {
+    const rows = buildCanalData(data);
+    const stepColors = ['#3b82f6','#6366f1','#8b5cf6','#ec4899','#10b981','#f59e0b','#06b6d4'];
+
+    const ctx = document.getElementById('canalStackedChart');
+    if (!ctx) return;
+    if (vocCanalStackedChartInstance) vocCanalStackedChartInstance.destroy();
+
+    if (!rows.length) {
+        ctx.parentElement.innerHTML = '<div class="voc-empty-state"><span class="material-icons-round">stacked_bar_chart</span><p>Sem dados</p></div>';
+        return;
+    }
+
+    vocCanalStackedChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: rows.map(r => r.name),
+            datasets: VOC_FUNNEL_STEPS.map((step, i) => ({
+                label: step.label,
+                data: rows.map(r => r.counts[i]),
+                backgroundColor: stepColors[i] + 'bb',
+                borderColor: stepColors[i],
+                borderWidth: 1, borderRadius: 4, maxBarThickness: 48,
+            }))
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: chartDefaults(),
+            scales: {
+                x: { grid: { display: false }, ticks: { color: isLight() ? '#475569' : '#94a3b8', font: { family: 'Inter', size: 12, weight: '500' } } },
+                y: { beginAtZero: true, grid: { color: isLight() ? 'rgba(0,0,0,.06)' : 'rgba(255,255,255,.04)' }, ticks: { color: isLight() ? '#94a3b8' : '#64748b', font: { family: 'Inter', size: 11 }, stepSize: 1 } },
+            }
+        }
+    });
+}
+
+function renderCanalPage() {
+    const data = applyCanalFilters();
+    renderCanalHeatmap(data); renderCanalRates(data); renderCanalStackedChart(data);
+}
+
+/* ═══════════════════════════════════════════
+   POPULATE FILTERS
+   ═══════════════════════════════════════════ */
+function populateFilters() {
+    const sources = [...new Set(VOC_RAW.sessions.map(s => s.utm_source).filter(Boolean))].sort();
+    const campaigns = [...new Set(VOC_RAW.sessions.map(s => s.utm_campaign).filter(Boolean))].sort();
+    const srcSel = document.getElementById('filterSource');
+    sources.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; srcSel.appendChild(o); });
+    const cmpSel = document.getElementById('filterCampaign');
+    campaigns.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; cmpSel.appendChild(o); });
+
+    const cats = [...new Set(VOC_RAW.sessions.map(s => classifySource(s)))].sort();
+    const catSel = document.getElementById('trafficFilterCategory');
+    cats.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; catSel.appendChild(o); });
+}
+
+/* ═══════════════════════════════════════════
+   PAGE 7: STATUS COMERCIAL — LOGIC
+   ═══════════════════════════════════════════ */
+function normalizePhone(p) {
+    if (!p) return '';
+    let s = String(p).replace(/\D/g, '');
+    if (s.startsWith('55') && s.length > 11) s = s.substring(2);
+    if (s.length === 10) s = s.substring(0, 2) + '9' + s.substring(2);
+    return s;
+}
+
+function buildCampanhasIndex() {
+    const idx = {};
+    VOC_RAW.campanhas.forEach(c => {
+        const phone = normalizePhone(c.telefone);
+        if (!phone) return;
+        if (!idx[phone] || new Date(c.data_criacao) > new Date(idx[phone].data_criacao)) {
+            idx[phone] = c;
+        }
+    });
+    return idx;
+}
+
+function getStatusFilterState() {
+    const btn = document.querySelector('#voc-page-status .voc-filter-btn.active');
+    return { period: btn ? btn.dataset.period : 'all' };
+}
+
+function buildStatusData() {
+    const f = getStatusFilterState();
+    const { start, end } = dateRangeForPeriod(f.period);
+
+    const realLeadSids = new Set(
+        VOC_RAW.events.filter(e => e.event_name === 'lead_form_submit').map(e => e.session_id)
+    );
+    let leads = VOC_RAW.leads.filter(l => realLeadSids.has(l.session_id));
+    const seenSid = new Set();
+    leads = leads.filter(l => {
+        if (!l.session_id || seenSid.has(l.session_id)) return false;
+        seenSid.add(l.session_id); return true;
+    });
+    if (start) leads = leads.filter(l => new Date(l.created_at) >= start && new Date(l.created_at) <= end);
+
+    const campIdx = buildCampanhasIndex();
+    const sessionMap = {};
+    VOC_RAW.sessions.forEach(s => { sessionMap[s.session_id] = s; });
+
+    const JOURNEY_STEPS = ['landing_view','quiz_start','quiz_submit','lead_form_view','lead_form_submit','result_view','course_click'];
+    const STEP_LABELS = {
+        landing_view: 'Landing', quiz_start: 'Quiz Início', quiz_submit: 'Quiz Completo',
+        lead_form_view: 'Formulário', lead_form_submit: 'Lead Enviado',
+        result_view: 'Resultado', course_click: 'Clique Curso'
+    };
+
+    const enriched = leads.map(l => {
+        const phone = normalizePhone(l.phone);
+        const match = campIdx[phone];
+        const status = match ? match.novo_ganho_perdido : 'sem_match';
+        const session = sessionMap[l.session_id];
+        const source = session ? classifySource(session) : 'Desconhecido';
+        const utm_source = session?.utm_source || '—';
+        const utm_medium = session?.utm_medium || '—';
+
+        const evts = VOC_RAW.events.filter(e => e.session_id === l.session_id);
+        const evtNames = new Set(evts.map(e => e.event_name));
+        const journey = JOURNEY_STEPS.filter(s => evtNames.has(s)).map(s => STEP_LABELS[s]);
+
+        return {
+            date: l.created_at.substring(0, 10),
+            phone, name: l.name || '—',
+            utm_source, utm_medium, source,
+            status, journey,
+            journeyStr: journey.join(' → '),
+            profile: l.quiz_profile || '—',
+            course: l.recommended_course || '—',
+        };
+    });
+
+    return enriched;
+}
+
+let vocStatusDayChartInstance = null;
+let vocStatusSourceChartInstance = null;
+
+function renderStatusKPIs(data) {
+    const total = data.length;
+    const ganho = data.filter(d => d.status === 'ganho').length;
+    const perdido = data.filter(d => d.status === 'perdido').length;
+    const novo = data.filter(d => d.status === 'novo').length;
+    const semMatch = data.filter(d => d.status === 'sem_match').length;
+
+    const items = [
+        { label:'Leads Comparados', value: total, icon:'compare_arrows', bg:'#8b5cf6' },
+        { label:'Ganhos', value: ganho, icon:'emoji_events', bg:'#10b981' },
+        { label:'Perdidos', value: perdido, icon:'cancel', bg:'#ef4444' },
+        { label:'Novos', value: novo, icon:'fiber_new', bg:'#3b82f6' },
+        { label:'Sem Match', value: semMatch, icon:'help_outline', bg:'#94a3b8' },
+    ];
+
+    document.getElementById('statusKpiGrid').innerHTML = items.map(c => `
+        <div class="voc-kpi-card">
+            <div class="voc-kpi-header">
+                <span class="voc-kpi-label">${c.label}</span>
+                <div class="voc-kpi-icon" style="background:${c.bg}20">
+                    <span class="material-icons-round" style="color:${c.bg}">${c.icon}</span>
+                </div>
+            </div>
+            <div class="voc-kpi-value" style="color:${c.bg}">${c.value}</div>
+        </div>
+    `).join('');
+}
+
+let vocStatusPieChartInstance = null;
+
+function renderStatusPieChart(data) {
+    const ctx = document.getElementById('statusPieChart');
+    if (!ctx) return;
+    if (vocStatusPieChartInstance) vocStatusPieChartInstance.destroy();
+
+    if (!data.length) {
+        ctx.parentElement.innerHTML = '<div class="voc-empty-state"><span class="material-icons-round">donut_large</span><p>Sem dados</p></div>';
+        return;
+    }
+
+    const counts = { ganho: 0, perdido: 0, novo: 0, sem_match: 0 };
+    data.forEach(d => counts[d.status]++);
+    const total = data.length;
+    const statuses = ['ganho','perdido','novo','sem_match'].filter(s => counts[s] > 0);
+    const defs = chartDefaults();
+    const light = isLight();
+
+    vocStatusPieChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: statuses.map(s => VOC_STATUS_LABELS[s]),
+            datasets: [{
+                data: statuses.map(s => counts[s]),
+                backgroundColor: statuses.map(s => VOC_STATUS_COLORS[s]),
+                hoverBackgroundColor: statuses.map(s => VOC_STATUS_COLORS[s]),
+                borderColor: light ? '#ffffff' : '#1a2236',
+                borderWidth: 3,
+                hoverOffset: 8,
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            cutout: '55%',
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { ...defs.legend.labels, padding: 20, usePointStyle: true, pointStyle: 'circle' }
+                },
+                tooltip: {
+                    ...defs.tooltip,
+                    callbacks: {
+                        label(item) {
+                            const val = item.raw;
+                            const pctVal = ((val / total) * 100).toFixed(1).replace('.', ',');
+                            return ` ${item.label}: ${val} (${pctVal}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderStatusSourceChart(data) {
+    const ctx = document.getElementById('statusSourceChart');
+    if (!ctx) return;
+    if (vocStatusSourceChartInstance) vocStatusSourceChartInstance.destroy();
+
+    if (!data.length) {
+        ctx.parentElement.innerHTML = '<div class="voc-empty-state"><span class="material-icons-round">pie_chart</span><p>Sem dados</p></div>';
+        return;
+    }
+
+    const sources = {};
+    data.forEach(d => { sources[d.source] = (sources[d.source] || 0) + 1; });
+    const sorted = Object.entries(sources).sort((a,b) => b[1] - a[1]);
+    const total = data.length;
+    const sourceColors = sorted.map(([src], i) => VOC_SOURCE_CAT_COLORS[src] || VOC_DEFAULT_CAT_COLORS[i % VOC_DEFAULT_CAT_COLORS.length]);
+    const defs = chartDefaults();
+    const light = isLight();
+
+    vocStatusSourceChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: sorted.map(([src]) => src),
+            datasets: [{
+                data: sorted.map(([, v]) => v),
+                backgroundColor: sourceColors,
+                hoverBackgroundColor: sourceColors,
+                borderColor: light ? '#ffffff' : '#1a2236',
+                borderWidth: 3,
+                hoverOffset: 8,
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            cutout: '55%',
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { ...defs.legend.labels, padding: 20, usePointStyle: true, pointStyle: 'circle' }
+                },
+                tooltip: {
+                    ...defs.tooltip,
+                    callbacks: {
+                        label(item) {
+                            const val = item.raw;
+                            const pctVal = ((val / total) * 100).toFixed(1).replace('.', ',');
+                            return ` ${item.label}: ${val} (${pctVal}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderStatusDayChart(data) {
+    const ctx = document.getElementById('statusDayChart');
+    if (!ctx) return;
+    if (vocStatusDayChartInstance) vocStatusDayChartInstance.destroy();
+
+    if (!data.length) {
+        ctx.parentElement.innerHTML = '<div class="voc-empty-state"><span class="material-icons-round">timeline</span><p>Sem dados</p></div>';
+        return;
+    }
+
+    const days = {};
+    data.forEach(d => {
+        if (!days[d.date]) days[d.date] = { ganho: 0, perdido: 0, novo: 0, sem_match: 0 };
+        days[d.date][d.status]++;
+    });
+    const sorted = Object.keys(days).sort();
+    const defs = chartDefaults();
+    const axes = axisDefaults();
+    const statuses = ['ganho','perdido','novo','sem_match'];
+
+    vocStatusDayChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: sorted.map(fmtDate),
+            datasets: statuses.map(s => ({
+                label: VOC_STATUS_LABELS[s],
+                data: sorted.map(d => days[d][s]),
+                backgroundColor: VOC_STATUS_COLORS[s] + 'cc',
+                hoverBackgroundColor: VOC_STATUS_COLORS[s],
+                borderColor: VOC_STATUS_COLORS[s],
+                borderWidth: 1,
+                borderRadius: 5,
+                borderSkipped: false,
+                barPercentage: 0.7,
+                categoryPercentage: 0.6,
+            }))
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                ...defs,
+                tooltip: {
+                    ...defs.tooltip,
+                    mode: 'index', intersect: false,
+                    callbacks: {
+                        afterBody(items) {
+                            const total = items.reduce((s, i) => s + i.raw, 0);
+                            return `\nTotal do dia: ${total}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { ...axes.x, grid: { display: false } },
+                y: { ...axes.y, grid: { ...axes.y.grid, drawBorder: false } },
+            },
+        }
+    });
+}
+
+function renderStatusPaths(data) {
+    const wrap = document.getElementById('statusPathsWrap');
+    if (!wrap) return;
+
+    const pathsByStatus = {};
+    data.forEach(d => {
+        if (!pathsByStatus[d.status]) pathsByStatus[d.status] = {};
+        const key = d.journeyStr || 'Sem caminho';
+        pathsByStatus[d.status][key] = (pathsByStatus[d.status][key] || 0) + 1;
+    });
+
+    let rows = '';
+    ['ganho','perdido','novo','sem_match'].forEach(status => {
+        const paths = pathsByStatus[status] || {};
+        const total = Object.values(paths).reduce((s,v) => s+v, 0);
+        const sorted = Object.entries(paths).sort((a,b) => b[1] - a[1]).slice(0, 5);
+        sorted.forEach(([path, count], i) => {
+            const steps = path.split(' → ');
+            const pathHtml = steps.map(s =>
+                `<span class="voc-path-step">${s}</span>`
+            ).join('<span class="voc-path-arrow">→</span>');
+            rows += `<tr>
+                ${i === 0 ? `<td rowspan="${sorted.length}"><span class="voc-status-badge ${status}">${VOC_STATUS_LABELS[status]}</span></td>` : ''}
+                <td><div class="voc-path-cell">${pathHtml}</div></td>
+                <td class="voc-td-num">${count}</td>
+                <td class="voc-td-rate">${fmtPct(pct(count, total))}</td>
+            </tr>`;
+        });
+    });
+
+    wrap.innerHTML = `<table class="voc-data-table">
+        <thead><tr>
+            <th>Status</th><th>Caminho</th><th>Total</th><th>%</th>
+        </tr></thead>
+        <tbody>${rows || '<tr><td colspan="4" style="text-align:center;color:var(--text-3);padding:24px">Sem dados</td></tr>'}</tbody>
+    </table>`;
+}
+
+function renderStatusDetail(data) {
+    const wrap = document.getElementById('statusDetailWrap');
+    if (!wrap) return;
+
+    const sorted = [...data].sort((a,b) => b.date.localeCompare(a.date));
+
+    const rows = sorted.map(d => {
+        const maskedPhone = d.phone ? d.phone.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3') : '—';
+        return `<tr>
+            <td>${fmtDate(d.date)}</td>
+            <td>${maskedPhone}</td>
+            <td>${d.name}</td>
+            <td>${d.utm_source}</td>
+            <td>${d.utm_medium}</td>
+            <td><span class="voc-status-badge ${d.status}">${VOC_STATUS_LABELS[d.status]}</span></td>
+            <td><div class="voc-path-cell" style="font-size:10.5px">${d.journey.map(s => `<span class="voc-path-step">${s}</span>`).join('<span class="voc-path-arrow">→</span>')}</div></td>
+        </tr>`;
+    }).join('');
+
+    wrap.innerHTML = `<table class="voc-data-table">
+        <thead><tr>
+            <th>Data</th><th>Telefone</th><th>Nome</th><th>Fonte</th><th>Meio</th><th>Status</th><th>Caminho</th>
+        </tr></thead>
+        <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:24px">Sem dados</td></tr>'}</tbody>
+    </table>`;
+}
+
+function renderStatusPage() {
+    const data = buildStatusData();
+    renderStatusKPIs(data);
+    renderStatusPieChart(data);
+    renderStatusSourceChart(data);
+    renderStatusDayChart(data);
+    renderStatusPaths(data);
+    renderStatusDetail(data);
+}
+
+/* ═══════════════════════════════════════════
+   NAVIGATION & PAGE RENDERERS
+   ═══════════════════════════════════════════ */
+const VOC_PAGE_RENDERERS = { funil: renderFunilPage, trafego: renderTrafficPage, quiz: renderQuizPage, leads: renderLeadsPage, cursos: renderCursosPage, canal: renderCanalPage, status: renderStatusPage };
+let vocCurrentPage = 'funil';
+
+function vocSwitchTab(tabName) {
+    document.querySelectorAll('#page-vocacional .voc-tab').forEach(t => t.classList.remove('active'));
+    const activeTab = document.querySelector('#page-vocacional .voc-tab[data-voctab="' + tabName + '"]');
+    if (activeTab) activeTab.classList.add('active');
+
+    document.querySelectorAll('#page-vocacional .voc-page').forEach(p => p.classList.remove('active'));
+    const target = document.getElementById('voc-page-' + tabName);
+    if (target) target.classList.add('active');
+
+    if (vocCurrentPage !== tabName) {
+        vocCurrentPage = tabName;
+        VOC_PAGE_RENDERERS[tabName]?.();
+    }
+}
+
+/* ═══════════════════════════════════════════
+   FILTER EVENTS (scoped per page)
+   ═══════════════════════════════════════════ */
+function setupFilters() {
+    document.querySelectorAll('#voc-page-funil .voc-filter-btn[data-period]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#voc-page-funil .voc-filter-btn[data-period]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active'); renderFunilPage();
+        });
+    });
+    document.getElementById('filterSource').addEventListener('change', renderFunilPage);
+    document.getElementById('filterCampaign').addEventListener('change', renderFunilPage);
+
+    document.querySelectorAll('#voc-page-trafego .voc-filter-btn[data-period]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#voc-page-trafego .voc-filter-btn[data-period]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active'); renderTrafficPage();
+        });
+    });
+    document.getElementById('trafficFilterCategory').addEventListener('change', renderTrafficPage);
+
+    document.querySelectorAll('#voc-page-quiz .voc-filter-btn[data-period]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#voc-page-quiz .voc-filter-btn[data-period]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active'); renderQuizPage();
+        });
+    });
+
+    document.querySelectorAll('#voc-page-leads .voc-filter-btn[data-period]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#voc-page-leads .voc-filter-btn[data-period]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active'); renderLeadsPage();
+        });
+    });
+
+    document.querySelectorAll('#voc-page-cursos .voc-filter-btn[data-period]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#voc-page-cursos .voc-filter-btn[data-period]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active'); renderCursosPage();
+        });
+    });
+
+    document.querySelectorAll('#voc-page-canal .voc-filter-btn[data-period]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#voc-page-canal .voc-filter-btn[data-period]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active'); renderCanalPage();
+        });
+    });
+
+    document.querySelectorAll('#voc-page-status .voc-filter-btn[data-period]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#voc-page-status .voc-filter-btn[data-period]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active'); renderStatusPage();
+        });
+    });
+}
+
+/* ═══════════════════════════════════════════
+   LOAD PAGE (called by main app)
+   ═══════════════════════════════════════════ */
+async function vocLoadPage() {
+    try {
+        await loadData();
+        populateFilters();
+        renderFunilPage();
+        setupFilters();
+    } catch (err) {
+        console.error('Vocacional load error:', err);
+        const container = document.getElementById('voc-page-funil');
+        if (container) {
+            container.innerHTML = `
+                <div class="voc-empty-state">
+                    <span class="material-icons-round" style="font-size:48px;color:var(--red);margin-bottom:12px">error</span>
+                    <p style="color:var(--text-2);font-size:14px;margin-bottom:8px">Erro ao carregar dados</p>
+                    <p style="color:var(--text-3);font-size:12px">${err.message}</p>
+                </div>
+            `;
+        }
+    }
+}
+
+window.vocSwitchTab = vocSwitchTab;
+window.vocLoadPage = vocLoadPage;
+
+})();
+</script>
+
+</div>
