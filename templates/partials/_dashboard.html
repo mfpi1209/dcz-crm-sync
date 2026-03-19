@@ -64,7 +64,7 @@
                                 <select id="students-ciclo" onchange="applyCicloFilter()" class="input-glass px-3 py-1.5 text-xs rounded-lg">
                                     <option value="">Todos os ciclos</option>
                                 </select>
-                                <select id="students-nivel" onchange="loadStudentMetrics()" class="input-glass px-3 py-1.5 text-xs rounded-lg">
+                                <select id="students-nivel" onchange="loadStudentMetrics(); _loadInadimplenciaCard()" class="input-glass px-3 py-1.5 text-xs rounded-lg">
                                     <option value="">Todos os Níveis</option>
                                     <option value="Graduação">Graduação</option>
                                     <option value="Pós-Graduação">Pós-Graduação</option>
