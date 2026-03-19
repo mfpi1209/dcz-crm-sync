@@ -829,11 +829,14 @@ async function _loadInadimplenciaCard() {
 
     const tipo = _stuActiveTipo;
     const situacao = _stuActiveSituacao;
+    const nivelEl = document.getElementById('students-nivel');
+    const nivel = nivelEl ? nivelEl.value : '';
 
     try {
         const p = new URLSearchParams();
         if (tipo) p.set('tipo', tipo);
         if (situacao) p.set('situacao', situacao);
+        if (nivel) p.set('nivel', nivel);
         const qs = p.toString();
         const url = '/api/lista-alunos/latest' + (qs ? '?' + qs : '');
 
@@ -864,6 +867,7 @@ async function _loadInadimplenciaCard() {
                 filterParts.push(tipoLabels[d.filtered_tipo] || d.filtered_tipo);
             }
             if (d.filtered_situacao) filterParts.push(d.filtered_situacao);
+            if (d.filtered_nivel) filterParts.push(d.filtered_nivel);
             if (filterParts.length) label += '  ·  Filtro: ' + filterParts.join(' + ');
             dateEl.textContent = label;
         }
