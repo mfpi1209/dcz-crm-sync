@@ -27,7 +27,8 @@
         color: var(--text-1);
     }
 
-    .light #page-vocacional {
+    .light #page-vocacional,
+    [data-theme="light"] #page-vocacional {
         --bg-card: #ffffff;
         --bg-card-hover: #f8fafc;
         --border: #e2e8f0;
@@ -240,13 +241,20 @@
     #page-vocacional .voc-path-arrow { color: var(--text-3); font-size: 11px; }
 
     /* ── Light mode overrides ── */
-    .light #page-vocacional .voc-kpi-card { box-shadow: 0 1px 3px rgba(0,0,0,.06); }
-    .light #page-vocacional .voc-section { box-shadow: 0 1px 3px rgba(0,0,0,.06); }
-    .light #page-vocacional .voc-rate-card { box-shadow: 0 1px 3px rgba(0,0,0,.06); }
-    .light #page-vocacional .voc-filter-select { background: #fff; }
-    .light #page-vocacional .voc-rate-card .voc-rate-bar { background: rgba(0,0,0,.06); }
-    .light #page-vocacional .voc-data-table td { border-bottom-color: rgba(0,0,0,.04); }
-    .light #page-vocacional .voc-data-table tbody tr:hover td { background: rgba(0,0,0,.02); }
+    .light #page-vocacional .voc-kpi-card,
+    [data-theme="light"] #page-vocacional .voc-kpi-card { box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    .light #page-vocacional .voc-section,
+    [data-theme="light"] #page-vocacional .voc-section { box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    .light #page-vocacional .voc-rate-card,
+    [data-theme="light"] #page-vocacional .voc-rate-card { box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    .light #page-vocacional .voc-filter-select,
+    [data-theme="light"] #page-vocacional .voc-filter-select { background: #fff; }
+    .light #page-vocacional .voc-rate-card .voc-rate-bar,
+    [data-theme="light"] #page-vocacional .voc-rate-card .voc-rate-bar { background: rgba(0,0,0,.06); }
+    .light #page-vocacional .voc-data-table td,
+    [data-theme="light"] #page-vocacional .voc-data-table td { border-bottom-color: rgba(0,0,0,.04); }
+    .light #page-vocacional .voc-data-table tbody tr:hover td,
+    [data-theme="light"] #page-vocacional .voc-data-table tbody tr:hover td { background: rgba(0,0,0,.02); }
 
     /* ── Responsive ── */
     @media (max-width: 1200px) {
@@ -264,6 +272,116 @@
     @media (max-width: 480px) {
         #page-vocacional .voc-rates-grid { grid-template-columns: 1fr; }
     }
+
+    /* ── Date Picker Button ── */
+    #page-vocacional .voc-date-picker-btn {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 7px 14px; border-radius: 8px; font-size: 12.5px;
+        font-weight: 500; border: 1px solid var(--border);
+        background: transparent; color: var(--text-2); cursor: pointer;
+        transition: all .2s; font-family: inherit; white-space: nowrap;
+    }
+    #page-vocacional .voc-date-picker-btn:hover { border-color: var(--blue); color: var(--text-1); }
+    #page-vocacional .voc-date-picker-btn .material-icons-round { font-size: 15px; }
+</style>
+
+<!-- Date Picker Styles (global, fixed overlay) -->
+<style>
+    .voc-dp-overlay {
+        display: none; position: fixed; inset: 0; z-index: 2000;
+    }
+    .voc-dp-overlay.open { display: block; }
+    .voc-dp-popup {
+        position: fixed; z-index: 2001; display: none;
+        background: var(--bg-card, #1a2236); border: 1px solid var(--border, #2a3452);
+        border-radius: 14px; box-shadow: 0 16px 48px rgba(0,0,0,.3);
+        width: 600px; overflow: hidden; font-family: 'Inter', sans-serif;
+        color: var(--text-1, #f1f5f9);
+    }
+    .voc-dp-popup.open { display: block; }
+    .voc-dp-top {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 14px 20px; border-bottom: 1px solid var(--border, #2a3452); gap: 12px;
+    }
+    .voc-dp-include-today {
+        display: flex; align-items: center; gap: 8px;
+        font-size: 13px; color: var(--text-2, #94a3b8); cursor: pointer; user-select: none;
+    }
+    .voc-dp-include-today input { cursor: pointer; width: 15px; height: 15px; }
+    .voc-dp-presets-wrap { position: relative; }
+    .voc-dp-preset-label {
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border, #2a3452);
+        background: var(--bg-card, #1a2236); color: var(--text-2, #94a3b8); cursor: pointer;
+        font-size: 13px; font-family: inherit; min-width: 210px;
+        justify-content: space-between; transition: all .2s;
+    }
+    .voc-dp-preset-label:hover { border-color: var(--blue, #3b82f6); color: var(--text-1, #f1f5f9); }
+    .voc-dp-presets {
+        display: none; position: absolute; top: calc(100% + 4px); right: 0;
+        background: var(--bg-card, #1a2236); border: 1px solid var(--border, #2a3452);
+        border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.2);
+        z-index: 10; min-width: 220px; overflow: hidden;
+    }
+    .voc-dp-presets.open { display: block; }
+    .voc-dp-preset-item {
+        padding: 10px 16px; cursor: pointer; font-size: 13px; color: var(--text-2, #94a3b8);
+        transition: background .15s;
+    }
+    .voc-dp-preset-item:hover { background: rgba(59,130,246,.07); }
+    .voc-dp-preset-item.active { color: var(--blue, #3b82f6); font-weight: 600; background: rgba(59,130,246,.1); }
+    .voc-dp-calendars {
+        display: grid; grid-template-columns: 1fr 1fr; padding: 16px 20px; gap: 0;
+    }
+    .voc-dp-cal { padding-right: 20px; }
+    .voc-dp-cal + .voc-dp-cal { border-left: 1px solid var(--border, #2a3452); padding-left: 20px; padding-right: 0; }
+    .voc-dp-cal-label {
+        font-size: 11px; font-weight: 600; color: var(--text-3, #64748b);
+        text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px;
+    }
+    .voc-dp-cal-header {
+        display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;
+    }
+    .voc-dp-cal-title { font-size: 13px; font-weight: 600; color: var(--text-1, #f1f5f9); }
+    .voc-dp-nav-btn {
+        background: none; border: none; cursor: pointer; color: var(--text-2, #94a3b8);
+        padding: 3px; border-radius: 5px; display: flex; align-items: center;
+        transition: background .15s; font-size: 18px;
+    }
+    .voc-dp-nav-btn:hover { background: rgba(59,130,246,.1); color: var(--blue, #3b82f6); }
+    .voc-dp-weekdays { display: grid; grid-template-columns: repeat(7,1fr); margin-bottom: 2px; }
+    .voc-dp-weekday { font-size: 11px; font-weight: 600; color: var(--text-3, #64748b); text-align: center; padding: 3px 0; }
+    .voc-dp-days { display: grid; grid-template-columns: repeat(7,1fr); gap: 1px; }
+    .voc-dp-day {
+        text-align: center; font-size: 12.5px; border-radius: 5px;
+        cursor: default; color: var(--text-2, #94a3b8); transition: all .12s;
+        min-height: 28px; display: flex; align-items: center; justify-content: center;
+    }
+    .voc-dp-day.clickable { cursor: pointer; }
+    .voc-dp-day.clickable:hover { background: rgba(59,130,246,.15); color: var(--blue, #3b82f6); }
+    .voc-dp-day.today { font-weight: 700; color: var(--blue, #3b82f6); }
+    .voc-dp-day.selected { background: var(--blue, #3b82f6); color: #fff !important; font-weight: 600; border-radius: 50%; }
+    .voc-dp-day.range-start { background: var(--blue, #3b82f6); color: #fff !important; font-weight: 600; border-radius: 50% 0 0 50%; }
+    .voc-dp-day.range-end { background: var(--blue, #3b82f6); color: #fff !important; font-weight: 600; border-radius: 0 50% 50% 0; }
+    .voc-dp-day.in-range { background: rgba(59,130,246,.12); color: var(--blue, #3b82f6); border-radius: 0; }
+    .voc-dp-day.other-month { opacity: 0; pointer-events: none; }
+    .voc-dp-footer {
+        display: flex; align-items: center; justify-content: flex-end;
+        gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border, #2a3452);
+    }
+    .voc-dp-btn {
+        padding: 8px 20px; border-radius: 8px; font-size: 13px; font-weight: 500;
+        cursor: pointer; font-family: inherit; border: 1px solid var(--border, #2a3452); transition: all .2s;
+    }
+    .voc-dp-btn-cancel { background: transparent; color: var(--text-2, #94a3b8); }
+    .voc-dp-btn-cancel:hover { background: rgba(0,0,0,.05); }
+    .voc-dp-btn-apply { background: var(--blue, #3b82f6); color: #fff; border-color: var(--blue, #3b82f6); }
+    .voc-dp-btn-apply:hover { opacity: .88; }
+    @media (max-width: 640px) {
+        .voc-dp-popup { width: calc(100vw - 24px); }
+        .voc-dp-calendars { grid-template-columns: 1fr; }
+        .voc-dp-cal + .voc-dp-cal { border-left: none; border-top: 1px solid var(--border, #2a3452); padding-left: 0; padding-top: 16px; margin-top: 8px; }
+    }
 </style>
 
 <!-- ═══════════════════════════════════════════
@@ -279,10 +397,11 @@
             <p>Acompanhe a jornada completa do quiz vocacional</p>
         </div>
         <div class="voc-filters">
-            <button class="voc-filter-btn active" data-period="all">Tudo</button>
-            <button class="voc-filter-btn" data-period="today">Hoje</button>
-            <button class="voc-filter-btn" data-period="7d">7 dias</button>
-            <button class="voc-filter-btn" data-period="30d">30 dias</button>
+            <button class="voc-date-picker-btn" onclick="vocOpenDatePicker(this)">
+                <span class="material-icons-round">date_range</span>
+                <span class="voc-dp-trigger-label">Tudo</span>
+                <span class="material-icons-round">expand_more</span>
+            </button>
             <select class="voc-filter-select" id="filterSource">
                 <option value="">Todas as fontes</option>
             </select>
@@ -346,10 +465,11 @@
             <p>Entenda de onde vêm seus usuários e quais canais convertem melhor</p>
         </div>
         <div class="voc-filters">
-            <button class="voc-filter-btn active" data-period="all">Tudo</button>
-            <button class="voc-filter-btn" data-period="today">Hoje</button>
-            <button class="voc-filter-btn" data-period="7d">7 dias</button>
-            <button class="voc-filter-btn" data-period="30d">30 dias</button>
+            <button class="voc-date-picker-btn" onclick="vocOpenDatePicker(this)">
+                <span class="material-icons-round">date_range</span>
+                <span class="voc-dp-trigger-label">Tudo</span>
+                <span class="material-icons-round">expand_more</span>
+            </button>
             <select class="voc-filter-select" id="trafficFilterCategory">
                 <option value="">Todas as categorias</option>
             </select>
@@ -413,10 +533,11 @@
             <p>Entenda como as pessoas interagem com o teste vocacional</p>
         </div>
         <div class="voc-filters">
-            <button class="voc-filter-btn active" data-period="all">Tudo</button>
-            <button class="voc-filter-btn" data-period="today">Hoje</button>
-            <button class="voc-filter-btn" data-period="7d">7 dias</button>
-            <button class="voc-filter-btn" data-period="30d">30 dias</button>
+            <button class="voc-date-picker-btn" onclick="vocOpenDatePicker(this)">
+                <span class="material-icons-round">date_range</span>
+                <span class="voc-dp-trigger-label">Tudo</span>
+                <span class="material-icons-round">expand_more</span>
+            </button>
         </div>
     </div>
     <div class="voc-kpi-grid" id="quizKpiGrid"></div>
@@ -495,10 +616,11 @@
             <p>Analise quem converteu, de onde veio e qual perfil gerou mais leads</p>
         </div>
         <div class="voc-filters">
-            <button class="voc-filter-btn active" data-period="all">Tudo</button>
-            <button class="voc-filter-btn" data-period="today">Hoje</button>
-            <button class="voc-filter-btn" data-period="7d">7 dias</button>
-            <button class="voc-filter-btn" data-period="30d">30 dias</button>
+            <button class="voc-date-picker-btn" onclick="vocOpenDatePicker(this)">
+                <span class="material-icons-round">date_range</span>
+                <span class="voc-dp-trigger-label">Tudo</span>
+                <span class="material-icons-round">expand_more</span>
+            </button>
         </div>
     </div>
     <div class="voc-kpi-grid" id="leadKpiGrid"></div>
@@ -567,10 +689,11 @@
             <p>Quais cursos atraem mais cliques e de onde vem esse interesse</p>
         </div>
         <div class="voc-filters">
-            <button class="voc-filter-btn active" data-period="all">Tudo</button>
-            <button class="voc-filter-btn" data-period="today">Hoje</button>
-            <button class="voc-filter-btn" data-period="7d">7 dias</button>
-            <button class="voc-filter-btn" data-period="30d">30 dias</button>
+            <button class="voc-date-picker-btn" onclick="vocOpenDatePicker(this)">
+                <span class="material-icons-round">date_range</span>
+                <span class="voc-dp-trigger-label">Tudo</span>
+                <span class="material-icons-round">expand_more</span>
+            </button>
         </div>
     </div>
     <div class="voc-kpi-grid" id="cursosKpiGrid"></div>
@@ -639,10 +762,11 @@
             <p>Compare o desempenho completo do funil entre cada fonte de tráfego</p>
         </div>
         <div class="voc-filters">
-            <button class="voc-filter-btn active" data-period="all">Tudo</button>
-            <button class="voc-filter-btn" data-period="today">Hoje</button>
-            <button class="voc-filter-btn" data-period="7d">7 dias</button>
-            <button class="voc-filter-btn" data-period="30d">30 dias</button>
+            <button class="voc-date-picker-btn" onclick="vocOpenDatePicker(this)">
+                <span class="material-icons-round">date_range</span>
+                <span class="voc-dp-trigger-label">Tudo</span>
+                <span class="material-icons-round">expand_more</span>
+            </button>
         </div>
     </div>
     <div class="voc-section">
@@ -683,10 +807,11 @@
             <p>Cruzamento de leads do quiz com o status comercial por telefone</p>
         </div>
         <div class="voc-filters">
-            <button class="voc-filter-btn active" data-period="all">Tudo</button>
-            <button class="voc-filter-btn" data-period="today">Hoje</button>
-            <button class="voc-filter-btn" data-period="7d">7 dias</button>
-            <button class="voc-filter-btn" data-period="30d">30 dias</button>
+            <button class="voc-date-picker-btn" onclick="vocOpenDatePicker(this)">
+                <span class="material-icons-round">date_range</span>
+                <span class="voc-dp-trigger-label">Tudo</span>
+                <span class="material-icons-round">expand_more</span>
+            </button>
         </div>
     </div>
     <div class="voc-kpi-grid" id="statusKpiGrid"></div>
@@ -760,14 +885,15 @@ const VOC_SUPABASE2_KEY = 'sb_publishable_sW0h7aqgrjiwqGqKpawm4g_FuMi5xU_';
 const VOC_FUNNEL_COLORS = ['#3b82f6','#6366f1','#8b5cf6','#a855f7','#ec4899','#10b981','#06b6d4'];
 
 const VOC_KPI_CONFIG = [
-    { key:'landing',     label:'Visitantes',      icon:'people',       bg:'#3b82f6' },
-    { key:'quiz_start',  label:'Quiz Iniciados',   icon:'play_circle',  bg:'#8b5cf6' },
-    { key:'quiz_submit', label:'Quiz Completos',   icon:'check_circle', bg:'#a855f7' },
-    { key:'form_view',   label:'Formulário',       icon:'description',  bg:'#ec4899' },
-    { key:'leads',       label:'Leads Enviados',   icon:'person_add',   bg:'#10b981' },
-    { key:'lead_rate',   label:'Taxa de Lead',     icon:'percent',      bg:'#f59e0b', isRate: true },
-    { key:'result_view', label:'Resultado',        icon:'emoji_events', bg:'#f59e0b' },
-    { key:'course_click',label:'Cliques em Curso', icon:'school',       bg:'#06b6d4' },
+    { key:'landing',     label:'Visitantes',        icon:'people',        bg:'#3b82f6' },
+    { key:'quiz_start',  label:'Quiz Iniciados',     icon:'play_circle',   bg:'#8b5cf6' },
+    { key:'quiz_submit', label:'Quiz Completos',     icon:'check_circle',  bg:'#a855f7' },
+    { key:'form_view',   label:'Formulário',         icon:'description',   bg:'#ec4899' },
+    { key:'leads',       label:'Leads Enviados',     icon:'person_add',    bg:'#10b981', sub:'telefones únicos' },
+    { key:'lead_rate',   label:'Taxa de Lead',       icon:'percent',       bg:'#f59e0b', isRate: true },
+    { key:'leads_dup',   label:'Leads Duplicados',   icon:'content_copy',  bg:'#f97316', sub:'mesmo telefone' },
+    { key:'result_view', label:'Resultado',          icon:'emoji_events',  bg:'#f59e0b' },
+    { key:'course_click',label:'Cliques em Curso',   icon:'school',        bg:'#06b6d4' },
 ];
 
 const VOC_SOURCE_CAT_COLORS = {
@@ -784,6 +910,7 @@ const VOC_STATUS_LABELS = { ganho: 'Ganho', perdido: 'Perdido', novo: 'Novo', se
    DATA STORE
    ═══════════════════════════════════════════ */
 let VOC_RAW = { sessions: [], events: [], leads: [], campanhas: [] };
+let VOC_PICKER_STATE = { start: null, end: null, preset: 'all', incluirHoje: true, label: 'Tudo' };
 let vocTimelineChartInstance = null;
 let vocSourceBarChartInstance = null;
 let vocTrafficTimelineInstance = null;
@@ -866,19 +993,8 @@ function uniqueSessions(events, eventName) {
 function pct(a, b) { return b > 0 ? ((a / b) * 100) : 0; }
 function fmtPct(v) { return v.toFixed(1).replace('.', ',') + '%'; }
 
-function dateRangeForPeriod(period) {
-    if (period === 'all') return { start: null, end: null };
-    const now = new Date();
-    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    let start;
-    if (period === 'today') {
-        start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    } else if (period === '7d') {
-        start = new Date(end); start.setDate(start.getDate() - 6); start.setHours(0,0,0,0);
-    } else if (period === '30d') {
-        start = new Date(end); start.setDate(start.getDate() - 29); start.setHours(0,0,0,0);
-    }
-    return { start, end };
+function dateRangeForPeriod(_period) {
+    return { start: VOC_PICKER_STATE.start, end: VOC_PICKER_STATE.end };
 }
 
 function filterByDateAndSessions(sessionIds, start, end) {
@@ -889,7 +1005,7 @@ function filterByDateAndSessions(sessionIds, start, end) {
     return { events, leads };
 }
 
-function isLight() { return document.documentElement.classList.contains('light'); }
+function isLight() { return document.documentElement.getAttribute('data-theme') === 'light'; }
 
 function chartDefaults() {
     const light = isLight();
@@ -947,14 +1063,42 @@ function applyFunilFilters() {
    ═══════════════════════════════════════════ */
 function calcKPIs(data) {
     const landing = uniqueSessions(data.events, 'landing_view');
-    const leads = uniqueSessions(data.events, 'lead_form_submit');
+
+    // Sessões que submeteram o formulário de lead
+    const leadSids = new Set(
+        data.events.filter(e => e.event_name === 'lead_form_submit').map(e => e.session_id)
+    );
+
+    // Mapeia session_id → telefone normalizado (usando leads carregados)
+    const sessionPhoneMap = {};
+    data.leads.forEach(l => {
+        if (l.session_id && l.phone) {
+            sessionPhoneMap[l.session_id] = normalizePhone(l.phone);
+        }
+    });
+
+    // Deduplica por telefone: conta únicos e duplicados
+    const seenPhones = new Set();
+    let leadsUniq = 0;
+    let leadsDup  = 0;
+    leadSids.forEach(sid => {
+        const phone = sessionPhoneMap[sid];
+        if (phone) {
+            if (!seenPhones.has(phone)) { seenPhones.add(phone); leadsUniq++; }
+            else { leadsDup++; }
+        } else {
+            leadsUniq++; // sem telefone: não há como deduplificar, conta como único
+        }
+    });
+
     return {
         landing,
         quiz_start:   uniqueSessions(data.events, 'quiz_start'),
         quiz_submit:  uniqueSessions(data.events, 'quiz_submit'),
         form_view:    uniqueSessions(data.events, 'lead_form_view'),
-        leads,
-        lead_rate:    fmtPct(pct(leads, landing)),
+        leads:        leadsUniq,
+        lead_rate:    fmtPct(pct(leadsUniq, landing)),
+        leads_dup:    leadsDup,
         result_view:  uniqueSessions(data.events, 'result_view'),
         course_click: uniqueSessions(data.events, 'course_click'),
         direct_click: uniqueSessions(data.events, 'courses_direct_click'),
@@ -974,7 +1118,7 @@ function renderKPIs(kpis) {
                 </div>
             </div>
             <div class="voc-kpi-value" style="color:${c.bg}">${kpis[c.key]}</div>
-            <div class="voc-kpi-sub">${c.isRate ? 'leads / visitantes' : 'sessões únicas'}</div>
+            <div class="voc-kpi-sub">${c.sub || (c.isRate ? 'leads / visitantes' : 'sessões únicas')}</div>
         </div>
     `).join('');
 }
@@ -2573,57 +2717,9 @@ function vocSwitchTab(tabName) {
    FILTER EVENTS (scoped per page)
    ═══════════════════════════════════════════ */
 function setupFilters() {
-    document.querySelectorAll('#voc-page-funil .voc-filter-btn[data-period]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('#voc-page-funil .voc-filter-btn[data-period]').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active'); renderFunilPage();
-        });
-    });
     document.getElementById('filterSource').addEventListener('change', renderFunilPage);
     document.getElementById('filterCampaign').addEventListener('change', renderFunilPage);
-
-    document.querySelectorAll('#voc-page-trafego .voc-filter-btn[data-period]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('#voc-page-trafego .voc-filter-btn[data-period]').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active'); renderTrafficPage();
-        });
-    });
     document.getElementById('trafficFilterCategory').addEventListener('change', renderTrafficPage);
-
-    document.querySelectorAll('#voc-page-quiz .voc-filter-btn[data-period]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('#voc-page-quiz .voc-filter-btn[data-period]').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active'); renderQuizPage();
-        });
-    });
-
-    document.querySelectorAll('#voc-page-leads .voc-filter-btn[data-period]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('#voc-page-leads .voc-filter-btn[data-period]').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active'); renderLeadsPage();
-        });
-    });
-
-    document.querySelectorAll('#voc-page-cursos .voc-filter-btn[data-period]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('#voc-page-cursos .voc-filter-btn[data-period]').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active'); renderCursosPage();
-        });
-    });
-
-    document.querySelectorAll('#voc-page-canal .voc-filter-btn[data-period]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('#voc-page-canal .voc-filter-btn[data-period]').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active'); renderCanalPage();
-        });
-    });
-
-    document.querySelectorAll('#voc-page-status .voc-filter-btn[data-period]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('#voc-page-status .voc-filter-btn[data-period]').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active'); renderStatusPage();
-        });
-    });
 }
 
 /* ═══════════════════════════════════════════
@@ -2650,10 +2746,272 @@ async function vocLoadPage() {
     }
 }
 
+/* ═══════════════════════════════════════════
+   DATE RANGE PICKER
+   ═══════════════════════════════════════════ */
+
+const VOC_DP_MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const VOC_DP_PRESETS = [
+    { id: 'all',       label: 'Tudo' },
+    { id: 'today',     label: 'Hoje' },
+    { id: 'yesterday', label: 'Ontem' },
+    { id: '7d',        label: 'Últimos 7 dias' },
+    { id: '30d',       label: 'Últimos 30 dias' },
+    { id: 'thismonth', label: 'Este mês' },
+    { id: 'lastmonth', label: 'Mês passado' },
+    { id: 'custom',    label: 'Personalizado' },
+];
+
+let VOC_DP = {
+    preset: 'all', customStart: null, customEnd: null,
+    startYear: new Date().getFullYear(), startMonth: new Date().getMonth(),
+    endYear: new Date().getFullYear(),   endMonth: new Date().getMonth(),
+    selecting: 'start', incluirHoje: true,
+};
+
+function vocDpPresetRange(id, incluirHoje) {
+    const now = new Date();
+    const todayEnd   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yestEnd    = new Date(todayStart.getTime() - 1);
+    const yestStart  = new Date(yestEnd.getFullYear(), yestEnd.getMonth(), yestEnd.getDate());
+    const rangeEnd   = incluirHoje ? todayEnd : yestEnd;
+    switch (id) {
+        case 'all':       return { start: null, end: null };
+        case 'today':     return { start: todayStart, end: todayEnd };
+        case 'yesterday': return { start: yestStart, end: yestEnd };
+        case '7d':  { const s = new Date(todayStart); s.setDate(s.getDate()-6);  return { start: s, end: rangeEnd }; }
+        case '30d': { const s = new Date(todayStart); s.setDate(s.getDate()-29); return { start: s, end: rangeEnd }; }
+        case 'thismonth': return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: rangeEnd };
+        case 'lastmonth': return {
+            start: new Date(now.getFullYear(), now.getMonth()-1, 1),
+            end:   new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999)
+        };
+        default: return { start: null, end: null };
+    }
+}
+
+function vocDpLabel(preset, customStart, customEnd, incluirHoje) {
+    const p = VOC_DP_PRESETS.find(x => x.id === preset);
+    if (preset === 'custom') {
+        if (customStart && customEnd) {
+            const fmt = d => d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' });
+            return `${fmt(customStart)} – ${fmt(customEnd)}`;
+        }
+        return 'Personalizado';
+    }
+    if (!p) return 'Tudo';
+    const suffix = (preset === '7d' || preset === '30d' || preset === 'thismonth') ? (incluirHoje ? ', até hoje' : ', sem hoje') : '';
+    return p.label + suffix;
+}
+
+function vocOpenDatePicker(triggerEl) {
+    VOC_DP.preset      = VOC_PICKER_STATE.preset;
+    VOC_DP.incluirHoje = VOC_PICKER_STATE.incluirHoje;
+    VOC_DP.customStart = VOC_PICKER_STATE.start;
+    VOC_DP.customEnd   = VOC_PICKER_STATE.end;
+    VOC_DP.selecting   = 'start';
+    const now = new Date();
+    VOC_DP.startYear  = VOC_DP.customStart ? VOC_DP.customStart.getFullYear() : now.getFullYear();
+    VOC_DP.startMonth = VOC_DP.customStart ? VOC_DP.customStart.getMonth()    : now.getMonth();
+    VOC_DP.endYear    = VOC_DP.customEnd   ? VOC_DP.customEnd.getFullYear()   : now.getFullYear();
+    VOC_DP.endMonth   = VOC_DP.customEnd   ? VOC_DP.customEnd.getMonth()      : now.getMonth();
+
+    const popup = document.getElementById('vocDpPopup');
+    const rect  = triggerEl.getBoundingClientRect();
+    popup.style.top  = (rect.bottom + 6) + 'px';
+    popup.style.left = rect.left + 'px';
+
+    vocDpRender();
+    document.getElementById('vocDpOverlay').classList.add('open');
+    popup.classList.add('open');
+
+    setTimeout(() => {
+        const pr = popup.getBoundingClientRect();
+        if (pr.right > window.innerWidth - 12)
+            popup.style.left = Math.max(8, window.innerWidth - pr.width - 12) + 'px';
+        if (pr.bottom > window.innerHeight - 12)
+            popup.style.top = (rect.top - pr.height - 6) + 'px';
+    }, 0);
+}
+
+function vocCloseDatePicker() {
+    document.getElementById('vocDpOverlay').classList.remove('open');
+    document.getElementById('vocDpPopup').classList.remove('open');
+}
+
+function vocDpRender() {
+    const popup = document.getElementById('vocDpPopup');
+    const curPreset = VOC_DP_PRESETS.find(p => p.id === VOC_DP.preset) || VOC_DP_PRESETS[0];
+    let previewStart, previewEnd;
+    if (VOC_DP.preset === 'custom') {
+        previewStart = VOC_DP.customStart;
+        previewEnd   = VOC_DP.customEnd;
+    } else {
+        const r = vocDpPresetRange(VOC_DP.preset, VOC_DP.incluirHoje);
+        previewStart = r.start;
+        previewEnd   = r.end;
+    }
+
+    popup.innerHTML = `
+        <div class="voc-dp-top">
+            <label class="voc-dp-include-today">
+                <input type="checkbox" id="vocDpHoje" ${VOC_DP.incluirHoje ? 'checked' : ''}
+                    onchange="VOC_DP.incluirHoje=this.checked; vocDpRender()">
+                Incluir hoje
+            </label>
+            <div class="voc-dp-presets-wrap">
+                <button class="voc-dp-preset-label" onclick="vocDpTogglePresets(event)">
+                    <span>${curPreset.label}${(VOC_DP.preset==='7d'||VOC_DP.preset==='30d'||VOC_DP.preset==='thismonth') ? (VOC_DP.incluirHoje?', até hoje':', sem hoje') : ''}</span>
+                    <span class="material-icons-round" style="font-size:18px">expand_more</span>
+                </button>
+                <div class="voc-dp-presets" id="vocDpPresets">
+                    ${VOC_DP_PRESETS.map(p => `<div class="voc-dp-preset-item${p.id===VOC_DP.preset?' active':''}" onclick="vocDpSelectPreset('${p.id}')">${p.label}</div>`).join('')}
+                </div>
+            </div>
+        </div>
+        <div class="voc-dp-calendars">
+            <div class="voc-dp-cal">
+                <div class="voc-dp-cal-label">Data de início</div>
+                ${vocDpCalHtml('start', VOC_DP.startYear, VOC_DP.startMonth, previewStart, previewEnd)}
+            </div>
+            <div class="voc-dp-cal">
+                <div class="voc-dp-cal-label">Data de término</div>
+                ${vocDpCalHtml('end', VOC_DP.endYear, VOC_DP.endMonth, previewStart, previewEnd)}
+            </div>
+        </div>
+        <div class="voc-dp-footer">
+            <button class="voc-dp-btn voc-dp-btn-cancel" onclick="vocCloseDatePicker()">Cancelar</button>
+            <button class="voc-dp-btn voc-dp-btn-apply" onclick="vocDpApply()">Aplicar</button>
+        </div>
+    `;
+}
+
+function vocDpCalHtml(side, year, month, selStart, selEnd) {
+    const DAYS = ['D','S','T','Q','Q','S','S'];
+    const firstDow = new Date(year, month, 1).getDay();
+    const lastDay  = new Date(year, month+1, 0).getDate();
+    const now = new Date();
+    const todayY = now.getFullYear(), todayM = now.getMonth(), todayD = now.getDate();
+    let grid = `
+        <div class="voc-dp-cal-header">
+            <button class="voc-dp-nav-btn" onclick="vocDpNav('${side}',-1)">
+                <span class="material-icons-round" style="font-size:18px">chevron_left</span>
+            </button>
+            <span class="voc-dp-cal-title">${VOC_DP_MONTHS[month].slice(0,3).toUpperCase()}. DE ${year}</span>
+            <button class="voc-dp-nav-btn" onclick="vocDpNav('${side}',1)">
+                <span class="material-icons-round" style="font-size:18px">chevron_right</span>
+            </button>
+        </div>
+        <div class="voc-dp-weekdays">${DAYS.map(d=>`<div class="voc-dp-weekday">${d}</div>`).join('')}</div>
+        <div class="voc-dp-days">
+    `;
+
+    for (let i = 0; i < firstDow; i++) grid += `<div class="voc-dp-day other-month"></div>`;
+
+    for (let d = 1; d <= lastDay; d++) {
+        const isToday = (year===todayY && month===todayM && d===todayD);
+        let cls = 'voc-dp-day clickable';
+        if (isToday) cls += ' today';
+
+        if (selStart && selEnd) {
+            const cur = new Date(year, month, d);
+            const ss  = new Date(selStart.getFullYear(), selStart.getMonth(), selStart.getDate());
+            const se  = new Date(selEnd.getFullYear(),   selEnd.getMonth(),   selEnd.getDate());
+            if (+cur === +ss && +cur === +se) cls += ' selected';
+            else if (+cur === +ss)            cls += ' range-start';
+            else if (+cur === +se)            cls += ' range-end';
+            else if (cur > ss && cur < se)   cls += ' in-range';
+        } else if (selStart) {
+            const cur = new Date(year, month, d);
+            const ss  = new Date(selStart.getFullYear(), selStart.getMonth(), selStart.getDate());
+            if (+cur === +ss) cls += ' selected';
+        }
+
+        grid += `<div class="${cls}" onclick="vocDpClickDay(${year},${month},${d})">${d}</div>`;
+    }
+    grid += `</div>`;
+    return grid;
+}
+
+function vocDpNav(side, delta) {
+    if (side === 'start') {
+        VOC_DP.startMonth += delta;
+        if (VOC_DP.startMonth > 11) { VOC_DP.startMonth = 0; VOC_DP.startYear++; }
+        if (VOC_DP.startMonth < 0)  { VOC_DP.startMonth = 11; VOC_DP.startYear--; }
+    } else {
+        VOC_DP.endMonth += delta;
+        if (VOC_DP.endMonth > 11) { VOC_DP.endMonth = 0; VOC_DP.endYear++; }
+        if (VOC_DP.endMonth < 0)  { VOC_DP.endMonth = 11; VOC_DP.endYear--; }
+    }
+    vocDpRender();
+}
+
+function vocDpClickDay(year, month, day) {
+    if (VOC_DP.preset !== 'custom') {
+        VOC_DP.preset = 'custom';
+        VOC_DP.customStart = null;
+        VOC_DP.customEnd   = null;
+        VOC_DP.selecting   = 'start';
+    }
+    const date = new Date(year, month, day);
+    if (!VOC_DP.customStart || VOC_DP.customEnd) {
+        VOC_DP.customStart = date; VOC_DP.customEnd = null; VOC_DP.selecting = 'end';
+    } else {
+        if (date < VOC_DP.customStart) { VOC_DP.customEnd = VOC_DP.customStart; VOC_DP.customStart = date; }
+        else { VOC_DP.customEnd = new Date(year, month, day, 23, 59, 59, 999); }
+        VOC_DP.selecting = 'start';
+    }
+    vocDpRender();
+}
+
+function vocDpSelectPreset(id) {
+    VOC_DP.preset = id;
+    if (id === 'custom') { VOC_DP.customStart = null; VOC_DP.customEnd = null; VOC_DP.selecting = 'start'; }
+    document.getElementById('vocDpPresets')?.classList.remove('open');
+    vocDpRender();
+}
+
+function vocDpTogglePresets(e) {
+    e.stopPropagation();
+    document.getElementById('vocDpPresets')?.classList.toggle('open');
+}
+
+function vocDpApply() {
+    let start, end;
+    if (VOC_DP.preset === 'custom') {
+        start = VOC_DP.customStart;
+        end   = VOC_DP.customEnd || (VOC_DP.customStart ? new Date(VOC_DP.customStart.getFullYear(), VOC_DP.customStart.getMonth(), VOC_DP.customStart.getDate(), 23,59,59,999) : null);
+    } else {
+        const r = vocDpPresetRange(VOC_DP.preset, VOC_DP.incluirHoje);
+        start = r.start; end = r.end;
+    }
+
+    VOC_PICKER_STATE = { start, end, preset: VOC_DP.preset, incluirHoje: VOC_DP.incluirHoje, label: vocDpLabel(VOC_DP.preset, VOC_DP.customStart, VOC_DP.customEnd, VOC_DP.incluirHoje) };
+
+    document.querySelectorAll('#page-vocacional .voc-dp-trigger-label').forEach(el => el.textContent = VOC_PICKER_STATE.label);
+
+    vocCloseDatePicker();
+    VOC_PAGE_RENDERERS[vocCurrentPage]?.();
+}
+
+window.vocOpenDatePicker = vocOpenDatePicker;
+window.vocCloseDatePicker = vocCloseDatePicker;
+window.vocDpRender = vocDpRender;
+window.vocDpNav = vocDpNav;
+window.vocDpClickDay = vocDpClickDay;
+window.vocDpSelectPreset = vocDpSelectPreset;
+window.vocDpTogglePresets = vocDpTogglePresets;
+window.vocDpApply = vocDpApply;
+
 window.vocSwitchTab = vocSwitchTab;
 window.vocLoadPage = vocLoadPage;
 
 })();
 </script>
+
+<!-- Date Range Picker Elements -->
+<div class="voc-dp-overlay" id="vocDpOverlay" onclick="vocCloseDatePicker()"></div>
+<div class="voc-dp-popup"   id="vocDpPopup"></div>
 
 </div>
