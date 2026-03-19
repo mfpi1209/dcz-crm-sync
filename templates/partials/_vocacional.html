@@ -888,7 +888,6 @@ const VOC_KPI_CONFIG = [
     { key:'landing',     label:'Visitantes',        icon:'people',        bg:'#3b82f6' },
     { key:'quiz_start',  label:'Quiz Iniciados',     icon:'play_circle',   bg:'#8b5cf6' },
     { key:'quiz_submit', label:'Quiz Completos',     icon:'check_circle',  bg:'#a855f7' },
-    { key:'form_view',   label:'Formulário',         icon:'description',   bg:'#ec4899' },
     { key:'leads',       label:'Leads Enviados',     icon:'person_add',    bg:'#10b981', sub:'telefones únicos' },
     { key:'lead_rate',   label:'Taxa de Lead',       icon:'percent',       bg:'#f59e0b', isRate: true },
     { key:'leads_dup',   label:'Leads Duplicados',   icon:'content_copy',  bg:'#f97316', sub:'mesmo telefone' },
@@ -1127,7 +1126,7 @@ function renderRates(kpis) {
     const rates = [
         { label:'Taxa Início Quiz', val: pct(kpis.quiz_start, kpis.landing), color:'var(--violet)', detail:`${kpis.quiz_start} de ${kpis.landing}` },
         { label:'Taxa Conclusão Quiz', val: pct(kpis.quiz_submit, kpis.quiz_start), color:'var(--purple)', detail:`${kpis.quiz_submit} de ${kpis.quiz_start}` },
-        { label:'Taxa de Lead', val: pct(kpis.leads, kpis.form_view), color:'var(--green)', detail:`${kpis.leads} de ${kpis.form_view}` },
+        { label:'Taxa de Lead', val: pct(kpis.leads, kpis.quiz_submit), color:'var(--green)', detail:`${kpis.leads} de ${kpis.quiz_submit}` },
         { label:'Taxa Clique Curso', val: pct(kpis.course_click, kpis.result_view), color:'var(--cyan)', detail:`${kpis.course_click} de ${kpis.result_view}` },
         { label:'Taxa Ver Curso sem Quiz', val: pct(kpis.direct_click, kpis.landing), color:'var(--amber)', detail:`${kpis.direct_click} de ${kpis.landing}` },
     ];
@@ -1146,7 +1145,6 @@ function renderFunnel(kpis) {
         { label:'Visitantes',      count: kpis.landing },
         { label:'Quiz Iniciados',  count: kpis.quiz_start },
         { label:'Quiz Completos',  count: kpis.quiz_submit },
-        { label:'Formulário',      count: kpis.form_view },
         { label:'Leads Enviados',  count: kpis.leads },
         { label:'Resultado',       count: kpis.result_view },
         { label:'Cliques em Curso',count: kpis.course_click },
@@ -2706,6 +2704,11 @@ function vocSwitchTab(tabName) {
     document.querySelectorAll('#page-vocacional .voc-page').forEach(p => p.classList.remove('active'));
     const target = document.getElementById('voc-page-' + tabName);
     if (target) target.classList.add('active');
+
+    // Scroll para o topo ao trocar de página
+    const mainEl = document.querySelector('main.flex-1');
+    if (mainEl) mainEl.scrollTop = 0;
+    else window.scrollTo({ top: 0, behavior: 'auto' });
 
     if (vocCurrentPage !== tabName) {
         vocCurrentPage = tabName;
