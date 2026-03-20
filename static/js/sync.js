@@ -49,8 +49,8 @@ async function startSync(mode) {
     try {
         const res = await api(`/api/sync/${mode}`, { method: 'POST' });
         const data = await res.json();
-        if (data.error) { alert(data.error); return; }
-    } catch (err) { alert('Erro: ' + err.message); return; }
+        if (data.error) { toast(data.error, 'error'); return; }
+    } catch (err) { toast('Erro: ' + err.message, 'error'); return; }
 
     clearLog();
     syncLogOffset = 0;
