@@ -54,6 +54,9 @@ from db import (
     _ensure_schedules_table,
     _ensure_turmas_table,
     _ensure_ciclos_table,
+    _ensure_ciclos_comercial_table,
+    _ensure_turmas_comercial_table,
+    _ensure_ciclo_atual_comercial_table,
     _ensure_users_table,
     _ensure_xl_snapshots_table,
     _ensure_engagement_tables,
@@ -63,6 +66,9 @@ from db import (
 _ensure_schedules_table()
 _ensure_turmas_table()
 _ensure_ciclos_table()
+_ensure_ciclos_comercial_table()
+_ensure_turmas_comercial_table()
+_ensure_ciclo_atual_comercial_table()
 _ensure_users_table()
 _ensure_xl_snapshots_table()
 _ensure_engagement_tables()

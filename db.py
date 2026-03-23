@@ -106,6 +106,157 @@ def _ensure_ciclos_table():
         logger.warning("Could not ensure ciclos table: %s", e)
 
 
+def _ensure_ciclos_comercial_table():
+    """Create ciclos_comercial dimension table for commercial cycle management.
+
+    Columns:
+      id, nome (ex: '26.1'), ano, semestre, dt_inicio, dt_fim, ativo,
+      descricao (auto-generated label), created_at
+    """
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS ciclos_comercial (
+                    id         SERIAL PRIMARY KEY,
+                    nome       TEXT NOT NULL UNIQUE,
+                    ano        INTEGER,
+                    semestre   INTEGER,
+                    dt_inicio  DATE NOT NULL,
+                    dt_fim     DATE NOT NULL,
+                    ativo      BOOLEAN NOT NULL DEFAULT FALSE,
+                    descricao  TEXT,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+
+            for col, defn in [
+                ("ano", "INTEGER"),
+                ("semestre", "INTEGER"),
+                ("descricao", "TEXT"),
+            ]:
+                cur.execute("""
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'ciclos_comercial' AND column_name = %s
+                """, (col,))
+                if not cur.fetchone():
+                    cur.execute(f"ALTER TABLE ciclos_comercial ADD COLUMN {col} {defn}")
+                    logger.info("ciclos_comercial: added column '%s'", col)
+
+            cur.execute("""
+                UPDATE ciclos_comercial
+                SET ano = (2000 + CAST(split_part(nome, '.', 1) AS INTEGER)),
+                    semestre = CAST(split_part(nome, '.', 2) AS INTEGER),
+                    descricao = CASE split_part(nome, '.', 2)
+                        WHEN '1' THEN '1º Semestre ' || (2000 + CAST(split_part(nome, '.', 1) AS INTEGER))
+                        WHEN '2' THEN '2º Semestre ' || (2000 + CAST(split_part(nome, '.', 1) AS INTEGER))
+                        ELSE nome
+                    END
+                WHERE nome ~ '^\\d+\\.\\d+$'
+                  AND (ano IS NULL OR semestre IS NULL OR descricao IS NULL)
+            """)
+
+            cur.execute("SELECT COUNT(*) FROM ciclos_comercial")
+            if cur.fetchone()[0] == 0:
+                cur.execute("""
+                    INSERT INTO ciclos_comercial (nome, ano, semestre, dt_inicio, dt_fim, ativo, descricao) VALUES
+                    ('25.1', 2025, 1, '2025-01-01', '2025-06-30', FALSE, '1º Semestre 2025'),
+                    ('25.2', 2025, 2, '2025-07-01', '2025-12-31', FALSE, '2º Semestre 2025'),
+                    ('26.1', 2026, 1, '2026-01-01', '2026-06-30', TRUE,  '1º Semestre 2026')
+                """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure ciclos_comercial table: %s", e)
+
+
+def _ensure_turmas_comercial_table():
+    """Create turmas_comercial dimension table (monthly enrollment cohorts).
+
+    Columns:
+      id, nome (ex: 'Fevereiro'), nivel ('Graduação' | 'Pós-Graduação'),
+      ciclo_id (FK), dt_inicio, dt_fim, created_at
+    """
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS turmas_comercial (
+                    id         SERIAL PRIMARY KEY,
+                    nome       TEXT NOT NULL,
+                    nivel      TEXT NOT NULL DEFAULT 'Graduação',
+                    ciclo_id   INTEGER REFERENCES ciclos_comercial(id) ON DELETE SET NULL,
+                    dt_inicio  DATE NOT NULL,
+                    dt_fim     DATE NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    UNIQUE(nome, nivel, ciclo_id)
+                )
+            """)
+
+            cur.execute("""
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'turmas_comercial' AND column_name = 'nivel'
+            """)
+            if not cur.fetchone():
+                cur.execute("ALTER TABLE turmas_comercial ADD COLUMN nivel TEXT NOT NULL DEFAULT 'Graduação'")
+                cur.execute("ALTER TABLE turmas_comercial DROP CONSTRAINT IF EXISTS turmas_comercial_nome_ciclo_id_key")
+                cur.execute("""
+                    CREATE UNIQUE INDEX IF NOT EXISTS uq_turma_nome_nivel_ciclo
+                    ON turmas_comercial (nome, nivel, ciclo_id)
+                """)
+                logger.info("turmas_comercial: added 'nivel' column")
+
+            cur.execute("SELECT COUNT(*) FROM turmas_comercial")
+            if cur.fetchone()[0] == 0:
+                cur.execute("SELECT id FROM ciclos_comercial WHERE nome = '26.1' LIMIT 1")
+                row = cur.fetchone()
+                if row:
+                    cid = row[0]
+                    cur.execute("""
+                        INSERT INTO turmas_comercial (nome, nivel, ciclo_id, dt_inicio, dt_fim) VALUES
+                        ('Janeiro',   'Graduação', %(c)s, '2026-01-01', '2026-01-31'),
+                        ('Fevereiro', 'Graduação', %(c)s, '2026-02-01', '2026-02-28'),
+                        ('Março',     'Graduação', %(c)s, '2026-03-01', '2026-03-31'),
+                        ('Abril',     'Graduação', %(c)s, '2026-04-01', '2026-04-30'),
+                        ('Maio',      'Graduação', %(c)s, '2026-05-01', '2026-05-31'),
+                        ('Junho',     'Graduação', %(c)s, '2026-06-01', '2026-06-30'),
+                        ('Janeiro',   'Pós-Graduação', %(c)s, '2026-01-01', '2026-01-31'),
+                        ('Fevereiro', 'Pós-Graduação', %(c)s, '2026-02-01', '2026-02-28'),
+                        ('Março',     'Pós-Graduação', %(c)s, '2026-03-01', '2026-03-31'),
+                        ('Abril',     'Pós-Graduação', %(c)s, '2026-04-01', '2026-04-30'),
+                        ('Maio',      'Pós-Graduação', %(c)s, '2026-05-01', '2026-05-31'),
+                        ('Junho',     'Pós-Graduação', %(c)s, '2026-06-01', '2026-06-30')
+                    """, {"c": cid})
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure turmas_comercial table: %s", e)
+
+
+def _ensure_ciclo_atual_comercial_table():
+    """Control table: tracks the current active cycle per nivel (Graduação / Pós-Graduação)."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS ciclo_atual_comercial (
+                    nivel   TEXT PRIMARY KEY,
+                    ciclo   TEXT NOT NULL
+                )
+            """)
+            cur.execute("SELECT COUNT(*) FROM ciclo_atual_comercial")
+            if cur.fetchone()[0] == 0:
+                cur.execute("""
+                    INSERT INTO ciclo_atual_comercial (nivel, ciclo) VALUES
+                    ('Graduação', '2026/1'),
+                    ('Pós-Graduação', '2026/1')
+                """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure ciclo_atual_comercial table: %s", e)
+
+
 def _ensure_xl_snapshots_table():
     """Create xl_snapshots + xl_rows tables for spreadsheet history."""
     try:

@@ -23,6 +23,11 @@ LOG_FILE = os.getenv("KOMMO_LOG_FILE", os.path.join(os.path.dirname(__file__), "
 
 PAGE_SIZE = 250
 
+# Otimização: batches menores = transações menores (menos travamento)
+BATCH_SIZE = int(os.getenv("KOMMO_BATCH_SIZE", "25"))
+# Pausa entre páginas da API (segundos) para não saturar CPU/disco
+SLEEP_BETWEEN_PAGES = float(os.getenv("KOMMO_SLEEP_PAGES", "0.12"))
+
 PIPELINES = {
     "licenciado": {
         "id": 9994596,

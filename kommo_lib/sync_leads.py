@@ -1,10 +1,11 @@
 """
 Sincronização de Leads do Kommo.
 Suporta sync completo (primeira vez) e incremental (delta via updated_at).
-Inclui custom fields e dados embedded (tags, contatos vinculados).
+Otimizado: batches menores, pausa entre páginas, sem raw_json.
 """
 
 import logging
+import time
 from datetime import datetime, timezone
 
 from api_client import KommoAPIClient
@@ -14,11 +15,9 @@ from database import (
     set_sync_status,
     get_last_sync,
 )
-from config import PAGE_SIZE
+from config import PAGE_SIZE, BATCH_SIZE, SLEEP_BETWEEN_PAGES
 
 logger = logging.getLogger(__name__)
-
-BATCH_SIZE = 50  # Registros por batch de escrita no banco
 
 
 def sync_leads(client: KommoAPIClient, force_full: bool = False) -> dict:
@@ -84,16 +83,20 @@ def sync_leads(client: KommoAPIClient, force_full: bool = False) -> dict:
         if is_full_sync:
             logger.info("Full sync: buscando TODOS os leads...")
 
-        # Paginação
+        # Paginação com pausa entre páginas (reduz pico de CPU/disco)
         page = 1
         batch = []
 
         while True:
+            if page > 1:
+                time.sleep(SLEEP_BETWEEN_PAGES)
+
             params["page"] = page
-            logger.info(
-                "Leads - página %d (acumulado: %d registros)...",
-                page, stats["total"]
-            )
+            if page % 10 == 1 or page <= 3:
+                logger.info(
+                    "Leads - página %d (acumulado: %d registros)...",
+                    page, stats["total"]
+                )
 
             data = client.get("leads", params=params)
 
@@ -112,27 +115,25 @@ def sync_leads(client: KommoAPIClient, force_full: bool = False) -> dict:
             stats["total"] += len(leads)
             stats["pages"] += 1
 
-            # Persistir em batches para não acumular tudo em memória
-            if len(batch) >= BATCH_SIZE:
-                logger.debug("Persistindo batch de %d leads...", len(batch))
-                upsert_leads_batch(batch)
-                batch = []
+            # Persistir em batches pequenos (menos travamento por transação)
+            while len(batch) >= BATCH_SIZE:
+                chunk = batch[:BATCH_SIZE]
+                batch = batch[BATCH_SIZE:]
+                upsert_leads_batch(chunk)
 
-            logger.info(
-                "Página %d: %d leads recebidos (total acumulado: %d)",
-                page, len(leads), stats["total"]
-            )
+            if page % 10 == 0 or page <= 2:
+                logger.info(
+                    "Página %d: %d leads (total: %d)",
+                    page, len(leads), stats["total"]
+                )
 
-            # Verificar próxima página
             links = data.get("_links", {})
             if "next" not in links:
                 break
 
             page += 1
 
-        # Persistir últimos registros do batch
         if batch:
-            logger.debug("Persistindo batch final de %d leads...", len(batch))
             upsert_leads_batch(batch)
 
         # Atualizar metadados

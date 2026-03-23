@@ -206,7 +206,7 @@ Exemplos:
     parser.add_argument(
         "--full",
         action="store_true",
-        help="Forçar sincronização completa (ignora delta)"
+        help="Full sync (demora muito; prefira delta no dia a dia)"
     )
     parser.add_argument(
         "--only",
@@ -229,7 +229,13 @@ Exemplos:
         print_status()
         return
 
-    # Executar sincronização
+    if args.full:
+        logging.getLogger(__name__).warning(
+            "FULL SYNC: pode levar muito tempo. Use em horário ocioso ou rode só "
+            "'python main.py' (delta) no dia a dia. Ajuste KOMMO_BATCH_SIZE / "
+            "KOMMO_SLEEP_PAGES no .env se o PC ainda ficar pesado."
+        )
+
     success = run_sync(force_full=args.full, only=args.only)
     
     # Mostrar status após sync
