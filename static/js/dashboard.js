@@ -513,7 +513,11 @@ async function loadStudentMetrics() {
     if (_stuActiveTipo) params.set('tipo', _stuActiveTipo);
 
     const stuContainer = document.getElementById('stu-tipo-cards');
-    if (stuContainer) stuContainer.innerHTML = '<div class="text-center py-8 text-slate-500"><svg class="w-6 h-6 animate-spin inline-block mr-2 text-primary" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Carregando métricas...</div>';
+    if (stuContainer) stuContainer.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+            <div class="skeleton skeleton-card p-6"><div class="skeleton skeleton-title"></div><div class="skeleton skeleton-text w-3/4"></div><div class="skeleton" style="height:36px;width:50%;margin-top:12px"></div></div>
+            <div class="skeleton skeleton-card p-6"><div class="skeleton skeleton-title"></div><div class="skeleton skeleton-text w-3/4"></div><div class="skeleton" style="height:36px;width:50%;margin-top:12px"></div></div>
+        </div>`;
 
     try {
         const res = await api('/api/dashboard/students?' + params);
@@ -565,22 +569,22 @@ async function loadStudentMetrics() {
                     </div>
                     <p class="text-slate-500 text-sm font-medium">Novos</p>
                     <p class="text-[10px] text-slate-400 mb-1">Calouros + Regresso + Recompra</p>
-                    <p class="text-3xl font-black text-slate-900 dark:text-white mt-1">${fmt(novosAgg)}</p>
+                    <p class="text-3xl font-black text-slate-900 dark:text-white mt-1" data-count="${novosAgg}">0</p>
                     <div class="grid grid-cols-3 gap-2 mt-4">
                         <div class="rounded-lg px-3 py-2 cursor-pointer transition-all ${isNovos ? 'bg-blue-50 dark:bg-indigo-500/20 ring-1 ring-blue-300 dark:ring-indigo-400/50' : 'bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-700/40'}"
                              onclick="event.stopPropagation(); _stuToggleTipo('novos')">
                             <p class="text-[9px] text-slate-500 uppercase tracking-wider font-bold">Calouros</p>
-                            <p class="text-lg font-bold text-slate-900 dark:text-white font-display">${fmt(t.novos || 0)}</p>
+                            <p class="text-lg font-bold text-slate-900 dark:text-white font-display" data-count="${t.novos || 0}">0</p>
                         </div>
                         <div class="rounded-lg px-3 py-2 cursor-pointer transition-all ${isRegresso ? 'bg-amber-50 dark:bg-amber-500/20 ring-1 ring-amber-300 dark:ring-amber-400/50' : 'bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-700/40'}"
                              onclick="event.stopPropagation(); _stuToggleTipo('regresso')">
                             <p class="text-[9px] text-amber-600 dark:text-amber-400 uppercase tracking-wider font-bold">Regresso</p>
-                            <p class="text-lg font-bold text-slate-900 dark:text-white font-display">${fmt(t.regresso || 0)}</p>
+                            <p class="text-lg font-bold text-slate-900 dark:text-white font-display" data-count="${t.regresso || 0}">0</p>
                         </div>
                         <div class="rounded-lg px-3 py-2 cursor-pointer transition-all ${isRecompra ? 'bg-cyan-50 dark:bg-cyan-500/20 ring-1 ring-cyan-300 dark:ring-cyan-400/50' : 'bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-700/40'}"
                              onclick="event.stopPropagation(); _stuToggleTipo('recompra')">
                             <p class="text-[9px] text-cyan-600 dark:text-cyan-400 uppercase tracking-wider font-bold">Recompra</p>
-                            <p class="text-lg font-bold text-slate-900 dark:text-white font-display">${fmt(t.recompra || 0)}</p>
+                            <p class="text-lg font-bold text-slate-900 dark:text-white font-display" data-count="${t.recompra || 0}">0</p>
                         </div>
                     </div>
                 </div>
@@ -595,10 +599,11 @@ async function loadStudentMetrics() {
                     </div>
                     <p class="text-slate-500 text-sm font-medium">${esc(stuRematLabel)}</p>
                     <p class="text-[10px] text-slate-400 mb-1">Renovações de matrícula</p>
-                    <p class="text-3xl font-black text-slate-900 dark:text-white mt-1">${fmt(remat)}</p>
+                    <p class="text-3xl font-black text-slate-900 dark:text-white mt-1" data-count="${remat}">0</p>
                 </div>
             </div>`;
 
+        countUpAll(stuContainer);
         _renderSituacaoCardsClickable('stu-by-situacao', d.by_situacao);
         renderBreakdownBars('stu-by-nivel', d.by_nivel);
         renderBreakdownBars('stu-by-polo', d.by_polo);
@@ -714,12 +719,13 @@ function _renderSituacaoCardsClickable(elId, data) {
                 <span class="text-${c.text}-600 dark:text-${c.text}-400 text-xs font-bold bg-${c.bg}-50 dark:bg-${c.bg}-500/10 px-2 py-1 rounded-full">${pct}%</span>
             </div>
             <p class="text-slate-500 text-sm font-medium">${esc(k)}</p>
-            <p class="text-2xl font-black text-slate-900 dark:text-white mt-1">${v.toLocaleString('pt-BR')}</p>
+            <p class="text-2xl font-black text-slate-900 dark:text-white mt-1" data-count="${v}">0</p>
             <div class="w-full progress-bar-bg mt-3 !h-1.5">
                 <div class="progress-bar-fill bg-${c.from}" style="width:${Math.min(pct,100)}%"></div>
             </div>
         </div>`;
     }).join('');
+    countUpAll(el);
 }
 
 function renderBreakdownBars(elId, data) {
@@ -779,7 +785,7 @@ function _inadRenderCards() {
                 </div>
             </div>
             <p class="text-slate-500 text-sm font-medium">Total Alunos</p>
-            <p class="text-2xl font-black text-slate-900 dark:text-white mt-1">${fmt(d.total_alunos)}</p>
+            <p class="text-2xl font-black text-slate-900 dark:text-white mt-1" data-count="${d.total_alunos || 0}">0</p>
         </div>
         <div class="bg-white dark:bg-slate-800/50 p-5 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer transition-all hover:shadow-md"
              onclick="_inadToggleCard('adim')">
@@ -790,7 +796,7 @@ function _inadRenderCards() {
                 <span class="text-emerald-600 dark:text-emerald-400 text-xs font-bold bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-full">${pctAdim.replace('.', ',')}%</span>
             </div>
             <p class="text-slate-500 text-sm font-medium">Adimplentes</p>
-            <p class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">${fmt(d.adimplentes)}</p>
+            <p class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1" data-count="${d.adimplentes || 0}">0</p>
         </div>
         <div class="bg-white dark:bg-slate-800/50 p-5 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer transition-all hover:shadow-md"
              onclick="_inadToggleCard('inadim')">
@@ -801,7 +807,7 @@ function _inadRenderCards() {
                 <span class="text-amber-600 dark:text-amber-400 text-xs font-bold bg-amber-50 dark:bg-amber-500/10 px-2 py-1 rounded-full">${pct.toFixed(1).replace('.', ',')}%</span>
             </div>
             <p class="text-slate-500 text-sm font-medium">Inadimplentes</p>
-            <p class="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">${fmt(d.inadimplentes)}</p>
+            <p class="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1" data-count="${d.inadimplentes || 0}">0</p>
         </div>
         <div class="bg-white dark:bg-slate-800/50 p-5 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer transition-all hover:shadow-md"
              onclick="_inadToggleCard('pct')">
@@ -816,6 +822,8 @@ function _inadRenderCards() {
                 <div class="progress-bar-fill bg-gradient-to-r from-amber-500 to-rose-500" style="width:${Math.min(pct, 100)}%"></div>
             </div>
         </div>`;
+
+    countUpAll(container);
 }
 
 async function _loadInadimplenciaCard() {
@@ -829,11 +837,14 @@ async function _loadInadimplenciaCard() {
 
     const tipo = _stuActiveTipo;
     const situacao = _stuActiveSituacao;
+    const nivelEl = document.getElementById('students-nivel');
+    const nivel = nivelEl ? nivelEl.value : '';
 
     try {
         const p = new URLSearchParams();
         if (tipo) p.set('tipo', tipo);
         if (situacao) p.set('situacao', situacao);
+        if (nivel) p.set('nivel', nivel);
         const qs = p.toString();
         const url = '/api/lista-alunos/latest' + (qs ? '?' + qs : '');
 
@@ -864,6 +875,7 @@ async function _loadInadimplenciaCard() {
                 filterParts.push(tipoLabels[d.filtered_tipo] || d.filtered_tipo);
             }
             if (d.filtered_situacao) filterParts.push(d.filtered_situacao);
+            if (d.filtered_nivel) filterParts.push(d.filtered_nivel);
             if (filterParts.length) label += '  ·  Filtro: ' + filterParts.join(' + ');
             dateEl.textContent = label;
         }

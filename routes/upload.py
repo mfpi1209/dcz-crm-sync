@@ -1055,7 +1055,8 @@ def api_lista_alunos_latest():
     """
     f_tipo = request.args.get("tipo", "").strip().lower()
     f_situacao = request.args.get("situacao", "").strip()
-    current_app.logger.info("[SAUDE-FIN] latest called: tipo=%r, situacao=%r", f_tipo, f_situacao)
+    f_nivel = request.args.get("nivel", "").strip()
+    current_app.logger.info("[SAUDE-FIN] latest called: tipo=%r, situacao=%r, nivel=%r", f_tipo, f_situacao, f_nivel)
     conn = get_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -1069,8 +1070,8 @@ def api_lista_alunos_latest():
                 return jsonify({"ok": True, "has_data": False})
 
             snap_id = snap["id"]
-            has_filter = (f_tipo and f_tipo in _TIPO_SQL_CASES) or f_situacao
-            current_app.logger.info("[SAUDE-FIN] has_filter=%s, f_tipo_in_cases=%s", has_filter, f_tipo in _TIPO_SQL_CASES if f_tipo else 'N/A')
+            has_filter = (f_tipo and f_tipo in _TIPO_SQL_CASES) or f_situacao or f_nivel
+            current_app.logger.info("[SAUDE-FIN] has_filter=%s, f_tipo_in_cases=%s, f_nivel=%r", has_filter, f_tipo in _TIPO_SQL_CASES if f_tipo else 'N/A', f_nivel)
 
             if has_filter:
                 cur.execute("""
@@ -1088,7 +1089,6 @@ def api_lista_alunos_latest():
                     mat_conditions.append(f"({_TIPO_SQL_CASES[f_tipo]})")
 
                 if f_situacao:
-                    sit_norm = f"{_TIPO_NORM}".replace("m.data->>'tipo_matricula'", "m.data->>'situacao'")
                     mat_conditions.append(
                         f"TRANSLATE(LOWER(COALESCE(m.data->>'situacao','')), "
                         f"'áàãâéèêíìîóòõôúùûçñ', 'aaaaeeeiiioooouuucn') = %s"
@@ -1096,6 +1096,21 @@ def api_lista_alunos_latest():
                     import unicodedata as _ud
                     sit_clean = _ud.normalize('NFD', f_situacao.lower()).encode('ascii', 'ignore').decode('ascii')
                     params.append(sit_clean)
+
+                if f_nivel:
+                    nivel_case = """(
+                        CASE
+                          WHEN COALESCE(m.data->>'nivel','') != '' THEN
+                            CASE WHEN m.data->>'nivel' ~* 'p[oó]s' THEN 'Pós-Graduação'
+                                 ELSE 'Graduação' END
+                          WHEN m.data->>'negocio' ~* 'p[oó]s' THEN 'Pós-Graduação'
+                          WHEN m.data->>'curso' ~* '(mba|especializa[cç][aã]o|p[oó]s.gradua|lato.sensu|stricto)'
+                               THEN 'Pós-Graduação'
+                          ELSE 'Graduação'
+                        END
+                    ) = %s"""
+                    mat_conditions.append(nivel_case)
+                    params.append(f_nivel)
 
                 where_extra = (" AND " + " AND ".join(mat_conditions)) if mat_conditions else ""
                 params.append(snap_id)
@@ -1135,6 +1150,7 @@ def api_lista_alunos_latest():
                     "adimplentes": adim, "pct_inadimplencia": pct,
                     "filtered_tipo": f_tipo or None,
                     "filtered_situacao": f_situacao or None,
+                    "filtered_nivel": f_nivel or None,
                     "inad_by_polo": {}, "inad_by_curso": {}, "by_status": {},
                 })
 

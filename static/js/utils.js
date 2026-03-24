@@ -13,23 +13,30 @@ async function api(url, opts = {}) {
 // ---------------------------------------------------------------------------
 // SPA Navigation
 // ---------------------------------------------------------------------------
-const PAGES = ['dashboard', 'search', 'sync', 'kommo_sync', 'update', 'pipeline', 'match_merge', 'comercial_rgm', 'dist_comercial', 'distribuicao', 'ativacoes', 'intelligence', 'inadimplencia', 'feedback', 'comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos', 'logs', 'config', 'schedule', 'inscricao', 'avisos', 'kommo_dispatcher', 'meta-campaigns', 'recadastros', 'comercial_dashboard', 'vocacional', 'leads_parados'];
-const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', kommo_sync: 'Sync Comercial', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', match_merge: 'Match & Merge', comercial_rgm: 'Dashboard Comercial', dist_comercial: 'Distribuição Comercial', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas', intelligence: 'Inteligência', inadimplencia: 'Inadimplência', feedback: 'Feedback', comparar_cursos: 'Comparar Cursos', recomendacao_cursos: 'Recomendação', localizacao_polos: 'Localização', info_cursos: 'Informações de Cursos', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento', inscricao: 'Inscrição Automática', avisos: 'Avisos', kommo_dispatcher: 'Kommo Dispatcher', 'meta-campaigns': 'Campaign Performance', recadastros: 'Recadastros', comercial_dashboard: 'Dashboard Atendimentos', vocacional: 'Dashboard Vocacional', leads_parados: 'Leads Parados' };
+const PAGES = ['dashboard', 'search', 'sync', 'kommo_sync', 'update', 'pipeline', 'match_merge', 'comercial_rgm', 'dist_comercial', 'distribuicao', 'ativacoes', 'intelligence', 'inadimplencia', 'feedback', 'comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos', 'logs', 'config', 'schedule', 'inscricao', 'avisos', 'kommo_dispatcher', 'meta-campaigns', 'recadastros', 'comercial_dashboard', 'auditoria_comercial', 'vocacional', 'leads_parados'];
+const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', kommo_sync: 'Sync Comercial', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', match_merge: 'Match & Merge', comercial_rgm: 'Dashboard Comercial', dist_comercial: 'Distribuição Comercial', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas', intelligence: 'Inteligência', inadimplencia: 'Inadimplência', feedback: 'Feedback', comparar_cursos: 'Comparar Cursos', recomendacao_cursos: 'Recomendação', localizacao_polos: 'Localização', info_cursos: 'Informações de Cursos', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento', inscricao: 'Inscrição Automática', avisos: 'Avisos', kommo_dispatcher: 'Kommo Dispatcher', 'meta-campaigns': 'Campaign Performance', recadastros: 'Recadastros', comercial_dashboard: 'Dashboard Atendimentos', auditoria_comercial: 'Feedback Comercial', vocacional: 'Dashboard Vocacional', leads_parados: 'Leads Parados' };
 
 function navigate(page) {
     PAGES.forEach(p => {
-        document.getElementById('page-' + p).classList.toggle('hidden', p !== page);
+        const el = document.getElementById('page-' + p);
+        if (p === page) {
+            el.classList.remove('hidden');
+            el.classList.remove('page-enter');
+            void el.offsetWidth;
+            el.classList.add('page-enter');
+        } else {
+            el.classList.add('hidden');
+            el.classList.remove('page-enter');
+        }
     });
     document.querySelectorAll('.sidebar-link').forEach(el => {
         el.classList.toggle('active', el.dataset.page === page);
     });
     document.getElementById('mobile-title').textContent = PAGE_TITLES[page] || page;
 
-    // Close mobile sidebar
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('sidebar-overlay').classList.remove('open');
 
-    // Load page data
     if (page === 'dashboard') loadDashboard();
     if (page === 'search') loadXlSnapshots();
     if (page === 'sync') loadSyncState();
@@ -47,6 +54,7 @@ function navigate(page) {
     if (page === 'feedback') fbInit();
     if (page === 'inscricao') loadInscricao();
     if (page === 'comercial_dashboard') cdLoadPage();
+    if (page === 'auditoria_comercial' && typeof acLoadPage === 'function') acLoadPage();
     if (page === 'vocacional') vocLoadPage();
     if (page === 'schedule') loadSchedules();
     if (page === 'avisos') loadAvisos();
@@ -146,7 +154,7 @@ function refreshBadge() {
 const SIDEBAR_GROUPS = {
     academico: ['ativacoes', 'distribuicao', 'intelligence', 'inadimplencia', 'feedback'],
     ferramentas: ['comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos'],
-    comercial: ['pipeline', 'update', 'match_merge', 'comercial_rgm', 'inscricao', 'leads_parados'],
+    comercial: ['pipeline', 'update', 'match_merge', 'comercial_rgm', 'inscricao', 'auditoria_comercial', 'leads_parados'],
 };
 
 async function applySidebarPermissions() {
@@ -294,6 +302,85 @@ function updateThemeUI(theme) {
         moonIcon.classList.add('hidden');
         label.textContent = 'Modo escuro';
     }
+}
+
+// ---------------------------------------------------------------------------
+// Toast notifications
+// ---------------------------------------------------------------------------
+const TOAST_ICONS = {
+    success: '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>',
+    error:   '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" d="M15 9l-6 6M9 9l6 6"/></svg>',
+    warning: '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>',
+    info:    '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" d="M12 16v-4M12 8h.01"/></svg>',
+};
+
+function toast(message, type = 'info', duration = 4000) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const el = document.createElement('div');
+    el.className = `toast toast-${type}`;
+    el.style.position = 'relative';
+    el.style.overflow = 'hidden';
+    el.innerHTML = `
+        ${TOAST_ICONS[type] || TOAST_ICONS.info}
+        <span style="flex:1">${esc(message)}</span>
+        <button class="toast-close" onclick="this.closest('.toast').remove()">&times;</button>
+        <div class="toast-progress" style="width:100%;transition-duration:${duration}ms"></div>`;
+    container.appendChild(el);
+
+    requestAnimationFrame(() => {
+        const bar = el.querySelector('.toast-progress');
+        if (bar) bar.style.width = '0%';
+    });
+
+    const timer = setTimeout(() => {
+        el.classList.add('removing');
+        setTimeout(() => el.remove(), 260);
+    }, duration);
+
+    el.querySelector('.toast-close').addEventListener('click', () => clearTimeout(timer));
+    return el;
+}
+
+// ---------------------------------------------------------------------------
+// Count-up animation
+// ---------------------------------------------------------------------------
+function countUp(el, target, duration = 600) {
+    if (!el || isNaN(target)) return;
+    const start = parseInt(el.textContent.replace(/\D/g, '')) || 0;
+    if (start === target) return;
+
+    const startTime = performance.now();
+    const fmt = n => Math.round(n).toLocaleString('pt-BR');
+
+    function tick(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const ease = 1 - Math.pow(1 - progress, 3);
+        el.textContent = fmt(start + (target - start) * ease);
+        if (progress < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+}
+
+function countUpAll(container) {
+    if (!container) return;
+    container.querySelectorAll('[data-count]').forEach(el => {
+        const target = parseInt(el.dataset.count);
+        if (!isNaN(target)) countUp(el, target);
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Skeleton helpers
+// ---------------------------------------------------------------------------
+function showSkeleton(containerId, count = 4) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    el.innerHTML = Array.from({ length: count }, () =>
+        '<div class="skeleton skeleton-card p-5"></div>'
+    ).join('');
 }
 
 // ---------------------------------------------------------------------------

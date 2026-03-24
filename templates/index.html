@@ -31,11 +31,14 @@
             {% include 'partials/_meta_campaigns.html' %}
             {% include 'partials/_recadastros.html' %}
             {% include 'partials/_comercial_dashboard.html' %}
+            {% include 'partials/_auditoria_comercial.html' %}
             {% include 'partials/_vocacional.html' %}
             {% include 'partials/_leads_parados.html' %}
         </main>
     </div>
 </div>
+
+<div id="toast-container"></div>
 
 {% set _v = config.get('CACHE_BUST', '') %}
 <script src="{{ url_for('static', filename='js/utils.js') }}?v={{_v}}"></script>

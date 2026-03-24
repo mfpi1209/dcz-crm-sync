@@ -561,7 +561,7 @@ function mmExecuteUnifLote() {
         .then(r => r.json())
         .then(data => {
             if (data.error) {
-                alert(data.error);
+                toast(data.error, 'error');
                 btn.disabled = false;
                 btn.classList.remove('opacity-50');
                 return;
@@ -569,7 +569,7 @@ function mmExecuteUnifLote() {
             _mmStartUnifPoll();
         })
         .catch(err => {
-            alert('Erro: ' + err);
+            toast('Erro: ' + err, 'error');
             btn.disabled = false;
             btn.classList.remove('opacity-50');
         });
@@ -600,9 +600,9 @@ function _mmPollUnif() {
 
                 const r = data.result || {};
                 if (r.error && typeof r.error === 'string') {
-                    alert(`Erro na unificação: ${r.error}`);
+                    toast(`Erro na unificação: ${r.error}`, 'error');
                 } else {
-                    alert(`Unificação concluída: ${r.ok || 0} OK, ${r.error || 0} erros de ${r.total || 0}`);
+                    toast(`Unificação concluída: ${r.ok || 0} OK, ${r.error || 0} erros de ${r.total || 0}`, 'success');
                 }
             }
         });

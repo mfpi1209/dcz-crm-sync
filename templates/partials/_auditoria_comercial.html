@@ -1,0 +1,1660 @@
+            <div id="page-auditoria_comercial" class="hidden">
+
+<style>
+#page-auditoria_comercial {
+  --primary: #4f46e5;
+  --primary-light: #eef2ff;
+  --primary-dark: #3730a3;
+  --success: #16a34a;
+  --success-light: #dcfce7;
+  --warning: #d97706;
+  --warning-light: #fef3c7;
+  --danger: #dc2626;
+  --danger-light: #fee2e2;
+  --orange: #ea580c;
+  --orange-light: #ffedd5;
+  --bg: #f1f5f9;
+  --card: #ffffff;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --hover-row: #fafafa;
+  --conv-bg: #f8fafc;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: var(--text);
+}
+
+.dark #page-auditoria_comercial {
+  --primary: #6366f1;
+  --primary-light: #1e1b4b;
+  --primary-dark: #818cf8;
+  --success: #22c55e;
+  --success-light: #14532d;
+  --warning: #fbbf24;
+  --warning-light: #451a03;
+  --danger: #f87171;
+  --danger-light: #450a0a;
+  --orange: #fb923c;
+  --orange-light: #431407;
+  --bg: #0f172a;
+  --card: #1e293b;
+  --border: #334155;
+  --text: #f1f5f9;
+  --text-muted: #94a3b8;
+  --hover-row: #263348;
+  --conv-bg: #0f172a;
+}
+
+/* TOPBAR */
+#page-auditoria_comercial .ac-topbar {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  transition: background .25s, border-color .25s;
+  padding: 0 28px;
+  height: 60px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 50;
+}
+#page-auditoria_comercial .topbar-title { font-size: 16px; font-weight: 700; color: var(--text); }
+#page-auditoria_comercial .topbar-right { display: flex; align-items: center; gap: 12px; }
+#page-auditoria_comercial .btn-refresh {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--primary); color: #fff;
+  border: none; border-radius: 8px; padding: 7px 14px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: background .15s;
+}
+#page-auditoria_comercial .btn-refresh:hover { background: var(--primary-dark); }
+#page-auditoria_comercial .btn-refresh svg { width: 15px; height: 15px; }
+#page-auditoria_comercial .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; display: inline-block; }
+#page-auditoria_comercial .status-text { font-size: 12px; color: var(--text-muted); }
+
+/* CONTENT */
+#page-auditoria_comercial .content { padding: 24px 28px; flex: 1; background: var(--bg); transition: background .25s; }
+
+/* FILTER BAR */
+#page-auditoria_comercial .filter-bar {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;
+}
+#page-auditoria_comercial .filter-group { display: flex; flex-direction: column; gap: 4px; }
+#page-auditoria_comercial .filter-group label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+#page-auditoria_comercial .filter-group input,
+#page-auditoria_comercial .filter-group select {
+  border: 1px solid var(--border);
+  border-radius: 7px; padding: 7px 10px;
+  font-size: 13px; color: var(--text);
+  background: var(--bg);
+  min-width: 140px;
+  outline: none; transition: border .15s;
+}
+#page-auditoria_comercial .filter-group input:focus,
+#page-auditoria_comercial .filter-group select:focus { border-color: var(--primary); background: #fff; }
+#page-auditoria_comercial .filter-actions { display: flex; gap: 8px; margin-top: 2px; }
+#page-auditoria_comercial .btn-filter {
+  padding: 7px 16px; border-radius: 7px; border: none;
+  font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s;
+}
+#page-auditoria_comercial .btn-filter.primary { background: var(--primary); color: #fff; }
+#page-auditoria_comercial .btn-filter.primary:hover { background: var(--primary-dark); }
+#page-auditoria_comercial .btn-filter.ghost { background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
+#page-auditoria_comercial .btn-filter.ghost:hover { background: var(--border); }
+
+/* KPI CARDS */
+#page-auditoria_comercial .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+#page-auditoria_comercial .kpi-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 20px;
+  display: flex; flex-direction: column; gap: 8px;
+  transition: box-shadow .15s, background .25s, border-color .25s;
+}
+#page-auditoria_comercial .kpi-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.06); }
+#page-auditoria_comercial .kpi-icon {
+  width: 40px; height: 40px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .25s;
+}
+#page-auditoria_comercial .kpi-icon svg { width: 20px; height: 20px; }
+#page-auditoria_comercial .kpi-icon-blue   { background: var(--primary-light); color: var(--primary); }
+#page-auditoria_comercial .kpi-icon-green  { background: var(--success-light); color: var(--success); }
+#page-auditoria_comercial .kpi-icon-amber  { background: var(--warning-light); color: var(--warning); }
+#page-auditoria_comercial .kpi-icon-red    { background: var(--danger-light);  color: var(--danger);  }
+#page-auditoria_comercial .kpi-label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+#page-auditoria_comercial .kpi-value { font-size: 28px; font-weight: 800; color: var(--text); line-height: 1; }
+#page-auditoria_comercial .kpi-sub { font-size: 12px; color: var(--text-muted); }
+
+/* CHARTS */
+#page-auditoria_comercial .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+@media (max-width: 900px) { #page-auditoria_comercial .charts-grid { grid-template-columns: 1fr; } }
+#page-auditoria_comercial .chart-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 20px;
+  transition: background .25s, border-color .25s;
+}
+#page-auditoria_comercial .chart-card h3 { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 16px; }
+#page-auditoria_comercial .chart-card canvas { max-height: 260px; }
+
+/* CONSULTANT TABLE */
+#page-auditoria_comercial .consult-table-wrap { overflow-y: auto; max-height: 320px; }
+#page-auditoria_comercial .consult-table { width: 100%; border-collapse: collapse; }
+#page-auditoria_comercial .consult-table thead th {
+  background: var(--bg); padding: 8px 12px;
+  text-align: left; font-size: 10.5px; font-weight: 700;
+  color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em;
+  border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1;
+}
+#page-auditoria_comercial .consult-table tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+#page-auditoria_comercial .consult-table tbody tr:last-child { border-bottom: none; }
+#page-auditoria_comercial .consult-table tbody tr:hover { background: var(--hover-row); }
+#page-auditoria_comercial .consult-table tbody td { padding: 9px 12px; font-size: 12.5px; vertical-align: middle; }
+#page-auditoria_comercial .consult-rank { color: var(--text-muted); font-size: 11px; font-weight: 700; width: 24px; }
+#page-auditoria_comercial .consult-name { font-weight: 700; color: var(--text); }
+#page-auditoria_comercial .nota-bar-wrap { display: flex; align-items: center; gap: 8px; }
+#page-auditoria_comercial .nota-bar-bg { flex: 1; height: 6px; background: var(--border); border-radius: 10px; overflow: hidden; min-width: 60px; }
+#page-auditoria_comercial .nota-bar-fill { height: 100%; border-radius: 10px; }
+#page-auditoria_comercial .nota-val { font-size: 12px; font-weight: 800; min-width: 24px; text-align: right; }
+#page-auditoria_comercial .consult-cnt { color: var(--text-muted); font-size: 11.5px; text-align: center; }
+
+/* TABLE */
+#page-auditoria_comercial .table-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+  transition: background .25s, border-color .25s;
+}
+#page-auditoria_comercial .table-header {
+  padding: 16px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+#page-auditoria_comercial .table-header h3 { font-size: 14px; font-weight: 700; color: var(--text); }
+#page-auditoria_comercial .table-header span { font-size: 12px; color: var(--text-muted); }
+#page-auditoria_comercial table { width: 100%; border-collapse: collapse; }
+#page-auditoria_comercial thead th {
+  background: var(--bg); padding: 10px 14px;
+  text-align: left; font-size: 11px; font-weight: 700;
+  color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em;
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+#page-auditoria_comercial tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+#page-auditoria_comercial tbody tr:last-child { border-bottom: none; }
+#page-auditoria_comercial tbody tr:hover { background: var(--hover-row); }
+#page-auditoria_comercial tbody td { padding: 11px 14px; font-size: 13px; color: var(--text); vertical-align: middle; }
+#page-auditoria_comercial .td-muted { color: var(--text-muted); font-size: 12px; }
+#page-auditoria_comercial .td-truncate { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* BADGES */
+#page-auditoria_comercial .badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 3px 10px; border-radius: 20px;
+  font-size: 12px; font-weight: 700; white-space: nowrap;
+}
+#page-auditoria_comercial .badge-nota-alta { background: var(--success-light); color: var(--success); }
+#page-auditoria_comercial .badge-nota-media { background: var(--warning-light); color: var(--warning); }
+#page-auditoria_comercial .badge-nota-baixa-media { background: var(--orange-light); color: var(--orange); }
+#page-auditoria_comercial .badge-nota-baixa { background: var(--danger-light); color: var(--danger); }
+
+#page-auditoria_comercial .btn-detail {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--primary-light); color: var(--primary);
+  border: none; border-radius: 6px; padding: 5px 11px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: all .15s;
+}
+#page-auditoria_comercial .btn-detail:hover { background: var(--primary); color: #fff; }
+#page-auditoria_comercial .btn-detail svg { width: 13px; height: 13px; }
+
+/* PAGINATION */
+#page-auditoria_comercial .pagination {
+  padding: 14px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-top: 1px solid var(--border);
+}
+#page-auditoria_comercial .pagination-info { font-size: 12px; color: var(--text-muted); }
+#page-auditoria_comercial .pagination-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+#page-auditoria_comercial .page-btn {
+  border: 1px solid var(--border); background: var(--card);
+  color: var(--text); border-radius: 6px; padding: 5px 11px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: all .15s;
+}
+#page-auditoria_comercial .page-btn:hover { border-color: var(--primary); color: var(--primary); }
+#page-auditoria_comercial .page-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+#page-auditoria_comercial .page-btn:disabled { opacity: .4; cursor: default; }
+
+/* MODAL */
+#page-auditoria_comercial .ac-modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.45);
+  z-index: 999; display: none; align-items: center; justify-content: center;
+  padding: 20px;
+}
+#page-auditoria_comercial .ac-modal-overlay.open { display: flex; }
+#page-auditoria_comercial .modal {
+  background: var(--card); border-radius: 16px;
+  width: 100%; max-width: 820px; max-height: 90vh;
+  display: flex; flex-direction: column;
+  box-shadow: 0 24px 64px rgba(0,0,0,.2);
+  animation: acModalIn .2s ease;
+}
+@keyframes acModalIn { from { opacity: 0; transform: scale(.96) translateY(10px); } to { opacity: 1; transform: none; } }
+#page-auditoria_comercial .modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-start; justify-content: space-between;
+  flex-shrink: 0;
+}
+#page-auditoria_comercial .modal-header-info { display: flex; flex-direction: column; gap: 4px; }
+#page-auditoria_comercial .modal-header-info h2 { font-size: 16px; font-weight: 800; color: var(--text); }
+#page-auditoria_comercial .modal-header-meta { display: flex; gap: 12px; flex-wrap: wrap; }
+#page-auditoria_comercial .modal-meta-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--bg); border-radius: 6px; padding: 3px 9px;
+  font-size: 11.5px; font-weight: 600; color: var(--text-muted);
+}
+#page-auditoria_comercial .modal-close {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted); padding: 4px;
+  border-radius: 6px; transition: all .15s;
+  flex-shrink: 0; margin-left: 16px;
+}
+#page-auditoria_comercial .modal-close:hover { background: var(--danger-light); color: var(--danger); }
+#page-auditoria_comercial .modal-close svg { width: 20px; height: 20px; }
+#page-auditoria_comercial .modal-body { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 20px; }
+
+#page-auditoria_comercial .modal-section-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--text-muted); margin-bottom: 10px;
+  padding-bottom: 8px; border-bottom: 1px solid var(--border);
+}
+#page-auditoria_comercial .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+#page-auditoria_comercial .metric-item {
+  background: var(--bg); border-radius: 8px; padding: 12px;
+}
+#page-auditoria_comercial .metric-item-label { font-size: 11px; color: var(--text-muted); font-weight: 600; margin-bottom: 4px; }
+#page-auditoria_comercial .metric-item-value { font-size: 16px; font-weight: 800; color: var(--text); }
+#page-auditoria_comercial .metric-item-value.green { color: var(--success); }
+#page-auditoria_comercial .metric-item-value.red { color: var(--danger); }
+#page-auditoria_comercial .metric-item-value.orange { color: var(--orange); }
+
+#page-auditoria_comercial .conversation-box {
+  background: var(--conv-bg); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px;
+  font-size: 13px; line-height: 1.7; color: var(--text);
+  white-space: pre-wrap; word-break: break-word;
+  max-height: 360px; overflow-y: auto;
+  font-family: 'Segoe UI', monospace;
+}
+#page-auditoria_comercial .msg-bubble-wrap { display: flex; flex-direction: column; gap: 8px; max-height: 360px; overflow-y: auto; }
+#page-auditoria_comercial .msg-bubble {
+  padding: 10px 14px; border-radius: 10px;
+  max-width: 80%; font-size: 13px; line-height: 1.5;
+}
+#page-auditoria_comercial .msg-bubble.inbound { background: #f1f5f9; align-self: flex-start; border-bottom-left-radius: 3px; }
+#page-auditoria_comercial .msg-bubble.outbound { background: var(--primary-light); color: var(--primary-dark); align-self: flex-end; border-bottom-right-radius: 3px; }
+#page-auditoria_comercial .msg-meta { font-size: 10.5px; color: var(--text-muted); margin-top: 3px; }
+#page-auditoria_comercial .msg-sender { font-weight: 700; font-size: 11px; margin-bottom: 3px; }
+
+/* LOADING */
+#page-auditoria_comercial .ac-loading-overlay {
+  position: fixed; inset: 0; background: rgba(15,23,42,.6);
+  z-index: 9999; display: none; align-items: center; justify-content: center;
+  flex-direction: column; gap: 12px;
+}
+#page-auditoria_comercial .ac-loading-overlay.show { display: flex; }
+#page-auditoria_comercial .ac-spinner {
+  width: 36px; height: 36px; border: 3px solid var(--border);
+  border-top-color: var(--primary); border-radius: 50%;
+  animation: acSpin .7s linear infinite;
+}
+@keyframes acSpin { to { transform: rotate(360deg); } }
+#page-auditoria_comercial .ac-loading-overlay p { font-size: 13px; color: #94a3b8; font-weight: 600; }
+
+/* EMPTY STATE */
+#page-auditoria_comercial .empty-state {
+  padding: 48px 20px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+#page-auditoria_comercial .empty-state svg { color: var(--border); width: 40px; height: 40px; }
+#page-auditoria_comercial .empty-state p { color: var(--text-muted); font-size: 14px; }
+
+/* TEMPO BADGE */
+#page-auditoria_comercial .tempo-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12.5px; font-weight: 600;
+}
+#page-auditoria_comercial .tempo-badge.fast { color: var(--success); }
+#page-auditoria_comercial .tempo-badge.medium { color: var(--warning); }
+#page-auditoria_comercial .tempo-badge.slow { color: var(--danger); }
+
+#page-auditoria_comercial .tab-bar { display: flex; gap: 4px; margin-bottom: 12px; }
+#page-auditoria_comercial .tab-btn {
+  padding: 6px 14px; border-radius: 7px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text-muted); font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all .15s;
+}
+#page-auditoria_comercial .tab-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+/* BACK BUTTON */
+#page-auditoria_comercial .btn-back {
+  display: flex; align-items: center; gap: 7px;
+  background: none; border: 1.5px solid var(--border); color: var(--text-muted);
+  border-radius: 8px; padding: 6px 14px; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all .15s;
+}
+#page-auditoria_comercial .btn-back:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+#page-auditoria_comercial .btn-back svg { width: 15px; height: 15px; }
+
+/* CONSULTOR PAGE */
+#page-auditoria_comercial .consult-page-strip {
+  background: linear-gradient(135deg, #1e1b4b 0%, #4338ca 100%);
+  border-radius: 14px; padding: 20px 24px; margin-bottom: 24px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+#page-auditoria_comercial .consult-page-strip h2 { font-size: 22px; font-weight: 900; color: #fff; }
+#page-auditoria_comercial .consult-page-strip .period { font-size: 12.5px; color: rgba(255,255,255,0.6); margin-top: 3px; }
+#page-auditoria_comercial .consult-avatar {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: rgba(255,255,255,0.15); border: 2px solid rgba(255,255,255,0.25);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 900; color: #fff; flex-shrink: 0;
+}
+#page-auditoria_comercial .insights-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+@media (max-width: 800px) { #page-auditoria_comercial .insights-grid { grid-template-columns: 1fr; } }
+#page-auditoria_comercial .insight-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 18px 20px;
+}
+#page-auditoria_comercial .insight-card-title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em;
+  margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
+}
+#page-auditoria_comercial .insight-card-title.pos { color: var(--success); }
+#page-auditoria_comercial .insight-card-title.neg { color: var(--danger); }
+#page-auditoria_comercial .insight-card-title span { font-size: 16px; }
+
+#page-auditoria_comercial .btn-ver-mais {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #f1f5f9; color: #475569;
+  border: 1px solid var(--border); border-radius: 6px; padding: 4px 9px;
+  font-size: 11.5px; font-weight: 600; cursor: pointer; transition: all .15s;
+  white-space: nowrap;
+}
+#page-auditoria_comercial .btn-ver-mais:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+#page-auditoria_comercial .btn-ver-mais svg { width: 12px; height: 12px; }
+
+#page-auditoria_comercial .section-label-c {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--text-muted);
+  padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 10px;
+}
+
+#page-auditoria_comercial .insight-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 8px; margin-bottom: 4px;
+  transition: background .1s;
+}
+#page-auditoria_comercial .insight-row:last-child { margin-bottom: 0; }
+#page-auditoria_comercial .insight-row.pos { background: rgba(34,197,94,.07); }
+#page-auditoria_comercial .insight-row.neg { background: rgba(239,68,68,.07); }
+#page-auditoria_comercial .insight-row-cnt {
+  flex-shrink: 0; min-width: 28px; height: 20px;
+  border-radius: 20px; display: flex; align-items: center; justify-content: center;
+  font-size: 10.5px; font-weight: 800; padding: 0 6px;
+}
+#page-auditoria_comercial .insight-row-cnt.pos { background: var(--success-light); color: var(--success); }
+#page-auditoria_comercial .insight-row-cnt.neg { background: var(--danger-light);  color: var(--danger); }
+#page-auditoria_comercial .insight-row-text {
+  flex: 1; font-size: 12.5px; color: var(--text); line-height: 1.3;
+  min-width: 0;
+}
+#page-auditoria_comercial .insight-row-btn {
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;
+  border: none; border-radius: 6px; padding: 4px 9px;
+  font-size: 11px; font-weight: 600; cursor: pointer; transition: all .15s;
+  white-space: nowrap;
+}
+#page-auditoria_comercial .insight-row-btn.pos { background: var(--success-light); color: var(--success); }
+#page-auditoria_comercial .insight-row-btn.neg { background: var(--danger-light);  color: var(--danger); }
+#page-auditoria_comercial .insight-row-btn.pos:hover { background: var(--success); color: #fff; }
+#page-auditoria_comercial .insight-row-btn.neg:hover { background: var(--danger);  color: #fff; }
+#page-auditoria_comercial .insight-row-btn svg { width: 11px; height: 11px; }
+
+/* DATE FILTER BAR (consultant view) */
+#page-auditoria_comercial .cv-date-filter-bar {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px 20px; margin-bottom: 24px;
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;
+  transition: background .25s, border-color .25s;
+}
+
+/* NOTA FILTER BAR */
+#page-auditoria_comercial .cv-nota-filter {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  padding: 12px 20px; border-bottom: 1px solid var(--border);
+}
+#page-auditoria_comercial .cv-nota-filter-label { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; margin-right: 4px; }
+#page-auditoria_comercial .nota-filter-btn {
+  padding: 4px 12px; border-radius: 20px; border: 1.5px solid var(--border);
+  background: var(--bg); color: var(--text-muted); font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all .15s;
+}
+#page-auditoria_comercial .nota-filter-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+#page-auditoria_comercial .nota-filter-btn.f-green.active { background: var(--success); border-color: var(--success); }
+#page-auditoria_comercial .nota-filter-btn.f-amber.active { background: var(--warning); border-color: var(--warning); }
+#page-auditoria_comercial .nota-filter-btn.f-orange.active { background: var(--orange); border-color: var(--orange); }
+#page-auditoria_comercial .nota-filter-btn.f-red.active { background: var(--danger); border-color: var(--danger); }
+
+/* FREQ TAGS */
+#page-auditoria_comercial .freq-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+#page-auditoria_comercial .freq-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1.5px solid; border-radius: 20px; padding: 3px 10px;
+  font-size: 11.5px; font-weight: 600; cursor: default;
+}
+#page-auditoria_comercial .freq-tag.pos { border-color: #bbf7d0; color: var(--success); background: rgba(34,197,94,.07); }
+#page-auditoria_comercial .freq-tag.neg { border-color: #fecaca; color: var(--danger); background: rgba(239,68,68,.07); }
+#page-auditoria_comercial .freq-tag .freq-cnt {
+  background: rgba(0,0,0,0.12);
+  border-radius: 20px; padding: 1px 6px; font-size: 10px; font-weight: 800;
+}
+
+/* SCROLL */
+#page-auditoria_comercial ::-webkit-scrollbar { width: 5px; height: 5px; }
+#page-auditoria_comercial ::-webkit-scrollbar-track { background: transparent; }
+#page-auditoria_comercial ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+#page-auditoria_comercial ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+.dark #page-auditoria_comercial .filter-bar { background: var(--card); border-color: var(--border); }
+.dark #page-auditoria_comercial .filter-group input,
+.dark #page-auditoria_comercial .filter-group select { background: var(--bg); color: var(--text); border-color: var(--border); }
+.dark #page-auditoria_comercial .filter-group input:focus,
+.dark #page-auditoria_comercial .filter-group select:focus { background: #1e293b; }
+.dark #page-auditoria_comercial .modal { background: var(--card); }
+.dark #page-auditoria_comercial .ac-modal-overlay { background: rgba(0,0,0,.65); }
+.dark #page-auditoria_comercial .metric-item { background: var(--bg); }
+.dark #page-auditoria_comercial .msg-bubble.inbound { background: #263348; }
+.dark #page-auditoria_comercial .btn-filter.ghost { background: var(--bg); color: var(--text-muted); border-color: var(--border); }
+.dark #page-auditoria_comercial .btn-filter.ghost:hover { background: var(--border); }
+.dark #page-auditoria_comercial .page-btn { background: var(--card); color: var(--text); border-color: var(--border); }
+.dark #page-auditoria_comercial .consult-table thead th { background: var(--bg); }
+.dark #page-auditoria_comercial .insight-card { background: var(--card); border-color: var(--border); }
+.dark #page-auditoria_comercial .freq-tag.pos { border-color: #166534; }
+.dark #page-auditoria_comercial .freq-tag.neg { border-color: #7f1d1d; }
+.dark #page-auditoria_comercial .badge-nota-alta  { background: rgba(34,197,94,.15);  color: #4ade80; }
+.dark #page-auditoria_comercial .badge-nota-media { background: rgba(251,191,36,.13); color: #fbbf24; }
+.dark #page-auditoria_comercial .badge-nota-baixa-media { background: rgba(251,146,60,.13); color: #fb923c; }
+.dark #page-auditoria_comercial .badge-nota-baixa { background: rgba(248,113,113,.13); color: #f87171; }
+.dark #page-auditoria_comercial .tempo-badge.fast   { color: #4ade80; }
+.dark #page-auditoria_comercial .tempo-badge.medium { color: #fbbf24; }
+.dark #page-auditoria_comercial .tempo-badge.slow   { color: #f87171; }
+.dark #page-auditoria_comercial .modal-meta-chip { background: var(--bg); color: var(--text-muted); }
+.dark #page-auditoria_comercial .btn-ver-mais { background: #1e293b; color: #94a3b8; }
+</style>
+
+<!-- TOPBAR -->
+<div class="ac-topbar">
+  <div style="display:flex;align-items:center;gap:14px">
+    <button class="btn-back" id="ac-btn-back" onclick="acShowDashboardView()" style="display:none">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      Voltar
+    </button>
+    <div class="topbar-title" id="ac-page-title">Feedback Comercial</div>
+  </div>
+  <div class="topbar-right">
+    <span class="status-dot" id="ac-conn-dot" style="background:#94a3b8"></span>
+    <span class="status-text" id="ac-conn-status">Conectando…</span>
+    <span class="status-text" id="ac-last-update-time" style="margin-left:4px"></span>
+    <button class="btn-refresh" id="ac-btn-refresh-main" onclick="acLoadAll()">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4v5h5M20 20v-5h-5"/><path d="M4.1 9A9 9 0 0120 15M19.9 15a9 9 0 01-16 -6"/></svg>
+      Atualizar
+    </button>
+  </div>
+</div>
+
+<!-- VIEW: DASHBOARD -->
+<div class="content" id="ac-view-dashboard">
+
+  <!-- FILTROS -->
+  <div class="filter-bar">
+    <div class="filter-group">
+      <label>Data Início</label>
+      <input type="date" id="ac-f-inicio" />
+    </div>
+    <div class="filter-group">
+      <label>Data Fim</label>
+      <input type="date" id="ac-f-fim" />
+    </div>
+    <div class="filter-group">
+      <label>Consultor</label>
+      <select id="ac-f-consultor">
+        <option value="">Todos</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>Nota Mínima</label>
+      <input type="number" id="ac-f-nota-min" min="0" max="10" step="0.1" placeholder="0" style="width:90px" />
+    </div>
+    <div class="filter-group">
+      <label>Nota Máxima</label>
+      <input type="number" id="ac-f-nota-max" min="0" max="10" step="0.1" placeholder="10" style="width:90px" />
+    </div>
+    <div class="filter-group">
+      <label>Buscar Contact/Lead ID</label>
+      <input type="text" id="ac-f-search" placeholder="Ex: 123456" style="width:160px" />
+    </div>
+    <div class="filter-actions">
+      <button class="btn-filter primary" onclick="acApplyFilters()">Aplicar</button>
+      <button class="btn-filter ghost" onclick="acClearFilters()">Limpar</button>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-grid" id="ac-kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-icon kpi-icon-blue"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12h6M9 16h6M9 8h6M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></div>
+      <div class="kpi-label">Total Atendimentos</div>
+      <div class="kpi-value" id="ac-kpi-total">—</div>
+      <div class="kpi-sub" id="ac-kpi-total-sub">no período</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon kpi-icon-green"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+      <div class="kpi-label">Nota Média</div>
+      <div class="kpi-value" id="ac-kpi-nota">—</div>
+      <div class="kpi-sub">escala 0 – 10</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon kpi-icon-amber"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+      <div class="kpi-label">Tempo Médio de Resposta</div>
+      <div class="kpi-value" id="ac-kpi-tempo">—</div>
+      <div class="kpi-sub">média do período</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon kpi-icon-green"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg></div>
+      <div class="kpi-label">Notas ≥ 8</div>
+      <div class="kpi-value" id="ac-kpi-altas">—</div>
+      <div class="kpi-sub">atendimentos excelentes</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon kpi-icon-red"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg></div>
+      <div class="kpi-label">Notas &lt; 5</div>
+      <div class="kpi-value" id="ac-kpi-baixas">—</div>
+      <div class="kpi-sub">atendimentos críticos</div>
+    </div>
+  </div>
+
+  <!-- CHARTS -->
+  <div class="charts-grid">
+    <div class="chart-card">
+      <h3>Desempenho por Consultor</h3>
+      <div class="consult-table-wrap" id="ac-consultoresTableWrap">
+        <div class="empty-state"><p>Carregando…</p></div>
+      </div>
+    </div>
+    <div class="chart-card">
+      <h3>Distribuição das Notas</h3>
+      <canvas id="ac-chartDistribuicao"></canvas>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-card">
+    <div class="table-header">
+      <h3>Atendimentos Avaliados</h3>
+      <span id="ac-table-count-label">—</span>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Consultor</th>
+            <th>Contact ID</th>
+            <th>Lead ID</th>
+            <th>Nota</th>
+            <th>Ponto Positivo</th>
+            <th>Ponto Negativo</th>
+            <th>Tempo Resp.</th>
+            <th>Ação</th>
+          </tr>
+        </thead>
+        <tbody id="ac-table-body">
+          <tr><td colspan="9"><div class="empty-state"><p>Carregando…</p></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <div class="pagination-info" id="ac-pagination-info">—</div>
+      <div class="pagination-btns" id="ac-pagination-btns"></div>
+    </div>
+  </div>
+
+</div><!-- /ac-view-dashboard -->
+
+<!-- VIEW: CONSULTOR -->
+<div class="content" id="ac-view-consultor" style="display:none">
+
+  <div class="consult-page-strip">
+    <div>
+      <div id="ac-cv-period" style="font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em"></div>
+      <h2 id="ac-cv-name">—</h2>
+      <div class="period" id="ac-cv-stats">—</div>
+    </div>
+    <div class="consult-avatar" id="ac-cv-avatar">—</div>
+  </div>
+
+  <!-- Filtro de data do consultor -->
+  <div class="cv-date-filter-bar">
+    <div class="filter-group">
+      <label>Data Início</label>
+      <input type="date" id="ac-cv-f-inicio" />
+    </div>
+    <div class="filter-group">
+      <label>Data Fim</label>
+      <input type="date" id="ac-cv-f-fim" />
+    </div>
+    <div class="filter-actions">
+      <button class="btn-filter primary" onclick="acApplyCvDateFilter()">Aplicar</button>
+      <button class="btn-filter ghost" onclick="acClearCvDateFilter()">Limpar datas</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
+      <span style="font-size:11.5px;color:var(--text-muted)" id="ac-cv-date-range-label">—</span>
+    </div>
+  </div>
+
+  <!-- KPIs do consultor -->
+  <div class="kpi-grid" style="margin-bottom:24px">
+    <div class="kpi-card">
+      <div class="kpi-icon kpi-icon-blue"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12h6M9 16h6M9 8h6M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></div>
+      <div class="kpi-label">Total Atendimentos</div>
+      <div class="kpi-value" id="ac-cv-kpi-total">—</div>
+      <div class="kpi-sub">no período</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon kpi-icon-green"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+      <div class="kpi-label">Nota Média</div>
+      <div class="kpi-value" id="ac-cv-kpi-nota">—</div>
+      <div class="kpi-sub">escala 0 – 10</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon kpi-icon-amber"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+      <div class="kpi-label">Tempo Médio de Resposta</div>
+      <div class="kpi-value" id="ac-cv-kpi-tempo">—</div>
+      <div class="kpi-sub">média do período</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon kpi-icon-green"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg></div>
+      <div class="kpi-label">Notas ≥ 8</div>
+      <div class="kpi-value" id="ac-cv-kpi-altas">—</div>
+      <div class="kpi-sub">atendimentos excelentes</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon kpi-icon-red"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg></div>
+      <div class="kpi-label">Notas &lt; 5</div>
+      <div class="kpi-value" id="ac-cv-kpi-baixas">—</div>
+      <div class="kpi-sub">atendimentos críticos</div>
+    </div>
+  </div>
+
+  <!-- Ponto Forte + Ponto Fraco -->
+  <div class="insights-grid">
+    <div class="insight-card">
+      <div class="insight-card-title pos"><span>★</span> Ponto Forte</div>
+      <div id="ac-cv-ponto-forte"><span style="color:var(--text-muted);font-size:13px">Carregando…</span></div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-card-title neg"><span>⚠</span> Ponto Fraco</div>
+      <div id="ac-cv-ponto-fraco"><span style="color:var(--text-muted);font-size:13px">Carregando…</span></div>
+    </div>
+  </div>
+
+  <!-- Tabela do consultor -->
+  <div class="table-card">
+    <div class="table-header">
+      <h3 id="ac-cv-table-title">Atendimentos</h3>
+      <span id="ac-cv-table-count">—</span>
+    </div>
+    <div class="cv-nota-filter">
+      <span class="cv-nota-filter-label">Filtrar por nota:</span>
+      <button class="nota-filter-btn active" id="ac-cvf-all"    onclick="acSetCvNotaFilter(null)"   >Todas</button>
+      <button class="nota-filter-btn f-green"  id="ac-cvf-9"   onclick="acSetCvNotaFilter([9,10])"  >9 – 10</button>
+      <button class="nota-filter-btn f-amber"  id="ac-cvf-7"   onclick="acSetCvNotaFilter([7,8.9])" >7 – 8</button>
+      <button class="nota-filter-btn f-orange" id="ac-cvf-5"   onclick="acSetCvNotaFilter([5,6.9])" >5 – 6</button>
+      <button class="nota-filter-btn f-red"    id="ac-cvf-low" onclick="acSetCvNotaFilter([0,4.9])" >&lt; 5</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Contact ID</th>
+            <th>Lead ID</th>
+            <th>Nota</th>
+            <th>Ponto Forte</th>
+            <th>Ponto Fraco</th>
+            <th>Tempo Resp.</th>
+            <th>Ação</th>
+          </tr>
+        </thead>
+        <tbody id="ac-cv-table-body">
+          <tr><td colspan="8"><div class="empty-state"><p>Carregando…</p></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <div class="pagination-info" id="ac-cv-pagination-info">—</div>
+      <div class="pagination-btns" id="ac-cv-pagination-btns"></div>
+    </div>
+  </div>
+
+</div><!-- /ac-view-consultor -->
+
+<!-- MODAL ATENDIMENTO -->
+<div class="ac-modal-overlay" id="ac-modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-header-info">
+        <h2 id="ac-modal-title">Detalhe do Atendimento</h2>
+        <div class="modal-header-meta" id="ac-modal-meta"></div>
+      </div>
+      <button class="modal-close" onclick="acCloseModal()">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="ac-modal-body"></div>
+  </div>
+</div>
+
+<!-- LOADING (scoped dentro da página) -->
+<div class="ac-loading-overlay" id="ac-loading-overlay">
+  <div class="ac-spinner"></div>
+  <p>Carregando dados…</p>
+</div>
+
+</div><!-- /page-auditoria_comercial -->
+
+<script>
+(function () {
+  'use strict';
+
+  const SUPABASE_URL = 'https://vtlbndvcgajcoajhcnnx.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_sW0h7aqgrjiwqGqKpawm4g_FuMi5xU_';
+  const AC_PAGE_SIZE = 20;
+
+  let acDb = null;
+  let acAllStatsData = [];
+  let acCurrentPage = 1;
+  let acTotalCount = 0;
+  let acChartDistribuicao = null;
+  let acActiveFilters = {};
+  let acCurrentConsultor = null;
+  let acCvPage = 1;
+  let acCvTotal = 0;
+  let acCvNotaFilterRange = null;
+  let acCvDateInicio = null;
+  let acCvDateFim = null;
+  let _acInitialized = false;
+
+  function acGetDb() {
+    if (!acDb) {
+      const { createClient } = window.supabase;
+      acDb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    }
+    return acDb;
+  }
+
+  // ── HELPERS ──────────────────────────────────────────────
+  function acSecsToHuman(secs) {
+    if (secs == null || isNaN(secs)) return '—';
+    const s = Math.round(+secs);
+    if (s < 60) return s + 's';
+    if (s < 3600) return Math.round(s / 60) + 'min';
+    const h = Math.floor(s / 3600);
+    const m = Math.round((s % 3600) / 60);
+    return m > 0 ? `${h}h ${m}min` : `${h}h`;
+  }
+
+  function acFormatDate(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
+      ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function acNotaClass(n) {
+    if (n == null) return '';
+    if (n >= 8) return 'badge-nota-alta';
+    if (n >= 7) return 'badge-nota-media';
+    if (n >= 5) return 'badge-nota-baixa-media';
+    return 'badge-nota-baixa';
+  }
+
+  function acNotaColor(n) {
+    const dark = document.documentElement.classList.contains('dark');
+    if (n == null) return '#94a3b8';
+    if (n >= 8) return dark ? '#4ade80' : '#16a34a';
+    if (n >= 7) return dark ? '#fbbf24' : '#d97706';
+    if (n >= 5) return dark ? '#fb923c' : '#ea580c';
+    return dark ? '#f87171' : '#dc2626';
+  }
+
+  function acTempoClass(s) {
+    if (s == null) return '';
+    if (s <= 600) return 'fast';
+    if (s <= 1800) return 'medium';
+    return 'slow';
+  }
+
+  function acParseConversa(raw) {
+    if (!raw) return null;
+    if (typeof raw === 'string') {
+      try { return JSON.parse(raw); } catch { return null; }
+    }
+    if (typeof raw === 'object') return raw;
+    return null;
+  }
+
+  function acEscHtml(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function acBuildFilters(query) {
+    if (acActiveFilters.inicio) query = query.gte('created_at', acActiveFilters.inicio + 'T00:00:00');
+    if (acActiveFilters.fim)    query = query.lte('created_at', acActiveFilters.fim + 'T23:59:59');
+    if (acActiveFilters.consultor) query = query.eq('consultor', acActiveFilters.consultor);
+    if (acActiveFilters.notaMin != null) query = query.gte('nota_avaliacao', acActiveFilters.notaMin);
+    if (acActiveFilters.notaMax != null) query = query.lte('nota_avaliacao', acActiveFilters.notaMax);
+    if (acActiveFilters.search) {
+      const s = acActiveFilters.search.trim();
+      if (s) query = query.or(`contact_id.eq.${s},lead_id.eq.${s}`);
+    }
+    return query;
+  }
+
+  function acGetThemeColors() {
+    const dark = document.documentElement.classList.contains('dark');
+    return {
+      grid:   dark ? '#1e293b' : '#f1f5f9',
+      tick:   dark ? '#94a3b8' : '#64748b',
+      text:   dark ? '#f1f5f9' : '#0f172a',
+      border: dark ? '#334155' : '#e2e8f0',
+    };
+  }
+
+  // ── LOADING ───────────────────────────────────────────────
+  function acShowLoading() { document.getElementById('ac-loading-overlay').classList.add('show'); }
+  function acHideLoading() { document.getElementById('ac-loading-overlay').classList.remove('show'); }
+
+  // ── CONNECTION STATUS ─────────────────────────────────────
+  function acSetConnStatus(ok) {
+    const dot = document.getElementById('ac-conn-dot');
+    const txt = document.getElementById('ac-conn-status');
+    if (!dot || !txt) return;
+    if (ok) { dot.style.background = '#22c55e'; txt.textContent = 'Conectado'; }
+    else     { dot.style.background = '#ef4444'; txt.textContent = 'Erro de conexão'; }
+  }
+
+  // ── FETCH ALL PAGES ───────────────────────────────────────
+  async function acFetchAllPages(baseQueryFn, batchSize = 1000) {
+    const all = [];
+    let from = 0;
+    const db = acGetDb();
+    while (true) {
+      const q = baseQueryFn(db).range(from, from + batchSize - 1);
+      const { data, error } = await q;
+      if (error) { acSetConnStatus(false); console.error(error); return null; }
+      if (data && data.length) all.push(...data);
+      if (!data || data.length < batchSize) break;
+      from += batchSize;
+    }
+    acSetConnStatus(true);
+    return all;
+  }
+
+  // ── LOAD STATS DATA ───────────────────────────────────────
+  async function acLoadStatsData() {
+    const result = await acFetchAllPages(db => {
+      let q = db.from('comercial_feedback')
+        .select('nota_avaliacao, tempo_medio_de_resposta, consultor, created_at')
+        .order('created_at', { ascending: false });
+      q = acBuildFilters(q);
+      return q;
+    });
+    return result || [];
+  }
+
+  // ── KPIs ──────────────────────────────────────────────────
+  function acRenderKPIs(data) {
+    const total = data.length;
+    const notas = data.map(r => r.nota_avaliacao).filter(n => n != null);
+    const tempos = data.map(r => r.tempo_medio_de_resposta).filter(t => t != null);
+    const altasCount = notas.filter(n => n >= 8).length;
+    const baixasCount = notas.filter(n => n < 5).length;
+    const notaMedia = notas.length ? (notas.reduce((a,b)=>a+b,0)/notas.length).toFixed(1) : '—';
+    const tempoMedio = tempos.length ? tempos.reduce((a,b)=>a+b,0)/tempos.length : null;
+
+    document.getElementById('ac-kpi-total').textContent = total.toLocaleString('pt-BR');
+    const notaEl = document.getElementById('ac-kpi-nota');
+    notaEl.textContent = notaMedia;
+    notaEl.style.color = notaMedia !== '—' ? acNotaColor(+notaMedia) : '';
+    document.getElementById('ac-kpi-tempo').textContent = acSecsToHuman(tempoMedio);
+    document.getElementById('ac-kpi-altas').textContent = altasCount.toLocaleString('pt-BR');
+    document.getElementById('ac-kpi-baixas').textContent = baixasCount.toLocaleString('pt-BR');
+  }
+
+  // ── CHARTS ────────────────────────────────────────────────
+  function acRenderCharts(data) {
+    acRenderConsultoresTable(data);
+    acRenderChartDistribuicao(data);
+  }
+
+  function acRenderConsultoresTable(data) {
+    const byConsult = {};
+    data.forEach(r => {
+      if (!r.consultor) return;
+      if (!byConsult[r.consultor]) byConsult[r.consultor] = { notas: [], tempos: [] };
+      if (r.nota_avaliacao != null) byConsult[r.consultor].notas.push(r.nota_avaliacao);
+      if (r.tempo_medio_de_resposta != null) byConsult[r.consultor].tempos.push(r.tempo_medio_de_resposta);
+    });
+
+    const entries = Object.entries(byConsult)
+      .map(([name, v]) => ({
+        name,
+        avgNota: v.notas.length ? v.notas.reduce((a,b)=>a+b,0)/v.notas.length : null,
+        avgTempo: v.tempos.length ? v.tempos.reduce((a,b)=>a+b,0)/v.tempos.length : null,
+        cnt: v.notas.length || v.tempos.length,
+      }))
+      .sort((a,b) => {
+        if (a.avgNota == null && b.avgNota == null) return 0;
+        if (a.avgNota == null) return 1;
+        if (b.avgNota == null) return -1;
+        return b.avgNota - a.avgNota;
+      });
+
+    if (!entries.length) {
+      document.getElementById('ac-consultoresTableWrap').innerHTML =
+        '<div class="empty-state"><p>Sem dados de consultores.</p></div>';
+      return;
+    }
+
+    const rows = entries.map((e, i) => {
+      const nota = e.avgNota != null ? e.avgNota.toFixed(1) : '—';
+      const barPct = e.avgNota != null ? (e.avgNota / 10 * 100).toFixed(1) : 0;
+      const color = acNotaColor(e.avgNota);
+      const tempoColor = e.avgTempo != null
+        ? (e.avgTempo <= 600 ? '#16a34a' : e.avgTempo <= 1800 ? '#d97706' : '#dc2626')
+        : '#94a3b8';
+      const nameEncoded = encodeURIComponent(e.name);
+      return `<tr>
+        <td class="consult-rank">${i + 1}</td>
+        <td class="consult-name">${acEscHtml(e.name)}</td>
+        <td>
+          <div class="nota-bar-wrap">
+            <div class="nota-bar-bg"><div class="nota-bar-fill" style="width:${barPct}%;background:${color}"></div></div>
+            <span class="nota-val" style="color:${color}">${nota}</span>
+          </div>
+        </td>
+        <td><span style="font-size:12.5px;font-weight:700;color:${tempoColor}">${acSecsToHuman(e.avgTempo)}</span></td>
+        <td class="consult-cnt">${e.cnt}</td>
+        <td>
+          <button class="btn-ver-mais" onclick="acShowConsultorView('${nameEncoded}')">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            Ver mais
+          </button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    document.getElementById('ac-consultoresTableWrap').innerHTML = `
+      <table class="consult-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Consultor</th>
+            <th>Nota Média</th>
+            <th>Tempo Médio Resp.</th>
+            <th style="text-align:center">Atend.</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  function acRenderChartDistribuicao(data) {
+    const notas = data.map(r => r.nota_avaliacao).filter(n => n != null);
+    const faixas = [0, 0, 0, 0];
+    notas.forEach(n => {
+      if (n < 5) faixas[0]++;
+      else if (n < 7) faixas[1]++;
+      else if (n < 9) faixas[2]++;
+      else faixas[3]++;
+    });
+    const ctx = document.getElementById('ac-chartDistribuicao').getContext('2d');
+    if (acChartDistribuicao) acChartDistribuicao.destroy();
+    const tc = acGetThemeColors();
+    const dark = document.documentElement.classList.contains('dark');
+    const colors = dark
+      ? ['#f87171', '#fb923c', '#fbbf24', '#34d399']
+      : ['#ef4444', '#f97316', '#f59e0b', '#22c55e'];
+    const borderColor = dark ? '#1e293b' : '#ffffff';
+
+    acChartDistribuicao = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Crítica (0–4)', 'Baixa (5–6)', 'Boa (7–8)', 'Excelente (9–10)'],
+        datasets: [{
+          data: faixas,
+          backgroundColor: colors,
+          borderColor: borderColor,
+          borderWidth: dark ? 3 : 2,
+          hoverOffset: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        cutout: '68%',
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { font: { size: 11 }, padding: 14, color: tc.tick, usePointStyle: true, pointStyleWidth: 10 }
+          },
+          tooltip: {
+            callbacks: {
+              label: ctx3 => {
+                const total = faixas.reduce((a,b)=>a+b,0);
+                const pct = total ? ((ctx3.raw / total) * 100).toFixed(1) : 0;
+                return ` ${ctx3.raw} atend. (${pct}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // ── TABLE ─────────────────────────────────────────────────
+  async function acLoadTable(page = 1) {
+    const db = acGetDb();
+    const from = (page - 1) * AC_PAGE_SIZE;
+    const to = from + AC_PAGE_SIZE - 1;
+    let query = db.from('comercial_feedback')
+      .select('id, contact_id, lead_id, consultor, avaliacao, nota_avaliacao, ponto_positivo, ponto_negativo, tempo_medio_de_resposta, created_at', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(from, to);
+    query = acBuildFilters(query);
+    const { data, count, error } = await query;
+    if (error) { console.error(error); return; }
+    acTotalCount = count || 0;
+    acRenderTable(data || [], page);
+    acRenderPagination(page, acTotalCount);
+    document.getElementById('ac-table-count-label').textContent = `${acTotalCount.toLocaleString('pt-BR')} registros`;
+  }
+
+  function acRenderTable(rows, page) {
+    const tbody = document.getElementById('ac-table-body');
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state">
+        <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12h6M9 16h6M9 8h6M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        <p>Nenhum atendimento encontrado com os filtros selecionados.</p>
+      </div></td></tr>`;
+      return;
+    }
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td class="td-muted">${acFormatDate(r.created_at)}</td>
+        <td><strong>${acEscHtml(r.consultor || '—')}</strong></td>
+        <td class="td-muted">${acEscHtml(r.contact_id || '—')}</td>
+        <td class="td-muted">${acEscHtml(r.lead_id || '—')}</td>
+        <td>
+          ${r.nota_avaliacao != null
+            ? `<span class="badge ${acNotaClass(r.nota_avaliacao)}">${r.nota_avaliacao}</span>`
+            : '<span class="td-muted">—</span>'}
+        </td>
+        <td class="td-truncate" title="${acEscHtml(r.ponto_positivo)}" style="max-width:160px;color:#16a34a;font-size:12px">
+          ${acEscHtml(r.ponto_positivo || '—')}
+        </td>
+        <td class="td-truncate" title="${acEscHtml(r.ponto_negativo)}" style="max-width:160px;color:#dc2626;font-size:12px">
+          ${acEscHtml(r.ponto_negativo || '—')}
+        </td>
+        <td>
+          <span class="tempo-badge ${acTempoClass(r.tempo_medio_de_resposta)}">
+            ${acSecsToHuman(r.tempo_medio_de_resposta)}
+          </span>
+        </td>
+        <td>
+          <button class="btn-detail" onclick="acOpenDetail(${r.id})">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            Ver
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function acRenderPagination(page, total) {
+    const totalPages = Math.ceil(total / AC_PAGE_SIZE);
+    const info = document.getElementById('ac-pagination-info');
+    const btns = document.getElementById('ac-pagination-btns');
+    const from2 = (page-1)*AC_PAGE_SIZE+1;
+    const to2 = Math.min(page*AC_PAGE_SIZE, total);
+    info.textContent = total ? `Exibindo ${from2}–${to2} de ${total.toLocaleString('pt-BR')}` : '0 resultados';
+
+    let html = `<button class="page-btn" onclick="acGotoPage(${page-1})" ${page<=1?'disabled':''}>‹ Ant.</button>`;
+    let start = Math.max(1, page-2), end = Math.min(totalPages, page+2);
+    if (page<=3) end = Math.min(totalPages, 5);
+    if (page>=totalPages-2) start = Math.max(1, totalPages-4);
+    if (start>1) html += `<button class="page-btn" onclick="acGotoPage(1)">1</button>${start>2?'<span style="padding:5px 4px;color:#94a3b8">…</span>':''}`;
+    for (let i=start;i<=end;i++) html += `<button class="page-btn${i===page?' active':''}" onclick="acGotoPage(${i})">${i}</button>`;
+    if (end<totalPages) html += `${end<totalPages-1?'<span style="padding:5px 4px;color:#94a3b8">…</span>':''}<button class="page-btn" onclick="acGotoPage(${totalPages})">${totalPages}</button>`;
+    html += `<button class="page-btn" onclick="acGotoPage(${page+1})" ${page>=totalPages?'disabled':''}>Próx. ›</button>`;
+    btns.innerHTML = html;
+  }
+
+  // ── CONSULTORES DROPDOWN ──────────────────────────────────
+  async function acLoadConsultores() {
+    const db = acGetDb();
+    const { data, error } = await db.from('comercial_feedback')
+      .select('consultor')
+      .not('consultor', 'is', null)
+      .order('consultor');
+    if (error || !data) return;
+    const unique = [...new Set(data.map(r => r.consultor).filter(Boolean))].sort();
+    const sel = document.getElementById('ac-f-consultor');
+    sel.innerHTML = '<option value="">Todos</option>' + unique.map(c => `<option value="${acEscHtml(c)}">${acEscHtml(c)}</option>`).join('');
+  }
+
+  // ── DETAIL MODAL ──────────────────────────────────────────
+  async function acOpenDetail(id) {
+    document.getElementById('ac-modal-overlay').classList.add('open');
+    document.getElementById('ac-modal-body').innerHTML = '<div class="empty-state"><div class="ac-spinner"></div></div>';
+    const db = acGetDb();
+    const { data, error } = await db.from('comercial_feedback')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error || !data) {
+      document.getElementById('ac-modal-body').innerHTML = '<p style="color:var(--danger);padding:20px">Erro ao carregar atendimento.</p>';
+      return;
+    }
+    acRenderModal(data);
+  }
+
+  function acRenderModal(r) {
+    document.getElementById('ac-modal-title').textContent = `Atendimento #${r.id}`;
+    document.getElementById('ac-modal-meta').innerHTML = `
+      ${r.consultor ? `<span class="modal-meta-chip"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6"/></svg>${acEscHtml(r.consultor)}</span>` : ''}
+      ${r.contact_id ? `<span class="modal-meta-chip">Contact: ${acEscHtml(r.contact_id)}</span>` : ''}
+      ${r.lead_id ? `<span class="modal-meta-chip">Lead: ${acEscHtml(r.lead_id)}</span>` : ''}
+      <span class="modal-meta-chip">${acFormatDate(r.created_at)}</span>
+    `;
+
+    const conv = acParseConversa(r.conversa_completa);
+    const metricas = conv?.metricas_tempo_resposta || null;
+    const messages = conv?.messages || [];
+    const convText = conv?.conversation_text || null;
+    const notaColor2 = acNotaColor(r.nota_avaliacao);
+
+    const body = `
+      <div>
+        <div class="modal-section-title">Avaliação da IA</div>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:12px 24px;align-items:start">
+          <div style="text-align:center;background:var(--bg);border-radius:12px;padding:14px 18px">
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px">NOTA</div>
+            <div style="font-size:44px;font-weight:900;line-height:1;color:${notaColor2}">${r.nota_avaliacao ?? '—'}</div>
+            <div style="font-size:10px;color:var(--text-muted);margin-top:2px">/10</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            ${r.avaliacao ? `<div>
+              <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px">AVALIAÇÃO</div>
+              <div style="font-size:13px;line-height:1.6;color:var(--text)">${acEscHtml(r.avaliacao)}</div>
+            </div>` : ''}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              ${r.ponto_positivo ? `<div style="background:var(--success-light);border-radius:8px;padding:10px 12px">
+                <div style="font-size:10px;font-weight:700;color:var(--success);margin-bottom:3px">✓ PONTO POSITIVO</div>
+                <div style="font-size:12.5px;color:var(--success)">${acEscHtml(r.ponto_positivo)}</div>
+              </div>` : ''}
+              ${r.ponto_negativo ? `<div style="background:var(--danger-light);border-radius:8px;padding:10px 12px">
+                <div style="font-size:10px;font-weight:700;color:var(--danger);margin-bottom:3px">✗ PONTO NEGATIVO</div>
+                <div style="font-size:12.5px;color:var(--danger)">${acEscHtml(r.ponto_negativo)}</div>
+              </div>` : ''}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="modal-section-title">Métricas de Tempo de Resposta</div>
+        <div class="metrics-grid">
+          <div class="metric-item">
+            <div class="metric-item-label">Tempo Médio (tabela)</div>
+            <div class="metric-item-value">${acSecsToHuman(r.tempo_medio_de_resposta)}</div>
+          </div>
+          ${metricas ? `
+          <div class="metric-item">
+            <div class="metric-item-label">Tempo Médio (cálculo)</div>
+            <div class="metric-item-value">${acSecsToHuman(metricas.tempo_medio_de_resposta_segundos)}</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-item-label">Pares Analisados</div>
+            <div class="metric-item-value">${metricas.total_pares_resposta ?? '—'}</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-item-label">Dentro de 1h (útil)</div>
+            <div class="metric-item-value green">${metricas.respostas_dentro_1h_horario_util ?? '—'}</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-item-label">Acima de 1h (útil)</div>
+            <div class="metric-item-value ${(metricas.respostas_acima_1h_horario_util ?? 0) > 0 ? 'orange' : ''}">${metricas.respostas_acima_1h_horario_util ?? '—'}</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-item-label">Msg. Pendente</div>
+            <div class="metric-item-value ${metricas.possui_mensagem_pendente_sem_resposta ? 'red' : 'green'}">${metricas.possui_mensagem_pendente_sem_resposta ? 'Sim ⚠' : 'Não'}</div>
+          </div>
+          ` : `<div class="metric-item"><div class="metric-item-label">Métricas detalhadas</div><div class="metric-item-value" style="font-size:13px;color:var(--text-muted)">Não disponíveis</div></div>`}
+        </div>
+      </div>
+
+      <div>
+        <div class="modal-section-title">Conversa Completa</div>
+        ${acRenderConversation(convText, messages)}
+      </div>
+    `;
+    document.getElementById('ac-modal-body').innerHTML = body;
+  }
+
+  function acRenderConversation(convText, messages) {
+    if (convText && convText.trim()) {
+      return `<div class="conversation-box">${acEscHtml(convText)}</div>`;
+    }
+    if (messages && messages.length) {
+      const bubbles = messages.map(m => {
+        const dir = (m.direction === 'outbound') ? 'outbound' : 'inbound';
+        const sender = m.sender_name || m.consultor_responsavel || (dir === 'inbound' ? m.lead_nome : 'Consultor') || '—';
+        const content = m.content || m.message_text || '';
+        const time = m.sent_at ? new Date(m.sent_at).toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'}) : '';
+        return `<div class="msg-bubble ${dir}">
+          <div class="msg-sender">${acEscHtml(sender)}</div>
+          ${acEscHtml(content)}
+          ${time ? `<div class="msg-meta">${time}</div>` : ''}
+        </div>`;
+      }).join('');
+      return `<div class="msg-bubble-wrap">${bubbles}</div>`;
+    }
+    return '<div style="color:var(--text-muted);font-size:13px;padding:12px 0">Conteúdo da conversa não disponível para este registro.</div>';
+  }
+
+  function acCloseModal() {
+    document.getElementById('ac-modal-overlay').classList.remove('open');
+  }
+
+  // ── CONSULTOR VIEW ────────────────────────────────────────
+  function acShowDashboardView() {
+    document.getElementById('ac-view-dashboard').style.display = '';
+    document.getElementById('ac-view-consultor').style.display = 'none';
+    document.getElementById('ac-btn-back').style.display = 'none';
+    document.getElementById('ac-btn-refresh-main').style.display = '';
+    document.getElementById('ac-page-title').textContent = 'Feedback Comercial';
+    acCurrentConsultor = null;
+    document.getElementById('ac-f-consultor').value = '';
+    acActiveFilters.consultor = null;
+  }
+
+  async function acShowConsultorView(nameEncoded) {
+    const name = decodeURIComponent(nameEncoded);
+    acCurrentConsultor = name;
+    acCvPage = 1;
+    acCvNotaFilterRange = null;
+    acCvDateInicio = acActiveFilters.inicio || null;
+    acCvDateFim    = acActiveFilters.fim    || null;
+    ['ac-cvf-all','ac-cvf-9','ac-cvf-7','ac-cvf-5','ac-cvf-low'].forEach(id => document.getElementById(id)?.classList.remove('active'));
+    document.getElementById('ac-cvf-all')?.classList.add('active');
+    document.getElementById('ac-cv-f-inicio').value = acCvDateInicio || '';
+    document.getElementById('ac-cv-f-fim').value    = acCvDateFim    || '';
+    acUpdateCvDateRangeLabel();
+
+    document.getElementById('ac-view-dashboard').style.display = 'none';
+    document.getElementById('ac-view-consultor').style.display = '';
+    document.getElementById('ac-btn-back').style.display = 'flex';
+    document.getElementById('ac-btn-refresh-main').style.display = 'none';
+    document.getElementById('ac-page-title').textContent = name;
+
+    document.getElementById('ac-cv-name').textContent = name;
+    document.getElementById('ac-cv-avatar').textContent = name.charAt(0).toUpperCase();
+    document.getElementById('ac-cv-stats').textContent = 'Carregando…';
+    document.getElementById('ac-cv-table-body').innerHTML =
+      '<tr><td colspan="8"><div class="empty-state"><div class="ac-spinner"></div></div></td></tr>';
+
+    acShowLoading();
+    try {
+      await acLoadConsultorView(name, acCvDateInicio, acCvDateFim);
+    } finally {
+      acHideLoading();
+    }
+  }
+
+  async function acLoadConsultorView(name, inicio, fim) {
+    const dateStart = inicio ? inicio + 'T00:00:00' : null;
+    const dateEnd   = fim    ? fim    + 'T23:59:59' : null;
+
+    const result = await acFetchAllPages(db => {
+      let q = db.from('comercial_feedback')
+        .select('id, nota_avaliacao, ponto_positivo, ponto_negativo, tempo_medio_de_resposta, avaliacao, created_at, updated_at, contact_id, lead_id')
+        .eq('consultor', name)
+        .order('updated_at', { ascending: false });
+      if (dateStart) q = q.gte('updated_at', dateStart);
+      if (dateEnd)   q = q.lte('updated_at', dateEnd);
+      return q;
+    });
+    if (result === null) return;
+
+    const all = result;
+    const notas = all.map(r => r.nota_avaliacao).filter(n => n != null);
+    const tempos = all.map(r => r.tempo_medio_de_resposta).filter(t => t != null);
+    const avgNota = notas.length ? notas.reduce((a,b)=>a+b,0)/notas.length : null;
+    const avgTempo = tempos.length ? tempos.reduce((a,b)=>a+b,0)/tempos.length : null;
+
+    document.getElementById('ac-cv-kpi-total').textContent = all.length.toLocaleString('pt-BR');
+    const notaEl = document.getElementById('ac-cv-kpi-nota');
+    notaEl.textContent = avgNota != null ? avgNota.toFixed(1) : '—';
+    notaEl.style.color = avgNota != null ? acNotaColor(avgNota) : '';
+    document.getElementById('ac-cv-kpi-tempo').textContent = acSecsToHuman(avgTempo);
+    document.getElementById('ac-cv-kpi-altas').textContent = notas.filter(n => n >= 8).length.toLocaleString('pt-BR');
+    document.getElementById('ac-cv-kpi-baixas').textContent = notas.filter(n => n < 5).length.toLocaleString('pt-BR');
+    document.getElementById('ac-cv-stats').textContent =
+      `${all.length} atendimento(s)  •  Nota média: ${avgNota != null ? avgNota.toFixed(1) : '—'}  •  Tempo médio: ${acSecsToHuman(avgTempo)}`;
+
+    acRenderConsultorInsights(all);
+    acCvTotal = all.length;
+    acCvPage = 1;
+    acRenderCvTable(all, 1);
+    acRenderCvPagination(1, all);
+    document.getElementById('ac-cv-table-count').textContent = `${all.length.toLocaleString('pt-BR')} registros`;
+    document.getElementById('ac-cv-table-title').textContent = `Atendimentos de ${name}`;
+    window._acCvAllData = all;
+  }
+
+  function acMostFrequentWithExamples(data, field, preferHighNota) {
+    const groups = {};
+    data.forEach(r => {
+      const v = r[field];
+      if (!v) return;
+      if (!groups[v]) groups[v] = { count: 0, ideal: null, fallback: null };
+      groups[v].count++;
+      const nota = r.nota_avaliacao;
+      if (preferHighNota) {
+        if (nota != null && (groups[v].ideal == null || nota > (groups[v].ideal.nota_avaliacao ?? -1))) {
+          groups[v].ideal = r;
+        }
+      } else {
+        if (nota != null && nota < 8) {
+          if (groups[v].ideal == null || nota < (groups[v].ideal.nota_avaliacao ?? 99)) {
+            groups[v].ideal = r;
+          }
+        }
+        if (nota != null && (groups[v].fallback == null || nota < (groups[v].fallback.nota_avaliacao ?? 99))) {
+          groups[v].fallback = r;
+        }
+      }
+    });
+    return Object.entries(groups)
+      .map(([text, g]) => ({ text, count: g.count, best: g.ideal || g.fallback || null }))
+      .sort((a,b) => b.count - a.count)
+      .slice(0, 6);
+  }
+
+  function acRenderConsultorInsights(data) {
+    const topPos = acMostFrequentWithExamples(data, 'ponto_positivo', true);
+    const topNeg = acMostFrequentWithExamples(data, 'ponto_negativo', false);
+
+    const renderRows = (list, type) => {
+      if (!list.length) return '<span style="color:var(--text-muted);font-size:13px">Sem dados suficientes</span>';
+      return list.map(item => {
+        const b = item.best;
+        const notaBadge = b?.nota_avaliacao != null
+          ? `<span style="font-size:10px;font-weight:800;padding:1px 6px;border-radius:10px;margin-left:4px;background:${acNotaColor(b.nota_avaliacao)}22;color:${acNotaColor(b.nota_avaliacao)}">${b.nota_avaliacao}</span>`
+          : '';
+        const btnOnclick = b ? `acOpenDetail(${b.id})` : '';
+        return `<div class="insight-row ${type}">
+          <span class="insight-row-cnt ${type}">${item.count}</span>
+          <span class="insight-row-text">${acEscHtml(item.text)}${notaBadge}</span>
+          ${b ? `<button class="insight-row-btn ${type}" onclick="${btnOnclick}">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            Ver
+          </button>` : ''}
+        </div>`;
+      }).join('');
+    };
+
+    document.getElementById('ac-cv-ponto-forte').innerHTML = renderRows(topPos, 'pos');
+    document.getElementById('ac-cv-ponto-fraco').innerHTML = renderRows(topNeg, 'neg');
+  }
+
+  function acRenderCvTable(all, page) {
+    const from2 = (page - 1) * AC_PAGE_SIZE;
+    const rows = all.slice(from2, from2 + AC_PAGE_SIZE);
+    const tbody = document.getElementById('ac-cv-table-body');
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><p>Nenhum atendimento encontrado.</p></div></td></tr>`;
+      return;
+    }
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td class="td-muted">${acFormatDate(r.updated_at || r.created_at)}</td>
+        <td class="td-muted">${acEscHtml(r.contact_id || '—')}</td>
+        <td class="td-muted">${acEscHtml(r.lead_id || '—')}</td>
+        <td>${r.nota_avaliacao != null
+          ? `<span class="badge ${acNotaClass(r.nota_avaliacao)}">${r.nota_avaliacao}</span>`
+          : '<span class="td-muted">—</span>'}</td>
+        <td class="td-truncate" title="${acEscHtml(r.ponto_positivo)}" style="max-width:160px;color:#16a34a;font-size:12px">
+          ${acEscHtml(r.ponto_positivo || '—')}</td>
+        <td class="td-truncate" title="${acEscHtml(r.ponto_negativo)}" style="max-width:160px;color:#dc2626;font-size:12px">
+          ${acEscHtml(r.ponto_negativo || '—')}</td>
+        <td><span class="tempo-badge ${acTempoClass(r.tempo_medio_de_resposta)}">${acSecsToHuman(r.tempo_medio_de_resposta)}</span></td>
+        <td>
+          <button class="btn-detail" onclick="acOpenDetail(${r.id})">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            Ver
+          </button>
+        </td>
+      </tr>`).join('');
+  }
+
+  function acRenderCvPagination(page, all) {
+    const total = all.length;
+    const totalPages = Math.ceil(total / AC_PAGE_SIZE);
+    const from2 = (page-1)*AC_PAGE_SIZE+1;
+    const to2 = Math.min(page*AC_PAGE_SIZE, total);
+    document.getElementById('ac-cv-pagination-info').textContent =
+      total ? `Exibindo ${from2}–${to2} de ${total.toLocaleString('pt-BR')}` : '0 resultados';
+
+    let html = `<button class="page-btn" onclick="acCvGotoPage(${page-1})" ${page<=1?'disabled':''}>‹ Ant.</button>`;
+    let start = Math.max(1, page-2), end = Math.min(totalPages, page+2);
+    if (page<=3) end = Math.min(totalPages, 5);
+    if (page>=totalPages-2) start = Math.max(1, totalPages-4);
+    if (start>1) html += `<button class="page-btn" onclick="acCvGotoPage(1)">1</button>${start>2?'<span style="padding:5px 4px;color:#94a3b8">…</span>':''}`;
+    for (let i=start;i<=end;i++) html += `<button class="page-btn${i===page?' active':''}" onclick="acCvGotoPage(${i})">${i}</button>`;
+    if (end<totalPages) html += `${end<totalPages-1?'<span style="padding:5px 4px;color:#94a3b8">…</span>':''}<button class="page-btn" onclick="acCvGotoPage(${totalPages})">${totalPages}</button>`;
+    html += `<button class="page-btn" onclick="acCvGotoPage(${page+1})" ${page>=totalPages?'disabled':''}>Próx. ›</button>`;
+    document.getElementById('ac-cv-pagination-btns').innerHTML = html;
+  }
+
+  function acUpdateCvDateRangeLabel() {
+    const ini = acCvDateInicio;
+    const fim = acCvDateFim;
+    const fmt = d => d ? d.split('-').reverse().join('/') : null;
+    let label = '';
+    if (ini && fim) label = `${fmt(ini)} – ${fmt(fim)}`;
+    else if (ini) label = `A partir de ${fmt(ini)}`;
+    else if (fim) label = `Até ${fmt(fim)}`;
+    else label = 'Período completo';
+    document.getElementById('ac-cv-date-range-label').textContent = label;
+  }
+
+  function acGetCvActiveData() {
+    const all = window._acCvAllData || [];
+    if (!acCvNotaFilterRange) return all;
+    const [min, max] = acCvNotaFilterRange;
+    return all.filter(r => r.nota_avaliacao != null && r.nota_avaliacao >= min && r.nota_avaliacao <= max);
+  }
+
+  // ── FILTERS ───────────────────────────────────────────────
+  function acApplyFilters() {
+    const consultorSelecionado = document.getElementById('ac-f-consultor').value;
+    acActiveFilters = {
+      inicio: document.getElementById('ac-f-inicio').value || null,
+      fim: document.getElementById('ac-f-fim').value || null,
+      consultor: consultorSelecionado || null,
+      notaMin: document.getElementById('ac-f-nota-min').value !== '' ? +document.getElementById('ac-f-nota-min').value : null,
+      notaMax: document.getElementById('ac-f-nota-max').value !== '' ? +document.getElementById('ac-f-nota-max').value : null,
+      search: document.getElementById('ac-f-search').value || null,
+    };
+    if (consultorSelecionado) {
+      acShowConsultorView(encodeURIComponent(consultorSelecionado));
+      return;
+    }
+    acCurrentPage = 1;
+    acLoadAll();
+  }
+
+  function acClearFilters() {
+    document.getElementById('ac-f-inicio').value = '';
+    document.getElementById('ac-f-fim').value = '';
+    document.getElementById('ac-f-consultor').value = '';
+    document.getElementById('ac-f-nota-min').value = '';
+    document.getElementById('ac-f-nota-max').value = '';
+    document.getElementById('ac-f-search').value = '';
+    acActiveFilters = {};
+    acCurrentPage = 1;
+    acLoadAll();
+  }
+
+  function acSetDefaultDates() {
+    const hoje = new Date();
+    const inicio = new Date();
+    inicio.setDate(inicio.getDate() - 30);
+    document.getElementById('ac-f-fim').value = hoje.toISOString().slice(0,10);
+    document.getElementById('ac-f-inicio').value = inicio.toISOString().slice(0,10);
+    acActiveFilters.inicio = document.getElementById('ac-f-inicio').value;
+    acActiveFilters.fim = document.getElementById('ac-f-fim').value;
+  }
+
+  async function acApplyCvDateFilter() {
+    const ini = document.getElementById('ac-cv-f-inicio').value || null;
+    const fim = document.getElementById('ac-cv-f-fim').value    || null;
+    acCvDateInicio = ini;
+    acCvDateFim    = fim;
+    acCvNotaFilterRange = null;
+    acCvPage = 1;
+    ['ac-cvf-all','ac-cvf-9','ac-cvf-7','ac-cvf-5','ac-cvf-low'].forEach(id => document.getElementById(id)?.classList.remove('active'));
+    document.getElementById('ac-cvf-all')?.classList.add('active');
+    acUpdateCvDateRangeLabel();
+    acShowLoading();
+    try { await acLoadConsultorView(acCurrentConsultor, acCvDateInicio, acCvDateFim); }
+    finally { acHideLoading(); }
+  }
+
+  async function acClearCvDateFilter() {
+    acCvDateInicio = acActiveFilters.inicio || null;
+    acCvDateFim    = acActiveFilters.fim    || null;
+    document.getElementById('ac-cv-f-inicio').value = acCvDateInicio || '';
+    document.getElementById('ac-cv-f-fim').value    = acCvDateFim    || '';
+    acCvNotaFilterRange = null;
+    acCvPage = 1;
+    ['ac-cvf-all','ac-cvf-9','ac-cvf-7','ac-cvf-5','ac-cvf-low'].forEach(id => document.getElementById(id)?.classList.remove('active'));
+    document.getElementById('ac-cvf-all')?.classList.add('active');
+    acUpdateCvDateRangeLabel();
+    acShowLoading();
+    try { await acLoadConsultorView(acCurrentConsultor, acCvDateInicio, acCvDateFim); }
+    finally { acHideLoading(); }
+  }
+
+  function acSetCvNotaFilter(range) {
+    acCvNotaFilterRange = range;
+    acCvPage = 1;
+    ['ac-cvf-all','ac-cvf-9','ac-cvf-7','ac-cvf-5','ac-cvf-low'].forEach(id => {
+      document.getElementById(id)?.classList.remove('active');
+    });
+    if (!range)              document.getElementById('ac-cvf-all')?.classList.add('active');
+    else if (range[0] === 9) document.getElementById('ac-cvf-9')?.classList.add('active');
+    else if (range[0] === 7) document.getElementById('ac-cvf-7')?.classList.add('active');
+    else if (range[0] === 5) document.getElementById('ac-cvf-5')?.classList.add('active');
+    else if (range[0] === 0) document.getElementById('ac-cvf-low')?.classList.add('active');
+    const active = acGetCvActiveData();
+    document.getElementById('ac-cv-table-count').textContent = `${active.length.toLocaleString('pt-BR')} registros`;
+    acRenderCvTable(active, 1);
+    acRenderCvPagination(1, active);
+  }
+
+  function acGotoPage(p) {
+    const totalPages = Math.ceil(acTotalCount / AC_PAGE_SIZE);
+    if (p < 1 || p > totalPages) return;
+    acCurrentPage = p;
+    acLoadTable(p);
+  }
+
+  function acCvGotoPage(p) {
+    const active = acGetCvActiveData();
+    const totalPages = Math.ceil(active.length / AC_PAGE_SIZE);
+    if (p < 1 || p > totalPages) return;
+    acCvPage = p;
+    acRenderCvTable(active, p);
+    acRenderCvPagination(p, active);
+  }
+
+  // ── MAIN LOAD ─────────────────────────────────────────────
+  async function acLoadAll() {
+    acShowLoading();
+    try {
+      const statsData = await acLoadStatsData();
+      acAllStatsData = statsData;
+      acRenderKPIs(statsData);
+      acRenderCharts(statsData);
+      await acLoadTable(acCurrentPage);
+      const t = document.getElementById('ac-last-update-time');
+      if (t) t.textContent = 'Atualizado: ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+      acSetConnStatus(true);
+    } catch (e) {
+      console.error(e);
+      acSetConnStatus(false);
+    } finally {
+      acHideLoading();
+    }
+  }
+
+  // ── MODAL CLOSE ON CLICK OUTSIDE / ESC ───────────────────
+  document.addEventListener('click', e => {
+    const overlay = document.getElementById('ac-modal-overlay');
+    if (overlay && e.target === overlay) acCloseModal();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') acCloseModal();
+  });
+
+  // ── EXPOSE GLOBALS ────────────────────────────────────────
+  window.acLoadPage = async function () {
+    if (_acInitialized) return;
+    _acInitialized = true;
+    acSetDefaultDates();
+    await acLoadConsultores();
+    await acLoadAll();
+  };
+  window.acLoadAll           = acLoadAll;
+  window.acApplyFilters      = acApplyFilters;
+  window.acClearFilters      = acClearFilters;
+  window.acShowConsultorView = acShowConsultorView;
+  window.acShowDashboardView = acShowDashboardView;
+  window.acGotoPage          = acGotoPage;
+  window.acCvGotoPage        = acCvGotoPage;
+  window.acOpenDetail        = acOpenDetail;
+  window.acCloseModal        = acCloseModal;
+  window.acApplyCvDateFilter = acApplyCvDateFilter;
+  window.acClearCvDateFilter = acClearCvDateFilter;
+  window.acSetCvNotaFilter   = acSetCvNotaFilter;
+
+})();
+</script>
