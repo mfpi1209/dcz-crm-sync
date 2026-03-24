@@ -232,14 +232,14 @@ async function _kommoStartSync(mode) {
         });
         const d = await res.json();
         if (!d.ok) {
-            alert(d.error || 'Erro ao iniciar sync');
+            toast(d.error || 'Erro ao iniciar sync', 'error');
             _kommoResetButtons();
             return;
         }
         _kommoTaskId = d.task_id;
         _kommoPollTask();
     } catch (e) {
-        alert('Erro: ' + e.message);
+        toast('Erro: ' + e.message, 'error');
         _kommoResetButtons();
     }
 }

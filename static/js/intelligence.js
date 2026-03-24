@@ -294,7 +294,7 @@ function _showEngAlert(type, message) {
     };
     const icons = { success: '✓', warning: '⚠', error: '✕', info: 'ℹ' };
     const container = document.getElementById('eng-alert-container');
-    if (!container) { alert(message); return; }
+    if (!container) { toast(message, 'info'); return; }
     container.innerHTML = `<div class="rounded-lg border px-4 py-3 text-sm mb-4 flex items-start gap-2 ${colors[type] || colors.info}">
         <span class="font-bold text-base leading-none mt-0.5">${icons[type] || 'ℹ'}</span>
         <span>${message}</span>
@@ -306,9 +306,9 @@ async function _triggerEvaluation() {
     try {
         const res = await api('/api/comm/evaluate', {method:'POST'});
         const d = await res.json();
-        alert(d.message || 'Avaliação iniciada');
+        toast(d.message || 'Avaliação iniciada', 'success');
         setTimeout(() => _loadCommLog(), 3000);
-    } catch(e) { alert('Erro: ' + e.message); }
+    } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
 function _engNivel() {
@@ -595,17 +595,17 @@ async function _saveCommRule(ruleId) {
         priority: parseInt(document.getElementById('rule-priority').value) || 0,
         enabled: document.getElementById('rule-enabled').checked,
     };
-    if (!body.name) { alert('Nome é obrigatório'); return; }
-    if (!body.message_template) { alert('Template é obrigatório'); return; }
+    if (!body.name) { toast('Nome é obrigatório', 'warning'); return; }
+    if (!body.message_template) { toast('Template é obrigatório', 'warning'); return; }
     try {
         const method = ruleId ? 'PUT' : 'POST';
         const url = ruleId ? `/api/comm/rules/${ruleId}` : '/api/comm/rules';
         const res = await api(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
         const d = await res.json();
-        if (d.error) { alert('Erro: ' + d.error); return; }
+        if (d.error) { toast('Erro: ' + d.error, 'error'); return; }
         document.getElementById('rule-modal').remove();
         _loadCommRules();
-    } catch(e) { alert('Erro: ' + e.message); }
+    } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
 async function _deleteCommRule(ruleId) {
@@ -613,9 +613,9 @@ async function _deleteCommRule(ruleId) {
     try {
         const res = await api(`/api/comm/rules/${ruleId}`, {method:'DELETE'});
         const d = await res.json();
-        if (d.error) { alert('Erro: ' + d.error); return; }
+        if (d.error) { toast('Erro: ' + d.error, 'error'); return; }
         _loadCommRules();
-    } catch(e) { alert('Erro: ' + e.message); }
+    } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
 async function _toggleRuleEnabled(ruleId, newState) {
@@ -626,7 +626,7 @@ async function _toggleRuleEnabled(ruleId, newState) {
             body: JSON.stringify({enabled: newState})
         });
         const d = await res.json();
-        if (d.error) { alert('Erro: ' + d.error); return; }
+        if (d.error) { toast('Erro: ' + d.error, 'error'); return; }
         _loadCommRules();
-    } catch(e) { alert('Erro: ' + e.message); }
+    } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }

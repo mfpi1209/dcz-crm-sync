@@ -1098,13 +1098,19 @@ def api_lista_alunos_latest():
                     params.append(sit_clean)
 
                 if f_nivel:
-                    mat_conditions.append(
-                        f"TRANSLATE(LOWER(COALESCE(m.data->>'nivel','')), "
-                        f"'áàãâéèêíìîóòõôúùûçñ', 'aaaaeeeiiioooouuucn') = %s"
-                    )
-                    import unicodedata as _ud2
-                    nivel_clean = _ud2.normalize('NFD', f_nivel.lower()).encode('ascii', 'ignore').decode('ascii')
-                    params.append(nivel_clean)
+                    nivel_case = """(
+                        CASE
+                          WHEN COALESCE(m.data->>'nivel','') != '' THEN
+                            CASE WHEN m.data->>'nivel' ~* 'p[oó]s' THEN 'Pós-Graduação'
+                                 ELSE 'Graduação' END
+                          WHEN m.data->>'negocio' ~* 'p[oó]s' THEN 'Pós-Graduação'
+                          WHEN m.data->>'curso' ~* '(mba|especializa[cç][aã]o|p[oó]s.gradua|lato.sensu|stricto)'
+                               THEN 'Pós-Graduação'
+                          ELSE 'Graduação'
+                        END
+                    ) = %s"""
+                    mat_conditions.append(nivel_case)
+                    params.append(f_nivel)
 
                 where_extra = (" AND " + " AND ".join(mat_conditions)) if mat_conditions else ""
                 params.append(snap_id)

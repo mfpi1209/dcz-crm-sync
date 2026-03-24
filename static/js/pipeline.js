@@ -13,10 +13,10 @@ async function startSanitize(mode) {
     try {
         const res = await api('/api/sanitize/' + mode, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
         const d = await res.json();
-        if (d.error) { alert(d.error); return; }
+        if (d.error) { toast(d.error, 'error'); return; }
         setSanBtns(true);
         startSanPolling();
-    } catch(e) { alert('Erro: ' + e.message); }
+    } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
 function confirmSanitize() {
@@ -76,10 +76,10 @@ async function startPipeline(mode) {
     try {
         const res = await api('/api/pipeline/' + mode, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
         const d = await res.json();
-        if (d.error) { alert(d.error); return; }
+        if (d.error) { toast(d.error, 'error'); return; }
         setPipeBtns(true);
         startPipePolling();
-    } catch(e) { alert('Erro: ' + e.message); }
+    } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
 function confirmPipeline() {
@@ -156,10 +156,10 @@ async function startEnrich() {
             body: JSON.stringify({ rate })
         });
         const d = await res.json();
-        if (d.error) { alert(d.error); return; }
+        if (d.error) { toast(d.error, 'error'); return; }
         setEnrichBtns(true);
         startEnrichPolling();
-    } catch(e) { alert('Erro: ' + e.message); }
+    } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
 function setEnrichBtns(running) {
@@ -223,10 +223,10 @@ async function startMerge(mode) {
             body: JSON.stringify(body),
         });
         const d = await res.json();
-        if (d.error) { alert(d.error); return; }
+        if (d.error) { toast(d.error, 'error'); return; }
         setMergeBtns(true);
         startMergePolling();
-    } catch(e) { alert('Erro: ' + e.message); }
+    } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
 function confirmMerge() {
@@ -288,10 +288,10 @@ async function startInadimplentes(mode) {
             body: JSON.stringify({ rate })
         });
         const d = await res.json();
-        if (d.error) { alert(d.error); return; }
+        if (d.error) { toast(d.error, 'error'); return; }
         setInadBtns(true);
         startInadPolling();
-    } catch(e) { alert('Erro: ' + e.message); }
+    } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
 function confirmInadimplentes() {
@@ -350,10 +350,10 @@ async function startConcluintes(mode) {
             body: JSON.stringify({ rate })
         });
         const d = await res.json();
-        if (d.error) { alert(d.error); return; }
+        if (d.error) { toast(d.error, 'error'); return; }
         setConcBtns(true);
         startConcPolling();
-    } catch(e) { alert('Erro: ' + e.message); }
+    } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
 function confirmConcluintes() {
