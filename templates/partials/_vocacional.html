@@ -378,9 +378,18 @@
     .voc-dp-btn-apply { background: var(--blue, #3b82f6); color: #fff; border-color: var(--blue, #3b82f6); }
     .voc-dp-btn-apply:hover { opacity: .88; }
     @media (max-width: 640px) {
-        .voc-dp-popup { width: calc(100vw - 24px); }
+        .voc-dp-popup {
+            width: calc(100vw - 24px) !important;
+            left: 12px !important;
+            right: 12px !important;
+            max-height: calc(100svh - 90px);
+            overflow-y: auto;
+        }
         .voc-dp-calendars { grid-template-columns: 1fr; }
         .voc-dp-cal + .voc-dp-cal { border-left: none; border-top: 1px solid var(--border, #2a3452); padding-left: 0; padding-top: 16px; margin-top: 8px; }
+        .voc-dp-top { flex-wrap: wrap; gap: 8px; }
+        .voc-dp-preset-label { min-width: unset; width: 100%; }
+        .voc-dp-presets { right: auto; left: 0; width: 100%; }
     }
 </style>
 
@@ -2822,20 +2831,38 @@ function vocOpenDatePicker(triggerEl) {
 
     const popup = document.getElementById('vocDpPopup');
     const rect  = triggerEl.getBoundingClientRect();
-    popup.style.top  = (rect.bottom + 6) + 'px';
-    popup.style.left = rect.left + 'px';
+
+    const isMobile = window.innerWidth <= 640;
+    if (isMobile) {
+        // No mobile: o CSS já fixa left:12px via !important.
+        // Posiciona abaixo do botão ou acima se não couber.
+        const estimatedHeight = Math.min(window.innerHeight * 0.8, 560);
+        const spaceBelow = window.innerHeight - rect.bottom - 8;
+        if (spaceBelow >= estimatedHeight || spaceBelow >= window.innerHeight * 0.45) {
+            popup.style.top = (rect.bottom + 6) + 'px';
+        } else {
+            // Abre acima do botão
+            popup.style.top = Math.max(8, rect.top - estimatedHeight - 6) + 'px';
+        }
+        popup.style.left = '12px';
+    } else {
+        popup.style.top  = (rect.bottom + 6) + 'px';
+        popup.style.left = rect.left + 'px';
+    }
 
     vocDpRender();
     document.getElementById('vocDpOverlay').classList.add('open');
     popup.classList.add('open');
 
-    setTimeout(() => {
-        const pr = popup.getBoundingClientRect();
-        if (pr.right > window.innerWidth - 12)
-            popup.style.left = Math.max(8, window.innerWidth - pr.width - 12) + 'px';
-        if (pr.bottom > window.innerHeight - 12)
-            popup.style.top = (rect.top - pr.height - 6) + 'px';
-    }, 0);
+    if (!isMobile) {
+        setTimeout(() => {
+            const pr = popup.getBoundingClientRect();
+            if (pr.right > window.innerWidth - 12)
+                popup.style.left = Math.max(8, window.innerWidth - pr.width - 12) + 'px';
+            if (pr.bottom > window.innerHeight - 12)
+                popup.style.top = (rect.top - pr.height - 6) + 'px';
+        }, 0);
+    }
 }
 
 function vocCloseDatePicker() {
