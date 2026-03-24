@@ -90,37 +90,33 @@ function _renderFunnelCards(data, prefix) {
         let deltaHtml = '';
         if (s.delta !== 0 && s.delta !== undefined) {
             const sign = s.delta > 0 ? '+' : '';
-            const color = s.delta > 0 ? 'text-emerald-400' : 'text-red-400';
-            const arrow = s.delta > 0
-                ? '<svg class="w-3 h-3 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 15l7-7 7 7"/></svg>'
-                : '<svg class="w-3 h-3 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7"/></svg>';
-            deltaHtml = `<span class="${color} text-xs font-bold flex items-center gap-0.5">${arrow} ${sign}${s.delta}</span>`;
+            const color = s.delta > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400';
+            const bgColor = s.delta > 0 ? 'bg-emerald-50 dark:bg-emerald-500/10' : 'bg-red-50 dark:bg-red-500/10';
+            const arrow = s.delta > 0 ? 'trending_up' : 'trending_down';
+            deltaHtml = `<span class="${color} ${bgColor} text-xs font-bold flex items-center gap-0.5 px-2 py-0.5 rounded-full"><span class="material-symbols-outlined text-sm">${arrow}</span> ${sign}${s.delta}</span>`;
         } else {
-            deltaHtml = '<span class="text-slate-600 text-xs">—</span>';
+            deltaHtml = '<span class="text-slate-400 dark:text-slate-600 text-xs">—</span>';
         }
 
         let deltaPctHtml = '';
         if (s.delta_pct !== 0 && s.delta_pct !== undefined) {
             const sign = s.delta_pct > 0 ? '+' : '';
-            const color = s.delta_pct > 0 ? 'text-emerald-400/70' : 'text-red-400/70';
+            const color = s.delta_pct > 0 ? 'text-emerald-500 dark:text-emerald-400/70' : 'text-red-500 dark:text-red-400/70';
             deltaPctHtml = `<span class="${color} text-[10px]">${sign}${s.delta_pct}%</span>`;
         }
 
         return `
-        <div class="group relative rounded-2xl overflow-hidden border ${g.border} ${g.shadow} shadow-lg
-                    bg-slate-900/80 hover:bg-slate-800/90 transition-all duration-300 hover:scale-[1.02] cursor-default">
-            <div class="absolute inset-0 opacity-[0.08] group-hover:opacity-[0.14] transition-opacity"
-                 style="background:linear-gradient(135deg, ${g.from}, ${g.to})"></div>
-            <div class="absolute top-0 left-0 right-0 h-1 rounded-t-2xl"
-                 style="background:linear-gradient(90deg, ${g.from}, ${g.to})"></div>
-            <div class="relative p-5">
+        <div class="bg-white dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm
+                    hover:shadow-md transition-all duration-300 cursor-default overflow-hidden">
+            <div class="h-1 rounded-t-xl" style="background:linear-gradient(90deg, ${g.from}, ${g.to})"></div>
+            <div class="p-5">
                 <div class="flex items-start justify-between mb-3">
                     <p class="text-[10px] font-bold uppercase tracking-widest" style="color:${g.from}">${s.label}</p>
-                    <span class="text-[10px] text-slate-500 font-mono">${s.pct || 0}%</span>
+                    <span class="text-[10px] text-slate-400 dark:text-slate-500 font-mono">${s.pct || 0}%</span>
                 </div>
-                <p class="text-4xl font-black text-white font-display mb-2">${s.count.toLocaleString('pt-BR')}</p>
+                <p class="text-3xl font-black text-slate-900 dark:text-white font-display mb-2">${s.count.toLocaleString('pt-BR')}</p>
                 <div class="flex items-center gap-2">
-                    <span class="text-[10px] text-slate-500">D0:</span>
+                    <span class="text-[10px] text-slate-400 dark:text-slate-500">D0:</span>
                     ${deltaHtml}
                     ${deltaPctHtml}
                 </div>
@@ -236,14 +232,14 @@ async function _kommoStartSync(mode) {
         });
         const d = await res.json();
         if (!d.ok) {
-            alert(d.error || 'Erro ao iniciar sync');
+            toast(d.error || 'Erro ao iniciar sync', 'error');
             _kommoResetButtons();
             return;
         }
         _kommoTaskId = d.task_id;
         _kommoPollTask();
     } catch (e) {
-        alert('Erro: ' + e.message);
+        toast('Erro: ' + e.message, 'error');
         _kommoResetButtons();
     }
 }

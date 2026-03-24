@@ -6,7 +6,20 @@ Uso:
     Acesse http://localhost:5001
 """
 
-import os
+import sys, os, io, warnings
+
+warnings.filterwarnings("ignore", message=".*collation.*")
+
+if sys.platform == "win32":
+    for _s in ("stdout", "stderr"):
+        _orig = getattr(sys, _s)
+        if hasattr(_orig, "buffer"):
+            try:
+                setattr(sys, _s, io.TextIOWrapper(_orig.buffer, encoding="utf-8", errors="replace", line_buffering=True))
+            except Exception:
+                pass
+
+import time
 from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask
@@ -15,6 +28,7 @@ load_dotenv(Path(__file__).parent / ".env")
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dcz-sync-default-key-change-me")
+app.config["CACHE_BUST"] = str(int(time.time()))
 
 # ── Registrar Blueprints ──────────────────────────────────────────────────
 

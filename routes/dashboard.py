@@ -162,6 +162,7 @@ def api_dashboard_students():
     f_nivel = request.args.get("nivel", "")
     f_sit = request.args.get("situacao", "")
     f_ciclo = request.args.get("ciclo", "")
+    f_tipo = request.args.get("tipo", "")
     conn = get_conn()
     try:
         if f_ciclo:
@@ -184,6 +185,16 @@ def api_dashboard_students():
             })
             rows = cur.fetchall()
 
+        # novos_agg = novos + regresso + recompra
+        _NOVOS_AGG = {"novos", "regresso", "recompra"}
+
+        def _tipo_matches(cat):
+            if not f_tipo:
+                return True
+            if f_tipo == "novos_agg":
+                return cat in _NOVOS_AGG
+            return cat == f_tipo
+
         totals = {"novos": 0, "regresso": 0, "recompra": 0, "rematricula": 0, "outros": 0}
         by_situacao = {}
         by_nivel = {}
@@ -199,27 +210,26 @@ def api_dashboard_students():
             totals[cat] += r["total"]
             raw_tipos[tipo] = raw_tipos.get(tipo, 0) + r["total"]
 
-            sit = r["situacao"] or "N/I"
-            by_situacao[sit] = by_situacao.get(sit, 0) + r["total"]
-
-            niv = r["nivel"] or "N/I"
-            by_nivel[niv] = by_nivel.get(niv, 0) + r["total"]
-
-            polo = r["polo"] or "N/I"
-            by_polo[polo] = by_polo.get(polo, 0) + r["total"]
-
-            turma = r["turma"] or "N/I"
-            by_turma[turma] = by_turma.get(turma, 0) + r["total"]
-
-            ciclo = r["ciclo"] or "N/I"
-            by_ciclo[ciclo] = by_ciclo.get(ciclo, 0) + r["total"]
-
             if cat not in by_tipo_detail:
                 by_tipo_detail[cat] = {"by_situacao": {}, "by_nivel": {}, "by_polo": {}}
             td = by_tipo_detail[cat]
+
+            sit = r["situacao"] or "N/I"
+            niv = r["nivel"] or "N/I"
+            polo = r["polo"] or "N/I"
+            turma = r["turma"] or "N/I"
+            ciclo = r["ciclo"] or "N/I"
+
             td["by_situacao"][sit] = td["by_situacao"].get(sit, 0) + r["total"]
             td["by_nivel"][niv] = td["by_nivel"].get(niv, 0) + r["total"]
             td["by_polo"][polo] = td["by_polo"].get(polo, 0) + r["total"]
+
+            if _tipo_matches(cat):
+                by_situacao[sit] = by_situacao.get(sit, 0) + r["total"]
+                by_nivel[niv] = by_nivel.get(niv, 0) + r["total"]
+                by_polo[polo] = by_polo.get(polo, 0) + r["total"]
+                by_turma[turma] = by_turma.get(turma, 0) + r["total"]
+                by_ciclo[ciclo] = by_ciclo.get(ciclo, 0) + r["total"]
 
         for cat in by_tipo_detail:
             td = by_tipo_detail[cat]
@@ -238,6 +248,7 @@ def api_dashboard_students():
             "grand_total": sum(totals.values()),
             "raw_tipos": dict(sorted(raw_tipos.items(), key=lambda x: -x[1])),
             "filter": {"from": dt_from, "to": dt_to},
+            "active_tipo": f_tipo,
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500

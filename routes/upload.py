@@ -140,6 +140,30 @@ def _compute_snapshot_stats(snap_id, tipo):
                 by_inst[inst] = by_inst.get(inst, 0) + 1
             metrics["by_instituicao"] = by_inst
 
+        elif tipo == "lista_alunos":
+            adim, inadim = 0, 0
+            inad_by_polo, inad_by_curso, by_status = {}, {}, {}
+            for r in rows:
+                is_inad = r.get("inadimplente") == "sim"
+                if is_inad:
+                    inadim += 1
+                    p = r.get("polo", "N/I") or "N/I"
+                    inad_by_polo[p] = inad_by_polo.get(p, 0) + 1
+                    c = r.get("curso", "N/I") or "N/I"
+                    inad_by_curso[c] = inad_by_curso.get(c, 0) + 1
+                else:
+                    adim += 1
+                st = r.get("status_matricula", "N/I") or "N/I"
+                by_status[st] = by_status.get(st, 0) + 1
+            total_a = len(rows)
+            metrics["total_alunos"] = total_a
+            metrics["inadimplentes"] = inadim
+            metrics["adimplentes"] = adim
+            metrics["pct_inadimplencia"] = round(inadim / total_a * 100, 2) if total_a else 0
+            metrics["inad_by_polo"] = dict(sorted(inad_by_polo.items(), key=lambda x: -x[1])[:20])
+            metrics["inad_by_curso"] = dict(sorted(inad_by_curso.items(), key=lambda x: -x[1])[:20])
+            metrics["by_status"] = dict(sorted(by_status.items(), key=lambda x: -x[1]))
+
         metrics["by_polo"] = dict(sorted(by_polo.items(), key=lambda x: -x[1])[:20])
         metrics["by_curso"] = dict(sorted(by_curso.items(), key=lambda x: -x[1])[:20])
 
@@ -571,6 +595,78 @@ def _parse_sem_rematricula(folder_path):
 
 
 # ---------------------------------------------------------------------------
+# Parser — Lista de Alunos (inadimplência/adimplência)
+# ---------------------------------------------------------------------------
+
+_LISTA_ALUNOS_COL_MAP = {
+    "ciclo": "ciclo",
+    "rgm": "rgm",
+    "status matrícula": "status_matricula",
+    "status matricula": "status_matricula",
+    "aluno": "aluno",
+    "email": "email",
+    "celular": "celular",
+    "empresa": "empresa",
+    "instituição": "instituicao",
+    "instituicao": "instituicao",
+    "polo": "polo",
+    "curso": "curso",
+    "inadimplente": "inadimplente",
+    "total": "_total",
+}
+
+_CICLO_SKIP = {"total", "filtros aplicados", ""}
+
+
+def _parse_lista_alunos(filepath):
+    """Lê .xlsx de Lista de Alunos e retorna lista de dicts."""
+    wb = openpyxl.load_workbook(filepath, data_only=True)
+    ws = wb.active
+
+    raw_headers = [cell.value for cell in ws[1]]
+    col_idx = {}
+    for i, h in enumerate(raw_headers):
+        if h is None:
+            continue
+        norm = unicodedata.normalize("NFD", str(h)).encode("ascii", "ignore").decode("ascii").strip().lower()
+        mapped = _LISTA_ALUNOS_COL_MAP.get(norm)
+        if mapped:
+            col_idx[mapped] = i
+
+    entries = []
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if not row or row[0] is None:
+            continue
+
+        ciclo_raw = str(row[col_idx.get("ciclo", 0)] or "").strip()
+        if ciclo_raw.lower().split("\n")[0].strip() in _CICLO_SKIP:
+            continue
+        if not any(c.isdigit() for c in ciclo_raw):
+            continue
+
+        entry = {}
+        for key, idx in col_idx.items():
+            if key == "_total":
+                continue
+            v = row[idx] if idx < len(row) else None
+            if v is None:
+                v = ""
+            elif isinstance(v, (int, float)):
+                v = str(int(v)) if isinstance(v, float) and v == int(v) else str(v)
+            else:
+                v = str(v).strip()
+            entry[key] = v
+
+        inad = entry.get("inadimplente", "").strip().lower()
+        entry["inadimplente"] = "sim" if "sim" in inad or inad == "s" else "nao"
+        entry["rgm_digits"] = _normalize_digits(entry.get("rgm", ""))
+        entries.append(entry)
+
+    wb.close()
+    return entries
+
+
+# ---------------------------------------------------------------------------
 # Rotas — Snapshots
 # ---------------------------------------------------------------------------
 
@@ -940,6 +1036,227 @@ def api_inadimplencia_historico():
         conn.close()
 
 
+_TIPO_NORM = "TRANSLATE(LOWER(COALESCE(m.data->>'tipo_matricula','')), 'áàãâéèêíìîóòõôúùûçñ', 'aaaaeeeiiioooouuucn')"
+
+_TIPO_SQL_CASES = {
+    "novos":       f"({_TIPO_NORM} ~ '(matricula|calouro)' AND {_TIPO_NORM} !~ '(remat|renovacao|veterano|regresso|retorno|recompra)')",
+    "rematricula": f"{_TIPO_NORM} ~ '(remat|renovacao|veterano)'",
+    "regresso":    f"{_TIPO_NORM} ~ '(regresso|retorno)'",
+    "recompra":    f"{_TIPO_NORM} ~ 'recompra'",
+    "novos_agg":   f"(({_TIPO_NORM} ~ '(matricula|calouro)' AND {_TIPO_NORM} !~ '(remat|renovacao|veterano)') "
+                   f"OR {_TIPO_NORM} ~ '(regresso|retorno|recompra)')",
+}
+
+
+@upload_bp.route("/api/lista-alunos/latest")
+def api_lista_alunos_latest():
+    """Retorna dados do ultimo snapshot de lista_alunos para o Dashboard.
+    Aceita filtros opcionais: tipo (tipo_matricula) e situacao (cruzamento por RGM com matriculados).
+    """
+    f_tipo = request.args.get("tipo", "").strip().lower()
+    f_situacao = request.args.get("situacao", "").strip()
+    f_nivel = request.args.get("nivel", "").strip()
+    current_app.logger.info("[SAUDE-FIN] latest called: tipo=%r, situacao=%r, nivel=%r", f_tipo, f_situacao, f_nivel)
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT id, filename, row_count, uploaded_at
+                FROM xl_snapshots WHERE tipo = 'lista_alunos'
+                ORDER BY id DESC LIMIT 1
+            """)
+            snap = cur.fetchone()
+            if not snap:
+                return jsonify({"ok": True, "has_data": False})
+
+            snap_id = snap["id"]
+            has_filter = (f_tipo and f_tipo in _TIPO_SQL_CASES) or f_situacao or f_nivel
+            current_app.logger.info("[SAUDE-FIN] has_filter=%s, f_tipo_in_cases=%s, f_nivel=%r", has_filter, f_tipo in _TIPO_SQL_CASES if f_tipo else 'N/A', f_nivel)
+
+            if has_filter:
+                cur.execute("""
+                    SELECT id FROM xl_snapshots
+                    WHERE tipo = 'matriculados' ORDER BY id DESC LIMIT 1
+                """)
+                mat_snap = cur.fetchone()
+                if not mat_snap:
+                    return jsonify({"ok": True, "has_data": False})
+
+                mat_conditions = []
+                params = [mat_snap["id"]]
+
+                if f_tipo and f_tipo in _TIPO_SQL_CASES:
+                    mat_conditions.append(f"({_TIPO_SQL_CASES[f_tipo]})")
+
+                if f_situacao:
+                    mat_conditions.append(
+                        f"TRANSLATE(LOWER(COALESCE(m.data->>'situacao','')), "
+                        f"'áàãâéèêíìîóòõôúùûçñ', 'aaaaeeeiiioooouuucn') = %s"
+                    )
+                    import unicodedata as _ud
+                    sit_clean = _ud.normalize('NFD', f_situacao.lower()).encode('ascii', 'ignore').decode('ascii')
+                    params.append(sit_clean)
+
+                if f_nivel:
+                    nivel_case = """(
+                        CASE
+                          WHEN COALESCE(m.data->>'nivel','') != '' THEN
+                            CASE WHEN m.data->>'nivel' ~* 'p[oó]s' THEN 'Pós-Graduação'
+                                 ELSE 'Graduação' END
+                          WHEN m.data->>'negocio' ~* 'p[oó]s' THEN 'Pós-Graduação'
+                          WHEN m.data->>'curso' ~* '(mba|especializa[cç][aã]o|p[oó]s.gradua|lato.sensu|stricto)'
+                               THEN 'Pós-Graduação'
+                          ELSE 'Graduação'
+                        END
+                    ) = %s"""
+                    mat_conditions.append(nivel_case)
+                    params.append(f_nivel)
+
+                where_extra = (" AND " + " AND ".join(mat_conditions)) if mat_conditions else ""
+                params.append(snap_id)
+
+                sql = f"""
+                    SELECT
+                        COUNT(*) AS total_alunos,
+                        SUM(CASE WHEN la.data->>'inadimplente' = 'sim' THEN 1 ELSE 0 END) AS inadimplentes
+                    FROM xl_rows la
+                    INNER JOIN (
+                        SELECT DISTINCT m.data->>'rgm_digits' AS rgm
+                        FROM xl_rows m
+                        WHERE m.snapshot_id = %s
+                          AND COALESCE(m.data->>'rgm_digits', '') != ''
+                          {where_extra}
+                    ) mat ON mat.rgm = la.data->>'rgm_digits'
+                    WHERE la.snapshot_id = %s
+                      AND COALESCE(la.data->>'rgm_digits', '') != ''
+                """
+                current_app.logger.info("[SAUDE-FIN] SQL where_extra=%r, params=%r", where_extra, params)
+                cur.execute(sql, params)
+                row = cur.fetchone()
+                total = int(row["total_alunos"] or 0)
+                inadim = int(row["inadimplentes"] or 0)
+                current_app.logger.info("[SAUDE-FIN] Result: total=%d, inadim=%d", total, inadim)
+                adim = total - inadim
+                pct = round(inadim / total * 100, 1) if total else 0.0
+
+                return jsonify({
+                    "ok": True, "has_data": True,
+                    "snapshot": {
+                        "id": snap["id"], "filename": snap["filename"],
+                        "row_count": snap["row_count"],
+                        "uploaded_at": to_brt(snap["uploaded_at"]),
+                    },
+                    "total_alunos": total, "inadimplentes": inadim,
+                    "adimplentes": adim, "pct_inadimplencia": pct,
+                    "filtered_tipo": f_tipo or None,
+                    "filtered_situacao": f_situacao or None,
+                    "filtered_nivel": f_nivel or None,
+                    "inad_by_polo": {}, "inad_by_curso": {}, "by_status": {},
+                })
+
+            cur.execute("""
+                SELECT metric, value, detail
+                FROM xl_snapshot_stats WHERE snapshot_id = %s
+            """, (snap_id,))
+            stats = {}
+            for r in cur.fetchall():
+                if r["detail"]:
+                    stats[r["metric"]] = r["detail"]
+                else:
+                    try:
+                        stats[r["metric"]] = float(r["value"])
+                    except (ValueError, TypeError):
+                        stats[r["metric"]] = r["value"]
+
+        return jsonify({
+            "ok": True,
+            "has_data": True,
+            "snapshot": {
+                "id": snap["id"],
+                "filename": snap["filename"],
+                "row_count": snap["row_count"],
+                "uploaded_at": to_brt(snap["uploaded_at"]),
+            },
+            "total_alunos": int(stats.get("total_alunos", 0)),
+            "inadimplentes": int(stats.get("inadimplentes", 0)),
+            "adimplentes": int(stats.get("adimplentes", 0)),
+            "pct_inadimplencia": float(stats.get("pct_inadimplencia", 0)),
+            "inad_by_polo": stats.get("inad_by_polo", {}),
+            "inad_by_curso": stats.get("inad_by_curso", {}),
+            "by_status": stats.get("by_status", {}),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@upload_bp.route("/api/lista-alunos/historico")
+def api_lista_alunos_historico():
+    """Retorna serie temporal de snapshots tipo lista_alunos."""
+    date_from = request.args.get("date_from", "").strip()
+    date_to = request.args.get("date_to", "").strip()
+
+    conn = get_conn()
+    try:
+        date_clause = ""
+        params = []
+        if date_from:
+            date_clause += " AND s.uploaded_at >= %s::timestamptz"
+            params.append(date_from)
+        if date_to:
+            date_clause += " AND s.uploaded_at <= (%s::date + 1)::timestamptz"
+            params.append(date_to)
+
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(f"""
+                SELECT s.id, s.uploaded_at, s.row_count
+                FROM xl_snapshots s
+                WHERE s.tipo = 'lista_alunos'{date_clause}
+                ORDER BY s.uploaded_at
+            """, params)
+            snapshots = cur.fetchall()
+
+            if not snapshots:
+                return jsonify({"series": [], "has_history": False})
+
+            series = []
+            for snap in snapshots:
+                cur.execute("""
+                    SELECT metric, value, detail
+                    FROM xl_snapshot_stats WHERE snapshot_id = %s
+                """, (snap["id"],))
+                stats = {}
+                for r in cur.fetchall():
+                    if r["detail"]:
+                        stats[r["metric"]] = r["detail"]
+                    else:
+                        try:
+                            stats[r["metric"]] = float(r["value"])
+                        except (ValueError, TypeError):
+                            stats[r["metric"]] = r["value"]
+
+                series.append({
+                    "date": to_brt(snap["uploaded_at"]),
+                    "total_alunos": int(stats.get("total_alunos", snap["row_count"])),
+                    "inadimplentes": int(stats.get("inadimplentes", 0)),
+                    "adimplentes": int(stats.get("adimplentes", 0)),
+                    "pct_inadimplencia": float(stats.get("pct_inadimplencia", 0)),
+                    "inad_by_polo": stats.get("inad_by_polo", {}),
+                    "inad_by_curso": stats.get("inad_by_curso", {}),
+                    "by_status": stats.get("by_status", {}),
+                })
+
+        return jsonify({
+            "series": series,
+            "has_history": len(series) >= 2,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
 @upload_bp.route("/api/snapshots/crossref/export")
 def api_snapshots_crossref_export():
     """Exporta CSV dos alunos de um subset do cruzamento entre dois tipos."""
@@ -1087,6 +1404,9 @@ def api_upload():
             tmp_dir.mkdir(exist_ok=True)
             shutil.copy2(str(dest), str(tmp_dir / safe_name))
             entries = _parse_inadimplentes_batch(str(tmp_dir))
+            snap_count = _persist_snapshot_entries(entries, tipo, safe_name) if entries else 0
+        elif tipo == "lista_alunos" and fname_lower.endswith(".xlsx"):
+            entries = _parse_lista_alunos(str(dest))
             snap_count = _persist_snapshot_entries(entries, tipo, safe_name) if entries else 0
         elif tipo == "sem_rematricula" and fname_lower.endswith((".xlsx", ".xlsm")):
             staging = UPLOAD_DIR / "_staging_sem_rematricula"
