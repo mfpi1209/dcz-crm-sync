@@ -1,0 +1,78 @@
+<!-- ═══════════════  Leads Parados  ═══════════════ -->
+<section id="page-leads_parados" class="hidden p-4 md:p-8 space-y-6">
+
+    <div class="flex flex-col sm:flex-row sm:items-end gap-4 justify-between">
+        <div>
+            <h2 class="text-2xl font-bold font-display text-white">Leads Parados</h2>
+            <p class="text-sm text-slate-500">Leads em atendimento sem interação há mais de 1 hora</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <div>
+                <label for="lp-horas" class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">Mín. parado</label>
+                <select id="lp-horas" onchange="loadLeadsParados()" class="input-glass px-3 py-2 text-sm text-slate-200 rounded-lg">
+                    <option value="1">1 hora</option>
+                    <option value="2">2 horas</option>
+                    <option value="3">3 horas</option>
+                    <option value="4">4 horas</option>
+                    <option value="6">6 horas</option>
+                    <option value="12">12 horas</option>
+                    <option value="24">24 horas</option>
+                </select>
+            </div>
+            <span id="lp-total-badge" class="hidden bg-red-500/20 text-red-400 text-xs font-bold px-3 py-1 rounded-full"></span>
+            <button onclick="lpDistribuir()" id="lp-btn-distribuir"
+                    class="bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-5 py-2 rounded-xl flex items-center gap-2 transition-colors">
+                <span class="material-symbols-outlined text-base">share</span>
+                Distribuir
+            </button>
+            <button onclick="refreshLeadsParados()" id="lp-btn-refresh"
+                    class="btn-primary text-white text-sm px-5 py-2 rounded-xl flex items-center gap-2">
+                <svg id="lp-btn-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                Atualizar
+            </button>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="lp-loading" class="text-center py-12">
+        <div class="inline-block w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+        <p class="text-slate-500 mt-3 text-sm">Carregando leads parados...</p>
+    </div>
+
+    <!-- Tabela -->
+    <div id="lp-table-wrap" class="hidden">
+        <div class="glass-card overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left">
+                    <thead>
+                        <tr class="border-b border-white/5 text-[10px] uppercase tracking-wider text-slate-500">
+                            <th class="px-4 py-3">ID Lead</th>
+                            <th class="px-4 py-3">Nome do Lead</th>
+                            <th class="px-4 py-3">Consultor</th>
+                            <th class="px-4 py-3">Última Atualização</th>
+                            <th class="px-4 py-3">Tempo Parado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lp-tbody" class="divide-y divide-white/5"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vazio -->
+    <div id="lp-empty" class="hidden text-center py-12">
+        <span class="material-symbols-outlined text-5xl text-green-400 mb-3">check_circle</span>
+        <p class="text-slate-400 text-lg font-semibold">Nenhum lead parado</p>
+        <p class="text-slate-600 text-sm mt-1">Todos os leads em atendimento foram atualizados na última hora.</p>
+    </div>
+
+    <!-- Erro -->
+    <div id="lp-error" class="hidden text-center py-12">
+        <span class="material-symbols-outlined text-5xl text-red-400 mb-3">error</span>
+        <p id="lp-error-msg" class="text-red-400 text-sm"></p>
+    </div>
+
+</section>
