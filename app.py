@@ -46,6 +46,7 @@ from routes.ativacoes import ativacoes_bp
 from routes.avisos import avisos_bp
 from routes.kommo_merge_route import kommo_merge_bp
 from routes.kommo_dispatcher import kommo_dispatcher_bp
+from routes.leads_parados import leads_parados_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(dashboard_bp)
@@ -61,6 +62,7 @@ app.register_blueprint(ativacoes_bp)
 app.register_blueprint(avisos_bp)
 app.register_blueprint(kommo_merge_bp)
 app.register_blueprint(kommo_dispatcher_bp)
+app.register_blueprint(leads_parados_bp)
 
 # ── Inicialização do banco ────────────────────────────────────────────────
 
