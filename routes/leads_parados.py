@@ -161,20 +161,10 @@ DISTRIBUIR_WEBHOOK = "https://banco-dev-n8n-eduit.6tqx2r.easypanel.host/webhook/
 def api_distribuir_leads():
     try:
         body = request.get_json(silent=True) or {}
-        horas = body.get("horas", 1)
-        threshold = max(int(horas), 1) * 3600
+        leads_data = body.get("leads", [])
 
-        raw_leads = _fetch_leads_em_atendimento()
-        now_ts = int(_time.time())
-        leads_data = []
-        for l in raw_leads:
-            if now_ts - l.get("updated_at", 0) >= threshold:
-                contacts = l.get("_embedded", {}).get("contacts", [])
-                leads_data.append({
-                    "lead_id": l["id"],
-                    "contact_id": contacts[0]["id"] if contacts else None,
-                    "responsible_user_id": l.get("responsible_user_id"),
-                })
+        if not leads_data:
+            return jsonify({"error": "Nenhum lead selecionado"}), 400
 
         r = _requests.post(DISTRIBUIR_WEBHOOK, json={"leads": leads_data}, timeout=600)
         r.raise_for_status()

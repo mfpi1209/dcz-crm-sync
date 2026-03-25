@@ -6,7 +6,7 @@
             <h2 class="text-2xl font-bold font-display text-white">Leads Parados</h2>
             <p class="text-sm text-slate-500">Leads em atendimento sem interação há mais de 1 hora</p>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-end gap-3">
             <div>
                 <label for="lp-horas" class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">Mín. parado</label>
                 <select id="lp-horas" onchange="loadLeadsParados()" class="input-glass px-3 py-2 text-sm text-slate-200 rounded-lg">
@@ -19,7 +19,14 @@
                     <option value="24">24 horas</option>
                 </select>
             </div>
+            <div>
+                <label for="lp-consultor" class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">Consultor</label>
+                <select id="lp-consultor" onchange="lpFiltrarConsultor()" class="input-glass px-3 py-2 text-sm text-slate-200 rounded-lg min-w-[160px]">
+                    <option value="">Todos</option>
+                </select>
+            </div>
             <span id="lp-total-badge" class="hidden bg-red-500/20 text-red-400 text-xs font-bold px-3 py-1 rounded-full"></span>
+            <span id="lp-sel-badge" class="hidden bg-blue-500/20 text-blue-400 text-xs font-bold px-3 py-1 rounded-full"></span>
             <button onclick="lpDistribuir()" id="lp-btn-distribuir"
                     class="bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-5 py-2 rounded-xl flex items-center gap-2 transition-colors">
                 <span class="material-symbols-outlined text-base">share</span>
@@ -36,6 +43,17 @@
         </div>
     </div>
 
+    <!-- Card média -->
+    <div id="lp-media-card" class="hidden">
+        <div class="glass-card px-5 py-4 inline-flex items-center gap-3 rounded-xl">
+            <span class="material-symbols-outlined text-2xl text-amber-400">avg_pace</span>
+            <div>
+                <p class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Tempo médio parado</p>
+                <p id="lp-media-valor" class="text-lg font-bold text-white">—</p>
+            </div>
+        </div>
+    </div>
+
     <!-- Loading -->
     <div id="lp-loading" class="text-center py-12">
         <div class="inline-block w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
@@ -49,6 +67,7 @@
                 <table class="w-full text-sm text-left">
                     <thead>
                         <tr class="border-b border-white/5 text-[10px] uppercase tracking-wider text-slate-500">
+                            <th class="px-4 py-3 w-10"><input type="checkbox" id="lp-select-all" onchange="lpToggleAll(this)" class="accent-blue-500 w-4 h-4 cursor-pointer"></th>
                             <th class="px-4 py-3">ID Lead</th>
                             <th class="px-4 py-3">Nome do Lead</th>
                             <th class="px-4 py-3">Consultor</th>
