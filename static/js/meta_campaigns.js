@@ -28,8 +28,8 @@ function consolidateCampaigns(campaigns) {
     });
     
     return Object.values(grouped).map(c => {
-        c.total_funil = c.novos;
-        c.conv_ganho_sobre_novo_pct = c.novos > 0 ? ((c.ganhos / c.novos) * 100) : 0;
+        c.total_funil = c.novos + c.ganhos + c.perdidos;
+        c.conv_ganho_sobre_novo_pct = c.total_funil > 0 ? ((c.ganhos / c.total_funil) * 100) : 0;
         return c;
     });
 }
@@ -225,12 +225,13 @@ function renderCampaignsTable(campaigns) {
 }
 
 function updateMetrics(campaigns) {
-    const totalLeads = campaigns.reduce((sum, c) => sum + (parseInt(c.novos) || 0), 0);
+    const totalNovos = campaigns.reduce((sum, c) => sum + (parseInt(c.novos) || 0), 0);
     const totalGanhos = campaigns.reduce((sum, c) => sum + (parseInt(c.ganhos) || 0), 0);
     const totalPerdidos = campaigns.reduce((sum, c) => sum + (parseInt(c.perdidos) || 0), 0);
+    const totalGeral = totalNovos + totalGanhos + totalPerdidos;
     
-    const ganhosPct = totalLeads > 0 ? ((totalGanhos / totalLeads) * 100).toFixed(1) : '0';
-    const perdidosPct = totalLeads > 0 ? ((totalPerdidos / totalLeads) * 100).toFixed(1) : '0';
+    const ganhosPct = totalGeral > 0 ? ((totalGanhos / totalGeral) * 100).toFixed(1) : '0';
+    const perdidosPct = totalGeral > 0 ? ((totalPerdidos / totalGeral) * 100).toFixed(1) : '0';
     
     const totalLeadsEl = document.getElementById('meta-total-leads');
     const leadsGanhosEl = document.getElementById('meta-leads-ganhos');
@@ -238,7 +239,7 @@ function updateMetrics(campaigns) {
     const ganhosPctEl = document.getElementById('meta-ganhos-pct');
     const perdidosPctEl = document.getElementById('meta-perdidos-pct');
     
-    if (totalLeadsEl) totalLeadsEl.textContent = totalLeads;
+    if (totalLeadsEl) totalLeadsEl.textContent = totalGeral;
     if (leadsGanhosEl) leadsGanhosEl.textContent = totalGanhos;
     if (leadsPerdidosEl) leadsPerdidosEl.textContent = totalPerdidos;
     if (ganhosPctEl) ganhosPctEl.textContent = `(${ganhosPct}%)`;
