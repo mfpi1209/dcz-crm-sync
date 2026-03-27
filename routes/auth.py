@@ -277,18 +277,32 @@ def api_users_delete(uid):
 
 @auth_bp.route("/api/users/import-kommo", methods=["POST"])
 def api_users_import_kommo():
-    """Import Kommo users as app_users (email=username, default password, role=viewer)."""
+    """Import Kommo users as app_users.
+
+    Uses email as username when available, otherwise generates from name.
+    Default password: eduit2026, role: viewer, permission: minha_performance.
+    """
     if session.get("role") != "admin":
         return jsonify({"error": "Sem permissão"}), 403
+
+    import re
+    import unicodedata
 
     DEFAULT_PW = "eduit2026"
     DEFAULT_PAGES = ["minha_performance"]
 
+    def _slug(name):
+        """Convert name to a simple lowercase username slug."""
+        nfkd = unicodedata.normalize("NFKD", name)
+        ascii_only = nfkd.encode("ascii", "ignore").decode("ascii")
+        slug = re.sub(r"[^a-z0-9]+", ".", ascii_only.lower()).strip(".")
+        return slug or "user"
+
     try:
         kconn = psycopg2.connect(**KOMMO_DB_DSN)
         kcur = kconn.cursor()
-        kcur.execute("SELECT id, name, email FROM users WHERE email IS NOT NULL AND email != '' ORDER BY name")
-        kommo_users = [{"id": r[0], "name": r[1], "email": r[2]} for r in kcur.fetchall()]
+        kcur.execute("SELECT id, name, email FROM users WHERE name IS NOT NULL AND name != '' ORDER BY name")
+        kommo_users = [{"id": r[0], "name": r[1], "email": r[2] or ""} for r in kcur.fetchall()]
         kcur.close()
         kconn.close()
     except Exception as e:
@@ -308,16 +322,16 @@ def api_users_import_kommo():
 
         for ku in kommo_users:
             kid = ku["id"]
-            email = ku["email"].strip().lower()
-            name = ku["name"] or email
+            email = ku["email"].strip().lower() if ku["email"] else ""
+            name = ku["name"] or ""
 
             if kid in existing_kommo:
-                skipped.append({"kommo_id": kid, "name": name, "email": email, "reason": f"Já vinculado como {existing_kommo[kid]}"})
+                skipped.append({"kommo_id": kid, "name": name, "reason": f"Já vinculado como {existing_kommo[kid]}"})
                 continue
 
-            username = email
+            username = email if email else _slug(name)
             if username in existing_usernames:
-                skipped.append({"kommo_id": kid, "name": name, "email": email, "reason": f"Username {username} já existe"})
+                skipped.append({"kommo_id": kid, "name": name, "reason": f"Username '{username}' já existe"})
                 continue
 
             try:
@@ -329,10 +343,10 @@ def api_users_import_kommo():
                 for pg in DEFAULT_PAGES:
                     if pg in ALL_PAGES:
                         cur.execute("INSERT INTO user_permissions (user_id, page) VALUES (%s, %s)", (uid, pg))
-                created.append({"id": uid, "kommo_id": kid, "name": name, "email": email})
+                created.append({"id": uid, "kommo_id": kid, "name": name, "username": username})
                 existing_usernames.add(username)
             except Exception as e:
-                errors.append({"kommo_id": kid, "email": email, "error": str(e)})
+                errors.append({"kommo_id": kid, "name": name, "error": str(e)})
 
     conn.commit()
     conn.close()
