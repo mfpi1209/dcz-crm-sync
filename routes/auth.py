@@ -161,7 +161,7 @@ def api_users_list():
     conn = get_conn()
     with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
         cur.execute("""
-            SELECT u.id, u.username, u.role, u.kommo_user_id, u.created_at,
+            SELECT u.id, u.username, u.role, u.kommo_user_id, u.email_cruzeiro, u.created_at,
                    ARRAY(SELECT p.page FROM user_permissions p WHERE p.user_id = u.id ORDER BY p.page) AS pages
             FROM app_users u ORDER BY u.id
         """)
@@ -182,6 +182,7 @@ def api_users_create():
     role = body.get("role", "viewer")
     pages = body.get("pages", [])
     kommo_user_id = body.get("kommo_user_id")
+    email_cruzeiro = (body.get("email_cruzeiro") or "").strip() or None
     if not username or not password:
         return jsonify({"error": "Usuário e senha são obrigatórios"}), 400
     if role not in ("admin", "viewer"):
@@ -193,8 +194,8 @@ def api_users_create():
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO app_users (username, pw_hash, role, kommo_user_id) VALUES (%s, %s, %s, %s) RETURNING id",
-                (username, _hash_pw(password), role, kommo_user_id or None),
+                "INSERT INTO app_users (username, pw_hash, role, kommo_user_id, email_cruzeiro) VALUES (%s, %s, %s, %s, %s) RETURNING id",
+                (username, _hash_pw(password), role, kommo_user_id or None, email_cruzeiro),
             )
             uid = cur.fetchone()[0]
             if role == "admin":
@@ -235,6 +236,9 @@ def api_users_update(uid):
         if "kommo_user_id" in body:
             cur.execute("UPDATE app_users SET kommo_user_id = %s WHERE id = %s",
                         (kommo_user_id or None, uid))
+        if "email_cruzeiro" in body:
+            cur.execute("UPDATE app_users SET email_cruzeiro = %s WHERE id = %s",
+                        ((body["email_cruzeiro"] or "").strip() or None, uid))
         if pages is not None:
             if role == "admin":
                 pages = list(ALL_PAGES)

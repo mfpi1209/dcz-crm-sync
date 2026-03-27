@@ -186,6 +186,9 @@ def _ensure_users_table():
                 ALTER TABLE app_users ADD COLUMN IF NOT EXISTS kommo_user_id INTEGER
             """)
             cur.execute("""
+                ALTER TABLE app_users ADD COLUMN IF NOT EXISTS email_cruzeiro TEXT
+            """)
+            cur.execute("""
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_app_users_kommo
                 ON app_users(kommo_user_id) WHERE kommo_user_id IS NOT NULL
             """)
