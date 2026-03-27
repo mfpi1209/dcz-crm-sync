@@ -198,6 +198,89 @@ def _get_agent_metas(kommo_uid, dt_ini=None, dt_fim=None):
         return {"meta": 0, "intermediaria": 0, "supermeta": 0}
 
 
+def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
+    """Calculate ranking with only 3 queries total instead of 2*N."""
+    # 1. Get all agent UIDs with metas in this campaign
+    conn = _pg()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT DISTINCT kommo_user_id FROM premiacao_campanha_meta WHERE campanha_id = %s",
+        (campanha_id,),
+    )
+    all_agents = [r[0] for r in cur.fetchall()]
+    cur.close()
+    conn.close()
+
+    if not all_agents:
+        kconn = _pg_kommo()
+        kcur = kconn.cursor()
+        kcur.execute("SELECT id FROM users WHERE name IS NOT NULL AND name != ''")
+        all_agents = [r[0] for r in kcur.fetchall()]
+        kcur.close()
+        kconn.close()
+
+    if not all_agents:
+        return None
+
+    # 2. Single Kommo query: all RGMs for all agents at once
+    kconn = _pg_kommo()
+    kcur = kconn.cursor()
+    ph = ",".join(["%s"] * len(all_agents))
+    kcur.execute(f"""
+        SELECT l.responsible_user_id, v.rgm
+        FROM vw_leads_rgm v
+        JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
+        WHERE l.responsible_user_id IN ({ph})
+    """, all_agents)
+    agent_rgm_map = defaultdict(set)
+    for uid, rgm in kcur.fetchall():
+        n = _normalize_rgm(rgm)
+        if n:
+            agent_rgm_map[uid].add(n)
+    kcur.close()
+    kconn.close()
+
+    # 3. Single DCZ query: all matrículas in the period
+    conn = _pg()
+    cur = conn.cursor()
+    cw, cp = [], []
+    if dt_ini:
+        cw.append("data_matricula >= %s"); cp.append(dt_ini)
+    if dt_fim:
+        cw.append("data_matricula <= %s"); cp.append(dt_fim)
+    w = ("WHERE " + " AND ".join(cw)) if cw else ""
+    cur.execute(f"SELECT rgm FROM comercial_rgm_atual {w}", cp)
+    period_rgms = set()
+    for row in cur.fetchall():
+        n = _normalize_rgm(row[0])
+        if n:
+            period_rgms.add(n)
+    cur.close()
+    conn.close()
+
+    # 4. Count per agent (intersect their RGMs with period matrículas)
+    agent_scores = []
+    for uid in all_agents:
+        count = len(agent_rgm_map.get(uid, set()) & period_rgms)
+        agent_scores.append({"uid": uid, "total": count})
+    agent_scores.sort(key=lambda x: (-x["total"], x["uid"]))
+
+    pos = 1
+    total_agents = len(agent_scores)
+    leader_total = agent_scores[0]["total"] if agent_scores else 0
+    for i, s in enumerate(agent_scores):
+        if s["uid"] == kommo_uid:
+            pos = i + 1
+            break
+
+    return {
+        "posicao": pos,
+        "total_agentes": total_agents,
+        "lider_total": leader_total,
+        "diferenca_lider": max(0, leader_total - my_total),
+    }
+
+
 def _get_active_campanha(dt=None):
     """Return the active campaign covering the given date (or today)."""
     ref = dt or date.today()
@@ -647,6 +730,37 @@ def api_minha_insights():
 
     today_realizadas = mat_by_date.get(today, 0)
 
+    # Aceites na fila do Kommo (leads no stage Aceite = quase matrícula)
+    ACEITE_STATUS_ID = 48566207
+    FUNNEL_PIPELINE_ID = 5481944
+    aceites_fila = 0
+    aceites_hoje = 0
+    try:
+        kconn_ac = _pg_kommo()
+        kcur_ac = kconn_ac.cursor()
+        kcur_ac.execute("""
+            SELECT COUNT(*) FROM leads
+            WHERE responsible_user_id = %s
+              AND status_id = %s
+              AND pipeline_id = %s
+              AND NOT is_deleted
+        """, (kommo_uid, ACEITE_STATUS_ID, FUNNEL_PIPELINE_ID))
+        aceites_fila = kcur_ac.fetchone()[0] or 0
+        today_ts = int(datetime.combine(today, datetime.min.time()).timestamp())
+        kcur_ac.execute("""
+            SELECT COUNT(*) FROM leads
+            WHERE responsible_user_id = %s
+              AND status_id = %s
+              AND pipeline_id = %s
+              AND NOT is_deleted
+              AND updated_at >= %s
+        """, (kommo_uid, ACEITE_STATUS_ID, FUNNEL_PIPELINE_ID, today_ts))
+        aceites_hoje = kcur_ac.fetchone()[0] or 0
+        kcur_ac.close()
+        kconn_ac.close()
+    except Exception as e:
+        logger.warning("Error fetching aceites: %s", e)
+
     # Streak: consecutive days hitting daily target
     sequencia = 0
     d = effective_end
@@ -833,47 +947,10 @@ def api_minha_insights():
         else:
             mensagem = "Campanha ativa! Cada matrícula conta."
 
-    # Ranking: position among all agents in the active campaign
+    # Ranking: position among all agents (batch query — single pass)
     ranking = None
     try:
-        conn_rk = _pg()
-        cur_rk = conn_rk.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur_rk.execute(
-            "SELECT DISTINCT kommo_user_id FROM premiacao_campanha_meta WHERE campanha_id = %s",
-            (cid,),
-        )
-        all_agents = [r["kommo_user_id"] for r in cur_rk.fetchall()]
-        cur_rk.close()
-        conn_rk.close()
-
-        if not all_agents:
-            kconn = _pg_kommo()
-            kcur = kconn.cursor()
-            kcur.execute("SELECT id FROM users WHERE name IS NOT NULL AND name != ''")
-            all_agents = [r[0] for r in kcur.fetchall()]
-            kcur.close()
-            kconn.close()
-
-        agent_scores = []
-        for aid in all_agents:
-            a_mat = _get_agent_matriculas(aid, dt_ini_str, dt_fim_str)
-            agent_scores.append({"uid": aid, "total": len(a_mat)})
-        agent_scores.sort(key=lambda x: x["total"], reverse=True)
-
-        pos = 1
-        total_agents = len(agent_scores)
-        leader_total = agent_scores[0]["total"] if agent_scores else 0
-        for i, s in enumerate(agent_scores):
-            if s["uid"] == kommo_uid:
-                pos = i + 1
-                break
-
-        ranking = {
-            "posicao": pos,
-            "total_agentes": total_agents,
-            "lider_total": leader_total,
-            "diferenca_lider": max(0, leader_total - total_mat),
-        }
+        ranking = _calc_ranking_batch(kommo_uid, total_mat, dt_ini_str, dt_fim_str, cid)
     except Exception as e:
         logger.warning("Error calculating ranking: %s", e)
 
@@ -991,6 +1068,8 @@ def api_minha_insights():
             "dia_semana": dow_today,
             "meta": today_meta,
             "realizadas": today_realizadas,
+            "aceites_fila": aceites_fila,
+            "aceites_hoje": aceites_hoje,
             "bonus_fixo": today_fixo,
             "bonus_extra": today_extra,
         },

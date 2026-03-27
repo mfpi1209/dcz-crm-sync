@@ -1,21 +1,14 @@
             <div id="page-logs" class="p-4 lg:p-8 max-w-7xl mx-auto hidden">
                 <div class="mb-8">
-                    <div class="flex items-center gap-3 mb-2">
-                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
-                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                        </div>
-                        <div>
-                            <h2 class="text-3xl font-bold text-[var(--text-primary)] font-display">Logs / Relatórios</h2>
-                            <p class="text-gray-500 text-sm">Visualize e baixe logs de execução e relatórios</p>
-                        </div>
-                    </div>
+                    <h2 class="text-3xl font-bold text-white font-display mb-1">Logs / Relatórios</h2>
+                    <p class="text-slate-500 text-sm">Visualize e baixe logs de execução e relatórios</p>
                 </div>
 
                 <!-- Estado da Sincronização + Últimos Negócios -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
                     <div class="lg:col-span-2 glass-card p-5">
                         <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-sm font-bold text-[var(--text-primary)] font-display flex items-center gap-2">
+                            <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
                                 <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
                                 Estado da Sincronização
                             </h3>
@@ -23,14 +16,14 @@
                                 <span class="text-[11px] font-semibold text-emerald-400">Ativo</span>
                             </div>
                         </div>
-                        <div id="dash-sync-state" class="text-sm text-gray-500">Consulte os logs de sincronização abaixo.</div>
+                        <div id="dash-sync-state" class="text-sm text-slate-500">Consulte os logs de sincronização abaixo.</div>
                     </div>
                     <div class="glass-card p-5">
-                        <h3 class="text-sm font-bold text-[var(--text-primary)] font-display flex items-center gap-2 mb-4">
+                        <h3 class="text-sm font-bold text-white font-display flex items-center gap-2 mb-4">
                             <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
                             Últimos Negócios
                         </h3>
-                        <div id="dash-recent" class="text-sm text-gray-500">—</div>
+                        <div id="dash-recent" class="text-sm text-slate-500">—</div>
                     </div>
                 </div>
 
@@ -38,20 +31,20 @@
                     <!-- File list -->
                     <div class="glass-card p-4">
                         <div class="flex items-center justify-between mb-3">
-                            <h3 class="text-sm font-bold text-gray-300 font-display">Arquivos</h3>
-                            <button onclick="loadLogFiles()" class="text-xs text-gray-600 hover:text-gray-400 transition">Atualizar</button>
+                            <h3 class="text-sm font-bold text-slate-300 font-display">Arquivos</h3>
+                            <button onclick="loadLogFiles()" class="text-xs text-slate-600 hover:text-slate-400 transition">Atualizar</button>
                         </div>
                         <div id="log-file-list" class="space-y-1 max-h-[70vh] overflow-y-auto text-sm">
-                            <p class="text-gray-500">Carregando...</p>
+                            <p class="text-slate-500">Carregando...</p>
                         </div>
                     </div>
 
                     <!-- File viewer -->
                     <div class="lg:col-span-2 log-panel">
                         <div class="log-header flex items-center justify-between">
-                            <span class="text-xs text-gray-500 font-semibold" id="log-viewer-title">Selecione um arquivo</span>
+                            <span class="text-xs text-slate-500 font-semibold" id="log-viewer-title">Selecione um arquivo</span>
                             <div class="flex gap-2 items-center">
-                                <select id="log-tail-select" onchange="reloadLogView()" class="text-xs input-glass px-2 py-1 text-gray-300 rounded-lg">
+                                <select id="log-tail-select" onchange="reloadLogView()" class="text-xs input-glass px-2 py-1 text-slate-300 rounded-lg">
                                     <option value="100">100 linhas</option>
                                     <option value="200" selected>200 linhas</option>
                                     <option value="500">500 linhas</option>
@@ -64,7 +57,7 @@
                                 </button>
                             </div>
                         </div>
-                        <pre id="log-viewer-content" class="log-terminal p-4 h-[65vh] overflow-auto text-gray-400 whitespace-pre-wrap">Clique em um arquivo para visualizar.</pre>
+                        <pre id="log-viewer-content" class="log-terminal p-4 h-[65vh] overflow-auto text-slate-400 whitespace-pre-wrap">Clique em um arquivo para visualizar.</pre>
                     </div>
                 </div>
             </div>

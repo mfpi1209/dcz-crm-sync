@@ -116,7 +116,7 @@ function appendUpdateLog(text) {
     if (text.includes('CONFIRMADO') || text.includes('SUCESSO') || text.includes('[FIM]'))
         colored = `<span class="text-emerald-400 font-semibold">${esc(text)}</span>`;
     else if (text.includes('INFO'))
-        colored = `<span class="text-gray-300">${esc(text)}</span>`;
+        colored = `<span class="text-slate-300">${esc(text)}</span>`;
     else if (text.includes('WARNING'))
         colored = `<span class="text-yellow-400">${esc(text)}</span>`;
     else if (text.includes('ERROR') || text.includes('FALHOU') || text.includes('[ERRO]'))
@@ -146,13 +146,13 @@ async function loadPreview() {
 
         const tbody = document.getElementById('preview-tbody');
         tbody.innerHTML = data.rows.map(r => {
-            const matchColor = { 'RGM': 'text-emerald-400', 'CPF': 'text-blue-400', 'TELEFONE': 'text-amber-400', 'NOME': 'text-purple-400' }[r.match_tipo] || 'text-gray-400';
-            return `<tr class="border-b border-[var(--border)] hover:bg-gray-100 dark:hover:bg-gray-800/20 transition">
+            const matchColor = { 'RGM': 'text-emerald-400', 'CPF': 'text-blue-400', 'TELEFONE': 'text-amber-400', 'NOME': 'text-purple-400' }[r.match_tipo] || 'text-slate-400';
+            return `<tr class="border-b border-slate-700/10 hover:bg-slate-800/20 transition">
                 <td class="px-3 py-1.5 ${matchColor} font-medium">${esc(r.match_tipo || '')}</td>
-                <td class="px-3 py-1.5 text-gray-400 font-mono">${esc(r.rgm || '')}</td>
-                <td class="px-3 py-1.5 text-gray-200">${esc(r.nome || '')}</td>
-                <td class="px-3 py-1.5 text-gray-500 font-mono text-[10px]">${esc((r.lead_id || '').substring(0,8))}...</td>
-                <td class="px-3 py-1.5 text-indigo-400">${esc(r.lead_mudancas || '—')}</td>
+                <td class="px-3 py-1.5 text-slate-400 font-mono">${esc(r.rgm || '')}</td>
+                <td class="px-3 py-1.5 text-slate-200">${esc(r.nome || '')}</td>
+                <td class="px-3 py-1.5 text-slate-500 font-mono text-[10px]">${esc((r.lead_id || '').substring(0,8))}...</td>
+                <td class="px-3 py-1.5 text-cyan-400">${esc(r.lead_mudancas || '—')}</td>
                 <td class="px-3 py-1.5 text-amber-300 max-w-xs truncate" title="${esc(r.biz_mudancas || '')}">${esc(r.biz_mudancas || '—')}</td>
             </tr>`;
         }).join('');
@@ -180,7 +180,7 @@ function handleDropTyped(e, tipo) {
     e.currentTarget.classList.remove('border-emerald-500', 'bg-emerald-950/10',
         'border-amber-500', 'bg-amber-950/10', 'border-purple-500', 'bg-purple-950/10',
         'border-sky-500', 'bg-sky-950/10', 'border-rose-500', 'bg-rose-950/10',
-        'border-indigo-500', 'bg-indigo-950/10');
+        'border-teal-500', 'bg-teal-950/10');
     const file = e.dataTransfer.files[0];
     if (file) handleUploadTyped(file, tipo);
 }
@@ -201,7 +201,7 @@ async function handleUploadTyped(file, tipo) {
     progress.classList.remove('hidden');
     bar.style.width = '30%';
     msg.textContent = `Enviando ${file.name}...`;
-    msg.className = 'upload-msg text-xs text-gray-400 mt-1';
+    msg.className = 'upload-msg text-xs text-slate-400 mt-1';
 
     const form = new FormData();
     form.append('file', file);
@@ -272,7 +272,7 @@ async function handleUploadSemRemat(file, subtipo) {
     progress.classList.remove('hidden');
     bar.style.width = '30%';
     msg.textContent = `Enviando ${subtipo}: ${file.name}...`;
-    msg.className = 'upload-msg text-xs text-gray-400 mt-1';
+    msg.className = 'upload-msg text-xs text-slate-400 mt-1';
     if (statusEl) statusEl.textContent = 'Enviando...';
 
     const form = new FormData();
@@ -347,7 +347,7 @@ async function handleUploadBatchInadimplentes(files, nivel) {
     progress.classList.remove('hidden');
     bar.style.width = '30%';
     msg.textContent = `Enviando ${files.length} arquivo(s) [${nivel}]...`;
-    msg.className = 'upload-msg text-xs text-gray-400 mt-1';
+    msg.className = 'upload-msg text-xs text-slate-400 mt-1';
 
     const form = new FormData();
     for (let i = 0; i < files.length; i++) {
@@ -401,7 +401,7 @@ async function processServerFolder(tipo) {
     progress.classList.remove('hidden');
     bar.style.width = '40%';
     msg.textContent = 'Processando pasta do servidor...';
-    msg.className = 'upload-msg text-xs text-gray-400 mt-1';
+    msg.className = 'upload-msg text-xs text-slate-400 mt-1';
 
     try {
         const res = await fetch('/api/upload-folder', {
@@ -427,14 +427,14 @@ async function processServerFolder(tipo) {
     setTimeout(() => {
         progress.classList.add('hidden');
         bar.style.width = '0%';
-        msg.className = 'upload-msg text-xs text-gray-400 mt-1';
+        msg.className = 'upload-msg text-xs text-slate-400 mt-1';
     }, 3000);
 }
 
 function loadFileInfo() {
     const TIPO_COLORS = {
         matriculados: 'emerald', inadimplentes: 'amber', concluintes: 'purple',
-        acesso_ava: 'sky', sem_rematricula: 'rose', lista_alunos: 'indigo'
+        acesso_ava: 'sky', sem_rematricula: 'rose', lista_alunos: 'teal'
     };
     fetch('/api/upload/info').then(r => r.json()).then(d => {
         const snaps = d.snapshots || {};
@@ -448,9 +448,9 @@ function loadFileInfo() {
                 el.innerHTML = `<div class="flex items-center gap-1.5 mb-1">` +
                     `<svg class="w-3.5 h-3.5 text-${c}-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>` +
                     `<span class="text-${c}-300 font-semibold truncate">${esc(s.filename)}</span></div>` +
-                    `<div class="text-gray-400 pl-5">${s.row_count.toLocaleString('pt-BR')} linhas &middot; ${s.uploaded_at}</div>`;
+                    `<div class="text-slate-400 pl-5">${s.row_count.toLocaleString('pt-BR')} linhas &middot; ${s.uploaded_at}</div>`;
             } else {
-                el.className = 'snap-info mt-3 text-xs text-gray-500';
+                el.className = 'snap-info mt-3 text-xs text-slate-500';
                 el.textContent = 'Nenhum snapshot';
             }
         }

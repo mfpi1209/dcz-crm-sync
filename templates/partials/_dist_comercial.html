@@ -1,4 +1,4 @@
-            <div id="page-dist_comercial" class="hidden p-4 lg:p-8 max-w-7xl mx-auto">
+            <div id="page-dist_comercial" class="hidden">
                 <style>
                     #page-dist_comercial {
                         --dist-primary: #2563eb;
@@ -17,7 +17,7 @@
                         --dist-bg-main: #f8fafc;
                         --dist-bg-hover: #f1f5f9;
                         --dist-border: #e2e8f0;
-                        --dist-text-primary: #111827;
+                        --dist-text-primary: #0f172a;
                         --dist-text-secondary: #475569;
                         --dist-text-muted: #94a3b8;
                         --dist-input-bg: #ffffff;
@@ -26,15 +26,15 @@
 
                     /* Modo Escuro */
                     .dark #page-dist_comercial {
-                        --dist-bg-card: #1f2937;
-                        --dist-bg-main: #111827;
+                        --dist-bg-card: #1e293b;
+                        --dist-bg-main: #0f172a;
                         --dist-bg-hover: #334155;
                         --dist-border: #334155;
                         --dist-text-primary: #f1f5f9;
                         --dist-text-secondary: #cbd5e1;
                         --dist-text-muted: #64748b;
-                        --dist-input-bg: #1f2937;
-                        --dist-table-header: #1f2937;
+                        --dist-input-bg: #1e293b;
+                        --dist-table-header: #1e293b;
                     }
 
                     #page-dist_comercial {
@@ -43,7 +43,9 @@
                     }
 
                     #page-dist_comercial .dist-container {
-                        width: 100%;
+                        max-width: 1400px;
+                        margin: 0 auto;
+                        padding: 24px;
                     }
 
                     #page-dist_comercial .dist-card {
@@ -336,7 +338,7 @@
 
                     @media (max-width: 768px) {
                         #page-dist_comercial .dist-container {
-                            width: 100%;
+                            padding: 16px;
                         }
                         #page-dist_comercial .dist-card {
                             padding: 16px;

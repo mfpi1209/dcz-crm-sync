@@ -297,10 +297,13 @@ function _mpRenderPixDia(d) {
     const hoje = d.hoje || {};
     const meta = hoje.meta || 0;
     const feitas = hoje.realizadas || 0;
+    const aceitesFila = hoje.aceites_fila || 0;
+    const aceitesHoje = hoje.aceites_hoje || 0;
     const fixo = hoje.bonus_fixo || 0;
     const extra = hoje.bonus_extra || 0;
 
-    const pct = meta > 0 ? Math.min(feitas / meta, 1) : 0;
+    const efetivo = feitas + aceitesHoje;
+    const pct = meta > 0 ? Math.min(efetivo / meta, 1) : 0;
     const circum = 314.16;
     const offset = circum * (1 - pct);
 
@@ -309,33 +312,53 @@ function _mpRenderPixDia(d) {
     const ringLabel = document.getElementById('mp-ring-label');
     if (ringFill) {
         ringFill.setAttribute('stroke-dashoffset', offset);
-        ringFill.setAttribute('stroke', feitas >= meta && meta > 0 ? '#10b981' : '#3b82f6');
+        ringFill.setAttribute('stroke', efetivo >= meta && meta > 0 ? '#10b981' : '#3b82f6');
     }
-    if (ringValue) ringValue.textContent = feitas;
+    if (ringValue) ringValue.textContent = efetivo;
     if (ringLabel) ringLabel.textContent = meta > 0 ? `de ${meta}` : 'sem meta';
 
     const status = document.getElementById('mp-pix-status');
     const detail = document.getElementById('mp-pix-detail');
     const valor = document.getElementById('mp-pix-valor');
+    const aceitesBadge = document.getElementById('mp-aceites-badge');
+
+    if (aceitesBadge) {
+        if (aceitesFila > 0 || aceitesHoje > 0) {
+            aceitesBadge.classList.remove('hidden');
+            aceitesBadge.innerHTML = `
+                <span class="material-symbols-outlined text-sm text-purple-400">pending</span>
+                <span class="text-[10px] text-purple-300 font-medium">${aceitesHoje > 0 ? aceitesHoje + ' aceite' + (aceitesHoje > 1 ? 's' : '') + ' hoje' : ''}${aceitesHoje > 0 && aceitesFila > aceitesHoje ? ' · ' : ''}${aceitesFila > aceitesHoje ? aceitesFila + ' na fila total' : ''}</span>
+            `;
+        } else {
+            aceitesBadge.classList.add('hidden');
+        }
+    }
 
     if (meta <= 0) {
         if (status) status.textContent = 'Sem meta diária hoje';
-        if (detail) detail.textContent = 'Nenhuma meta PIX configurada para hoje.';
+        if (detail) detail.textContent = aceitesFila > 0
+            ? `Nenhuma meta PIX configurada, mas você tem ${aceitesFila} aceite${aceitesFila > 1 ? 's' : ''} na fila!`
+            : 'Nenhuma meta PIX configurada para hoje.';
         if (valor) valor.textContent = '';
         return;
     }
 
-    if (feitas >= meta) {
-        const ganho = fixo + extra * Math.max(0, feitas - meta);
+    if (efetivo >= meta) {
+        const ganho = fixo + extra * Math.max(0, efetivo - meta);
         if (status) { status.textContent = 'PIX Garantido!'; status.className = 'text-base font-bold text-emerald-400 mb-1'; }
-        if (detail) detail.textContent = feitas > meta
-            ? `Meta batida! +${feitas - meta} extra × ${_mpFmt(extra)} cada`
-            : 'Parabéns, meta do dia batida!';
+        const parts = [];
+        if (feitas > 0) parts.push(`${feitas} matrícula${feitas > 1 ? 's' : ''}`);
+        if (aceitesHoje > 0) parts.push(`${aceitesHoje} aceite${aceitesHoje > 1 ? 's' : ''}`);
+        if (detail) detail.textContent = efetivo > meta
+            ? `Meta batida! ${parts.join(' + ')} · +${efetivo - meta} extra × ${_mpFmt(extra)} cada`
+            : `Parabéns! ${parts.join(' + ')} = meta batida!`;
         if (valor) valor.textContent = _mpFmt(ganho);
     } else {
-        const falta = meta - feitas;
+        const falta = meta - efetivo;
         if (status) { status.textContent = `Faltam ${falta} para o PIX!`; status.className = 'text-base font-bold text-cyan-400 mb-1'; }
-        if (detail) detail.textContent = `Bata ${meta} matrículas hoje e garanta seu PIX!`;
+        const aceiteTip = aceitesFila > aceitesHoje
+            ? ` (${aceitesFila - aceitesHoje} aceite${aceitesFila - aceitesHoje > 1 ? 's' : ''} pendente${aceitesFila - aceitesHoje > 1 ? 's' : ''} podem virar matrícula!)` : '';
+        if (detail) detail.textContent = `${feitas} matrícula${feitas !== 1 ? 's' : ''} + ${aceitesHoje} aceite${aceitesHoje !== 1 ? 's' : ''} = ${efetivo}/${meta}${aceiteTip}`;
         if (valor) valor.textContent = `Prêmio: ${_mpFmt(fixo)}`;
     }
 }
@@ -349,8 +372,8 @@ function _mpRenderMomentum(d) {
     el('mp-projecao-mat').textContent = `${d.projecao || 0} mat`;
 
     const projTier = el('mp-projecao-tier');
-    const tierLabels = { intermediaria: 'Intermediária', meta: 'Meta', supermeta: 'Supermeta' };
-    if (d.projecao_tier) {
+    const tierLabels = { base: 'Base', intermediaria: 'Intermediária', meta: 'Meta', supermeta: 'Supermeta' };
+    if (d.projecao_tier && d.projecao_tier !== 'base') {
         projTier.textContent = tierLabels[d.projecao_tier] || d.projecao_tier;
         projTier.className = 'text-[10px] text-emerald-400';
     } else {

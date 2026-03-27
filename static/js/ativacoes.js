@@ -107,13 +107,13 @@ function _ativRenderKPIs(curA, prevA, pctA, curR, prevR, pctR) {
     document.getElementById("ativ-kpi-ativ-prev").textContent = _ativFmt(prevA);
     _ativSetBadge("ativ-kpi-ativ-badge", pctA);
     document.getElementById("ativ-kpi-ativ-icon").textContent = pctA > 0 ? "▲" : pctA < 0 ? "▼" : "—";
-    document.getElementById("ativ-kpi-ativ-icon").className   = `text-sm ${pctA > 0 ? "text-green-400" : pctA < 0 ? "text-red-400" : "text-gray-500"}`;
+    document.getElementById("ativ-kpi-ativ-icon").className   = `text-sm ${pctA > 0 ? "text-green-400" : pctA < 0 ? "text-red-400" : "text-slate-500"}`;
 
     document.getElementById("ativ-kpi-ret-val").textContent  = _ativFmt(curR);
     document.getElementById("ativ-kpi-ret-prev").textContent = _ativFmt(prevR);
     _ativSetBadge("ativ-kpi-ret-badge", pctR);
     document.getElementById("ativ-kpi-ret-icon").textContent = pctR > 0 ? "▲" : pctR < 0 ? "▼" : "—";
-    document.getElementById("ativ-kpi-ret-icon").className   = `text-sm ${pctR > 0 ? "text-green-400" : pctR < 0 ? "text-red-400" : "text-gray-500"}`;
+    document.getElementById("ativ-kpi-ret-icon").className   = `text-sm ${pctR > 0 ? "text-green-400" : pctR < 0 ? "text-red-400" : "text-slate-500"}`;
 }
 
 function _ativRenderComparativo(curA, prevA, pctA, curR, prevR, pctR) {
@@ -132,19 +132,19 @@ function _ativSetBadge(id, pct) {
     el.textContent = `${sign}${pct}%`;
     if (pct > 0)      el.className = "px-2 py-0.5 rounded-full font-semibold text-xs bg-green-500/20 text-green-400";
     else if (pct < 0) el.className = "px-2 py-0.5 rounded-full font-semibold text-xs bg-red-500/20 text-red-400";
-    else               el.className = "px-2 py-0.5 rounded-full font-semibold text-xs bg-gray-500/20 text-gray-400";
+    else               el.className = "px-2 py-0.5 rounded-full font-semibold text-xs bg-slate-500/20 text-slate-400";
 }
 
 function _ativRenderTblAtivacoes(rows) {
     const tb = document.getElementById("ativ-tbl-ativacoes");
     if (!rows.length) {
-        tb.innerHTML = '<tr><td colspan="2" class="px-5 py-6 text-center text-gray-600">Sem dados disponíveis</td></tr>';
+        tb.innerHTML = '<tr><td colspan="2" class="px-5 py-6 text-center text-slate-600">Sem dados disponíveis</td></tr>';
         return;
     }
     tb.innerHTML = rows.map(d =>
         `<tr class="hover:bg-white/[0.02]">
-            <td class="px-5 py-2.5 text-gray-300">${esc(d.dia)}</td>
-            <td class="px-5 py-2.5 text-right text-gray-200 font-semibold">${_ativFmt(d.total)}</td>
+            <td class="px-5 py-2.5 text-slate-300">${esc(d.dia)}</td>
+            <td class="px-5 py-2.5 text-right text-slate-200 font-semibold">${_ativFmt(d.total)}</td>
         </tr>`
     ).join("");
 }
@@ -152,13 +152,13 @@ function _ativRenderTblAtivacoes(rows) {
 function _ativRenderTblRetornos(rows) {
     const tb = document.getElementById("ativ-tbl-retornos");
     if (!rows.length) {
-        tb.innerHTML = '<tr><td colspan="2" class="px-5 py-6 text-center text-gray-600">Sem dados disponíveis</td></tr>';
+        tb.innerHTML = '<tr><td colspan="2" class="px-5 py-6 text-center text-slate-600">Sem dados disponíveis</td></tr>';
         return;
     }
     tb.innerHTML = rows.map(r =>
         `<tr class="hover:bg-white/[0.02]">
             <td class="px-5 py-2.5 text-blue-400 font-medium">${esc(r.retorno.toUpperCase())}</td>
-            <td class="px-5 py-2.5 text-right text-gray-200 font-semibold">${_ativFmt(r.quantidade)}</td>
+            <td class="px-5 py-2.5 text-right text-slate-200 font-semibold">${_ativFmt(r.quantidade)}</td>
         </tr>`
     ).join("");
 }

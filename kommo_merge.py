@@ -48,62 +48,11 @@ POLL_MAX_ATTEMPTS = 30
 
 
 # ---------------------------------------------------------------------------
-# 1. Session cookies — manual override + Kommo_chat fallback
+# 1. Session cookies from Kommo_chat
 # ---------------------------------------------------------------------------
 
-_COOKIE_FILE = os.path.join(os.path.dirname(__file__), ".kommo_cookies.json")
-_manual_cookies: dict | None = None
-
-
-def _load_cookies_from_disk():
-    global _manual_cookies
-    try:
-        if os.path.exists(_COOKIE_FILE):
-            with open(_COOKIE_FILE, "r") as f:
-                data = json.load(f)
-            if isinstance(data, dict) and data.get("session_id"):
-                _manual_cookies = data
-                log.info("Cookies carregados do disco (%d keys)", len(data))
-    except Exception as e:
-        log.warning("Falha ao carregar cookies do disco: %s", e)
-
-
-def _save_cookies_to_disk(cookies: dict | None):
-    try:
-        if cookies:
-            with open(_COOKIE_FILE, "w") as f:
-                json.dump(cookies, f)
-        elif os.path.exists(_COOKIE_FILE):
-            os.remove(_COOKIE_FILE)
-    except Exception as e:
-        log.warning("Falha ao salvar cookies no disco: %s", e)
-
-
-_load_cookies_from_disk()
-
-
-def set_manual_cookies(cookies: dict | None):
-    """Set (or clear) manually-provided Kommo session cookies."""
-    global _manual_cookies
-    _manual_cookies = cookies
-    _save_cookies_to_disk(cookies)
-    if cookies:
-        log.info("Manual cookies set (%d keys)", len(cookies))
-    else:
-        log.info("Manual cookies cleared")
-
-
-def get_manual_cookies():
-    """Return current manual cookies (or None)."""
-    return _manual_cookies
-
-
 def get_session_cookies(force_renew=False):
-    """Obtém cookies: manual override > Kommo_chat dispatcher."""
-    if _manual_cookies and not force_renew:
-        log.info("Usando cookies manuais (%d keys)", len(_manual_cookies))
-        return _manual_cookies
-
+    """Obtém cookies de sessão web do Kommo via serviço Kommo_chat."""
     url = f"{KOMMO_CHAT_URL}/api/kommo/session"
     if force_renew:
         url = f"{KOMMO_CHAT_URL}/api/kommo/session/renew"
@@ -435,8 +384,7 @@ def merge_leads(payload_pairs, cookies):
     except requests.RequestException as e:
         return {"ok": False, "error": str(e)}
 
-    resp_body = resp.text[:1000]
-    log.info("Response: %d | Body: %s", resp.status_code, resp_body)
+    log.info("Response: %d", resp.status_code)
 
     if resp.status_code == 401:
         log.warning("401 — sessão expirada, tentando renovar...")

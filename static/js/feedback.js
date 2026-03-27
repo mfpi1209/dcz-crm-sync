@@ -95,29 +95,6 @@ function _fbShowError(msg) {
     document.getElementById('fbErrorText').textContent = msg;
     t.classList.add('active'); setTimeout(() => t.classList.remove('active'), 5000);
 }
-function _fbShowEmpty(msg) {
-    _fbShowLoading(false);
-    document.getElementById('fbDetailSection').style.display = 'none';
-    document.getElementById('fbRankingSection').style.display = '';
-    document.getElementById('fbGlobalChartSection').style.display = '';
-    document.getElementById('fbTableBody').innerHTML =
-        '<tr><td colspan="8" class="px-4 py-16 text-center">' +
-        '<div class="flex flex-col items-center gap-3">' +
-        '<div class="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center">' +
-        '<svg class="w-7 h-7 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>' +
-        '</div>' +
-        '<p class="text-sm font-medium text-[var(--text-primary)]">Sem dados disponíveis</p>' +
-        '<p class="text-xs text-gray-500 max-w-sm">' + msg + '</p>' +
-        '</div></td></tr>';
-    const chartEl = document.getElementById('fbChartGlobal');
-    if (chartEl) {
-        const inst = echarts.getInstanceByDom(chartEl);
-        if (inst) inst.dispose();
-        chartEl.innerHTML =
-            '<div class="flex items-center justify-center h-full">' +
-            '<p class="text-sm text-gray-500">Nenhum dado para exibir no gráfico</p></div>';
-    }
-}
 function _fbFmtDate(ds) {
     const d = new Date(ds + 'T00:00:00');
     return d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' });
@@ -153,37 +130,38 @@ function _fbUpdateKPIs(g) {
 function _fbRenderTable(consultores) {
     const tb = document.getElementById('fbTableBody');
     const valid = _fbValidC(consultores);
-    if (valid.length === 0) { tb.innerHTML = '<tr><td colspan="8" class="px-4 py-12 text-center text-gray-500">Nenhum consultor encontrado</td></tr>'; return; }
+    if (valid.length === 0) { tb.innerHTML = '<tr><td colspan="8" class="px-4 py-12 text-center text-slate-500">Nenhum consultor encontrado</td></tr>'; return; }
     tb.innerHTML = valid.map((c, i) => {
         const nm = c.nomes_originais ? c.nomes_originais[0] : c.consultor;
         return '<tr><td><strong>' + (i+1) + '</strong></td><td><div class="fb-consultor-name"><div class="fb-avatar">' + _fbInitials(c.consultor) + '</div>' + c.consultor + '</div></td><td><strong>' + _fbFmtNum(c.total_atendimentos) + '</strong></td><td><span class="fb-nota-badge ' + _fbBadgeCls(c.nota_media) + '">' + (c.nota_media != null ? _fbFmtDec(c.nota_media) : 'N/A') + '</span></td><td>' + _fbFmtNum(c.notas_informadas) + '</td><td>' + (c.tempo_medio_resposta_min != null ? _fbFmtTime(c.tempo_medio_resposta_min) : 'N/A') + '</td><td>' + (c.tempo_medio_atendimento_min != null ? _fbFmtTime(c.tempo_medio_atendimento_min) : 'N/A') + '</td><td><button class="fb-btn-detail" onclick="fbViewDetail(\'' + nm.replace(/'/g, "\\'") + '\')"><svg viewBox="0 0 24 24" width="16" height="16" style="fill:currentColor;margin-right:4px;"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>Ver detalhes</button></td></tr>';
     }).join('');
 }
 
-function _fbMakeChart(chartId, _unused, data) {
+function _fbMakeChart(canvasId, chartRef, data) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    if (chartRef) chartRef.destroy();
     if (!data || data.length === 0) return null;
-    const chart = eInit(chartId);
-    if (!chart) return null;
     const sorted = [...data].sort((a, b) => new Date(a.date) - new Date(b.date));
     const labels = sorted.map(d => { const dt = new Date(d.date + 'T00:00:00'); return dt.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' }); });
-    const t = eThemeColors();
-    chart.setOption({
-        backgroundColor: 'transparent',
-        grid: eBaseGrid(),
-        tooltip: eTooltip(),
-        legend: { top: 0, textStyle: { color: t.textColor, fontSize: 11 } },
-        xAxis: eCategoryAxis(labels),
-        yAxis: [
-            { ...eValueAxis({ min: 0 }), name: 'Atendimentos', nameTextStyle: { color: t.textColor, fontSize: 10 } },
-            { ...eValueAxis({ min: 0, max: 10, formatter: v => v }), position: 'right', name: 'Nota', nameTextStyle: { color: t.textColor, fontSize: 10 }, splitLine: { show: false } },
-        ],
-        series: [
-            { name: 'Atendimentos', type: 'line', yAxisIndex: 0, data: sorted.map(d => d.atendimentos || 0), smooth: 0.4, symbol: 'circle', symbolSize: 5, lineStyle: { width: 2, color: '#6366f1' }, itemStyle: { color: '#6366f1' }, areaStyle: { color: 'rgba(99,102,241,0.1)' } },
-            { name: 'Nota Média', type: 'line', yAxisIndex: 1, data: sorted.map(d => d.nota_media != null ? d.nota_media : null), smooth: 0.4, symbol: 'circle', symbolSize: 4, lineStyle: { width: 1.5, color: '#10b981', type: 'dashed' }, itemStyle: { color: '#10b981' }, connectNulls: true },
-        ],
-        animationDuration: 600,
-    }, true);
-    return chart;
+    return new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [
+                { label: 'Atendimentos', data: sorted.map(d => d.atendimentos || 0), borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,.1)', fill: true, tension: .4, yAxisID: 'y' },
+                { label: 'Nota Média', data: sorted.map(d => d.nota_media != null ? d.nota_media : null), borderColor: '#059669', backgroundColor: 'transparent', borderDash: [5, 5], tension: .4, yAxisID: 'y1', spanGaps: true }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { position: 'top' } },
+            scales: {
+                y: { type:'linear', display:true, position:'left', title: { display:true, text:'Atendimentos' } },
+                y1: { type:'linear', display:true, position:'right', min:0, max:10, title: { display:true, text:'Nota' }, grid: { drawOnChartArea:false } }
+            }
+        }
+    });
 }
 
 async function fbFetch() {
@@ -198,16 +176,7 @@ async function fbFetch() {
         if (cons) url += '&consultor=' + encodeURIComponent(cons);
         const resp = await fetch(url, { method:'GET', mode:'cors' });
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const text = await resp.text();
-        if (!text) {
-            _fbShowEmpty('O servidor retornou sem dados. Verifique se o workflow do n8n está ativo.');
-            return;
-        }
-        let data;
-        try { data = JSON.parse(text); } catch(pe) {
-            _fbShowEmpty('Resposta inválida do servidor.');
-            return;
-        }
+        const data = await resp.json();
         _fbData = data;
         if (data.global) _fbUpdateKPIs(data.global);
         if (data.consultores) _fbPopulateDD(data.consultores);
@@ -235,10 +204,7 @@ async function fbFetch() {
             _fbChartGlobal = _fbMakeChart('fbChartGlobal', _fbChartGlobal, sg);
         }
     } catch (e) {
-        const msg = e.message.includes('Failed to fetch')
-            ? 'Não foi possível conectar ao servidor. Verifique sua conexão.'
-            : e.message;
-        _fbShowEmpty(msg);
+        _fbShowError('Erro: ' + e.message);
     } finally {
         _fbShowLoading(false);
     }
@@ -279,10 +245,7 @@ async function fbVerExemplos(tipo) {
         const url = FB_WEBHOOK + '?consultor=' + encodeURIComponent(cons) + '&tipo=' + tipo + '&start=' + sd + '&end=' + ed;
         const resp = await fetch(url, { method:'GET', mode:'cors' });
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const text = await resp.text();
-        if (!text) throw new Error('Servidor retornou sem dados. Verifique o workflow n8n.');
-        let data;
-        try { data = JSON.parse(text); } catch(pe) { throw new Error('Resposta inválida do servidor'); }
+        const data = await resp.json();
         const exs = data.exemplos || [], total = data.total || exs.length;
         document.getElementById('fbModalSubtitle').textContent = total + ' exemplo' + (total !== 1 ? 's' : '') + ' encontrado' + (total !== 1 ? 's' : '');
         if (exs.length === 0) {

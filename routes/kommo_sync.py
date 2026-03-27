@@ -322,17 +322,15 @@ FUNNEL_STAGES_DEF = [
     {"key": "pagamento_confirmado",  "id": 77728584, "label": "Pagamento Confirmado"},
 ]
 
-_STAGE_ID_TO_DEF = {s["id"]: s for s in FUNNEL_STAGES_DEF}
-
 FUNNEL_HIGHLIGHT = [
     "aguardando_inscricao", "inscricao", "processo_seletivo",
     "em_processo", "aprovado_reprovado", "aceite",
 ]
 
 _funnel_cache = {"data": None, "ts": 0}
-_FUNNEL_CACHE_TTL = 120
-_bg_fetch_lock = threading.Lock()
-_bg_fetch_running = False
+_FUNNEL_CACHE_TTL = 300
+
+SNAPSHOT_FILE = Path(__file__).resolve().parent.parent / "data" / "funnel_snapshot.json"
 
 
 def _kommo_get(path, params=None):
@@ -345,107 +343,83 @@ def _kommo_get(path, params=None):
     return _requests.get(url, headers=headers, params=params, timeout=30)
 
 
-# ── PG-based instant funnel counts ───────────────────────────────────────
-
-def _funnel_from_pg():
-    """Instant funnel counts from the locally-synced leads table."""
-    try:
-        conn = _pg()
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT status_id, COUNT(*) AS cnt
-            FROM leads
-            WHERE pipeline_id = %s AND NOT COALESCE(is_deleted, false)
-            GROUP BY status_id
-        """, (FUNNEL_PIPELINE,))
-        rows = cur.fetchall()
-
-        cur.execute("""
-            SELECT COUNT(*) FROM leads
-            WHERE created_at >= %s AND NOT COALESCE(is_deleted, false)
-        """, (int(datetime.now(timezone(timedelta(hours=-3)))
-                   .replace(hour=0, minute=0, second=0, microsecond=0)
-                   .timestamp()),))
-        new_today = cur.fetchone()[0]
-        conn.close()
-    except Exception as e:
-        logger.error("_funnel_from_pg error: %s", e)
-        return None
-
-    counts = {r[0]: r[1] for r in rows}
-    stages = []
-    total = 0
-    for sdef in FUNNEL_STAGES_DEF:
-        c = counts.get(sdef["id"], 0)
-        total += c
-        stages.append({
-            "key": sdef["key"], "id": sdef["id"], "label": sdef["label"],
-            "count": c, "highlight": sdef["key"] in FUNNEL_HIGHLIGHT,
-        })
-    for s in stages:
-        s["pct"] = round(s["count"] / total * 100, 1) if total > 0 else 0
-
-    return {
-        "stages": stages, "total": total, "new_today": new_today,
-        "leads_fetched": total, "pages": 0,
-    }
-
-
-# ── Kommo API live fetch ─────────────────────────────────────────────────
-
 def _count_new_leads_today():
+    """Count ALL leads created today across every pipeline (matches Kommo dashboard)."""
     BRT = timezone(timedelta(hours=-3))
     today_start = int(datetime.now(BRT).replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
-    count, seen, page = 0, set(), 1
+
+    count = 0
+    seen = set()
+    page = 1
     while True:
         try:
-            r = _kommo_get("/leads", {"filter[created_at][from]": today_start, "limit": 250, "page": page})
+            r = _kommo_get("/leads", {
+                "filter[created_at][from]": today_start,
+                "limit": 250,
+                "page": page,
+            })
         except Exception as e:
             logger.error("count_new_leads API error: %s", e)
             break
+
         if r.status_code != 200:
+            logger.warning("count_new_leads API %d: %s", r.status_code, r.text[:200])
             break
+
         data = r.json()
         leads = data.get("_embedded", {}).get("leads", [])
         if not leads:
             break
+
         for lead in leads:
             lid = lead.get("id")
             if lid and lid not in seen:
                 seen.add(lid)
                 count += 1
+
         if "next" not in data.get("_links", {}):
             break
         page += 1
         _time.sleep(0.05)
+
+    logger.info("count_new_leads_today: %d leads (pages=%d)", count, page)
     return count
 
 
 def _fetch_funnel_live():
-    """Fetch all leads in the funnel pipeline from Kommo API v4."""
+    """Fetch all leads in the funnel pipeline from Kommo API v4, count by status."""
     stage_ids = [s["id"] for s in FUNNEL_STAGES_DEF]
-    all_leads, seen_ids, page = [], set(), 1
+    all_leads = []
+    seen_ids = set()
+    page = 1
+
     while True:
         params = {"limit": 250, "page": page}
         for i, sid in enumerate(stage_ids):
             params[f"filter[statuses][{i}][pipeline_id]"] = FUNNEL_PIPELINE
             params[f"filter[statuses][{i}][status_id]"] = sid
+
         try:
             r = _kommo_get("/leads", params)
         except Exception as e:
             logger.error("Kommo API error: %s", e)
             break
+
         if r.status_code != 200:
+            logger.warning("Kommo API %d: %s", r.status_code, r.text[:200])
             break
+
         data = r.json()
         leads = data.get("_embedded", {}).get("leads", [])
         if not leads:
             break
+
         for lead in leads:
             lid = lead.get("id")
             if lid and lid not in seen_ids:
                 seen_ids.add(lid)
                 all_leads.append(lead)
+
         if "_links" not in data or "next" not in data["_links"]:
             break
         page += 1
@@ -453,111 +427,95 @@ def _fetch_funnel_live():
 
     counts = {}
     for lead in all_leads:
-        counts[lead.get("status_id")] = counts.get(lead.get("status_id"), 0) + 1
+        sid = lead.get("status_id")
+        counts[sid] = counts.get(sid, 0) + 1
 
-    stages, total = [], 0
+    stages = []
+    total = 0
     for sdef in FUNNEL_STAGES_DEF:
         c = counts.get(sdef["id"], 0)
         total += c
         stages.append({
-            "key": sdef["key"], "id": sdef["id"], "label": sdef["label"],
-            "count": c, "highlight": sdef["key"] in FUNNEL_HIGHLIGHT,
+            "key": sdef["key"],
+            "id": sdef["id"],
+            "label": sdef["label"],
+            "count": c,
+            "highlight": sdef["key"] in FUNNEL_HIGHLIGHT,
         })
+
     for s in stages:
         s["pct"] = round(s["count"] / total * 100, 1) if total > 0 else 0
 
-    return {"stages": stages, "total": total, "leads_fetched": len(all_leads), "pages": page}
+    return {
+        "stages": stages,
+        "total": total,
+        "leads_fetched": len(all_leads),
+        "pages": page,
+    }
 
 
-# ── DB snapshot (replaces JSON file) ─────────────────────────────────────
-
-def _save_funnel_to_db(result):
-    """Persist a funnel snapshot into kommo_funnel_log (dcz_sync)."""
-    from db import get_conn
-    BRT = timezone(timedelta(hours=-3))
-    today = datetime.now(BRT).date()
-    stages_json = {s["key"]: s["count"] for s in result["stages"]}
+def _load_snapshot():
     try:
-        conn = get_conn()
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO kommo_funnel_log (captured_date, source, total, new_today, stages)
-                VALUES (%s, 'live', %s, %s, %s)
-            """, (today, result["total"], result.get("new_today", 0), json.dumps(stages_json)))
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        logger.error("_save_funnel_to_db: %s", e)
+        if SNAPSHOT_FILE.exists():
+            with open(SNAPSHOT_FILE, encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
 
 
-def _get_d0_from_db():
-    """Get today's D0 and yesterday's last snapshot from the DB."""
-    from db import get_conn
+def _save_snapshot(snapshots):
+    SNAPSHOT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(SNAPSHOT_FILE, "w", encoding="utf-8") as f:
+        json.dump(snapshots, f, indent=2, ensure_ascii=False)
+
+
+def _get_snapshot_d0(current_stages):
+    """Get or create today's D0 snapshot. Returns yesterday's snapshot for delta."""
     BRT = timezone(timedelta(hours=-3))
-    today = datetime.now(BRT).date()
-    yesterday = today - timedelta(days=1)
-    d0, yd = {}, None
+    today = datetime.now(BRT).date().isoformat()
+    snapshots = _load_snapshot()
+
+    current_total = sum(s["count"] for s in current_stages)
+    existing = snapshots.get(today)
+    needs_create = existing is None
+    if existing and existing.get("_total", 0) < 100 and current_total > 100:
+        logger.warning("D0 snapshot for %s looks invalid (_total=%s), recreating", today, existing.get("_total"))
+        needs_create = True
+
+    if needs_create:
+        snapshots[today] = {s["key"]: s["count"] for s in current_stages}
+        snapshots[today]["_total"] = current_total
+        old = sorted(k for k in snapshots if k != today)
+        for k in old[:-7]:
+            del snapshots[k]
+        _save_snapshot(snapshots)
+
+    d0 = snapshots.get(today, {})
+
+    dates_sorted = sorted(snapshots.keys())
+    yesterday = None
+    for dt in dates_sorted:
+        if dt < today:
+            yesterday = snapshots[dt]
+
+    return d0, yesterday
+
+
+@kommo_bp.route("/api/kommo/funnel-live")
+def api_kommo_funnel_live():
+    """Fetch real-time funnel data from Kommo API v4."""
+    force = request.args.get("force", "0") == "1"
+    now = _time.time()
+
+    if not force and _funnel_cache["data"] and (now - _funnel_cache["ts"]) < _FUNNEL_CACHE_TTL:
+        return jsonify({"ok": True, "data": _funnel_cache["data"], "cached": True})
+
+    if not KOMMO_TOKEN:
+        return jsonify({"ok": False, "error": "KOMMO_TOKEN não configurado"}), 500
+
     try:
-        conn = get_conn()
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute("""
-                SELECT stages, total FROM kommo_funnel_log
-                WHERE captured_date = %s ORDER BY captured_at ASC LIMIT 1
-            """, (today,))
-            row = cur.fetchone()
-            if row:
-                d0 = row["stages"] if isinstance(row["stages"], dict) else json.loads(row["stages"])
-                d0["_total"] = row["total"]
-
-            cur.execute("""
-                SELECT stages, total FROM kommo_funnel_log
-                WHERE captured_date = %s ORDER BY captured_at DESC LIMIT 1
-            """, (yesterday,))
-            row = cur.fetchone()
-            if row:
-                yd = row["stages"] if isinstance(row["stages"], dict) else json.loads(row["stages"])
-                yd["_total"] = row["total"]
-        conn.close()
-    except Exception as e:
-        logger.error("_get_d0_from_db: %s", e)
-    return d0, yd
-
-
-def _enrich_with_d0(result):
-    """Add D0 / yesterday delta info to each stage."""
-    d0, yesterday = _get_d0_from_db()
-    BRT = timezone(timedelta(hours=-3))
-
-    if not d0:
-        _save_funnel_to_db(result)
-        d0 = {s["key"]: s["count"] for s in result["stages"]}
-
-    for s in result["stages"]:
-        d0_val = d0.get(s["key"], s["count"])
-        s["d0"] = d0_val
-        delta = s["count"] - d0_val
-        s["delta"] = delta
-        s["delta_pct"] = round(delta / d0_val * 100, 1) if d0_val > 0 else 0
-        if yesterday:
-            yd = yesterday.get(s["key"], 0)
-            s["yesterday"] = yd
-            s["delta_yesterday"] = s["count"] - yd
-        else:
-            s["yesterday"] = None
-            s["delta_yesterday"] = None
-
-    result["d0_date"] = datetime.now(BRT).date().isoformat()
-    result["fetched_at"] = datetime.now(BRT).strftime("%H:%M:%S")
-    return result
-
-
-# ── Background live refresh ──────────────────────────────────────────────
-
-def _bg_live_refresh():
-    """Run in a background thread: fetch live data, save to DB, update cache."""
-    global _bg_fetch_running
-    try:
-        from concurrent.futures import ThreadPoolExecutor
+        from concurrent.futures import ThreadPoolExecutor, as_completed
         with ThreadPoolExecutor(max_workers=2) as pool:
             fut_funnel = pool.submit(_fetch_funnel_live)
             fut_count = pool.submit(_count_new_leads_today)
@@ -565,98 +523,35 @@ def _bg_live_refresh():
         result = fut_funnel.result()
         try:
             result["new_today"] = fut_count.result()
-        except Exception:
+        except Exception as e:
+            logger.error("count_new_leads_today failed: %s", e)
             result["new_today"] = 0
 
-        _save_funnel_to_db(result)
-        result = _enrich_with_d0(result)
-        result["source"] = "live"
+        d0, yesterday = _get_snapshot_d0(result["stages"])
+
+        for s in result["stages"]:
+            d0_val = d0.get(s["key"], s["count"])
+            s["d0"] = d0_val
+            delta = s["count"] - d0_val
+            s["delta"] = delta
+            s["delta_pct"] = round(delta / d0_val * 100, 1) if d0_val > 0 else 0
+
+            if yesterday:
+                yd = yesterday.get(s["key"], 0)
+                s["yesterday"] = yd
+                s["delta_yesterday"] = s["count"] - yd
+            else:
+                s["yesterday"] = None
+                s["delta_yesterday"] = None
+
+        BRT = timezone(timedelta(hours=-3))
+        result["d0_date"] = datetime.now(BRT).date().isoformat()
+        result["fetched_at"] = datetime.now(BRT).strftime("%H:%M:%S")
 
         _funnel_cache["data"] = result
-        _funnel_cache["ts"] = _time.time()
-        logger.info("bg_live_refresh complete: %d leads", result["total"])
+        _funnel_cache["ts"] = now
+
+        return jsonify({"ok": True, "data": result})
     except Exception as e:
-        logger.error("bg_live_refresh error: %s", e)
-    finally:
-        with _bg_fetch_lock:
-            _bg_fetch_running = False
-
-
-# ── API endpoint ─────────────────────────────────────────────────────────
-
-@kommo_bp.route("/api/kommo/funnel-live")
-def api_kommo_funnel_live():
-    """
-    Returns funnel data instantly (PG or cache), triggers live refresh in background.
-    ?force=1  — ignore cache, wait for PG
-    ?poll=1   — return live data only if available (for progressive loading)
-    """
-    global _bg_fetch_running
-    force = request.args.get("force", "0") == "1"
-    poll = request.args.get("poll", "0") == "1"
-    now = _time.time()
-    cache_valid = _funnel_cache["data"] and (now - _funnel_cache["ts"]) < _FUNNEL_CACHE_TTL
-
-    if poll:
-        if _funnel_cache["data"] and _funnel_cache["data"].get("source") == "live" and cache_valid:
-            return jsonify({"ok": True, "data": _funnel_cache["data"], "source": "live"})
-        return jsonify({"ok": True, "data": None, "source": "pending"})
-
-    if not force and cache_valid:
-        return jsonify({"ok": True, "data": _funnel_cache["data"],
-                        "source": _funnel_cache["data"].get("source", "cache"), "cached": True})
-
-    pg_result = _funnel_from_pg()
-    if pg_result:
-        pg_result = _enrich_with_d0(pg_result)
-        pg_result["source"] = "pg"
-
-    if not force and pg_result:
-        if not _funnel_cache["data"] or (now - _funnel_cache["ts"]) > _FUNNEL_CACHE_TTL:
-            _funnel_cache["data"] = pg_result
-            _funnel_cache["ts"] = now
-
-    should_bg = KOMMO_TOKEN and (force or not cache_valid)
-    if should_bg:
-        with _bg_fetch_lock:
-            if not _bg_fetch_running:
-                _bg_fetch_running = True
-                threading.Thread(target=_bg_live_refresh, daemon=True).start()
-
-    data = pg_result or _funnel_cache.get("data")
-    if data:
-        return jsonify({"ok": True, "data": data, "source": data.get("source", "pg")})
-
-    return jsonify({"ok": False, "error": "Sem dados disponíveis"}), 503
-
-
-# ── Funnel history endpoint ──────────────────────────────────────────────
-
-@kommo_bp.route("/api/kommo/funnel-history")
-def api_kommo_funnel_history():
-    """Return the last snapshot of each day for the past N days."""
-    from db import get_conn
-    days = request.args.get("days", 7, type=int)
-    BRT = timezone(timedelta(hours=-3))
-    since = (datetime.now(BRT).date() - timedelta(days=days)).isoformat()
-    try:
-        conn = get_conn()
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute("""
-                SELECT DISTINCT ON (captured_date)
-                    captured_date, captured_at, total, new_today, stages
-                FROM kommo_funnel_log
-                WHERE captured_date >= %s
-                ORDER BY captured_date, captured_at DESC
-            """, (since,))
-            rows = [dict(r) for r in cur.fetchall()]
-            for r in rows:
-                r["captured_date"] = r["captured_date"].isoformat()
-                r["captured_at"] = r["captured_at"].isoformat()
-                if isinstance(r["stages"], str):
-                    r["stages"] = json.loads(r["stages"])
-        conn.close()
-        return jsonify({"ok": True, "data": rows})
-    except Exception as e:
-        logger.error("funnel-history error: %s", e)
+        logger.error("funnel-live error: %s", e)
         return jsonify({"ok": False, "error": str(e)}), 500

@@ -123,7 +123,7 @@ function renderResults(results) {
             'won': 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
             'in_process': 'bg-blue-500/15 text-blue-400 border border-blue-500/30',
             'lost': 'bg-red-500/15 text-red-400 border border-red-500/30'
-        }[r.negocio_status] || 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-300';
+        }[r.negocio_status] || 'bg-slate-800 text-slate-300';
 
         const statusLabel = {
             'won': 'Ganho', 'in_process': 'Em andamento', 'lost': 'Perdido'
@@ -139,13 +139,13 @@ function renderResults(results) {
         card.innerHTML = `
             <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
                 <div>
-                    <h3 class="text-base font-bold text-[var(--text-primary)] font-display">${esc(r.lead_nome || '—')}</h3>
-                    <p class="text-xs text-gray-500 mt-0.5">Lead: ${esc(r.lead_id || '')} &middot; Negócio: ${esc(r.negocio_codigo || r.negocio_id || '')}</p>
+                    <h3 class="text-base font-bold text-white font-display">${esc(r.lead_nome || '—')}</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">Lead: ${esc(r.lead_id || '')} &middot; Negócio: ${esc(r.negocio_codigo || r.negocio_id || '')}</p>
                 </div>
                 <div class="flex gap-2 flex-wrap">
                     <span class="tag-pill ${statusColor}">${statusLabel}</span>
                     ${r.etapa_nome ? `<span class="tag-pill" style="${stageStyle}">${esc(r.etapa_nome)}</span>` : ''}
-                    ${r.pipeline_nome ? `<span class="tag-pill bg-gray-100 dark:bg-gray-800/60 text-gray-500 dark:text-gray-300 border border-[var(--border)]">${esc(r.pipeline_nome)}</span>` : ''}
+                    ${r.pipeline_nome ? `<span class="tag-pill bg-slate-800/60 text-slate-300 border border-slate-700/30">${esc(r.pipeline_nome)}</span>` : ''}
                 </div>
             </div>
 
@@ -164,8 +164,8 @@ function renderResults(results) {
 
             ${Object.keys(campos_neg).length ? `
             <details class="group">
-                <summary class="text-xs font-bold text-gray-400 cursor-pointer mb-2 select-none font-display">
-                    Campos do Negócio <span class="text-gray-600">(${Object.keys(campos_neg).length})</span>
+                <summary class="text-xs font-bold text-slate-400 cursor-pointer mb-2 select-none font-display">
+                    Campos do Negócio <span class="text-slate-600">(${Object.keys(campos_neg).length})</span>
                 </summary>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 text-sm pl-1">
                     ${Object.entries(campos_neg).map(([k,v]) => field(k, v || null)).join('')}
@@ -174,8 +174,8 @@ function renderResults(results) {
 
             ${Object.keys(campos_lead).length ? `
             <details class="group mt-3">
-                <summary class="text-xs font-bold text-gray-400 cursor-pointer mb-2 select-none font-display">
-                    Campos do Lead <span class="text-gray-600">(${Object.keys(campos_lead).length})</span>
+                <summary class="text-xs font-bold text-slate-400 cursor-pointer mb-2 select-none font-display">
+                    Campos do Lead <span class="text-slate-600">(${Object.keys(campos_lead).length})</span>
                 </summary>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 text-sm pl-1">
                     ${Object.entries(campos_lead).map(([k,v]) => field(k, v || null)).join('')}
@@ -220,15 +220,15 @@ function renderXlResults(results) {
         };
         const xlTipo = r._xl_tipo || '';
         const borderCls = tipoBorder[xlTipo] || 'border-l-amber-500/60';
-        const tipoCls = tipoColors[xlTipo] || 'bg-gray-700/30 text-gray-400 border border-gray-600/30';
+        const tipoCls = tipoColors[xlTipo] || 'bg-slate-700/30 text-slate-400 border border-slate-600/30';
 
         const card = document.createElement('div');
         card.className = `glass-card p-5 fade-in border-l-4 ${borderCls}`;
         card.innerHTML = `
             <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
                 <div>
-                    <h3 class="text-base font-bold text-[var(--text-primary)] font-display">${esc(r.nome || '—')}</h3>
-                    <p class="text-xs text-gray-500 mt-0.5">RGM: ${esc(r.rgm || '—')} &middot; CPF: ${esc(r.cpf || '—')}</p>
+                    <h3 class="text-base font-bold text-white font-display">${esc(r.nome || '—')}</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">RGM: ${esc(r.rgm || '—')} &middot; CPF: ${esc(r.cpf || '—')}</p>
                 </div>
                 <div class="flex gap-2 flex-wrap">
                     ${xlTipo ? `<span class="tag-pill ${tipoCls}">${esc(xlTipo)}</span>` : ''}
@@ -240,7 +240,7 @@ function renderXlResults(results) {
                 ${Object.entries(xlLabels).map(([k, label]) => {
                     const v = r[k];
                     if (!v) return '';
-                    return `<div><span class="text-gray-500 text-xs">${label}</span><p class="text-gray-200 truncate">${esc(v)}</p></div>`;
+                    return `<div><span class="text-slate-500 text-xs">${label}</span><p class="text-slate-200 truncate">${esc(v)}</p></div>`;
                 }).join('')}
             </div>
         `;

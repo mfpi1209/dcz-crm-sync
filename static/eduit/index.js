@@ -28,7 +28,7 @@
           ${k(o.conclusao_md)}
         </div>
       </div>
-    `),e}function de(o){let e='<h2 style="color: #6366f1; margin-bottom: 24px; font-size: 1.5em;">🎯 Seus Cursos Recomendados</h2>';return e+='<p style="color: #6b7280; margin-bottom: 24px; line-height: 1.6;">Com base nas suas preferências, identificamos os cursos que mais combinam com você:</p>',o.sort((i,t)=>i.rank-t.rank).forEach((i,t)=>{const n=(i.curso||"").split(" - ")[0].trim();i.area,i.grau;const r=i.rank||t+1;let l="#6366f1";r===1?l="#10b981":r===2?l="#3b82f6":r===3&&(l="#8b5cf6");const c=`vocacional-${Date.now()}-${t}`;e+=`
+    `),e}function de(o){let e='<h2 style="color: #169DBB; margin-bottom: 24px; font-size: 1.5em;">🎯 Seus Cursos Recomendados</h2>';return e+='<p style="color: #6b7280; margin-bottom: 24px; line-height: 1.6;">Com base nas suas preferências, identificamos os cursos que mais combinam com você:</p>',o.sort((i,t)=>i.rank-t.rank).forEach((i,t)=>{const n=(i.curso||"").split(" - ")[0].trim();i.area,i.grau;const r=i.rank||t+1;let l="#169DBB";r===1?l="#10b981":r===2?l="#3b82f6":r===3&&(l="#8b5cf6");const c=`vocacional-${Date.now()}-${t}`;e+=`
       <div class="curso-recomendado-item" style="background: #ffffff; border: 1px solid #e5e7eb; border-left: 4px solid ${l}; border-radius: 12px; padding: 20px; margin-bottom: 16px; transition: all 0.25s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
         <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 12px;">
           <div style="flex-shrink: 0; width: 48px; height: 48px; background: ${l}; color: white; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
@@ -51,7 +51,7 @@
         <div class="recommendation-justification" id="just-content-${c}"></div>
       </div>
     `,setTimeout(()=>{const d=document.getElementById(`btn-just-${c}`),p=document.getElementById(`just-content-${c}`),u=document.getElementById(`btn-info-${c}`);d&&p&&(d.onclick=async function(){await ge(n,d,p)}),u&&(u.onclick=function(){se(n)})},50)}),e+=`
-    <div style="background: linear-gradient(135deg, #eef2ff 0%, #e0f2fe 100%); border: 1px solid #bae6fd; border-radius: 12px; padding: 20px; margin-top: 24px; margin-bottom: 20px;">
+    <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border: 1px solid #bae6fd; border-radius: 12px; padding: 20px; margin-top: 24px; margin-bottom: 20px;">
       <p style="color: #0369a1; font-size: 0.95em; line-height: 1.6; margin: 0;">
         <strong>💡 Dica:</strong> Explore cada um desses cursos para descobrir qual se encaixa melhor nos seus objetivos profissionais e acadêmicos!
       </p>
@@ -63,18 +63,18 @@
       Refazer Teste
     </button>
   `,e}function me(o){console.log("=== FORMATANDO INFORMAÇÕES DE CURSOS ==="),console.log("Dados recebidos:",o);const e=t=>{if(!t)return"";const a=document.createElement("div");return a.textContent=t,a.innerHTML};let s="";o.resposta_para_usuario&&(s+=`
-      <div style="background: #eef2ff; border-left: 4px solid #6366f1; padding: 16px 20px; border-radius: 8px; margin-bottom: 24px;">
+      <div style="background: #f0f9ff; border-left: 4px solid #169DBB; padding: 16px 20px; border-radius: 8px; margin-bottom: 24px;">
         <p style="color: #0369a1; margin: 0; line-height: 1.6;">${e(o.resposta_para_usuario)}</p>
       </div>
     `),o.mensagem&&(s+=`
-      <div style="background: #eef2ff; border-left: 4px solid #6366f1; padding: 16px 20px; border-radius: 8px; margin-bottom: 24px;">
+      <div style="background: #f0f9ff; border-left: 4px solid #169DBB; padding: 16px 20px; border-radius: 8px; margin-bottom: 24px;">
         <p style="color: #0369a1; margin: 0; line-height: 1.6;">${e(o.mensagem)}</p>
       </div>
     `);let i=[];return o.cursos&&Array.isArray(o.cursos)?i=o.cursos:(o.nome||o.curso_nome)&&(i=[o]),i.length>0&&(console.log("Processando cursos:",i),i.forEach((t,a)=>{console.log(`Processando curso ${a+1}:`,t);const n=t.nome||t.curso_nome||t.name||"Curso não especificado",r=t.tipo||t.type||"";let l=t.modalidade||t.modality||"";(o.tipo_curso_principal==="pos-graduacao"||r.toLowerCase().includes("pós")||r.toLowerCase().includes("pos"))&&(l==="nao_informado"||l===""||!l)&&(console.log(`Pós-graduação detectado! Alterando modalidade de "${l}" para "EAD"`),l="EAD");const d=t.duracao||t.duration||"Não informado",p=t.preco_referencia||t.preco||t.price||"Não informado",u=t.resumo||t.descricao||t.description||"",m=t.areas_atuacao||t.areas||[];s+=`
         <div style="background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
           <!-- Cabeçalho do Curso -->
           <div style="border-bottom: 2px solid #e5e7eb; padding-bottom: 16px; margin-bottom: 20px;">
-            <h2 style="color: #6366f1; font-size: 1.5em; margin: 0 0 12px 0; font-weight: 700;">
+            <h2 style="color: #169DBB; font-size: 1.5em; margin: 0 0 12px 0; font-weight: 700;">
               ${e(n)}
             </h2>
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
@@ -117,7 +117,7 @@
             <!-- Resumo -->
             <div style="margin-bottom: 20px;">
               <h3 style="color: #374151; font-size: 1.1em; font-weight: 600; margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px;">
-                <svg width="18" height="18" fill="none" viewBox="0 0 24 24" style="color: #6366f1;">
+                <svg width="18" height="18" fill="none" viewBox="0 0 24 24" style="color: #169DBB;">
                   <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
                 Sobre o Curso
@@ -132,7 +132,7 @@
             <!-- Áreas de Atuação -->
             <div>
               <h3 style="color: #374151; font-size: 1.1em; font-weight: 600; margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px;">
-                <svg width="18" height="18" fill="none" viewBox="0 0 24 24" style="color: #6366f1;">
+                <svg width="18" height="18" fill="none" viewBox="0 0 24 24" style="color: #169DBB;">
                   <path d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
                 Áreas de Atuação
@@ -158,12 +158,12 @@
       <div class="comparison-section">
         <div class="section-header"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" style="display: inline-block; vertical-align: middle; margin-right: 6px;"><path d="M13 10V3L4 14h7v7l9-11h-7z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Polo Mais Rápido</div>
         <div class="section-content">
-          <h3 style="color: #6366f1; font-size: 1.4em; margin-bottom: 15px;">
+          <h3 style="color: #5b3ff6; font-size: 1.4em; margin-bottom: 15px;">
             <svg width="16" height="16" fill="none" viewBox="0 0 24 24" style="display: inline-block; vertical-align: middle; margin-right: 6px;"><path d="M12 21s6-5.1 6-10a6 6 0 10-12 0c0 4.9 6 10 6 10z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>${o["polo mais rápido"]}
           </h3>
           <div style="background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
             <p style="margin: 8px 0;">
-              <strong style="color: #8b5cf6;"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" style="display: inline-block; vertical-align: middle; margin-right: 4px;"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Tempo estimado:</strong>
+              <strong style="color: #764ba2;"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" style="display: inline-block; vertical-align: middle; margin-right: 4px;"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Tempo estimado:</strong>
               <span style="color: #43e97b; font-size: 1.2em; font-weight: bold;">${o.tempo||"Não disponível"}</span>
             </p>
           </div>
@@ -180,8 +180,8 @@
         <div class="section-content">
     `,o["polo mais próximo"]){const s=o["distancia mais proxima "]||o["distancia mais proxima"]||"Não disponível";e+=`
         <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 15px;
-                    border-left: 4px solid #6366f1;">
-          <h4 style="color: #6366f1; font-size: 1.2em; margin-bottom: 10px;">
+                    border-left: 4px solid #5b3ff6;">
+          <h4 style="color: #5b3ff6; font-size: 1.2em; margin-bottom: 10px;">
             <svg width="16" height="16" fill="none" viewBox="0 0 24 24" style="display: inline-block; vertical-align: middle; margin-right: 6px;"><path d="M12 21s6-5.1 6-10a6 6 0 10-12 0c0 4.9 6 10 6 10z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>${o["polo mais próximo"]}
           </h4>
           <p style="margin: 5px 0; color: #666;">
@@ -191,8 +191,8 @@
         </div>
       `}if(o["polo mais próximo 2"]){const s=o["distancia mais proxima2 "]||o["distancia mais proxima2"]||"Não disponível";e+=`
         <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 15px;
-                    border-left: 4px solid #8b5cf6;">
-          <h4 style="color: #8b5cf6; font-size: 1.2em; margin-bottom: 10px;">
+                    border-left: 4px solid #764ba2;">
+          <h4 style="color: #764ba2; font-size: 1.2em; margin-bottom: 10px;">
             <svg width="16" height="16" fill="none" viewBox="0 0 24 24" style="display: inline-block; vertical-align: middle; margin-right: 6px;"><path d="M12 21s6-5.1 6-10a6 6 0 10-12 0c0 4.9 6 10 6 10z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>${o["polo mais próximo 2"]}
           </h4>
           <p style="margin: 5px 0; color: #666;">
@@ -203,8 +203,8 @@
       `}e+=`
         </div>
       </div>
-    `}return e}function I(o){console.log("=== FORMATO DE RECOMENDAÇÕES ==="),console.log("Resultado completo:",o),console.log("result.recomendacoes:",o.recomendacoes),console.log("Tipo de curso da recomendação (global):",b);let e='<h2 style="color: #8b5cf6; margin-bottom: 20px;">📚 Cursos Recomendados</h2>',s=[],i="";if(Array.isArray(o.recomendacoes)?i=o.recomendacoes.join(" "):typeof o.recomendacoes=="string"&&(i=o.recomendacoes),console.log("Texto completo extraído:",i),i=i.replace(/```[a-z]*\n?/gi,"").trim(),console.log("Texto após remover markdown:",i),i.split(`
-`).forEach(n=>{n=n.trim();const r=n.match(/^\d+\.\s*(.+?)$/);if(r){let l=r[1].trim(),c=l,d="",p="";console.log("Linha capturada completa:",l);const u=l.match(/\(([^)]+)\)/);u&&(d=u[1].trim(),console.log("Tipo de pós encontrado:",d));const m=l.match(/^(.+?)\s+-\s+(.+?)$/);m&&(c=m[1].trim(),p=m[2].trim(),console.log("Nome do curso:",c),console.log("Descrição extraída:",p)),c=c.replace(/\s*\([^)]*\)\s*$/g,"").trim(),c=c.replace(/[\[\]]/g,"").trim(),c=c.replace(/\s+/g," ").trim(),console.log("Nome do curso limpo:",c),c&&c.length>2&&(s.push({nome:c,tipo:d||(b==="pos-graduacao"?"Pós-graduação":""),descricao:p,textoCompleto:l}),console.log("Curso adicionado com tipo:",d||(b==="pos-graduacao"?"Pós-graduação":"sem tipo")))}}),console.log("Cursos separados (método linhas):",s),s.length===0){console.log("Tentando fallback com regex no texto completo...");const n=/(\d+)\.\s*([^0-9]+?)(?=\s*\d+\.|$)/g;let r;for(;(r=n.exec(i))!==null;){let l=r[2].trim(),c=l,d="",p="";const u=l.match(/\(([^)]+)\)/);u&&(d=u[1].trim());const m=l.match(/^(.+?)\s+-\s+(.+?)$/);m&&(c=m[1].trim(),p=m[2].trim()),c=c.replace(/\s*\([^)]*\)\s*$/g,"").trim(),c=c.replace(/[\[\]]/g,"").trim(),c=c.replace(/\s+/g," ").trim(),c&&c.length>2&&(s.push({nome:c,tipo:d||(b==="pos-graduacao"?"Pós-graduação":""),descricao:p,textoCompleto:l}),console.log("Curso (fallback) adicionado com tipo:",d||(b==="pos-graduacao"?"Pós-graduação":"sem tipo")))}}console.log("Total de cursos encontrados:",s.length),console.log("Lista final de cursos:",s);const a=document.createElement("div");return s.forEach((n,r)=>{const l=typeof n=="string"?{nome:n,tipo:"",descricao:""}:n;if(console.log(`=== PROCESSANDO CURSO ${r+1} ===`),console.log("Objeto do curso:",l),console.log("Nome:",l.nome),console.log("Tipo:",l.tipo),console.log("Descrição:",l.descricao),!l.nome||l.nome.length===0)return;const d=`rec-${Date.now()}-${r}`,p=document.createElement("div");p.className="recommendation-item",p.style.marginBottom="15px";const u=l.tipo?`<span style="display: inline-block; background: linear-gradient(135deg, #6366f1 0%, #1b7a8f 100%); color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.75em; font-weight: 600; margin-left: 10px;">${l.tipo}</span>`:"";console.log("Badge de tipo gerado:",u?"SIM":"NÃO");const m=l.descricao?`<div style="color: #666; font-size: 0.9em; line-height: 1.5; margin-top: 8px;">${l.descricao}</div>`:"";p.innerHTML=`
+    `}return e}function I(o){console.log("=== FORMATO DE RECOMENDAÇÕES ==="),console.log("Resultado completo:",o),console.log("result.recomendacoes:",o.recomendacoes),console.log("Tipo de curso da recomendação (global):",b);let e='<h2 style="color: #764ba2; margin-bottom: 20px;">📚 Cursos Recomendados</h2>',s=[],i="";if(Array.isArray(o.recomendacoes)?i=o.recomendacoes.join(" "):typeof o.recomendacoes=="string"&&(i=o.recomendacoes),console.log("Texto completo extraído:",i),i=i.replace(/```[a-z]*\n?/gi,"").trim(),console.log("Texto após remover markdown:",i),i.split(`
+`).forEach(n=>{n=n.trim();const r=n.match(/^\d+\.\s*(.+?)$/);if(r){let l=r[1].trim(),c=l,d="",p="";console.log("Linha capturada completa:",l);const u=l.match(/\(([^)]+)\)/);u&&(d=u[1].trim(),console.log("Tipo de pós encontrado:",d));const m=l.match(/^(.+?)\s+-\s+(.+?)$/);m&&(c=m[1].trim(),p=m[2].trim(),console.log("Nome do curso:",c),console.log("Descrição extraída:",p)),c=c.replace(/\s*\([^)]*\)\s*$/g,"").trim(),c=c.replace(/[\[\]]/g,"").trim(),c=c.replace(/\s+/g," ").trim(),console.log("Nome do curso limpo:",c),c&&c.length>2&&(s.push({nome:c,tipo:d||(b==="pos-graduacao"?"Pós-graduação":""),descricao:p,textoCompleto:l}),console.log("Curso adicionado com tipo:",d||(b==="pos-graduacao"?"Pós-graduação":"sem tipo")))}}),console.log("Cursos separados (método linhas):",s),s.length===0){console.log("Tentando fallback com regex no texto completo...");const n=/(\d+)\.\s*([^0-9]+?)(?=\s*\d+\.|$)/g;let r;for(;(r=n.exec(i))!==null;){let l=r[2].trim(),c=l,d="",p="";const u=l.match(/\(([^)]+)\)/);u&&(d=u[1].trim());const m=l.match(/^(.+?)\s+-\s+(.+?)$/);m&&(c=m[1].trim(),p=m[2].trim()),c=c.replace(/\s*\([^)]*\)\s*$/g,"").trim(),c=c.replace(/[\[\]]/g,"").trim(),c=c.replace(/\s+/g," ").trim(),c&&c.length>2&&(s.push({nome:c,tipo:d||(b==="pos-graduacao"?"Pós-graduação":""),descricao:p,textoCompleto:l}),console.log("Curso (fallback) adicionado com tipo:",d||(b==="pos-graduacao"?"Pós-graduação":"sem tipo")))}}console.log("Total de cursos encontrados:",s.length),console.log("Lista final de cursos:",s);const a=document.createElement("div");return s.forEach((n,r)=>{const l=typeof n=="string"?{nome:n,tipo:"",descricao:""}:n;if(console.log(`=== PROCESSANDO CURSO ${r+1} ===`),console.log("Objeto do curso:",l),console.log("Nome:",l.nome),console.log("Tipo:",l.tipo),console.log("Descrição:",l.descricao),!l.nome||l.nome.length===0)return;const d=`rec-${Date.now()}-${r}`,p=document.createElement("div");p.className="recommendation-item",p.style.marginBottom="15px";const u=l.tipo?`<span style="display: inline-block; background: linear-gradient(135deg, #169DBB 0%, #1b7a8f 100%); color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.75em; font-weight: 600; margin-left: 10px;">${l.tipo}</span>`:"";console.log("Badge de tipo gerado:",u?"SIM":"NÃO");const m=l.descricao?`<div style="color: #666; font-size: 0.9em; line-height: 1.5; margin-top: 8px;">${l.descricao}</div>`:"";p.innerHTML=`
       <div>
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
           <div style="flex: 1;">
@@ -270,7 +270,7 @@
     margin: 0;
     font-family: Arial, sans-serif;
   `,r.querySelectorAll("th").forEach(d=>{d.style.cssText=`
-      background: #6366f1;
+      background: #5b3ff6;
       color: white;
       padding: 14px 10px;
       text-align: left;

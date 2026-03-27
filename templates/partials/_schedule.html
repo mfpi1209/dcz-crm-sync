@@ -1,30 +1,23 @@
             <div id="page-schedule" class="p-4 lg:p-8 max-w-7xl mx-auto hidden">
                 <div class="mb-8">
-                    <div class="flex items-center gap-3 mb-2">
-                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                        </div>
-                        <div>
-                            <h2 class="text-3xl font-bold text-[var(--text-primary)] font-display">Agendamento</h2>
-                            <p class="text-gray-500 text-sm">Configure sincronizações automáticas</p>
-                        </div>
-                    </div>
+                    <h2 class="text-3xl font-bold text-white font-display mb-1">Agendamento</h2>
+                    <p class="text-slate-500 text-sm">Configure sincronizações automáticas</p>
                 </div>
 
                 <!-- New schedule form -->
                 <div class="glass-card p-5 mb-6">
-                    <h3 class="text-sm font-bold text-gray-300 font-display mb-4">Novo Agendamento</h3>
+                    <h3 class="text-sm font-bold text-slate-300 font-display mb-4">Novo Agendamento</h3>
                     <div class="flex flex-wrap gap-4 items-end">
                         <div>
-                            <label class="block text-xs text-gray-500 mb-1.5 font-medium">Tipo</label>
-                            <select id="sched-type" class="input-glass px-3 py-2.5 text-sm text-gray-200 rounded-xl">
+                            <label class="block text-xs text-slate-500 mb-1.5 font-medium">Tipo</label>
+                            <select id="sched-type" class="input-glass px-3 py-2.5 text-sm text-slate-200 rounded-xl">
                                 <option value="sync_delta">Sync Delta</option>
                                 <option value="sync_full">Sync Full</option>
                             </select>
                         </div>
                         <div>
-                            <label class="block text-xs text-gray-500 mb-1.5 font-medium">Dias</label>
-                            <select id="sched-days" class="input-glass px-3 py-2.5 text-sm text-gray-200 rounded-xl">
+                            <label class="block text-xs text-slate-500 mb-1.5 font-medium">Dias</label>
+                            <select id="sched-days" class="input-glass px-3 py-2.5 text-sm text-slate-200 rounded-xl">
                                 <option value="*">Todos os dias</option>
                                 <option value="0,1,2,3,4">Seg — Sex</option>
                                 <option value="0">Segunda</option>
@@ -37,14 +30,14 @@
                             </select>
                         </div>
                         <div>
-                            <label class="block text-xs text-gray-500 mb-1.5 font-medium">Hora</label>
+                            <label class="block text-xs text-slate-500 mb-1.5 font-medium">Hora</label>
                             <input type="number" id="sched-hour" value="2" min="0" max="23"
-                                class="input-glass px-3 py-2.5 text-sm w-20 text-gray-200 rounded-xl">
+                                class="input-glass px-3 py-2.5 text-sm w-20 text-slate-200 rounded-xl">
                         </div>
                         <div>
-                            <label class="block text-xs text-gray-500 mb-1.5 font-medium">Minuto</label>
+                            <label class="block text-xs text-slate-500 mb-1.5 font-medium">Minuto</label>
                             <input type="number" id="sched-minute" value="0" min="0" max="59"
-                                class="input-glass px-3 py-2.5 text-sm w-20 text-gray-200 rounded-xl">
+                                class="input-glass px-3 py-2.5 text-sm w-20 text-slate-200 rounded-xl">
                         </div>
                         <button onclick="saveSchedule()"
                             class="btn-primary text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center gap-2">
@@ -57,11 +50,11 @@
                 <!-- Schedule list -->
                 <div class="glass-card overflow-hidden">
                     <div class="log-header flex items-center justify-between">
-                        <h3 class="text-sm font-bold text-gray-300 font-display">Agendamentos Ativos</h3>
-                        <button onclick="loadSchedules()" class="text-xs text-gray-600 hover:text-gray-400 transition">Atualizar</button>
+                        <h3 class="text-sm font-bold text-slate-300 font-display">Agendamentos Ativos</h3>
+                        <button onclick="loadSchedules()" class="text-xs text-slate-600 hover:text-slate-400 transition">Atualizar</button>
                     </div>
                     <div id="schedule-list" class="p-4">
-                        <p class="text-sm text-gray-500">Carregando...</p>
+                        <p class="text-sm text-slate-500">Carregando...</p>
                     </div>
                 </div>
             </div>
