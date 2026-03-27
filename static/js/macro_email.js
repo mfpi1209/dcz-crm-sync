@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Marco Email — Classificação & Distribuição de E-mails
+// Macro Email — Classificação & Distribuição de E-mails
 // ---------------------------------------------------------------------------
 const ME_API = 'https://banco-dev-n8n-eduit.6tqx2r.easypanel.host/webhook/api/marco_email';
 
@@ -464,6 +464,6 @@ function meField(label, value) {
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
-function loadMarcoEmail() {
+function loadMacroEmail() {
     meTab('dash');
 }
