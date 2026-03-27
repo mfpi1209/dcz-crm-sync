@@ -17,6 +17,7 @@ import psycopg2.extras
 import requests as _requests
 from flask import Blueprint, request, jsonify
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 from db import get_conn
 from helpers import BRT, to_brt, BASE_DIR, SYNC_SCRIPT, LOG_DIR
@@ -593,3 +594,26 @@ def _load_schedules_from_db():
         logger.info("Schedules loaded from DB")
     except Exception as e:
         logger.warning("Could not load schedules: %s", e)
+
+
+DELTA_INTERVAL_MINUTES = int(os.getenv("KOMMO_DELTA_INTERVAL", "5"))
+
+
+def register_delta_interval(sched):
+    """Register a sync_delta job that runs every N minutes (default 5).
+    Skips if another sync is already running (handled inside _run_scheduled_sync)."""
+    try:
+        sched.remove_job("sync_delta_interval")
+    except Exception:
+        pass
+
+    sched.add_job(
+        _run_scheduled_sync,
+        trigger=IntervalTrigger(minutes=DELTA_INTERVAL_MINUTES),
+        args=["sync_delta"],
+        id="sync_delta_interval",
+        replace_existing=True,
+        misfire_grace_time=120,
+        max_instances=1,
+    )
+    logger.info("Sync delta interval registered: every %d minutes", DELTA_INTERVAL_MINUTES)

@@ -200,25 +200,47 @@ function _mpRenderRanking(d) {
     const pos = rk.posicao;
     const total = rk.total_agentes;
     const diff = rk.diferenca_lider;
-    let medal = '', medalColor = '';
-    if (pos === 1) { medal = 'trophy'; medalColor = 'text-amber-400'; }
-    else if (pos === 2) { medal = 'workspace_premium'; medalColor = 'text-slate-300'; }
-    else if (pos === 3) { medal = 'workspace_premium'; medalColor = 'text-orange-400'; }
+    const top = rk.top || [];
 
-    content.innerHTML = `
-        <div class="flex items-center gap-4">
-            <div class="w-16 h-16 rounded-2xl flex items-center justify-center ${pos <= 3 ? 'bg-amber-500/10' : 'bg-slate-700/50'}">
-                ${medal
-                    ? `<span class="material-symbols-outlined text-3xl ${medalColor}">${medal}</span>`
+    const medalCfg = {
+        1: { icon: 'trophy', color: 'text-amber-400', bg: 'bg-amber-500/15 border-amber-500/30', ring: 'ring-amber-500/40' },
+        2: { icon: 'workspace_premium', color: 'text-slate-300', bg: 'bg-slate-400/10 border-slate-400/20', ring: 'ring-slate-400/30' },
+        3: { icon: 'workspace_premium', color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20', ring: 'ring-orange-500/30' },
+    };
+
+    const myMedal = medalCfg[pos];
+    const heroHtml = `
+        <div class="flex items-center gap-4 mb-4 pb-4 border-b border-slate-700/30">
+            <div class="w-16 h-16 rounded-2xl flex items-center justify-center border-2 ${myMedal ? myMedal.bg + ' ' + myMedal.ring : 'bg-slate-700/50 border-slate-600/30'} ring-2 ${myMedal ? myMedal.ring : 'ring-slate-700/30'}">
+                ${myMedal
+                    ? `<span class="material-symbols-outlined text-3xl ${myMedal.color}">${myMedal.icon}</span>`
                     : `<span class="text-2xl font-black text-slate-400">${pos}°</span>`}
             </div>
             <div>
                 <p class="text-2xl font-black text-white">${pos}° <span class="text-sm font-normal text-slate-500">de ${total}</span></p>
                 ${pos === 1
-                    ? '<p class="text-xs text-amber-400 font-medium">Você lidera o ranking!</p>'
-                    : `<p class="text-xs text-slate-400">${diff} matrícula${diff !== 1 ? 's' : ''} atrás do 1° lugar</p>`}
+                    ? '<p class="text-xs text-amber-400 font-bold">Você lidera o ranking!</p>'
+                    : `<p class="text-xs text-slate-400">${diff} atrás do 1° lugar</p>`}
             </div>
         </div>`;
+
+    const listHtml = top.map((t, i) => {
+        const p = i + 1;
+        const mc = medalCfg[p];
+        const isMe = t.uid === (_mpSelectedUid || _mpMyUid);
+        const nameParts = (t.nome || '').split(' ');
+        const shortName = nameParts[0] || t.nome;
+        return `<div class="flex items-center gap-2.5 py-1.5 ${isMe ? 'bg-cyan-500/5 -mx-2 px-2 rounded-lg border border-cyan-500/20' : ''}">
+            <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${mc ? mc.bg + ' border' : 'bg-slate-800/50'}">
+                ${mc ? `<span class="material-symbols-outlined text-sm ${mc.color}">${mc.icon}</span>` : `<span class="text-[10px] font-bold text-slate-500">${p}°</span>`}
+            </div>
+            <span class="text-xs ${isMe ? 'text-cyan-300 font-bold' : 'text-slate-300'} flex-1 truncate">${isMe ? 'Você' : shortName}</span>
+            <span class="text-xs font-bold ${isMe ? 'text-cyan-400' : 'text-white'}">${t.total}</span>
+            ${t.aceites > 0 ? `<span class="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-400 font-medium">${t.aceites} ac.</span>` : ''}
+        </div>`;
+    }).join('');
+
+    content.innerHTML = heroHtml + `<div class="space-y-0.5">${listHtml}</div>`;
 }
 
 /* ═══ Conquistas ═══ */
@@ -249,9 +271,15 @@ function _mpRenderConquistas(d) {
         const unlocked = achievedIds.has(a.id);
         const real = achieved.find(x => x.id === a.id);
         const desc = real?.desc || a.nome;
-        return `<div class="flex flex-col items-center gap-1 p-2 rounded-xl w-16 ${unlocked ? 'bg-purple-500/10' : 'bg-slate-800/30 opacity-35'}" title="${desc}">
-            <span class="material-symbols-outlined text-xl ${unlocked ? 'text-purple-400' : 'text-slate-600'}">${real?.icone || a.icone}</span>
-            <span class="text-[9px] text-center leading-tight ${unlocked ? 'text-slate-300' : 'text-slate-600'}">${real?.nome || a.nome}</span>
+        if (unlocked) {
+            return `<div class="flex flex-col items-center gap-1.5 p-3 rounded-xl w-20 bg-gradient-to-b from-purple-500/20 to-purple-900/10 border border-purple-500/30 shadow-lg shadow-purple-500/5" title="${desc}">
+                <span class="material-symbols-outlined text-2xl text-purple-300 drop-shadow-[0_0_6px_rgba(168,85,247,0.4)]">${real?.icone || a.icone}</span>
+                <span class="text-[9px] text-center leading-tight text-purple-200 font-semibold">${real?.nome || a.nome}</span>
+            </div>`;
+        }
+        return `<div class="flex flex-col items-center gap-1 p-2.5 rounded-xl w-20 bg-slate-800/20 opacity-30" title="${desc}">
+            <span class="material-symbols-outlined text-xl text-slate-600">${a.icone}</span>
+            <span class="text-[9px] text-center leading-tight text-slate-600">${a.nome}</span>
         </div>`;
     }).join('');
 }
