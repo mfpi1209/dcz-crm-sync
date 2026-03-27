@@ -278,7 +278,14 @@ function _crgmRenderAgentes(agentes) {
 
         return `<tr class="hover:bg-white/[0.03] transition-colors cursor-pointer ${rowBg}" title="${tooltip}" onclick="crgmAgenteDetalhe(${a.user_id})">
             <td class="text-center px-3 py-2.5 font-bold text-slate-400">${rank}</td>
-            <td class="px-4 py-2.5 font-medium ${a.nome&&a.nome.startsWith('User #')?'text-slate-500 italic':'text-white'}">${esc(a.nome)}</td>
+            <td class="px-4 py-2.5 font-medium ${a.nome&&a.nome.startsWith('User #')?'text-slate-500 italic':'text-white'}">
+                <div class="flex items-center gap-2">
+                    <span>${esc(a.nome)}</span>
+                    <button onclick="event.stopPropagation();navigateToPerformance(${a.user_id})" title="Ver painel de performance" class="opacity-0 group-hover:opacity-100 hover:opacity-100 text-indigo-400 hover:text-indigo-300 transition-all p-0.5 rounded hover:bg-indigo-500/10 flex-shrink-0" style="opacity:.35">
+                        <span class="material-symbols-outlined text-sm">monitoring</span>
+                    </button>
+                </div>
+            </td>
             <td class="px-4 py-2.5 text-right font-mono text-blue-400 font-semibold">${mp.toLocaleString('pt-BR')}</td>
             <td class="px-4 py-2.5 text-right font-mono text-amber-300/70">${intermediaria>0?intermediaria:'\u2014'}</td>
             <td class="px-4 py-2.5 text-right font-mono text-blue-300/70">${meta>0?meta:'\u2014'}</td>
@@ -403,10 +410,18 @@ function _crgmDetalheOpen(userId, dtIni, dtFim, qs, data, err) {
     }
     modal.innerHTML = `
     <div class="bg-slate-900 border border-slate-700/40 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
-        <div class="px-5 py-4 border-b border-slate-700/30 flex items-center justify-between">
+        <div class="px-5 py-4 border-b border-slate-700/30 flex items-center justify-between gap-3">
             <h3 class="text-sm font-bold text-white">${titulo} — período ${dtIni} a ${dtFim}</h3>
-            <button onclick="document.getElementById('crgm-detalhe-modal').remove()"
-                class="text-slate-500 hover:text-white transition-colors text-lg leading-none">&times;</button>
+            <div class="flex items-center gap-2 flex-shrink-0">
+                <button onclick="document.getElementById('crgm-detalhe-modal').remove();navigateToPerformance(${userId})"
+                    class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors"
+                    title="Ver painel motivacional completo deste agente">
+                    <span class="material-symbols-outlined text-sm">monitoring</span>
+                    Ver Performance
+                </button>
+                <button onclick="document.getElementById('crgm-detalhe-modal').remove()"
+                    class="text-slate-500 hover:text-white transition-colors text-lg leading-none">&times;</button>
+            </div>
         </div>
         <div class="p-5 overflow-auto flex-1">${corpo}</div>
     </div>`;
