@@ -222,14 +222,14 @@ def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
         if n and uid:
             rgm_to_uid[n] = uid
 
-    # Also count aceites per agent (leads in Aceite stage)
+    # Also count aceites per agent (leads in Aceite stage — status_id is globally unique)
     kcur.execute("""
         SELECT responsible_user_id, COUNT(*)
         FROM leads
-        WHERE status_id = %s AND pipeline_id = %s AND NOT is_deleted
+        WHERE status_id = %s AND NOT is_deleted
           AND responsible_user_id IS NOT NULL
         GROUP BY responsible_user_id
-    """, (ACEITE_STATUS_ID, FUNNEL_PIPELINE_ID))
+    """, (ACEITE_STATUS_ID,))
     aceites_per_agent = {r[0]: r[1] for r in kcur.fetchall()}
     kcur.close()
     kconn.close()
@@ -285,32 +285,17 @@ def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
             break
 
     my_score = (my_entry["total"] if my_entry else my_total)
-
-    # Fetch names for top agents
-    top_uids = [s["uid"] for s in agent_scores[:5]]
-    name_map = {}
-    if top_uids:
-        try:
-            kc = _pg_kommo()
-            kcu = kc.cursor()
-            ph = ",".join(["%s"] * len(top_uids))
-            kcu.execute(f"SELECT id, name FROM users WHERE id IN ({ph})", top_uids)
-            name_map = {r[0]: r[1] or f"User #{r[0]}" for r in kcu.fetchall()}
-            kcu.close()
-            kc.close()
-        except Exception:
-            pass
+    my_mat = my_entry["mat"] if my_entry else my_total
+    my_ace = my_entry["aceites"] if my_entry else 0
 
     return {
         "posicao": pos,
         "total_agentes": total_agents,
         "lider_total": leader["total"],
         "diferenca_lider": max(0, leader["total"] - my_score),
-        "top": [
-            {"uid": s["uid"], "nome": name_map.get(s["uid"], f"#{s['uid']}"),
-             "mat": s["mat"], "aceites": s["aceites"], "total": s["total"]}
-            for s in agent_scores[:5]
-        ],
+        "meu_total": my_score,
+        "minhas_mat": my_mat,
+        "meus_aceites": my_ace,
     }
 
 
@@ -762,6 +747,8 @@ def api_minha_insights():
             mat_by_date[dm] += 1
 
     today_realizadas = mat_by_date.get(today, 0)
+    yesterday = today - timedelta(days=1)
+    yesterday_realizadas = mat_by_date.get(yesterday, 0)
 
     # Aceites na fila do Kommo (leads no stage Aceite = quase matrícula)
     aceites_fila = 0
@@ -773,19 +760,17 @@ def api_minha_insights():
             SELECT COUNT(*) FROM leads
             WHERE responsible_user_id = %s
               AND status_id = %s
-              AND pipeline_id = %s
               AND NOT is_deleted
-        """, (kommo_uid, ACEITE_STATUS_ID, FUNNEL_PIPELINE_ID))
+        """, (kommo_uid, ACEITE_STATUS_ID))
         aceites_fila = kcur_ac.fetchone()[0] or 0
         today_ts = int(datetime.combine(today, datetime.min.time()).timestamp())
         kcur_ac.execute("""
             SELECT COUNT(*) FROM leads
             WHERE responsible_user_id = %s
               AND status_id = %s
-              AND pipeline_id = %s
               AND NOT is_deleted
               AND updated_at >= %s
-        """, (kommo_uid, ACEITE_STATUS_ID, FUNNEL_PIPELINE_ID, today_ts))
+        """, (kommo_uid, ACEITE_STATUS_ID, today_ts))
         aceites_hoje = kcur_ac.fetchone()[0] or 0
         kcur_ac.close()
         kconn_ac.close()
@@ -1155,6 +1140,7 @@ def api_minha_insights():
             "aceites_hoje": aceites_hoje,
             "bonus_fixo": today_fixo,
             "bonus_extra": today_extra,
+            "ontem_realizadas": yesterday_realizadas,
         },
         "sequencia": sequencia,
         "streak_nivel": "imparavel" if sequencia >= 7 else ("em_chamas" if sequencia >= 5 else ("aquecendo" if sequencia >= 3 else None)),

@@ -244,31 +244,40 @@ function _mpRenderRanking(d) {
     const pos = rk.posicao;
     const total = rk.total_agentes;
     const diff = rk.diferenca_lider;
+    const myMat = rk.minhas_mat || 0;
+    const myAce = rk.meus_aceites || 0;
 
     const medalCfg = {
-        1: { icon: 'trophy', color: 'text-amber-400', bg: 'bg-gradient-to-br from-amber-500/20 to-amber-900/10', border: 'border-amber-500/40', label: 'Você lidera o ranking!', labelColor: 'text-amber-400' },
-        2: { icon: 'workspace_premium', color: 'text-slate-300', bg: 'bg-gradient-to-br from-slate-400/15 to-slate-700/10', border: 'border-slate-400/30', label: 'Vice-líder!', labelColor: 'text-slate-300' },
-        3: { icon: 'workspace_premium', color: 'text-orange-400', bg: 'bg-gradient-to-br from-orange-500/15 to-orange-900/10', border: 'border-orange-500/30', label: 'Top 3! Pódio!', labelColor: 'text-orange-400' },
+        1: { icon: 'trophy', color: 'text-amber-400', bg: 'bg-gradient-to-br from-amber-500/30 to-amber-900/15', border: 'border-amber-400/50', glow: 'shadow-amber-500/20', label: '🏆 Você lidera o ranking!', labelColor: 'text-amber-400' },
+        2: { icon: 'workspace_premium', color: 'text-slate-200', bg: 'bg-gradient-to-br from-slate-300/20 to-slate-700/10', border: 'border-slate-300/40', glow: 'shadow-slate-400/15', label: '🥈 Vice-líder!', labelColor: 'text-slate-300' },
+        3: { icon: 'workspace_premium', color: 'text-orange-400', bg: 'bg-gradient-to-br from-orange-500/25 to-orange-900/10', border: 'border-orange-400/40', glow: 'shadow-orange-500/15', label: '🥉 Top 3! Pódio!', labelColor: 'text-orange-400' },
     };
     const m = medalCfg[pos];
 
     let motivacao = '';
-    if (pos > 3 && diff > 0) {
-        motivacao = diff <= 3
-            ? `<p class="text-xs text-cyan-400 font-medium mt-2">Quase no pódio! Só ${diff} para o Top 3!</p>`
-            : `<p class="text-xs text-slate-400 mt-2">${diff} matrícula${diff > 1 ? 's' : ''} atrás do 1° lugar. Bora!</p>`;
+    if (pos === 1) {
+        motivacao = '<p class="text-xs text-amber-300/80 mt-2">Ninguém te alcançou! Continue dominando! 🔥</p>';
+    } else if (diff > 0 && diff <= 3) {
+        motivacao = `<p class="text-xs text-cyan-400 font-semibold mt-2">🔥 Quase lá! Só <strong>${diff}</strong> para o topo!</p>`;
+    } else if (diff > 0 && diff <= 10) {
+        motivacao = `<p class="text-xs text-slate-400 mt-2">Faltam <strong>${diff}</strong> para o 1°. Cada matrícula conta! 💪</p>`;
+    } else if (diff > 0) {
+        motivacao = `<p class="text-xs text-slate-500 mt-2">${diff} atrás do líder — foco e consistência! 🚀</p>`;
     }
+
+    const scoreDetail = `<p class="text-[10px] text-slate-500 mt-1">${myMat} mat${myAce > 0 ? ' + ' + myAce + ' aceite' + (myAce > 1 ? 's' : '') : ''}</p>`;
 
     content.innerHTML = `
         <div class="flex items-center gap-5">
-            <div class="w-20 h-20 rounded-2xl flex items-center justify-center border-2 ${m ? m.bg + ' ' + m.border : 'bg-slate-700/40 border-slate-600/30'} shadow-lg ${m ? 'shadow-amber-500/10' : ''}">
+            <div class="w-20 h-20 rounded-2xl flex items-center justify-center border-2 ${m ? m.bg + ' ' + m.border + ' ' + m.glow : 'bg-slate-700/40 border-slate-600/30'} shadow-lg">
                 ${m
                     ? `<span class="material-symbols-outlined text-4xl ${m.color}">${m.icon}</span>`
                     : `<span class="text-3xl font-black text-slate-300">${pos}°</span>`}
             </div>
             <div class="flex-1">
                 <p class="text-3xl font-black text-white">${pos}°</p>
-                <p class="text-sm text-slate-500">de ${total} agentes</p>
+                <p class="text-sm text-slate-500">de ${total}</p>
+                ${scoreDetail}
                 ${m ? `<p class="text-xs font-bold ${m.labelColor} mt-1">${m.label}</p>` : ''}
                 ${motivacao}
             </div>
@@ -285,32 +294,33 @@ function _mpRenderConquistas(d) {
     if (!achieved.length) {
         card.classList.remove('hidden');
         grid.innerHTML = `
-            <div class="w-full text-center py-4">
-                <span class="material-symbols-outlined text-3xl text-slate-600 mb-2">rocket_launch</span>
-                <p class="text-sm text-slate-500 font-medium">Suas conquistas aparecem aqui!</p>
-                <p class="text-[10px] text-slate-600 mt-1">Faça matrículas, bata metas diárias e suba no ranking para desbloquear.</p>
+            <div class="w-full text-center py-6">
+                <span class="material-symbols-outlined text-4xl text-emerald-600/40 mb-2">rocket_launch</span>
+                <p class="text-sm text-slate-400 font-semibold">Suas conquistas aparecem aqui! 🚀</p>
+                <p class="text-[10px] text-slate-600 mt-1">Faça matrículas, bata metas e suba no ranking.</p>
             </div>`;
         return;
     }
     card.classList.remove('hidden');
 
     const colorMap = {
-        primeira_mat: { from: 'from-emerald-500/25', to: 'to-emerald-900/10', border: 'border-emerald-500/40', icon: 'text-emerald-300', glow: 'rgba(16,185,129,0.4)' },
-        streak_3: { from: 'from-amber-500/25', to: 'to-amber-900/10', border: 'border-amber-500/40', icon: 'text-amber-300', glow: 'rgba(245,158,11,0.4)' },
-        streak_5: { from: 'from-orange-500/25', to: 'to-orange-900/10', border: 'border-orange-500/40', icon: 'text-orange-300', glow: 'rgba(249,115,22,0.4)' },
-        streak_7: { from: 'from-red-500/25', to: 'to-red-900/10', border: 'border-red-500/40', icon: 'text-red-300', glow: 'rgba(239,68,68,0.4)' },
-        meta_batida: { from: 'from-blue-500/25', to: 'to-blue-900/10', border: 'border-blue-500/40', icon: 'text-blue-300', glow: 'rgba(59,130,246,0.4)' },
-        supermeta: { from: 'from-yellow-500/30', to: 'to-yellow-900/10', border: 'border-yellow-500/50', icon: 'text-yellow-300', glow: 'rgba(234,179,8,0.5)' },
-        meta_antecipada: { from: 'from-cyan-500/25', to: 'to-cyan-900/10', border: 'border-cyan-500/40', icon: 'text-cyan-300', glow: 'rgba(6,182,212,0.4)' },
-        melhor_dia: { from: 'from-pink-500/25', to: 'to-pink-900/10', border: 'border-pink-500/40', icon: 'text-pink-300', glow: 'rgba(236,72,153,0.4)' },
+        primeira_mat: { bg: '#065f46', border: '#10b981', icon: '#6ee7b7', glow: '#10b981' },
+        streak_3: { bg: '#78350f', border: '#f59e0b', icon: '#fcd34d', glow: '#f59e0b' },
+        streak_5: { bg: '#7c2d12', border: '#f97316', icon: '#fdba74', glow: '#f97316' },
+        streak_7: { bg: '#7f1d1d', border: '#ef4444', icon: '#fca5a5', glow: '#ef4444' },
+        meta_batida: { bg: '#1e3a5f', border: '#3b82f6', icon: '#93c5fd', glow: '#3b82f6' },
+        supermeta: { bg: '#713f12', border: '#eab308', icon: '#fef08a', glow: '#eab308' },
+        meta_antecipada: { bg: '#164e63', border: '#06b6d4', icon: '#67e8f9', glow: '#06b6d4' },
+        melhor_dia: { bg: '#831843', border: '#ec4899', icon: '#f9a8d4', glow: '#ec4899' },
+        top_3: { bg: '#451a03', border: '#d97706', icon: '#fbbf24', glow: '#d97706' },
     };
-    const defaultColor = { from: 'from-purple-500/25', to: 'to-purple-900/10', border: 'border-purple-500/40', icon: 'text-purple-300', glow: 'rgba(168,85,247,0.4)' };
+    const defaultColor = { bg: '#4a1d96', border: '#a855f7', icon: '#d8b4fe', glow: '#a855f7' };
 
     grid.innerHTML = achieved.map(a => {
         const c = colorMap[a.id] || defaultColor;
-        return `<div class="flex flex-col items-center gap-1.5 p-3 rounded-xl w-20 bg-gradient-to-b ${c.from} ${c.to} border ${c.border} shadow-lg transition-transform hover:scale-105" title="${a.desc || a.nome}">
-            <span class="material-symbols-outlined text-2xl ${c.icon}" style="filter:drop-shadow(0 0 6px ${c.glow})">${a.icone}</span>
-            <span class="text-[9px] text-center leading-tight text-white/80 font-semibold">${a.nome}</span>
+        return `<div class="flex flex-col items-center gap-2 p-3 rounded-xl w-[88px] border-2 shadow-lg transition-transform hover:scale-110 cursor-default" style="background:${c.bg};border-color:${c.border};box-shadow:0 0 16px ${c.glow}55, 0 4px 12px rgba(0,0,0,.3)" title="${a.desc || a.nome}">
+            <span class="material-symbols-outlined text-3xl" style="color:${c.icon};filter:drop-shadow(0 0 8px ${c.glow})">${a.icone}</span>
+            <span class="text-[9px] text-center leading-tight font-bold" style="color:${c.icon}">${a.nome}</span>
         </div>`;
     }).join('');
 }
@@ -393,29 +403,44 @@ function _mpRenderPixDia(d) {
         }
     }
 
+    const ontemRealizadas = hoje.ontem_realizadas || 0;
+
+    // Comparação com ontem
+    let yesterdayHtml = '';
+    if (feitas > ontemRealizadas && ontemRealizadas >= 0) {
+        const diff = feitas - ontemRealizadas;
+        yesterdayHtml = `<p class="text-[10px] text-emerald-400 font-semibold mt-2">📈 +${diff} a mais que ontem — continue assim!</p>`;
+    } else if (feitas === ontemRealizadas && feitas > 0) {
+        yesterdayHtml = `<p class="text-[10px] text-amber-400 font-semibold mt-2">⚡ Mesmo ritmo de ontem — hora de ultrapassar!</p>`;
+    } else if (feitas < ontemRealizadas && ontemRealizadas > 0) {
+        yesterdayHtml = `<p class="text-[10px] text-orange-400 font-semibold mt-2">🔥 Ontem você fez ${ontemRealizadas} — bora superar!</p>`;
+    }
+
     if (meta <= 0) {
         if (status) status.textContent = 'Sem meta diária hoje';
-        if (detail) detail.textContent = aceitesFila > 0
-            ? `Nenhuma meta PIX configurada, mas você tem ${aceitesFila} aceite${aceitesFila > 1 ? 's' : ''} na fila!`
-            : 'Nenhuma meta PIX configurada para hoje.';
+        if (detail) {
+            detail.innerHTML = (aceitesFila > 0
+                ? `Nenhuma meta PIX configurada, mas você tem ${aceitesFila} aceite${aceitesFila > 1 ? 's' : ''} na fila!`
+                : 'Nenhuma meta PIX configurada para hoje.') + yesterdayHtml;
+        }
         if (valor) valor.textContent = '';
         return;
     }
 
     if (efetivo >= meta) {
         const ganho = fixo + extra * Math.max(0, efetivo - meta);
-        if (status) { status.textContent = 'PIX Garantido!'; status.className = 'text-base font-bold text-emerald-400 mb-1'; }
+        if (status) { status.textContent = '🎉 PIX Garantido!'; status.className = 'text-base font-bold text-emerald-400 mb-1'; }
         const parts = [];
         if (feitas > 0) parts.push(`${feitas} matrícula${feitas > 1 ? 's' : ''}`);
         if (aceitesHoje > 0) parts.push(`${aceitesHoje} aceite${aceitesHoje > 1 ? 's' : ''}`);
-        if (detail) detail.textContent = efetivo > meta
+        if (detail) detail.innerHTML = (efetivo > meta
             ? `Meta batida! ${parts.join(' + ')} · +${efetivo - meta} extra × ${_mpFmt(extra)} cada`
-            : `Parabéns! ${parts.join(' + ')} = meta batida!`;
+            : `Parabéns! ${parts.join(' + ')} = meta batida!`) + yesterdayHtml;
         if (valor) valor.textContent = _mpFmt(ganho);
     } else {
         const falta = meta - efetivo;
         if (status) { status.textContent = `Faltam ${falta} para o PIX!`; status.className = 'text-base font-bold text-cyan-400 mb-1'; }
-        if (detail) detail.textContent = `${feitas} matrícula${feitas !== 1 ? 's' : ''} +${aceitesHoje} aceite${aceitesHoje !== 1 ? 's' : ''} = ${efetivo}/${meta}`;
+        if (detail) detail.innerHTML = `${feitas} matrícula${feitas !== 1 ? 's' : ''} + ${aceitesHoje} aceite${aceitesHoje !== 1 ? 's' : ''} = ${efetivo}/${meta}` + yesterdayHtml;
         if (valor) valor.textContent = `Prêmio: ${_mpFmt(fixo)}`;
     }
 }
