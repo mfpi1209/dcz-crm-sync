@@ -198,49 +198,43 @@ def _get_agent_metas(kommo_uid, dt_ini=None, dt_fim=None):
         return {"meta": 0, "intermediaria": 0, "supermeta": 0}
 
 
+ACEITE_STATUS_ID = 48566207
+FUNNEL_PIPELINE_ID = 5481944
+
+
 def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
-    """Calculate ranking with only 3 queries total instead of 2*N."""
-    # 1. Get all agent UIDs with metas in this campaign
-    conn = _pg()
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT DISTINCT kommo_user_id FROM premiacao_campanha_meta WHERE campanha_id = %s",
-        (campanha_id,),
-    )
-    all_agents = [r[0] for r in cur.fetchall()]
-    cur.close()
-    conn.close()
+    """Calculate ranking using same logic as the RGM dashboard (DISTINCT ON rgm).
+    Also counts aceites in Kommo pipeline as +1 each."""
 
-    if not all_agents:
-        kconn = _pg_kommo()
-        kcur = kconn.cursor()
-        kcur.execute("SELECT id FROM users WHERE name IS NOT NULL AND name != ''")
-        all_agents = [r[0] for r in kcur.fetchall()]
-        kcur.close()
-        kconn.close()
-
-    if not all_agents:
-        return None
-
-    # 2. Single Kommo query: all RGMs for all agents at once
+    # 1. Kommo: map each RGM to exactly ONE agent (same as dashboard)
     kconn = _pg_kommo()
     kcur = kconn.cursor()
-    ph = ",".join(["%s"] * len(all_agents))
-    kcur.execute(f"""
-        SELECT l.responsible_user_id, v.rgm
+    kcur.execute("""
+        SELECT DISTINCT ON (v.rgm) v.rgm, l.responsible_user_id
         FROM vw_leads_rgm v
         JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
-        WHERE l.responsible_user_id IN ({ph})
-    """, all_agents)
-    agent_rgm_map = defaultdict(set)
-    for uid, rgm in kcur.fetchall():
-        n = _normalize_rgm(rgm)
-        if n:
-            agent_rgm_map[uid].add(n)
+        WHERE l.responsible_user_id IS NOT NULL
+        ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC
+    """)
+    rgm_to_uid = {}
+    for rgm_raw, uid in kcur.fetchall():
+        n = _normalize_rgm(rgm_raw)
+        if n and uid:
+            rgm_to_uid[n] = uid
+
+    # Also count aceites per agent (leads in Aceite stage)
+    kcur.execute("""
+        SELECT responsible_user_id, COUNT(*)
+        FROM leads
+        WHERE status_id = %s AND pipeline_id = %s AND NOT is_deleted
+          AND responsible_user_id IS NOT NULL
+        GROUP BY responsible_user_id
+    """, (ACEITE_STATUS_ID, FUNNEL_PIPELINE_ID))
+    aceites_per_agent = {r[0]: r[1] for r in kcur.fetchall()}
     kcur.close()
     kconn.close()
 
-    # 3. Single DCZ query: all matrículas in the period
+    # 2. DCZ: get all matrículas in the period
     conn = _pg()
     cur = conn.cursor()
     cw, cp = [], []
@@ -250,34 +244,73 @@ def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
         cw.append("data_matricula <= %s"); cp.append(dt_fim)
     w = ("WHERE " + " AND ".join(cw)) if cw else ""
     cur.execute(f"SELECT rgm FROM comercial_rgm_atual {w}", cp)
-    period_rgms = set()
+    mat_per_agent = defaultdict(int)
     for row in cur.fetchall():
         n = _normalize_rgm(row[0])
-        if n:
-            period_rgms.add(n)
+        if n and n in rgm_to_uid:
+            mat_per_agent[rgm_to_uid[n]] += 1
     cur.close()
     conn.close()
 
-    # 4. Count per agent (intersect their RGMs with period matrículas)
+    # 3. Build scores: matrículas + aceites
+    all_uids = set(mat_per_agent.keys()) | set(aceites_per_agent.keys())
+    if campanha_id:
+        conn2 = _pg()
+        cur2 = conn2.cursor()
+        cur2.execute(
+            "SELECT DISTINCT kommo_user_id FROM premiacao_campanha_meta WHERE campanha_id = %s",
+            (campanha_id,),
+        )
+        campaign_agents = {r[0] for r in cur2.fetchall()}
+        cur2.close()
+        conn2.close()
+        if campaign_agents:
+            all_uids = all_uids | campaign_agents
+
     agent_scores = []
-    for uid in all_agents:
-        count = len(agent_rgm_map.get(uid, set()) & period_rgms)
-        agent_scores.append({"uid": uid, "total": count})
-    agent_scores.sort(key=lambda x: (-x["total"], x["uid"]))
+    for uid in all_uids:
+        mat = mat_per_agent.get(uid, 0)
+        ace = aceites_per_agent.get(uid, 0)
+        agent_scores.append({"uid": uid, "mat": mat, "aceites": ace, "total": mat + ace})
+    agent_scores.sort(key=lambda x: (-x["total"], -x["mat"], x["uid"]))
 
     pos = 1
     total_agents = len(agent_scores)
-    leader_total = agent_scores[0]["total"] if agent_scores else 0
+    leader = agent_scores[0] if agent_scores else {"total": 0, "mat": 0, "aceites": 0}
+    my_entry = None
     for i, s in enumerate(agent_scores):
         if s["uid"] == kommo_uid:
             pos = i + 1
+            my_entry = s
             break
+
+    my_score = (my_entry["total"] if my_entry else my_total)
+
+    # Fetch names for top agents
+    top_uids = [s["uid"] for s in agent_scores[:5]]
+    name_map = {}
+    if top_uids:
+        try:
+            kc = _pg_kommo()
+            kcu = kc.cursor()
+            ph = ",".join(["%s"] * len(top_uids))
+            kcu.execute(f"SELECT id, name FROM users WHERE id IN ({ph})", top_uids)
+            name_map = {r[0]: r[1] or f"User #{r[0]}" for r in kcu.fetchall()}
+            kcu.close()
+            kc.close()
+        except Exception:
+            pass
 
     return {
         "posicao": pos,
         "total_agentes": total_agents,
-        "lider_total": leader_total,
-        "diferenca_lider": max(0, leader_total - my_total),
+        "lider_total": leader["total"],
+        "diferenca_lider": max(0, leader["total"] - my_score),
+        "top": [
+            {"uid": s["uid"], "nome": name_map.get(s["uid"], f"#{s['uid']}"),
+             "mat": s["mat"], "aceites": s["aceites"], "total": s["total"]}
+            for s in agent_scores[:5]
+        ],
     }
 
 
@@ -731,8 +764,6 @@ def api_minha_insights():
     today_realizadas = mat_by_date.get(today, 0)
 
     # Aceites na fila do Kommo (leads no stage Aceite = quase matrícula)
-    ACEITE_STATUS_ID = 48566207
-    FUNNEL_PIPELINE_ID = 5481944
     aceites_fila = 0
     aceites_hoje = 0
     try:
