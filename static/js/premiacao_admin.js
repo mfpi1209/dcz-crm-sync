@@ -21,6 +21,7 @@ async function loadPremiacaoAdmin() {
         ]);
         const agRes = await agRaw.json();
         _paAgentes = agRes?.agentes || [];
+        _paLoadLinks();
     } catch(e) { console.error('loadPremiacaoAdmin', e); }
 }
 
@@ -32,6 +33,7 @@ async function _paLoadCampanhas() {
     _paCampanhasData = res?.campanhas || [];
     _paRenderCampanhasList();
     _paFillCampanhaSelects();
+    _paPopulateLinkSelects();
 }
 
 function _paRenderCampanhasList() {
@@ -50,7 +52,7 @@ function _paRenderCampanhasList() {
                     ${badge}
                 </div>
                 <p class="text-[10px] text-slate-500">${_paFmtDateBR(c.dt_inicio)} — ${_paFmtDateBR(c.dt_fim)}</p>
-                <p class="text-[10px] text-slate-500 mt-0.5">Inter: ${_paFmt(tiers.intermediaria||0)} · Meta: ${_paFmt(tiers.meta||0)} · Super: ${_paFmt(tiers.supermeta||0)}</p>
+                <p class="text-[10px] text-slate-500 mt-0.5">Base: ${_paFmt(tiers.base||0)} · Inter: ${_paFmt(tiers.intermediaria||0)} · Meta: ${_paFmt(tiers.meta||0)} · Super: ${_paFmt(tiers.supermeta||0)}</p>
             </div>
             <div class="flex items-center gap-1.5 flex-shrink-0">
                 <button onclick="paEditCampanha(${c.id})" class="text-[10px] px-2.5 py-1 rounded-lg border border-slate-600/40 text-slate-400 hover:text-white hover:border-slate-500 transition-all">Editar</button>
@@ -80,9 +82,11 @@ async function paSaveCampanha() {
     if (!nome || !dt_inicio || !dt_fim) { toast('Preencha nome e datas', 'error'); return; }
 
     const tiers = {};
+    const bv = parseFloat(document.getElementById('pa-camp-tier-base')?.value || 0);
     const iv = parseFloat(document.getElementById('pa-camp-tier-inter')?.value || 0);
     const mv = parseFloat(document.getElementById('pa-camp-tier-meta')?.value || 0);
     const sv = parseFloat(document.getElementById('pa-camp-tier-super')?.value || 0);
+    if (bv > 0) tiers.base = bv;
     if (iv > 0) tiers.intermediaria = iv;
     if (mv > 0) tiers.meta = mv;
     if (sv > 0) tiers.supermeta = sv;
@@ -99,7 +103,7 @@ async function paSaveCampanha() {
         document.getElementById('pa-camp-nome').value = '';
         document.getElementById('pa-camp-ini').value = '';
         document.getElementById('pa-camp-fim').value = '';
-        ['pa-camp-tier-inter','pa-camp-tier-meta','pa-camp-tier-super','pa-camp-receb-valor'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
+        ['pa-camp-tier-base','pa-camp-tier-inter','pa-camp-tier-meta','pa-camp-tier-super','pa-camp-receb-valor'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
         await _paLoadCampanhas();
     } else { toast(res?.error || 'Erro ao criar', 'error'); }
 }
@@ -123,6 +127,7 @@ function paEditCampanha(id) {
     document.getElementById('pa-edit-nome').value = c.nome || '';
     document.getElementById('pa-edit-ini').value = c.dt_inicio || '';
     document.getElementById('pa-edit-fim').value = c.dt_fim || '';
+    document.getElementById('pa-edit-tier-base').value = c.tiers?.base || '';
     document.getElementById('pa-edit-tier-inter').value = c.tiers?.intermediaria || '';
     document.getElementById('pa-edit-tier-meta').value = c.tiers?.meta || '';
     document.getElementById('pa-edit-tier-super').value = c.tiers?.supermeta || '';
@@ -142,9 +147,11 @@ async function paSaveEditCampanha() {
         tiers: {},
         receb_regras: [],
     };
+    const bv2 = parseFloat(document.getElementById('pa-edit-tier-base').value || 0);
     const iv = parseFloat(document.getElementById('pa-edit-tier-inter').value || 0);
     const mv = parseFloat(document.getElementById('pa-edit-tier-meta').value || 0);
     const sv = parseFloat(document.getElementById('pa-edit-tier-super').value || 0);
+    if (bv2 > 0) body.tiers.base = bv2;
     if (iv > 0) body.tiers.intermediaria = iv;
     if (mv > 0) body.tiers.meta = mv;
     if (sv > 0) body.tiers.supermeta = sv;
@@ -501,4 +508,67 @@ async function paUploadRecebimentos(input) {
         }
     }
     input.value = '';
+}
+
+/* ── Campaign Links (Unificação) ── */
+
+function _paPopulateLinkSelects() {
+    const selA = document.getElementById('pa-link-a');
+    const selB = document.getElementById('pa-link-b');
+    if (!selA || !selB) return;
+    const opts = '<option value="">Selecionar...</option>' +
+        _paCampanhasData.map(c => `<option value="${c.id}">${c.nome} (${_paFmtDateBR(c.dt_inicio)} – ${_paFmtDateBR(c.dt_fim)})</option>`).join('');
+    selA.innerHTML = opts;
+    selB.innerHTML = opts;
+}
+
+async function _paLoadLinks() {
+    _paPopulateLinkSelects();
+    try {
+        const res = await api('/api/premiacao/campanha-links');
+        const data = await res.json();
+        const links = data?.links || [];
+        const container = document.getElementById('pa-links-list');
+        if (!container) return;
+        if (!links.length) {
+            container.innerHTML = '<p class="text-[10px] text-slate-600">Nenhum vínculo ativo.</p>';
+            return;
+        }
+        container.innerHTML = links.map(l => `
+            <div class="flex items-center justify-between p-2 rounded-lg bg-slate-800/40 border border-pink-500/10">
+                <span class="text-xs text-slate-300">
+                    <span class="text-pink-400 font-medium">${l.nome_a}</span>
+                    <span class="text-slate-600 mx-1">⟷</span>
+                    <span class="text-pink-400 font-medium">${l.nome_b}</span>
+                </span>
+                <button onclick="paDeleteLink(${l.id})" class="text-red-500/60 hover:text-red-400 text-xs px-2" title="Desvincular">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+        `).join('');
+    } catch(e) { console.error('_paLoadLinks', e); }
+}
+
+async function paCreateLink() {
+    const aId = document.getElementById('pa-link-a')?.value;
+    const bId = document.getElementById('pa-link-b')?.value;
+    if (!aId || !bId || aId === bId) return alert('Selecione duas campanhas diferentes.');
+    try {
+        const res = await api('/api/premiacao/campanha-links', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ campanha_a_id: parseInt(aId), campanha_b_id: parseInt(bId) }),
+        });
+        const data = await res.json();
+        if (!data.ok && data.error) alert(data.error);
+        _paLoadLinks();
+    } catch(e) { console.error('paCreateLink', e); }
+}
+
+async function paDeleteLink(linkId) {
+    if (!confirm('Desvincular estas campanhas?')) return;
+    try {
+        await api(`/api/premiacao/campanha-links/${linkId}`, { method: 'DELETE' });
+        _paLoadLinks();
+    } catch(e) { console.error('paDeleteLink', e); }
 }

@@ -65,17 +65,16 @@ async function _dashRefreshFunnel(force) {
 // ---------------------------------------------------------------------------
 // Timeline Charts (drill-down)
 // ---------------------------------------------------------------------------
-const _tlCharts = {};
 let _tlGranularity = 'month';
 let _tlDrillMonth = null;
 
 const _tlColors = {
-    novos:       { line: '#3b82f6', bg: 'rgba(59,130,246,0.06)' },
-    rematricula: { line: '#10b981', bg: 'rgba(16,185,129,0.06)' },
-    regresso:    { line: '#f59e0b', bg: 'rgba(245,158,11,0.06)' },
-    recompra:    { line: '#06b6d4', bg: 'rgba(6,182,212,0.06)' },
-    total:       { line: '#2563eb', bg: 'rgba(37,99,235,0.08)' },
-    calouros_agg:{ line: '#3b82f6', bg: 'rgba(59,130,246,0.06)' },
+    novos:       '#6366f1',
+    rematricula: '#10b981',
+    regresso:    '#f59e0b',
+    recompra:    '#06b6d4',
+    total:       '#8b5cf6',
+    calouros_agg:'#6366f1',
 };
 let _tlMode = 'agregado';
 let _tlLastSeries = {};
@@ -86,32 +85,13 @@ function toggleTlMode() {
     _renderGeralChart();
 }
 
-function _buildChartOpts() {
+function _eSeries(name, data, color) {
     return {
-        responsive: true, maintainAspectRatio: false, animation: { duration: 400 },
-        interaction: { mode: 'index', intersect: false },
-        onClick: (evt, elements) => { if (elements.length && _tlGranularity === 'month') timelineDrillDown(elements[0].index); },
-        plugins: {
-            legend: { display: false },
-            tooltip: {
-                backgroundColor: 'rgba(15,23,42,0.95)', borderColor: 'rgba(100,116,139,0.3)', borderWidth: 1,
-                titleFont: { family: 'Inter', size: 11 }, bodyFont: { family: 'JetBrains Mono', size: 12 },
-                callbacks: { label: c => c.dataset.label + ': ' + c.parsed.y.toLocaleString('pt-BR') },
-            },
-        },
-        scales: {
-            x: { grid: { color: 'rgba(100,116,139,0.08)' }, ticks: { color: '#64748b', font: { size: 10, family: 'Inter' }, maxRotation: 0 } },
-            y: { grid: { color: 'rgba(100,116,139,0.08)' }, ticks: { color: '#64748b', font: { size: 10, family: 'JetBrains Mono' },
-                callback: v => v >= 1000 ? (v/1000).toFixed(v%1000?1:0)+'k' : v } },
-        },
-    };
-}
-
-function _dsCfg(color, label) {
-    return {
-        label, data: [], borderColor: color.line, backgroundColor: color.bg,
-        borderWidth: 2, pointRadius: 3, pointHoverRadius: 6, pointBackgroundColor: color.line,
-        fill: false, tension: 0.35,
+        name, data, type: 'line', smooth: 0.35,
+        symbol: 'circle', symbolSize: 6,
+        lineStyle: { width: 2, color },
+        itemStyle: { color },
+        areaStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:color+'20'},{offset:1,color:color+'02'}]) },
     };
 }
 
@@ -120,33 +100,45 @@ function _renderGeralChart() {
     const labels = window._tlGeralLabels || [];
     const rematLabel = document.getElementById('tl-remat-label')?.textContent || 'Rematrículas';
 
-    if (_tlCharts['chart-geral']) { _tlCharts['chart-geral'].destroy(); delete _tlCharts['chart-geral']; }
-    const ctx = document.getElementById('chart-geral');
-    if (!ctx) return;
+    const chart = eInit('chart-geral');
+    if (!chart) return;
 
-    let datasets;
+    let series;
     if (_tlMode === 'agregado') {
         const novos = s.novos || [];
         const regresso = s.regresso || [];
         const recompra = s.recompra || [];
         const calouros = novos.map((v, i) => (v || 0) + (regresso[i] || 0) + (recompra[i] || 0));
-        datasets = [
-            { ..._dsCfg(_tlColors.calouros_agg, 'Calouros (Novos+Regresso+Recompra)'), data: calouros },
-            { ..._dsCfg(_tlColors.rematricula, rematLabel), data: s.rematricula || [] },
-            { ..._dsCfg(_tlColors.total, 'Total'), data: s.total || [] },
+        series = [
+            _eSeries('Calouros (N+Rg+Rc)', calouros, _tlColors.calouros_agg),
+            _eSeries(rematLabel, s.rematricula || [], _tlColors.rematricula),
+            _eSeries('Total', s.total || [], _tlColors.total),
         ];
     } else {
-        datasets = [
-            { ..._dsCfg(_tlColors.novos, 'Novos'), data: s.novos || [] },
-            { ..._dsCfg(_tlColors.rematricula, rematLabel), data: s.rematricula || [] },
-            { ..._dsCfg(_tlColors.regresso, 'Regresso'), data: s.regresso || [] },
-            { ..._dsCfg(_tlColors.recompra, 'Recompra'), data: s.recompra || [] },
-            { ..._dsCfg(_tlColors.total, 'Total'), data: s.total || [] },
+        series = [
+            _eSeries('Novos', s.novos || [], _tlColors.novos),
+            _eSeries(rematLabel, s.rematricula || [], _tlColors.rematricula),
+            _eSeries('Regresso', s.regresso || [], _tlColors.regresso),
+            _eSeries('Recompra', s.recompra || [], _tlColors.recompra),
+            _eSeries('Total', s.total || [], _tlColors.total),
         ];
     }
 
-    const chart = new Chart(ctx, { type: 'line', data: { labels, datasets }, options: _buildChartOpts() });
-    _tlCharts['chart-geral'] = chart;
+    chart.setOption({
+        backgroundColor: 'transparent',
+        grid: eBaseGrid(),
+        tooltip: { ...eTooltip(), valueFormatter: v => (v||0).toLocaleString('pt-BR') },
+        xAxis: eCategoryAxis(labels),
+        yAxis: eValueAxis(),
+        series,
+        animationDuration: 600,
+        animationEasing: 'cubicOut',
+    }, true);
+
+    chart.getZr().off('click');
+    if (_tlGranularity === 'month') {
+        chart.on('click', params => { if (params.dataIndex !== undefined) timelineDrillDown(params.dataIndex); });
+    }
 }
 
 function _formatLabel(period, gran) {
@@ -272,10 +264,10 @@ async function loadCicloMaster() {
 function renderCicloMaster(data) {
     const fmt = n => (n || 0).toLocaleString('pt-BR');
     const pct = (cur, prev) => {
-        if (!prev && !cur) return { txt: '—', cls: 'text-slate-600' };
+        if (!prev && !cur) return { txt: '—', cls: 'text-gray-600' };
         if (!prev) return { txt: '+100%', cls: 'text-emerald-400' };
         const d = ((cur - prev) / prev * 100);
-        return { txt: (d >= 0 ? '+' : '') + d.toFixed(1) + '%', cls: d > 0 ? 'text-emerald-400' : d < 0 ? 'text-rose-400' : 'text-slate-400' };
+        return { txt: (d >= 0 ? '+' : '') + d.toFixed(1) + '%', cls: d > 0 ? 'text-emerald-400' : d < 0 ? 'text-rose-400' : 'text-gray-400' };
     };
 
     const nivelFilter = document.getElementById('ciclo-filter-nivel').value;
@@ -297,34 +289,34 @@ function renderCicloMaster(data) {
         const prevTotal = prev.grand_total || 0;
         const ch = pct(total, prevTotal);
         const t = cur.totals || {};
-        return `<div class="bg-white dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-700/50 shadow-sm">
+        return `<div class="tremor-card">
             <div class="flex items-center justify-between mb-1">
-                <span class="text-[10px] font-bold text-${accent} dark:text-${accent} uppercase tracking-wider">${label}</span>
-                <span class="text-[10px] font-bold ${ch.cls} bg-slate-50 dark:bg-slate-800/40 px-1.5 py-0.5 rounded-full">${ch.txt}</span>
+                <span class="text-[10px] font-medium text-${accent} uppercase tracking-wider">${label}</span>
+                <span class="tremor-badge ${ch.cls.includes('emerald') ? 'tremor-badge-emerald' : ch.cls.includes('rose') ? 'tremor-badge-rose' : 'tremor-badge-gray'}">${ch.txt}</span>
             </div>
-            <p class="text-[9px] text-slate-400 mb-1.5">${period}</p>
-            <p class="text-xl font-black text-slate-900 dark:text-white font-display mb-1.5">${fmt(total)}</p>
+            <p class="tremor-sublabel mb-1.5">${period}</p>
+            <p class="text-xl font-bold text-gray-900 dark:text-gray-50 mb-2">${fmt(total)}</p>
             <div class="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px]">
-                <div class="flex justify-between"><span class="text-slate-500">Novos</span><span class="text-slate-700 dark:text-slate-300 font-medium">${fmt(t.novos||0)}</span></div>
-                <div class="flex justify-between"><span class="text-slate-500">${rematLabel}</span><span class="text-slate-700 dark:text-slate-300 font-medium">${fmt(t.rematricula||0)}</span></div>
-                <div class="flex justify-between"><span class="text-slate-500">Regresso</span><span class="text-slate-700 dark:text-slate-300 font-medium">${fmt(t.regresso||0)}</span></div>
-                <div class="flex justify-between"><span class="text-slate-500">Recompra</span><span class="text-slate-700 dark:text-slate-300 font-medium">${fmt(t.recompra||0)}</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">Novos</span><span class="text-gray-700 dark:text-gray-300 font-medium">${fmt(t.novos||0)}</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">${rematLabel}</span><span class="text-gray-700 dark:text-gray-300 font-medium">${fmt(t.rematricula||0)}</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">Regresso</span><span class="text-gray-700 dark:text-gray-300 font-medium">${fmt(t.regresso||0)}</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">Recompra</span><span class="text-gray-700 dark:text-gray-300 font-medium">${fmt(t.recompra||0)}</span></div>
             </div>
-            <div class="mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-700/20 text-[9px] text-slate-400">vs anterior: <span class="text-slate-600 dark:text-slate-400 font-medium">${fmt(prevTotal)}</span></div>
+            <div class="mt-2 pt-2 border-t border-[var(--border)] text-[9px] text-gray-400">vs anterior: <span class="text-gray-600 dark:text-gray-400 font-medium">${fmt(prevTotal)}</span></div>
         </div>`;
     }
 
     document.getElementById('ciclo-temporal-cards').innerHTML =
         temporalCard(cmp.ytd?.label||'YTD', cmp.ytd?.period||'', ytd, ytdP, 'indigo-400', 'indigo-500', 'blue-500', 'indigo-500') +
-        temporalCard(cmp.ytd_prev?.label||'YTD Ant.', cmp.ytd_prev?.period||'', ytdP, {grand_total:0,totals:{}}, 'slate-400', 'slate-500', 'slate-600', 'slate-600') +
-        temporalCard(cmp.m6?.label||'6 meses', cmp.m6?.period||'', m6, m6P, 'cyan-400', 'cyan-500', 'teal-500', 'cyan-500') +
-        temporalCard(cmp.m6_prev?.label||'6m Ant.', cmp.m6_prev?.period||'', m6P, {grand_total:0,totals:{}}, 'slate-400', 'slate-500', 'slate-600', 'slate-600');
+        temporalCard(cmp.ytd_prev?.label||'YTD Ant.', cmp.ytd_prev?.period||'', ytdP, {grand_total:0,totals:{}}, 'gray-400', 'gray-500', 'gray-600', 'gray-600') +
+        temporalCard(cmp.m6?.label||'6 meses', cmp.m6?.period||'', m6, m6P, 'indigo-400', 'indigo-500', 'indigo-500', 'indigo-500') +
+        temporalCard(cmp.m6_prev?.label||'6m Ant.', cmp.m6_prev?.period||'', m6P, {grand_total:0,totals:{}}, 'gray-400', 'gray-500', 'gray-600', 'gray-600');
 
     // --- Collapsible cycle cards ---
     const filtered = data.ciclos || [];
     const maxTotal = Math.max(...filtered.map(c => c.grand_total), 1);
 
-    const colors = ['cyan', 'violet', 'amber', 'emerald', 'rose', 'indigo'];
+    const colors = ['indigo', 'violet', 'amber', 'emerald', 'rose', 'blue'];
 
     document.getElementById('ciclo-cards').innerHTML = filtered.map((c, i) => {
         const color = colors[i % colors.length];
@@ -340,51 +332,52 @@ function renderCicloMaster(data) {
         const cardRematShort = cardIsPos ? 'Veteranos' : 'Rematr.';
         const cardRematFull  = cardIsPos ? 'Veteranos' : 'Rematrículas';
 
-        return `<div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm overflow-hidden">
-            <button onclick="document.getElementById('${id}').classList.toggle('hidden')" class="w-full px-5 py-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-all">
+        return `<div class="tremor-card overflow-hidden !p-0">
+            <button onclick="document.getElementById('${id}').classList.toggle('hidden')" class="w-full px-5 py-3.5 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all">
                 <div class="flex items-center gap-4 min-w-0">
                     <div class="flex items-center gap-2">
-                        <span class="text-xs font-bold text-${color}-600 dark:text-${color}-400 uppercase tracking-wider">${esc(c.nome)}</span>
-                        <span class="text-[10px] text-slate-500">${esc(c.nivel)}</span>
+                        <span class="dot-indicator bg-${color}-500"></span>
+                        <span class="text-xs font-semibold text-gray-900 dark:text-gray-50 uppercase tracking-wider">${esc(c.nome)}</span>
+                        <span class="tremor-badge tremor-badge-gray">${esc(c.nivel)}</span>
                     </div>
                     <div class="flex items-center gap-3 text-[11px]">
-                        <span class="text-slate-500">Novos <span class="text-slate-700 dark:text-slate-300 font-medium">${fmt(t.novos||0)}</span></span>
-                        <span class="text-slate-500">${cardRematShort} <span class="text-slate-700 dark:text-slate-300 font-medium">${fmt(t.rematricula||0)}</span></span>
-                        <span class="text-slate-500">Regresso <span class="text-slate-700 dark:text-slate-300 font-medium">${fmt(t.regresso||0)}</span></span>
-                        <span class="text-slate-500">Recompra <span class="text-slate-700 dark:text-slate-300 font-medium">${fmt(t.recompra||0)}</span></span>
+                        <span class="text-gray-500">Novos <span class="text-gray-700 dark:text-gray-300 font-medium">${fmt(t.novos||0)}</span></span>
+                        <span class="text-gray-500">${cardRematShort} <span class="text-gray-700 dark:text-gray-300 font-medium">${fmt(t.rematricula||0)}</span></span>
+                        <span class="text-gray-500">Regresso <span class="text-gray-700 dark:text-gray-300 font-medium">${fmt(t.regresso||0)}</span></span>
+                        <span class="text-gray-500">Recompra <span class="text-gray-700 dark:text-gray-300 font-medium">${fmt(t.recompra||0)}</span></span>
                     </div>
                 </div>
                 <div class="flex items-center gap-3 flex-shrink-0">
-                    <span class="text-lg font-bold text-slate-900 dark:text-white font-display">${fmt(c.grand_total)}</span>
-                    ${chg ? `<span class="text-[10px] font-bold ${chg.cls}">${chg.txt}</span>` : ''}
-                    <span class="material-symbols-outlined text-base text-slate-400">expand_more</span>
+                    <span class="text-lg font-semibold text-gray-900 dark:text-gray-50">${fmt(c.grand_total)}</span>
+                    ${chg ? `<span class="tremor-badge ${chg.cls.includes('emerald') ? 'tremor-badge-emerald' : chg.cls.includes('rose') ? 'tremor-badge-rose' : 'tremor-badge-gray'}">${chg.txt}</span>` : ''}
+                    <span class="material-symbols-outlined text-base text-gray-400">expand_more</span>
                 </div>
             </button>
-            <div class="relative progress-bar-bg !rounded-none !h-0.5"><div class="progress-bar-fill bg-${color}-500 !rounded-none" style="width:${barW}%"></div></div>
-            <div id="${id}" class="hidden px-5 py-4 bg-slate-50 dark:bg-slate-800/20">
+            <div class="tremor-bar !rounded-none !h-[2px]"><div class="tremor-bar-fill bg-${color}-500 !rounded-none" style="width:${barW}%"></div></div>
+            <div id="${id}" class="hidden px-5 py-4 bg-[var(--bg-card)]">
                 <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
-                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Por Tipo</p>
+                        <p class="text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-2">Por Tipo</p>
                         <div class="space-y-1 text-[12px]">
-                            <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400">Novos (Calouros)</span><span class="text-slate-900 dark:text-white font-mono">${fmt(t.novos||0)}</span></div>
-                            <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400">${cardRematFull}</span><span class="text-slate-900 dark:text-white font-mono">${fmt(t.rematricula||0)}</span></div>
-                            <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400">Regresso</span><span class="text-slate-900 dark:text-white font-mono">${fmt(t.regresso||0)}</span></div>
-                            <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400">Recompra</span><span class="text-slate-900 dark:text-white font-mono">${fmt(t.recompra||0)}</span></div>
-                            <div class="flex justify-between border-t border-slate-200 dark:border-slate-700/30 pt-1 mt-1"><span class="text-slate-900 dark:text-white font-bold">Total</span><span class="text-slate-900 dark:text-white font-mono font-bold">${fmt(c.grand_total)}</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500 dark:text-gray-400">Novos (Calouros)</span><span class="text-gray-900 dark:text-gray-50 font-mono">${fmt(t.novos||0)}</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500 dark:text-gray-400">${cardRematFull}</span><span class="text-gray-900 dark:text-gray-50 font-mono">${fmt(t.rematricula||0)}</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500 dark:text-gray-400">Regresso</span><span class="text-gray-900 dark:text-gray-50 font-mono">${fmt(t.regresso||0)}</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500 dark:text-gray-400">Recompra</span><span class="text-gray-900 dark:text-gray-50 font-mono">${fmt(t.recompra||0)}</span></div>
+                            <div class="flex justify-between border-t border-[var(--border)] pt-1 mt-1"><span class="text-gray-900 dark:text-gray-50 font-semibold">Total</span><span class="text-gray-900 dark:text-gray-50 font-mono font-semibold">${fmt(c.grand_total)}</span></div>
                         </div>
                     </div>
                     <div>
-                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Por Situação</p>
+                        <p class="text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-2">Por Situação</p>
                         <div class="space-y-1 text-[12px]">${sits.map(([k,v]) => {
                             const sp = c.grand_total ? Math.round(v/c.grand_total*100) : 0;
-                            return `<div class="flex items-center gap-2"><span class="text-slate-500 dark:text-slate-400 flex-1 truncate">${esc(k)}</span><span class="text-slate-900 dark:text-white font-mono">${fmt(v)}</span><span class="text-slate-400 dark:text-slate-600 text-[10px] w-8 text-right">${sp}%</span></div>`;
+                            return `<div class="flex items-center gap-2"><span class="text-gray-500 dark:text-gray-400 flex-1 truncate">${esc(k)}</span><span class="text-gray-900 dark:text-gray-50 font-mono">${fmt(v)}</span><span class="text-gray-400 dark:text-gray-600 text-[10px] w-8 text-right">${sp}%</span></div>`;
                         }).join('')}</div>
                     </div>
                     <div>
-                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Top Polos</p>
+                        <p class="text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-2">Top Polos</p>
                         <div class="space-y-1 text-[12px]">${polos.map(([k,v]) => {
                             const pp = c.grand_total ? Math.round(v/c.grand_total*100) : 0;
-                            return `<div class="flex items-center gap-2"><span class="text-slate-500 dark:text-slate-400 flex-1 truncate">${esc(k)}</span><span class="text-slate-900 dark:text-white font-mono">${fmt(v)}</span><span class="text-slate-400 dark:text-slate-600 text-[10px] w-8 text-right">${pp}%</span></div>`;
+                            return `<div class="flex items-center gap-2"><span class="text-gray-500 dark:text-gray-400 flex-1 truncate">${esc(k)}</span><span class="text-gray-900 dark:text-gray-50 font-mono">${fmt(v)}</span><span class="text-gray-400 dark:text-gray-600 text-[10px] w-8 text-right">${pp}%</span></div>`;
                         }).join('')}</div>
                     </div>
                 </div>
@@ -544,69 +537,70 @@ async function loadStudentMetrics() {
         const isRegresso = _stuActiveTipo === 'regresso';
         const isRecompra = _stuActiveTipo === 'recompra';
 
-        const ringActive = 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-[#101f22] scale-[1.02]';
+        const ringActive = 'ring-2 ring-offset-2 ring-offset-[var(--bg-main)]';
 
         const pctNovos = gt ? Math.round(novosAgg / gt * 100) : 0;
         const pctRemat = gt ? Math.round(remat / gt * 100) : 0;
 
         stuContainer.innerHTML = `
             <div class="flex items-center justify-end mb-3">
-                <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700/20">
-                    <span class="material-symbols-outlined text-base text-violet-500 dark:text-violet-400">groups</span>
-                    <span class="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Total</span>
-                    <span class="text-lg font-bold text-slate-900 dark:text-white font-display">${fmt(gt)}</span>
+                <div class="tremor-badge tremor-badge-gray gap-2 px-3 py-1.5 text-sm">
+                    <span class="material-symbols-outlined text-base text-indigo-500 dark:text-indigo-400">groups</span>
+                    <span class="text-[10px] text-gray-500 uppercase tracking-wider font-medium">Total</span>
+                    <span class="text-base font-semibold text-gray-900 dark:text-gray-50">${fmt(gt)}</span>
                 </div>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
-                <!-- Big Number: Novos -->
-                <div class="bg-white dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm relative overflow-hidden cursor-pointer transition-all hover:shadow-md ${isNovosAgg ? ringActive + ' ring-blue-500' : ''}"
+            <!-- Category Bar -->
+            <div class="category-bar mb-6">
+                <div class="bg-blue-500" style="width:${pctNovos}%" title="Novos ${pctNovos}%"></div>
+                <div class="bg-emerald-500" style="width:${pctRemat}%" title="${esc(stuRematLabel)} ${pctRemat}%"></div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <!-- KPI: Novos -->
+                <div class="tremor-card relative cursor-pointer transition-all ${isNovosAgg ? ringActive + ' ring-blue-500' : ''}"
                      onclick="_stuToggleTipo('novos_agg')">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="w-12 h-12 bg-blue-50 dark:bg-blue-500/10 rounded-xl flex items-center justify-center">
-                            <span class="material-symbols-outlined text-blue-600 dark:text-blue-400">person_add</span>
-                        </div>
-                        <span class="text-blue-600 dark:text-blue-400 text-xs font-bold bg-blue-50 dark:bg-blue-500/10 px-2 py-1 rounded-full">${pctNovos}%</span>
+                    <div class="flex items-center justify-between mb-3">
+                        <p class="tremor-label">Novos</p>
+                        <span class="tremor-badge tremor-badge-blue">${pctNovos}%</span>
                     </div>
-                    <p class="text-slate-500 text-sm font-medium">Novos</p>
-                    <p class="text-[10px] text-slate-400 mb-1">Calouros + Regresso + Recompra</p>
-                    <p class="text-3xl font-black text-slate-900 dark:text-white mt-1" data-count="${novosAgg}">0</p>
-                    <div class="grid grid-cols-3 gap-2 mt-4">
-                        <div class="rounded-lg px-3 py-2 cursor-pointer transition-all ${isNovos ? 'bg-blue-50 dark:bg-indigo-500/20 ring-1 ring-blue-300 dark:ring-indigo-400/50' : 'bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-700/40'}"
+                    <p class="tremor-sublabel mb-1">Calouros + Regresso + Recompra</p>
+                    <p class="tremor-metric" data-count="${novosAgg}">0</p>
+                    <div class="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-[var(--border)]">
+                        <div class="rounded-tremor-default px-3 py-2 cursor-pointer transition-all ${isNovos ? 'bg-blue-50 dark:bg-blue-500/15 ring-1 ring-blue-200 dark:ring-blue-500/30' : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700'}"
                              onclick="event.stopPropagation(); _stuToggleTipo('novos')">
-                            <p class="text-[9px] text-slate-500 uppercase tracking-wider font-bold">Calouros</p>
-                            <p class="text-lg font-bold text-slate-900 dark:text-white font-display" data-count="${t.novos || 0}">0</p>
+                            <p class="text-[9px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-medium">Calouros</p>
+                            <p class="text-lg font-semibold text-gray-900 dark:text-gray-50" data-count="${t.novos || 0}">0</p>
                         </div>
-                        <div class="rounded-lg px-3 py-2 cursor-pointer transition-all ${isRegresso ? 'bg-amber-50 dark:bg-amber-500/20 ring-1 ring-amber-300 dark:ring-amber-400/50' : 'bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-700/40'}"
+                        <div class="rounded-tremor-default px-3 py-2 cursor-pointer transition-all ${isRegresso ? 'bg-amber-50 dark:bg-amber-500/15 ring-1 ring-amber-200 dark:ring-amber-500/30' : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700'}"
                              onclick="event.stopPropagation(); _stuToggleTipo('regresso')">
-                            <p class="text-[9px] text-amber-600 dark:text-amber-400 uppercase tracking-wider font-bold">Regresso</p>
-                            <p class="text-lg font-bold text-slate-900 dark:text-white font-display" data-count="${t.regresso || 0}">0</p>
+                            <p class="text-[9px] text-amber-600 dark:text-amber-400 uppercase tracking-wider font-medium">Regresso</p>
+                            <p class="text-lg font-semibold text-gray-900 dark:text-gray-50" data-count="${t.regresso || 0}">0</p>
                         </div>
-                        <div class="rounded-lg px-3 py-2 cursor-pointer transition-all ${isRecompra ? 'bg-cyan-50 dark:bg-cyan-500/20 ring-1 ring-cyan-300 dark:ring-cyan-400/50' : 'bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-700/40'}"
+                        <div class="rounded-tremor-default px-3 py-2 cursor-pointer transition-all ${isRecompra ? 'bg-indigo-50 dark:bg-indigo-500/15 ring-1 ring-indigo-200 dark:ring-indigo-500/30' : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700'}"
                              onclick="event.stopPropagation(); _stuToggleTipo('recompra')">
-                            <p class="text-[9px] text-cyan-600 dark:text-cyan-400 uppercase tracking-wider font-bold">Recompra</p>
-                            <p class="text-lg font-bold text-slate-900 dark:text-white font-display" data-count="${t.recompra || 0}">0</p>
+                            <p class="text-[9px] text-indigo-600 dark:text-indigo-400 uppercase tracking-wider font-medium">Recompra</p>
+                            <p class="text-lg font-semibold text-gray-900 dark:text-gray-50" data-count="${t.recompra || 0}">0</p>
                         </div>
                     </div>
                 </div>
-                <!-- Big Number: Rematrículas -->
-                <div class="bg-white dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm relative overflow-hidden cursor-pointer transition-all hover:shadow-md ${isRemat ? ringActive + ' ring-emerald-500' : ''}"
+                <!-- KPI: Rematrículas -->
+                <div class="tremor-card relative cursor-pointer transition-all ${isRemat ? ringActive + ' ring-emerald-500' : ''}"
                      onclick="_stuToggleTipo('rematricula')">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="w-12 h-12 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl flex items-center justify-center">
-                            <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400">autorenew</span>
-                        </div>
-                        <span class="text-emerald-600 dark:text-emerald-400 text-xs font-bold bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-full">${pctRemat}%</span>
+                    <div class="flex items-center justify-between mb-3">
+                        <p class="tremor-label">${esc(stuRematLabel)}</p>
+                        <span class="tremor-badge tremor-badge-emerald">${pctRemat}%</span>
                     </div>
-                    <p class="text-slate-500 text-sm font-medium">${esc(stuRematLabel)}</p>
-                    <p class="text-[10px] text-slate-400 mb-1">Renovações de matrícula</p>
-                    <p class="text-3xl font-black text-slate-900 dark:text-white mt-1" data-count="${remat}">0</p>
+                    <p class="tremor-sublabel mb-1">Renovações de matrícula</p>
+                    <p class="tremor-metric" data-count="${remat}">0</p>
                 </div>
             </div>`;
 
         countUpAll(stuContainer);
+        staggerCards(stuContainer);
+        highlightNumbers(stuContainer);
         _renderSituacaoCardsClickable('stu-by-situacao', d.by_situacao);
         renderBreakdownBars('stu-by-nivel', d.by_nivel);
-        renderBreakdownBars('stu-by-polo', d.by_polo);
+        renderPoloRanking('stu-by-polo', d.by_polo);
         renderBreakdown('stu-by-turma', d.by_turma);
         renderBreakdown('stu-by-ciclo', d.by_ciclo);
 
@@ -637,12 +631,12 @@ function renderBreakdown(elId, data) {
         const pct = total ? Math.round(v / total * 100) : 0;
         return `<div class="flex items-center justify-between gap-2">
             <div class="flex items-center gap-2 min-w-0 flex-1">
-                <span class="truncate text-slate-700 dark:text-slate-300">${esc(k)}</span>
+                <span class="truncate text-gray-700 dark:text-gray-300">${esc(k)}</span>
                 <div class="flex-1 progress-bar-bg min-w-[40px] !h-1.5">
                     <div class="progress-bar-fill bg-primary" style="width:${pct}%"></div>
                 </div>
             </div>
-            <span class="text-xs font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">${v.toLocaleString('pt-BR')} <span class="text-slate-400 dark:text-slate-600">(${pct}%)</span></span>
+            <span class="text-xs font-mono text-gray-600 dark:text-gray-400 whitespace-nowrap">${v.toLocaleString('pt-BR')} <span class="text-gray-400 dark:text-gray-600">(${pct}%)</span></span>
         </div>`;
     }).join('');
 }
@@ -669,7 +663,7 @@ const _sitMeta = {
         desc: 'Foram para outro polo',
     },
     '_default': {
-        from: 'slate-500', to: 'slate-600', text: 'slate', bg: 'slate',
+        from: 'gray-500', to: 'gray-600', text: 'gray', bg: 'gray',
         icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>',
         desc: '',
     },
@@ -692,7 +686,7 @@ const _sitIcons = {
 
 function _renderSituacaoCardsClickable(elId, data) {
     const el = document.getElementById(elId);
-    if (!data || !Object.keys(data).length) { el.innerHTML = '<span class="text-slate-500 text-sm col-span-4">—</span>'; return; }
+    if (!data || !Object.keys(data).length) { el.innerHTML = '<span class="text-gray-500 text-sm col-span-4">—</span>'; return; }
     const total = Object.values(data).reduce((a, b) => a + b, 0);
     const keys = Object.keys(data);
     const ordered = _sitOrder
@@ -700,7 +694,7 @@ function _renderSituacaoCardsClickable(elId, data) {
         .filter(Boolean)
         .concat(keys.filter(k => !_sitOrder.includes(k.toLowerCase())));
 
-    const ringActive = 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-[#101f22] scale-[1.02]';
+    const ringActive = 'ring-2 ring-offset-2 ring-offset-[var(--bg-main)]';
 
     el.innerHTML = ordered.map(k => {
         const v = data[k];
@@ -710,22 +704,21 @@ function _renderSituacaoCardsClickable(elId, data) {
         const isActive = _stuActiveSituacao === k;
         const activeRing = isActive ? `${ringActive} ring-${c.text}-500` : '';
 
-        return `<div class="bg-white dark:bg-slate-800/50 p-5 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm relative overflow-hidden cursor-pointer transition-all hover:shadow-md ${activeRing}"
+        return `<div class="tremor-card cursor-pointer transition-all ${activeRing}"
                      onclick="_stuToggleSituacao('${esc(k)}')">
-            <div class="flex items-center justify-between mb-3">
-                <div class="w-10 h-10 bg-${c.bg}-50 dark:bg-${c.bg}-500/10 rounded-xl flex items-center justify-center">
-                    <span class="material-symbols-outlined text-${c.text}-600 dark:text-${c.text}-400">${icon}</span>
-                </div>
-                <span class="text-${c.text}-600 dark:text-${c.text}-400 text-xs font-bold bg-${c.bg}-50 dark:bg-${c.bg}-500/10 px-2 py-1 rounded-full">${pct}%</span>
+            <div class="flex items-center gap-2 mb-3">
+                <span class="dot-indicator bg-${c.from}"></span>
+                <p class="tremor-label flex-1">${esc(k)}</p>
+                <span class="tremor-badge tremor-badge-${c.bg === 'emerald' ? 'emerald' : c.bg === 'rose' ? 'rose' : c.bg === 'amber' ? 'amber' : 'gray'}">${pct}%</span>
             </div>
-            <p class="text-slate-500 text-sm font-medium">${esc(k)}</p>
-            <p class="text-2xl font-black text-slate-900 dark:text-white mt-1" data-count="${v}">0</p>
-            <div class="w-full progress-bar-bg mt-3 !h-1.5">
-                <div class="progress-bar-fill bg-${c.from}" style="width:${Math.min(pct,100)}%"></div>
+            <p class="tremor-metric" data-count="${v}">0</p>
+            <div class="tremor-bar mt-3">
+                <div class="tremor-bar-fill bg-${c.from}" style="width:${Math.min(pct,100)}%"></div>
             </div>
         </div>`;
     }).join('');
     countUpAll(el);
+    staggerCards(el);
 }
 
 function renderBreakdownBars(elId, data) {
@@ -736,12 +729,54 @@ function renderBreakdownBars(elId, data) {
         const pct = total ? Math.round(v / total * 100) : 0;
         return `<div class="flex items-center justify-between gap-3">
             <div class="flex items-center gap-2 min-w-0 flex-1">
-                <span class="truncate text-sm text-slate-700 dark:text-slate-300">${esc(k)}</span>
+                <span class="truncate text-sm text-gray-700 dark:text-gray-300">${esc(k)}</span>
                 <div class="flex-1 progress-bar-bg min-w-[60px] overflow-hidden !h-2">
                     <div class="progress-bar-fill bg-primary" style="width:${pct}%"></div>
                 </div>
             </div>
-            <span class="text-sm font-mono text-slate-900 dark:text-white font-semibold whitespace-nowrap">${v.toLocaleString('pt-BR')} <span class="text-slate-400 dark:text-slate-500 text-xs">(${pct}%)</span></span>
+            <span class="text-sm font-mono text-gray-900 text-[var(--text-primary)] font-semibold whitespace-nowrap">${v.toLocaleString('pt-BR')} <span class="text-gray-400 dark:text-gray-500 text-xs">(${pct}%)</span></span>
+        </div>`;
+    }).join('');
+}
+
+function renderPoloRanking(elId, data) {
+    const el = document.getElementById(elId);
+    if (!data || !Object.keys(data).length) { el.textContent = '—'; return; }
+    const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
+    const total = entries.reduce((s, e) => s + e[1], 0);
+    const maxVal = entries[0][1];
+
+    const colors = [
+        'from-indigo-500 to-blue-500',
+        'from-blue-500 to-cyan-500',
+        'from-emerald-500 to-teal-500',
+        'from-amber-500 to-orange-500',
+        'from-pink-500 to-rose-500',
+        'from-violet-500 to-purple-500',
+    ];
+
+    el.innerHTML = entries.map(([name, count], i) => {
+        const pct = total ? (count / total * 100).toFixed(1) : 0;
+        const barW = maxVal ? Math.max((count / maxVal * 100), 2) : 0;
+        const color = colors[i % colors.length];
+        const rank = i + 1;
+        const medal = rank <= 3 ? ['🥇','🥈','🥉'][rank - 1] : '';
+        const isBold = rank <= 3 ? 'font-semibold' : '';
+
+        return `<div class="flex items-center gap-3 py-2.5 ${i > 0 ? 'border-t border-[var(--border)]' : ''}">
+            <span class="w-6 text-center text-xs font-mono ${rank <= 3 ? 'text-[var(--text-primary)]' : 'text-gray-400 dark:text-gray-500'} ${isBold}">${medal || rank}</span>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-sm ${isBold} text-gray-700 dark:text-gray-200 truncate">${esc(name)}</span>
+                    <span class="text-sm font-mono text-[var(--text-primary)] ${isBold} whitespace-nowrap ml-3">${count.toLocaleString('pt-BR')}</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="flex-1 h-1.5 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden">
+                        <div class="h-full rounded-full bg-gradient-to-r ${color} transition-all duration-500" style="width:${barW}%"></div>
+                    </div>
+                    <span class="text-[10px] font-mono text-gray-400 dark:text-gray-500 w-10 text-right">${pct}%</span>
+                </div>
+            </div>
         </div>`;
     }).join('');
 }
@@ -777,53 +812,43 @@ function _inadRenderCards() {
     const pctAdim = d.total_alunos ? ((d.adimplentes / d.total_alunos) * 100).toFixed(1) : '0';
 
     container.innerHTML = `
-        <div class="bg-white dark:bg-slate-800/50 p-5 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer transition-all hover:shadow-md"
-             onclick="_inadToggleCard('total')">
-            <div class="flex items-center justify-between mb-3">
-                <div class="w-10 h-10 bg-teal-50 dark:bg-teal-500/10 rounded-xl flex items-center justify-center">
-                    <span class="material-symbols-outlined text-teal-600 dark:text-teal-400">group</span>
-                </div>
+        <div class="tremor-card cursor-pointer transition-all" onclick="_inadToggleCard('total')">
+            <div class="flex items-center gap-2 mb-2">
+                <span class="dot-indicator bg-indigo-500"></span>
+                <p class="tremor-label">Total Alunos</p>
             </div>
-            <p class="text-slate-500 text-sm font-medium">Total Alunos</p>
-            <p class="text-2xl font-black text-slate-900 dark:text-white mt-1" data-count="${d.total_alunos || 0}">0</p>
+            <p class="tremor-metric" data-count="${d.total_alunos || 0}">0</p>
         </div>
-        <div class="bg-white dark:bg-slate-800/50 p-5 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer transition-all hover:shadow-md"
-             onclick="_inadToggleCard('adim')">
-            <div class="flex items-center justify-between mb-3">
-                <div class="w-10 h-10 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl flex items-center justify-center">
-                    <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400">check_circle</span>
-                </div>
-                <span class="text-emerald-600 dark:text-emerald-400 text-xs font-bold bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-full">${pctAdim.replace('.', ',')}%</span>
+        <div class="tremor-card cursor-pointer transition-all" onclick="_inadToggleCard('adim')">
+            <div class="flex items-center gap-2 mb-2">
+                <span class="dot-indicator bg-emerald-500"></span>
+                <p class="tremor-label flex-1">Adimplentes</p>
+                <span class="tremor-badge tremor-badge-emerald">${pctAdim.replace('.', ',')}%</span>
             </div>
-            <p class="text-slate-500 text-sm font-medium">Adimplentes</p>
-            <p class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1" data-count="${d.adimplentes || 0}">0</p>
+            <p class="tremor-metric text-emerald-600 dark:text-emerald-400" data-count="${d.adimplentes || 0}">0</p>
         </div>
-        <div class="bg-white dark:bg-slate-800/50 p-5 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer transition-all hover:shadow-md"
-             onclick="_inadToggleCard('inadim')">
-            <div class="flex items-center justify-between mb-3">
-                <div class="w-10 h-10 bg-amber-50 dark:bg-amber-500/10 rounded-xl flex items-center justify-center">
-                    <span class="material-symbols-outlined text-amber-600 dark:text-amber-400">warning</span>
-                </div>
-                <span class="text-amber-600 dark:text-amber-400 text-xs font-bold bg-amber-50 dark:bg-amber-500/10 px-2 py-1 rounded-full">${pct.toFixed(1).replace('.', ',')}%</span>
+        <div class="tremor-card cursor-pointer transition-all" onclick="_inadToggleCard('inadim')">
+            <div class="flex items-center gap-2 mb-2">
+                <span class="dot-indicator bg-amber-500"></span>
+                <p class="tremor-label flex-1">Inadimplentes</p>
+                <span class="tremor-badge tremor-badge-amber">${pct.toFixed(1).replace('.', ',')}%</span>
             </div>
-            <p class="text-slate-500 text-sm font-medium">Inadimplentes</p>
-            <p class="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1" data-count="${d.inadimplentes || 0}">0</p>
+            <p class="tremor-metric text-amber-600 dark:text-amber-400" data-count="${d.inadimplentes || 0}">0</p>
         </div>
-        <div class="bg-white dark:bg-slate-800/50 p-5 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer transition-all hover:shadow-md"
-             onclick="_inadToggleCard('pct')">
-            <div class="flex items-center justify-between mb-3">
-                <div class="w-10 h-10 bg-rose-50 dark:bg-rose-500/10 rounded-xl flex items-center justify-center">
-                    <span class="material-symbols-outlined text-rose-600 dark:text-rose-400">percent</span>
-                </div>
+        <div class="tremor-card cursor-pointer transition-all" onclick="_inadToggleCard('pct')">
+            <div class="flex items-center gap-2 mb-2">
+                <span class="dot-indicator bg-rose-500"></span>
+                <p class="tremor-label">% Inadimplência</p>
             </div>
-            <p class="text-slate-500 text-sm font-medium">% Inadimplência</p>
-            <p class="text-2xl font-black text-slate-900 dark:text-white mt-1">${pct.toFixed(1).replace('.', ',')}%</p>
-            <div class="w-full progress-bar-bg mt-3 !h-1.5">
-                <div class="progress-bar-fill bg-gradient-to-r from-amber-500 to-rose-500" style="width:${Math.min(pct, 100)}%"></div>
+            <p class="tremor-metric">${pct.toFixed(1).replace('.', ',')}%</p>
+            <div class="tremor-bar mt-3">
+                <div class="tremor-bar-fill bg-gradient-to-r from-amber-500 to-rose-500" style="width:${Math.min(pct, 100)}%"></div>
             </div>
         </div>`;
 
     countUpAll(container);
+    staggerCards(container);
+    highlightNumbers(container);
 }
 
 async function _loadInadimplenciaCard() {

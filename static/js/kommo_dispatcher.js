@@ -120,19 +120,19 @@ function _kdRenderPolling(tiers) {
 function _kdRenderDispatches(recent) {
     const tbody = document.getElementById('kd-dispatches-tbody');
     if (!recent.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="py-4 text-center text-slate-600">Nenhum dispatch recente</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="py-4 text-center text-gray-600">Nenhum dispatch recente</td></tr>';
         return;
     }
     tbody.innerHTML = recent.slice(0, 30).map(d => {
         const httpColor = d.http && d.http >= 200 && d.http < 300 ? 'text-green-400' :
-                          d.http && d.http >= 400 ? 'text-rose-400' : 'text-slate-400';
+                          d.http && d.http >= 400 ? 'text-rose-400' : 'text-gray-400';
         const statusColor = d.result === 'ok' || d.result === 'sent' ? 'text-green-400' :
-                            d.result === 'failed' || d.result === 'error' ? 'text-rose-400' : 'text-slate-400';
-        return `<tr class="hover:bg-slate-800/30">
-            <td class="py-1.5 px-3 text-slate-500 font-mono">${_kdTime(d.ts)}</td>
-            <td class="py-1.5 px-3 text-slate-300">${d.event || '—'}</td>
-            <td class="py-1.5 px-3 text-slate-400 font-mono">${d.lead || d.uid || '—'}</td>
-            <td class="py-1.5 px-3 text-slate-400">${d.type || '—'}</td>
+                            d.result === 'failed' || d.result === 'error' ? 'text-rose-400' : 'text-gray-400';
+        return `<tr class="hover:bg-gray-100 dark:hover:bg-gray-800/30">
+            <td class="py-1.5 px-3 text-gray-500 font-mono">${_kdTime(d.ts)}</td>
+            <td class="py-1.5 px-3 text-gray-300">${d.event || '—'}</td>
+            <td class="py-1.5 px-3 text-gray-400 font-mono">${d.lead || d.uid || '—'}</td>
+            <td class="py-1.5 px-3 text-gray-400">${d.type || '—'}</td>
             <td class="py-1.5 px-3 ${httpColor} font-mono">${d.http || '—'}</td>
             <td class="py-1.5 px-3 ${statusColor}">${d.result || '—'}</td>
         </tr>`;
@@ -142,7 +142,7 @@ function _kdRenderDispatches(recent) {
 function _kdRenderMessages(msgs) {
     const tbody = document.getElementById('kd-messages-tbody');
     if (!msgs.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="py-4 text-center text-slate-600">Nenhuma mensagem recente</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="py-4 text-center text-gray-600">Nenhuma mensagem recente</td></tr>';
         return;
     }
     tbody.innerHTML = msgs.slice(0, 30).map(m => {
@@ -150,15 +150,15 @@ function _kdRenderMessages(msgs) {
             ? '<span class="text-blue-400" title="Saída">↑</span>'
             : '<span class="text-green-400" title="Entrada">↓</span>';
         const typeColor = m.message_type === 'voice' ? 'text-fuchsia-400' :
-                          m.message_type === 'picture' ? 'text-amber-400' : 'text-slate-400';
+                          m.message_type === 'picture' ? 'text-amber-400' : 'text-gray-400';
         const txt = (m.text || '').length > 50 ? m.text.substring(0, 50) + '…' : (m.text || '—');
-        return `<tr class="hover:bg-slate-800/30">
-            <td class="py-1.5 px-2 text-slate-500 font-mono text-[10px]">${_kdTime(m.sent_at)}</td>
-            <td class="py-1.5 px-2 text-slate-400 truncate max-w-[100px]" title="${m.chat_label || m.chat_id || ''}">${m.chat_label || m.chat_id || '—'}</td>
-            <td class="py-1.5 px-2 text-slate-300 truncate max-w-[80px]">${m.sender_name || m.sender_type || '—'}</td>
+        return `<tr class="hover:bg-gray-100 dark:hover:bg-gray-800/30">
+            <td class="py-1.5 px-2 text-gray-500 font-mono text-[10px]">${_kdTime(m.sent_at)}</td>
+            <td class="py-1.5 px-2 text-gray-400 truncate max-w-[100px]" title="${m.chat_label || m.chat_id || ''}">${m.chat_label || m.chat_id || '—'}</td>
+            <td class="py-1.5 px-2 text-gray-300 truncate max-w-[80px]">${m.sender_name || m.sender_type || '—'}</td>
             <td class="py-1.5 px-2">${dirIcon}</td>
             <td class="py-1.5 px-2 ${typeColor}">${m.message_type || '—'}</td>
-            <td class="py-1.5 px-2 text-slate-400 truncate max-w-[200px]" title="${(m.text || '').replace(/"/g, '&quot;')}">${txt}</td>
+            <td class="py-1.5 px-2 text-gray-400 truncate max-w-[200px]" title="${(m.text || '').replace(/"/g, '&quot;')}">${txt}</td>
         </tr>`;
     }).join('');
 }
@@ -166,14 +166,14 @@ function _kdRenderMessages(msgs) {
 function _kdRenderTopChats(chats) {
     const tbody = document.getElementById('kd-topchats-tbody');
     if (!chats.length) {
-        tbody.innerHTML = '<tr><td colspan="3" class="py-4 text-center text-slate-600">Nenhum chat ativo</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="3" class="py-4 text-center text-gray-600">Nenhum chat ativo</td></tr>';
         return;
     }
     tbody.innerHTML = chats.slice(0, 20).map(c => {
-        return `<tr class="hover:bg-slate-800/30">
-            <td class="py-1.5 px-2 text-slate-300 truncate max-w-[200px]" title="${c.label || c.chat_id}">${c.label || c.chat_id}</td>
-            <td class="py-1.5 px-2 text-cyan-400 font-mono font-bold">${_kdFmt(c.msg_count)}</td>
-            <td class="py-1.5 px-2 text-slate-500 font-mono text-[10px]">${_kdTime(c.last_at)}</td>
+        return `<tr class="hover:bg-gray-100 dark:hover:bg-gray-800/30">
+            <td class="py-1.5 px-2 text-gray-300 truncate max-w-[200px]" title="${c.label || c.chat_id}">${c.label || c.chat_id}</td>
+            <td class="py-1.5 px-2 text-indigo-400 font-mono font-bold">${_kdFmt(c.msg_count)}</td>
+            <td class="py-1.5 px-2 text-gray-500 font-mono text-[10px]">${_kdTime(c.last_at)}</td>
         </tr>`;
     }).join('');
 }

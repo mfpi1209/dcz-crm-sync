@@ -1,7 +1,7 @@
 // ===========================================================================
 // SYNC COMERCIAL — Kommo CRM
 // ===========================================================================
-let _kommoActChart = null;
+let _kommoActChartId = 'kommo-activity-chart';
 let _kommoTaskId = null;
 let _kommoPolling = null;
 
@@ -15,7 +15,7 @@ const _FUNNEL_GRADIENTS = {
     aguardando_inscricao: { from: '#3b82f6', to: '#6366f1', border: 'border-blue-500/30',   shadow: 'shadow-blue-500/20' },
     inscricao:            { from: '#6366f1', to: '#8b5cf6', border: 'border-indigo-500/30', shadow: 'shadow-indigo-500/20' },
     processo_seletivo:    { from: '#8b5cf6', to: '#a855f7', border: 'border-violet-500/30', shadow: 'shadow-violet-500/20' },
-    em_processo:          { from: '#06b6d4', to: '#0ea5e9', border: 'border-cyan-500/30',   shadow: 'shadow-cyan-500/20' },
+    em_processo:          { from: '#06b6d4', to: '#0ea5e9', border: 'border-indigo-500/30',   shadow: 'shadow-indigo-500/20' },
     aprovado_reprovado:   { from: '#f59e0b', to: '#f97316', border: 'border-amber-500/30',  shadow: 'shadow-amber-500/20' },
     aceite:               { from: '#10b981', to: '#14b8a6', border: 'border-emerald-500/30', shadow: 'shadow-emerald-500/20' },
 };
@@ -43,16 +43,22 @@ async function loadKommoSync() {
     }
 }
 
+let _kommoPollLiveTimer = null;
+
 async function _kommoRefreshFunnel(force) {
     const btn = document.getElementById('kommo-funnel-refresh-btn');
     if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
+    if (_kommoPollLiveTimer) { clearTimeout(_kommoPollLiveTimer); _kommoPollLiveTimer = null; }
 
     try {
         const url = '/api/kommo/funnel-live' + (force ? '?force=1' : '');
         const res = await api(url);
         const d = await res.json();
-        if (d.ok) {
+        if (d.ok && d.data) {
             _renderFunnelCards(d.data, 'kommo-funnel');
+            if (d.source === 'pg' || d.source === 'cache') {
+                _kommoPollLiveTimer = setTimeout(() => _kommoPollForLive(), 2500);
+            }
         } else {
             console.error('funnel-live error:', d.error);
         }
@@ -60,6 +66,20 @@ async function _kommoRefreshFunnel(force) {
         console.error('funnel-live fetch error:', e);
     } finally {
         if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+    }
+}
+
+async function _kommoPollForLive() {
+    try {
+        const res = await api('/api/kommo/funnel-live?poll=1');
+        const d = await res.json();
+        if (d.ok && d.data && d.source === 'live') {
+            _renderFunnelCards(d.data, 'kommo-funnel');
+        } else if (d.source === 'pending') {
+            _kommoPollLiveTimer = setTimeout(() => _kommoPollForLive(), 3000);
+        }
+    } catch (e) {
+        console.error('poll-live error:', e);
     }
 }
 
@@ -71,8 +91,14 @@ function _renderFunnelCards(data, prefix) {
 
     const tsEl = document.getElementById(prefix + '-ts');
     if (tsEl) {
-        const label = data.fetched_at ? `Live ${data.fetched_at}` : '';
-        tsEl.textContent = label;
+        const src = data.source || '';
+        const badge = src === 'live'
+            ? '<span class="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>LIVE</span>'
+            : src === 'pg'
+            ? '<span class="inline-flex items-center gap-1 text-[9px] font-bold text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded-full">SYNC</span>'
+            : '';
+        const time = data.fetched_at || '';
+        tsEl.innerHTML = `${badge} <span class="text-gray-500 text-[10px] font-mono">${time}</span>`;
     }
 
     const container = document.getElementById(prefix + '-cards');
@@ -80,49 +106,74 @@ function _renderFunnelCards(data, prefix) {
 
     const highlight = (data.stages || []).filter(s => s.highlight);
     if (!highlight.length) {
-        container.innerHTML = '<div class="col-span-full text-center py-8 text-slate-500 text-sm">Nenhum dado de funil</div>';
+        container.innerHTML = '<div class="w-full text-center py-8 text-gray-500 text-sm">Nenhum dado de funil</div>';
         return;
     }
 
     container.innerHTML = highlight.map(s => {
-        const g = _FUNNEL_GRADIENTS[s.key] || { from: '#64748b', to: '#475569', border: 'border-slate-500/30', shadow: 'shadow-slate-500/20' };
+        const g = _FUNNEL_GRADIENTS[s.key] || { from: '#64748b', to: '#475569' };
 
         let deltaHtml = '';
         if (s.delta !== 0 && s.delta !== undefined) {
             const sign = s.delta > 0 ? '+' : '';
-            const color = s.delta > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400';
-            const bgColor = s.delta > 0 ? 'bg-emerald-50 dark:bg-emerald-500/10' : 'bg-red-50 dark:bg-red-500/10';
+            const badgeCls = s.delta > 0 ? 'tremor-badge-emerald' : 'tremor-badge-rose';
             const arrow = s.delta > 0 ? 'trending_up' : 'trending_down';
-            deltaHtml = `<span class="${color} ${bgColor} text-xs font-bold flex items-center gap-0.5 px-2 py-0.5 rounded-full"><span class="material-symbols-outlined text-sm">${arrow}</span> ${sign}${s.delta}</span>`;
+            deltaHtml = `<span class="tremor-badge ${badgeCls} gap-0.5"><span class="material-symbols-outlined text-xs">${arrow}</span>${sign}${s.delta}</span>`;
         } else {
-            deltaHtml = '<span class="text-slate-400 dark:text-slate-600 text-xs">—</span>';
+            deltaHtml = '<span class="text-gray-400 dark:text-gray-600 text-xs">—</span>';
         }
 
         let deltaPctHtml = '';
         if (s.delta_pct !== 0 && s.delta_pct !== undefined) {
             const sign = s.delta_pct > 0 ? '+' : '';
-            const color = s.delta_pct > 0 ? 'text-emerald-500 dark:text-emerald-400/70' : 'text-red-500 dark:text-red-400/70';
+            const color = s.delta_pct > 0 ? 'text-emerald-500 dark:text-emerald-400' : 'text-red-500 dark:text-red-400';
             deltaPctHtml = `<span class="${color} text-[10px]">${sign}${s.delta_pct}%</span>`;
         }
 
         return `
-        <div class="bg-white dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm
-                    hover:shadow-md transition-all duration-300 cursor-default overflow-hidden">
-            <div class="h-1 rounded-t-xl" style="background:linear-gradient(90deg, ${g.from}, ${g.to})"></div>
-            <div class="p-5">
-                <div class="flex items-start justify-between mb-3">
-                    <p class="text-[10px] font-bold uppercase tracking-widest" style="color:${g.from}">${s.label}</p>
-                    <span class="text-[10px] text-slate-400 dark:text-slate-500 font-mono">${s.pct || 0}%</span>
+        <div class="tremor-card overflow-hidden !p-0 cursor-default
+                    min-w-[160px] flex-shrink-0 snap-start lg:min-w-0 lg:flex-shrink">
+            <div class="h-1" style="background:linear-gradient(90deg, ${g.from}, ${g.to})"></div>
+            <div class="p-4">
+                <div class="flex items-start justify-between mb-2">
+                    <p class="text-[10px] font-semibold uppercase tracking-wider" style="color:${g.from}">${s.label}</p>
+                    <span class="tremor-badge tremor-badge-gray">${s.pct || 0}%</span>
                 </div>
-                <p class="text-3xl font-black text-slate-900 dark:text-white font-display mb-2">${s.count.toLocaleString('pt-BR')}</p>
+                <p class="tremor-metric mb-2">${s.count.toLocaleString('pt-BR')}</p>
                 <div class="flex items-center gap-2">
-                    <span class="text-[10px] text-slate-400 dark:text-slate-500">D0:</span>
+                    <span class="tremor-sublabel">D0:</span>
                     ${deltaHtml}
                     ${deltaPctHtml}
                 </div>
             </div>
         </div>`;
     }).join('');
+
+    _renderFunnelDots(container, highlight.length);
+}
+
+function _renderFunnelDots(container, count) {
+    const dotsEl = document.getElementById('kommo-funnel-dots');
+    if (!dotsEl || count <= 2) { if (dotsEl) dotsEl.innerHTML = ''; return; }
+
+    dotsEl.innerHTML = Array.from({ length: count }, (_, i) =>
+        `<span class="w-1.5 h-1.5 rounded-full transition-all ${i === 0 ? 'bg-indigo-500 w-3' : 'bg-gray-400/40'}" data-dot="${i}"></span>`
+    ).join('');
+
+    let ticking = false;
+    container.addEventListener('scroll', () => {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(() => {
+            const scrollLeft = container.scrollLeft;
+            const cardW = container.firstElementChild?.offsetWidth || 160;
+            const active = Math.round(scrollLeft / (cardW + 12));
+            dotsEl.querySelectorAll('[data-dot]').forEach((dot, i) => {
+                dot.className = `w-1.5 h-1.5 rounded-full transition-all ${i === active ? 'bg-indigo-500 w-3' : 'bg-gray-400/40'}`;
+            });
+            ticking = false;
+        });
+    }, { passive: true });
 }
 
 function _kommoRenderStatus(d) {
@@ -132,7 +183,7 @@ function _kommoRenderStatus(d) {
     const tbody = document.getElementById('kommo-entities-tbody');
     const entities = d.entities || [];
     if (!entities.length) {
-        tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-slate-500">Nenhum dado de sync encontrado</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-gray-500">Nenhum dado de sync encontrado</td></tr>';
         return;
     }
 
@@ -140,11 +191,11 @@ function _kommoRenderStatus(d) {
 
     tbody.innerHTML = entities.map(e => {
         const lastSync = e.last_sync_at ? new Date(e.last_sync_at).toLocaleString('pt-BR') : '—';
-        const statusCls = e.status === 'success' ? 'text-emerald-400' : e.status === 'error' ? 'text-red-400' : 'text-slate-400';
+        const statusCls = e.status === 'success' ? 'text-emerald-400' : e.status === 'error' ? 'text-red-400' : 'text-gray-400';
         const statusIcon = e.status === 'success' ? '●' : e.status === 'error' ? '✕' : '○';
-        return `<tr class="border-b border-slate-800/40 hover:bg-slate-800/30 transition">
+        return `<tr class="border-b border-[var(--border)] hover:bg-gray-100 dark:hover:bg-gray-800/30 transition">
             <td class="py-2 pr-2 font-medium">${entityLabels[e.entity_type] || e.entity_type}</td>
-            <td class="py-2 pr-2 text-xs text-slate-400">${lastSync}</td>
+            <td class="py-2 pr-2 text-xs text-gray-400">${lastSync}</td>
             <td class="py-2 pr-2 text-right font-bold">${(e.records_synced || 0).toLocaleString('pt-BR')}</td>
             <td class="py-2 text-xs ${statusCls}">${statusIcon} ${e.status || '—'}</td>
         </tr>`;
@@ -157,57 +208,42 @@ function _kommoRenderChanges(d) {
     document.getElementById('kommo-kpi-won').textContent = (d.won_leads || 0).toLocaleString('pt-BR');
     document.getElementById('kommo-kpi-won-sub').textContent = `Ganhos (últimas ${d.hours}h)`;
 
-    const canvas = document.getElementById('kommo-activity-chart');
-    if (_kommoActChart) { _kommoActChart.destroy(); _kommoActChart = null; }
-
     const byStage = d.updated_by_stage || [];
     if (!byStage.length) return;
 
     const labels = byStage.map(s => s.stage_name);
     const values = byStage.map(s => s.total);
 
-    _kommoActChart = new Chart(canvas, {
-        type: 'bar',
-        data: {
-            labels,
-            datasets: [{
-                label: 'Leads atualizados',
-                data: values,
-                backgroundColor: labels.map((_, i) => _kommoColors[i % _kommoColors.length] + '99'),
-                borderColor: labels.map((_, i) => _kommoColors[i % _kommoColors.length]),
-                borderWidth: 1,
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            indexAxis: 'y',
-            plugins: {
-                legend: { display: false },
-                tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.x.toLocaleString('pt-BR')} leads` } }
-            },
-            scales: {
-                x: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, beginAtZero: true },
-                y: { ticks: { color: '#94a3b8', font: { size: 11 } }, grid: { display: false } }
-            }
-        }
-    });
+    const chart = eInit(_kommoActChartId);
+    if (!chart) return;
+    chart.setOption({
+        backgroundColor: 'transparent',
+        grid: { ...eBaseGrid(), left: 16, right: 24 },
+        tooltip: { ...eTooltip('axis'), valueFormatter: v => v.toLocaleString('pt-BR') + ' leads' },
+        xAxis: eValueAxis(),
+        yAxis: { ...eCategoryAxis(labels), inverse: true },
+        series: [{
+            type: 'bar', data: values.map((v, i) => ({ value: v, itemStyle: { color: _kommoColors[i % _kommoColors.length] } })),
+            barWidth: '60%', itemStyle: { borderRadius: [0, 4, 4, 0] },
+        }],
+        animationDuration: 600,
+    }, true);
 }
 
 function _kommoRenderStagesTable(data) {
     const totalAll = data.reduce((s, d) => s + d.total, 0);
     const tbody = document.getElementById('kommo-stages-tbody');
     if (!data.length) {
-        tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-slate-500">Nenhum dado</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-gray-500">Nenhum dado</td></tr>';
         return;
     }
     tbody.innerHTML = data.map(s => {
         const pct = totalAll > 0 ? ((s.total / totalAll) * 100).toFixed(1) : '0';
-        return `<tr class="border-b border-slate-800/40 hover:bg-slate-800/30 transition">
-            <td class="py-2 pr-2 text-xs text-slate-400">${s.pipeline_name}</td>
+        return `<tr class="border-b border-[var(--border)] hover:bg-gray-100 dark:hover:bg-gray-800/30 transition">
+            <td class="py-2 pr-2 text-xs text-gray-400">${s.pipeline_name}</td>
             <td class="py-2 pr-2 font-medium">${s.stage_name}</td>
-            <td class="py-2 pr-2 text-right font-bold text-white">${s.total.toLocaleString('pt-BR')}</td>
-            <td class="py-2 text-right text-xs text-slate-400">${pct}%</td>
+            <td class="py-2 pr-2 text-right font-bold text-[var(--text-primary)]">${s.total.toLocaleString('pt-BR')}</td>
+            <td class="py-2 text-right text-xs text-gray-400">${pct}%</td>
         </tr>`;
     }).join('');
 }
@@ -260,7 +296,7 @@ function _kommoPollTask() {
             const logEl = document.getElementById('kommo-sync-log');
             if (t.log && t.log.length) {
                 logEl.innerHTML = t.log.map(l =>
-                    `<p class="text-xs font-mono text-slate-400"><span class="text-slate-600">${l.time || ''}</span> ${l.msg || ''}</p>`
+                    `<p class="text-xs font-mono text-gray-400"><span class="text-gray-600">${l.time || ''}</span> ${l.msg || ''}</p>`
                 ).join('');
                 logEl.scrollTop = logEl.scrollHeight;
             }
@@ -273,12 +309,12 @@ function _kommoPollTask() {
                 if (t.status === 'completed') {
                     document.getElementById('kommo-progress-label').textContent = 'Concluído!';
                     document.getElementById('kommo-progress-bar').className =
-                        document.getElementById('kommo-progress-bar').className.replace('from-emerald-500 to-teal-400', 'from-emerald-400 to-green-400');
+                        document.getElementById('kommo-progress-bar').className.replace('from-emerald-500 to-indigo-400', 'from-emerald-400 to-green-400');
                     loadKommoSync();
                 } else {
                     document.getElementById('kommo-progress-label').textContent = 'Erro: ' + (t.message || '');
                     document.getElementById('kommo-progress-bar').className =
-                        document.getElementById('kommo-progress-bar').className.replace('from-emerald-500 to-teal-400', 'from-red-500 to-red-400');
+                        document.getElementById('kommo-progress-bar').className.replace('from-emerald-500 to-indigo-400', 'from-red-500 to-red-400');
                 }
             }
         } catch (e) {

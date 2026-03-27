@@ -476,6 +476,16 @@ def _ensure_premiacao_tables():
             """)
             cur.execute("CREATE INDEX IF NOT EXISTS idx_pcm_camp ON premiacao_campanha_meta(campanha_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_pcm_user ON premiacao_campanha_meta(kommo_user_id)")
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_campanha_link (
+                    id              SERIAL PRIMARY KEY,
+                    campanha_a_id   INTEGER NOT NULL REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
+                    campanha_b_id   INTEGER NOT NULL REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
+                    created_at      TIMESTAMPTZ DEFAULT NOW(),
+                    UNIQUE(campanha_a_id, campanha_b_id)
+                )
+            """)
         conn.commit()
         conn.close()
     except Exception as e:

@@ -3,12 +3,12 @@
                 <!-- Header -->
                 <div class="mb-8">
                     <div class="flex items-center gap-3 mb-2">
-                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
                             <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
                         </div>
                         <div>
-                            <h2 class="text-3xl font-bold text-white font-display">Inteligência</h2>
-                            <p class="text-slate-500 text-sm">Análise de dados, cruzamentos e evolução temporal</p>
+                            <h2 class="text-3xl font-bold text-[var(--text-primary)] font-display">Inteligência</h2>
+                            <p class="text-gray-500 text-sm">Análise de dados, cruzamentos e evolução temporal</p>
                         </div>
                     </div>
                 </div>
@@ -17,8 +17,8 @@
                 <div class="glass-card p-5 mb-6">
                     <div class="flex flex-wrap items-end gap-4">
                         <div class="flex flex-col gap-1.5">
-                            <label class="text-xs font-medium text-slate-500">Tipo de Base</label>
-                            <select id="intel-tipo" class="input-glass px-3 py-2 text-sm text-slate-200 w-44 rounded-lg" onchange="loadIntelligence()">
+                            <label class="text-xs font-medium text-gray-500">Tipo de Base</label>
+                            <select id="intel-tipo" class="input-glass px-3 py-2 text-sm text-gray-200 w-44 rounded-lg" onchange="loadIntelligence()">
                                 <option value="matriculados">Matriculados</option>
                                 <option value="inadimplentes">Inadimplentes</option>
                                 <option value="concluintes">Concluintes</option>
@@ -27,8 +27,8 @@
                             </select>
                         </div>
                         <div class="flex flex-col gap-1.5">
-                            <label class="text-xs font-medium text-slate-500">Comparar com</label>
-                            <select id="intel-periodo" class="input-glass px-3 py-2 text-sm text-slate-200 w-40 rounded-lg" onchange="loadIntelligence()">
+                            <label class="text-xs font-medium text-gray-500">Comparar com</label>
+                            <select id="intel-periodo" class="input-glass px-3 py-2 text-sm text-gray-200 w-40 rounded-lg" onchange="loadIntelligence()">
                                 <option value="3m">3 meses atrás</option>
                                 <option value="6m" selected>6 meses atrás</option>
                                 <option value="1y">1 ano atrás</option>
@@ -44,8 +44,8 @@
 
                 <!-- Visão Geral Cards -->
                 <div class="mb-6">
-                    <h3 class="text-sm font-bold text-white font-display flex items-center gap-2 mb-4">
-                        <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+                    <h3 class="text-sm font-bold text-[var(--text-primary)] font-display flex items-center gap-2 mb-4">
+                        <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
                         Visão Geral dos Snapshots
                     </h3>
                     <div class="grid grid-cols-2 lg:grid-cols-5 gap-4" id="intel-overview-cards">
@@ -55,10 +55,10 @@
                                 <div class="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center">
                                     <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                 </div>
-                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Matriculados</p>
+                                <p class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Matriculados</p>
                             </div>
-                            <p class="text-2xl font-bold text-white font-display">—</p>
-                            <p class="text-xs text-slate-500 mt-1">Carregando...</p>
+                            <p class="text-2xl font-bold text-[var(--text-primary)] font-display">—</p>
+                            <p class="text-xs text-gray-500 mt-1">Carregando...</p>
                         </div>
                         <div class="glass-card p-5 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-amber-500 to-orange-500"></div>
@@ -66,10 +66,10 @@
                                 <div class="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center">
                                     <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                 </div>
-                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Inadimplentes</p>
+                                <p class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Inadimplentes</p>
                             </div>
-                            <p class="text-2xl font-bold text-white font-display">—</p>
-                            <p class="text-xs text-slate-500 mt-1">Carregando...</p>
+                            <p class="text-2xl font-bold text-[var(--text-primary)] font-display">—</p>
+                            <p class="text-xs text-gray-500 mt-1">Carregando...</p>
                         </div>
                         <div class="glass-card p-5 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-purple-500 to-violet-500"></div>
@@ -77,10 +77,10 @@
                                 <div class="w-10 h-10 rounded-xl bg-purple-500/15 flex items-center justify-center">
                                     <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                 </div>
-                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Concluintes</p>
+                                <p class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Concluintes</p>
                             </div>
-                            <p class="text-2xl font-bold text-white font-display">—</p>
-                            <p class="text-xs text-slate-500 mt-1">Carregando...</p>
+                            <p class="text-2xl font-bold text-[var(--text-primary)] font-display">—</p>
+                            <p class="text-xs text-gray-500 mt-1">Carregando...</p>
                         </div>
                         <div class="glass-card p-5 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-sky-500 to-blue-500"></div>
@@ -88,10 +88,10 @@
                                 <div class="w-10 h-10 rounded-xl bg-sky-500/15 flex items-center justify-center">
                                     <svg class="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                                 </div>
-                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Acesso AVA</p>
+                                <p class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Acesso AVA</p>
                             </div>
-                            <p class="text-2xl font-bold text-white font-display">—</p>
-                            <p class="text-xs text-slate-500 mt-1">Carregando...</p>
+                            <p class="text-2xl font-bold text-[var(--text-primary)] font-display">—</p>
+                            <p class="text-xs text-gray-500 mt-1">Carregando...</p>
                         </div>
                         <div class="glass-card p-5 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-rose-500 to-pink-500"></div>
@@ -99,10 +99,10 @@
                                 <div class="w-10 h-10 rounded-xl bg-rose-500/15 flex items-center justify-center">
                                     <svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
                                 </div>
-                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Sem Rematrícula</p>
+                                <p class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Sem Rematrícula</p>
                             </div>
-                            <p class="text-2xl font-bold text-white font-display">—</p>
-                            <p class="text-xs text-slate-500 mt-1">Carregando...</p>
+                            <p class="text-2xl font-bold text-[var(--text-primary)] font-display">—</p>
+                            <p class="text-xs text-gray-500 mt-1">Carregando...</p>
                         </div>
                     </div>
                 </div>
@@ -110,43 +110,43 @@
                 <!-- Comparação Temporal -->
                 <div class="glass-card p-5 mb-6">
                     <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                            <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                        <h3 class="text-sm font-bold text-[var(--text-primary)] font-display flex items-center gap-2">
+                            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                             Comparação Temporal
                         </h3>
-                        <button onclick="document.getElementById('intel-compare-detail').classList.toggle('hidden')" class="text-xs text-slate-500 hover:text-slate-300 flex items-center gap-1 transition">
+                        <button onclick="document.getElementById('intel-compare-detail').classList.toggle('hidden')" class="text-xs text-gray-500 hover:text-gray-300 flex items-center gap-1 transition">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                             Detalhes
                         </button>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4" id="intel-compare-cards">
                         <div class="glass-card p-4 relative overflow-hidden">
-                            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-cyan-500 to-blue-500"></div>
-                            <p class="text-xs text-slate-500 mb-1">Snapshot Atual</p>
-                            <p class="text-xl font-bold text-white font-display">—</p>
-                            <p class="text-[10px] text-slate-500 mt-1">Carregando...</p>
+                            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-indigo-500 to-blue-500"></div>
+                            <p class="text-xs text-gray-500 mb-1">Snapshot Atual</p>
+                            <p class="text-xl font-bold text-[var(--text-primary)] font-display">—</p>
+                            <p class="text-[10px] text-gray-500 mt-1">Carregando...</p>
                         </div>
                         <div class="glass-card p-4 relative overflow-hidden">
-                            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-slate-500 to-slate-600"></div>
-                            <p class="text-xs text-slate-500 mb-1">Snapshot Anterior</p>
-                            <p class="text-xl font-bold text-white font-display">—</p>
-                            <p class="text-[10px] text-slate-500 mt-1">Carregando...</p>
+                            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-gray-500 to-gray-600"></div>
+                            <p class="text-xs text-gray-500 mb-1">Snapshot Anterior</p>
+                            <p class="text-xl font-bold text-[var(--text-primary)] font-display">—</p>
+                            <p class="text-[10px] text-gray-500 mt-1">Carregando...</p>
                         </div>
                         <div class="glass-card p-4 relative overflow-hidden">
-                            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-emerald-500 to-teal-500"></div>
-                            <p class="text-xs text-slate-500 mb-1">Variação</p>
+                            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-emerald-500 to-indigo-500"></div>
+                            <p class="text-xs text-gray-500 mb-1">Variação</p>
                             <p class="text-xl font-bold text-emerald-400 font-display">—</p>
-                            <div class="flex gap-3 mt-2 text-[10px] text-slate-500">
+                            <div class="flex gap-3 mt-2 text-[10px] text-gray-500">
                                 <span>— novos</span>
                                 <span>— saíram</span>
                                 <span>— mantidos</span>
                             </div>
                         </div>
                     </div>
-                    <div id="intel-compare-detail" class="hidden pt-4 border-t border-slate-700/30">
+                    <div id="intel-compare-detail" class="hidden pt-4 border-t border-gray-700/30">
                         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3" id="intel-compare-metrics">
-                            <div class="bg-slate-800/40 rounded-lg p-3">
-                                <p class="text-[10px] text-slate-500 uppercase">Métrica</p>
+                            <div class="bg-gray-800/40 rounded-lg p-3">
+                                <p class="text-[10px] text-gray-500 uppercase">Métrica</p>
                                 <p class="text-sm font-bold text-white">—</p>
                             </div>
                         </div>
@@ -155,55 +155,55 @@
 
                 <!-- Cruzamentos entre Bases -->
                 <div class="glass-card p-5 mb-6">
-                    <h3 class="text-sm font-bold text-white font-display flex items-center gap-2 mb-4">
+                    <h3 class="text-sm font-bold text-[var(--text-primary)] font-display flex items-center gap-2 mb-4">
                         <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
                         Cruzamentos entre Bases
                     </h3>
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="intel-crossref-cards">
                         <div class="glass-card p-4 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-amber-500 to-orange-500"></div>
-                            <p class="text-xs text-slate-500 mb-2">Matriculados com dívida</p>
-                            <p class="text-xl font-bold text-white font-display">—</p>
-                            <div class="w-full bg-slate-800 rounded-full h-1.5 mt-2">
+                            <p class="text-xs text-gray-500 mb-2">Matriculados com dívida</p>
+                            <p class="text-xl font-bold text-[var(--text-primary)] font-display">—</p>
+                            <div class="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-1.5 mt-2">
                                 <div class="bg-amber-500 h-1.5 rounded-full" style="width:0%"></div>
                             </div>
-                            <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+                            <div class="flex justify-between text-[10px] text-gray-500 mt-1">
                                 <span>Matriculados: —</span>
                                 <span>Inadimplentes: —</span>
                             </div>
                         </div>
                         <div class="glass-card p-4 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-sky-500 to-blue-500"></div>
-                            <p class="text-xs text-slate-500 mb-2">Matriculados no AVA</p>
-                            <p class="text-xl font-bold text-white font-display">—</p>
-                            <div class="w-full bg-slate-800 rounded-full h-1.5 mt-2">
+                            <p class="text-xs text-gray-500 mb-2">Matriculados no AVA</p>
+                            <p class="text-xl font-bold text-[var(--text-primary)] font-display">—</p>
+                            <div class="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-1.5 mt-2">
                                 <div class="bg-sky-500 h-1.5 rounded-full" style="width:0%"></div>
                             </div>
-                            <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+                            <div class="flex justify-between text-[10px] text-gray-500 mt-1">
                                 <span>Matriculados: —</span>
                                 <span>AVA: —</span>
                             </div>
                         </div>
                         <div class="glass-card p-4 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-rose-500 to-pink-500"></div>
-                            <p class="text-xs text-slate-500 mb-2">Matr. sem rematrícula</p>
-                            <p class="text-xl font-bold text-white font-display">—</p>
-                            <div class="w-full bg-slate-800 rounded-full h-1.5 mt-2">
+                            <p class="text-xs text-gray-500 mb-2">Matr. sem rematrícula</p>
+                            <p class="text-xl font-bold text-[var(--text-primary)] font-display">—</p>
+                            <div class="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-1.5 mt-2">
                                 <div class="bg-rose-500 h-1.5 rounded-full" style="width:0%"></div>
                             </div>
-                            <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+                            <div class="flex justify-between text-[10px] text-gray-500 mt-1">
                                 <span>Matriculados: —</span>
                                 <span>Sem Remat.: —</span>
                             </div>
                         </div>
                         <div class="glass-card p-4 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-purple-500 to-violet-500"></div>
-                            <p class="text-xs text-slate-500 mb-2">Matr. concluintes</p>
-                            <p class="text-xl font-bold text-white font-display">—</p>
-                            <div class="w-full bg-slate-800 rounded-full h-1.5 mt-2">
+                            <p class="text-xs text-gray-500 mb-2">Matr. concluintes</p>
+                            <p class="text-xl font-bold text-[var(--text-primary)] font-display">—</p>
+                            <div class="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-1.5 mt-2">
                                 <div class="bg-purple-500 h-1.5 rounded-full" style="width:0%"></div>
                             </div>
-                            <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+                            <div class="flex justify-between text-[10px] text-gray-500 mt-1">
                                 <span>Matriculados: —</span>
                                 <span>Concluintes: —</span>
                             </div>
@@ -213,16 +213,16 @@
 
                 <!-- Alertas e Insights -->
                 <div class="glass-card p-5 mb-6">
-                    <h3 class="text-sm font-bold text-white font-display flex items-center gap-2 mb-4">
+                    <h3 class="text-sm font-bold text-[var(--text-primary)] font-display flex items-center gap-2 mb-4">
                         <svg class="w-4 h-4 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
                         Alertas e Insights
                     </h3>
                     <div id="intel-alerts-list" class="space-y-3">
-                        <div class="border border-slate-700/40 bg-slate-800/20 rounded-xl p-4 flex items-start gap-3">
-                            <svg class="w-5 h-5 flex-shrink-0 mt-0.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <div class="border border-gray-700/40 bg-gray-800/20 rounded-xl p-4 flex items-start gap-3">
+                            <svg class="w-5 h-5 flex-shrink-0 mt-0.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                             <div>
                                 <p class="text-sm font-semibold text-white">Nenhum alerta no momento</p>
-                                <p class="text-xs text-slate-400 mt-0.5">Faça upload dos snapshots para gerar alertas automáticos.</p>
+                                <p class="text-xs text-gray-400 mt-0.5">Faça upload dos snapshots para gerar alertas automáticos.</p>
                             </div>
                         </div>
                     </div>
@@ -231,12 +231,12 @@
                 <!-- ═══ Engajamento AVA ═══ -->
                 <div class="glass-card p-5 mb-6">
                     <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
+                        <h3 class="text-sm font-bold text-[var(--text-primary)] font-display flex items-center gap-2">
                             <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                             Engajamento AVA (Blackboard)
                         </h3>
                         <div class="flex items-center gap-2">
-                            <select id="eng-nivel" onchange="_loadEngScores(); _loadEngCharts()" class="input-glass px-2.5 py-1.5 text-xs text-slate-200 w-36 rounded-lg">
+                            <select id="eng-nivel" onchange="_loadEngScores(); _loadEngCharts()" class="input-glass px-2.5 py-1.5 text-xs text-gray-200 w-36 rounded-lg">
                                 <option value="">Consolidado</option>
                                 <option value="Graduação">Graduação</option>
                                 <option value="Pós-Graduação">Pós-Graduação</option>
@@ -257,45 +257,45 @@
                     <!-- KPI Cards -->
                     <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5" id="eng-kpi-cards">
                         <div class="glass-card p-4 relative overflow-hidden">
-                            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-slate-500 to-slate-600"></div>
-                            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Monitorados</p>
-                            <p class="text-2xl font-bold text-white font-display mt-1" id="eng-total">—</p>
+                            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-gray-500 to-gray-600"></div>
+                            <p class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Monitorados</p>
+                            <p class="text-2xl font-bold text-[var(--text-primary)] font-display mt-1" id="eng-total">—</p>
                         </div>
                         <div class="glass-card p-4 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-emerald-500 to-green-500"></div>
                             <p class="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Engajados</p>
-                            <p class="text-2xl font-bold text-white font-display mt-1" id="eng-engajados">—</p>
+                            <p class="text-2xl font-bold text-[var(--text-primary)] font-display mt-1" id="eng-engajados">—</p>
                         </div>
                         <div class="glass-card p-4 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-amber-500 to-yellow-500"></div>
                             <p class="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Atenção</p>
-                            <p class="text-2xl font-bold text-white font-display mt-1" id="eng-atencao">—</p>
+                            <p class="text-2xl font-bold text-[var(--text-primary)] font-display mt-1" id="eng-atencao">—</p>
                         </div>
                         <div class="glass-card p-4 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-orange-500 to-red-500"></div>
                             <p class="text-[10px] font-bold text-orange-400 uppercase tracking-wider">Em Risco</p>
-                            <p class="text-2xl font-bold text-white font-display mt-1" id="eng-risco">—</p>
+                            <p class="text-2xl font-bold text-[var(--text-primary)] font-display mt-1" id="eng-risco">—</p>
                         </div>
                         <div class="glass-card p-4 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-rose-500 to-red-600"></div>
                             <p class="text-[10px] font-bold text-rose-400 uppercase tracking-wider">Críticos</p>
-                            <p class="text-2xl font-bold text-white font-display mt-1" id="eng-criticos">—</p>
+                            <p class="text-2xl font-bold text-[var(--text-primary)] font-display mt-1" id="eng-criticos">—</p>
                         </div>
                     </div>
 
                     <!-- Risk Distribution (donut) -->
                     <div class="glass-card p-4 mb-5 max-w-md">
-                        <p class="text-xs font-bold text-slate-400 uppercase mb-3">Distribuição de Risco</p>
+                        <p class="text-xs font-bold text-gray-400 uppercase mb-3">Distribuição de Risco</p>
                         <div class="relative h-52">
-                            <canvas id="eng-risk-chart"></canvas>
+                            <div id="eng-risk-chart" style="height:208px;width:100%"></div>
                         </div>
                     </div>
 
                     <!-- Export -->
                     <div id="eng-export-bar" class="glass-card p-4 flex items-center justify-between">
                         <div>
-                            <p class="text-sm text-slate-300"><span id="eng-sem-ava-count" class="font-bold text-amber-400">—</span> alunos sem dados no AVA</p>
-                            <p class="text-xs text-slate-500 mt-0.5">Matriculados que não foram encontrados no relatório de acesso do Blackboard</p>
+                            <p class="text-sm text-gray-300"><span id="eng-sem-ava-count" class="font-bold text-amber-400">—</span> alunos sem dados no AVA</p>
+                            <p class="text-xs text-gray-500 mt-0.5">Matriculados que não foram encontrados no relatório de acesso do Blackboard</p>
                         </div>
                         <button onclick="_exportSemAva()" class="btn-secondary text-xs px-4 py-2 rounded-lg flex items-center gap-2">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
@@ -307,12 +307,12 @@
                 <!-- ═══ Monitor de Comunicações ═══ -->
                 <div class="glass-card p-5">
                     <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
+                        <h3 class="text-sm font-bold text-[var(--text-primary)] font-display flex items-center gap-2">
                             <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                             Monitor de Comunicações
                         </h3>
                         <div class="flex gap-2">
-                            <select id="comm-log-filter" class="input-glass px-2 py-1 text-xs text-slate-200 w-28 rounded-lg" onchange="_loadCommLog()">
+                            <select id="comm-log-filter" class="input-glass px-2 py-1 text-xs text-gray-200 w-28 rounded-lg" onchange="_loadCommLog()">
                                 <option value="">Todos</option>
                                 <option value="email">E-mail</option>
                                 <option value="whatsapp">WhatsApp</option>
@@ -324,25 +324,25 @@
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4" id="comm-stats-cards">
                         <div class="glass-card p-3 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-violet-500 to-purple-500"></div>
-                            <p class="text-[10px] font-bold text-slate-500 uppercase">Total Enviados</p>
-                            <p class="text-xl font-bold text-white font-display" id="comm-total-sent">—</p>
+                            <p class="text-[10px] font-bold text-gray-500 uppercase">Total Enviados</p>
+                            <p class="text-xl font-bold text-[var(--text-primary)] font-display" id="comm-total-sent">—</p>
                         </div>
                         <div class="glass-card p-3 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-sky-500 to-blue-500"></div>
-                            <p class="text-[10px] font-bold text-slate-500 uppercase">Pendentes</p>
-                            <p class="text-xl font-bold text-white font-display" id="comm-total-pending">—</p>
+                            <p class="text-[10px] font-bold text-gray-500 uppercase">Pendentes</p>
+                            <p class="text-xl font-bold text-[var(--text-primary)] font-display" id="comm-total-pending">—</p>
                         </div>
                         <div class="glass-card p-3 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-rose-500 to-red-500"></div>
-                            <p class="text-[10px] font-bold text-slate-500 uppercase">Falhas</p>
-                            <p class="text-xl font-bold text-white font-display" id="comm-total-failed">—</p>
+                            <p class="text-[10px] font-bold text-gray-500 uppercase">Falhas</p>
+                            <p class="text-xl font-bold text-[var(--text-primary)] font-display" id="comm-total-failed">—</p>
                         </div>
                     </div>
 
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-sm">
                             <thead>
-                                <tr class="text-[10px] text-slate-500 border-b border-slate-700/30 uppercase tracking-wider">
+                                <tr class="text-[10px] text-gray-500 border-b border-gray-700/30 uppercase tracking-wider">
                                     <th class="pb-2 font-semibold">Data</th>
                                     <th class="pb-2 font-semibold">RGM</th>
                                     <th class="pb-2 font-semibold">Regra</th>
@@ -351,18 +351,18 @@
                                     <th class="pb-2 font-semibold">Preview</th>
                                 </tr>
                             </thead>
-                            <tbody id="comm-log-tbody" class="text-slate-300">
-                                <tr><td colspan="6" class="py-4 text-center text-slate-500">Nenhuma comunicação registrada</td></tr>
+                            <tbody id="comm-log-tbody" class="text-gray-300">
+                                <tr><td colspan="6" class="py-4 text-center text-gray-500">Nenhuma comunicação registrada</td></tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
 
                 <!-- Loading Overlay -->
-                <div id="intel-loading" class="absolute inset-0 bg-slate-900/80 backdrop-blur-sm rounded-2xl hidden items-center justify-center z-50">
+                <div id="intel-loading" class="absolute inset-0 bg-gray-900/80 backdrop-blur-sm rounded-2xl hidden items-center justify-center z-50">
                     <div class="text-center">
-                        <div class="w-12 h-12 border-3 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin mx-auto mb-4"></div>
-                        <p class="text-slate-400 text-sm">Carregando dados...</p>
+                        <div class="w-12 h-12 border-3 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin mx-auto mb-4"></div>
+                        <p class="text-gray-400 text-sm">Carregando dados...</p>
                     </div>
                 </div>
             </div>

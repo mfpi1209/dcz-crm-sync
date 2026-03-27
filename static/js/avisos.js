@@ -7,13 +7,13 @@ let _avUsersCache = [];
 const _PRIO_BADGE = {
     urgente:    'bg-red-500/20 text-red-400 border-red-500/30',
     importante: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-    normal:     'bg-slate-500/20 text-slate-400 border-slate-500/30',
+    normal:     'bg-gray-500/20 text-gray-400 border-gray-500/30',
 };
 
 const _PRIO_ACCENT = {
     urgente:    'border-l-red-500',
     importante: 'border-l-amber-500',
-    normal:     'border-l-slate-600',
+    normal:     'border-l-gray-600',
 };
 
 function _fmtDate(iso) {
@@ -43,11 +43,11 @@ function _avisoCard(a, showReadBtn) {
             <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 mb-1 flex-wrap">
                     <span class="text-xs font-bold px-2 py-0.5 rounded-full border ${prio}">${a.prioridade}</span>
-                    <h4 class="text-sm font-semibold text-white truncate">${a.titulo}</h4>
+                    <h4 class="text-sm font-semibold text-[var(--text-primary)] truncate">${a.titulo}</h4>
                     ${readIcon}
                 </div>
-                <p class="text-xs text-slate-300 whitespace-pre-line mt-1">${a.corpo}</p>
-                <p class="text-[10px] text-slate-600 mt-2">${_fmtDatetime(a.created_at)} — ${a.autor || 'Sistema'}</p>
+                <p class="text-xs text-gray-300 whitespace-pre-line mt-1">${a.corpo}</p>
+                <p class="text-[10px] text-gray-600 mt-2">${_fmtDatetime(a.created_at)} — ${a.autor || 'Sistema'}</p>
             </div>
             <div class="flex-shrink-0">${readBtn}</div>
         </div>
@@ -67,7 +67,7 @@ function avisosTab(tab) {
             btn.className = 'px-4 py-2 text-sm font-medium rounded-lg transition-all bg-violet-600/20 text-violet-400 border border-violet-500/30';
             sec.classList.remove('hidden');
         } else {
-            btn.className = 'px-4 py-2 text-sm font-medium rounded-lg transition-all text-slate-400 hover:text-white';
+            btn.className = 'px-4 py-2 text-sm font-medium rounded-lg transition-all text-gray-400 hover:text-[var(--text-primary)]';
             sec.classList.add('hidden');
         }
     });
@@ -116,18 +116,18 @@ function _loadAdmin() {
     api('/api/avisos/admin').then(r => r.json()).then(rows => {
         const tbody = document.getElementById('av-admin-tbody');
         if (!rows.length) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-slate-600 py-4">Nenhum aviso</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-gray-600 py-4">Nenhum aviso</td></tr>';
             return;
         }
         tbody.innerHTML = rows.map(a => {
             const prio = _PRIO_BADGE[a.prioridade] || _PRIO_BADGE.normal;
             const status = a.active ? '<span class="text-emerald-400">Ativo</span>' : '<span class="text-red-400">Inativo</span>';
-            return `<tr class="hover:bg-slate-800/30">
-                <td class="py-2 px-3 text-slate-300 max-w-[200px] truncate">${a.titulo}</td>
+            return `<tr class="hover:bg-gray-100 dark:hover:bg-gray-800/30">
+                <td class="py-2 px-3 text-gray-300 max-w-[200px] truncate">${a.titulo}</td>
                 <td class="py-2 px-3"><span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${prio}">${a.prioridade}</span></td>
-                <td class="py-2 px-3 text-slate-400">${a.target_role}${a.target_user_ids && a.target_user_ids.length ? ' +' + a.target_user_ids.length : ''}</td>
-                <td class="py-2 px-3 text-slate-500">${_fmtDate(a.created_at)}</td>
-                <td class="py-2 px-3 text-slate-500">${_fmtDate(a.expires_at)}</td>
+                <td class="py-2 px-3 text-gray-400">${a.target_role}${a.target_user_ids && a.target_user_ids.length ? ' +' + a.target_user_ids.length : ''}</td>
+                <td class="py-2 px-3 text-gray-500">${_fmtDate(a.created_at)}</td>
+                <td class="py-2 px-3 text-gray-500">${_fmtDate(a.expires_at)}</td>
                 <td class="py-2 px-3">${status}</td>
                 <td class="py-2 px-3 flex gap-2">
                     <button onclick="avisosEditar(${a.id})" class="text-xs text-violet-400 hover:text-violet-300">Editar</button>
@@ -181,7 +181,7 @@ function _renderUserChips() {
         const name = u ? u.username : uid;
         return `<span class="inline-flex items-center gap-1 bg-violet-500/20 text-violet-300 text-xs px-2 py-0.5 rounded-full">
             ${name}
-            <button onclick="avRemoveUser(${uid})" class="hover:text-white">&times;</button>
+            <button onclick="avRemoveUser(${uid})" class="hover:text-[var(--text-primary)]">&times;</button>
         </span>`;
     }).join('');
     container.innerHTML = chips + sel.outerHTML;

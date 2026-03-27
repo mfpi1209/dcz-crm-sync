@@ -14,7 +14,7 @@
     .mp-float{animation:mp-float 3s ease-in-out infinite}
     .mp-count{animation:mp-count-up .6s ease-out both;animation-delay:.3s}
 
-    .mp-tier-gray{background:linear-gradient(135deg,#334155,#1e293b)}
+    .mp-tier-base{background:linear-gradient(135deg,#334155,#1e293b)}
     .mp-tier-bronze{background:linear-gradient(135deg,#92400e,#78350f)}
     .mp-tier-silver{background:linear-gradient(135deg,#475569,#334155)}
     .mp-tier-gold{background:linear-gradient(135deg,#d97706,#b45309)}
@@ -67,7 +67,7 @@
 <div id="mp-content" class="hidden">
 
     <!-- S1: Hero - Seu Saldo -->
-    <div id="mp-hero" class="mp-tier-gray rounded-2xl p-6 sm:p-8 mb-6 relative overflow-hidden">
+    <div id="mp-hero" class="mp-tier-base rounded-2xl p-6 sm:p-8 mb-6 relative overflow-hidden">
         <div class="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_30%_20%,white_0%,transparent_60%)]"></div>
         <div class="relative z-10">
             <p id="mp-hero-campanha" class="text-xs text-white/60 uppercase tracking-widest mb-1"></p>
@@ -91,6 +91,29 @@
     </div>
 
     <div class="max-w-7xl mx-auto space-y-6 pb-12">
+
+        <!-- Ranking + Conquistas row -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mp-animate mp-d1">
+            <!-- Ranking Card -->
+            <div id="mp-ranking-card" class="hidden glass-card p-5 border border-amber-500/10 relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-24 h-24 opacity-5">
+                    <span class="material-symbols-outlined text-[96px] text-amber-400">leaderboard</span>
+                </div>
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-base text-amber-400">leaderboard</span>
+                    Ranking
+                </h3>
+                <div id="mp-ranking-content"></div>
+            </div>
+            <!-- Conquistas Card -->
+            <div id="mp-conquistas-card" class="hidden glass-card p-5 border border-purple-500/10">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-base text-purple-400">workspace_premium</span>
+                    Conquistas
+                </h3>
+                <div id="mp-conquistas-grid" class="flex flex-wrap gap-2"></div>
+            </div>
+        </div>
 
         <!-- S2: Desbloqueie Mais -->
         <div id="mp-desbloqueie-wrap" class="mp-animate mp-d1">
@@ -157,10 +180,11 @@
             </h3>
             <div class="glass-card p-5 border border-orange-500/10">
                 <div class="flex items-center gap-4 mb-4">
-                    <div id="mp-streak-num" class="text-3xl font-black text-orange-400">0</div>
+                    <div id="mp-streak-num" class="text-3xl font-black text-slate-400">0</div>
                     <div>
                         <p id="mp-streak-label" class="text-sm font-semibold text-white"></p>
                         <p class="text-[10px] text-slate-500">dias consecutivos batendo a meta diária</p>
+                        <div id="mp-streak-nivel" class="hidden flex items-center gap-1 mt-1"></div>
                     </div>
                 </div>
                 <div id="mp-heatmap" class="flex flex-wrap gap-1"></div>
@@ -171,6 +195,15 @@
                     <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm mp-heat-future"></span>Futuro</span>
                 </div>
             </div>
+        </div>
+
+        <!-- Progresso por Faixa -->
+        <div class="mp-animate mp-d5">
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-base text-blue-400">bar_chart</span>
+                Progresso por Faixa
+            </h3>
+            <div id="mp-tier-progress" class="glass-card p-5 border border-blue-500/10 space-y-3"></div>
         </div>
 
         <!-- S6: Resumo Financeiro -->

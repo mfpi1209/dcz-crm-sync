@@ -35,9 +35,9 @@ async function _loadIntelOverview() {
             const c = INTEL_TIPO_COLORS[tipo];
             const label = INTEL_TIPO_LABELS[tipo];
             html += `<div class="glass-card p-4 border ${c.border} bg-gradient-to-br ${c.bg}">
-                <p class="text-xs font-medium text-slate-400 mb-1">${label}</p>
-                <p class="text-2xl font-bold text-white font-display">${s ? s.row_count.toLocaleString('pt-BR') : '—'}</p>
-                <p class="text-[10px] text-slate-500 mt-1">${s ? s.uploaded_at : 'Nenhum snapshot'}</p>
+                <p class="text-xs font-medium text-gray-400 mb-1">${label}</p>
+                <p class="text-2xl font-bold text-[var(--text-primary)] font-display">${s ? s.row_count.toLocaleString('pt-BR') : '—'}</p>
+                <p class="text-[10px] text-gray-500 mt-1">${s ? s.uploaded_at : 'Nenhum snapshot'}</p>
             </div>`;
         }
         container.innerHTML = html;
@@ -52,29 +52,29 @@ async function _loadIntelCompare() {
     try {
         const res = await fetch(`/api/snapshots/compare?tipo=${tipo}&periodo=${periodo}`);
         const d = await res.json();
-        if (d.error) { container.innerHTML = `<p class="text-slate-500 text-sm col-span-3">${d.error}</p>`; detail.innerHTML=''; return; }
+        if (d.error) { container.innerHTML = `<p class="text-gray-500 text-sm col-span-3">${d.error}</p>`; detail.innerHTML=''; return; }
         const sa = d.snap_a, sb = d.snap_b;
         const deltaP = sb && sb.row_count > 0 ? ((sa.row_count - sb.row_count) / sb.row_count * 100).toFixed(1) : '—';
-        const deltaClass = d.delta_total > 0 ? 'text-emerald-400' : d.delta_total < 0 ? 'text-rose-400' : 'text-slate-400';
+        const deltaClass = d.delta_total > 0 ? 'text-emerald-400' : d.delta_total < 0 ? 'text-rose-400' : 'text-gray-400';
         const deltaSign = d.delta_total > 0 ? '+' : '';
         container.innerHTML = `
             <div class="glass-card p-4">
-                <p class="text-xs text-slate-500 mb-1">Snapshot Atual</p>
-                <p class="text-xl font-bold text-white">${sa.row_count.toLocaleString('pt-BR')}</p>
-                <p class="text-[10px] text-slate-500">${sa.uploaded_at}</p>
+                <p class="text-xs text-gray-500 mb-1">Snapshot Atual</p>
+                <p class="text-xl font-bold text-[var(--text-primary)]">${sa.row_count.toLocaleString('pt-BR')}</p>
+                <p class="text-[10px] text-gray-500">${sa.uploaded_at}</p>
             </div>
             <div class="glass-card p-4">
-                <p class="text-xs text-slate-500 mb-1">Snapshot Anterior</p>
-                <p class="text-xl font-bold text-white">${sb ? sb.row_count.toLocaleString('pt-BR') : 'N/D'}</p>
-                <p class="text-[10px] text-slate-500">${sb ? sb.uploaded_at : '—'}</p>
+                <p class="text-xs text-gray-500 mb-1">Snapshot Anterior</p>
+                <p class="text-xl font-bold text-[var(--text-primary)]">${sb ? sb.row_count.toLocaleString('pt-BR') : 'N/D'}</p>
+                <p class="text-[10px] text-gray-500">${sb ? sb.uploaded_at : '—'}</p>
             </div>
             <div class="glass-card p-4">
-                <p class="text-xs text-slate-500 mb-1">Variação</p>
+                <p class="text-xs text-gray-500 mb-1">Variação</p>
                 <p class="text-xl font-bold ${deltaClass}">${deltaSign}${d.delta_total.toLocaleString('pt-BR')} <span class="text-sm">(${deltaP}%)</span></p>
                 <div class="flex gap-3 mt-2 text-[10px]">
                     <span class="text-emerald-400">+${d.novos} novos</span>
                     <span class="text-rose-400">-${d.removidos} saíram</span>
-                    <span class="text-slate-400">${d.mantidos} mantidos</span>
+                    <span class="text-gray-400">${d.mantidos} mantidos</span>
                 </div>
             </div>`;
 
@@ -87,8 +87,8 @@ async function _loadIntelCompare() {
             for (const m of metricsToShow) {
                 const va = statsA[m], vb = statsB[m];
                 const delta = vb != null ? va - vb : 0;
-                const cls = delta > 0 ? 'text-emerald-400' : delta < 0 ? 'text-rose-400' : 'text-slate-500';
-                detailHtml += `<div class="bg-slate-800/40 rounded-lg p-3"><p class="text-[10px] text-slate-500 uppercase">${m.replace(/_/g,' ')}</p><p class="text-sm font-bold text-white">${typeof va==='number'?va.toLocaleString('pt-BR'):va}</p>${vb!=null?`<p class="text-[10px] ${cls}">${delta>0?'+':''}${delta.toLocaleString('pt-BR')}</p>`:''}
+                const cls = delta > 0 ? 'text-emerald-400' : delta < 0 ? 'text-rose-400' : 'text-gray-500';
+                detailHtml += `<div class="bg-gray-100 dark:bg-gray-800/40 rounded-lg p-3"><p class="text-[10px] text-gray-500 uppercase">${m.replace(/_/g,' ')}</p><p class="text-sm font-bold text-[var(--text-primary)]">${typeof va==='number'?va.toLocaleString('pt-BR'):va}</p>${vb!=null?`<p class="text-[10px] ${cls}">${delta>0?'+':''}${delta.toLocaleString('pt-BR')}</p>`:''}
                 </div>`;
             }
             detailHtml += '</div>';
@@ -111,23 +111,23 @@ async function _loadIntelCrossref() {
         results.forEach((d,i) => {
             const [,, label] = pairs[i];
             if (d.error || d.total_a === 0) {
-                html += `<div class="glass-card p-4"><p class="text-xs text-slate-500">${label}</p><p class="text-sm text-slate-600 mt-1">Sem dados</p></div>`;
+                html += `<div class="glass-card p-4"><p class="text-xs text-gray-500">${label}</p><p class="text-sm text-gray-600 mt-1">Sem dados</p></div>`;
                 return;
             }
             const pct = d.total_a > 0 ? (d.em_ambos / d.total_a * 100).toFixed(1) : '0';
             html += `<div class="glass-card p-4">
-                <p class="text-xs text-slate-500 mb-2">${label}</p>
-                <p class="text-xl font-bold text-white">${d.em_ambos.toLocaleString('pt-BR')} <span class="text-sm text-cyan-400">(${pct}%)</span></p>
-                <div class="w-full bg-slate-800 rounded-full h-1.5 mt-2">
-                    <div class="bg-cyan-500 h-1.5 rounded-full" style="width:${Math.min(pct,100)}%"></div>
+                <p class="text-xs text-gray-500 mb-2">${label}</p>
+                <p class="text-xl font-bold text-[var(--text-primary)]">${d.em_ambos.toLocaleString('pt-BR')} <span class="text-sm text-indigo-400">(${pct}%)</span></p>
+                <div class="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-1.5 mt-2">
+                    <div class="bg-indigo-500 h-1.5 rounded-full" style="width:${Math.min(pct,100)}%"></div>
                 </div>
-                <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+                <div class="flex justify-between text-[10px] text-gray-500 mt-1">
                     <span>${INTEL_TIPO_LABELS[pairs[i][0]]}: ${d.total_a.toLocaleString('pt-BR')}</span>
                     <span>${INTEL_TIPO_LABELS[pairs[i][1]]}: ${d.total_b.toLocaleString('pt-BR')}</span>
                 </div>
             </div>`;
         });
-        container.innerHTML = html || '<p class="text-slate-500 text-sm col-span-4">Nenhum dado disponível para cruzamento</p>';
+        container.innerHTML = html || '<p class="text-gray-500 text-sm col-span-4">Nenhum dado disponível para cruzamento</p>';
     } catch(e) { container.innerHTML = `<p class="text-red-400 text-sm col-span-4">Erro: ${e.message}</p>`; }
 }
 
@@ -210,14 +210,14 @@ async function _loadIntelAlerts() {
         if (alerts.length === 0) {
             alerts.push({level:'low', icon:'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', title:'Nenhum alerta no momento', desc:'Faça upload dos snapshots para gerar alertas automáticos.'});
         }
-        const levelColors = {high:'border-rose-500/60 bg-rose-500/5',medium:'border-amber-500/60 bg-amber-500/5',low:'border-slate-700/40 bg-slate-800/20'};
-        const levelIcons = {high:'text-rose-400',medium:'text-amber-400',low:'text-slate-500'};
+        const levelColors = {high:'border-rose-500/60 bg-rose-500/5',medium:'border-amber-500/60 bg-amber-500/5',low:'border-[var(--border)] bg-gray-100 dark:bg-gray-800/20'};
+        const levelIcons = {high:'text-rose-400',medium:'text-amber-400',low:'text-gray-500'};
         container.innerHTML = alerts.map(a => `
             <div class="border rounded-xl p-4 flex items-start gap-3 ${levelColors[a.level]}">
                 <svg class="w-5 h-5 flex-shrink-0 mt-0.5 ${levelIcons[a.level]}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${a.icon}"/></svg>
                 <div class="flex-1">
-                    <p class="text-sm font-semibold text-white">${a.title}</p>
-                    <p class="text-xs text-slate-400 mt-0.5">${a.desc}</p>
+                    <p class="text-sm font-semibold text-[var(--text-primary)]">${a.title}</p>
+                    <p class="text-xs text-gray-400 mt-0.5">${a.desc}</p>
                 </div>
                 ${a.exportParams ? `<button onclick="window.open('/api/snapshots/crossref/export?${a.exportParams}','_blank')" class="flex-shrink-0 btn-secondary text-[10px] px-2.5 py-1 rounded-lg flex items-center gap-1" title="Exportar CSV">
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
@@ -229,7 +229,7 @@ async function _loadIntelAlerts() {
 // ===========================================================================
 // ENGAGEMENT AVA + COMMUNICATION MONITOR
 // ===========================================================================
-let _engRiskChart = null, _engPage_current = 1;
+let _engPage_current = 1;
 
 const _riskLabels = {engajado:'Engajado', atencao:'Atenção', em_risco:'Em Risco', critico:'Crítico'};
 const _riskColors = {engajado:'#10b981', atencao:'#f59e0b', em_risco:'#f97316', critico:'#ef4444'};
@@ -248,10 +248,10 @@ const _statusBadge = {
     enviado: 'bg-emerald-500/15 text-emerald-400',
     pendente: 'bg-sky-500/15 text-sky-400',
     falha: 'bg-rose-500/15 text-rose-400',
-    entregue: 'bg-teal-500/15 text-teal-400',
+    entregue: 'bg-indigo-500/15 text-indigo-400',
     lido: 'bg-violet-500/15 text-violet-400',
     respondido: 'bg-indigo-500/15 text-indigo-400',
-    cancelado: 'bg-slate-500/15 text-slate-400',
+    cancelado: 'bg-gray-500/15 text-gray-400',
 };
 
 async function _recalcEngagement() {
@@ -362,31 +362,24 @@ async function _loadEngCharts() {
         const s = d.summary || {};
         const total = Object.values(s).reduce((a,b)=>a+b, 0);
 
-        const canvas = document.getElementById('eng-risk-chart');
-        if (_engRiskChart) _engRiskChart.destroy();
+        const chart = eInit('eng-risk-chart');
+        if (!chart) return;
         const labels = ['Engajado','Atenção','Em Risco','Crítico'];
         const values = [s.engajado||0, s.atencao||0, s.em_risco||0, s.critico||0];
         const colors = ['#10b981','#f59e0b','#f97316','#ef4444'];
-        _engRiskChart = new Chart(canvas, {
-            type: 'doughnut',
-            data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 0 }] },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                cutout: '65%',
-                plugins: {
-                    legend: { position: 'bottom', labels: { color: '#94a3b8', padding: 12, usePointStyle: true, pointStyleWidth: 8 } },
-                    tooltip: {
-                        callbacks: {
-                            label: (ctx) => {
-                                const v = ctx.parsed;
-                                const pct = total > 0 ? (v / total * 100).toFixed(1) : '0';
-                                return ` ${ctx.label}: ${v.toLocaleString('pt-BR')} (${pct}%)`;
-                            }
-                        }
-                    }
-                }
-            }
-        });
+        chart.setOption({
+            backgroundColor: 'transparent',
+            tooltip: { ...eTooltip('item'), formatter: p => `${p.name}: ${p.value.toLocaleString('pt-BR')} (${p.percent}%)` },
+            legend: { bottom: 0, textStyle: { color: eThemeColors().textColor, fontSize: 11 } },
+            series: [{
+                type: 'pie', radius: ['55%', '80%'],
+                label: { show: false },
+                emphasis: { label: { show: true, fontSize: 13, fontWeight: 'bold' } },
+                data: labels.map((l, i) => ({ name: l, value: values[i], itemStyle: { color: colors[i] } })),
+                itemStyle: { borderRadius: 4 },
+            }],
+            animationDuration: 600,
+        }, true);
     } catch(e) { console.error('Risk chart error:', e); }
 }
 
@@ -412,19 +405,19 @@ async function _loadCommLog() {
         const items = logData.log || [];
         const tbody = document.getElementById('comm-log-tbody');
         if (!items.length) {
-            tbody.innerHTML = '<tr><td colspan="6" class="py-4 text-center text-slate-500">Nenhuma comunicação registrada</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="py-4 text-center text-gray-500">Nenhuma comunicação registrada</td></tr>';
             return;
         }
         tbody.innerHTML = items.map(i => {
             const chIcon = _channelIcons[i.channel] || _channelIcons.email;
             const stBadge = _statusBadge[i.status] || _statusBadge.pendente;
-            return `<tr class="border-b border-slate-800/40 hover:bg-slate-800/30 transition">
-                <td class="py-2 pr-2 text-xs text-slate-400">${i.sent_at || '—'}</td>
+            return `<tr class="border-b border-[var(--border)] hover:bg-gray-100 dark:hover:bg-gray-800/30 transition">
+                <td class="py-2 pr-2 text-xs text-gray-400">${i.sent_at || '—'}</td>
                 <td class="py-2 pr-2 font-mono text-xs">${esc(i.rgm || '—')}</td>
                 <td class="py-2 pr-2 text-xs">${esc(i.rule_name || '—')}</td>
                 <td class="py-2 pr-2">${chIcon}</td>
                 <td class="py-2 pr-2"><span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${stBadge}">${i.status}</span></td>
-                <td class="py-2 text-xs text-slate-400 max-w-xs truncate">${esc((i.message_preview || '').substring(0, 80))}</td>
+                <td class="py-2 text-xs text-gray-400 max-w-xs truncate">${esc((i.message_preview || '').substring(0, 80))}</td>
             </tr>`;
         }).join('');
     } catch(e) { console.error('Comm log error:', e); }
@@ -444,7 +437,7 @@ async function _loadCommRules() {
         const data = await res.json();
         _commRulesCache = data.rules || [];
         if (!_commRulesCache.length) {
-            tbody.innerHTML = '<tr><td colspan="8" class="py-4 text-center text-slate-500">Nenhuma regra configurada</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="py-4 text-center text-gray-500">Nenhuma regra configurada</td></tr>';
             return;
         }
         const audienceLabels = {todos:'Todos', calouros:'Calouros', veteranos:'Veteranos', risco:'Em Risco'};
@@ -452,10 +445,10 @@ async function _loadCommRules() {
         tbody.innerHTML = _commRulesCache.map(r => {
             const enCls = r.enabled
                 ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                : 'bg-slate-500/15 text-slate-400 border-slate-500/30';
+                : 'bg-gray-500/15 text-gray-400 border-gray-500/30';
             const enLbl = r.enabled ? 'Ativa' : 'Inativa';
             const chIcon = _channelIcons[r.channel] || _channelIcons.email;
-            return `<tr class="border-b border-slate-800/40 hover:bg-slate-800/30 transition">
+            return `<tr class="border-b border-[var(--border)] hover:bg-gray-100 dark:hover:bg-gray-800/30 transition">
                 <td class="py-2.5">
                     <button onclick="_toggleRuleEnabled(${r.id}, ${!r.enabled})" title="${r.enabled ? 'Desativar' : 'Ativar'}" class="cursor-pointer">
                         <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${enCls}">${enLbl}</span>
@@ -496,19 +489,19 @@ function _showRuleModal(ruleId) {
     modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm';
     modal.innerHTML = `
         <div class="glass-card p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" style="background:rgba(15,23,42,0.95)">
-            <h3 class="text-lg font-bold text-white font-display mb-5">${isNew ? 'Nova Regra' : 'Editar Regra'}</h3>
+            <h3 class="text-lg font-bold text-[var(--text-primary)] font-display mb-5">${isNew ? 'Nova Regra' : 'Editar Regra'}</h3>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="md:col-span-2">
-                    <label class="block text-xs text-slate-500 mb-1 font-medium">Nome</label>
-                    <input id="rule-name" value="${esc(r.name)}" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg">
+                    <label class="block text-xs text-gray-500 mb-1 font-medium">Nome</label>
+                    <input id="rule-name" value="${esc(r.name)}" class="input-glass px-3 py-2 text-sm text-gray-200 w-full rounded-lg">
                 </div>
                 <div class="md:col-span-2">
-                    <label class="block text-xs text-slate-500 mb-1 font-medium">Descrição</label>
-                    <input id="rule-desc" value="${esc(r.description)}" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg">
+                    <label class="block text-xs text-gray-500 mb-1 font-medium">Descrição</label>
+                    <input id="rule-desc" value="${esc(r.description)}" class="input-glass px-3 py-2 text-sm text-gray-200 w-full rounded-lg">
                 </div>
                 <div>
-                    <label class="block text-xs text-slate-500 mb-1 font-medium">Audiência</label>
-                    <select id="rule-audience" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg">
+                    <label class="block text-xs text-gray-500 mb-1 font-medium">Audiência</label>
+                    <select id="rule-audience" class="input-glass px-3 py-2 text-sm text-gray-200 w-full rounded-lg">
                         <option value="todos" ${r.audience==='todos'?'selected':''}>Todos</option>
                         <option value="calouros" ${r.audience==='calouros'?'selected':''}>Calouros</option>
                         <option value="veteranos" ${r.audience==='veteranos'?'selected':''}>Veteranos</option>
@@ -516,8 +509,8 @@ function _showRuleModal(ruleId) {
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs text-slate-500 mb-1 font-medium">Tipo de Gatilho</label>
-                    <select id="rule-trigger" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg">
+                    <label class="block text-xs text-gray-500 mb-1 font-medium">Tipo de Gatilho</label>
+                    <select id="rule-trigger" class="input-glass px-3 py-2 text-sm text-gray-200 w-full rounded-lg">
                         <option value="inatividade" ${r.trigger_type==='inatividade'?'selected':''}>Inatividade</option>
                         <option value="score_baixo" ${r.trigger_type==='score_baixo'?'selected':''}>Score Baixo</option>
                         <option value="primeiro_acesso" ${r.trigger_type==='primeiro_acesso'?'selected':''}>1º Acesso</option>
@@ -525,20 +518,20 @@ function _showRuleModal(ruleId) {
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs text-slate-500 mb-1 font-medium">Dias do Gatilho</label>
-                    <input id="rule-trigdays" type="number" value="${r.trigger_days}" min="1" max="365" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg">
+                    <label class="block text-xs text-gray-500 mb-1 font-medium">Dias do Gatilho</label>
+                    <input id="rule-trigdays" type="number" value="${r.trigger_days}" min="1" max="365" class="input-glass px-3 py-2 text-sm text-gray-200 w-full rounded-lg">
                 </div>
                 <div>
-                    <label class="block text-xs text-slate-500 mb-1 font-medium">Canal Principal</label>
-                    <select id="rule-channel" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg">
+                    <label class="block text-xs text-gray-500 mb-1 font-medium">Canal Principal</label>
+                    <select id="rule-channel" class="input-glass px-3 py-2 text-sm text-gray-200 w-full rounded-lg">
                         <option value="email" ${r.channel==='email'?'selected':''}>E-mail</option>
                         <option value="whatsapp" ${r.channel==='whatsapp'?'selected':''}>WhatsApp</option>
                         <option value="ambos" ${r.channel==='ambos'?'selected':''}>Ambos</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs text-slate-500 mb-1 font-medium">Canal de Escalação</label>
-                    <select id="rule-esc-channel" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg">
+                    <label class="block text-xs text-gray-500 mb-1 font-medium">Canal de Escalação</label>
+                    <select id="rule-esc-channel" class="input-glass px-3 py-2 text-sm text-gray-200 w-full rounded-lg">
                         <option value="" ${!r.escalation_channel?'selected':''}>Nenhum</option>
                         <option value="whatsapp" ${r.escalation_channel==='whatsapp'?'selected':''}>WhatsApp</option>
                         <option value="email" ${r.escalation_channel==='email'?'selected':''}>E-mail</option>
@@ -546,29 +539,29 @@ function _showRuleModal(ruleId) {
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs text-slate-500 mb-1 font-medium">Escalar Após (dias)</label>
-                    <input id="rule-esc-days" type="number" value="${r.escalation_after_days || ''}" min="1" max="30" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg" placeholder="—">
+                    <label class="block text-xs text-gray-500 mb-1 font-medium">Escalar Após (dias)</label>
+                    <input id="rule-esc-days" type="number" value="${r.escalation_after_days || ''}" min="1" max="30" class="input-glass px-3 py-2 text-sm text-gray-200 w-full rounded-lg" placeholder="—">
                 </div>
                 <div>
-                    <label class="block text-xs text-slate-500 mb-1 font-medium">Cooldown (dias)</label>
-                    <input id="rule-cooldown" type="number" value="${r.cooldown_days}" min="1" max="30" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg">
+                    <label class="block text-xs text-gray-500 mb-1 font-medium">Cooldown (dias)</label>
+                    <input id="rule-cooldown" type="number" value="${r.cooldown_days}" min="1" max="30" class="input-glass px-3 py-2 text-sm text-gray-200 w-full rounded-lg">
                 </div>
                 <div>
-                    <label class="block text-xs text-slate-500 mb-1 font-medium">Máx por Semana</label>
-                    <input id="rule-maxweek" type="number" value="${r.max_per_week}" min="1" max="10" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg">
+                    <label class="block text-xs text-gray-500 mb-1 font-medium">Máx por Semana</label>
+                    <input id="rule-maxweek" type="number" value="${r.max_per_week}" min="1" max="10" class="input-glass px-3 py-2 text-sm text-gray-200 w-full rounded-lg">
                 </div>
                 <div>
-                    <label class="block text-xs text-slate-500 mb-1 font-medium">Prioridade</label>
-                    <input id="rule-priority" type="number" value="${r.priority}" min="0" max="100" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg">
+                    <label class="block text-xs text-gray-500 mb-1 font-medium">Prioridade</label>
+                    <input id="rule-priority" type="number" value="${r.priority}" min="0" max="100" class="input-glass px-3 py-2 text-sm text-gray-200 w-full rounded-lg">
                 </div>
                 <div class="md:col-span-2">
-                    <label class="block text-xs text-slate-500 mb-1 font-medium">Template da Mensagem</label>
-                    <textarea id="rule-template" rows="4" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg" placeholder="Olá {{primeiro_nome}}, notamos que...">${esc(r.message_template)}</textarea>
-                    <p class="text-[10px] text-slate-600 mt-1">Variáveis: {{nome}}, {{primeiro_nome}}, {{curso}}, {{polo}}, {{email}}, {{rgm}}, {{dias_sem_acesso}}, {{score}}</p>
+                    <label class="block text-xs text-gray-500 mb-1 font-medium">Template da Mensagem</label>
+                    <textarea id="rule-template" rows="4" class="input-glass px-3 py-2 text-sm text-gray-200 w-full rounded-lg" placeholder="Olá {{primeiro_nome}}, notamos que...">${esc(r.message_template)}</textarea>
+                    <p class="text-[10px] text-gray-600 mt-1">Variáveis: {{nome}}, {{primeiro_nome}}, {{curso}}, {{polo}}, {{email}}, {{rgm}}, {{dias_sem_acesso}}, {{score}}</p>
                 </div>
                 <div class="flex items-center gap-2">
-                    <input type="checkbox" id="rule-enabled" ${r.enabled ? 'checked' : ''} class="rounded border-slate-600">
-                    <label for="rule-enabled" class="text-sm text-slate-300">Regra ativa</label>
+                    <input type="checkbox" id="rule-enabled" ${r.enabled ? 'checked' : ''} class="rounded border-gray-600">
+                    <label for="rule-enabled" class="text-sm text-gray-300">Regra ativa</label>
                 </div>
             </div>
             <div class="flex justify-end gap-3 mt-6">

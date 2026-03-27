@@ -75,10 +75,13 @@ async function loadMinhaPerformance(params) {
         if (content) content.classList.remove('hidden');
 
         _mpRenderHero(insights);
+        _mpRenderRanking(insights);
+        _mpRenderConquistas(insights);
         _mpRenderDesbloqueie(insights);
         _mpRenderPixDia(insights);
         _mpRenderMomentum(insights);
         _mpRenderStreak(insights);
+        _mpRenderTierProgress(insights);
         _mpRenderFinanceiro(insights);
         _mpRenderTimeline(insights);
         _mpRenderTable(insights);
@@ -153,7 +156,7 @@ function _mpRenderHero(d) {
         if (tier === 'supermeta') hero.classList.add('mp-tier-gold');
         else if (tier === 'meta') hero.classList.add('mp-tier-silver');
         else if (tier === 'intermediaria') hero.classList.add('mp-tier-bronze');
-        else hero.classList.add('mp-tier-gray');
+        else hero.classList.add('mp-tier-base');
     }
 
     const el = id => document.getElementById(id);
@@ -163,18 +166,14 @@ function _mpRenderHero(d) {
     const maxPotencial = _mpCalcMaxPotencial(d);
     el('mp-hero-potencial').textContent = maxPotencial > total ? _mpFmt(maxPotencial) : '';
 
-    const tierLabels = { intermediaria: 'Intermediária', meta: 'Meta', supermeta: 'Supermeta' };
+    const tierLabels = { base: 'Base', intermediaria: 'Intermediária', meta: 'Meta', supermeta: 'Supermeta' };
     const badge = el('mp-hero-tier-badge');
-    if (tier) {
-        badge.textContent = tierLabels[tier] || tier;
-        badge.className = 'px-3 py-1 text-xs font-bold rounded-full ';
-        if (tier === 'supermeta') badge.className += 'bg-amber-500/30 text-amber-300';
-        else if (tier === 'meta') badge.className += 'bg-slate-400/20 text-slate-300';
-        else badge.className += 'bg-orange-500/20 text-orange-300';
-    } else {
-        badge.textContent = 'Sem tier';
-        badge.className = 'px-3 py-1 text-xs font-bold rounded-full bg-slate-700/40 text-slate-500';
-    }
+    badge.textContent = tierLabels[tier] || tier || 'Base';
+    badge.className = 'px-3 py-1 text-xs font-bold rounded-full ';
+    if (tier === 'supermeta') badge.className += 'bg-amber-500/30 text-amber-300';
+    else if (tier === 'meta') badge.className += 'bg-slate-400/20 text-slate-300';
+    else if (tier === 'intermediaria') badge.className += 'bg-orange-500/20 text-orange-300';
+    else badge.className += 'bg-slate-600/30 text-slate-400';
 
     el('mp-hero-mat').textContent = `${d.total_matriculas} matrículas`;
     el('mp-hero-dias').textContent = `${d.dias_restantes} dias restantes`;
@@ -187,6 +186,74 @@ function _mpCalcMaxPotencial(d) {
     if (!desb.length) return prem.total || 0;
     const maxTier = desb.reduce((max, t) => Math.max(max, t.ganho_total), 0);
     return maxTier + (prem.daily_bonus || 0) + (prem.receb_bonus || 0);
+}
+
+/* ═══ Ranking ═══ */
+function _mpRenderRanking(d) {
+    const card = document.getElementById('mp-ranking-card');
+    const content = document.getElementById('mp-ranking-content');
+    if (!card || !content) return;
+    const rk = d.ranking;
+    if (!rk || !rk.total_agentes) { card.classList.add('hidden'); return; }
+    card.classList.remove('hidden');
+
+    const pos = rk.posicao;
+    const total = rk.total_agentes;
+    const diff = rk.diferenca_lider;
+    let medal = '', medalColor = '';
+    if (pos === 1) { medal = 'trophy'; medalColor = 'text-amber-400'; }
+    else if (pos === 2) { medal = 'workspace_premium'; medalColor = 'text-slate-300'; }
+    else if (pos === 3) { medal = 'workspace_premium'; medalColor = 'text-orange-400'; }
+
+    content.innerHTML = `
+        <div class="flex items-center gap-4">
+            <div class="w-16 h-16 rounded-2xl flex items-center justify-center ${pos <= 3 ? 'bg-amber-500/10' : 'bg-slate-700/50'}">
+                ${medal
+                    ? `<span class="material-symbols-outlined text-3xl ${medalColor}">${medal}</span>`
+                    : `<span class="text-2xl font-black text-slate-400">${pos}°</span>`}
+            </div>
+            <div>
+                <p class="text-2xl font-black text-white">${pos}° <span class="text-sm font-normal text-slate-500">de ${total}</span></p>
+                ${pos === 1
+                    ? '<p class="text-xs text-amber-400 font-medium">Você lidera o ranking!</p>'
+                    : `<p class="text-xs text-slate-400">${diff} matrícula${diff !== 1 ? 's' : ''} atrás do 1° lugar</p>`}
+            </div>
+        </div>`;
+}
+
+/* ═══ Conquistas ═══ */
+function _mpRenderConquistas(d) {
+    const card = document.getElementById('mp-conquistas-card');
+    const grid = document.getElementById('mp-conquistas-grid');
+    if (!card || !grid) return;
+
+    const achieved = d.conquistas || [];
+    const allPossible = [
+        { id: 'primeira_mat', nome: 'Primeira Matrícula', icone: 'school' },
+        { id: 'streak_3', nome: '3 Dias Seguidos', icone: 'local_fire_department' },
+        { id: 'streak_5', nome: '5 Dias Seguidos', icone: 'whatshot' },
+        { id: 'streak_7', nome: 'Imparável', icone: 'bolt' },
+        { id: 'meta_batida', nome: 'Meta Batida', icone: 'emoji_events' },
+        { id: 'supermeta', nome: 'Supermeta', icone: 'military_tech' },
+        { id: 'meta_antecipada', nome: 'Meta Antecipada', icone: 'schedule' },
+        { id: 'melhor_dia', nome: 'Super Dia', icone: 'star' },
+        { id: 'top_1', nome: 'Top 1 (Ouro)', icone: 'workspace_premium' },
+        { id: 'top_2', nome: 'Top 2 (Prata)', icone: 'workspace_premium' },
+        { id: 'top_3', nome: 'Top 3 (Bronze)', icone: 'workspace_premium' },
+    ];
+    const achievedIds = new Set(achieved.map(a => a.id));
+    if (!achieved.length && !allPossible.length) { card.classList.add('hidden'); return; }
+    card.classList.remove('hidden');
+
+    grid.innerHTML = allPossible.map(a => {
+        const unlocked = achievedIds.has(a.id);
+        const real = achieved.find(x => x.id === a.id);
+        const desc = real?.desc || a.nome;
+        return `<div class="flex flex-col items-center gap-1 p-2 rounded-xl w-16 ${unlocked ? 'bg-purple-500/10' : 'bg-slate-800/30 opacity-35'}" title="${desc}">
+            <span class="material-symbols-outlined text-xl ${unlocked ? 'text-purple-400' : 'text-slate-600'}">${real?.icone || a.icone}</span>
+            <span class="text-[9px] text-center leading-tight ${unlocked ? 'text-slate-300' : 'text-slate-600'}">${real?.nome || a.nome}</span>
+        </div>`;
+    }).join('');
 }
 
 /* ═══ S2: Desbloqueie Mais ═══ */
@@ -297,10 +364,40 @@ function _mpRenderMomentum(d) {
 /* ═══ S5: Streak + Heatmap ═══ */
 function _mpRenderStreak(d) {
     const el = id => document.getElementById(id);
-    el('mp-streak-num').textContent = d.sequencia || 0;
-    el('mp-streak-label').textContent = d.sequencia > 0
-        ? `${d.sequencia} dia${d.sequencia > 1 ? 's' : ''} consecutivo${d.sequencia > 1 ? 's' : ''}!`
+    const seq = d.sequencia || 0;
+    const nivel = d.streak_nivel;
+    const streakNum = el('mp-streak-num');
+    const streakLabel = el('mp-streak-label');
+
+    if (streakNum) {
+        streakNum.textContent = seq;
+        if (nivel === 'imparavel') streakNum.className = 'text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mp-glow';
+        else if (nivel === 'em_chamas') streakNum.className = 'text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500';
+        else if (nivel === 'aquecendo') streakNum.className = 'text-3xl font-black text-amber-400';
+        else streakNum.className = 'text-3xl font-black text-slate-400';
+    }
+
+    const nivelLabels = { aquecendo: 'Aquecendo!', em_chamas: 'Em Chamas!', imparavel: 'IMPARÁVEL!' };
+    const nivelIcons = { aquecendo: 'local_fire_department', em_chamas: 'whatshot', imparavel: 'bolt' };
+
+    let labelText = seq > 0
+        ? `${seq} dia${seq > 1 ? 's' : ''} consecutivo${seq > 1 ? 's' : ''}`
         : 'Inicie sua sequência hoje!';
+    if (nivel) labelText += ` — ${nivelLabels[nivel]}`;
+    if (streakLabel) streakLabel.textContent = labelText;
+
+    const nivelWrap = document.getElementById('mp-streak-nivel');
+    if (nivelWrap) {
+        if (nivel) {
+            nivelWrap.classList.remove('hidden');
+            nivelWrap.innerHTML = `
+                <span class="material-symbols-outlined text-sm ${nivel === 'imparavel' ? 'text-purple-400' : nivel === 'em_chamas' ? 'text-orange-400' : 'text-amber-400'}">${nivelIcons[nivel]}</span>
+                <span class="text-[10px] font-bold ${nivel === 'imparavel' ? 'text-purple-400' : nivel === 'em_chamas' ? 'text-orange-400' : 'text-amber-400'}">${nivelLabels[nivel]}</span>
+            `;
+        } else {
+            nivelWrap.classList.add('hidden');
+        }
+    }
 
     const heatmap = d.heatmap || [];
     const wrap = document.getElementById('mp-heatmap');
@@ -320,11 +417,59 @@ function _mpRenderStreak(d) {
     }).join('');
 }
 
+/* ═══ Progresso por Faixa ═══ */
+function _mpRenderTierProgress(d) {
+    const wrap = document.getElementById('mp-tier-progress');
+    if (!wrap) return;
+    const progress = d.tier_progress || [];
+    if (!progress.length) { wrap.innerHTML = ''; return; }
+
+    const tierColors = {
+        base: { bg: 'bg-slate-500', text: 'text-slate-400', border: 'border-slate-500/20' },
+        intermediaria: { bg: 'bg-orange-500', text: 'text-orange-400', border: 'border-orange-500/20' },
+        meta: { bg: 'bg-blue-500', text: 'text-blue-400', border: 'border-blue-500/20' },
+        supermeta: { bg: 'bg-amber-500', text: 'text-amber-400', border: 'border-amber-500/20' },
+    };
+    const tierLabels = { base: 'Base', intermediaria: 'Intermediária', meta: 'Meta', supermeta: 'Supermeta' };
+    const totalMat = d.total_matriculas || 0;
+
+    wrap.innerHTML = progress.filter(p => p.tier !== 'base' || p.valor_por_mat > 0).map(p => {
+        const c = tierColors[p.tier] || tierColors.base;
+        const label = tierLabels[p.tier] || p.tier;
+        const pct = p.pct || 0;
+        const falta = Math.max(0, (p.target || 0) - totalMat);
+        const ganhoExtra = p.valor_por_mat > 0 ? _mpFmt(p.ganho) : '';
+
+        return `<div class="flex items-center gap-3">
+            <div class="w-24 flex-shrink-0">
+                <span class="text-xs font-semibold ${c.text}">${label}</span>
+                ${p.target > 0 ? `<span class="text-[10px] text-slate-600 ml-1">(${p.target})</span>` : ''}
+            </div>
+            <div class="flex-1">
+                <div class="bg-slate-700/30 rounded-full h-4 overflow-hidden relative">
+                    <div class="${c.bg} h-full rounded-full transition-all duration-700 flex items-center justify-end pr-1" style="width:${pct}%">
+                        ${pct >= 15 ? `<span class="text-[9px] font-bold text-white/80">${totalMat}/${p.target || '∞'}</span>` : ''}
+                    </div>
+                    ${pct < 15 && p.target > 0 ? `<span class="absolute left-1 top-0 h-full flex items-center text-[9px] text-slate-400">${totalMat}/${p.target}</span>` : ''}
+                </div>
+            </div>
+            <div class="w-28 text-right flex-shrink-0">
+                ${p.atingido
+                    ? `<span class="text-[10px] font-bold text-emerald-400">${ganhoExtra}</span>`
+                    : (falta > 0
+                        ? `<span class="text-[10px] text-slate-500">falta ${falta} · ${ganhoExtra ? `+${ganhoExtra}` : ''}</span>`
+                        : '')}
+            </div>
+        </div>`;
+    }).join('');
+}
+
 /* ═══ S6: Resumo Financeiro ═══ */
 function _mpRenderFinanceiro(d) {
     const wrap = document.getElementById('mp-financeiro');
     if (!wrap) return;
     const prem = d.premiacao || {};
+    const uni = d.unificado;
     const items = [
         { label: 'Bônus Tier', value: prem.tier_bonus || 0, color: 'bg-amber-500' },
         { label: 'PIX Diários', value: prem.daily_bonus || 0, color: 'bg-cyan-500' },
@@ -333,7 +478,20 @@ function _mpRenderFinanceiro(d) {
     const total = prem.total || 0;
     const maxVal = Math.max(...items.map(i => i.value), 1);
 
-    wrap.innerHTML = items.map(i => {
+    let uniBadge = '';
+    if (uni) {
+        uniBadge = `
+        <div class="mb-3 p-2.5 rounded-lg bg-pink-500/10 border border-pink-500/20">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="material-symbols-outlined text-pink-400 text-base">link</span>
+                <span class="text-xs font-bold text-pink-400">Campanhas Unificadas</span>
+            </div>
+            <p class="text-[10px] text-slate-400">${(uni.campanhas||[]).join(' + ')}</p>
+            <p class="text-[10px] text-emerald-400 mt-1">+${_mpFmt(uni.ganho_extra)} a mais vs. individual!</p>
+        </div>`;
+    }
+
+    wrap.innerHTML = uniBadge + items.map(i => {
         const pct = Math.round((i.value / maxVal) * 100);
         return `<div class="flex items-center gap-3">
             <span class="text-xs text-slate-400 w-24 flex-shrink-0">${i.label}</span>

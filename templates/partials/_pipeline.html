@@ -1,29 +1,36 @@
             <div id="page-pipeline" class="p-4 lg:p-8 max-w-7xl mx-auto hidden">
                 <div class="mb-8">
-                    <h2 class="text-3xl font-bold text-white font-display mb-1">Saneamento / Pipeline</h2>
-                    <p class="text-slate-500 text-sm">Sanitize duplicatas e gerencie pipeline de alunos</p>
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-3xl font-bold text-[var(--text-primary)] font-display">Atualização CRM Acadêmico</h2>
+                            <p class="text-gray-500 text-sm">Saneamento de duplicatas e movimentação de pipeline</p>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- FASE 1: Saneamento -->
                 <div class="glass-card p-5 mb-6">
                     <div class="flex items-center gap-2 mb-1">
                         <span class="text-xs font-bold text-amber-400 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-lg">FASE 1</span>
-                        <h3 class="text-sm font-bold text-slate-200 font-display">Saneamento de Duplicatas</h3>
+                        <h3 class="text-sm font-bold text-gray-200 font-display">Saneamento de Duplicatas</h3>
                     </div>
-                    <p class="text-xs text-slate-500 mb-4">Remove negócios duplicados (mesmo RGM no mesmo lead) e negócios sem RGM. Gera relatório de RGMs em leads diferentes para análise manual.</p>
+                    <p class="text-xs text-gray-500 mb-4">Remove negócios duplicados (mesmo RGM no mesmo lead) e negócios sem RGM. Gera relatório de RGMs em leads diferentes para análise manual.</p>
 
                     <!-- Rate limit slider -->
-                    <div class="mb-4 p-3 rounded-lg bg-slate-800/30 border border-slate-700/20">
+                    <div class="mb-4 p-3 rounded-lg bg-gray-800/30 border border-gray-700/20">
                         <div class="flex items-center gap-2 mb-2">
                             <svg class="w-3.5 h-3.5 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                            <label class="text-xs font-bold text-slate-400">Rate Limit</label>
+                            <label class="text-xs font-bold text-gray-400">Rate Limit</label>
                             <span id="san-rate-value" class="text-xs font-mono font-bold text-amber-400">60</span>
-                            <span class="text-[10px] text-slate-600">req/min (API max: 240/min)</span>
+                            <span class="text-[10px] text-gray-600">req/min (API max: 240/min)</span>
                         </div>
                         <input type="range" id="san-rate-slider" min="10" max="240" step="5" value="60"
-                            class="w-full h-1.5 bg-slate-700/60 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                            class="w-full h-1.5 bg-gray-700/60 rounded-lg appearance-none cursor-pointer accent-amber-500"
                             oninput="document.getElementById('san-rate-value').textContent=this.value">
-                        <div class="flex justify-between text-[9px] text-slate-600 mt-1">
+                        <div class="flex justify-between text-[9px] text-gray-600 mt-1">
                             <span>10</span><span>60</span><span>120</span><span>180</span><span>240</span>
                         </div>
                     </div>
@@ -41,9 +48,9 @@
                         </button>
                         <div class="flex items-end gap-2">
                             <div>
-                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Limite</label>
+                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">Limite</label>
                                 <input type="number" id="sanitize-limit" placeholder="todos" min="1"
-                                    class="input-glass px-3 py-2.5 text-sm w-24 text-slate-200">
+                                    class="input-glass px-3 py-2.5 text-sm w-24 text-gray-200">
                             </div>
                             <button onclick="confirmSanitize()" id="btn-san-execute"
                                 class="btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
@@ -63,9 +70,9 @@
                 <div class="glass-card p-5 mb-6">
                     <div class="flex items-center gap-2 mb-1">
                         <span class="text-xs font-bold text-blue-400 bg-blue-500/15 border border-blue-500/30 px-2 py-0.5 rounded-lg">ANÁLISE</span>
-                        <h3 class="text-sm font-bold text-slate-200 font-display">Enriquecimento — RGMs em Leads Diferentes</h3>
+                        <h3 class="text-sm font-bold text-gray-200 font-display">Enriquecimento — RGMs em Leads Diferentes</h3>
                     </div>
-                    <p class="text-xs text-slate-500 mb-4">Consulta histórico e conversas de cada lead do relatório de duplicatas entre leads. Gera CSV enriquecido com última atividade, conversas e recomendação para análise manual.</p>
+                    <p class="text-xs text-gray-500 mb-4">Consulta histórico e conversas de cada lead do relatório de duplicatas entre leads. Gera CSV enriquecido com última atividade, conversas e recomendação para análise manual.</p>
 
                     <div class="flex flex-wrap gap-3 items-center">
                         <button onclick="startEnrich()" id="btn-enrich-start"
@@ -78,7 +85,7 @@
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
                             Parar
                         </button>
-                        <span class="text-[10px] text-slate-600">Requer relatório de saneamento (dry-run) prévio</span>
+                        <span class="text-[10px] text-gray-600">Requer relatório de saneamento (dry-run) prévio</span>
                     </div>
                 </div>
 
@@ -86,15 +93,15 @@
                 <div class="glass-card p-5 mb-6">
                     <div class="flex items-center gap-2 mb-1">
                         <span class="text-xs font-bold text-violet-400 bg-violet-500/15 border border-violet-500/30 px-2 py-0.5 rounded-lg">MERGE</span>
-                        <h3 class="text-sm font-bold text-slate-200 font-display">Merge de Leads Duplicados</h3>
+                        <h3 class="text-sm font-bold text-gray-200 font-display">Merge de Leads Duplicados</h3>
                     </div>
-                    <p class="text-xs text-slate-500 mb-4">Move negócios para o lead correto, atualiza telefone do último contato e remove o lead vazio. Requer relatório enriquecido prévio.</p>
+                    <p class="text-xs text-gray-500 mb-4">Move negócios para o lead correto, atualiza telefone do último contato e remove o lead vazio. Requer relatório enriquecido prévio.</p>
 
-                    <div class="mb-4 p-3 rounded-lg bg-slate-800/30 border border-slate-700/20">
+                    <div class="mb-4 p-3 rounded-lg bg-gray-800/30 border border-gray-700/20">
                         <div class="flex items-center gap-2 mb-2">
                             <svg class="w-3.5 h-3.5 text-violet-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
-                            <label class="text-xs font-bold text-slate-400">Fase</label>
-                            <select id="merge-fase" class="input-glass text-xs px-2 py-1 text-slate-200 w-auto">
+                            <label class="text-xs font-bold text-gray-400">Fase</label>
+                            <select id="merge-fase" class="input-glass text-xs px-2 py-1 text-gray-200 w-auto">
                                 <option value="">Todas</option>
                                 <option value="1">1 — Fáceis (MANTER + CANDIDATO)</option>
                                 <option value="2">2 — in_process vs lost</option>
@@ -117,9 +124,9 @@
                         </button>
                         <div class="flex items-end gap-2">
                             <div>
-                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Limite</label>
+                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">Limite</label>
                                 <input type="number" id="merge-limit" placeholder="todos" min="1"
-                                    class="input-glass px-3 py-2.5 text-sm w-24 text-slate-200">
+                                    class="input-glass px-3 py-2.5 text-sm w-24 text-gray-200">
                             </div>
                             <button onclick="confirmMerge()" id="btn-merge-execute"
                                 class="btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
@@ -139,9 +146,9 @@
                 <div class="glass-card p-5 mb-6">
                     <div class="flex items-center gap-2 mb-1">
                         <span class="text-xs font-bold text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-lg">FASE 2</span>
-                        <h3 class="text-sm font-bold text-slate-200 font-display">Movimentação de Pipeline</h3>
+                        <h3 class="text-sm font-bold text-gray-200 font-display">Movimentação de Pipeline</h3>
                     </div>
-                    <p class="text-xs text-slate-500 mb-4">Move negócios para etapas corretas (Calouro, Veterano, Sem Rematrícula, Perdido) e altera status (lost/restore). Execute o saneamento antes.</p>
+                    <p class="text-xs text-gray-500 mb-4">Move negócios para etapas corretas (Calouro, Veterano, Sem Rematrícula, Perdido) e altera status (lost/restore). Execute o saneamento antes.</p>
 
                     <div class="flex flex-wrap gap-3 items-end">
                         <button onclick="startPipeline('dry-run')" id="btn-pipe-dryrun"
@@ -156,9 +163,9 @@
                         </button>
                         <div class="flex items-end gap-2">
                             <div>
-                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Limite</label>
+                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">Limite</label>
                                 <input type="number" id="pipeline-limit" placeholder="todos" min="1"
-                                    class="input-glass px-3 py-2.5 text-sm w-24 text-slate-200">
+                                    class="input-glass px-3 py-2.5 text-sm w-24 text-gray-200">
                             </div>
                             <button onclick="confirmPipeline()" id="btn-pipe-execute"
                                 class="btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
@@ -178,9 +185,9 @@
                 <div class="glass-card p-5 mb-6">
                     <div class="flex items-center gap-2 mb-1">
                         <span class="text-xs font-bold text-amber-400 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-lg">FASE 3</span>
-                        <h3 class="text-sm font-bold text-slate-200 font-display">Atualização de Inadimplentes</h3>
+                        <h3 class="text-sm font-bold text-gray-200 font-display">Atualização de Inadimplentes</h3>
                     </div>
-                    <p class="text-xs text-slate-500 mb-4">Cruza o snapshot de inadimplentes com os negócios do CRM por RGM e atualiza campos financeiros (valor em aberto, dias de atraso, status financeiro).</p>
+                    <p class="text-xs text-gray-500 mb-4">Cruza o snapshot de inadimplentes com os negócios do CRM por RGM e atualiza campos financeiros (valor em aberto, dias de atraso, status financeiro).</p>
 
                     <div class="flex flex-wrap gap-3 items-end">
                         <button onclick="startInadimplentes('dry-run')" id="btn-inad-dryrun"
@@ -198,7 +205,7 @@
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
                             Parar
                         </button>
-                        <span class="text-[10px] text-slate-600">Requer snapshot de inadimplentes previamente carregado</span>
+                        <span class="text-[10px] text-gray-600">Requer snapshot de inadimplentes previamente carregado</span>
                     </div>
                 </div>
 
@@ -206,9 +213,9 @@
                 <div class="glass-card p-5 mb-6">
                     <div class="flex items-center gap-2 mb-1">
                         <span class="text-xs font-bold text-purple-400 bg-purple-500/15 border border-purple-500/30 px-2 py-0.5 rounded-lg">FASE 4</span>
-                        <h3 class="text-sm font-bold text-slate-200 font-display">Atualização de Concluintes</h3>
+                        <h3 class="text-sm font-bold text-gray-200 font-display">Atualização de Concluintes</h3>
                     </div>
-                    <p class="text-xs text-slate-500 mb-4">Cruza o snapshot de concluintes com os negócios do CRM por RGM. Move para etapa "Concluinte" e marca como Won.</p>
+                    <p class="text-xs text-gray-500 mb-4">Cruza o snapshot de concluintes com os negócios do CRM por RGM. Move para etapa "Concluinte" e marca como Won.</p>
 
                     <div class="flex flex-wrap gap-3 items-end">
                         <button onclick="startConcluintes('dry-run')" id="btn-conc-dryrun"
@@ -226,7 +233,115 @@
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
                             Parar
                         </button>
-                        <span class="text-[10px] text-slate-600">Requer snapshot de concluintes previamente carregado</span>
+                        <span class="text-[10px] text-gray-600">Requer snapshot de concluintes previamente carregado</span>
+                    </div>
+                </div>
+
+                <!-- SANITIZAR PERDIDOS: merge duplicatas em status Perdido -->
+                <div class="glass-card p-5 mb-6">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-xs font-bold text-red-400 bg-red-500/15 border border-red-500/30 px-2 py-0.5 rounded-lg">SANITIZAR</span>
+                        <h3 class="text-sm font-bold text-gray-200 font-display">Sanitizar Perdidos</h3>
+                    </div>
+                    <p class="text-xs text-gray-500 mb-4">Detecta leads duplicados em "Perdido" agrupando por telefone do contato. Mantém o mais recente e mergeia os antigos via API Kommo.</p>
+
+                    <!-- Sessão Kommo (cookies manuais) -->
+                    <div class="mb-4 p-3 rounded-lg bg-gray-800/30 border border-gray-700/20">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="material-symbols-rounded text-sm text-red-400">cookie</span>
+                            <label class="text-xs font-bold text-gray-400">Sessão Kommo</label>
+                            <span id="lostdup-session-badge" class="text-[10px] px-1.5 py-0.5 rounded font-medium bg-red-500/20 text-red-400">desconectado</span>
+                        </div>
+                        <div class="flex gap-2 items-end">
+                            <input type="text" id="lostdup-cookie-input" placeholder="Cole o cookie string do browser (session_id=...)"
+                                class="input-glass flex-1 px-3 py-2 text-xs text-gray-200 font-mono">
+                            <button onclick="setLostDupCookies()" class="btn-primary text-white text-xs px-3 py-2 rounded-lg">Salvar</button>
+                            <button onclick="clearLostDupCookies()" class="text-xs text-gray-500 hover:text-red-400 px-2 py-2">Limpar</button>
+                        </div>
+                        <p class="text-[10px] text-gray-600 mt-1">DevTools > Application > Cookies > admamoeduitcombr.kommo.com > copie o valor de session_id (ou todo o cookie header)</p>
+                    </div>
+
+                    <div class="flex flex-wrap gap-3 items-end mb-4">
+                        <button onclick="detectLostDuplicates()" id="btn-lostdup-detect"
+                            class="btn-primary text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
+                            <span class="material-symbols-rounded text-base">search</span>
+                            Detectar Duplicatas
+                        </button>
+                        <div class="flex items-end gap-2">
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">Limite</label>
+                                <input type="number" id="lostdup-limit" placeholder="todos" min="1"
+                                    class="input-glass px-3 py-2.5 text-sm w-24 text-gray-200">
+                            </div>
+                            <button onclick="executeLostDupDryRun()" id="btn-lostdup-dryrun" disabled
+                                class="btn-warning text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2 opacity-50">
+                                <span class="material-symbols-rounded text-base">description</span>
+                                Dry-Run
+                            </button>
+                            <button onclick="confirmLostDupExecute()" id="btn-lostdup-execute" disabled
+                                class="btn-danger text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2 opacity-50">
+                                <span class="material-symbols-rounded text-base">merge_type</span>
+                                Executar Merge
+                            </button>
+                            <button onclick="cancelLostDupJob()" id="btn-lostdup-cancel"
+                                class="hidden bg-red-600 hover:bg-red-700 text-white font-medium text-sm px-4 py-2.5 rounded-xl flex items-center gap-2 transition">
+                                <span class="material-symbols-rounded text-base">stop_circle</span>
+                                Parar
+                            </button>
+                            <button onclick="forceClearLostDupJobs()" id="btn-lostdup-force-clear"
+                                class="bg-gray-600 hover:bg-gray-500 text-white font-medium text-xs px-3 py-2 rounded-lg flex items-center gap-1.5 transition">
+                                <span class="material-symbols-rounded text-sm">restart_alt</span>
+                                Reset
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Resumo da detecção -->
+                    <div id="lostdup-summary" class="hidden mb-4 p-3 rounded-lg bg-gray-800/30 border border-gray-700/20">
+                        <div class="flex gap-6 flex-wrap text-sm">
+                            <div>
+                                <span class="text-gray-500 text-xs">Telefones duplicados</span>
+                                <p class="font-bold text-[var(--text-primary)]" id="lostdup-contacts">0</p>
+                            </div>
+                            <div>
+                                <span class="text-gray-500 text-xs">Leads envolvidos</span>
+                                <p class="font-bold text-[var(--text-primary)]" id="lostdup-total-leads">0</p>
+                            </div>
+                            <div>
+                                <span class="text-gray-500 text-xs">Leads removíveis</span>
+                                <p class="font-bold text-red-400" id="lostdup-removable">0</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Barra de progresso -->
+                    <div id="lostdup-progress-wrap" class="hidden mb-4">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-xs text-gray-400" id="lostdup-progress-label">0 / 0</span>
+                            <span class="text-xs font-mono text-gray-400" id="lostdup-progress-pct">0%</span>
+                        </div>
+                        <div class="w-full h-2 rounded-full bg-gray-700/50 overflow-hidden">
+                            <div id="lostdup-progress-bar" class="h-full rounded-full bg-gradient-to-r from-red-500 to-orange-500 transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                        <div class="flex gap-4 mt-1 text-[10px] text-gray-500">
+                            <span>Sucesso: <span id="lostdup-ok" class="text-emerald-400 font-mono">0</span></span>
+                            <span>Erros: <span id="lostdup-err" class="text-red-400 font-mono">0</span></span>
+                        </div>
+                    </div>
+
+                    <!-- Tabela de preview -->
+                    <div id="lostdup-preview" class="hidden max-h-80 overflow-auto rounded-lg border border-gray-700/30">
+                        <table class="w-full text-xs">
+                            <thead class="bg-gray-800/60 sticky top-0">
+                                <tr>
+                                    <th class="text-left px-3 py-2 text-gray-400 font-medium">Telefone / Contato</th>
+                                    <th class="text-center px-3 py-2 text-gray-400 font-medium">Leads</th>
+                                    <th class="text-left px-3 py-2 text-gray-400 font-medium">Manter (mais recente)</th>
+                                    <th class="text-left px-3 py-2 text-gray-400 font-medium">Remover</th>
+                                </tr>
+                            </thead>
+                            <tbody id="lostdup-tbody"></tbody>
+                        </table>
                     </div>
                 </div>
 
@@ -235,19 +350,21 @@
                     <div class="log-header flex items-center justify-between">
                         <div class="flex gap-4 flex-wrap">
                             <button onclick="showPipelineLog('sanitize')" id="tab-san-log" class="text-xs font-semibold text-indigo-400 border-b-2 border-indigo-400 pb-1 transition">Saneamento</button>
-                            <button onclick="showPipelineLog('enrich')" id="tab-enrich-log" class="text-xs font-semibold text-slate-500 hover:text-slate-300 pb-1 transition">Enriquecimento</button>
-                            <button onclick="showPipelineLog('merge')" id="tab-merge-log" class="text-xs font-semibold text-slate-500 hover:text-slate-300 pb-1 transition">Merge</button>
-                            <button onclick="showPipelineLog('pipeline')" id="tab-pipe-log" class="text-xs font-semibold text-slate-500 hover:text-slate-300 pb-1 transition">Pipeline</button>
-                            <button onclick="showPipelineLog('inadimplentes')" id="tab-inad-log" class="text-xs font-semibold text-slate-500 hover:text-slate-300 pb-1 transition">Inadimplentes</button>
-                            <button onclick="showPipelineLog('concluintes')" id="tab-conc-log" class="text-xs font-semibold text-slate-500 hover:text-slate-300 pb-1 transition">Concluintes</button>
+                            <button onclick="showPipelineLog('enrich')" id="tab-enrich-log" class="text-xs font-semibold text-gray-500 hover:text-gray-300 pb-1 transition">Enriquecimento</button>
+                            <button onclick="showPipelineLog('merge')" id="tab-merge-log" class="text-xs font-semibold text-gray-500 hover:text-gray-300 pb-1 transition">Merge</button>
+                            <button onclick="showPipelineLog('pipeline')" id="tab-pipe-log" class="text-xs font-semibold text-gray-500 hover:text-gray-300 pb-1 transition">Pipeline</button>
+                            <button onclick="showPipelineLog('inadimplentes')" id="tab-inad-log" class="text-xs font-semibold text-gray-500 hover:text-gray-300 pb-1 transition">Inadimplentes</button>
+                            <button onclick="showPipelineLog('concluintes')" id="tab-conc-log" class="text-xs font-semibold text-gray-500 hover:text-gray-300 pb-1 transition">Concluintes</button>
+                            <button onclick="showPipelineLog('lostdup')" id="tab-lostdup-log" class="text-xs font-semibold text-gray-500 hover:text-gray-300 pb-1 transition">Sanitizar Perdidos</button>
                         </div>
-                        <button onclick="clearPipelineLog()" class="text-xs text-slate-600 hover:text-slate-400 transition">Limpar</button>
+                        <button onclick="clearPipelineLog()" class="text-xs text-gray-600 hover:text-gray-400 transition">Limpar</button>
                     </div>
-                    <pre id="sanitize-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap"></pre>
-                    <pre id="enrich-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap hidden"></pre>
-                    <pre id="merge-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap hidden"></pre>
-                    <pre id="pipeline-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap hidden"></pre>
-                    <pre id="inadimplentes-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap hidden"></pre>
-                    <pre id="concluintes-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap hidden"></pre>
+                    <pre id="sanitize-log" class="log-terminal p-4 h-96 overflow-auto text-gray-400 whitespace-pre-wrap"></pre>
+                    <pre id="enrich-log" class="log-terminal p-4 h-96 overflow-auto text-gray-400 whitespace-pre-wrap hidden"></pre>
+                    <pre id="merge-log" class="log-terminal p-4 h-96 overflow-auto text-gray-400 whitespace-pre-wrap hidden"></pre>
+                    <pre id="pipeline-log" class="log-terminal p-4 h-96 overflow-auto text-gray-400 whitespace-pre-wrap hidden"></pre>
+                    <pre id="inadimplentes-log" class="log-terminal p-4 h-96 overflow-auto text-gray-400 whitespace-pre-wrap hidden"></pre>
+                    <pre id="concluintes-log" class="log-terminal p-4 h-96 overflow-auto text-gray-400 whitespace-pre-wrap hidden"></pre>
+                    <pre id="lostdup-log" class="log-terminal p-4 h-96 overflow-auto text-gray-400 whitespace-pre-wrap hidden"></pre>
                 </div>
             </div>
