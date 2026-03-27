@@ -1,35 +1,53 @@
-<!-- ═══════════════  Minha Performance  ═══════════════ -->
+<!-- ═══════════════  Minha Performance v2 — Redesign  ═══════════════ -->
 <section id="page-minha_performance" class="hidden">
 <style>
-    @keyframes mp-pulse-border { 0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,.4)} 50%{box-shadow:0 0 0 8px rgba(16,185,129,0)} }
-    @keyframes mp-glow { 0%,100%{opacity:.6} 50%{opacity:1} }
-    @keyframes mp-float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
-    @keyframes mp-slide-up { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
-    @keyframes mp-count-up { from{opacity:0;transform:scale(.8)} to{opacity:1;transform:scale(1)} }
-    .mp-animate{animation:mp-slide-up .5s ease-out both}
-    .mp-d1{animation-delay:.05s} .mp-d2{animation-delay:.1s} .mp-d3{animation-delay:.15s}
-    .mp-d4{animation-delay:.2s} .mp-d5{animation-delay:.25s} .mp-d6{animation-delay:.3s} .mp-d7{animation-delay:.35s}
-    .mp-pulse{animation:mp-pulse-border 2s infinite}
-    .mp-glow{animation:mp-glow 2s infinite}
+    @keyframes mp-slide-up { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes mp-fade-in { from{opacity:0} to{opacity:1} }
+    @keyframes mp-pulse-glow { 0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,.35)} 50%{box-shadow:0 0 0 10px rgba(16,185,129,0)} }
+    @keyframes mp-float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+    @keyframes mp-shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+
+    .mp-enter { animation: mp-slide-up .55s cubic-bezier(.22,1,.36,1) both }
+    .mp-d1{animation-delay:.06s} .mp-d2{animation-delay:.12s} .mp-d3{animation-delay:.18s}
+    .mp-d4{animation-delay:.24s} .mp-d5{animation-delay:.30s} .mp-d6{animation-delay:.36s} .mp-d7{animation-delay:.42s}
+    .mp-pulse{animation:mp-pulse-glow 2s infinite}
     .mp-float{animation:mp-float 3s ease-in-out infinite}
-    .mp-count{animation:mp-count-up .6s ease-out both;animation-delay:.3s}
 
-    .mp-tier-base{background:linear-gradient(135deg,#065f46,#064e3b)}
-    .mp-tier-bronze{background:linear-gradient(135deg,#c2410c,#9a3412)}
-    .mp-tier-silver{background:linear-gradient(135deg,#1d4ed8,#1e3a8a)}
-    .mp-tier-gold{background:linear-gradient(135deg,#d97706,#92400e)}
+    .mp-card {
+        background: rgba(30,41,59,.65);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(148,163,184,.08);
+        border-radius: 1rem;
+        transition: transform .2s, box-shadow .2s;
+    }
+    .mp-card:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,.25) }
 
-    .mp-ring-track{stroke:#334155;fill:none;stroke-width:8}
-    .mp-ring-fill{fill:none;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .8s ease}
+    .mp-hero-bg { background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%); }
 
-    .mp-heat-hit{background:#10b981;box-shadow:0 0 6px rgba(16,185,129,.3)}
-    .mp-heat-partial{background:#f59e0b}
-    .mp-heat-miss{background:#ef4444;opacity:.4}
-    .mp-heat-future{background:#334155;opacity:.3}
+    .mp-tier-base    { background: linear-gradient(135deg, #065f46 0%, #064e3b 50%, #022c22 100%) }
+    .mp-tier-bronze  { background: linear-gradient(135deg, #c2410c 0%, #9a3412 50%, #7c2d12 100%) }
+    .mp-tier-silver  { background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 50%, #1e3a8a 100%) }
+    .mp-tier-gold    { background: linear-gradient(135deg, #d97706 0%, #b45309 50%, #92400e 100%) }
+
+    .mp-heat-hit     { background:#10b981; box-shadow:0 0 6px rgba(16,185,129,.3) }
+    .mp-heat-partial { background:#f59e0b }
+    .mp-heat-miss    { background:#ef4444; opacity:.5 }
+    .mp-heat-future  { background:#334155; opacity:.3 }
+
+    .mp-shimmer {
+        background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.04) 50%, transparent 100%);
+        background-size: 200% 100%;
+        animation: mp-shimmer 3s infinite;
+    }
+
+    .mp-stat-value { font-variant-numeric: tabular-nums }
+
+    .apexcharts-tooltip { border-radius: .75rem !important; border: 1px solid rgba(148,163,184,.12) !important; background: rgba(15,23,42,.95) !important; backdrop-filter: blur(8px) !important; }
+    .apexcharts-tooltip-title { background: rgba(30,41,59,.8) !important; border-bottom: 1px solid rgba(148,163,184,.08) !important; }
 </style>
 
 <!-- Admin: Seletor de agente -->
-<div id="mp-admin-bar" class="hidden mb-4 glass-card p-3 flex flex-wrap items-center gap-3 border border-indigo-500/20">
+<div id="mp-admin-bar" class="hidden mb-4 mp-card p-3 flex flex-wrap items-center gap-3 border-indigo-500/20">
     <span class="material-symbols-outlined text-base text-indigo-400">supervisor_account</span>
     <span class="text-xs text-slate-400 font-medium">Visualizar agente:</span>
     <select id="mp-agent-select" onchange="mpAdminSelectAgent()" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[200px]">
@@ -44,7 +62,7 @@
 <!-- Loading -->
 <div id="mp-loading" class="flex flex-col items-center justify-center py-24 gap-4">
     <div class="w-10 h-10 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin"></div>
-    <p class="text-sm text-slate-500">Carregando...</p>
+    <p class="text-sm text-slate-500">Carregando seu painel...</p>
 </div>
 
 <!-- Sem vínculo Kommo -->
@@ -66,132 +84,137 @@
 <!-- ═══ Conteúdo principal ═══ -->
 <div id="mp-content" class="hidden">
 
-    <!-- S1: Hero - Termômetro -->
-    <div id="mp-hero" class="mp-tier-base rounded-2xl p-6 sm:p-8 mb-6 relative overflow-hidden">
-        <div class="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_30%_20%,white_0%,transparent_60%)]"></div>
+    <!-- S1: Hero -->
+    <div id="mp-hero" class="mp-tier-base rounded-2xl p-6 sm:p-8 mb-6 relative overflow-hidden mp-enter">
+        <div class="mp-shimmer absolute inset-0 pointer-events-none"></div>
         <div class="relative z-10">
-            <p id="mp-hero-campanha" class="text-xs text-white/60 uppercase tracking-widest mb-1"></p>
-            <div class="flex flex-col sm:flex-row sm:items-end gap-2 sm:gap-6 mb-3">
-                <div>
-                    <p class="text-xs text-white/50 mb-1">Seu saldo acumulado</p>
-                    <p id="mp-hero-saldo" class="text-4xl sm:text-5xl font-black text-white mp-count">R$ 0</p>
+            <p id="mp-hero-campanha" class="text-[10px] text-white/50 uppercase tracking-[.2em] font-semibold mb-4"></p>
+
+            <div class="flex flex-col lg:flex-row lg:items-center gap-6">
+                <!-- Left: Saldo -->
+                <div class="flex-1">
+                    <p class="text-xs text-white/40 mb-1">Seu saldo acumulado</p>
+                    <div class="flex items-baseline gap-3">
+                        <span id="mp-hero-saldo" class="text-4xl sm:text-5xl font-black text-white mp-stat-value">R$ 0</span>
+                    </div>
+                    <div id="mp-hero-potencial-wrap" class="mt-1 hidden">
+                        <span class="text-xs text-white/35">pode chegar a</span>
+                        <span id="mp-hero-potencial" class="text-base font-bold text-emerald-300 ml-1"></span>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-3 mt-4">
+                        <span id="mp-hero-tier-badge" class="px-4 py-1.5 text-xs font-black rounded-full tracking-wide"></span>
+                        <span id="mp-hero-mat" class="text-xs text-white/50 font-medium"></span>
+                        <span id="mp-hero-dias" class="text-xs text-white/40"></span>
+                    </div>
+                    <div id="mp-hero-msg" class="mt-4 text-sm text-white/85 font-medium leading-relaxed max-w-xl"></div>
                 </div>
-                <div class="sm:pb-1">
-                    <p class="text-xs text-white/40">pode chegar a</p>
-                    <p id="mp-hero-potencial" class="text-lg font-bold text-emerald-300 mp-glow"></p>
+
+                <!-- Right: Gauge -->
+                <div class="flex-shrink-0 w-full lg:w-[240px]">
+                    <div id="mp-hero-gauge"></div>
                 </div>
             </div>
-
-            <!-- Termômetro de tiers -->
-            <div id="mp-hero-thermo" class="mb-4"></div>
-
-            <div class="flex flex-wrap items-center gap-3">
-                <span id="mp-hero-tier-badge" class="px-3 py-1 text-xs font-bold rounded-full"></span>
-                <span id="mp-hero-mat" class="text-xs text-white/60"></span>
-                <span id="mp-hero-dias" class="text-xs text-white/60"></span>
-            </div>
-            <div id="mp-hero-msg" class="mt-3 text-sm text-white/90 font-medium leading-relaxed"></div>
         </div>
     </div>
 
-    <div class="max-w-7xl mx-auto space-y-6 pb-12">
+    <div class="max-w-7xl mx-auto space-y-5 pb-12">
 
-        <!-- Ranking + Conquistas row -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mp-animate mp-d1">
-            <!-- Ranking Card -->
-            <div id="mp-ranking-card" class="hidden glass-card p-5 border border-amber-500/10 relative overflow-hidden">
-                <div class="absolute top-0 right-0 w-32 h-32 opacity-[0.03] pointer-events-none">
-                    <span class="material-symbols-outlined text-[128px] text-amber-400">leaderboard</span>
+        <!-- PIX do Dia (priority position) -->
+        <div class="mp-enter mp-d1">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm text-emerald-400">paid</span>
+                PIX do Dia
+            </h3>
+            <div id="mp-pix-dia" class="mp-card p-6 sm:p-8 border-emerald-500/15 flex flex-col sm:flex-row items-center gap-6 relative overflow-hidden"
+                 style="background:linear-gradient(135deg,rgba(6,78,59,.35),rgba(15,23,42,.85))">
+                <div class="mp-shimmer absolute inset-0 pointer-events-none"></div>
+                <div class="flex-shrink-0 relative z-10">
+                    <div id="mp-pix-chart" style="min-height:170px;min-width:170px"></div>
                 </div>
-                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                    <span class="material-symbols-outlined text-base text-amber-400">leaderboard</span>
+                <div class="flex-1 text-center sm:text-left relative z-10 space-y-2">
+                    <p id="mp-pix-status" class="text-lg font-black text-white"></p>
+                    <p id="mp-pix-detail" class="text-sm text-slate-300/80 leading-relaxed"></p>
+                    <div id="mp-aceites-badge" class="hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/15 border border-purple-400/25"></div>
+                    <div class="pt-1">
+                        <span id="mp-pix-valor" class="text-3xl sm:text-5xl font-black text-emerald-400 mp-stat-value" style="text-shadow:0 0 30px rgba(16,185,129,.25)"></span>
+                    </div>
+                </div>
+            </div>
+            <p class="text-[10px] text-slate-600 mt-2 italic pl-1">Obs.: Nem todos os aceites se convertem em matrícula — considere uma margem de segurança.</p>
+        </div>
+
+        <!-- Ranking + Conquistas -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mp-enter mp-d2">
+            <div id="mp-ranking-card" class="hidden mp-card p-5 relative overflow-hidden">
+                <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-4 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-sm text-amber-400">leaderboard</span>
                     Ranking
-                    <span class="text-[9px] text-purple-400 font-normal ml-auto">mat. + aceites</span>
+                    <span class="text-[9px] text-purple-400/70 font-normal ml-auto">mat + aceites</span>
                 </h3>
                 <div id="mp-ranking-content"></div>
             </div>
-            <!-- Conquistas Card -->
-            <div id="mp-conquistas-card" class="hidden glass-card p-5 border border-purple-500/10 relative overflow-hidden">
-                <div class="absolute top-0 right-0 w-32 h-32 opacity-[0.03] pointer-events-none">
-                    <span class="material-symbols-outlined text-[128px] text-purple-400">workspace_premium</span>
-                </div>
-                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                    <span class="material-symbols-outlined text-base text-purple-400">workspace_premium</span>
-                    Conquistas Desbloqueadas
+            <div id="mp-conquistas-card" class="hidden mp-card p-5 relative overflow-hidden">
+                <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-4 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-sm text-purple-400">workspace_premium</span>
+                    Conquistas
                 </h3>
                 <div id="mp-conquistas-grid" class="flex flex-wrap gap-3"></div>
             </div>
         </div>
 
-        <!-- S2: Desbloqueie Mais -->
-        <div id="mp-desbloqueie-wrap" class="mp-animate mp-d1">
-            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <span class="material-symbols-outlined text-base text-amber-400">lock_open</span>
+        <!-- Desbloqueie Mais -->
+        <div id="mp-desbloqueie-wrap" class="mp-enter mp-d2">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm text-amber-400">lock_open</span>
                 Desbloqueie Mais
             </h3>
             <div id="mp-desbloqueie" class="grid grid-cols-1 sm:grid-cols-3 gap-3"></div>
         </div>
 
-        <!-- S3: PIX do Dia -->
-        <div class="mp-animate mp-d2">
-            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <span class="material-symbols-outlined text-base text-cyan-400">local_fire_department</span>
-                PIX do Dia
+        <!-- Momentum -->
+        <div class="mp-enter mp-d3">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm text-cyan-400">speed</span>
+                Momentum
             </h3>
-            <div id="mp-pix-dia" class="rounded-2xl p-6 sm:p-8 border-2 border-cyan-500/30 flex flex-col sm:flex-row items-center gap-6 relative overflow-hidden" style="background:linear-gradient(135deg,#0c4a6e,#164e63,#0f766e)">
-                <div class="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_80%_20%,#06b6d4_0%,transparent_60%)]"></div>
-                <div class="flex-shrink-0 relative z-10">
-                    <svg width="140" height="140" viewBox="0 0 120 120">
-                        <circle cx="60" cy="60" r="50" stroke="#1e3a5f" fill="none" stroke-width="10"/>
-                        <circle id="mp-ring-fill" cx="60" cy="60" r="50" class="mp-ring-fill" stroke="#06b6d4" stroke-width="10"
-                                stroke-dasharray="314.16" stroke-dashoffset="314.16" transform="rotate(-90 60 60)"/>
-                        <text x="60" y="50" text-anchor="middle" class="text-2xl font-black fill-white" id="mp-ring-value">0</text>
-                        <text x="60" y="70" text-anchor="middle" class="text-xs fill-cyan-300 font-bold" id="mp-ring-label">de 0</text>
-                    </svg>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div class="mp-card p-4">
+                    <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Ritmo Atual</p>
+                    <p id="mp-pace" class="text-2xl font-black text-white mp-stat-value"></p>
+                    <p class="text-[10px] text-slate-500">mat/dia</p>
+                    <div id="mp-spark-pace" class="mt-2" style="min-height:35px"></div>
                 </div>
-                <div class="flex-1 text-center sm:text-left relative z-10">
-                    <p id="mp-pix-status" class="text-xl font-black text-white mb-2"></p>
-                    <p id="mp-pix-detail" class="text-sm text-cyan-100/80 mb-3 leading-relaxed"></p>
-                    <div id="mp-aceites-badge" class="hidden flex items-center gap-1.5 mb-3 px-3 py-1.5 rounded-lg bg-purple-500/20 border border-purple-400/30 w-fit mx-auto sm:mx-0"></div>
-                    <div id="mp-pix-valor" class="text-3xl sm:text-4xl font-black text-emerald-300" style="text-shadow:0 0 20px rgba(16,185,129,0.3)"></div>
+                <div class="mp-card p-4">
+                    <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Necessário</p>
+                    <p id="mp-pace-needed" class="text-2xl font-black text-white mp-stat-value"></p>
+                    <p class="text-[10px] text-slate-500">mat/dia p/ meta</p>
+                    <div id="mp-spark-needed" class="mt-2" style="min-height:35px"></div>
                 </div>
-            </div>
-            <p class="text-[10px] text-slate-600 mt-3 italic">Obs.: Nem todos os aceites se convertem em matrícula — considere uma margem de segurança ("gordurinha").</p>
-        </div>
-
-        <!-- S4: Momentum -->
-        <div class="mp-animate mp-d3 grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div class="glass-card p-4 text-center">
-                <p class="text-[10px] text-slate-500 uppercase mb-1">Ritmo Atual</p>
-                <p id="mp-pace" class="text-xl font-bold text-white"></p>
-                <p class="text-[10px] text-slate-500">mat/dia</p>
-            </div>
-            <div class="glass-card p-4 text-center">
-                <p class="text-[10px] text-slate-500 uppercase mb-1">Necessário p/ Meta</p>
-                <p id="mp-pace-needed" class="text-xl font-bold text-white"></p>
-                <p class="text-[10px] text-slate-500">mat/dia</p>
-            </div>
-            <div class="glass-card p-4 text-center">
-                <p class="text-[10px] text-slate-500 uppercase mb-1">Projeção</p>
-                <p id="mp-projecao-mat" class="text-xl font-bold text-white"></p>
-                <p id="mp-projecao-tier" class="text-[10px]"></p>
-            </div>
-            <div class="glass-card p-4 text-center">
-                <p class="text-[10px] text-slate-500 uppercase mb-1">No seu ritmo</p>
-                <p id="mp-projecao-fin" class="text-xl font-bold text-emerald-400"></p>
-                <p class="text-[10px] text-slate-500">projeção financeira</p>
+                <div class="mp-card p-4">
+                    <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Projeção</p>
+                    <p id="mp-projecao-mat" class="text-2xl font-black text-white mp-stat-value"></p>
+                    <p id="mp-projecao-tier" class="text-[10px]"></p>
+                    <div id="mp-spark-proj" class="mt-2" style="min-height:35px"></div>
+                </div>
+                <div class="mp-card p-4">
+                    <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">No seu ritmo</p>
+                    <p id="mp-projecao-fin" class="text-2xl font-black text-emerald-400 mp-stat-value"></p>
+                    <p class="text-[10px] text-slate-500">projeção financeira</p>
+                    <div id="mp-spark-fin" class="mt-2" style="min-height:35px"></div>
+                </div>
             </div>
         </div>
 
-        <!-- S5: Sequência + Heatmap -->
-        <div class="mp-animate mp-d4">
-            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <span class="material-symbols-outlined text-base text-orange-400">whatshot</span>
+        <!-- Sequência + Heatmap -->
+        <div class="mp-enter mp-d4">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm text-orange-400">whatshot</span>
                 Sequência
             </h3>
-            <div class="glass-card p-5 border border-orange-500/10">
+            <div class="mp-card p-5">
                 <div class="flex items-center gap-4 mb-4">
-                    <div id="mp-streak-num" class="text-3xl font-black text-slate-400">0</div>
+                    <div id="mp-streak-num" class="text-4xl font-black text-slate-400 mp-stat-value">0</div>
                     <div>
                         <p id="mp-streak-label" class="text-sm font-semibold text-white"></p>
                         <p class="text-[10px] text-slate-500">dias consecutivos batendo a meta diária</p>
@@ -209,38 +232,38 @@
         </div>
 
         <!-- Progresso por Faixa -->
-        <div class="mp-animate mp-d5">
-            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <span class="material-symbols-outlined text-base text-blue-400">bar_chart</span>
+        <div class="mp-enter mp-d5">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm text-blue-400">bar_chart</span>
                 Progresso por Faixa
             </h3>
-            <div id="mp-tier-progress" class="glass-card p-5 border border-blue-500/10 space-y-3"></div>
+            <div id="mp-tier-progress" class="mp-card p-5 space-y-3"></div>
         </div>
 
-        <!-- S6: Resumo Financeiro -->
-        <div class="mp-animate mp-d5">
-            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <span class="material-symbols-outlined text-base text-emerald-400">payments</span>
+        <!-- Resumo Financeiro -->
+        <div class="mp-enter mp-d5">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm text-emerald-400">payments</span>
                 Resumo Financeiro
             </h3>
-            <div id="mp-financeiro" class="glass-card p-5 border border-emerald-500/20 space-y-3"></div>
+            <div id="mp-financeiro" class="mp-card p-5 space-y-3"></div>
         </div>
 
-        <!-- S7: Timeline -->
-        <div class="mp-animate mp-d6">
-            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <span class="material-symbols-outlined text-base text-indigo-400">timeline</span>
+        <!-- Timeline -->
+        <div class="mp-enter mp-d6">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm text-indigo-400">timeline</span>
                 Timeline Diária
             </h3>
-            <div class="glass-card p-5">
-                <canvas id="mp-chart-daily" height="220"></canvas>
+            <div class="mp-card p-5">
+                <div id="mp-timeline-chart" style="min-height:280px"></div>
             </div>
         </div>
 
-        <!-- S8: Detalhes (collapse) -->
-        <details class="mp-animate mp-d7 glass-card border border-slate-700/30">
-            <summary class="p-4 cursor-pointer text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 select-none">
-                <span class="material-symbols-outlined text-base text-slate-500">list_alt</span>
+        <!-- Detalhes -->
+        <details class="mp-enter mp-d7 mp-card">
+            <summary class="p-4 cursor-pointer text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] flex items-center gap-2 select-none">
+                <span class="material-symbols-outlined text-sm text-slate-500">list_alt</span>
                 Matrículas do Período
                 <span id="mp-mat-count" class="ml-auto text-slate-600"></span>
             </summary>
@@ -261,13 +284,13 @@
             </div>
         </details>
 
-        <!-- S9: Histórico -->
-        <div id="mp-historico-wrap" class="mp-animate">
-            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <span class="material-symbols-outlined text-base text-violet-400">history</span>
+        <!-- Histórico -->
+        <div id="mp-historico-wrap" class="mp-enter mp-d7">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm text-violet-400">history</span>
                 Campanhas Anteriores
             </h3>
-            <div id="mp-historico" class="flex gap-3 overflow-x-auto pb-2">
+            <div id="mp-historico" class="flex gap-3 overflow-x-auto pb-2 snap-x">
                 <p class="text-xs text-slate-600">Carregando...</p>
             </div>
         </div>

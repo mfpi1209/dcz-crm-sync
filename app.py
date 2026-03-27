@@ -37,7 +37,7 @@ from routes.dashboard import dashboard_bp
 from routes.crm import crm_bp
 from routes.upload import upload_bp
 from routes.engagement import engagement_bp, register_engagement_job
-from routes.config import config_bp, init_scheduler, _load_schedules_from_db, register_delta_interval
+from routes.config import config_bp, init_scheduler, _load_schedules_from_db, register_delta_interval, register_aceite_reconcile
 from routes.logs import logs_bp
 from routes.kommo_sync import kommo_bp
 from routes.match_merge import match_merge_bp
@@ -100,6 +100,7 @@ scheduler.start()
 _load_schedules_from_db()
 register_engagement_job(scheduler)
 register_delta_interval(scheduler)
+register_aceite_reconcile(scheduler)
 
 # ── Entrypoint ────────────────────────────────────────────────────────────
 
