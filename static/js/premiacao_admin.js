@@ -60,7 +60,7 @@ function _paRenderCampanhasList() {
 }
 
 function _paFillCampanhaSelects() {
-    const ids = ['pa-grupo-camp', 'pa-daily-camp'];
+    const ids = ['pa-metas-camp', 'pa-grupo-camp', 'pa-daily-camp'];
     ids.forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -156,7 +156,76 @@ async function paSaveEditCampanha() {
     } else { toast(res?.error || 'Erro', 'error'); }
 }
 
-/* ═══ B) Grupos ═══ */
+/* ═══ B) Metas por Agente ═══ */
+
+async function paLoadMetasAgente() {
+    const cid = document.getElementById('pa-metas-camp')?.value;
+    const wrap = document.getElementById('pa-metas-grid-wrap');
+    if (!cid || !wrap) { if (wrap) wrap.innerHTML = '<p class="text-xs text-slate-600">Selecione uma campanha</p>'; return; }
+
+    try {
+        const [metasRes] = await Promise.all([
+            api(`/api/premiacao/campanhas/${cid}/metas`),
+        ]);
+        const existingMetas = metasRes?.metas || [];
+        const lookup = {};
+        existingMetas.forEach(m => { lookup[m.kommo_user_id] = m; });
+
+        if (!_paAgentes.length) {
+            const agRes = await api('/api/minha-performance/agentes');
+            _paAgentes = agRes?.agentes || [];
+        }
+
+        let html = `<table class="w-full text-xs">
+            <thead><tr class="text-slate-500 border-b border-slate-700/30">
+                <th class="text-left py-2 pr-3 min-w-[140px]">Agente</th>
+                <th class="text-center px-2 py-2 w-24">Intermediária</th>
+                <th class="text-center px-2 py-2 w-24">Meta</th>
+                <th class="text-center px-2 py-2 w-24">Supermeta</th>
+            </tr></thead><tbody>`;
+
+        _paAgentes.forEach(a => {
+            const m = lookup[a.kommo_uid] || {};
+            html += `<tr class="border-b border-slate-800/30">
+                <td class="py-1.5 pr-3 text-slate-300 font-medium">${a.name}</td>
+                <td class="px-2 py-1.5"><input type="number" min="0" step="1" value="${m.meta_intermediaria || ''}" data-uid="${a.kommo_uid}" data-field="inter" class="pa-meta-input input-glass px-1.5 py-1 text-center text-xs text-slate-300 w-full"></td>
+                <td class="px-2 py-1.5"><input type="number" min="0" step="1" value="${m.meta || ''}" data-uid="${a.kommo_uid}" data-field="meta" class="pa-meta-input input-glass px-1.5 py-1 text-center text-xs text-slate-300 w-full"></td>
+                <td class="px-2 py-1.5"><input type="number" min="0" step="1" value="${m.supermeta || ''}" data-uid="${a.kommo_uid}" data-field="super" class="pa-meta-input input-glass px-1.5 py-1 text-center text-xs text-slate-300 w-full"></td>
+            </tr>`;
+        });
+
+        html += '</tbody></table>';
+        wrap.innerHTML = html;
+    } catch(e) {
+        console.error('paLoadMetasAgente', e);
+        if (wrap) wrap.innerHTML = '<p class="text-xs text-red-400">Erro ao carregar</p>';
+    }
+}
+
+async function paSaveMetasAgente() {
+    const cid = document.getElementById('pa-metas-camp')?.value;
+    if (!cid) { toast('Selecione uma campanha', 'error'); return; }
+
+    const inputs = document.querySelectorAll('.pa-meta-input');
+    const byUid = {};
+    inputs.forEach(inp => {
+        const uid = inp.dataset.uid;
+        const field = inp.dataset.field;
+        if (!byUid[uid]) byUid[uid] = { kommo_user_id: parseInt(uid), meta: 0, meta_intermediaria: 0, supermeta: 0 };
+        const val = parseFloat(inp.value || 0);
+        if (field === 'inter') byUid[uid].meta_intermediaria = val;
+        if (field === 'meta') byUid[uid].meta = val;
+        if (field === 'super') byUid[uid].supermeta = val;
+    });
+
+    const metas = Object.values(byUid).filter(m => m.meta > 0 || m.meta_intermediaria > 0 || m.supermeta > 0);
+    if (!metas.length) { toast('Nenhuma meta preenchida', 'error'); return; }
+
+    const res = await api(`/api/premiacao/campanhas/${cid}/metas`, { method:'POST', body:JSON.stringify({ metas }) });
+    if (res?.ok) { toast(`${res.saved} metas salvas!`); } else { toast(res?.error || 'Erro', 'error'); }
+}
+
+/* ═══ C) Grupos ═══ */
 
 async function paLoadGrupos() {
     const cid = document.getElementById('pa-grupo-camp')?.value;
