@@ -1,403 +1,423 @@
-// ---------------------------------------------------------------------------
-// Premiação Admin — JS
-// ---------------------------------------------------------------------------
-const _paFmt = v => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-const _paDias = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-let _paCampanhasData = [];
+/* ═══════════════  Premiação Admin  ═══════════════ */
 
-function _paFmtDateBR(s) {
-    if (!s) return '';
-    const parts = s.split('-');
-    if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
-    return s;
+const _paFmt = v => Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const _paDias = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+let _paCampanhasData = [];
+let _paAgentes = [];
+let _paGruposData = [];
+
+function _paFmtDateBR(d) {
+    if (!d) return '';
+    const p = d.split('-');
+    return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : d;
 }
 
+/* ── Entry ── */
 async function loadPremiacaoAdmin() {
     try {
-        await Promise.all([
+        const [,agRes] = await Promise.all([
             _paLoadCampanhas(),
-            _paLoadAgentSelect(),
+            api('/api/minha-performance/agentes'),
         ]);
-    } catch (e) {
-        console.error('loadPremiacaoAdmin', e);
-    }
+        _paAgentes = agRes?.agentes || [];
+    } catch(e) { console.error('loadPremiacaoAdmin', e); }
 }
 
-// ---------------------------------------------------------------------------
-// Seletor de agente (para visualizar dados)
-// ---------------------------------------------------------------------------
-async function _paLoadAgentSelect() {
-    try {
-        const res = await api('/api/minha-performance/agentes');
-        const d = await res.json();
-        if (!d.ok) return;
-        const sel = document.getElementById('pa-agent-select');
-        const current = sel.value;
-        sel.innerHTML = '<option value="">Ver dados de um agente...</option>' +
-            d.agentes.map(a => `<option value="${a.kommo_uid}" ${String(a.kommo_uid) === current ? 'selected' : ''}>${a.name}</option>`).join('');
-    } catch (e) { console.error(e); }
-}
+/* ═══ A) Campanhas ═══ */
 
-function paAgentChanged() {
-    // placeholder: could open performance data for selected agent
-}
-
-// ---------------------------------------------------------------------------
-// Campanhas CRUD
-// ---------------------------------------------------------------------------
 async function _paLoadCampanhas() {
-    try {
-        const res = await api('/api/premiacao/campanhas');
-        const d = await res.json();
-        if (!d.ok) return;
-        const wrap = document.getElementById('pa-campanhas-list');
-        const sel = document.getElementById('pa-daily-camp');
-        sel.innerHTML = '<option value="">Selecionar...</option>';
+    const res = await api('/api/premiacao/campanhas');
+    _paCampanhasData = res?.campanhas || [];
+    _paRenderCampanhasList();
+    _paFillCampanhaSelects();
+}
 
-        if (!d.campanhas.length) {
-            wrap.innerHTML = '<p class="text-xs text-slate-600">Nenhuma campanha criada</p>';
-            return;
-        }
-        _paCampanhasData = d.campanhas;
-        wrap.innerHTML = d.campanhas.map(c => {
-            const tiers = c.tiers || {};
-            const receb = (c.receb_regras || [])[0] || {};
-            const ativaLabel = c.ativa
-                ? '<span class="text-[9px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full font-bold">Ativa</span>'
-                : '<span class="text-[9px] bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded-full">Inativa</span>';
-            return `<div class="bg-slate-800/30 rounded-lg p-3 border border-slate-700/30 flex items-center justify-between">
-                <div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-sm font-bold text-white">${c.nome}</span>
-                        ${ativaLabel}
-                    </div>
-                    <p class="text-[10px] text-slate-500 mt-0.5">${_paFmtDateBR(c.dt_inicio)} — ${_paFmtDateBR(c.dt_fim)}</p>
-                    <p class="text-[10px] text-slate-400 mt-1">
-                        Inter: ${_paFmt(tiers.intermediaria || 0)}/mat
-                        | Meta: ${_paFmt(tiers.meta || 0)}/mat
-                        | Super: ${_paFmt(tiers.supermeta || 0)}/mat
-                    </p>
+function _paRenderCampanhasList() {
+    const wrap = document.getElementById('pa-campanhas-list');
+    if (!wrap) return;
+    if (!_paCampanhasData.length) { wrap.innerHTML = '<p class="text-xs text-slate-600">Nenhuma campanha criada</p>'; return; }
+    wrap.innerHTML = _paCampanhasData.map(c => {
+        const tiers = c.tiers || {};
+        const badge = c.ativa
+            ? '<span class="px-2 py-0.5 text-[10px] rounded-full bg-emerald-500/20 text-emerald-400">Ativa</span>'
+            : '<span class="px-2 py-0.5 text-[10px] rounded-full bg-slate-500/20 text-slate-400">Inativa</span>';
+        return `<div class="bg-slate-800/40 rounded-xl p-4 border border-slate-700/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-sm font-semibold text-white truncate">${c.nome}</span>
+                    ${badge}
                 </div>
-                <div class="flex gap-2">
-                    <button onclick="paEditCampanha(${c.id})" class="text-[10px] text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 px-2 py-1 rounded transition-all">Editar</button>
-                    <button onclick="paToggleCampanha(${c.id}, ${c.ativa})" class="text-[10px] text-slate-400 hover:text-white border border-slate-700 px-2 py-1 rounded transition-all">
-                        ${c.ativa ? 'Desativar' : 'Ativar'}
-                    </button>
-                    <button onclick="paDeleteCampanha(${c.id})" class="text-[10px] text-red-400 hover:text-red-300 border border-red-900/30 px-2 py-1 rounded transition-all">Excluir</button>
-                </div>
-            </div>`;
-        }).join('');
+                <p class="text-[10px] text-slate-500">${_paFmtDateBR(c.dt_inicio)} — ${_paFmtDateBR(c.dt_fim)}</p>
+                <p class="text-[10px] text-slate-500 mt-0.5">Inter: ${_paFmt(tiers.intermediaria||0)} · Meta: ${_paFmt(tiers.meta||0)} · Super: ${_paFmt(tiers.supermeta||0)}</p>
+            </div>
+            <div class="flex items-center gap-1.5 flex-shrink-0">
+                <button onclick="paEditCampanha(${c.id})" class="text-[10px] px-2.5 py-1 rounded-lg border border-slate-600/40 text-slate-400 hover:text-white hover:border-slate-500 transition-all">Editar</button>
+                <button onclick="paToggleCampanha(${c.id},${c.ativa})" class="text-[10px] px-2.5 py-1 rounded-lg border border-slate-600/40 text-slate-400 hover:text-white hover:border-slate-500 transition-all">${c.ativa?'Desativar':'Ativar'}</button>
+                <button onclick="paDeleteCampanha(${c.id})" class="text-[10px] px-2.5 py-1 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-all">Excluir</button>
+            </div>
+        </div>`;
+    }).join('');
+}
 
-        d.campanhas.forEach(c => {
-            sel.innerHTML += `<option value="${c.id}">${c.nome} (${_paFmtDateBR(c.dt_inicio)} — ${_paFmtDateBR(c.dt_fim)})</option>`;
-        });
-    } catch (e) { console.error(e); }
+function _paFillCampanhaSelects() {
+    const ids = ['pa-grupo-camp', 'pa-daily-camp'];
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const prev = el.value;
+        el.innerHTML = '<option value="">Selecionar campanha...</option>' +
+            _paCampanhasData.map(c => `<option value="${c.id}">${c.nome} (${_paFmtDateBR(c.dt_inicio)} – ${_paFmtDateBR(c.dt_fim)})</option>`).join('');
+        if (prev) el.value = prev;
+    });
 }
 
 async function paSaveCampanha() {
-    const nome = document.getElementById('pa-camp-nome').value.trim();
-    const dt_inicio = document.getElementById('pa-camp-ini').value;
-    const dt_fim = document.getElementById('pa-camp-fim').value;
-    if (!nome || !dt_inicio || !dt_fim) { toast('Preencha nome e datas', 'warning'); return; }
+    const nome = document.getElementById('pa-camp-nome')?.value?.trim();
+    const dt_inicio = document.getElementById('pa-camp-ini')?.value;
+    const dt_fim = document.getElementById('pa-camp-fim')?.value;
+    if (!nome || !dt_inicio || !dt_fim) { toast('Preencha nome e datas', 'error'); return; }
+
     const tiers = {};
-    const inter = parseFloat(document.getElementById('pa-camp-tier-inter').value) || 0;
-    const meta = parseFloat(document.getElementById('pa-camp-tier-meta').value) || 0;
-    const sup = parseFloat(document.getElementById('pa-camp-tier-super').value) || 0;
-    if (inter > 0) tiers.intermediaria = inter;
-    if (meta > 0) tiers.meta = meta;
-    if (sup > 0) tiers.supermeta = sup;
+    const iv = parseFloat(document.getElementById('pa-camp-tier-inter')?.value || 0);
+    const mv = parseFloat(document.getElementById('pa-camp-tier-meta')?.value || 0);
+    const sv = parseFloat(document.getElementById('pa-camp-tier-super')?.value || 0);
+    if (iv > 0) tiers.intermediaria = iv;
+    if (mv > 0) tiers.meta = mv;
+    if (sv > 0) tiers.supermeta = sv;
 
     const receb_regras = [];
-    const recebValor = parseFloat(document.getElementById('pa-camp-receb-valor').value) || 0;
-    if (recebValor > 0) {
-        receb_regras.push({
-            tier: 'qualquer',
-            modo: document.getElementById('pa-camp-receb-modo').value,
-            valor: recebValor,
-        });
-    }
+    const rModo = document.getElementById('pa-camp-receb-modo')?.value || 'percentual';
+    const rVal = parseFloat(document.getElementById('pa-camp-receb-valor')?.value || 0);
+    if (rVal > 0) receb_regras.push({ tier: 'qualquer', modo: rModo, valor: rVal });
 
-    try {
-        const res = await api('/api/premiacao/campanhas', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nome, dt_inicio, dt_fim, tiers, receb_regras }),
-        });
-        const d = await res.json();
-        if (d.error) { toast(d.error, 'error'); return; }
-        toast('Campanha criada', 'success');
+    const res = await api('/api/premiacao/campanhas', { method:'POST', body:JSON.stringify({ nome, dt_inicio, dt_fim, tiers, receb_regras }) });
+    if (res?.ok) {
+        toast('Campanha criada!');
         document.getElementById('pa-camp-nome').value = '';
-        _paLoadCampanhas();
-    } catch (e) { toast('Erro: ' + e.message, 'error'); }
+        document.getElementById('pa-camp-ini').value = '';
+        document.getElementById('pa-camp-fim').value = '';
+        ['pa-camp-tier-inter','pa-camp-tier-meta','pa-camp-tier-super','pa-camp-receb-valor'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
+        await _paLoadCampanhas();
+    } else { toast(res?.error || 'Erro ao criar', 'error'); }
 }
 
-async function paToggleCampanha(cid, currentActive) {
-    try {
-        await api(`/api/premiacao/campanhas/${cid}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ativa: !currentActive }),
-        });
-        _paLoadCampanhas();
-    } catch (e) { toast('Erro: ' + e.message, 'error'); }
+async function paToggleCampanha(id, ativa) {
+    await api(`/api/premiacao/campanhas/${id}`, { method:'PUT', body:JSON.stringify({ ativa: !ativa }) });
+    await _paLoadCampanhas();
 }
 
-async function paDeleteCampanha(cid) {
-    if (!confirm('Excluir esta campanha? Todas as metas diárias e regras serão removidas.')) return;
-    try {
-        await api(`/api/premiacao/campanhas/${cid}`, { method: 'DELETE' });
-        _paLoadCampanhas();
-        toast('Campanha excluída', 'success');
-    } catch (e) { toast('Erro: ' + e.message, 'error'); }
+async function paDeleteCampanha(id) {
+    if (!confirm('Excluir campanha e todos os dados associados?')) return;
+    await api(`/api/premiacao/campanhas/${id}`, { method:'DELETE' });
+    toast('Campanha excluída');
+    await _paLoadCampanhas();
 }
 
-// ---------------------------------------------------------------------------
-// Editar campanha (modal)
-// ---------------------------------------------------------------------------
-function paEditCampanha(cid) {
-    const c = _paCampanhasData.find(x => x.id === cid);
+function paEditCampanha(id) {
+    const c = _paCampanhasData.find(x => x.id === id);
     if (!c) return;
-    const tiers = c.tiers || {};
-    const receb = (c.receb_regras || [])[0] || {};
-
-    const modal = document.createElement('div');
-    modal.id = 'pa-edit-modal';
-    modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4';
-    modal.onclick = e => { if (e.target === modal) modal.remove(); };
-    modal.innerHTML = `
-        <div class="glass-card w-full max-w-lg max-h-[90vh] overflow-y-auto" style="background:rgba(15,23,42,0.97)" onclick="event.stopPropagation()">
-            <div class="sticky top-0 z-10 px-5 py-3 border-b border-slate-700/30 bg-slate-900/95 backdrop-blur flex items-center justify-between">
-                <h3 class="text-sm font-bold text-white font-display">Editar Campanha</h3>
-                <button onclick="document.getElementById('pa-edit-modal').remove()" class="text-slate-500 hover:text-white transition-colors">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
-            </div>
-            <div class="p-5 space-y-4">
-                <div class="grid grid-cols-3 gap-3">
-                    <div>
-                        <label class="block text-[10px] text-slate-500 mb-1">Nome</label>
-                        <input type="text" id="pa-ed-nome" value="${c.nome}" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] text-slate-500 mb-1">Início</label>
-                        <input type="date" id="pa-ed-ini" value="${c.dt_inicio}" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] text-slate-500 mb-1">Fim</label>
-                        <input type="date" id="pa-ed-fim" value="${c.dt_fim}" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
-                    </div>
-                </div>
-                <p class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Valor por matrícula ao atingir tier</p>
-                <div class="grid grid-cols-3 gap-3">
-                    <div>
-                        <label class="block text-[10px] text-slate-500 mb-1">Intermediária (R$)</label>
-                        <input type="number" id="pa-ed-tier-inter" value="${tiers.intermediaria || 0}" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] text-slate-500 mb-1">Meta (R$)</label>
-                        <input type="number" id="pa-ed-tier-meta" value="${tiers.meta || 0}" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] text-slate-500 mb-1">Supermeta (R$)</label>
-                        <input type="number" id="pa-ed-tier-super" value="${tiers.supermeta || 0}" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
-                    </div>
-                </div>
-                <p class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Regra sobre Recebimentos</p>
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-[10px] text-slate-500 mb-1">Modo</label>
-                        <select id="pa-ed-receb-modo" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
-                            <option value="percentual" ${receb.modo === 'percentual' ? 'selected' : ''}>Percentual</option>
-                            <option value="fixo" ${receb.modo === 'fixo' ? 'selected' : ''}>Fixo (R$)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-[10px] text-slate-500 mb-1">Valor</label>
-                        <input type="number" id="pa-ed-receb-valor" value="${receb.valor || 0}" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
-                    </div>
-                </div>
-                <div class="flex gap-3 pt-2 border-t border-slate-700/20">
-                    <button onclick="paSaveEditCampanha(${cid})" class="btn-primary text-xs px-5 py-2 rounded-lg font-medium">Salvar</button>
-                    <button onclick="document.getElementById('pa-edit-modal').remove()" class="btn-secondary text-xs px-4 py-2 rounded-lg">Cancelar</button>
-                </div>
-            </div>
-        </div>`;
-    document.body.appendChild(modal);
+    document.getElementById('pa-edit-id').value = id;
+    document.getElementById('pa-edit-nome').value = c.nome || '';
+    document.getElementById('pa-edit-ini').value = c.dt_inicio || '';
+    document.getElementById('pa-edit-fim').value = c.dt_fim || '';
+    document.getElementById('pa-edit-tier-inter').value = c.tiers?.intermediaria || '';
+    document.getElementById('pa-edit-tier-meta').value = c.tiers?.meta || '';
+    document.getElementById('pa-edit-tier-super').value = c.tiers?.supermeta || '';
+    const rr = (c.receb_regras || [])[0];
+    document.getElementById('pa-edit-receb-modo').value = rr?.modo || 'percentual';
+    document.getElementById('pa-edit-receb-valor').value = rr?.valor || '';
+    document.getElementById('pa-edit-modal').classList.remove('hidden');
 }
 
-async function paSaveEditCampanha(cid) {
-    const nome = document.getElementById('pa-ed-nome').value.trim();
-    const dt_inicio = document.getElementById('pa-ed-ini').value;
-    const dt_fim = document.getElementById('pa-ed-fim').value;
-    if (!nome || !dt_inicio || !dt_fim) { toast('Preencha nome e datas', 'warning'); return; }
+async function paSaveEditCampanha() {
+    const id = document.getElementById('pa-edit-id').value;
+    if (!id) return;
+    const body = {
+        nome: document.getElementById('pa-edit-nome').value.trim(),
+        dt_inicio: document.getElementById('pa-edit-ini').value,
+        dt_fim: document.getElementById('pa-edit-fim').value,
+        tiers: {},
+        receb_regras: [],
+    };
+    const iv = parseFloat(document.getElementById('pa-edit-tier-inter').value || 0);
+    const mv = parseFloat(document.getElementById('pa-edit-tier-meta').value || 0);
+    const sv = parseFloat(document.getElementById('pa-edit-tier-super').value || 0);
+    if (iv > 0) body.tiers.intermediaria = iv;
+    if (mv > 0) body.tiers.meta = mv;
+    if (sv > 0) body.tiers.supermeta = sv;
+    const rModo = document.getElementById('pa-edit-receb-modo').value || 'percentual';
+    const rVal = parseFloat(document.getElementById('pa-edit-receb-valor').value || 0);
+    if (rVal > 0) body.receb_regras.push({ tier: 'qualquer', modo: rModo, valor: rVal });
+    const res = await api(`/api/premiacao/campanhas/${id}`, { method:'PUT', body:JSON.stringify(body) });
+    if (res?.ok) {
+        toast('Campanha atualizada!');
+        document.getElementById('pa-edit-modal').classList.add('hidden');
+        await _paLoadCampanhas();
+    } else { toast(res?.error || 'Erro', 'error'); }
+}
 
-    const tiers = {};
-    const inter = parseFloat(document.getElementById('pa-ed-tier-inter').value) || 0;
-    const meta = parseFloat(document.getElementById('pa-ed-tier-meta').value) || 0;
-    const sup = parseFloat(document.getElementById('pa-ed-tier-super').value) || 0;
-    if (inter > 0) tiers.intermediaria = inter;
-    if (meta > 0) tiers.meta = meta;
-    if (sup > 0) tiers.supermeta = sup;
+/* ═══ B) Grupos ═══ */
 
-    const receb_regras = [];
-    const rv = parseFloat(document.getElementById('pa-ed-receb-valor').value) || 0;
-    if (rv > 0) {
-        receb_regras.push({
-            tier: 'qualquer',
-            modo: document.getElementById('pa-ed-receb-modo').value,
-            valor: rv,
-        });
+async function paLoadGrupos() {
+    const cid = document.getElementById('pa-grupo-camp')?.value;
+    const wrap = document.getElementById('pa-grupos-list');
+    const warn = document.getElementById('pa-sem-grupo-warn');
+    if (!cid) {
+        if (wrap) wrap.innerHTML = '<p class="text-xs text-slate-600">Selecione uma campanha</p>';
+        if (warn) warn.classList.add('hidden');
+        return;
+    }
+    try {
+        const res = await api(`/api/premiacao/campanhas/${cid}/grupos`);
+        _paGruposData = res?.grupos || [];
+        _paRenderGrupos();
+    } catch(e) {
+        if (wrap) wrap.innerHTML = '<p class="text-xs text-red-400">Erro ao carregar grupos</p>';
+    }
+}
+
+function _paRenderGrupos() {
+    const wrap = document.getElementById('pa-grupos-list');
+    const warn = document.getElementById('pa-sem-grupo-warn');
+    if (!wrap) return;
+
+    if (!_paGruposData.length) {
+        wrap.innerHTML = '<p class="text-xs text-slate-600">Nenhum grupo criado. Crie um grupo e adicione agentes.</p>';
+        if (warn) warn.classList.add('hidden');
+        return;
     }
 
-    try {
-        const res = await api(`/api/premiacao/campanhas/${cid}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nome, dt_inicio, dt_fim, tiers, receb_regras }),
-        });
-        const d = await res.json();
-        if (d.error) { toast(d.error, 'error'); return; }
-        toast('Campanha atualizada', 'success');
-        document.getElementById('pa-edit-modal').remove();
-        _paLoadCampanhas();
-    } catch (e) { toast('Erro: ' + e.message, 'error'); }
+    const allMembers = new Set();
+    _paGruposData.forEach(g => g.membros.forEach(uid => allMembers.add(uid)));
+
+    const agentName = uid => {
+        const a = _paAgentes.find(x => x.kommo_uid === uid);
+        return a ? a.name : `#${uid}`;
+    };
+
+    wrap.innerHTML = _paGruposData.map(g => {
+        const chips = g.membros.map(uid =>
+            `<span class="inline-flex items-center px-2 py-0.5 text-[10px] rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">${agentName(uid)}</span>`
+        ).join('');
+        return `<div class="bg-slate-800/40 rounded-xl p-4 border border-slate-700/30">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-semibold text-white">${g.nome}</span>
+                <div class="flex items-center gap-1.5">
+                    <button onclick="paEditGrupo(${g.id})" class="text-[10px] px-2.5 py-1 rounded-lg border border-slate-600/40 text-slate-400 hover:text-white hover:border-slate-500 transition-all">Editar</button>
+                    <button onclick="paDeleteGrupo(${g.id})" class="text-[10px] px-2.5 py-1 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-all">Excluir</button>
+                </div>
+            </div>
+            <div class="flex flex-wrap gap-1">${chips || '<span class="text-[10px] text-slate-600">Sem membros</span>'}</div>
+        </div>`;
+    }).join('');
+
+    const semGrupo = _paAgentes.filter(a => !allMembers.has(a.kommo_uid));
+    if (warn) {
+        if (semGrupo.length > 0) {
+            warn.classList.remove('hidden');
+            warn.innerHTML = `<strong>Agentes sem grupo:</strong> ${semGrupo.map(a => a.name).join(', ')}`;
+        } else {
+            warn.classList.add('hidden');
+        }
+    }
 }
 
-// ---------------------------------------------------------------------------
-// Metas diárias grid
-// ---------------------------------------------------------------------------
-let _paDailyAgents = [];
+function paNovoGrupo() {
+    const cid = document.getElementById('pa-grupo-camp')?.value;
+    if (!cid) { toast('Selecione uma campanha primeiro', 'error'); return; }
+    document.getElementById('pa-grupo-modal-id').value = '';
+    document.getElementById('pa-grupo-modal-nome').value = '';
+    document.getElementById('pa-grupo-modal-title').textContent = 'Novo Grupo';
+    _paRenderGrupoMembrosModal([]);
+    document.getElementById('pa-grupo-modal').classList.remove('hidden');
+}
+
+function paEditGrupo(gid) {
+    const g = _paGruposData.find(x => x.id === gid);
+    if (!g) return;
+    document.getElementById('pa-grupo-modal-id').value = gid;
+    document.getElementById('pa-grupo-modal-nome').value = g.nome;
+    document.getElementById('pa-grupo-modal-title').textContent = 'Editar Grupo';
+    _paRenderGrupoMembrosModal(g.membros);
+    document.getElementById('pa-grupo-modal').classList.remove('hidden');
+}
+
+function _paRenderGrupoMembrosModal(selectedUids) {
+    const wrap = document.getElementById('pa-grupo-modal-membros');
+    if (!wrap) return;
+    const sel = new Set(selectedUids.map(Number));
+    wrap.innerHTML = _paAgentes.map(a => `
+        <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-700/30 cursor-pointer transition-colors">
+            <input type="checkbox" value="${a.kommo_uid}" class="pa-grupo-chk rounded border-slate-600 text-emerald-500 focus:ring-emerald-500/30" ${sel.has(a.kommo_uid)?'checked':''}>
+            <span class="text-xs text-slate-300">${a.name}</span>
+        </label>
+    `).join('');
+}
+
+async function paSaveGrupo() {
+    const cid = document.getElementById('pa-grupo-camp')?.value;
+    if (!cid) return;
+    const gid = document.getElementById('pa-grupo-modal-id').value;
+    const nome = document.getElementById('pa-grupo-modal-nome').value.trim();
+    if (!nome) { toast('Nome do grupo é obrigatório', 'error'); return; }
+    const membros = Array.from(document.querySelectorAll('.pa-grupo-chk:checked')).map(cb => parseInt(cb.value));
+
+    let res;
+    if (gid) {
+        res = await api(`/api/premiacao/grupos/${gid}`, { method:'PUT', body:JSON.stringify({ nome, membros }) });
+    } else {
+        res = await api(`/api/premiacao/campanhas/${cid}/grupos`, { method:'POST', body:JSON.stringify({ nome, membros }) });
+    }
+    if (res?.ok) {
+        toast(gid ? 'Grupo atualizado!' : 'Grupo criado!');
+        document.getElementById('pa-grupo-modal').classList.add('hidden');
+        await paLoadGrupos();
+        const dailyCid = document.getElementById('pa-daily-camp')?.value;
+        if (dailyCid === cid) paLoadDailyGrid();
+    } else { toast(res?.error || 'Erro', 'error'); }
+}
+
+async function paDeleteGrupo(gid) {
+    if (!confirm('Excluir grupo e suas metas diárias?')) return;
+    await api(`/api/premiacao/grupos/${gid}`, { method:'DELETE' });
+    toast('Grupo excluído');
+    await paLoadGrupos();
+}
+
+/* ═══ C) PIX Diário por Grupo ═══ */
 
 async function paLoadDailyGrid() {
-    const cid = document.getElementById('pa-daily-camp').value;
+    const cid = document.getElementById('pa-daily-camp')?.value;
     const wrap = document.getElementById('pa-daily-grid-wrap');
-    if (!cid) { wrap.innerHTML = '<p class="text-xs text-slate-600">Selecione uma campanha acima</p>'; return; }
+    if (!cid || !wrap) { if (wrap) wrap.innerHTML = '<p class="text-xs text-slate-600">Selecione uma campanha</p>'; return; }
 
     try {
-        const [agRes, diRes] = await Promise.all([
-            api('/api/minha-performance/agentes'),
-            api(`/api/premiacao/campanhas/${cid}/diarias`),
+        const [gruposRes, diariasRes] = await Promise.all([
+            api(`/api/premiacao/campanhas/${cid}/grupos`),
+            api(`/api/premiacao/campanhas/${cid}/diarias-grupo`),
         ]);
-        const agents = (await agRes.json()).agentes || [];
-        const diarias = (await diRes.json()).diarias || [];
-        _paDailyAgents = agents;
+        const grupos = gruposRes?.grupos || [];
+        const diarias = diariasRes?.diarias || [];
+
+        if (!grupos.length) {
+            wrap.innerHTML = '<p class="text-xs text-amber-400">Crie grupos de agentes primeiro na seção acima</p>';
+            return;
+        }
 
         const lookup = {};
-        diarias.forEach(d => {
-            const key = `${d.kommo_user_id}_${d.dia_semana}`;
-            lookup[key] = d;
+        diarias.forEach(d => { lookup[`${d.grupo_id}_${d.dia_semana}`] = d; });
+
+        const agentName = uid => {
+            const a = _paAgentes.find(x => x.kommo_uid === uid);
+            return a ? a.name : `#${uid}`;
+        };
+
+        let html = '';
+        grupos.forEach(g => {
+            const membrosStr = g.membros.map(uid => agentName(uid)).join(', ') || 'Sem membros';
+            html += `<div class="bg-slate-800/40 rounded-xl p-4 border border-slate-700/30">
+                <div class="flex items-center justify-between mb-3">
+                    <div>
+                        <span class="text-sm font-semibold text-white">${g.nome}</span>
+                        <p class="text-[10px] text-slate-500">${membrosStr}</p>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-[10px]">
+                        <thead>
+                            <tr class="text-slate-500">
+                                <th class="text-left pr-3 pb-1 w-16"></th>
+                                ${_paDias.map(d => `<th class="text-center px-1 pb-1 min-w-[52px]">${d}</th>`).join('')}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="text-slate-400 pr-3 py-1 font-medium">Meta</td>
+                                ${_paDias.map((_, dow) => {
+                                    const v = lookup[`${g.id}_${dow}`]?.meta_diaria || '';
+                                    return `<td class="px-1 py-1"><input type="number" min="0" value="${v}" data-gid="${g.id}" data-dow="${dow}" data-field="meta" class="pa-daily-input input-glass px-1.5 py-1 text-center text-xs text-slate-300 w-full"></td>`;
+                                }).join('')}
+                            </tr>
+                            <tr>
+                                <td class="text-slate-400 pr-3 py-1 font-medium">Fixo R$</td>
+                                ${_paDias.map((_, dow) => {
+                                    const v = lookup[`${g.id}_${dow}`]?.bonus_fixo || '';
+                                    return `<td class="px-1 py-1"><input type="number" min="0" step="0.01" value="${v}" data-gid="${g.id}" data-dow="${dow}" data-field="fixo" class="pa-daily-input input-glass px-1.5 py-1 text-center text-xs text-slate-300 w-full"></td>`;
+                                }).join('')}
+                            </tr>
+                            <tr>
+                                <td class="text-slate-400 pr-3 py-1 font-medium">Extra R$</td>
+                                ${_paDias.map((_, dow) => {
+                                    const v = lookup[`${g.id}_${dow}`]?.bonus_extra || '';
+                                    return `<td class="px-1 py-1"><input type="number" min="0" step="0.01" value="${v}" data-gid="${g.id}" data-dow="${dow}" data-field="extra" class="pa-daily-input input-glass px-1.5 py-1 text-center text-xs text-slate-300 w-full"></td>`;
+                                }).join('')}
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>`;
         });
 
-        let html = `<table class="w-full text-[11px]">
-            <thead>
-                <tr class="text-[9px] uppercase tracking-wider text-slate-500 border-b border-slate-700/20">
-                    <th class="text-left px-2 py-2 sticky left-0 bg-slate-900/95 z-10">Agente</th>`;
-        _paDias.forEach(d => {
-            html += `<th class="text-center px-1 py-2" colspan="3">${d}</th>`;
-        });
-        html += `</tr><tr class="text-[8px] text-slate-600 border-b border-slate-700/10">
-            <th class="sticky left-0 bg-slate-900/95 z-10"></th>`;
-        _paDias.forEach(() => {
-            html += '<th class="px-1">Meta</th><th class="px-1">Fixo</th><th class="px-1">Extra</th>';
-        });
-        html += '</tr></thead><tbody>';
-
-        agents.forEach(a => {
-            html += `<tr class="border-b border-slate-700/10"><td class="px-2 py-1.5 text-slate-300 font-medium sticky left-0 bg-slate-900/95 z-10 whitespace-nowrap">${a.name}</td>`;
-            for (let dow = 0; dow < 7; dow++) {
-                const key = `${a.kommo_uid}_${dow}`;
-                const val = lookup[key] || {};
-                html += `<td class="px-0.5"><input type="number" min="0" data-uid="${a.kommo_uid}" data-dow="${dow}" data-field="meta" value="${val.meta_diaria || 0}" class="pa-daily-input w-10 input-glass px-1 py-0.5 text-center text-[10px] text-slate-300"></td>`;
-                html += `<td class="px-0.5"><input type="number" min="0" step="0.01" data-uid="${a.kommo_uid}" data-dow="${dow}" data-field="fixo" value="${val.bonus_fixo || 0}" class="pa-daily-input w-12 input-glass px-1 py-0.5 text-center text-[10px] text-slate-300"></td>`;
-                html += `<td class="px-0.5"><input type="number" min="0" step="0.01" data-uid="${a.kommo_uid}" data-dow="${dow}" data-field="extra" value="${val.bonus_extra || 0}" class="pa-daily-input w-12 input-glass px-1 py-0.5 text-center text-[10px] text-slate-300"></td>`;
-            }
-            html += '</tr>';
-        });
-        html += '</tbody></table>';
         wrap.innerHTML = html;
-    } catch (e) {
-        wrap.innerHTML = `<p class="text-xs text-red-400">${e.message}</p>`;
+    } catch(e) {
+        console.error('paLoadDailyGrid', e);
+        wrap.innerHTML = '<p class="text-xs text-red-400">Erro ao carregar</p>';
     }
 }
 
-async function paAutoCalcDaily() {
-    const cid = document.getElementById('pa-daily-camp').value;
-    if (!cid) { toast('Selecione uma campanha primeiro', 'warning'); return; }
-
-    try {
-        const res = await api(`/api/premiacao/campanhas/${cid}/diarias/auto`, { method: 'POST' });
-        const d = await res.json();
-        if (!d.ok) { toast(d.error || 'Erro no cálculo', 'error'); return; }
-
-        document.getElementById('pa-auto-calc-info').classList.remove('hidden');
-
-        const calc = d.calculated || [];
-        calc.forEach(item => {
-            const metaInput = document.querySelector(`.pa-daily-input[data-uid="${item.kommo_user_id}"][data-dow="${item.dia_semana}"][data-field="meta"]`);
-            if (metaInput) metaInput.value = item.meta_diaria;
-        });
-
-        toast(`Metas calculadas para ${d.agents_count} agentes. Ajuste e salve.`, 'success');
-    } catch (e) { toast('Erro: ' + e.message, 'error'); }
-}
-
-async function paSaveDailyTargets() {
-    const cid = document.getElementById('pa-daily-camp').value;
-    if (!cid) { toast('Selecione uma campanha', 'warning'); return; }
+async function paSaveDailyGrupo() {
+    const cid = document.getElementById('pa-daily-camp')?.value;
+    if (!cid) { toast('Selecione uma campanha', 'error'); return; }
 
     const inputs = document.querySelectorAll('.pa-daily-input');
-    const dataMap = {};
+    const byKey = {};
     inputs.forEach(inp => {
-        const uid = inp.dataset.uid;
+        const gid = inp.dataset.gid;
         const dow = inp.dataset.dow;
         const field = inp.dataset.field;
-        const key = `${uid}_${dow}`;
-        if (!dataMap[key]) dataMap[key] = { kommo_user_id: parseInt(uid), dia_semana: parseInt(dow) };
-        if (field === 'meta') dataMap[key].meta_diaria = parseInt(inp.value) || 0;
-        if (field === 'fixo') dataMap[key].bonus_fixo = parseFloat(inp.value) || 0;
-        if (field === 'extra') dataMap[key].bonus_extra = parseFloat(inp.value) || 0;
+        const key = `${gid}_${dow}`;
+        if (!byKey[key]) byKey[key] = { grupo_id: parseInt(gid), dia_semana: parseInt(dow), meta_diaria: 0, bonus_fixo: 0, bonus_extra: 0 };
+        if (field === 'meta') byKey[key].meta_diaria = parseInt(inp.value || 0);
+        if (field === 'fixo') byKey[key].bonus_fixo = parseFloat(inp.value || 0);
+        if (field === 'extra') byKey[key].bonus_extra = parseFloat(inp.value || 0);
     });
 
-    const items = Object.values(dataMap).filter(d => d.meta_diaria > 0 || d.bonus_fixo > 0 || d.bonus_extra > 0);
-    try {
-        const res = await api(`/api/premiacao/campanhas/${cid}/diarias`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ items }),
-        });
-        const d = await res.json();
-        if (d.ok) toast('Metas diárias salvas', 'success');
-        else toast(d.error || 'Erro', 'error');
-    } catch (e) { toast('Erro: ' + e.message, 'error'); }
+    const items = Object.values(byKey).filter(i => i.meta_diaria > 0 || i.bonus_fixo > 0 || i.bonus_extra > 0);
+    if (!items.length) { toast('Nenhuma meta preenchida', 'error'); return; }
+
+    const res = await api(`/api/premiacao/campanhas/${cid}/diarias-grupo`, { method:'POST', body:JSON.stringify({ items }) });
+    if (res?.ok) { toast('PIX diário salvo!'); } else { toast(res?.error || 'Erro', 'error'); }
 }
 
-// ---------------------------------------------------------------------------
-// Upload recebimentos
-// ---------------------------------------------------------------------------
+/* ═══ D) Upload Recebimentos ═══ */
+
 async function paUploadRecebimentos(input) {
-    const file = input.files[0];
+    const file = input.files?.[0];
     if (!file) return;
-    const mesRef = document.getElementById('pa-receb-mes').value.trim();
+    const mesRef = document.getElementById('pa-receb-mes')?.value || '';
     const fd = new FormData();
     fd.append('file', file);
     fd.append('mes_ref', mesRef);
     const msg = document.getElementById('pa-receb-msg');
-    msg.className = 'mt-3 text-xs p-3 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20';
-    msg.textContent = 'Enviando...';
-    msg.classList.remove('hidden');
     try {
-        const res = await api('/api/recebimentos/upload', { method: 'POST', body: fd });
-        const d = await res.json();
-        if (d.ok) {
-            msg.className = 'mt-3 text-xs p-3 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
-            msg.textContent = `Upload concluído: ${d.rows} linhas importadas.`;
-        } else {
-            msg.className = 'mt-3 text-xs p-3 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20';
-            msg.textContent = d.error || 'Erro no upload';
+        const res = await fetch('/api/recebimentos/upload', { method:'POST', body:fd });
+        const data = await res.json();
+        if (msg) {
+            msg.classList.remove('hidden');
+            if (data.ok) {
+                msg.className = 'mt-3 text-xs p-3 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+                msg.textContent = `Upload concluído: ${data.rows} linhas importadas`;
+            } else {
+                msg.className = 'mt-3 text-xs p-3 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20';
+                msg.textContent = data.error || 'Erro no upload';
+            }
         }
-    } catch (e) {
-        msg.className = 'mt-3 text-xs p-3 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20';
-        msg.textContent = 'Erro: ' + e.message;
+    } catch(e) {
+        if (msg) {
+            msg.classList.remove('hidden');
+            msg.className = 'mt-3 text-xs p-3 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20';
+            msg.textContent = 'Erro de conexão';
+        }
     }
     input.value = '';
 }

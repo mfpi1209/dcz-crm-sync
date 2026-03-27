@@ -1,26 +1,23 @@
 """
 eduit. — Minha Performance / Premiação.
 
-Página individual do agente comercial com:
-- Aderência à meta atual
-- Premiação por tier (apurada ao fim da campanha)
-- Premiação diária (meta por dia da semana, por agente)
-- Premiação sobre recebimentos
-- Histórico de períodos
-- Painel admin para configurar campanhas
+Página individual do agente comercial + painel admin.
 
-Endpoints:
-  GET  /api/minha-performance              dados do agente (meta, matriculas, tier)
-  GET  /api/minha-performance/premiacao     cálculo completo de premiação
+Endpoints (agente):
+  GET  /api/minha-performance              dados do agente
+  GET  /api/minha-performance/premiacao     cálculo de premiação
   GET  /api/minha-performance/historico     períodos anteriores
-  GET  /api/minha-performance/agentes       lista de agentes (admin)
-  GET  /api/premiacao/campanhas             listar campanhas
-  POST /api/premiacao/campanhas             criar campanha
-  PUT  /api/premiacao/campanhas/<id>        editar campanha
-  DELETE /api/premiacao/campanhas/<id>      deletar campanha
-  GET  /api/premiacao/campanhas/<id>/diarias  metas diárias
-  POST /api/premiacao/campanhas/<id>/diarias  salvar metas diárias
-  POST /api/recebimentos/upload             upload CSV recebimentos
+  GET  /api/minha-performance/insights      livro motivacional
+
+Endpoints (admin):
+  GET  /api/minha-performance/agentes       lista de agentes
+  CRUD /api/premiacao/campanhas             campanhas
+  CRUD /api/premiacao/campanhas/<id>/grupos grupos de agentes
+  CRUD /api/premiacao/grupos/<id>           editar/deletar grupo
+  GET|POST /api/premiacao/campanhas/<id>/diarias-grupo  metas por grupo
+  GET|POST /api/premiacao/campanhas/<id>/diarias        metas legacy
+  POST /api/premiacao/campanhas/<id>/diarias/auto       auto-calc
+  POST /api/recebimentos/upload             upload CSV
   GET  /api/recebimentos                    listar snapshots
 """
 
@@ -223,18 +220,45 @@ def _get_tier_bonuses(campanha_id):
 
 
 def _get_daily_config(campanha_id, kommo_uid):
-    """Return daily targets/bonuses for an agent: {dia_semana: {meta, fixo, extra}}."""
+    """Return daily targets/bonuses for an agent via grupo membership.
+
+    Resolution order:
+    1. Find the grupo the agent belongs to in this campaign
+    2. Fetch meta_diaria rows for that grupo_id
+    3. Fallback: legacy rows with kommo_user_id (no grupo_id)
+    """
     try:
         conn = _pg()
         cur = conn.cursor()
+
         cur.execute("""
-            SELECT dia_semana, meta_diaria, bonus_fixo, bonus_extra
-            FROM premiacao_meta_diaria
-            WHERE campanha_id = %s AND kommo_user_id = %s
+            SELECT g.id FROM premiacao_grupo g
+            JOIN premiacao_grupo_membro gm ON gm.grupo_id = g.id
+            WHERE g.campanha_id = %s AND gm.kommo_user_id = %s
+            LIMIT 1
         """, (campanha_id, kommo_uid))
+        row = cur.fetchone()
+        grupo_id = row[0] if row else None
+
         result = {}
-        for r in cur.fetchall():
-            result[r[0]] = {"meta": r[1], "fixo": float(r[2]), "extra": float(r[3])}
+        if grupo_id:
+            cur.execute("""
+                SELECT dia_semana, meta_diaria, bonus_fixo, bonus_extra
+                FROM premiacao_meta_diaria
+                WHERE campanha_id = %s AND grupo_id = %s
+            """, (campanha_id, grupo_id))
+            for r in cur.fetchall():
+                result[r[0]] = {"meta": r[1], "fixo": float(r[2]), "extra": float(r[3])}
+
+        if not result:
+            cur.execute("""
+                SELECT dia_semana, meta_diaria, bonus_fixo, bonus_extra
+                FROM premiacao_meta_diaria
+                WHERE campanha_id = %s AND kommo_user_id = %s AND grupo_id IS NULL
+            """, (campanha_id, kommo_uid))
+            for r in cur.fetchall():
+                result[r[0]] = {"meta": r[1], "fixo": float(r[2]), "extra": float(r[3])}
+
         cur.close()
         conn.close()
         return result
@@ -669,22 +693,7 @@ def api_minha_insights():
     except Exception:
         pass
 
-    # Dynamic motivational message
-    if super_val > 0 and total_mat >= super_val:
-        mensagem = "Você está voando! Mantenha esse ritmo monstruoso."
-    elif meta_val > 0 and total_mat >= meta_val:
-        falta_s = max(0, super_val - total_mat) if super_val > 0 else 0
-        mensagem = f"Meta batida! Cada matrícula agora te aproxima da SUPERMETA. Faltam {falta_s}."
-    elif inter_val > 0 and total_mat >= inter_val:
-        falta_m = max(0, meta_val - total_mat)
-        mensagem = f"Bom ritmo! Faltam {falta_m} para a META. Bora acelerar?"
-    elif inter_val > 0:
-        falta_i = max(0, inter_val - total_mat)
-        mensagem = f"{falta_i} matrículas em {dias_restantes} dias para a Intermediária. Você consegue!"
-    else:
-        mensagem = "Campanha ativa! Cada matrícula conta."
-
-    # Tier bonus + daily bonus + receb for premiacao cards
+    # Tier bonus + daily bonus + receb
     tier_bonuses = _get_tier_bonuses(cid)
     tier_valor = tier_bonuses.get(tier, 0) if tier else 0
     tier_bonus_total = tier_valor * total_mat
@@ -719,12 +728,66 @@ def api_minha_insights():
     except Exception:
         pass
 
-    # Potential tier bonuses for "if you close at X tier..."
+    total_acumulado = tier_bonus_total + daily_bonus_total + receb_bonus_total
+
+    # Potenciais: what the agent WOULD earn at each tier with current matrículas
     potenciais = {}
     for t_name in ("intermediaria", "meta", "supermeta"):
         tv = tier_bonuses.get(t_name, 0)
         if tv > 0:
-            potenciais[t_name] = round(tv * total_mat, 2)
+            potenciais[t_name] = {
+                "valor_por_mat": tv,
+                "total_tier": round(tv * total_mat, 2),
+                "total_com_diaria": round(tv * total_mat + daily_bonus_total + receb_bonus_total, 2),
+            }
+
+    # "Desbloqueie mais": tiers not yet reached, showing what they'd gain
+    desbloqueie = []
+    tier_order = [("intermediaria", inter_val), ("meta", meta_val), ("supermeta", super_val)]
+    for t_name, t_target in tier_order:
+        if t_target <= 0:
+            continue
+        tv = tier_bonuses.get(t_name, 0)
+        if tv <= 0:
+            continue
+        falta = max(0, t_target - total_mat)
+        ganho_tier = tv * total_mat
+        ganho_extra = ganho_tier - tier_bonus_total
+        desbloqueie.append({
+            "tier": t_name,
+            "target": t_target,
+            "falta": falta,
+            "atingido": falta == 0,
+            "valor_por_mat": tv,
+            "ganho_total": round(ganho_tier, 2),
+            "ganho_adicional": round(max(0, ganho_extra), 2),
+        })
+
+    # Projeção financeira
+    proj_tier = _determine_tier(projecao, metas)
+    proj_tier_valor = tier_bonuses.get(proj_tier, 0) if proj_tier else 0
+    projecao_financeira = round(proj_tier_valor * projecao + daily_bonus_total + receb_bonus_total, 2)
+
+    # Dynamic motivational message (money-centric)
+    if super_val > 0 and total_mat >= super_val:
+        mensagem = f"SUPERMETA! Cada nova matrícula = +R$ {tier_bonuses.get('supermeta', 0):.0f}. Continue!"
+    elif meta_val > 0 and total_mat >= meta_val:
+        falta_s = max(0, super_val - total_mat) if super_val > 0 else 0
+        sv = tier_bonuses.get("supermeta", 0)
+        ganho_extra = round((sv - tier_valor) * total_mat, 2) if sv > tier_valor else 0
+        mensagem = f"Meta batida! Faltam {falta_s} para SUPERMETA (+R$ {ganho_extra:,.0f})."
+    elif inter_val > 0 and total_mat >= inter_val:
+        falta_m = max(0, meta_val - total_mat)
+        mv = tier_bonuses.get("meta", 0)
+        ganho_extra = round((mv - tier_valor) * total_mat, 2) if mv > tier_valor else 0
+        mensagem = f"Faltam {falta_m} para a META e +R$ {ganho_extra:,.0f} no bolso!"
+    elif inter_val > 0:
+        falta_i = max(0, inter_val - total_mat)
+        iv = tier_bonuses.get("intermediaria", 0)
+        ganho = round(iv * total_mat, 2)
+        mensagem = f"{falta_i} matrículas para a Intermediária e garantir R$ {ganho:,.0f}!"
+    else:
+        mensagem = "Campanha ativa! Cada matrícula conta."
 
     agent_name = ""
     try:
@@ -758,6 +821,7 @@ def api_minha_insights():
         "pace_super": pace_super,
         "projecao": projecao,
         "projecao_tier": projecao_tier,
+        "projecao_financeira": projecao_financeira,
         "dias_restantes": dias_restantes,
         "dias_uteis_restantes": dias_uteis_restantes,
         "hoje": {
@@ -780,8 +844,9 @@ def api_minha_insights():
             "daily_breakdown": breakdown,
             "receb_bonus": round(receb_bonus_total, 2),
             "receb_total_valor": round(receb_total_valor, 2),
-            "total": round(tier_bonus_total + daily_bonus_total + receb_bonus_total, 2),
+            "total": round(total_acumulado, 2),
             "potenciais": potenciais,
+            "desbloqueie": desbloqueie,
         },
         "matriculas": [{
             "rgm": m.get("rgm"),
@@ -942,7 +1007,167 @@ def api_campanhas_delete(cid):
 
 
 # ---------------------------------------------------------------------------
-# API: Metas diárias (admin)
+# API: Grupos de agentes (admin)
+# ---------------------------------------------------------------------------
+
+@minha_performance_bp.route("/api/premiacao/campanhas/<int:cid>/grupos", methods=["GET"])
+def api_grupos_list(cid):
+    if not _is_admin():
+        return jsonify({"error": "Sem permissão"}), 403
+    try:
+        conn = _pg()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT id, nome FROM premiacao_grupo WHERE campanha_id = %s ORDER BY nome", (cid,))
+        grupos = []
+        for g in cur.fetchall():
+            g = dict(g)
+            cur.execute("""
+                SELECT gm.kommo_user_id FROM premiacao_grupo_membro gm
+                WHERE gm.grupo_id = %s ORDER BY gm.kommo_user_id
+            """, (g["id"],))
+            g["membros"] = [r["kommo_user_id"] for r in cur.fetchall()]
+            grupos.append(g)
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True, "grupos": grupos})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@minha_performance_bp.route("/api/premiacao/campanhas/<int:cid>/grupos", methods=["POST"])
+def api_grupos_create(cid):
+    if not _is_admin():
+        return jsonify({"error": "Sem permissão"}), 403
+    body = request.json or {}
+    nome = body.get("nome", "").strip()
+    membros = body.get("membros", [])
+    if not nome:
+        return jsonify({"error": "Nome do grupo é obrigatório"}), 400
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO premiacao_grupo (campanha_id, nome) VALUES (%s, %s) RETURNING id",
+            (cid, nome),
+        )
+        gid = cur.fetchone()[0]
+        for uid in membros:
+            cur.execute(
+                "INSERT INTO premiacao_grupo_membro (grupo_id, kommo_user_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                (gid, int(uid)),
+            )
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True, "id": gid})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@minha_performance_bp.route("/api/premiacao/grupos/<int:gid>", methods=["PUT"])
+def api_grupos_update(gid):
+    if not _is_admin():
+        return jsonify({"error": "Sem permissão"}), 403
+    body = request.json or {}
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        if "nome" in body:
+            cur.execute("UPDATE premiacao_grupo SET nome = %s WHERE id = %s", (body["nome"].strip(), gid))
+        if "membros" in body:
+            cur.execute("DELETE FROM premiacao_grupo_membro WHERE grupo_id = %s", (gid,))
+            for uid in body["membros"]:
+                cur.execute(
+                    "INSERT INTO premiacao_grupo_membro (grupo_id, kommo_user_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                    (gid, int(uid)),
+                )
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@minha_performance_bp.route("/api/premiacao/grupos/<int:gid>", methods=["DELETE"])
+def api_grupos_delete(gid):
+    if not _is_admin():
+        return jsonify({"error": "Sem permissão"}), 403
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM premiacao_meta_diaria WHERE grupo_id = %s", (gid,))
+        cur.execute("DELETE FROM premiacao_grupo WHERE id = %s", (gid,))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# API: Metas diárias por grupo (admin)
+# ---------------------------------------------------------------------------
+
+@minha_performance_bp.route("/api/premiacao/campanhas/<int:cid>/diarias-grupo", methods=["GET"])
+def api_diarias_grupo_get(cid):
+    if not _is_admin():
+        return jsonify({"error": "Sem permissão"}), 403
+    try:
+        conn = _pg()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT grupo_id, dia_semana, meta_diaria, bonus_fixo, bonus_extra
+            FROM premiacao_meta_diaria
+            WHERE campanha_id = %s AND grupo_id IS NOT NULL
+            ORDER BY grupo_id, dia_semana
+        """, (cid,))
+        rows = [dict(r) for r in cur.fetchall()]
+        for r in rows:
+            r["bonus_fixo"] = float(r["bonus_fixo"])
+            r["bonus_extra"] = float(r["bonus_extra"])
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True, "diarias": rows})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@minha_performance_bp.route("/api/premiacao/campanhas/<int:cid>/diarias-grupo", methods=["POST"])
+def api_diarias_grupo_save(cid):
+    """Save daily metas for groups. Replaces all grupo-based rows for this campaign."""
+    if not _is_admin():
+        return jsonify({"error": "Sem permissão"}), 403
+    body = request.json or {}
+    items = body.get("items", [])
+    if not items:
+        return jsonify({"error": "Nenhum item enviado"}), 400
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM premiacao_meta_diaria WHERE campanha_id = %s AND grupo_id IS NOT NULL", (cid,))
+        for item in items:
+            gid = int(item["grupo_id"])
+            dow = int(item["dia_semana"])
+            meta = int(item.get("meta_diaria", 0))
+            fixo = float(item.get("bonus_fixo", 0))
+            extra = float(item.get("bonus_extra", 0))
+            if meta > 0 or fixo > 0 or extra > 0:
+                cur.execute("""
+                    INSERT INTO premiacao_meta_diaria (campanha_id, grupo_id, kommo_user_id, dia_semana, meta_diaria, bonus_fixo, bonus_extra)
+                    VALUES (%s, %s, 0, %s, %s, %s, %s)
+                """, (cid, gid, dow, meta, fixo, extra))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# API: Metas diárias legacy (admin)
 # ---------------------------------------------------------------------------
 
 @minha_performance_bp.route("/api/premiacao/campanhas/<int:cid>/diarias", methods=["GET"])
