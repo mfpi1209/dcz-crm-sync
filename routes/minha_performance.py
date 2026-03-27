@@ -222,11 +222,11 @@ def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
         if n and uid:
             rgm_to_uid[n] = uid
 
-    # Also count aceites per agent (leads in Aceite stage — status_id is globally unique)
+    # Count aceites per agent (leads in Aceite stage)
     kcur.execute("""
         SELECT responsible_user_id, COUNT(*)
         FROM leads
-        WHERE status_id = %s AND NOT is_deleted
+        WHERE status_id = %s
           AND responsible_user_id IS NOT NULL
         GROUP BY responsible_user_id
     """, (ACEITE_STATUS_ID,))
@@ -756,11 +756,11 @@ def api_minha_insights():
     try:
         kconn_ac = _pg_kommo()
         kcur_ac = kconn_ac.cursor()
+        # Count ALL leads in aceite stage (including soft-deleted, since Kommo UI may still show them)
         kcur_ac.execute("""
             SELECT COUNT(*) FROM leads
             WHERE responsible_user_id = %s
               AND status_id = %s
-              AND NOT is_deleted
         """, (kommo_uid, ACEITE_STATUS_ID))
         aceites_fila = kcur_ac.fetchone()[0] or 0
         today_ts = int(datetime.combine(today, datetime.min.time()).timestamp())
@@ -768,10 +768,10 @@ def api_minha_insights():
             SELECT COUNT(*) FROM leads
             WHERE responsible_user_id = %s
               AND status_id = %s
-              AND NOT is_deleted
               AND updated_at >= %s
         """, (kommo_uid, ACEITE_STATUS_ID, today_ts))
         aceites_hoje = kcur_ac.fetchone()[0] or 0
+        logger.info("Aceites uid=%s: fila=%d, hoje=%d (status=%s)", kommo_uid, aceites_fila, aceites_hoje, ACEITE_STATUS_ID)
         kcur_ac.close()
         kconn_ac.close()
     except Exception as e:

@@ -184,42 +184,58 @@ function _mpRenderHero(d) {
     const msgEl = el('mp-hero-msg');
     if (msgEl) msgEl.innerHTML = d.mensagem || '';
 
-    // Termômetro de progresso por tier
+    // Termômetro segmentado por tier
     const thermo = document.getElementById('mp-hero-thermo');
     if (thermo) {
         const inter = metas.intermediaria || 0;
-        const meta = metas.meta || 0;
+        const metaVal = metas.meta || 0;
         const sup = metas.supermeta || 0;
-        const maxTarget = sup || meta || inter || totalMat || 1;
-        const scale = Math.max(maxTarget, totalMat) * 1.05;
 
-        const markers = [];
-        if (inter > 0) markers.push({ label: 'Inter', val: inter, color: '#f97316' });
-        if (meta > 0) markers.push({ label: 'Meta', val: meta, color: '#94a3b8' });
-        if (sup > 0) markers.push({ label: 'Super', val: sup, color: '#f59e0b' });
+        const segments = [];
+        let prev = 0;
+        if (inter > 0) { segments.push({ label: 'Intermediária', from: prev, to: inter, color: '#f97316', colorDim: '#7c2d12', emoji: '🟠' }); prev = inter; }
+        if (metaVal > 0) { segments.push({ label: 'Meta', from: prev, to: metaVal, color: '#3b82f6', colorDim: '#1e3a5f', emoji: '🔵' }); prev = metaVal; }
+        if (sup > 0) { segments.push({ label: 'Supermeta', from: prev, to: sup, color: '#f59e0b', colorDim: '#78350f', emoji: '🏆' }); prev = sup; }
 
-        const pctAgent = Math.min(100, (totalMat / scale) * 100);
+        if (!segments.length) { thermo.innerHTML = ''; return; }
 
-        let barColor = '#64748b';
-        if (tier === 'supermeta') barColor = '#f59e0b';
-        else if (tier === 'meta') barColor = '#94a3b8';
-        else if (tier === 'intermediaria') barColor = '#f97316';
+        const maxVal = segments[segments.length - 1].to;
+        const scale = Math.max(maxVal, totalMat) * 1.02;
 
-        const markerHtml = markers.map(m => {
-            const left = Math.min(98, (m.val / scale) * 100);
-            const reached = totalMat >= m.val;
-            return `<div class="absolute" style="left:${left}%">
-                <div class="w-0.5 h-5 -mt-1" style="background:${reached ? m.color : 'rgba(255,255,255,0.15)'}"></div>
-                <span class="absolute -translate-x-1/2 text-[9px] font-bold mt-0.5 whitespace-nowrap" style="color:${reached ? m.color : 'rgba(255,255,255,0.3)'}">${m.label} (${m.val})</span>
+        const segsHtml = segments.map(seg => {
+            const widthPct = ((seg.to - seg.from) / scale) * 100;
+            const filled = totalMat >= seg.to;
+            const partial = !filled && totalMat > seg.from;
+            const partialPct = partial ? ((totalMat - seg.from) / (seg.to - seg.from)) * 100 : 0;
+
+            const bgStyle = filled
+                ? `background:${seg.color};box-shadow:0 0 12px ${seg.color}66`
+                : `background:${seg.colorDim}`;
+
+            const innerBar = partial
+                ? `<div class="h-full rounded-sm" style="width:${partialPct}%;background:${seg.color};box-shadow:0 0 8px ${seg.color}55"></div>`
+                : '';
+
+            const labelColor = filled ? '#fff' : (partial ? seg.color : 'rgba(255,255,255,0.35)');
+            const targetColor = filled ? 'rgba(255,255,255,0.7)' : (partial ? seg.color : 'rgba(255,255,255,0.25)');
+
+            return `<div class="flex flex-col items-center" style="width:${widthPct}%">
+                <div class="w-full h-4 rounded-sm overflow-hidden" style="${bgStyle}">${innerBar}</div>
+                <span class="text-[11px] font-extrabold mt-1.5 whitespace-nowrap" style="color:${labelColor}">${seg.emoji} ${seg.label}</span>
+                <span class="text-[10px] font-bold" style="color:${targetColor}">${seg.to} mat</span>
             </div>`;
         }).join('');
 
+        const agentPct = Math.min(100, (totalMat / scale) * 100);
+        const pinColor = tier === 'supermeta' ? '#f59e0b' : (tier === 'meta' ? '#3b82f6' : (tier === 'intermediaria' ? '#f97316' : '#10b981'));
+
         thermo.innerHTML = `
-            <div class="relative h-3 bg-white/10 rounded-full overflow-visible mt-1 mb-6">
-                <div class="h-full rounded-full transition-all duration-1000 relative" style="width:${pctAgent}%;background:${barColor}">
-                    <div class="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 border-white shadow-lg" style="background:${barColor}"></div>
+            <div class="relative mt-2 mb-2">
+                <div class="flex gap-1">${segsHtml}</div>
+                <div class="absolute top-0 h-4 pointer-events-none" style="left:${agentPct}%">
+                    <div class="w-0.5 h-6 -mt-1 rounded-full" style="background:${pinColor};box-shadow:0 0 6px ${pinColor}"></div>
+                    <div class="absolute -top-5 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-black text-white whitespace-nowrap" style="background:${pinColor}">${totalMat}</div>
                 </div>
-                ${markerHtml}
             </div>`;
     }
 }
@@ -371,7 +387,7 @@ function _mpRenderPixDia(d) {
     const fixo = hoje.bonus_fixo || 0;
     const extra = hoje.bonus_extra || 0;
 
-    const efetivo = feitas + aceitesHoje;
+    const efetivo = feitas + aceitesFila;
     const pct = meta > 0 ? Math.min(efetivo / meta, 1) : 0;
     const circum = 314.16;
     const offset = circum * (1 - pct);
@@ -392,11 +408,11 @@ function _mpRenderPixDia(d) {
     const aceitesBadge = document.getElementById('mp-aceites-badge');
 
     if (aceitesBadge) {
-        if (aceitesFila > 0 || aceitesHoje > 0) {
+        if (aceitesFila > 0) {
             aceitesBadge.classList.remove('hidden');
             aceitesBadge.innerHTML = `
                 <span class="material-symbols-outlined text-sm text-purple-400">pending</span>
-                <span class="text-[10px] text-purple-300 font-medium">${aceitesHoje > 0 ? aceitesHoje + ' aceite' + (aceitesHoje > 1 ? 's' : '') + ' hoje' : ''}${aceitesHoje > 0 && aceitesFila > aceitesHoje ? ' · ' : ''}${aceitesFila > aceitesHoje ? aceitesFila + ' na fila total' : ''}</span>
+                <span class="text-[10px] text-purple-300 font-medium">${aceitesFila} aceite${aceitesFila > 1 ? 's' : ''} na fila${aceitesHoje > 0 ? ' (' + aceitesHoje + ' novo' + (aceitesHoje > 1 ? 's' : '') + ' hoje)' : ''}</span>
             `;
         } else {
             aceitesBadge.classList.add('hidden');
@@ -431,16 +447,16 @@ function _mpRenderPixDia(d) {
         const ganho = fixo + extra * Math.max(0, efetivo - meta);
         if (status) { status.textContent = '🎉 PIX Garantido!'; status.className = 'text-base font-bold text-emerald-400 mb-1'; }
         const parts = [];
-        if (feitas > 0) parts.push(`${feitas} matrícula${feitas > 1 ? 's' : ''}`);
-        if (aceitesHoje > 0) parts.push(`${aceitesHoje} aceite${aceitesHoje > 1 ? 's' : ''}`);
+        if (feitas > 0) parts.push(`${feitas} mat`);
+        if (aceitesFila > 0) parts.push(`${aceitesFila} aceite${aceitesFila > 1 ? 's' : ''}`);
         if (detail) detail.innerHTML = (efetivo > meta
-            ? `Meta batida! ${parts.join(' + ')} · +${efetivo - meta} extra × ${_mpFmt(extra)} cada`
+            ? `Meta batida! ${parts.join(' + ')} = ${efetivo} · +${efetivo - meta} extra × ${_mpFmt(extra)} cada`
             : `Parabéns! ${parts.join(' + ')} = meta batida!`) + yesterdayHtml;
         if (valor) valor.textContent = _mpFmt(ganho);
     } else {
         const falta = meta - efetivo;
         if (status) { status.textContent = `Faltam ${falta} para o PIX!`; status.className = 'text-base font-bold text-cyan-400 mb-1'; }
-        if (detail) detail.innerHTML = `${feitas} matrícula${feitas !== 1 ? 's' : ''} + ${aceitesHoje} aceite${aceitesHoje !== 1 ? 's' : ''} = ${efetivo}/${meta}` + yesterdayHtml;
+        if (detail) detail.innerHTML = `${feitas} mat + ${aceitesFila} aceite${aceitesFila !== 1 ? 's' : ''} = ${efetivo}/${meta}` + yesterdayHtml;
         if (valor) valor.textContent = `Prêmio: ${_mpFmt(fixo)}`;
     }
 }
