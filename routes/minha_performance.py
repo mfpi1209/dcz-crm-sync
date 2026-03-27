@@ -968,6 +968,105 @@ def api_diarias_get(cid):
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@minha_performance_bp.route("/api/premiacao/campanhas/<int:cid>/diarias/auto", methods=["POST"])
+def api_diarias_auto_calc(cid):
+    """Auto-calculate daily targets based on each agent's meta and working days.
+
+    Mon-Fri = 1.0 effective day, Sat = 0.5, Sun = 0.
+    Daily target = ceil(meta / effective_days) for weekdays,
+                   ceil(meta / effective_days * 0.5) for Saturday.
+    """
+    if not _is_admin():
+        return jsonify({"error": "Sem permissão"}), 403
+
+    import math
+
+    try:
+        conn = _pg()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT * FROM premiacao_campanha WHERE id = %s", (cid,))
+        camp = cur.fetchone()
+        if not camp:
+            cur.close()
+            conn.close()
+            return jsonify({"ok": False, "error": "Campanha não encontrada"}), 404
+
+        dt_ini = camp["dt_inicio"]
+        dt_fim = camp["dt_fim"]
+
+        weekdays = 0
+        saturdays = 0
+        d = dt_ini
+        while d <= dt_fim:
+            if d.weekday() < 5:
+                weekdays += 1
+            elif d.weekday() == 5:
+                saturdays += 1
+            d += timedelta(days=1)
+
+        effective_days = weekdays + saturdays * 0.5
+        if effective_days <= 0:
+            cur.close()
+            conn.close()
+            return jsonify({"ok": False, "error": "Período sem dias úteis"}), 400
+
+        kconn = _pg_kommo()
+        kcur = kconn.cursor()
+        kcur.execute("""
+            SELECT DISTINCT u.id, u.name
+            FROM users u
+            JOIN leads l ON l.responsible_user_id = u.id AND NOT l.is_deleted
+            WHERE u.name IS NOT NULL AND u.name != ''
+            ORDER BY u.name
+        """)
+        agents = [{"kommo_uid": r[0], "name": r[1]} for r in kcur.fetchall()]
+        kcur.close()
+        kconn.close()
+
+        calculated = []
+        agents_with_meta = 0
+
+        for agent in agents:
+            uid = agent["kommo_uid"]
+            metas = _get_agent_metas(uid, str(dt_ini), str(dt_fim))
+            meta_val = metas.get("meta", 0)
+            if meta_val <= 0:
+                continue
+
+            agents_with_meta += 1
+            daily_rate = meta_val / effective_days
+
+            for dow in range(7):
+                if dow < 5:
+                    target = math.ceil(daily_rate)
+                elif dow == 5:
+                    target = math.ceil(daily_rate * 0.5)
+                else:
+                    target = 0
+
+                if target > 0:
+                    calculated.append({
+                        "kommo_user_id": uid,
+                        "dia_semana": dow,
+                        "meta_diaria": target,
+                    })
+
+        cur.close()
+        conn.close()
+
+        return jsonify({
+            "ok": True,
+            "agents_count": agents_with_meta,
+            "effective_days": effective_days,
+            "weekdays": weekdays,
+            "saturdays": saturdays,
+            "calculated": calculated,
+        })
+    except Exception as e:
+        logger.error("Auto-calc daily error: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @minha_performance_bp.route("/api/premiacao/campanhas/<int:cid>/diarias", methods=["POST"])
 def api_diarias_save(cid):
     if not _is_admin():

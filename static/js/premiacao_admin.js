@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 const _paFmt = v => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const _paDias = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+let _paCampanhasData = [];
 
 function _paFmtDateBR(s) {
     if (!s) return '';
@@ -57,8 +58,10 @@ async function _paLoadCampanhas() {
             wrap.innerHTML = '<p class="text-xs text-slate-600">Nenhuma campanha criada</p>';
             return;
         }
+        _paCampanhasData = d.campanhas;
         wrap.innerHTML = d.campanhas.map(c => {
             const tiers = c.tiers || {};
+            const receb = (c.receb_regras || [])[0] || {};
             const ativaLabel = c.ativa
                 ? '<span class="text-[9px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full font-bold">Ativa</span>'
                 : '<span class="text-[9px] bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded-full">Inativa</span>';
@@ -76,6 +79,7 @@ async function _paLoadCampanhas() {
                     </p>
                 </div>
                 <div class="flex gap-2">
+                    <button onclick="paEditCampanha(${c.id})" class="text-[10px] text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 px-2 py-1 rounded transition-all">Editar</button>
                     <button onclick="paToggleCampanha(${c.id}, ${c.ativa})" class="text-[10px] text-slate-400 hover:text-white border border-slate-700 px-2 py-1 rounded transition-all">
                         ${c.ativa ? 'Desativar' : 'Ativar'}
                     </button>
@@ -148,6 +152,118 @@ async function paDeleteCampanha(cid) {
 }
 
 // ---------------------------------------------------------------------------
+// Editar campanha (modal)
+// ---------------------------------------------------------------------------
+function paEditCampanha(cid) {
+    const c = _paCampanhasData.find(x => x.id === cid);
+    if (!c) return;
+    const tiers = c.tiers || {};
+    const receb = (c.receb_regras || [])[0] || {};
+
+    const modal = document.createElement('div');
+    modal.id = 'pa-edit-modal';
+    modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4';
+    modal.onclick = e => { if (e.target === modal) modal.remove(); };
+    modal.innerHTML = `
+        <div class="glass-card w-full max-w-lg max-h-[90vh] overflow-y-auto" style="background:rgba(15,23,42,0.97)" onclick="event.stopPropagation()">
+            <div class="sticky top-0 z-10 px-5 py-3 border-b border-slate-700/30 bg-slate-900/95 backdrop-blur flex items-center justify-between">
+                <h3 class="text-sm font-bold text-white font-display">Editar Campanha</h3>
+                <button onclick="document.getElementById('pa-edit-modal').remove()" class="text-slate-500 hover:text-white transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="p-5 space-y-4">
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-[10px] text-slate-500 mb-1">Nome</label>
+                        <input type="text" id="pa-ed-nome" value="${c.nome}" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-slate-500 mb-1">Início</label>
+                        <input type="date" id="pa-ed-ini" value="${c.dt_inicio}" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-slate-500 mb-1">Fim</label>
+                        <input type="date" id="pa-ed-fim" value="${c.dt_fim}" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
+                    </div>
+                </div>
+                <p class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Valor por matrícula ao atingir tier</p>
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-[10px] text-slate-500 mb-1">Intermediária (R$)</label>
+                        <input type="number" id="pa-ed-tier-inter" value="${tiers.intermediaria || 0}" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-slate-500 mb-1">Meta (R$)</label>
+                        <input type="number" id="pa-ed-tier-meta" value="${tiers.meta || 0}" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-slate-500 mb-1">Supermeta (R$)</label>
+                        <input type="number" id="pa-ed-tier-super" value="${tiers.supermeta || 0}" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
+                    </div>
+                </div>
+                <p class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Regra sobre Recebimentos</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[10px] text-slate-500 mb-1">Modo</label>
+                        <select id="pa-ed-receb-modo" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
+                            <option value="percentual" ${receb.modo === 'percentual' ? 'selected' : ''}>Percentual</option>
+                            <option value="fixo" ${receb.modo === 'fixo' ? 'selected' : ''}>Fixo (R$)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-slate-500 mb-1">Valor</label>
+                        <input type="number" id="pa-ed-receb-valor" value="${receb.valor || 0}" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
+                    </div>
+                </div>
+                <div class="flex gap-3 pt-2 border-t border-slate-700/20">
+                    <button onclick="paSaveEditCampanha(${cid})" class="btn-primary text-xs px-5 py-2 rounded-lg font-medium">Salvar</button>
+                    <button onclick="document.getElementById('pa-edit-modal').remove()" class="btn-secondary text-xs px-4 py-2 rounded-lg">Cancelar</button>
+                </div>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+}
+
+async function paSaveEditCampanha(cid) {
+    const nome = document.getElementById('pa-ed-nome').value.trim();
+    const dt_inicio = document.getElementById('pa-ed-ini').value;
+    const dt_fim = document.getElementById('pa-ed-fim').value;
+    if (!nome || !dt_inicio || !dt_fim) { toast('Preencha nome e datas', 'warning'); return; }
+
+    const tiers = {};
+    const inter = parseFloat(document.getElementById('pa-ed-tier-inter').value) || 0;
+    const meta = parseFloat(document.getElementById('pa-ed-tier-meta').value) || 0;
+    const sup = parseFloat(document.getElementById('pa-ed-tier-super').value) || 0;
+    if (inter > 0) tiers.intermediaria = inter;
+    if (meta > 0) tiers.meta = meta;
+    if (sup > 0) tiers.supermeta = sup;
+
+    const receb_regras = [];
+    const rv = parseFloat(document.getElementById('pa-ed-receb-valor').value) || 0;
+    if (rv > 0) {
+        receb_regras.push({
+            tier: 'qualquer',
+            modo: document.getElementById('pa-ed-receb-modo').value,
+            valor: rv,
+        });
+    }
+
+    try {
+        const res = await api(`/api/premiacao/campanhas/${cid}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nome, dt_inicio, dt_fim, tiers, receb_regras }),
+        });
+        const d = await res.json();
+        if (d.error) { toast(d.error, 'error'); return; }
+        toast('Campanha atualizada', 'success');
+        document.getElementById('pa-edit-modal').remove();
+        _paLoadCampanhas();
+    } catch (e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+// ---------------------------------------------------------------------------
 // Metas diárias grid
 // ---------------------------------------------------------------------------
 let _paDailyAgents = [];
@@ -202,6 +318,27 @@ async function paLoadDailyGrid() {
     } catch (e) {
         wrap.innerHTML = `<p class="text-xs text-red-400">${e.message}</p>`;
     }
+}
+
+async function paAutoCalcDaily() {
+    const cid = document.getElementById('pa-daily-camp').value;
+    if (!cid) { toast('Selecione uma campanha primeiro', 'warning'); return; }
+
+    try {
+        const res = await api(`/api/premiacao/campanhas/${cid}/diarias/auto`, { method: 'POST' });
+        const d = await res.json();
+        if (!d.ok) { toast(d.error || 'Erro no cálculo', 'error'); return; }
+
+        document.getElementById('pa-auto-calc-info').classList.remove('hidden');
+
+        const calc = d.calculated || [];
+        calc.forEach(item => {
+            const metaInput = document.querySelector(`.pa-daily-input[data-uid="${item.kommo_user_id}"][data-dow="${item.dia_semana}"][data-field="meta"]`);
+            if (metaInput) metaInput.value = item.meta_diaria;
+        });
+
+        toast(`Metas calculadas para ${d.agents_count} agentes. Ajuste e salve.`, 'success');
+    } catch (e) { toast('Erro: ' + e.message, 'error'); }
 }
 
 async function paSaveDailyTargets() {
