@@ -1,6 +1,11 @@
 /* ═══════════════  Minha Performance — Book Motivacional  ═══════════════ */
 
 let _mpChartDaily = null;
+let _mpSelectedUid = null;
+let _mpMyUid = null;
+let _mpIsAdmin = false;
+let _mpAgentsLoaded = false;
+
 const _mpFmt = v => Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const _mpFmtN = v => Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
 const _mpDias = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
@@ -11,31 +16,54 @@ function _mpFmtDate(d) {
     return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : d;
 }
 
+function navigateToPerformance(kommoUid) {
+    _mpSelectedUid = kommoUid || null;
+    navigate('minha_performance', { uid: kommoUid });
+}
+
 /* ── Entry ── */
-async function loadMinhaPerformance() {
+async function loadMinhaPerformance(params) {
+    if (params?.uid) _mpSelectedUid = Number(params.uid);
+
     const loading = document.getElementById('mp-loading');
     const noLink = document.getElementById('mp-no-link');
     const noCamp = document.getElementById('mp-no-campanha');
     const content = document.getElementById('mp-content');
+    const adminBar = document.getElementById('mp-admin-bar');
     [loading, noLink, noCamp, content].forEach(el => { if(el) el.classList.add('hidden'); });
     if (loading) loading.classList.remove('hidden');
 
     try {
-        const me = await api('/api/me');
+        const meRes = await api('/api/me');
+        const me = await meRes.json();
         const kommoUid = me?.kommo_user_id;
-        const isAdmin = me?.role === 'admin';
+        _mpIsAdmin = me?.role === 'admin';
+        _mpMyUid = kommoUid;
 
-        if (!kommoUid && !isAdmin) {
+        if (_mpIsAdmin && adminBar) {
+            adminBar.classList.remove('hidden');
+            _mpLoadAgentSelector();
+        } else if (adminBar) {
+            adminBar.classList.add('hidden');
+        }
+
+        const effectiveUid = (_mpIsAdmin && _mpSelectedUid) ? _mpSelectedUid : kommoUid;
+
+        if (!effectiveUid && !_mpIsAdmin) {
             if (loading) loading.classList.add('hidden');
             if (noLink) noLink.classList.remove('hidden');
             return;
         }
 
-        const qs = kommoUid ? `?kommo_uid=${kommoUid}` : '';
-        const [insights, histRes] = await Promise.all([
+        _mpUpdateAdminViewingState(effectiveUid);
+
+        const qs = effectiveUid ? `?kommo_uid=${effectiveUid}` : '';
+        const [insightsRes, histRes] = await Promise.all([
             api(`/api/minha-performance/insights${qs}`),
             api(`/api/minha-performance/historico${qs}`),
         ]);
+        const insights = await insightsRes.json();
+        const hist = await histRes.json();
 
         if (loading) loading.classList.add('hidden');
 
@@ -54,13 +82,63 @@ async function loadMinhaPerformance() {
         _mpRenderFinanceiro(insights);
         _mpRenderTimeline(insights);
         _mpRenderTable(insights);
-        _mpRenderHistorico(histRes?.historico || []);
+        _mpRenderHistorico(hist?.historico || []);
 
     } catch(e) {
         console.error('loadMinhaPerformance', e);
         if (loading) loading.classList.add('hidden');
         if (noCamp) { noCamp.classList.remove('hidden'); noCamp.querySelector('p').textContent = 'Erro ao carregar dados.'; }
     }
+}
+
+/* ── Admin: agent selector ── */
+async function _mpLoadAgentSelector() {
+    if (_mpAgentsLoaded) return;
+    const sel = document.getElementById('mp-agent-select');
+    if (!sel) return;
+    try {
+        const res = await api('/api/minha-performance/agentes');
+        const d = await res.json();
+        const agents = d?.agentes || [];
+        sel.innerHTML = '<option value="">Selecione um agente...</option>' +
+            agents.map(a => `<option value="${a.kommo_uid}">${a.name}</option>`).join('');
+        if (_mpSelectedUid) sel.value = String(_mpSelectedUid);
+        _mpAgentsLoaded = true;
+    } catch(e) { console.error('_mpLoadAgentSelector', e); }
+}
+
+function _mpUpdateAdminViewingState(effectiveUid) {
+    const backBtn = document.getElementById('mp-admin-back');
+    const viewing = document.getElementById('mp-admin-viewing');
+    const sel = document.getElementById('mp-agent-select');
+    if (!_mpIsAdmin) return;
+
+    const isViewingOther = effectiveUid && effectiveUid !== _mpMyUid;
+    if (backBtn) backBtn.classList.toggle('hidden', !isViewingOther);
+
+    if (sel && effectiveUid) sel.value = String(effectiveUid);
+
+    if (viewing && isViewingOther) {
+        const opt = sel?.querySelector(`option[value="${effectiveUid}"]`);
+        viewing.textContent = opt ? `Visualizando: ${opt.textContent}` : `Visualizando: ID ${effectiveUid}`;
+        viewing.classList.remove('hidden');
+    } else if (viewing) {
+        viewing.classList.add('hidden');
+    }
+}
+
+function mpAdminSelectAgent() {
+    const sel = document.getElementById('mp-agent-select');
+    const uid = sel?.value ? Number(sel.value) : null;
+    _mpSelectedUid = uid;
+    loadMinhaPerformance();
+}
+
+function mpAdminBackToSelf() {
+    _mpSelectedUid = null;
+    const sel = document.getElementById('mp-agent-select');
+    if (sel) sel.value = '';
+    loadMinhaPerformance();
 }
 
 /* ═══ S1: Hero ═══ */
