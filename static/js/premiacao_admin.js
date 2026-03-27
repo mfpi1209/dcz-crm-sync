@@ -15,10 +15,11 @@ function _paFmtDateBR(d) {
 /* ── Entry ── */
 async function loadPremiacaoAdmin() {
     try {
-        const [,agRes] = await Promise.all([
+        const [,agRaw] = await Promise.all([
             _paLoadCampanhas(),
             api('/api/minha-performance/agentes'),
         ]);
+        const agRes = await agRaw.json();
         _paAgentes = agRes?.agentes || [];
     } catch(e) { console.error('loadPremiacaoAdmin', e); }
 }
@@ -26,7 +27,8 @@ async function loadPremiacaoAdmin() {
 /* ═══ A) Campanhas ═══ */
 
 async function _paLoadCampanhas() {
-    const res = await api('/api/premiacao/campanhas');
+    const raw = await api('/api/premiacao/campanhas');
+    const res = await raw.json();
     _paCampanhasData = res?.campanhas || [];
     _paRenderCampanhasList();
     _paFillCampanhaSelects();
@@ -90,7 +92,8 @@ async function paSaveCampanha() {
     const rVal = parseFloat(document.getElementById('pa-camp-receb-valor')?.value || 0);
     if (rVal > 0) receb_regras.push({ tier: 'qualquer', modo: rModo, valor: rVal });
 
-    const res = await api('/api/premiacao/campanhas', { method:'POST', body:JSON.stringify({ nome, dt_inicio, dt_fim, tiers, receb_regras }) });
+    const raw = await api('/api/premiacao/campanhas', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ nome, dt_inicio, dt_fim, tiers, receb_regras }) });
+    const res = await raw.json();
     if (res?.ok) {
         toast('Campanha criada!');
         document.getElementById('pa-camp-nome').value = '';
@@ -102,7 +105,7 @@ async function paSaveCampanha() {
 }
 
 async function paToggleCampanha(id, ativa) {
-    await api(`/api/premiacao/campanhas/${id}`, { method:'PUT', body:JSON.stringify({ ativa: !ativa }) });
+    await api(`/api/premiacao/campanhas/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ ativa: !ativa }) });
     await _paLoadCampanhas();
 }
 
@@ -148,7 +151,8 @@ async function paSaveEditCampanha() {
     const rModo = document.getElementById('pa-edit-receb-modo').value || 'percentual';
     const rVal = parseFloat(document.getElementById('pa-edit-receb-valor').value || 0);
     if (rVal > 0) body.receb_regras.push({ tier: 'qualquer', modo: rModo, valor: rVal });
-    const res = await api(`/api/premiacao/campanhas/${id}`, { method:'PUT', body:JSON.stringify(body) });
+    const raw = await api(`/api/premiacao/campanhas/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    const res = await raw.json();
     if (res?.ok) {
         toast('Campanha atualizada!');
         document.getElementById('pa-edit-modal').classList.add('hidden');
@@ -164,15 +168,17 @@ async function paLoadMetasAgente() {
     if (!cid || !wrap) { if (wrap) wrap.innerHTML = '<p class="text-xs text-slate-600">Selecione uma campanha</p>'; return; }
 
     try {
-        const [metasRes] = await Promise.all([
+        const [metasRaw] = await Promise.all([
             api(`/api/premiacao/campanhas/${cid}/metas`),
         ]);
+        const metasRes = await metasRaw.json();
         const existingMetas = metasRes?.metas || [];
         const lookup = {};
         existingMetas.forEach(m => { lookup[m.kommo_user_id] = m; });
 
         if (!_paAgentes.length) {
-            const agRes = await api('/api/minha-performance/agentes');
+            const agRaw = await api('/api/minha-performance/agentes');
+            const agRes = await agRaw.json();
             _paAgentes = agRes?.agentes || [];
         }
 
@@ -221,7 +227,8 @@ async function paSaveMetasAgente() {
     const metas = Object.values(byUid).filter(m => m.meta > 0 || m.meta_intermediaria > 0 || m.supermeta > 0);
     if (!metas.length) { toast('Nenhuma meta preenchida', 'error'); return; }
 
-    const res = await api(`/api/premiacao/campanhas/${cid}/metas`, { method:'POST', body:JSON.stringify({ metas }) });
+    const raw = await api(`/api/premiacao/campanhas/${cid}/metas`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ metas }) });
+    const res = await raw.json();
     if (res?.ok) { toast(`${res.saved} metas salvas!`); } else { toast(res?.error || 'Erro', 'error'); }
 }
 
@@ -237,7 +244,8 @@ async function paLoadGrupos() {
         return;
     }
     try {
-        const res = await api(`/api/premiacao/campanhas/${cid}/grupos`);
+        const raw = await api(`/api/premiacao/campanhas/${cid}/grupos`);
+        const res = await raw.json();
         _paGruposData = res?.grupos || [];
         _paRenderGrupos();
     } catch(e) {
@@ -331,12 +339,13 @@ async function paSaveGrupo() {
     if (!nome) { toast('Nome do grupo é obrigatório', 'error'); return; }
     const membros = Array.from(document.querySelectorAll('.pa-grupo-chk:checked')).map(cb => parseInt(cb.value));
 
-    let res;
+    let raw;
     if (gid) {
-        res = await api(`/api/premiacao/grupos/${gid}`, { method:'PUT', body:JSON.stringify({ nome, membros }) });
+        raw = await api(`/api/premiacao/grupos/${gid}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ nome, membros }) });
     } else {
-        res = await api(`/api/premiacao/campanhas/${cid}/grupos`, { method:'POST', body:JSON.stringify({ nome, membros }) });
+        raw = await api(`/api/premiacao/campanhas/${cid}/grupos`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ nome, membros }) });
     }
+    const res = await raw.json();
     if (res?.ok) {
         toast(gid ? 'Grupo atualizado!' : 'Grupo criado!');
         document.getElementById('pa-grupo-modal').classList.add('hidden');
@@ -361,10 +370,12 @@ async function paLoadDailyGrid() {
     if (!cid || !wrap) { if (wrap) wrap.innerHTML = '<p class="text-xs text-slate-600">Selecione uma campanha</p>'; return; }
 
     try {
-        const [gruposRes, diariasRes] = await Promise.all([
+        const [gruposRaw, diariasRaw] = await Promise.all([
             api(`/api/premiacao/campanhas/${cid}/grupos`),
             api(`/api/premiacao/campanhas/${cid}/diarias-grupo`),
         ]);
+        const gruposRes = await gruposRaw.json();
+        const diariasRes = await diariasRaw.json();
         const grupos = gruposRes?.grupos || [];
         const diarias = diariasRes?.diarias || [];
 
@@ -454,7 +465,8 @@ async function paSaveDailyGrupo() {
     const items = Object.values(byKey).filter(i => i.meta_diaria > 0 || i.bonus_fixo > 0 || i.bonus_extra > 0);
     if (!items.length) { toast('Nenhuma meta preenchida', 'error'); return; }
 
-    const res = await api(`/api/premiacao/campanhas/${cid}/diarias-grupo`, { method:'POST', body:JSON.stringify({ items }) });
+    const raw = await api(`/api/premiacao/campanhas/${cid}/diarias-grupo`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ items }) });
+    const res = await raw.json();
     if (res?.ok) { toast('PIX diário salvo!'); } else { toast(res?.error || 'Erro', 'error'); }
 }
 
