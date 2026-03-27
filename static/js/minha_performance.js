@@ -172,10 +172,10 @@ function _mpRenderHero(d) {
     const badge = el('mp-hero-tier-badge');
     badge.textContent = tierLabels[tier] || tier || 'Base';
     badge.className = 'px-3 py-1 text-xs font-bold rounded-full ';
-    if (tier === 'supermeta') badge.className += 'bg-amber-500/30 text-amber-300';
-    else if (tier === 'meta') badge.className += 'bg-slate-400/20 text-slate-300';
-    else if (tier === 'intermediaria') badge.className += 'bg-orange-500/20 text-orange-300';
-    else badge.className += 'bg-slate-600/30 text-slate-400';
+    if (tier === 'supermeta') badge.className += 'bg-amber-500/30 text-amber-200';
+    else if (tier === 'meta') badge.className += 'bg-blue-500/30 text-blue-200';
+    else if (tier === 'intermediaria') badge.className += 'bg-orange-500/30 text-orange-200';
+    else badge.className += 'bg-emerald-500/20 text-emerald-300';
 
     el('mp-hero-mat').textContent = `${totalMat} matrículas`;
     el('mp-hero-dias').textContent = `${d.dias_restantes} dias restantes`;
@@ -184,7 +184,7 @@ function _mpRenderHero(d) {
     const msgEl = el('mp-hero-msg');
     if (msgEl) msgEl.innerHTML = d.mensagem || '';
 
-    // Termômetro segmentado por tier
+    // Termômetro segmentado por tier — SEMPRE vibrante
     const thermo = document.getElementById('mp-hero-thermo');
     if (thermo) {
         const inter = metas.intermediaria || 0;
@@ -193,9 +193,9 @@ function _mpRenderHero(d) {
 
         const segments = [];
         let prev = 0;
-        if (inter > 0) { segments.push({ label: 'Intermediária', from: prev, to: inter, color: '#f97316', colorDim: '#7c2d12', emoji: '🟠' }); prev = inter; }
-        if (metaVal > 0) { segments.push({ label: 'Meta', from: prev, to: metaVal, color: '#3b82f6', colorDim: '#1e3a5f', emoji: '🔵' }); prev = metaVal; }
-        if (sup > 0) { segments.push({ label: 'Supermeta', from: prev, to: sup, color: '#f59e0b', colorDim: '#78350f', emoji: '🏆' }); prev = sup; }
+        if (inter > 0) { segments.push({ label: 'Inter', from: prev, to: inter, color: '#f97316', colorBg: '#431407', emoji: '🔥' }); prev = inter; }
+        if (metaVal > 0) { segments.push({ label: 'Meta', from: prev, to: metaVal, color: '#3b82f6', colorBg: '#172554', emoji: '🎯' }); prev = metaVal; }
+        if (sup > 0) { segments.push({ label: 'Super', from: prev, to: sup, color: '#f59e0b', colorBg: '#451a03', emoji: '🏆' }); prev = sup; }
 
         if (!segments.length) { thermo.innerHTML = ''; return; }
 
@@ -208,33 +208,32 @@ function _mpRenderHero(d) {
             const partial = !filled && totalMat > seg.from;
             const partialPct = partial ? ((totalMat - seg.from) / (seg.to - seg.from)) * 100 : 0;
 
-            const bgStyle = filled
-                ? `background:${seg.color};box-shadow:0 0 12px ${seg.color}66`
-                : `background:${seg.colorDim}`;
+            const barBg = filled
+                ? `background:${seg.color};box-shadow:0 0 14px ${seg.color}55`
+                : `background:${seg.colorBg};border:1px solid ${seg.color}33`;
 
             const innerBar = partial
-                ? `<div class="h-full rounded-sm" style="width:${partialPct}%;background:${seg.color};box-shadow:0 0 8px ${seg.color}55"></div>`
+                ? `<div class="h-full rounded" style="width:${partialPct}%;background:${seg.color};box-shadow:0 0 10px ${seg.color}66"></div>`
                 : '';
 
-            const labelColor = filled ? '#fff' : (partial ? seg.color : 'rgba(255,255,255,0.35)');
-            const targetColor = filled ? 'rgba(255,255,255,0.7)' : (partial ? seg.color : 'rgba(255,255,255,0.25)');
+            const check = filled ? '✅' : '';
 
             return `<div class="flex flex-col items-center" style="width:${widthPct}%">
-                <div class="w-full h-4 rounded-sm overflow-hidden" style="${bgStyle}">${innerBar}</div>
-                <span class="text-[11px] font-extrabold mt-1.5 whitespace-nowrap" style="color:${labelColor}">${seg.emoji} ${seg.label}</span>
-                <span class="text-[10px] font-bold" style="color:${targetColor}">${seg.to} mat</span>
+                <div class="w-full h-5 rounded overflow-hidden" style="${barBg}">${innerBar}</div>
+                <span class="text-[11px] font-extrabold mt-1.5 whitespace-nowrap" style="color:${seg.color}">${seg.emoji} ${seg.label} ${check}</span>
+                <span class="text-[10px] font-bold" style="color:${seg.color}cc">${seg.to} mat</span>
             </div>`;
         }).join('');
 
-        const agentPct = Math.min(100, (totalMat / scale) * 100);
-        const pinColor = tier === 'supermeta' ? '#f59e0b' : (tier === 'meta' ? '#3b82f6' : (tier === 'intermediaria' ? '#f97316' : '#10b981'));
+        const agentPct = Math.min(99, (totalMat / scale) * 100);
+        const pinColor = '#10b981';
 
         thermo.innerHTML = `
             <div class="relative mt-2 mb-2">
-                <div class="flex gap-1">${segsHtml}</div>
-                <div class="absolute top-0 h-4 pointer-events-none" style="left:${agentPct}%">
-                    <div class="w-0.5 h-6 -mt-1 rounded-full" style="background:${pinColor};box-shadow:0 0 6px ${pinColor}"></div>
-                    <div class="absolute -top-5 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-black text-white whitespace-nowrap" style="background:${pinColor}">${totalMat}</div>
+                <div class="flex gap-1.5">${segsHtml}</div>
+                <div class="absolute top-0 h-5 pointer-events-none" style="left:${agentPct}%">
+                    <div class="w-1 h-7 -mt-1 rounded-full" style="background:#fff;box-shadow:0 0 8px ${pinColor}"></div>
+                    <div class="absolute -top-6 -translate-x-1/2 px-2 py-0.5 rounded-md text-[10px] font-black text-white whitespace-nowrap" style="background:${pinColor};box-shadow:0 0 10px ${pinColor}55">📍 ${totalMat}</div>
                 </div>
             </div>`;
     }

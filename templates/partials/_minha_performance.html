@@ -14,10 +14,10 @@
     .mp-float{animation:mp-float 3s ease-in-out infinite}
     .mp-count{animation:mp-count-up .6s ease-out both;animation-delay:.3s}
 
-    .mp-tier-base{background:linear-gradient(135deg,#334155,#1e293b)}
-    .mp-tier-bronze{background:linear-gradient(135deg,#92400e,#78350f)}
-    .mp-tier-silver{background:linear-gradient(135deg,#475569,#334155)}
-    .mp-tier-gold{background:linear-gradient(135deg,#d97706,#b45309)}
+    .mp-tier-base{background:linear-gradient(135deg,#065f46,#064e3b)}
+    .mp-tier-bronze{background:linear-gradient(135deg,#c2410c,#9a3412)}
+    .mp-tier-silver{background:linear-gradient(135deg,#1d4ed8,#1e3a8a)}
+    .mp-tier-gold{background:linear-gradient(135deg,#d97706,#92400e)}
 
     .mp-ring-track{stroke:#334155;fill:none;stroke-width:8}
     .mp-ring-fill{fill:none;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .8s ease}
@@ -138,24 +138,25 @@
                 <span class="material-symbols-outlined text-base text-cyan-400">local_fire_department</span>
                 PIX do Dia
             </h3>
-            <div id="mp-pix-dia" class="glass-card p-5 border border-cyan-500/20 flex flex-col sm:flex-row items-center gap-6">
-                <div class="flex-shrink-0">
-                    <svg width="120" height="120" viewBox="0 0 120 120">
-                        <circle cx="60" cy="60" r="50" class="mp-ring-track"/>
-                        <circle id="mp-ring-fill" cx="60" cy="60" r="50" class="mp-ring-fill" stroke="#10b981"
+            <div id="mp-pix-dia" class="rounded-2xl p-6 sm:p-8 border-2 border-cyan-500/30 flex flex-col sm:flex-row items-center gap-6 relative overflow-hidden" style="background:linear-gradient(135deg,#0c4a6e,#164e63,#0f766e)">
+                <div class="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_80%_20%,#06b6d4_0%,transparent_60%)]"></div>
+                <div class="flex-shrink-0 relative z-10">
+                    <svg width="140" height="140" viewBox="0 0 120 120">
+                        <circle cx="60" cy="60" r="50" stroke="#1e3a5f" fill="none" stroke-width="10"/>
+                        <circle id="mp-ring-fill" cx="60" cy="60" r="50" class="mp-ring-fill" stroke="#06b6d4" stroke-width="10"
                                 stroke-dasharray="314.16" stroke-dashoffset="314.16" transform="rotate(-90 60 60)"/>
-                        <text x="60" y="52" text-anchor="middle" class="text-lg font-black fill-white" id="mp-ring-value">0</text>
-                        <text x="60" y="68" text-anchor="middle" class="text-[10px] fill-slate-400" id="mp-ring-label">de 0</text>
+                        <text x="60" y="50" text-anchor="middle" class="text-2xl font-black fill-white" id="mp-ring-value">0</text>
+                        <text x="60" y="70" text-anchor="middle" class="text-xs fill-cyan-300 font-bold" id="mp-ring-label">de 0</text>
                     </svg>
                 </div>
-                <div class="flex-1 text-center sm:text-left">
-                    <p id="mp-pix-status" class="text-base font-bold text-white mb-1"></p>
-                    <p id="mp-pix-detail" class="text-sm text-slate-400 mb-2"></p>
-                    <div id="mp-aceites-badge" class="hidden flex items-center gap-1.5 mb-2 px-2.5 py-1 rounded-lg bg-purple-500/10 border border-purple-500/20 w-fit"></div>
-                    <div id="mp-pix-valor" class="text-2xl font-black text-emerald-400"></div>
+                <div class="flex-1 text-center sm:text-left relative z-10">
+                    <p id="mp-pix-status" class="text-xl font-black text-white mb-2"></p>
+                    <p id="mp-pix-detail" class="text-sm text-cyan-100/80 mb-3 leading-relaxed"></p>
+                    <div id="mp-aceites-badge" class="hidden flex items-center gap-1.5 mb-3 px-3 py-1.5 rounded-lg bg-purple-500/20 border border-purple-400/30 w-fit mx-auto sm:mx-0"></div>
+                    <div id="mp-pix-valor" class="text-3xl sm:text-4xl font-black text-emerald-300" style="text-shadow:0 0 20px rgba(16,185,129,0.3)"></div>
                 </div>
             </div>
-            <p class="text-[10px] text-slate-600 mt-3 italic">Obs.: Nem todos os aceites se convertem em matrícula, por isso considere sempre uma margem de segurança ("gordurinha") para garantir o resultado.</p>
+            <p class="text-[10px] text-slate-600 mt-3 italic">Obs.: Nem todos os aceites se convertem em matrícula — considere uma margem de segurança ("gordurinha").</p>
         </div>
 
         <!-- S4: Momentum -->
