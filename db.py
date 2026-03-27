@@ -182,6 +182,13 @@ def _ensure_users_table():
                     PRIMARY KEY (user_id, page)
                 )
             """)
+            cur.execute("""
+                ALTER TABLE app_users ADD COLUMN IF NOT EXISTS kommo_user_id INTEGER
+            """)
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_app_users_kommo
+                ON app_users(kommo_user_id) WHERE kommo_user_id IS NOT NULL
+            """)
             cur.execute("SELECT COUNT(*) FROM app_users")
             if cur.fetchone()[0] == 0 and APP_PASS_FALLBACK:
                 cur.execute(
@@ -320,6 +327,116 @@ def _seed_default_comm_rules(cur):
                 cooldown_days, max_per_week, priority)
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, r)
+
+
+def _ensure_funnel_log_table():
+    """Create kommo_funnel_log table for historical funnel snapshots."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS kommo_funnel_log (
+                    id            SERIAL PRIMARY KEY,
+                    captured_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    captured_date DATE NOT NULL,
+                    source        TEXT NOT NULL DEFAULT 'live',
+                    total         INTEGER NOT NULL,
+                    new_today     INTEGER,
+                    stages        JSONB NOT NULL
+                )
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_funnel_log_date
+                ON kommo_funnel_log(captured_date)
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_funnel_log_captured
+                ON kommo_funnel_log(captured_at)
+            """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure funnel_log table: %s", e)
+
+
+def _ensure_premiacao_tables():
+    """Create all tables for the premiação/performance system."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_campanha (
+                    id          SERIAL PRIMARY KEY,
+                    nome        TEXT NOT NULL,
+                    dt_inicio   DATE NOT NULL,
+                    dt_fim      DATE NOT NULL,
+                    ativa       BOOLEAN DEFAULT TRUE,
+                    created_at  TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_tier_bonus (
+                    id              SERIAL PRIMARY KEY,
+                    campanha_id     INTEGER NOT NULL REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
+                    tier            TEXT NOT NULL,
+                    valor_por_mat   NUMERIC NOT NULL DEFAULT 0,
+                    UNIQUE(campanha_id, tier)
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_meta_diaria (
+                    id              SERIAL PRIMARY KEY,
+                    campanha_id     INTEGER NOT NULL REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
+                    kommo_user_id   INTEGER NOT NULL,
+                    dia_semana      INTEGER NOT NULL,
+                    meta_diaria     INTEGER NOT NULL DEFAULT 0,
+                    bonus_fixo      NUMERIC NOT NULL DEFAULT 0,
+                    bonus_extra     NUMERIC NOT NULL DEFAULT 0,
+                    UNIQUE(campanha_id, kommo_user_id, dia_semana)
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_recebimento_regra (
+                    id              SERIAL PRIMARY KEY,
+                    campanha_id     INTEGER NOT NULL REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
+                    tier            TEXT NOT NULL DEFAULT 'qualquer',
+                    modo            TEXT NOT NULL DEFAULT 'percentual',
+                    valor           NUMERIC NOT NULL DEFAULT 0,
+                    UNIQUE(campanha_id, tier)
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS recebimentos_snapshots (
+                    id          SERIAL PRIMARY KEY,
+                    filename    TEXT,
+                    row_count   INTEGER DEFAULT 0,
+                    mes_ref     TEXT,
+                    uploaded_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS comercial_recebimentos (
+                    id              SERIAL PRIMARY KEY,
+                    snapshot_id     INTEGER REFERENCES recebimentos_snapshots(id) ON DELETE CASCADE,
+                    rgm             TEXT NOT NULL,
+                    nivel           TEXT,
+                    modalidade      TEXT,
+                    data_matricula  DATE,
+                    valor           NUMERIC NOT NULL DEFAULT 0,
+                    tipo_pagamento  TEXT,
+                    mes_referencia  TEXT,
+                    turma           TEXT,
+                    data            JSONB
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_cr_rgm ON comercial_recebimentos(rgm)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_cr_snap ON comercial_recebimentos(snapshot_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pmd_camp ON premiacao_meta_diaria(campanha_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pmd_user ON premiacao_meta_diaria(kommo_user_id)")
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure premiacao tables: %s", e)
 
 
 def _ensure_avisos_tables():

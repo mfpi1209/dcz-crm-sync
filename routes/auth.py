@@ -114,11 +114,24 @@ def api_me():
         pages = list(ALL_PAGES)
     else:
         pages = _get_user_permissions(uid)
+    kommo_user_id = None
+    if uid and uid != 0:
+        try:
+            conn = get_conn()
+            with conn.cursor() as cur:
+                cur.execute("SELECT kommo_user_id FROM app_users WHERE id = %s", (uid,))
+                row = cur.fetchone()
+                if row:
+                    kommo_user_id = row[0]
+            conn.close()
+        except Exception:
+            pass
     return jsonify({
         "user_id": uid,
         "username": session.get("username", ""),
         "role": role,
         "pages": pages,
+        "kommo_user_id": kommo_user_id,
     })
 
 
@@ -148,7 +161,7 @@ def api_users_list():
     conn = get_conn()
     with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
         cur.execute("""
-            SELECT u.id, u.username, u.role, u.created_at,
+            SELECT u.id, u.username, u.role, u.kommo_user_id, u.created_at,
                    ARRAY(SELECT p.page FROM user_permissions p WHERE p.user_id = u.id ORDER BY p.page) AS pages
             FROM app_users u ORDER BY u.id
         """)
@@ -168,6 +181,7 @@ def api_users_create():
     password = body.get("password", "")
     role = body.get("role", "viewer")
     pages = body.get("pages", [])
+    kommo_user_id = body.get("kommo_user_id")
     if not username or not password:
         return jsonify({"error": "Usuário e senha são obrigatórios"}), 400
     if role not in ("admin", "viewer"):
@@ -179,8 +193,8 @@ def api_users_create():
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO app_users (username, pw_hash, role) VALUES (%s, %s, %s) RETURNING id",
-                (username, _hash_pw(password), role),
+                "INSERT INTO app_users (username, pw_hash, role, kommo_user_id) VALUES (%s, %s, %s, %s) RETURNING id",
+                (username, _hash_pw(password), role, kommo_user_id or None),
             )
             uid = cur.fetchone()[0]
             if role == "admin":
@@ -210,6 +224,7 @@ def api_users_update(uid):
     role = body.get("role")
     pages = body.get("pages")
     password = body.get("password")
+    kommo_user_id = body.get("kommo_user_id")
     conn = get_conn()
     with conn.cursor() as cur:
         if password:
@@ -217,6 +232,9 @@ def api_users_update(uid):
                         (_hash_pw(password), uid))
         if role and role in ("admin", "viewer"):
             cur.execute("UPDATE app_users SET role = %s WHERE id = %s", (role, uid))
+        if "kommo_user_id" in body:
+            cur.execute("UPDATE app_users SET kommo_user_id = %s WHERE id = %s",
+                        (kommo_user_id or None, uid))
         if pages is not None:
             if role == "admin":
                 pages = list(ALL_PAGES)
