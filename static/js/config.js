@@ -460,22 +460,23 @@ function renderUsers() {
 }
 
 function _renderPermsGrouped(cbClass, checkedPages, disabled) {
-    return PAGE_GROUPS_CONFIG.map(g => {
+    const groups = PAGE_GROUPS_CONFIG.map(g => {
         const groupPages = g.pages.filter(p => _allPages.includes(p));
         if (!groupPages.length) return '';
         const items = groupPages.map(p => {
             const ck = checkedPages.includes(p) ? 'checked' : '';
             const dis = disabled ? 'disabled' : '';
-            return `<label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
-                <input type="checkbox" value="${p}" class="${cbClass} accent-indigo-500 w-4 h-4" ${ck} ${dis}>
-                ${PAGE_LABELS[p] || p}
+            return `<label class="flex items-center gap-2.5 py-1 px-2 rounded-lg hover:bg-white/5 cursor-pointer transition-colors text-[13px] text-gray-300 select-none">
+                <input type="checkbox" value="${p}" class="${cbClass} accent-indigo-500 w-3.5 h-3.5 rounded flex-shrink-0" ${ck} ${dis}>
+                <span class="truncate">${PAGE_LABELS[p] || p}</span>
             </label>`;
         }).join('');
-        return `<div class="mb-3">
-            <p class="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">${g.label}</p>
-            <div class="grid grid-cols-2 gap-1.5 pl-2">${items}</div>
+        return `<div class="bg-slate-800/30 rounded-xl p-3 border border-slate-700/20">
+            <p class="text-[10px] font-bold text-indigo-400/70 uppercase tracking-wider mb-2 px-1">${g.label}</p>
+            <div class="space-y-0.5">${items}</div>
         </div>`;
-    }).join('');
+    }).filter(Boolean);
+    return groups.join('');
 }
 
 function renderNewUserPermsGrid() {
@@ -529,34 +530,42 @@ async function editUser(uid) {
 
     const modal = document.createElement('div');
     modal.id = 'user-edit-modal';
-    modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm';
+    modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4';
+    modal.onclick = e => { if (e.target === modal) modal.remove(); };
     modal.innerHTML = `
-        <div class="glass-card p-6 w-full max-w-md mx-4" style="background:rgba(15,23,42,0.95)">
-            <h3 class="text-lg font-bold text-[var(--text-primary)] font-display mb-4">Editar: ${u.username}</h3>
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-xs text-gray-500 mb-1.5 font-medium">Nova Senha (deixe vazio para manter)</label>
-                    <input type="password" id="edit-user-pw" class="input-glass px-3 py-2 text-sm text-gray-200 w-full" autocomplete="new-password">
+        <div class="glass-card w-full max-w-2xl max-h-[90vh] overflow-y-auto" style="background:rgba(15,23,42,0.97)" onclick="event.stopPropagation()">
+            <div class="sticky top-0 z-10 px-6 py-4 border-b border-slate-700/30 bg-slate-900/95 backdrop-blur flex items-center justify-between">
+                <h3 class="text-lg font-bold text-white font-display">Editar: ${u.username}</h3>
+                <button onclick="document.getElementById('user-edit-modal').remove()" class="text-slate-500 hover:text-white transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="p-6 space-y-5">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1.5 font-medium">Nova Senha</label>
+                        <input type="password" id="edit-user-pw" class="input-glass px-3 py-2 text-sm text-gray-200 w-full" autocomplete="new-password" placeholder="Vazio = manter">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1.5 font-medium">Kommo User ID</label>
+                        <input type="number" id="edit-user-kommo-uid" value="${u.kommo_user_id||''}" class="input-glass px-3 py-2 text-sm text-gray-200 w-full" placeholder="ID do Kommo">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1.5 font-medium">Nível</label>
+                        <select id="edit-user-role" class="input-glass px-3 py-2 text-sm text-gray-200 w-full"
+                            onchange="document.querySelectorAll('.edit-perm-cb').forEach(cb=>{cb.disabled=this.value==='admin';if(this.value==='admin')cb.checked=true});document.getElementById('edit-perms-section').style.display=this.value==='admin'?'none':''">
+                            <option value="viewer" ${u.role==='viewer'?'selected':''}>Visualizador</option>
+                            <option value="admin" ${u.role==='admin'?'selected':''}>Administrador</option>
+                        </select>
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-xs text-gray-500 mb-1.5 font-medium">Kommo User ID</label>
-                    <input type="number" id="edit-user-kommo-uid" value="${u.kommo_user_id||''}" class="input-glass px-3 py-2 text-sm text-gray-200 w-full" placeholder="ID do usuário no Kommo">
+                <div id="edit-perms-section" ${u.role==='admin'?'style="display:none"':''}>
+                    <label class="block text-xs text-gray-500 mb-3 font-medium">Permissões por página</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">${permsHtml}</div>
                 </div>
-                <div>
-                    <label class="block text-xs text-gray-500 mb-1.5 font-medium">Nível</label>
-                    <select id="edit-user-role" class="input-glass px-3 py-2 text-sm text-gray-200 w-full"
-                        onchange="document.querySelectorAll('.edit-perm-cb').forEach(cb=>{cb.disabled=this.value==='admin';if(this.value==='admin')cb.checked=true})">
-                        <option value="viewer" ${u.role==='viewer'?'selected':''}>Visualizador</option>
-                        <option value="admin" ${u.role==='admin'?'selected':''}>Administrador</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-500 mb-2 font-medium">Permissões</label>
-                    <div class="grid grid-cols-2 gap-2 text-gray-300">${permsHtml}</div>
-                </div>
-                <div class="flex gap-3 pt-2">
-                    <button onclick="saveUserEdit(${uid})" class="btn-primary text-white text-sm px-5 py-2 rounded-xl">Salvar</button>
-                    <button onclick="document.getElementById('user-edit-modal').remove()" class="btn-secondary text-sm px-5 py-2 rounded-xl">Cancelar</button>
+                <div class="flex gap-3 pt-2 border-t border-slate-700/20">
+                    <button onclick="saveUserEdit(${uid})" class="btn-primary text-white text-sm px-6 py-2.5 rounded-xl font-medium">Salvar Alterações</button>
+                    <button onclick="document.getElementById('user-edit-modal').remove()" class="btn-secondary text-sm px-5 py-2.5 rounded-xl">Cancelar</button>
                 </div>
             </div>
         </div>`;
