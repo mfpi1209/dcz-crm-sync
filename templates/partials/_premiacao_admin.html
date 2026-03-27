@@ -97,14 +97,23 @@
                     <option value="">Selecionar...</option>
                 </select>
             </div>
+            <button onclick="paAutoCalcDaily()" class="text-xs px-4 py-1.5 rounded-lg flex items-center gap-1.5 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 transition-all">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                Calcular Automaticamente
+            </button>
+        </div>
+        <div id="pa-auto-calc-info" class="hidden mb-3 text-[10px] text-cyan-400/80 bg-cyan-500/5 border border-cyan-500/15 rounded-lg px-3 py-2">
+            <span class="font-bold">Auto-cálculo:</span> Seg-Sex = 1 dia, Sáb = 0.5 dia, Dom = 0. Meta do agente dividida pelos dias efetivos do período.
         </div>
         <div id="pa-daily-grid-wrap" class="overflow-x-auto">
             <p class="text-xs text-slate-600">Selecione uma campanha acima</p>
         </div>
-        <button onclick="paSaveDailyTargets()" class="btn-primary text-xs px-4 py-1.5 mt-3 flex items-center gap-1.5">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-            Salvar Metas Diárias
-        </button>
+        <div class="flex flex-wrap items-center gap-3 mt-3">
+            <button onclick="paSaveDailyTargets()" class="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                Salvar Metas Diárias
+            </button>
+        </div>
     </div>
 
     <!-- Upload Recebimentos -->
