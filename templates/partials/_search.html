@@ -1,30 +1,23 @@
             <div id="page-search" class="p-4 lg:p-8 max-w-7xl mx-auto hidden">
                 <div class="mb-8">
-                    <div class="flex items-center gap-3 mb-2">
-                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                        </div>
-                        <div>
-                            <h2 class="text-3xl font-bold text-[var(--text-primary)] font-display">Buscar Lead / Negócio</h2>
-                            <p class="text-gray-500 text-sm">Pesquise por CPF, RGM ou telefone</p>
-                        </div>
-                    </div>
+                    <h2 class="text-3xl font-bold text-white font-display mb-1">Buscar Lead / Negócio</h2>
+                    <p class="text-slate-500 text-sm">Pesquise por CPF, RGM ou telefone</p>
                 </div>
                 <form id="search-form" class="glass-card p-5 flex flex-wrap gap-4 items-end mb-6">
                     <div>
-                        <label class="block text-xs text-gray-500 mb-1.5 font-medium">CPF</label>
+                        <label class="block text-xs text-slate-500 mb-1.5 font-medium">CPF</label>
                         <input type="text" name="cpf" placeholder="000.000.000-00"
-                            class="input-glass px-3 py-2.5 text-sm w-44 text-gray-200">
+                            class="input-glass px-3 py-2.5 text-sm w-44 text-slate-200">
                     </div>
                     <div>
-                        <label class="block text-xs text-gray-500 mb-1.5 font-medium">RGM</label>
+                        <label class="block text-xs text-slate-500 mb-1.5 font-medium">RGM</label>
                         <input type="text" name="rgm" placeholder="12345678"
-                            class="input-glass px-3 py-2.5 text-sm w-36 text-gray-200">
+                            class="input-glass px-3 py-2.5 text-sm w-36 text-slate-200">
                     </div>
                     <div>
-                        <label class="block text-xs text-gray-500 mb-1.5 font-medium">Telefone</label>
+                        <label class="block text-xs text-slate-500 mb-1.5 font-medium">Telefone</label>
                         <input type="text" name="telefone" placeholder="11999998888"
-                            class="input-glass px-3 py-2.5 text-sm w-40 text-gray-200">
+                            class="input-glass px-3 py-2.5 text-sm w-40 text-slate-200">
                     </div>
                     <button type="submit" class="btn-primary text-white font-medium text-sm px-6 py-2.5 rounded-xl flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
@@ -36,12 +29,12 @@
                 <div id="search-empty" class="hidden mb-4 p-3 bg-yellow-900/20 border border-yellow-800/40 rounded-xl text-yellow-300 text-sm">
                     Nenhum resultado encontrado no CRM nem na planilha.
                 </div>
-                <div id="search-loading" class="hidden mb-4 text-gray-400 text-sm">Buscando no CRM e na planilha...</div>
+                <div id="search-loading" class="hidden mb-4 text-slate-400 text-sm">Buscando no CRM e na planilha...</div>
 
                 <!-- Filtros de Planilha -->
                 <div class="flex flex-wrap items-center gap-3 mb-4">
-                    <label class="text-xs text-gray-500 font-medium">Tipo:</label>
-                    <select id="search-xl-tipo" class="input-glass px-3 py-1.5 text-xs text-gray-300">
+                    <label class="text-xs text-slate-500 font-medium">Tipo:</label>
+                    <select id="search-xl-tipo" class="input-glass px-3 py-1.5 text-xs text-slate-300">
                         <option value="">Todos</option>
                         <option value="matriculados">Matriculados</option>
                         <option value="inadimplentes">Inadimplentes</option>
@@ -49,11 +42,11 @@
                         <option value="acesso_ava">Acesso AVA</option>
                         <option value="sem_rematricula">Sem Rematrícula</option>
                     </select>
-                    <label class="text-xs text-gray-500 font-medium ml-2">Snapshot:</label>
-                    <select id="search-snapshot-select" class="input-glass px-3 py-1.5 text-xs text-gray-300 min-w-[200px]">
+                    <label class="text-xs text-slate-500 font-medium ml-2">Snapshot:</label>
+                    <select id="search-snapshot-select" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[200px]">
                         <option value="">Mais recente</option>
                     </select>
-                    <span class="text-[10px] text-gray-600" id="search-snapshot-info"></span>
+                    <span class="text-[10px] text-slate-600" id="search-snapshot-info"></span>
                 </div>
 
                 <!-- Resultados da Planilha -->
@@ -61,7 +54,7 @@
                     <h3 class="text-sm font-bold text-amber-400 font-display flex items-center gap-2 mb-3">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                         Dados da Planilha
-                        <span class="text-[10px] font-normal text-gray-500" id="search-xl-count"></span>
+                        <span class="text-[10px] font-normal text-slate-500" id="search-xl-count"></span>
                     </h3>
                     <div id="search-xl-results" class="space-y-3"></div>
                 </div>
@@ -71,7 +64,7 @@
                     <h3 class="text-sm font-bold text-blue-400 font-display flex items-center gap-2 mb-3">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
                         Dados do CRM
-                        <span class="text-[10px] font-normal text-gray-500" id="search-crm-count"></span>
+                        <span class="text-[10px] font-normal text-slate-500" id="search-crm-count"></span>
                     </h3>
                     <div id="search-results" class="space-y-4"></div>
                 </div>

@@ -1,24 +1,17 @@
             <div id="page-sync" class="p-4 lg:p-8 max-w-7xl mx-auto hidden">
                 <div class="mb-8">
-                    <div class="flex items-center gap-3 mb-2">
-                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                        </div>
-                        <div>
-                            <h2 class="text-3xl font-bold text-[var(--text-primary)] font-display">Sync/Delta CRM Acadêmico</h2>
-                            <p class="text-gray-500 text-sm">Sincronização delta entre o CRM acadêmico e o banco local</p>
-                        </div>
-                    </div>
+                    <h2 class="text-3xl font-bold text-white font-display mb-1">Sincronização</h2>
+                    <p class="text-slate-500 text-sm">Sincronize dados entre o CRM e o banco local</p>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
                     <div class="glass-card p-5">
-                        <h3 class="text-sm font-bold text-gray-300 font-display mb-3">Estado do Sync</h3>
-                        <div id="sync-state-table" class="text-sm text-gray-400">Carregando...</div>
+                        <h3 class="text-sm font-bold text-slate-300 font-display mb-3">Estado da Sincronização</h3>
+                        <div id="sync-state-table" class="text-sm text-slate-400">Carregando...</div>
                     </div>
                     <div class="glass-card p-5">
-                        <h3 class="text-sm font-bold text-gray-300 font-display mb-3">Últimas Atualizações</h3>
-                        <div id="recent-updates" class="text-sm text-gray-400">Carregando...</div>
+                        <h3 class="text-sm font-bold text-slate-300 font-display mb-3">Últimas Atualizações</h3>
+                        <div id="recent-updates" class="text-sm text-slate-400">Carregando...</div>
                     </div>
                 </div>
 
@@ -42,9 +35,9 @@
 
                 <div class="log-panel">
                     <div class="log-header flex items-center justify-between">
-                        <span class="text-xs text-gray-500 font-semibold tracking-wide uppercase">Log de Execução</span>
-                        <button onclick="clearLog()" class="text-xs text-gray-600 hover:text-gray-400 transition">Limpar</button>
+                        <span class="text-xs text-slate-500 font-semibold tracking-wide uppercase">Log de Execução</span>
+                        <button onclick="clearLog()" class="text-xs text-slate-600 hover:text-slate-400 transition">Limpar</button>
                     </div>
-                    <pre id="sync-log" class="log-terminal p-4 h-96 overflow-auto text-gray-400 whitespace-pre-wrap"></pre>
+                    <pre id="sync-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap"></pre>
                 </div>
             </div>

@@ -178,26 +178,26 @@ function renderCampaignsTable(campaigns) {
     tbody.innerHTML = campaigns.map(c => {
         const type = getCampaignType(c.utm_campaign);
         const convRate = parseFloat(c.conv_ganho_sobre_novo_pct) || 0;
-        const convBarColor = convRate > 5 ? 'bg-green-500' : convRate > 0 ? 'bg-blue-500' : 'bg-gray-600';
+        const convBarColor = convRate > 5 ? 'bg-green-500' : convRate > 0 ? 'bg-blue-500' : 'bg-slate-600';
         
         return `
-            <tr class="border-b border-[var(--border)] hover:bg-gray-100 dark:hover:bg-gray-800/30 transition-colors">
+            <tr class="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors">
                 <td class="px-6 py-4">
                     <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                        <div class="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center">
                             ${getCampaignIcon(type)}
                         </div>
                         <div>
-                            <p class="text-sm font-semibold text-[var(--text-primary)]">${c.utm_campaign || 'Sem nome'}</p>
-                            <p class="text-xs text-gray-500">${c.utm_source || 'Meta'} • ${c.utm_medium || ''}</p>
+                            <p class="text-sm font-semibold text-white">${c.utm_campaign || 'Sem nome'}</p>
+                            <p class="text-xs text-slate-500">${c.utm_source || 'Meta'} • ${c.utm_medium || ''}</p>
                         </div>
                     </div>
                 </td>
                 <td class="px-4 py-4">
-                    <span class="px-2.5 py-1 text-xs font-semibold rounded-md bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-300">${type}</span>
+                    <span class="px-2.5 py-1 text-xs font-semibold rounded-md bg-slate-800 text-slate-300">${type}</span>
                 </td>
                 <td class="px-4 py-4 text-center">
-                    <span class="text-sm font-bold text-[var(--text-primary)]">${c.total_funil || 0}</span>
+                    <span class="text-sm font-bold text-white">${c.total_funil || 0}</span>
                 </td>
                 <td class="px-4 py-4 text-center">
                     <span class="text-sm font-bold text-blue-400">${c.novos || 0}</span>
@@ -211,12 +211,12 @@ function renderCampaignsTable(campaigns) {
                 <td class="px-4 py-4">
                     <div class="flex items-center gap-3">
                         <div class="flex-1">
-                            <div class="text-xs text-gray-400 mb-1">Conversão</div>
-                            <div class="w-full h-1.5 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
+                            <div class="text-xs text-slate-400 mb-1">Conversão</div>
+                            <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
                                 <div class="${convBarColor} h-full rounded-full transition-all" style="width: ${Math.min(convRate, 100)}%"></div>
                             </div>
                         </div>
-                        <span class="text-sm font-semibold text-[var(--text-primary)] min-w-[50px] text-right">${convRate.toFixed(1)}%</span>
+                        <span class="text-sm font-semibold text-white min-w-[50px] text-right">${convRate.toFixed(1)}%</span>
                     </div>
                 </td>
             </tr>
