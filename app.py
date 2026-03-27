@@ -47,6 +47,7 @@ from routes.avisos import avisos_bp
 from routes.kommo_merge_route import kommo_merge_bp
 from routes.kommo_dispatcher import kommo_dispatcher_bp
 from routes.leads_parados import leads_parados_bp
+from routes.minha_performance import minha_performance_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(dashboard_bp)
@@ -63,6 +64,7 @@ app.register_blueprint(avisos_bp)
 app.register_blueprint(kommo_merge_bp)
 app.register_blueprint(kommo_dispatcher_bp)
 app.register_blueprint(leads_parados_bp)
+app.register_blueprint(minha_performance_bp)
 
 # ── Inicialização do banco ────────────────────────────────────────────────
 
@@ -74,6 +76,8 @@ from db import (
     _ensure_xl_snapshots_table,
     _ensure_engagement_tables,
     _ensure_avisos_tables,
+    _ensure_funnel_log_table,
+    _ensure_premiacao_tables,
 )
 
 _ensure_schedules_table()
@@ -83,6 +87,8 @@ _ensure_users_table()
 _ensure_xl_snapshots_table()
 _ensure_engagement_tables()
 _ensure_avisos_tables()
+_ensure_funnel_log_table()
+_ensure_premiacao_tables()
 
 # ── APScheduler ───────────────────────────────────────────────────────────
 

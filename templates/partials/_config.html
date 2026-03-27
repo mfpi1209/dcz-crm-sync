@@ -1,28 +1,35 @@
             <div id="page-config" class="p-4 lg:p-8 max-w-7xl mx-auto hidden">
                 <div class="mb-8">
-                    <h2 class="text-3xl font-bold text-white font-display mb-1">Configurações</h2>
-                    <p class="text-slate-500 text-sm">Gerencie ciclos, turmas e parâmetros do sistema</p>
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-gray-500 to-gray-700 flex items-center justify-center shadow-lg shadow-gray-500/20">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-3xl font-bold text-[var(--text-primary)] font-display">Configurações</h2>
+                            <p class="text-gray-500 text-sm">Gerencie ciclos, turmas e parâmetros do sistema</p>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Tabs de configuração -->
-                <div class="flex gap-2 mb-6 border-b border-slate-700/30 pb-3">
+                <div class="flex gap-2 mb-6 border-b border-gray-700/30 pb-3">
                     <button onclick="switchConfigTab('ciclos')" id="cfg-tab-ciclos"
                         class="text-sm font-semibold px-5 py-2 rounded-lg transition bg-blue-500/15 text-blue-400 border border-blue-500/30 flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                         Ciclos
                     </button>
                     <button onclick="switchConfigTab('turmas')" id="cfg-tab-turmas"
-                        class="text-sm font-semibold px-5 py-2 rounded-lg transition text-slate-500 hover:text-slate-300 flex items-center gap-2">
+                        class="text-sm font-semibold px-5 py-2 rounded-lg transition text-gray-500 hover:text-gray-300 flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                         Turmas
                     </button>
                     <button onclick="switchConfigTab('usuarios')" id="cfg-tab-usuarios"
-                        class="text-sm font-semibold px-5 py-2 rounded-lg transition text-slate-500 hover:text-slate-300 flex items-center gap-2">
+                        class="text-sm font-semibold px-5 py-2 rounded-lg transition text-gray-500 hover:text-gray-300 flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
                         Usuários
                     </button>
                     <button onclick="switchConfigTab('regua')" id="cfg-tab-regua"
-                        class="text-sm font-semibold px-5 py-2 rounded-lg transition text-slate-500 hover:text-slate-300 flex items-center gap-2">
+                        class="text-sm font-semibold px-5 py-2 rounded-lg transition text-gray-500 hover:text-gray-300 flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                         Régua
                     </button>
@@ -33,9 +40,9 @@
                     <div class="glass-card p-6 mb-6">
                         <div class="flex flex-wrap items-end gap-4 mb-6">
                             <div>
-                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Ano</label>
+                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">Ano</label>
                                 <input type="number" id="ciclo-ano" value="2026" min="2024" max="2030"
-                                    class="input-glass px-3 py-2 text-sm text-slate-200 w-28">
+                                    class="input-glass px-3 py-2 text-sm text-gray-200 w-28">
                             </div>
                             <button onclick="seedCiclos()" class="btn-primary text-sm px-5 py-2 rounded-xl flex items-center gap-2">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
@@ -50,7 +57,7 @@
                                 Graduação
                             </button>
                             <button onclick="switchCicloTab('pos')" id="tab-ciclo-pos"
-                                class="text-sm font-semibold px-4 py-1.5 rounded-lg transition text-slate-500 hover:text-slate-300">
+                                class="text-sm font-semibold px-4 py-1.5 rounded-lg transition text-gray-500 hover:text-gray-300">
                                 Pós-Graduação
                             </button>
                         </div>
@@ -58,42 +65,42 @@
                         <div id="ciclo-table-container" class="overflow-x-auto">
                             <table class="w-full text-left text-sm">
                                 <thead>
-                                    <tr class="text-xs text-slate-500 border-b border-slate-700/30">
+                                    <tr class="text-xs text-gray-500 border-b border-gray-700/30">
                                         <th class="pb-2 font-semibold">Ciclo</th>
                                         <th class="pb-2 font-semibold">Início</th>
                                         <th class="pb-2 font-semibold">Fim</th>
                                         <th class="pb-2 font-semibold w-24">Ações</th>
                                     </tr>
                                 </thead>
-                                <tbody id="ciclo-tbody" class="text-slate-300">
-                                    <tr><td colspan="4" class="py-4 text-center text-slate-500">Carregando...</td></tr>
+                                <tbody id="ciclo-tbody" class="text-gray-300">
+                                    <tr><td colspan="4" class="py-4 text-center text-gray-500">Carregando...</td></tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
 
                     <div class="glass-card p-6">
-                        <h3 class="text-base font-bold text-white font-display mb-4">Adicionar Ciclo Manual</h3>
+                        <h3 class="text-base font-bold text-[var(--text-primary)] font-display mb-4">Adicionar Ciclo Manual</h3>
                         <div class="flex flex-wrap items-end gap-4">
                             <div>
-                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Nível</label>
-                                <select id="ciclo-new-nivel" class="input-glass px-3 py-2 text-sm text-slate-200">
+                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">Nível</label>
+                                <select id="ciclo-new-nivel" class="input-glass px-3 py-2 text-sm text-gray-200">
                                     <option value="Graduação">Graduação</option>
                                     <option value="Pós-Graduação">Pós-Graduação</option>
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Nome</label>
+                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">Nome</label>
                                 <input type="text" id="ciclo-new-nome" placeholder="Ex: 2026.1"
-                                    class="input-glass px-3 py-2 text-sm text-slate-200 w-40">
+                                    class="input-glass px-3 py-2 text-sm text-gray-200 w-40">
                             </div>
                             <div>
-                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Início</label>
-                                <input type="date" id="ciclo-new-inicio" class="input-glass px-3 py-2 text-sm text-slate-200">
+                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">Início</label>
+                                <input type="date" id="ciclo-new-inicio" class="input-glass px-3 py-2 text-sm text-gray-200">
                             </div>
                             <div>
-                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Fim</label>
-                                <input type="date" id="ciclo-new-fim" class="input-glass px-3 py-2 text-sm text-slate-200">
+                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">Fim</label>
+                                <input type="date" id="ciclo-new-fim" class="input-glass px-3 py-2 text-sm text-gray-200">
                             </div>
                             <button onclick="createCiclo()" class="btn-primary text-sm px-5 py-2 rounded-xl">Salvar</button>
                         </div>
@@ -105,9 +112,9 @@
                     <div class="glass-card p-6 mb-6">
                         <div class="flex flex-wrap items-end gap-4 mb-6">
                             <div>
-                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Ano</label>
+                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">Ano</label>
                                 <input type="number" id="turma-ano" value="2026" min="2024" max="2030"
-                                    class="input-glass px-3 py-2 text-sm text-slate-200 w-28">
+                                    class="input-glass px-3 py-2 text-sm text-gray-200 w-28">
                             </div>
                             <button onclick="seedTurmas()" class="btn-primary text-sm px-5 py-2 rounded-xl flex items-center gap-2">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
@@ -122,7 +129,7 @@
                                 Graduação
                             </button>
                             <button onclick="switchTurmaTab('pos')" id="tab-turma-pos"
-                                class="text-sm font-semibold px-4 py-1.5 rounded-lg transition text-slate-500 hover:text-slate-300">
+                                class="text-sm font-semibold px-4 py-1.5 rounded-lg transition text-gray-500 hover:text-gray-300">
                                 Pós-Graduação
                             </button>
                         </div>
@@ -130,7 +137,7 @@
                         <div id="turma-table-container" class="overflow-x-auto">
                             <table class="w-full text-left text-sm">
                                 <thead>
-                                    <tr class="text-xs text-slate-500 border-b border-slate-700/30">
+                                    <tr class="text-xs text-gray-500 border-b border-gray-700/30">
                                         <th class="pb-2 font-semibold">Turma</th>
                                         <th class="pb-2 font-semibold">Início</th>
                                         <th class="pb-2 font-semibold">Fim</th>
@@ -138,40 +145,40 @@
                                         <th class="pb-2 font-semibold w-24">Ações</th>
                                     </tr>
                                 </thead>
-                                <tbody id="turma-tbody" class="text-slate-300">
-                                    <tr><td colspan="5" class="py-4 text-center text-slate-500">Carregando...</td></tr>
+                                <tbody id="turma-tbody" class="text-gray-300">
+                                    <tr><td colspan="5" class="py-4 text-center text-gray-500">Carregando...</td></tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
 
                     <div class="glass-card p-6">
-                        <h3 class="text-base font-bold text-white font-display mb-4">Adicionar Turma Manual</h3>
+                        <h3 class="text-base font-bold text-[var(--text-primary)] font-display mb-4">Adicionar Turma Manual</h3>
                         <div class="flex flex-wrap items-end gap-4">
                             <div>
-                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Nível</label>
-                                <select id="turma-new-nivel" class="input-glass px-3 py-2 text-sm text-slate-200">
+                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">Nível</label>
+                                <select id="turma-new-nivel" class="input-glass px-3 py-2 text-sm text-gray-200">
                                     <option value="Graduação">Graduação</option>
                                     <option value="Pós-Graduação">Pós-Graduação</option>
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Nome</label>
+                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">Nome</label>
                                 <input type="text" id="turma-new-nome" placeholder="Ex: Fevereiro 2026"
-                                    class="input-glass px-3 py-2 text-sm text-slate-200 w-48">
+                                    class="input-glass px-3 py-2 text-sm text-gray-200 w-48">
                             </div>
                             <div>
-                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Início</label>
-                                <input type="date" id="turma-new-inicio" class="input-glass px-3 py-2 text-sm text-slate-200">
+                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">Início</label>
+                                <input type="date" id="turma-new-inicio" class="input-glass px-3 py-2 text-sm text-gray-200">
                             </div>
                             <div>
-                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Fim</label>
-                                <input type="date" id="turma-new-fim" class="input-glass px-3 py-2 text-sm text-slate-200">
+                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">Fim</label>
+                                <input type="date" id="turma-new-fim" class="input-glass px-3 py-2 text-sm text-gray-200">
                             </div>
                             <div>
-                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Ano</label>
+                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">Ano</label>
                                 <input type="number" id="turma-new-ano" value="2026" min="2024" max="2030"
-                                    class="input-glass px-3 py-2 text-sm text-slate-200 w-24">
+                                    class="input-glass px-3 py-2 text-sm text-gray-200 w-24">
                             </div>
                             <button onclick="createTurma()" class="btn-primary text-sm px-5 py-2 rounded-xl">Salvar</button>
                         </div>
@@ -182,13 +189,13 @@
                 <div id="cfg-section-usuarios" class="hidden">
                     <div class="glass-card p-6 mb-6">
                         <div class="flex items-center justify-between mb-6">
-                            <h3 class="text-base font-bold text-white font-display">Usuários Cadastrados</h3>
+                            <h3 class="text-base font-bold text-[var(--text-primary)] font-display">Usuários Cadastrados</h3>
                             <button onclick="loadUsers()" class="btn-secondary text-sm px-4 py-2 rounded-xl">Atualizar</button>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="w-full text-left text-sm">
                                 <thead>
-                                    <tr class="text-xs text-slate-500 border-b border-slate-700/30">
+                                    <tr class="text-xs text-gray-500 border-b border-gray-700/30">
                                         <th class="pb-2 font-semibold">Usuário</th>
                                         <th class="pb-2 font-semibold">Nível</th>
                                         <th class="pb-2 font-semibold">Permissões</th>
@@ -196,29 +203,34 @@
                                         <th class="pb-2 font-semibold w-28">Ações</th>
                                     </tr>
                                 </thead>
-                                <tbody id="users-tbody" class="text-slate-300">
-                                    <tr><td colspan="5" class="py-4 text-center text-slate-500">Carregando...</td></tr>
+                                <tbody id="users-tbody" class="text-gray-300">
+                                    <tr><td colspan="5" class="py-4 text-center text-gray-500">Carregando...</td></tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
 
                     <div class="glass-card p-6">
-                        <h3 class="text-base font-bold text-white font-display mb-4">Novo Usuário</h3>
+                        <h3 class="text-base font-bold text-[var(--text-primary)] font-display mb-4">Novo Usuário</h3>
                         <div class="flex flex-wrap items-end gap-4 mb-5">
                             <div>
-                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Usuário</label>
+                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">Usuário</label>
                                 <input type="text" id="user-new-username" placeholder="login"
-                                    class="input-glass px-3 py-2 text-sm text-slate-200 w-40" autocomplete="off">
+                                    class="input-glass px-3 py-2 text-sm text-gray-200 w-40" autocomplete="off">
                             </div>
                             <div>
-                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Senha</label>
+                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">Senha</label>
                                 <input type="password" id="user-new-password" placeholder="••••••"
-                                    class="input-glass px-3 py-2 text-sm text-slate-200 w-40" autocomplete="new-password">
+                                    class="input-glass px-3 py-2 text-sm text-gray-200 w-40" autocomplete="new-password">
                             </div>
                             <div>
-                                <label class="block text-xs text-slate-500 mb-1.5 font-medium">Nível</label>
-                                <select id="user-new-role" class="input-glass px-3 py-2 text-sm text-slate-200"
+                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">Kommo User ID</label>
+                                <input type="number" id="user-new-kommo-uid" placeholder="Ex: 9876543"
+                                    class="input-glass px-3 py-2 text-sm text-gray-200 w-36" autocomplete="off">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">Nível</label>
+                                <select id="user-new-role" class="input-glass px-3 py-2 text-sm text-gray-200"
                                     onchange="toggleNewUserPerms()">
                                     <option value="viewer">Visualizador</option>
                                     <option value="admin">Administrador</option>
@@ -226,7 +238,7 @@
                             </div>
                         </div>
                         <div id="user-new-perms" class="mb-5">
-                            <label class="block text-xs text-slate-500 mb-2 font-medium">Permissões por página</label>
+                            <label class="block text-xs text-gray-500 mb-2 font-medium">Permissões por página</label>
                             <div id="user-new-perms-grid" class="grid grid-cols-3 gap-2"></div>
                         </div>
                         <button onclick="createUser()" class="btn-primary text-sm px-5 py-2 rounded-xl">Criar Usuário</button>
@@ -238,8 +250,8 @@
                     <div class="glass-card p-6 mb-6">
                         <div class="flex items-center justify-between mb-6">
                             <div>
-                                <h3 class="text-base font-bold text-white font-display">Régua de Comunicação AVA</h3>
-                                <p class="text-xs text-slate-500 mt-0.5">Defina regras automáticas de engajamento para alunos</p>
+                                <h3 class="text-base font-bold text-[var(--text-primary)] font-display">Régua de Comunicação AVA</h3>
+                                <p class="text-xs text-gray-500 mt-0.5">Defina regras automáticas de engajamento para alunos</p>
                             </div>
                             <button onclick="_showRuleModal()" class="btn-primary text-sm px-4 py-2 rounded-xl flex items-center gap-2">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
@@ -250,7 +262,7 @@
                         <div class="overflow-x-auto">
                             <table class="w-full text-left text-sm">
                                 <thead>
-                                    <tr class="text-[10px] text-slate-500 border-b border-slate-700/30 uppercase tracking-wider">
+                                    <tr class="text-[10px] text-gray-500 border-b border-gray-700/30 uppercase tracking-wider">
                                         <th class="pb-2 font-semibold w-8"></th>
                                         <th class="pb-2 font-semibold">Nome</th>
                                         <th class="pb-2 font-semibold">Audiência</th>
@@ -261,8 +273,8 @@
                                         <th class="pb-2 font-semibold w-28">Ações</th>
                                     </tr>
                                 </thead>
-                                <tbody id="regua-tbody" class="text-slate-300">
-                                    <tr><td colspan="8" class="py-4 text-center text-slate-500">Carregando...</td></tr>
+                                <tbody id="regua-tbody" class="text-gray-300">
+                                    <tr><td colspan="8" class="py-4 text-center text-gray-500">Carregando...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -270,40 +282,40 @@
 
                     <!-- Template Variables Reference -->
                     <div class="glass-card p-6">
-                        <h3 class="text-base font-bold text-white font-display mb-3">Variáveis de Template</h3>
-                        <p class="text-xs text-slate-500 mb-4">Use estas variáveis nas mensagens para personalizar automaticamente:</p>
+                        <h3 class="text-base font-bold text-[var(--text-primary)] font-display mb-3">Variáveis de Template</h3>
+                        <p class="text-xs text-gray-500 mb-4">Use estas variáveis nas mensagens para personalizar automaticamente:</p>
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            <div class="bg-slate-800/40 rounded-lg p-3">
-                                <code class="text-xs text-cyan-400 font-mono">{{nome}}</code>
-                                <p class="text-[10px] text-slate-500 mt-1">Nome completo</p>
+                            <div class="bg-gray-800/40 rounded-lg p-3">
+                                <code class="text-xs text-indigo-400 font-mono">{{nome}}</code>
+                                <p class="text-[10px] text-gray-500 mt-1">Nome completo</p>
                             </div>
-                            <div class="bg-slate-800/40 rounded-lg p-3">
-                                <code class="text-xs text-cyan-400 font-mono">{{primeiro_nome}}</code>
-                                <p class="text-[10px] text-slate-500 mt-1">Primeiro nome</p>
+                            <div class="bg-gray-800/40 rounded-lg p-3">
+                                <code class="text-xs text-indigo-400 font-mono">{{primeiro_nome}}</code>
+                                <p class="text-[10px] text-gray-500 mt-1">Primeiro nome</p>
                             </div>
-                            <div class="bg-slate-800/40 rounded-lg p-3">
-                                <code class="text-xs text-cyan-400 font-mono">{{curso}}</code>
-                                <p class="text-[10px] text-slate-500 mt-1">Nome do curso</p>
+                            <div class="bg-gray-800/40 rounded-lg p-3">
+                                <code class="text-xs text-indigo-400 font-mono">{{curso}}</code>
+                                <p class="text-[10px] text-gray-500 mt-1">Nome do curso</p>
                             </div>
-                            <div class="bg-slate-800/40 rounded-lg p-3">
-                                <code class="text-xs text-cyan-400 font-mono">{{polo}}</code>
-                                <p class="text-[10px] text-slate-500 mt-1">Nome do polo</p>
+                            <div class="bg-gray-800/40 rounded-lg p-3">
+                                <code class="text-xs text-indigo-400 font-mono">{{polo}}</code>
+                                <p class="text-[10px] text-gray-500 mt-1">Nome do polo</p>
                             </div>
-                            <div class="bg-slate-800/40 rounded-lg p-3">
-                                <code class="text-xs text-cyan-400 font-mono">{{email}}</code>
-                                <p class="text-[10px] text-slate-500 mt-1">E-mail do aluno</p>
+                            <div class="bg-gray-800/40 rounded-lg p-3">
+                                <code class="text-xs text-indigo-400 font-mono">{{email}}</code>
+                                <p class="text-[10px] text-gray-500 mt-1">E-mail do aluno</p>
                             </div>
-                            <div class="bg-slate-800/40 rounded-lg p-3">
-                                <code class="text-xs text-cyan-400 font-mono">{{rgm}}</code>
-                                <p class="text-[10px] text-slate-500 mt-1">RGM do aluno</p>
+                            <div class="bg-gray-800/40 rounded-lg p-3">
+                                <code class="text-xs text-indigo-400 font-mono">{{rgm}}</code>
+                                <p class="text-[10px] text-gray-500 mt-1">RGM do aluno</p>
                             </div>
-                            <div class="bg-slate-800/40 rounded-lg p-3">
-                                <code class="text-xs text-cyan-400 font-mono">{{dias_sem_acesso}}</code>
-                                <p class="text-[10px] text-slate-500 mt-1">Dias sem acesso ao AVA</p>
+                            <div class="bg-gray-800/40 rounded-lg p-3">
+                                <code class="text-xs text-indigo-400 font-mono">{{dias_sem_acesso}}</code>
+                                <p class="text-[10px] text-gray-500 mt-1">Dias sem acesso ao AVA</p>
                             </div>
-                            <div class="bg-slate-800/40 rounded-lg p-3">
-                                <code class="text-xs text-cyan-400 font-mono">{{score}}</code>
-                                <p class="text-[10px] text-slate-500 mt-1">Score de engajamento</p>
+                            <div class="bg-gray-800/40 rounded-lg p-3">
+                                <code class="text-xs text-indigo-400 font-mono">{{score}}</code>
+                                <p class="text-[10px] text-gray-500 mt-1">Score de engajamento</p>
                             </div>
                         </div>
                     </div>

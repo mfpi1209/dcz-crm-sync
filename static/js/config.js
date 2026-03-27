@@ -10,7 +10,7 @@ async function loadLogFiles() {
         const list = document.getElementById('log-file-list');
 
         if (!data.files || !data.files.length) {
-            list.innerHTML = '<p class="text-slate-500 text-xs">Nenhum arquivo encontrado.</p>';
+            list.innerHTML = '<p class="text-gray-500 text-xs">Nenhum arquivo encontrado.</p>';
             return;
         }
 
@@ -18,9 +18,9 @@ async function loadLogFiles() {
             const size = f.size > 1048576 ? (f.size / 1048576).toFixed(1) + ' MB' : (f.size / 1024).toFixed(0) + ' KB';
             const isActive = _currentLogFile === f.path;
             return `<button onclick="viewLogFile('${esc(f.path)}')"
-                class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800/40 transition ${isActive ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'text-slate-300 border border-transparent'}">
+                class="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/40 transition ${isActive ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'text-gray-300 border border-transparent'}">
                 <div class="font-medium text-xs truncate">${esc(f.name)}</div>
-                <div class="text-[10px] text-slate-600">${esc(f.dir)} &middot; ${size} &middot; ${fmtDate(f.modified) || '—'}</div>
+                <div class="text-[10px] text-gray-600">${esc(f.dir)} &middot; ${size} &middot; ${fmtDate(f.modified) || '—'}</div>
             </button>`;
         }).join('');
     } catch (err) {
@@ -74,7 +74,7 @@ function switchConfigTab(tab) {
     _configTab = tab;
     const tabs = ['ciclos', 'turmas', 'usuarios', 'regua'];
     const activeClass = 'text-sm font-semibold px-5 py-2 rounded-lg transition bg-blue-500/15 text-blue-400 border border-blue-500/30 flex items-center gap-2';
-    const inactiveClass = 'text-sm font-semibold px-5 py-2 rounded-lg transition text-slate-500 hover:text-slate-300 flex items-center gap-2';
+    const inactiveClass = 'text-sm font-semibold px-5 py-2 rounded-lg transition text-gray-500 hover:text-gray-300 flex items-center gap-2';
     tabs.forEach(t => {
         const tabEl = document.getElementById('cfg-tab-' + t);
         const secEl = document.getElementById('cfg-section-' + t);
@@ -103,10 +103,10 @@ function switchTurmaTab(tab) {
     _turmaTab = tab;
     document.getElementById('tab-turma-grad').className = tab === 'grad'
         ? 'text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-blue-500/15 text-blue-400 border border-blue-500/30'
-        : 'text-sm font-semibold px-4 py-1.5 rounded-lg transition text-slate-500 hover:text-slate-300';
+        : 'text-sm font-semibold px-4 py-1.5 rounded-lg transition text-gray-500 hover:text-gray-300';
     document.getElementById('tab-turma-pos').className = tab === 'pos'
         ? 'text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-blue-500/15 text-blue-400 border border-blue-500/30'
-        : 'text-sm font-semibold px-4 py-1.5 rounded-lg transition text-slate-500 hover:text-slate-300';
+        : 'text-sm font-semibold px-4 py-1.5 rounded-lg transition text-gray-500 hover:text-gray-300';
     renderTurmas();
 }
 
@@ -115,21 +115,21 @@ function renderTurmas() {
     const filtered = _turmaData.filter(t => t.nivel === nivel).sort((a,b) => a.dt_inicio.localeCompare(b.dt_inicio));
     const tbody = document.getElementById('turma-tbody');
     if (!filtered.length) {
-        tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-slate-500">Nenhuma turma encontrada</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-gray-500">Nenhuma turma encontrada</td></tr>';
         return;
     }
     tbody.innerHTML = filtered.map(t => `
-        <tr class="border-b border-slate-700/20 hover:bg-white/[0.02]" data-turma-id="${t.id}">
+        <tr class="border-b border-[var(--border)] hover:bg-white/[0.02]" data-turma-id="${t.id}">
             <td class="py-2.5 pr-4">
-                <input type="text" value="${t.nome}" class="bg-transparent border-b border-transparent hover:border-slate-600 focus:border-indigo-500 outline-none text-slate-200 w-full turma-nome" />
+                <input type="text" value="${t.nome}" class="bg-transparent border-b border-transparent hover:border-gray-600 focus:border-indigo-500 outline-none text-gray-200 w-full turma-nome" />
             </td>
             <td class="py-2.5 pr-4">
-                <input type="date" value="${t.dt_inicio}" class="input-glass px-2 py-1 text-sm text-slate-200 turma-inicio" />
+                <input type="date" value="${t.dt_inicio}" class="input-glass px-2 py-1 text-sm text-gray-200 turma-inicio" />
             </td>
             <td class="py-2.5 pr-4">
-                <input type="date" value="${t.dt_fim}" class="input-glass px-2 py-1 text-sm text-slate-200 turma-fim" />
+                <input type="date" value="${t.dt_fim}" class="input-glass px-2 py-1 text-sm text-gray-200 turma-fim" />
             </td>
-            <td class="py-2.5 pr-4 text-slate-400">${t.ano}</td>
+            <td class="py-2.5 pr-4 text-gray-400">${t.ano}</td>
             <td class="py-2.5 flex gap-2">
                 <button onclick="saveTurma(${t.id})" title="Salvar" class="text-emerald-400 hover:text-emerald-300 transition">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
@@ -208,10 +208,10 @@ function switchCicloTab(tab) {
     _cicloTab = tab;
     document.getElementById('tab-ciclo-grad').className = tab === 'grad'
         ? 'text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-blue-500/15 text-blue-400 border border-blue-500/30'
-        : 'text-sm font-semibold px-4 py-1.5 rounded-lg transition text-slate-500 hover:text-slate-300';
+        : 'text-sm font-semibold px-4 py-1.5 rounded-lg transition text-gray-500 hover:text-gray-300';
     document.getElementById('tab-ciclo-pos').className = tab === 'pos'
         ? 'text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-blue-500/15 text-blue-400 border border-blue-500/30'
-        : 'text-sm font-semibold px-4 py-1.5 rounded-lg transition text-slate-500 hover:text-slate-300';
+        : 'text-sm font-semibold px-4 py-1.5 rounded-lg transition text-gray-500 hover:text-gray-300';
     renderCiclos();
 }
 
@@ -220,19 +220,19 @@ function renderCiclos() {
     const filtered = _cicloData.filter(c => c.nivel === nivel).sort((a,b) => a.dt_inicio.localeCompare(b.dt_inicio));
     const tbody = document.getElementById('ciclo-tbody');
     if (!filtered.length) {
-        tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-slate-500">Nenhum ciclo encontrado</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-gray-500">Nenhum ciclo encontrado</td></tr>';
         return;
     }
     tbody.innerHTML = filtered.map(c => `
-        <tr class="border-b border-slate-700/20 hover:bg-white/[0.02]" data-ciclo-id="${c.id}">
+        <tr class="border-b border-[var(--border)] hover:bg-white/[0.02]" data-ciclo-id="${c.id}">
             <td class="py-2.5 pr-4">
-                <input type="text" value="${c.nome}" class="bg-transparent border-b border-transparent hover:border-slate-600 focus:border-indigo-500 outline-none text-slate-200 w-full ciclo-nome" />
+                <input type="text" value="${c.nome}" class="bg-transparent border-b border-transparent hover:border-gray-600 focus:border-indigo-500 outline-none text-gray-200 w-full ciclo-nome" />
             </td>
             <td class="py-2.5 pr-4">
-                <input type="date" value="${c.dt_inicio}" class="input-glass px-2 py-1 text-sm text-slate-200 ciclo-inicio" />
+                <input type="date" value="${c.dt_inicio}" class="input-glass px-2 py-1 text-sm text-gray-200 ciclo-inicio" />
             </td>
             <td class="py-2.5 pr-4">
-                <input type="date" value="${c.dt_fim}" class="input-glass px-2 py-1 text-sm text-slate-200 ciclo-fim" />
+                <input type="date" value="${c.dt_fim}" class="input-glass px-2 py-1 text-sm text-gray-200 ciclo-fim" />
             </td>
             <td class="py-2.5 flex gap-2">
                 <button onclick="saveCiclo(${c.id})" title="Salvar" class="text-emerald-400 hover:text-emerald-300 transition">
@@ -305,13 +305,13 @@ async function loadSchedules() {
         const container = document.getElementById('schedule-list');
 
         if (!data.schedules || !data.schedules.length) {
-            container.innerHTML = '<p class="text-sm text-slate-500">Nenhum agendamento configurado.</p>';
+            container.innerHTML = '<p class="text-sm text-gray-500">Nenhum agendamento configurado.</p>';
             return;
         }
 
         container.innerHTML = `<div class="space-y-3">${data.schedules.map(s => {
             const typeColor = s.job_type === 'sync_full' ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30' : 'bg-blue-500/15 text-blue-400 border border-blue-500/30';
-            const enabledColor = s.enabled ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-500 border border-slate-700/30';
+            const enabledColor = s.enabled ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-[var(--bg-card)] text-gray-500 border border-[var(--border)]';
             const days = DAY_LABELS[s.cron_days] || s.cron_days;
             const time = String(s.cron_hour).padStart(2, '0') + ':' + String(s.cron_minute).padStart(2, '0');
 
@@ -321,8 +321,8 @@ async function loadSchedules() {
                         <span class="tag-pill ${typeColor}">${TYPE_LABELS[s.job_type] || s.job_type}</span>
                     </div>
                     <div>
-                        <p class="text-sm text-slate-200 font-semibold">${days} às ${time}</p>
-                        <p class="text-xs text-slate-500">
+                        <p class="text-sm text-gray-200 font-semibold">${days} às ${time}</p>
+                        <p class="text-xs text-gray-500">
                             ${s.last_run_at ? 'Última execução: ' + fmtDate(s.last_run_at) : 'Nunca executado'}
                             ${s.next_run ? ' &middot; Próxima: ' + fmtDate(s.next_run) : ''}
                         </p>
@@ -330,7 +330,7 @@ async function loadSchedules() {
                 </div>
                 <div class="flex items-center gap-2">
                     <span class="tag-pill ${enabledColor}">${s.enabled ? 'Ativo' : 'Inativo'}</span>
-                    <button onclick="toggleSchedule('${esc(s.id)}')" class="text-xs px-3 py-1.5 rounded-lg btn-secondary text-slate-300">
+                    <button onclick="toggleSchedule('${esc(s.id)}')" class="text-xs px-3 py-1.5 rounded-lg btn-secondary text-gray-300">
                         ${s.enabled ? 'Desativar' : 'Ativar'}
                     </button>
                     <button onclick="deleteSchedule('${esc(s.id)}')" class="text-xs px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition">
@@ -390,10 +390,10 @@ async function deleteSchedule(id) {
 // Usuários — CRUD
 // ---------------------------------------------------------------------------
 const PAGE_LABELS = {
-    dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização',
-    kommo_sync: 'Sync Comercial',
-    update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline',
-    match_merge: 'Match & Merge', comercial_rgm: 'Dashboard Comercial',
+    dashboard: 'Dashboard', search: 'Buscar', sync: 'Sync/Delta CRM Acadêmico',
+    kommo_sync: 'Sync/Delta CRM Comercial',
+    update: 'Upload Acadêmico', pipeline: 'Atualização CRM Acadêmico',
+    match_merge: 'Upload Comercial', comercial_rgm: 'Dashboard Comercial',
     logs: 'Logs / Relatórios', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas',
     intelligence: 'Inteligência', inadimplencia: 'Inadimplência',
     feedback: 'Feedback', config: 'Configurações', schedule: 'Agendamento',
@@ -403,15 +403,18 @@ const PAGE_LABELS = {
     localizacao_polos: 'Localização',
     info_cursos: 'Informações de Cursos',
     avisos: 'Avisos',
-    kommo_dispatcher: 'Kommo Dispatcher',
+    kommo_dispatcher: 'Monitor de Conversas',
+    minha_performance: 'Minha Performance',
+    leads_parados: 'Leads Parados',
 };
 
 const PAGE_GROUPS_CONFIG = [
     { label: 'Geral', pages: ['dashboard', 'search', 'avisos'] },
     { label: 'Operação — Acadêmico', pages: ['ativacoes', 'distribuicao', 'intelligence', 'inadimplencia', 'feedback'] },
     { label: 'Ferramentas', pages: ['comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos'] },
-    { label: 'Operação — Comercial', pages: ['pipeline', 'update', 'match_merge', 'comercial_rgm', 'inscricao'] },
-    { label: 'Sistema', pages: ['sync', 'kommo_sync', 'kommo_dispatcher', 'logs', 'config', 'schedule'] },
+    { label: 'Operação — Comercial', pages: ['comercial_rgm', 'inscricao', 'minha_performance', 'leads_parados'] },
+    { label: 'Sistema', pages: ['kommo_dispatcher', 'logs', 'config', 'schedule'] },
+    { label: 'Sistema — CRM', pages: ['pipeline', 'sync', 'kommo_sync', 'update', 'match_merge'] },
 ];
 let _allPages = [];
 let _usersData = [];
@@ -430,21 +433,21 @@ async function loadUsers() {
 function renderUsers() {
     const tbody = document.getElementById('users-tbody');
     if (!_usersData.length) {
-        tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-slate-500">Nenhum usuário</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-gray-500">Nenhum usuário</td></tr>';
         return;
     }
     tbody.innerHTML = _usersData.map(u => {
         const roleLabel = u.role === 'admin'
             ? '<span class="tag-pill bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">Admin</span>'
-            : '<span class="tag-pill bg-slate-700/50 text-slate-400 border border-slate-600/30">Viewer</span>';
+            : '<span class="tag-pill bg-gray-700/50 text-gray-400 border border-gray-600/30">Viewer</span>';
         const permsHtml = u.role === 'admin'
             ? '<span class="text-xs text-emerald-400">Acesso total</span>'
-            : (u.pages || []).map(p => `<span class="inline-block text-[10px] bg-slate-800/50 text-slate-400 px-1.5 py-0.5 rounded mr-1 mb-1">${PAGE_LABELS[p] || p}</span>`).join('');
-        return `<tr class="border-b border-slate-700/20">
+            : (u.pages || []).map(p => `<span class="inline-block text-[10px] bg-gray-100 dark:bg-gray-800/50 text-gray-400 px-1.5 py-0.5 rounded mr-1 mb-1">${PAGE_LABELS[p] || p}</span>`).join('');
+        return `<tr class="border-b border-[var(--border)]">
             <td class="py-3 font-medium">${u.username}</td>
             <td class="py-3">${roleLabel}</td>
             <td class="py-3 max-w-xs">${permsHtml}</td>
-            <td class="py-3 text-xs text-slate-500">${u.created_at || ''}</td>
+            <td class="py-3 text-xs text-gray-500">${u.created_at || ''}</td>
             <td class="py-3">
                 <div class="flex gap-2">
                     <button onclick="editUser(${u.id})" class="text-xs text-indigo-400 hover:text-indigo-300">Editar</button>
@@ -462,13 +465,13 @@ function _renderPermsGrouped(cbClass, checkedPages, disabled) {
         const items = groupPages.map(p => {
             const ck = checkedPages.includes(p) ? 'checked' : '';
             const dis = disabled ? 'disabled' : '';
-            return `<label class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+            return `<label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
                 <input type="checkbox" value="${p}" class="${cbClass} accent-indigo-500 w-4 h-4" ${ck} ${dis}>
                 ${PAGE_LABELS[p] || p}
             </label>`;
         }).join('');
         return `<div class="mb-3">
-            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">${g.label}</p>
+            <p class="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">${g.label}</p>
             <div class="grid grid-cols-2 gap-1.5 pl-2">${items}</div>
         </div>`;
     }).join('');
@@ -489,13 +492,15 @@ async function createUser() {
     const username = document.getElementById('user-new-username').value.trim();
     const password = document.getElementById('user-new-password').value;
     const role = document.getElementById('user-new-role').value;
+    const kommoRaw = document.getElementById('user-new-kommo-uid').value.trim();
+    const kommo_user_id = kommoRaw ? parseInt(kommoRaw) : null;
     if (!username || !password) { toast('Usuário e senha são obrigatórios', 'warning'); return; }
     const cbs = document.querySelectorAll('.user-new-page-cb:checked');
     const pages = Array.from(cbs).map(cb => cb.value);
     try {
         const res = await api('/api/users', {
             method: 'POST', headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({ username, password, role, pages }),
+            body: JSON.stringify({ username, password, role, pages, kommo_user_id }),
         });
         const d = await res.json();
         if (d.error) { toast(d.error, 'error'); return; }
@@ -526,23 +531,27 @@ async function editUser(uid) {
     modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm';
     modal.innerHTML = `
         <div class="glass-card p-6 w-full max-w-md mx-4" style="background:rgba(15,23,42,0.95)">
-            <h3 class="text-lg font-bold text-white font-display mb-4">Editar: ${u.username}</h3>
+            <h3 class="text-lg font-bold text-[var(--text-primary)] font-display mb-4">Editar: ${u.username}</h3>
             <div class="space-y-4">
                 <div>
-                    <label class="block text-xs text-slate-500 mb-1.5 font-medium">Nova Senha (deixe vazio para manter)</label>
-                    <input type="password" id="edit-user-pw" class="input-glass px-3 py-2 text-sm text-slate-200 w-full" autocomplete="new-password">
+                    <label class="block text-xs text-gray-500 mb-1.5 font-medium">Nova Senha (deixe vazio para manter)</label>
+                    <input type="password" id="edit-user-pw" class="input-glass px-3 py-2 text-sm text-gray-200 w-full" autocomplete="new-password">
                 </div>
                 <div>
-                    <label class="block text-xs text-slate-500 mb-1.5 font-medium">Nível</label>
-                    <select id="edit-user-role" class="input-glass px-3 py-2 text-sm text-slate-200 w-full"
+                    <label class="block text-xs text-gray-500 mb-1.5 font-medium">Kommo User ID</label>
+                    <input type="number" id="edit-user-kommo-uid" value="${u.kommo_user_id||''}" class="input-glass px-3 py-2 text-sm text-gray-200 w-full" placeholder="ID do usuário no Kommo">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1.5 font-medium">Nível</label>
+                    <select id="edit-user-role" class="input-glass px-3 py-2 text-sm text-gray-200 w-full"
                         onchange="document.querySelectorAll('.edit-perm-cb').forEach(cb=>{cb.disabled=this.value==='admin';if(this.value==='admin')cb.checked=true})">
                         <option value="viewer" ${u.role==='viewer'?'selected':''}>Visualizador</option>
                         <option value="admin" ${u.role==='admin'?'selected':''}>Administrador</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs text-slate-500 mb-2 font-medium">Permissões</label>
-                    <div class="grid grid-cols-2 gap-2 text-slate-300">${permsHtml}</div>
+                    <label class="block text-xs text-gray-500 mb-2 font-medium">Permissões</label>
+                    <div class="grid grid-cols-2 gap-2 text-gray-300">${permsHtml}</div>
                 </div>
                 <div class="flex gap-3 pt-2">
                     <button onclick="saveUserEdit(${uid})" class="btn-primary text-white text-sm px-5 py-2 rounded-xl">Salvar</button>
@@ -556,9 +565,10 @@ async function editUser(uid) {
 async function saveUserEdit(uid) {
     const pw = document.getElementById('edit-user-pw').value;
     const role = document.getElementById('edit-user-role').value;
+    const kommoRaw = document.getElementById('edit-user-kommo-uid').value.trim();
     const cbs = document.querySelectorAll('.edit-perm-cb:checked');
     const pages = Array.from(cbs).map(cb => cb.value);
-    const body = { role, pages };
+    const body = { role, pages, kommo_user_id: kommoRaw ? parseInt(kommoRaw) : null };
     if (pw) body.password = pw;
     try {
         const res = await api('/api/users/' + uid, {
