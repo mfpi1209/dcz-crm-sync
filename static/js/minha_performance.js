@@ -200,47 +200,35 @@ function _mpRenderRanking(d) {
     const pos = rk.posicao;
     const total = rk.total_agentes;
     const diff = rk.diferenca_lider;
-    const top = rk.top || [];
 
     const medalCfg = {
-        1: { icon: 'trophy', color: 'text-amber-400', bg: 'bg-amber-500/15 border-amber-500/30', ring: 'ring-amber-500/40' },
-        2: { icon: 'workspace_premium', color: 'text-slate-300', bg: 'bg-slate-400/10 border-slate-400/20', ring: 'ring-slate-400/30' },
-        3: { icon: 'workspace_premium', color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20', ring: 'ring-orange-500/30' },
+        1: { icon: 'trophy', color: 'text-amber-400', bg: 'bg-gradient-to-br from-amber-500/20 to-amber-900/10', border: 'border-amber-500/40', label: 'Você lidera o ranking!', labelColor: 'text-amber-400' },
+        2: { icon: 'workspace_premium', color: 'text-slate-300', bg: 'bg-gradient-to-br from-slate-400/15 to-slate-700/10', border: 'border-slate-400/30', label: 'Vice-líder!', labelColor: 'text-slate-300' },
+        3: { icon: 'workspace_premium', color: 'text-orange-400', bg: 'bg-gradient-to-br from-orange-500/15 to-orange-900/10', border: 'border-orange-500/30', label: 'Top 3! Pódio!', labelColor: 'text-orange-400' },
     };
+    const m = medalCfg[pos];
 
-    const myMedal = medalCfg[pos];
-    const heroHtml = `
-        <div class="flex items-center gap-4 mb-4 pb-4 border-b border-slate-700/30">
-            <div class="w-16 h-16 rounded-2xl flex items-center justify-center border-2 ${myMedal ? myMedal.bg + ' ' + myMedal.ring : 'bg-slate-700/50 border-slate-600/30'} ring-2 ${myMedal ? myMedal.ring : 'ring-slate-700/30'}">
-                ${myMedal
-                    ? `<span class="material-symbols-outlined text-3xl ${myMedal.color}">${myMedal.icon}</span>`
-                    : `<span class="text-2xl font-black text-slate-400">${pos}°</span>`}
+    let motivacao = '';
+    if (pos > 3 && diff > 0) {
+        motivacao = diff <= 3
+            ? `<p class="text-xs text-cyan-400 font-medium mt-2">Quase no pódio! Só ${diff} para o Top 3!</p>`
+            : `<p class="text-xs text-slate-400 mt-2">${diff} matrícula${diff > 1 ? 's' : ''} atrás do 1° lugar. Bora!</p>`;
+    }
+
+    content.innerHTML = `
+        <div class="flex items-center gap-5">
+            <div class="w-20 h-20 rounded-2xl flex items-center justify-center border-2 ${m ? m.bg + ' ' + m.border : 'bg-slate-700/40 border-slate-600/30'} shadow-lg ${m ? 'shadow-amber-500/10' : ''}">
+                ${m
+                    ? `<span class="material-symbols-outlined text-4xl ${m.color}">${m.icon}</span>`
+                    : `<span class="text-3xl font-black text-slate-300">${pos}°</span>`}
             </div>
-            <div>
-                <p class="text-2xl font-black text-white">${pos}° <span class="text-sm font-normal text-slate-500">de ${total}</span></p>
-                ${pos === 1
-                    ? '<p class="text-xs text-amber-400 font-bold">Você lidera o ranking!</p>'
-                    : `<p class="text-xs text-slate-400">${diff} atrás do 1° lugar</p>`}
+            <div class="flex-1">
+                <p class="text-3xl font-black text-white">${pos}°</p>
+                <p class="text-sm text-slate-500">de ${total} agentes</p>
+                ${m ? `<p class="text-xs font-bold ${m.labelColor} mt-1">${m.label}</p>` : ''}
+                ${motivacao}
             </div>
         </div>`;
-
-    const listHtml = top.map((t, i) => {
-        const p = i + 1;
-        const mc = medalCfg[p];
-        const isMe = t.uid === (_mpSelectedUid || _mpMyUid);
-        const nameParts = (t.nome || '').split(' ');
-        const shortName = nameParts[0] || t.nome;
-        return `<div class="flex items-center gap-2.5 py-1.5 ${isMe ? 'bg-cyan-500/5 -mx-2 px-2 rounded-lg border border-cyan-500/20' : ''}">
-            <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${mc ? mc.bg + ' border' : 'bg-slate-800/50'}">
-                ${mc ? `<span class="material-symbols-outlined text-sm ${mc.color}">${mc.icon}</span>` : `<span class="text-[10px] font-bold text-slate-500">${p}°</span>`}
-            </div>
-            <span class="text-xs ${isMe ? 'text-cyan-300 font-bold' : 'text-slate-300'} flex-1 truncate">${isMe ? 'Você' : shortName}</span>
-            <span class="text-xs font-bold ${isMe ? 'text-cyan-400' : 'text-white'}">${t.total}</span>
-            ${t.aceites > 0 ? `<span class="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-400 font-medium">${t.aceites} ac.</span>` : ''}
-        </div>`;
-    }).join('');
-
-    content.innerHTML = heroHtml + `<div class="space-y-0.5">${listHtml}</div>`;
 }
 
 /* ═══ Conquistas ═══ */
@@ -250,36 +238,35 @@ function _mpRenderConquistas(d) {
     if (!card || !grid) return;
 
     const achieved = d.conquistas || [];
-    const allPossible = [
-        { id: 'primeira_mat', nome: 'Primeira Matrícula', icone: 'school' },
-        { id: 'streak_3', nome: '3 Dias Seguidos', icone: 'local_fire_department' },
-        { id: 'streak_5', nome: '5 Dias Seguidos', icone: 'whatshot' },
-        { id: 'streak_7', nome: 'Imparável', icone: 'bolt' },
-        { id: 'meta_batida', nome: 'Meta Batida', icone: 'emoji_events' },
-        { id: 'supermeta', nome: 'Supermeta', icone: 'military_tech' },
-        { id: 'meta_antecipada', nome: 'Meta Antecipada', icone: 'schedule' },
-        { id: 'melhor_dia', nome: 'Super Dia', icone: 'star' },
-        { id: 'top_1', nome: 'Top 1 (Ouro)', icone: 'workspace_premium' },
-        { id: 'top_2', nome: 'Top 2 (Prata)', icone: 'workspace_premium' },
-        { id: 'top_3', nome: 'Top 3 (Bronze)', icone: 'workspace_premium' },
-    ];
-    const achievedIds = new Set(achieved.map(a => a.id));
-    if (!achieved.length && !allPossible.length) { card.classList.add('hidden'); return; }
+    if (!achieved.length) {
+        card.classList.remove('hidden');
+        grid.innerHTML = `
+            <div class="w-full text-center py-4">
+                <span class="material-symbols-outlined text-3xl text-slate-600 mb-2">rocket_launch</span>
+                <p class="text-sm text-slate-500 font-medium">Suas conquistas aparecem aqui!</p>
+                <p class="text-[10px] text-slate-600 mt-1">Faça matrículas, bata metas diárias e suba no ranking para desbloquear.</p>
+            </div>`;
+        return;
+    }
     card.classList.remove('hidden');
 
-    grid.innerHTML = allPossible.map(a => {
-        const unlocked = achievedIds.has(a.id);
-        const real = achieved.find(x => x.id === a.id);
-        const desc = real?.desc || a.nome;
-        if (unlocked) {
-            return `<div class="flex flex-col items-center gap-1.5 p-3 rounded-xl w-20 bg-gradient-to-b from-purple-500/20 to-purple-900/10 border border-purple-500/30 shadow-lg shadow-purple-500/5" title="${desc}">
-                <span class="material-symbols-outlined text-2xl text-purple-300 drop-shadow-[0_0_6px_rgba(168,85,247,0.4)]">${real?.icone || a.icone}</span>
-                <span class="text-[9px] text-center leading-tight text-purple-200 font-semibold">${real?.nome || a.nome}</span>
-            </div>`;
-        }
-        return `<div class="flex flex-col items-center gap-1 p-2.5 rounded-xl w-20 bg-slate-800/20 opacity-30" title="${desc}">
-            <span class="material-symbols-outlined text-xl text-slate-600">${a.icone}</span>
-            <span class="text-[9px] text-center leading-tight text-slate-600">${a.nome}</span>
+    const colorMap = {
+        primeira_mat: { from: 'from-emerald-500/25', to: 'to-emerald-900/10', border: 'border-emerald-500/40', icon: 'text-emerald-300', glow: 'rgba(16,185,129,0.4)' },
+        streak_3: { from: 'from-amber-500/25', to: 'to-amber-900/10', border: 'border-amber-500/40', icon: 'text-amber-300', glow: 'rgba(245,158,11,0.4)' },
+        streak_5: { from: 'from-orange-500/25', to: 'to-orange-900/10', border: 'border-orange-500/40', icon: 'text-orange-300', glow: 'rgba(249,115,22,0.4)' },
+        streak_7: { from: 'from-red-500/25', to: 'to-red-900/10', border: 'border-red-500/40', icon: 'text-red-300', glow: 'rgba(239,68,68,0.4)' },
+        meta_batida: { from: 'from-blue-500/25', to: 'to-blue-900/10', border: 'border-blue-500/40', icon: 'text-blue-300', glow: 'rgba(59,130,246,0.4)' },
+        supermeta: { from: 'from-yellow-500/30', to: 'to-yellow-900/10', border: 'border-yellow-500/50', icon: 'text-yellow-300', glow: 'rgba(234,179,8,0.5)' },
+        meta_antecipada: { from: 'from-cyan-500/25', to: 'to-cyan-900/10', border: 'border-cyan-500/40', icon: 'text-cyan-300', glow: 'rgba(6,182,212,0.4)' },
+        melhor_dia: { from: 'from-pink-500/25', to: 'to-pink-900/10', border: 'border-pink-500/40', icon: 'text-pink-300', glow: 'rgba(236,72,153,0.4)' },
+    };
+    const defaultColor = { from: 'from-purple-500/25', to: 'to-purple-900/10', border: 'border-purple-500/40', icon: 'text-purple-300', glow: 'rgba(168,85,247,0.4)' };
+
+    grid.innerHTML = achieved.map(a => {
+        const c = colorMap[a.id] || defaultColor;
+        return `<div class="flex flex-col items-center gap-1.5 p-3 rounded-xl w-20 bg-gradient-to-b ${c.from} ${c.to} border ${c.border} shadow-lg transition-transform hover:scale-105" title="${a.desc || a.nome}">
+            <span class="material-symbols-outlined text-2xl ${c.icon}" style="filter:drop-shadow(0 0 6px ${c.glow})">${a.icone}</span>
+            <span class="text-[9px] text-center leading-tight text-white/80 font-semibold">${a.nome}</span>
         </div>`;
     }).join('');
 }
@@ -384,9 +371,7 @@ function _mpRenderPixDia(d) {
     } else {
         const falta = meta - efetivo;
         if (status) { status.textContent = `Faltam ${falta} para o PIX!`; status.className = 'text-base font-bold text-cyan-400 mb-1'; }
-        const aceiteTip = aceitesFila > aceitesHoje
-            ? ` (${aceitesFila - aceitesHoje} aceite${aceitesFila - aceitesHoje > 1 ? 's' : ''} pendente${aceitesFila - aceitesHoje > 1 ? 's' : ''} podem virar matrícula!)` : '';
-        if (detail) detail.textContent = `${feitas} matrícula${feitas !== 1 ? 's' : ''} + ${aceitesHoje} aceite${aceitesHoje !== 1 ? 's' : ''} = ${efetivo}/${meta}${aceiteTip}`;
+        if (detail) detail.textContent = `${feitas} matrícula${feitas !== 1 ? 's' : ''} +${aceitesHoje} aceite${aceitesHoje !== 1 ? 's' : ''} = ${efetivo}/${meta}`;
         if (valor) valor.textContent = `Prêmio: ${_mpFmt(fixo)}`;
     }
 }
