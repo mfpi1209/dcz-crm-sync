@@ -37,8 +37,12 @@
                     <input type="date" id="pa-camp-fim" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
                 </div>
             </div>
-            <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-2 font-semibold">R$ por matrícula ao atingir tier</p>
-            <div class="grid grid-cols-3 gap-3 mb-4">
+            <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-2 font-semibold">R$ por matrícula por faixa</p>
+            <div class="grid grid-cols-4 gap-3 mb-4">
+                <div>
+                    <label class="block text-[10px] text-slate-500 mb-1">Base (abaixo)</label>
+                    <input type="number" id="pa-camp-tier-base" placeholder="0" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
+                </div>
                 <div>
                     <label class="block text-[10px] text-slate-500 mb-1">Intermediária</label>
                     <input type="number" id="pa-camp-tier-inter" placeholder="0" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
@@ -157,7 +161,36 @@
         </div>
     </div>
 
-    <!-- ═══ D) Upload Recebimentos ═══ -->
+    <!-- ═══ D) Unificação de Campanhas ═══ -->
+    <div class="glass-card p-5 border border-pink-500/20">
+        <h3 class="text-sm font-bold text-white font-display flex items-center gap-2 mb-4">
+            <svg class="w-4 h-4 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+            Unificar Campanhas
+        </h3>
+        <p class="text-[10px] text-slate-500 mb-3">Vincule duas campanhas para que o agente possa somar matrículas e alcançar um tier melhor.</p>
+        <div class="flex flex-wrap items-end gap-3 mb-4">
+            <div>
+                <label class="block text-[10px] text-slate-500 mb-1">Campanha A</label>
+                <select id="pa-link-a" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[180px]">
+                    <option value="">Selecionar...</option>
+                </select>
+            </div>
+            <div class="text-slate-600 text-lg px-1">+</div>
+            <div>
+                <label class="block text-[10px] text-slate-500 mb-1">Campanha B</label>
+                <select id="pa-link-b" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[180px]">
+                    <option value="">Selecionar...</option>
+                </select>
+            </div>
+            <button onclick="paCreateLink()" class="text-xs px-4 py-1.5 rounded-lg flex items-center gap-1.5 border border-pink-500/30 text-pink-400 hover:bg-pink-500/10 transition-all">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101"/></svg>
+                Vincular
+            </button>
+        </div>
+        <div id="pa-links-list" class="space-y-2"></div>
+    </div>
+
+    <!-- ═══ E) Upload Recebimentos ═══ -->
     <div class="glass-card p-5 border border-violet-500/20">
         <h3 class="text-sm font-bold text-white font-display flex items-center gap-2 mb-4">
             <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
@@ -222,8 +255,12 @@
                     <input type="date" id="pa-edit-fim" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
                 </div>
             </div>
-            <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-2 font-semibold">R$ por matrícula</p>
-            <div class="grid grid-cols-3 gap-3 mb-4">
+            <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-2 font-semibold">R$ por matrícula por faixa</p>
+            <div class="grid grid-cols-4 gap-3 mb-4">
+                <div>
+                    <label class="block text-[10px] text-slate-500 mb-1">Base (abaixo)</label>
+                    <input type="number" id="pa-edit-tier-base" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
+                </div>
                 <div>
                     <label class="block text-[10px] text-slate-500 mb-1">Intermediária</label>
                     <input type="number" id="pa-edit-tier-inter" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">

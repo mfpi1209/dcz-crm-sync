@@ -7,8 +7,26 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <link rel="stylesheet" href="./index.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: 'rgb(var(--primary-rgb) / <alpha-value>)',
+          },
+          fontFamily: {
+            display: ['Inter', 'sans-serif'],
+            sans: ['Inter', 'sans-serif'],
+          },
+          borderRadius: { 'tremor-default': '8px' },
+        }
+      }
+    }
+  </script>
 
   <script>
     (function() {
@@ -23,396 +41,687 @@
     })();
   </script>
 
-  <!-- Base layout: always applied (hides eduit chrome, fits iframe) -->
-  <style id="base-layout">
+  <style>
+    /* ═══ Design System Variables (identical to main app) ═══ */
+    :root {
+      --primary-rgb: 99 102 241;
+      --primary: #6366f1;
+      --primary-dark: #4f46e5;
+      --bg-main: #fafafa;
+      --bg-card: #ffffff;
+      --bg-elevated: #f3f4f6;
+      --text-primary: #111827;
+      --text-secondary: #6b7280;
+      --text-muted: #9ca3af;
+      --border: #e5e7eb;
+      --border-hover: #d1d5db;
+      --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.05);
+      --shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px -1px rgba(0,0,0,0.1);
+      --radius-card: 12px;
+      --radius-btn: 8px;
+    }
+    .dark {
+      --primary-rgb: 129 140 248;
+      --primary: #818cf8;
+      --primary-dark: #6366f1;
+      --bg-main: #111827;
+      --bg-card: #1f2937;
+      --bg-elevated: #374151;
+      --text-primary: #f9fafb;
+      --text-secondary: #9ca3af;
+      --text-muted: #6b7280;
+      --border: #374151;
+      --border-hover: #4b5563;
+      --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.3);
+      --shadow: 0 1px 3px 0 rgba(0,0,0,0.3), 0 1px 2px -1px rgba(0,0,0,0.3);
+    }
+
+    /* ═══ Core Component Classes (identical to main app) ═══ */
+    .glass-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      box-shadow: var(--shadow-sm);
+    }
+    .input-glass {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-btn);
+      padding: 10px 14px;
+      font-size: 14px;
+      color: var(--text-primary);
+      box-shadow: var(--shadow-sm);
+      transition: all 200ms ease;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .input-glass::placeholder { color: var(--text-muted); }
+    .input-glass:hover { border-color: var(--border-hover); }
+    .input-glass:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgb(var(--primary-rgb) / 0.15);
+      outline: none;
+    }
+    .btn-primary {
+      background: var(--primary);
+      border: none;
+      border-radius: var(--radius-btn);
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 200ms ease;
+    }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-btn);
+      color: var(--text-secondary);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 200ms ease;
+    }
+    .btn-secondary:hover { background: var(--bg-elevated); color: var(--text-primary); }
+
+    /* ═══ Eduit chrome: hide sidebar/mobile ═══ */
     .sidebar, .sidebar-overlay, .mobile-header, .topbar, .user-avatar { display: none !important; }
-    body { padding-top: 0 !important; margin: 0; overflow-x: hidden; }
-    .main { padding: 24px 28px; width: 100%; max-width: 100%; margin: 0; }
-  </style>
 
-  <!-- Dark theme: injected/removed dynamically by JS below -->
-  <style id="dark-theme">
-    body, .app, .main { background: #0f172a !important; color: #e2e8f0 !important; }
-    .cards { max-width: 100%; }
-    .card {
-      background: rgba(30,41,59,.7) !important;
-      border: 1px solid rgba(51,65,85,.4) !important;
-      box-shadow: 0 4px 16px rgba(0,0,0,.2) !important;
-      backdrop-filter: blur(12px);
-    }
-    .card:hover {
-      background: rgba(30,41,59,.9) !important;
-      box-shadow: 0 8px 24px rgba(0,0,0,.3) !important;
-      border-color: rgba(56,189,248,.3) !important;
-    }
-    .card-title { color: #e2e8f0 !important; }
-    .card-icon-purple { background: rgba(99,102,241,.15) !important; }
-    .card-icon-pink   { background: rgba(244,114,182,.15) !important; }
-    .card-icon-yellow  { background: rgba(251,191,36,.15) !important; }
-    .card-icon-blue    { background: rgba(56,189,248,.15) !important; }
-    .card-icon-green   { background: rgba(16,185,129,.15) !important; }
+    /* ═══ JS toggle classes ═══ */
+    .content-section { display: none; }
+    .content-section.active { display: block; animation: fadeIn .3s ease; }
+    .loading { display: none; }
+    .loading.active { display: flex; }
+    .feedback-card { display: none; }
+    .feedback-card.active { display: block; }
+    .info-content { display: none; }
+    .info-content.active { display: block; animation: fadeIn .3s ease; }
+    .recommendation-justification { display: none; }
+    .recommendation-justification.active { display: block; }
 
-    .form-card {
-      background: rgba(30,41,59,.6) !important;
-      border: 1px solid rgba(51,65,85,.4) !important;
-      box-shadow: 0 4px 16px rgba(0,0,0,.15) !important;
-      backdrop-filter: blur(12px);
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: none; }
     }
-    .form-card-header h2 { color: #f1f5f9 !important; }
-    input[type="text"], textarea {
-      background: rgba(15,23,42,.8) !important;
-      border: 1.5px solid rgba(51,65,85,.6) !important;
-      color: #e2e8f0 !important;
+    @keyframes spin {
+      from { transform: rotate(0); }
+      to { transform: rotate(360deg); }
     }
-    input[type="text"]:focus, textarea:focus {
-      border-color: #38bdf8 !important;
-      box-shadow: 0 0 0 3px rgba(56,189,248,.15) !important;
-    }
-    input[type="text"]::placeholder, textarea::placeholder { color: #64748b !important; }
-    label { color: #94a3b8 !important; }
-    .radio-label {
-      background: rgba(15,23,42,.6) !important;
-      border-color: rgba(51,65,85,.5) !important;
-      color: #cbd5e1 !important;
-    }
-    .radio-label:hover { border-color: #38bdf8 !important; background: rgba(30,41,59,.8) !important; }
-    .radio-label:has(input[type="radio"]:checked) {
-      border-color: #38bdf8 !important;
-      background: rgba(56,189,248,.1) !important;
-      color: #38bdf8 !important;
-    }
-    .radio-custom { border-color: rgba(71,85,105,.8) !important; }
-    .radio-label input[type="radio"]:checked ~ .radio-custom {
-      border-color: #38bdf8 !important; background: #38bdf8 !important;
-    }
-    .btn-submit {
-      background: linear-gradient(135deg, #0ea5e9, #0284c7) !important;
-      box-shadow: 0 4px 12px rgba(14,165,233,.3) !important;
-    }
-    .btn-submit:hover {
-      background: linear-gradient(135deg, #38bdf8, #0ea5e9) !important;
-      box-shadow: 0 6px 20px rgba(56,189,248,.4) !important;
-    }
-    .btn-clear {
-      background: rgba(239,68,68,.15) !important;
-      color: #f87171 !important;
-      border: 1px solid rgba(239,68,68,.3) !important;
-    }
-    .btn-clear:hover { background: rgba(239,68,68,.25) !important; }
-    .divider-text { color: #38bdf8 !important; }
 
-    /* Response card */
-    .response-card {
-      background: rgba(30,41,59,.6) !important;
-      border: 1px solid rgba(51,65,85,.4) !important;
-      box-shadow: 0 4px 16px rgba(0,0,0,.2) !important;
+    /* ═══ Spinner ═══ */
+    .eduit-spinner {
+      width: 40px; height: 40px;
+      border: 3px solid rgb(var(--primary-rgb) / 0.15);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
     }
-    .response-card::before {
-      background: linear-gradient(90deg, #0ea5e9, #8b5cf6, #0ea5e9) !important;
-    }
-    .response-header {
-      background: linear-gradient(135deg, rgba(14,165,233,.9), rgba(6,182,212,.9)) !important;
-    }
-    .response-content {
-      background: rgba(15,23,42,.8) !important;
-      color: #cbd5e1 !important;
-    }
-    .response-content.empty {
-      background: rgba(15,23,42,.5) !important;
-      color: #64748b !important;
-    }
+
+    /* ═══ Scrollbar ═══ */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-main); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ═══ Dynamic content from index.js ═══ */
+
+    /* Response content (AI-generated HTML) */
+    .response-content { line-height: 1.7; font-size: 14px; color: var(--text-secondary); }
     .response-content h1, .response-content h2,
-    .response-content h3, .response-content h4 { color: #f1f5f9 !important; }
-    .response-content strong { color: #e2e8f0 !important; }
-    .response-content p, .response-content li { color: #cbd5e1 !important; }
-    .response-content table { border-color: rgba(51,65,85,.4) !important; }
+    .response-content h3, .response-content h4 { color: var(--text-primary); margin: 24px 0 12px; font-weight: 700; }
+    .response-content h1 { font-size: 1.5em; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+    .response-content h2 { font-size: 1.25em; position: relative; }
+    .response-content h2::before {
+      content: ''; position: absolute; left: 0; bottom: -2px;
+      width: 40px; height: 2px; background: var(--primary); border-radius: 1px;
+    }
+    .response-content strong { color: var(--text-primary); }
+    .response-content p { margin: 12px 0; }
+    .response-content ul, .response-content ol { margin: 12px 0; padding-left: 24px; }
+    .response-content li { margin: 6px 0; }
+    .response-content li::marker { color: var(--primary); }
+    .response-content blockquote {
+      border-left: 3px solid var(--primary);
+      padding: 12px 16px; margin: 16px 0;
+      background: rgb(var(--primary-rgb) / 0.06);
+      border-radius: 0 8px 8px 0;
+      font-style: italic;
+    }
+    .response-content table {
+      width: 100%; border-collapse: separate; border-spacing: 0;
+      margin: 20px 0; border: 1px solid var(--border);
+      border-radius: 8px; overflow: hidden;
+    }
     .response-content table th {
-      background: linear-gradient(135deg, #0ea5e9, #0284c7) !important;
+      background: var(--bg-elevated);
+      color: var(--text-muted);
+      font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      padding: 12px 16px; text-align: left;
     }
     .response-content table td {
-      background: rgba(15,23,42,.6) !important;
-      border-color: rgba(51,65,85,.3) !important;
-      color: #cbd5e1 !important;
+      padding: 12px 16px; border-top: 1px solid var(--border);
+      font-size: 13px; color: var(--text-secondary);
     }
-    .response-content table td:first-child {
-      background: rgba(30,41,59,.8) !important;
-      color: #e2e8f0 !important;
+    .response-content table td:first-child { font-weight: 600; color: var(--text-primary); }
+    .response-content table tr:hover td { background: rgb(var(--primary-rgb) / 0.03); }
+
+    /* Comparison sections */
+    .comparison-section {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-card); margin-bottom: 24px;
+      overflow: hidden; box-shadow: var(--shadow-sm);
     }
-    .response-content table tr:nth-child(2n) td { background: rgba(30,41,59,.4) !important; }
-    .response-content table tr:nth-child(2n) td:first-child { background: rgba(30,41,59,.6) !important; }
-    .response-content table tr:hover td { background: rgba(56,189,248,.08) !important; }
-
-    .loading { background: rgba(30,41,59,.5) !important; border-color: rgba(14,165,233,.1) !important; }
-    .loading p { color: #38bdf8 !important; }
-    .spinner { border-color: rgba(14,165,233,.15) !important; border-top-color: #38bdf8 !important; }
-
-    .comparison-section { box-shadow: 0 2px 8px rgba(0,0,0,.2) !important; }
     .section-header {
-      background: linear-gradient(135deg, rgba(14,165,233,.9), rgba(6,182,212,.9)) !important;
+      padding: 14px 20px; font-size: 13px; font-weight: 700;
+      color: var(--text-primary);
+      border-bottom: 1px solid var(--border);
     }
-    .section-content {
-      background: rgba(15,23,42,.8) !important;
-      color: #cbd5e1 !important;
-    }
+    .section-content { padding: 20px; color: var(--text-secondary); line-height: 1.7; font-size: 14px; }
 
-    .feedback-card {
-      background: rgba(30,41,59,.6) !important;
-      border: 1px solid rgba(51,65,85,.4) !important;
-    }
-    .feedback-header {
-      background: rgba(30,41,59,.8) !important;
-      border-bottom-color: rgba(51,65,85,.4) !important;
-      color: #38bdf8 !important;
-    }
-    .feedback-card form { background: transparent !important; }
-    .btn-feedback-submit {
-      background: linear-gradient(135deg, #10b981, #059669) !important;
-      box-shadow: 0 4px 12px rgba(16,185,129,.3) !important;
-    }
-    .btn-feedback-submit:hover { background: linear-gradient(135deg, #34d399, #10b981) !important; }
-
+    /* Recommendation items */
     .recommendation-item {
-      background: rgba(30,41,59,.6) !important;
-      border: 1px solid rgba(51,65,85,.4) !important;
-      border-left: 3px solid #f472b6 !important;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-left: 3px solid #f472b6;
+      border-radius: var(--radius-card); padding: 16px 20px;
+      margin: 12px 0; transition: all .2s;
     }
-    .recommendation-item:hover {
-      background: rgba(30,41,59,.8) !important;
-      box-shadow: 0 4px 14px rgba(0,0,0,.25) !important;
-    }
-    .recommendation-course { color: #e2e8f0 !important; }
-    .recommendation-number { color: #f472b6 !important; }
+    .recommendation-item:hover { box-shadow: var(--shadow); transform: translateX(4px); }
+    .recommendation-course { font-weight: 600; color: var(--text-primary); font-size: 14px; }
+    .recommendation-number { font-weight: 700; color: #f472b6; margin-right: 8px; }
     .recommendation-button {
-      background: transparent !important; color: #38bdf8 !important;
-      border: 1.5px solid rgba(56,189,248,.4) !important;
+      background: transparent; color: var(--primary); border: 1px solid rgb(var(--primary-rgb) / 0.3);
+      border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all .2s; display: inline-flex; align-items: center; gap: 6px; margin-top: 10px;
     }
-    .recommendation-button:hover {
-      background: rgba(56,189,248,.15) !important;
-      color: #7dd3fc !important; border-color: #38bdf8 !important;
-    }
+    .recommendation-button:hover { background: rgb(var(--primary-rgb) / 0.08); border-color: var(--primary); }
     .btn-info-curso {
-      background: rgba(16,185,129,.15) !important;
-      color: #34d399 !important;
-      border: 1.5px solid rgba(16,185,129,.4) !important;
+      background: rgba(16,185,129,.08); color: #10b981; border: 1px solid rgba(16,185,129,.2);
+      border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all .2s; display: inline-flex; align-items: center; gap: 6px; margin-top: 10px;
     }
-    .btn-info-curso:hover { background: rgba(16,185,129,.25) !important; border-color: #34d399 !important; }
+    .btn-info-curso:hover { background: rgba(16,185,129,.15); }
     .recommendation-justification {
-      background: rgba(15,23,42,.6) !important;
-      border: 1px solid rgba(51,65,85,.4) !important;
-      border-left: 3px solid #0ea5e9 !important;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-left: 3px solid var(--primary); border-radius: 8px;
+      padding: 16px; margin-top: 12px;
     }
-    .recommendation-justification-title { color: #38bdf8 !important; }
-    .recommendation-justification-content {
-      background: rgba(30,41,59,.5) !important;
-      color: #cbd5e1 !important;
+    .recommendation-justification-title {
+      font-weight: 700; color: var(--primary); font-size: 11px;
+      text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;
     }
+    .recommendation-justification-content { color: var(--text-secondary); line-height: 1.6; font-size: 14px; }
 
-    .feedback-btn { border-color: rgba(71,85,105,.5) !important; }
-    .feedback-btn svg { color: #64748b !important; }
-    .feedback-btn:hover { border-color: #38bdf8 !important; }
-    .feedback-btn.positive:hover { border-color: #10b981 !important; background: rgba(16,185,129,.1) !important; }
-    .feedback-btn.positive:hover svg { color: #10b981 !important; }
-    .feedback-btn.negative:hover { border-color: #ef4444 !important; background: rgba(239,68,68,.1) !important; }
-    .feedback-btn.negative:hover svg { color: #ef4444 !important; }
-
-    .info-tabs { border-bottom-color: rgba(51,65,85,.4) !important; }
-    .info-tab { color: #64748b !important; }
-    .info-tab:hover { color: #38bdf8 !important; background: rgba(56,189,248,.08) !important; }
-    .info-tab.active {
-      color: #38bdf8 !important;
-      border-bottom-color: #38bdf8 !important;
-      background: rgba(56,189,248,.08) !important;
+    /* Feedback buttons */
+    .feedback-buttons { display: inline-flex; gap: 10px; margin-left: 10px; }
+    .feedback-btn {
+      background: transparent; border: 1px solid var(--border); border-radius: 10px;
+      padding: 8px; cursor: pointer; transition: all .2s;
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 44px; min-height: 44px;
     }
+    .feedback-btn svg { width: 24px; height: 24px; color: var(--text-muted); transition: all .2s; }
+    .feedback-btn:hover { border-color: var(--primary); }
+    .feedback-btn.positive:hover { border-color: #10b981; background: rgba(16,185,129,.06); }
+    .feedback-btn.positive:hover svg { color: #10b981; }
+    .feedback-btn.negative:hover { border-color: #ef4444; background: rgba(239,68,68,.06); }
+    .feedback-btn.negative:hover svg { color: #ef4444; }
+    .feedback-btn.selected.positive { border-color: #10b981; background: #10b981; }
+    .feedback-btn.selected.positive svg { color: #fff; }
+    .feedback-btn.selected.negative { border-color: #ef4444; background: #ef4444; }
+    .feedback-btn.selected.negative svg { color: #fff; }
+
+    /* Download table button */
     .download-table-btn {
-      background: linear-gradient(135deg, rgba(30,41,59,.8), rgba(51,65,85,.6)) !important;
-      border: 1px solid rgba(56,189,248,.3) !important;
-      color: #38bdf8 !important;
+      background: var(--bg-card); border: 1px solid var(--border); color: var(--primary);
+      border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all .2s; display: inline-flex; align-items: center; gap: 6px;
     }
-    .download-table-btn:hover {
-      background: linear-gradient(135deg, rgba(56,189,248,.15), rgba(30,41,59,.9)) !important;
+    .download-table-btn:hover { background: rgb(var(--primary-rgb) / 0.06); }
+    .location-link {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--primary); color: #fff; padding: 10px 20px;
+      border-radius: 10px; text-decoration: none; font-weight: 600;
+      transition: all .2s; font-size: 14px;
     }
-    .location-link { background: linear-gradient(135deg, #0ea5e9, #0284c7) !important; }
+    .location-link:hover { background: var(--primary-dark); }
 
-    /* ═══════════════════════════════════════════════════════
-       DYNAMIC CONTENT — override inline styles from index.js
-       (Location cards, Course info cards, Recommendation desc)
-    ═══════════════════════════════════════════════════════ */
+    /* Vocacional test */
+    .teste-vocacional-intro { padding: 16px 0; text-align: center; }
+    .teste-vocacional-intro p { color: var(--text-secondary); font-size: 15px; }
+    .teste-vocacional-instrucoes {
+      padding: 16px 20px; background: var(--bg-elevated);
+      border-radius: 10px; margin-bottom: 20px; text-align: center;
+    }
+    .teste-vocacional-instrucoes p { color: var(--text-secondary); font-size: 14px; margin: 6px 0; }
+    .contador-palavras { font-weight: 600; color: var(--primary) !important; font-size: 16px !important; }
+    .palavras-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 10px; margin-bottom: 20px;
+    }
+    .palavra-item {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 14px; text-align: center;
+      cursor: pointer; transition: all .2s; font-size: 14px; font-weight: 500;
+      color: var(--text-secondary); display: flex; align-items: center; justify-content: center;
+    }
+    .palavra-item:hover { border-color: var(--primary); background: rgb(var(--primary-rgb) / 0.04); }
+    .palavra-item.selected {
+      background: var(--primary); border-color: var(--primary);
+      color: #fff; font-weight: 600;
+    }
+    .palavra-item.disabled { opacity: .5; cursor: not-allowed; }
 
-    /* --- Location (pe function) --- */
-    .section-content h3[style] { color: #818cf8 !important; }
-    .section-content h4[style] { color: #a78bfa !important; }
-    .section-content p[style]  { color: #cbd5e1 !important; }
-    .section-content strong[style] { color: #c4b5fd !important; }
-
-    .section-content div[style*="background: white"],
-    .section-content div[style*="background:white"] {
-      background: rgba(30,41,59,.6) !important;
-      border-color: rgba(51,65,85,.4) !important;
+    /* ═══ Dark mode overrides for dynamic inline styles from index.js ═══ */
+    .dark .section-content h3[style], .dark .section-content h4[style] { color: #818cf8 !important; }
+    .dark .section-content p[style] { color: #d1d5db !important; }
+    .dark .section-content strong[style] { color: #c4b5fd !important; }
+    .dark .section-content div[style*="background: white"],
+    .dark .section-content div[style*="background:white"] {
+      background: var(--bg-card) !important; border-color: var(--border) !important;
     }
-
-    /* --- Course Info (me function) --- */
-    .response-content div[style*="background: #ffffff"],
-    .response-content div[style*="background: #fff"],
-    .response-content div[style*="background:#ffffff"] {
-      background: rgba(30,41,59,.65) !important;
-      border-color: rgba(51,65,85,.4) !important;
+    .dark .response-content div[style*="background: #ffffff"],
+    .dark .response-content div[style*="background: #fff"],
+    .dark .response-content div[style*="background:#ffffff"] {
+      background: var(--bg-card) !important; border-color: var(--border) !important;
     }
-    .response-content div[style*="background: #f9fafb"],
-    .response-content div[style*="background:#f9fafb"] {
-      background: rgba(15,23,42,.5) !important;
-      border-color: rgba(51,65,85,.3) !important;
+    .dark .response-content div[style*="background: #f9fafb"],
+    .dark .response-content div[style*="background:#f9fafb"] {
+      background: var(--bg-elevated) !important; border-color: var(--border) !important;
     }
-    .response-content div[style*="background: #f0f9ff"],
-    .response-content div[style*="background:#f0f9ff"] {
-      background: rgba(14,165,233,.1) !important;
-      border-color: rgba(14,165,233,.25) !important;
+    .dark .response-content div[style*="background: #eef2ff"],
+    .dark .response-content div[style*="background:#eef2ff"],
+    .dark .response-content div[style*="background: #f0f9ff"],
+    .dark .response-content div[style*="background:#f0f9ff"] {
+      background: rgb(var(--primary-rgb) / 0.1) !important;
+      border-color: rgb(var(--primary-rgb) / 0.25) !important;
     }
-    .response-content div[style*="background: #fff3cd"],
-    .response-content div[style*="background:#fff3cd"] {
-      background: rgba(251,191,36,.1) !important;
-      border-color: rgba(251,191,36,.25) !important;
+    .dark .response-content div[style*="background: #fff3cd"] {
+      background: rgba(251,191,36,.1) !important; border-color: rgba(251,191,36,.25) !important;
     }
-    .response-content div[style*="background: linear-gradient(135deg, #ffffff"],
-    .response-content div[style*="background: linear-gradient(135deg, #f0f9ff"] {
-      background: rgba(16,185,129,.1) !important;
-      border-color: rgba(51,65,85,.4) !important;
+    .dark .response-content div[style*="background: linear-gradient"] {
+      background: rgb(var(--primary-rgb) / 0.08) !important; border-color: var(--border) !important;
     }
-
-    /* Course info text */
-    .response-content h2[style*="color"] { color: #38bdf8 !important; }
-    .response-content h3[style*="color"] { color: #cbd5e1 !important; }
-    .response-content div[style*="color: #1f2937"],
-    .response-content div[style*="color:#1f2937"] { color: #e2e8f0 !important; }
-    .response-content div[style*="color: #6b7280"],
-    .response-content div[style*="color:#6b7280"] { color: #94a3b8 !important; }
-    .response-content p[style*="color: #0369a1"],
-    .response-content p[style*="color:#0369a1"] { color: #38bdf8 !important; }
-    .response-content p[style*="color: #4b5563"],
-    .response-content p[style*="color:#4b5563"] { color: #94a3b8 !important; }
-    .response-content p[style*="color: #856404"],
-    .response-content p[style*="color:#856404"] { color: #fbbf24 !important; }
-    .response-content span[style*="color: #374151"],
-    .response-content span[style*="color:#374151"] { color: #cbd5e1 !important; }
-
-    /* Tags / badges */
-    .response-content span[style*="background: #e0f2fe"],
-    .response-content span[style*="background:#e0f2fe"] {
-      background: rgba(14,165,233,.2) !important;
-      color: #38bdf8 !important;
+    .dark .response-content h2[style*="color"] { color: #818cf8 !important; }
+    .dark .response-content h3[style*="color"] { color: #d1d5db !important; }
+    .dark .response-content div[style*="color: #1f2937"] { color: #e5e7eb !important; }
+    .dark .response-content div[style*="color: #6b7280"] { color: #9ca3af !important; }
+    .dark .response-content p[style*="color: #0369a1"] { color: #818cf8 !important; }
+    .dark .response-content p[style*="color: #4b5563"] { color: #9ca3af !important; }
+    .dark .response-content p[style*="color: #856404"] { color: #fbbf24 !important; }
+    .dark .response-content span[style*="color: #374151"] { color: #d1d5db !important; }
+    .dark .response-content span[style*="background: #e0f2fe"] {
+      background: rgb(var(--primary-rgb) / 0.2) !important; color: #818cf8 !important;
     }
-    .response-content span[style*="background: #f3e8ff"],
-    .response-content span[style*="background:#f3e8ff"] {
-      background: rgba(139,92,246,.2) !important;
-      color: #a78bfa !important;
+    .dark .response-content span[style*="background: #f3e8ff"] {
+      background: rgba(139,92,246,.2) !important; color: #a78bfa !important;
     }
-
-    /* Recommendation descriptions */
-    .recommendation-item div[style*="color: #666"],
-    .recommendation-item [style*="color: #666"] {
-      color: #94a3b8 !important;
-    }
-
-    /* Border overrides on inline-styled elements */
-    .response-content div[style*="border-bottom: 2px solid #e5e7eb"],
-    .response-content div[style*="border: 1px solid #e5e7eb"] {
-      border-color: rgba(51,65,85,.4) !important;
-    }
-    .section-content div[style*="border-left: 4px solid"] {
-      border-color: rgba(51,65,85,.4) !important;
-    }
-    .section-content div[style*="border-left: 4px solid #5b3ff6"] {
-      border-left-color: #818cf8 !important;
-    }
-    .section-content div[style*="border-left: 4px solid #764ba2"] {
-      border-left-color: #a78bfa !important;
-    }
-    .response-content div[style*="border-left: 3px solid #10b981"] {
-      border-left-color: #34d399 !important;
-    }
-    .response-content div[style*="border-left: 4px solid #169DBB"] {
-      border-left-color: #38bdf8 !important;
-    }
-    .response-content div[style*="border-left: 4px solid #ffc107"] {
-      border-left-color: #fbbf24 !important;
+    .dark .recommendation-item div[style*="color: #666"],
+    .dark .recommendation-item [style*="color: #666"] { color: #9ca3af !important; }
+    .dark .response-content div[style*="border-bottom: 2px solid #e5e7eb"],
+    .dark .response-content div[style*="border: 1px solid #e5e7eb"] { border-color: var(--border) !important; }
+    .dark .section-content div[style*="border-left: 4px solid"] { border-color: var(--border) !important; }
+    .dark .section-content div[style*="border-left: 4px solid #5b3ff6"] { border-left-color: #818cf8 !important; }
+    .dark .section-content div[style*="border-left: 4px solid #8b5cf6"] { border-left-color: #a78bfa !important; }
+    .dark .response-content div[style*="border-left: 3px solid #10b981"] { border-left-color: #34d399 !important; }
+    .dark .response-content div[style*="border-left: 4px solid #6366f1"] { border-left-color: #818cf8 !important; }
+    .dark .response-content div[style*="border-left: 4px solid #169DBB"] { border-left-color: #818cf8 !important; }
+    .dark .response-content div[style*="border-left: 4px solid #ffc107"] { border-left-color: #fbbf24 !important; }
+    .dark .response-content .curso-recomendado-item,
+    .dark .response-content div[style*="background: #ffffff"][style*="border-left: 4px solid"] {
+      background: var(--bg-card) !important; border-color: var(--border) !important;
     }
 
-    /* Vocacional result cards */
-    .response-content .curso-recomendado-item,
-    .response-content div[style*="background: #ffffff"][style*="border-left: 4px solid"] {
-      background: rgba(30,41,59,.6) !important;
-      border-color: rgba(51,65,85,.4) !important;
-    }
-    .response-content div[style*="background: linear-gradient(135deg, #f0f9ff"] {
-      background: rgba(14,165,233,.08) !important;
-      border-color: rgba(56,189,248,.2) !important;
-    }
-
-    /* Scrollbar */
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: #0f172a; }
-    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    /* Table wrapper for scrolling */
+    .table-wrapper { overflow-x: auto; margin: 16px 0; }
   </style>
 </head>
-<body>
+<body class="bg-[var(--bg-main)] text-[var(--text-primary)] font-sans antialiased m-0">
   <div class="app">
     <div class="sidebar-overlay" id="sidebar-overlay"></div>
     <aside class="sidebar" id="sidebar">
-      <div class="sidebar-logo-container"><img src="./logo.png" alt="Eduit Logo" class="sidebar-logo"></div>
-      <div class="sidebar-header"><img src="./logo.png" alt="Eduit Logo" class="sidebar-header-logo"><button class="sidebar-close" id="sidebar-close" aria-label="Fechar menu"><svg width="24" height="24" fill="none" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
       <nav class="nav">
-        <button class="nav-item active" data-section="inicio" id="nav-inicio"><span class="icon"><svg fill="none" viewBox="0 0 24 24"><path d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Início</span></button>
-        <button class="nav-item" data-section="comparar" id="nav-comparar"><span class="icon"><svg fill="none" viewBox="0 0 24 24"><path d="M7 4v11M7 4l-3 3M7 4l3 3M17 20V9M17 20l-3-3M17 20l3-3" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Comparar Cursos</span></button>
-        <button class="nav-item" data-section="recomendacao" id="nav-recomendacao"><span class="icon"><svg fill="none" viewBox="0 0 24 24"><path d="M12 3.5 9.6 9.2l-6.1.4 4.7 3.7-1.5 5.9L12 16l5.3 3.2-1.5-5.9 4.7-3.7-6.1-.4L12 3.5Z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Recomendações</span></button>
-        <button class="nav-item" data-section="localizacao" id="nav-localizacao"><span class="icon"><svg fill="none" viewBox="0 0 24 24"><path d="M12 21s6-5.1 6-10a6 6 0 1 0-12 0c0 4.9 6 10 6 10Z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Localizações</span></button>
-        <button class="nav-item" data-section="teste-vocacional" id="nav-teste-vocacional"><span class="icon"><svg fill="none" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Teste Vocacional</span></button>
-        <button class="nav-item" data-section="informacoes-cursos" id="nav-informacoes-cursos"><span class="icon"><svg fill="none" viewBox="0 0 24 24"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Informações de Cursos</span></button>
+        <button class="nav-item active" data-section="inicio" id="nav-inicio"><span>Início</span></button>
+        <button class="nav-item" data-section="comparar" id="nav-comparar"><span>Comparar</span></button>
+        <button class="nav-item" data-section="recomendacao" id="nav-recomendacao"><span>Recomendação</span></button>
+        <button class="nav-item" data-section="localizacao" id="nav-localizacao"><span>Localização</span></button>
+        <button class="nav-item" data-section="teste-vocacional" id="nav-teste-vocacional"><span>Vocacional</span></button>
+        <button class="nav-item" data-section="informacoes-cursos" id="nav-informacoes-cursos"><span>Info Cursos</span></button>
       </nav>
     </aside>
+    <div class="mobile-header"></div>
 
-    <div class="mobile-header"><img src="./logo.png" alt="Eduit Logo" class="mobile-logo"><button class="hamburger-btn" id="hamburger-btn" aria-label="Menu"><span class="hamburger-line"></span><span class="hamburger-line"></span><span class="hamburger-line"></span></button></div>
+    <div class="main w-full max-w-7xl mx-auto p-4 lg:px-8 lg:py-6">
+      <main class="flex flex-col">
 
-    <div class="main">
-      <main>
+        <!-- ═══ HOME ═══ -->
         <section class="content-section active" id="section-inicio">
-          <div class="cards">
-            <article class="card" data-action="comparar"><div class="card-icon card-icon-purple"><svg fill="none" viewBox="0 0 24 24"><path d="M7 4v11M7 4l-3 3M7 4l3 3M17 20V9M17 20l-3-3M17 20l3-3" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="card-title">Comparar Cursos</div></article>
-            <article class="card" data-action="recomendacao"><div class="card-icon card-icon-pink"><svg fill="none" viewBox="0 0 24 24"><path d="M12 3.5 9.6 9.2l-6.1.4 4.7 3.7-1.5 5.9L12 16l5.3 3.2-1.5-5.9 4.7-3.7-6.1-.4L12 3.5Z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="card-title">Recomendação</div></article>
-            <article class="card" data-action="localizacao"><div class="card-icon card-icon-yellow"><svg fill="none" viewBox="0 0 24 24"><path d="M12 21s6-5.1 6-10a6 6 0 1 0-12 0c0 4.9 6 10 6 10Z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="card-title">Localização</div></article>
-            <article class="card" data-action="informacoes-cursos"><div class="card-icon card-icon-green"><svg fill="none" viewBox="0 0 24 24"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="card-title">Informações de Cursos</div></article>
+          <div class="cards grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <article class="card glass-card p-6 flex flex-col items-center gap-4 cursor-pointer hover:shadow-md transition-all hover:-translate-y-0.5" data-action="comparar">
+              <div class="card-icon card-icon-purple w-12 h-12 rounded-xl bg-indigo-500/15 flex items-center justify-center">
+                <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M7 4v11M7 4l-3 3M7 4l3 3M17 20V9M17 20l-3-3M17 20l3-3" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div class="card-title text-sm font-semibold text-[var(--text-primary)] text-center">Comparar Cursos</div>
+            </article>
+            <article class="card glass-card p-6 flex flex-col items-center gap-4 cursor-pointer hover:shadow-md transition-all hover:-translate-y-0.5" data-action="recomendacao">
+              <div class="card-icon card-icon-pink w-12 h-12 rounded-xl bg-pink-500/15 flex items-center justify-center">
+                <svg class="w-5 h-5 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 3.5 9.6 9.2l-6.1.4 4.7 3.7-1.5 5.9L12 16l5.3 3.2-1.5-5.9 4.7-3.7-6.1-.4L12 3.5Z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div class="card-title text-sm font-semibold text-[var(--text-primary)] text-center">Recomendação</div>
+            </article>
+            <article class="card glass-card p-6 flex flex-col items-center gap-4 cursor-pointer hover:shadow-md transition-all hover:-translate-y-0.5" data-action="localizacao">
+              <div class="card-icon card-icon-yellow w-12 h-12 rounded-xl bg-amber-500/15 flex items-center justify-center">
+                <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 21s6-5.1 6-10a6 6 0 1 0-12 0c0 4.9 6 10 6 10Z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div class="card-title text-sm font-semibold text-[var(--text-primary)] text-center">Localização</div>
+            </article>
+            <article class="card glass-card p-6 flex flex-col items-center gap-4 cursor-pointer hover:shadow-md transition-all hover:-translate-y-0.5" data-action="informacoes-cursos">
+              <div class="card-icon card-icon-green w-12 h-12 rounded-xl bg-emerald-500/15 flex items-center justify-center">
+                <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div class="card-title text-sm font-semibold text-[var(--text-primary)] text-center">Informações de Cursos</div>
+            </article>
           </div>
         </section>
 
+        <!-- ═══ COMPARAR CURSOS ═══ -->
         <section class="content-section" id="section-comparar">
-          <div class="form-card"><div class="form-card-header"><h2>Comparar Cursos</h2><button class="btn-clear" id="clear-comparar">Limpar</button></div><form id="form-comparar"><div class="form-group"><label for="curso1">Digite o primeiro curso:</label><input type="text" id="curso1" required placeholder="Ex: Administração"></div><div class="form-group"><label for="curso2">Digite o segundo curso:</label><input type="text" id="curso2" required placeholder="Ex: Ciências Contábeis"></div><button type="submit" class="btn-submit" id="btn-comparar">Buscar</button></form></div>
-          <div class="loading" id="loading-comparar"><div class="spinner"></div><p>Processando sua solicitação...</p></div>
-          <div class="response-card" id="response-comparar"><div class="response-header"><span class="response-icon"><svg fill="none" viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Análise Inteligente</span></div><div class="response-content empty">Aguardando sua solicitação...</div></div>
-          <div class="feedback-card" id="feedback-comparar"><div class="feedback-header"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" style="display:inline-block;vertical-align:middle;margin-right:8px;"><path d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Feedback sobre a comparação</span></div><form id="form-feedback-comparar"><textarea id="feedback-comparar-text" placeholder="Escreva seu feedback sobre a comparação aqui..." required></textarea><button type="submit" class="btn-feedback-submit">Enviar avaliação</button></form></div>
+          <!-- Header -->
+          <div class="mb-8">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M7 4v11M7 4l-3 3M7 4l3 3M17 20V9M17 20l-3-3M17 20l3-3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div>
+                <h2 class="text-2xl font-bold text-[var(--text-primary)] font-display">Comparar Cursos</h2>
+                <p class="text-[var(--text-muted)] text-sm">Análise comparativa entre dois cursos</p>
+              </div>
+            </div>
+          </div>
+          <!-- Form -->
+          <div class="form-card glass-card p-5 mb-6">
+            <form id="form-comparar" class="space-y-4">
+              <div class="form-group">
+                <label for="curso1" class="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">Primeiro curso</label>
+                <input type="text" id="curso1" required placeholder="Ex: Administração" class="input-glass">
+              </div>
+              <div class="form-group">
+                <label for="curso2" class="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">Segundo curso</label>
+                <input type="text" id="curso2" required placeholder="Ex: Ciências Contábeis" class="input-glass">
+              </div>
+              <div class="flex items-center gap-3">
+                <button type="submit" class="btn-submit btn-primary flex-1 text-sm px-5 py-2.5 rounded-xl flex items-center justify-center gap-2" id="btn-comparar">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                  Buscar
+                </button>
+                <button type="button" class="btn-clear btn-secondary text-xs px-4 py-2.5 rounded-xl" id="clear-comparar">Limpar</button>
+              </div>
+            </form>
+          </div>
+          <!-- Loading -->
+          <div class="loading glass-card p-10 mb-6 flex-col items-center justify-center gap-4" id="loading-comparar">
+            <div class="eduit-spinner"></div>
+            <p class="text-sm text-[var(--text-muted)]">Processando sua solicitação...</p>
+          </div>
+          <!-- Response -->
+          <div class="response-card glass-card overflow-hidden mb-6" id="response-comparar">
+            <div class="response-header flex items-center gap-3 px-5 py-4 border-b border-[var(--border)]">
+              <span class="response-icon w-8 h-8 min-w-[32px] rounded-lg bg-indigo-500/15 flex items-center justify-center">
+                <svg class="w-4 h-4 text-indigo-500 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+              <span class="text-sm font-bold text-[var(--text-primary)]">Análise Inteligente</span>
+            </div>
+            <div class="response-content empty p-5 text-center text-[var(--text-muted)] italic">Aguardando sua solicitação...</div>
+          </div>
+          <!-- Feedback -->
+          <div class="feedback-card glass-card overflow-hidden" id="feedback-comparar">
+            <div class="feedback-header flex items-center gap-2 px-5 py-3 border-b border-[var(--border)] text-sm font-semibold text-[var(--text-secondary)]">
+              <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Feedback sobre a comparação</span>
+            </div>
+            <form id="form-feedback-comparar" class="p-5 space-y-3">
+              <textarea id="feedback-comparar-text" placeholder="Escreva seu feedback sobre a comparação aqui..." required class="input-glass w-full min-h-[80px] resize-y"></textarea>
+              <button type="submit" class="btn-primary w-full text-sm px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600">Enviar avaliação</button>
+            </form>
+          </div>
         </section>
 
+        <!-- ═══ RECOMENDAÇÃO ═══ -->
         <section class="content-section" id="section-recomendacao">
-          <div class="form-card"><div class="form-card-header"><h2>Recomendação de Cursos</h2><button class="btn-clear" id="clear-recomendacao">Limpar</button></div><form id="form-recomendacao"><div class="form-group"><label for="curso-recomendacao">Digite o nome do curso:</label><input type="text" id="curso-recomendacao" required placeholder="Ex: Administração"></div><div class="form-group"><label>Tipo de curso:</label><div class="radio-group"><label class="radio-label"><input type="radio" name="tipo-curso" value="graduacao" checked><span class="radio-custom"></span><span class="radio-text">Graduação</span></label><label class="radio-label"><input type="radio" name="tipo-curso" value="pos-graduacao"><span class="radio-custom"></span><span class="radio-text">Pós-graduação</span></label></div></div><button type="submit" class="btn-submit" id="btn-recomendacao">Buscar</button></form></div>
-          <div class="loading" id="loading-recomendacao"><div class="spinner"></div><p>Processando sua solicitação...</p></div>
-          <div class="response-card" id="response-recomendacao"><div class="response-header"><span class="response-icon"><svg fill="none" viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Análise Inteligente</span></div><div class="response-content empty">Aguardando sua solicitação...</div></div>
+          <div class="mb-8">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center shadow-lg shadow-pink-500/20">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 3.5 9.6 9.2l-6.1.4 4.7 3.7-1.5 5.9L12 16l5.3 3.2-1.5-5.9 4.7-3.7-6.1-.4L12 3.5Z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div>
+                <h2 class="text-2xl font-bold text-[var(--text-primary)] font-display">Recomendação de Cursos</h2>
+                <p class="text-[var(--text-muted)] text-sm">Sugestões baseadas em inteligência artificial</p>
+              </div>
+            </div>
+          </div>
+          <div class="form-card glass-card p-5 mb-6">
+            <form id="form-recomendacao" class="space-y-4">
+              <div class="form-group">
+                <label for="curso-recomendacao" class="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">Nome do curso</label>
+                <input type="text" id="curso-recomendacao" required placeholder="Ex: Administração" class="input-glass">
+              </div>
+              <div class="form-group">
+                <label class="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">Tipo de curso</label>
+                <div class="radio-group flex gap-3">
+                  <label class="radio-label flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--border)] cursor-pointer transition-all hover:border-indigo-400 text-sm font-semibold text-[var(--text-secondary)] has-[input:checked]:border-indigo-500 has-[input:checked]:bg-indigo-500/10 has-[input:checked]:text-indigo-500">
+                    <input type="radio" name="tipo-curso" value="graduacao" checked class="hidden"><span class="radio-custom hidden"></span><span class="radio-text">Graduação</span>
+                  </label>
+                  <label class="radio-label flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--border)] cursor-pointer transition-all hover:border-indigo-400 text-sm font-semibold text-[var(--text-secondary)] has-[input:checked]:border-indigo-500 has-[input:checked]:bg-indigo-500/10 has-[input:checked]:text-indigo-500">
+                    <input type="radio" name="tipo-curso" value="pos-graduacao" class="hidden"><span class="radio-custom hidden"></span><span class="radio-text">Pós-graduação</span>
+                  </label>
+                </div>
+              </div>
+              <div class="flex items-center gap-3">
+                <button type="submit" class="btn-submit btn-primary flex-1 text-sm px-5 py-2.5 rounded-xl flex items-center justify-center gap-2" id="btn-recomendacao">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                  Buscar
+                </button>
+                <button type="button" class="btn-clear btn-secondary text-xs px-4 py-2.5 rounded-xl" id="clear-recomendacao">Limpar</button>
+              </div>
+            </form>
+          </div>
+          <div class="loading glass-card p-10 mb-6 flex-col items-center justify-center gap-4" id="loading-recomendacao">
+            <div class="eduit-spinner"></div>
+            <p class="text-sm text-[var(--text-muted)]">Processando sua solicitação...</p>
+          </div>
+          <div class="response-card glass-card overflow-hidden mb-6" id="response-recomendacao">
+            <div class="response-header flex items-center gap-3 px-5 py-4 border-b border-[var(--border)]">
+              <span class="response-icon w-8 h-8 min-w-[32px] rounded-lg bg-pink-500/15 flex items-center justify-center">
+                <svg class="w-4 h-4 text-pink-500 dark:text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+              <span class="text-sm font-bold text-[var(--text-primary)]">Análise Inteligente</span>
+            </div>
+            <div class="response-content empty p-5 text-center text-[var(--text-muted)] italic">Aguardando sua solicitação...</div>
+          </div>
         </section>
 
+        <!-- ═══ LOCALIZAÇÃO ═══ -->
         <section class="content-section" id="section-localizacao">
-          <div class="form-card"><div class="form-card-header"><h2>Localização de Polos</h2><button class="btn-clear" id="clear-localizacao">Limpar</button></div><form id="form-localizacao"><div class="form-group"><label for="rua">Rua:</label><input type="text" id="rua" placeholder="Ex: Rua das Flores"></div><div class="form-group"><label for="numero">Número:</label><input type="text" id="numero" placeholder="Ex: 123"></div><div class="form-group"><label for="cidade">Cidade:</label><input type="text" id="cidade" placeholder="Ex: São Paulo, SP"></div><div class="divider-text">OU</div><div class="form-group"><label for="cep">CEP:</label><input type="text" id="cep" placeholder="Ex: 01234-567"></div><button type="submit" class="btn-submit" id="btn-localizacao">Buscar</button></form></div>
-          <div class="loading" id="loading-localizacao"><div class="spinner"></div><p>Processando sua solicitação...</p></div>
-          <div class="response-card" id="response-localizacao"><div class="response-header"><span class="response-icon"><svg fill="none" viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Análise Inteligente</span></div><div class="response-content empty">Aguardando sua solicitação...</div></div>
+          <div class="mb-8">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 21s6-5.1 6-10a6 6 0 1 0-12 0c0 4.9 6 10 6 10Z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div>
+                <h2 class="text-2xl font-bold text-[var(--text-primary)] font-display">Localização de Polos</h2>
+                <p class="text-[var(--text-muted)] text-sm">Encontre o polo mais próximo de você</p>
+              </div>
+            </div>
+          </div>
+          <div class="form-card glass-card p-5 mb-6">
+            <form id="form-localizacao" class="space-y-4">
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="form-group">
+                  <label for="rua" class="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">Rua</label>
+                  <input type="text" id="rua" placeholder="Ex: Rua das Flores" class="input-glass">
+                </div>
+                <div class="form-group">
+                  <label for="numero" class="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">Número</label>
+                  <input type="text" id="numero" placeholder="Ex: 123" class="input-glass">
+                </div>
+                <div class="form-group">
+                  <label for="cidade" class="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">Cidade</label>
+                  <input type="text" id="cidade" placeholder="Ex: São Paulo, SP" class="input-glass">
+                </div>
+              </div>
+              <div class="divider-text text-center text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider py-1">ou</div>
+              <div class="form-group">
+                <label for="cep" class="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">CEP</label>
+                <input type="text" id="cep" placeholder="Ex: 01234-567" class="input-glass">
+              </div>
+              <div class="flex items-center gap-3">
+                <button type="submit" class="btn-submit btn-primary flex-1 text-sm px-5 py-2.5 rounded-xl flex items-center justify-center gap-2" id="btn-localizacao">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                  Buscar
+                </button>
+                <button type="button" class="btn-clear btn-secondary text-xs px-4 py-2.5 rounded-xl" id="clear-localizacao">Limpar</button>
+              </div>
+            </form>
+          </div>
+          <div class="loading glass-card p-10 mb-6 flex-col items-center justify-center gap-4" id="loading-localizacao">
+            <div class="eduit-spinner"></div>
+            <p class="text-sm text-[var(--text-muted)]">Processando sua solicitação...</p>
+          </div>
+          <div class="response-card glass-card overflow-hidden mb-6" id="response-localizacao">
+            <div class="response-header flex items-center gap-3 px-5 py-4 border-b border-[var(--border)]">
+              <span class="response-icon w-8 h-8 min-w-[32px] rounded-lg bg-amber-500/15 flex items-center justify-center">
+                <svg class="w-4 h-4 text-amber-500 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 21s6-5.1 6-10a6 6 0 1 0-12 0c0 4.9 6 10 6 10Z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+              <span class="text-sm font-bold text-[var(--text-primary)]">Resultado da Busca</span>
+            </div>
+            <div class="response-content empty p-5 text-center text-[var(--text-muted)] italic">Aguardando sua solicitação...</div>
+          </div>
         </section>
 
+        <!-- ═══ TESTE VOCACIONAL ═══ -->
         <section class="content-section" id="section-teste-vocacional">
-          <div class="form-card" id="card-inicio-teste"><div class="form-card-header"><h2>Teste Vocacional</h2></div><div class="teste-vocacional-intro"><p>Descubra qual curso combina mais com o seu perfil!</p></div><button type="button" class="btn-submit" id="btn-iniciar-teste">Iniciar Teste</button></div>
-          <div class="loading" id="loading-teste-vocacional"><div class="spinner"></div><p>Carregando teste...</p></div>
-          <div class="form-card" id="card-selecao-palavras" style="display:none;"><div class="form-card-header"><h2>Selecione suas preferências</h2></div><div class="teste-vocacional-instrucoes"><p>Escolha entre <strong>6 e 10 palavras</strong> que mais combinam com você:</p><p class="contador-palavras"><span id="contador-selecionadas">0</span> / 10 palavras selecionadas</p></div><div class="palavras-grid" id="palavras-grid"></div><button type="button" class="btn-submit" id="btn-finalizar-teste" disabled>Finalizar Teste</button></div>
-          <div class="response-card" id="response-teste-vocacional" style="display:none;"><div class="response-header"><span class="response-icon"><svg fill="none" viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Resultado do Teste</span></div><div class="response-content empty">Aguardando resultado...</div></div>
+          <div class="mb-8">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div>
+                <h2 class="text-2xl font-bold text-[var(--text-primary)] font-display">Teste Vocacional</h2>
+                <p class="text-[var(--text-muted)] text-sm">Descubra qual curso combina com você</p>
+              </div>
+            </div>
+          </div>
+          <div class="form-card glass-card p-5 mb-6" id="card-inicio-teste">
+            <div class="teste-vocacional-intro"><p>Descubra qual curso combina mais com o seu perfil!</p></div>
+            <button type="button" class="btn-submit btn-primary w-full text-sm px-5 py-2.5 rounded-xl" id="btn-iniciar-teste">Iniciar Teste</button>
+          </div>
+          <div class="loading glass-card p-10 mb-6 flex-col items-center justify-center gap-4" id="loading-teste-vocacional">
+            <div class="eduit-spinner"></div>
+            <p class="text-sm text-[var(--text-muted)]">Carregando teste...</p>
+          </div>
+          <div class="form-card glass-card p-5 mb-6" id="card-selecao-palavras" style="display:none;">
+            <div class="form-card-header mb-4"><h2 class="text-lg font-bold text-[var(--text-primary)]">Selecione suas preferências</h2></div>
+            <div class="teste-vocacional-instrucoes"><p>Escolha entre <strong>6 e 10 palavras</strong> que mais combinam com você:</p><p class="contador-palavras"><span id="contador-selecionadas">0</span> / 10 palavras selecionadas</p></div>
+            <div class="palavras-grid" id="palavras-grid"></div>
+            <button type="button" class="btn-submit btn-primary w-full text-sm px-5 py-2.5 rounded-xl mt-4" id="btn-finalizar-teste" disabled>Finalizar Teste</button>
+          </div>
+          <div class="response-card glass-card overflow-hidden mb-6" id="response-teste-vocacional" style="display:none;">
+            <div class="response-header flex items-center gap-3 px-5 py-4 border-b border-[var(--border)]">
+              <span class="response-icon w-8 h-8 min-w-[32px] rounded-lg bg-violet-500/15 flex items-center justify-center">
+                <svg class="w-4 h-4 text-violet-500 dark:text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+              <span class="text-sm font-bold text-[var(--text-primary)]">Resultado do Teste</span>
+            </div>
+            <div class="response-content empty p-5 text-center text-[var(--text-muted)] italic">Aguardando resultado...</div>
+          </div>
         </section>
 
+        <!-- ═══ INFORMAÇÕES DE CURSOS ═══ -->
         <section class="content-section" id="section-informacoes-cursos">
-          <div class="info-tabs"><button class="info-tab active" data-tab="graduacao" id="tab-graduacao"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" style="margin-right:8px;"><path d="M12 14l9-5-9-5-9 5 9 5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Graduação</button><button class="info-tab" data-tab="pos-graduacao" id="tab-pos-graduacao"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" style="margin-right:8px;"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Pós-graduação</button></div>
-          <div class="info-content active" id="content-graduacao"><div class="form-card"><div class="form-card-header"><h2>Informações de Graduação</h2><button class="btn-clear" id="clear-graduacao">Limpar</button></div><form id="form-graduacao"><div class="form-group"><label for="curso-graduacao">Digite o nome do curso:</label><input type="text" id="curso-graduacao" required placeholder="Ex: Administração"></div><button type="submit" class="btn-submit">Buscar</button></form></div><div class="loading" id="loading-graduacao"><div class="spinner"></div><p>Processando sua solicitação...</p></div><div class="response-card" id="response-graduacao"><div class="response-header"><span class="response-icon"><svg fill="none" viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Análise Inteligente</span></div><div class="response-content empty">Aguardando sua solicitação...</div></div></div>
-          <div class="info-content" id="content-pos-graduacao"><div class="form-card"><div class="form-card-header"><h2>Informações de Pós-graduação</h2><button class="btn-clear" id="clear-pos-graduacao">Limpar</button></div><form id="form-pos-graduacao"><div class="form-group"><label for="curso-pos-graduacao">Digite o nome do curso:</label><input type="text" id="curso-pos-graduacao" required placeholder="Ex: MBA em Gestão"></div><button type="submit" class="btn-submit">Buscar</button></form></div><div class="loading" id="loading-pos-graduacao"><div class="spinner"></div><p>Processando sua solicitação...</p></div><div class="response-card" id="response-pos-graduacao"><div class="response-header"><span class="response-icon"><svg fill="none" viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Análise Inteligente</span></div><div class="response-content empty">Aguardando sua solicitação...</div></div></div>
+          <div class="mb-8">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div>
+                <h2 class="text-2xl font-bold text-[var(--text-primary)] font-display">Informações de Cursos</h2>
+                <p class="text-[var(--text-muted)] text-sm">Detalhes sobre cursos de graduação e pós</p>
+              </div>
+            </div>
+          </div>
+          <!-- Tabs -->
+          <div class="info-tabs flex border-b border-[var(--border)] mb-6">
+            <button class="info-tab active flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 border-transparent transition-all text-[var(--text-muted)] hover:text-[var(--text-primary)]" data-tab="graduacao" id="tab-graduacao">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 14l9-5-9-5-9 5 9 5z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Graduação
+            </button>
+            <button class="info-tab flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 border-transparent transition-all text-[var(--text-muted)] hover:text-[var(--text-primary)]" data-tab="pos-graduacao" id="tab-pos-graduacao">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Pós-graduação
+            </button>
+          </div>
+          <!-- Graduação -->
+          <div class="info-content active" id="content-graduacao">
+            <div class="form-card glass-card p-5 mb-6">
+              <form id="form-graduacao" class="space-y-4">
+                <div class="form-group">
+                  <label for="curso-graduacao" class="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">Nome do curso</label>
+                  <input type="text" id="curso-graduacao" required placeholder="Ex: Administração" class="input-glass">
+                </div>
+                <div class="flex items-center gap-3">
+                  <button type="submit" class="btn-submit btn-primary flex-1 text-sm px-5 py-2.5 rounded-xl flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    Buscar
+                  </button>
+                  <button type="button" class="btn-clear btn-secondary text-xs px-4 py-2.5 rounded-xl" id="clear-graduacao">Limpar</button>
+                </div>
+              </form>
+            </div>
+            <div class="loading glass-card p-10 mb-6 flex-col items-center justify-center gap-4" id="loading-graduacao">
+              <div class="eduit-spinner"></div>
+              <p class="text-sm text-[var(--text-muted)]">Processando sua solicitação...</p>
+            </div>
+            <div class="response-card glass-card overflow-hidden mb-6" id="response-graduacao">
+              <div class="response-header flex items-center gap-3 px-5 py-4 border-b border-[var(--border)]">
+                <span class="response-icon w-8 h-8 min-w-[32px] rounded-lg bg-emerald-500/15 flex items-center justify-center">
+                  <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </span>
+                <span class="text-sm font-bold text-[var(--text-primary)]">Análise Inteligente</span>
+              </div>
+              <div class="response-content empty p-5 text-center text-[var(--text-muted)] italic">Aguardando sua solicitação...</div>
+            </div>
+          </div>
+          <!-- Pós-graduação -->
+          <div class="info-content" id="content-pos-graduacao">
+            <div class="form-card glass-card p-5 mb-6">
+              <form id="form-pos-graduacao" class="space-y-4">
+                <div class="form-group">
+                  <label for="curso-pos-graduacao" class="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">Nome do curso</label>
+                  <input type="text" id="curso-pos-graduacao" required placeholder="Ex: MBA em Gestão" class="input-glass">
+                </div>
+                <div class="flex items-center gap-3">
+                  <button type="submit" class="btn-submit btn-primary flex-1 text-sm px-5 py-2.5 rounded-xl flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    Buscar
+                  </button>
+                  <button type="button" class="btn-clear btn-secondary text-xs px-4 py-2.5 rounded-xl" id="clear-pos-graduacao">Limpar</button>
+                </div>
+              </form>
+            </div>
+            <div class="loading glass-card p-10 mb-6 flex-col items-center justify-center gap-4" id="loading-pos-graduacao">
+              <div class="eduit-spinner"></div>
+              <p class="text-sm text-[var(--text-muted)]">Processando sua solicitação...</p>
+            </div>
+            <div class="response-card glass-card overflow-hidden mb-6" id="response-pos-graduacao">
+              <div class="response-header flex items-center gap-3 px-5 py-4 border-b border-[var(--border)]">
+                <span class="response-icon w-8 h-8 min-w-[32px] rounded-lg bg-emerald-500/15 flex items-center justify-center">
+                  <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </span>
+                <span class="text-sm font-bold text-[var(--text-primary)]">Análise Inteligente</span>
+              </div>
+              <div class="response-content empty p-5 text-center text-[var(--text-muted)] italic">Aguardando sua solicitação...</div>
+            </div>
+          </div>
         </section>
+
       </main>
     </div>
   </div>
@@ -421,33 +730,24 @@
 
   <script>
     (function() {
-      /* ── Theme management ── */
       function applyTheme() {
         var theme = localStorage.getItem('eduit-theme') || 'dark';
-        var darkStyle = document.getElementById('dark-theme');
-        if (theme === 'light') {
-          if (darkStyle) darkStyle.disabled = true;
-        } else {
-          if (darkStyle) darkStyle.disabled = false;
-        }
+        document.documentElement.classList.remove('dark', 'light');
+        document.documentElement.classList.add(theme);
       }
-
       applyTheme();
       window.addEventListener('storage', function(e) {
         if (e.key === 'eduit-theme') applyTheme();
       });
       setInterval(applyTheme, 500);
 
-      /* ── Section navigation ── */
       var hash = window.location.hash.replace('#', '');
       if (hash && hash !== 'inicio') {
         function activate() {
           document.querySelectorAll('.content-section').forEach(function(s) { s.classList.remove('active'); });
           document.querySelectorAll('.nav-item').forEach(function(n) { n.classList.remove('active'); });
           var sec = document.getElementById('section-' + hash);
-          var nav = document.getElementById('nav-' + hash);
           if (sec) sec.classList.add('active');
-          if (nav) nav.classList.add('active');
           var old = document.getElementById('instant-nav');
           if (old) old.remove();
         }
@@ -461,9 +761,15 @@
       window.addEventListener('hashchange', function() {
         var h = window.location.hash.replace('#', '');
         if (!h) return;
-        var btn = document.getElementById('nav-' + h);
-        if (btn) btn.click();
+        document.querySelectorAll('.content-section').forEach(function(s) { s.classList.remove('active'); });
+        var sec = document.getElementById('section-' + h);
+        if (sec) sec.classList.add('active');
       });
+
+      /* Tab styling */
+      var style = document.createElement('style');
+      style.textContent = '.info-tab.active { color: var(--primary) !important; border-bottom-color: var(--primary) !important; }';
+      document.head.appendChild(style);
     })();
   </script>
 </body>

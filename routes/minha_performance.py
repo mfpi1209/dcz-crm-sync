@@ -343,7 +343,7 @@ def _calc_daily_premiacao(matriculas, daily_config, dt_ini, dt_fim):
 
 
 def _determine_tier(total_mat, metas):
-    """Determine which tier the agent reached."""
+    """Determine which tier the agent reached. Always returns a tier (base if none)."""
     sup = metas.get("supermeta", 0)
     met = metas.get("meta", 0)
     inter = metas.get("intermediaria", 0)
@@ -353,7 +353,7 @@ def _determine_tier(total_mat, metas):
         return "meta"
     if inter > 0 and total_mat >= inter:
         return "intermediaria"
-    return None
+    return "base"
 
 
 # ---------------------------------------------------------------------------
@@ -448,7 +448,7 @@ def api_minha_premiacao():
 
     # Tier bonus
     tier_bonuses = _get_tier_bonuses(cid)
-    tier_valor = tier_bonuses.get(tier, 0) if tier else 0
+    tier_valor = tier_bonuses.get(tier, 0)
     tier_bonus_total = tier_valor * total_mat
 
     # Daily bonus
@@ -709,7 +709,7 @@ def api_minha_insights():
 
     # Tier bonus + daily bonus + receb
     tier_bonuses = _get_tier_bonuses(cid)
-    tier_valor = tier_bonuses.get(tier, 0) if tier else 0
+    tier_valor = tier_bonuses.get(tier, 0)
     tier_bonus_total = tier_valor * total_mat
 
     breakdown, daily_bonus_total, dias_batidos, dias_total = _calc_daily_premiacao(
@@ -746,7 +746,7 @@ def api_minha_insights():
 
     # Potenciais: what the agent WOULD earn at each tier with current matrículas
     potenciais = {}
-    for t_name in ("intermediaria", "meta", "supermeta"):
+    for t_name in ("base", "intermediaria", "meta", "supermeta"):
         tv = tier_bonuses.get(t_name, 0)
         if tv > 0:
             potenciais[t_name] = {
@@ -779,29 +779,178 @@ def api_minha_insights():
 
     # Projeção financeira
     proj_tier = _determine_tier(projecao, metas)
-    proj_tier_valor = tier_bonuses.get(proj_tier, 0) if proj_tier else 0
+    proj_tier_valor = tier_bonuses.get(proj_tier, 0)
     projecao_financeira = round(proj_tier_valor * projecao + daily_bonus_total + receb_bonus_total, 2)
 
-    # Dynamic motivational message (money-centric)
+    # Dynamic motivational messages (money-centric, contextual)
+    base_v = tier_bonuses.get("base", 0)
     if super_val > 0 and total_mat >= super_val:
-        mensagem = f"SUPERMETA! Cada nova matrícula = +R$ {tier_bonuses.get('supermeta', 0):.0f}. Continue!"
+        sv = tier_bonuses.get("supermeta", 0)
+        extra_ganho = round(sv * (total_mat - super_val), 2)
+        mensagem = f"Lendário! SUPERMETA conquistada! Cada matrícula extra = +R$ {sv:.0f} direto no bolso!"
+        if extra_ganho > 0:
+            mensagem += f" Já são +R$ {extra_ganho:,.0f} acima da supermeta!"
     elif meta_val > 0 and total_mat >= meta_val:
         falta_s = max(0, super_val - total_mat) if super_val > 0 else 0
         sv = tier_bonuses.get("supermeta", 0)
         ganho_extra = round((sv - tier_valor) * total_mat, 2) if sv > tier_valor else 0
-        mensagem = f"Meta batida! Faltam {falta_s} para SUPERMETA (+R$ {ganho_extra:,.0f})."
+        if falta_s > 0 and dias_uteis_restantes > 0:
+            pace_s = round(falta_s / dias_uteis_restantes, 1)
+            mensagem = f"Meta batida! Você já garantiu R$ {round(tier_bonus_total, 2):,.0f}! Faltam {falta_s} para SUPERMETA — isso é {pace_s}/dia nos próximos {dias_uteis_restantes} dias! (+R$ {ganho_extra:,.0f})"
+        elif falta_s > 0:
+            mensagem = f"Meta batida! Faltam {falta_s} para SUPERMETA (+R$ {ganho_extra:,.0f})."
+        else:
+            mensagem = f"Meta batida! Você já garantiu R$ {round(tier_bonus_total, 2):,.0f}!"
     elif inter_val > 0 and total_mat >= inter_val:
         falta_m = max(0, meta_val - total_mat)
         mv = tier_bonuses.get("meta", 0)
         ganho_extra = round((mv - tier_valor) * total_mat, 2) if mv > tier_valor else 0
-        mensagem = f"Faltam {falta_m} para a META e +R$ {ganho_extra:,.0f} no bolso!"
+        if falta_m > 0 and falta_m <= 3:
+            mensagem = f"Faltam APENAS {falta_m} para a META! Isso é menos de 1 por dia! (+R$ {ganho_extra:,.0f})"
+        elif falta_m > 0 and dias_uteis_restantes > 0:
+            pace_m = round(falta_m / dias_uteis_restantes, 1)
+            mensagem = f"Faltam {falta_m} para a META ({pace_m}/dia). +R$ {ganho_extra:,.0f} no bolso!"
+        else:
+            mensagem = f"Intermediária batida! Continue para a META (+R$ {ganho_extra:,.0f})."
     elif inter_val > 0:
         falta_i = max(0, inter_val - total_mat)
         iv = tier_bonuses.get("intermediaria", 0)
-        ganho = round(iv * total_mat, 2)
-        mensagem = f"{falta_i} matrículas para a Intermediária e garantir R$ {ganho:,.0f}!"
+        base_total = round(base_v * total_mat, 2) if base_v > 0 else 0
+        upgrade = round((iv - base_v) * total_mat, 2) if iv > base_v else 0
+        if falta_i <= 2 and falta_i > 0:
+            mensagem = f"Quase lá! Só {falta_i} matrícula{'s' if falta_i > 1 else ''} para a Intermediária (+R$ {upgrade:,.0f})!"
+        elif base_total > 0:
+            if dias_uteis_restantes > 0:
+                pace_i = round(falta_i / dias_uteis_restantes, 1)
+                mensagem = f"Você já garante R$ {base_total:,.0f}! Faltam {falta_i} para Intermediária ({pace_i}/dia). +R$ {upgrade:,.0f}!"
+            else:
+                mensagem = f"Você já garante R$ {base_total:,.0f}! Faltam {falta_i} para a Intermediária (+R$ {upgrade:,.0f})!"
+        else:
+            mensagem = f"{falta_i} matrículas para a Intermediária e garantir R$ {round(iv * total_mat, 2):,.0f}!"
     else:
-        mensagem = "Campanha ativa! Cada matrícula conta."
+        if base_v > 0 and total_mat > 0:
+            mensagem = f"Cada matrícula = R$ {base_v:.0f}! Você já acumula R$ {round(base_v * total_mat, 2):,.0f}."
+        else:
+            mensagem = "Campanha ativa! Cada matrícula conta."
+
+    # Ranking: position among all agents in the active campaign
+    ranking = None
+    try:
+        conn_rk = _pg()
+        cur_rk = conn_rk.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur_rk.execute(
+            "SELECT DISTINCT kommo_user_id FROM premiacao_campanha_meta WHERE campanha_id = %s",
+            (cid,),
+        )
+        all_agents = [r["kommo_user_id"] for r in cur_rk.fetchall()]
+        cur_rk.close()
+        conn_rk.close()
+
+        if not all_agents:
+            kconn = _pg_kommo()
+            kcur = kconn.cursor()
+            kcur.execute("SELECT id FROM users WHERE name IS NOT NULL AND name != ''")
+            all_agents = [r[0] for r in kcur.fetchall()]
+            kcur.close()
+            kconn.close()
+
+        agent_scores = []
+        for aid in all_agents:
+            a_mat = _get_agent_matriculas(aid, dt_ini_str, dt_fim_str)
+            agent_scores.append({"uid": aid, "total": len(a_mat)})
+        agent_scores.sort(key=lambda x: x["total"], reverse=True)
+
+        pos = 1
+        total_agents = len(agent_scores)
+        leader_total = agent_scores[0]["total"] if agent_scores else 0
+        for i, s in enumerate(agent_scores):
+            if s["uid"] == kommo_uid:
+                pos = i + 1
+                break
+
+        ranking = {
+            "posicao": pos,
+            "total_agentes": total_agents,
+            "lider_total": leader_total,
+            "diferenca_lider": max(0, leader_total - total_mat),
+        }
+    except Exception as e:
+        logger.warning("Error calculating ranking: %s", e)
+
+    # Achievements / conquistas
+    conquistas = []
+    try:
+        if total_mat >= 1:
+            conquistas.append({"id": "primeira_mat", "nome": "Primeira Matrícula", "icone": "school", "desc": "Abriu o placar na campanha!"})
+        if sequencia >= 3:
+            conquistas.append({"id": "streak_3", "nome": "3 Dias Seguidos", "icone": "local_fire_department", "desc": "Aquecendo!"})
+        if sequencia >= 5:
+            conquistas.append({"id": "streak_5", "nome": "5 Dias Seguidos", "icone": "whatshot", "desc": "Em chamas!"})
+        if sequencia >= 7:
+            conquistas.append({"id": "streak_7", "nome": "Imparável", "icone": "bolt", "desc": "7+ dias consecutivos!"})
+        if tier == "meta":
+            conquistas.append({"id": "meta_batida", "nome": "Meta Batida", "icone": "emoji_events", "desc": "Atingiu a meta da campanha!"})
+        if tier == "supermeta":
+            conquistas.append({"id": "supermeta", "nome": "Supermeta", "icone": "military_tech", "desc": "O topo é seu!"})
+        if meta_val > 0 and total_mat >= meta_val and dias_uteis_restantes > 0:
+            conquistas.append({"id": "meta_antecipada", "nome": "Meta Antecipada", "icone": "schedule", "desc": "Bateu a meta antes do prazo!"})
+        best_day_count = max(mat_by_date.values()) if mat_by_date else 0
+        if best_day_count >= 3:
+            conquistas.append({"id": "melhor_dia", "nome": f"Super Dia ({best_day_count} mat.)", "icone": "star", "desc": "Dia com mais matrículas!"})
+        if ranking and ranking["posicao"] <= 3 and ranking["total_agentes"] >= 3:
+            medal = {1: "Ouro", 2: "Prata", 3: "Bronze"}[ranking["posicao"]]
+            conquistas.append({"id": f"top_{ranking['posicao']}", "nome": f"Top {ranking['posicao']} ({medal})", "icone": "workspace_premium", "desc": f"Você está no Top 3 do time!"})
+    except Exception:
+        pass
+
+    # Unified campaigns: check if linked campaigns give a better result
+    unificado = None
+    linked_ids = _get_linked_campanhas(cid)
+    if len(linked_ids) > 1:
+        try:
+            conn_lk = _pg()
+            cur_lk = conn_lk.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            placeholders_lk = ",".join(["%s"] * len(linked_ids))
+            cur_lk.execute(
+                f"SELECT id, nome, dt_inicio, dt_fim FROM premiacao_campanha WHERE id IN ({placeholders_lk}) ORDER BY dt_inicio",
+                linked_ids,
+            )
+            linked_camps = [dict(r) for r in cur_lk.fetchall()]
+            cur_lk.close()
+            conn_lk.close()
+
+            uni_dt_ini = min(str(c["dt_inicio"]) for c in linked_camps)
+            uni_dt_fim = max(str(c["dt_fim"]) for c in linked_camps)
+            uni_matriculas = _get_agent_matriculas(kommo_uid, uni_dt_ini, uni_dt_fim)
+            uni_total = len(uni_matriculas)
+
+            uni_metas_sum = {"meta": 0, "intermediaria": 0, "supermeta": 0}
+            for lc in linked_camps:
+                lm = _get_agent_metas(kommo_uid, str(lc["dt_inicio"]), str(lc["dt_fim"]))
+                uni_metas_sum["meta"] += lm.get("meta", 0)
+                uni_metas_sum["intermediaria"] += lm.get("intermediaria", 0)
+                uni_metas_sum["supermeta"] += lm.get("supermeta", 0)
+
+            uni_tier = _determine_tier(uni_total, uni_metas_sum)
+            uni_tier_valor = tier_bonuses.get(uni_tier, 0)
+            uni_tier_bonus = uni_tier_valor * uni_total
+
+            if uni_tier_bonus > tier_bonus_total:
+                unificado = {
+                    "campanhas": [c["nome"] for c in linked_camps],
+                    "total_matriculas": uni_total,
+                    "metas": uni_metas_sum,
+                    "tier": uni_tier,
+                    "tier_valor_por_mat": uni_tier_valor,
+                    "tier_bonus": round(uni_tier_bonus, 2),
+                    "ganho_extra": round(uni_tier_bonus - tier_bonus_total, 2),
+                }
+                tier = uni_tier
+                tier_valor = uni_tier_valor
+                tier_bonus_total = uni_tier_bonus
+                total_acumulado = tier_bonus_total + daily_bonus_total + receb_bonus_total
+        except Exception as e:
+            logger.warning("Error calculating unified campaigns: %s", e)
 
     agent_name = ""
     try:
@@ -816,7 +965,7 @@ def api_minha_insights():
     except Exception:
         pass
 
-    return jsonify({
+    result = {
         "ok": True,
         "agent_name": agent_name,
         "campanha": {
@@ -846,9 +995,20 @@ def api_minha_insights():
             "bonus_extra": today_extra,
         },
         "sequencia": sequencia,
+        "streak_nivel": "imparavel" if sequencia >= 7 else ("em_chamas" if sequencia >= 5 else ("aquecendo" if sequencia >= 3 else None)),
         "heatmap": heatmap,
         "melhor_campanha": melhor_campanha,
         "mensagem": mensagem,
+        "tier_progress": [
+            {"tier": "base", "target": 0, "pct": 100, "atingido": True,
+             "valor_por_mat": tier_bonuses.get("base", 0), "ganho": round(tier_bonuses.get("base", 0) * total_mat, 2)},
+            {"tier": "intermediaria", "target": inter_val, "pct": min(100, round(total_mat / inter_val * 100)) if inter_val > 0 else 0, "atingido": total_mat >= inter_val if inter_val > 0 else False,
+             "valor_por_mat": tier_bonuses.get("intermediaria", 0), "ganho": round(tier_bonuses.get("intermediaria", 0) * total_mat, 2)},
+            {"tier": "meta", "target": meta_val, "pct": min(100, round(total_mat / meta_val * 100)) if meta_val > 0 else 0, "atingido": total_mat >= meta_val if meta_val > 0 else False,
+             "valor_por_mat": tier_bonuses.get("meta", 0), "ganho": round(tier_bonuses.get("meta", 0) * total_mat, 2)},
+            {"tier": "supermeta", "target": super_val, "pct": min(100, round(total_mat / super_val * 100)) if super_val > 0 else 0, "atingido": total_mat >= super_val if super_val > 0 else False,
+             "valor_por_mat": tier_bonuses.get("supermeta", 0), "ganho": round(tier_bonuses.get("supermeta", 0) * total_mat, 2)},
+        ],
         "premiacao": {
             "tier_bonus": round(tier_bonus_total, 2),
             "tier_valor_por_mat": tier_valor,
@@ -862,13 +1022,18 @@ def api_minha_insights():
             "potenciais": potenciais,
             "desbloqueie": desbloqueie,
         },
+        "ranking": ranking,
+        "conquistas": conquistas,
         "matriculas": [{
             "rgm": m.get("rgm"),
             "nivel": m.get("nivel"),
             "modalidade": m.get("modalidade"),
             "data_matricula": m["data_matricula"].isoformat() if hasattr(m.get("data_matricula"), "isoformat") else m.get("data_matricula"),
         } for m in matriculas],
-    })
+    }
+    if unificado:
+        result["unificado"] = unificado
+    return jsonify(result)
 
 
 @minha_performance_bp.route("/api/minha-performance/agentes")
@@ -944,7 +1109,7 @@ def api_campanhas_create():
         )
         cid = cur.fetchone()[0]
         for tier, valor in tiers.items():
-            if tier in ("intermediaria", "meta", "supermeta") and float(valor) > 0:
+            if tier in ("base", "intermediaria", "meta", "supermeta") and float(valor) > 0:
                 cur.execute(
                     "INSERT INTO premiacao_tier_bonus (campanha_id, tier, valor_por_mat) VALUES (%s, %s, %s)",
                     (cid, tier, float(valor)),
@@ -984,7 +1149,7 @@ def api_campanhas_update(cid):
         if "tiers" in body:
             cur.execute("DELETE FROM premiacao_tier_bonus WHERE campanha_id = %s", (cid,))
             for tier, valor in body["tiers"].items():
-                if tier in ("intermediaria", "meta", "supermeta") and float(valor) > 0:
+                if tier in ("base", "intermediaria", "meta", "supermeta") and float(valor) > 0:
                     cur.execute(
                         "INSERT INTO premiacao_tier_bonus (campanha_id, tier, valor_por_mat) VALUES (%s, %s, %s)",
                         (cid, tier, float(valor)),
@@ -1018,6 +1183,97 @@ def api_campanhas_delete(cid):
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# API: Links entre campanhas (admin)
+# ---------------------------------------------------------------------------
+
+@minha_performance_bp.route("/api/premiacao/campanha-links", methods=["GET"])
+def api_campanha_links_list():
+    if not _is_admin():
+        return jsonify({"error": "Sem permissão"}), 403
+    try:
+        conn = _pg()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT cl.id, cl.campanha_a_id, cl.campanha_b_id,
+                   ca.nome AS nome_a, cb.nome AS nome_b
+            FROM premiacao_campanha_link cl
+            JOIN premiacao_campanha ca ON ca.id = cl.campanha_a_id
+            JOIN premiacao_campanha cb ON cb.id = cl.campanha_b_id
+            ORDER BY cl.created_at DESC
+        """)
+        links = [dict(r) for r in cur.fetchall()]
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True, "links": links})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@minha_performance_bp.route("/api/premiacao/campanha-links", methods=["POST"])
+def api_campanha_links_create():
+    if not _is_admin():
+        return jsonify({"error": "Sem permissão"}), 403
+    body = request.json or {}
+    a_id = body.get("campanha_a_id")
+    b_id = body.get("campanha_b_id")
+    if not a_id or not b_id or int(a_id) == int(b_id):
+        return jsonify({"error": "Selecione duas campanhas diferentes"}), 400
+    lo, hi = min(int(a_id), int(b_id)), max(int(a_id), int(b_id))
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO premiacao_campanha_link (campanha_a_id, campanha_b_id) VALUES (%s, %s) ON CONFLICT DO NOTHING RETURNING id",
+            (lo, hi),
+        )
+        row = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        if row:
+            return jsonify({"ok": True, "id": row[0]})
+        return jsonify({"ok": True, "message": "Vínculo já existe"})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@minha_performance_bp.route("/api/premiacao/campanha-links/<int:lid>", methods=["DELETE"])
+def api_campanha_links_delete(lid):
+    if not _is_admin():
+        return jsonify({"error": "Sem permissão"}), 403
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM premiacao_campanha_link WHERE id = %s", (lid,))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+def _get_linked_campanhas(campanha_id):
+    """Return list of campaign IDs linked to this one (including itself)."""
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT campanha_a_id, campanha_b_id FROM premiacao_campanha_link
+            WHERE campanha_a_id = %s OR campanha_b_id = %s
+        """, (campanha_id, campanha_id))
+        linked = {campanha_id}
+        for a, b in cur.fetchall():
+            linked.add(a)
+            linked.add(b)
+        cur.close()
+        conn.close()
+        return list(linked)
+    except Exception:
+        return [campanha_id]
 
 
 # ---------------------------------------------------------------------------

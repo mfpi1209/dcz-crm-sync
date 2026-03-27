@@ -1,7 +1,14 @@
             <div id="page-update" class="p-4 lg:p-8 max-w-7xl mx-auto hidden">
                 <div class="mb-8">
-                    <h2 class="text-3xl font-bold text-white font-display mb-1">Atualização CRM</h2>
-                    <p class="text-slate-500 text-sm">Atualize leads e negócios com base na planilha de matriculados</p>
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-3xl font-bold text-[var(--text-primary)] font-display">Upload Acadêmico</h2>
+                            <p class="text-gray-500 text-sm">Upload de planilhas acadêmicas para atualização do CRM</p>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-6" id="upload-cards">
@@ -11,20 +18,20 @@
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                             Matriculados
                         </h3>
-                        <div class="upload-dropzone border-2 border-dashed border-slate-700/40 rounded-xl p-4 text-center cursor-pointer hover:border-emerald-500/60 hover:bg-emerald-950/10 transition-all duration-300"
+                        <div class="upload-dropzone border-2 border-dashed border-gray-700/40 rounded-xl p-4 text-center cursor-pointer hover:border-emerald-500/60 hover:bg-emerald-950/10 transition-all duration-300"
                             onclick="this.querySelector('input').click()"
                             ondragover="event.preventDefault(); this.classList.add('border-emerald-500','bg-emerald-950/10')"
                             ondragleave="this.classList.remove('border-emerald-500','bg-emerald-950/10')"
                             ondrop="handleDropTyped(event, 'matriculados')">
                             <input type="file" accept=".xlsx" class="hidden" onchange="handleUploadTyped(this.files[0], 'matriculados')">
-                            <svg class="w-6 h-6 mx-auto mb-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-                            <p class="text-xs text-slate-400">Arraste <span class="text-emerald-400 font-semibold">.xlsx</span></p>
+                            <svg class="w-6 h-6 mx-auto mb-1 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                            <p class="text-xs text-gray-400">Arraste <span class="text-emerald-400 font-semibold">.xlsx</span></p>
                         </div>
                         <div class="upload-progress hidden mt-2">
-                            <div class="w-full bg-slate-800 rounded-full h-1.5"><div class="upload-bar bg-gradient-to-r from-emerald-500 to-green-500 h-1.5 rounded-full transition-all" style="width:0%"></div></div>
-                            <p class="upload-msg text-xs text-slate-400 mt-1">Enviando...</p>
+                            <div class="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-1.5"><div class="upload-bar bg-gradient-to-r from-emerald-500 to-green-500 h-1.5 rounded-full transition-all" style="width:0%"></div></div>
+                            <p class="upload-msg text-xs text-gray-400 mt-1">Enviando...</p>
                         </div>
-                        <div class="snap-info mt-3 text-xs text-slate-500" id="snap-info-matriculados">—</div>
+                        <div class="snap-info mt-3 text-xs text-gray-500" id="snap-info-matriculados">—</div>
                     </div>
 
                     <!-- Inadimplentes -->
@@ -35,26 +42,26 @@
                         </h3>
                         <div class="grid grid-cols-2 gap-2">
                             <!-- Graduação -->
-                            <div class="upload-dropzone border-2 border-dashed border-slate-700/40 rounded-lg p-3 text-center cursor-pointer hover:border-amber-500/60 hover:bg-amber-950/10 transition-all duration-300"
+                            <div class="upload-dropzone border-2 border-dashed border-gray-700/40 rounded-lg p-3 text-center cursor-pointer hover:border-amber-500/60 hover:bg-amber-950/10 transition-all duration-300"
                                 onclick="this.querySelector('input').click()"
                                 ondragover="event.preventDefault(); this.classList.add('border-amber-500','bg-amber-950/10')"
                                 ondragleave="this.classList.remove('border-amber-500','bg-amber-950/10')"
                                 ondrop="handleDropBatchInadimplentes(event, 'Graduação')">
                                 <input type="file" accept=".xlsx,.xlsm,.zip" multiple class="hidden" onchange="handleUploadBatchInadimplentes(this.files, 'Graduação')">
-                                <svg class="w-5 h-5 mx-auto mb-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                <svg class="w-5 h-5 mx-auto mb-1 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
                                 <p class="text-[10px] text-amber-400 font-semibold">Graduação</p>
-                                <p class="text-[9px] text-slate-500 mt-0.5">.xlsm / .xlsx</p>
+                                <p class="text-[9px] text-gray-500 mt-0.5">.xlsm / .xlsx</p>
                             </div>
                             <!-- Pós-Graduação -->
-                            <div class="upload-dropzone border-2 border-dashed border-slate-700/40 rounded-lg p-3 text-center cursor-pointer hover:border-orange-500/60 hover:bg-orange-950/10 transition-all duration-300"
+                            <div class="upload-dropzone border-2 border-dashed border-gray-700/40 rounded-lg p-3 text-center cursor-pointer hover:border-orange-500/60 hover:bg-orange-950/10 transition-all duration-300"
                                 onclick="this.querySelector('input').click()"
                                 ondragover="event.preventDefault(); this.classList.add('border-orange-500','bg-orange-950/10')"
                                 ondragleave="this.classList.remove('border-orange-500','bg-orange-950/10')"
                                 ondrop="handleDropBatchInadimplentes(event, 'Pós-Graduação')">
                                 <input type="file" accept=".xlsx,.xlsm,.zip" multiple class="hidden" onchange="handleUploadBatchInadimplentes(this.files, 'Pós-Graduação')">
-                                <svg class="w-5 h-5 mx-auto mb-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                <svg class="w-5 h-5 mx-auto mb-1 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
                                 <p class="text-[10px] text-orange-400 font-semibold">Pós-Graduação</p>
-                                <p class="text-[9px] text-slate-500 mt-0.5">.xlsm / .xlsx</p>
+                                <p class="text-[9px] text-gray-500 mt-0.5">.xlsm / .xlsx</p>
                             </div>
                         </div>
                         <button onclick="processServerFolder('inadimplentes')" class="mt-2 w-full text-xs text-amber-400/80 hover:text-amber-300 border border-amber-500/20 hover:border-amber-500/50 rounded-lg py-1.5 transition flex items-center justify-center gap-1.5">
@@ -62,10 +69,10 @@
                             Processar pasta do servidor
                         </button>
                         <div class="upload-progress hidden mt-2">
-                            <div class="w-full bg-slate-800 rounded-full h-1.5"><div class="upload-bar bg-gradient-to-r from-amber-500 to-orange-500 h-1.5 rounded-full transition-all" style="width:0%"></div></div>
-                            <p class="upload-msg text-xs text-slate-400 mt-1">Enviando...</p>
+                            <div class="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-1.5"><div class="upload-bar bg-gradient-to-r from-amber-500 to-orange-500 h-1.5 rounded-full transition-all" style="width:0%"></div></div>
+                            <p class="upload-msg text-xs text-gray-400 mt-1">Enviando...</p>
                         </div>
-                        <div class="snap-info mt-3 text-xs text-slate-500" id="snap-info-inadimplentes">—</div>
+                        <div class="snap-info mt-3 text-xs text-gray-500" id="snap-info-inadimplentes">—</div>
                     </div>
 
                     <!-- Concluintes -->
@@ -74,24 +81,24 @@
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
                             Concluintes
                         </h3>
-                        <div class="upload-dropzone border-2 border-dashed border-slate-700/40 rounded-xl p-4 text-center cursor-pointer hover:border-purple-500/60 hover:bg-purple-950/10 transition-all duration-300"
+                        <div class="upload-dropzone border-2 border-dashed border-gray-700/40 rounded-xl p-4 text-center cursor-pointer hover:border-purple-500/60 hover:bg-purple-950/10 transition-all duration-300"
                             onclick="this.querySelector('input').click()"
                             ondragover="event.preventDefault(); this.classList.add('border-purple-500','bg-purple-950/10')"
                             ondragleave="this.classList.remove('border-purple-500','bg-purple-950/10')"
                             ondrop="handleDropTyped(event, 'concluintes')">
                             <input type="file" accept=".xlsx" class="hidden" onchange="handleUploadTyped(this.files[0], 'concluintes')">
-                            <svg class="w-6 h-6 mx-auto mb-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-                            <p class="text-xs text-slate-400">Arraste <span class="text-purple-400 font-semibold">.xlsx</span></p>
+                            <svg class="w-6 h-6 mx-auto mb-1 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                            <p class="text-xs text-gray-400">Arraste <span class="text-purple-400 font-semibold">.xlsx</span></p>
                         </div>
                         <button onclick="processServerFolder('concluintes')" class="mt-2 w-full text-xs text-purple-400/80 hover:text-purple-300 border border-purple-500/20 hover:border-purple-500/50 rounded-lg py-1.5 transition flex items-center justify-center gap-1.5">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/></svg>
                             Processar pasta do servidor
                         </button>
                         <div class="upload-progress hidden mt-2">
-                            <div class="w-full bg-slate-800 rounded-full h-1.5"><div class="upload-bar bg-gradient-to-r from-purple-500 to-violet-500 h-1.5 rounded-full transition-all" style="width:0%"></div></div>
-                            <p class="upload-msg text-xs text-slate-400 mt-1">Enviando...</p>
+                            <div class="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-1.5"><div class="upload-bar bg-gradient-to-r from-purple-500 to-violet-500 h-1.5 rounded-full transition-all" style="width:0%"></div></div>
+                            <p class="upload-msg text-xs text-gray-400 mt-1">Enviando...</p>
                         </div>
-                        <div class="snap-info mt-3 text-xs text-slate-500" id="snap-info-concluintes">—</div>
+                        <div class="snap-info mt-3 text-xs text-gray-500" id="snap-info-concluintes">—</div>
                     </div>
 
                     <!-- Acesso AVA -->
@@ -100,24 +107,24 @@
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                             Acesso AVA
                         </h3>
-                        <div class="upload-dropzone border-2 border-dashed border-slate-700/40 rounded-xl p-4 text-center cursor-pointer hover:border-sky-500/60 hover:bg-sky-950/10 transition-all duration-300"
+                        <div class="upload-dropzone border-2 border-dashed border-gray-700/40 rounded-xl p-4 text-center cursor-pointer hover:border-sky-500/60 hover:bg-sky-950/10 transition-all duration-300"
                             onclick="this.querySelector('input').click()"
                             ondragover="event.preventDefault(); this.classList.add('border-sky-500','bg-sky-950/10')"
                             ondragleave="this.classList.remove('border-sky-500','bg-sky-950/10')"
                             ondrop="handleDropTyped(event, 'acesso_ava')">
                             <input type="file" accept=".xlsx" class="hidden" onchange="handleUploadTyped(this.files[0], 'acesso_ava')">
-                            <svg class="w-6 h-6 mx-auto mb-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-                            <p class="text-xs text-slate-400">Arraste <span class="text-sky-400 font-semibold">.xlsx</span></p>
+                            <svg class="w-6 h-6 mx-auto mb-1 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                            <p class="text-xs text-gray-400">Arraste <span class="text-sky-400 font-semibold">.xlsx</span></p>
                         </div>
                         <button onclick="processServerFolder('acesso_ava')" class="mt-2 w-full text-xs text-sky-400/80 hover:text-sky-300 border border-sky-500/20 hover:border-sky-500/50 rounded-lg py-1.5 transition flex items-center justify-center gap-1.5">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/></svg>
                             Processar pasta do servidor
                         </button>
                         <div class="upload-progress hidden mt-2">
-                            <div class="w-full bg-slate-800 rounded-full h-1.5"><div class="upload-bar bg-gradient-to-r from-sky-500 to-blue-500 h-1.5 rounded-full transition-all" style="width:0%"></div></div>
-                            <p class="upload-msg text-xs text-slate-400 mt-1">Enviando...</p>
+                            <div class="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-1.5"><div class="upload-bar bg-gradient-to-r from-sky-500 to-blue-500 h-1.5 rounded-full transition-all" style="width:0%"></div></div>
+                            <p class="upload-msg text-xs text-gray-400 mt-1">Enviando...</p>
                         </div>
-                        <div class="snap-info mt-3 text-xs text-slate-500" id="snap-info-acesso_ava">—</div>
+                        <div class="snap-info mt-3 text-xs text-gray-500" id="snap-info-acesso_ava">—</div>
                     </div>
 
                     <!-- Sem Rematrícula -->
@@ -128,26 +135,26 @@
                         </h3>
                         <div class="grid grid-cols-2 gap-2">
                             <!-- Adimplente -->
-                            <div class="upload-dropzone border-2 border-dashed border-slate-700/40 rounded-lg p-3 text-center cursor-pointer hover:border-emerald-500/60 hover:bg-emerald-950/10 transition-all duration-300"
+                            <div class="upload-dropzone border-2 border-dashed border-gray-700/40 rounded-lg p-3 text-center cursor-pointer hover:border-emerald-500/60 hover:bg-emerald-950/10 transition-all duration-300"
                                 onclick="this.querySelector('input').click()"
                                 ondragover="event.preventDefault(); this.classList.add('border-emerald-500','bg-emerald-950/10')"
                                 ondragleave="this.classList.remove('border-emerald-500','bg-emerald-950/10')"
                                 ondrop="handleDropSemRemat(event, 'adimplente')">
                                 <input type="file" accept=".xlsx" class="hidden" onchange="handleUploadSemRemat(this.files[0], 'adimplente')">
-                                <svg class="w-5 h-5 mx-auto mb-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-                                <p class="text-[10px] text-slate-400 font-semibold">Adimplente</p>
-                                <p id="sem-remat-status-adimplente" class="text-[10px] text-slate-500 mt-1 truncate">—</p>
+                                <svg class="w-5 h-5 mx-auto mb-1 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                <p class="text-[10px] text-gray-400 font-semibold">Adimplente</p>
+                                <p id="sem-remat-status-adimplente" class="text-[10px] text-gray-500 mt-1 truncate">—</p>
                             </div>
                             <!-- Inadimplente -->
-                            <div class="upload-dropzone border-2 border-dashed border-slate-700/40 rounded-lg p-3 text-center cursor-pointer hover:border-amber-500/60 hover:bg-amber-950/10 transition-all duration-300"
+                            <div class="upload-dropzone border-2 border-dashed border-gray-700/40 rounded-lg p-3 text-center cursor-pointer hover:border-amber-500/60 hover:bg-amber-950/10 transition-all duration-300"
                                 onclick="this.querySelector('input').click()"
                                 ondragover="event.preventDefault(); this.classList.add('border-amber-500','bg-amber-950/10')"
                                 ondragleave="this.classList.remove('border-amber-500','bg-amber-950/10')"
                                 ondrop="handleDropSemRemat(event, 'inadimplente')">
                                 <input type="file" accept=".xlsx" class="hidden" onchange="handleUploadSemRemat(this.files[0], 'inadimplente')">
-                                <svg class="w-5 h-5 mx-auto mb-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-                                <p class="text-[10px] text-slate-400 font-semibold">Inadimplente</p>
-                                <p id="sem-remat-status-inadimplente" class="text-[10px] text-slate-500 mt-1 truncate">—</p>
+                                <svg class="w-5 h-5 mx-auto mb-1 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                <p class="text-[10px] text-gray-400 font-semibold">Inadimplente</p>
+                                <p id="sem-remat-status-inadimplente" class="text-[10px] text-gray-500 mt-1 truncate">—</p>
                             </div>
                         </div>
                         <button onclick="processServerFolder('sem_rematricula')" class="mt-2 w-full text-xs text-rose-400/80 hover:text-rose-300 border border-rose-500/20 hover:border-rose-500/50 rounded-lg py-1.5 transition flex items-center justify-center gap-1.5">
@@ -155,59 +162,59 @@
                             Processar pasta do servidor
                         </button>
                         <div class="upload-progress hidden mt-2">
-                            <div class="w-full bg-slate-800 rounded-full h-1.5"><div class="upload-bar bg-gradient-to-r from-rose-500 to-pink-500 h-1.5 rounded-full transition-all" style="width:0%"></div></div>
-                            <p class="upload-msg text-xs text-slate-400 mt-1">Enviando...</p>
+                            <div class="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-1.5"><div class="upload-bar bg-gradient-to-r from-rose-500 to-pink-500 h-1.5 rounded-full transition-all" style="width:0%"></div></div>
+                            <p class="upload-msg text-xs text-gray-400 mt-1">Enviando...</p>
                         </div>
-                        <div class="snap-info mt-3 text-xs text-slate-500" id="snap-info-sem_rematricula">—</div>
+                        <div class="snap-info mt-3 text-xs text-gray-500" id="snap-info-sem_rematricula">—</div>
                     </div>
 
                     <!-- Lista de Alunos (Inadimplência) -->
                     <div class="glass-card p-5" data-upload-tipo="lista_alunos">
-                        <h3 class="text-sm font-bold text-teal-400 font-display mb-3 flex items-center gap-2">
+                        <h3 class="text-sm font-bold text-indigo-400 font-display mb-3 flex items-center gap-2">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
                             Lista de Alunos
                         </h3>
-                        <p class="text-[10px] text-slate-500 mb-2">Relatório com coluna Inadimplente (Sim/Não)</p>
-                        <div class="upload-dropzone border-2 border-dashed border-slate-700/40 rounded-xl p-4 text-center cursor-pointer hover:border-teal-500/60 hover:bg-teal-950/10 transition-all duration-300"
+                        <p class="text-[10px] text-gray-500 mb-2">Relatório com coluna Inadimplente (Sim/Não)</p>
+                        <div class="upload-dropzone border-2 border-dashed border-gray-700/40 rounded-xl p-4 text-center cursor-pointer hover:border-indigo-500/60 hover:bg-indigo-950/10 transition-all duration-300"
                             onclick="this.querySelector('input').click()"
-                            ondragover="event.preventDefault(); this.classList.add('border-teal-500','bg-teal-950/10')"
-                            ondragleave="this.classList.remove('border-teal-500','bg-teal-950/10')"
-                            ondrop="event.preventDefault(); this.classList.remove('border-teal-500','bg-teal-950/10'); handleUploadTyped(event.dataTransfer.files[0], 'lista_alunos')">
+                            ondragover="event.preventDefault(); this.classList.add('border-indigo-500','bg-indigo-950/10')"
+                            ondragleave="this.classList.remove('border-indigo-500','bg-indigo-950/10')"
+                            ondrop="event.preventDefault(); this.classList.remove('border-indigo-500','bg-indigo-950/10'); handleUploadTyped(event.dataTransfer.files[0], 'lista_alunos')">
                             <input type="file" accept=".xlsx" class="hidden" onchange="handleUploadTyped(this.files[0], 'lista_alunos')">
-                            <svg class="w-6 h-6 mx-auto mb-1 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-                            <p class="text-[10px] text-slate-400">.xlsx</p>
+                            <svg class="w-6 h-6 mx-auto mb-1 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                            <p class="text-[10px] text-gray-400">.xlsx</p>
                         </div>
                         <div class="upload-progress hidden mt-2">
-                            <div class="w-full bg-slate-800 rounded-full h-1.5"><div class="upload-bar bg-gradient-to-r from-teal-500 to-emerald-500 h-1.5 rounded-full transition-all" style="width:0%"></div></div>
-                            <p class="upload-msg text-xs text-slate-400 mt-1">Enviando...</p>
+                            <div class="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-1.5"><div class="upload-bar bg-gradient-to-r from-indigo-500 to-emerald-500 h-1.5 rounded-full transition-all" style="width:0%"></div></div>
+                            <p class="upload-msg text-xs text-gray-400 mt-1">Enviando...</p>
                         </div>
-                        <div class="snap-info mt-3 text-xs text-slate-500" id="snap-info-lista_alunos">—</div>
+                        <div class="snap-info mt-3 text-xs text-gray-500" id="snap-info-lista_alunos">—</div>
                     </div>
                 </div>
 
                 <div class="glass-card p-5 mb-5">
                     <div class="flex items-center gap-3 mb-3">
                         <svg class="w-4 h-4 text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                        <label class="text-sm font-bold text-slate-300 font-display">Rate Limit</label>
+                        <label class="text-sm font-bold text-gray-300 font-display">Rate Limit</label>
                         <span id="rate-value" class="text-sm font-mono font-bold text-indigo-400">120</span>
-                        <span class="text-xs text-slate-500">req/min</span>
-                        <span class="text-xs text-slate-600 ml-auto">API max: 240/min</span>
+                        <span class="text-xs text-gray-500">req/min</span>
+                        <span class="text-xs text-gray-600 ml-auto">API max: 240/min</span>
                     </div>
                     <input type="range" id="rate-slider" min="0" max="240" step="10" value="120"
-                        class="w-full h-2 bg-slate-700/60 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                        class="w-full h-2 bg-gray-700/60 rounded-lg appearance-none cursor-pointer accent-indigo-500"
                         oninput="document.getElementById('rate-value').textContent=this.value; updateRateBar()">
-                    <div class="flex justify-between text-[10px] text-slate-600 mt-1 px-0.5">
+                    <div class="flex justify-between text-[10px] text-gray-600 mt-1 px-0.5">
                         <span>0</span><span>60</span><span>120</span><span>180</span><span>240</span>
                     </div>
-                    <div class="mt-2 h-1.5 bg-slate-800/60 rounded-full overflow-hidden">
+                    <div class="mt-2 h-1.5 bg-gray-800/60 rounded-full overflow-hidden">
                         <div id="rate-bar" class="h-full rounded-full transition-all" style="width:50%; background: linear-gradient(90deg, #22c55e, #2563eb)"></div>
                     </div>
                 </div>
 
                 <div class="flex items-center gap-3 mb-4">
                     <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" id="with-address" class="w-4 h-4 rounded accent-indigo-500 bg-slate-700 border-slate-600">
-                        <span class="text-sm text-slate-400">Incluir endereço (rua/bairro/cidade)</span>
+                        <input type="checkbox" id="with-address" class="w-4 h-4 rounded accent-indigo-500 bg-gray-700 border-gray-600">
+                        <span class="text-sm text-gray-400">Incluir endereço (rua/bairro/cidade)</span>
                     </label>
                 </div>
 
@@ -224,9 +231,9 @@
                     </button>
                     <div class="flex items-end gap-2">
                         <div>
-                            <label class="block text-xs text-slate-500 mb-1.5 font-medium">Limite (opcional)</label>
+                            <label class="block text-xs text-gray-500 mb-1.5 font-medium">Limite (opcional)</label>
                             <input type="number" id="update-limit" placeholder="todos" min="1"
-                                class="input-glass px-3 py-2.5 text-sm w-28 text-slate-200">
+                                class="input-glass px-3 py-2.5 text-sm w-28 text-gray-200">
                         </div>
                         <button onclick="confirmExecute()" id="btn-execute"
                             class="btn-danger text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center gap-2">
@@ -244,14 +251,14 @@
                 <div id="update-preview-section" class="hidden mb-5">
                     <div class="glass-card overflow-hidden">
                         <div class="log-header flex items-center justify-between">
-                            <span class="text-xs text-slate-500 font-semibold">Preview de Atualizações <span id="preview-count" class="text-slate-600"></span></span>
+                            <span class="text-xs text-gray-500 font-semibold">Preview de Atualizações <span id="preview-count" class="text-gray-600"></span></span>
                             <button onclick="document.getElementById('update-preview-section').classList.add('hidden')"
-                                class="text-xs text-slate-600 hover:text-slate-400 transition">Fechar</button>
+                                class="text-xs text-gray-600 hover:text-gray-400 transition">Fechar</button>
                         </div>
                         <div class="overflow-auto max-h-80">
                             <table class="w-full text-left text-xs">
-                                <thead class="sticky top-0 bg-slate-900/90 backdrop-blur">
-                                    <tr class="text-slate-500 border-b border-slate-700/20">
+                                <thead class="sticky top-0 bg-[var(--bg-card)]">
+                                    <tr class="text-gray-500 border-b border-gray-700/20">
                                         <th class="px-3 py-2">Match</th>
                                         <th class="px-3 py-2">RGM</th>
                                         <th class="px-3 py-2">Nome</th>
@@ -260,7 +267,7 @@
                                         <th class="px-3 py-2">Negócio Mudanças</th>
                                     </tr>
                                 </thead>
-                                <tbody id="preview-tbody" class="text-slate-300"></tbody>
+                                <tbody id="preview-tbody" class="text-gray-300"></tbody>
                             </table>
                         </div>
                     </div>
@@ -268,9 +275,9 @@
 
                 <div class="log-panel">
                     <div class="log-header flex items-center justify-between">
-                        <span class="text-xs text-slate-500 font-semibold tracking-wide uppercase">Log de Atualização</span>
-                        <button onclick="clearUpdateLog()" class="text-xs text-slate-600 hover:text-slate-400 transition">Limpar</button>
+                        <span class="text-xs text-gray-500 font-semibold tracking-wide uppercase">Log de Atualização</span>
+                        <button onclick="clearUpdateLog()" class="text-xs text-gray-600 hover:text-gray-400 transition">Limpar</button>
                     </div>
-                    <pre id="update-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap"></pre>
+                    <pre id="update-log" class="log-terminal p-4 h-96 overflow-auto text-gray-400 whitespace-pre-wrap"></pre>
                 </div>
             </div>

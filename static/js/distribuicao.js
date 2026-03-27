@@ -101,7 +101,7 @@ function renderDistTable(items) {
 
         // Avatar com iniciais
         const initials = d.responsavel ? d.responsavel.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '??';
-        const avatarColors = ['from-indigo-500 to-purple-500', 'from-emerald-500 to-teal-500', 'from-amber-500 to-orange-500', 'from-rose-500 to-pink-500', 'from-cyan-500 to-blue-500'];
+        const avatarColors = ['from-indigo-500 to-purple-500', 'from-emerald-500 to-indigo-500', 'from-amber-500 to-orange-500', 'from-rose-500 to-pink-500', 'from-indigo-500 to-blue-500'];
         const avatarColor = avatarColors[idx % avatarColors.length];
 
         // Tipo badge
@@ -109,13 +109,13 @@ function renderDistTable(items) {
             ? 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30'
             : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
 
-        return `<tr data-id="${esc(d.id)}" class="group hover:bg-slate-800/40 transition-all duration-200">
+        return `<tr data-id="${esc(d.id)}" class="group hover:bg-gray-100 dark:hover:bg-gray-800/40 transition-all duration-200">
             <td class="px-4 py-3">
                 <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br ${avatarColor} flex items-center justify-center text-white text-xs font-bold shadow-lg">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br ${avatarColor} flex items-center justify-center text-[var(--text-primary)] text-xs font-bold shadow-lg">
                         ${initials}
                     </div>
-                    <span class="text-sm font-medium text-slate-200 group-hover:text-white transition-colors">${esc(d.responsavel)}</span>
+                    <span class="text-sm font-medium text-gray-200 group-hover:text-[var(--text-primary)] transition-colors">${esc(d.responsavel)}</span>
                 </div>
             </td>
             <td class="px-3 py-3 text-center">
@@ -127,16 +127,16 @@ function renderDistTable(items) {
                 </select>
             </td>
             <td class="px-2 py-2 text-center">
-                <input type="time" value="${esc(d.almoco || '')}" class="text-xs text-slate-300 text-center rounded-lg outline-none" style="background:rgba(15,23,42,0.6);border:1px solid rgba(51,65,85,0.5);padding:6px 8px;width:90px;">
+                <input type="time" value="${esc(d.almoco || '')}" class="text-xs text-gray-300 text-center rounded-lg outline-none" style="background:rgba(15,23,42,0.6);border:1px solid rgba(51,65,85,0.5);padding:6px 8px;width:90px;">
             </td>
             <td class="px-2 py-2 text-center">
-                <input type="time" value="${esc(d.final_expediente || '')}" class="text-xs text-slate-300 text-center rounded-lg outline-none" style="background:rgba(15,23,42,0.6);border:1px solid rgba(51,65,85,0.5);padding:6px 8px;width:90px;">
+                <input type="time" value="${esc(d.final_expediente || '')}" class="text-xs text-gray-300 text-center rounded-lg outline-none" style="background:rgba(15,23,42,0.6);border:1px solid rgba(51,65,85,0.5);padding:6px 8px;width:90px;">
             </td>
             <td class="px-2 py-2 text-center">
-                <input type="number" value="${esc(d.pausa || '')}" placeholder="0" class="text-xs text-slate-300 text-center rounded-lg outline-none" style="background:rgba(15,23,42,0.6);border:1px solid rgba(51,65,85,0.5);padding:6px 4px;width:52px;">
+                <input type="number" value="${esc(d.pausa || '')}" placeholder="0" class="text-xs text-gray-300 text-center rounded-lg outline-none" style="background:rgba(15,23,42,0.6);border:1px solid rgba(51,65,85,0.5);padding:6px 4px;width:52px;">
             </td>
             <td class="px-2 py-2 text-center">
-                <input type="number" value="${esc(d.volume || '')}" placeholder="0" class="text-xs text-slate-300 text-center rounded-lg outline-none" style="background:rgba(15,23,42,0.6);border:1px solid rgba(51,65,85,0.5);padding:6px 4px;width:52px;">
+                <input type="number" value="${esc(d.volume || '')}" placeholder="0" class="text-xs text-gray-300 text-center rounded-lg outline-none" style="background:rgba(15,23,42,0.6);border:1px solid rgba(51,65,85,0.5);padding:6px 4px;width:52px;">
             </td>
             <td class="px-3 py-3 text-center">
                 <span class="inline-flex items-center justify-center min-w-[40px] px-2.5 py-1 rounded-lg text-xs font-bold border ${filaBg}">
@@ -144,8 +144,8 @@ function renderDistTable(items) {
                 </span>
             </td>
             <td class="px-3 py-3 text-center whitespace-nowrap">
-                <span class="text-xs text-slate-400 inline-flex items-center gap-1">
-                    <svg class="w-3 h-3 text-slate-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span class="text-xs text-gray-400 inline-flex items-center gap-1">
+                    <svg class="w-3 h-3 text-gray-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     ${esc(d.ultima_execucao || '—')}
                 </span>
             </td>
@@ -248,7 +248,7 @@ async function handleUploadBatchInadimplentes(fileList, nivel) {
     bar.style.width = '20%';
     const nivelLabel = nivel || 'geral';
     msg.textContent = `Enviando ${valid.length} arquivo(s) [${nivelLabel}]...`;
-    msg.className = 'upload-msg text-xs text-slate-400 mt-1';
+    msg.className = 'upload-msg text-xs text-gray-400 mt-1';
 
     const form = new FormData();
     for (const f of valid) form.append('files', f);
@@ -341,7 +341,7 @@ async function handleUploadSemRemat(file, subtipo) {
     progress.classList.remove('hidden');
     bar.style.width = '30%';
     msg.textContent = `Enviando ${subtipo}: ${file.name}...`;
-    msg.className = 'upload-msg text-xs text-slate-400 mt-1';
+    msg.className = 'upload-msg text-xs text-gray-400 mt-1';
     if (statusEl) statusEl.textContent = 'Enviando...';
 
     const form = new FormData();
@@ -413,7 +413,7 @@ async function handleUploadTyped(file, tipo) {
     progress.classList.remove('hidden');
     bar.style.width = '30%';
     msg.textContent = `Enviando ${file.name}...`;
-    msg.className = 'upload-msg text-xs text-slate-400 mt-1';
+    msg.className = 'upload-msg text-xs text-gray-400 mt-1';
 
     const form = new FormData();
     form.append('file', file);
@@ -467,7 +467,7 @@ async function processServerFolder(tipo) {
     progress.classList.remove('hidden');
     bar.style.width = '40%';
     msg.textContent = 'Processando pasta do servidor...';
-    msg.className = 'upload-msg text-xs text-slate-400 mt-1';
+    msg.className = 'upload-msg text-xs text-gray-400 mt-1';
 
     try {
         const res = await fetch('/api/upload-folder', {
@@ -490,7 +490,7 @@ async function processServerFolder(tipo) {
         msg.textContent = 'Erro: ' + err.message;
         msg.classList.add('text-red-400');
     }
-    setTimeout(() => { progress.classList.add('hidden'); bar.style.width = '0%'; msg.className = 'upload-msg text-xs text-slate-400 mt-1'; }, 3000);
+    setTimeout(() => { progress.classList.add('hidden'); bar.style.width = '0%'; msg.className = 'upload-msg text-xs text-gray-400 mt-1'; }, 3000);
 }
 
 function loadFileInfo() {
@@ -504,15 +504,15 @@ function loadFileInfo() {
             const el = document.getElementById('snap-info-' + tipo);
             if (!el) continue;
             const s = snaps[tipo];
-            const c = TIPO_COLORS[tipo] || 'slate';
+            const c = TIPO_COLORS[tipo] || 'gray';
             if (s) {
                 el.className = `snap-info mt-3 text-xs border border-${c}-500/20 bg-${c}-500/5 rounded-lg p-2.5`;
                 el.innerHTML = `<div class="flex items-center gap-1.5 mb-1">` +
                     `<svg class="w-3.5 h-3.5 text-${c}-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>` +
                     `<span class="text-${c}-300 font-semibold truncate">${esc(s.filename)}</span></div>` +
-                    `<div class="text-slate-400 pl-5">${s.row_count.toLocaleString('pt-BR')} linhas &middot; ${s.uploaded_at}</div>`;
+                    `<div class="text-gray-400 pl-5">${s.row_count.toLocaleString('pt-BR')} linhas &middot; ${s.uploaded_at}</div>`;
             } else {
-                el.className = 'snap-info mt-3 text-xs text-slate-500';
+                el.className = 'snap-info mt-3 text-xs text-gray-500';
                 el.textContent = 'Nenhum snapshot';
             }
         }

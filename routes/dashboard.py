@@ -8,12 +8,28 @@ from flask import Blueprint, render_template, request, jsonify, current_app
 
 from db import get_conn
 from helpers import BRT, to_brt
+from match_merge_lib import normalizar_polo_procvs
 
 dashboard_bp = Blueprint("dashboard", __name__)
 
 
 def _strip_accents_lower(s):
     return unicodedata.normalize('NFD', s).encode('ascii', 'ignore').decode('ascii').lower()
+
+
+def _normalize_polo(raw):
+    if not raw or raw.strip() in ('', 'N/I', 'Não informado'):
+        return raw or 'N/I'
+    normalized, _ = normalizar_polo_procvs(raw)
+    return normalized or raw
+
+
+def _aggregate_polo(polo_dict):
+    agg = {}
+    for raw_name, count in polo_dict.items():
+        clean = _normalize_polo(raw_name)
+        agg[clean] = agg.get(clean, 0) + count
+    return dict(sorted(agg.items(), key=lambda x: -x[1]))
 
 
 def _classify_tipo(raw):
@@ -235,14 +251,14 @@ def api_dashboard_students():
             td = by_tipo_detail[cat]
             td["by_situacao"] = dict(sorted(td["by_situacao"].items(), key=lambda x: -x[1]))
             td["by_nivel"] = dict(sorted(td["by_nivel"].items(), key=lambda x: -x[1]))
-            td["by_polo"] = dict(sorted(td["by_polo"].items(), key=lambda x: -x[1])[:8])
+            td["by_polo"] = _aggregate_polo(td["by_polo"])
 
         return jsonify({
             "totals": totals,
             "by_tipo_detail": by_tipo_detail,
             "by_situacao": dict(sorted(by_situacao.items(), key=lambda x: -x[1])),
             "by_nivel": dict(sorted(by_nivel.items(), key=lambda x: -x[1])),
-            "by_polo": dict(sorted(by_polo.items(), key=lambda x: -x[1])),
+            "by_polo": _aggregate_polo(by_polo),
             "by_turma": dict(sorted(by_turma.items(), key=lambda x: -x[1])),
             "by_ciclo": dict(sorted(by_ciclo.items(), key=lambda x: -x[1])),
             "grand_total": sum(totals.values()),
@@ -390,7 +406,7 @@ def _aggregate_rows(rows):
         polo = r["polo"] or "N/I"
         result["by_polo"][polo] = result["by_polo"].get(polo, 0) + r["total"]
     result["by_situacao"] = dict(sorted(result["by_situacao"].items(), key=lambda x: -x[1]))
-    result["by_polo"] = dict(sorted(result["by_polo"].items(), key=lambda x: -x[1]))
+    result["by_polo"] = _aggregate_polo(result["by_polo"])
     return result
 
 
@@ -480,7 +496,7 @@ def api_dashboard_ciclos():
             c["by_polo"][polo] = c["by_polo"].get(polo, 0) + r["total"]
         for cn in ciclos:
             ciclos[cn]["by_situacao"] = dict(sorted(ciclos[cn]["by_situacao"].items(), key=lambda x: -x[1]))
-            ciclos[cn]["by_polo"] = dict(sorted(ciclos[cn]["by_polo"].items(), key=lambda x: -x[1]))
+            ciclos[cn]["by_polo"] = _aggregate_polo(ciclos[cn]["by_polo"])
 
         config_list = []
         for cc in ciclos_config:
