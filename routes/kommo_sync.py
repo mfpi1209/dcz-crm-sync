@@ -502,6 +502,105 @@ def _get_snapshot_d0(current_stages):
     return d0, yesterday
 
 
+# ── Reconciliação de leads em Aceite ──────────────────────────────────────
+
+_reconcile_lock = threading.Lock()
+_last_reconcile_ts = 0
+RECONCILE_COOLDOWN = 120  # seconds
+
+def reconcile_aceite_leads():
+    """Compare leads in 'Aceite' status between our DB and Kommo API.
+    Marks stale leads (deleted/moved in Kommo) as is_deleted=True."""
+    global _last_reconcile_ts
+    now = _time.time()
+    if now - _last_reconcile_ts < RECONCILE_COOLDOWN:
+        return {"skipped": True, "reason": "cooldown"}
+    if not _reconcile_lock.acquire(blocking=False):
+        return {"skipped": True, "reason": "already running"}
+    try:
+        _last_reconcile_ts = now
+        if not KOMMO_TOKEN:
+            return {"error": "KOMMO_TOKEN not set"}
+
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("SELECT id, pipeline_id FROM pipeline_statuses WHERE LOWER(name) LIKE '%aceite%'")
+        aceite_statuses = cur.fetchall()
+        if not aceite_statuses:
+            cur.close(); conn.close()
+            return {"error": "no aceite statuses found"}
+
+        ace_ids = [r[0] for r in aceite_statuses]
+        ace_ph = ",".join(["%s"] * len(ace_ids))
+
+        cur.execute(f"SELECT id FROM leads WHERE status_id IN ({ace_ph})", ace_ids)
+        db_lead_ids = {r[0] for r in cur.fetchall()}
+        logger.info("Reconcile aceites: %d leads in DB with aceite status", len(db_lead_ids))
+
+        api_lead_ids = set()
+        for status_id, pipeline_id in aceite_statuses:
+            page = 1
+            while True:
+                params = {
+                    "filter[statuses][0][pipeline_id]": pipeline_id,
+                    "filter[statuses][0][status_id]": status_id,
+                    "limit": 250,
+                    "page": page,
+                }
+                try:
+                    r = _kommo_get("/leads", params)
+                except Exception as e:
+                    logger.error("Reconcile API error: %s", e)
+                    break
+                if r.status_code != 200:
+                    logger.warning("Reconcile API %d: %s", r.status_code, r.text[:200])
+                    break
+                data = r.json()
+                leads = data.get("_embedded", {}).get("leads", [])
+                if not leads:
+                    break
+                for ld in leads:
+                    api_lead_ids.add(ld["id"])
+                if "next" not in data.get("_links", {}):
+                    break
+                page += 1
+                _time.sleep(0.05)
+
+        stale_ids = db_lead_ids - api_lead_ids
+        updated = 0
+        if stale_ids:
+            stale_ph = ",".join(["%s"] * len(stale_ids))
+            cur.execute(
+                f"UPDATE leads SET is_deleted = true WHERE id IN ({stale_ph})",
+                list(stale_ids),
+            )
+            updated = cur.rowcount
+            conn.commit()
+            logger.info("Reconcile aceites: marked %d stale leads as deleted (IDs: %s)", updated, stale_ids)
+        else:
+            logger.info("Reconcile aceites: no stale leads found")
+
+        cur.close()
+        conn.close()
+        return {
+            "db_aceites": len(db_lead_ids),
+            "api_aceites": len(api_lead_ids),
+            "stale_marked_deleted": updated,
+            "stale_ids": list(stale_ids),
+        }
+    except Exception as e:
+        logger.error("Reconcile aceites error: %s", e)
+        return {"error": str(e)}
+    finally:
+        _reconcile_lock.release()
+
+
+@kommo_bp.route("/api/kommo/reconcile-aceites", methods=["POST"])
+def api_kommo_reconcile_aceites():
+    result = reconcile_aceite_leads()
+    return jsonify({"ok": True, "data": result})
+
+
 @kommo_bp.route("/api/kommo/funnel-live")
 def api_kommo_funnel_live():
     """Fetch real-time funnel data from Kommo API v4."""

@@ -253,6 +253,7 @@ def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
         SELECT responsible_user_id, COUNT(*)
         FROM leads
         WHERE status_id IN ({ace_ph})
+          AND NOT is_deleted
           AND responsible_user_id IS NOT NULL
         GROUP BY responsible_user_id
     """, ace_ids)
@@ -788,6 +789,7 @@ def api_minha_insights():
             SELECT COUNT(*) FROM leads
             WHERE responsible_user_id = %s
               AND status_id IN ({ace_ph})
+              AND NOT is_deleted
         """, [kommo_uid] + ace_ids)
         aceites_fila = kcur_ac.fetchone()[0] or 0
         today_ts = int(datetime.combine(today, datetime.min.time()).timestamp())
@@ -795,6 +797,7 @@ def api_minha_insights():
             SELECT COUNT(*) FROM leads
             WHERE responsible_user_id = %s
               AND status_id IN ({ace_ph})
+              AND NOT is_deleted
               AND updated_at >= %s
         """, [kommo_uid] + ace_ids + [today_ts])
         aceites_hoje = kcur_ac.fetchone()[0] or 0

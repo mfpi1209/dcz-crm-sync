@@ -597,6 +597,7 @@ def _load_schedules_from_db():
 
 
 DELTA_INTERVAL_MINUTES = int(os.getenv("KOMMO_DELTA_INTERVAL", "5"))
+ACEITE_RECONCILE_MINUTES = int(os.getenv("ACEITE_RECONCILE_INTERVAL", "10"))
 
 
 def register_delta_interval(sched):
@@ -617,3 +618,32 @@ def register_delta_interval(sched):
         max_instances=1,
     )
     logger.info("Sync delta interval registered: every %d minutes", DELTA_INTERVAL_MINUTES)
+
+
+def _run_aceite_reconcile():
+    """Run Kommo aceite reconciliation in scheduler thread."""
+    try:
+        from routes.kommo_sync import reconcile_aceite_leads
+        result = reconcile_aceite_leads()
+        logger.info("Aceite reconcile result: %s", result)
+    except Exception as e:
+        logger.error("Aceite reconcile error: %s", e)
+
+
+def register_aceite_reconcile(sched):
+    """Register periodic reconciliation of aceite leads (default every 10 min)."""
+    try:
+        sched.remove_job("aceite_reconcile")
+    except Exception:
+        pass
+
+    sched.add_job(
+        _run_aceite_reconcile,
+        trigger=IntervalTrigger(minutes=ACEITE_RECONCILE_MINUTES),
+        args=[],
+        id="aceite_reconcile",
+        replace_existing=True,
+        misfire_grace_time=300,
+        max_instances=1,
+    )
+    logger.info("Aceite reconcile registered: every %d minutes", ACEITE_RECONCILE_MINUTES)
