@@ -530,6 +530,268 @@ def api_minha_historico():
     return jsonify({"ok": True, "historico": history})
 
 
+@minha_performance_bp.route("/api/minha-performance/insights")
+def api_minha_insights():
+    """Calculated insights for the motivational book page."""
+    kommo_uid = _resolve_kommo_uid(request.args.get("kommo_uid"))
+    if not kommo_uid:
+        return jsonify({"ok": False, "error": "Agente não vinculado"}), 400
+
+    campanha = _get_active_campanha()
+    if not campanha:
+        return jsonify({"ok": True, "campanha": None})
+
+    cid = campanha["id"]
+    dt_ini_str = str(campanha["dt_inicio"])
+    dt_fim_str = str(campanha["dt_fim"])
+    dt_ini = datetime.strptime(dt_ini_str, "%Y-%m-%d").date()
+    dt_fim = datetime.strptime(dt_fim_str, "%Y-%m-%d").date()
+    today = date.today()
+
+    matriculas = _get_agent_matriculas(kommo_uid, dt_ini_str, dt_fim_str)
+    total_mat = len(matriculas)
+    metas = _get_agent_metas(kommo_uid, dt_ini_str, dt_fim_str)
+    tier = _determine_tier(total_mat, metas)
+
+    daily_config = _get_daily_config(cid, kommo_uid)
+
+    def _count_work_days(start, end):
+        count = 0
+        d = start
+        while d <= end:
+            if daily_config.get(d.weekday(), {}).get("meta", 0) > 0:
+                count += 1
+            elif d.weekday() < 6:
+                count += 1
+            d += timedelta(days=1)
+        return max(count, 1)
+
+    effective_end = min(dt_fim, today)
+    dias_passados = _count_work_days(dt_ini, effective_end)
+    dias_uteis_total = _count_work_days(dt_ini, dt_fim)
+    dias_uteis_restantes = max(0, _count_work_days(today + timedelta(days=1), dt_fim)) if today < dt_fim else 0
+    dias_restantes = max(0, (dt_fim - today).days)
+
+    pace_atual = round(total_mat / dias_passados, 2) if dias_passados > 0 else 0
+
+    meta_val = metas.get("meta", 0)
+    inter_val = metas.get("intermediaria", 0)
+    super_val = metas.get("supermeta", 0)
+
+    def _pace_needed(target):
+        falta = max(0, target - total_mat)
+        return round(falta / dias_uteis_restantes, 2) if dias_uteis_restantes > 0 else (0 if falta == 0 else 999)
+
+    pace_meta = _pace_needed(meta_val)
+    pace_inter = _pace_needed(inter_val)
+    pace_super = _pace_needed(super_val)
+
+    projecao = total_mat + round(pace_atual * dias_uteis_restantes)
+    projecao_tier = _determine_tier(projecao, metas)
+
+    # Today's challenge
+    dow_today = today.weekday()
+    today_cfg = daily_config.get(dow_today, {})
+    today_meta = today_cfg.get("meta", 0)
+    today_fixo = today_cfg.get("fixo", 0)
+    today_extra = today_cfg.get("extra", 0)
+
+    mat_by_date = defaultdict(int)
+    for m in matriculas:
+        dm = m.get("data_matricula")
+        if dm:
+            if isinstance(dm, str):
+                try:
+                    dm = datetime.strptime(dm[:10], "%Y-%m-%d").date()
+                except Exception:
+                    continue
+            mat_by_date[dm] += 1
+
+    today_realizadas = mat_by_date.get(today, 0)
+
+    # Streak: consecutive days hitting daily target
+    sequencia = 0
+    d = effective_end
+    while d >= dt_ini:
+        dcfg = daily_config.get(d.weekday(), {})
+        dmeta = dcfg.get("meta", 0)
+        if dmeta > 0:
+            if mat_by_date.get(d, 0) >= dmeta:
+                sequencia += 1
+            else:
+                break
+        d -= timedelta(days=1)
+
+    # Heatmap data: week-by-week daily breakdown
+    heatmap = []
+    d = dt_ini
+    while d <= dt_fim:
+        dcfg = daily_config.get(d.weekday(), {})
+        dmeta = dcfg.get("meta", 0)
+        realizadas = mat_by_date.get(d, 0) if d <= today else None
+        status = "future"
+        if d <= today:
+            if dmeta > 0 and realizadas >= dmeta:
+                status = "hit"
+            elif realizadas and realizadas > 0:
+                status = "partial"
+            else:
+                status = "miss"
+        heatmap.append({
+            "data": d.isoformat(),
+            "dia_semana": d.weekday(),
+            "meta": dmeta,
+            "realizadas": realizadas,
+            "status": status,
+        })
+        d += timedelta(days=1)
+
+    # Best past campaign
+    melhor_campanha = None
+    try:
+        conn = _pg()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT id, nome, dt_inicio, dt_fim FROM premiacao_campanha
+            WHERE ativa = FALSE ORDER BY dt_inicio DESC LIMIT 12
+        """)
+        past = [dict(r) for r in cur.fetchall()]
+        cur.close()
+        conn.close()
+        best_total = 0
+        for pc in past:
+            pmat = _get_agent_matriculas(kommo_uid, str(pc["dt_inicio"]), str(pc["dt_fim"]))
+            pmetas = _get_agent_metas(kommo_uid, str(pc["dt_inicio"]), str(pc["dt_fim"]))
+            ptier = _determine_tier(len(pmat), pmetas)
+            if len(pmat) > best_total:
+                best_total = len(pmat)
+                melhor_campanha = {"nome": pc["nome"], "total": len(pmat), "tier": ptier}
+    except Exception:
+        pass
+
+    # Dynamic motivational message
+    if super_val > 0 and total_mat >= super_val:
+        mensagem = "Você está voando! Mantenha esse ritmo monstruoso."
+    elif meta_val > 0 and total_mat >= meta_val:
+        falta_s = max(0, super_val - total_mat) if super_val > 0 else 0
+        mensagem = f"Meta batida! Cada matrícula agora te aproxima da SUPERMETA. Faltam {falta_s}."
+    elif inter_val > 0 and total_mat >= inter_val:
+        falta_m = max(0, meta_val - total_mat)
+        mensagem = f"Bom ritmo! Faltam {falta_m} para a META. Bora acelerar?"
+    elif inter_val > 0:
+        falta_i = max(0, inter_val - total_mat)
+        mensagem = f"{falta_i} matrículas em {dias_restantes} dias para a Intermediária. Você consegue!"
+    else:
+        mensagem = "Campanha ativa! Cada matrícula conta."
+
+    # Tier bonus + daily bonus + receb for premiacao cards
+    tier_bonuses = _get_tier_bonuses(cid)
+    tier_valor = tier_bonuses.get(tier, 0) if tier else 0
+    tier_bonus_total = tier_valor * total_mat
+
+    breakdown, daily_bonus_total, dias_batidos, dias_total = _calc_daily_premiacao(
+        matriculas, daily_config, dt_ini_str, dt_fim_str
+    )
+
+    receb_bonus_total = 0.0
+    receb_total_valor = 0.0
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        agent_rgms = {_normalize_rgm(m["rgm"]) for m in matriculas if m.get("rgm")}
+        if agent_rgms:
+            placeholders = ",".join(["%s"] * len(agent_rgms))
+            cur.execute(
+                f"SELECT COALESCE(SUM(valor), 0) FROM comercial_recebimentos WHERE rgm IN ({placeholders})",
+                list(agent_rgms),
+            )
+            receb_total_valor = float(cur.fetchone()[0])
+        cur.execute("SELECT modo, valor, tier FROM premiacao_recebimento_regra WHERE campanha_id = %s", (cid,))
+        for modo, valor, regra_tier in cur.fetchall():
+            applicable = regra_tier == "qualquer" or regra_tier == tier
+            if applicable and receb_total_valor > 0:
+                if modo == "percentual":
+                    receb_bonus_total += receb_total_valor * float(valor) / 100.0
+                else:
+                    receb_bonus_total += float(valor)
+        cur.close()
+        conn.close()
+    except Exception:
+        pass
+
+    # Potential tier bonuses for "if you close at X tier..."
+    potenciais = {}
+    for t_name in ("intermediaria", "meta", "supermeta"):
+        tv = tier_bonuses.get(t_name, 0)
+        if tv > 0:
+            potenciais[t_name] = round(tv * total_mat, 2)
+
+    agent_name = ""
+    try:
+        kc = _pg_kommo()
+        kcu = kc.cursor()
+        kcu.execute("SELECT name FROM users WHERE id = %s", (kommo_uid,))
+        r = kcu.fetchone()
+        if r:
+            agent_name = r[0] or ""
+        kcu.close()
+        kc.close()
+    except Exception:
+        pass
+
+    return jsonify({
+        "ok": True,
+        "agent_name": agent_name,
+        "campanha": {
+            "id": cid,
+            "nome": campanha["nome"],
+            "dt_inicio": dt_ini_str,
+            "dt_fim": dt_fim_str,
+        },
+        "total_matriculas": total_mat,
+        "metas": metas,
+        "tier": tier,
+        "pct": round(total_mat / meta_val * 100, 1) if meta_val > 0 else 0,
+        "pace_atual": pace_atual,
+        "pace_meta": pace_meta,
+        "pace_inter": pace_inter,
+        "pace_super": pace_super,
+        "projecao": projecao,
+        "projecao_tier": projecao_tier,
+        "dias_restantes": dias_restantes,
+        "dias_uteis_restantes": dias_uteis_restantes,
+        "hoje": {
+            "dia_semana": dow_today,
+            "meta": today_meta,
+            "realizadas": today_realizadas,
+            "bonus_fixo": today_fixo,
+            "bonus_extra": today_extra,
+        },
+        "sequencia": sequencia,
+        "heatmap": heatmap,
+        "melhor_campanha": melhor_campanha,
+        "mensagem": mensagem,
+        "premiacao": {
+            "tier_bonus": round(tier_bonus_total, 2),
+            "tier_valor_por_mat": tier_valor,
+            "daily_bonus": round(daily_bonus_total, 2),
+            "daily_dias_batidos": dias_batidos,
+            "daily_dias_total": dias_total,
+            "daily_breakdown": breakdown,
+            "receb_bonus": round(receb_bonus_total, 2),
+            "receb_total_valor": round(receb_total_valor, 2),
+            "total": round(tier_bonus_total + daily_bonus_total + receb_bonus_total, 2),
+            "potenciais": potenciais,
+        },
+        "matriculas": [{
+            "rgm": m.get("rgm"),
+            "nivel": m.get("nivel"),
+            "modalidade": m.get("modalidade"),
+            "data_matricula": m["data_matricula"].isoformat() if hasattr(m.get("data_matricula"), "isoformat") else m.get("data_matricula"),
+        } for m in matriculas],
+    })
+
+
 @minha_performance_bp.route("/api/minha-performance/agentes")
 def api_mp_agentes():
     """List agents (admin only) for the agent selector."""
