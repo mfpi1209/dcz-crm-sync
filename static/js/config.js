@@ -406,6 +406,7 @@ const PAGE_LABELS = {
     kommo_dispatcher: 'Monitor de Conversas',
     minha_performance: 'Minha Performance',
     leads_parados: 'Leads Parados',
+    premiacao_admin: 'Premiação (Admin)',
 };
 
 const PAGE_GROUPS_CONFIG = [
@@ -413,7 +414,7 @@ const PAGE_GROUPS_CONFIG = [
     { label: 'Operação — Acadêmico', pages: ['ativacoes', 'distribuicao', 'intelligence', 'inadimplencia', 'feedback'] },
     { label: 'Ferramentas', pages: ['comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos'] },
     { label: 'Operação — Comercial', pages: ['comercial_rgm', 'inscricao', 'minha_performance', 'leads_parados'] },
-    { label: 'Sistema', pages: ['kommo_dispatcher', 'logs', 'config', 'schedule'] },
+    { label: 'Sistema', pages: ['kommo_dispatcher', 'logs', 'config', 'schedule', 'premiacao_admin'] },
     { label: 'Sistema — CRM', pages: ['pipeline', 'sync', 'kommo_sync', 'update', 'match_merge'] },
 ];
 let _allPages = [];

@@ -1,0 +1,130 @@
+<!-- ═══════════════  Premiação — Admin  ═══════════════ -->
+<section id="page-premiacao_admin" class="hidden p-4 lg:p-8 max-w-7xl mx-auto">
+
+    <!-- Header -->
+    <div class="mb-6">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+                </div>
+                <div>
+                    <h2 class="text-3xl font-bold text-white font-display">Premiação</h2>
+                    <p class="text-slate-500 text-sm">Configurar campanhas, metas diárias e recebimentos</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <select id="pa-agent-select" onchange="paAgentChanged()" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[200px]">
+                    <option value="">Ver dados de um agente...</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Campanhas -->
+    <div class="glass-card p-5 mb-6 border border-amber-500/20">
+        <h3 class="text-sm font-bold text-white font-display flex items-center gap-2 mb-4">
+            <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+            Campanhas de Premiação
+        </h3>
+
+        <!-- Nova Campanha -->
+        <div class="bg-slate-800/40 rounded-xl p-4 mb-5 border border-slate-700/30">
+            <p class="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-3">Nova Campanha</p>
+            <div class="flex flex-wrap items-end gap-3 mb-4">
+                <div>
+                    <label class="block text-[10px] text-slate-500 mb-1">Nome</label>
+                    <input type="text" id="pa-camp-nome" placeholder="Ex: Março 2026" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-40">
+                </div>
+                <div>
+                    <label class="block text-[10px] text-slate-500 mb-1">Início</label>
+                    <input type="date" id="pa-camp-ini" class="input-glass px-3 py-1.5 text-xs text-slate-300">
+                </div>
+                <div>
+                    <label class="block text-[10px] text-slate-500 mb-1">Fim</label>
+                    <input type="date" id="pa-camp-fim" class="input-glass px-3 py-1.5 text-xs text-slate-300">
+                </div>
+            </div>
+            <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-2 font-semibold">Valor por matrícula ao atingir tier</p>
+            <div class="flex flex-wrap gap-3 mb-4">
+                <div>
+                    <label class="block text-[10px] text-slate-500 mb-1">Intermediária (R$)</label>
+                    <input type="number" id="pa-camp-tier-inter" placeholder="0" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-28">
+                </div>
+                <div>
+                    <label class="block text-[10px] text-slate-500 mb-1">Meta (R$)</label>
+                    <input type="number" id="pa-camp-tier-meta" placeholder="0" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-28">
+                </div>
+                <div>
+                    <label class="block text-[10px] text-slate-500 mb-1">Supermeta (R$)</label>
+                    <input type="number" id="pa-camp-tier-super" placeholder="0" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-28">
+                </div>
+            </div>
+            <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-2 font-semibold">Regra sobre Recebimentos</p>
+            <div class="flex flex-wrap items-end gap-3 mb-4">
+                <div>
+                    <label class="block text-[10px] text-slate-500 mb-1">Modo</label>
+                    <select id="pa-camp-receb-modo" class="input-glass px-3 py-1.5 text-xs text-slate-300">
+                        <option value="percentual">Percentual</option>
+                        <option value="fixo">Fixo (R$)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] text-slate-500 mb-1">Valor</label>
+                    <input type="number" id="pa-camp-receb-valor" placeholder="Ex: 3" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-24">
+                </div>
+            </div>
+            <button onclick="paSaveCampanha()" class="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                Criar Campanha
+            </button>
+        </div>
+
+        <!-- Lista de campanhas -->
+        <div id="pa-campanhas-list" class="space-y-3"></div>
+    </div>
+
+    <!-- Metas Diárias -->
+    <div class="glass-card p-5 mb-6 border border-cyan-500/20">
+        <h3 class="text-sm font-bold text-white font-display flex items-center gap-2 mb-4">
+            <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            Metas Diárias por Agente
+        </h3>
+        <div class="flex flex-wrap items-end gap-3 mb-4">
+            <div>
+                <label class="block text-[10px] text-slate-500 mb-1">Campanha</label>
+                <select id="pa-daily-camp" onchange="paLoadDailyGrid()" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[180px]">
+                    <option value="">Selecionar...</option>
+                </select>
+            </div>
+        </div>
+        <div id="pa-daily-grid-wrap" class="overflow-x-auto">
+            <p class="text-xs text-slate-600">Selecione uma campanha acima</p>
+        </div>
+        <button onclick="paSaveDailyTargets()" class="btn-primary text-xs px-4 py-1.5 mt-3 flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            Salvar Metas Diárias
+        </button>
+    </div>
+
+    <!-- Upload Recebimentos -->
+    <div class="glass-card p-5 mb-6 border border-violet-500/20">
+        <h3 class="text-sm font-bold text-white font-display flex items-center gap-2 mb-4">
+            <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+            Upload Recebimentos (CSV)
+        </h3>
+        <div class="flex flex-wrap items-end gap-3">
+            <div>
+                <label class="block text-[10px] text-slate-500 mb-1">Mês Referência</label>
+                <input type="text" id="pa-receb-mes" placeholder="Ex: Março 2026" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-36">
+            </div>
+            <label class="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5 cursor-pointer">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                Upload CSV
+                <input type="file" accept=".csv" class="hidden" onchange="paUploadRecebimentos(this)">
+            </label>
+        </div>
+        <div id="pa-receb-msg" class="hidden mt-3 text-xs p-3 rounded-lg"></div>
+    </div>
+
+</section>

@@ -1,154 +1,270 @@
-<!-- ═══════════════  Minha Performance  ═══════════════ -->
-<section id="page-minha_performance" class="hidden p-4 lg:p-8 max-w-7xl mx-auto">
+<!-- ═══════════════  Minha Performance — Book  ═══════════════ -->
+<section id="page-minha_performance" class="hidden">
 
-    <!-- Header -->
-    <div class="mb-6">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
-                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+<style>
+    @keyframes mp-pulse-border { 0%,100% { border-color: rgba(245,158,11,0.3); } 50% { border-color: rgba(245,158,11,0.7); } }
+    @keyframes mp-glow { 0%,100% { box-shadow: 0 0 15px rgba(99,102,241,0.15); } 50% { box-shadow: 0 0 30px rgba(99,102,241,0.3); } }
+    @keyframes mp-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+    @keyframes mp-slide-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .mp-animate-in { animation: mp-slide-up 0.6s ease-out both; }
+    .mp-animate-d1 { animation-delay: 0.1s; }
+    .mp-animate-d2 { animation-delay: 0.2s; }
+    .mp-animate-d3 { animation-delay: 0.3s; }
+    .mp-animate-d4 { animation-delay: 0.4s; }
+    .mp-animate-d5 { animation-delay: 0.5s; }
+    .mp-pulse-border { animation: mp-pulse-border 2s ease-in-out infinite; }
+    .mp-glow { animation: mp-glow 3s ease-in-out infinite; }
+    .mp-float { animation: mp-float 3s ease-in-out infinite; }
+    .mp-tier-bar-track { height: 12px; border-radius: 6px; background: rgba(51,65,85,0.5); position: relative; overflow: visible; }
+    .mp-tier-bar-fill { height: 100%; border-radius: 6px; transition: width 1.2s cubic-bezier(0.4,0,0.2,1); position: relative; }
+    .mp-tier-marker { position: absolute; top: -6px; width: 2px; height: 24px; background: rgba(148,163,184,0.3); }
+    .mp-tier-label { position: absolute; top: -22px; transform: translateX(-50%); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+    .mp-tier-val { position: absolute; bottom: -18px; transform: translateX(-50%); font-size: 10px; color: #94a3b8; }
+    .mp-heatmap-cell { width: 36px; height: 36px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; transition: transform 0.2s; }
+    .mp-heatmap-cell:hover { transform: scale(1.15); }
+    .mp-heatmap-hit { background: rgba(16,185,129,0.25); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.3); }
+    .mp-heatmap-partial { background: rgba(245,158,11,0.2); color: #fbbf24; border: 1px solid rgba(245,158,11,0.25); }
+    .mp-heatmap-miss { background: rgba(100,116,139,0.1); color: #475569; border: 1px solid rgba(100,116,139,0.15); }
+    .mp-heatmap-future { background: transparent; color: #334155; border: 1px dashed rgba(100,116,139,0.2); }
+</style>
+
+<!-- Loading -->
+<div id="mp-loading" class="hidden text-center py-20">
+    <div class="inline-flex items-center gap-3 text-amber-400">
+        <svg class="animate-spin h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+        </svg>
+        <span class="text-sm font-medium">Carregando sua performance...</span>
+    </div>
+</div>
+
+<!-- No link -->
+<div id="mp-no-link" class="hidden p-4 lg:p-8 max-w-2xl mx-auto">
+    <div class="glass-card p-10 text-center">
+        <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center">
+            <svg class="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+        </div>
+        <p class="text-slate-300 text-base font-medium mb-1">Conta não vinculada</p>
+        <p class="text-slate-600 text-sm">Solicite ao administrador que configure seu Kommo User ID nas Configurações.</p>
+    </div>
+</div>
+
+<!-- No campaign -->
+<div id="mp-no-campanha" class="hidden p-4 lg:p-8 max-w-2xl mx-auto">
+    <div class="glass-card p-10 text-center">
+        <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center">
+            <svg class="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        </div>
+        <p class="text-slate-300 text-base font-medium mb-1">Nenhuma campanha ativa</p>
+        <p class="text-slate-600 text-sm">Aguarde a criação de uma nova campanha de premiação.</p>
+    </div>
+</div>
+
+<!-- ═══ MAIN CONTENT ═══ -->
+<div id="mp-content" class="hidden">
+
+    <!-- S1: Banner da Campanha -->
+    <div class="mp-animate-in relative overflow-hidden" id="mp-banner">
+        <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 px-6 py-8 lg:px-12 lg:py-12">
+            <div class="absolute inset-0 opacity-20" style="background: radial-gradient(circle at 20% 50%, rgba(99,102,241,0.3) 0%, transparent 50%), radial-gradient(circle at 80% 50%, rgba(168,85,247,0.2) 0%, transparent 50%);"></div>
+            <div class="relative z-10 max-w-5xl mx-auto">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                    <div>
+                        <p class="text-indigo-400/70 text-[10px] font-bold uppercase tracking-[0.2em] mb-1" id="mp-banner-label">Campanha Ativa</p>
+                        <h1 class="text-3xl lg:text-4xl font-black text-white font-display mb-2" id="mp-banner-camp-nome">—</h1>
+                        <p class="text-slate-400 text-sm" id="mp-banner-datas">—</p>
+                        <div class="mt-4 flex items-center gap-3">
+                            <span class="text-5xl lg:text-6xl font-black text-white font-display mp-float" id="mp-banner-total">0</span>
+                            <div>
+                                <p class="text-slate-500 text-xs">matrículas</p>
+                                <p class="text-lg font-bold" id="mp-banner-pct-text">0%</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-center md:items-end gap-2">
+                        <div class="flex items-center gap-2 bg-slate-800/50 backdrop-blur rounded-xl px-4 py-2 border border-slate-700/30">
+                            <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <div>
+                                <p class="text-[10px] text-slate-500 uppercase tracking-wider">Dias restantes</p>
+                                <p class="text-2xl font-black text-white font-display" id="mp-banner-dias">—</p>
+                            </div>
+                        </div>
+                        <div id="mp-banner-tier-badge" class="hidden px-4 py-1.5 rounded-full text-sm font-bold"></div>
+                    </div>
                 </div>
+                <div class="mt-6 p-4 rounded-xl bg-white/5 backdrop-blur border border-white/10">
+                    <p class="text-base text-slate-200 font-medium" id="mp-banner-msg">—</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
+
+        <!-- S2: Scoreboard Multi-Tier -->
+        <div class="mp-animate-in mp-animate-d1 glass-card p-6">
+            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-5 flex items-center gap-2">
+                <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                Jornada de Metas
+            </h3>
+            <div class="relative mt-8 mb-8 px-2">
+                <div class="mp-tier-bar-track" id="mp-tier-track">
+                    <div class="mp-tier-bar-fill" id="mp-tier-fill" style="width: 0%;"></div>
+                </div>
+                <div id="mp-tier-markers"></div>
+            </div>
+            <div class="grid grid-cols-3 gap-4 mt-4" id="mp-tier-badges">
+                <div class="text-center">
+                    <div id="mp-badge-inter" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-800 text-slate-500 border border-slate-700/30 transition-all">
+                        <span class="material-symbols-outlined text-sm">star_half</span>
+                        INTERMEDIÁRIA
+                    </div>
+                    <p class="text-xs text-slate-600 mt-1" id="mp-badge-inter-val">—</p>
+                </div>
+                <div class="text-center">
+                    <div id="mp-badge-meta" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-800 text-slate-500 border border-slate-700/30 transition-all">
+                        <span class="material-symbols-outlined text-sm">star</span>
+                        META
+                    </div>
+                    <p class="text-xs text-slate-600 mt-1" id="mp-badge-meta-val">—</p>
+                </div>
+                <div class="text-center">
+                    <div id="mp-badge-super" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-800 text-slate-500 border border-slate-700/30 transition-all">
+                        <span class="material-symbols-outlined text-sm">auto_awesome</span>
+                        SUPERMETA
+                    </div>
+                    <p class="text-xs text-slate-600 mt-1" id="mp-badge-super-val">—</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- S3: Painel de Ritmo (Momentum) -->
+        <div class="mp-animate-in mp-animate-d2 grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="glass-card p-5 mp-glow" id="mp-pace-card">
+                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Ritmo Atual</p>
+                <p class="text-3xl font-black font-display" id="mp-pace-atual">0.0</p>
+                <p class="text-[10px] text-slate-500 mt-1">mat/dia útil</p>
+            </div>
+            <div class="glass-card p-5">
+                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Ritmo Necessário</p>
+                <p class="text-3xl font-black text-blue-400 font-display" id="mp-pace-needed">0.0</p>
+                <p class="text-[10px] text-slate-500 mt-1" id="mp-pace-needed-label">p/ próximo tier</p>
+            </div>
+            <div class="glass-card p-5">
+                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Projeção</p>
+                <p class="text-3xl font-black text-violet-400 font-display" id="mp-projecao">0</p>
+                <p class="text-[10px] mt-1" id="mp-projecao-tier">—</p>
+            </div>
+            <div class="glass-card p-5">
+                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Dias Restantes</p>
+                <p class="text-3xl font-black text-slate-300 font-display" id="mp-dias-rest">0</p>
+                <div class="mt-2 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                    <div class="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-1000" id="mp-dias-bar" style="width:0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- S4: Desafio de Hoje -->
+        <div class="mp-animate-in mp-animate-d3 glass-card p-6 border-2 mp-pulse-border" id="mp-today-card">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h2 class="text-3xl font-bold text-white font-display">Minha Performance</h2>
-                    <p class="text-slate-500 text-sm" id="mp-agent-name">Carregando...</p>
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="material-symbols-outlined text-amber-400 text-xl">local_fire_department</span>
+                        <h3 class="text-sm font-bold text-white font-display uppercase tracking-wider">Desafio de Hoje</h3>
+                        <span class="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full font-bold" id="mp-today-dow">—</span>
+                    </div>
+                    <div class="flex items-baseline gap-3">
+                        <span class="text-5xl font-black text-white font-display" id="mp-today-realizadas">0</span>
+                        <span class="text-xl text-slate-500 font-bold">/</span>
+                        <span class="text-2xl font-bold text-slate-400" id="mp-today-meta">0</span>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-1" id="mp-today-bonus-text">—</p>
                 </div>
-            </div>
-            <!-- Admin: seletor de agente -->
-            <div id="mp-admin-controls" class="hidden flex-wrap items-center gap-2">
-                <select id="mp-agent-select" onchange="mpAgentChanged()" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[200px]">
-                    <option value="">Selecionar agente...</option>
-                </select>
-                <button onclick="mpToggleAdmin()" id="mp-btn-admin"
-                    class="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-amber-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                    Configurar Campanhas
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Loading / Error -->
-    <div id="mp-loading" class="hidden text-center py-6 text-sm text-amber-400 flex items-center justify-center gap-2">
-        <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-        Carregando dados...
-    </div>
-    <div id="mp-no-link" class="hidden glass-card p-8 text-center">
-        <svg class="w-12 h-12 text-slate-600 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
-        <p class="text-slate-400 text-sm">Sua conta não está vinculada a um agente do Kommo.</p>
-        <p class="text-slate-600 text-xs mt-1">Solicite ao administrador que configure seu Kommo User ID.</p>
-    </div>
-    <div id="mp-no-campanha" class="hidden glass-card p-8 text-center">
-        <svg class="w-12 h-12 text-slate-600 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-        <p class="text-slate-400 text-sm">Nenhuma campanha de premiação ativa no momento.</p>
-    </div>
-
-    <!-- ═══ Conteúdo Principal ═══ -->
-    <div id="mp-content" class="hidden">
-
-        <!-- Campanha info -->
-        <div class="mb-4 flex items-center gap-2">
-            <span class="text-[10px] font-bold uppercase tracking-widest text-amber-400/70" id="mp-campanha-nome"></span>
-            <span class="text-[10px] text-slate-600" id="mp-campanha-datas"></span>
-        </div>
-
-        <!-- Hero: Progress Ring + Meta Cards -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-            <!-- Progress Ring -->
-            <div class="glass-card p-6 flex flex-col items-center justify-center">
-                <div class="relative w-40 h-40 mb-3">
-                    <svg viewBox="0 0 120 120" class="w-full h-full -rotate-90">
-                        <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(100,116,139,0.15)" stroke-width="10"/>
-                        <circle id="mp-ring" cx="60" cy="60" r="52" fill="none" stroke="url(#mp-gradient)" stroke-width="10"
-                            stroke-linecap="round" stroke-dasharray="326.73" stroke-dashoffset="326.73"
-                            style="transition: stroke-dashoffset 1.2s cubic-bezier(0.4,0,0.2,1)"/>
+                <div class="flex-shrink-0 w-24 h-24" id="mp-today-ring-wrap">
+                    <svg viewBox="0 0 100 100" class="w-full h-full -rotate-90">
+                        <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(100,116,139,0.15)" stroke-width="8"/>
+                        <circle id="mp-today-ring" cx="50" cy="50" r="42" fill="none" stroke="url(#mp-today-grad)" stroke-width="8"
+                            stroke-linecap="round" stroke-dasharray="263.89" stroke-dashoffset="263.89"
+                            style="transition: stroke-dashoffset 1s cubic-bezier(0.4,0,0.2,1)"/>
                         <defs>
-                            <linearGradient id="mp-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <linearGradient id="mp-today-grad" x1="0%" y1="0%" x2="100%" y2="0%">
                                 <stop offset="0%" stop-color="#f59e0b"/>
-                                <stop offset="100%" stop-color="#ef4444"/>
+                                <stop offset="100%" stop-color="#10b981"/>
                             </linearGradient>
                         </defs>
                     </svg>
-                    <div class="absolute inset-0 flex flex-col items-center justify-center">
-                        <span class="text-3xl font-black text-white font-display" id="mp-pct">0%</span>
-                        <span class="text-[10px] text-slate-500 uppercase tracking-wider">da meta</span>
-                    </div>
-                </div>
-                <p class="text-lg font-bold text-white"><span id="mp-total">0</span> <span class="text-sm text-slate-500 font-normal">matrículas</span></p>
-                <div id="mp-tier-badge" class="mt-2 hidden px-3 py-1 rounded-full text-xs font-bold"></div>
-            </div>
-
-            <!-- Falta para... -->
-            <div class="space-y-3">
-                <div class="glass-card p-4 border-l-4 border-amber-500/50">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-[10px] uppercase tracking-wider font-bold text-amber-400/70">Falta p/ Intermediária</p>
-                            <p class="text-2xl font-black text-white font-display" id="mp-falta-inter">--</p>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-[10px] text-slate-500">Meta</p>
-                            <p class="text-sm font-bold text-slate-400" id="mp-meta-inter">--</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="glass-card p-4 border-l-4 border-blue-500/50">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-[10px] uppercase tracking-wider font-bold text-blue-400/70">Falta p/ Meta</p>
-                            <p class="text-2xl font-black text-white font-display" id="mp-falta-meta">--</p>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-[10px] text-slate-500">Meta</p>
-                            <p class="text-sm font-bold text-slate-400" id="mp-meta-val">--</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="glass-card p-4 border-l-4 border-emerald-500/50">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-[10px] uppercase tracking-wider font-bold text-emerald-400/70">Falta p/ Supermeta</p>
-                            <p class="text-2xl font-black text-white font-display" id="mp-falta-super">--</p>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-[10px] text-slate-500">Meta</p>
-                            <p class="text-sm font-bold text-slate-400" id="mp-meta-super">--</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Cards de Premiação -->
-            <div class="space-y-3">
-                <div class="glass-card p-4 bg-gradient-to-r from-amber-500/5 to-transparent border border-amber-500/10">
-                    <p class="text-[10px] uppercase tracking-wider font-bold text-amber-400/70 mb-1">Premiação Tier</p>
-                    <p class="text-xl font-black text-amber-300 font-display" id="mp-prem-tier">R$ 0,00</p>
-                    <p class="text-[10px] text-slate-500 mt-0.5" id="mp-prem-tier-detail">--</p>
-                </div>
-                <div class="glass-card p-4 bg-gradient-to-r from-cyan-500/5 to-transparent border border-cyan-500/10">
-                    <p class="text-[10px] uppercase tracking-wider font-bold text-cyan-400/70 mb-1">Premiação Diária</p>
-                    <p class="text-xl font-black text-cyan-300 font-display" id="mp-prem-daily">R$ 0,00</p>
-                    <p class="text-[10px] text-slate-500 mt-0.5" id="mp-prem-daily-detail">--</p>
-                </div>
-                <div class="glass-card p-4 bg-gradient-to-r from-violet-500/5 to-transparent border border-violet-500/10">
-                    <p class="text-[10px] uppercase tracking-wider font-bold text-violet-400/70 mb-1">Premiação Recebimentos</p>
-                    <p class="text-xl font-black text-violet-300 font-display" id="mp-prem-receb">R$ 0,00</p>
-                    <p class="text-[10px] text-slate-500 mt-0.5" id="mp-prem-receb-detail">--</p>
-                </div>
-                <div class="rounded-xl p-4 bg-gradient-to-r from-emerald-600/20 to-green-600/10 border border-emerald-500/30">
-                    <p class="text-[10px] uppercase tracking-wider font-bold text-emerald-400 mb-1">Total a Receber</p>
-                    <p class="text-2xl font-black text-emerald-300 font-display" id="mp-prem-total">R$ 0,00</p>
                 </div>
             </div>
         </div>
 
-        <!-- Gráfico: Matrículas por Dia -->
-        <div class="glass-card overflow-hidden mb-6">
-            <div class="px-5 pt-4 pb-2 flex items-center justify-between">
-                <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                    <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
-                    Matrículas por Dia
+        <!-- S5: Premiação Acumulada -->
+        <div class="mp-animate-in mp-animate-d4">
+            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Premiação Acumulada
+            </h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="glass-card p-5 bg-gradient-to-br from-amber-500/5 to-transparent border border-amber-500/10">
+                    <p class="text-[10px] uppercase tracking-wider font-bold text-amber-400/70 mb-1">Tier</p>
+                    <p class="text-2xl font-black text-amber-300 font-display" id="mp-prem-tier">R$ 0,00</p>
+                    <p class="text-[10px] text-slate-500 mt-1" id="mp-prem-tier-detail">—</p>
+                </div>
+                <div class="glass-card p-5 bg-gradient-to-br from-cyan-500/5 to-transparent border border-cyan-500/10">
+                    <p class="text-[10px] uppercase tracking-wider font-bold text-cyan-400/70 mb-1">Diária</p>
+                    <p class="text-2xl font-black text-cyan-300 font-display" id="mp-prem-daily">R$ 0,00</p>
+                    <p class="text-[10px] text-slate-500 mt-1" id="mp-prem-daily-detail">—</p>
+                </div>
+                <div class="glass-card p-5 bg-gradient-to-br from-violet-500/5 to-transparent border border-violet-500/10">
+                    <p class="text-[10px] uppercase tracking-wider font-bold text-violet-400/70 mb-1">Recebimentos</p>
+                    <p class="text-2xl font-black text-violet-300 font-display" id="mp-prem-receb">R$ 0,00</p>
+                    <p class="text-[10px] text-slate-500 mt-1" id="mp-prem-receb-detail">—</p>
+                </div>
+                <div class="rounded-xl p-5 bg-gradient-to-br from-emerald-600/20 to-green-600/10 border-2 border-emerald-500/30 mp-glow">
+                    <p class="text-[10px] uppercase tracking-wider font-bold text-emerald-400 mb-1">Total a Receber</p>
+                    <p class="text-3xl font-black text-emerald-300 font-display" id="mp-prem-total">R$ 0,00</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- S6: Semana Visual (Heatmap) -->
+        <div class="mp-animate-in mp-animate-d5 glass-card p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                    <svg class="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    Mapa da Semana
                 </h3>
-                <span class="text-[10px] text-slate-600">linha = meta diária</span>
+                <div class="flex items-center gap-2" id="mp-streak-badge">
+                    <span class="material-symbols-outlined text-orange-400 text-base">local_fire_department</span>
+                    <span class="text-xs font-bold text-orange-300" id="mp-streak-text">0 dias</span>
+                </div>
+            </div>
+            <div class="flex gap-1 mb-2 pl-1">
+                <span class="text-[9px] text-slate-600 w-9 text-center">Seg</span>
+                <span class="text-[9px] text-slate-600 w-9 text-center">Ter</span>
+                <span class="text-[9px] text-slate-600 w-9 text-center">Qua</span>
+                <span class="text-[9px] text-slate-600 w-9 text-center">Qui</span>
+                <span class="text-[9px] text-slate-600 w-9 text-center">Sex</span>
+                <span class="text-[9px] text-slate-600 w-9 text-center">Sáb</span>
+                <span class="text-[9px] text-slate-600 w-9 text-center">Dom</span>
+            </div>
+            <div id="mp-heatmap" class="space-y-1"></div>
+            <div class="flex items-center gap-4 mt-4 text-[9px] text-slate-600">
+                <span class="flex items-center gap-1"><span class="w-3 h-3 rounded mp-heatmap-hit inline-block"></span> Bateu</span>
+                <span class="flex items-center gap-1"><span class="w-3 h-3 rounded mp-heatmap-partial inline-block"></span> Parcial</span>
+                <span class="flex items-center gap-1"><span class="w-3 h-3 rounded mp-heatmap-miss inline-block"></span> Sem</span>
+                <span class="flex items-center gap-1"><span class="w-3 h-3 rounded mp-heatmap-future inline-block"></span> Futuro</span>
+            </div>
+        </div>
+
+        <!-- S7: Timeline Chart -->
+        <div class="glass-card overflow-hidden">
+            <div class="px-5 pt-4 pb-2 flex items-center justify-between">
+                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                    <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+                    Timeline de Matrículas
+                </h3>
+                <span class="text-[10px] text-slate-600">barras = matrículas · linha = meta diária</span>
             </div>
             <div class="px-5 pb-5">
                 <div class="rounded-xl p-3 bg-slate-800/20 border border-slate-700/20" style="height:260px;">
@@ -157,17 +273,20 @@
             </div>
         </div>
 
-        <!-- Detalhado + Premiação Diária side-by-side -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <!-- Tabela Detalhada -->
-            <div class="glass-card overflow-hidden">
-                <div class="px-5 py-3 border-b border-slate-700/20 flex items-center justify-between">
-                    <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                        <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                        Matrículas Detalhadas
-                    </h3>
+        <!-- S8: Detalhado (colapsável) -->
+        <details class="glass-card overflow-hidden group">
+            <summary class="px-5 py-4 cursor-pointer flex items-center justify-between hover:bg-slate-800/20 transition-colors">
+                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                    Matrículas Detalhadas
+                    <span class="text-slate-600 font-normal" id="mp-detail-count">(0)</span>
+                </h3>
+                <span class="material-symbols-outlined text-slate-600 transition-transform group-open:rotate-180">expand_more</span>
+            </summary>
+            <div class="border-t border-slate-700/20">
+                <div class="px-5 py-3 flex items-center gap-2">
                     <input type="text" id="mp-search-rgm" placeholder="Pesquisar RGM..." oninput="mpFilterTable()"
-                        class="input-glass px-2 py-1 text-[11px] text-slate-300 w-32">
+                        class="input-glass px-3 py-1.5 text-[11px] text-slate-300 w-48">
                 </div>
                 <div class="overflow-x-auto max-h-[400px] overflow-y-auto">
                     <table class="w-full text-sm">
@@ -179,46 +298,16 @@
                                 <th class="text-left px-4 py-2">Data Matrícula</th>
                             </tr>
                         </thead>
-                        <tbody id="mp-detail-tbody" class="divide-y divide-slate-700/10">
-                            <tr><td colspan="4" class="px-5 py-6 text-center text-slate-600">Carregando...</td></tr>
-                        </tbody>
+                        <tbody id="mp-detail-tbody" class="divide-y divide-slate-700/10"></tbody>
                     </table>
                 </div>
             </div>
+        </details>
 
-            <!-- Premiação Diária Detalhada -->
-            <div class="glass-card overflow-hidden">
-                <div class="px-5 py-3 border-b border-slate-700/20">
-                    <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                        <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                        Premiação Diária — Detalhado
-                    </h3>
-                </div>
-                <div class="overflow-x-auto max-h-[400px] overflow-y-auto">
-                    <table class="w-full text-sm">
-                        <thead class="sticky top-0 z-10">
-                            <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-700/20 bg-slate-900/95 backdrop-blur">
-                                <th class="text-left px-3 py-2">Data</th>
-                                <th class="text-center px-3 py-2">Dia</th>
-                                <th class="text-center px-3 py-2">Meta</th>
-                                <th class="text-center px-3 py-2">Feitas</th>
-                                <th class="text-right px-3 py-2">Fixo</th>
-                                <th class="text-right px-3 py-2">Extra</th>
-                                <th class="text-right px-3 py-2">Total</th>
-                            </tr>
-                        </thead>
-                        <tbody id="mp-daily-tbody" class="divide-y divide-slate-700/10">
-                            <tr><td colspan="7" class="px-5 py-6 text-center text-slate-600">Carregando...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- Histórico -->
-        <div class="glass-card overflow-hidden mb-6">
-            <div class="px-5 py-3 border-b border-slate-700/20">
-                <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
+        <!-- S9: Histórico -->
+        <div class="glass-card overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-700/20">
+                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                     <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     Histórico de Campanhas
                 </h3>
@@ -229,116 +318,8 @@
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- ═══ Painel Admin: Campanhas ═══ -->
-    <div id="mp-admin-panel" class="hidden">
-        <div class="glass-card p-5 mb-6 border border-amber-500/20">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                    <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
-                    Configurar Campanhas de Premiação
-                </h3>
-                <button onclick="mpToggleAdmin()" class="text-slate-500 hover:text-white text-xs">Fechar</button>
-            </div>
-
-            <!-- Nova Campanha -->
-            <div class="bg-slate-800/40 rounded-xl p-4 mb-5 border border-slate-700/30">
-                <p class="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-3">Nova Campanha</p>
-                <div class="flex flex-wrap items-end gap-3 mb-4">
-                    <div>
-                        <label class="block text-[10px] text-slate-500 mb-1">Nome</label>
-                        <input type="text" id="mp-camp-nome" placeholder="Ex: Março 2026" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-40">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] text-slate-500 mb-1">Início</label>
-                        <input type="date" id="mp-camp-ini" class="input-glass px-3 py-1.5 text-xs text-slate-300">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] text-slate-500 mb-1">Fim</label>
-                        <input type="date" id="mp-camp-fim" class="input-glass px-3 py-1.5 text-xs text-slate-300">
-                    </div>
-                </div>
-                <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-2 font-semibold">Valor por matrícula ao atingir tier</p>
-                <div class="flex flex-wrap gap-3 mb-4">
-                    <div>
-                        <label class="block text-[10px] text-slate-500 mb-1">Intermediária (R$)</label>
-                        <input type="number" id="mp-camp-tier-inter" placeholder="0" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-28">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] text-slate-500 mb-1">Meta (R$)</label>
-                        <input type="number" id="mp-camp-tier-meta" placeholder="0" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-28">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] text-slate-500 mb-1">Supermeta (R$)</label>
-                        <input type="number" id="mp-camp-tier-super" placeholder="0" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-28">
-                    </div>
-                </div>
-                <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-2 font-semibold">Regra sobre Recebimentos</p>
-                <div class="flex flex-wrap items-end gap-3 mb-4">
-                    <div>
-                        <label class="block text-[10px] text-slate-500 mb-1">Modo</label>
-                        <select id="mp-camp-receb-modo" class="input-glass px-3 py-1.5 text-xs text-slate-300">
-                            <option value="percentual">Percentual</option>
-                            <option value="fixo">Fixo (R$)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-[10px] text-slate-500 mb-1">Valor</label>
-                        <input type="number" id="mp-camp-receb-valor" placeholder="Ex: 3" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-24">
-                    </div>
-                </div>
-                <button onclick="mpSaveCampanha()" class="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                    Criar Campanha
-                </button>
-            </div>
-
-            <!-- Lista de campanhas existentes -->
-            <div id="mp-campanhas-list" class="space-y-3 mb-5"></div>
-
-            <!-- Upload Recebimentos -->
-            <div class="bg-slate-800/40 rounded-xl p-4 border border-slate-700/30">
-                <p class="text-xs font-semibold text-violet-400 uppercase tracking-wider mb-3">Upload Recebimentos (CSV)</p>
-                <div class="flex flex-wrap items-end gap-3">
-                    <div>
-                        <label class="block text-[10px] text-slate-500 mb-1">Mês Referência</label>
-                        <input type="text" id="mp-receb-mes" placeholder="Ex: Março 2026" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-36">
-                    </div>
-                    <label class="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5 cursor-pointer">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-                        Upload CSV
-                        <input type="file" accept=".csv" class="hidden" onchange="mpUploadRecebimentos(this)">
-                    </label>
-                </div>
-                <div id="mp-receb-msg" class="hidden mt-3 text-xs p-3 rounded-lg"></div>
-            </div>
-        </div>
-
-        <!-- Config Metas Diárias -->
-        <div class="glass-card p-5 mb-6 border border-cyan-500/20">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                    <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                    Metas Diárias por Agente
-                </h3>
-            </div>
-            <div class="flex flex-wrap items-end gap-3 mb-4">
-                <div>
-                    <label class="block text-[10px] text-slate-500 mb-1">Campanha</label>
-                    <select id="mp-daily-camp" onchange="mpLoadDailyGrid()" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[180px]">
-                        <option value="">Selecionar...</option>
-                    </select>
-                </div>
-            </div>
-            <div id="mp-daily-grid-wrap" class="overflow-x-auto">
-                <p class="text-xs text-slate-600">Selecione uma campanha acima</p>
-            </div>
-            <button onclick="mpSaveDailyTargets()" class="btn-primary text-xs px-4 py-1.5 mt-3 flex items-center gap-1.5">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                Salvar Metas Diárias
-            </button>
-        </div>
-    </div>
+    </div><!-- max-w -->
+</div><!-- mp-content -->
 
 </section>
