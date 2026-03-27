@@ -186,6 +186,9 @@ def _ensure_users_table():
                 ALTER TABLE app_users ADD COLUMN IF NOT EXISTS kommo_user_id INTEGER
             """)
             cur.execute("""
+                ALTER TABLE app_users ADD COLUMN IF NOT EXISTS email_cruzeiro TEXT
+            """)
+            cur.execute("""
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_app_users_kommo
                 ON app_users(kommo_user_id) WHERE kommo_user_id IS NOT NULL
             """)
@@ -459,6 +462,20 @@ def _ensure_premiacao_tables():
                 ADD COLUMN IF NOT EXISTS grupo_id INTEGER REFERENCES premiacao_grupo(id) ON DELETE CASCADE
             """)
             cur.execute("CREATE INDEX IF NOT EXISTS idx_pmd_grupo ON premiacao_meta_diaria(grupo_id)")
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_campanha_meta (
+                    id                  SERIAL PRIMARY KEY,
+                    campanha_id         INTEGER NOT NULL REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
+                    kommo_user_id       INTEGER NOT NULL,
+                    meta                NUMERIC NOT NULL DEFAULT 0,
+                    meta_intermediaria  NUMERIC NOT NULL DEFAULT 0,
+                    supermeta           NUMERIC NOT NULL DEFAULT 0,
+                    UNIQUE(campanha_id, kommo_user_id)
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pcm_camp ON premiacao_campanha_meta(campanha_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pcm_user ON premiacao_campanha_meta(kommo_user_id)")
         conn.commit()
         conn.close()
     except Exception as e:

@@ -446,6 +446,7 @@ function renderUsers() {
             : (u.pages || []).map(p => `<span class="inline-block text-[10px] bg-gray-100 dark:bg-gray-800/50 text-gray-400 px-1.5 py-0.5 rounded mr-1 mb-1">${PAGE_LABELS[p] || p}</span>`).join('');
         return `<tr class="border-b border-[var(--border)]">
             <td class="py-3 font-medium">${u.username}</td>
+            <td class="py-3 text-xs">${u.email_cruzeiro || '<span class="text-gray-600">—</span>'}</td>
             <td class="py-3">${roleLabel}</td>
             <td class="py-3 max-w-xs">${permsHtml}</td>
             <td class="py-3 text-xs text-gray-500">${u.created_at || ''}</td>
@@ -496,18 +497,20 @@ async function createUser() {
     const role = document.getElementById('user-new-role').value;
     const kommoRaw = document.getElementById('user-new-kommo-uid').value.trim();
     const kommo_user_id = kommoRaw ? parseInt(kommoRaw) : null;
+    const email_cruzeiro = (document.getElementById('user-new-email-cruzeiro').value || '').trim() || null;
     if (!username || !password) { toast('Usuário e senha são obrigatórios', 'warning'); return; }
     const cbs = document.querySelectorAll('.user-new-page-cb:checked');
     const pages = Array.from(cbs).map(cb => cb.value);
     try {
         const res = await api('/api/users', {
             method: 'POST', headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({ username, password, role, pages, kommo_user_id }),
+            body: JSON.stringify({ username, password, role, pages, kommo_user_id, email_cruzeiro }),
         });
         const d = await res.json();
         if (d.error) { toast(d.error, 'error'); return; }
         document.getElementById('user-new-username').value = '';
         document.getElementById('user-new-password').value = '';
+        document.getElementById('user-new-email-cruzeiro').value = '';
         loadUsers();
     } catch (e) { toast('Erro: ' + e.message, 'error'); }
 }
@@ -541,7 +544,7 @@ async function editUser(uid) {
                 </button>
             </div>
             <div class="p-6 space-y-5">
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
                         <label class="block text-xs text-gray-500 mb-1.5 font-medium">Nova Senha</label>
                         <input type="password" id="edit-user-pw" class="input-glass px-3 py-2 text-sm text-gray-200 w-full" autocomplete="new-password" placeholder="Vazio = manter">
@@ -549,6 +552,10 @@ async function editUser(uid) {
                     <div>
                         <label class="block text-xs text-gray-500 mb-1.5 font-medium">Kommo User ID</label>
                         <input type="number" id="edit-user-kommo-uid" value="${u.kommo_user_id||''}" class="input-glass px-3 py-2 text-sm text-gray-200 w-full" placeholder="ID do Kommo">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1.5 font-medium">E-mail Cruzeiro</label>
+                        <input type="email" id="edit-user-email-cruzeiro" value="${u.email_cruzeiro||''}" class="input-glass px-3 py-2 text-sm text-gray-200 w-full" placeholder="nome@cruzeirodosul.edu.br">
                     </div>
                     <div>
                         <label class="block text-xs text-gray-500 mb-1.5 font-medium">Nível</label>
@@ -576,9 +583,10 @@ async function saveUserEdit(uid) {
     const pw = document.getElementById('edit-user-pw').value;
     const role = document.getElementById('edit-user-role').value;
     const kommoRaw = document.getElementById('edit-user-kommo-uid').value.trim();
+    const emailCruzeiro = (document.getElementById('edit-user-email-cruzeiro').value || '').trim();
     const cbs = document.querySelectorAll('.edit-perm-cb:checked');
     const pages = Array.from(cbs).map(cb => cb.value);
-    const body = { role, pages, kommo_user_id: kommoRaw ? parseInt(kommoRaw) : null };
+    const body = { role, pages, kommo_user_id: kommoRaw ? parseInt(kommoRaw) : null, email_cruzeiro: emailCruzeiro || null };
     if (pw) body.password = pw;
     try {
         const res = await api('/api/users/' + uid, {
@@ -590,4 +598,26 @@ async function saveUserEdit(uid) {
         document.getElementById('user-edit-modal').remove();
         loadUsers();
     } catch (e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+async function importKommoUsers() {
+    const msg = document.getElementById('import-kommo-msg');
+    if (msg) msg.textContent = 'Importando...';
+    try {
+        const res = await api('/api/users/import-kommo', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+        });
+        const d = await res.json();
+        if (d.ok) {
+            toast(d.summary);
+            if (msg) msg.textContent = d.summary;
+            loadUsers();
+        } else {
+            toast(d.error || 'Erro', 'error');
+            if (msg) msg.textContent = d.error || 'Erro';
+        }
+    } catch (e) {
+        toast('Erro: ' + e.message, 'error');
+        if (msg) msg.textContent = 'Erro de conexão';
+    }
 }

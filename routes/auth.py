@@ -1,9 +1,18 @@
+import os
 import hashlib
 import psycopg2
 import psycopg2.extras
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session
 from db import get_conn, DB_DSN
 from helpers import ALL_PAGES, APP_USER_FALLBACK, APP_PASS_FALLBACK, to_brt
+
+KOMMO_DB_DSN = dict(
+    host=os.getenv("KOMMO_PG_HOST", os.getenv("DB_HOST", "localhost")),
+    port=os.getenv("KOMMO_PG_PORT", os.getenv("DB_PORT", "5432")),
+    user=os.getenv("KOMMO_PG_USER", os.getenv("DB_USER")),
+    password=os.getenv("KOMMO_PG_PASS", os.getenv("DB_PASS")),
+    dbname=os.getenv("KOMMO_PG_DB", "kommo_sync"),
+)
 
 auth_bp = Blueprint("auth_bp", __name__)
 
@@ -161,7 +170,7 @@ def api_users_list():
     conn = get_conn()
     with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
         cur.execute("""
-            SELECT u.id, u.username, u.role, u.kommo_user_id, u.created_at,
+            SELECT u.id, u.username, u.role, u.kommo_user_id, u.email_cruzeiro, u.created_at,
                    ARRAY(SELECT p.page FROM user_permissions p WHERE p.user_id = u.id ORDER BY p.page) AS pages
             FROM app_users u ORDER BY u.id
         """)
@@ -182,6 +191,7 @@ def api_users_create():
     role = body.get("role", "viewer")
     pages = body.get("pages", [])
     kommo_user_id = body.get("kommo_user_id")
+    email_cruzeiro = (body.get("email_cruzeiro") or "").strip() or None
     if not username or not password:
         return jsonify({"error": "Usuário e senha são obrigatórios"}), 400
     if role not in ("admin", "viewer"):
@@ -193,8 +203,8 @@ def api_users_create():
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO app_users (username, pw_hash, role, kommo_user_id) VALUES (%s, %s, %s, %s) RETURNING id",
-                (username, _hash_pw(password), role, kommo_user_id or None),
+                "INSERT INTO app_users (username, pw_hash, role, kommo_user_id, email_cruzeiro) VALUES (%s, %s, %s, %s, %s) RETURNING id",
+                (username, _hash_pw(password), role, kommo_user_id or None, email_cruzeiro),
             )
             uid = cur.fetchone()[0]
             if role == "admin":
@@ -235,6 +245,9 @@ def api_users_update(uid):
         if "kommo_user_id" in body:
             cur.execute("UPDATE app_users SET kommo_user_id = %s WHERE id = %s",
                         (kommo_user_id or None, uid))
+        if "email_cruzeiro" in body:
+            cur.execute("UPDATE app_users SET email_cruzeiro = %s WHERE id = %s",
+                        ((body["email_cruzeiro"] or "").strip() or None, uid))
         if pages is not None:
             if role == "admin":
                 pages = list(ALL_PAGES)
@@ -260,3 +273,74 @@ def api_users_delete(uid):
     conn.commit()
     conn.close()
     return jsonify({"ok": True})
+
+
+@auth_bp.route("/api/users/import-kommo", methods=["POST"])
+def api_users_import_kommo():
+    """Import Kommo users as app_users (email=username, default password, role=viewer)."""
+    if session.get("role") != "admin":
+        return jsonify({"error": "Sem permissão"}), 403
+
+    DEFAULT_PW = "eduit2026"
+    DEFAULT_PAGES = ["minha_performance"]
+
+    try:
+        kconn = psycopg2.connect(**KOMMO_DB_DSN)
+        kcur = kconn.cursor()
+        kcur.execute("SELECT id, name, email FROM users WHERE email IS NOT NULL AND email != '' ORDER BY name")
+        kommo_users = [{"id": r[0], "name": r[1], "email": r[2]} for r in kcur.fetchall()]
+        kcur.close()
+        kconn.close()
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Erro ao conectar ao Kommo: {e}"}), 500
+
+    conn = get_conn()
+    created = []
+    skipped = []
+    errors = []
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT kommo_user_id, username FROM app_users WHERE kommo_user_id IS NOT NULL")
+        existing_kommo = {r[0]: r[1] for r in cur.fetchall()}
+
+        cur.execute("SELECT username FROM app_users")
+        existing_usernames = {r[0] for r in cur.fetchall()}
+
+        for ku in kommo_users:
+            kid = ku["id"]
+            email = ku["email"].strip().lower()
+            name = ku["name"] or email
+
+            if kid in existing_kommo:
+                skipped.append({"kommo_id": kid, "name": name, "email": email, "reason": f"Já vinculado como {existing_kommo[kid]}"})
+                continue
+
+            username = email
+            if username in existing_usernames:
+                skipped.append({"kommo_id": kid, "name": name, "email": email, "reason": f"Username {username} já existe"})
+                continue
+
+            try:
+                cur.execute(
+                    "INSERT INTO app_users (username, pw_hash, role, kommo_user_id) VALUES (%s, %s, %s, %s) RETURNING id",
+                    (username, _hash_pw(DEFAULT_PW), "viewer", kid),
+                )
+                uid = cur.fetchone()[0]
+                for pg in DEFAULT_PAGES:
+                    if pg in ALL_PAGES:
+                        cur.execute("INSERT INTO user_permissions (user_id, page) VALUES (%s, %s)", (uid, pg))
+                created.append({"id": uid, "kommo_id": kid, "name": name, "email": email})
+                existing_usernames.add(username)
+            except Exception as e:
+                errors.append({"kommo_id": kid, "email": email, "error": str(e)})
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "ok": True,
+        "created": created,
+        "skipped": skipped,
+        "errors": errors,
+        "summary": f"{len(created)} criados, {len(skipped)} já existiam, {len(errors)} erros",
+    })

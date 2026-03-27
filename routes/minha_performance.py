@@ -160,10 +160,24 @@ def _get_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None):
 
 
 def _get_agent_metas(kommo_uid, dt_ini=None, dt_fim=None):
-    """Get comercial_metas for the agent in the given date range."""
+    """Get metas for an agent. Tries premiacao_campanha_meta first, falls back to comercial_metas."""
     try:
         conn = _pg()
         cur = conn.cursor()
+
+        cur.execute("""
+            SELECT pcm.meta, pcm.meta_intermediaria, pcm.supermeta
+            FROM premiacao_campanha_meta pcm
+            JOIN premiacao_campanha pc ON pc.id = pcm.campanha_id
+            WHERE pcm.kommo_user_id = %s AND pc.dt_inicio <= %s AND pc.dt_fim >= %s
+            LIMIT 1
+        """, (kommo_uid, dt_fim or '9999-12-31', dt_ini or '1900-01-01'))
+        row = cur.fetchone()
+        if row:
+            cur.close()
+            conn.close()
+            return {"meta": float(row[0]), "intermediaria": float(row[1]), "supermeta": float(row[2])}
+
         cur.execute("""
             SELECT meta, COALESCE(meta_intermediaria,0), COALESCE(supermeta,0), categoria
             FROM comercial_metas
@@ -1102,6 +1116,67 @@ def api_grupos_delete(gid):
         cur.close()
         conn.close()
         return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# API: Metas por agente na campanha (admin)
+# ---------------------------------------------------------------------------
+
+@minha_performance_bp.route("/api/premiacao/campanhas/<int:cid>/metas", methods=["GET"])
+def api_campanha_metas_get(cid):
+    if not _is_admin():
+        return jsonify({"error": "Sem permissão"}), 403
+    try:
+        conn = _pg()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT kommo_user_id, meta, meta_intermediaria, supermeta
+            FROM premiacao_campanha_meta WHERE campanha_id = %s
+            ORDER BY kommo_user_id
+        """, (cid,))
+        rows = [dict(r) for r in cur.fetchall()]
+        for r in rows:
+            r["meta"] = float(r["meta"])
+            r["meta_intermediaria"] = float(r["meta_intermediaria"])
+            r["supermeta"] = float(r["supermeta"])
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True, "metas": rows})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@minha_performance_bp.route("/api/premiacao/campanhas/<int:cid>/metas", methods=["POST"])
+def api_campanha_metas_save(cid):
+    """Save per-agent metas for a campaign. Replaces existing metas."""
+    if not _is_admin():
+        return jsonify({"error": "Sem permissão"}), 403
+    body = request.json or {}
+    items = body.get("metas", [])
+    if not items:
+        return jsonify({"error": "Nenhuma meta enviada"}), 400
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM premiacao_campanha_meta WHERE campanha_id = %s", (cid,))
+        count = 0
+        for item in items:
+            uid = int(item.get("kommo_user_id", 0))
+            meta = float(item.get("meta", 0))
+            inter = float(item.get("meta_intermediaria", 0))
+            sup = float(item.get("supermeta", 0))
+            if uid and (meta > 0 or inter > 0 or sup > 0):
+                cur.execute("""
+                    INSERT INTO premiacao_campanha_meta (campanha_id, kommo_user_id, meta, meta_intermediaria, supermeta)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (cid, uid, meta, inter, sup))
+                count += 1
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True, "saved": count})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
