@@ -201,6 +201,30 @@ def _get_agent_metas(kommo_uid, dt_ini=None, dt_fim=None):
 ACEITE_STATUS_ID = 48566207
 FUNNEL_PIPELINE_ID = 5481944
 
+_aceite_status_ids_cache = None
+
+def _get_aceite_status_ids():
+    """Return ALL status IDs whose name contains 'aceite' (case-insensitive).
+    Falls back to the hardcoded ACEITE_STATUS_ID if query fails."""
+    global _aceite_status_ids_cache
+    if _aceite_status_ids_cache is not None:
+        return _aceite_status_ids_cache
+    try:
+        kconn = _pg_kommo()
+        kcur = kconn.cursor()
+        kcur.execute("SELECT id FROM pipeline_statuses WHERE LOWER(name) LIKE '%aceite%'")
+        ids = [r[0] for r in kcur.fetchall()]
+        kcur.close()
+        kconn.close()
+        if ids:
+            _aceite_status_ids_cache = ids
+            logger.info("Aceite status IDs found: %s", ids)
+            return ids
+    except Exception as e:
+        logger.warning("Could not fetch aceite status IDs: %s", e)
+    _aceite_status_ids_cache = [ACEITE_STATUS_ID]
+    return _aceite_status_ids_cache
+
 
 def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
     """Calculate ranking using same logic as the RGM dashboard (DISTINCT ON rgm).
@@ -222,14 +246,16 @@ def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
         if n and uid:
             rgm_to_uid[n] = uid
 
-    # Count aceites per agent (leads in Aceite stage)
-    kcur.execute("""
+    # Count aceites per agent (leads in ANY Aceite stage)
+    ace_ids = _get_aceite_status_ids()
+    ace_ph = ",".join(["%s"] * len(ace_ids))
+    kcur.execute(f"""
         SELECT responsible_user_id, COUNT(*)
         FROM leads
-        WHERE status_id = %s
+        WHERE status_id IN ({ace_ph})
           AND responsible_user_id IS NOT NULL
         GROUP BY responsible_user_id
-    """, (ACEITE_STATUS_ID,))
+    """, ace_ids)
     aceites_per_agent = {r[0]: r[1] for r in kcur.fetchall()}
     kcur.close()
     kconn.close()
@@ -750,28 +776,29 @@ def api_minha_insights():
     yesterday = today - timedelta(days=1)
     yesterday_realizadas = mat_by_date.get(yesterday, 0)
 
-    # Aceites na fila do Kommo (leads no stage Aceite = quase matrícula)
+    # Aceites na fila do Kommo (leads em qualquer stage "Aceite")
     aceites_fila = 0
     aceites_hoje = 0
     try:
+        ace_ids = _get_aceite_status_ids()
+        ace_ph = ",".join(["%s"] * len(ace_ids))
         kconn_ac = _pg_kommo()
         kcur_ac = kconn_ac.cursor()
-        # Count ALL leads in aceite stage (including soft-deleted, since Kommo UI may still show them)
-        kcur_ac.execute("""
+        kcur_ac.execute(f"""
             SELECT COUNT(*) FROM leads
             WHERE responsible_user_id = %s
-              AND status_id = %s
-        """, (kommo_uid, ACEITE_STATUS_ID))
+              AND status_id IN ({ace_ph})
+        """, [kommo_uid] + ace_ids)
         aceites_fila = kcur_ac.fetchone()[0] or 0
         today_ts = int(datetime.combine(today, datetime.min.time()).timestamp())
-        kcur_ac.execute("""
+        kcur_ac.execute(f"""
             SELECT COUNT(*) FROM leads
             WHERE responsible_user_id = %s
-              AND status_id = %s
+              AND status_id IN ({ace_ph})
               AND updated_at >= %s
-        """, (kommo_uid, ACEITE_STATUS_ID, today_ts))
+        """, [kommo_uid] + ace_ids + [today_ts])
         aceites_hoje = kcur_ac.fetchone()[0] or 0
-        logger.info("Aceites uid=%s: fila=%d, hoje=%d (status=%s)", kommo_uid, aceites_fila, aceites_hoje, ACEITE_STATUS_ID)
+        logger.info("Aceites uid=%s: fila=%d, hoje=%d (status_ids=%s)", kommo_uid, aceites_fila, aceites_hoje, ace_ids)
         kcur_ac.close()
         kconn_ac.close()
     except Exception as e:
