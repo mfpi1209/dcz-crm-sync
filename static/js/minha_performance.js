@@ -150,6 +150,8 @@ function _mpRenderHero(d) {
     const prem = d.premiacao || {};
     const total = prem.total || 0;
     const tier = d.tier;
+    const metas = d.metas || {};
+    const totalMat = d.total_matriculas || 0;
 
     if (hero) {
         hero.className = hero.className.replace(/mp-tier-\w+/g, '');
@@ -175,9 +177,51 @@ function _mpRenderHero(d) {
     else if (tier === 'intermediaria') badge.className += 'bg-orange-500/20 text-orange-300';
     else badge.className += 'bg-slate-600/30 text-slate-400';
 
-    el('mp-hero-mat').textContent = `${d.total_matriculas} matrículas`;
+    el('mp-hero-mat').textContent = `${totalMat} matrículas`;
     el('mp-hero-dias').textContent = `${d.dias_restantes} dias restantes`;
-    el('mp-hero-msg').textContent = d.mensagem || '';
+
+    // Mensagem em HTML (suporta quebras de linha)
+    const msgEl = el('mp-hero-msg');
+    if (msgEl) msgEl.innerHTML = d.mensagem || '';
+
+    // Termômetro de progresso por tier
+    const thermo = document.getElementById('mp-hero-thermo');
+    if (thermo) {
+        const inter = metas.intermediaria || 0;
+        const meta = metas.meta || 0;
+        const sup = metas.supermeta || 0;
+        const maxTarget = sup || meta || inter || totalMat || 1;
+        const scale = Math.max(maxTarget, totalMat) * 1.05;
+
+        const markers = [];
+        if (inter > 0) markers.push({ label: 'Inter', val: inter, color: '#f97316' });
+        if (meta > 0) markers.push({ label: 'Meta', val: meta, color: '#94a3b8' });
+        if (sup > 0) markers.push({ label: 'Super', val: sup, color: '#f59e0b' });
+
+        const pctAgent = Math.min(100, (totalMat / scale) * 100);
+
+        let barColor = '#64748b';
+        if (tier === 'supermeta') barColor = '#f59e0b';
+        else if (tier === 'meta') barColor = '#94a3b8';
+        else if (tier === 'intermediaria') barColor = '#f97316';
+
+        const markerHtml = markers.map(m => {
+            const left = Math.min(98, (m.val / scale) * 100);
+            const reached = totalMat >= m.val;
+            return `<div class="absolute" style="left:${left}%">
+                <div class="w-0.5 h-5 -mt-1" style="background:${reached ? m.color : 'rgba(255,255,255,0.15)'}"></div>
+                <span class="absolute -translate-x-1/2 text-[9px] font-bold mt-0.5 whitespace-nowrap" style="color:${reached ? m.color : 'rgba(255,255,255,0.3)'}">${m.label} (${m.val})</span>
+            </div>`;
+        }).join('');
+
+        thermo.innerHTML = `
+            <div class="relative h-3 bg-white/10 rounded-full overflow-visible mt-1 mb-6">
+                <div class="h-full rounded-full transition-all duration-1000 relative" style="width:${pctAgent}%;background:${barColor}">
+                    <div class="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 border-white shadow-lg" style="background:${barColor}"></div>
+                </div>
+                ${markerHtml}
+            </div>`;
+    }
 }
 
 function _mpCalcMaxPotencial(d) {

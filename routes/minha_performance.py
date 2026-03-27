@@ -927,56 +927,108 @@ def api_minha_insights():
     proj_tier_valor = tier_bonuses.get(proj_tier, 0)
     projecao_financeira = round(proj_tier_valor * projecao + daily_bonus_total + receb_bonus_total, 2)
 
-    # Dynamic motivational messages (money-centric, contextual)
+    # Dynamic motivational messages (HTML, money-centric, emojis)
     base_v = tier_bonuses.get("base", 0)
+    _fmt = lambda v: f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
     if super_val > 0 and total_mat >= super_val:
         sv = tier_bonuses.get("supermeta", 0)
-        extra_ganho = round(sv * (total_mat - super_val), 2)
-        mensagem = f"Lendário! SUPERMETA conquistada! Cada matrícula extra = +R$ {sv:.0f} direto no bolso!"
+        extra_mat = total_mat - super_val
+        extra_ganho = round(sv * extra_mat, 2)
+        mensagem = (
+            f"🏆 <strong>LENDÁRIO! SUPERMETA CONQUISTADA!</strong><br>"
+            f"Você é referência no time! Cada nova matrícula = <strong>+{_fmt(sv)}</strong> direto no bolso."
+        )
         if extra_ganho > 0:
-            mensagem += f" Já são +R$ {extra_ganho:,.0f} acima da supermeta!"
+            mensagem += f"<br>💰 Já são <strong>+{_fmt(extra_ganho)}</strong> além da supermeta ({extra_mat} matrículas extras). Continue voando! 🚀"
+
     elif meta_val > 0 and total_mat >= meta_val:
         falta_s = max(0, super_val - total_mat) if super_val > 0 else 0
         sv = tier_bonuses.get("supermeta", 0)
         ganho_extra = round((sv - tier_valor) * total_mat, 2) if sv > tier_valor else 0
+        mensagem = f"🔥 <strong>Meta batida! Você já garantiu {_fmt(tier_bonus_total)}!</strong>"
         if falta_s > 0 and dias_uteis_restantes > 0:
             pace_s = round(falta_s / dias_uteis_restantes, 1)
-            mensagem = f"Meta batida! Você já garantiu R$ {round(tier_bonus_total, 2):,.0f}! Faltam {falta_s} para SUPERMETA — isso é {pace_s}/dia nos próximos {dias_uteis_restantes} dias! (+R$ {ganho_extra:,.0f})"
+            mensagem += (
+                f"<br><br>Agora é foco total na <strong>SUPERMETA</strong> 🚀<br>"
+                f"Faltam apenas <strong>{falta_s}</strong>, o que dá <strong>{pace_s}/dia</strong> nos próximos "
+                f"<strong>{dias_uteis_restantes} dias</strong> — totalmente alcançável!"
+                f"<br><br>💰 Isso significa mais <strong>+{_fmt(ganho_extra)}</strong> no bolso"
+                f"<br><br>Bora acelerar! Você já provou que consegue — agora é só manter o ritmo e fechar com chave de ouro 💪"
+            )
         elif falta_s > 0:
-            mensagem = f"Meta batida! Faltam {falta_s} para SUPERMETA (+R$ {ganho_extra:,.0f})."
+            mensagem += f"<br>🚀 Faltam <strong>{falta_s}</strong> para a SUPERMETA (+{_fmt(ganho_extra)}). Bora! 💪"
         else:
-            mensagem = f"Meta batida! Você já garantiu R$ {round(tier_bonus_total, 2):,.0f}!"
+            mensagem += "<br>Mandou muito! Resultado garantido! 🎉"
+
     elif inter_val > 0 and total_mat >= inter_val:
         falta_m = max(0, meta_val - total_mat)
         mv = tier_bonuses.get("meta", 0)
         ganho_extra = round((mv - tier_valor) * total_mat, 2) if mv > tier_valor else 0
         if falta_m > 0 and falta_m <= 3:
-            mensagem = f"Faltam APENAS {falta_m} para a META! Isso é menos de 1 por dia! (+R$ {ganho_extra:,.0f})"
+            mensagem = (
+                f"🔥 <strong>Intermediária batida!</strong> E a META está ali na frente!<br><br>"
+                f"Faltam <strong>APENAS {falta_m}</strong> — isso é menos de 1 por dia! 😱<br>"
+                f"💰 Ao bater, são <strong>+{_fmt(ganho_extra)}</strong> a mais no seu bolso.<br><br>"
+                f"Você está tão perto! Mais um esforço e a META é sua! 💪"
+            )
         elif falta_m > 0 and dias_uteis_restantes > 0:
             pace_m = round(falta_m / dias_uteis_restantes, 1)
-            mensagem = f"Faltam {falta_m} para a META ({pace_m}/dia). +R$ {ganho_extra:,.0f} no bolso!"
+            mensagem = (
+                f"💪 <strong>Intermediária conquistada!</strong> Agora mira na META!<br><br>"
+                f"Faltam <strong>{falta_m}</strong> matrículas (<strong>{pace_m}/dia</strong> nos próximos "
+                f"<strong>{dias_uteis_restantes} dias</strong>).<br>"
+                f"💰 Na META, você garante <strong>+{_fmt(ganho_extra)}</strong> a mais!"
+                f"<br><br>Cada matrícula te aproxima. Não desacelere agora! 🚀"
+            )
         else:
-            mensagem = f"Intermediária batida! Continue para a META (+R$ {ganho_extra:,.0f})."
+            mensagem = (
+                f"✅ <strong>Intermediária batida!</strong><br>"
+                f"Continue empurrando para a META — <strong>+{_fmt(ganho_extra)}</strong> te esperam! 🚀"
+            )
+
     elif inter_val > 0:
         falta_i = max(0, inter_val - total_mat)
         iv = tier_bonuses.get("intermediaria", 0)
         base_total = round(base_v * total_mat, 2) if base_v > 0 else 0
-        upgrade = round((iv - base_v) * total_mat, 2) if iv > base_v else 0
+        upgrade_total = round(iv * total_mat, 2)
         if falta_i <= 2 and falta_i > 0:
-            mensagem = f"Quase lá! Só {falta_i} matrícula{'s' if falta_i > 1 else ''} para a Intermediária (+R$ {upgrade:,.0f})!"
+            mensagem = (
+                f"🔥 <strong>Quase lá!</strong> Só <strong>{falta_i} matrícula{'s' if falta_i > 1 else ''}</strong> "
+                f"para a Intermediária!<br>"
+                f"💰 Ao bater, cada matrícula passa a valer <strong>{_fmt(iv)}</strong> = total de <strong>{_fmt(upgrade_total)}</strong>!"
+                f"<br><br>Isso é hoje! Vai com tudo! 💪"
+            )
+        elif base_total > 0 and dias_uteis_restantes > 0:
+            pace_i = round(falta_i / dias_uteis_restantes, 1)
+            mensagem = (
+                f"💰 Você já garante <strong>{_fmt(base_total)}</strong>! Bom começo!<br><br>"
+                f"Faltam <strong>{falta_i}</strong> para a Intermediária (<strong>{pace_i}/dia</strong> nos "
+                f"próximos <strong>{dias_uteis_restantes} dias</strong>).<br>"
+                f"Na Intermediária, seu total sobe para <strong>{_fmt(upgrade_total)}</strong>! 🚀"
+                f"<br><br>Cada matrícula conta — bora construir esse resultado! 💪"
+            )
         elif base_total > 0:
-            if dias_uteis_restantes > 0:
-                pace_i = round(falta_i / dias_uteis_restantes, 1)
-                mensagem = f"Você já garante R$ {base_total:,.0f}! Faltam {falta_i} para Intermediária ({pace_i}/dia). +R$ {upgrade:,.0f}!"
-            else:
-                mensagem = f"Você já garante R$ {base_total:,.0f}! Faltam {falta_i} para a Intermediária (+R$ {upgrade:,.0f})!"
+            mensagem = (
+                f"💰 Você já garante <strong>{_fmt(base_total)}</strong>!<br>"
+                f"Faltam <strong>{falta_i}</strong> para a Intermediária e subir para <strong>{_fmt(upgrade_total)}</strong>! 🚀"
+            )
         else:
-            mensagem = f"{falta_i} matrículas para a Intermediária e garantir R$ {round(iv * total_mat, 2):,.0f}!"
+            mensagem = (
+                f"🎯 Faltam <strong>{falta_i}</strong> matrículas para a Intermediária!<br>"
+                f"💰 Cada matrícula vale <strong>{_fmt(iv)}</strong> — total de <strong>{_fmt(upgrade_total)}</strong>! Bora! 💪"
+            )
+
     else:
         if base_v > 0 and total_mat > 0:
-            mensagem = f"Cada matrícula = R$ {base_v:.0f}! Você já acumula R$ {round(base_v * total_mat, 2):,.0f}."
+            mensagem = (
+                f"💰 Cada matrícula = <strong>{_fmt(base_v)}</strong>!<br>"
+                f"Você já acumula <strong>{_fmt(round(base_v * total_mat, 2))}</strong>. Continue assim! 🚀"
+            )
+        elif total_mat > 0:
+            mensagem = "🔥 Campanha ativa! Você já tem matrículas — agora é acelerar! 💪"
         else:
-            mensagem = "Campanha ativa! Cada matrícula conta."
+            mensagem = "🚀 Campanha ativa! A primeira matrícula está te esperando. Bora começar! 💪"
 
     # Ranking: position among all agents (batch query — single pass)
     ranking = None
