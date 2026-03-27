@@ -436,6 +436,46 @@ def _ensure_premiacao_tables():
             cur.execute("CREATE INDEX IF NOT EXISTS idx_cr_snap ON comercial_recebimentos(snapshot_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_pmd_camp ON premiacao_meta_diaria(campanha_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_pmd_user ON premiacao_meta_diaria(kommo_user_id)")
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_grupo (
+                    id          SERIAL PRIMARY KEY,
+                    campanha_id INTEGER NOT NULL REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
+                    nome        TEXT NOT NULL,
+                    created_at  TIMESTAMPTZ DEFAULT NOW(),
+                    UNIQUE(campanha_id, nome)
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_grupo_membro (
+                    id              SERIAL PRIMARY KEY,
+                    grupo_id        INTEGER NOT NULL REFERENCES premiacao_grupo(id) ON DELETE CASCADE,
+                    kommo_user_id   INTEGER NOT NULL,
+                    UNIQUE(grupo_id, kommo_user_id)
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pgm_grupo ON premiacao_grupo_membro(grupo_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pgm_user ON premiacao_grupo_membro(kommo_user_id)")
+
+            cur.execute("""
+                ALTER TABLE premiacao_meta_diaria
+                ADD COLUMN IF NOT EXISTS grupo_id INTEGER REFERENCES premiacao_grupo(id) ON DELETE CASCADE
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pmd_grupo ON premiacao_meta_diaria(grupo_id)")
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_campanha_meta (
+                    id                  SERIAL PRIMARY KEY,
+                    campanha_id         INTEGER NOT NULL REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
+                    kommo_user_id       INTEGER NOT NULL,
+                    meta                NUMERIC NOT NULL DEFAULT 0,
+                    meta_intermediaria  NUMERIC NOT NULL DEFAULT 0,
+                    supermeta           NUMERIC NOT NULL DEFAULT 0,
+                    UNIQUE(campanha_id, kommo_user_id)
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pcm_camp ON premiacao_campanha_meta(campanha_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pcm_user ON premiacao_campanha_meta(kommo_user_id)")
         conn.commit()
         conn.close()
     except Exception as e:

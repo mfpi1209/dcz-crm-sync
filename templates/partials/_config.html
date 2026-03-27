@@ -211,6 +211,20 @@
                         </div>
                     </div>
 
+                    <div class="glass-card p-6 mb-6">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-base font-bold text-[var(--text-primary)] font-display">Importar do Kommo</h3>
+                        </div>
+                        <p class="text-xs text-slate-500 mb-3">Importar usuários do Kommo como app_users (email como login, senha padrão: eduit2026, permissão: Minha Performance).</p>
+                        <div class="flex items-center gap-3">
+                            <button onclick="importKommoUsers()" class="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                Importar Usuários do Kommo
+                            </button>
+                            <span id="import-kommo-msg" class="text-xs text-slate-500"></span>
+                        </div>
+                    </div>
+
                     <div class="glass-card p-6">
                         <h3 class="text-base font-bold text-[var(--text-primary)] font-display mb-4">Novo Usuário</h3>
                         <div class="flex flex-wrap items-end gap-4 mb-5">

@@ -599,3 +599,25 @@ async function saveUserEdit(uid) {
         loadUsers();
     } catch (e) { toast('Erro: ' + e.message, 'error'); }
 }
+
+async function importKommoUsers() {
+    const msg = document.getElementById('import-kommo-msg');
+    if (msg) msg.textContent = 'Importando...';
+    try {
+        const res = await api('/api/users/import-kommo', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+        });
+        const d = await res.json();
+        if (d.ok) {
+            toast(d.summary);
+            if (msg) msg.textContent = d.summary;
+            loadUsers();
+        } else {
+            toast(d.error || 'Erro', 'error');
+            if (msg) msg.textContent = d.error || 'Erro';
+        }
+    } catch (e) {
+        toast('Erro: ' + e.message, 'error');
+        if (msg) msg.textContent = 'Erro de conexão';
+    }
+}

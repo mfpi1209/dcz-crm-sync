@@ -1,63 +1,55 @@
 <!-- ═══════════════  Premiação — Admin  ═══════════════ -->
-<section id="page-premiacao_admin" class="hidden p-4 lg:p-8 max-w-7xl mx-auto">
+<section id="page-premiacao_admin" class="hidden p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
 
     <!-- Header -->
-    <div class="mb-6">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
-                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
-                </div>
-                <div>
-                    <h2 class="text-3xl font-bold text-white font-display">Premiação</h2>
-                    <p class="text-slate-500 text-sm">Configurar campanhas, metas diárias e recebimentos</p>
-                </div>
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
             </div>
-            <div class="flex items-center gap-2">
-                <select id="pa-agent-select" onchange="paAgentChanged()" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[200px]">
-                    <option value="">Ver dados de um agente...</option>
-                </select>
+            <div>
+                <h2 class="text-3xl font-bold text-white font-display">Premiação</h2>
+                <p class="text-slate-500 text-sm">Campanhas, grupos e metas diárias</p>
             </div>
         </div>
     </div>
 
-    <!-- Campanhas -->
-    <div class="glass-card p-5 mb-6 border border-amber-500/20">
+    <!-- ═══ A) Campanhas ═══ -->
+    <div class="glass-card p-5 border border-amber-500/20">
         <h3 class="text-sm font-bold text-white font-display flex items-center gap-2 mb-4">
             <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
             Campanhas de Premiação
         </h3>
 
-        <!-- Nova Campanha -->
         <div class="bg-slate-800/40 rounded-xl p-4 mb-5 border border-slate-700/30">
             <p class="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-3">Nova Campanha</p>
-            <div class="flex flex-wrap items-end gap-3 mb-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
                 <div>
                     <label class="block text-[10px] text-slate-500 mb-1">Nome</label>
-                    <input type="text" id="pa-camp-nome" placeholder="Ex: Março 2026" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-40">
+                    <input type="text" id="pa-camp-nome" placeholder="Ex: Março 2026" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
                 </div>
                 <div>
                     <label class="block text-[10px] text-slate-500 mb-1">Início</label>
-                    <input type="date" id="pa-camp-ini" class="input-glass px-3 py-1.5 text-xs text-slate-300">
+                    <input type="date" id="pa-camp-ini" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
                 </div>
                 <div>
                     <label class="block text-[10px] text-slate-500 mb-1">Fim</label>
-                    <input type="date" id="pa-camp-fim" class="input-glass px-3 py-1.5 text-xs text-slate-300">
+                    <input type="date" id="pa-camp-fim" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
                 </div>
             </div>
-            <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-2 font-semibold">Valor por matrícula ao atingir tier</p>
-            <div class="flex flex-wrap gap-3 mb-4">
+            <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-2 font-semibold">R$ por matrícula ao atingir tier</p>
+            <div class="grid grid-cols-3 gap-3 mb-4">
                 <div>
-                    <label class="block text-[10px] text-slate-500 mb-1">Intermediária (R$)</label>
-                    <input type="number" id="pa-camp-tier-inter" placeholder="0" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-28">
+                    <label class="block text-[10px] text-slate-500 mb-1">Intermediária</label>
+                    <input type="number" id="pa-camp-tier-inter" placeholder="0" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
                 </div>
                 <div>
-                    <label class="block text-[10px] text-slate-500 mb-1">Meta (R$)</label>
-                    <input type="number" id="pa-camp-tier-meta" placeholder="0" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-28">
+                    <label class="block text-[10px] text-slate-500 mb-1">Meta</label>
+                    <input type="number" id="pa-camp-tier-meta" placeholder="0" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
                 </div>
                 <div>
-                    <label class="block text-[10px] text-slate-500 mb-1">Supermeta (R$)</label>
-                    <input type="number" id="pa-camp-tier-super" placeholder="0" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-28">
+                    <label class="block text-[10px] text-slate-500 mb-1">Supermeta</label>
+                    <input type="number" id="pa-camp-tier-super" placeholder="0" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
                 </div>
             </div>
             <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-2 font-semibold">Regra sobre Recebimentos</p>
@@ -80,44 +72,93 @@
             </button>
         </div>
 
-        <!-- Lista de campanhas -->
         <div id="pa-campanhas-list" class="space-y-3"></div>
     </div>
 
-    <!-- Metas Diárias -->
-    <div class="glass-card p-5 mb-6 border border-cyan-500/20">
+    <!-- ═══ B) Metas por Agente ═══ -->
+    <div class="glass-card p-5 border border-blue-500/20">
         <h3 class="text-sm font-bold text-white font-display flex items-center gap-2 mb-4">
-            <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-            Metas Diárias por Agente
+            <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            Metas por Agente
         </h3>
+
         <div class="flex flex-wrap items-end gap-3 mb-4">
             <div>
                 <label class="block text-[10px] text-slate-500 mb-1">Campanha</label>
-                <select id="pa-daily-camp" onchange="paLoadDailyGrid()" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[180px]">
-                    <option value="">Selecionar...</option>
+                <select id="pa-metas-camp" onchange="paLoadMetasAgente()" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[200px]">
+                    <option value="">Selecionar campanha...</option>
                 </select>
             </div>
-            <button onclick="paAutoCalcDaily()" class="text-xs px-4 py-1.5 rounded-lg flex items-center gap-1.5 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 transition-all">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
-                Calcular Automaticamente
-            </button>
         </div>
-        <div id="pa-auto-calc-info" class="hidden mb-3 text-[10px] text-cyan-400/80 bg-cyan-500/5 border border-cyan-500/15 rounded-lg px-3 py-2">
-            <span class="font-bold">Auto-cálculo:</span> Seg-Sex = 1 dia, Sáb = 0.5 dia, Dom = 0. Meta do agente dividida pelos dias efetivos do período.
+
+        <div id="pa-metas-grid-wrap" class="overflow-x-auto">
+            <p class="text-xs text-slate-600">Selecione uma campanha</p>
         </div>
-        <div id="pa-daily-grid-wrap" class="overflow-x-auto">
-            <p class="text-xs text-slate-600">Selecione uma campanha acima</p>
-        </div>
-        <div class="flex flex-wrap items-center gap-3 mt-3">
-            <button onclick="paSaveDailyTargets()" class="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5">
+
+        <div class="flex flex-wrap items-center gap-3 mt-4">
+            <button onclick="paSaveMetasAgente()" class="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                Salvar Metas Diárias
+                Salvar Metas
             </button>
         </div>
     </div>
 
-    <!-- Upload Recebimentos -->
-    <div class="glass-card p-5 mb-6 border border-violet-500/20">
+    <!-- ═══ C) Grupos de Agentes ═══ -->
+    <div class="glass-card p-5 border border-emerald-500/20">
+        <h3 class="text-sm font-bold text-white font-display flex items-center gap-2 mb-4">
+            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+            Grupos de Agentes
+        </h3>
+
+        <div class="flex flex-wrap items-end gap-3 mb-4">
+            <div>
+                <label class="block text-[10px] text-slate-500 mb-1">Campanha</label>
+                <select id="pa-grupo-camp" onchange="paLoadGrupos()" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[200px]">
+                    <option value="">Selecionar campanha...</option>
+                </select>
+            </div>
+            <button onclick="paNovoGrupo()" class="text-xs px-4 py-1.5 rounded-lg flex items-center gap-1.5 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 transition-all">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Novo Grupo
+            </button>
+        </div>
+
+        <div id="pa-grupos-list" class="space-y-3">
+            <p class="text-xs text-slate-600">Selecione uma campanha</p>
+        </div>
+        <div id="pa-sem-grupo-warn" class="hidden mt-3 text-xs text-amber-400/80 bg-amber-500/5 border border-amber-500/15 rounded-lg px-3 py-2"></div>
+    </div>
+
+    <!-- ═══ C) PIX Diário por Grupo ═══ -->
+    <div class="glass-card p-5 border border-cyan-500/20">
+        <h3 class="text-sm font-bold text-white font-display flex items-center gap-2 mb-4">
+            <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            PIX Diário por Grupo
+        </h3>
+
+        <div class="flex flex-wrap items-end gap-3 mb-4">
+            <div>
+                <label class="block text-[10px] text-slate-500 mb-1">Campanha</label>
+                <select id="pa-daily-camp" onchange="paLoadDailyGrid()" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[200px]">
+                    <option value="">Selecionar campanha...</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="pa-daily-grid-wrap" class="space-y-4">
+            <p class="text-xs text-slate-600">Selecione uma campanha</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3 mt-4">
+            <button onclick="paSaveDailyGrupo()" class="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                Salvar PIX Diário
+            </button>
+        </div>
+    </div>
+
+    <!-- ═══ D) Upload Recebimentos ═══ -->
+    <div class="glass-card p-5 border border-violet-500/20">
         <h3 class="text-sm font-bold text-white font-display flex items-center gap-2 mb-4">
             <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
             Upload Recebimentos (CSV)
@@ -134,6 +175,87 @@
             </label>
         </div>
         <div id="pa-receb-msg" class="hidden mt-3 text-xs p-3 rounded-lg"></div>
+    </div>
+
+    <!-- Modal de grupo -->
+    <div id="pa-grupo-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div class="glass-card p-6 w-full max-w-md border border-emerald-500/20 relative">
+            <button onclick="document.getElementById('pa-grupo-modal').classList.add('hidden')" class="absolute top-3 right-3 text-slate-500 hover:text-white">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+            <h4 id="pa-grupo-modal-title" class="text-sm font-bold text-white mb-4">Novo Grupo</h4>
+            <input type="hidden" id="pa-grupo-modal-id" value="">
+            <div class="mb-4">
+                <label class="block text-[10px] text-slate-500 mb-1">Nome do Grupo</label>
+                <input type="text" id="pa-grupo-modal-nome" placeholder="Ex: Time Sênior" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
+            </div>
+            <div class="mb-4">
+                <label class="block text-[10px] text-slate-500 mb-2">Membros</label>
+                <div id="pa-grupo-modal-membros" class="max-h-48 overflow-y-auto space-y-1"></div>
+            </div>
+            <button onclick="paSaveGrupo()" class="btn-primary text-xs px-4 py-1.5 w-full flex items-center justify-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                Salvar Grupo
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal editar campanha -->
+    <div id="pa-edit-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div class="glass-card p-6 w-full max-w-lg border border-amber-500/20 relative">
+            <button onclick="document.getElementById('pa-edit-modal').classList.add('hidden')" class="absolute top-3 right-3 text-slate-500 hover:text-white">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+            <h4 class="text-sm font-bold text-white mb-4">Editar Campanha</h4>
+            <input type="hidden" id="pa-edit-id" value="">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                <div>
+                    <label class="block text-[10px] text-slate-500 mb-1">Nome</label>
+                    <input type="text" id="pa-edit-nome" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
+                </div>
+                <div>
+                    <label class="block text-[10px] text-slate-500 mb-1">Início</label>
+                    <input type="date" id="pa-edit-ini" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
+                </div>
+                <div>
+                    <label class="block text-[10px] text-slate-500 mb-1">Fim</label>
+                    <input type="date" id="pa-edit-fim" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
+                </div>
+            </div>
+            <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-2 font-semibold">R$ por matrícula</p>
+            <div class="grid grid-cols-3 gap-3 mb-4">
+                <div>
+                    <label class="block text-[10px] text-slate-500 mb-1">Intermediária</label>
+                    <input type="number" id="pa-edit-tier-inter" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
+                </div>
+                <div>
+                    <label class="block text-[10px] text-slate-500 mb-1">Meta</label>
+                    <input type="number" id="pa-edit-tier-meta" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
+                </div>
+                <div>
+                    <label class="block text-[10px] text-slate-500 mb-1">Supermeta</label>
+                    <input type="number" id="pa-edit-tier-super" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full">
+                </div>
+            </div>
+            <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-2 font-semibold">Recebimentos</p>
+            <div class="flex flex-wrap items-end gap-3 mb-4">
+                <div>
+                    <label class="block text-[10px] text-slate-500 mb-1">Modo</label>
+                    <select id="pa-edit-receb-modo" class="input-glass px-3 py-1.5 text-xs text-slate-300">
+                        <option value="percentual">Percentual</option>
+                        <option value="fixo">Fixo (R$)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] text-slate-500 mb-1">Valor</label>
+                    <input type="number" id="pa-edit-receb-valor" step="0.01" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-24">
+                </div>
+            </div>
+            <button onclick="paSaveEditCampanha()" class="btn-primary text-xs px-4 py-1.5 w-full flex items-center justify-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                Salvar Alterações
+            </button>
+        </div>
     </div>
 
 </section>

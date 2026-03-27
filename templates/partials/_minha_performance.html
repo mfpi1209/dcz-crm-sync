@@ -1,325 +1,220 @@
-<!-- ═══════════════  Minha Performance — Book  ═══════════════ -->
+<!-- ═══════════════  Minha Performance  ═══════════════ -->
 <section id="page-minha_performance" class="hidden">
-
 <style>
-    @keyframes mp-pulse-border { 0%,100% { border-color: rgba(245,158,11,0.3); } 50% { border-color: rgba(245,158,11,0.7); } }
-    @keyframes mp-glow { 0%,100% { box-shadow: 0 0 15px rgba(99,102,241,0.15); } 50% { box-shadow: 0 0 30px rgba(99,102,241,0.3); } }
-    @keyframes mp-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
-    @keyframes mp-slide-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-    .mp-animate-in { animation: mp-slide-up 0.6s ease-out both; }
-    .mp-animate-d1 { animation-delay: 0.1s; }
-    .mp-animate-d2 { animation-delay: 0.2s; }
-    .mp-animate-d3 { animation-delay: 0.3s; }
-    .mp-animate-d4 { animation-delay: 0.4s; }
-    .mp-animate-d5 { animation-delay: 0.5s; }
-    .mp-pulse-border { animation: mp-pulse-border 2s ease-in-out infinite; }
-    .mp-glow { animation: mp-glow 3s ease-in-out infinite; }
-    .mp-float { animation: mp-float 3s ease-in-out infinite; }
-    .mp-tier-bar-track { height: 12px; border-radius: 6px; background: rgba(51,65,85,0.5); position: relative; overflow: visible; }
-    .mp-tier-bar-fill { height: 100%; border-radius: 6px; transition: width 1.2s cubic-bezier(0.4,0,0.2,1); position: relative; }
-    .mp-tier-marker { position: absolute; top: -6px; width: 2px; height: 24px; background: rgba(148,163,184,0.3); }
-    .mp-tier-label { position: absolute; top: -22px; transform: translateX(-50%); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
-    .mp-tier-val { position: absolute; bottom: -18px; transform: translateX(-50%); font-size: 10px; color: #94a3b8; }
-    .mp-heatmap-cell { width: 36px; height: 36px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; transition: transform 0.2s; }
-    .mp-heatmap-cell:hover { transform: scale(1.15); }
-    .mp-heatmap-hit { background: rgba(16,185,129,0.25); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.3); }
-    .mp-heatmap-partial { background: rgba(245,158,11,0.2); color: #fbbf24; border: 1px solid rgba(245,158,11,0.25); }
-    .mp-heatmap-miss { background: rgba(100,116,139,0.1); color: #475569; border: 1px solid rgba(100,116,139,0.15); }
-    .mp-heatmap-future { background: transparent; color: #334155; border: 1px dashed rgba(100,116,139,0.2); }
+    @keyframes mp-pulse-border { 0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,.4)} 50%{box-shadow:0 0 0 8px rgba(16,185,129,0)} }
+    @keyframes mp-glow { 0%,100%{opacity:.6} 50%{opacity:1} }
+    @keyframes mp-float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+    @keyframes mp-slide-up { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes mp-count-up { from{opacity:0;transform:scale(.8)} to{opacity:1;transform:scale(1)} }
+    .mp-animate{animation:mp-slide-up .5s ease-out both}
+    .mp-d1{animation-delay:.05s} .mp-d2{animation-delay:.1s} .mp-d3{animation-delay:.15s}
+    .mp-d4{animation-delay:.2s} .mp-d5{animation-delay:.25s} .mp-d6{animation-delay:.3s} .mp-d7{animation-delay:.35s}
+    .mp-pulse{animation:mp-pulse-border 2s infinite}
+    .mp-glow{animation:mp-glow 2s infinite}
+    .mp-float{animation:mp-float 3s ease-in-out infinite}
+    .mp-count{animation:mp-count-up .6s ease-out both;animation-delay:.3s}
+
+    .mp-tier-gray{background:linear-gradient(135deg,#334155,#1e293b)}
+    .mp-tier-bronze{background:linear-gradient(135deg,#92400e,#78350f)}
+    .mp-tier-silver{background:linear-gradient(135deg,#475569,#334155)}
+    .mp-tier-gold{background:linear-gradient(135deg,#d97706,#b45309)}
+
+    .mp-ring-track{stroke:#334155;fill:none;stroke-width:8}
+    .mp-ring-fill{fill:none;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .8s ease}
+
+    .mp-heat-hit{background:#10b981;box-shadow:0 0 6px rgba(16,185,129,.3)}
+    .mp-heat-partial{background:#f59e0b}
+    .mp-heat-miss{background:#ef4444;opacity:.4}
+    .mp-heat-future{background:#334155;opacity:.3}
 </style>
 
 <!-- Loading -->
-<div id="mp-loading" class="hidden text-center py-20">
-    <div class="inline-flex items-center gap-3 text-amber-400">
-        <svg class="animate-spin h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-        </svg>
-        <span class="text-sm font-medium">Carregando sua performance...</span>
-    </div>
+<div id="mp-loading" class="flex flex-col items-center justify-center py-24 gap-4">
+    <div class="w-10 h-10 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin"></div>
+    <p class="text-sm text-slate-500">Carregando...</p>
 </div>
 
-<!-- No link -->
-<div id="mp-no-link" class="hidden p-4 lg:p-8 max-w-2xl mx-auto">
-    <div class="glass-card p-10 text-center">
-        <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center">
-            <svg class="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
-        </div>
-        <p class="text-slate-300 text-base font-medium mb-1">Conta não vinculada</p>
-        <p class="text-slate-600 text-sm">Solicite ao administrador que configure seu Kommo User ID nas Configurações.</p>
+<!-- Sem vínculo Kommo -->
+<div id="mp-no-link" class="hidden flex flex-col items-center justify-center py-24 gap-4">
+    <div class="w-16 h-16 rounded-2xl bg-slate-800 flex items-center justify-center">
+        <span class="material-symbols-outlined text-3xl text-slate-600">link_off</span>
     </div>
+    <p class="text-slate-500 text-sm text-center">Sua conta ainda não está vinculada ao Kommo.<br>Peça ao administrador para vincular.</p>
 </div>
 
-<!-- No campaign -->
-<div id="mp-no-campanha" class="hidden p-4 lg:p-8 max-w-2xl mx-auto">
-    <div class="glass-card p-10 text-center">
-        <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center">
-            <svg class="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-        </div>
-        <p class="text-slate-300 text-base font-medium mb-1">Nenhuma campanha ativa</p>
-        <p class="text-slate-600 text-sm">Aguarde a criação de uma nova campanha de premiação.</p>
+<!-- Sem campanha ativa -->
+<div id="mp-no-campanha" class="hidden flex flex-col items-center justify-center py-24 gap-4">
+    <div class="w-16 h-16 rounded-2xl bg-slate-800 flex items-center justify-center">
+        <span class="material-symbols-outlined text-3xl text-slate-600">event_busy</span>
     </div>
+    <p class="text-slate-500 text-sm text-center">Nenhuma campanha ativa no momento.</p>
 </div>
 
-<!-- ═══ MAIN CONTENT ═══ -->
+<!-- ═══ Conteúdo principal ═══ -->
 <div id="mp-content" class="hidden">
 
-    <!-- S1: Banner da Campanha -->
-    <div class="mp-animate-in relative overflow-hidden" id="mp-banner">
-        <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 px-6 py-8 lg:px-12 lg:py-12">
-            <div class="absolute inset-0 opacity-20" style="background: radial-gradient(circle at 20% 50%, rgba(99,102,241,0.3) 0%, transparent 50%), radial-gradient(circle at 80% 50%, rgba(168,85,247,0.2) 0%, transparent 50%);"></div>
-            <div class="relative z-10 max-w-5xl mx-auto">
-                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-                    <div>
-                        <p class="text-indigo-400/70 text-[10px] font-bold uppercase tracking-[0.2em] mb-1" id="mp-banner-label">Campanha Ativa</p>
-                        <h1 class="text-3xl lg:text-4xl font-black text-white font-display mb-2" id="mp-banner-camp-nome">—</h1>
-                        <p class="text-slate-400 text-sm" id="mp-banner-datas">—</p>
-                        <div class="mt-4 flex items-center gap-3">
-                            <span class="text-5xl lg:text-6xl font-black text-white font-display mp-float" id="mp-banner-total">0</span>
-                            <div>
-                                <p class="text-slate-500 text-xs">matrículas</p>
-                                <p class="text-lg font-bold" id="mp-banner-pct-text">0%</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex flex-col items-center md:items-end gap-2">
-                        <div class="flex items-center gap-2 bg-slate-800/50 backdrop-blur rounded-xl px-4 py-2 border border-slate-700/30">
-                            <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                            <div>
-                                <p class="text-[10px] text-slate-500 uppercase tracking-wider">Dias restantes</p>
-                                <p class="text-2xl font-black text-white font-display" id="mp-banner-dias">—</p>
-                            </div>
-                        </div>
-                        <div id="mp-banner-tier-badge" class="hidden px-4 py-1.5 rounded-full text-sm font-bold"></div>
-                    </div>
+    <!-- S1: Hero - Seu Saldo -->
+    <div id="mp-hero" class="mp-tier-gray rounded-2xl p-6 sm:p-8 mb-6 relative overflow-hidden">
+        <div class="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_30%_20%,white_0%,transparent_60%)]"></div>
+        <div class="relative z-10">
+            <p id="mp-hero-campanha" class="text-xs text-white/60 uppercase tracking-widest mb-1"></p>
+            <div class="flex flex-col sm:flex-row sm:items-end gap-2 sm:gap-6 mb-3">
+                <div>
+                    <p class="text-xs text-white/50 mb-1">Seu saldo acumulado</p>
+                    <p id="mp-hero-saldo" class="text-4xl sm:text-5xl font-black text-white mp-count">R$ 0</p>
                 </div>
-                <div class="mt-6 p-4 rounded-xl bg-white/5 backdrop-blur border border-white/10">
-                    <p class="text-base text-slate-200 font-medium" id="mp-banner-msg">—</p>
+                <div class="sm:pb-1">
+                    <p class="text-xs text-white/40">pode chegar a</p>
+                    <p id="mp-hero-potencial" class="text-lg font-bold text-emerald-300 mp-glow"></p>
                 </div>
             </div>
+            <div class="flex flex-wrap items-center gap-3">
+                <span id="mp-hero-tier-badge" class="px-3 py-1 text-xs font-bold rounded-full"></span>
+                <span id="mp-hero-mat" class="text-xs text-white/60"></span>
+                <span id="mp-hero-dias" class="text-xs text-white/60"></span>
+            </div>
+            <p id="mp-hero-msg" class="mt-3 text-sm text-white/80 font-medium"></p>
         </div>
     </div>
 
-    <div class="p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <div class="max-w-7xl mx-auto space-y-6 pb-12">
 
-        <!-- S2: Scoreboard Multi-Tier -->
-        <div class="mp-animate-in mp-animate-d1 glass-card p-6">
-            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-5 flex items-center gap-2">
-                <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
-                Jornada de Metas
+        <!-- S2: Desbloqueie Mais -->
+        <div id="mp-desbloqueie-wrap" class="mp-animate mp-d1">
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-base text-amber-400">lock_open</span>
+                Desbloqueie Mais
             </h3>
-            <div class="relative mt-8 mb-8 px-2">
-                <div class="mp-tier-bar-track" id="mp-tier-track">
-                    <div class="mp-tier-bar-fill" id="mp-tier-fill" style="width: 0%;"></div>
-                </div>
-                <div id="mp-tier-markers"></div>
-            </div>
-            <div class="grid grid-cols-3 gap-4 mt-4" id="mp-tier-badges">
-                <div class="text-center">
-                    <div id="mp-badge-inter" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-800 text-slate-500 border border-slate-700/30 transition-all">
-                        <span class="material-symbols-outlined text-sm">star_half</span>
-                        INTERMEDIÁRIA
-                    </div>
-                    <p class="text-xs text-slate-600 mt-1" id="mp-badge-inter-val">—</p>
-                </div>
-                <div class="text-center">
-                    <div id="mp-badge-meta" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-800 text-slate-500 border border-slate-700/30 transition-all">
-                        <span class="material-symbols-outlined text-sm">star</span>
-                        META
-                    </div>
-                    <p class="text-xs text-slate-600 mt-1" id="mp-badge-meta-val">—</p>
-                </div>
-                <div class="text-center">
-                    <div id="mp-badge-super" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-800 text-slate-500 border border-slate-700/30 transition-all">
-                        <span class="material-symbols-outlined text-sm">auto_awesome</span>
-                        SUPERMETA
-                    </div>
-                    <p class="text-xs text-slate-600 mt-1" id="mp-badge-super-val">—</p>
-                </div>
-            </div>
+            <div id="mp-desbloqueie" class="grid grid-cols-1 sm:grid-cols-3 gap-3"></div>
         </div>
 
-        <!-- S3: Painel de Ritmo (Momentum) -->
-        <div class="mp-animate-in mp-animate-d2 grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div class="glass-card p-5 mp-glow" id="mp-pace-card">
-                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Ritmo Atual</p>
-                <p class="text-3xl font-black font-display" id="mp-pace-atual">0.0</p>
-                <p class="text-[10px] text-slate-500 mt-1">mat/dia útil</p>
-            </div>
-            <div class="glass-card p-5">
-                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Ritmo Necessário</p>
-                <p class="text-3xl font-black text-blue-400 font-display" id="mp-pace-needed">0.0</p>
-                <p class="text-[10px] text-slate-500 mt-1" id="mp-pace-needed-label">p/ próximo tier</p>
-            </div>
-            <div class="glass-card p-5">
-                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Projeção</p>
-                <p class="text-3xl font-black text-violet-400 font-display" id="mp-projecao">0</p>
-                <p class="text-[10px] mt-1" id="mp-projecao-tier">—</p>
-            </div>
-            <div class="glass-card p-5">
-                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Dias Restantes</p>
-                <p class="text-3xl font-black text-slate-300 font-display" id="mp-dias-rest">0</p>
-                <div class="mt-2 h-1.5 rounded-full bg-slate-800 overflow-hidden">
-                    <div class="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-1000" id="mp-dias-bar" style="width:0%"></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- S4: Desafio de Hoje -->
-        <div class="mp-animate-in mp-animate-d3 glass-card p-6 border-2 mp-pulse-border" id="mp-today-card">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="material-symbols-outlined text-amber-400 text-xl">local_fire_department</span>
-                        <h3 class="text-sm font-bold text-white font-display uppercase tracking-wider">Desafio de Hoje</h3>
-                        <span class="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full font-bold" id="mp-today-dow">—</span>
-                    </div>
-                    <div class="flex items-baseline gap-3">
-                        <span class="text-5xl font-black text-white font-display" id="mp-today-realizadas">0</span>
-                        <span class="text-xl text-slate-500 font-bold">/</span>
-                        <span class="text-2xl font-bold text-slate-400" id="mp-today-meta">0</span>
-                    </div>
-                    <p class="text-xs text-slate-500 mt-1" id="mp-today-bonus-text">—</p>
-                </div>
-                <div class="flex-shrink-0 w-24 h-24" id="mp-today-ring-wrap">
-                    <svg viewBox="0 0 100 100" class="w-full h-full -rotate-90">
-                        <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(100,116,139,0.15)" stroke-width="8"/>
-                        <circle id="mp-today-ring" cx="50" cy="50" r="42" fill="none" stroke="url(#mp-today-grad)" stroke-width="8"
-                            stroke-linecap="round" stroke-dasharray="263.89" stroke-dashoffset="263.89"
-                            style="transition: stroke-dashoffset 1s cubic-bezier(0.4,0,0.2,1)"/>
-                        <defs>
-                            <linearGradient id="mp-today-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                                <stop offset="0%" stop-color="#f59e0b"/>
-                                <stop offset="100%" stop-color="#10b981"/>
-                            </linearGradient>
-                        </defs>
+        <!-- S3: PIX do Dia -->
+        <div class="mp-animate mp-d2">
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-base text-cyan-400">local_fire_department</span>
+                PIX do Dia
+            </h3>
+            <div id="mp-pix-dia" class="glass-card p-5 border border-cyan-500/20 flex flex-col sm:flex-row items-center gap-6">
+                <div class="flex-shrink-0">
+                    <svg width="120" height="120" viewBox="0 0 120 120">
+                        <circle cx="60" cy="60" r="50" class="mp-ring-track"/>
+                        <circle id="mp-ring-fill" cx="60" cy="60" r="50" class="mp-ring-fill" stroke="#10b981"
+                                stroke-dasharray="314.16" stroke-dashoffset="314.16" transform="rotate(-90 60 60)"/>
+                        <text x="60" y="52" text-anchor="middle" class="text-lg font-black fill-white" id="mp-ring-value">0</text>
+                        <text x="60" y="68" text-anchor="middle" class="text-[10px] fill-slate-400" id="mp-ring-label">de 0</text>
                     </svg>
                 </div>
+                <div class="flex-1 text-center sm:text-left">
+                    <p id="mp-pix-status" class="text-base font-bold text-white mb-1"></p>
+                    <p id="mp-pix-detail" class="text-sm text-slate-400 mb-3"></p>
+                    <div id="mp-pix-valor" class="text-2xl font-black text-emerald-400"></div>
+                </div>
             </div>
         </div>
 
-        <!-- S5: Premiação Acumulada -->
-        <div class="mp-animate-in mp-animate-d4">
-            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                Premiação Acumulada
+        <!-- S4: Momentum -->
+        <div class="mp-animate mp-d3 grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div class="glass-card p-4 text-center">
+                <p class="text-[10px] text-slate-500 uppercase mb-1">Ritmo Atual</p>
+                <p id="mp-pace" class="text-xl font-bold text-white"></p>
+                <p class="text-[10px] text-slate-500">mat/dia</p>
+            </div>
+            <div class="glass-card p-4 text-center">
+                <p class="text-[10px] text-slate-500 uppercase mb-1">Necessário p/ Meta</p>
+                <p id="mp-pace-needed" class="text-xl font-bold text-white"></p>
+                <p class="text-[10px] text-slate-500">mat/dia</p>
+            </div>
+            <div class="glass-card p-4 text-center">
+                <p class="text-[10px] text-slate-500 uppercase mb-1">Projeção</p>
+                <p id="mp-projecao-mat" class="text-xl font-bold text-white"></p>
+                <p id="mp-projecao-tier" class="text-[10px]"></p>
+            </div>
+            <div class="glass-card p-4 text-center">
+                <p class="text-[10px] text-slate-500 uppercase mb-1">No seu ritmo</p>
+                <p id="mp-projecao-fin" class="text-xl font-bold text-emerald-400"></p>
+                <p class="text-[10px] text-slate-500">projeção financeira</p>
+            </div>
+        </div>
+
+        <!-- S5: Sequência + Heatmap -->
+        <div class="mp-animate mp-d4">
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-base text-orange-400">whatshot</span>
+                Sequência
             </h3>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div class="glass-card p-5 bg-gradient-to-br from-amber-500/5 to-transparent border border-amber-500/10">
-                    <p class="text-[10px] uppercase tracking-wider font-bold text-amber-400/70 mb-1">Tier</p>
-                    <p class="text-2xl font-black text-amber-300 font-display" id="mp-prem-tier">R$ 0,00</p>
-                    <p class="text-[10px] text-slate-500 mt-1" id="mp-prem-tier-detail">—</p>
+            <div class="glass-card p-5 border border-orange-500/10">
+                <div class="flex items-center gap-4 mb-4">
+                    <div id="mp-streak-num" class="text-3xl font-black text-orange-400">0</div>
+                    <div>
+                        <p id="mp-streak-label" class="text-sm font-semibold text-white"></p>
+                        <p class="text-[10px] text-slate-500">dias consecutivos batendo a meta diária</p>
+                    </div>
                 </div>
-                <div class="glass-card p-5 bg-gradient-to-br from-cyan-500/5 to-transparent border border-cyan-500/10">
-                    <p class="text-[10px] uppercase tracking-wider font-bold text-cyan-400/70 mb-1">Diária</p>
-                    <p class="text-2xl font-black text-cyan-300 font-display" id="mp-prem-daily">R$ 0,00</p>
-                    <p class="text-[10px] text-slate-500 mt-1" id="mp-prem-daily-detail">—</p>
-                </div>
-                <div class="glass-card p-5 bg-gradient-to-br from-violet-500/5 to-transparent border border-violet-500/10">
-                    <p class="text-[10px] uppercase tracking-wider font-bold text-violet-400/70 mb-1">Recebimentos</p>
-                    <p class="text-2xl font-black text-violet-300 font-display" id="mp-prem-receb">R$ 0,00</p>
-                    <p class="text-[10px] text-slate-500 mt-1" id="mp-prem-receb-detail">—</p>
-                </div>
-                <div class="rounded-xl p-5 bg-gradient-to-br from-emerald-600/20 to-green-600/10 border-2 border-emerald-500/30 mp-glow">
-                    <p class="text-[10px] uppercase tracking-wider font-bold text-emerald-400 mb-1">Total a Receber</p>
-                    <p class="text-3xl font-black text-emerald-300 font-display" id="mp-prem-total">R$ 0,00</p>
+                <div id="mp-heatmap" class="flex flex-wrap gap-1"></div>
+                <div class="flex items-center gap-3 mt-2 text-[10px] text-slate-600">
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm mp-heat-hit"></span>Bateu</span>
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm mp-heat-partial"></span>Parcial</span>
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm mp-heat-miss"></span>Não bateu</span>
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm mp-heat-future"></span>Futuro</span>
                 </div>
             </div>
         </div>
 
-        <!-- S6: Semana Visual (Heatmap) -->
-        <div class="mp-animate-in mp-animate-d5 glass-card p-6">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                    <svg class="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                    Mapa da Semana
-                </h3>
-                <div class="flex items-center gap-2" id="mp-streak-badge">
-                    <span class="material-symbols-outlined text-orange-400 text-base">local_fire_department</span>
-                    <span class="text-xs font-bold text-orange-300" id="mp-streak-text">0 dias</span>
-                </div>
-            </div>
-            <div class="flex gap-1 mb-2 pl-1">
-                <span class="text-[9px] text-slate-600 w-9 text-center">Seg</span>
-                <span class="text-[9px] text-slate-600 w-9 text-center">Ter</span>
-                <span class="text-[9px] text-slate-600 w-9 text-center">Qua</span>
-                <span class="text-[9px] text-slate-600 w-9 text-center">Qui</span>
-                <span class="text-[9px] text-slate-600 w-9 text-center">Sex</span>
-                <span class="text-[9px] text-slate-600 w-9 text-center">Sáb</span>
-                <span class="text-[9px] text-slate-600 w-9 text-center">Dom</span>
-            </div>
-            <div id="mp-heatmap" class="space-y-1"></div>
-            <div class="flex items-center gap-4 mt-4 text-[9px] text-slate-600">
-                <span class="flex items-center gap-1"><span class="w-3 h-3 rounded mp-heatmap-hit inline-block"></span> Bateu</span>
-                <span class="flex items-center gap-1"><span class="w-3 h-3 rounded mp-heatmap-partial inline-block"></span> Parcial</span>
-                <span class="flex items-center gap-1"><span class="w-3 h-3 rounded mp-heatmap-miss inline-block"></span> Sem</span>
-                <span class="flex items-center gap-1"><span class="w-3 h-3 rounded mp-heatmap-future inline-block"></span> Futuro</span>
+        <!-- S6: Resumo Financeiro -->
+        <div class="mp-animate mp-d5">
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-base text-emerald-400">payments</span>
+                Resumo Financeiro
+            </h3>
+            <div id="mp-financeiro" class="glass-card p-5 border border-emerald-500/20 space-y-3"></div>
+        </div>
+
+        <!-- S7: Timeline -->
+        <div class="mp-animate mp-d6">
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-base text-indigo-400">timeline</span>
+                Timeline Diária
+            </h3>
+            <div class="glass-card p-5">
+                <canvas id="mp-chart-daily" height="220"></canvas>
             </div>
         </div>
 
-        <!-- S7: Timeline Chart -->
-        <div class="glass-card overflow-hidden">
-            <div class="px-5 pt-4 pb-2 flex items-center justify-between">
-                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                    <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
-                    Timeline de Matrículas
-                </h3>
-                <span class="text-[10px] text-slate-600">barras = matrículas · linha = meta diária</span>
-            </div>
-            <div class="px-5 pb-5">
-                <div class="rounded-xl p-3 bg-slate-800/20 border border-slate-700/20" style="height:260px;">
-                    <canvas id="mp-chart-daily"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- S8: Detalhado (colapsável) -->
-        <details class="glass-card overflow-hidden group">
-            <summary class="px-5 py-4 cursor-pointer flex items-center justify-between hover:bg-slate-800/20 transition-colors">
-                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                    Matrículas Detalhadas
-                    <span class="text-slate-600 font-normal" id="mp-detail-count">(0)</span>
-                </h3>
-                <span class="material-symbols-outlined text-slate-600 transition-transform group-open:rotate-180">expand_more</span>
+        <!-- S8: Detalhes (collapse) -->
+        <details class="mp-animate mp-d7 glass-card border border-slate-700/30">
+            <summary class="p-4 cursor-pointer text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 select-none">
+                <span class="material-symbols-outlined text-base text-slate-500">list_alt</span>
+                Matrículas do Período
+                <span id="mp-mat-count" class="ml-auto text-slate-600"></span>
             </summary>
-            <div class="border-t border-slate-700/20">
-                <div class="px-5 py-3 flex items-center gap-2">
-                    <input type="text" id="mp-search-rgm" placeholder="Pesquisar RGM..." oninput="mpFilterTable()"
-                        class="input-glass px-3 py-1.5 text-[11px] text-slate-300 w-48">
-                </div>
-                <div class="overflow-x-auto max-h-[400px] overflow-y-auto">
-                    <table class="w-full text-sm">
-                        <thead class="sticky top-0 z-10">
-                            <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-700/20 bg-slate-900/95 backdrop-blur">
-                                <th class="text-left px-4 py-2">RGM</th>
-                                <th class="text-left px-4 py-2">Nível</th>
-                                <th class="text-left px-4 py-2">Modalidade</th>
-                                <th class="text-left px-4 py-2">Data Matrícula</th>
-                            </tr>
-                        </thead>
-                        <tbody id="mp-detail-tbody" class="divide-y divide-slate-700/10"></tbody>
+            <div class="p-4 pt-0">
+                <input type="text" placeholder="Filtrar por RGM..." oninput="mpFilterTable()" id="mp-search-rgm"
+                    class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full sm:w-48 mb-3">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs">
+                        <thead><tr class="text-slate-500 border-b border-slate-700/30">
+                            <th class="text-left py-2 px-2">RGM</th>
+                            <th class="text-left py-2 px-2">Nível</th>
+                            <th class="text-left py-2 px-2">Modalidade</th>
+                            <th class="text-left py-2 px-2">Data</th>
+                        </tr></thead>
+                        <tbody id="mp-mat-tbody"></tbody>
                     </table>
                 </div>
             </div>
         </details>
 
         <!-- S9: Histórico -->
-        <div class="glass-card overflow-hidden">
-            <div class="px-5 py-4 border-b border-slate-700/20">
-                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                    <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    Histórico de Campanhas
-                </h3>
-            </div>
-            <div class="p-5">
-                <div id="mp-historico" class="flex flex-wrap gap-3">
-                    <p class="text-slate-600 text-xs">Carregando...</p>
-                </div>
+        <div id="mp-historico-wrap" class="mp-animate">
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-base text-violet-400">history</span>
+                Campanhas Anteriores
+            </h3>
+            <div id="mp-historico" class="flex gap-3 overflow-x-auto pb-2">
+                <p class="text-xs text-slate-600">Carregando...</p>
             </div>
         </div>
 
-    </div><!-- max-w -->
-</div><!-- mp-content -->
-
+    </div>
+</div>
 </section>
