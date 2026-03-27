@@ -150,6 +150,8 @@ function _mpRenderHero(d) {
     const prem = d.premiacao || {};
     const total = prem.total || 0;
     const tier = d.tier;
+    const metas = d.metas || {};
+    const totalMat = d.total_matriculas || 0;
 
     if (hero) {
         hero.className = hero.className.replace(/mp-tier-\w+/g, '');
@@ -175,9 +177,51 @@ function _mpRenderHero(d) {
     else if (tier === 'intermediaria') badge.className += 'bg-orange-500/20 text-orange-300';
     else badge.className += 'bg-slate-600/30 text-slate-400';
 
-    el('mp-hero-mat').textContent = `${d.total_matriculas} matrículas`;
+    el('mp-hero-mat').textContent = `${totalMat} matrículas`;
     el('mp-hero-dias').textContent = `${d.dias_restantes} dias restantes`;
-    el('mp-hero-msg').textContent = d.mensagem || '';
+
+    // Mensagem em HTML (suporta quebras de linha)
+    const msgEl = el('mp-hero-msg');
+    if (msgEl) msgEl.innerHTML = d.mensagem || '';
+
+    // Termômetro de progresso por tier
+    const thermo = document.getElementById('mp-hero-thermo');
+    if (thermo) {
+        const inter = metas.intermediaria || 0;
+        const meta = metas.meta || 0;
+        const sup = metas.supermeta || 0;
+        const maxTarget = sup || meta || inter || totalMat || 1;
+        const scale = Math.max(maxTarget, totalMat) * 1.05;
+
+        const markers = [];
+        if (inter > 0) markers.push({ label: 'Inter', val: inter, color: '#f97316' });
+        if (meta > 0) markers.push({ label: 'Meta', val: meta, color: '#94a3b8' });
+        if (sup > 0) markers.push({ label: 'Super', val: sup, color: '#f59e0b' });
+
+        const pctAgent = Math.min(100, (totalMat / scale) * 100);
+
+        let barColor = '#64748b';
+        if (tier === 'supermeta') barColor = '#f59e0b';
+        else if (tier === 'meta') barColor = '#94a3b8';
+        else if (tier === 'intermediaria') barColor = '#f97316';
+
+        const markerHtml = markers.map(m => {
+            const left = Math.min(98, (m.val / scale) * 100);
+            const reached = totalMat >= m.val;
+            return `<div class="absolute" style="left:${left}%">
+                <div class="w-0.5 h-5 -mt-1" style="background:${reached ? m.color : 'rgba(255,255,255,0.15)'}"></div>
+                <span class="absolute -translate-x-1/2 text-[9px] font-bold mt-0.5 whitespace-nowrap" style="color:${reached ? m.color : 'rgba(255,255,255,0.3)'}">${m.label} (${m.val})</span>
+            </div>`;
+        }).join('');
+
+        thermo.innerHTML = `
+            <div class="relative h-3 bg-white/10 rounded-full overflow-visible mt-1 mb-6">
+                <div class="h-full rounded-full transition-all duration-1000 relative" style="width:${pctAgent}%;background:${barColor}">
+                    <div class="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 border-white shadow-lg" style="background:${barColor}"></div>
+                </div>
+                ${markerHtml}
+            </div>`;
+    }
 }
 
 function _mpCalcMaxPotencial(d) {
@@ -200,47 +244,44 @@ function _mpRenderRanking(d) {
     const pos = rk.posicao;
     const total = rk.total_agentes;
     const diff = rk.diferenca_lider;
-    const top = rk.top || [];
+    const myMat = rk.minhas_mat || 0;
+    const myAce = rk.meus_aceites || 0;
 
     const medalCfg = {
-        1: { icon: 'trophy', color: 'text-amber-400', bg: 'bg-amber-500/15 border-amber-500/30', ring: 'ring-amber-500/40' },
-        2: { icon: 'workspace_premium', color: 'text-slate-300', bg: 'bg-slate-400/10 border-slate-400/20', ring: 'ring-slate-400/30' },
-        3: { icon: 'workspace_premium', color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20', ring: 'ring-orange-500/30' },
+        1: { icon: 'trophy', color: 'text-amber-400', bg: 'bg-gradient-to-br from-amber-500/30 to-amber-900/15', border: 'border-amber-400/50', glow: 'shadow-amber-500/20', label: '🏆 Você lidera o ranking!', labelColor: 'text-amber-400' },
+        2: { icon: 'workspace_premium', color: 'text-slate-200', bg: 'bg-gradient-to-br from-slate-300/20 to-slate-700/10', border: 'border-slate-300/40', glow: 'shadow-slate-400/15', label: '🥈 Vice-líder!', labelColor: 'text-slate-300' },
+        3: { icon: 'workspace_premium', color: 'text-orange-400', bg: 'bg-gradient-to-br from-orange-500/25 to-orange-900/10', border: 'border-orange-400/40', glow: 'shadow-orange-500/15', label: '🥉 Top 3! Pódio!', labelColor: 'text-orange-400' },
     };
+    const m = medalCfg[pos];
 
-    const myMedal = medalCfg[pos];
-    const heroHtml = `
-        <div class="flex items-center gap-4 mb-4 pb-4 border-b border-slate-700/30">
-            <div class="w-16 h-16 rounded-2xl flex items-center justify-center border-2 ${myMedal ? myMedal.bg + ' ' + myMedal.ring : 'bg-slate-700/50 border-slate-600/30'} ring-2 ${myMedal ? myMedal.ring : 'ring-slate-700/30'}">
-                ${myMedal
-                    ? `<span class="material-symbols-outlined text-3xl ${myMedal.color}">${myMedal.icon}</span>`
-                    : `<span class="text-2xl font-black text-slate-400">${pos}°</span>`}
+    let motivacao = '';
+    if (pos === 1) {
+        motivacao = '<p class="text-xs text-amber-300/80 mt-2">Ninguém te alcançou! Continue dominando! 🔥</p>';
+    } else if (diff > 0 && diff <= 3) {
+        motivacao = `<p class="text-xs text-cyan-400 font-semibold mt-2">🔥 Quase lá! Só <strong>${diff}</strong> para o topo!</p>`;
+    } else if (diff > 0 && diff <= 10) {
+        motivacao = `<p class="text-xs text-slate-400 mt-2">Faltam <strong>${diff}</strong> para o 1°. Cada matrícula conta! 💪</p>`;
+    } else if (diff > 0) {
+        motivacao = `<p class="text-xs text-slate-500 mt-2">${diff} atrás do líder — foco e consistência! 🚀</p>`;
+    }
+
+    const scoreDetail = `<p class="text-[10px] text-slate-500 mt-1">${myMat} mat${myAce > 0 ? ' + ' + myAce + ' aceite' + (myAce > 1 ? 's' : '') : ''}</p>`;
+
+    content.innerHTML = `
+        <div class="flex items-center gap-5">
+            <div class="w-20 h-20 rounded-2xl flex items-center justify-center border-2 ${m ? m.bg + ' ' + m.border + ' ' + m.glow : 'bg-slate-700/40 border-slate-600/30'} shadow-lg">
+                ${m
+                    ? `<span class="material-symbols-outlined text-4xl ${m.color}">${m.icon}</span>`
+                    : `<span class="text-3xl font-black text-slate-300">${pos}°</span>`}
             </div>
-            <div>
-                <p class="text-2xl font-black text-white">${pos}° <span class="text-sm font-normal text-slate-500">de ${total}</span></p>
-                ${pos === 1
-                    ? '<p class="text-xs text-amber-400 font-bold">Você lidera o ranking!</p>'
-                    : `<p class="text-xs text-slate-400">${diff} atrás do 1° lugar</p>`}
+            <div class="flex-1">
+                <p class="text-3xl font-black text-white">${pos}°</p>
+                <p class="text-sm text-slate-500">de ${total}</p>
+                ${scoreDetail}
+                ${m ? `<p class="text-xs font-bold ${m.labelColor} mt-1">${m.label}</p>` : ''}
+                ${motivacao}
             </div>
         </div>`;
-
-    const listHtml = top.map((t, i) => {
-        const p = i + 1;
-        const mc = medalCfg[p];
-        const isMe = t.uid === (_mpSelectedUid || _mpMyUid);
-        const nameParts = (t.nome || '').split(' ');
-        const shortName = nameParts[0] || t.nome;
-        return `<div class="flex items-center gap-2.5 py-1.5 ${isMe ? 'bg-cyan-500/5 -mx-2 px-2 rounded-lg border border-cyan-500/20' : ''}">
-            <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${mc ? mc.bg + ' border' : 'bg-slate-800/50'}">
-                ${mc ? `<span class="material-symbols-outlined text-sm ${mc.color}">${mc.icon}</span>` : `<span class="text-[10px] font-bold text-slate-500">${p}°</span>`}
-            </div>
-            <span class="text-xs ${isMe ? 'text-cyan-300 font-bold' : 'text-slate-300'} flex-1 truncate">${isMe ? 'Você' : shortName}</span>
-            <span class="text-xs font-bold ${isMe ? 'text-cyan-400' : 'text-white'}">${t.total}</span>
-            ${t.aceites > 0 ? `<span class="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-400 font-medium">${t.aceites} ac.</span>` : ''}
-        </div>`;
-    }).join('');
-
-    content.innerHTML = heroHtml + `<div class="space-y-0.5">${listHtml}</div>`;
 }
 
 /* ═══ Conquistas ═══ */
@@ -250,36 +291,36 @@ function _mpRenderConquistas(d) {
     if (!card || !grid) return;
 
     const achieved = d.conquistas || [];
-    const allPossible = [
-        { id: 'primeira_mat', nome: 'Primeira Matrícula', icone: 'school' },
-        { id: 'streak_3', nome: '3 Dias Seguidos', icone: 'local_fire_department' },
-        { id: 'streak_5', nome: '5 Dias Seguidos', icone: 'whatshot' },
-        { id: 'streak_7', nome: 'Imparável', icone: 'bolt' },
-        { id: 'meta_batida', nome: 'Meta Batida', icone: 'emoji_events' },
-        { id: 'supermeta', nome: 'Supermeta', icone: 'military_tech' },
-        { id: 'meta_antecipada', nome: 'Meta Antecipada', icone: 'schedule' },
-        { id: 'melhor_dia', nome: 'Super Dia', icone: 'star' },
-        { id: 'top_1', nome: 'Top 1 (Ouro)', icone: 'workspace_premium' },
-        { id: 'top_2', nome: 'Top 2 (Prata)', icone: 'workspace_premium' },
-        { id: 'top_3', nome: 'Top 3 (Bronze)', icone: 'workspace_premium' },
-    ];
-    const achievedIds = new Set(achieved.map(a => a.id));
-    if (!achieved.length && !allPossible.length) { card.classList.add('hidden'); return; }
+    if (!achieved.length) {
+        card.classList.remove('hidden');
+        grid.innerHTML = `
+            <div class="w-full text-center py-6">
+                <span class="material-symbols-outlined text-4xl text-emerald-600/40 mb-2">rocket_launch</span>
+                <p class="text-sm text-slate-400 font-semibold">Suas conquistas aparecem aqui! 🚀</p>
+                <p class="text-[10px] text-slate-600 mt-1">Faça matrículas, bata metas e suba no ranking.</p>
+            </div>`;
+        return;
+    }
     card.classList.remove('hidden');
 
-    grid.innerHTML = allPossible.map(a => {
-        const unlocked = achievedIds.has(a.id);
-        const real = achieved.find(x => x.id === a.id);
-        const desc = real?.desc || a.nome;
-        if (unlocked) {
-            return `<div class="flex flex-col items-center gap-1.5 p-3 rounded-xl w-20 bg-gradient-to-b from-purple-500/20 to-purple-900/10 border border-purple-500/30 shadow-lg shadow-purple-500/5" title="${desc}">
-                <span class="material-symbols-outlined text-2xl text-purple-300 drop-shadow-[0_0_6px_rgba(168,85,247,0.4)]">${real?.icone || a.icone}</span>
-                <span class="text-[9px] text-center leading-tight text-purple-200 font-semibold">${real?.nome || a.nome}</span>
-            </div>`;
-        }
-        return `<div class="flex flex-col items-center gap-1 p-2.5 rounded-xl w-20 bg-slate-800/20 opacity-30" title="${desc}">
-            <span class="material-symbols-outlined text-xl text-slate-600">${a.icone}</span>
-            <span class="text-[9px] text-center leading-tight text-slate-600">${a.nome}</span>
+    const colorMap = {
+        primeira_mat: { bg: '#065f46', border: '#10b981', icon: '#6ee7b7', glow: '#10b981' },
+        streak_3: { bg: '#78350f', border: '#f59e0b', icon: '#fcd34d', glow: '#f59e0b' },
+        streak_5: { bg: '#7c2d12', border: '#f97316', icon: '#fdba74', glow: '#f97316' },
+        streak_7: { bg: '#7f1d1d', border: '#ef4444', icon: '#fca5a5', glow: '#ef4444' },
+        meta_batida: { bg: '#1e3a5f', border: '#3b82f6', icon: '#93c5fd', glow: '#3b82f6' },
+        supermeta: { bg: '#713f12', border: '#eab308', icon: '#fef08a', glow: '#eab308' },
+        meta_antecipada: { bg: '#164e63', border: '#06b6d4', icon: '#67e8f9', glow: '#06b6d4' },
+        melhor_dia: { bg: '#831843', border: '#ec4899', icon: '#f9a8d4', glow: '#ec4899' },
+        top_3: { bg: '#451a03', border: '#d97706', icon: '#fbbf24', glow: '#d97706' },
+    };
+    const defaultColor = { bg: '#4a1d96', border: '#a855f7', icon: '#d8b4fe', glow: '#a855f7' };
+
+    grid.innerHTML = achieved.map(a => {
+        const c = colorMap[a.id] || defaultColor;
+        return `<div class="flex flex-col items-center gap-2 p-3 rounded-xl w-[88px] border-2 shadow-lg transition-transform hover:scale-110 cursor-default" style="background:${c.bg};border-color:${c.border};box-shadow:0 0 16px ${c.glow}55, 0 4px 12px rgba(0,0,0,.3)" title="${a.desc || a.nome}">
+            <span class="material-symbols-outlined text-3xl" style="color:${c.icon};filter:drop-shadow(0 0 8px ${c.glow})">${a.icone}</span>
+            <span class="text-[9px] text-center leading-tight font-bold" style="color:${c.icon}">${a.nome}</span>
         </div>`;
     }).join('');
 }
@@ -362,31 +403,44 @@ function _mpRenderPixDia(d) {
         }
     }
 
+    const ontemRealizadas = hoje.ontem_realizadas || 0;
+
+    // Comparação com ontem
+    let yesterdayHtml = '';
+    if (feitas > ontemRealizadas && ontemRealizadas >= 0) {
+        const diff = feitas - ontemRealizadas;
+        yesterdayHtml = `<p class="text-[10px] text-emerald-400 font-semibold mt-2">📈 +${diff} a mais que ontem — continue assim!</p>`;
+    } else if (feitas === ontemRealizadas && feitas > 0) {
+        yesterdayHtml = `<p class="text-[10px] text-amber-400 font-semibold mt-2">⚡ Mesmo ritmo de ontem — hora de ultrapassar!</p>`;
+    } else if (feitas < ontemRealizadas && ontemRealizadas > 0) {
+        yesterdayHtml = `<p class="text-[10px] text-orange-400 font-semibold mt-2">🔥 Ontem você fez ${ontemRealizadas} — bora superar!</p>`;
+    }
+
     if (meta <= 0) {
         if (status) status.textContent = 'Sem meta diária hoje';
-        if (detail) detail.textContent = aceitesFila > 0
-            ? `Nenhuma meta PIX configurada, mas você tem ${aceitesFila} aceite${aceitesFila > 1 ? 's' : ''} na fila!`
-            : 'Nenhuma meta PIX configurada para hoje.';
+        if (detail) {
+            detail.innerHTML = (aceitesFila > 0
+                ? `Nenhuma meta PIX configurada, mas você tem ${aceitesFila} aceite${aceitesFila > 1 ? 's' : ''} na fila!`
+                : 'Nenhuma meta PIX configurada para hoje.') + yesterdayHtml;
+        }
         if (valor) valor.textContent = '';
         return;
     }
 
     if (efetivo >= meta) {
         const ganho = fixo + extra * Math.max(0, efetivo - meta);
-        if (status) { status.textContent = 'PIX Garantido!'; status.className = 'text-base font-bold text-emerald-400 mb-1'; }
+        if (status) { status.textContent = '🎉 PIX Garantido!'; status.className = 'text-base font-bold text-emerald-400 mb-1'; }
         const parts = [];
         if (feitas > 0) parts.push(`${feitas} matrícula${feitas > 1 ? 's' : ''}`);
         if (aceitesHoje > 0) parts.push(`${aceitesHoje} aceite${aceitesHoje > 1 ? 's' : ''}`);
-        if (detail) detail.textContent = efetivo > meta
+        if (detail) detail.innerHTML = (efetivo > meta
             ? `Meta batida! ${parts.join(' + ')} · +${efetivo - meta} extra × ${_mpFmt(extra)} cada`
-            : `Parabéns! ${parts.join(' + ')} = meta batida!`;
+            : `Parabéns! ${parts.join(' + ')} = meta batida!`) + yesterdayHtml;
         if (valor) valor.textContent = _mpFmt(ganho);
     } else {
         const falta = meta - efetivo;
         if (status) { status.textContent = `Faltam ${falta} para o PIX!`; status.className = 'text-base font-bold text-cyan-400 mb-1'; }
-        const aceiteTip = aceitesFila > aceitesHoje
-            ? ` (${aceitesFila - aceitesHoje} aceite${aceitesFila - aceitesHoje > 1 ? 's' : ''} pendente${aceitesFila - aceitesHoje > 1 ? 's' : ''} podem virar matrícula!)` : '';
-        if (detail) detail.textContent = `${feitas} matrícula${feitas !== 1 ? 's' : ''} + ${aceitesHoje} aceite${aceitesHoje !== 1 ? 's' : ''} = ${efetivo}/${meta}${aceiteTip}`;
+        if (detail) detail.innerHTML = `${feitas} matrícula${feitas !== 1 ? 's' : ''} + ${aceitesHoje} aceite${aceitesHoje !== 1 ? 's' : ''} = ${efetivo}/${meta}` + yesterdayHtml;
         if (valor) valor.textContent = `Prêmio: ${_mpFmt(fixo)}`;
     }
 }

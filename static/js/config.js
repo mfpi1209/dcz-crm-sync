@@ -437,16 +437,24 @@ function renderUsers() {
         tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-gray-500">Nenhum usuário</td></tr>';
         return;
     }
+    const _catColors = {
+        'Comercial': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+        'Suporte Comercial': 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+        'Acadêmico': 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+    };
     tbody.innerHTML = _usersData.map(u => {
         const roleLabel = u.role === 'admin'
             ? '<span class="tag-pill bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">Admin</span>'
             : '<span class="tag-pill bg-gray-700/50 text-gray-400 border border-gray-600/30">Viewer</span>';
+        const catLabel = u.categoria
+            ? `<span class="tag-pill text-[10px] border ${_catColors[u.categoria] || 'bg-gray-700/50 text-gray-400 border-gray-600/30'}">${u.categoria}</span>`
+            : '<span class="text-gray-600 text-xs">—</span>';
         const permsHtml = u.role === 'admin'
             ? '<span class="text-xs text-emerald-400">Acesso total</span>'
             : (u.pages || []).map(p => `<span class="inline-block text-[10px] bg-gray-100 dark:bg-gray-800/50 text-gray-400 px-1.5 py-0.5 rounded mr-1 mb-1">${PAGE_LABELS[p] || p}</span>`).join('');
         return `<tr class="border-b border-[var(--border)]">
             <td class="py-3 font-medium">${u.username}</td>
-            <td class="py-3 text-xs">${u.email_cruzeiro || '<span class="text-gray-600">—</span>'}</td>
+            <td class="py-3">${catLabel}</td>
             <td class="py-3">${roleLabel}</td>
             <td class="py-3 max-w-xs">${permsHtml}</td>
             <td class="py-3 text-xs text-gray-500">${u.created_at || ''}</td>
@@ -498,13 +506,14 @@ async function createUser() {
     const kommoRaw = document.getElementById('user-new-kommo-uid').value.trim();
     const kommo_user_id = kommoRaw ? parseInt(kommoRaw) : null;
     const email_cruzeiro = (document.getElementById('user-new-email-cruzeiro').value || '').trim() || null;
+    const categoria = document.getElementById('user-new-categoria').value || null;
     if (!username || !password) { toast('Usuário e senha são obrigatórios', 'warning'); return; }
     const cbs = document.querySelectorAll('.user-new-page-cb:checked');
     const pages = Array.from(cbs).map(cb => cb.value);
     try {
         const res = await api('/api/users', {
             method: 'POST', headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({ username, password, role, pages, kommo_user_id, email_cruzeiro }),
+            body: JSON.stringify({ username, password, role, pages, kommo_user_id, email_cruzeiro, categoria }),
         });
         const d = await res.json();
         if (d.error) { toast(d.error, 'error'); return; }
@@ -544,7 +553,7 @@ async function editUser(uid) {
                 </button>
             </div>
             <div class="p-6 space-y-5">
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-xs text-gray-500 mb-1.5 font-medium">Nova Senha</label>
                         <input type="password" id="edit-user-pw" class="input-glass px-3 py-2 text-sm text-gray-200 w-full" autocomplete="new-password" placeholder="Vazio = manter">
@@ -556,6 +565,15 @@ async function editUser(uid) {
                     <div>
                         <label class="block text-xs text-gray-500 mb-1.5 font-medium">E-mail Cruzeiro</label>
                         <input type="email" id="edit-user-email-cruzeiro" value="${u.email_cruzeiro||''}" class="input-glass px-3 py-2 text-sm text-gray-200 w-full" placeholder="nome@cruzeirodosul.edu.br">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1.5 font-medium">Categoria</label>
+                        <select id="edit-user-categoria" class="input-glass px-3 py-2 text-sm text-gray-200 w-full">
+                            <option value="">— Nenhuma —</option>
+                            <option value="Comercial" ${u.categoria==='Comercial'?'selected':''}>Comercial</option>
+                            <option value="Suporte Comercial" ${u.categoria==='Suporte Comercial'?'selected':''}>Suporte Comercial</option>
+                            <option value="Acadêmico" ${u.categoria==='Acadêmico'?'selected':''}>Acadêmico</option>
+                        </select>
                     </div>
                     <div>
                         <label class="block text-xs text-gray-500 mb-1.5 font-medium">Nível</label>
@@ -584,9 +602,10 @@ async function saveUserEdit(uid) {
     const role = document.getElementById('edit-user-role').value;
     const kommoRaw = document.getElementById('edit-user-kommo-uid').value.trim();
     const emailCruzeiro = (document.getElementById('edit-user-email-cruzeiro').value || '').trim();
+    const categoria = document.getElementById('edit-user-categoria').value || null;
     const cbs = document.querySelectorAll('.edit-perm-cb:checked');
     const pages = Array.from(cbs).map(cb => cb.value);
-    const body = { role, pages, kommo_user_id: kommoRaw ? parseInt(kommoRaw) : null, email_cruzeiro: emailCruzeiro || null };
+    const body = { role, pages, kommo_user_id: kommoRaw ? parseInt(kommoRaw) : null, email_cruzeiro: emailCruzeiro || null, categoria };
     if (pw) body.password = pw;
     try {
         const res = await api('/api/users/' + uid, {
@@ -602,9 +621,31 @@ async function saveUserEdit(uid) {
 
 async function importKommoUsers() {
     const msg = document.getElementById('import-kommo-msg');
-    if (msg) msg.textContent = 'Importando...';
+    if (msg) msg.textContent = 'Importando do Kommo...';
     try {
         const res = await api('/api/users/import-kommo', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+        });
+        const d = await res.json();
+        if (d.ok) {
+            toast(d.summary);
+            if (msg) msg.textContent = d.summary;
+            loadUsers();
+        } else {
+            toast(d.error || 'Erro', 'error');
+            if (msg) msg.textContent = d.error || 'Erro';
+        }
+    } catch (e) {
+        toast('Erro: ' + e.message, 'error');
+        if (msg) msg.textContent = 'Erro de conexão';
+    }
+}
+
+async function importDataCrazyUsers() {
+    const msg = document.getElementById('import-kommo-msg');
+    if (msg) msg.textContent = 'Importando do DataCrazy...';
+    try {
+        const res = await api('/api/users/import-datacrazy', {
             method: 'POST', headers: {'Content-Type':'application/json'},
         });
         const d = await res.json();

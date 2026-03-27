@@ -124,14 +124,16 @@ def api_me():
     else:
         pages = _get_user_permissions(uid)
     kommo_user_id = None
+    categoria = None
     if uid and uid != 0:
         try:
             conn = get_conn()
             with conn.cursor() as cur:
-                cur.execute("SELECT kommo_user_id FROM app_users WHERE id = %s", (uid,))
+                cur.execute("SELECT kommo_user_id, categoria FROM app_users WHERE id = %s", (uid,))
                 row = cur.fetchone()
                 if row:
                     kommo_user_id = row[0]
+                    categoria = row[1]
             conn.close()
         except Exception:
             pass
@@ -141,6 +143,7 @@ def api_me():
         "role": role,
         "pages": pages,
         "kommo_user_id": kommo_user_id,
+        "categoria": categoria,
     })
 
 
@@ -170,7 +173,8 @@ def api_users_list():
     conn = get_conn()
     with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
         cur.execute("""
-            SELECT u.id, u.username, u.role, u.kommo_user_id, u.email_cruzeiro, u.created_at,
+            SELECT u.id, u.username, u.role, u.kommo_user_id, u.email_cruzeiro,
+                   u.categoria, u.datacrazy_user_id, u.created_at,
                    ARRAY(SELECT p.page FROM user_permissions p WHERE p.user_id = u.id ORDER BY p.page) AS pages
             FROM app_users u ORDER BY u.id
         """)
@@ -192,6 +196,8 @@ def api_users_create():
     pages = body.get("pages", [])
     kommo_user_id = body.get("kommo_user_id")
     email_cruzeiro = (body.get("email_cruzeiro") or "").strip() or None
+    categoria = (body.get("categoria") or "").strip() or None
+    datacrazy_user_id = (body.get("datacrazy_user_id") or "").strip() or None
     if not username or not password:
         return jsonify({"error": "Usuário e senha são obrigatórios"}), 400
     if role not in ("admin", "viewer"):
@@ -203,8 +209,8 @@ def api_users_create():
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO app_users (username, pw_hash, role, kommo_user_id, email_cruzeiro) VALUES (%s, %s, %s, %s, %s) RETURNING id",
-                (username, _hash_pw(password), role, kommo_user_id or None, email_cruzeiro),
+                "INSERT INTO app_users (username, pw_hash, role, kommo_user_id, email_cruzeiro, categoria, datacrazy_user_id) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
+                (username, _hash_pw(password), role, kommo_user_id or None, email_cruzeiro, categoria, datacrazy_user_id),
             )
             uid = cur.fetchone()[0]
             if role == "admin":
@@ -248,6 +254,12 @@ def api_users_update(uid):
         if "email_cruzeiro" in body:
             cur.execute("UPDATE app_users SET email_cruzeiro = %s WHERE id = %s",
                         ((body["email_cruzeiro"] or "").strip() or None, uid))
+        if "categoria" in body:
+            cur.execute("UPDATE app_users SET categoria = %s WHERE id = %s",
+                        ((body["categoria"] or "").strip() or None, uid))
+        if "datacrazy_user_id" in body:
+            cur.execute("UPDATE app_users SET datacrazy_user_id = %s WHERE id = %s",
+                        ((body["datacrazy_user_id"] or "").strip() or None, uid))
         if pages is not None:
             if role == "admin":
                 pages = list(ALL_PAGES)
@@ -279,8 +291,9 @@ def api_users_delete(uid):
 def api_users_import_kommo():
     """Import Kommo users as app_users.
 
-    Uses email as username when available, otherwise generates from name.
+    Uses email as username (login). If no email, generates slug from name.
     Default password: eduit2026, role: viewer, permission: minha_performance.
+    Also updates existing users' usernames to email if they had slug-based names.
     """
     if session.get("role") != "admin":
         return jsonify({"error": "Sem permissão"}), 403
@@ -292,7 +305,6 @@ def api_users_import_kommo():
     DEFAULT_PAGES = ["minha_performance"]
 
     def _slug(name):
-        """Convert name to a simple lowercase username slug."""
         nfkd = unicodedata.normalize("NFKD", name)
         ascii_only = nfkd.encode("ascii", "ignore").decode("ascii")
         slug = re.sub(r"[^a-z0-9]+", ".", ascii_only.lower()).strip(".")
@@ -310,12 +322,13 @@ def api_users_import_kommo():
 
     conn = get_conn()
     created = []
+    updated = []
     skipped = []
     errors = []
 
     with conn.cursor() as cur:
-        cur.execute("SELECT kommo_user_id, username FROM app_users WHERE kommo_user_id IS NOT NULL")
-        existing_kommo = {r[0]: r[1] for r in cur.fetchall()}
+        cur.execute("SELECT id, kommo_user_id, username FROM app_users WHERE kommo_user_id IS NOT NULL")
+        existing_kommo = {r[1]: {"id": r[0], "username": r[2]} for r in cur.fetchall()}
 
         cur.execute("SELECT username FROM app_users")
         existing_usernames = {r[0] for r in cur.fetchall()}
@@ -326,7 +339,17 @@ def api_users_import_kommo():
             name = ku["name"] or ""
 
             if kid in existing_kommo:
-                skipped.append({"kommo_id": kid, "name": name, "reason": f"Já vinculado como {existing_kommo[kid]}"})
+                ex = existing_kommo[kid]
+                if email and ex["username"] != email and email not in existing_usernames:
+                    try:
+                        cur.execute("UPDATE app_users SET username = %s WHERE id = %s", (email, ex["id"]))
+                        existing_usernames.discard(ex["username"])
+                        existing_usernames.add(email)
+                        updated.append({"kommo_id": kid, "name": name, "old": ex["username"], "new": email})
+                    except Exception as e:
+                        errors.append({"kommo_id": kid, "name": name, "error": f"update: {e}"})
+                else:
+                    skipped.append({"kommo_id": kid, "name": name, "reason": f"Já vinculado como {ex['username']}"})
                 continue
 
             username = email if email else _slug(name)
@@ -351,10 +374,119 @@ def api_users_import_kommo():
     conn.commit()
     conn.close()
 
+    parts = []
+    if created: parts.append(f"{len(created)} criados")
+    if updated: parts.append(f"{len(updated)} atualizados p/ email")
+    if skipped: parts.append(f"{len(skipped)} já existiam")
+    if errors: parts.append(f"{len(errors)} erros")
+
+    return jsonify({
+        "ok": True,
+        "created": created,
+        "updated": updated,
+        "skipped": skipped,
+        "errors": errors,
+        "summary": ", ".join(parts) or "Nenhum usuário encontrado",
+    })
+
+
+@auth_bp.route("/api/users/import-datacrazy", methods=["POST"])
+def api_users_import_datacrazy():
+    """Import DataCrazy CRM users as app_users.
+
+    Fetches from DataCrazy API /users, creates app_users with email as login.
+    Default password: eduit2026, role: viewer, permission: minha_performance.
+    """
+    if session.get("role") != "admin":
+        return jsonify({"error": "Sem permissão"}), 403
+
+    import requests as req
+
+    API_BASE = "https://api.g1.datacrazy.io/api/v1"
+    API_TOKEN = os.getenv("DATACRAZY_API_TOKEN", "")
+    if not API_TOKEN:
+        return jsonify({"ok": False, "error": "DATACRAZY_API_TOKEN não configurado"}), 500
+
+    DEFAULT_PW = "eduit2026"
+    DEFAULT_PAGES = ["minha_performance"]
+
+    try:
+        headers = {"Authorization": f"Bearer {API_TOKEN}"}
+        all_users = []
+        skip = 0
+        while True:
+            resp = req.get(f"{API_BASE}/users", headers=headers, params={"skip": skip, "take": 200}, timeout=30)
+            resp.raise_for_status()
+            body = resp.json()
+            data = body.get("data", body) if isinstance(body, dict) else body
+            if isinstance(data, list):
+                all_users.extend(data)
+                total = body.get("count", len(data)) if isinstance(body, dict) else len(data)
+                skip += 200
+                if skip >= total:
+                    break
+            else:
+                break
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Erro ao conectar ao DataCrazy: {e}"}), 500
+
+    conn = get_conn()
+    created = []
+    skipped = []
+    errors = []
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT datacrazy_user_id, username FROM app_users WHERE datacrazy_user_id IS NOT NULL")
+        existing_dc = {r[0]: r[1] for r in cur.fetchall()}
+
+        cur.execute("SELECT username FROM app_users")
+        existing_usernames = {r[0] for r in cur.fetchall()}
+
+        for u in all_users:
+            uid_dc = str(u.get("id", ""))
+            name = u.get("name") or u.get("fullName") or ""
+            email = (u.get("email") or "").strip().lower()
+
+            if not uid_dc:
+                continue
+            if uid_dc in existing_dc:
+                skipped.append({"dc_id": uid_dc, "name": name, "reason": f"Já vinculado como {existing_dc[uid_dc]}"})
+                continue
+
+            username = email if email else name.lower().replace(" ", ".")
+            if not username:
+                skipped.append({"dc_id": uid_dc, "name": name, "reason": "Sem email/nome"})
+                continue
+            if username in existing_usernames:
+                skipped.append({"dc_id": uid_dc, "name": name, "reason": f"Username '{username}' já existe"})
+                continue
+
+            try:
+                cur.execute(
+                    "INSERT INTO app_users (username, pw_hash, role, datacrazy_user_id) VALUES (%s, %s, %s, %s) RETURNING id",
+                    (username, _hash_pw(DEFAULT_PW), "viewer", uid_dc),
+                )
+                new_id = cur.fetchone()[0]
+                for pg in DEFAULT_PAGES:
+                    if pg in ALL_PAGES:
+                        cur.execute("INSERT INTO user_permissions (user_id, page) VALUES (%s, %s)", (new_id, pg))
+                created.append({"id": new_id, "dc_id": uid_dc, "name": name, "username": username})
+                existing_usernames.add(username)
+            except Exception as e:
+                errors.append({"dc_id": uid_dc, "name": name, "error": str(e)})
+
+    conn.commit()
+    conn.close()
+
+    parts = []
+    if created: parts.append(f"{len(created)} criados")
+    if skipped: parts.append(f"{len(skipped)} já existiam")
+    if errors: parts.append(f"{len(errors)} erros")
+
     return jsonify({
         "ok": True,
         "created": created,
         "skipped": skipped,
         "errors": errors,
-        "summary": f"{len(created)} criados, {len(skipped)} já existiam, {len(errors)} erros",
+        "summary": ", ".join(parts) or "Nenhum usuário encontrado",
     })
