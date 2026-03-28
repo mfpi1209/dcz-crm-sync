@@ -2,8 +2,21 @@
 // Distribuição
 // ---------------------------------------------------------------------------
 let _distData = [];
+let _distEmailConfig = {};
 let _distSortCol = 'fila';
 let _distSortDir = 'asc';
+const ME_API_URL = 'https://banco-dev-n8n-eduit.6tqx2r.easypanel.host/webhook/api/marco_email';
+
+async function _meApi(action, params = {}) {
+    const res = await fetch(ME_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, params })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Erro');
+    return data.data;
+}
 
 function sortDistCol(col) {
     if (_distSortCol === col) {
@@ -26,9 +39,16 @@ async function loadDistribuicao() {
     if (loading) loading.classList.remove('hidden');
 
     try {
-        const res = await api('/api/distribuicao');
-        const payload = await res.json();
+        const [distRes, emailCfg] = await Promise.all([
+            api('/api/distribuicao').then(r => r.json()),
+            _meApi('get_dist_email').catch(() => [])
+        ]);
+        const payload = distRes;
         _distData = payload.distribuicao || [];
+
+        _distEmailConfig = {};
+        (emailCfg || []).forEach(c => { _distEmailConfig[String(c.dist_id)] = c.distribuir_email; });
+        _distData.forEach(d => { d.distribuir_email = !!_distEmailConfig[String(d.id)]; });
 
         document.getElementById('dist-fila-atendimento').textContent = (payload.fila_atendimento ?? 0).toLocaleString('pt-BR');
         document.getElementById('dist-fila-acolhimento').textContent = (payload.fila_acolhimento ?? 0).toLocaleString('pt-BR');
@@ -177,12 +197,14 @@ function renderDistTable(items) {
 async function saveDistribuicao() {
     const rows = document.querySelectorAll('#dist-tbody tr');
     const dados = [];
+    const emailItems = [];
     rows.forEach(row => {
         const id = row.getAttribute('data-id');
         const statusSel = row.querySelector('select[data-field="status"]');
         const tipoSel = row.querySelector('select[data-field="tipo"]');
         const emailCheck = row.querySelector('input[data-field="distribuir_email"]');
         const inputs = row.querySelectorAll('input:not([data-field])');
+        const nome = row.querySelector('td:first-child span.text-sm')?.textContent?.trim() || '';
         dados.push({
             id,
             status: statusSel ? statusSel.value : 'Ativo',
@@ -191,22 +213,28 @@ async function saveDistribuicao() {
             pausa: inputs[2].value,
             volume: inputs[3].value,
             tipo_atendimento: tipoSel ? tipoSel.value : 'Atendimento',
+        });
+        emailItems.push({
+            dist_id: id,
+            responsavel: nome,
             distribuir_email: emailCheck ? emailCheck.checked : false,
         });
     });
 
     try {
-        const res = await api('/api/distribuicao', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(dados),
-        });
-        const d = await res.json();
-        if (d.ok) {
+        const [distRes, emailRes] = await Promise.all([
+            api('/api/distribuicao', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(dados),
+            }).then(r => r.json()),
+            _meApi('set_dist_email', { items: emailItems })
+        ]);
+        if (distRes.ok) {
             alert('Alterações salvas com sucesso!');
             loadDistribuicao();
         } else {
-            alert('Erro ao salvar: ' + (d.error || 'desconhecido'));
+            alert('Erro ao salvar distribuição: ' + (distRes.error || 'desconhecido'));
         }
     } catch(e) {
         alert('Erro ao salvar: ' + e.message);
