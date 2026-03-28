@@ -315,6 +315,8 @@ def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
     my_mat = my_entry["mat"] if my_entry else my_total
     my_ace = my_entry["aceites"] if my_entry else 0
 
+    media_time = round(sum(s["total"] for s in agent_scores) / total_agents, 1) if total_agents > 0 else 0
+
     return {
         "posicao": pos,
         "total_agentes": total_agents,
@@ -323,6 +325,7 @@ def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
         "meu_total": my_score,
         "minhas_mat": my_mat,
         "meus_aceites": my_ace,
+        "media_time": media_time,
     }
 
 

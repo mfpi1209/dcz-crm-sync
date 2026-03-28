@@ -114,6 +114,7 @@ async function loadMinhaPerformance(params) {
         _mpRenderDesbloqueie(insights);
         _mpRenderMomentum(insights);
         _mpRenderStreak(insights);
+        _mpRenderCalendar(insights);
         _mpRenderTierProgress(insights);
         _mpRenderFinanceiro(insights);
         _mpRenderTimeline(insights);
@@ -385,6 +386,8 @@ function _mpRenderRanking(d) {
     const diff = rk.diferenca_lider;
     const myMat = rk.minhas_mat || 0;
     const myAce = rk.meus_aceites || 0;
+    const myTotal = rk.meu_total || (myMat + myAce);
+    const media = rk.media_time || 0;
 
     const medalCfg = {
         1: { icon: 'emoji_events', gradient: 'from-amber-500/30 to-amber-900/10', border: 'border-amber-400/50', iconColor: 'text-amber-400', label: '🏆 Você lidera o ranking!', labelColor: 'text-amber-400' },
@@ -401,6 +404,31 @@ function _mpRenderRanking(d) {
 
     const scoreDetail = `<p class="text-[10px] text-slate-500 mt-1">${myMat} mat${myAce > 0 ? ' + ' + myAce + ' aceite' + (myAce > 1 ? 's' : '') : ''}</p>`;
 
+    let mediaHtml = '';
+    if (media > 0) {
+        const diffMedia = myTotal - media;
+        const absDiff = Math.abs(diffMedia).toFixed(1);
+        if (diffMedia > 1) {
+            mediaHtml = `
+                <div class="mt-3 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/15">
+                    <p class="text-[10px] text-slate-400">Média do time: <strong class="text-white">${media}</strong></p>
+                    <p class="text-xs text-emerald-400 font-semibold mt-0.5">📈 Você está ${absDiff} acima da média! Continue assim!</p>
+                </div>`;
+        } else if (diffMedia >= -1) {
+            mediaHtml = `
+                <div class="mt-3 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/15">
+                    <p class="text-[10px] text-slate-400">Média do time: <strong class="text-white">${media}</strong></p>
+                    <p class="text-xs text-amber-400 font-semibold mt-0.5">⚡ Você está na média do time — dá pra mais!</p>
+                </div>`;
+        } else {
+            mediaHtml = `
+                <div class="mt-3 p-2.5 rounded-lg bg-orange-500/10 border border-orange-500/15">
+                    <p class="text-[10px] text-slate-400">Média do time: <strong class="text-white">${media}</strong></p>
+                    <p class="text-xs text-orange-400 font-semibold mt-0.5">🔥 Você está ${absDiff} abaixo da média — bora reverter esse jogo!</p>
+                </div>`;
+        }
+    }
+
     content.innerHTML = `
         <div class="flex items-center gap-5">
             <div class="w-20 h-20 rounded-2xl flex items-center justify-center border-2 bg-gradient-to-br ${m ? m.gradient + ' ' + m.border : 'from-slate-700/40 to-slate-800/40 border-slate-600/30'} shadow-lg">
@@ -408,13 +436,14 @@ function _mpRenderRanking(d) {
                     : `<span class="text-3xl font-black text-slate-300">${pos}°</span>`}
             </div>
             <div class="flex-1">
-                <p class="text-3xl font-black text-white mp-stat-value" id="mp-rank-pos">${pos}°</p>
+                <p class="text-3xl font-black text-white mp-stat-value">${pos}°</p>
                 <p class="text-sm text-slate-500">de ${total}</p>
                 ${scoreDetail}
                 ${m ? `<p class="text-xs font-bold ${m.labelColor} mt-1">${m.label}</p>` : ''}
                 ${motivacao}
             </div>
-        </div>`;
+        </div>
+        ${mediaHtml}`;
 }
 
 
@@ -591,6 +620,113 @@ function _mpRenderStreak(d) {
             : `${_mpFmtDate(h.data)}: ${h.realizadas||0}/${h.meta||0}${bd ? ' · ' + _mpFmt(bd.total) : ''}`;
         return `<div class="${cls} w-4 h-4 rounded-sm cursor-default transition-transform hover:scale-150" title="${tooltip}"></div>`;
     }).join('');
+}
+
+
+/* ═══ Calendário de Resultados ═══ */
+function _mpRenderCalendar(d) {
+    const wrap = document.getElementById('mp-calendar');
+    if (!wrap) return;
+    const heatmap = d.heatmap || [];
+    if (!heatmap.length) { wrap.innerHTML = '<p class="text-xs text-slate-600">Sem dados</p>'; return; }
+
+    const breakdown = (d.premiacao?.daily_breakdown || []);
+    const bdMap = {};
+    breakdown.forEach(b => { bdMap[b.data] = b; });
+
+    const hmMap = {};
+    heatmap.forEach(h => { hmMap[h.data] = h; });
+
+    const dtIni = d.campanha?.dt_inicio;
+    const dtFim = d.campanha?.dt_fim;
+    if (!dtIni || !dtFim) { wrap.innerHTML = ''; return; }
+
+    const startDate = new Date(dtIni + 'T00:00:00');
+    const endDate = new Date(dtFim + 'T00:00:00');
+    const todayStr = new Date().toLocaleDateString('sv-SE');
+
+    const startMonth = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+    const endMonth = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0);
+
+    const dayNames = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+
+    let months = [];
+    let cur = new Date(startMonth);
+    while (cur <= endMonth) {
+        months.push({ year: cur.getFullYear(), month: cur.getMonth() });
+        cur.setMonth(cur.getMonth() + 1);
+    }
+
+    const statusColors = {
+        hit:     { bg: 'rgba(16,185,129,.2)', border: 'rgba(16,185,129,.5)', text: 'text-emerald-400' },
+        partial: { bg: 'rgba(245,158,11,.15)', border: 'rgba(245,158,11,.45)', text: 'text-amber-400' },
+        miss:    { bg: 'rgba(239,68,68,.12)', border: 'rgba(239,68,68,.4)', text: 'text-red-400' },
+        future:  { bg: 'rgba(51,65,85,.2)', border: 'rgba(51,65,85,.4)', text: 'text-slate-600' },
+    };
+
+    const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+    const html = months.map(({ year, month }) => {
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0).getDate();
+        let startDow = firstDay.getDay() - 1;
+        if (startDow < 0) startDow = 6;
+
+        let cells = '';
+        for (let i = 0; i < startDow; i++) {
+            cells += '<div></div>';
+        }
+
+        for (let day = 1; day <= lastDay; day++) {
+            const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+            const h = hmMap[dateStr];
+            const bd = bdMap[dateStr];
+            const isToday = dateStr === todayStr;
+            const inRange = dateStr >= dtIni && dateStr <= dtFim;
+
+            if (!inRange) {
+                cells += `<div class="rounded-lg p-1 text-center opacity-20">
+                    <span class="text-[10px] text-slate-600">${day}</span>
+                </div>`;
+                continue;
+            }
+
+            const status = h?.status || 'future';
+            const sc = statusColors[status] || statusColors.future;
+            const realizadas = h?.realizadas ?? '';
+            const meta = h?.meta ?? '';
+            const bonus = bd ? _mpFmt(bd.total) : '';
+            const todayBorder = isToday ? 'ring-2 ring-white/40' : '';
+
+            const tooltip = status === 'future' ? 'Futuro'
+                : `${_mpFmtDate(dateStr)}: ${realizadas}/${meta}${bonus ? ' · ' + bonus : ''}`;
+
+            const ratioText = (realizadas !== '' && meta) ? `${realizadas}/${meta}` : '';
+
+            cells += `<div class="rounded-lg p-1.5 text-center cursor-default transition-transform hover:scale-110 ${todayBorder}" style="background:${sc.bg};border:1px solid ${sc.border}" title="${tooltip}">
+                <span class="block text-xs font-bold ${sc.text}">${day}</span>
+                ${ratioText ? `<span class="block text-[9px] ${sc.text} opacity-75 leading-tight">${ratioText}</span>` : ''}
+            </div>`;
+        }
+
+        return `<div class="mb-4 last:mb-0">
+            <p class="text-xs font-semibold text-slate-300 mb-2">${monthNames[month]} ${year}</p>
+            <div class="grid grid-cols-7 gap-1">
+                ${dayNames.map(dn => `<div class="text-center text-[9px] text-slate-500 font-medium pb-1">${dn}</div>`).join('')}
+                ${cells}
+            </div>
+        </div>`;
+    }).join('');
+
+    const legend = `<div class="flex items-center gap-3 mt-3 text-[10px] text-slate-600">
+        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm" style="background:#10b981"></span>Bateu</span>
+        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm" style="background:#f59e0b"></span>Parcial</span>
+        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm" style="background:#ef4444"></span>Não bateu</span>
+        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm" style="background:#334155"></span>Futuro</span>
+        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm ring-2 ring-white/40" style="background:#334155"></span>Hoje</span>
+    </div>`;
+
+    wrap.innerHTML = html + legend;
 }
 
 
