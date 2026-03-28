@@ -289,7 +289,7 @@ def api_users_delete(uid):
 
 @auth_bp.route("/api/users/import-kommo", methods=["POST"])
 def api_users_import_kommo():
-    """Import Kommo users as app_users.
+    """Import Kommo users as app_users via Kommo API v4.
 
     Uses email as username (login). If no email, generates slug from name.
     Default password: eduit2026, role: viewer, permission: minha_performance.
@@ -300,9 +300,15 @@ def api_users_import_kommo():
 
     import re
     import unicodedata
+    import requests as req
 
     DEFAULT_PW = "eduit2026"
     DEFAULT_PAGES = ["minha_performance"]
+    KOMMO_BASE = os.getenv("KOMMO_BASE_URL", "https://admamoeduitcombr.kommo.com").rstrip("/")
+    KOMMO_TOKEN = os.getenv("KOMMO_TOKEN", "")
+
+    if not KOMMO_TOKEN:
+        return jsonify({"ok": False, "error": "KOMMO_TOKEN não configurado"}), 500
 
     def _slug(name):
         nfkd = unicodedata.normalize("NFKD", name)
@@ -310,15 +316,36 @@ def api_users_import_kommo():
         slug = re.sub(r"[^a-z0-9]+", ".", ascii_only.lower()).strip(".")
         return slug or "user"
 
+    kommo_users = []
     try:
-        kconn = psycopg2.connect(**KOMMO_DB_DSN)
-        kcur = kconn.cursor()
-        kcur.execute("SELECT id, name, email FROM users WHERE name IS NOT NULL AND name != '' ORDER BY name")
-        kommo_users = [{"id": r[0], "name": r[1], "email": r[2] or ""} for r in kcur.fetchall()]
-        kcur.close()
-        kconn.close()
+        headers = {"Authorization": f"Bearer {KOMMO_TOKEN}"}
+        page = 1
+        while True:
+            resp = req.get(
+                f"{KOMMO_BASE}/api/v4/users",
+                headers=headers,
+                params={"page": page, "limit": 250},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            users_page = data.get("_embedded", {}).get("users", [])
+            if not users_page:
+                break
+            for u in users_page:
+                kommo_users.append({
+                    "id": u.get("id"),
+                    "name": u.get("name", ""),
+                    "email": u.get("email", ""),
+                })
+            if len(users_page) < 250:
+                break
+            page += 1
     except Exception as e:
-        return jsonify({"ok": False, "error": f"Erro ao conectar ao Kommo: {e}"}), 500
+        return jsonify({"ok": False, "error": f"Erro ao buscar usuários do Kommo API: {e}"}), 500
+
+    if not kommo_users:
+        return jsonify({"ok": True, "summary": "Nenhum usuário encontrado na API", "created": [], "updated": [], "skipped": [], "errors": []})
 
     conn = get_conn()
     created = []
@@ -375,7 +402,7 @@ def api_users_import_kommo():
     conn.close()
 
     parts = []
-    if created: parts.append(f"{len(created)} criados")
+    if created: parts.append(f"{len(created)} criados (login = email)")
     if updated: parts.append(f"{len(updated)} atualizados p/ email")
     if skipped: parts.append(f"{len(skipped)} já existiam")
     if errors: parts.append(f"{len(errors)} erros")
@@ -394,63 +421,90 @@ def api_users_import_kommo():
 def api_users_import_datacrazy():
     """Import DataCrazy CRM users as app_users.
 
-    Fetches from DataCrazy API /users, creates app_users with email as login.
-    Default password: eduit2026, role: viewer, permission: minha_performance.
+    Fetches from DataCrazy accounts API /api/accounts/company-users (paginated).
+    Uses email as username (login). Default password: eduit2026, role: viewer.
+    Also updates existing users' usernames to email if they had slug-based names.
     """
     if session.get("role") != "admin":
         return jsonify({"error": "Sem permissão"}), 403
 
     import requests as req
 
-    API_BASE = "https://api.g1.datacrazy.io/api/v1"
+    API_BASE = "https://accounts.g1.datacrazy.io"
     API_TOKEN = os.getenv("DATACRAZY_API_TOKEN", "")
     if not API_TOKEN:
         return jsonify({"ok": False, "error": "DATACRAZY_API_TOKEN não configurado"}), 500
 
     DEFAULT_PW = "eduit2026"
     DEFAULT_PAGES = ["minha_performance"]
+    PAGE_SIZE = 50
 
+    all_users = []
     try:
-        headers = {"Authorization": f"Bearer {API_TOKEN}"}
-        all_users = []
+        headers = {
+            "Authorization": f"Bearer {API_TOKEN}",
+            "Content-Type": "application/json",
+            "x-language": "pt",
+            "x-timezone": "America/Sao_Paulo",
+        }
         skip = 0
         while True:
-            resp = req.get(f"{API_BASE}/users", headers=headers, params={"skip": skip, "take": 200}, timeout=30)
+            resp = req.get(
+                f"{API_BASE}/api/accounts/company-users",
+                headers=headers,
+                params={"skip": skip, "take": PAGE_SIZE, "url": "/company-users"},
+                timeout=30,
+            )
             resp.raise_for_status()
             body = resp.json()
             data = body.get("data", body) if isinstance(body, dict) else body
             if isinstance(data, list):
                 all_users.extend(data)
-                total = body.get("count", len(data)) if isinstance(body, dict) else len(data)
-                skip += 200
-                if skip >= total:
+                total = body.get("count", body.get("total", len(data))) if isinstance(body, dict) else len(data)
+                skip += PAGE_SIZE
+                if skip >= total or len(data) < PAGE_SIZE:
                     break
             else:
                 break
     except Exception as e:
         return jsonify({"ok": False, "error": f"Erro ao conectar ao DataCrazy: {e}"}), 500
 
+    if not all_users:
+        return jsonify({"ok": True, "summary": "Nenhum usuário encontrado na API", "created": [], "updated": [], "skipped": [], "errors": []})
+
     conn = get_conn()
     created = []
+    updated = []
     skipped = []
     errors = []
 
     with conn.cursor() as cur:
-        cur.execute("SELECT datacrazy_user_id, username FROM app_users WHERE datacrazy_user_id IS NOT NULL")
-        existing_dc = {r[0]: r[1] for r in cur.fetchall()}
+        cur.execute("SELECT id, datacrazy_user_id, username FROM app_users WHERE datacrazy_user_id IS NOT NULL")
+        existing_dc = {r[1]: {"id": r[0], "username": r[2]} for r in cur.fetchall()}
 
         cur.execute("SELECT username FROM app_users")
         existing_usernames = {r[0] for r in cur.fetchall()}
 
         for u in all_users:
-            uid_dc = str(u.get("id", ""))
-            name = u.get("name") or u.get("fullName") or ""
+            uid_dc = str(u.get("id") or u.get("userId") or "")
+            name = u.get("name") or u.get("fullName") or u.get("displayName") or ""
             email = (u.get("email") or "").strip().lower()
 
             if not uid_dc:
                 continue
+
             if uid_dc in existing_dc:
-                skipped.append({"dc_id": uid_dc, "name": name, "reason": f"Já vinculado como {existing_dc[uid_dc]}"})
+                ex = existing_dc[uid_dc]
+                if email and ex["username"] != email and email not in existing_usernames:
+                    try:
+                        cur.execute("UPDATE app_users SET username = %s WHERE id = %s", (email, ex["id"]))
+                        existing_usernames.discard(ex["username"])
+                        existing_usernames.add(email)
+                        updated.append({"dc_id": uid_dc, "name": name, "old": ex["username"], "new": email})
+                    except Exception as e:
+                        errors.append({"dc_id": uid_dc, "name": name, "error": f"update: {e}"})
+                else:
+                    skipped.append({"dc_id": uid_dc, "name": name, "reason": f"Já vinculado como {ex['username']}"})
                 continue
 
             username = email if email else name.lower().replace(" ", ".")
@@ -479,13 +533,15 @@ def api_users_import_datacrazy():
     conn.close()
 
     parts = []
-    if created: parts.append(f"{len(created)} criados")
+    if created: parts.append(f"{len(created)} criados (login = email)")
+    if updated: parts.append(f"{len(updated)} atualizados p/ email")
     if skipped: parts.append(f"{len(skipped)} já existiam")
     if errors: parts.append(f"{len(errors)} erros")
 
     return jsonify({
         "ok": True,
         "created": created,
+        "updated": updated,
         "skipped": skipped,
         "errors": errors,
         "summary": ", ".join(parts) or "Nenhum usuário encontrado",
