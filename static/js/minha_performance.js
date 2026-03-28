@@ -1069,6 +1069,16 @@ function _mpSwitchTab(tab) {
         tabP.classList.add(...inactiveClasses.split(' '));
         if (!_mpMatLoaded) {
             _mpMatLoaded = true;
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const iniEl = document.getElementById('mp-mat-dt-ini');
+            const fimEl = document.getElementById('mp-mat-dt-fim');
+            if (iniEl && !iniEl.value) iniEl.value = `${y}-${m}-01`;
+            if (fimEl && !fimEl.value) {
+                const last = new Date(y, now.getMonth() + 1, 0).getDate();
+                fimEl.value = `${y}-${m}-${String(last).padStart(2, '0')}`;
+            }
             _mpLoadMatriculas();
             _mpLoadMinhasMatriculas();
             _mpLoadAjustes();
@@ -1088,10 +1098,25 @@ async function _mpLoadMatriculas() {
     const countEl = document.getElementById('mp-mat-oficial-count');
     if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-slate-600 text-xs">Carregando...</td></tr>';
     try {
-        const res = await api(`/api/minha-performance/matriculas?kommo_uid=${uid}`);
+        let qs = `kommo_uid=${uid}`;
+        const dtIni = document.getElementById('mp-mat-dt-ini')?.value;
+        const dtFim = document.getElementById('mp-mat-dt-fim')?.value;
+        if (dtIni) qs += `&dt_ini=${dtIni}`;
+        if (dtFim) qs += `&dt_fim=${dtFim}`;
+        const res = await api(`/api/minha-performance/matriculas?${qs}`);
         const d = await res.json();
         _mpOficialData = d.matriculas || [];
-        if (countEl) countEl.textContent = `${_mpOficialData.length} registro${_mpOficialData.length !== 1 ? 's' : ''}`;
+        const emCurso = _mpOficialData.filter(m => (m.situacao||'').toUpperCase() === 'EM CURSO').length;
+        const cancel = _mpOficialData.filter(m => {
+            const s = (m.situacao||'').toUpperCase();
+            return s.includes('CANCEL') || s.includes('EVAD') || s.includes('DESIST');
+        }).length;
+        const outros = _mpOficialData.length - emCurso - cancel;
+        let summary = `${_mpOficialData.length} total`;
+        if (emCurso) summary += ` · <span class="text-emerald-400">${emCurso} em curso</span>`;
+        if (cancel) summary += ` · <span class="text-red-400">${cancel} cancelado${cancel > 1 ? 's' : ''}</span>`;
+        if (outros) summary += ` · <span class="text-amber-400">${outros} outro${outros > 1 ? 's' : ''}</span>`;
+        if (countEl) countEl.innerHTML = summary;
         _mpRenderOficialTable(_mpOficialData);
     } catch(e) {
         if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-red-400 text-xs">Erro ao carregar</td></tr>';

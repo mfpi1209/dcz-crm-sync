@@ -105,7 +105,7 @@ def _resolve_kommo_uid(args_uid=None):
 
 
 def _get_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None):
-    """Get matriculas for a specific agent by crossing comercial_rgm_atual with Kommo."""
+    """Get ALL matriculas for a specific agent (including cancelled) from xl_rows."""
     try:
         kconn = _pg_kommo()
         kcur = kconn.cursor()
@@ -131,33 +131,63 @@ def _get_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None):
 
     try:
         conn = _pg()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cw, cp = [], []
+        cur = conn.cursor()
+        outer_conds, params = [], []
         if dt_ini:
-            cw.append("data_matricula >= %s")
-            cp.append(dt_ini)
+            outer_conds.append("data_matricula >= %s")
+            params.append(dt_ini)
         if dt_fim:
-            cw.append("data_matricula <= %s")
-            cp.append(dt_fim)
-        w = ("WHERE " + " AND ".join(cw)) if cw else ""
-        try:
-            cur.execute(
-                f"SELECT rgm, nome, nivel, modalidade, polo, data_matricula, turma, ciclo, situacao, tipo_matricula FROM comercial_rgm_atual {w} ORDER BY data_matricula DESC NULLS LAST",
-                cp,
-            )
-        except Exception:
-            conn.rollback()
-            cur.execute(
-                f"SELECT rgm, nome, nivel, modalidade, polo, data_matricula, turma, ciclo, NULL AS situacao, tipo_matricula FROM comercial_rgm_atual {w} ORDER BY data_matricula DESC NULLS LAST",
-                cp,
-            )
+            outer_conds.append("data_matricula <= %s")
+            params.append(dt_fim)
+        outer_where = ("WHERE " + " AND ".join(outer_conds)) if outer_conds else ""
+
+        cur.execute(f"""
+            SELECT rgm, nome, situacao, curso, data_matricula, polo, nivel, ciclo, modalidade, tipo_matricula
+            FROM (
+                SELECT DISTINCT ON (regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g'))
+                    regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g')  AS rgm,
+                    NULLIF(TRIM(COALESCE(r.data->>'nome','')), '')                  AS nome,
+                    UPPER(TRIM(COALESCE(r.data->>'situacao','')))                   AS situacao,
+                    NULLIF(TRIM(COALESCE(r.data->>'curso','')), '')                 AS curso,
+                    CASE
+                        WHEN (r.data->>'data_mat') ~ '^[0-9]{{2}}/[0-9]{{2}}/[0-9]{{4}}$'
+                            THEN to_date(r.data->>'data_mat','DD/MM/YYYY')
+                        WHEN (r.data->>'data_mat') ~ '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}'
+                            THEN (r.data->>'data_mat')::date
+                        ELSE NULL
+                    END AS data_matricula,
+                    TRIM(regexp_replace(COALESCE(r.data->>'polo',''), '^[0-9]+\\s*[-]\\s*', '')) AS polo,
+                    CASE
+                        WHEN COALESCE(r.data->>'nivel','')   ~* 'p[oó]s'                                        THEN 'Pós-Graduação'
+                        WHEN COALESCE(r.data->>'negocio','') ~* 'p[oó]s'                                        THEN 'Pós-Graduação'
+                        WHEN COALESCE(r.data->>'curso','')   ~* '(mba|especializa|p.s.gradua|lato.sensu|stricto)' THEN 'Pós-Graduação'
+                        ELSE 'Graduação'
+                    END AS nivel,
+                    NULLIF(TRIM(COALESCE(r.data->>'ciclo','')), '')                 AS ciclo,
+                    NULLIF(TRIM(COALESCE(r.data->>'modalidade','')), '')            AS modalidade,
+                    UPPER(TRIM(COALESCE(r.data->>'tipo_matricula','')))             AS tipo_matricula
+                FROM xl_rows r
+                JOIN xl_snapshots s ON s.id = r.snapshot_id
+                WHERE s.id = (SELECT id FROM xl_snapshots WHERE tipo = 'matriculados' ORDER BY id DESC LIMIT 1)
+                  AND COALESCE(r.data->>'rgm','') ~ '[0-9]'
+                  AND UPPER(TRIM(COALESCE(r.data->>'tipo_matricula','')))
+                      = ANY(ARRAY['NOVA MATRICULA','RECOMPRA','RETORNO'])
+                  AND TRIM(COALESCE(r.data->>'empresa','')) ~ '^(12|7) -'
+                ORDER BY regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g'), r.id DESC
+            ) deduped
+            {outer_where}
+            ORDER BY data_matricula DESC NULLS LAST
+        """, params)
+
+        cols = [d[0] for d in cur.description]
         results = []
         seen = set()
         for row in cur.fetchall():
-            n = _normalize_rgm(row["rgm"])
+            d = dict(zip(cols, row))
+            n = _normalize_rgm(d.get("rgm"))
             if n and n in agent_rgms and n not in seen:
                 seen.add(n)
-                results.append(dict(row))
+                results.append(d)
         cur.close()
         conn.close()
         return results
@@ -2027,34 +2057,6 @@ def api_minha_matriculas():
     dt_ini = request.args.get("dt_ini")
     dt_fim = request.args.get("dt_fim")
     mats = _get_agent_matriculas(kommo_uid, dt_ini, dt_fim)
-
-    missing_sit = [m for m in mats if not m.get("situacao")]
-    if missing_sit:
-        try:
-            rgm_set = {_normalize_rgm(m["rgm"]) for m in missing_sit if m.get("rgm")}
-            if rgm_set:
-                conn_s = _pg()
-                cur_s = conn_s.cursor()
-                ph = ",".join(["%s"] * len(rgm_set))
-                cur_s.execute(f"""
-                    SELECT DISTINCT ON (regexp_replace(COALESCE(data->>'rgm',''),'[^0-9]','','g'))
-                        regexp_replace(COALESCE(data->>'rgm',''),'[^0-9]','','g') AS rgm,
-                        UPPER(TRIM(COALESCE(data->>'situacao',''))) AS situacao
-                    FROM xl_rows
-                    WHERE regexp_replace(COALESCE(data->>'rgm',''),'[^0-9]','','g') IN ({ph})
-                    ORDER BY regexp_replace(COALESCE(data->>'rgm',''),'[^0-9]','','g'), id DESC
-                """, list(rgm_set))
-                sit_map = {r[0]: r[1] for r in cur_s.fetchall() if r[0]}
-                cur_s.close()
-                conn_s.close()
-                for m in mats:
-                    if not m.get("situacao"):
-                        n = _normalize_rgm(m.get("rgm"))
-                        if n and n in sit_map:
-                            m["situacao"] = sit_map[n]
-        except Exception as e:
-            logger.warning("Error enriching situacao: %s", e)
-
     for m in mats:
         if m.get("data_matricula"):
             m["data_matricula"] = str(m["data_matricula"])
