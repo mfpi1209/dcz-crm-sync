@@ -18,10 +18,15 @@ async function meApi(action, params = {}) {
     return data.data;
 }
 
+async function meDistApi() {
+    const res = await fetch('/api/distribuicao');
+    return await res.json();
+}
+
 // ---------------------------------------------------------------------------
 // Tab navigation
 // ---------------------------------------------------------------------------
-const ME_TABS = ['dash', 'agentes', 'categorias', 'roteamento', 'logs', 'config'];
+const ME_TABS = ['dash', 'agentes', 'categorias', 'roteamento', 'logs', 'kb', 'config'];
 
 function meTab(tab) {
     ME_TABS.forEach(t => {
@@ -38,8 +43,9 @@ function meTab(tab) {
     if (tab === 'dash') meLoadDash();
     if (tab === 'agentes') meLoadAgentes();
     if (tab === 'categorias') meLoadCategorias();
-    if (tab === 'roteamento') meLoadRoteamento();
+    if (tab === 'roteamento') meLoadDistribuicao();
     if (tab === 'logs') meLoadLogs();
+    if (tab === 'kb') meLoadKB();
     if (tab === 'config') meLoadConfig();
 }
 
@@ -48,13 +54,18 @@ function meTab(tab) {
 // ---------------------------------------------------------------------------
 async function meLoadDash() {
     try {
-        const s = await meApi('get_stats');
+        const [s, distData] = await Promise.all([
+            meApi('get_stats'),
+            meDistApi().catch(() => ({ distribuicao: [] }))
+        ]);
+        const distAgentes = (distData.distribuicao || []).filter(a => a.status === 'Ativo');
+
         const cards = document.getElementById('me-dash-cards');
         cards.innerHTML = [
             meDashCard('Total', s.total_emails || 0, 'mail', 'blue'),
             meDashCard('Hoje', s.emails_hoje || 0, 'today', 'cyan'),
             meDashCard('7 dias', s.emails_7dias || 0, 'date_range', 'teal'),
-            meDashCard('Agentes', s.total_agentes || 0, 'support_agent', 'emerald'),
+            meDashCard('Consultores Ativos', distAgentes.length, 'support_agent', 'emerald'),
             meDashCard('Categorias', s.total_categorias || 0, 'category', 'violet'),
             meDashCard('Importados', s.emails_importados || 0, 'upload', 'amber'),
         ].join('');
@@ -102,82 +113,160 @@ function meBadge(val, type) {
     const maps = {
         status: { recebido: 'blue', classificado: 'amber', encaminhado: 'emerald', respondido: 'emerald', importado: 'gray' },
         urgencia: { baixa: 'gray', normal: 'blue', alta: 'amber', critica: 'red' },
-        ativo: { true: 'emerald', false: 'red' }
+        ativo: { true: 'emerald', false: 'red', Ativo: 'emerald', Inativo: 'red' }
     };
     const m = maps[type] || {};
     const c = m[String(val)] || 'gray';
-    const label = type === 'ativo' ? (val ? 'Ativo' : 'Inativo') : val;
+    const label = type === 'ativo' ? (val === true || val === 'Ativo' ? 'Ativo' : 'Inativo') : val;
     return `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-${c}-500/15 text-${c}-400">${label}</span>`;
 }
 
 // ---------------------------------------------------------------------------
-// Agentes
+// Consultores (Distribuição Acadêmica)
 // ---------------------------------------------------------------------------
 async function meLoadAgentes() {
+    const refreshIcon = document.getElementById('me-agentes-refresh');
+    if (refreshIcon) refreshIcon.classList.add('animate-spin');
+
     try {
-        const agentes = await meApi('list_agentes');
-        meCache.agentes = agentes;
-        document.getElementById('me-agentes-title').textContent = `Agentes (${agentes.length})`;
+        const [distData, agentStats] = await Promise.all([
+            meDistApi(),
+            meApi('agent_stats')
+        ]);
+
+        const consultores = distData.distribuicao || [];
+        const statsMap = {};
+        (agentStats || []).forEach(s => {
+            const key = (s.agente_nome || '').toLowerCase().trim();
+            statsMap[key] = s;
+        });
+
+        document.getElementById('me-agentes-title').textContent = `Consultores (${consultores.length})`;
         const tbody = document.getElementById('me-agentes-tbody');
-        if (!agentes.length) {
-            tbody.innerHTML = '<tr><td colspan="6" class="py-8 text-center text-gray-600">Nenhum agente cadastrado</td></tr>';
+
+        if (!consultores.length) {
+            tbody.innerHTML = '<tr><td colspan="8" class="py-8 text-center text-gray-600">Nenhum consultor na distribuição</td></tr>';
             return;
         }
-        tbody.innerHTML = agentes.map(a => {
-            const cats = (a.categorias && a.categorias.length && a.categorias[0]) ? a.categorias.map(c => c.nome).join(', ') : '—';
+
+        const avatarColors = ['from-indigo-500 to-purple-500', 'from-emerald-500 to-teal-500', 'from-amber-500 to-orange-500', 'from-rose-500 to-pink-500', 'from-cyan-500 to-blue-500'];
+
+        tbody.innerHTML = consultores.map((c, idx) => {
+            const key = (c.responsavel || '').toLowerCase().trim();
+            const stats = statsMap[key] || {};
+            const initials = c.responsavel ? c.responsavel.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '??';
+            const avatarColor = avatarColors[idx % avatarColors.length];
+            const filaNum = parseInt(c.fila) || 0;
+            const filaBg = filaNum > 5 ? 'bg-rose-500/15 text-rose-400 border-rose-500/30' :
+                           filaNum > 0 ? 'bg-amber-500/15 text-amber-400 border-amber-500/30' :
+                           'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+            const tipoBadge = c.tipo_atendimento === 'Atendimento'
+                ? 'bg-indigo-500/15 text-indigo-400' : 'bg-emerald-500/15 text-emerald-400';
+
             return `<tr class="border-b border-gray-800/30 hover:bg-gray-800/20 transition">
-                <td class="py-2.5 font-medium text-slate-200">${esc(a.nome)}</td>
-                <td class="py-2.5">${esc(a.email)}</td>
-                <td class="py-2.5">${esc(a.departamento || '—')}</td>
-                <td class="py-2.5 text-xs">${esc(cats)}</td>
-                <td class="py-2.5">${meBadge(a.ativo, 'ativo')}</td>
-                <td class="py-2.5 flex gap-2">
-                    <button onclick="meModalAgente(${a.id})" class="text-xs text-blue-400 hover:text-blue-300">Editar</button>
-                    <button onclick="meToggleAgente(${a.id})" class="text-xs ${a.ativo ? 'text-red-400 hover:text-red-300' : 'text-emerald-400 hover:text-emerald-300'}">${a.ativo ? 'Desativar' : 'Ativar'}</button>
+                <td class="py-2.5">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-xl bg-gradient-to-br ${avatarColor} flex items-center justify-center text-white text-xs font-bold shadow-lg">${initials}</div>
+                        <span class="font-medium text-slate-200">${esc(c.responsavel)}</span>
+                    </div>
                 </td>
+                <td class="py-2.5 text-center">${meBadge(c.status, 'ativo')}</td>
+                <td class="py-2.5 text-center">
+                    <span class="inline-flex items-center justify-center min-w-[36px] px-2 py-0.5 rounded-lg text-xs font-bold border ${filaBg}">${filaNum}</span>
+                </td>
+                <td class="py-2.5 text-center">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${tipoBadge}">${esc(c.tipo_atendimento || '—')}</span>
+                </td>
+                <td class="py-2.5 text-center">
+                    ${c.distribuir_email
+                        ? '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-cyan-500/15 text-cyan-400">Sim</span>'
+                        : '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-500/15 text-gray-500">Não</span>'}
+                </td>
+                <td class="py-2.5 text-center font-semibold text-slate-300">${stats.total_emails || 0}</td>
+                <td class="py-2.5 text-center text-cyan-400 font-semibold">${stats.emails_hoje || 0}</td>
+                <td class="py-2.5 text-xs text-gray-400">${esc(c.ultima_execucao || '—')}</td>
             </tr>`;
         }).join('');
-    } catch (e) { toast(e.message, 'error'); }
+    } catch (e) {
+        toast(e.message, 'error');
+    } finally {
+        if (refreshIcon) refreshIcon.classList.remove('animate-spin');
+    }
 }
 
-function meModalAgente(id) {
-    const ag = id ? (meCache.agentes || []).find(a => a.id === id) : null;
-    meOpenModal(ag ? 'Editar Agente' : 'Novo Agente',
-        meFormGroup('Nome', 'me-f-nome', 'text', ag?.nome || '') +
-        meFormGroup('E-mail', 'me-f-email', 'email', ag?.email || '') +
-        meFormGroup('Departamento', 'me-f-dept', 'text', ag?.departamento || ''),
-        `<button onclick="meCloseModal()" class="text-sm text-gray-500 hover:text-gray-300 px-4 py-2">Cancelar</button>
-         <button onclick="meSalvarAgente(${id || 'null'})" class="btn-primary text-sm px-5 py-2 rounded-xl">Salvar</button>`
-    );
-}
-
-async function meSalvarAgente(id) {
-    const p = {
-        nome: document.getElementById('me-f-nome').value.trim(),
-        email: document.getElementById('me-f-email').value.trim(),
-        departamento: document.getElementById('me-f-dept').value.trim()
-    };
-    if (!p.nome || !p.email) { toast('Nome e e-mail são obrigatórios', 'error'); return; }
+// ---------------------------------------------------------------------------
+// Distribuição de Emails (antes Roteamento)
+// ---------------------------------------------------------------------------
+async function meLoadDistribuicao() {
     try {
-        if (id) {
-            const ag = (meCache.agentes || []).find(a => a.id === id);
-            p.id = id; p.ativo = ag ? ag.ativo : true;
-            await meApi('update_agente', p);
-            toast('Agente atualizado', 'success');
+        const [agentStats, recentEmails] = await Promise.all([
+            meApi('agent_stats'),
+            meApi('recent_distributed')
+        ]);
+
+        const rankingEl = document.getElementById('me-dist-ranking');
+        if (agentStats && agentStats.length) {
+            const max = Math.max(...agentStats.map(a => parseInt(a.total_emails) || 0), 1);
+            rankingEl.innerHTML = agentStats.map(a => {
+                const total = parseInt(a.total_emails) || 0;
+                const hoje = parseInt(a.emails_hoje) || 0;
+                const w = Math.max(total / max * 100, 8);
+                return `<div class="flex items-center gap-3">
+                    <span class="w-32 text-xs text-gray-300 truncate font-medium">${esc(a.agente_nome)}</span>
+                    <div class="flex-1 bg-gray-800/50 rounded-full h-6 overflow-hidden">
+                        <div class="h-full bg-blue-500/40 rounded-full flex items-center justify-between px-2 text-[10px] font-semibold" style="width:${w}%">
+                            <span class="text-blue-300">${total}</span>
+                            ${hoje > 0 ? `<span class="text-cyan-300">+${hoje} hoje</span>` : ''}
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
         } else {
-            await meApi('create_agente', p);
-            toast('Agente criado', 'success');
+            rankingEl.innerHTML = '<p class="text-gray-600 text-sm py-4">Nenhum email distribuído ainda</p>';
         }
-        meCloseModal(); meLoadAgentes();
-    } catch (e) { toast(e.message, 'error'); }
-}
 
-async function meToggleAgente(id) {
-    try {
-        await meApi('toggle_agente', { id });
-        toast('Status alterado', 'success');
-        meLoadAgentes();
-    } catch (e) { toast(e.message, 'error'); }
+        const summaryEl = document.getElementById('me-dist-summary');
+        if (agentStats && agentStats.length) {
+            const totalEmails = agentStats.reduce((s, a) => s + (parseInt(a.total_emails) || 0), 0);
+            const totalHoje = agentStats.reduce((s, a) => s + (parseInt(a.emails_hoje) || 0), 0);
+            const total7d = agentStats.reduce((s, a) => s + (parseInt(a.emails_7dias) || 0), 0);
+            summaryEl.innerHTML = `
+                <div class="flex items-center justify-between bg-gray-800/30 rounded-lg p-3">
+                    <span class="text-gray-400">Total distribuído</span>
+                    <span class="text-lg font-bold text-blue-400">${totalEmails}</span>
+                </div>
+                <div class="flex items-center justify-between bg-gray-800/30 rounded-lg p-3">
+                    <span class="text-gray-400">Distribuído hoje</span>
+                    <span class="text-lg font-bold text-cyan-400">${totalHoje}</span>
+                </div>
+                <div class="flex items-center justify-between bg-gray-800/30 rounded-lg p-3">
+                    <span class="text-gray-400">Últimos 7 dias</span>
+                    <span class="text-lg font-bold text-teal-400">${total7d}</span>
+                </div>
+                <div class="flex items-center justify-between bg-gray-800/30 rounded-lg p-3">
+                    <span class="text-gray-400">Consultores ativos</span>
+                    <span class="text-lg font-bold text-emerald-400">${agentStats.length}</span>
+                </div>`;
+        } else {
+            summaryEl.innerHTML = '<p class="text-gray-600 text-sm">Sem dados</p>';
+        }
+
+        const tbody = document.getElementById('me-dist-tbody');
+        if (recentEmails && recentEmails.length) {
+            tbody.innerHTML = recentEmails.map(e => `<tr class="border-b border-gray-800/30 hover:bg-gray-800/20 transition">
+                <td class="py-2 whitespace-nowrap text-xs">${fmtDate(e.criado_em) || '—'}</td>
+                <td class="py-2 text-xs">${esc(e.de_nome || e.de_email || '—')}</td>
+                <td class="py-2 text-xs truncate max-w-[200px]">${esc((e.assunto || '').substring(0, 50))}</td>
+                <td class="py-2">${esc(e.categoria_nome || '—')}</td>
+                <td class="py-2 font-medium text-slate-200 text-xs">${esc(e.agente_nome || '—')}</td>
+                <td class="py-2">${meBadge(e.status, 'status')}</td>
+            </tr>`).join('');
+        } else {
+            tbody.innerHTML = '<tr><td colspan="6" class="py-8 text-center text-gray-600">Nenhum email distribuído</td></tr>';
+        }
+    } catch (e) {
+        toast(e.message, 'error');
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -244,89 +333,6 @@ async function meSalvarCategoria(id) {
 }
 
 // ---------------------------------------------------------------------------
-// Roteamento
-// ---------------------------------------------------------------------------
-async function meLoadRoteamento() {
-    try {
-        const [rotas, agentes, categorias] = await Promise.all([
-            meApi('list_roteamento'), meApi('list_agentes'), meApi('list_categorias')
-        ]);
-        meCache.agentes = agentes;
-        meCache.categorias = categorias;
-        meCache.rotas = rotas;
-        document.getElementById('me-rota-title').textContent = `Roteamento (${rotas.length} vínculos)`;
-        const tbody = document.getElementById('me-rota-tbody');
-        if (!rotas.length) {
-            tbody.innerHTML = '<tr><td colspan="6" class="py-8 text-center text-gray-600">Nenhum vínculo</td></tr>';
-        } else {
-            tbody.innerHTML = rotas.map(r => `<tr class="border-b border-gray-800/30 hover:bg-gray-800/20 transition">
-                <td class="py-2.5 font-medium text-slate-200">${esc(r.categoria_nome)}</td>
-                <td class="py-2.5">${esc(r.agente_nome)}</td>
-                <td class="py-2.5 text-xs">${esc(r.agente_email)}</td>
-                <td class="py-2.5 text-center">${r.prioridade}</td>
-                <td class="py-2.5">${meBadge(r.agente_ativo, 'ativo')}</td>
-                <td class="py-2.5">
-                    <button onclick="meRemoveRota(${r.id})" class="text-xs text-red-400 hover:text-red-300">Remover</button>
-                </td>
-            </tr>`).join('');
-        }
-
-        const mapEl = document.getElementById('me-rota-map');
-        const catMap = {};
-        rotas.forEach(r => {
-            if (!catMap[r.categoria_nome]) catMap[r.categoria_nome] = [];
-            catMap[r.categoria_nome].push(r.agente_nome + ' (' + r.agente_email + ')');
-        });
-        if (Object.keys(catMap).length) {
-            mapEl.innerHTML = Object.entries(catMap).map(([cat, ags]) =>
-                `<div class="flex items-start gap-2">
-                    <span class="text-blue-400 font-semibold min-w-[100px]">${esc(cat)}</span>
-                    <span class="material-symbols-outlined text-sm text-gray-600">arrow_forward</span>
-                    <span class="text-gray-300">${ags.map(a => esc(a)).join(', ')}</span>
-                </div>`
-            ).join('');
-        } else {
-            mapEl.innerHTML = '<p class="text-gray-600 text-sm">Configure vínculos acima</p>';
-        }
-    } catch (e) { toast(e.message, 'error'); }
-}
-
-function meModalRota() {
-    const agentes = (meCache.agentes || []).filter(a => a.ativo);
-    const categorias = (meCache.categorias || []).filter(c => c.ativo);
-    const agOpts = agentes.map(a => `<option value="${a.id}">${esc(a.nome)} (${esc(a.email)})</option>`).join('');
-    const catOpts = categorias.map(c => `<option value="${c.id}">${esc(c.nome)}</option>`).join('');
-    meOpenModal('Novo Vínculo',
-        `<div class="mb-4"><label class="block text-xs text-gray-500 mb-1.5 font-medium">Categoria</label><select id="me-f-rota-cat" class="input-glass px-3 py-2 text-sm text-gray-200 w-full">${catOpts}</select></div>` +
-        `<div class="mb-4"><label class="block text-xs text-gray-500 mb-1.5 font-medium">Agente</label><select id="me-f-rota-ag" class="input-glass px-3 py-2 text-sm text-gray-200 w-full">${agOpts}</select></div>` +
-        meFormGroup('Prioridade (0 = mais alta)', 'me-f-rota-pri', 'number', '0'),
-        `<button onclick="meCloseModal()" class="text-sm text-gray-500 hover:text-gray-300 px-4 py-2">Cancelar</button>
-         <button onclick="meSalvarRota()" class="btn-primary text-sm px-5 py-2 rounded-xl">Salvar</button>`
-    );
-}
-
-async function meSalvarRota() {
-    try {
-        await meApi('add_roteamento', {
-            agente_id: parseInt(document.getElementById('me-f-rota-ag').value),
-            categoria_id: parseInt(document.getElementById('me-f-rota-cat').value),
-            prioridade: parseInt(document.getElementById('me-f-rota-pri').value) || 0
-        });
-        toast('Vínculo criado', 'success');
-        meCloseModal(); meLoadRoteamento();
-    } catch (e) { toast(e.message, 'error'); }
-}
-
-async function meRemoveRota(id) {
-    if (!confirm('Remover este vínculo?')) return;
-    try {
-        await meApi('remove_roteamento', { id });
-        toast('Vínculo removido', 'success');
-        meLoadRoteamento();
-    } catch (e) { toast(e.message, 'error'); }
-}
-
-// ---------------------------------------------------------------------------
 // Logs
 // ---------------------------------------------------------------------------
 async function meLoadLogs() {
@@ -365,7 +371,7 @@ async function meLoadLogs() {
                 <td class="py-2 text-xs">${esc(l.de_nome || l.de_email || '—')}</td>
                 <td class="py-2 text-xs truncate max-w-[180px]">${esc((l.assunto || '').substring(0, 50))}</td>
                 <td class="py-2">${esc(l.categoria_nome || l.categoria_nome_ref || '—')}</td>
-                <td class="py-2 text-xs">${esc(l.agente_nome_ref || '—')}</td>
+                <td class="py-2 text-xs">${esc(l.agente_nome_ref || l.agente_nome || '—')}</td>
                 <td class="py-2">${meBadge(l.status, 'status')}</td>
                 <td class="py-2">${meBadge(l.urgencia, 'urgencia')}</td>
             </tr>`).join('');
@@ -387,7 +393,7 @@ function meModalLog(id) {
     body += `<div class="flex gap-4">${meField('De', (l.de_nome || '') + ' (' + (l.de_email || '') + ')')}${meField('Para', l.para_email)}</div>`;
     body += meField('Assunto', l.assunto);
     body += '<hr class="border-gray-700/30">';
-    body += `<div class="flex gap-4">${meField('Categoria', l.categoria_nome || l.categoria_nome_ref)}${meField('Agente', l.agente_nome_ref || l.agente_email)}</div>`;
+    body += `<div class="flex gap-4">${meField('Categoria', l.categoria_nome || l.categoria_nome_ref)}${meField('Consultor', l.agente_nome_ref || l.agente_nome || l.agente_email)}</div>`;
     body += `<div class="flex gap-4"><div>${meBadge(l.status, 'status')}</div><div>${meBadge(l.urgencia, 'urgencia')}</div></div>`;
     if (l.cpf) body += meField('CPF', l.cpf);
     if (l.resumo_ia) body += `<div><span class="text-gray-500 text-xs">Resumo IA</span><p class="text-gray-300 mt-1">${esc(l.resumo_ia)}</p></div>`;
@@ -395,6 +401,122 @@ function meModalLog(id) {
     body += '</div>';
     meOpenModal('E-mail #' + l.id, body,
         '<button onclick="meCloseModal()" class="text-sm text-gray-500 hover:text-gray-300 px-4 py-2">Fechar</button>');
+}
+
+// ---------------------------------------------------------------------------
+// Base de Conhecimento
+// ---------------------------------------------------------------------------
+async function meLoadKB() {
+    try {
+        const items = await meApi('list_kb');
+        meCache.kb = items;
+        meRenderKB();
+    } catch (e) { toast(e.message, 'error'); }
+}
+
+function meRenderKB() {
+    const items = meCache.kb || [];
+    const filter = document.getElementById('me-kb-filter-cat')?.value || '';
+    const filtered = filter ? items.filter(i => i.categoria === filter) : items;
+    const grid = document.getElementById('me-kb-grid');
+
+    if (!filtered.length) {
+        grid.innerHTML = '<div class="text-gray-500 text-sm text-center py-8 col-span-full">Nenhuma resposta cadastrada' + (filter ? ' nesta categoria' : '') + '</div>';
+        return;
+    }
+
+    const catColors = {
+        financeiro: 'amber', academico: 'blue', documentos: 'violet',
+        estagio: 'teal', juridico: 'red', tecnico: 'cyan', geral: 'gray'
+    };
+
+    grid.innerHTML = filtered.map(item => {
+        const color = catColors[item.categoria] || 'gray';
+        return `<div class="bg-gray-800/30 border border-gray-700/20 rounded-xl p-4 hover:border-gray-600/30 transition">
+            <div class="flex items-start justify-between gap-2 mb-3">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-${color}-500/15 text-${color}-400">${esc(item.categoria)}</span>
+                    <span class="text-[10px] text-gray-500">${esc(item.subcategoria)}</span>
+                </div>
+                <div class="flex items-center gap-1.5 shrink-0">
+                    ${item.ativo
+                        ? '<span class="w-2 h-2 rounded-full bg-emerald-500"></span>'
+                        : '<span class="w-2 h-2 rounded-full bg-red-500"></span>'}
+                    <button onclick="meModalKB(${item.id})" class="text-xs text-blue-400 hover:text-blue-300">Editar</button>
+                    <button onclick="meDeleteKB(${item.id})" class="text-xs text-red-400 hover:text-red-300">Excluir</button>
+                </div>
+            </div>
+            <p class="text-sm text-slate-200 font-medium mb-2">${esc(item.pergunta_exemplo)}</p>
+            <p class="text-xs text-gray-400 line-clamp-3">${esc(item.resposta_modelo)}</p>
+            ${item.palavras_chave ? `<div class="mt-2 flex flex-wrap gap-1">${item.palavras_chave.split(',').map(w => `<span class="text-[9px] bg-gray-700/50 text-gray-400 px-1.5 py-0.5 rounded">${esc(w.trim())}</span>`).join('')}</div>` : ''}
+        </div>`;
+    }).join('');
+}
+
+const ME_CATS = ['financeiro', 'academico', 'documentos', 'estagio', 'juridico', 'tecnico', 'geral'];
+
+function meModalKB(id) {
+    const item = id ? (meCache.kb || []).find(k => k.id === id) : null;
+    const catOpts = ME_CATS.map(c => `<option value="${c}" ${item?.categoria === c ? 'selected' : ''}>${c}</option>`).join('');
+
+    meOpenModal(item ? 'Editar Resposta' : 'Nova Resposta',
+        `<div class="mb-4">
+            <label class="block text-xs text-gray-500 mb-1.5 font-medium">Categoria</label>
+            <select id="me-f-kb-cat" class="input-glass px-3 py-2 text-sm text-gray-200 w-full">${catOpts}</select>
+        </div>` +
+        meFormGroup('Subcategoria', 'me-f-kb-sub', 'text', item?.subcategoria || '') +
+        `<div class="mb-4">
+            <label class="block text-xs text-gray-500 mb-1.5 font-medium">Pergunta Exemplo</label>
+            <textarea id="me-f-kb-pergunta" class="input-glass px-3 py-2 text-sm text-gray-200 w-full" rows="2">${esc(item?.pergunta_exemplo || '')}</textarea>
+        </div>` +
+        `<div class="mb-4">
+            <label class="block text-xs text-gray-500 mb-1.5 font-medium">Resposta Modelo</label>
+            <textarea id="me-f-kb-resposta" class="input-glass px-3 py-2 text-sm text-gray-200 w-full" rows="5">${esc(item?.resposta_modelo || '')}</textarea>
+        </div>` +
+        meFormGroup('Palavras-chave (separadas por vírgula)', 'me-f-kb-palavras', 'text', item?.palavras_chave || '') +
+        (item ? `<div class="mb-4 flex items-center gap-3">
+            <label class="text-xs text-gray-500 font-medium">Ativo</label>
+            <input type="checkbox" id="me-f-kb-ativo" ${item.ativo ? 'checked' : ''} class="w-4 h-4 accent-blue-500">
+        </div>` : ''),
+        `<button onclick="meCloseModal()" class="text-sm text-gray-500 hover:text-gray-300 px-4 py-2">Cancelar</button>
+         <button onclick="meSalvarKB(${id || 'null'})" class="btn-primary text-sm px-5 py-2 rounded-xl">Salvar</button>`
+    );
+}
+
+async function meSalvarKB(id) {
+    const p = {
+        categoria: document.getElementById('me-f-kb-cat').value,
+        subcategoria: document.getElementById('me-f-kb-sub').value.trim(),
+        pergunta_exemplo: document.getElementById('me-f-kb-pergunta').value.trim(),
+        resposta_modelo: document.getElementById('me-f-kb-resposta').value.trim(),
+        palavras_chave: document.getElementById('me-f-kb-palavras').value.trim()
+    };
+    if (!p.subcategoria || !p.pergunta_exemplo || !p.resposta_modelo) {
+        toast('Subcategoria, pergunta e resposta são obrigatórios', 'error');
+        return;
+    }
+    try {
+        if (id) {
+            p.id = id;
+            p.ativo = document.getElementById('me-f-kb-ativo')?.checked ?? true;
+            await meApi('update_kb', p);
+            toast('Resposta atualizada', 'success');
+        } else {
+            await meApi('create_kb', p);
+            toast('Resposta criada', 'success');
+        }
+        meCloseModal();
+        meLoadKB();
+    } catch (e) { toast(e.message, 'error'); }
+}
+
+async function meDeleteKB(id) {
+    if (!confirm('Excluir esta resposta da base de conhecimento?')) return;
+    try {
+        await meApi('delete_kb', { id });
+        toast('Resposta excluída', 'success');
+        meLoadKB();
+    } catch (e) { toast(e.message, 'error'); }
 }
 
 // ---------------------------------------------------------------------------
