@@ -275,14 +275,13 @@ function _mpCalcMaxPotencial(d) {
 function _mpRenderPixDia(d) {
     const hoje = d.hoje || {};
     const meta = hoje.meta || 0;
-    const feitas = hoje.realizadas || 0;
+    const realizadasHoje = hoje.realizadas || 0;
     const aceitesFila = hoje.aceites_fila || 0;
     const aceitesHoje = hoje.aceites_hoje || 0;
     const fixo = hoje.bonus_fixo || 0;
     const extra = hoje.bonus_extra || 0;
-    const efetivo = feitas + aceitesFila;
-    const pct = meta > 0 ? Math.min(Math.round((efetivo / meta) * 100), 100) : 0;
-    const metaBatida = efetivo >= meta && meta > 0;
+    const pct = meta > 0 ? Math.min(Math.round((realizadasHoje / meta) * 100), 100) : 0;
+    const metaBatida = realizadasHoje >= meta && meta > 0;
 
     // ApexCharts radialBar
     const chartEl = document.getElementById('mp-pix-chart');
@@ -298,7 +297,7 @@ function _mpRenderPixDia(d) {
                     track: { background: 'rgba(255,255,255,.06)', strokeWidth: '100%' },
                     dataLabels: {
                         name: { show: true, fontSize: '11px', color: 'rgba(255,255,255,.45)', offsetY: -8, formatter: () => meta > 0 ? `de ${meta}` : 'sem meta' },
-                        value: { show: true, fontSize: '36px', fontWeight: 900, color: '#fff', offsetY: 6, formatter: () => `${efetivo}` }
+                        value: { show: true, fontSize: '36px', fontWeight: 900, color: '#fff', offsetY: 6, formatter: () => `${realizadasHoje}` }
                     }
                 }
             },
@@ -322,7 +321,7 @@ function _mpRenderPixDia(d) {
             aceitesBadge.classList.remove('hidden');
             aceitesBadge.innerHTML = `
                 <span class="material-symbols-outlined text-sm text-purple-400">pending</span>
-                <span class="text-[10px] text-purple-300 font-medium">${aceitesFila} aceite${aceitesFila > 1 ? 's' : ''} na fila${aceitesHoje > 0 ? ' (' + aceitesHoje + ' novo' + (aceitesHoje > 1 ? 's' : '') + ' hoje)' : ''}</span>
+                <span class="text-[10px] text-purple-300 font-medium">${aceitesFila} aceite${aceitesFila > 1 ? 's' : ''} na fila total</span>
             `;
         } else {
             aceitesBadge.classList.add('hidden');
@@ -331,30 +330,36 @@ function _mpRenderPixDia(d) {
 
     const ontemRealizadas = hoje.ontem_realizadas || 0;
     let yesterdayHtml = '';
-    if (feitas > ontemRealizadas && ontemRealizadas >= 0) {
-        yesterdayHtml = `<p class="text-[10px] text-emerald-400 font-semibold mt-1">📈 +${feitas - ontemRealizadas} a mais que ontem — continue assim!</p>`;
-    } else if (feitas === ontemRealizadas && feitas > 0) {
+    if (realizadasHoje > ontemRealizadas && ontemRealizadas >= 0) {
+        yesterdayHtml = `<p class="text-[10px] text-emerald-400 font-semibold mt-1">📈 +${realizadasHoje - ontemRealizadas} a mais que ontem — continue assim!</p>`;
+    } else if (realizadasHoje === ontemRealizadas && realizadasHoje > 0) {
         yesterdayHtml = `<p class="text-[10px] text-amber-400 font-semibold mt-1">⚡ Mesmo ritmo de ontem — hora de ultrapassar!</p>`;
-    } else if (feitas < ontemRealizadas && ontemRealizadas > 0) {
+    } else if (realizadasHoje < ontemRealizadas && ontemRealizadas > 0) {
         yesterdayHtml = `<p class="text-[10px] text-orange-400 font-semibold mt-1">🔥 Ontem você fez ${ontemRealizadas} — bora superar!</p>`;
     }
 
     if (meta <= 0) {
         if (status) status.textContent = 'Sem meta diária hoje';
-        if (detail) detail.innerHTML = (aceitesFila > 0 ? `Você tem ${aceitesFila} aceite${aceitesFila > 1 ? 's' : ''} na fila!` : 'Nenhuma meta PIX configurada para hoje.') + yesterdayHtml;
+        let noMetaMsg = realizadasHoje > 0
+            ? `Você já fez ${realizadasHoje} hoje mesmo sem meta!`
+            : 'Nenhuma meta PIX configurada para hoje.';
+        if (aceitesFila > 0) noMetaMsg += ` (${aceitesFila} aceite${aceitesFila > 1 ? 's' : ''} na fila total)`;
+        if (detail) detail.innerHTML = noMetaMsg + yesterdayHtml;
         if (valor) valor.textContent = '';
         return;
     }
 
     if (metaBatida) {
-        const ganho = fixo + extra * Math.max(0, efetivo - meta);
+        const excedente = Math.max(0, realizadasHoje - meta);
+        const ganho = fixo + extra * excedente;
         if (status) { status.textContent = '🎉 PIX Garantido!'; status.className = 'text-lg font-black text-emerald-400 mb-1'; }
-        const parts = [];
-        if (feitas > 0) parts.push(`${feitas} mat`);
-        if (aceitesFila > 0) parts.push(`${aceitesFila} aceite${aceitesFila > 1 ? 's' : ''}`);
-        if (detail) detail.innerHTML = (efetivo > meta
-            ? `Meta batida! ${parts.join(' + ')} = ${efetivo} · +${efetivo - meta} extra × ${_mpFmt(extra)} cada`
-            : `Parabéns! ${parts.join(' + ')} = meta batida!`) + yesterdayHtml;
+        let msgParts = `Hoje: ${realizadasHoje} (mat + aceites do dia)`;
+        if (excedente > 0) {
+            msgParts += ` · +${excedente} extra × ${_mpFmt(extra)} cada`;
+        } else {
+            msgParts += ' — meta batida!';
+        }
+        if (detail) detail.innerHTML = msgParts + yesterdayHtml;
 
         _mpCountUp('mp-pix-valor', ganho, { prefix: 'R$ ', decimalPlaces: 2, duration: 2.2, formattedValue: _mpFmt(ganho) });
 
@@ -364,9 +369,9 @@ function _mpRenderPixDia(d) {
             }, 600);
         }
     } else {
-        const falta = meta - efetivo;
+        const falta = meta - realizadasHoje;
         if (status) { status.textContent = `Faltam ${falta} para o PIX!`; status.className = 'text-lg font-black text-cyan-300 mb-1'; }
-        if (detail) detail.innerHTML = `${feitas} mat + ${aceitesFila} aceite${aceitesFila !== 1 ? 's' : ''} = ${efetivo}/${meta}` + yesterdayHtml;
+        if (detail) detail.innerHTML = `Hoje: ${realizadasHoje}/${meta} (mat + aceites do dia)` + yesterdayHtml;
         if (valor) valor.textContent = `Prêmio: ${_mpFmt(fixo)}`;
     }
 }
@@ -587,8 +592,8 @@ function _mpRenderStreak(d) {
 
     const streakLabel = el('mp-streak-label');
     let labelText = seq > 0
-        ? `${seq} dia${seq > 1 ? 's' : ''} consecutivo${seq > 1 ? 's' : ''}`
-        : 'Inicie sua sequência hoje!';
+        ? `${seq} dia${seq > 1 ? 's' : ''} consecutivo${seq > 1 ? 's' : ''} batendo a meta diária`
+        : 'Inicie sua sequência hoje! (mat + aceites contam)';
     if (nivel) labelText += ` — ${nivelLabels[nivel]}`;
     if (streakLabel) streakLabel.textContent = labelText;
 
@@ -616,8 +621,13 @@ function _mpRenderStreak(d) {
     wrap.innerHTML = heatmap.map(h => {
         const cls = `mp-heat-${h.status}`;
         const bd = breakdownMap[h.data];
+        const mat = h.mat || 0;
+        const ace = h.aceites || 0;
+        let detail = `${h.realizadas||0}`;
+        if (h.meta) detail += `/${h.meta}`;
+        if (ace > 0) detail += ` (${mat}m+${ace}a)`;
         const tooltip = h.status === 'future' ? 'Futuro'
-            : `${_mpFmtDate(h.data)}: ${h.realizadas||0}/${h.meta||0}${bd ? ' · ' + _mpFmt(bd.total) : ''}`;
+            : `${_mpFmtDate(h.data)}: ${detail}${bd ? ' · ' + _mpFmt(bd.total) : ''}`;
         return `<div class="${cls} w-4 h-4 rounded-sm cursor-default transition-transform hover:scale-150" title="${tooltip}"></div>`;
     }).join('');
 }
@@ -657,14 +667,17 @@ function _mpRenderCalendar(d) {
         cur.setMonth(cur.getMonth() + 1);
     }
 
-    const statusColors = {
-        hit:     { bg: 'rgba(16,185,129,.2)', border: 'rgba(16,185,129,.5)', text: 'text-emerald-400' },
-        partial: { bg: 'rgba(245,158,11,.15)', border: 'rgba(245,158,11,.45)', text: 'text-amber-400' },
-        miss:    { bg: 'rgba(239,68,68,.12)', border: 'rgba(239,68,68,.4)', text: 'text-red-400' },
-        future:  { bg: 'rgba(51,65,85,.2)', border: 'rgba(51,65,85,.4)', text: 'text-slate-600' },
+    const statusCfg = {
+        hit:     { grad: 'linear-gradient(135deg,rgba(16,185,129,.35),rgba(5,150,105,.25))', border: 'rgba(16,185,129,.6)', text: 'text-emerald-300', icon: 'check_circle', iconColor: '#34d399', label: 'Meta batida!', labelColor: 'text-emerald-400' },
+        partial: { grad: 'linear-gradient(135deg,rgba(245,158,11,.25),rgba(217,119,6,.18))', border: 'rgba(245,158,11,.5)', text: 'text-amber-300', icon: 'trending_up', iconColor: '#fbbf24', label: 'Parcial', labelColor: 'text-amber-400' },
+        miss:    { grad: 'linear-gradient(135deg,rgba(239,68,68,.18),rgba(185,28,28,.12))', border: 'rgba(239,68,68,.45)', text: 'text-red-400', icon: 'trending_down', iconColor: '#f87171', label: 'Não bateu', labelColor: 'text-red-400' },
+        rest:    { grad: 'rgba(30,41,59,.15)', border: 'rgba(51,65,85,.2)', text: 'text-slate-600', icon: 'bedtime', iconColor: '#475569', label: 'Sem meta', labelColor: 'text-slate-500' },
+        future:  { grad: 'rgba(51,65,85,.15)', border: 'rgba(51,65,85,.3)', text: 'text-slate-500', icon: 'schedule', iconColor: '#64748b', label: 'Futuro', labelColor: 'text-slate-500' },
     };
 
     const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+    const tipId = 'mp-cal-tip';
 
     const html = months.map(({ year, month }) => {
         const firstDay = new Date(year, month, 1);
@@ -673,9 +686,7 @@ function _mpRenderCalendar(d) {
         if (startDow < 0) startDow = 6;
 
         let cells = '';
-        for (let i = 0; i < startDow; i++) {
-            cells += '<div></div>';
-        }
+        for (let i = 0; i < startDow; i++) cells += '<div></div>';
 
         for (let day = 1; day <= lastDay; day++) {
             const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
@@ -685,48 +696,148 @@ function _mpRenderCalendar(d) {
             const inRange = dateStr >= dtIni && dateStr <= dtFim;
 
             if (!inRange) {
-                cells += `<div class="rounded-lg p-1 text-center opacity-20">
-                    <span class="text-[10px] text-slate-600">${day}</span>
-                </div>`;
+                cells += `<div class="rounded-xl p-1 text-center opacity-10"><span class="text-[10px] text-slate-700">${day}</span></div>`;
                 continue;
             }
 
             const status = h?.status || 'future';
-            const sc = statusColors[status] || statusColors.future;
-            const realizadas = h?.realizadas ?? '';
-            const meta = h?.meta ?? '';
-            const bonus = bd ? _mpFmt(bd.total) : '';
-            const todayBorder = isToday ? 'ring-2 ring-white/40' : '';
+            const sc = statusCfg[status] || statusCfg.future;
+            const realizadas = h?.realizadas;
+            const matCount = h?.mat ?? 0;
+            const aceCount = h?.aceites ?? 0;
+            const meta = h?.meta ?? 0;
+            const bonus = bd ? bd.total : 0;
+            const pct = (meta > 0 && realizadas != null) ? Math.min(100, Math.round((realizadas / meta) * 100)) : 0;
 
-            const tooltip = status === 'future' ? 'Futuro'
-                : `${_mpFmtDate(dateStr)}: ${realizadas}/${meta}${bonus ? ' · ' + bonus : ''}`;
+            const todayExtra = isToday
+                ? 'ring-2 ring-cyan-400/60 shadow-lg shadow-cyan-400/15'
+                : '';
 
-            const ratioText = (realizadas !== '' && meta) ? `${realizadas}/${meta}` : '';
+            let ratioHtml = '';
+            if (status !== 'future' && realizadas != null) {
+                if (meta > 0) {
+                    ratioHtml = `<span class="block text-[9px] ${sc.text} font-bold leading-none mt-0.5 opacity-90">${realizadas}/${meta}</span>`;
+                } else if (realizadas > 0) {
+                    ratioHtml = `<span class="block text-[9px] ${sc.text} font-bold leading-none mt-0.5 opacity-90">${realizadas}</span>`;
+                }
+            }
 
-            cells += `<div class="rounded-lg p-1.5 text-center cursor-default transition-transform hover:scale-110 ${todayBorder}" style="background:${sc.bg};border:1px solid ${sc.border}" title="${tooltip}">
-                <span class="block text-xs font-bold ${sc.text}">${day}</span>
-                ${ratioText ? `<span class="block text-[9px] ${sc.text} opacity-75 leading-tight">${ratioText}</span>` : ''}
+            const hitGlow = status === 'hit' ? 'box-shadow:0 0 12px rgba(16,185,129,.2);' : '';
+            const tipData = JSON.stringify({ dateStr, status, matCount, aceCount, realizadas: realizadas ?? 0, meta, bonus, pct, isToday }).replace(/"/g, '&quot;');
+
+            cells += `<div class="mp-cal-cell rounded-xl p-1.5 text-center cursor-pointer transition-all duration-200 hover:scale-[1.15] hover:z-20 relative ${todayExtra}"
+                style="background:${sc.grad};border:1px solid ${sc.border};${hitGlow}" data-tip="${tipData}">
+                ${isToday ? '<span class="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>' : ''}
+                <span class="block text-[11px] font-extrabold ${sc.text} leading-none">${day}</span>
+                ${ratioHtml}
+                ${status === 'hit' ? '<span class="block text-[8px] leading-none mt-0.5">✅</span>' : ''}
             </div>`;
         }
 
-        return `<div class="mb-4 last:mb-0">
-            <p class="text-xs font-semibold text-slate-300 mb-2">${monthNames[month]} ${year}</p>
-            <div class="grid grid-cols-7 gap-1">
-                ${dayNames.map(dn => `<div class="text-center text-[9px] text-slate-500 font-medium pb-1">${dn}</div>`).join('')}
+        return `<div class="mb-5 last:mb-0">
+            <p class="text-sm font-bold text-slate-200 mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-base text-indigo-400">date_range</span>
+                ${monthNames[month]} ${year}
+            </p>
+            <div class="grid grid-cols-7 gap-2">
+                ${dayNames.map(dn => `<div class="text-center text-[10px] text-slate-500 font-semibold pb-1.5 uppercase tracking-wider">${dn}</div>`).join('')}
                 ${cells}
             </div>
         </div>`;
     }).join('');
 
-    const legend = `<div class="flex items-center gap-3 mt-3 text-[10px] text-slate-600">
-        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm" style="background:#10b981"></span>Bateu</span>
-        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm" style="background:#f59e0b"></span>Parcial</span>
-        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm" style="background:#ef4444"></span>Não bateu</span>
-        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm" style="background:#334155"></span>Futuro</span>
-        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm ring-2 ring-white/40" style="background:#334155"></span>Hoje</span>
+    const legend = `<div class="flex flex-wrap items-center gap-4 mt-4 pt-3 border-t border-slate-700/30 text-[10px]">
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:linear-gradient(135deg,rgba(16,185,129,.4),rgba(5,150,105,.3))"></span><span class="text-emerald-400 font-medium">Bateu</span></span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:linear-gradient(135deg,rgba(245,158,11,.3),rgba(217,119,6,.2))"></span><span class="text-amber-400 font-medium">Parcial</span></span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:linear-gradient(135deg,rgba(239,68,68,.2),rgba(185,28,28,.15))"></span><span class="text-red-400 font-medium">Não bateu</span></span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:rgba(51,65,85,.2)"></span><span class="text-slate-500 font-medium">Futuro</span></span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded ring-2 ring-cyan-400/60" style="background:rgba(51,65,85,.2)"></span><span class="text-cyan-400 font-medium">Hoje</span></span>
     </div>`;
 
-    wrap.innerHTML = html + legend;
+    const tooltipDiv = `<div id="${tipId}" class="fixed z-[9999] pointer-events-none opacity-0 transition-all duration-200 scale-95"
+        style="min-width:200px;max-width:280px;"></div>`;
+
+    wrap.innerHTML = html + legend + tooltipDiv;
+
+    _mpCalendarTooltips(wrap, tipId);
+}
+
+function _mpCalendarTooltips(wrap, tipId) {
+    const tip = document.getElementById(tipId);
+    if (!tip) return;
+
+    const statusMeta = {
+        hit: { icon: 'check_circle', color: '#34d399', bg: 'rgba(16,185,129,.08)', label: 'Meta batida! 🎉' },
+        partial: { icon: 'trending_up', color: '#fbbf24', bg: 'rgba(245,158,11,.08)', label: 'Quase lá! 💪' },
+        miss: { icon: 'trending_down', color: '#f87171', bg: 'rgba(239,68,68,.08)', label: 'Dia fraco 😤' },
+        rest: { icon: 'bedtime', color: '#64748b', bg: 'rgba(51,65,85,.08)', label: 'Sem meta' },
+        future: { icon: 'schedule', color: '#64748b', bg: 'rgba(51,65,85,.08)', label: 'Futuro' },
+    };
+
+    const dayOfWeek = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+    wrap.querySelectorAll('.mp-cal-cell').forEach(cell => {
+        cell.addEventListener('mouseenter', (e) => {
+            const raw = cell.getAttribute('data-tip');
+            if (!raw) return;
+            let data;
+            try { data = JSON.parse(raw); } catch { return; }
+            const sm = statusMeta[data.status] || statusMeta.future;
+            const dt = new Date(data.dateStr + 'T00:00:00');
+            const dayName = dayOfWeek[dt.getDay()];
+            const dateFmt = `${dayName}, ${dt.getDate()}/${dt.getMonth()+1}`;
+
+            let barHtml = '';
+            if (data.meta > 0) {
+                barHtml = `<div class="mt-2.5 mb-1">
+                    <div class="flex justify-between text-[10px] mb-1">
+                        <span class="text-slate-400">Progresso</span>
+                        <span class="font-bold" style="color:${sm.color}">${data.pct}%</span>
+                    </div>
+                    <div class="h-1.5 rounded-full bg-slate-700/50 overflow-hidden">
+                        <div class="h-full rounded-full transition-all duration-500" style="width:${data.pct}%;background:${sm.color}"></div>
+                    </div>
+                </div>`;
+            }
+
+            let detailRows = '';
+            if (data.status !== 'future') {
+                if (data.matCount > 0) detailRows += `<div class="flex justify-between"><span class="text-slate-500">Matrículas</span><span class="text-white font-semibold">${data.matCount}</span></div>`;
+                if (data.aceCount > 0) detailRows += `<div class="flex justify-between"><span class="text-slate-500">Aceites</span><span class="text-purple-400 font-semibold">${data.aceCount}</span></div>`;
+                if (data.meta > 0) detailRows += `<div class="flex justify-between"><span class="text-slate-500">Meta do dia</span><span class="text-slate-300 font-semibold">${data.meta}</span></div>`;
+                if (data.bonus > 0) detailRows += `<div class="flex justify-between mt-0.5 pt-1 border-t border-slate-700/40"><span class="text-slate-500">💰 Bônus</span><span class="text-emerald-400 font-bold">${_mpFmt(data.bonus)}</span></div>`;
+            }
+
+            tip.innerHTML = `<div class="rounded-xl p-3.5 shadow-2xl border border-slate-600/40" style="background:linear-gradient(165deg,#1e293b 0%,#0f172a 100%);backdrop-filter:blur(12px)">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="material-symbols-outlined text-base" style="color:${sm.color}">${sm.icon}</span>
+                    <span class="text-xs font-bold text-slate-200">${dateFmt}</span>
+                    ${data.isToday ? '<span class="ml-auto text-[9px] font-bold text-cyan-400 bg-cyan-400/10 px-1.5 py-0.5 rounded">HOJE</span>' : ''}
+                </div>
+                <p class="text-[11px] font-semibold mb-1" style="color:${sm.color}">${sm.label}</p>
+                ${barHtml}
+                <div class="space-y-1 text-[11px] mt-2">${detailRows || '<p class="text-slate-600 text-[10px]">Sem dados ainda</p>'}</div>
+            </div>`;
+
+            const rect = cell.getBoundingClientRect();
+            const tipW = 240;
+            let left = rect.left + rect.width / 2 - tipW / 2;
+            if (left < 8) left = 8;
+            if (left + tipW > window.innerWidth - 8) left = window.innerWidth - tipW - 8;
+            let top = rect.bottom + 8;
+            if (top + 200 > window.innerHeight) top = rect.top - 200;
+
+            tip.style.left = left + 'px';
+            tip.style.top = top + 'px';
+            tip.style.opacity = '1';
+            tip.style.transform = 'scale(1)';
+        });
+
+        cell.addEventListener('mouseleave', () => {
+            tip.style.opacity = '0';
+            tip.style.transform = 'scale(0.95)';
+        });
+    });
 }
 
 
