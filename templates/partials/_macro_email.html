@@ -24,7 +24,7 @@
         <button onclick="meTab('agentes')" id="me-tab-agentes"
             class="text-sm font-semibold px-5 py-2 rounded-lg transition text-gray-500 hover:text-gray-300 flex items-center gap-2 whitespace-nowrap">
             <span class="material-symbols-outlined text-base">support_agent</span>
-            Agentes
+            Consultores
         </button>
         <button onclick="meTab('categorias')" id="me-tab-categorias"
             class="text-sm font-semibold px-5 py-2 rounded-lg transition text-gray-500 hover:text-gray-300 flex items-center gap-2 whitespace-nowrap">
@@ -34,12 +34,17 @@
         <button onclick="meTab('roteamento')" id="me-tab-roteamento"
             class="text-sm font-semibold px-5 py-2 rounded-lg transition text-gray-500 hover:text-gray-300 flex items-center gap-2 whitespace-nowrap">
             <span class="material-symbols-outlined text-base">route</span>
-            Roteamento
+            Distribuição
         </button>
         <button onclick="meTab('logs')" id="me-tab-logs"
             class="text-sm font-semibold px-5 py-2 rounded-lg transition text-gray-500 hover:text-gray-300 flex items-center gap-2 whitespace-nowrap">
             <span class="material-symbols-outlined text-base">history</span>
             Logs
+        </button>
+        <button onclick="meTab('kb')" id="me-tab-kb"
+            class="text-sm font-semibold px-5 py-2 rounded-lg transition text-gray-500 hover:text-gray-300 flex items-center gap-2 whitespace-nowrap">
+            <span class="material-symbols-outlined text-base">menu_book</span>
+            Base de Conhecimento
         </button>
         <button onclick="meTab('config')" id="me-tab-config"
             class="text-sm font-semibold px-5 py-2 rounded-lg transition text-gray-500 hover:text-gray-300 flex items-center gap-2 whitespace-nowrap">
@@ -63,30 +68,35 @@
         </div>
     </div>
 
-    <!-- ── Agentes ── -->
+    <!-- ── Consultores (Distribuição Acadêmica) ── -->
     <div id="me-sec-agentes" class="hidden">
         <div class="glass-card p-6">
             <div class="flex items-center justify-between mb-6">
-                <h3 class="text-base font-bold text-[var(--text-primary)] font-display" id="me-agentes-title">Agentes</h3>
-                <button onclick="meModalAgente()" class="btn-primary text-sm px-4 py-2 rounded-xl flex items-center gap-2">
-                    <span class="material-symbols-outlined text-base">person_add</span>
-                    Novo Agente
+                <div class="flex items-center gap-3">
+                    <h3 class="text-base font-bold text-[var(--text-primary)] font-display" id="me-agentes-title">Consultores</h3>
+                    <span class="text-[10px] text-gray-500 bg-gray-800/40 px-2 py-0.5 rounded-full">via Distribuição Acadêmica</span>
+                </div>
+                <button onclick="meLoadAgentes()" class="text-xs text-gray-400 hover:text-white flex items-center gap-1 transition">
+                    <span class="material-symbols-outlined text-sm" id="me-agentes-refresh">refresh</span>
+                    Atualizar
                 </button>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-left text-sm">
                     <thead>
                         <tr class="text-xs text-gray-500 border-b border-gray-700/30">
-                            <th class="pb-2 font-semibold">Nome</th>
-                            <th class="pb-2 font-semibold">E-mail</th>
-                            <th class="pb-2 font-semibold">Departamento</th>
-                            <th class="pb-2 font-semibold">Categorias</th>
-                            <th class="pb-2 font-semibold">Status</th>
-                            <th class="pb-2 font-semibold w-28">Ações</th>
+                            <th class="pb-2 font-semibold">Consultor</th>
+                            <th class="pb-2 font-semibold text-center">Status</th>
+                            <th class="pb-2 font-semibold text-center">Fila</th>
+                            <th class="pb-2 font-semibold text-center">Tipo</th>
+                            <th class="pb-2 font-semibold text-center">Dist. Email</th>
+                            <th class="pb-2 font-semibold text-center">Emails Atribuídos</th>
+                            <th class="pb-2 font-semibold text-center">Emails Hoje</th>
+                            <th class="pb-2 font-semibold">Última Execução</th>
                         </tr>
                     </thead>
                     <tbody id="me-agentes-tbody" class="text-gray-300">
-                        <tr><td colspan="6" class="py-4 text-center text-gray-500">Carregando...</td></tr>
+                        <tr><td colspan="8" class="py-4 text-center text-gray-500">Carregando...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -123,37 +133,37 @@
         </div>
     </div>
 
-    <!-- ── Roteamento ── -->
+    <!-- ── Distribuição de Emails ── -->
     <div id="me-sec-roteamento" class="hidden">
-        <div class="glass-card p-6 mb-4">
-            <div class="flex items-center justify-between mb-6">
-                <h3 class="text-base font-bold text-[var(--text-primary)] font-display" id="me-rota-title">Roteamento</h3>
-                <button onclick="meModalRota()" class="btn-primary text-sm px-4 py-2 rounded-xl flex items-center gap-2">
-                    <span class="material-symbols-outlined text-base">link</span>
-                    Novo Vínculo
-                </button>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+            <div class="glass-card p-6">
+                <h3 class="text-sm font-semibold text-slate-300 mb-4">Ranking por Volume de Emails</h3>
+                <div id="me-dist-ranking" class="space-y-2"></div>
             </div>
+            <div class="glass-card p-6">
+                <h3 class="text-sm font-semibold text-slate-300 mb-4">Resumo da Distribuição</h3>
+                <div id="me-dist-summary" class="space-y-3 text-sm"></div>
+            </div>
+        </div>
+        <div class="glass-card p-6">
+            <h3 class="text-sm font-semibold text-slate-300 mb-4">Últimos Emails Distribuídos</h3>
             <div class="overflow-x-auto">
                 <table class="w-full text-left text-sm">
                     <thead>
                         <tr class="text-xs text-gray-500 border-b border-gray-700/30">
+                            <th class="pb-2 font-semibold">Data</th>
+                            <th class="pb-2 font-semibold">De</th>
+                            <th class="pb-2 font-semibold">Assunto</th>
                             <th class="pb-2 font-semibold">Categoria</th>
-                            <th class="pb-2 font-semibold">Agente</th>
-                            <th class="pb-2 font-semibold">E-mail Agente</th>
-                            <th class="pb-2 font-semibold text-center">Prioridade</th>
+                            <th class="pb-2 font-semibold">Consultor</th>
                             <th class="pb-2 font-semibold">Status</th>
-                            <th class="pb-2 font-semibold w-24">Ações</th>
                         </tr>
                     </thead>
-                    <tbody id="me-rota-tbody" class="text-gray-300">
+                    <tbody id="me-dist-tbody" class="text-gray-300">
                         <tr><td colspan="6" class="py-4 text-center text-gray-500">Carregando...</td></tr>
                     </tbody>
                 </table>
             </div>
-        </div>
-        <div class="glass-card p-6">
-            <h3 class="text-sm font-semibold text-slate-300 mb-3">Mapa de Distribuição</h3>
-            <div id="me-rota-map" class="space-y-2 text-sm text-gray-400"></div>
         </div>
     </div>
 
@@ -208,6 +218,34 @@
                 </table>
             </div>
             <div id="me-logs-pag" class="flex items-center justify-center gap-3 mt-4"></div>
+        </div>
+    </div>
+
+    <!-- ── Base de Conhecimento ── -->
+    <div id="me-sec-kb" class="hidden">
+        <div class="glass-card p-6">
+            <div class="flex flex-wrap items-end gap-3 mb-6 justify-between">
+                <div class="flex items-center gap-3">
+                    <h3 class="text-base font-bold text-[var(--text-primary)] font-display">Base de Conhecimento</h3>
+                    <select id="me-kb-filter-cat" onchange="meRenderKB()" class="input-glass px-3 py-2 text-sm text-slate-200">
+                        <option value="">Todas Categorias</option>
+                        <option value="financeiro">Financeiro</option>
+                        <option value="academico">Acadêmico</option>
+                        <option value="documentos">Documentos</option>
+                        <option value="estagio">Estágio</option>
+                        <option value="juridico">Jurídico</option>
+                        <option value="tecnico">Técnico</option>
+                        <option value="geral">Geral</option>
+                    </select>
+                </div>
+                <button onclick="meModalKB()" class="btn-primary text-sm px-4 py-2 rounded-xl flex items-center gap-2">
+                    <span class="material-symbols-outlined text-base">add_circle</span>
+                    Nova Resposta
+                </button>
+            </div>
+            <div id="me-kb-grid" class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div class="text-gray-500 text-sm text-center py-8 col-span-full">Carregando...</div>
+            </div>
         </div>
     </div>
 

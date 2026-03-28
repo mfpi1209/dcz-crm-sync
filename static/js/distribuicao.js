@@ -46,7 +46,7 @@ async function loadDistribuicao() {
         filterDistribuicao();
     } catch(e) {
         console.error('Erro ao carregar distribuição:', e);
-        if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="px-4 py-6 text-center text-rose-400 text-sm">Erro ao carregar: ${e.message}</td></tr>`;
+        if (tbody) tbody.innerHTML = `<tr><td colspan="10" class="px-4 py-6 text-center text-rose-400 text-sm">Erro ao carregar: ${e.message}</td></tr>`;
     } finally {
         if (icon) icon.classList.remove('animate-spin');
         if (loading) loading.classList.add('hidden');
@@ -155,6 +155,12 @@ function renderDistTable(items) {
                     <option value="Acolhimento" ${d.tipo_atendimento === 'Acolhimento' ? 'selected' : ''}>Acolhimento</option>
                 </select>
             </td>
+            <td class="px-3 py-3 text-center">
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" data-field="distribuir_email" ${d.distribuir_email ? 'checked' : ''} class="sr-only peer">
+                    <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-slate-400 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-600 peer-checked:after:bg-white"></div>
+                </label>
+            </td>
         </tr>`;
     }).join('');
 
@@ -175,7 +181,8 @@ async function saveDistribuicao() {
         const id = row.getAttribute('data-id');
         const statusSel = row.querySelector('select[data-field="status"]');
         const tipoSel = row.querySelector('select[data-field="tipo"]');
-        const inputs = row.querySelectorAll('input');
+        const emailCheck = row.querySelector('input[data-field="distribuir_email"]');
+        const inputs = row.querySelectorAll('input:not([data-field])');
         dados.push({
             id,
             status: statusSel ? statusSel.value : 'Ativo',
@@ -184,6 +191,7 @@ async function saveDistribuicao() {
             pausa: inputs[2].value,
             volume: inputs[3].value,
             tipo_atendimento: tipoSel ? tipoSel.value : 'Atendimento',
+            distribuir_email: emailCheck ? emailCheck.checked : false,
         });
     });
 
