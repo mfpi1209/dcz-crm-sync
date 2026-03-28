@@ -30,6 +30,22 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dcz-sync-default-key-change-me")
 app.config["CACHE_BUST"] = str(int(time.time()))
 
+from collections import deque
+
+_sync_running = False
+_sync_proc = None
+_sync_logs = deque(maxlen=500)
+_update_running = False
+_update_logs = deque(maxlen=500)
+
+def _add_sync_log(msg):
+    import datetime
+    _sync_logs.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {msg}")
+
+def _add_update_log(msg):
+    import datetime
+    _update_logs.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {msg}")
+
 # ── Registrar Blueprints ──────────────────────────────────────────────────
 
 from routes.auth import auth_bp
