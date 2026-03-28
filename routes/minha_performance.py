@@ -527,6 +527,66 @@ def _determine_tier(total_mat, metas):
 
 
 # ---------------------------------------------------------------------------
+# Diagnóstico de aceites e sync
+# ---------------------------------------------------------------------------
+
+@minha_performance_bp.route("/api/minha-performance/diagnostico")
+def api_diagnostico():
+    """Endpoint de diagnóstico para verificar estado dos aceites e sync."""
+    if not _is_admin():
+        return jsonify({"error": "admin only"}), 403
+    result = {}
+
+    try:
+        ace_ids = _get_aceite_status_ids()
+        result["aceite_status_ids"] = ace_ids
+    except Exception as e:
+        result["aceite_status_ids_error"] = str(e)
+
+    try:
+        kconn = _pg_kommo()
+        kcur = kconn.cursor()
+        kcur.execute("SELECT id, pipeline_id, name FROM pipeline_statuses WHERE LOWER(name) LIKE '%aceite%'")
+        result["pipeline_statuses_aceite"] = [{"id": r[0], "pipeline_id": r[1], "name": r[2]} for r in kcur.fetchall()]
+        kcur.execute("SELECT COUNT(*) FROM pipeline_statuses")
+        result["total_pipeline_statuses"] = kcur.fetchone()[0]
+        kcur.execute("SELECT COUNT(*) FROM leads WHERE NOT is_deleted")
+        result["total_leads_active"] = kcur.fetchone()[0]
+        kcur.execute("SELECT COUNT(*) FROM leads WHERE is_deleted")
+        result["total_leads_deleted"] = kcur.fetchone()[0]
+
+        if ace_ids:
+            ace_ph = ",".join(["%s"] * len(ace_ids))
+            kcur.execute(f"SELECT COUNT(*) FROM leads WHERE status_id IN ({ace_ph}) AND NOT is_deleted", ace_ids)
+            result["aceites_fila_total"] = kcur.fetchone()[0]
+            kcur.execute(f"SELECT COUNT(*) FROM leads WHERE status_id IN ({ace_ph}) AND is_deleted", ace_ids)
+            result["aceites_deleted"] = kcur.fetchone()[0]
+            kcur.execute(f"""
+                SELECT responsible_user_id, COUNT(*) FROM leads
+                WHERE status_id IN ({ace_ph}) AND NOT is_deleted
+                GROUP BY responsible_user_id ORDER BY COUNT(*) DESC LIMIT 10
+            """, ace_ids)
+            result["aceites_por_agente"] = [{"uid": r[0], "count": r[1]} for r in kcur.fetchall()]
+
+        kcur.execute("SELECT MAX(synced_at) FROM leads")
+        result["last_lead_sync"] = str(kcur.fetchone()[0])
+        kcur.close()
+        kconn.close()
+    except Exception as e:
+        result["kommo_db_error"] = str(e)
+
+    try:
+        import app as _app
+        result["sync_running"] = _app._sync_running
+        result["sync_log_count"] = len(_app._sync_logs)
+        result["sync_last_logs"] = list(_app._sync_logs)[-5:] if _app._sync_logs else []
+    except Exception as e:
+        result["app_state_error"] = str(e)
+
+    return jsonify(result)
+
+
+# ---------------------------------------------------------------------------
 # API: Dados do agente
 # ---------------------------------------------------------------------------
 
