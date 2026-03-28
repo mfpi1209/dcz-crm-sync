@@ -57,13 +57,17 @@ async function loadMinhaPerformance(params) {
     if (params?.uid) _mpSelectedUid = Number(params.uid);
 
     _mpDestroyCharts();
+    _mpMatLoaded = false;
+    _mpCurrentTab = 'performance';
 
     const loading  = document.getElementById('mp-loading');
     const noLink   = document.getElementById('mp-no-link');
     const noCamp   = document.getElementById('mp-no-campanha');
     const content  = document.getElementById('mp-content');
     const adminBar = document.getElementById('mp-admin-bar');
-    [loading, noLink, noCamp, content].forEach(el => { if(el) el.classList.add('hidden'); });
+    const matContent = document.getElementById('mp-mat-content');
+    const tabs = document.getElementById('mp-tabs');
+    [loading, noLink, noCamp, content, matContent, tabs].forEach(el => { if(el) el.classList.add('hidden'); });
     if (loading) loading.classList.remove('hidden');
 
     try {
@@ -106,6 +110,7 @@ async function loadMinhaPerformance(params) {
         }
 
         if (content) content.classList.remove('hidden');
+        if (tabs) tabs.classList.remove('hidden');
 
         _mpRenderHero(insights);
         _mpRenderPixDia(insights);
@@ -118,7 +123,6 @@ async function loadMinhaPerformance(params) {
         _mpRenderTierProgress(insights);
         _mpRenderFinanceiro(insights);
         _mpRenderTimeline(insights);
-        _mpRenderTable(insights);
         _mpRenderHistorico(hist?.historico || []);
 
     } catch(e) {
@@ -1000,29 +1004,6 @@ function _mpRenderTimeline(d) {
 }
 
 
-/* ═══ Tabela ═══ */
-function _mpRenderTable(d) {
-    const tbody = document.getElementById('mp-mat-tbody');
-    const count = document.getElementById('mp-mat-count');
-    const mats = d.matriculas || [];
-    if (count) count.textContent = `${mats.length} registro${mats.length !== 1 ? 's' : ''}`;
-    if (!tbody) return;
-    tbody.innerHTML = mats.map(m => `<tr class="border-b border-slate-800/50 mp-mat-row hover:bg-slate-800/30 transition-colors" data-rgm="${(m.rgm||'').toLowerCase()}">
-        <td class="py-1.5 px-2 text-slate-300">${m.rgm||'-'}</td>
-        <td class="py-1.5 px-2 text-slate-400">${m.nivel||'-'}</td>
-        <td class="py-1.5 px-2 text-slate-400">${m.modalidade||'-'}</td>
-        <td class="py-1.5 px-2 text-slate-400">${_mpFmtDate(m.data_matricula)}</td>
-    </tr>`).join('') || '<tr><td colspan="4" class="py-4 text-center text-slate-600 text-xs">Nenhuma matrícula</td></tr>';
-}
-
-function mpFilterTable() {
-    const q = (document.getElementById('mp-search-rgm')?.value || '').toLowerCase();
-    document.querySelectorAll('.mp-mat-row').forEach(row => {
-        row.style.display = !q || row.dataset.rgm.includes(q) ? '' : 'none';
-    });
-}
-
-
 /* ═══ Histórico ═══ */
 function _mpRenderHistorico(hist) {
     const wrap = document.getElementById('mp-historico');
@@ -1051,4 +1032,299 @@ function _mpRenderHistorico(hist) {
             <p class="text-sm font-bold text-emerald-400 mt-1">${_mpFmt(h.total_premiacao)}</p>
         </div>`;
     }).join('') || '<p class="text-xs text-slate-600">Nenhuma campanha anterior</p>';
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Sub-abas: Performance / Minhas Matrículas
+   ═══════════════════════════════════════════════════════════════════════ */
+
+let _mpCurrentTab = 'performance';
+let _mpMatLoaded = false;
+
+function _mpSwitchTab(tab) {
+    _mpCurrentTab = tab;
+    const perf = document.getElementById('mp-content');
+    const mat  = document.getElementById('mp-mat-content');
+    const tabP = document.getElementById('mp-tab-performance');
+    const tabM = document.getElementById('mp-tab-matriculas');
+    if (!perf || !mat) return;
+
+    const activeClasses   = 'border-emerald-500 text-emerald-400';
+    const inactiveClasses = 'border-transparent text-slate-500 hover:text-slate-300';
+
+    if (tab === 'performance') {
+        perf.classList.remove('hidden');
+        mat.classList.add('hidden');
+        tabP.className = tabP.className.replace(inactiveClasses, '').replace(activeClasses, '') ;
+        tabP.classList.add(...activeClasses.split(' '));
+        tabM.className = tabM.className.replace(activeClasses, '').replace(inactiveClasses, '');
+        tabM.classList.add(...inactiveClasses.split(' '));
+    } else {
+        perf.classList.add('hidden');
+        mat.classList.remove('hidden');
+        tabM.className = tabM.className.replace(inactiveClasses, '').replace(activeClasses, '');
+        tabM.classList.add(...activeClasses.split(' '));
+        tabP.className = tabP.className.replace(activeClasses, '').replace(inactiveClasses, '');
+        tabP.classList.add(...inactiveClasses.split(' '));
+        if (!_mpMatLoaded) {
+            _mpMatLoaded = true;
+            _mpLoadMatriculas();
+            _mpLoadMinhasMatriculas();
+            _mpLoadAjustes();
+        }
+    }
+}
+
+
+/* ═══ Matrículas Oficiais ═══ */
+
+let _mpOficialData = [];
+
+async function _mpLoadMatriculas() {
+    const uid = (_mpIsAdmin && _mpSelectedUid) ? _mpSelectedUid : _mpMyUid;
+    if (!uid) return;
+    const tbody = document.getElementById('mp-mat-oficial-tbody');
+    const countEl = document.getElementById('mp-mat-oficial-count');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-slate-600 text-xs">Carregando...</td></tr>';
+    try {
+        const res = await api(`/api/minha-performance/matriculas?kommo_uid=${uid}`);
+        const d = await res.json();
+        _mpOficialData = d.matriculas || [];
+        if (countEl) countEl.textContent = `${_mpOficialData.length} registro${_mpOficialData.length !== 1 ? 's' : ''}`;
+        _mpRenderOficialTable(_mpOficialData);
+    } catch(e) {
+        if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-red-400 text-xs">Erro ao carregar</td></tr>';
+    }
+}
+
+function _mpRenderOficialTable(mats) {
+    const tbody = document.getElementById('mp-mat-oficial-tbody');
+    if (!tbody) return;
+    if (!mats.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-slate-600 text-xs">Nenhuma matrícula encontrada</td></tr>';
+        return;
+    }
+    tbody.innerHTML = mats.map(m => {
+        const sit = (m.situacao || '').toUpperCase();
+        const isEvadido = sit.includes('EVAD') || sit.includes('CANCEL') || sit.includes('DESIST');
+        const badge = sit
+            ? (isEvadido
+                ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/15 text-red-400 border border-red-500/20">${sit}</span>`
+                : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">${sit}</span>`)
+            : '<span class="text-slate-600">—</span>';
+        return `<tr class="border-b border-slate-800/50 mp-oficial-row hover:bg-slate-800/30 transition-colors"
+                    data-search="${(m.nome||'').toLowerCase()} ${(m.rgm||'').toLowerCase()} ${(m.curso||'').toLowerCase()}">
+            <td class="py-1.5 px-2 text-slate-300">${m.nome||'—'}</td>
+            <td class="py-1.5 px-2 text-slate-400 font-mono">${m.rgm||'—'}</td>
+            <td class="py-1.5 px-2 text-slate-400">${m.curso || m.nivel || '—'}</td>
+            <td class="py-1.5 px-2 text-slate-400">${m.polo||'—'}</td>
+            <td class="py-1.5 px-2 text-slate-400">${_mpFmtDate(m.data_matricula)}</td>
+            <td class="py-1.5 px-2">${badge}</td>
+        </tr>`;
+    }).join('');
+}
+
+function _mpFilterOficial() {
+    const q = (document.getElementById('mp-mat-oficial-search')?.value || '').toLowerCase();
+    document.querySelectorAll('.mp-oficial-row').forEach(row => {
+        row.style.display = !q || row.dataset.search.includes(q) ? '' : 'none';
+    });
+}
+
+
+/* ═══ Minha Lista (CRUD) ═══ */
+
+let _mpMinhasData = [];
+
+async function _mpLoadMinhasMatriculas() {
+    const uid = (_mpIsAdmin && _mpSelectedUid) ? _mpSelectedUid : _mpMyUid;
+    const tbody = document.getElementById('mp-minha-lista-tbody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-slate-600 text-xs">Carregando...</td></tr>';
+    try {
+        const qs = uid ? `?kommo_uid=${uid}` : '';
+        const res = await api(`/api/minha-performance/minhas-matriculas${qs}`);
+        const d = await res.json();
+        _mpMinhasData = d.matriculas || [];
+        _mpRenderMinhaLista();
+    } catch(e) {
+        if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-red-400 text-xs">Erro ao carregar</td></tr>';
+    }
+}
+
+function _mpRenderMinhaLista() {
+    const tbody = document.getElementById('mp-minha-lista-tbody');
+    if (!tbody) return;
+    if (!_mpMinhasData.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-slate-600 text-xs">Nenhuma matrícula cadastrada. Clique em "Adicionar" acima.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = _mpMinhasData.map(m => `<tr class="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors">
+        <td class="py-1.5 px-2 text-slate-300">${m.nome||'—'}</td>
+        <td class="py-1.5 px-2 text-slate-400 font-mono">${m.rgm||'—'}</td>
+        <td class="py-1.5 px-2 text-slate-400">${m.curso||'—'}</td>
+        <td class="py-1.5 px-2 text-slate-400">${m.polo||'—'}</td>
+        <td class="py-1.5 px-2 text-slate-400">${_mpFmtDate(m.data_matricula)}</td>
+        <td class="py-1.5 px-2 text-slate-400 font-mono">${m.kommo_lead_id||'—'}</td>
+        <td class="py-1.5 px-2">
+            <div class="flex items-center gap-1">
+                <button onclick="_mpEditMinhaMatricula(${m.id})" class="text-blue-400 hover:text-blue-300 transition-colors" title="Editar">
+                    <span class="material-symbols-outlined text-sm">edit</span>
+                </button>
+                <button onclick="_mpDeleteMinhaMatricula(${m.id})" class="text-red-400 hover:text-red-300 transition-colors" title="Excluir">
+                    <span class="material-symbols-outlined text-sm">delete</span>
+                </button>
+            </div>
+        </td>
+    </tr>`).join('');
+}
+
+function _mpOpenMinhaMatModal(data = null) {
+    const modal = document.getElementById('mp-modal-minha-mat');
+    const title = document.getElementById('mp-minha-mat-title');
+    if (!modal) return;
+    document.getElementById('mp-minha-mat-id').value = data ? data.id : '';
+    document.getElementById('mp-mm-nome').value = data?.nome || '';
+    document.getElementById('mp-mm-rgm').value = data?.rgm || '';
+    document.getElementById('mp-mm-curso').value = data?.curso || '';
+    document.getElementById('mp-mm-polo').value = data?.polo || '';
+    document.getElementById('mp-mm-data').value = data?.data_matricula ? String(data.data_matricula).substring(0,10) : '';
+    document.getElementById('mp-mm-ciclo').value = data?.ciclo || '';
+    document.getElementById('mp-mm-nivel').value = data?.nivel || '';
+    document.getElementById('mp-mm-kommo').value = data?.kommo_lead_id || '';
+    document.getElementById('mp-mm-obs').value = data?.observacao || '';
+    if (title) title.textContent = data ? 'Editar Matrícula' : 'Adicionar Matrícula';
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function _mpEditMinhaMatricula(id) {
+    const m = _mpMinhasData.find(x => x.id === id);
+    if (m) _mpOpenMinhaMatModal(m);
+}
+
+async function _mpSaveMinhaMatricula() {
+    const id = document.getElementById('mp-minha-mat-id').value;
+    const body = {
+        nome: document.getElementById('mp-mm-nome').value,
+        rgm: document.getElementById('mp-mm-rgm').value,
+        curso: document.getElementById('mp-mm-curso').value,
+        polo: document.getElementById('mp-mm-polo').value,
+        data_matricula: document.getElementById('mp-mm-data').value || null,
+        ciclo: document.getElementById('mp-mm-ciclo').value,
+        nivel: document.getElementById('mp-mm-nivel').value,
+        kommo_lead_id: document.getElementById('mp-mm-kommo').value,
+        observacao: document.getElementById('mp-mm-obs').value,
+    };
+    try {
+        const method = id ? 'PUT' : 'POST';
+        const url = id ? `/api/minha-performance/minhas-matriculas/${id}` : '/api/minha-performance/minhas-matriculas';
+        await api(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+        document.getElementById('mp-modal-minha-mat').classList.add('hidden');
+        document.getElementById('mp-modal-minha-mat').classList.remove('flex');
+        _mpLoadMinhasMatriculas();
+    } catch(e) {
+        alert('Erro ao salvar: ' + e.message);
+    }
+}
+
+async function _mpDeleteMinhaMatricula(id) {
+    if (!confirm('Excluir esta matrícula da sua lista?')) return;
+    try {
+        await api(`/api/minha-performance/minhas-matriculas/${id}`, { method: 'DELETE' });
+        _mpLoadMinhasMatriculas();
+    } catch(e) {
+        alert('Erro ao excluir: ' + e.message);
+    }
+}
+
+
+/* ═══ Solicitações de Ajuste (Agente) ═══ */
+
+let _mpAjustesData = [];
+
+async function _mpLoadAjustes() {
+    const uid = (_mpIsAdmin && _mpSelectedUid) ? _mpSelectedUid : _mpMyUid;
+    const list = document.getElementById('mp-ajustes-list');
+    if (list) list.innerHTML = '<p class="text-xs text-slate-600 py-4 text-center">Carregando...</p>';
+    try {
+        const qs = uid ? `?kommo_uid=${uid}` : '';
+        const res = await api(`/api/minha-performance/ajustes${qs}`);
+        const d = await res.json();
+        _mpAjustesData = d.ajustes || [];
+        _mpRenderAjustesList();
+    } catch(e) {
+        if (list) list.innerHTML = '<p class="text-xs text-red-400 py-4 text-center">Erro ao carregar</p>';
+    }
+}
+
+const _mpAjTipoLabel = { matricula_nao_computada: 'Matrícula não computada', dados_incorretos: 'Dados incorretos', evasao_indevida: 'Evasão indevida' };
+const _mpAjStatusColor = {
+    pendente: 'bg-amber-500/15 text-amber-400 border-amber-500/20',
+    em_analise: 'bg-blue-500/15 text-blue-400 border-blue-500/20',
+    aprovado: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20',
+    rejeitado: 'bg-red-500/15 text-red-400 border-red-500/20',
+};
+const _mpAjStatusLabel = { pendente: 'Pendente', em_analise: 'Em análise', aprovado: 'Aprovado', rejeitado: 'Rejeitado' };
+
+function _mpRenderAjustesList() {
+    const list = document.getElementById('mp-ajustes-list');
+    if (!list) return;
+    if (!_mpAjustesData.length) {
+        list.innerHTML = '<p class="text-xs text-slate-600 py-4 text-center">Nenhuma solicitação enviada.</p>';
+        return;
+    }
+    list.innerHTML = _mpAjustesData.map(a => {
+        const sc = _mpAjStatusColor[a.status] || _mpAjStatusColor.pendente;
+        return `<div class="border border-slate-700/30 rounded-lg p-3 mb-2 hover:bg-slate-800/20 transition-colors">
+            <div class="flex flex-wrap items-center gap-2 mb-1">
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border ${sc}">${_mpAjStatusLabel[a.status] || a.status}</span>
+                <span class="text-[10px] text-slate-500">${_mpAjTipoLabel[a.tipo] || a.tipo}</span>
+                <span class="text-[10px] text-slate-600 ml-auto">${_mpFmtDate(String(a.created_at).substring(0,10))}</span>
+            </div>
+            <p class="text-xs text-slate-300"><strong>${a.nome_aluno || '—'}</strong> — RGM: ${a.rgm || '—'} — Lead: ${a.kommo_lead_id || '—'}</p>
+            <p class="text-[10px] text-slate-500 mt-1">${a.descricao || ''}</p>
+            ${a.resposta_admin ? `<div class="mt-2 px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700/30">
+                <p class="text-[10px] text-slate-400"><span class="font-semibold text-slate-300">Resposta:</span> ${a.resposta_admin}</p>
+            </div>` : ''}
+        </div>`;
+    }).join('');
+}
+
+function _mpOpenAjusteModal() {
+    const modal = document.getElementById('mp-modal-ajuste');
+    if (!modal) return;
+    ['mp-aj-nome','mp-aj-rgm','mp-aj-curso','mp-aj-polo','mp-aj-data','mp-aj-kommo','mp-aj-desc'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    const tipo = document.getElementById('mp-aj-tipo');
+    if (tipo) tipo.value = 'matricula_nao_computada';
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+async function _mpSaveAjuste() {
+    const kommoId = document.getElementById('mp-aj-kommo')?.value?.trim();
+    const desc = document.getElementById('mp-aj-desc')?.value?.trim();
+    if (!kommoId) { alert('Lead Kommo ID é obrigatório'); return; }
+    if (!desc) { alert('Justificativa é obrigatória'); return; }
+    const body = {
+        tipo: document.getElementById('mp-aj-tipo')?.value,
+        nome_aluno: document.getElementById('mp-aj-nome')?.value,
+        rgm: document.getElementById('mp-aj-rgm')?.value,
+        curso: document.getElementById('mp-aj-curso')?.value,
+        polo: document.getElementById('mp-aj-polo')?.value,
+        data_matricula: document.getElementById('mp-aj-data')?.value || null,
+        kommo_lead_id: kommoId,
+        descricao: desc,
+    };
+    try {
+        await api('/api/minha-performance/ajustes', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        document.getElementById('mp-modal-ajuste').classList.add('hidden');
+        document.getElementById('mp-modal-ajuste').classList.remove('flex');
+        _mpLoadAjustes();
+    } catch(e) {
+        alert('Erro ao enviar: ' + e.message);
+    }
 }

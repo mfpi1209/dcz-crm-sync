@@ -1,0 +1,74 @@
+<section id="page-ajustes_matricula" class="hidden">
+<style>
+    .am-card {
+        background: rgba(30,41,59,.65);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(148,163,184,.08);
+        border-radius: 1rem;
+        transition: transform .2s, box-shadow .2s;
+    }
+    .am-card:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(0,0,0,.2) }
+</style>
+
+<div class="max-w-7xl mx-auto space-y-5 pb-12">
+
+    <!-- Header -->
+    <div class="flex flex-wrap items-center gap-4 mb-2">
+        <h1 class="text-lg font-bold text-white flex items-center gap-2">
+            <span class="material-symbols-outlined text-xl text-orange-400">fact_check</span>
+            Ajustes de Matrícula
+        </h1>
+        <div class="flex items-center gap-2 ml-auto">
+            <select id="am-filter-status" onchange="amLoadAjustes()" class="input-glass px-3 py-1.5 text-xs text-slate-300">
+                <option value="">Todos os status</option>
+                <option value="pendente">Pendente</option>
+                <option value="em_analise">Em análise</option>
+                <option value="aprovado">Aprovado</option>
+                <option value="rejeitado">Rejeitado</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div id="am-stats" class="grid grid-cols-2 sm:grid-cols-4 gap-3"></div>
+
+    <!-- Lista -->
+    <div id="am-list" class="space-y-3">
+        <p class="text-xs text-slate-600 text-center py-8">Carregando...</p>
+    </div>
+
+</div>
+
+<!-- Modal: Detalhes / Resposta Admin -->
+<div id="am-modal-detail" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm" onclick="if(event.target===this){this.classList.add('hidden');this.classList.remove('flex')}">
+    <div class="bg-slate-900 border border-slate-700/50 rounded-2xl p-6 w-full max-w-xl mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <h3 class="text-sm font-bold text-white mb-4 flex items-center gap-2">
+            <span class="material-symbols-outlined text-orange-400">rate_review</span>
+            Revisar Solicitação
+        </h3>
+        <div id="am-detail-body"></div>
+        <hr class="border-slate-700/30 my-4">
+        <div class="space-y-3 text-xs">
+            <div>
+                <label class="text-slate-400 block mb-1">Alterar Status</label>
+                <select id="am-detail-status" class="input-glass px-3 py-2 w-full text-slate-300">
+                    <option value="pendente">Pendente</option>
+                    <option value="em_analise">Em análise</option>
+                    <option value="aprovado">Aprovado</option>
+                    <option value="rejeitado">Rejeitado</option>
+                </select>
+            </div>
+            <div>
+                <label class="text-slate-400 block mb-1">Resposta ao Agente</label>
+                <textarea id="am-detail-resposta" class="input-glass px-3 py-2 w-full text-slate-300 h-20 resize-none" placeholder="Adicione uma resposta..."></textarea>
+            </div>
+        </div>
+        <input type="hidden" id="am-detail-id">
+        <div class="flex justify-end gap-2 mt-4">
+            <button onclick="document.getElementById('am-modal-detail').classList.add('hidden');document.getElementById('am-modal-detail').classList.remove('flex')" class="px-4 py-2 text-xs text-slate-400 hover:text-white transition-colors">Fechar</button>
+            <button onclick="amSaveReview()" class="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors">Salvar</button>
+        </div>
+    </div>
+</div>
+
+</section>

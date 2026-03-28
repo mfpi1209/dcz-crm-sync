@@ -82,6 +82,20 @@
     <p class="text-slate-500 text-sm text-center">Nenhuma campanha ativa no momento.</p>
 </div>
 
+<!-- ═══ Sub-abas ═══ -->
+<div id="mp-tabs" class="hidden max-w-7xl mx-auto mb-0">
+    <div class="flex border-b border-slate-700/40">
+        <button id="mp-tab-performance" onclick="_mpSwitchTab('performance')"
+            class="px-5 py-2.5 text-xs font-bold uppercase tracking-wider transition-all border-b-2 border-emerald-500 text-emerald-400">
+            <span class="material-symbols-outlined text-sm align-middle mr-1">insights</span>Performance
+        </button>
+        <button id="mp-tab-matriculas" onclick="_mpSwitchTab('matriculas')"
+            class="px-5 py-2.5 text-xs font-bold uppercase tracking-wider transition-all border-b-2 border-transparent text-slate-500 hover:text-slate-300">
+            <span class="material-symbols-outlined text-sm align-middle mr-1">school</span>Minhas Matrículas
+        </button>
+    </div>
+</div>
+
 <!-- ═══ Conteúdo principal ═══ -->
 <div id="mp-content" class="hidden max-w-7xl mx-auto space-y-5 pb-12">
 
@@ -268,30 +282,6 @@
             </div>
         </div>
 
-        <!-- Detalhes -->
-        <details class="mp-enter mp-d7 mp-card">
-            <summary class="p-4 cursor-pointer text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] flex items-center gap-2 select-none">
-                <span class="material-symbols-outlined text-sm text-slate-500">list_alt</span>
-                Matrículas do Período
-                <span id="mp-mat-count" class="ml-auto text-slate-600"></span>
-            </summary>
-            <div class="p-4 pt-0">
-                <input type="text" placeholder="Filtrar por RGM..." oninput="mpFilterTable()" id="mp-search-rgm"
-                    class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full sm:w-48 mb-3">
-                <div class="overflow-x-auto">
-                    <table class="w-full text-xs">
-                        <thead><tr class="text-slate-500 border-b border-slate-700/30">
-                            <th class="text-left py-2 px-2">RGM</th>
-                            <th class="text-left py-2 px-2">Nível</th>
-                            <th class="text-left py-2 px-2">Modalidade</th>
-                            <th class="text-left py-2 px-2">Data</th>
-                        </tr></thead>
-                        <tbody id="mp-mat-tbody"></tbody>
-                    </table>
-                </div>
-            </div>
-        </details>
-
         <!-- Histórico -->
         <div id="mp-historico-wrap" class="mp-enter mp-d7">
             <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
@@ -304,4 +294,134 @@
         </div>
 
 </div>
+
+<!-- ═══ Conteúdo Matrículas ═══ -->
+<div id="mp-mat-content" class="hidden max-w-7xl mx-auto space-y-5 pb-12">
+
+    <!-- Matrículas Oficiais -->
+    <div class="mp-card p-5 mp-enter">
+        <div class="flex flex-wrap items-center gap-3 mb-4">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm text-blue-400">verified</span>
+                Matrículas Oficiais
+            </h3>
+            <span id="mp-mat-oficial-count" class="text-[10px] text-slate-600 ml-auto"></span>
+        </div>
+        <input type="text" placeholder="Buscar por nome, RGM, curso..." oninput="_mpFilterOficial()"
+            id="mp-mat-oficial-search" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-full sm:w-64 mb-3">
+        <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+                <thead><tr class="text-slate-500 border-b border-slate-700/30">
+                    <th class="text-left py-2 px-2">Nome</th>
+                    <th class="text-left py-2 px-2">RGM</th>
+                    <th class="text-left py-2 px-2">Curso</th>
+                    <th class="text-left py-2 px-2">Polo</th>
+                    <th class="text-left py-2 px-2">Data Mat.</th>
+                    <th class="text-left py-2 px-2">Situação</th>
+                </tr></thead>
+                <tbody id="mp-mat-oficial-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Minha Lista -->
+    <div class="mp-card p-5 mp-enter mp-d1">
+        <div class="flex flex-wrap items-center gap-3 mb-4">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm text-amber-400">edit_note</span>
+                Minha Lista de Vendas
+            </h3>
+            <button onclick="_mpOpenMinhaMatModal()" class="ml-auto flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg transition-colors">
+                <span class="material-symbols-outlined text-sm">add</span> Adicionar
+            </button>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+                <thead><tr class="text-slate-500 border-b border-slate-700/30">
+                    <th class="text-left py-2 px-2">Nome</th>
+                    <th class="text-left py-2 px-2">RGM</th>
+                    <th class="text-left py-2 px-2">Curso</th>
+                    <th class="text-left py-2 px-2">Polo</th>
+                    <th class="text-left py-2 px-2">Data Mat.</th>
+                    <th class="text-left py-2 px-2">Lead Kommo</th>
+                    <th class="text-left py-2 px-2">Ações</th>
+                </tr></thead>
+                <tbody id="mp-minha-lista-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Solicitações de Ajuste -->
+    <div class="mp-card p-5 mp-enter mp-d2">
+        <div class="flex flex-wrap items-center gap-3 mb-4">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm text-orange-400">support_agent</span>
+                Solicitações de Ajuste
+            </h3>
+            <button onclick="_mpOpenAjusteModal()" class="ml-auto flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 rounded-lg transition-colors">
+                <span class="material-symbols-outlined text-sm">add_circle</span> Nova Solicitação
+            </button>
+        </div>
+        <div id="mp-ajustes-list"></div>
+    </div>
+
+</div>
+
+<!-- Modal: Minha Matrícula -->
+<div id="mp-modal-minha-mat" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm" onclick="if(event.target===this){this.classList.add('hidden');this.classList.remove('flex')}">
+    <div class="bg-slate-900 border border-slate-700/50 rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <h3 class="text-sm font-bold text-white mb-4 flex items-center gap-2">
+            <span class="material-symbols-outlined text-amber-400">edit_note</span>
+            <span id="mp-minha-mat-title">Adicionar Matrícula</span>
+        </h3>
+        <input type="hidden" id="mp-minha-mat-id">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div><label class="text-slate-400 block mb-1">Nome do Aluno</label><input id="mp-mm-nome" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div><label class="text-slate-400 block mb-1">RGM</label><input id="mp-mm-rgm" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div><label class="text-slate-400 block mb-1">Curso</label><input id="mp-mm-curso" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div><label class="text-slate-400 block mb-1">Polo</label><input id="mp-mm-polo" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div><label class="text-slate-400 block mb-1">Data Matrícula</label><input id="mp-mm-data" type="date" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div><label class="text-slate-400 block mb-1">Ciclo</label><input id="mp-mm-ciclo" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div><label class="text-slate-400 block mb-1">Nível</label><input id="mp-mm-nivel" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div><label class="text-slate-400 block mb-1">Lead Kommo ID</label><input id="mp-mm-kommo" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div class="sm:col-span-2"><label class="text-slate-400 block mb-1">Observação</label><textarea id="mp-mm-obs" class="input-glass px-3 py-2 w-full text-slate-300 h-16 resize-none"></textarea></div>
+        </div>
+        <div class="flex justify-end gap-2 mt-4">
+            <button onclick="document.getElementById('mp-modal-minha-mat').classList.add('hidden');document.getElementById('mp-modal-minha-mat').classList.remove('flex')" class="px-4 py-2 text-xs text-slate-400 hover:text-white transition-colors">Cancelar</button>
+            <button onclick="_mpSaveMinhaMatricula()" class="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-colors">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Solicitação de Ajuste -->
+<div id="mp-modal-ajuste" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm" onclick="if(event.target===this){this.classList.add('hidden');this.classList.remove('flex')}">
+    <div class="bg-slate-900 border border-slate-700/50 rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <h3 class="text-sm font-bold text-white mb-4 flex items-center gap-2">
+            <span class="material-symbols-outlined text-orange-400">support_agent</span>
+            Nova Solicitação de Ajuste
+        </h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div class="sm:col-span-2">
+                <label class="text-slate-400 block mb-1">Tipo</label>
+                <select id="mp-aj-tipo" class="input-glass px-3 py-2 w-full text-slate-300">
+                    <option value="matricula_nao_computada">Matrícula não computada</option>
+                    <option value="dados_incorretos">Dados incorretos</option>
+                    <option value="evasao_indevida">Evasão indevida</option>
+                </select>
+            </div>
+            <div><label class="text-slate-400 block mb-1">Nome do Aluno</label><input id="mp-aj-nome" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div><label class="text-slate-400 block mb-1">RGM</label><input id="mp-aj-rgm" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div><label class="text-slate-400 block mb-1">Curso</label><input id="mp-aj-curso" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div><label class="text-slate-400 block mb-1">Polo</label><input id="mp-aj-polo" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div><label class="text-slate-400 block mb-1">Data Matrícula</label><input id="mp-aj-data" type="date" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div><label class="text-slate-400 block mb-1">Lead Kommo ID *</label><input id="mp-aj-kommo" class="input-glass px-3 py-2 w-full text-slate-300" required></div>
+            <div class="sm:col-span-2"><label class="text-slate-400 block mb-1">Justificativa *</label><textarea id="mp-aj-desc" class="input-glass px-3 py-2 w-full text-slate-300 h-20 resize-none" required placeholder="Descreva o motivo do ajuste..."></textarea></div>
+        </div>
+        <div class="flex justify-end gap-2 mt-4">
+            <button onclick="document.getElementById('mp-modal-ajuste').classList.add('hidden');document.getElementById('mp-modal-ajuste').classList.remove('flex')" class="px-4 py-2 text-xs text-slate-400 hover:text-white transition-colors">Cancelar</button>
+            <button onclick="_mpSaveAjuste()" class="px-4 py-2 text-xs font-bold text-white bg-orange-600 hover:bg-orange-500 rounded-lg transition-colors">Enviar Solicitação</button>
+        </div>
+    </div>
+</div>
+
 </section>
