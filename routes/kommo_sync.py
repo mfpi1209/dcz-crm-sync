@@ -510,7 +510,8 @@ RECONCILE_COOLDOWN = 120  # seconds
 
 def reconcile_aceite_leads():
     """Compare leads in 'Aceite' status between our DB and Kommo API.
-    Marks stale leads (deleted/moved in Kommo) as is_deleted=True."""
+    Marks stale leads (deleted/moved in Kommo) as is_deleted=True.
+    Safety: aborts without changes if API returns zero leads (likely auth/network issue)."""
     global _last_reconcile_ts
     now = _time.time()
     if now - _last_reconcile_ts < RECONCILE_COOLDOWN:
@@ -533,11 +534,19 @@ def reconcile_aceite_leads():
         ace_ids = [r[0] for r in aceite_statuses]
         ace_ph = ",".join(["%s"] * len(ace_ids))
 
-        cur.execute(f"SELECT id FROM leads WHERE status_id IN ({ace_ph})", ace_ids)
+        cur.execute(
+            f"SELECT id FROM leads WHERE status_id IN ({ace_ph}) AND NOT is_deleted",
+            ace_ids,
+        )
         db_lead_ids = {r[0] for r in cur.fetchall()}
-        logger.info("Reconcile aceites: %d leads in DB with aceite status", len(db_lead_ids))
+        logger.info("Reconcile aceites: %d active leads in DB with aceite status", len(db_lead_ids))
+
+        if not db_lead_ids:
+            cur.close(); conn.close()
+            return {"db_aceites": 0, "api_aceites": 0, "stale_marked_deleted": 0, "note": "no active aceites in DB"}
 
         api_lead_ids = set()
+        api_error = False
         for status_id, pipeline_id in aceite_statuses:
             page = 1
             while True:
@@ -551,9 +560,13 @@ def reconcile_aceite_leads():
                     r = _kommo_get("/leads", params)
                 except Exception as e:
                     logger.error("Reconcile API error: %s", e)
+                    api_error = True
+                    break
+                if r.status_code == 204:
                     break
                 if r.status_code != 200:
                     logger.warning("Reconcile API %d: %s", r.status_code, r.text[:200])
+                    api_error = True
                     break
                 data = r.json()
                 leads = data.get("_embedded", {}).get("leads", [])
@@ -565,6 +578,16 @@ def reconcile_aceite_leads():
                     break
                 page += 1
                 _time.sleep(0.05)
+
+        if api_error and not api_lead_ids:
+            logger.warning("Reconcile aceites: API returned errors and zero leads — aborting to prevent data loss")
+            cur.close(); conn.close()
+            return {"aborted": True, "reason": "API error with zero leads, refusing to mark all as deleted"}
+
+        if not api_lead_ids and db_lead_ids:
+            logger.warning("Reconcile aceites: API returned 0 leads but DB has %d — aborting (likely API issue)", len(db_lead_ids))
+            cur.close(); conn.close()
+            return {"aborted": True, "reason": f"API returned 0 leads but DB has {len(db_lead_ids)} — refusing to delete all"}
 
         stale_ids = db_lead_ids - api_lead_ids
         updated = 0

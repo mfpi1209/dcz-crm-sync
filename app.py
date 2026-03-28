@@ -6,7 +6,14 @@ Uso:
     Acesse http://localhost:5001
 """
 
-import sys, os, io, warnings
+import sys, os, io, logging, warnings
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    stream=sys.stderr,
+)
 
 warnings.filterwarnings("ignore", message=".*collation.*")
 
