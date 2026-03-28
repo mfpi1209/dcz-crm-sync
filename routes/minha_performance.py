@@ -248,16 +248,18 @@ def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
 
     # Count aceites per agent (leads in ANY Aceite stage)
     ace_ids = _get_aceite_status_ids()
-    ace_ph = ",".join(["%s"] * len(ace_ids))
-    kcur.execute(f"""
-        SELECT responsible_user_id, COUNT(*)
-        FROM leads
-        WHERE status_id IN ({ace_ph})
-          AND NOT is_deleted
-          AND responsible_user_id IS NOT NULL
-        GROUP BY responsible_user_id
-    """, ace_ids)
-    aceites_per_agent = {r[0]: r[1] for r in kcur.fetchall()}
+    aceites_per_agent = {}
+    if ace_ids:
+        ace_ph = ",".join(["%s"] * len(ace_ids))
+        kcur.execute(f"""
+            SELECT responsible_user_id, COUNT(*)
+            FROM leads
+            WHERE status_id IN ({ace_ph})
+              AND NOT is_deleted
+              AND responsible_user_id IS NOT NULL
+            GROUP BY responsible_user_id
+        """, ace_ids)
+        aceites_per_agent = {r[0]: r[1] for r in kcur.fetchall()}
     kcur.close()
     kconn.close()
 
@@ -786,45 +788,47 @@ def api_minha_insights():
     aceites_by_date = defaultdict(int)
     try:
         ace_ids = _get_aceite_status_ids()
-        ace_ph = ",".join(["%s"] * len(ace_ids))
-        kconn_ac = _pg_kommo()
-        kcur_ac = kconn_ac.cursor()
-        kcur_ac.execute(f"""
-            SELECT COUNT(*) FROM leads
-            WHERE responsible_user_id = %s
-              AND status_id IN ({ace_ph})
-              AND NOT is_deleted
-        """, [kommo_uid] + ace_ids)
-        aceites_fila = kcur_ac.fetchone()[0] or 0
-        today_ts = int(datetime.combine(today, datetime.min.time()).timestamp())
-        kcur_ac.execute(f"""
-            SELECT COUNT(*) FROM leads
-            WHERE responsible_user_id = %s
-              AND status_id IN ({ace_ph})
-              AND NOT is_deleted
-              AND updated_at >= %s
-        """, [kommo_uid] + ace_ids + [today_ts])
-        aceites_hoje = kcur_ac.fetchone()[0] or 0
+        if ace_ids:
+            ace_ph = ",".join(["%s"] * len(ace_ids))
+            kconn_ac = _pg_kommo()
+            kcur_ac = kconn_ac.cursor()
+            kcur_ac.execute(f"""
+                SELECT COUNT(*) FROM leads
+                WHERE responsible_user_id = %s
+                  AND status_id IN ({ace_ph})
+                  AND NOT is_deleted
+            """, [kommo_uid] + ace_ids)
+            aceites_fila = kcur_ac.fetchone()[0] or 0
+            today_ts = int(datetime.combine(today, datetime.min.time()).timestamp())
+            kcur_ac.execute(f"""
+                SELECT COUNT(*) FROM leads
+                WHERE responsible_user_id = %s
+                  AND status_id IN ({ace_ph})
+                  AND NOT is_deleted
+                  AND updated_at >= %s
+            """, [kommo_uid] + ace_ids + [today_ts])
+            aceites_hoje = kcur_ac.fetchone()[0] or 0
 
-        # Aceites por dia (based on updated_at) for streak/heatmap
-        ini_ts = int(datetime.combine(dt_ini, datetime.min.time()).timestamp())
-        kcur_ac.execute(f"""
-            SELECT DATE(to_timestamp(updated_at)) AS dt, COUNT(*)
-            FROM leads
-            WHERE responsible_user_id = %s
-              AND status_id IN ({ace_ph})
-              AND NOT is_deleted
-              AND updated_at >= %s
-            GROUP BY dt
-        """, [kommo_uid] + ace_ids + [ini_ts])
-        for row in kcur_ac.fetchall():
-            if row[0]:
-                aceites_by_date[row[0]] = row[1]
+            ini_ts = int(datetime.combine(dt_ini, datetime.min.time()).timestamp())
+            kcur_ac.execute(f"""
+                SELECT DATE(to_timestamp(updated_at)) AS dt, COUNT(*)
+                FROM leads
+                WHERE responsible_user_id = %s
+                  AND status_id IN ({ace_ph})
+                  AND NOT is_deleted
+                  AND updated_at >= %s
+                GROUP BY dt
+            """, [kommo_uid] + ace_ids + [ini_ts])
+            for row in kcur_ac.fetchall():
+                if row[0]:
+                    aceites_by_date[row[0]] = row[1]
 
-        logger.info("Aceites uid=%s: fila=%d, hoje=%d, by_date=%d days (status_ids=%s)",
-                     kommo_uid, aceites_fila, aceites_hoje, len(aceites_by_date), ace_ids)
-        kcur_ac.close()
-        kconn_ac.close()
+            logger.info("Aceites uid=%s: fila=%d, hoje=%d, by_date=%d days (status_ids=%s)",
+                         kommo_uid, aceites_fila, aceites_hoje, len(aceites_by_date), ace_ids)
+            kcur_ac.close()
+            kconn_ac.close()
+        else:
+            logger.info("No aceite status IDs found, skipping aceites queries")
     except Exception as e:
         logger.warning("Error fetching aceites: %s", e)
 
