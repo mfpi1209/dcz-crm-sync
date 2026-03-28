@@ -643,7 +643,6 @@ function _mpRenderCalendar(d) {
     const breakdown = (d.premiacao?.daily_breakdown || []);
     const bdMap = {};
     breakdown.forEach(b => { bdMap[b.data] = b; });
-
     const hmMap = {};
     heatmap.forEach(h => { hmMap[h.data] = h; });
 
@@ -651,42 +650,31 @@ function _mpRenderCalendar(d) {
     const dtFim = d.campanha?.dt_fim;
     if (!dtIni || !dtFim) { wrap.innerHTML = ''; return; }
 
-    const startDate = new Date(dtIni + 'T00:00:00');
-    const endDate = new Date(dtFim + 'T00:00:00');
     const todayStr = new Date().toLocaleDateString('sv-SE');
-
-    const startMonth = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-    const endMonth = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0);
-
-    const dayNames = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+    const startMonth = new Date(new Date(dtIni + 'T00:00:00').getFullYear(), new Date(dtIni + 'T00:00:00').getMonth(), 1);
+    const endMonth   = new Date(new Date(dtFim + 'T00:00:00').getFullYear(), new Date(dtFim + 'T00:00:00').getMonth() + 1, 0);
+    const dayNames = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+    const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
     let months = [];
     let cur = new Date(startMonth);
-    while (cur <= endMonth) {
-        months.push({ year: cur.getFullYear(), month: cur.getMonth() });
-        cur.setMonth(cur.getMonth() + 1);
-    }
+    while (cur <= endMonth) { months.push({ year: cur.getFullYear(), month: cur.getMonth() }); cur.setMonth(cur.getMonth() + 1); }
 
-    const statusCfg = {
-        hit:     { grad: 'linear-gradient(135deg,rgba(16,185,129,.35),rgba(5,150,105,.25))', border: 'rgba(16,185,129,.6)', text: 'text-emerald-300', icon: 'check_circle', iconColor: '#34d399', label: 'Meta batida!', labelColor: 'text-emerald-400' },
-        partial: { grad: 'linear-gradient(135deg,rgba(245,158,11,.25),rgba(217,119,6,.18))', border: 'rgba(245,158,11,.5)', text: 'text-amber-300', icon: 'trending_up', iconColor: '#fbbf24', label: 'Parcial', labelColor: 'text-amber-400' },
-        miss:    { grad: 'linear-gradient(135deg,rgba(239,68,68,.18),rgba(185,28,28,.12))', border: 'rgba(239,68,68,.45)', text: 'text-red-400', icon: 'trending_down', iconColor: '#f87171', label: 'Não bateu', labelColor: 'text-red-400' },
-        rest:    { grad: 'rgba(30,41,59,.15)', border: 'rgba(51,65,85,.2)', text: 'text-slate-600', icon: 'bedtime', iconColor: '#475569', label: 'Sem meta', labelColor: 'text-slate-500' },
-        future:  { grad: 'rgba(51,65,85,.15)', border: 'rgba(51,65,85,.3)', text: 'text-slate-500', icon: 'schedule', iconColor: '#64748b', label: 'Futuro', labelColor: 'text-slate-500' },
+    const sc = {
+        hit:     { bg: '#064e3b', bg2: '#065f46', border: '#10b981', text: '#6ee7b7', glow: '0 0 16px rgba(16,185,129,.25)' },
+        partial: { bg: '#78350f', bg2: '#92400e', border: '#f59e0b', text: '#fcd34d', glow: 'none' },
+        miss:    { bg: '#450a0a', bg2: '#7f1d1d', border: '#ef4444', text: '#fca5a5', glow: 'none' },
+        rest:    { bg: '#0f172a', bg2: '#1e293b', border: '#334155', text: '#475569', glow: 'none' },
+        future:  { bg: '#0f172a', bg2: '#1e293b', border: '#1e293b', text: '#334155', glow: 'none' },
     };
 
-    const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-
-    const tipId = 'mp-cal-tip';
-
     const html = months.map(({ year, month }) => {
-        const firstDay = new Date(year, month, 1);
         const lastDay = new Date(year, month + 1, 0).getDate();
-        let startDow = firstDay.getDay() - 1;
+        let startDow = new Date(year, month, 1).getDay() - 1;
         if (startDow < 0) startDow = 6;
 
         let cells = '';
-        for (let i = 0; i < startDow; i++) cells += '<div></div>';
+        for (let i = 0; i < startDow; i++) cells += '<div class="h-16"></div>';
 
         for (let day = 1; day <= lastDay; day++) {
             const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
@@ -696,12 +684,12 @@ function _mpRenderCalendar(d) {
             const inRange = dateStr >= dtIni && dateStr <= dtFim;
 
             if (!inRange) {
-                cells += `<div class="rounded-xl p-1 text-center opacity-10"><span class="text-[10px] text-slate-700">${day}</span></div>`;
+                cells += `<div class="h-16 rounded-lg flex items-center justify-center opacity-15"><span class="text-[10px] text-slate-700">${day}</span></div>`;
                 continue;
             }
 
             const status = h?.status || 'future';
-            const sc = statusCfg[status] || statusCfg.future;
+            const c = sc[status] || sc.future;
             const realizadas = h?.realizadas;
             const matCount = h?.mat ?? 0;
             const aceCount = h?.aceites ?? 0;
@@ -709,28 +697,32 @@ function _mpRenderCalendar(d) {
             const bonus = bd ? bd.total : 0;
             const pct = (meta > 0 && realizadas != null) ? Math.min(100, Math.round((realizadas / meta) * 100)) : 0;
 
-            const todayExtra = isToday
-                ? 'ring-2 ring-cyan-400/60 shadow-lg shadow-cyan-400/15'
-                : '';
-
-            let ratioHtml = '';
-            if (status !== 'future' && realizadas != null) {
-                if (meta > 0) {
-                    ratioHtml = `<span class="block text-[9px] ${sc.text} font-bold leading-none mt-0.5 opacity-90">${realizadas}/${meta}</span>`;
-                } else if (realizadas > 0) {
-                    ratioHtml = `<span class="block text-[9px] ${sc.text} font-bold leading-none mt-0.5 opacity-90">${realizadas}</span>`;
-                }
-            }
-
-            const hitGlow = status === 'hit' ? 'box-shadow:0 0 12px rgba(16,185,129,.2);' : '';
             const tipData = JSON.stringify({ dateStr, status, matCount, aceCount, realizadas: realizadas ?? 0, meta, bonus, pct, isToday }).replace(/"/g, '&quot;');
 
-            cells += `<div class="mp-cal-cell rounded-xl p-1.5 text-center cursor-pointer transition-all duration-200 hover:scale-[1.15] hover:z-20 relative ${todayExtra}"
-                style="background:${sc.grad};border:1px solid ${sc.border};${hitGlow}" data-tip="${tipData}">
-                ${isToday ? '<span class="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>' : ''}
-                <span class="block text-[11px] font-extrabold ${sc.text} leading-none">${day}</span>
+            let ratioHtml = '';
+            let statusIcon = '';
+            if (status !== 'future' && status !== 'rest' && realizadas != null) {
+                if (meta > 0) ratioHtml = `<span class="text-[10px] font-bold opacity-80" style="color:${c.text}">${realizadas}/${meta}</span>`;
+                else if (realizadas > 0) ratioHtml = `<span class="text-[10px] font-bold opacity-80" style="color:${c.text}">${realizadas}</span>`;
+                statusIcon = status === 'hit' ? '✅' : status === 'partial' ? '⚡' : status === 'miss' ? '❌' : '';
+            }
+
+            let miniBar = '';
+            if (meta > 0 && status !== 'future') {
+                miniBar = `<div class="w-full h-[3px] rounded-full mt-auto" style="background:${c.border}20">
+                    <div class="h-full rounded-full" style="width:${pct}%;background:${c.border}"></div>
+                </div>`;
+            }
+
+            const todayCls = isToday ? `ring-2 ring-cyan-400 shadow-lg shadow-cyan-500/20` : '';
+
+            cells += `<div class="mp-cal-cell h-16 rounded-lg flex flex-col items-center justify-center gap-0.5 cursor-pointer relative transition-all duration-150 hover:brightness-125 hover:scale-105 hover:z-20 ${todayCls} overflow-hidden"
+                style="background:linear-gradient(145deg,${c.bg},${c.bg2});border:1px solid ${c.border}40;box-shadow:${c.glow}" data-tip="${tipData}">
+                ${isToday ? '<span class="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>' : ''}
+                <span class="text-sm font-black leading-none" style="color:${c.text}">${day}</span>
                 ${ratioHtml}
-                ${status === 'hit' ? '<span class="block text-[8px] leading-none mt-0.5">✅</span>' : ''}
+                ${statusIcon ? `<span class="text-[8px] leading-none">${statusIcon}</span>` : ''}
+                ${miniBar}
             </div>`;
         }
 
@@ -740,102 +732,114 @@ function _mpRenderCalendar(d) {
                 ${monthNames[month]} ${year}
             </p>
             <div class="grid grid-cols-7 gap-2">
-                ${dayNames.map(dn => `<div class="text-center text-[10px] text-slate-500 font-semibold pb-1.5 uppercase tracking-wider">${dn}</div>`).join('')}
+                ${dayNames.map(dn => `<div class="text-center text-[10px] text-slate-500 font-bold pb-2 uppercase tracking-widest">${dn}</div>`).join('')}
                 ${cells}
             </div>
         </div>`;
     }).join('');
 
-    const legend = `<div class="flex flex-wrap items-center gap-4 mt-4 pt-3 border-t border-slate-700/30 text-[10px]">
-        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:linear-gradient(135deg,rgba(16,185,129,.4),rgba(5,150,105,.3))"></span><span class="text-emerald-400 font-medium">Bateu</span></span>
-        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:linear-gradient(135deg,rgba(245,158,11,.3),rgba(217,119,6,.2))"></span><span class="text-amber-400 font-medium">Parcial</span></span>
-        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:linear-gradient(135deg,rgba(239,68,68,.2),rgba(185,28,28,.15))"></span><span class="text-red-400 font-medium">Não bateu</span></span>
-        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:rgba(51,65,85,.2)"></span><span class="text-slate-500 font-medium">Futuro</span></span>
-        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded ring-2 ring-cyan-400/60" style="background:rgba(51,65,85,.2)"></span><span class="text-cyan-400 font-medium">Hoje</span></span>
+    const legend = `<div class="flex flex-wrap items-center justify-center gap-5 mt-4 pt-3 border-t border-slate-700/20 text-[10px]">
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#065f46;border:1px solid #10b981"></span><span class="text-emerald-400 font-medium">Bateu ✅</span></span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#92400e;border:1px solid #f59e0b"></span><span class="text-amber-400 font-medium">Parcial ⚡</span></span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#7f1d1d;border:1px solid #ef4444"></span><span class="text-red-400 font-medium">Não bateu ❌</span></span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#1e293b;border:1px solid #334155"></span><span class="text-slate-500 font-medium">Futuro</span></span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded ring-2 ring-cyan-400" style="background:#1e293b"></span><span class="text-cyan-400 font-medium">Hoje</span></span>
     </div>`;
 
-    const tooltipDiv = `<div id="${tipId}" class="fixed z-[9999] pointer-events-none opacity-0 transition-all duration-200 scale-95"
-        style="min-width:200px;max-width:280px;"></div>`;
+    wrap.innerHTML = html + legend;
+    wrap.style.position = 'relative';
 
-    wrap.innerHTML = html + legend + tooltipDiv;
+    let tipEl = document.getElementById('mp-cal-tip');
+    if (tipEl) tipEl.remove();
+    tipEl = document.createElement('div');
+    tipEl.id = 'mp-cal-tip';
+    tipEl.className = 'fixed z-[9999] pointer-events-none transition-all duration-150';
+    tipEl.style.cssText = 'opacity:0;transform:translateY(4px) scale(.96);min-width:220px;max-width:280px;';
+    document.body.appendChild(tipEl);
 
-    _mpCalendarTooltips(wrap, tipId);
+    _mpCalendarTooltips(wrap, tipEl);
 }
 
-function _mpCalendarTooltips(wrap, tipId) {
-    const tip = document.getElementById(tipId);
-    if (!tip) return;
-
-    const statusMeta = {
-        hit: { icon: 'check_circle', color: '#34d399', bg: 'rgba(16,185,129,.08)', label: 'Meta batida! 🎉' },
-        partial: { icon: 'trending_up', color: '#fbbf24', bg: 'rgba(245,158,11,.08)', label: 'Quase lá! 💪' },
-        miss: { icon: 'trending_down', color: '#f87171', bg: 'rgba(239,68,68,.08)', label: 'Dia fraco 😤' },
-        rest: { icon: 'bedtime', color: '#64748b', bg: 'rgba(51,65,85,.08)', label: 'Sem meta' },
-        future: { icon: 'schedule', color: '#64748b', bg: 'rgba(51,65,85,.08)', label: 'Futuro' },
+function _mpCalendarTooltips(wrap, tip) {
+    const sm = {
+        hit:     { icon: 'emoji_events', color: '#6ee7b7', accent: '#10b981', label: 'Meta batida! 🎉' },
+        partial: { icon: 'trending_up',  color: '#fcd34d', accent: '#f59e0b', label: 'Quase lá! 💪' },
+        miss:    { icon: 'trending_down', color: '#fca5a5', accent: '#ef4444', label: 'Não bateu 😤' },
+        rest:    { icon: 'bedtime',       color: '#64748b', accent: '#475569', label: 'Dia de descanso' },
+        future:  { icon: 'schedule',      color: '#64748b', accent: '#475569', label: 'Futuro' },
     };
-
     const dayOfWeek = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
     wrap.querySelectorAll('.mp-cal-cell').forEach(cell => {
-        cell.addEventListener('mouseenter', (e) => {
+        cell.addEventListener('mouseenter', () => {
             const raw = cell.getAttribute('data-tip');
             if (!raw) return;
             let data;
             try { data = JSON.parse(raw); } catch { return; }
-            const sm = statusMeta[data.status] || statusMeta.future;
+            const s = sm[data.status] || sm.future;
             const dt = new Date(data.dateStr + 'T00:00:00');
-            const dayName = dayOfWeek[dt.getDay()];
-            const dateFmt = `${dayName}, ${dt.getDate()}/${dt.getMonth()+1}`;
+            const dateFmt = `${dayOfWeek[dt.getDay()]}, ${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
 
             let barHtml = '';
             if (data.meta > 0) {
-                barHtml = `<div class="mt-2.5 mb-1">
+                barHtml = `<div class="mt-2">
                     <div class="flex justify-between text-[10px] mb-1">
                         <span class="text-slate-400">Progresso</span>
-                        <span class="font-bold" style="color:${sm.color}">${data.pct}%</span>
+                        <span class="font-black" style="color:${s.color}">${data.pct}%</span>
                     </div>
-                    <div class="h-1.5 rounded-full bg-slate-700/50 overflow-hidden">
-                        <div class="h-full rounded-full transition-all duration-500" style="width:${data.pct}%;background:${sm.color}"></div>
+                    <div class="h-2 rounded-full overflow-hidden" style="background:${s.accent}20">
+                        <div class="h-full rounded-full transition-all" style="width:${data.pct}%;background:linear-gradient(90deg,${s.accent},${s.color})"></div>
                     </div>
                 </div>`;
             }
 
-            let detailRows = '';
+            let rows = '';
             if (data.status !== 'future') {
-                if (data.matCount > 0) detailRows += `<div class="flex justify-between"><span class="text-slate-500">Matrículas</span><span class="text-white font-semibold">${data.matCount}</span></div>`;
-                if (data.aceCount > 0) detailRows += `<div class="flex justify-between"><span class="text-slate-500">Aceites</span><span class="text-purple-400 font-semibold">${data.aceCount}</span></div>`;
-                if (data.meta > 0) detailRows += `<div class="flex justify-between"><span class="text-slate-500">Meta do dia</span><span class="text-slate-300 font-semibold">${data.meta}</span></div>`;
-                if (data.bonus > 0) detailRows += `<div class="flex justify-between mt-0.5 pt-1 border-t border-slate-700/40"><span class="text-slate-500">💰 Bônus</span><span class="text-emerald-400 font-bold">${_mpFmt(data.bonus)}</span></div>`;
+                const mkRow = (label, val, color) => `<div class="flex justify-between items-center py-0.5"><span class="text-slate-500 text-[10px]">${label}</span><span class="font-bold text-[11px]" style="color:${color}">${val}</span></div>`;
+                if (data.matCount > 0 || data.aceCount > 0) rows += mkRow('📋 Matrículas', data.matCount, '#e2e8f0');
+                if (data.aceCount > 0) rows += mkRow('🤝 Aceites', data.aceCount, '#c084fc');
+                if (data.meta > 0) rows += mkRow('🎯 Meta', data.meta, '#94a3b8');
+                if (data.bonus > 0) rows += `<div class="flex justify-between items-center py-1 mt-1 border-t border-slate-700/40"><span class="text-slate-400 text-[10px]">💰 Bônus do dia</span><span class="font-black text-xs text-emerald-400">${_mpFmt(data.bonus)}</span></div>`;
             }
 
-            tip.innerHTML = `<div class="rounded-xl p-3.5 shadow-2xl border border-slate-600/40" style="background:linear-gradient(165deg,#1e293b 0%,#0f172a 100%);backdrop-filter:blur(12px)">
-                <div class="flex items-center gap-2 mb-2">
-                    <span class="material-symbols-outlined text-base" style="color:${sm.color}">${sm.icon}</span>
-                    <span class="text-xs font-bold text-slate-200">${dateFmt}</span>
-                    ${data.isToday ? '<span class="ml-auto text-[9px] font-bold text-cyan-400 bg-cyan-400/10 px-1.5 py-0.5 rounded">HOJE</span>' : ''}
-                </div>
-                <p class="text-[11px] font-semibold mb-1" style="color:${sm.color}">${sm.label}</p>
-                ${barHtml}
-                <div class="space-y-1 text-[11px] mt-2">${detailRows || '<p class="text-slate-600 text-[10px]">Sem dados ainda</p>'}</div>
-            </div>`;
+            tip.innerHTML = `
+                <div class="rounded-2xl overflow-hidden shadow-2xl" style="border:1px solid ${s.accent}30">
+                    <div class="px-4 py-2.5 flex items-center gap-2" style="background:linear-gradient(135deg,${s.accent}25,${s.accent}10)">
+                        <span class="material-symbols-outlined text-lg" style="color:${s.color}">${s.icon}</span>
+                        <div class="flex-1">
+                            <p class="text-xs font-bold text-white">${dateFmt}</p>
+                            <p class="text-[10px] font-semibold" style="color:${s.color}">${s.label}</p>
+                        </div>
+                        ${data.isToday ? '<span class="text-[9px] font-black text-cyan-400 bg-cyan-400/15 px-2 py-0.5 rounded-full tracking-wide">HOJE</span>' : ''}
+                    </div>
+                    <div class="px-4 py-3" style="background:#0c1222">
+                        ${barHtml}
+                        <div class="mt-1.5">${rows || '<p class="text-slate-600 text-[10px]">Sem atividade</p>'}</div>
+                    </div>
+                    <div class="h-[3px]" style="background:linear-gradient(90deg,${s.accent},${s.color})"></div>
+                </div>`;
 
             const rect = cell.getBoundingClientRect();
-            const tipW = 240;
+            const tipW = 250;
+            tip.style.width = tipW + 'px';
+
             let left = rect.left + rect.width / 2 - tipW / 2;
             if (left < 8) left = 8;
             if (left + tipW > window.innerWidth - 8) left = window.innerWidth - tipW - 8;
-            let top = rect.bottom + 8;
-            if (top + 200 > window.innerHeight) top = rect.top - 200;
+
+            const tipH = 180;
+            let top = rect.top - tipH - 10;
+            if (top < 8) top = rect.bottom + 10;
 
             tip.style.left = left + 'px';
             tip.style.top = top + 'px';
             tip.style.opacity = '1';
-            tip.style.transform = 'scale(1)';
+            tip.style.transform = 'translateY(0) scale(1)';
         });
 
         cell.addEventListener('mouseleave', () => {
             tip.style.opacity = '0';
-            tip.style.transform = 'scale(0.95)';
+            tip.style.transform = 'translateY(4px) scale(.96)';
         });
     });
 }
