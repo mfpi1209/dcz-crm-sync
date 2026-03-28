@@ -275,14 +275,13 @@ function _mpCalcMaxPotencial(d) {
 function _mpRenderPixDia(d) {
     const hoje = d.hoje || {};
     const meta = hoje.meta || 0;
-    const feitas = hoje.realizadas || 0;
+    const realizadasHoje = hoje.realizadas || 0;
     const aceitesFila = hoje.aceites_fila || 0;
     const aceitesHoje = hoje.aceites_hoje || 0;
     const fixo = hoje.bonus_fixo || 0;
     const extra = hoje.bonus_extra || 0;
-    const efetivo = feitas + aceitesFila;
-    const pct = meta > 0 ? Math.min(Math.round((efetivo / meta) * 100), 100) : 0;
-    const metaBatida = efetivo >= meta && meta > 0;
+    const pct = meta > 0 ? Math.min(Math.round((realizadasHoje / meta) * 100), 100) : 0;
+    const metaBatida = realizadasHoje >= meta && meta > 0;
 
     // ApexCharts radialBar
     const chartEl = document.getElementById('mp-pix-chart');
@@ -298,7 +297,7 @@ function _mpRenderPixDia(d) {
                     track: { background: 'rgba(255,255,255,.06)', strokeWidth: '100%' },
                     dataLabels: {
                         name: { show: true, fontSize: '11px', color: 'rgba(255,255,255,.45)', offsetY: -8, formatter: () => meta > 0 ? `de ${meta}` : 'sem meta' },
-                        value: { show: true, fontSize: '36px', fontWeight: 900, color: '#fff', offsetY: 6, formatter: () => `${efetivo}` }
+                        value: { show: true, fontSize: '36px', fontWeight: 900, color: '#fff', offsetY: 6, formatter: () => `${realizadasHoje}` }
                     }
                 }
             },
@@ -322,7 +321,7 @@ function _mpRenderPixDia(d) {
             aceitesBadge.classList.remove('hidden');
             aceitesBadge.innerHTML = `
                 <span class="material-symbols-outlined text-sm text-purple-400">pending</span>
-                <span class="text-[10px] text-purple-300 font-medium">${aceitesFila} aceite${aceitesFila > 1 ? 's' : ''} na fila${aceitesHoje > 0 ? ' (' + aceitesHoje + ' novo' + (aceitesHoje > 1 ? 's' : '') + ' hoje)' : ''}</span>
+                <span class="text-[10px] text-purple-300 font-medium">${aceitesFila} aceite${aceitesFila > 1 ? 's' : ''} na fila total</span>
             `;
         } else {
             aceitesBadge.classList.add('hidden');
@@ -331,30 +330,36 @@ function _mpRenderPixDia(d) {
 
     const ontemRealizadas = hoje.ontem_realizadas || 0;
     let yesterdayHtml = '';
-    if (feitas > ontemRealizadas && ontemRealizadas >= 0) {
-        yesterdayHtml = `<p class="text-[10px] text-emerald-400 font-semibold mt-1">📈 +${feitas - ontemRealizadas} a mais que ontem — continue assim!</p>`;
-    } else if (feitas === ontemRealizadas && feitas > 0) {
+    if (realizadasHoje > ontemRealizadas && ontemRealizadas >= 0) {
+        yesterdayHtml = `<p class="text-[10px] text-emerald-400 font-semibold mt-1">📈 +${realizadasHoje - ontemRealizadas} a mais que ontem — continue assim!</p>`;
+    } else if (realizadasHoje === ontemRealizadas && realizadasHoje > 0) {
         yesterdayHtml = `<p class="text-[10px] text-amber-400 font-semibold mt-1">⚡ Mesmo ritmo de ontem — hora de ultrapassar!</p>`;
-    } else if (feitas < ontemRealizadas && ontemRealizadas > 0) {
+    } else if (realizadasHoje < ontemRealizadas && ontemRealizadas > 0) {
         yesterdayHtml = `<p class="text-[10px] text-orange-400 font-semibold mt-1">🔥 Ontem você fez ${ontemRealizadas} — bora superar!</p>`;
     }
 
     if (meta <= 0) {
         if (status) status.textContent = 'Sem meta diária hoje';
-        if (detail) detail.innerHTML = (aceitesFila > 0 ? `Você tem ${aceitesFila} aceite${aceitesFila > 1 ? 's' : ''} na fila!` : 'Nenhuma meta PIX configurada para hoje.') + yesterdayHtml;
+        let noMetaMsg = realizadasHoje > 0
+            ? `Você já fez ${realizadasHoje} hoje mesmo sem meta!`
+            : 'Nenhuma meta PIX configurada para hoje.';
+        if (aceitesFila > 0) noMetaMsg += ` (${aceitesFila} aceite${aceitesFila > 1 ? 's' : ''} na fila total)`;
+        if (detail) detail.innerHTML = noMetaMsg + yesterdayHtml;
         if (valor) valor.textContent = '';
         return;
     }
 
     if (metaBatida) {
-        const ganho = fixo + extra * Math.max(0, efetivo - meta);
+        const excedente = Math.max(0, realizadasHoje - meta);
+        const ganho = fixo + extra * excedente;
         if (status) { status.textContent = '🎉 PIX Garantido!'; status.className = 'text-lg font-black text-emerald-400 mb-1'; }
-        const parts = [];
-        if (feitas > 0) parts.push(`${feitas} mat`);
-        if (aceitesFila > 0) parts.push(`${aceitesFila} aceite${aceitesFila > 1 ? 's' : ''}`);
-        if (detail) detail.innerHTML = (efetivo > meta
-            ? `Meta batida! ${parts.join(' + ')} = ${efetivo} · +${efetivo - meta} extra × ${_mpFmt(extra)} cada`
-            : `Parabéns! ${parts.join(' + ')} = meta batida!`) + yesterdayHtml;
+        let msgParts = `Hoje: ${realizadasHoje} (mat + aceites do dia)`;
+        if (excedente > 0) {
+            msgParts += ` · +${excedente} extra × ${_mpFmt(extra)} cada`;
+        } else {
+            msgParts += ' — meta batida!';
+        }
+        if (detail) detail.innerHTML = msgParts + yesterdayHtml;
 
         _mpCountUp('mp-pix-valor', ganho, { prefix: 'R$ ', decimalPlaces: 2, duration: 2.2, formattedValue: _mpFmt(ganho) });
 
@@ -364,9 +369,9 @@ function _mpRenderPixDia(d) {
             }, 600);
         }
     } else {
-        const falta = meta - efetivo;
+        const falta = meta - realizadasHoje;
         if (status) { status.textContent = `Faltam ${falta} para o PIX!`; status.className = 'text-lg font-black text-cyan-300 mb-1'; }
-        if (detail) detail.innerHTML = `${feitas} mat + ${aceitesFila} aceite${aceitesFila !== 1 ? 's' : ''} = ${efetivo}/${meta}` + yesterdayHtml;
+        if (detail) detail.innerHTML = `Hoje: ${realizadasHoje}/${meta} (mat + aceites do dia)` + yesterdayHtml;
         if (valor) valor.textContent = `Prêmio: ${_mpFmt(fixo)}`;
     }
 }
@@ -587,8 +592,8 @@ function _mpRenderStreak(d) {
 
     const streakLabel = el('mp-streak-label');
     let labelText = seq > 0
-        ? `${seq} dia${seq > 1 ? 's' : ''} consecutivo${seq > 1 ? 's' : ''}`
-        : 'Inicie sua sequência hoje!';
+        ? `${seq} dia${seq > 1 ? 's' : ''} consecutivo${seq > 1 ? 's' : ''} batendo a meta diária`
+        : 'Inicie sua sequência hoje! (mat + aceites contam)';
     if (nivel) labelText += ` — ${nivelLabels[nivel]}`;
     if (streakLabel) streakLabel.textContent = labelText;
 
@@ -616,8 +621,13 @@ function _mpRenderStreak(d) {
     wrap.innerHTML = heatmap.map(h => {
         const cls = `mp-heat-${h.status}`;
         const bd = breakdownMap[h.data];
+        const mat = h.mat || 0;
+        const ace = h.aceites || 0;
+        let detail = `${h.realizadas||0}`;
+        if (h.meta) detail += `/${h.meta}`;
+        if (ace > 0) detail += ` (${mat}m+${ace}a)`;
         const tooltip = h.status === 'future' ? 'Futuro'
-            : `${_mpFmtDate(h.data)}: ${h.realizadas||0}/${h.meta||0}${bd ? ' · ' + _mpFmt(bd.total) : ''}`;
+            : `${_mpFmtDate(h.data)}: ${detail}${bd ? ' · ' + _mpFmt(bd.total) : ''}`;
         return `<div class="${cls} w-4 h-4 rounded-sm cursor-default transition-transform hover:scale-150" title="${tooltip}"></div>`;
     }).join('');
 }
@@ -658,10 +668,11 @@ function _mpRenderCalendar(d) {
     }
 
     const statusColors = {
-        hit:     { bg: 'rgba(16,185,129,.2)', border: 'rgba(16,185,129,.5)', text: 'text-emerald-400' },
-        partial: { bg: 'rgba(245,158,11,.15)', border: 'rgba(245,158,11,.45)', text: 'text-amber-400' },
-        miss:    { bg: 'rgba(239,68,68,.12)', border: 'rgba(239,68,68,.4)', text: 'text-red-400' },
-        future:  { bg: 'rgba(51,65,85,.2)', border: 'rgba(51,65,85,.4)', text: 'text-slate-600' },
+        hit:     { bg: 'rgba(16,185,129,.25)', border: 'rgba(16,185,129,.55)', text: 'text-emerald-300' },
+        partial: { bg: 'rgba(245,158,11,.2)', border: 'rgba(245,158,11,.5)', text: 'text-amber-300' },
+        miss:    { bg: 'rgba(239,68,68,.15)', border: 'rgba(239,68,68,.45)', text: 'text-red-400' },
+        rest:    { bg: 'rgba(51,65,85,.1)', border: 'rgba(51,65,85,.25)', text: 'text-slate-600' },
+        future:  { bg: 'rgba(51,65,85,.2)', border: 'rgba(51,65,85,.4)', text: 'text-slate-500' },
     };
 
     const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -685,7 +696,7 @@ function _mpRenderCalendar(d) {
             const inRange = dateStr >= dtIni && dateStr <= dtFim;
 
             if (!inRange) {
-                cells += `<div class="rounded-lg p-1 text-center opacity-20">
+                cells += `<div class="rounded-lg p-1 text-center opacity-15">
                     <span class="text-[10px] text-slate-600">${day}</span>
                 </div>`;
                 continue;
@@ -693,37 +704,56 @@ function _mpRenderCalendar(d) {
 
             const status = h?.status || 'future';
             const sc = statusColors[status] || statusColors.future;
-            const realizadas = h?.realizadas ?? '';
-            const meta = h?.meta ?? '';
+            const realizadas = h?.realizadas;
+            const matCount = h?.mat ?? 0;
+            const aceCount = h?.aceites ?? 0;
+            const meta = h?.meta ?? 0;
             const bonus = bd ? _mpFmt(bd.total) : '';
-            const todayBorder = isToday ? 'ring-2 ring-white/40' : '';
+            const todayRing = isToday ? 'ring-2 ring-white/50 shadow-lg shadow-white/10' : '';
 
-            const tooltip = status === 'future' ? 'Futuro'
-                : `${_mpFmtDate(dateStr)}: ${realizadas}/${meta}${bonus ? ' · ' + bonus : ''}`;
+            let tooltipParts = [];
+            if (status !== 'future') {
+                tooltipParts.push(`${_mpFmtDate(dateStr)}`);
+                if (matCount > 0) tooltipParts.push(`${matCount} mat`);
+                if (aceCount > 0) tooltipParts.push(`${aceCount} aceite${aceCount > 1 ? 's' : ''}`);
+                if (meta > 0) tooltipParts.push(`meta: ${meta}`);
+                if (bonus) tooltipParts.push(bonus);
+            }
+            const tooltip = status === 'future' ? `${_mpFmtDate(dateStr)} — Futuro` : tooltipParts.join(' · ');
 
-            const ratioText = (realizadas !== '' && meta) ? `${realizadas}/${meta}` : '';
+            let infoLine = '';
+            if (status !== 'future' && realizadas != null) {
+                if (meta > 0) {
+                    infoLine = `<span class="block text-[9px] ${sc.text} font-semibold leading-tight">${realizadas}/${meta}</span>`;
+                } else if (realizadas > 0) {
+                    infoLine = `<span class="block text-[9px] ${sc.text} font-semibold leading-tight">${realizadas}</span>`;
+                } else {
+                    infoLine = `<span class="block text-[9px] text-slate-600 leading-tight">—</span>`;
+                }
+            }
 
-            cells += `<div class="rounded-lg p-1.5 text-center cursor-default transition-transform hover:scale-110 ${todayBorder}" style="background:${sc.bg};border:1px solid ${sc.border}" title="${tooltip}">
-                <span class="block text-xs font-bold ${sc.text}">${day}</span>
-                ${ratioText ? `<span class="block text-[9px] ${sc.text} opacity-75 leading-tight">${ratioText}</span>` : ''}
+            cells += `<div class="rounded-lg p-1.5 text-center cursor-default transition-all hover:scale-110 hover:z-10 ${todayRing}" style="background:${sc.bg};border:1px solid ${sc.border}" title="${tooltip}">
+                <span class="block text-[11px] font-bold ${sc.text}">${day}</span>
+                ${infoLine}
             </div>`;
         }
 
         return `<div class="mb-4 last:mb-0">
             <p class="text-xs font-semibold text-slate-300 mb-2">${monthNames[month]} ${year}</p>
-            <div class="grid grid-cols-7 gap-1">
+            <div class="grid grid-cols-7 gap-1.5">
                 ${dayNames.map(dn => `<div class="text-center text-[9px] text-slate-500 font-medium pb-1">${dn}</div>`).join('')}
                 ${cells}
             </div>
         </div>`;
     }).join('');
 
-    const legend = `<div class="flex items-center gap-3 mt-3 text-[10px] text-slate-600">
-        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm" style="background:#10b981"></span>Bateu</span>
-        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm" style="background:#f59e0b"></span>Parcial</span>
-        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm" style="background:#ef4444"></span>Não bateu</span>
-        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm" style="background:#334155"></span>Futuro</span>
-        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm ring-2 ring-white/40" style="background:#334155"></span>Hoje</span>
+    const legend = `<div class="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t border-slate-700/20 text-[10px] text-slate-500">
+        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(16,185,129,.5)"></span>Bateu meta</span>
+        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(245,158,11,.5)"></span>Parcial</span>
+        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(239,68,68,.45)"></span>Não bateu</span>
+        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(51,65,85,.4)"></span>Futuro</span>
+        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm ring-2 ring-white/50" style="background:rgba(51,65,85,.3)"></span>Hoje</span>
+        <span class="ml-auto text-[9px] text-slate-600 italic">mat + aceites</span>
     </div>`;
 
     wrap.innerHTML = html + legend;

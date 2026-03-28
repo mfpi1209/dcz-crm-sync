@@ -776,13 +776,14 @@ def api_minha_insights():
                     continue
             mat_by_date[dm] += 1
 
-    today_realizadas = mat_by_date.get(today, 0)
+    today_mat = mat_by_date.get(today, 0)
     yesterday = today - timedelta(days=1)
-    yesterday_realizadas = mat_by_date.get(yesterday, 0)
+    yesterday_mat = mat_by_date.get(yesterday, 0)
 
     # Aceites na fila do Kommo (leads em qualquer stage "Aceite")
     aceites_fila = 0
     aceites_hoje = 0
+    aceites_by_date = defaultdict(int)
     try:
         ace_ids = _get_aceite_status_ids()
         ace_ph = ",".join(["%s"] * len(ace_ids))
@@ -804,45 +805,74 @@ def api_minha_insights():
               AND updated_at >= %s
         """, [kommo_uid] + ace_ids + [today_ts])
         aceites_hoje = kcur_ac.fetchone()[0] or 0
-        logger.info("Aceites uid=%s: fila=%d, hoje=%d (status_ids=%s)", kommo_uid, aceites_fila, aceites_hoje, ace_ids)
+
+        # Aceites por dia (based on updated_at) for streak/heatmap
+        ini_ts = int(datetime.combine(dt_ini, datetime.min.time()).timestamp())
+        kcur_ac.execute(f"""
+            SELECT DATE(to_timestamp(updated_at)) AS dt, COUNT(*)
+            FROM leads
+            WHERE responsible_user_id = %s
+              AND status_id IN ({ace_ph})
+              AND NOT is_deleted
+              AND updated_at >= %s
+            GROUP BY dt
+        """, [kommo_uid] + ace_ids + [ini_ts])
+        for row in kcur_ac.fetchall():
+            if row[0]:
+                aceites_by_date[row[0]] = row[1]
+
+        logger.info("Aceites uid=%s: fila=%d, hoje=%d, by_date=%d days (status_ids=%s)",
+                     kommo_uid, aceites_fila, aceites_hoje, len(aceites_by_date), ace_ids)
         kcur_ac.close()
         kconn_ac.close()
     except Exception as e:
         logger.warning("Error fetching aceites: %s", e)
 
-    # Streak: consecutive days hitting daily target
+    today_realizadas = today_mat + aceites_by_date.get(today, 0)
+    yesterday_realizadas = yesterday_mat + aceites_by_date.get(yesterday, 0)
+
+    # Streak: consecutive days hitting daily target (mat + aceites)
     sequencia = 0
     d = effective_end
     while d >= dt_ini:
         dcfg = daily_config.get(d.weekday(), {})
         dmeta = dcfg.get("meta", 0)
         if dmeta > 0:
-            if mat_by_date.get(d, 0) >= dmeta:
+            day_total = mat_by_date.get(d, 0) + aceites_by_date.get(d, 0)
+            if day_total >= dmeta:
                 sequencia += 1
             else:
                 break
         d -= timedelta(days=1)
 
-    # Heatmap data: week-by-week daily breakdown
+    # Heatmap data: week-by-week daily breakdown (mat + aceites)
     heatmap = []
     d = dt_ini
     while d <= dt_fim:
         dcfg = daily_config.get(d.weekday(), {})
         dmeta = dcfg.get("meta", 0)
-        realizadas = mat_by_date.get(d, 0) if d <= today else None
+        mat_count = mat_by_date.get(d, 0) if d <= today else None
+        ace_count = aceites_by_date.get(d, 0) if d <= today else 0
+        realizadas = (mat_count + ace_count) if mat_count is not None else None
         status = "future"
         if d <= today:
             if dmeta > 0 and realizadas >= dmeta:
                 status = "hit"
+            elif dmeta > 0 and realizadas and realizadas > 0:
+                status = "partial"
+            elif dmeta > 0:
+                status = "miss"
             elif realizadas and realizadas > 0:
                 status = "partial"
             else:
-                status = "miss"
+                status = "rest"
         heatmap.append({
             "data": d.isoformat(),
             "dia_semana": d.weekday(),
             "meta": dmeta,
             "realizadas": realizadas,
+            "mat": mat_count if mat_count is not None else 0,
+            "aceites": ace_count,
             "status": status,
         })
         d += timedelta(days=1)
