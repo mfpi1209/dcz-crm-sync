@@ -140,10 +140,17 @@ def _get_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None):
             cw.append("data_matricula <= %s")
             cp.append(dt_fim)
         w = ("WHERE " + " AND ".join(cw)) if cw else ""
-        cur.execute(
-            f"SELECT rgm, nome, nivel, modalidade, polo, data_matricula, turma, ciclo FROM comercial_rgm_atual {w} ORDER BY data_matricula DESC NULLS LAST",
-            cp,
-        )
+        try:
+            cur.execute(
+                f"SELECT rgm, nome, nivel, modalidade, polo, data_matricula, turma, ciclo, situacao, tipo_matricula FROM comercial_rgm_atual {w} ORDER BY data_matricula DESC NULLS LAST",
+                cp,
+            )
+        except Exception:
+            conn.rollback()
+            cur.execute(
+                f"SELECT rgm, nome, nivel, modalidade, polo, data_matricula, turma, ciclo, NULL AS situacao, tipo_matricula FROM comercial_rgm_atual {w} ORDER BY data_matricula DESC NULLS LAST",
+                cp,
+            )
         results = []
         seen = set()
         for row in cur.fetchall():
@@ -1989,5 +1996,348 @@ def api_recebimentos_list():
         cur.close()
         conn.close()
         return jsonify({"ok": True, "snapshots": snaps})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Matriculas do agente — listagem oficial
+# ══════════════════════════════════════════════════════════════════════════
+
+@minha_performance_bp.route("/api/minha-performance/matriculas")
+def api_minha_matriculas():
+    kommo_uid = request.args.get("kommo_uid", type=int)
+    if not kommo_uid:
+        uid = session.get("user_id")
+        if uid:
+            try:
+                conn = _pg()
+                cur = conn.cursor()
+                cur.execute("SELECT kommo_user_id FROM app_users WHERE id = %s", (uid,))
+                row = cur.fetchone()
+                if row:
+                    kommo_uid = row[0]
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
+    if not kommo_uid:
+        return jsonify({"ok": False, "error": "Sem vínculo Kommo"}), 400
+
+    dt_ini = request.args.get("dt_ini")
+    dt_fim = request.args.get("dt_fim")
+    mats = _get_agent_matriculas(kommo_uid, dt_ini, dt_fim)
+
+    missing_sit = [m for m in mats if not m.get("situacao")]
+    if missing_sit:
+        try:
+            rgm_set = {_normalize_rgm(m["rgm"]) for m in missing_sit if m.get("rgm")}
+            if rgm_set:
+                conn_s = _pg()
+                cur_s = conn_s.cursor()
+                ph = ",".join(["%s"] * len(rgm_set))
+                cur_s.execute(f"""
+                    SELECT DISTINCT ON (regexp_replace(COALESCE(data->>'rgm',''),'[^0-9]','','g'))
+                        regexp_replace(COALESCE(data->>'rgm',''),'[^0-9]','','g') AS rgm,
+                        UPPER(TRIM(COALESCE(data->>'situacao',''))) AS situacao
+                    FROM xl_rows
+                    WHERE regexp_replace(COALESCE(data->>'rgm',''),'[^0-9]','','g') IN ({ph})
+                    ORDER BY regexp_replace(COALESCE(data->>'rgm',''),'[^0-9]','','g'), id DESC
+                """, list(rgm_set))
+                sit_map = {r[0]: r[1] for r in cur_s.fetchall() if r[0]}
+                cur_s.close()
+                conn_s.close()
+                for m in mats:
+                    if not m.get("situacao"):
+                        n = _normalize_rgm(m.get("rgm"))
+                        if n and n in sit_map:
+                            m["situacao"] = sit_map[n]
+        except Exception as e:
+            logger.warning("Error enriching situacao: %s", e)
+
+    for m in mats:
+        if m.get("data_matricula"):
+            m["data_matricula"] = str(m["data_matricula"])
+    return jsonify({"ok": True, "matriculas": mats, "total": len(mats)})
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Lista propria do agente — CRUD
+# ══════════════════════════════════════════════════════════════════════════
+
+def _get_agent_user_id():
+    uid = session.get("user_id")
+    if not uid:
+        return None, None
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("SELECT id, kommo_user_id FROM app_users WHERE id = %s", (uid,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if row:
+            return row[0], row[1]
+    except Exception:
+        pass
+    return uid, None
+
+
+@minha_performance_bp.route("/api/minha-performance/minhas-matriculas", methods=["GET"])
+def api_minhas_mat_list():
+    user_id, kommo_uid = _get_agent_user_id()
+    if not user_id:
+        return jsonify({"error": "Não autenticado"}), 401
+    target_uid = request.args.get("kommo_uid", type=int)
+    if target_uid and _is_admin():
+        kommo_uid = target_uid
+    try:
+        conn = _pg()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if kommo_uid:
+            cur.execute(
+                "SELECT * FROM agent_matriculas WHERE kommo_user_id = %s ORDER BY data_matricula DESC NULLS LAST, created_at DESC",
+                (kommo_uid,),
+            )
+        else:
+            cur.execute(
+                "SELECT * FROM agent_matriculas WHERE user_id = %s ORDER BY data_matricula DESC NULLS LAST, created_at DESC",
+                (user_id,),
+            )
+        rows = [dict(r) for r in cur.fetchall()]
+        cur.close()
+        conn.close()
+        for r in rows:
+            for k in ("data_matricula", "created_at", "updated_at"):
+                if r.get(k):
+                    r[k] = str(r[k])
+        return jsonify({"ok": True, "matriculas": rows})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@minha_performance_bp.route("/api/minha-performance/minhas-matriculas", methods=["POST"])
+def api_minhas_mat_create():
+    user_id, kommo_uid = _get_agent_user_id()
+    if not user_id:
+        return jsonify({"error": "Não autenticado"}), 401
+    b = request.get_json(force=True)
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO agent_matriculas (user_id, kommo_user_id, rgm, nome, curso, polo, data_matricula, ciclo, nivel, kommo_lead_id, observacao)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+        """, (
+            user_id, kommo_uid,
+            (b.get("rgm") or "").strip(),
+            (b.get("nome") or "").strip(),
+            (b.get("curso") or "").strip(),
+            (b.get("polo") or "").strip(),
+            b.get("data_matricula") or None,
+            (b.get("ciclo") or "").strip(),
+            (b.get("nivel") or "").strip(),
+            (b.get("kommo_lead_id") or "").strip(),
+            (b.get("observacao") or "").strip(),
+        ))
+        new_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True, "id": new_id})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@minha_performance_bp.route("/api/minha-performance/minhas-matriculas/<int:mid>", methods=["PUT"])
+def api_minhas_mat_update(mid):
+    user_id, _ = _get_agent_user_id()
+    if not user_id:
+        return jsonify({"error": "Não autenticado"}), 401
+    b = request.get_json(force=True)
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("SELECT user_id FROM agent_matriculas WHERE id = %s", (mid,))
+        row = cur.fetchone()
+        if not row:
+            cur.close(); conn.close()
+            return jsonify({"ok": False, "error": "Não encontrado"}), 404
+        if row[0] != user_id and not _is_admin():
+            cur.close(); conn.close()
+            return jsonify({"ok": False, "error": "Sem permissão"}), 403
+        cur.execute("""
+            UPDATE agent_matriculas SET rgm=%s, nome=%s, curso=%s, polo=%s, data_matricula=%s,
+            ciclo=%s, nivel=%s, kommo_lead_id=%s, observacao=%s, updated_at=NOW()
+            WHERE id=%s
+        """, (
+            (b.get("rgm") or "").strip(),
+            (b.get("nome") or "").strip(),
+            (b.get("curso") or "").strip(),
+            (b.get("polo") or "").strip(),
+            b.get("data_matricula") or None,
+            (b.get("ciclo") or "").strip(),
+            (b.get("nivel") or "").strip(),
+            (b.get("kommo_lead_id") or "").strip(),
+            (b.get("observacao") or "").strip(),
+            mid,
+        ))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@minha_performance_bp.route("/api/minha-performance/minhas-matriculas/<int:mid>", methods=["DELETE"])
+def api_minhas_mat_delete(mid):
+    user_id, _ = _get_agent_user_id()
+    if not user_id:
+        return jsonify({"error": "Não autenticado"}), 401
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("SELECT user_id FROM agent_matriculas WHERE id = %s", (mid,))
+        row = cur.fetchone()
+        if not row:
+            cur.close(); conn.close()
+            return jsonify({"ok": False, "error": "Não encontrado"}), 404
+        if row[0] != user_id and not _is_admin():
+            cur.close(); conn.close()
+            return jsonify({"ok": False, "error": "Sem permissão"}), 403
+        cur.execute("DELETE FROM agent_matriculas WHERE id = %s", (mid,))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Solicitações de ajuste — agente
+# ══════════════════════════════════════════════════════════════════════════
+
+@minha_performance_bp.route("/api/minha-performance/ajustes", methods=["GET"])
+def api_ajustes_agent_list():
+    user_id, kommo_uid = _get_agent_user_id()
+    if not user_id:
+        return jsonify({"error": "Não autenticado"}), 401
+    target_uid = request.args.get("kommo_uid", type=int)
+    if target_uid and _is_admin():
+        kommo_uid = target_uid
+    try:
+        conn = _pg()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if kommo_uid:
+            cur.execute("SELECT * FROM matricula_ajustes WHERE kommo_user_id = %s ORDER BY created_at DESC", (kommo_uid,))
+        else:
+            cur.execute("SELECT * FROM matricula_ajustes WHERE user_id = %s ORDER BY created_at DESC", (user_id,))
+        rows = [dict(r) for r in cur.fetchall()]
+        cur.close()
+        conn.close()
+        for r in rows:
+            for k in ("data_matricula", "created_at", "resolved_at"):
+                if r.get(k):
+                    r[k] = str(r[k])
+        return jsonify({"ok": True, "ajustes": rows})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@minha_performance_bp.route("/api/minha-performance/ajustes", methods=["POST"])
+def api_ajustes_agent_create():
+    user_id, kommo_uid = _get_agent_user_id()
+    if not user_id:
+        return jsonify({"error": "Não autenticado"}), 401
+    b = request.get_json(force=True)
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO matricula_ajustes (user_id, kommo_user_id, tipo, rgm, nome_aluno, curso, polo, data_matricula, kommo_lead_id, descricao)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+        """, (
+            user_id, kommo_uid,
+            b.get("tipo", "matricula_nao_computada"),
+            (b.get("rgm") or "").strip(),
+            (b.get("nome_aluno") or "").strip(),
+            (b.get("curso") or "").strip(),
+            (b.get("polo") or "").strip(),
+            b.get("data_matricula") or None,
+            (b.get("kommo_lead_id") or "").strip(),
+            (b.get("descricao") or "").strip(),
+        ))
+        new_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True, "id": new_id})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Solicitações de ajuste — admin
+# ══════════════════════════════════════════════════════════════════════════
+
+@minha_performance_bp.route("/api/ajustes-matricula", methods=["GET"])
+def api_ajustes_admin_list():
+    if not _is_admin():
+        return jsonify({"error": "Sem permissão"}), 403
+    status_filter = request.args.get("status")
+    try:
+        conn = _pg()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        q = """
+            SELECT a.*, u.username AS agent_name
+            FROM matricula_ajustes a
+            LEFT JOIN app_users u ON u.id = a.user_id
+        """
+        params = []
+        if status_filter:
+            q += " WHERE a.status = %s"
+            params.append(status_filter)
+        q += " ORDER BY a.created_at DESC"
+        cur.execute(q, params)
+        rows = [dict(r) for r in cur.fetchall()]
+        cur.close()
+        conn.close()
+        for r in rows:
+            for k in ("data_matricula", "created_at", "resolved_at"):
+                if r.get(k):
+                    r[k] = str(r[k])
+        return jsonify({"ok": True, "ajustes": rows})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@minha_performance_bp.route("/api/ajustes-matricula/<int:aid>", methods=["PUT"])
+def api_ajustes_admin_update(aid):
+    if not _is_admin():
+        return jsonify({"error": "Sem permissão"}), 403
+    b = request.get_json(force=True)
+    new_status = b.get("status")
+    if new_status not in ("pendente", "em_analise", "aprovado", "rejeitado"):
+        return jsonify({"ok": False, "error": "Status inválido"}), 400
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        resolved = "NOW()" if new_status in ("aprovado", "rejeitado") else "NULL"
+        cur.execute(f"""
+            UPDATE matricula_ajustes
+            SET status = %s, resposta_admin = %s, admin_user_id = %s, resolved_at = {resolved}
+            WHERE id = %s
+        """, (
+            new_status,
+            (b.get("resposta_admin") or "").strip() or None,
+            session.get("user_id"),
+            aid,
+        ))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500

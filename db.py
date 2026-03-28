@@ -492,6 +492,46 @@ def _ensure_premiacao_tables():
                     UNIQUE(campanha_a_id, campanha_b_id)
                 )
             """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS agent_matriculas (
+                    id              SERIAL PRIMARY KEY,
+                    user_id         INTEGER REFERENCES app_users(id),
+                    kommo_user_id   INTEGER,
+                    rgm             TEXT,
+                    nome            TEXT,
+                    curso           TEXT,
+                    polo            TEXT,
+                    data_matricula  DATE,
+                    ciclo           TEXT,
+                    nivel           TEXT,
+                    kommo_lead_id   TEXT,
+                    observacao      TEXT,
+                    created_at      TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at      TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS matricula_ajustes (
+                    id              SERIAL PRIMARY KEY,
+                    user_id         INTEGER REFERENCES app_users(id),
+                    kommo_user_id   INTEGER,
+                    tipo            TEXT NOT NULL DEFAULT 'matricula_nao_computada',
+                    rgm             TEXT,
+                    nome_aluno      TEXT,
+                    curso           TEXT,
+                    polo            TEXT,
+                    data_matricula  DATE,
+                    kommo_lead_id   TEXT,
+                    descricao       TEXT,
+                    status          TEXT NOT NULL DEFAULT 'pendente',
+                    resposta_admin  TEXT,
+                    admin_user_id   INTEGER,
+                    created_at      TIMESTAMPTZ DEFAULT NOW(),
+                    resolved_at     TIMESTAMPTZ
+                )
+            """)
         conn.commit()
         conn.close()
     except Exception as e:
