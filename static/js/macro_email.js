@@ -129,12 +129,17 @@ async function meLoadAgentes() {
     if (refreshIcon) refreshIcon.classList.add('animate-spin');
 
     try {
-        const [distData, agentStats] = await Promise.all([
+        const [distData, agentStats, emailCfg] = await Promise.all([
             meDistApi(),
-            meApi('agent_stats')
+            meApi('agent_stats'),
+            meApi('get_dist_email').catch(() => [])
         ]);
 
+        const emailMap = {};
+        (emailCfg || []).forEach(c => { emailMap[String(c.dist_id)] = c.distribuir_email; });
+
         const consultores = distData.distribuicao || [];
+        consultores.forEach(c => { c.distribuir_email = !!emailMap[String(c.id)]; });
         const statsMap = {};
         (agentStats || []).forEach(s => {
             const key = (s.agente_nome || '').toLowerCase().trim();
