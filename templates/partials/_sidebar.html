@@ -1,7 +1,7 @@
     <div id="sidebar-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-30" onclick="toggleSidebar()"></div>
 
     <!-- Sidebar -->
-    <aside id="sidebar" class="w-72 glass-sidebar flex flex-col flex-shrink-0 transition-transform duration-300 md:translate-x-0">
+    <aside id="sidebar" class="w-72 glass-sidebar flex flex-col flex-shrink-0 h-screen max-h-screen transition-transform duration-300 md:translate-x-0">
         <!-- Logo -->
         <div class="px-5 py-5 flex items-center gap-3 border-b border-[var(--border)]">
             <div class="w-10 h-10 rounded-tremor-default bg-primary text-white flex items-center justify-center">
@@ -14,7 +14,7 @@
         </div>
 
         <!-- Nav -->
-        <nav class="flex-1 px-3 py-4 overflow-y-auto">
+        <nav class="flex-1 min-h-0 px-3 py-4 overflow-y-auto">
             <div class="space-y-1">
                 <a href="#dashboard" onclick="navigate('dashboard')" class="sidebar-link active" data-page="dashboard">
                     <span class="material-symbols-outlined text-lg">dashboard</span>

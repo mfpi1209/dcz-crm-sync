@@ -509,9 +509,10 @@ _last_reconcile_ts = 0
 RECONCILE_COOLDOWN = 120  # seconds
 
 def reconcile_aceite_leads():
-    """Compare leads in 'Aceite' status between our DB and Kommo API.
-    Marks stale leads (deleted/moved in Kommo) as is_deleted=True.
-    Safety: aborts without changes if API returns zero leads (likely auth/network issue)."""
+    """Sync aceite leads between Kommo API and our DB.
+    - Upserts leads currently in aceite (updates status_id for existing, inserts missing)
+    - Marks stale leads (no longer in aceite on Kommo) as is_deleted=True
+    Safety: aborts without changes if API returns errors with zero leads."""
     global _last_reconcile_ts
     now = _time.time()
     if now - _last_reconcile_ts < RECONCILE_COOLDOWN:
@@ -538,13 +539,10 @@ def reconcile_aceite_leads():
             f"SELECT id FROM leads WHERE status_id IN ({ace_ph}) AND NOT is_deleted",
             ace_ids,
         )
-        db_lead_ids = {r[0] for r in cur.fetchall()}
-        logger.info("Reconcile aceites: %d active leads in DB with aceite status", len(db_lead_ids))
+        db_aceite_ids = {r[0] for r in cur.fetchall()}
+        logger.info("Reconcile aceites: %d active leads in DB with aceite status", len(db_aceite_ids))
 
-        if not db_lead_ids:
-            cur.close(); conn.close()
-            return {"db_aceites": 0, "api_aceites": 0, "stale_marked_deleted": 0, "note": "no active aceites in DB"}
-
+        api_leads = []
         api_lead_ids = set()
         api_error = False
         for status_id, pipeline_id in aceite_statuses:
@@ -574,6 +572,7 @@ def reconcile_aceite_leads():
                     break
                 for ld in leads:
                     api_lead_ids.add(ld["id"])
+                    api_leads.append(ld)
                 if "next" not in data.get("_links", {}):
                     break
                 page += 1
@@ -584,32 +583,60 @@ def reconcile_aceite_leads():
             cur.close(); conn.close()
             return {"aborted": True, "reason": "API error with zero leads, refusing to mark all as deleted"}
 
-        if not api_lead_ids and db_lead_ids:
-            logger.warning("Reconcile aceites: API returned 0 leads but DB has %d — aborting (likely API issue)", len(db_lead_ids))
+        if not api_lead_ids and db_aceite_ids:
+            logger.warning("Reconcile aceites: API returned 0 leads but DB has %d — aborting (likely API issue)", len(db_aceite_ids))
             cur.close(); conn.close()
-            return {"aborted": True, "reason": f"API returned 0 leads but DB has {len(db_lead_ids)} — refusing to delete all"}
+            return {"aborted": True, "reason": f"API returned 0 leads but DB has {len(db_aceite_ids)} — refusing to delete all"}
 
-        stale_ids = db_lead_ids - api_lead_ids
-        updated = 0
+        upserted = 0
+        inserted = 0
+        for ld in api_leads:
+            lid = ld["id"]
+            cur.execute("SELECT id, status_id FROM leads WHERE id = %s", (lid,))
+            row = cur.fetchone()
+            if row:
+                if row[1] != ld.get("status_id"):
+                    cur.execute(
+                        "UPDATE leads SET status_id = %s, pipeline_id = %s, responsible_user_id = %s, "
+                        "updated_at = %s, is_deleted = false WHERE id = %s",
+                        (ld.get("status_id"), ld.get("pipeline_id"), ld.get("responsible_user_id"),
+                         ld.get("updated_at"), lid),
+                    )
+                    upserted += 1
+                else:
+                    cur.execute("UPDATE leads SET is_deleted = false WHERE id = %s AND is_deleted", (lid,))
+            else:
+                cur.execute(
+                    "INSERT INTO leads (id, name, status_id, pipeline_id, responsible_user_id, "
+                    "created_at, updated_at, is_deleted) VALUES (%s,%s,%s,%s,%s,%s,%s,false)",
+                    (lid, ld.get("name", ""), ld.get("status_id"), ld.get("pipeline_id"),
+                     ld.get("responsible_user_id"), ld.get("created_at"), ld.get("updated_at")),
+                )
+                inserted += 1
+
+        stale_ids = db_aceite_ids - api_lead_ids
+        stale_deleted = 0
         if stale_ids:
             stale_ph = ",".join(["%s"] * len(stale_ids))
             cur.execute(
                 f"UPDATE leads SET is_deleted = true WHERE id IN ({stale_ph})",
                 list(stale_ids),
             )
-            updated = cur.rowcount
-            conn.commit()
-            logger.info("Reconcile aceites: marked %d stale leads as deleted (IDs: %s)", updated, stale_ids)
-        else:
-            logger.info("Reconcile aceites: no stale leads found")
+            stale_deleted = cur.rowcount
+            logger.info("Reconcile aceites: marked %d stale leads as deleted", stale_deleted)
+
+        conn.commit()
+        logger.info("Reconcile aceites: api=%d, upserted=%d, inserted=%d, stale=%d",
+                     len(api_lead_ids), upserted, inserted, stale_deleted)
 
         cur.close()
         conn.close()
         return {
-            "db_aceites": len(db_lead_ids),
+            "db_aceites_before": len(db_aceite_ids),
             "api_aceites": len(api_lead_ids),
-            "stale_marked_deleted": updated,
-            "stale_ids": list(stale_ids),
+            "status_updated": upserted,
+            "new_inserted": inserted,
+            "stale_marked_deleted": stale_deleted,
         }
     except Exception as e:
         logger.error("Reconcile aceites error: %s", e)
