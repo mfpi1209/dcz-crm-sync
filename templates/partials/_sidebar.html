@@ -1,7 +1,7 @@
     <div id="sidebar-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-30" onclick="toggleSidebar()"></div>
 
     <!-- Sidebar -->
-    <aside id="sidebar" class="w-72 glass-sidebar flex flex-col flex-shrink-0 h-screen max-h-screen transition-transform duration-300 md:translate-x-0">
+    <aside id="sidebar" class="w-72 glass-sidebar flex flex-col flex-shrink-0 h-screen sticky top-0 transition-transform duration-300 md:translate-x-0">
         <!-- Logo -->
         <div class="px-5 py-5 flex items-center gap-3 border-b border-[var(--border)]">
             <div class="w-10 h-10 rounded-tremor-default bg-primary text-white flex items-center justify-center">
@@ -266,7 +266,7 @@
         </nav>
 
         <!-- Footer -->
-        <div class="px-4 py-3 border-t border-[var(--border)] space-y-2">
+        <div class="flex-shrink-0 px-4 py-3 border-t border-[var(--border)] space-y-2">
             <div class="flex items-center justify-between">
                 <div id="global-badge" class="text-xs px-2.5 py-1 rounded-tremor-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
                     <span class="green-dot"></span> Conectado
