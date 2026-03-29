@@ -690,14 +690,16 @@ def api_me_consultores():
     except Exception as e:
         logger.warning("Erro ao buscar dist_email_config: %s", e)
 
-    app_users = {}
+    all_users = []
+    users_by_id = {}
     try:
         conn = get_conn()
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute("SELECT id, username, email_cruzeiro, datacrazy_user_id, categoria FROM app_users")
             for row in cur.fetchall():
-                name_key = (row["username"] or "").strip().lower()
-                app_users[name_key] = dict(row)
+                u = dict(row)
+                all_users.append(u)
+                users_by_id[u["id"]] = u
         conn.close()
     except Exception as e:
         logger.warning("Erro ao buscar app_users: %s", e)
@@ -708,6 +710,37 @@ def api_me_consultores():
         k = (s.get("agente_nome") or "").strip().lower()
         stats_map[k] = s
 
+    def _find_user(nome, cfg):
+        """Match consultor name to app_users. Priority: linked id > email prefix > fuzzy."""
+        linked_id = cfg.get("app_user_id")
+        if linked_id and linked_id in users_by_id:
+            return users_by_id[linked_id]
+
+        nome_l = nome.strip().lower()
+        if not nome_l:
+            return None
+
+        # username starts with "nome." (e.g. "beatriz" → "beatriz.andrade@...")
+        # prioritize user that has email_cruzeiro or datacrazy_user_id
+        candidates = []
+        for u in all_users:
+            uname = (u["username"] or "").strip().lower()
+            prefix = uname.split("@")[0] if "@" in uname else uname
+            first = prefix.split(".")[0] if "." in prefix else prefix
+            if first == nome_l or prefix == nome_l:
+                candidates.append(u)
+
+        if candidates:
+            with_email = [u for u in candidates if u.get("email_cruzeiro")]
+            if with_email:
+                return with_email[0]
+            with_dc = [u for u in candidates if u.get("datacrazy_user_id")]
+            if with_dc:
+                return with_dc[0]
+            return candidates[0]
+
+        return None
+
     result = []
     for c in consultores:
         dist_id = str(c.get("id", ""))
@@ -715,12 +748,7 @@ def api_me_consultores():
         nome_key = nome.strip().lower()
 
         cfg = me_cfg.get(dist_id, {})
-        user = app_users.get(nome_key)
-        if not user:
-            for ukey, uval in app_users.items():
-                if ukey and nome_key and (ukey in nome_key or nome_key in ukey):
-                    user = uval
-                    break
+        user = _find_user(nome, cfg)
         stats = stats_map.get(nome_key, {})
 
         email_cruzeiro = cfg.get("email_cruzeiro") or ""
