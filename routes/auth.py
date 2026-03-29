@@ -512,7 +512,14 @@ def api_users_import_datacrazy():
                 skipped.append({"dc_id": uid_dc, "name": name, "reason": "Sem email/nome"})
                 continue
             if username in existing_usernames:
-                skipped.append({"dc_id": uid_dc, "name": name, "reason": f"Username '{username}' já existe"})
+                cur.execute(
+                    "UPDATE app_users SET datacrazy_user_id = %s WHERE username = %s AND (datacrazy_user_id IS NULL OR datacrazy_user_id = '')",
+                    (uid_dc, username),
+                )
+                if cur.rowcount > 0:
+                    created.append({"dc_id": uid_dc, "name": name, "username": username, "action": "vinculado"})
+                else:
+                    skipped.append({"dc_id": uid_dc, "name": name, "reason": f"'{username}' já vinculado a outro dc_id"})
                 continue
 
             try:
@@ -524,7 +531,7 @@ def api_users_import_datacrazy():
                 for pg in DEFAULT_PAGES:
                     if pg in ALL_PAGES:
                         cur.execute("INSERT INTO user_permissions (user_id, page) VALUES (%s, %s)", (new_id, pg))
-                created.append({"id": new_id, "dc_id": uid_dc, "name": name, "username": username})
+                created.append({"id": new_id, "dc_id": uid_dc, "name": name, "username": username, "action": "criado"})
                 existing_usernames.add(username)
             except Exception as e:
                 errors.append({"dc_id": uid_dc, "name": name, "error": str(e)})
