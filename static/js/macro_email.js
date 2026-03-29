@@ -202,22 +202,12 @@ async function meLoadAgentes() {
     if (refreshIcon) refreshIcon.classList.add('animate-spin');
 
     try {
-        const [distData, fullCfg, fallbackCfg] = await Promise.all([
-            meDistApi(),
-            meApiSafe('get_consultores_full', {}, null),
-            meApiSafe('get_dist_email', {}, [])
-        ]);
+        const res = await fetch('/api/macro-email/consultores');
+        const consultores = await res.json();
 
-        const cfgMap = {};
-        if (fullCfg && fullCfg.length) {
-            fullCfg.forEach(c => { cfgMap[String(c.dist_id)] = c; });
-        } else {
-            (fallbackCfg || []).forEach(c => { cfgMap[String(c.dist_id)] = c; });
-        }
-
-        const consultores = distData.distribuicao || [];
         meCache.consultores = consultores;
-        meCache.cfgMap = cfgMap;
+        meCache.cfgMap = {};
+        consultores.forEach(c => { meCache.cfgMap[String(c.dist_id)] = c; });
 
         document.getElementById('me-agentes-title').textContent = `Consultores (${consultores.length})`;
         const tbody = document.getElementById('me-agentes-tbody');
@@ -230,23 +220,24 @@ async function meLoadAgentes() {
         const avatarColors = ['from-indigo-500 to-purple-500', 'from-emerald-500 to-teal-500', 'from-amber-500 to-orange-500', 'from-rose-500 to-pink-500', 'from-cyan-500 to-blue-500'];
 
         tbody.innerHTML = consultores.map((c, idx) => {
-            const cfg = cfgMap[String(c.id)] || {};
             const initials = c.responsavel ? c.responsavel.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '??';
             const avatarColor = avatarColors[idx % avatarColors.length];
             const filaNum = parseInt(c.fila) || 0;
             const filaBg = filaNum > 5 ? 'bg-rose-500/15 text-rose-400 border-rose-500/30' :
                            filaNum > 0 ? 'bg-amber-500/15 text-amber-400 border-amber-500/30' :
                            'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-            const checked = cfg.distribuir_email ? 'checked' : '';
-            const emailCruz = cfg.email_cruzeiro || '';
+            const checked = c.distribuir_email ? 'checked' : '';
+            const emailCruz = c.email_cruzeiro || '';
+            const linked = c.app_user_id ? `<span class="text-[9px] text-emerald-500 block">vinculado</span>` :
+                           (!emailCruz && c.distribuir_email ? '<span class="text-[9px] text-amber-400 block">sem email</span>' : '');
 
-            return `<tr class="border-b border-gray-800/30 hover:bg-gray-800/20 transition" data-dist-id="${c.id}" data-responsavel="${esc(c.responsavel)}">
+            return `<tr class="border-b border-gray-800/30 hover:bg-gray-800/20 transition" data-dist-id="${c.dist_id}" data-responsavel="${esc(c.responsavel)}" data-app-user-id="${c.app_user_id || ''}">
                 <td class="py-2.5">
                     <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-xl bg-gradient-to-br ${avatarColor} flex items-center justify-center text-white text-xs font-bold shadow-lg">${initials}</div>
                         <div>
                             <span class="font-medium text-slate-200">${esc(c.responsavel)}</span>
-                            ${!emailCruz && cfg.distribuir_email ? '<span class="text-[9px] text-amber-400 block">sem email configurado</span>' : ''}
+                            ${linked}
                         </div>
                     </div>
                 </td>
@@ -256,20 +247,19 @@ async function meLoadAgentes() {
                 </td>
                 <td class="py-2.5 text-center">
                     <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" class="sr-only peer me-dist-toggle" data-id="${c.id}" ${checked}>
+                        <input type="checkbox" class="sr-only peer me-dist-toggle" data-id="${c.dist_id}" ${checked}>
                         <div class="w-9 h-5 bg-gray-700 peer-checked:bg-cyan-600 rounded-full transition after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition peer-checked:after:translate-x-full"></div>
                     </label>
                 </td>
                 <td class="py-2.5">
-                    <input type="text" class="input-glass px-2 py-1 text-xs text-gray-200 w-full min-w-[200px] me-email-input" data-id="${c.id}" value="${esc(emailCruz)}" placeholder="email@cruzeirodosul.edu.br">
+                    <input type="text" class="input-glass px-2 py-1 text-xs text-gray-200 w-full min-w-[200px] me-email-input" data-id="${c.dist_id}" value="${esc(emailCruz)}" placeholder="email@cruzeirodosul.edu.br">
                 </td>
-                <td class="py-2.5 text-center font-semibold text-slate-300">${cfg.total_emails || 0}</td>
-                <td class="py-2.5 text-center text-cyan-400 font-semibold">${cfg.emails_hoje || 0}</td>
-                <td class="py-2.5 text-center text-teal-400 text-xs">${cfg.emails_7dias || 0}</td>
+                <td class="py-2.5 text-center font-semibold text-slate-300">${c.total_emails || 0}</td>
+                <td class="py-2.5 text-center text-cyan-400 font-semibold">${c.emails_hoje || 0}</td>
+                <td class="py-2.5 text-center text-teal-400 text-xs">${c.emails_7dias || 0}</td>
             </tr>`;
         }).join('');
 
-        // Populate agent filter in logs
         const agSel = document.getElementById('me-log-agente');
         if (agSel && agSel.options.length <= 1) {
             consultores.forEach(c => {
@@ -289,41 +279,33 @@ async function meLoadAgentes() {
 async function meSalvarConsultores() {
     const rows = document.querySelectorAll('#me-agentes-tbody tr[data-dist-id]');
     const items = [];
-    const emailUpdates = [];
 
     rows.forEach(row => {
         const distId = row.dataset.distId;
         const responsavel = row.dataset.responsavel;
+        const appUserId = row.dataset.appUserId || null;
         const toggle = row.querySelector('.me-dist-toggle');
         const emailInput = row.querySelector('.me-email-input');
         items.push({
             dist_id: distId,
             responsavel,
             distribuir_email: toggle ? toggle.checked : false,
-            email_cruzeiro: emailInput ? emailInput.value.trim() : ''
+            email_cruzeiro: emailInput ? emailInput.value.trim() : '',
+            app_user_id: appUserId ? parseInt(appUserId) : null
         });
-        if (emailInput && emailInput.value.trim()) {
-            emailUpdates.push({
-                dist_id: distId,
-                email_cruzeiro: emailInput.value.trim()
-            });
-        }
     });
 
     if (!items.length) return;
 
     try {
-        await meApi('set_dist_email', { items });
-        let emailFails = 0;
-        for (const upd of emailUpdates) {
-            const r = await meApiSafe('update_consultor_email', upd, null);
-            if (r === null) emailFails++;
-        }
-        if (emailFails > 0) {
-            toast('Flags salvos. Email cruzeiro requer reimportar workflow n8n.', 'warning');
-        } else {
-            toast('Consultores salvos', 'success');
-        }
+        const res = await fetch('/api/macro-email/consultores', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Erro ao salvar');
+        toast(`Consultores salvos (${data.saved_flags} flags, ${data.saved_emails} emails)`, 'success');
         meLoadAgentes();
     } catch (e) {
         toast(e.message, 'error');

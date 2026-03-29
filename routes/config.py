@@ -19,7 +19,7 @@ from flask import Blueprint, request, jsonify
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-from db import get_conn
+from db import get_conn, get_me_conn
 from helpers import BRT, to_brt, BASE_DIR, SYNC_SCRIPT, LOG_DIR
 
 config_bp = Blueprint("config_bp", __name__)
@@ -647,3 +647,168 @@ def register_aceite_reconcile(sched):
         max_instances=1,
     )
     logger.info("Aceite reconcile registered: every %d minutes", ACEITE_RECONCILE_MINUTES)
+
+
+# ---------------------------------------------------------------------------
+# Rotas — Macro Email Consultores
+# ---------------------------------------------------------------------------
+
+ME_N8N_API = "https://banco-dev-n8n-eduit.6tqx2r.easypanel.host/webhook/api/marco_email"
+
+
+def _me_api(action, params=None):
+    try:
+        r = _requests.post(ME_N8N_API, json={"action": action, "params": params or {}}, timeout=15)
+        data = r.json()
+        if data.get("success"):
+            return data.get("data")
+    except Exception:
+        pass
+    return None
+
+
+@config_bp.route("/api/macro-email/consultores")
+def api_me_consultores():
+    """Merge: Distribuição Acadêmica + dist_email_config + app_users."""
+    try:
+        dist_r = _requests.get(N8N_DIST_GET, timeout=15)
+        dist_payload = dist_r.json()
+        if isinstance(dist_payload, list):
+            dist_payload = dist_payload[0] if dist_payload else {}
+        consultores = dist_payload.get("distribuicao", [])
+    except Exception:
+        consultores = []
+
+    me_cfg = {}
+    try:
+        me_conn = get_me_conn()
+        with me_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT dist_id, responsavel, distribuir_email, email_cruzeiro, app_user_id FROM dist_email_config")
+            for row in cur.fetchall():
+                me_cfg[str(row["dist_id"])] = dict(row)
+        me_conn.close()
+    except Exception as e:
+        logger.warning("Erro ao buscar dist_email_config: %s", e)
+
+    app_users = {}
+    try:
+        conn = get_conn()
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT id, username, email_cruzeiro, datacrazy_user_id, categoria FROM app_users")
+            for row in cur.fetchall():
+                name_key = (row["username"] or "").strip().lower()
+                app_users[name_key] = dict(row)
+        conn.close()
+    except Exception as e:
+        logger.warning("Erro ao buscar app_users: %s", e)
+
+    agent_stats = _me_api("agent_stats") or []
+    stats_map = {}
+    for s in agent_stats:
+        k = (s.get("agente_nome") or "").strip().lower()
+        stats_map[k] = s
+
+    result = []
+    for c in consultores:
+        dist_id = str(c.get("id", ""))
+        nome = c.get("responsavel", "")
+        nome_key = nome.strip().lower()
+
+        cfg = me_cfg.get(dist_id, {})
+        user = app_users.get(nome_key)
+        if not user:
+            for ukey, uval in app_users.items():
+                if ukey and nome_key and (ukey in nome_key or nome_key in ukey):
+                    user = uval
+                    break
+        stats = stats_map.get(nome_key, {})
+
+        email_cruzeiro = cfg.get("email_cruzeiro") or ""
+        if not email_cruzeiro and user:
+            email_cruzeiro = user.get("email_cruzeiro") or ""
+
+        result.append({
+            "dist_id": dist_id,
+            "responsavel": nome,
+            "status": c.get("status"),
+            "fila": c.get("fila", 0),
+            "tipo_atendimento": c.get("tipo_atendimento"),
+            "ultima_execucao": c.get("ultima_execucao"),
+            "distribuir_email": cfg.get("distribuir_email", False),
+            "email_cruzeiro": email_cruzeiro,
+            "app_user_id": user["id"] if user else cfg.get("app_user_id"),
+            "app_username": user["username"] if user else None,
+            "total_emails": stats.get("total_emails", 0),
+            "emails_hoje": stats.get("emails_hoje", 0),
+            "emails_7dias": stats.get("emails_7dias", 0),
+        })
+
+    return jsonify(result)
+
+
+@config_bp.route("/api/macro-email/consultores", methods=["POST"])
+def api_me_consultores_save():
+    """Salva flags e email_cruzeiro direto no banco."""
+    items = (request.json or {}).get("items", [])
+    if not items:
+        return jsonify({"ok": False, "error": "Nenhum item"}), 400
+
+    saved_flags = 0
+    saved_emails = 0
+
+    me_conn = get_me_conn()
+    try:
+        with me_conn.cursor() as cur:
+            for item in items:
+                dist_id = str(item.get("dist_id", ""))
+                responsavel = item.get("responsavel", "")
+                distribuir = item.get("distribuir_email", False)
+                email_cruz = (item.get("email_cruzeiro") or "").strip()
+                app_uid = item.get("app_user_id")
+
+                cur.execute("""
+                    INSERT INTO dist_email_config (dist_id, responsavel, distribuir_email, email_cruzeiro, app_user_id, atualizado_em)
+                    VALUES (%s, %s, %s, %s, %s, NOW())
+                    ON CONFLICT (dist_id) DO UPDATE SET
+                        distribuir_email = EXCLUDED.distribuir_email,
+                        responsavel = EXCLUDED.responsavel,
+                        email_cruzeiro = EXCLUDED.email_cruzeiro,
+                        app_user_id = EXCLUDED.app_user_id,
+                        atualizado_em = NOW()
+                """, (dist_id, responsavel, distribuir, email_cruz, app_uid))
+                saved_flags += 1
+        me_conn.commit()
+    except Exception as e:
+        me_conn.rollback()
+        me_conn.close()
+        return jsonify({"ok": False, "error": f"dist_email_config: {e}"}), 500
+    me_conn.close()
+
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            for item in items:
+                email_cruz = (item.get("email_cruzeiro") or "").strip()
+                app_uid = item.get("app_user_id")
+                responsavel = item.get("responsavel", "")
+
+                if app_uid and email_cruz:
+                    cur.execute(
+                        "UPDATE app_users SET email_cruzeiro = %s WHERE id = %s",
+                        (email_cruz, app_uid),
+                    )
+                    saved_emails += cur.rowcount
+                elif email_cruz and responsavel:
+                    cur.execute(
+                        "UPDATE app_users SET email_cruzeiro = %s WHERE LOWER(username) = LOWER(%s) AND (email_cruzeiro IS NULL OR email_cruzeiro = '' OR email_cruzeiro != %s)",
+                        (email_cruz, responsavel, email_cruz),
+                    )
+                    saved_emails += cur.rowcount
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        logger.warning("Erro ao salvar email_cruzeiro em app_users: %s", e)
+    finally:
+        conn.close()
+
+    return jsonify({"ok": True, "saved_flags": saved_flags, "saved_emails": saved_emails})

@@ -33,6 +33,19 @@ def get_conn():
     return psycopg2.connect(**DB_DSN)
 
 
+ME_DSN = dict(
+    host=os.getenv("DB_HOST", "localhost"),
+    port=os.getenv("DB_PORT", "5432"),
+    user=os.getenv("DB_USER"),
+    password=os.getenv("DB_PASS"),
+    dbname="marco_email",
+)
+
+
+def get_me_conn():
+    return psycopg2.connect(**ME_DSN)
+
+
 # ---------------------------------------------------------------------------
 # Ensure tables
 # ---------------------------------------------------------------------------
