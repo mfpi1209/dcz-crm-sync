@@ -55,20 +55,28 @@
 
     <!-- ── Dashboard ── -->
     <div id="me-sec-dash">
+        <!-- Status do Sistema -->
+        <div id="me-dash-status" class="glass-card p-4 mb-4 flex flex-wrap items-center gap-4 text-sm"></div>
         <div id="me-dash-cards" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6"></div>
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- Alertas -->
+        <div id="me-dash-alerts" class="mb-4"></div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+            <div class="glass-card p-6">
+                <h3 class="text-sm font-semibold text-slate-300 mb-4">Carga por Consultor</h3>
+                <div id="me-dash-carga" class="space-y-2"></div>
+            </div>
             <div class="glass-card p-6">
                 <h3 class="text-sm font-semibold text-slate-300 mb-4">E-mails por Categoria</h3>
                 <div id="me-dash-cat" class="space-y-2"></div>
             </div>
-            <div class="glass-card p-6">
-                <h3 class="text-sm font-semibold text-slate-300 mb-4">Últimos E-mails</h3>
-                <div id="me-dash-recent" class="overflow-x-auto"></div>
-            </div>
+        </div>
+        <div class="glass-card p-6">
+            <h3 class="text-sm font-semibold text-slate-300 mb-4">Últimos E-mails</h3>
+            <div id="me-dash-recent" class="overflow-x-auto"></div>
         </div>
     </div>
 
-    <!-- ── Consultores (Distribuição Acadêmica) ── -->
+    <!-- ── Consultores ── -->
     <div id="me-sec-agentes" class="hidden">
         <div class="glass-card p-6">
             <div class="flex items-center justify-between mb-6">
@@ -76,10 +84,15 @@
                     <h3 class="text-base font-bold text-[var(--text-primary)] font-display" id="me-agentes-title">Consultores</h3>
                     <span class="text-[10px] text-gray-500 bg-gray-800/40 px-2 py-0.5 rounded-full">via Distribuição Acadêmica</span>
                 </div>
-                <button onclick="meLoadAgentes()" class="text-xs text-gray-400 hover:text-white flex items-center gap-1 transition">
-                    <span class="material-symbols-outlined text-sm" id="me-agentes-refresh">refresh</span>
-                    Atualizar
-                </button>
+                <div class="flex items-center gap-2">
+                    <button onclick="meSalvarConsultores()" class="btn-primary text-xs px-4 py-2 rounded-lg flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-sm">save</span>
+                        Salvar Alterações
+                    </button>
+                    <button onclick="meLoadAgentes()" class="text-xs text-gray-400 hover:text-white flex items-center gap-1 transition">
+                        <span class="material-symbols-outlined text-sm" id="me-agentes-refresh">refresh</span>
+                    </button>
+                </div>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-left text-sm">
@@ -88,11 +101,11 @@
                             <th class="pb-2 font-semibold">Consultor</th>
                             <th class="pb-2 font-semibold text-center">Status</th>
                             <th class="pb-2 font-semibold text-center">Fila</th>
-                            <th class="pb-2 font-semibold text-center">Tipo</th>
                             <th class="pb-2 font-semibold text-center">Dist. Email</th>
-                            <th class="pb-2 font-semibold text-center">Emails Atribuídos</th>
-                            <th class="pb-2 font-semibold text-center">Emails Hoje</th>
-                            <th class="pb-2 font-semibold">Última Execução</th>
+                            <th class="pb-2 font-semibold">Email Cruzeiro</th>
+                            <th class="pb-2 font-semibold text-center">Total</th>
+                            <th class="pb-2 font-semibold text-center">Hoje</th>
+                            <th class="pb-2 font-semibold text-center">7d</th>
                         </tr>
                     </thead>
                     <tbody id="me-agentes-tbody" class="text-gray-300">
@@ -135,6 +148,13 @@
 
     <!-- ── Distribuição de Emails ── -->
     <div id="me-sec-roteamento" class="hidden">
+        <!-- Controles -->
+        <div class="flex flex-wrap items-center gap-3 mb-4">
+            <div id="me-dist-mode" class="glass-card px-4 py-2 flex items-center gap-2 text-sm"></div>
+            <button onclick="meToggleModoTeste()" id="me-dist-toggle-btn" class="text-xs px-4 py-2 rounded-lg border transition"></button>
+        </div>
+        <!-- Resumo Cards -->
+        <div id="me-dist-cards" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4"></div>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
             <div class="glass-card p-6">
                 <h3 class="text-sm font-semibold text-slate-300 mb-4">Ranking por Volume de Emails</h3>
@@ -157,10 +177,11 @@
                             <th class="pb-2 font-semibold">Categoria</th>
                             <th class="pb-2 font-semibold">Consultor</th>
                             <th class="pb-2 font-semibold">Status</th>
+                            <th class="pb-2 font-semibold">Ações</th>
                         </tr>
                     </thead>
                     <tbody id="me-dist-tbody" class="text-gray-300">
-                        <tr><td colspan="6" class="py-4 text-center text-gray-500">Carregando...</td></tr>
+                        <tr><td colspan="7" class="py-4 text-center text-gray-500">Carregando...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -193,10 +214,20 @@
                     </select>
                 </div>
                 <div>
+                    <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">Agente</label>
+                    <select id="me-log-agente" class="input-glass px-3 py-2 text-sm text-slate-200">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div>
                     <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">Busca</label>
                     <input type="text" id="me-log-busca" placeholder="Assunto, e-mail..." class="input-glass px-3 py-2 text-sm text-slate-200 w-48">
                 </div>
                 <button onclick="meLogsPage=0;meLoadLogs()" class="btn-primary text-sm px-5 py-2 rounded-xl">Filtrar</button>
+                <button onclick="meExportCSV()" class="text-xs text-gray-400 hover:text-white flex items-center gap-1 border border-gray-700/30 px-3 py-2 rounded-lg transition">
+                    <span class="material-symbols-outlined text-sm">download</span>
+                    CSV
+                </button>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-left text-sm">
@@ -208,12 +239,13 @@
                             <th class="pb-2 font-semibold">Assunto</th>
                             <th class="pb-2 font-semibold">Categoria</th>
                             <th class="pb-2 font-semibold">Agente</th>
+                            <th class="pb-2 font-semibold">Encaminhado</th>
                             <th class="pb-2 font-semibold">Status</th>
                             <th class="pb-2 font-semibold">Urgência</th>
                         </tr>
                     </thead>
                     <tbody id="me-logs-tbody" class="text-gray-300">
-                        <tr><td colspan="8" class="py-4 text-center text-gray-500">Carregando...</td></tr>
+                        <tr><td colspan="9" class="py-4 text-center text-gray-500">Carregando...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -269,7 +301,7 @@
 
 <!-- Modal Macro Email -->
 <div id="me-modal-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center">
-    <div class="bg-[var(--card-bg)] dark:bg-slate-800 rounded-2xl w-[480px] max-w-[92vw] max-h-[85vh] overflow-y-auto shadow-2xl">
+    <div class="bg-[var(--card-bg)] dark:bg-slate-800 rounded-2xl w-[560px] max-w-[92vw] max-h-[85vh] overflow-y-auto shadow-2xl">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700/30">
             <h3 id="me-modal-title" class="text-lg font-bold text-[var(--text-primary)] font-display"></h3>
             <button onclick="meCloseModal()" class="text-gray-500 hover:text-gray-300 transition">

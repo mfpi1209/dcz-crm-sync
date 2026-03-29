@@ -605,14 +605,9 @@ def api_users_import_datacrazy():
 
     return jsonify({
         "ok": True,
-        "version": "v3-trace",
         "created": created,
         "updated": updated,
         "skipped": skipped,
         "errors": errors,
-        "dc_keys": dc_all_keys,
-        "dc_preview": dc_preview,
-        "db_snapshot": db_snapshot,
-        "trace": trace,
         "summary": ", ".join(parts),
     })
