@@ -18,6 +18,11 @@ async function meApi(action, params = {}) {
     return data.data;
 }
 
+async function meApiSafe(action, params = {}, fallback = null) {
+    try { return await meApi(action, params); }
+    catch { return fallback; }
+}
+
 async function meDistApi() {
     const res = await fetch('/api/distribuicao');
     return await res.json();
@@ -56,7 +61,7 @@ async function meLoadDash() {
     try {
         const [s, monitor, distData] = await Promise.all([
             meApi('get_stats'),
-            meApi('get_monitor').catch(() => null),
+            meApiSafe('get_monitor', {}, null),
             meDistApi().catch(() => ({ distribuicao: [] }))
         ]);
         const distAgentes = (distData.distribuicao || []).filter(a => a.status === 'Ativo');
@@ -197,15 +202,18 @@ async function meLoadAgentes() {
     if (refreshIcon) refreshIcon.classList.add('animate-spin');
 
     try {
-        const [distData, fullCfg] = await Promise.all([
+        const [distData, fullCfg, fallbackCfg] = await Promise.all([
             meDistApi(),
-            meApi('get_consultores_full').catch(() => [])
+            meApiSafe('get_consultores_full', {}, null),
+            meApiSafe('get_dist_email', {}, [])
         ]);
 
         const cfgMap = {};
-        (fullCfg || []).forEach(c => {
-            cfgMap[String(c.dist_id)] = c;
-        });
+        if (fullCfg && fullCfg.length) {
+            fullCfg.forEach(c => { cfgMap[String(c.dist_id)] = c; });
+        } else {
+            (fallbackCfg || []).forEach(c => { cfgMap[String(c.dist_id)] = c; });
+        }
 
         const consultores = distData.distribuicao || [];
         meCache.consultores = consultores;
@@ -306,10 +314,16 @@ async function meSalvarConsultores() {
 
     try {
         await meApi('set_dist_email', { items });
+        let emailFails = 0;
         for (const upd of emailUpdates) {
-            await meApi('update_consultor_email', upd);
+            const r = await meApiSafe('update_consultor_email', upd, null);
+            if (r === null) emailFails++;
         }
-        toast('Consultores salvos', 'success');
+        if (emailFails > 0) {
+            toast('Flags salvos. Email cruzeiro requer reimportar workflow n8n.', 'warning');
+        } else {
+            toast('Consultores salvos', 'success');
+        }
         meLoadAgentes();
     } catch (e) {
         toast(e.message, 'error');
@@ -324,7 +338,7 @@ async function meLoadDistribuicao() {
         const [agentStats, recentEmails, monitor] = await Promise.all([
             meApi('agent_stats'),
             meApi('recent_distributed'),
-            meApi('get_monitor').catch(() => null)
+            meApiSafe('get_monitor', {}, null)
         ]);
 
         // Mode indicator
@@ -466,8 +480,12 @@ async function meDoReassign(logId) {
     const nome = document.getElementById('me-reassign-agent').value;
     const cfg = Object.values(meCache.cfgMap || {}).find(c => c.responsavel === nome);
     try {
-        await meApi('reassign_email', { id: logId, agente_nome: nome, agente_email: cfg?.email_cruzeiro || '' });
-        toast('Email redistribuído para ' + nome, 'success');
+        const r = await meApiSafe('reassign_email', { id: logId, agente_nome: nome, agente_email: cfg?.email_cruzeiro || '' }, null);
+        if (r === null) {
+            toast('Ação requer reimportar workflow n8n', 'warning');
+        } else {
+            toast('Email redistribuído para ' + nome, 'success');
+        }
         meCloseModal();
         meLoadDistribuicao();
     } catch (e) { toast(e.message, 'error'); }
@@ -647,8 +665,9 @@ async function meExportCSV() {
     if (agente) params.agente = agente;
 
     try {
-        const rows = await meApi('export_logs', params);
-        if (!rows || !rows.length) { toast('Nenhum dado para exportar', 'error'); return; }
+        const rows = await meApiSafe('export_logs', params, null);
+        if (rows === null) { toast('Export requer reimportar workflow n8n', 'warning'); return; }
+        if (!rows.length) { toast('Nenhum dado para exportar', 'error'); return; }
 
         const headers = ['id', 'criado_em', 'de_nome', 'de_email', 'assunto', 'categoria_nome', 'agente_nome', 'agente_email', 'status', 'urgencia', 'resumo_ia', 'cpf', 'encaminhado_para', 'status_encaminhamento', 'aluno_encontrado'];
         const csv = [headers.join(';')];
