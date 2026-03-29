@@ -539,10 +539,14 @@ def api_users_import_datacrazy():
     conn.commit()
     conn.close()
 
+    vinculados = [c for c in created if c.get("action") == "vinculado"]
+    novos = [c for c in created if c.get("action") != "vinculado"]
+
     parts = []
-    if created: parts.append(f"{len(created)} criados (login = email)")
+    if novos: parts.append(f"{len(novos)} novos criados")
+    if vinculados: parts.append(f"{len(vinculados)} vinculados a existentes")
     if updated: parts.append(f"{len(updated)} atualizados p/ email")
-    if skipped: parts.append(f"{len(skipped)} já existiam")
+    if skipped: parts.append(f"{len(skipped)} já vinculados")
     if errors: parts.append(f"{len(errors)} erros")
 
     return jsonify({
@@ -551,5 +555,5 @@ def api_users_import_datacrazy():
         "updated": updated,
         "skipped": skipped,
         "errors": errors,
-        "summary": ", ".join(parts) or "Nenhum usuário encontrado",
+        "summary": ", ".join(parts) or f"Nenhum usuário encontrado ({len(all_users)} na API)",
     })
