@@ -419,12 +419,7 @@ def api_users_import_kommo():
 
 @auth_bp.route("/api/users/import-datacrazy", methods=["POST"])
 def api_users_import_datacrazy():
-    """Import DataCrazy CRM users as app_users.
-
-    Fetches from DataCrazy accounts API /api/accounts/company-users (paginated).
-    Uses email as username (login). Default password: eduit2026, role: viewer.
-    Also updates existing users' usernames to email if they had slug-based names.
-    """
+    """Import DataCrazy CRM users as app_users."""
     if session.get("role") != "admin":
         return jsonify({"error": "Sem permissão"}), 403
 
@@ -438,8 +433,10 @@ def api_users_import_datacrazy():
     DEFAULT_PW = "eduit2026"
     DEFAULT_PAGES = ["minha_performance"]
     PAGE_SIZE = 50
+    trace = []
 
     all_users = []
+    raw_response = None
     try:
         headers = {
             "Authorization": f"Bearer {API_TOKEN}",
@@ -457,6 +454,8 @@ def api_users_import_datacrazy():
             )
             resp.raise_for_status()
             body = resp.json()
+            if raw_response is None:
+                raw_response = {"keys": list(body.keys()) if isinstance(body, dict) else "not_dict"}
             data = body.get("data", body) if isinstance(body, dict) else body
             if isinstance(data, list):
                 all_users.extend(data)
@@ -465,12 +464,26 @@ def api_users_import_datacrazy():
                 if skip >= total or len(data) < PAGE_SIZE:
                     break
             else:
+                raw_response["unexpected_data_type"] = str(type(data))
                 break
     except Exception as e:
         return jsonify({"ok": False, "error": f"Erro ao conectar ao DataCrazy: {e}"}), 500
 
     if not all_users:
-        return jsonify({"ok": True, "summary": "Nenhum usuário encontrado na API", "created": [], "updated": [], "skipped": [], "errors": []})
+        return jsonify({"ok": True, "summary": "Nenhum usuário encontrado na API", "created": [], "updated": [], "skipped": [], "errors": [], "raw_response": raw_response})
+
+    dc_sample = all_users[0] if all_users else {}
+    dc_all_keys = list(dc_sample.keys())
+    dc_preview = []
+    for u in all_users[:30]:
+        dc_preview.append({
+            "id": u.get("id"),
+            "userId": u.get("userId"),
+            "name": u.get("name"),
+            "fullName": u.get("fullName"),
+            "displayName": u.get("displayName"),
+            "email": u.get("email"),
+        })
 
     conn = get_conn()
     created = []
@@ -479,18 +492,29 @@ def api_users_import_datacrazy():
     errors = []
 
     with conn.cursor() as cur:
-        cur.execute("SELECT id, datacrazy_user_id, username FROM app_users WHERE datacrazy_user_id IS NOT NULL")
-        existing_dc = {r[1]: {"id": r[0], "username": r[2]} for r in cur.fetchall()}
+        cur.execute("SELECT id, datacrazy_user_id, username FROM app_users")
+        all_db = cur.fetchall()
+        existing_dc = {}
+        existing_usernames = set()
+        db_snapshot = []
+        for r in all_db:
+            existing_usernames.add(r[2])
+            if r[1] is not None and r[1] != "":
+                existing_dc[str(r[1])] = {"id": r[0], "username": r[2]}
+            db_snapshot.append({"id": r[0], "username": r[2], "dc_id": r[1]})
 
-        cur.execute("SELECT username FROM app_users")
-        existing_usernames = {r[0] for r in cur.fetchall()}
+        trace.append(f"DB: {len(all_db)} users, {len(existing_dc)} com dc_id, {len(existing_usernames)} usernames")
 
         for u in all_users:
             uid_dc = str(u.get("id") or u.get("userId") or "")
             name = u.get("name") or u.get("fullName") or u.get("displayName") or ""
             email = (u.get("email") or "").strip().lower()
+            username = email if email else name.lower().replace(" ", ".")
+
+            t = f"DC[{uid_dc}] name='{name}' email='{email}' -> username='{username}'"
 
             if not uid_dc:
+                trace.append(f"{t} => SKIP (sem id)")
                 continue
 
             if uid_dc in existing_dc:
@@ -501,25 +525,39 @@ def api_users_import_datacrazy():
                         existing_usernames.discard(ex["username"])
                         existing_usernames.add(email)
                         updated.append({"dc_id": uid_dc, "name": name, "old": ex["username"], "new": email})
+                        trace.append(f"{t} => UPDATED username {ex['username']} -> {email}")
                     except Exception as e:
                         errors.append({"dc_id": uid_dc, "name": name, "error": f"update: {e}"})
+                        trace.append(f"{t} => ERROR update: {e}")
                 else:
                     skipped.append({"dc_id": uid_dc, "name": name, "reason": f"Já vinculado como {ex['username']}"})
+                    trace.append(f"{t} => SKIP (dc_id ja existe no DB como {ex['username']})")
                 continue
 
-            username = email if email else name.lower().replace(" ", ".")
             if not username:
                 skipped.append({"dc_id": uid_dc, "name": name, "reason": "Sem email/nome"})
+                trace.append(f"{t} => SKIP (sem email/nome)")
                 continue
-            if username in existing_usernames:
-                cur.execute(
-                    "UPDATE app_users SET datacrazy_user_id = %s WHERE username = %s AND (datacrazy_user_id IS NULL OR datacrazy_user_id = '')",
-                    (uid_dc, username),
-                )
-                if cur.rowcount > 0:
-                    created.append({"dc_id": uid_dc, "name": name, "username": username, "action": "vinculado"})
-                else:
-                    skipped.append({"dc_id": uid_dc, "name": name, "reason": f"'{username}' já vinculado a outro dc_id"})
+
+            in_db = username in existing_usernames
+            trace.append(f"{t} | username '{username}' in DB? {in_db}")
+
+            if in_db:
+                try:
+                    cur.execute(
+                        "UPDATE app_users SET datacrazy_user_id = %s WHERE username = %s AND (datacrazy_user_id IS NULL OR datacrazy_user_id = '')",
+                        (uid_dc, username),
+                    )
+                    rc = cur.rowcount
+                    trace.append(f"  UPDATE rowcount={rc}")
+                    if rc > 0:
+                        created.append({"dc_id": uid_dc, "name": name, "username": username, "action": "vinculado"})
+                        existing_dc[uid_dc] = {"id": None, "username": username}
+                    else:
+                        skipped.append({"dc_id": uid_dc, "name": name, "reason": f"'{username}' rowcount=0 (dc_id ja preenchido?)"})
+                except Exception as e:
+                    errors.append({"dc_id": uid_dc, "name": name, "error": f"link: {e}"})
+                    trace.append(f"  UPDATE EXCEPTION: {e}")
                 continue
 
             try:
@@ -533,10 +571,21 @@ def api_users_import_datacrazy():
                         cur.execute("INSERT INTO user_permissions (user_id, page) VALUES (%s, %s)", (new_id, pg))
                 created.append({"id": new_id, "dc_id": uid_dc, "name": name, "username": username, "action": "criado"})
                 existing_usernames.add(username)
+                trace.append(f"  INSERTED id={new_id}")
             except Exception as e:
                 errors.append({"dc_id": uid_dc, "name": name, "error": str(e)})
+                trace.append(f"  INSERT EXCEPTION: {e}")
+                try:
+                    conn.rollback()
+                    trace.append("  ROLLBACK (recuperando transacao)")
+                except Exception:
+                    pass
 
-    conn.commit()
+    try:
+        conn.commit()
+        trace.append("COMMIT OK")
+    except Exception as e:
+        trace.append(f"COMMIT FAILED: {e}")
     conn.close()
 
     vinculados = [c for c in created if c.get("action") == "vinculado"]
@@ -548,17 +597,18 @@ def api_users_import_datacrazy():
     if updated: parts.append(f"{len(updated)} atualizados p/ email")
     if skipped: parts.append(f"{len(skipped)} já vinculados")
     if errors: parts.append(f"{len(errors)} erros")
-    parts.append(f"(API: {len(all_users)} usuarios)")
-
-    dc_preview = [{"dc_id": str(u.get("id") or u.get("userId") or ""), "email": (u.get("email") or "").lower(), "name": u.get("name") or u.get("fullName") or ""} for u in all_users[:10]]
+    parts.append(f"(API: {len(all_users)})")
 
     return jsonify({
         "ok": True,
-        "version": "v2-2026-03-27",
+        "version": "v3-trace",
         "created": created,
         "updated": updated,
         "skipped": skipped,
         "errors": errors,
+        "dc_keys": dc_all_keys,
         "dc_preview": dc_preview,
-        "summary": ", ".join(parts) or f"Nenhum usuário encontrado ({len(all_users)} na API)",
+        "db_snapshot": db_snapshot,
+        "trace": trace,
+        "summary": ", ".join(parts),
     })
