@@ -592,19 +592,16 @@ def reconcile_aceite_leads():
         inserted = 0
         for ld in api_leads:
             lid = ld["id"]
-            cur.execute("SELECT id, status_id FROM leads WHERE id = %s", (lid,))
+            cur.execute("SELECT id FROM leads WHERE id = %s", (lid,))
             row = cur.fetchone()
             if row:
-                if row[1] != ld.get("status_id"):
-                    cur.execute(
-                        "UPDATE leads SET status_id = %s, pipeline_id = %s, responsible_user_id = %s, "
-                        "updated_at = %s, is_deleted = false WHERE id = %s",
-                        (ld.get("status_id"), ld.get("pipeline_id"), ld.get("responsible_user_id"),
-                         ld.get("updated_at"), lid),
-                    )
-                    upserted += 1
-                else:
-                    cur.execute("UPDATE leads SET is_deleted = false WHERE id = %s AND is_deleted", (lid,))
+                cur.execute(
+                    "UPDATE leads SET status_id = %s, pipeline_id = %s, responsible_user_id = %s, "
+                    "updated_at = %s, is_deleted = false WHERE id = %s",
+                    (ld.get("status_id"), ld.get("pipeline_id"), ld.get("responsible_user_id"),
+                     ld.get("updated_at"), lid),
+                )
+                upserted += 1
             else:
                 cur.execute(
                     "INSERT INTO leads (id, name, status_id, pipeline_id, responsible_user_id, "
