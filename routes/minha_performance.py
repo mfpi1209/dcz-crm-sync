@@ -27,7 +27,9 @@ import csv
 import re
 import logging
 from collections import defaultdict
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone as _tz
+
+BRT = _tz(timedelta(hours=-3))
 
 import psycopg2
 import psycopg2.extras
@@ -370,7 +372,7 @@ def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
 
 def _get_active_campanha(dt=None):
     """Return the active campaign covering the given date (or today)."""
-    ref = dt or date.today()
+    ref = dt or datetime.now(BRT).date()
     try:
         conn = _pg()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -471,7 +473,7 @@ def _calc_daily_premiacao(matriculas, daily_config, dt_ini, dt_fim):
 
     d_ini = datetime.strptime(dt_ini, "%Y-%m-%d").date() if isinstance(dt_ini, str) else dt_ini
     d_fim = datetime.strptime(dt_fim, "%Y-%m-%d").date() if isinstance(dt_fim, str) else dt_fim
-    today = date.today()
+    today = datetime.now(BRT).date()
     if d_fim > today:
         d_fim = today
 
@@ -814,7 +816,7 @@ def api_minha_insights():
     dt_fim_str = str(campanha["dt_fim"])
     dt_ini = datetime.strptime(dt_ini_str, "%Y-%m-%d").date()
     dt_fim = datetime.strptime(dt_fim_str, "%Y-%m-%d").date()
-    today = date.today()
+    today = datetime.now(BRT).date()
 
     matriculas = _get_agent_matriculas(kommo_uid, dt_ini_str, dt_fim_str)
     total_mat = len(matriculas)
@@ -896,7 +898,7 @@ def api_minha_insights():
                   AND NOT is_deleted
             """, [kommo_uid] + ace_ids)
             aceites_fila = kcur_ac.fetchone()[0] or 0
-            today_ts = int(datetime.combine(today, datetime.min.time()).timestamp())
+            today_ts = int(datetime.combine(today, datetime.min.time(), tzinfo=BRT).timestamp())
             kcur_ac.execute(f"""
                 SELECT COUNT(*) FROM leads
                 WHERE responsible_user_id = %s
@@ -906,7 +908,7 @@ def api_minha_insights():
             """, [kommo_uid] + ace_ids + [today_ts])
             aceites_hoje = kcur_ac.fetchone()[0] or 0
 
-            ini_ts = int(datetime.combine(dt_ini, datetime.min.time()).timestamp())
+            ini_ts = int(datetime.combine(dt_ini, datetime.min.time(), tzinfo=BRT).timestamp())
             kcur_ac.execute(f"""
                 SELECT DATE(to_timestamp(updated_at)) AS dt, COUNT(*)
                 FROM leads
