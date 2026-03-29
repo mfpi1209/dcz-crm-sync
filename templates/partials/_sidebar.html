@@ -1,7 +1,7 @@
     <div id="sidebar-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-30" onclick="toggleSidebar()"></div>
 
     <!-- Sidebar -->
-    <aside id="sidebar" class="w-72 glass-sidebar flex flex-col flex-shrink-0 h-screen sticky top-0 transition-transform duration-300 md:translate-x-0">
+    <aside id="sidebar" class="glass-sidebar transition-transform duration-300 md:translate-x-0">
         <!-- Logo -->
         <div class="px-5 py-5 flex items-center gap-3 border-b border-[var(--border)]">
             <div class="w-10 h-10 rounded-tremor-default bg-primary text-white flex items-center justify-center">
@@ -14,7 +14,7 @@
         </div>
 
         <!-- Nav -->
-        <nav class="flex-1 min-h-0 px-3 py-4 overflow-y-auto">
+        <nav class="flex-1 min-h-0 px-3 py-4 pb-8 overflow-y-auto">
             <div class="space-y-1">
                 <a href="#dashboard" onclick="navigate('dashboard')" class="sidebar-link active" data-page="dashboard">
                     <span class="material-symbols-outlined text-lg">dashboard</span>
@@ -245,14 +245,6 @@
                         Upload Comercial
                     </a>
                     <p class="px-3 pt-3 pb-1 text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Geral</p>
-                    <a href="#kommo_dispatcher" onclick="navigate('kommo_dispatcher')" class="sidebar-link sidebar-sub" data-page="kommo_dispatcher">
-                        <span class="material-symbols-outlined text-base">send</span>
-                        Monitor de Conversas
-                    </a>
-                    <a href="#logs" onclick="navigate('logs')" class="sidebar-link sidebar-sub" data-page="logs">
-                        <span class="material-symbols-outlined text-base">description</span>
-                        Logs / Relatórios
-                    </a>
                     <a href="#config" onclick="navigate('config')" class="sidebar-link sidebar-sub" data-page="config">
                         <span class="material-symbols-outlined text-base">settings</span>
                         Configurações
@@ -260,6 +252,14 @@
                     <a href="#schedule" onclick="navigate('schedule')" class="sidebar-link sidebar-sub" data-page="schedule">
                         <span class="material-symbols-outlined text-base">schedule</span>
                         Agendamento
+                    </a>
+                    <a href="#kommo_dispatcher" onclick="navigate('kommo_dispatcher')" class="sidebar-link sidebar-sub" data-page="kommo_dispatcher">
+                        <span class="material-symbols-outlined text-base">send</span>
+                        Monitor de Conversas
+                    </a>
+                    <a href="#logs" onclick="navigate('logs')" class="sidebar-link sidebar-sub" data-page="logs">
+                        <span class="material-symbols-outlined text-base">description</span>
+                        Logs / Relatórios
                     </a>
                 </div>
             </div>
