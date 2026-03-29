@@ -555,6 +555,17 @@
            LAYOUT — Sidebar & Mobile
            ═══════════════════════════════════════════════════════════════ */
         #sidebar-overlay { display: none; }
+        #sidebar {
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #sidebar > nav {
+            flex: 1 1 0;
+            min-height: 0;
+            overflow-y: auto;
+        }
         @media (max-width: 768px) {
             #sidebar {
                 transform: translateX(-100%);
