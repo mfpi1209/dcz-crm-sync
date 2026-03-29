@@ -650,9 +650,15 @@ async function importDataCrazyUsers() {
             method: 'POST', headers: {'Content-Type':'application/json'},
         });
         const d = await res.json();
+        console.log('DataCrazy import response:', JSON.stringify(d, null, 2));
         if (d.ok) {
-            toast(d.summary);
-            if (msg) msg.textContent = d.summary;
+            let detail = d.summary;
+            if (d.version) detail += ` [${d.version}]`;
+            toast(detail);
+            if (msg) msg.textContent = detail;
+            if (d.skipped?.length) {
+                console.table(d.skipped);
+            }
             loadUsers();
         } else {
             toast(d.error || 'Erro', 'error');

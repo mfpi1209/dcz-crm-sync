@@ -548,12 +548,17 @@ def api_users_import_datacrazy():
     if updated: parts.append(f"{len(updated)} atualizados p/ email")
     if skipped: parts.append(f"{len(skipped)} já vinculados")
     if errors: parts.append(f"{len(errors)} erros")
+    parts.append(f"(API: {len(all_users)} usuarios)")
+
+    dc_preview = [{"dc_id": str(u.get("id") or u.get("userId") or ""), "email": (u.get("email") or "").lower(), "name": u.get("name") or u.get("fullName") or ""} for u in all_users[:10]]
 
     return jsonify({
         "ok": True,
+        "version": "v2-2026-03-27",
         "created": created,
         "updated": updated,
         "skipped": skipped,
         "errors": errors,
+        "dc_preview": dc_preview,
         "summary": ", ".join(parts) or f"Nenhum usuário encontrado ({len(all_users)} na API)",
     })
