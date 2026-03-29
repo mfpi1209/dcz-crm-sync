@@ -474,16 +474,19 @@ def api_users_import_datacrazy():
 
     dc_sample = all_users[0] if all_users else {}
     dc_all_keys = list(dc_sample.keys())
-    dc_preview = []
-    for u in all_users[:30]:
-        dc_preview.append({
-            "id": u.get("id"),
-            "userId": u.get("userId"),
-            "name": u.get("name"),
-            "fullName": u.get("fullName"),
-            "displayName": u.get("displayName"),
-            "email": u.get("email"),
-        })
+
+    def _dc_user(entry):
+        """Extract user data from DC nested structure: {id, user: {name, email, ...}, roles}"""
+        inner = entry.get("user") or {}
+        return {
+            "dc_id": entry.get("id", ""),
+            "firebase_id": inner.get("id", ""),
+            "name": inner.get("name") or inner.get("fullName") or inner.get("displayName") or "",
+            "email": (inner.get("email") or "").strip().lower(),
+            "roles": entry.get("roles", []),
+        }
+
+    dc_preview = [_dc_user(u) for u in all_users[:30]]
 
     conn = get_conn()
     created = []
@@ -505,13 +508,14 @@ def api_users_import_datacrazy():
 
         trace.append(f"DB: {len(all_db)} users, {len(existing_dc)} com dc_id, {len(existing_usernames)} usernames")
 
-        for u in all_users:
-            uid_dc = str(u.get("id") or u.get("userId") or "")
-            name = u.get("name") or u.get("fullName") or u.get("displayName") or ""
-            email = (u.get("email") or "").strip().lower()
+        for raw in all_users:
+            parsed = _dc_user(raw)
+            uid_dc = parsed["dc_id"]
+            name = parsed["name"]
+            email = parsed["email"]
             username = email if email else name.lower().replace(" ", ".")
 
-            t = f"DC[{uid_dc}] name='{name}' email='{email}' -> username='{username}'"
+            t = f"DC[{uid_dc[:8]}] name='{name}' email='{email}' -> username='{username}'"
 
             if not uid_dc:
                 trace.append(f"{t} => SKIP (sem id)")
