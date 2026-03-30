@@ -153,7 +153,7 @@ async function saveTurma(id) {
     try {
         await api(`/api/turmas/${id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ nivel, nome, dt_inicio, dt_fim, ano }) });
         loadTurmas();
-    } catch (e) { alert('Erro ao salvar: ' + e.message); }
+    } catch (e) { toast('Erro ao salvar: ' + e.message, 'error'); }
 }
 
 async function deleteTurma(id) {
@@ -161,7 +161,7 @@ async function deleteTurma(id) {
     try {
         await api(`/api/turmas/${id}`, { method: 'DELETE' });
         loadTurmas();
-    } catch (e) { alert('Erro ao excluir: ' + e.message); }
+    } catch (e) { toast('Erro ao excluir: ' + e.message, 'error'); }
 }
 
 async function seedTurmas() {
@@ -169,9 +169,9 @@ async function seedTurmas() {
     try {
         const res = await api('/api/turmas/seed', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ano }) });
         const d = await res.json();
-        alert(`Turmas geradas: ${d.created} novas para ${d.ano}`);
+        toast(`Turmas geradas: ${d.created} novas para ${d.ano}`, 'success');
         loadTurmas();
-    } catch (e) { alert('Erro: ' + e.message); }
+    } catch (e) { toast('Erro: ' + e.message, 'error'); }
 }
 
 async function createTurma() {
@@ -180,14 +180,14 @@ async function createTurma() {
     const dt_inicio = document.getElementById('turma-new-inicio').value;
     const dt_fim = document.getElementById('turma-new-fim').value;
     const ano = parseInt(document.getElementById('turma-new-ano').value) || 2026;
-    if (!nome || !dt_inicio || !dt_fim) { alert('Preencha todos os campos'); return; }
+    if (!nome || !dt_inicio || !dt_fim) { toast('Preencha todos os campos', 'warning'); return; }
     try {
         await api('/api/turmas', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ nivel, nome, dt_inicio, dt_fim, ano }) });
         document.getElementById('turma-new-nome').value = '';
         document.getElementById('turma-new-inicio').value = '';
         document.getElementById('turma-new-fim').value = '';
         loadTurmas();
-    } catch (e) { alert('Erro: ' + e.message); }
+    } catch (e) { toast('Erro: ' + e.message, 'error'); }
 }
 
 // ---------------------------------------------------------------------------
@@ -256,7 +256,7 @@ async function saveCiclo(id) {
     try {
         await api(`/api/ciclos/${id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ nivel, nome, dt_inicio, dt_fim }) });
         loadCiclos();
-    } catch (e) { alert('Erro ao salvar: ' + e.message); }
+    } catch (e) { toast('Erro ao salvar: ' + e.message, 'error'); }
 }
 
 async function deleteCiclo(id) {
@@ -264,7 +264,7 @@ async function deleteCiclo(id) {
     try {
         await api(`/api/ciclos/${id}`, { method: 'DELETE' });
         loadCiclos();
-    } catch (e) { alert('Erro ao excluir: ' + e.message); }
+    } catch (e) { toast('Erro ao excluir: ' + e.message, 'error'); }
 }
 
 async function seedCiclos() {
@@ -272,9 +272,9 @@ async function seedCiclos() {
     try {
         const res = await api('/api/ciclos/seed', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ano }) });
         const d = await res.json();
-        alert(`Ciclos gerados: ${d.created} novos para ${d.ano}`);
+        toast(`Ciclos gerados: ${d.created} novos para ${d.ano}`, 'success');
         loadCiclos();
-    } catch (e) { alert('Erro: ' + e.message); }
+    } catch (e) { toast('Erro: ' + e.message, 'error'); }
 }
 
 async function createCiclo() {
@@ -282,14 +282,14 @@ async function createCiclo() {
     const nome = document.getElementById('ciclo-new-nome').value.trim();
     const dt_inicio = document.getElementById('ciclo-new-inicio').value;
     const dt_fim = document.getElementById('ciclo-new-fim').value;
-    if (!nome || !dt_inicio || !dt_fim) { alert('Preencha todos os campos'); return; }
+    if (!nome || !dt_inicio || !dt_fim) { toast('Preencha todos os campos', 'warning'); return; }
     try {
         await api('/api/ciclos', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ nivel, nome, dt_inicio, dt_fim }) });
         document.getElementById('ciclo-new-nome').value = '';
         document.getElementById('ciclo-new-inicio').value = '';
         document.getElementById('ciclo-new-fim').value = '';
         loadCiclos();
-    } catch (e) { alert('Erro: ' + e.message); }
+    } catch (e) { toast('Erro: ' + e.message, 'error'); }
 }
 
 // ---------------------------------------------------------------------------
@@ -360,10 +360,10 @@ async function saveSchedule() {
             body: JSON.stringify(payload),
         });
         const data = await res.json();
-        if (data.error) { alert(data.error); return; }
+        if (data.error) { toast(data.error, 'error'); return; }
         loadSchedules();
     } catch (err) {
-        alert('Erro: ' + err.message);
+        toast('Erro: ' + err.message, 'error');
     }
 }
 
@@ -372,7 +372,7 @@ async function toggleSchedule(id) {
         await api(`/api/schedules/${id}/toggle`, { method: 'POST' });
         loadSchedules();
     } catch (err) {
-        alert('Erro: ' + err.message);
+        toast('Erro: ' + err.message, 'error');
     }
 }
 
@@ -382,7 +382,7 @@ async function deleteSchedule(id) {
         await api(`/api/schedules/${id}`, { method: 'DELETE' });
         loadSchedules();
     } catch (err) {
-        alert('Erro: ' + err.message);
+        toast('Erro: ' + err.message, 'error');
     }
 }
 
@@ -489,7 +489,7 @@ async function createUser() {
     const username = document.getElementById('user-new-username').value.trim();
     const password = document.getElementById('user-new-password').value;
     const role = document.getElementById('user-new-role').value;
-    if (!username || !password) { alert('Usuário e senha são obrigatórios'); return; }
+    if (!username || !password) { toast('Usuário e senha são obrigatórios', 'warning'); return; }
     const cbs = document.querySelectorAll('.user-new-page-cb:checked');
     const pages = Array.from(cbs).map(cb => cb.value);
     try {
@@ -498,11 +498,11 @@ async function createUser() {
             body: JSON.stringify({ username, password, role, pages }),
         });
         const d = await res.json();
-        if (d.error) { alert(d.error); return; }
+        if (d.error) { toast(d.error, 'error'); return; }
         document.getElementById('user-new-username').value = '';
         document.getElementById('user-new-password').value = '';
         loadUsers();
-    } catch (e) { alert('Erro: ' + e.message); }
+    } catch (e) { toast('Erro: ' + e.message, 'error'); }
 }
 
 async function deleteUser(uid, name) {
@@ -510,9 +510,9 @@ async function deleteUser(uid, name) {
     try {
         const res = await api('/api/users/' + uid, { method: 'DELETE' });
         const d = await res.json();
-        if (d.error) { alert(d.error); return; }
+        if (d.error) { toast(d.error, 'error'); return; }
         loadUsers();
-    } catch (e) { alert('Erro: ' + e.message); }
+    } catch (e) { toast('Erro: ' + e.message, 'error'); }
 }
 
 async function editUser(uid) {
@@ -566,8 +566,8 @@ async function saveUserEdit(uid) {
             body: JSON.stringify(body),
         });
         const d = await res.json();
-        if (d.error) { alert(d.error); return; }
+        if (d.error) { toast(d.error, 'error'); return; }
         document.getElementById('user-edit-modal').remove();
         loadUsers();
-    } catch (e) { alert('Erro: ' + e.message); }
+    } catch (e) { toast('Erro: ' + e.message, 'error'); }
 }

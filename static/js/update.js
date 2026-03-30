@@ -52,13 +52,13 @@ async function startUpdate(mode) {
         });
         const data = await res.json();
         if (data.error) {
-            alert(data.error);
+            toast(data.error, 'error');
             setUpdateBtnsDisabled(false);
             updateUpdateBadge(false);
             return;
         }
     } catch (err) {
-        alert('Erro: ' + err.message);
+        toast('Erro: ' + err.message, 'error');
         setUpdateBtnsDisabled(false);
         updateUpdateBadge(false);
         return;
@@ -190,7 +190,7 @@ async function handleUploadTyped(file, tipo) {
     const ext = file.name.toLowerCase().split('.').pop();
     const allowed = ['xlsx', 'xlsm', 'zip'];
     if (!allowed.includes(ext)) {
-        alert('Aceitos: .xlsx, .xlsm ou .zip');
+        toast('Aceitos: .xlsx, .xlsm ou .zip', 'warning');
         return;
     }
 
@@ -259,7 +259,7 @@ async function handleUploadSemRemat(file, subtipo) {
     if (!file) return;
     const ext = file.name.toLowerCase().split('.').pop();
     if (!['xlsx', 'xlsm'].includes(ext)) {
-        alert('Aceitos: .xlsx ou .xlsm');
+        toast('Aceitos: .xlsx ou .xlsm', 'warning');
         return;
     }
 

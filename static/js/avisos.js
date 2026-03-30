@@ -208,7 +208,7 @@ function avisosSalvar() {
     api(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
         .then(r => r.json())
         .then(data => {
-            if (data.error) return alert(data.error);
+            if (data.error) { toast(data.error, 'error'); return; }
             avisosCancelar();
             _loadAdmin();
         });

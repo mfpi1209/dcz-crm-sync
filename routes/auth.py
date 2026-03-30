@@ -14,26 +14,17 @@ def _hash_pw(password):
 
 def _db_auth(username, password):
     """Authenticate against app_users table. Returns dict or None."""
-    import sys
     try:
-        print(f"[AUTH] Tentando autenticar usuario: {username}", file=sys.stderr, flush=True)
-        print(f"[AUTH] DB_DSN host: {DB_DSN.get('host')}, dbname: {DB_DSN.get('dbname')}", file=sys.stderr, flush=True)
         conn = psycopg2.connect(**DB_DSN)
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute("SELECT id, username, pw_hash, role FROM app_users WHERE username = %s",
                         (username,))
             row = cur.fetchone()
         conn.close()
-        if row:
-            input_hash = _hash_pw(password)
-            print(f"[AUTH] Usuario encontrado: {row['username']}", file=sys.stderr, flush=True)
-            print(f"[AUTH] Hash match: {row['pw_hash'] == input_hash}", file=sys.stderr, flush=True)
-            if row["pw_hash"] == input_hash:
-                return dict(row)
-        else:
-            print(f"[AUTH] Usuario nao encontrado: {username}", file=sys.stderr, flush=True)
-    except Exception as e:
-        print(f"[AUTH] Erro: {e}", file=sys.stderr, flush=True)
+        if row and row["pw_hash"] == _hash_pw(password):
+            return dict(row)
+    except Exception:
+        pass
     return None
 
 
@@ -87,23 +78,17 @@ def require_auth():
 
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
-    import sys
     error = None
     if request.method == "POST":
         user = request.form.get("username", "")
         pwd = request.form.get("password", "")
-        print(f"[LOGIN] Tentando login: user='{user}', pwd_len={len(pwd)}", file=sys.stderr, flush=True)
         db_user = _db_auth(user, pwd)
-        print(f"[LOGIN] db_user result: {db_user}", file=sys.stderr, flush=True)
         if db_user:
             session["authenticated"] = True
             session["user_id"] = db_user["id"]
             session["username"] = db_user["username"]
             session["role"] = db_user["role"]
-            print(f"[LOGIN] Sucesso! Redirecionando para /", file=sys.stderr, flush=True)
             return redirect("/")
-        print(f"[LOGIN] DB auth falhou, tentando fallback...", file=sys.stderr, flush=True)
-        print(f"[LOGIN] APP_USER_FALLBACK='{APP_USER_FALLBACK}', APP_PASS_FALLBACK='{APP_PASS_FALLBACK}'", file=sys.stderr, flush=True)
         if APP_PASS_FALLBACK and user == APP_USER_FALLBACK and pwd == APP_PASS_FALLBACK:
             session["authenticated"] = True
             session["user_id"] = 0
