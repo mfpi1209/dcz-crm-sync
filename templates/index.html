@@ -3,7 +3,7 @@
 <head>
     {% include 'partials/_head.html' %}
 </head>
-<body class="h-full bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display antialiased">
+<body class="h-full bg-[var(--bg-main)] text-[var(--text-primary)] font-sans antialiased">
 
 <div class="h-full flex">
     {% include 'partials/_sidebar.html' %}
@@ -34,13 +34,18 @@
             {% include 'partials/_auditoria_comercial.html' %}
             {% include 'partials/_atualizar_ia.html' %}
             {% include 'partials/_vocacional.html' %}
+            {% include 'partials/_leads_parados.html' %}
+            {% include 'partials/_minha_performance.html' %}
+            {% include 'partials/_premiacao_admin.html' %}
+            {% include 'partials/_ajustes_matricula.html' %}
+            {% include 'partials/_macro_email.html' %}
         </main>
     </div>
 </div>
 
 <div id="toast-container"></div>
 
-{% set _v = config.get('CACHE_BUST', '') %}
+{% set _v = range(100000) | random %}
 <script src="{{ url_for('static', filename='js/utils.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/dashboard.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/search.js') }}?v={{_v}}"></script>
@@ -63,6 +68,11 @@
 <script src="{{ url_for('static', filename='js/config.js') }}"></script>
 <script src="{{ url_for('static', filename='js/meta_campaigns.js') }}"></script>
 <script src="{{ url_for('static', filename='js/recadastros.js') }}"></script>
+<script src="{{ url_for('static', filename='js/leads_parados.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/minha_performance.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/premiacao_admin.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/ajustes_matricula.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/macro_email.js') }}?v={{_v}}"></script>
 
 </body>
 </html>

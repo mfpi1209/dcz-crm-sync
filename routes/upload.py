@@ -1363,6 +1363,55 @@ def api_upload_info():
 
 
 # ---------------------------------------------------------------------------
+# Validação de colunas por tipo de upload
+# ---------------------------------------------------------------------------
+
+_REQUIRED_COLUMNS = {
+    "matriculados": {
+        "must_have": ["RGM", "Tipo Matrícula", "Data Matrícula"],
+        "must_not_have": ["Inscrição", "Data Aprovação", "Status Financeiro"],
+        "error_must": "Arquivo de matriculados deve conter as colunas: {missing}. Verifique se enviou o arquivo correto.",
+        "error_must_not": "Este arquivo parece ser de candidatos/inscritos (contém: {found}), não de matriculados. Envie o arquivo correto.",
+    },
+}
+
+
+def _validate_upload_columns(filepath, tipo):
+    """Valida se o arquivo tem as colunas esperadas para o tipo. Retorna mensagem de erro ou None."""
+    spec = _REQUIRED_COLUMNS.get(tipo)
+    if not spec:
+        return None
+    try:
+        wb = openpyxl.load_workbook(filepath, data_only=True, read_only=True)
+        ws = wb[wb.sheetnames[0]]
+        first_row = next(ws.iter_rows(min_row=1, max_row=1), None)
+        if not first_row:
+            wb.close()
+            return "Arquivo vazio ou sem cabeçalho."
+        headers_raw = [str(cell.value or "").strip() for cell in first_row]
+        wb.close()
+
+        headers_lower = [h.lower() for h in headers_raw]
+
+        def _col_present(col_name):
+            cn = col_name.lower()
+            return any(cn in h for h in headers_lower)
+
+        missing = [c for c in spec.get("must_have", []) if not _col_present(c)]
+        if missing:
+            return spec["error_must"].format(missing=", ".join(missing))
+
+        found_bad = [c for c in spec.get("must_not_have", []) if _col_present(c)]
+        if found_bad:
+            return spec["error_must_not"].format(found=", ".join(found_bad))
+
+        return None
+    except Exception as e:
+        current_app.logger.warning("Erro na validacao de colunas (%s): %s", tipo, e)
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Rotas — Upload
 # ---------------------------------------------------------------------------
 
@@ -1395,6 +1444,13 @@ def api_upload():
 
     dest = UPLOAD_DIR / safe_name
     f.save(str(dest))
+
+    # Validação de colunas obrigatórias por tipo de arquivo
+    if tipo in ("matriculados",) and fname_lower.endswith((".xlsx", ".xlsm")):
+        _val_err = _validate_upload_columns(str(dest), tipo)
+        if _val_err:
+            dest.unlink(missing_ok=True)
+            return jsonify({"error": _val_err}), 400
 
     try:
         if fname_lower.endswith(".zip"):

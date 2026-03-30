@@ -1,20 +1,20 @@
     <div id="sidebar-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-30" onclick="toggleSidebar()"></div>
 
     <!-- Sidebar -->
-    <aside id="sidebar" class="w-64 glass-sidebar flex flex-col flex-shrink-0 transition-transform duration-300 md:translate-x-0">
+    <aside id="sidebar" class="w-72 glass-sidebar flex flex-col flex-shrink-0 transition-transform duration-300 md:translate-x-0" style="height:100vh;max-height:100vh">
         <!-- Logo -->
-        <div class="px-5 py-5 flex items-center gap-3 border-b border-slate-700/20">
-            <div class="w-10 h-10 rounded-lg bg-primary text-white flex items-center justify-center">
+        <div class="px-5 py-5 flex items-center gap-3 border-b border-[var(--border)]">
+            <div class="w-10 h-10 rounded-tremor-default bg-primary text-white flex items-center justify-center">
                 <span class="material-symbols-outlined text-xl">school</span>
             </div>
             <div>
-                <h1 class="text-base font-bold font-display"><span class="text-white">edu</span><span class="text-cyan-400">it.</span></h1>
-                <p class="text-[10px] text-slate-500 font-medium tracking-wider uppercase">Gestão Acadêmica</p>
+                <h1 class="text-base font-bold font-display"><span class="text-gray-900 dark:text-white">edu</span><span class="text-primary">it.</span></h1>
+                <p class="text-[10px] text-gray-400 font-medium tracking-wider uppercase">Cockpit de Gestão</p>
             </div>
         </div>
 
         <!-- Nav -->
-        <nav class="flex-1 px-3 py-4 overflow-y-auto">
+        <nav class="flex-1 px-3 py-4 overflow-y-auto" style="min-height:0">
             <div class="space-y-1">
                 <a href="#dashboard" onclick="navigate('dashboard')" class="sidebar-link active" data-page="dashboard">
                     <span class="material-symbols-outlined text-lg">dashboard</span>
@@ -66,6 +66,10 @@
                         <span class="material-symbols-outlined text-base">rate_review</span>
                         Feedback
                     </a>
+                    <a href="#macro_email" onclick="navigate('macro_email')" class="sidebar-link sidebar-sub" data-page="macro_email">
+                        <span class="material-symbols-outlined text-base">forward_to_inbox</span>
+                        Macro Email
+                    </a>
                 </div>
             </div>
 
@@ -108,18 +112,6 @@
                     <span class="material-symbols-outlined text-sm sidebar-group-chevron">expand_more</span>
                 </button>
                 <div class="sidebar-group-items">
-                    <a href="#pipeline" onclick="navigate('pipeline')" class="sidebar-link sidebar-sub" data-page="pipeline">
-                        <span class="material-symbols-outlined text-base">filter_alt</span>
-                        Saneamento / Pipeline
-                    </a>
-                    <a href="#update" onclick="navigate('update')" class="sidebar-link sidebar-sub" data-page="update">
-                        <span class="material-symbols-outlined text-base">bolt</span>
-                        Atualização CRM
-                    </a>
-                    <a href="#match_merge" onclick="navigate('match_merge')" class="sidebar-link sidebar-sub" data-page="match_merge">
-                        <span class="material-symbols-outlined text-base">merge_type</span>
-                        Match & Merge
-                    </a>
                     <a href="#comercial_rgm" onclick="navigate('comercial_rgm')" class="sidebar-link sidebar-sub" data-page="comercial_rgm">
                         <span class="material-symbols-outlined text-base">storefront</span>
                         Dashboard Comercial
@@ -147,6 +139,14 @@
                     <a href="#atualizar_ia" onclick="navigate('atualizar_ia')" class="sidebar-link sidebar-sub" data-page="atualizar_ia">
                         <span class="material-symbols-outlined text-base">price_change</span>
                         Atualizar IA
+                    </a>
+                    <a href="#leads_parados" onclick="navigate('leads_parados')" class="sidebar-link sidebar-sub" data-page="leads_parados">
+                        <span class="material-symbols-outlined text-base">hourglass_top</span>
+                        Leads Parados
+                    </a>
+                    <a href="#minha_performance" onclick="navigate('minha_performance')" class="sidebar-link sidebar-sub" data-page="minha_performance">
+                        <span class="material-symbols-outlined text-base">military_tech</span>
+                        Minha Performance
                     </a>
                 </div>
             </div>
@@ -213,28 +213,42 @@
             <div class="sidebar-group mt-5" data-group="sistema">
                 <button class="sidebar-group-toggle" onclick="toggleSidebarGroup('sistema')">
                     <span class="flex items-center gap-2">
-                        <span class="material-symbols-outlined text-sm text-slate-400">settings</span>
+                        <span class="material-symbols-outlined text-sm text-gray-400">settings</span>
                         Sistema
                     </span>
                     <span class="material-symbols-outlined text-sm sidebar-group-chevron">expand_more</span>
                 </button>
                 <div class="sidebar-group-items">
+                    <p class="px-3 pt-3 pb-1 text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">CRM</p>
+                    <a href="#pipeline" onclick="navigate('pipeline')" class="sidebar-link sidebar-sub" data-page="pipeline">
+                        <span class="material-symbols-outlined text-base">sync_alt</span>
+                        Atualização CRM Acadêmico
+                    </a>
+                    <a href="#update" onclick="navigate('update')" class="sidebar-link sidebar-sub" data-page="update">
+                        <span class="material-symbols-outlined text-base">upload_file</span>
+                        Upload Acadêmico
+                    </a>
                     <a href="#sync" onclick="navigate('sync')" class="sidebar-link sidebar-sub" data-page="sync">
                         <span class="material-symbols-outlined text-base">sync</span>
-                        Sincronização
+                        Sync/Delta CRM Acadêmico
+                    </a>
+                    <a href="#premiacao_admin" onclick="navigate('premiacao_admin')" class="sidebar-link sidebar-sub" data-page="premiacao_admin">
+                        <span class="material-symbols-outlined text-base">emoji_events</span>
+                        Premiação
+                    </a>
+                    <a href="#ajustes_matricula" onclick="navigate('ajustes_matricula')" class="sidebar-link sidebar-sub" data-page="ajustes_matricula">
+                        <span class="material-symbols-outlined text-base">fact_check</span>
+                        Ajustes de Matrícula
                     </a>
                     <a href="#kommo_sync" onclick="navigate('kommo_sync')" class="sidebar-link sidebar-sub" data-page="kommo_sync">
                         <span class="material-symbols-outlined text-base">cloud_sync</span>
-                        Sync Comercial
+                        Sync/Delta CRM Comercial
                     </a>
-                    <a href="#kommo_dispatcher" onclick="navigate('kommo_dispatcher')" class="sidebar-link sidebar-sub" data-page="kommo_dispatcher">
-                        <span class="material-symbols-outlined text-base">send</span>
-                        Kommo Dispatcher
+                    <a href="#match_merge" onclick="navigate('match_merge')" class="sidebar-link sidebar-sub" data-page="match_merge">
+                        <span class="material-symbols-outlined text-base">upload_file</span>
+                        Upload Comercial
                     </a>
-                    <a href="#logs" onclick="navigate('logs')" class="sidebar-link sidebar-sub" data-page="logs">
-                        <span class="material-symbols-outlined text-base">description</span>
-                        Logs / Relatórios
-                    </a>
+                    <p class="px-3 pt-3 pb-1 text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Geral</p>
                     <a href="#config" onclick="navigate('config')" class="sidebar-link sidebar-sub" data-page="config">
                         <span class="material-symbols-outlined text-base">settings</span>
                         Configurações
@@ -243,19 +257,27 @@
                         <span class="material-symbols-outlined text-base">schedule</span>
                         Agendamento
                     </a>
+                    <a href="#kommo_dispatcher" onclick="navigate('kommo_dispatcher')" class="sidebar-link sidebar-sub" data-page="kommo_dispatcher">
+                        <span class="material-symbols-outlined text-base">send</span>
+                        Monitor de Conversas
+                    </a>
+                    <a href="#logs" onclick="navigate('logs')" class="sidebar-link sidebar-sub" data-page="logs">
+                        <span class="material-symbols-outlined text-base">description</span>
+                        Logs / Relatórios
+                    </a>
                 </div>
             </div>
         </nav>
 
         <!-- Footer -->
-        <div class="px-4 py-3 border-t border-slate-700/20 space-y-2">
+        <div class="flex-shrink-0 px-4 py-3 border-t border-[var(--border)] space-y-2">
             <div class="flex items-center justify-between">
-                <div id="global-badge" class="text-xs px-2.5 py-1 rounded-full bg-emerald-900/40 text-emerald-400 flex items-center gap-1.5">
+                <div id="global-badge" class="text-xs px-2.5 py-1 rounded-tremor-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
                     <span class="green-dot"></span> Conectado
                 </div>
-                <a href="/logout" class="text-xs text-slate-600 hover:text-slate-400 transition">Sair</a>
+                <a href="/logout" class="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition">Sair</a>
             </div>
-            <button onclick="toggleTheme()" id="theme-toggle" class="w-full flex items-center gap-2 text-xs text-slate-500 hover:text-slate-300 transition px-1 py-1">
+            <button onclick="toggleTheme()" id="theme-toggle" class="w-full flex items-center gap-2 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition px-1 py-1">
                 <span id="theme-icon-sun" class="material-symbols-outlined text-base hidden">light_mode</span>
                 <span id="theme-icon-moon" class="material-symbols-outlined text-base">dark_mode</span>
                 <span id="theme-label">Modo claro</span>
@@ -267,10 +289,10 @@
     <div class="flex-1 flex flex-col min-w-0">
         <!-- Top bar (mobile) -->
         <header class="md:hidden glass-sidebar px-4 py-3 flex items-center gap-3">
-            <button onclick="toggleSidebar()" class="text-slate-400 hover:text-white transition">
+            <button onclick="toggleSidebar()" class="text-gray-400 hover:text-gray-700 dark:hover:text-white transition">
                 <span class="material-symbols-outlined">menu</span>
             </button>
-            <span class="text-sm font-semibold font-display" id="mobile-title">Dashboard</span>
+            <span class="text-sm font-semibold" id="mobile-title">Dashboard</span>
         </header>
 
         <main class="flex-1 overflow-auto">
