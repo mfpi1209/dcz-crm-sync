@@ -3,20 +3,10 @@
 <head>
     {% include 'partials/_head.html' %}
 </head>
-<body class="h-full bg-base text-slate-200" style="background: #0f172a;">
+<body class="h-full bg-[var(--bg-main)] text-[var(--text-primary)] font-sans antialiased">
 
 <div class="h-full flex">
     {% include 'partials/_sidebar.html' %}
-
-    <div class="flex-1 flex flex-col min-w-0">
-        <header class="md:hidden glass-sidebar px-4 py-3 flex items-center gap-3">
-            <button onclick="toggleSidebar()" class="text-slate-400 hover:text-white transition">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
-            </button>
-            <span class="text-sm font-semibold font-display" id="mobile-title">Dashboard</span>
-        </header>
-
-        <main class="flex-1 overflow-auto">
             {% include 'partials/_dashboard.html' %}
             {% include 'partials/_search.html' %}
             {% include 'partials/_sync.html' %}
@@ -30,6 +20,7 @@
             {% include 'partials/_kommo_sync.html' %}
             {% include 'partials/_match_merge.html' %}
             {% include 'partials/_comercial_rgm.html' %}
+            {% include 'partials/_dist_comercial.html' %}
             {% include 'partials/_feedback.html' %}
             {% include 'partials/_config.html' %}
             {% include 'partials/_schedule.html' %}
@@ -39,24 +30,36 @@
             {% include 'partials/_kommo_dispatcher.html' %}
             {% include 'partials/_meta_campaigns.html' %}
             {% include 'partials/_recadastros.html' %}
+            {% include 'partials/_comercial_dashboard.html' %}
+            {% include 'partials/_auditoria_comercial.html' %}
+            {% include 'partials/_vocacional.html' %}
+            {% include 'partials/_leads_parados.html' %}
+            {% include 'partials/_minha_performance.html' %}
+            {% include 'partials/_premiacao_admin.html' %}
+            {% include 'partials/_ajustes_matricula.html' %}
+            {% include 'partials/_macro_email.html' %}
         </main>
     </div>
 </div>
 
-<script src="{{ url_for('static', filename='js/utils.js') }}"></script>
-<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
-<script src="{{ url_for('static', filename='js/search.js') }}"></script>
-<script src="{{ url_for('static', filename='js/sync.js') }}"></script>
-<script src="{{ url_for('static', filename='js/update.js') }}"></script>
-<script src="{{ url_for('static', filename='js/pipeline.js') }}"></script>
-<script src="{{ url_for('static', filename='js/ativacoes.js') }}"></script>
-<script src="{{ url_for('static', filename='js/distribuicao.js') }}"></script>
-<script src="{{ url_for('static', filename='js/intelligence.js') }}"></script>
-<script src="{{ url_for('static', filename='js/inadimplencia.js') }}"></script>
-<script src="{{ url_for('static', filename='js/kommo_sync.js') }}"></script>
-<script src="{{ url_for('static', filename='js/match_merge.js') }}"></script>
-<script src="{{ url_for('static', filename='js/comercial_rgm.js') }}"></script>
-<script src="{{ url_for('static', filename='js/feedback.js') }}"></script>
+<div id="toast-container"></div>
+
+{% set _v = range(100000) | random %}
+<script src="{{ url_for('static', filename='js/utils.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/search.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/sync.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/update.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/pipeline.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/ativacoes.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/distribuicao.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/intelligence.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/inadimplencia.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/kommo_sync.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/match_merge.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/comercial_rgm.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/dist_comercial.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/feedback.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/inscricao.js') }}"></script>
 <script src="{{ url_for('static', filename='js/ferramentas.js') }}"></script>
 <script src="{{ url_for('static', filename='js/avisos.js') }}"></script>
@@ -64,6 +67,11 @@
 <script src="{{ url_for('static', filename='js/config.js') }}"></script>
 <script src="{{ url_for('static', filename='js/meta_campaigns.js') }}"></script>
 <script src="{{ url_for('static', filename='js/recadastros.js') }}"></script>
+<script src="{{ url_for('static', filename='js/leads_parados.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/minha_performance.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/premiacao_admin.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/ajustes_matricula.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/macro_email.js') }}?v={{_v}}"></script>
 
 </body>
 </html>

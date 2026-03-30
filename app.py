@@ -6,7 +6,27 @@ Uso:
     Acesse http://localhost:5001
 """
 
-import os
+import sys, os, io, logging, warnings
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    stream=sys.stderr,
+)
+
+warnings.filterwarnings("ignore", message=".*collation.*")
+
+if sys.platform == "win32":
+    for _s in ("stdout", "stderr"):
+        _orig = getattr(sys, _s)
+        if hasattr(_orig, "buffer"):
+            try:
+                setattr(sys, _s, io.TextIOWrapper(_orig.buffer, encoding="utf-8", errors="replace", line_buffering=True))
+            except Exception:
+                pass
+
+import time
 from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask
@@ -15,6 +35,23 @@ load_dotenv(Path(__file__).parent / ".env")
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dcz-sync-default-key-change-me")
+app.config["CACHE_BUST"] = str(int(time.time()))
+
+from collections import deque
+
+_sync_running = False
+_sync_proc = None
+_sync_logs = deque(maxlen=500)
+_update_running = False
+_update_logs = deque(maxlen=500)
+
+def _add_sync_log(msg):
+    import datetime
+    _sync_logs.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {msg}")
+
+def _add_update_log(msg):
+    import datetime
+    _update_logs.append(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {msg}")
 
 # ── Registrar Blueprints ──────────────────────────────────────────────────
 
@@ -23,7 +60,7 @@ from routes.dashboard import dashboard_bp
 from routes.crm import crm_bp
 from routes.upload import upload_bp
 from routes.engagement import engagement_bp, register_engagement_job
-from routes.config import config_bp, init_scheduler, _load_schedules_from_db
+from routes.config import config_bp, init_scheduler, _load_schedules_from_db, register_delta_interval, register_aceite_reconcile
 from routes.logs import logs_bp
 from routes.kommo_sync import kommo_bp
 from routes.match_merge import match_merge_bp
@@ -32,6 +69,8 @@ from routes.ativacoes import ativacoes_bp
 from routes.avisos import avisos_bp
 from routes.kommo_merge_route import kommo_merge_bp
 from routes.kommo_dispatcher import kommo_dispatcher_bp
+from routes.leads_parados import leads_parados_bp
+from routes.minha_performance import minha_performance_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(dashboard_bp)
@@ -47,6 +86,8 @@ app.register_blueprint(ativacoes_bp)
 app.register_blueprint(avisos_bp)
 app.register_blueprint(kommo_merge_bp)
 app.register_blueprint(kommo_dispatcher_bp)
+app.register_blueprint(leads_parados_bp)
+app.register_blueprint(minha_performance_bp)
 
 # ── Inicialização do banco ────────────────────────────────────────────────
 
@@ -61,6 +102,8 @@ from db import (
     _ensure_xl_snapshots_table,
     _ensure_engagement_tables,
     _ensure_avisos_tables,
+    _ensure_funnel_log_table,
+    _ensure_premiacao_tables,
 )
 
 _ensure_schedules_table()
@@ -73,6 +116,8 @@ _ensure_users_table()
 _ensure_xl_snapshots_table()
 _ensure_engagement_tables()
 _ensure_avisos_tables()
+_ensure_funnel_log_table()
+_ensure_premiacao_tables()
 
 # ── APScheduler ───────────────────────────────────────────────────────────
 
@@ -83,6 +128,8 @@ init_scheduler(scheduler)
 scheduler.start()
 _load_schedules_from_db()
 register_engagement_job(scheduler)
+register_delta_interval(scheduler)
+register_aceite_reconcile(scheduler)
 
 # ── Entrypoint ────────────────────────────────────────────────────────────
 

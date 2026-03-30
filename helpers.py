@@ -37,6 +37,8 @@ ALL_PAGES = [
     "dashboard", "search", "sync", "kommo_sync", "update", "pipeline", "match_merge",
     "comercial_rgm", "logs", "distribuicao", "ativacoes", "intelligence", "inadimplencia",
     "feedback", "config", "schedule", "inscricao", "avisos", "kommo_dispatcher",
+    "leads_parados", "minha_performance", "premiacao_admin", "macro_email",
+    "ajustes_matricula",
 ]
 
 APP_USER_FALLBACK = os.getenv("APP_USER", "admin")
@@ -190,4 +192,4 @@ def _normalize_digits(s):
 # Tipos de planilha
 # ---------------------------------------------------------------------------
 
-XL_TIPOS = ["matriculados", "inadimplentes", "concluintes", "acesso_ava", "sem_rematricula"]
+XL_TIPOS = ["matriculados", "inadimplentes", "concluintes", "acesso_ava", "sem_rematricula", "lista_alunos"]

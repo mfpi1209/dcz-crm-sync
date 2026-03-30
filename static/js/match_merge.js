@@ -53,7 +53,7 @@ function mmHandleUpload(files, tipo) {
 
 function mmHandleDrop(e, tipo) {
     e.preventDefault();
-    e.currentTarget.classList.remove('border-cyan-500', 'bg-cyan-950/10', 'border-emerald-500', 'bg-emerald-950/10');
+    e.currentTarget.classList.remove('border-indigo-500', 'bg-indigo-950/10', 'border-emerald-500', 'bg-emerald-950/10');
     mmHandleUpload(e.dataTransfer.files, tipo);
 }
 
@@ -65,15 +65,15 @@ function mmRefreshFileList() {
                 const el = document.getElementById(`mm-files-${tipo}`);
                 const files = data[tipo] || [];
                 if (!files.length) {
-                    el.innerHTML = '<p class="text-xs text-slate-600">Nenhum arquivo</p>';
+                    el.innerHTML = '<p class="text-xs text-gray-600">Nenhum arquivo</p>';
                     continue;
                 }
                 el.innerHTML = files.map(f =>
-                    `<div class="flex items-center gap-2 text-xs text-slate-400">
-                        <svg class="w-3 h-3 text-slate-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    `<div class="flex items-center gap-2 text-xs text-gray-400">
+                        <svg class="w-3 h-3 text-gray-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                         <span class="truncate">${f.name}</span>
-                        <span class="text-slate-600">${(f.size / 1024).toFixed(0)}KB</span>
-                        <span class="text-slate-700">${f.nivel}</span>
+                        <span class="text-gray-600">${(f.size / 1024).toFixed(0)}KB</span>
+                        <span class="text-gray-700">${f.nivel}</span>
                     </div>`
                 ).join('');
             }
@@ -179,6 +179,13 @@ function mmCheckStatus() {
         });
 }
 
+/* ── Export CSV ─────────────────────────────────── */
+
+function mmExportCSV() {
+    const filtro = document.getElementById('mm-filtro-acao').value;
+    window.location.href = `/api/match-merge/preview/export?filtro=${filtro}`;
+}
+
 /* ── Preview ────────────────────────────────────── */
 
 function mmLoadPreview() {
@@ -222,23 +229,23 @@ function mmLoadPreview() {
             const tbody = document.getElementById('mm-preview-tbody');
             const acoes = data.acoes || [];
             if (!acoes.length) {
-                tbody.innerHTML = '<tr><td colspan="11" class="text-center text-slate-600 py-4">Nenhuma ação</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="11" class="text-center text-gray-600 py-4">Nenhuma ação</td></tr>';
             } else {
                 tbody.innerHTML = acoes.map(a => {
                     const acaoColor = a.acao === 'NOVO' ? 'text-emerald-400' :
                                       a.acao === 'ATUALIZAR' ? 'text-amber-400' :
                                       a.acao === 'MATRICULADO' ? 'text-blue-400' :
                                       a.acao === 'MOVER_PERDIDO' ? 'text-red-400' :
-                                      a.acao === 'RESTAURAR' ? 'text-teal-400' :
-                                      a.acao === 'UNIFICAR' ? 'text-purple-400' : 'text-slate-400';
+                                      a.acao === 'RESTAURAR' ? 'text-indigo-400' :
+                                      a.acao === 'UNIFICAR' ? 'text-purple-400' : 'text-gray-400';
                     const acaoBg = a.acao === 'NOVO' ? 'bg-emerald-500/10' :
                                    a.acao === 'ATUALIZAR' ? 'bg-amber-500/10' :
                                    a.acao === 'MATRICULADO' ? 'bg-blue-500/10' :
                                    a.acao === 'MOVER_PERDIDO' ? 'bg-red-500/10' :
-                                   a.acao === 'RESTAURAR' ? 'bg-teal-500/10' :
-                                   a.acao === 'UNIFICAR' ? 'bg-purple-500/10' : 'bg-slate-500/10';
+                                   a.acao === 'RESTAURAR' ? 'bg-indigo-500/10' :
+                                   a.acao === 'UNIFICAR' ? 'bg-purple-500/10' : 'bg-gray-500/10';
 
-                    let leadCell = `<span class="text-slate-500 font-mono">${a.lead_id || '—'}</span>`;
+                    let leadCell = `<span class="text-gray-500 font-mono">${a.lead_id || '—'}</span>`;
                     if (a.acao === 'UNIFICAR' && a.dup_lead_ids) {
                         const ids = a.dup_lead_ids;
                         leadCell = ids.map(id =>
@@ -256,17 +263,17 @@ function mmLoadPreview() {
                         extraBtn += ` <button onclick="mmOpenMergeModal('${a.cpf}', ${JSON.stringify(a.dup_lead_ids)})" class="ml-1 text-[10px] font-bold text-purple-300 bg-purple-500/20 hover:bg-purple-500/30 px-2 py-0.5 rounded-full transition">Unificar</button>`;
                     }
 
-                    return `<tr class="hover:bg-slate-800/30">
+                    return `<tr class="hover:bg-gray-100 dark:hover:bg-gray-800/30">
                         <td class="py-2 px-3"><span class="${acaoBg} ${acaoColor} text-[10px] font-bold px-2 py-0.5 rounded-full">${a.acao}</span>${extraBtn}</td>
-                        <td class="py-2 px-3 text-slate-300">${a.nome || ''}</td>
-                        <td class="py-2 px-3 text-slate-400 font-mono">${a.cpf || ''}</td>
-                        <td class="py-2 px-3 text-slate-400">${a.curso_siaa || ''}</td>
-                        <td class="py-2 px-3 text-slate-400">${a.polo || ''}</td>
-                        <td class="py-2 px-3 text-slate-300">${a.situacao_siaa || ''}</td>
-                        <td class="py-2 px-3 text-slate-500">${a.situacao_kommo || '—'}</td>
-                        <td class="py-2 px-3 text-slate-400 font-mono">${a.data_inscr || '—'}</td>
-                        <td class="py-2 px-3 text-slate-400">${a.lead_fase || '—'}</td>
-                        <td class="py-2 px-3 text-slate-500">${a.match_tipo || '—'}</td>
+                        <td class="py-2 px-3 text-gray-300">${a.nome || ''}</td>
+                        <td class="py-2 px-3 text-gray-400 font-mono">${a.cpf || ''}</td>
+                        <td class="py-2 px-3 text-gray-400">${a.curso_siaa || ''}</td>
+                        <td class="py-2 px-3 text-gray-400">${a.polo || ''}</td>
+                        <td class="py-2 px-3 text-gray-300">${a.situacao_siaa || ''}</td>
+                        <td class="py-2 px-3 text-gray-500">${a.situacao_kommo || '—'}</td>
+                        <td class="py-2 px-3 text-gray-400 font-mono">${a.data_inscr || '—'}</td>
+                        <td class="py-2 px-3 text-gray-400">${a.lead_fase || '—'}</td>
+                        <td class="py-2 px-3 text-gray-500">${a.match_tipo || '—'}</td>
                         <td class="py-2 px-3">${leadCell}</td>
                     </tr>`;
                 }).join('');
@@ -374,7 +381,7 @@ function mmOpenMergeModal(cpf, leadIds) {
     document.getElementById('mm-merge-status').classList.add('hidden');
 
     const container = document.getElementById('mm-merge-leads');
-    container.innerHTML = '<p class="text-xs text-slate-500 col-span-2 text-center py-8">Carregando dados dos leads...</p>';
+    container.innerHTML = '<p class="text-xs text-gray-500 col-span-2 text-center py-8">Carregando dados dos leads...</p>';
 
     fetch('/api/kommo/merge/preview', {
         method: 'POST',
@@ -396,32 +403,32 @@ function mmOpenMergeModal(cpf, leadIds) {
 
 function _mmRenderMergeCards(container, leads) {
     if (!leads.length) {
-        container.innerHTML = '<p class="text-xs text-slate-500 col-span-2 text-center py-4">Nenhum lead encontrado</p>';
+        container.innerHTML = '<p class="text-xs text-gray-500 col-span-2 text-center py-4">Nenhum lead encontrado</p>';
         return;
     }
 
     container.innerHTML = leads.map(lead => {
         const id = lead.id;
         const statusClass = lead.status_id === 142 ? 'text-green-400' :
-                            lead.status_id === 143 ? 'text-red-400' : 'text-cyan-400';
+                            lead.status_id === 143 ? 'text-red-400' : 'text-indigo-400';
         const statusLabel = lead.status_id === 142 ? 'Ganho' :
                             lead.status_id === 143 ? 'Perdido' : 'Ativo';
         const fields = lead.custom_fields || {};
 
-        return `<div id="mm-merge-card-${id}" class="border border-slate-700/40 rounded-xl p-4 cursor-pointer hover:border-purple-500/60 transition-all"
+        return `<div id="mm-merge-card-${id}" class="border border-[var(--border)] rounded-xl p-4 cursor-pointer hover:border-purple-500/60 transition-all"
                      onclick="mmSelectKeepLead(${id})">
             <div class="flex items-center justify-between mb-3">
                 <a href="https://admamoeduitcombr.kommo.com/leads/detail/${id}" target="_blank"
                    class="text-sm font-bold text-purple-400 hover:underline font-mono">#${id}</a>
-                <span class="text-[10px] font-bold ${statusClass} px-2 py-0.5 rounded-full bg-slate-800">${statusLabel}</span>
+                <span class="text-[10px] font-bold ${statusClass} px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800">${statusLabel}</span>
             </div>
             <div class="space-y-1.5 text-xs">
-                <div class="flex justify-between"><span class="text-slate-500">Nome</span><span class="text-slate-300">${lead.name || '—'}</span></div>
-                <div class="flex justify-between"><span class="text-slate-500">Pipeline</span><span class="text-slate-300">${lead.pipeline_name || '—'}</span></div>
-                <div class="flex justify-between"><span class="text-slate-500">Fase</span><span class="text-slate-300">${lead.status_name || '—'}</span></div>
-                <div class="flex justify-between"><span class="text-slate-500">Criado</span><span class="text-slate-300">${lead.created_at || '—'}</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">Nome</span><span class="text-gray-300">${lead.name || '—'}</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">Pipeline</span><span class="text-gray-300">${lead.pipeline_name || '—'}</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">Fase</span><span class="text-gray-300">${lead.status_name || '—'}</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">Criado</span><span class="text-gray-300">${lead.created_at || '—'}</span></div>
                 ${Object.entries(fields).map(([k, v]) =>
-                    `<div class="flex justify-between"><span class="text-slate-500">${k}</span><span class="text-slate-300 text-right max-w-[60%] truncate">${v || '—'}</span></div>`
+                    `<div class="flex justify-between"><span class="text-gray-500">${k}</span><span class="text-gray-300 text-right max-w-[60%] truncate">${v || '—'}</span></div>`
                 ).join('')}
             </div>
             <div class="mt-3 text-center">
@@ -443,12 +450,12 @@ function mmSelectKeepLead(leadId) {
 
         if (id === leadId) {
             card.classList.add('border-green-500/60', 'bg-green-950/10');
-            card.classList.remove('border-red-500/40', 'bg-red-950/10', 'border-slate-700/40');
+            card.classList.remove('border-red-500/40', 'bg-red-950/10', 'border-[var(--border)]');
             keepBadge.classList.remove('hidden');
             removeBadge.classList.add('hidden');
         } else {
             card.classList.add('border-red-500/40', 'bg-red-950/10');
-            card.classList.remove('border-green-500/60', 'bg-green-950/10', 'border-slate-700/40');
+            card.classList.remove('border-green-500/60', 'bg-green-950/10', 'border-[var(--border)]');
             keepBadge.classList.add('hidden');
             removeBadge.classList.remove('hidden');
         }
@@ -476,7 +483,7 @@ function mmConfirmMerge() {
     const statusEl = document.getElementById('mm-merge-status');
     statusEl.classList.remove('hidden');
     statusEl.textContent = 'Enviando merge para o Kommo...';
-    statusEl.className = 'text-xs text-slate-400 mb-3';
+    statusEl.className = 'text-xs text-gray-400 mb-3';
 
     fetch('/api/kommo/merge', {
         method: 'POST',
@@ -561,7 +568,7 @@ function mmExecuteUnifLote() {
         .then(r => r.json())
         .then(data => {
             if (data.error) {
-                alert(data.error);
+                toast(data.error, 'error');
                 btn.disabled = false;
                 btn.classList.remove('opacity-50');
                 return;
@@ -569,7 +576,7 @@ function mmExecuteUnifLote() {
             _mmStartUnifPoll();
         })
         .catch(err => {
-            alert('Erro: ' + err);
+            toast('Erro: ' + err, 'error');
             btn.disabled = false;
             btn.classList.remove('opacity-50');
         });
@@ -600,9 +607,9 @@ function _mmPollUnif() {
 
                 const r = data.result || {};
                 if (r.error && typeof r.error === 'string') {
-                    alert(`Erro na unificação: ${r.error}`);
+                    toast(`Erro na unificação: ${r.error}`, 'error');
                 } else {
-                    alert(`Unificação concluída: ${r.ok || 0} OK, ${r.error || 0} erros de ${r.total || 0}`);
+                    toast(`Unificação concluída: ${r.ok || 0} OK, ${r.error || 0} erros de ${r.total || 0}`, 'success');
                 }
             }
         });

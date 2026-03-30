@@ -599,7 +599,10 @@ def _ensure_table():
     conn.close()
 
 
-_ensure_table()
+try:
+    _ensure_table()
+except Exception as _e:
+    logger.warning("comercial_rgm: could not ensure tables at startup: %s", _e)
 
 
 # â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -2305,12 +2308,30 @@ def crgm_data():
             excluded_rgms=_excluded,
         )
 
-        # --- Metas por agente (overlapping date range), agrupadas por categoria ---
+        # --- Metas por agente: premiacao_campanha_meta (primary) + comercial_metas (fallback) ---
         # Structure: {cat: {uid: {meta, intermediaria, supermeta}}}
         metas_by_cat = {}
+        campanha_meta_uids = set()
         try:
             conn2 = _pg()
             cur2 = conn2.cursor()
+
+            cur2.execute("""
+                SELECT pcm.kommo_user_id, pcm.meta, pcm.meta_intermediaria, pcm.supermeta
+                FROM premiacao_campanha_meta pcm
+                JOIN premiacao_campanha pc ON pc.id = pcm.campanha_id
+                WHERE pc.dt_inicio <= %s AND pc.dt_fim >= %s
+            """, (dt_fim or '9999-12-31', dt_ini or '1900-01-01'))
+            for r in cur2.fetchall():
+                uid = r[0]
+                campanha_meta_uids.add(uid)
+                metas_by_cat.setdefault("matriculas", {})
+                metas_by_cat["matriculas"][uid] = {
+                    "meta": float(r[1]),
+                    "intermediaria": float(r[2]),
+                    "supermeta": float(r[3]),
+                }
+
             cur2.execute("""
                 SELECT user_id, meta, COALESCE(meta_intermediaria,0),
                        COALESCE(supermeta,0), categoria
@@ -2320,6 +2341,8 @@ def crgm_data():
             for r in cur2.fetchall():
                 uid = r[0]
                 cat = r[4] or "matriculas"
+                if cat == "matriculas" and uid in campanha_meta_uids:
+                    continue
                 metas_by_cat.setdefault(cat, {})
                 prev = metas_by_cat[cat].get(uid, {"meta": 0, "intermediaria": 0, "supermeta": 0})
                 prev["meta"] += float(r[1])

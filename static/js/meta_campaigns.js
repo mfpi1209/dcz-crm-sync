@@ -5,6 +5,35 @@
 
 let metaCampaignsData = [];
 
+function consolidateCampaigns(campaigns) {
+    const grouped = {};
+    
+    campaigns.forEach(c => {
+        const key = c.utm_campaign || 'Sem nome';
+        
+        if (!grouped[key]) {
+            grouped[key] = {
+                utm_campaign: c.utm_campaign,
+                utm_source: c.utm_source,
+                utm_medium: c.utm_medium,
+                novos: 0,
+                ganhos: 0,
+                perdidos: 0
+            };
+        }
+        
+        grouped[key].novos += parseInt(c.novos) || 0;
+        grouped[key].ganhos += parseInt(c.ganhos) || 0;
+        grouped[key].perdidos += parseInt(c.perdidos) || 0;
+    });
+    
+    return Object.values(grouped).map(c => {
+        c.total_funil = c.novos + c.ganhos + c.perdidos;
+        c.conv_ganho_sobre_novo_pct = c.total_funil > 0 ? ((c.ganhos / c.total_funil) * 100) : 0;
+        return c;
+    });
+}
+
 async function loadMetaCampaigns() {
     const btn = document.getElementById('meta-btn-atualizar');
     const tableContainer = document.getElementById('meta-campaigns-table-container');
@@ -22,20 +51,30 @@ async function loadMetaCampaigns() {
         if (emptyState) emptyState.classList.add('hidden');
         if (loadingState) loadingState.classList.remove('hidden');
         
-        const fromDate = document.getElementById('meta-filter-from')?.value || '';
-        const toDate = document.getElementById('meta-filter-to')?.value || '';
+        const fromInput = document.getElementById('meta-filter-from');
+        const toInput = document.getElementById('meta-filter-to');
+        
+        const today = new Date().toISOString().split('T')[0];
+        if (fromInput && !fromInput.value) fromInput.value = today;
+        if (toInput && !toInput.value) toInput.value = today;
+        
+        const fromDate = fromInput?.value || today;
+        const toDate = toInput?.value || today;
         
         let url = '/api/meta/campaigns';
         const params = new URLSearchParams();
-        if (fromDate) params.append('from', fromDate);
-        if (toDate) params.append('to', toDate);
-        if (params.toString()) url += '?' + params.toString();
+        params.append('from', fromDate);
+        params.append('to', toDate);
+        url += '?' + params.toString();
         
         const res = await fetch(url);
         if (!res.ok) throw new Error('Erro ao carregar campanhas');
         const data = await res.json();
         
-        metaCampaignsData = data.campaigns || [];
+        const rawCampaigns = data.campaigns || [];
+        metaCampaignsData = consolidateCampaigns(rawCampaigns);
+        
+        console.log('Campanhas brutas:', rawCampaigns.length, '-> Consolidadas:', metaCampaignsData.length);
         
         if (statusEl) {
             statusEl.textContent = data.status || 'OK';
@@ -186,19 +225,25 @@ function renderCampaignsTable(campaigns) {
 }
 
 function updateMetrics(campaigns) {
-    const totalLeads = campaigns.reduce((sum, c) => sum + (parseInt(c.total_funil) || 0), 0);
     const totalNovos = campaigns.reduce((sum, c) => sum + (parseInt(c.novos) || 0), 0);
     const totalGanhos = campaigns.reduce((sum, c) => sum + (parseInt(c.ganhos) || 0), 0);
+    const totalPerdidos = campaigns.reduce((sum, c) => sum + (parseInt(c.perdidos) || 0), 0);
+    const totalGeral = totalNovos + totalGanhos + totalPerdidos;
     
-    const conversionRate = totalNovos > 0 ? ((totalGanhos / totalNovos) * 100).toFixed(1) + '%' : '—';
+    const ganhosPct = totalGeral > 0 ? ((totalGanhos / totalGeral) * 100).toFixed(1) : '0';
+    const perdidosPct = totalGeral > 0 ? ((totalPerdidos / totalGeral) * 100).toFixed(1) : '0';
     
     const totalLeadsEl = document.getElementById('meta-total-leads');
-    const newLeadsEl = document.getElementById('meta-new-leads');
-    const conversionEl = document.getElementById('meta-conversion-rate');
+    const leadsGanhosEl = document.getElementById('meta-leads-ganhos');
+    const leadsPerdidosEl = document.getElementById('meta-leads-perdidos');
+    const ganhosPctEl = document.getElementById('meta-ganhos-pct');
+    const perdidosPctEl = document.getElementById('meta-perdidos-pct');
     
-    if (totalLeadsEl) totalLeadsEl.textContent = totalLeads;
-    if (newLeadsEl) newLeadsEl.textContent = totalNovos;
-    if (conversionEl) conversionEl.textContent = conversionRate;
+    if (totalLeadsEl) totalLeadsEl.textContent = totalGeral;
+    if (leadsGanhosEl) leadsGanhosEl.textContent = totalGanhos;
+    if (leadsPerdidosEl) leadsPerdidosEl.textContent = totalPerdidos;
+    if (ganhosPctEl) ganhosPctEl.textContent = `(${ganhosPct}%)`;
+    if (perdidosPctEl) perdidosPctEl.textContent = `(${perdidosPct}%)`;
 }
 
 function getCampaignType(campaignName) {
