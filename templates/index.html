@@ -35,6 +35,7 @@
             {% include 'partials/_vocacional.html' %}
             {% include 'partials/_leads_parados.html' %}
             {% include 'partials/_minha_performance.html' %}
+            {% include 'partials/_repasse.html' %}
             {% include 'partials/_premiacao_admin.html' %}
             {% include 'partials/_ajustes_matricula.html' %}
             {% include 'partials/_macro_email.html' %}
@@ -43,6 +44,52 @@
 </div>
 
 <div id="toast-container"></div>
+
+<!-- Modal: Editar Metas em Massa (fora do main para position:fixed funcionar corretamente) -->
+<div id="crgm-bulk-meta-modal" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" style="position:fixed;top:0;left:0;right:0;bottom:0;">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col" style="max-height:90vh;">
+        <!-- Header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-700 shrink-0">
+            <div>
+                <p class="text-[10px] text-slate-500 uppercase tracking-wider">Edição em massa</p>
+                <p class="text-white font-semibold text-sm" id="crgm-bulk-meta-periodo">—</p>
+            </div>
+            <button onclick="crgmFecharBulkMeta()" class="text-slate-500 hover:text-white transition-colors">
+                <span class="material-symbols-outlined text-xl">close</span>
+            </button>
+        </div>
+
+        <!-- Tabela scroll -->
+        <div class="overflow-y-auto flex-1 px-4 py-3">
+            <table class="w-full text-sm">
+                <thead class="sticky top-0 bg-slate-900 z-10">
+                    <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-800">
+                        <th class="text-left py-2 pl-2 font-semibold">Agente</th>
+                        <th class="text-center py-2 w-28 font-semibold text-amber-400">Intermediária</th>
+                        <th class="text-center py-2 w-28 font-semibold text-blue-400">Meta</th>
+                        <th class="text-center py-2 w-28 font-semibold text-emerald-400">Supermeta</th>
+                    </tr>
+                </thead>
+                <tbody id="crgm-bulk-meta-rows" class="divide-y divide-slate-800/60">
+                    <!-- preenchido via JS -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-6 py-4 border-t border-slate-700 shrink-0 flex items-center justify-between gap-3">
+            <p class="text-xs text-slate-500" id="crgm-bulk-meta-status"></p>
+            <div class="flex gap-2">
+                <button onclick="crgmFecharBulkMeta()" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm transition-colors">Cancelar</button>
+                <button id="crgm-bulk-meta-salvar" onclick="crgmSalvarBulkMeta()"
+                    class="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors flex items-center gap-2">
+                    <span class="material-symbols-outlined text-base">save</span>
+                    Salvar Tudo
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 {% set _v = range(100000) | random %}
 <script src="{{ url_for('static', filename='js/utils.js') }}?v={{_v}}"></script>
@@ -72,6 +119,7 @@
 <script src="{{ url_for('static', filename='js/premiacao_admin.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/ajustes_matricula.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/macro_email.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/repasse.js') }}?v={{_v}}"></script>
 
 </body>
 </html>

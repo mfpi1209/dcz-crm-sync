@@ -201,6 +201,42 @@
         </div>
     </div>
 
+    <!-- Modal: Editar Meta -->
+    <div id="crgm-edit-meta-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <p class="text-[10px] text-slate-500 uppercase tracking-wider">Editar meta</p>
+                    <p class="text-white font-semibold text-sm" id="crgm-edit-meta-titulo">—</p>
+                </div>
+                <button onclick="crgmFecharEditarMeta()" class="text-slate-500 hover:text-white transition-colors">
+                    <span class="material-symbols-outlined text-lg">close</span>
+                </button>
+            </div>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-[10px] text-blue-400 uppercase tracking-wider mb-1">Meta</label>
+                    <input id="crgm-edit-meta-val" type="number" min="0" step="1"
+                        class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-[10px] text-amber-400 uppercase tracking-wider mb-1">Meta Intermediária</label>
+                    <input id="crgm-edit-meta-int" type="number" min="0" step="1"
+                        class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-amber-500">
+                </div>
+                <div>
+                    <label class="block text-[10px] text-emerald-400 uppercase tracking-wider mb-1">Supermeta</label>
+                    <input id="crgm-edit-meta-sup" type="number" min="0" step="1"
+                        class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-emerald-500">
+                </div>
+            </div>
+            <div class="flex gap-2 mt-5">
+                <button onclick="crgmFecharEditarMeta()" class="flex-1 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm transition-colors">Cancelar</button>
+                <button id="crgm-edit-meta-salvar" onclick="crgmSalvarEditarMeta()" class="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors">Salvar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Ciclo + Turma -->
     <div class="glass-card p-4 mb-4">
         <div class="flex flex-wrap items-end gap-3">

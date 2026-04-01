@@ -1,0 +1,238 @@
+<div id="page-repasse" class="hidden flex-col h-full overflow-y-auto">
+  <div class="max-w-7xl mx-auto w-full px-4 py-6 space-y-5">
+
+    <!-- Cabeçalho com gradiente -->
+    <div class="relative rounded-2xl overflow-hidden bg-gradient-to-r from-emerald-900/40 via-slate-800/60 to-amber-900/30 border border-emerald-700/20 px-6 py-5">
+      <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(16,185,129,0.08),transparent_60%)]"></div>
+      <div class="relative flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div class="flex items-center gap-3 mb-1">
+            <div class="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
+              <span class="material-symbols-outlined text-emerald-400 text-lg">payments</span>
+            </div>
+            <h2 class="text-2xl font-bold text-white font-display tracking-tight">Repasse de Recebimentos</h2>
+          </div>
+          <p class="text-xs text-slate-400 ml-12">Distribuição de recebimentos por consultor com base no ciclo selecionado</p>
+        </div>
+        <div class="flex items-center gap-2 text-[10px] text-emerald-400/70 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1">
+          <span class="material-symbols-outlined text-xs">verified</span>
+          Dados de comercial_pagamentos
+        </div>
+      </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="glass-card border border-slate-700/40 p-5">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="material-symbols-outlined text-slate-500 text-sm">tune</span>
+        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Filtros</span>
+      </div>
+      <div class="flex flex-wrap items-end gap-3">
+        <div>
+          <label class="block text-[10px] text-slate-500 mb-1.5 uppercase tracking-wider font-medium">Ciclo</label>
+          <select id="rep-ciclo" onchange="repAtualizarTurmas()"
+            class="input-glass px-3 py-2 text-xs text-slate-200 min-w-[130px] rounded-lg border border-slate-600/40 bg-slate-800/60 focus:border-emerald-500/50 focus:outline-none transition-colors">
+            <option value="">Todos os ciclos</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[10px] text-slate-500 mb-1.5 uppercase tracking-wider font-medium">Turma</label>
+          <select id="rep-turma"
+            class="input-glass px-3 py-2 text-xs text-slate-200 min-w-[140px] rounded-lg border border-slate-600/40 bg-slate-800/60 focus:border-emerald-500/50 focus:outline-none transition-colors">
+            <option value="">Todas as turmas</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[10px] text-slate-500 mb-1.5 uppercase tracking-wider font-medium">Tipo de Pagamento</label>
+          <select id="rep-tipo"
+            class="input-glass px-3 py-2 text-xs text-slate-200 min-w-[160px] rounded-lg border border-slate-600/40 bg-slate-800/60 focus:border-emerald-500/50 focus:outline-none transition-colors">
+            <option value="">Todos os tipos</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[10px] text-slate-500 mb-1.5 uppercase tracking-wider font-medium">Taxa de Repasse</label>
+          <div class="flex items-center gap-1.5">
+            <div class="relative">
+              <input type="number" id="rep-taxa" value="30" min="0" max="100" step="0.1"
+                oninput="repAtualizarTaxa()"
+                onkeydown="if(event.key==='Enter' && !this.readOnly) repSalvarTaxa()"
+                class="input-glass pl-3 pr-7 py-2 text-xs text-slate-200 w-24 text-right rounded-lg border border-amber-500/30 bg-amber-500/5 focus:border-amber-500/60 focus:outline-none transition-colors font-mono font-semibold text-amber-300">
+              <span class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-500/70">%</span>
+            </div>
+            <button id="rep-taxa-salvar-btn" onclick="repSalvarTaxa()" title="Salvar taxa para todos"
+              class="hidden p-1.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/15 border border-amber-500/20 rounded-lg transition-all">
+              <span class="material-symbols-outlined text-sm">save</span>
+            </button>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 ml-auto">
+          <button onclick="repReset()" class="px-3 py-2 text-xs text-slate-500 hover:text-slate-300 hover:bg-slate-700/40 rounded-lg transition-colors flex items-center gap-1">
+            <span class="material-symbols-outlined text-sm">restart_alt</span> Limpar
+          </button>
+          <button onclick="repLoad()" class="px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 rounded-lg transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-sm">search</span> Buscar
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div id="rep-kpis" class="hidden grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <!-- Total Recebido (admin only) -->
+      <div id="rep-kpi-valor-wrap" class="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-900/30 to-slate-800/60 p-4">
+        <div class="absolute top-0 right-0 w-20 h-20 bg-emerald-500/5 rounded-full -translate-y-6 translate-x-6"></div>
+        <div class="flex items-start justify-between mb-3">
+          <div class="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center">
+            <span class="material-symbols-outlined text-emerald-400 text-base">account_balance_wallet</span>
+          </div>
+          <span class="text-[9px] text-emerald-500/70 bg-emerald-500/10 px-1.5 py-0.5 rounded-full uppercase tracking-wider">Total</span>
+        </div>
+        <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Recebido</p>
+        <p id="rep-kpi-valor" class="text-xl font-bold text-emerald-400 font-display">—</p>
+      </div>
+      <!-- Total Repasse -->
+      <div class="relative overflow-hidden rounded-2xl border border-amber-500/25 bg-gradient-to-br from-amber-900/30 to-slate-800/60 p-4">
+        <div class="absolute top-0 right-0 w-20 h-20 bg-amber-500/5 rounded-full -translate-y-6 translate-x-6"></div>
+        <div class="flex items-start justify-between mb-3">
+          <div class="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center">
+            <span class="material-symbols-outlined text-amber-400 text-base">savings</span>
+          </div>
+          <span class="text-[9px] text-amber-500/70 bg-amber-500/10 px-1.5 py-0.5 rounded-full uppercase tracking-wider"><span class="rep-taxa-col">30</span>%</span>
+        </div>
+        <p class="text-[10px] text-amber-500/80 uppercase tracking-wider mb-1">Total Repasse</p>
+        <p id="rep-kpi-repasse" class="text-xl font-bold text-amber-400 font-display">—</p>
+      </div>
+      <!-- Alunos -->
+      <div class="relative overflow-hidden rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-900/30 to-slate-800/60 p-4">
+        <div class="absolute top-0 right-0 w-20 h-20 bg-blue-500/5 rounded-full -translate-y-6 translate-x-6"></div>
+        <div class="flex items-start justify-between mb-3">
+          <div class="w-8 h-8 rounded-lg bg-blue-500/15 flex items-center justify-center">
+            <span class="material-symbols-outlined text-blue-400 text-base">school</span>
+          </div>
+          <span class="text-[9px] text-blue-500/70 bg-blue-500/10 px-1.5 py-0.5 rounded-full uppercase tracking-wider">Alunos</span>
+        </div>
+        <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Com Pagamento</p>
+        <p id="rep-kpi-alunos" class="text-xl font-bold text-blue-400 font-display">—</p>
+      </div>
+      <!-- Agentes (admin only) -->
+      <div id="rep-kpi-agentes-wrap" class="relative overflow-hidden rounded-2xl border border-purple-500/20 bg-gradient-to-br from-purple-900/30 to-slate-800/60 p-4">
+        <div class="absolute top-0 right-0 w-20 h-20 bg-purple-500/5 rounded-full -translate-y-6 translate-x-6"></div>
+        <div class="flex items-start justify-between mb-3">
+          <div class="w-8 h-8 rounded-lg bg-purple-500/15 flex items-center justify-center">
+            <span class="material-symbols-outlined text-purple-400 text-base">groups</span>
+          </div>
+          <span class="text-[9px] text-purple-500/70 bg-purple-500/10 px-1.5 py-0.5 rounded-full uppercase tracking-wider">Equipe</span>
+        </div>
+        <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Consultores</p>
+        <p id="rep-kpi-agentes" class="text-xl font-bold text-purple-400 font-display">—</p>
+      </div>
+    </div>
+
+    <!-- Carrossel de Consultores -->
+    <div class="glass-card border border-slate-700/40 overflow-hidden rounded-2xl">
+      <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-700/30 bg-slate-800/30">
+        <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
+          <span class="material-symbols-outlined text-base text-purple-400">groups</span>
+          Consultores
+        </h3>
+        <div class="flex items-center gap-2">
+          <span id="rep-viewer-banner" class="hidden text-[10px] text-purple-300 bg-purple-500/10 border border-purple-500/20 px-3 py-1 rounded-full flex items-center gap-1">
+            <span class="material-symbols-outlined text-xs">person</span>
+            <span id="rep-viewer-nome"></span>
+          </span>
+          <div id="rep-search-wrap" class="flex items-center gap-2">
+            <div class="relative">
+              <span class="material-symbols-outlined text-slate-500 text-sm absolute left-2 top-1/2 -translate-y-1/2">search</span>
+              <input type="text" id="rep-search" placeholder="Buscar consultor..."
+                oninput="repFilter()"
+                class="input-glass pl-7 pr-3 py-1.5 text-xs text-slate-300 w-44 rounded-lg border border-slate-600/40 bg-slate-800/60 focus:border-purple-500/50 focus:outline-none transition-colors">
+            </div>
+            <button onclick="repCarrosselNav(-1)" class="p-1.5 rounded-lg hover:bg-slate-700/60 text-slate-400 hover:text-white transition-all border border-slate-700/40 hover:border-slate-600">
+              <span class="material-symbols-outlined text-base">chevron_left</span>
+            </button>
+            <button onclick="repCarrosselNav(1)" class="p-1.5 rounded-lg hover:bg-slate-700/60 text-slate-400 hover:text-white transition-all border border-slate-700/40 hover:border-slate-600">
+              <span class="material-symbols-outlined text-base">chevron_right</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="rep-loading" class="hidden py-12 text-center text-xs text-slate-500">
+        <span class="material-symbols-outlined text-3xl animate-spin block mb-2 text-emerald-500/50">autorenew</span>
+        Carregando dados...
+      </div>
+      <div id="rep-empty" class="py-14 text-center text-xs text-slate-500">
+        <div class="w-14 h-14 rounded-2xl bg-slate-800/60 border border-slate-700/40 flex items-center justify-center mx-auto mb-3">
+          <span class="material-symbols-outlined text-2xl text-slate-600">payments</span>
+        </div>
+        <p class="text-slate-400 font-medium mb-1">Nenhum dado carregado</p>
+        <p class="text-slate-600">Selecione os filtros e clique em <strong class="text-emerald-500">Buscar</strong></p>
+      </div>
+
+      <!-- Cards carrossel -->
+      <div id="rep-carrossel-wrap" class="hidden px-5 py-4">
+        <div id="rep-carrossel" class="flex gap-3 overflow-x-auto pb-2 scroll-smooth snap-x"
+             style="scrollbar-width: thin; scrollbar-color: #334155 transparent;">
+          <!-- cards injetados via JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Painel de Detalhe -->
+    <div id="rep-detalhe-panel" class="hidden glass-card border border-purple-500/25 overflow-hidden rounded-2xl">
+      <!-- Header -->
+      <div class="flex items-center gap-4 px-5 py-4 border-b border-slate-700/30 bg-gradient-to-r from-purple-900/20 to-slate-800/40">
+        <div id="rep-detalhe-avatar" class="w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold text-white flex-shrink-0 shadow-lg"></div>
+        <div class="flex-1 min-w-0">
+          <h3 id="rep-detalhe-nome" class="text-sm font-bold text-white font-display truncate mb-1"></h3>
+          <div class="flex flex-wrap gap-3 mt-1">
+            <span id="rep-detalhe-total-wrap" class="inline-flex items-center gap-1 text-[10px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">
+              <span class="material-symbols-outlined text-[10px]">account_balance_wallet</span>
+              Recebido: <span id="rep-detalhe-total" class="font-semibold"></span>
+            </span>
+            <span class="inline-flex items-center gap-1 text-[10px] bg-amber-500/10 border border-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full">
+              <span class="material-symbols-outlined text-[10px]">savings</span>
+              Repasse (<span class="rep-taxa-col">30</span>%): <span id="rep-detalhe-repasse" class="font-bold"></span>
+            </span>
+            <span class="inline-flex items-center gap-1 text-[10px] bg-blue-500/10 border border-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">
+              <span class="material-symbols-outlined text-[10px]">school</span>
+              Alunos: <span id="rep-detalhe-qtd" class="font-semibold"></span>
+            </span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="relative">
+            <span class="material-symbols-outlined text-slate-500 text-sm absolute left-2 top-1/2 -translate-y-1/2">search</span>
+            <input type="text" id="rep-detalhe-search" placeholder="Buscar RGM, tipo..."
+              oninput="repFilterDetalhe()"
+              class="input-glass pl-7 pr-3 py-1.5 text-xs text-slate-300 w-44 rounded-lg border border-slate-600/40 bg-slate-800/60 focus:outline-none transition-colors">
+          </div>
+          <button onclick="repFecharDetalhe()" class="p-1.5 text-slate-500 hover:text-white hover:bg-slate-700/50 rounded-lg transition-all border border-slate-700/40">
+            <span class="material-symbols-outlined text-base">close</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="rep-detalhe-loading" class="hidden py-6 text-center text-xs text-slate-500">
+        <span class="material-symbols-outlined text-xl animate-spin block mb-1 text-purple-400/50">autorenew</span>
+        Carregando...
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs">
+          <thead>
+            <tr class="text-slate-500 border-b border-slate-700/30 text-left bg-slate-800/20">
+              <th class="py-2.5 px-4 font-medium">RGM</th>
+              <th class="py-2.5 px-4 font-medium">Tipo Pagamento</th>
+              <th class="py-2.5 px-4 font-medium">Turma</th>
+              <th class="py-2.5 px-4 font-medium">Ciclo</th>
+              <th class="py-2.5 px-4 text-right font-medium rep-col-recebido">Valor Recebido</th>
+              <th class="py-2.5 px-4 text-right font-medium text-amber-500/80">Repasse (<span class="rep-taxa-col">30</span>%)</th>
+            </tr>
+          </thead>
+          <tbody id="rep-detalhe-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>

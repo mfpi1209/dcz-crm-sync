@@ -572,6 +572,20 @@ def _ensure_table():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_cm_cat ON comercial_metas(categoria)")
         conn.commit()
 
+        # Ensure unique constraint for batch upsert
+        cur.execute("""
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'uq_cm_user_period_cat'
+        """)
+        if not cur.fetchone():
+            cur.execute("""
+                ALTER TABLE comercial_metas
+                ADD CONSTRAINT uq_cm_user_period_cat
+                UNIQUE (user_id, dt_inicio, dt_fim, categoria)
+            """)
+            conn.commit()
+            logger.info("comercial_metas: added unique constraint uq_cm_user_period_cat")
+
         # Ensure meta column is NUMERIC
         cur.execute("""
             SELECT data_type FROM information_schema.columns
@@ -2039,23 +2053,26 @@ def crgm_data():
             turma=turma_nome or None,
         )
 
-        rgms_periodo = set()       # EM CURSO (líquido)
-        rgms_bruto   = set()       # todos (bruto)
-        evasao_rows  = []          # não EM CURSO
-        day_rgms     = defaultdict(set)
-        polo_rgms    = defaultdict(set)
+        rgms_periodo   = set()          # EM CURSO (líquido)
+        rgms_bruto     = set()          # todos (bruto)
+        evasao_rows    = []             # não EM CURSO
+        day_rgms       = defaultdict(set)   # líquido por dia
+        day_rgms_bruto = defaultdict(set)   # bruto por dia (sombra)
+        polo_rgms      = defaultdict(set)
 
         for row in _periodo_rows:
             n = row["rgm"]
             if not n:
                 continue
             rgms_bruto.add(n)
+            try:
+                dt = date.fromisoformat(row["data_matricula"][:10]) if row["data_matricula"] else None
+            except (ValueError, TypeError):
+                dt = None
+            if dt:
+                day_rgms_bruto[dt].add(n)
             if row["situacao"] == "EM CURSO":
                 rgms_periodo.add(n)
-                try:
-                    dt = date.fromisoformat(row["data_matricula"][:10]) if row["data_matricula"] else None
-                except (ValueError, TypeError):
-                    dt = None
                 if dt:
                     day_rgms[dt].add(n)
                 if row["polo"]:
@@ -2067,7 +2084,8 @@ def crgm_data():
         vendas_liquidas = len(rgms_periodo)
         _excluded = rgms_bruto - rgms_periodo   # conjunto excluído (para ranking)
         all_kpi_rgms = rgms_periodo
-        day_counts = {d: len(s) for d, s in day_rgms.items()}
+        day_counts       = {d: len(s) for d, s in day_rgms.items()}
+        day_counts_bruto = {d: len(s) for d, s in day_rgms_bruto.items()}
         polo_counts = {p: len(s) for p, s in polo_rgms.items()}
         dias = len(day_counts) or 1
         media_diaria = round(vendas_liquidas / dias, 1) if dias else 0
@@ -2224,6 +2242,9 @@ def crgm_data():
         pct_ytd = round((vendas_ytd / vendas_prev_ytd - 1) * 100, 1) if vendas_prev_ytd > 0 else 0
 
         evolucao = [{"data": d.isoformat(), "count": c} for d, c in sorted(day_counts.items())]
+        # bruto: union das datas de bruto + liquido para alinhar os dois datasets
+        all_dates_bruto = sorted(set(day_counts_bruto.keys()) | set(day_counts.keys()))
+        evolucao_bruto = [{"data": d.isoformat(), "count": day_counts_bruto.get(d, 0)} for d in all_dates_bruto]
 
         # --- Evolução ano anterior (por linha / data_matricula) ---
         evolucao_prev = []
@@ -2441,6 +2462,7 @@ def crgm_data():
                 "mm_inscritos": mm_insc_count,
             },
             "evolucao": evolucao,
+            "evolucao_bruto": evolucao_bruto,
             "evolucao_prev": evolucao_prev,
             "ranking_polo": ranking_polo,
             "ranking_ciclo": ranking_ciclo,
@@ -2787,6 +2809,77 @@ def crgm_save_metas():
         return jsonify({"ok": True, "saved": saved})
     except Exception as e:
         logger.exception("save metas error")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@comercial_rgm_bp.route("/api/comercial-rgm/metas/batch", methods=["PUT"])
+def crgm_update_metas_batch():
+    """Salva metas de múltiplos agentes de uma vez para um período."""
+    try:
+        body    = request.json or {}
+        dt_ini  = body.get("dt_inicio")
+        dt_fim  = body.get("dt_fim")
+        descr   = body.get("descricao", "")
+        cat     = body.get("categoria", "matriculas")
+        items   = body.get("items", [])   # [{user_id, user_name, meta, meta_intermediaria, supermeta}]
+
+        if not dt_ini or not dt_fim or not items:
+            return jsonify({"ok": False, "error": "dt_inicio, dt_fim e items são obrigatórios"}), 400
+
+        conn = _pg()
+        cur  = conn.cursor()
+        saved = 0
+        for it in items:
+            uid   = it.get("user_id")
+            uname = it.get("user_name", "")
+            meta  = float(it.get("meta", 0) or 0)
+            interm= float(it.get("meta_intermediaria", 0) or 0)
+            sup   = float(it.get("supermeta", 0) or 0)
+            if not uid:
+                continue
+            cur.execute("""
+                INSERT INTO comercial_metas
+                    (user_id, user_name, meta, meta_intermediaria, supermeta,
+                     dt_inicio, dt_fim, descricao, categoria)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT (user_id, dt_inicio, dt_fim, categoria)
+                DO UPDATE SET
+                    meta               = EXCLUDED.meta,
+                    meta_intermediaria = EXCLUDED.meta_intermediaria,
+                    supermeta          = EXCLUDED.supermeta,
+                    user_name          = EXCLUDED.user_name,
+                    descricao          = EXCLUDED.descricao
+            """, (uid, uname, meta, interm, sup, dt_ini, dt_fim, descr, cat))
+            saved += 1
+
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True, "saved": saved})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@comercial_rgm_bp.route("/api/comercial-rgm/metas/<int:meta_id>", methods=["PUT"])
+def crgm_update_meta(meta_id):
+    try:
+        body = request.json or {}
+        meta_val   = float(body.get("meta", 0))
+        interm_val = float(body.get("meta_intermediaria", 0))
+        super_val  = float(body.get("supermeta", 0))
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE comercial_metas
+            SET meta = %s, meta_intermediaria = %s, supermeta = %s
+            WHERE id = %s
+        """, (meta_val, interm_val, super_val, meta_id))
+        conn.commit()
+        updated = cur.rowcount
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True, "updated": updated})
+    except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
 

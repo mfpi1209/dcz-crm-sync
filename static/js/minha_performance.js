@@ -1353,3 +1353,89 @@ async function _mpSaveAjuste() {
         alert('Erro ao enviar: ' + e.message);
     }
 }
+
+
+/* ═══ Filtro rápido por período de Meta ═══ */
+
+let _mpMetaPeriodosCache = null;
+let _mpMetaDropdownOpen = false;
+
+async function _mpToggleMetaPeriodos() {
+    const dropdown = document.getElementById('mp-meta-periodo-dropdown');
+    const chevron = document.getElementById('mp-meta-periodo-chevron');
+    if (!dropdown) return;
+
+    _mpMetaDropdownOpen = !_mpMetaDropdownOpen;
+    if (!_mpMetaDropdownOpen) {
+        dropdown.classList.add('hidden');
+        if (chevron) chevron.textContent = 'expand_more';
+        return;
+    }
+
+    dropdown.classList.remove('hidden');
+    if (chevron) chevron.textContent = 'expand_less';
+
+    if (_mpMetaPeriodosCache && _mpMetaPeriodosCache.length) {
+        _mpRenderMetaPeriodos(_mpMetaPeriodosCache);
+        return;
+    }
+
+    const listEl = document.getElementById('mp-meta-periodo-list');
+    if (listEl) listEl.innerHTML = '<div class="py-2">Carregando...</div>';
+
+    try {
+        const res = await api('/api/premiacao/campanhas-periodos');
+        const d = await res.json();
+        if (!d.ok) throw new Error(d.error || 'Erro');
+        _mpMetaPeriodosCache = d.campanhas || [];
+        _mpRenderMetaPeriodos(_mpMetaPeriodosCache);
+    } catch(e) {
+        if (listEl) listEl.innerHTML = `<div class="py-2 text-red-400">Erro: ${e.message}</div>`;
+    }
+}
+
+function _mpRenderMetaPeriodos(campanhas) {
+    const listEl = document.getElementById('mp-meta-periodo-list');
+    if (!listEl) return;
+    if (!campanhas.length) {
+        listEl.innerHTML = '<div class="py-2 text-slate-500">Nenhuma meta cadastrada</div>';
+        return;
+    }
+    listEl.innerHTML = campanhas.map(c => {
+        const ini = c.dt_inicio;
+        const fim = c.dt_fim;
+        const label = c.nome || `${_mpFmtDate(ini)} → ${_mpFmtDate(fim)}`;
+        const sub = `${_mpFmtDate(ini)} → ${_mpFmtDate(fim)}`;
+        return `<button onclick="_mpAplicarMetaPeriodo('${ini}','${fim}')"
+            class="w-full text-left px-3 py-2 hover:bg-slate-800 transition-colors border-b border-slate-800/50 last:border-0">
+            <div class="font-semibold text-slate-200">${label}</div>
+            <div class="text-[10px] text-slate-500 mt-0.5">${sub}</div>
+        </button>`;
+    }).join('');
+}
+
+function _mpAplicarMetaPeriodo(dtIni, dtFim) {
+    const iniEl = document.getElementById('mp-mat-dt-ini');
+    const fimEl = document.getElementById('mp-mat-dt-fim');
+    if (iniEl) iniEl.value = dtIni;
+    if (fimEl) fimEl.value = dtFim;
+
+    const dropdown = document.getElementById('mp-meta-periodo-dropdown');
+    const chevron = document.getElementById('mp-meta-periodo-chevron');
+    if (dropdown) dropdown.classList.add('hidden');
+    if (chevron) chevron.textContent = 'expand_more';
+    _mpMetaDropdownOpen = false;
+
+    _mpLoadMatriculas();
+}
+
+// Fecha dropdown ao clicar fora
+document.addEventListener('click', function(e) {
+    const wrap = document.getElementById('mp-meta-periodo-wrap');
+    if (wrap && !wrap.contains(e.target) && _mpMetaDropdownOpen) {
+        document.getElementById('mp-meta-periodo-dropdown')?.classList.add('hidden');
+        const chevron = document.getElementById('mp-meta-periodo-chevron');
+        if (chevron) chevron.textContent = 'expand_more';
+        _mpMetaDropdownOpen = false;
+    }
+});
