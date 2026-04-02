@@ -33,6 +33,19 @@ def get_conn():
     return psycopg2.connect(**DB_DSN)
 
 
+ME_DSN = dict(
+    host=os.getenv("DB_HOST", "localhost"),
+    port=os.getenv("DB_PORT", "5432"),
+    user=os.getenv("DB_USER"),
+    password=os.getenv("DB_PASS"),
+    dbname="marco_email",
+)
+
+
+def get_me_conn():
+    return psycopg2.connect(**ME_DSN)
+
+
 # ---------------------------------------------------------------------------
 # Ensure tables
 # ---------------------------------------------------------------------------
@@ -104,6 +117,157 @@ def _ensure_ciclos_table():
         conn.close()
     except Exception as e:
         logger.warning("Could not ensure ciclos table: %s", e)
+
+
+def _ensure_ciclos_comercial_table():
+    """Create ciclos_comercial dimension table for commercial cycle management.
+
+    Columns:
+      id, nome (ex: '26.1'), ano, semestre, dt_inicio, dt_fim, ativo,
+      descricao (auto-generated label), created_at
+    """
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS ciclos_comercial (
+                    id         SERIAL PRIMARY KEY,
+                    nome       TEXT NOT NULL UNIQUE,
+                    ano        INTEGER,
+                    semestre   INTEGER,
+                    dt_inicio  DATE NOT NULL,
+                    dt_fim     DATE NOT NULL,
+                    ativo      BOOLEAN NOT NULL DEFAULT FALSE,
+                    descricao  TEXT,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+
+            for col, defn in [
+                ("ano", "INTEGER"),
+                ("semestre", "INTEGER"),
+                ("descricao", "TEXT"),
+            ]:
+                cur.execute("""
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'ciclos_comercial' AND column_name = %s
+                """, (col,))
+                if not cur.fetchone():
+                    cur.execute(f"ALTER TABLE ciclos_comercial ADD COLUMN {col} {defn}")
+                    logger.info("ciclos_comercial: added column '%s'", col)
+
+            cur.execute("""
+                UPDATE ciclos_comercial
+                SET ano = (2000 + CAST(split_part(nome, '.', 1) AS INTEGER)),
+                    semestre = CAST(split_part(nome, '.', 2) AS INTEGER),
+                    descricao = CASE split_part(nome, '.', 2)
+                        WHEN '1' THEN '1º Semestre ' || (2000 + CAST(split_part(nome, '.', 1) AS INTEGER))
+                        WHEN '2' THEN '2º Semestre ' || (2000 + CAST(split_part(nome, '.', 1) AS INTEGER))
+                        ELSE nome
+                    END
+                WHERE nome ~ '^\\d+\\.\\d+$'
+                  AND (ano IS NULL OR semestre IS NULL OR descricao IS NULL)
+            """)
+
+            cur.execute("SELECT COUNT(*) FROM ciclos_comercial")
+            if cur.fetchone()[0] == 0:
+                cur.execute("""
+                    INSERT INTO ciclos_comercial (nome, ano, semestre, dt_inicio, dt_fim, ativo, descricao) VALUES
+                    ('25.1', 2025, 1, '2025-01-01', '2025-06-30', FALSE, '1º Semestre 2025'),
+                    ('25.2', 2025, 2, '2025-07-01', '2025-12-31', FALSE, '2º Semestre 2025'),
+                    ('26.1', 2026, 1, '2026-01-01', '2026-06-30', TRUE,  '1º Semestre 2026')
+                """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure ciclos_comercial table: %s", e)
+
+
+def _ensure_turmas_comercial_table():
+    """Create turmas_comercial dimension table (monthly enrollment cohorts).
+
+    Columns:
+      id, nome (ex: 'Fevereiro'), nivel ('Graduação' | 'Pós-Graduação'),
+      ciclo_id (FK), dt_inicio, dt_fim, created_at
+    """
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS turmas_comercial (
+                    id         SERIAL PRIMARY KEY,
+                    nome       TEXT NOT NULL,
+                    nivel      TEXT NOT NULL DEFAULT 'Graduação',
+                    ciclo_id   INTEGER REFERENCES ciclos_comercial(id) ON DELETE SET NULL,
+                    dt_inicio  DATE NOT NULL,
+                    dt_fim     DATE NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    UNIQUE(nome, nivel, ciclo_id)
+                )
+            """)
+
+            cur.execute("""
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'turmas_comercial' AND column_name = 'nivel'
+            """)
+            if not cur.fetchone():
+                cur.execute("ALTER TABLE turmas_comercial ADD COLUMN nivel TEXT NOT NULL DEFAULT 'Graduação'")
+                cur.execute("ALTER TABLE turmas_comercial DROP CONSTRAINT IF EXISTS turmas_comercial_nome_ciclo_id_key")
+                cur.execute("""
+                    CREATE UNIQUE INDEX IF NOT EXISTS uq_turma_nome_nivel_ciclo
+                    ON turmas_comercial (nome, nivel, ciclo_id)
+                """)
+                logger.info("turmas_comercial: added 'nivel' column")
+
+            cur.execute("SELECT COUNT(*) FROM turmas_comercial")
+            if cur.fetchone()[0] == 0:
+                cur.execute("SELECT id FROM ciclos_comercial WHERE nome = '26.1' LIMIT 1")
+                row = cur.fetchone()
+                if row:
+                    cid = row[0]
+                    cur.execute("""
+                        INSERT INTO turmas_comercial (nome, nivel, ciclo_id, dt_inicio, dt_fim) VALUES
+                        ('Janeiro',   'Graduação', %(c)s, '2026-01-01', '2026-01-31'),
+                        ('Fevereiro', 'Graduação', %(c)s, '2026-02-01', '2026-02-28'),
+                        ('Março',     'Graduação', %(c)s, '2026-03-01', '2026-03-31'),
+                        ('Abril',     'Graduação', %(c)s, '2026-04-01', '2026-04-30'),
+                        ('Maio',      'Graduação', %(c)s, '2026-05-01', '2026-05-31'),
+                        ('Junho',     'Graduação', %(c)s, '2026-06-01', '2026-06-30'),
+                        ('Janeiro',   'Pós-Graduação', %(c)s, '2026-01-01', '2026-01-31'),
+                        ('Fevereiro', 'Pós-Graduação', %(c)s, '2026-02-01', '2026-02-28'),
+                        ('Março',     'Pós-Graduação', %(c)s, '2026-03-01', '2026-03-31'),
+                        ('Abril',     'Pós-Graduação', %(c)s, '2026-04-01', '2026-04-30'),
+                        ('Maio',      'Pós-Graduação', %(c)s, '2026-05-01', '2026-05-31'),
+                        ('Junho',     'Pós-Graduação', %(c)s, '2026-06-01', '2026-06-30')
+                    """, {"c": cid})
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure turmas_comercial table: %s", e)
+
+
+def _ensure_ciclo_atual_comercial_table():
+    """Control table: tracks the current active cycle per nivel (Graduação / Pós-Graduação)."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS ciclo_atual_comercial (
+                    nivel   TEXT PRIMARY KEY,
+                    ciclo   TEXT NOT NULL
+                )
+            """)
+            cur.execute("SELECT COUNT(*) FROM ciclo_atual_comercial")
+            if cur.fetchone()[0] == 0:
+                cur.execute("""
+                    INSERT INTO ciclo_atual_comercial (nivel, ciclo) VALUES
+                    ('Graduação', '2026/1'),
+                    ('Pós-Graduação', '2026/1')
+                """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure ciclo_atual_comercial table: %s", e)
 
 
 def _ensure_xl_snapshots_table():
@@ -181,6 +345,22 @@ def _ensure_users_table():
                     page       TEXT NOT NULL,
                     PRIMARY KEY (user_id, page)
                 )
+            """)
+            cur.execute("""
+                ALTER TABLE app_users ADD COLUMN IF NOT EXISTS kommo_user_id INTEGER
+            """)
+            cur.execute("""
+                ALTER TABLE app_users ADD COLUMN IF NOT EXISTS email_cruzeiro TEXT
+            """)
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_app_users_kommo
+                ON app_users(kommo_user_id) WHERE kommo_user_id IS NOT NULL
+            """)
+            cur.execute("""
+                ALTER TABLE app_users ADD COLUMN IF NOT EXISTS categoria TEXT DEFAULT NULL
+            """)
+            cur.execute("""
+                ALTER TABLE app_users ADD COLUMN IF NOT EXISTS datacrazy_user_id TEXT DEFAULT NULL
             """)
             cur.execute("SELECT COUNT(*) FROM app_users")
             if cur.fetchone()[0] == 0 and APP_PASS_FALLBACK:
@@ -320,6 +500,206 @@ def _seed_default_comm_rules(cur):
                 cooldown_days, max_per_week, priority)
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, r)
+
+
+def _ensure_funnel_log_table():
+    """Create kommo_funnel_log table for historical funnel snapshots."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS kommo_funnel_log (
+                    id            SERIAL PRIMARY KEY,
+                    captured_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    captured_date DATE NOT NULL,
+                    source        TEXT NOT NULL DEFAULT 'live',
+                    total         INTEGER NOT NULL,
+                    new_today     INTEGER,
+                    stages        JSONB NOT NULL
+                )
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_funnel_log_date
+                ON kommo_funnel_log(captured_date)
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_funnel_log_captured
+                ON kommo_funnel_log(captured_at)
+            """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure funnel_log table: %s", e)
+
+
+def _ensure_premiacao_tables():
+    """Create all tables for the premiação/performance system."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_campanha (
+                    id          SERIAL PRIMARY KEY,
+                    nome        TEXT NOT NULL,
+                    dt_inicio   DATE NOT NULL,
+                    dt_fim      DATE NOT NULL,
+                    ativa       BOOLEAN DEFAULT TRUE,
+                    created_at  TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_tier_bonus (
+                    id              SERIAL PRIMARY KEY,
+                    campanha_id     INTEGER NOT NULL REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
+                    tier            TEXT NOT NULL,
+                    valor_por_mat   NUMERIC NOT NULL DEFAULT 0,
+                    UNIQUE(campanha_id, tier)
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_meta_diaria (
+                    id              SERIAL PRIMARY KEY,
+                    campanha_id     INTEGER NOT NULL REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
+                    kommo_user_id   INTEGER NOT NULL,
+                    dia_semana      INTEGER NOT NULL,
+                    meta_diaria     INTEGER NOT NULL DEFAULT 0,
+                    bonus_fixo      NUMERIC NOT NULL DEFAULT 0,
+                    bonus_extra     NUMERIC NOT NULL DEFAULT 0,
+                    UNIQUE(campanha_id, kommo_user_id, dia_semana)
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_recebimento_regra (
+                    id              SERIAL PRIMARY KEY,
+                    campanha_id     INTEGER NOT NULL REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
+                    tier            TEXT NOT NULL DEFAULT 'qualquer',
+                    modo            TEXT NOT NULL DEFAULT 'percentual',
+                    valor           NUMERIC NOT NULL DEFAULT 0,
+                    UNIQUE(campanha_id, tier)
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS recebimentos_snapshots (
+                    id          SERIAL PRIMARY KEY,
+                    filename    TEXT,
+                    row_count   INTEGER DEFAULT 0,
+                    mes_ref     TEXT,
+                    uploaded_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS comercial_recebimentos (
+                    id              SERIAL PRIMARY KEY,
+                    snapshot_id     INTEGER REFERENCES recebimentos_snapshots(id) ON DELETE CASCADE,
+                    rgm             TEXT NOT NULL,
+                    nivel           TEXT,
+                    modalidade      TEXT,
+                    data_matricula  DATE,
+                    valor           NUMERIC NOT NULL DEFAULT 0,
+                    tipo_pagamento  TEXT,
+                    mes_referencia  TEXT,
+                    turma           TEXT,
+                    data            JSONB
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_cr_rgm ON comercial_recebimentos(rgm)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_cr_snap ON comercial_recebimentos(snapshot_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pmd_camp ON premiacao_meta_diaria(campanha_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pmd_user ON premiacao_meta_diaria(kommo_user_id)")
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_grupo (
+                    id          SERIAL PRIMARY KEY,
+                    campanha_id INTEGER NOT NULL REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
+                    nome        TEXT NOT NULL,
+                    created_at  TIMESTAMPTZ DEFAULT NOW(),
+                    UNIQUE(campanha_id, nome)
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_grupo_membro (
+                    id              SERIAL PRIMARY KEY,
+                    grupo_id        INTEGER NOT NULL REFERENCES premiacao_grupo(id) ON DELETE CASCADE,
+                    kommo_user_id   INTEGER NOT NULL,
+                    UNIQUE(grupo_id, kommo_user_id)
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pgm_grupo ON premiacao_grupo_membro(grupo_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pgm_user ON premiacao_grupo_membro(kommo_user_id)")
+
+            cur.execute("""
+                ALTER TABLE premiacao_meta_diaria
+                ADD COLUMN IF NOT EXISTS grupo_id INTEGER REFERENCES premiacao_grupo(id) ON DELETE CASCADE
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pmd_grupo ON premiacao_meta_diaria(grupo_id)")
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_campanha_meta (
+                    id                  SERIAL PRIMARY KEY,
+                    campanha_id         INTEGER NOT NULL REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
+                    kommo_user_id       INTEGER NOT NULL,
+                    meta                NUMERIC NOT NULL DEFAULT 0,
+                    meta_intermediaria  NUMERIC NOT NULL DEFAULT 0,
+                    supermeta           NUMERIC NOT NULL DEFAULT 0,
+                    UNIQUE(campanha_id, kommo_user_id)
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pcm_camp ON premiacao_campanha_meta(campanha_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pcm_user ON premiacao_campanha_meta(kommo_user_id)")
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_campanha_link (
+                    id              SERIAL PRIMARY KEY,
+                    campanha_a_id   INTEGER NOT NULL REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
+                    campanha_b_id   INTEGER NOT NULL REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
+                    created_at      TIMESTAMPTZ DEFAULT NOW(),
+                    UNIQUE(campanha_a_id, campanha_b_id)
+                )
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS agent_matriculas (
+                    id              SERIAL PRIMARY KEY,
+                    user_id         INTEGER REFERENCES app_users(id),
+                    kommo_user_id   INTEGER,
+                    rgm             TEXT,
+                    nome            TEXT,
+                    curso           TEXT,
+                    polo            TEXT,
+                    data_matricula  DATE,
+                    ciclo           TEXT,
+                    nivel           TEXT,
+                    kommo_lead_id   TEXT,
+                    observacao      TEXT,
+                    created_at      TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at      TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS matricula_ajustes (
+                    id              SERIAL PRIMARY KEY,
+                    user_id         INTEGER REFERENCES app_users(id),
+                    kommo_user_id   INTEGER,
+                    tipo            TEXT NOT NULL DEFAULT 'matricula_nao_computada',
+                    rgm             TEXT,
+                    nome_aluno      TEXT,
+                    curso           TEXT,
+                    polo            TEXT,
+                    data_matricula  DATE,
+                    kommo_lead_id   TEXT,
+                    descricao       TEXT,
+                    status          TEXT NOT NULL DEFAULT 'pendente',
+                    resposta_admin  TEXT,
+                    admin_user_id   INTEGER,
+                    created_at      TIMESTAMPTZ DEFAULT NOW(),
+                    resolved_at     TIMESTAMPTZ
+                )
+            """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure premiacao tables: %s", e)
 
 
 def _ensure_avisos_tables():

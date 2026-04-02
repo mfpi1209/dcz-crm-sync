@@ -3,6 +3,9 @@
     <title>eduit. — Gestão Acadêmica</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <script src="https://cdn.jsdelivr.net/npm/countup.js@2/dist/countUp.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1/dist/confetti.browser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -304,9 +307,9 @@
         .sidebar-group-items {
             margin-top: 2px;
             overflow: hidden;
-            max-height: 500px;
+            max-height: 2000px;
             opacity: 1;
-            transition: max-height 0.3s ease, opacity 0.2s ease;
+            transition: max-height 0.4s ease, opacity 0.2s ease;
         }
         .sidebar-group.collapsed .sidebar-group-items {
             max-height: 0;

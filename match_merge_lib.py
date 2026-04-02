@@ -1405,7 +1405,7 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
       NOVO          - inscrito sem match no CRM -> criar lead
       ATUALIZAR     - inscrito com match, lead precisa dados da inscricao
       MOVER_PERDIDO - lead ativo duplicado (ja tem ganho) fora do Aceite -> fechar
-      RESTAURAR     - lead perdido cuja inscricao SIAA e mais nova -> reativar
+      RESTAURAR     - lead perdido (sem lead ganho) cuja inscricao SIAA e mais nova -> reativar
       MATRICULADO   - matriculado com match por RGM -> mover para ganho
     """
     acoes = []
@@ -1449,7 +1449,14 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
         }
 
         if lead_id and lead_fechado:
-            if lead_status_id == 143 and data_inscr and lead_closed_date and data_inscr > lead_closed_date:
+            should_restore = (
+                lead_status_id == 143
+                and not ganho_lead_id
+                and data_inscr
+                and lead_closed_date
+                and data_inscr > lead_closed_date
+            )
+            if should_restore:
                 n_restaurar += 1
                 acoes.append({**base, "acao": "RESTAURAR", "lead_id": lead_id})
             else:

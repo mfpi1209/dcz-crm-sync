@@ -93,3 +93,8 @@ CREATE TABLE IF NOT EXISTS user_permissions (
     page       TEXT NOT NULL,
     PRIMARY KEY (user_id, page)
 );
+
+ALTER TABLE app_users ADD COLUMN IF NOT EXISTS kommo_user_id INTEGER;
+ALTER TABLE app_users ADD COLUMN IF NOT EXISTS email_cruzeiro TEXT;
+ALTER TABLE app_users ADD COLUMN IF NOT EXISTS categoria TEXT;
+ALTER TABLE app_users ADD COLUMN IF NOT EXISTS datacrazy_user_id TEXT;

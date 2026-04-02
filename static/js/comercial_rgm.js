@@ -88,7 +88,7 @@ async function crgmAtualizar() {
         if (!d.ok) { _crgmErro(d.error || 'Erro'); return; }
         _crgmRenderKPIs(d.kpis);
         _crgmRenderEvasao(d.evasao);
-        _crgmRenderEvolucao(d.evolucao, d.evolucao_prev || []);
+        _crgmRenderEvolucao(d.evolucao, d.evolucao_prev || [], d.evolucao_bruto || []);
         _crgmRenderPoloTable(d.ranking_polo);
         _crgmRenderCicloTable(d.ranking_ciclo);
         _crgmRenderAgentes(d.ranking_agentes || []);
@@ -186,31 +186,94 @@ function _crgmBadge(id, pct) {
 }
 
 // ── Evolução ────────────────────────────────────────────
-function _crgmRenderEvolucao(evolucao, evolucaoPrev) {
+function _crgmRenderEvolucao(evolucao, evolucaoPrev, evolucaoBruto) {
     const ctx = document.getElementById('crgm-chart-evolucao');
     if (_crgmChartEvolucao) _crgmChartEvolucao.destroy();
-    const labels = evolucao.map(e => { const d = new Date(e.data+'T00:00:00'); return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}); });
-    const values = evolucao.map(e => e.count);
-    const datasets = [{
-        label: 'Matrículas', data: values,
-        borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.06)',
-        borderWidth: 2.5, fill: true, tension: 0.3,
-        pointRadius: evolucao.length > 60 ? 0 : 4, pointBackgroundColor: '#3b82f6', pointHoverRadius: 6,
-    }];
-    if (evolucaoPrev && evolucaoPrev.length > 0) {
-        const prevMap = {};
-        evolucaoPrev.forEach(e => { const d = new Date(e.data+'T00:00:00'); prevMap[`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`] = (prevMap[`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`]||0) + e.count; });
+
+    // Usa datas do bruto como eixo principal (é o superset)
+    const baseData = (evolucaoBruto && evolucaoBruto.length > 0) ? evolucaoBruto : evolucao;
+    const labels = baseData.map(e => { const d = new Date(e.data+'T00:00:00'); return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}); });
+
+    // Mapeia líquido e bruto por data para alinhar com o eixo
+    const liquidoMap = {};
+    evolucao.forEach(e => { liquidoMap[e.data] = e.count; });
+    const brutoMap = {};
+    if (evolucaoBruto) evolucaoBruto.forEach(e => { brutoMap[e.data] = e.count; });
+
+    const valuesLiquido = baseData.map(e => liquidoMap[e.data] ?? 0);
+    const valuesBruto   = baseData.map(e => brutoMap[e.data]   ?? 0);
+
+    const hasBruto = evolucaoBruto && evolucaoBruto.length > 0;
+    const datasets = [];
+
+    // Sombra bruto (desenhada primeiro, fica atrás)
+    if (hasBruto) {
         datasets.push({
-            label: 'Ano Anterior', data: evolucao.map(e => { const d=new Date(e.data+'T00:00:00'); return prevMap[`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`]||0; }),
-            borderColor: '#475569', backgroundColor: 'transparent',
-            borderWidth: 1.5, borderDash: [6,4], fill: false, tension: 0.3, pointRadius: 0, pointHoverRadius: 4,
+            label: 'Bruto (c/ evasões)',
+            data: valuesBruto,
+            borderColor: 'rgba(251,146,60,0.5)',
+            backgroundColor: 'rgba(251,146,60,0.10)',
+            borderWidth: 1.5,
+            borderDash: [4, 3],
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            order: 2,
         });
     }
-    _crgmChartEvolucao = new Chart(ctx, { type:'line', data:{labels,datasets}, options:{
+
+    // Linha principal — líquido (EM CURSO)
+    datasets.push({
+        label: 'EM CURSO',
+        data: valuesLiquido,
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59,130,246,0.08)',
+        borderWidth: 2.5,
+        fill: true,
+        tension: 0.3,
+        pointRadius: baseData.length > 60 ? 0 : 4,
+        pointBackgroundColor: '#3b82f6',
+        pointHoverRadius: 6,
+        order: 1,
+    });
+
+    // Ano anterior (tracejado)
+    if (evolucaoPrev && evolucaoPrev.length > 0) {
+        const prevMap = {};
+        evolucaoPrev.forEach(e => { const d = new Date(e.data+'T00:00:00'); const k = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`; prevMap[k] = (prevMap[k]||0) + e.count; });
+        datasets.push({
+            label: 'Ano Anterior',
+            data: baseData.map(e => { const d=new Date(e.data+'T00:00:00'); return prevMap[`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`]||0; }),
+            borderColor: '#475569', backgroundColor: 'transparent',
+            borderWidth: 1.5, borderDash: [6,4], fill: false, tension: 0.3, pointRadius: 0, pointHoverRadius: 4,
+            order: 3,
+        });
+    }
+
+    const showLegend = hasBruto || (evolucaoPrev && evolucaoPrev.length > 0);
+    _crgmChartEvolucao = new Chart(ctx, { type:'line', data:{labels, datasets}, options:{
         responsive:true, maintainAspectRatio:false,
         interaction:{mode:'index',intersect:false},
-        plugins:{ legend:{display:evolucaoPrev&&evolucaoPrev.length>0, position:'top',align:'end', labels:{color:'#94a3b8',font:{size:10},boxWidth:12,padding:12}} },
-        scales:{ x:{ticks:{color:'#64748b',maxTicksLimit:15,font:{size:10}},grid:{color:'rgba(100,116,139,0.08)'}}, y:{beginAtZero:true,ticks:{color:'#64748b',font:{size:10}},grid:{color:'rgba(100,116,139,0.08)'}} }
+        plugins:{
+            legend:{
+                display: showLegend,
+                position:'top', align:'end',
+                labels:{color:'#94a3b8', font:{size:10}, boxWidth:12, padding:12}
+            },
+            tooltip:{
+                callbacks:{
+                    label: ctx => {
+                        const label = ctx.dataset.label || '';
+                        return ` ${label}: ${ctx.parsed.y}`;
+                    }
+                }
+            }
+        },
+        scales:{
+            x:{ticks:{color:'#64748b',maxTicksLimit:15,font:{size:10}},grid:{color:'rgba(100,116,139,0.08)'}},
+            y:{beginAtZero:true,ticks:{color:'#64748b',font:{size:10}},grid:{color:'rgba(100,116,139,0.08)'}}
+        }
     }});
 }
 
@@ -238,9 +301,9 @@ function _crgmRenderCicloTable(ciclos) {
 
 // ── Agentes (tabela) ────────────────────────────────────
 function _crgmTierLabel(mp, meta, intermediaria, supermeta) {
-    if (supermeta > 0 && mp >= supermeta) return { label: 'SUPERMETA', cls: 'text-emerald-400 font-bold', icon: '\u2B50' };
+    if (supermeta > 0 && mp >= supermeta)    return { label: 'SUPERMETA', cls: 'text-emerald-400 font-bold',    icon: '\u2B50' };
+    if (meta > 0 && mp >= meta)              return { label: 'META',      cls: 'text-blue-400 font-semibold',   icon: '\u2705' };
     if (intermediaria > 0 && mp >= intermediaria) return { label: 'INTERMED.', cls: 'text-amber-400 font-semibold', icon: '\u26A1' };
-    if (meta > 0 && mp >= meta) return { label: 'META', cls: 'text-blue-400 font-semibold', icon: '\u2705' };
     if (meta > 0) return { label: `${Math.round(mp/meta*100)}%`, cls: 'text-red-400', icon: '' };
     return { label: '\u2014', cls: 'text-slate-600', icon: '' };
 }
@@ -278,7 +341,14 @@ function _crgmRenderAgentes(agentes) {
 
         return `<tr class="hover:bg-white/[0.03] transition-colors cursor-pointer ${rowBg}" title="${tooltip}" onclick="crgmAgenteDetalhe(${a.user_id})">
             <td class="text-center px-3 py-2.5 font-bold text-slate-400">${rank}</td>
-            <td class="px-4 py-2.5 font-medium ${a.nome&&a.nome.startsWith('User #')?'text-slate-500 italic':'text-white'}">${esc(a.nome)}</td>
+            <td class="px-4 py-2.5 font-medium ${a.nome&&a.nome.startsWith('User #')?'text-slate-500 italic':'text-white'}">
+                <div class="flex items-center gap-2">
+                    <span>${esc(a.nome)}</span>
+                    <button onclick="event.stopPropagation();navigateToPerformance(${a.user_id})" title="Ver painel de performance" class="opacity-0 group-hover:opacity-100 hover:opacity-100 text-indigo-400 hover:text-indigo-300 transition-all p-0.5 rounded hover:bg-indigo-500/10 flex-shrink-0" style="opacity:.35">
+                        <span class="material-symbols-outlined text-sm">monitoring</span>
+                    </button>
+                </div>
+            </td>
             <td class="px-4 py-2.5 text-right font-mono text-blue-400 font-semibold">${mp.toLocaleString('pt-BR')}</td>
             <td class="px-4 py-2.5 text-right font-mono text-amber-300/70">${intermediaria>0?intermediaria:'\u2014'}</td>
             <td class="px-4 py-2.5 text-right font-mono text-blue-300/70">${meta>0?meta:'\u2014'}</td>
@@ -403,10 +473,18 @@ function _crgmDetalheOpen(userId, dtIni, dtFim, qs, data, err) {
     }
     modal.innerHTML = `
     <div class="bg-slate-900 border border-slate-700/40 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
-        <div class="px-5 py-4 border-b border-slate-700/30 flex items-center justify-between">
+        <div class="px-5 py-4 border-b border-slate-700/30 flex items-center justify-between gap-3">
             <h3 class="text-sm font-bold text-white">${titulo} — período ${dtIni} a ${dtFim}</h3>
-            <button onclick="document.getElementById('crgm-detalhe-modal').remove()"
-                class="text-slate-500 hover:text-white transition-colors text-lg leading-none">&times;</button>
+            <div class="flex items-center gap-2 flex-shrink-0">
+                <button onclick="document.getElementById('crgm-detalhe-modal').remove();navigateToPerformance(${userId})"
+                    class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors"
+                    title="Ver painel motivacional completo deste agente">
+                    <span class="material-symbols-outlined text-sm">monitoring</span>
+                    Ver Performance
+                </button>
+                <button onclick="document.getElementById('crgm-detalhe-modal').remove()"
+                    class="text-slate-500 hover:text-white transition-colors text-lg leading-none">&times;</button>
+            </div>
         </div>
         <div class="p-5 overflow-auto flex-1">${corpo}</div>
     </div>`;
@@ -972,7 +1050,8 @@ function _crgmRenderHistoricoMetas(filterCat) {
                         <td class="px-4 py-2 text-right font-mono text-blue-300">${(a.meta||0)>0 ? a.meta : '—'}</td>
                         <td class="px-4 py-2 text-right font-mono text-amber-300">${(a.meta_intermediaria||0)>0 ? a.meta_intermediaria : '—'}</td>
                         <td class="px-4 py-2 text-right font-mono text-emerald-300">${(a.supermeta||0)>0 ? a.supermeta : '—'}</td>
-                        <td class="px-4 py-2 text-right">
+                        <td class="px-4 py-2 text-right flex items-center justify-end gap-2">
+                            <button onclick="crgmAbrirEditarMeta(${a.id},'${esc(a.user_name||'?')}',${a.meta||0},${a.meta_intermediaria||0},${a.supermeta||0})" class="text-slate-400/60 hover:text-blue-400 text-[11px]" title="Editar"><span class="material-symbols-outlined" style="font-size:13px">edit</span></button>
                             <button onclick="crgmDeleteMeta(${a.id},'historico')" class="text-red-500/40 hover:text-red-400 text-[10px]" title="Excluir">✕</button>
                         </td>
                     </tr>`).join('');
@@ -1004,8 +1083,16 @@ function _crgmRenderHistoricoMetas(filterCat) {
                 </div>`;
             }).join('');
 
+            // Pega categoria principal (matriculas se existir, senão primeira)
+            const catPrincipal = g.categorias['matriculas'] ? 'matriculas' : Object.keys(g.categorias)[0];
+            const descrEsc = (g.descricao || '').replace(/'/g, "\\'");
             detalhe = `<div class="border-t border-slate-700/20">${detalhe}
-                <div class="px-4 py-3 flex justify-end border-t border-slate-700/20 bg-slate-800/20">
+                <div class="px-4 py-3 flex items-center justify-between border-t border-slate-700/20 bg-slate-800/20 gap-2 flex-wrap">
+                    <button onclick="crgmAbrirBulkMeta('${g.dt_inicio}','${g.dt_fim}','${descrEsc}','${catPrincipal}')"
+                        class="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600/80 hover:bg-blue-500 text-white text-xs font-semibold transition-colors">
+                        <span class="material-symbols-outlined" style="font-size:15px">edit_note</span>
+                        Editar todos em massa
+                    </button>
                     <button onclick="_crgmAplicarDatasMeta('${g.dt_inicio}','${g.dt_fim}')"
                         class="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition-colors">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
@@ -1466,4 +1553,186 @@ function crgmToggleDuplicatas() {
     const text = document.getElementById('crgm-dup-toggle-text');
     const hidden = body.classList.toggle('hidden');
     text.textContent = hidden ? 'Expandir' : 'Recolher';
+}
+
+// ── Editar Meta ────────────────────────────────────────────────────────────
+let _crgmEditMetaId = null;
+
+function crgmAbrirEditarMeta(id, nome, meta, interm, sup) {
+    _crgmEditMetaId = id;
+    document.getElementById('crgm-edit-meta-titulo').textContent = nome;
+    document.getElementById('crgm-edit-meta-val').value   = meta  || '';
+    document.getElementById('crgm-edit-meta-int').value   = interm || '';
+    document.getElementById('crgm-edit-meta-sup').value   = sup   || '';
+    document.getElementById('crgm-edit-meta-modal').classList.remove('hidden');
+    document.getElementById('crgm-edit-meta-val').focus();
+}
+
+function crgmFecharEditarMeta() {
+    document.getElementById('crgm-edit-meta-modal').classList.add('hidden');
+    _crgmEditMetaId = null;
+}
+
+async function crgmSalvarEditarMeta() {
+    if (!_crgmEditMetaId) return;
+    const meta  = parseFloat(document.getElementById('crgm-edit-meta-val').value) || 0;
+    const interm= parseFloat(document.getElementById('crgm-edit-meta-int').value) || 0;
+    const sup   = parseFloat(document.getElementById('crgm-edit-meta-sup').value) || 0;
+    const btn   = document.getElementById('crgm-edit-meta-salvar');
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+    try {
+        const res = await api(`/api/comercial-rgm/metas/${_crgmEditMetaId}`, {
+            method: 'PUT',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ meta, meta_intermediaria: interm, supermeta: sup }),
+        });
+        const d = await res.json();
+        if (d.ok) {
+            // Atualiza o dado local sem fechar o painel ou o grupo expandido
+            const idx = _crgmHistoricoMetasData.findIndex(m => m.id === _crgmEditMetaId);
+            if (idx !== -1) {
+                _crgmHistoricoMetasData[idx].meta = meta;
+                _crgmHistoricoMetasData[idx].meta_intermediaria = interm;
+                _crgmHistoricoMetasData[idx].supermeta = sup;
+            }
+            crgmFecharEditarMeta();
+            // Re-renderiza mantendo o grupo aberto e o filtro atual
+            const cat = document.getElementById('crgm-hist-cat-filter')?.value || null;
+            _crgmRenderHistoricoMetas(cat || null);
+        } else {
+            alert('Erro ao salvar: ' + (d.error || 'desconhecido'));
+        }
+    } catch(e) {
+        alert('Erro: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Salvar';
+    }
+}
+
+// ── Edição em Massa de Metas ─────────────────────────────────────────────────
+let _crgmBulkMeta = null; // { dt_inicio, dt_fim, descricao, categoria, agentes: [{...}] }
+
+async function crgmAbrirBulkMeta(dtIni, dtFim, descr, cat) {
+    const fmt = d => d ? d.split('-').reverse().join('/') : '?';
+    document.getElementById('crgm-bulk-meta-periodo').textContent =
+        `${fmt(dtIni)} → ${fmt(dtFim)}${descr ? ' · ' + descr : ''}`;
+    document.getElementById('crgm-bulk-meta-status').textContent = '';
+
+    const rows = document.getElementById('crgm-bulk-meta-rows');
+    rows.innerHTML = '<tr><td colspan="4" class="py-6 text-center text-slate-500 text-xs">Carregando agentes...</td></tr>';
+    document.getElementById('crgm-bulk-meta-modal').classList.remove('hidden');
+
+    try {
+        // Carrega lista de agentes + metas existentes para o período
+        const [filtersRes, metasRes] = await Promise.all([
+            api('/api/comercial-rgm/filters').then(r => r.json()),
+            api('/api/comercial-rgm/metas').then(r => r.json()),
+        ]);
+
+        const agentes = (filtersRes.agentes || [])
+            .filter(a => !['Admin', 'T.I', 'Suporte'].includes(a.name))
+            .sort((a, b) => a.name.localeCompare(b.name));
+
+        // Metas existentes nesse período e categoria
+        const metasExist = (metasRes.metas || []).filter(m =>
+            m.dt_inicio === dtIni && m.dt_fim === dtFim && m.categoria === cat
+        );
+        const metaByUid = {};
+        metasExist.forEach(m => { metaByUid[m.user_id] = m; });
+
+        _crgmBulkMeta = { dt_inicio: dtIni, dt_fim: dtFim, descricao: descr || '', categoria: cat, agentes };
+
+        const inp = (uid, uname, cls, ph, color, val) =>
+            `<input type="number" min="0" step="1"
+                data-uid="${uid}" data-uname="${esc(uname)}"
+                placeholder="${ph}" value="${val > 0 ? val : ''}"
+                class="w-24 text-right text-xs font-mono bg-slate-800/60 border border-slate-700 rounded px-2 py-1.5 ${color} focus:outline-none focus:ring-1 ${cls}">`;
+
+        rows.innerHTML = agentes.map(a => {
+            const ex = metaByUid[a.id] || {};
+            return `<tr class="hover:bg-white/[0.02] transition-colors">
+                <td class="py-2.5 pl-2 text-sm text-slate-200 truncate max-w-[180px]">${esc(a.name)}</td>
+                <td class="py-2.5 px-2">
+                    ${inp(a.id, a.name, 'crgm-bulk-int focus:ring-amber-500/50', '0', 'text-amber-300', ex.meta_intermediaria || 0)}
+                </td>
+                <td class="py-2.5 px-2">
+                    ${inp(a.id, a.name, 'crgm-bulk-val focus:ring-blue-500/50', '0', 'text-blue-200', ex.meta || 0)}
+                </td>
+                <td class="py-2.5 px-2 pr-2">
+                    ${inp(a.id, a.name, 'crgm-bulk-sup focus:ring-emerald-500/50', '0', 'text-emerald-300', ex.supermeta || 0)}
+                </td>
+            </tr>`;
+        }).join('');
+
+    } catch(e) {
+        rows.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-red-400 text-xs">Erro: ${e.message}</td></tr>`;
+    }
+}
+
+function crgmFecharBulkMeta() {
+    document.getElementById('crgm-bulk-meta-modal').classList.add('hidden');
+    _crgmBulkMeta = null;
+}
+
+async function crgmSalvarBulkMeta() {
+    if (!_crgmBulkMeta) return;
+    const btn = document.getElementById('crgm-bulk-meta-salvar');
+    const statusEl = document.getElementById('crgm-bulk-meta-status');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-symbols-outlined text-base animate-spin">progress_activity</span> Salvando...';
+    statusEl.textContent = '';
+
+    try {
+        // Coleta valores de todos os agentes
+        const agentes = _crgmBulkMeta.agentes;
+        const items = agentes.map(a => {
+            const row = document.querySelector(`input.crgm-bulk-val[data-uid="${a.id}"]`);
+            const intRow = document.querySelector(`input.crgm-bulk-int[data-uid="${a.id}"]`);
+            const supRow = document.querySelector(`input.crgm-bulk-sup[data-uid="${a.id}"]`);
+            return {
+                user_id:           a.id,
+                user_name:         a.name,
+                meta:              parseFloat(row?.value)    || 0,
+                meta_intermediaria: parseFloat(intRow?.value) || 0,
+                supermeta:         parseFloat(supRow?.value) || 0,
+            };
+        }).filter(it => it.meta > 0 || it.meta_intermediaria > 0 || it.supermeta > 0);
+
+        if (!items.length) {
+            statusEl.textContent = 'Preencha ao menos um valor antes de salvar.';
+            statusEl.className = 'text-xs text-amber-400';
+            return;
+        }
+
+        const res = await api('/api/comercial-rgm/metas/batch', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                dt_inicio: _crgmBulkMeta.dt_inicio,
+                dt_fim:    _crgmBulkMeta.dt_fim,
+                descricao: _crgmBulkMeta.descricao,
+                categoria: _crgmBulkMeta.categoria,
+                items,
+            }),
+        });
+        const d = await res.json();
+        if (d.ok) {
+            statusEl.textContent = `${d.saved} agente${d.saved !== 1 ? 's' : ''} salvo${d.saved !== 1 ? 's' : ''} com sucesso.`;
+            statusEl.className = 'text-xs text-emerald-400';
+            // Atualiza dados locais e re-renderiza o painel sem fechar
+            await _crgmCarregarHistoricoMetas();
+            crgmFecharBulkMeta();
+        } else {
+            statusEl.textContent = 'Erro: ' + (d.error || 'desconhecido');
+            statusEl.className = 'text-xs text-red-400';
+        }
+    } catch(e) {
+        statusEl.textContent = 'Erro: ' + e.message;
+        statusEl.className = 'text-xs text-red-400';
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-symbols-outlined text-base">save</span> Salvar Tudo';
+    }
 }

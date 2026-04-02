@@ -159,42 +159,17 @@
                 Metas por Período
             </h3>
         </div>
-        <!-- Criar nova meta -->
-        <div class="bg-slate-800/40 rounded-xl p-4 mb-4 border border-slate-700/30">
-            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Nova Meta</p>
-            <div class="flex flex-wrap items-end gap-3">
+        <!-- Aviso: metas agora são gerenciadas na Premiação -->
+        <div class="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4 mb-4">
+            <div class="flex items-start gap-3">
+                <svg class="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 <div>
-                    <label class="block text-[10px] text-slate-500 mb-1">Categoria</label>
-                    <select id="crgm-meta-cat" class="input-glass px-3 py-1.5 text-xs text-slate-300">
-                        <option value="matriculas">Matrículas</option>
-                    </select>
+                    <p class="text-xs font-semibold text-blue-400 mb-1">Metas são configuradas na Premiação</p>
+                    <p class="text-[10px] text-slate-500">O cadastro de metas (Intermediária, Meta, Supermeta) por agente agora é feito dentro da campanha de premiação. Acesse <a href="#premiacao_admin" onclick="navigate('premiacao_admin')" class="text-blue-400 hover:text-blue-300 underline">Premiação</a> para gerenciar.</p>
                 </div>
-                <div>
-                    <label class="block text-[10px] text-slate-500 mb-1">De</label>
-                    <input type="date" id="crgm-meta-ini" class="input-glass px-3 py-1.5 text-xs text-slate-300">
-                </div>
-                <div>
-                    <label class="block text-[10px] text-slate-500 mb-1">Até</label>
-                    <input type="date" id="crgm-meta-fim" class="input-glass px-3 py-1.5 text-xs text-slate-300">
-                </div>
-                <div>
-                    <label class="block text-[10px] text-slate-500 mb-1">Descrição</label>
-                    <input type="text" id="crgm-meta-desc" placeholder="Ex: Meta Março" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-40">
-                </div>
-                <button onclick="crgmSaveMetas()" class="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                    Salvar
-                </button>
             </div>
-            <!-- Header for agent grid -->
-            <div class="grid grid-cols-[1fr_auto_auto_auto] gap-2 mt-3 text-[10px] text-slate-500 uppercase tracking-wider px-3 font-semibold">
-                <span>Agente</span>
-                <span class="w-20 text-center">Intermed.</span>
-                <span class="w-20 text-center">Meta</span>
-                <span class="w-20 text-center">Supermeta</span>
-            </div>
-            <div class="space-y-1 mt-1 max-h-64 overflow-y-auto" id="crgm-metas-grid"></div>
         </div>
+        <div id="crgm-metas-grid" class="hidden"></div>
         <!-- Histórico de metas agrupado por categoria -->
         <div>
             <div class="flex items-center gap-3 mb-2">
@@ -223,6 +198,42 @@
         </div>
         <div id="crgm-historico-metas-body" class="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
             <p class="text-slate-500 text-xs">Carregando...</p>
+        </div>
+    </div>
+
+    <!-- Modal: Editar Meta -->
+    <div id="crgm-edit-meta-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <p class="text-[10px] text-slate-500 uppercase tracking-wider">Editar meta</p>
+                    <p class="text-white font-semibold text-sm" id="crgm-edit-meta-titulo">—</p>
+                </div>
+                <button onclick="crgmFecharEditarMeta()" class="text-slate-500 hover:text-white transition-colors">
+                    <span class="material-symbols-outlined text-lg">close</span>
+                </button>
+            </div>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-[10px] text-blue-400 uppercase tracking-wider mb-1">Meta</label>
+                    <input id="crgm-edit-meta-val" type="number" min="0" step="1"
+                        class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-[10px] text-amber-400 uppercase tracking-wider mb-1">Meta Intermediária</label>
+                    <input id="crgm-edit-meta-int" type="number" min="0" step="1"
+                        class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-amber-500">
+                </div>
+                <div>
+                    <label class="block text-[10px] text-emerald-400 uppercase tracking-wider mb-1">Supermeta</label>
+                    <input id="crgm-edit-meta-sup" type="number" min="0" step="1"
+                        class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-emerald-500">
+                </div>
+            </div>
+            <div class="flex gap-2 mt-5">
+                <button onclick="crgmFecharEditarMeta()" class="flex-1 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm transition-colors">Cancelar</button>
+                <button id="crgm-edit-meta-salvar" onclick="crgmSalvarEditarMeta()" class="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors">Salvar</button>
+            </div>
         </div>
     </div>
 

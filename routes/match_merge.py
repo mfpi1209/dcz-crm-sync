@@ -10,6 +10,8 @@ Endpoints:
   GET  /api/match-merge/logs?since=N polling logs
 """
 
+import csv
+import io
 import os
 import json
 import threading
@@ -18,7 +20,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from collections import deque
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response
 
 from helpers import BASE_DIR, MAX_LOG_LINES
 
@@ -248,6 +250,75 @@ def mm_preview():
         "per_page": per_page,
         "pages": (total + per_page - 1) // per_page if per_page else 1,
     })
+
+
+# ── Export CSV ───────────────────────────────────────────────────
+
+_CSV_COLUMNS = [
+    ("acao", "Ação"),
+    ("nome", "Nome"),
+    ("cpf", "CPF"),
+    ("curso_siaa", "Curso SIAA"),
+    ("polo", "Polo"),
+    ("situacao_siaa", "Sit. SIAA"),
+    ("situacao_kommo", "Sit. Kommo"),
+    ("data_inscr", "Dt. Inscrição"),
+    ("lead_fase", "Fase Funil"),
+    ("match_tipo", "Match"),
+    ("lead_id", "Lead ID"),
+    ("telefone", "Telefone"),
+    ("email", "Email"),
+    ("siaa_id", "SIAA ID"),
+    ("rgm", "RGM"),
+    ("data_matricula", "Dt. Matrícula"),
+    ("tipo_matricula", "Tipo Matrícula"),
+    ("dup_lead_ids", "Lead IDs Duplicados"),
+    ("auto_decided", "Auto Decisão"),
+    ("auto_reason", "Motivo Auto"),
+    ("auto_keep_id", "Manter ID"),
+    ("auto_remove_id", "Remover ID"),
+]
+
+
+@match_merge_bp.route("/api/match-merge/preview/export", methods=["GET"])
+def mm_preview_export():
+    """Export all preview actions as CSV."""
+    if _running:
+        return jsonify({"error": "Pipeline em execução"}), 409
+    if _result is None or "error" in (_result or {}):
+        return jsonify({"error": "Nenhum resultado para exportar"}), 400
+
+    acoes = _result.get("acoes", [])
+    filtro = request.args.get("filtro", "")
+    if filtro:
+        acoes = [a for a in acoes if a["acao"] == filtro.upper()]
+
+    buf = io.StringIO()
+    writer = csv.writer(buf, delimiter=";")
+    writer.writerow([label for _, label in _CSV_COLUMNS])
+
+    for a in acoes:
+        row = []
+        for key, _ in _CSV_COLUMNS:
+            val = a.get(key, "")
+            if isinstance(val, list):
+                val = ", ".join(str(v) for v in val)
+            elif isinstance(val, bool):
+                val = "Sim" if val else "Não"
+            row.append(val if val is not None else "")
+        writer.writerow(row)
+
+    output = buf.getvalue()
+    buf.close()
+
+    timestamp = datetime.now(timezone(timedelta(hours=-3))).strftime("%Y%m%d_%H%M")
+    filename = f"preview_acoes_{filtro.lower() or 'todas'}_{timestamp}.csv"
+
+    return Response(
+        "\ufeff" + output,
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # ── Execute ─────────────────────────────────────────────────────

@@ -1,0 +1,453 @@
+<!-- ═══════════════  Minha Performance v2 — Redesign  ═══════════════ -->
+<section id="page-minha_performance" class="hidden">
+<style>
+    @keyframes mp-slide-up { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes mp-fade-in { from{opacity:0} to{opacity:1} }
+    @keyframes mp-pulse-glow { 0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,.35)} 50%{box-shadow:0 0 0 10px rgba(16,185,129,0)} }
+    @keyframes mp-float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+    @keyframes mp-shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+
+    .mp-enter { animation: mp-slide-up .55s cubic-bezier(.22,1,.36,1) both }
+    .mp-d1{animation-delay:.06s} .mp-d2{animation-delay:.12s} .mp-d3{animation-delay:.18s}
+    .mp-d4{animation-delay:.24s} .mp-d5{animation-delay:.30s} .mp-d6{animation-delay:.36s} .mp-d7{animation-delay:.42s}
+    .mp-pulse{animation:mp-pulse-glow 2s infinite}
+    .mp-float{animation:mp-float 3s ease-in-out infinite}
+
+    .mp-card {
+        background: rgba(30,41,59,.65);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(148,163,184,.08);
+        border-radius: 1rem;
+        transition: transform .2s, box-shadow .2s;
+    }
+    .mp-card:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,.25) }
+
+    .mp-hero-bg { background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%); }
+
+    .mp-tier-base    { background: linear-gradient(135deg, #065f46 0%, #064e3b 50%, #022c22 100%) }
+    .mp-tier-bronze  { background: linear-gradient(135deg, #c2410c 0%, #9a3412 50%, #7c2d12 100%) }
+    .mp-tier-silver  { background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 50%, #1e3a8a 100%) }
+    .mp-tier-gold    { background: linear-gradient(135deg, #d97706 0%, #b45309 50%, #92400e 100%) }
+
+    .mp-heat-hit     { background:#10b981; box-shadow:0 0 6px rgba(16,185,129,.3) }
+    .mp-heat-partial { background:#f59e0b }
+    .mp-heat-miss    { background:#ef4444; opacity:.5 }
+    .mp-heat-rest    { background:#1e293b; opacity:.2 }
+    .mp-heat-future  { background:#334155; opacity:.3 }
+
+    .mp-shimmer {
+        background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.04) 50%, transparent 100%);
+        background-size: 200% 100%;
+        animation: mp-shimmer 3s infinite;
+    }
+
+    .mp-stat-value { font-variant-numeric: tabular-nums }
+
+    .apexcharts-tooltip { border-radius: .75rem !important; border: 1px solid rgba(148,163,184,.12) !important; background: rgba(15,23,42,.95) !important; backdrop-filter: blur(8px) !important; }
+    .apexcharts-tooltip-title { background: rgba(30,41,59,.8) !important; border-bottom: 1px solid rgba(148,163,184,.08) !important; }
+</style>
+
+<!-- Admin: Seletor de agente -->
+<div id="mp-admin-bar" class="hidden mb-4 mp-card p-3 flex flex-wrap items-center gap-3 border-indigo-500/20">
+    <span class="material-symbols-outlined text-base text-indigo-400">supervisor_account</span>
+    <span class="text-xs text-slate-400 font-medium">Visualizar agente:</span>
+    <select id="mp-agent-select" onchange="mpAdminSelectAgent()" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[200px]">
+        <option value="">Selecione um agente...</option>
+    </select>
+    <button id="mp-admin-back" onclick="mpAdminBackToSelf()" class="hidden text-xs text-indigo-400 hover:text-indigo-300 underline underline-offset-2 transition-colors">
+        Voltar ao meu painel
+    </button>
+    <span id="mp-admin-viewing" class="hidden ml-auto text-xs font-semibold text-indigo-300"></span>
+</div>
+
+<!-- Loading -->
+<div id="mp-loading" class="flex flex-col items-center justify-center py-24 gap-4">
+    <div class="w-10 h-10 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin"></div>
+    <p class="text-sm text-slate-500">Carregando seu painel...</p>
+</div>
+
+<!-- Sem vínculo Kommo -->
+<div id="mp-no-link" class="hidden flex flex-col items-center justify-center py-24 gap-4">
+    <div class="w-16 h-16 rounded-2xl bg-slate-800 flex items-center justify-center">
+        <span class="material-symbols-outlined text-3xl text-slate-600">link_off</span>
+    </div>
+    <p class="text-slate-500 text-sm text-center">Sua conta ainda não está vinculada ao Kommo.<br>Peça ao administrador para vincular.</p>
+</div>
+
+<!-- Sem campanha ativa -->
+<div id="mp-no-campanha" class="hidden flex flex-col items-center justify-center py-24 gap-4">
+    <div class="w-16 h-16 rounded-2xl bg-slate-800 flex items-center justify-center">
+        <span class="material-symbols-outlined text-3xl text-slate-600">event_busy</span>
+    </div>
+    <p class="text-slate-500 text-sm text-center">Nenhuma campanha ativa no momento.</p>
+</div>
+
+<!-- ═══ Sub-abas ═══ -->
+<div id="mp-tabs" class="hidden max-w-7xl mx-auto mb-0">
+    <div class="flex border-b border-slate-700/40">
+        <button id="mp-tab-performance" onclick="_mpSwitchTab('performance')"
+            class="px-5 py-2.5 text-xs font-bold uppercase tracking-wider transition-all border-b-2 border-emerald-500 text-emerald-400">
+            <span class="material-symbols-outlined text-sm align-middle mr-1">insights</span>Performance
+        </button>
+        <button id="mp-tab-matriculas" onclick="_mpSwitchTab('matriculas')"
+            class="px-5 py-2.5 text-xs font-bold uppercase tracking-wider transition-all border-b-2 border-transparent text-slate-500 hover:text-slate-300">
+            <span class="material-symbols-outlined text-sm align-middle mr-1">school</span>Minhas Matrículas
+        </button>
+    </div>
+</div>
+
+<!-- ═══ Conteúdo principal ═══ -->
+<div id="mp-content" class="hidden max-w-7xl mx-auto space-y-5 pb-12">
+
+    <!-- S1: Hero -->
+    <div id="mp-hero" class="mp-tier-base rounded-2xl p-6 sm:p-8 relative overflow-hidden mp-enter">
+        <div class="mp-shimmer absolute inset-0 pointer-events-none"></div>
+        <div class="relative z-10">
+            <p id="mp-hero-campanha" class="text-[10px] text-white/50 uppercase tracking-[.2em] font-semibold mb-4"></p>
+
+            <div class="flex flex-col lg:flex-row lg:items-center gap-6">
+                <!-- Left: Saldo -->
+                <div class="flex-1">
+                    <p class="text-xs text-white/40 mb-1">Seu saldo acumulado</p>
+                    <div class="flex items-baseline gap-3">
+                        <span id="mp-hero-saldo" class="text-4xl sm:text-5xl font-black text-white mp-stat-value">R$ 0</span>
+                    </div>
+                    <div id="mp-hero-potencial-wrap" class="mt-1 hidden">
+                        <span class="text-xs text-white/35">pode chegar a</span>
+                        <span id="mp-hero-potencial" class="text-base font-bold text-emerald-300 ml-1"></span>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-3 mt-4">
+                        <span id="mp-hero-tier-badge" class="px-4 py-1.5 text-xs font-black rounded-full tracking-wide"></span>
+                        <span id="mp-hero-mat" class="text-xs text-white/50 font-medium"></span>
+                        <span id="mp-hero-dias" class="text-xs text-white/40"></span>
+                    </div>
+                    <div id="mp-hero-msg" class="mt-4 text-sm text-white/85 font-medium leading-relaxed max-w-xl"></div>
+                </div>
+
+                <!-- Right: Gauge -->
+                <div class="flex-shrink-0 w-full lg:w-[240px]">
+                    <div id="mp-hero-gauge"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+        <!-- PIX do Dia (priority position) -->
+        <div class="mp-enter mp-d1">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm text-emerald-400">paid</span>
+                PIX do Dia
+            </h3>
+            <div id="mp-pix-dia" class="mp-card p-6 sm:p-8 border-emerald-500/15 flex flex-col sm:flex-row items-center gap-6 relative overflow-hidden"
+                 style="background:linear-gradient(135deg,rgba(6,78,59,.35),rgba(15,23,42,.85))">
+                <div class="mp-shimmer absolute inset-0 pointer-events-none"></div>
+                <div class="flex-shrink-0 relative z-10">
+                    <div id="mp-pix-chart" style="min-height:170px;min-width:170px"></div>
+                </div>
+                <div class="flex-1 text-center sm:text-left relative z-10 space-y-2">
+                    <p id="mp-pix-status" class="text-lg font-black text-white"></p>
+                    <p id="mp-pix-detail" class="text-sm text-slate-300/80 leading-relaxed"></p>
+                    <div id="mp-aceites-badge" class="hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/15 border border-purple-400/25"></div>
+                    <div class="pt-1">
+                        <span id="mp-pix-valor" class="text-3xl sm:text-5xl font-black text-emerald-400 mp-stat-value" style="text-shadow:0 0 30px rgba(16,185,129,.25)"></span>
+                    </div>
+                </div>
+            </div>
+            <p class="text-[10px] text-slate-600 mt-2 italic pl-1">Obs.: Nem todos os aceites se convertem em matrícula — considere uma margem de segurança.</p>
+        </div>
+
+        <!-- Ranking + Conquistas -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mp-enter mp-d2">
+            <div id="mp-ranking-card" class="hidden mp-card p-5 relative overflow-hidden">
+                <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-4 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-sm text-amber-400">leaderboard</span>
+                    Ranking
+                    <span class="text-[9px] text-purple-400/70 font-normal ml-auto">mat + aceites</span>
+                </h3>
+                <div id="mp-ranking-content"></div>
+            </div>
+            <div id="mp-conquistas-card" class="hidden mp-card p-5 relative overflow-hidden">
+                <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-4 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-sm text-purple-400">workspace_premium</span>
+                    Conquistas
+                </h3>
+                <div id="mp-conquistas-grid" class="flex flex-wrap gap-3"></div>
+            </div>
+        </div>
+
+        <!-- Desbloqueie Mais -->
+        <div id="mp-desbloqueie-wrap" class="mp-enter mp-d2">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm text-amber-400">lock_open</span>
+                Desbloqueie Mais
+            </h3>
+            <div id="mp-desbloqueie" class="grid grid-cols-1 sm:grid-cols-3 gap-3"></div>
+        </div>
+
+        <!-- Momentum -->
+        <div class="mp-enter mp-d3">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm text-cyan-400">speed</span>
+                Momentum
+            </h3>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div class="mp-card p-4">
+                    <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Ritmo Atual</p>
+                    <p id="mp-pace" class="text-2xl font-black text-white mp-stat-value"></p>
+                    <p class="text-[10px] text-slate-500">mat/dia</p>
+                    <div id="mp-spark-pace" class="mt-2" style="min-height:35px"></div>
+                </div>
+                <div class="mp-card p-4">
+                    <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Necessário</p>
+                    <p id="mp-pace-needed" class="text-2xl font-black text-white mp-stat-value"></p>
+                    <p class="text-[10px] text-slate-500">mat/dia p/ meta</p>
+                    <div id="mp-spark-needed" class="mt-2" style="min-height:35px"></div>
+                </div>
+                <div class="mp-card p-4">
+                    <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Projeção</p>
+                    <p id="mp-projecao-mat" class="text-2xl font-black text-white mp-stat-value"></p>
+                    <p id="mp-projecao-tier" class="text-[10px]"></p>
+                    <div id="mp-spark-proj" class="mt-2" style="min-height:35px"></div>
+                </div>
+                <div class="mp-card p-4">
+                    <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">No seu ritmo</p>
+                    <p id="mp-projecao-fin" class="text-2xl font-black text-emerald-400 mp-stat-value"></p>
+                    <p class="text-[10px] text-slate-500">projeção financeira</p>
+                    <div id="mp-spark-fin" class="mt-2" style="min-height:35px"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sequência + Heatmap -->
+        <div class="mp-enter mp-d4">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm text-orange-400">whatshot</span>
+                Sequência
+            </h3>
+            <div class="mp-card p-5">
+                <div class="flex items-center gap-4 mb-4">
+                    <div id="mp-streak-num" class="text-4xl font-black text-slate-400 mp-stat-value">0</div>
+                    <div>
+                        <p id="mp-streak-label" class="text-sm font-semibold text-white"></p>
+                        <p class="text-[10px] text-slate-500">dias consecutivos batendo a meta diária</p>
+                        <div id="mp-streak-nivel" class="hidden flex items-center gap-1 mt-1"></div>
+                    </div>
+                </div>
+                <div id="mp-heatmap" class="flex flex-wrap gap-1"></div>
+                <div class="flex items-center gap-3 mt-2 text-[10px] text-slate-600">
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm mp-heat-hit"></span>Bateu</span>
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm mp-heat-partial"></span>Parcial</span>
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm mp-heat-miss"></span>Não bateu</span>
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm mp-heat-future"></span>Futuro</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Calendário -->
+        <div class="mp-enter mp-d5">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm text-indigo-400">calendar_month</span>
+                Calendário de Resultados
+            </h3>
+            <div id="mp-calendar" class="mp-card p-5"></div>
+        </div>
+
+        <!-- Progresso por Faixa -->
+        <div class="mp-enter mp-d5">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm text-blue-400">bar_chart</span>
+                Progresso por Faixa
+            </h3>
+            <div id="mp-tier-progress" class="mp-card p-5 space-y-3"></div>
+        </div>
+
+        <!-- Resumo Financeiro -->
+        <div class="mp-enter mp-d5">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm text-emerald-400">payments</span>
+                Resumo Financeiro
+            </h3>
+            <div id="mp-financeiro" class="mp-card p-5 space-y-3"></div>
+        </div>
+
+        <!-- Timeline -->
+        <div class="mp-enter mp-d6">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm text-indigo-400">timeline</span>
+                Timeline Diária
+            </h3>
+            <div class="mp-card p-5">
+                <div id="mp-timeline-chart" style="min-height:280px"></div>
+            </div>
+        </div>
+
+        <!-- Histórico -->
+        <div id="mp-historico-wrap" class="mp-enter mp-d7">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm text-violet-400">history</span>
+                Campanhas Anteriores
+            </h3>
+            <div id="mp-historico" class="flex gap-3 overflow-x-auto pb-2 snap-x">
+                <p class="text-xs text-slate-600">Carregando...</p>
+            </div>
+        </div>
+
+</div>
+
+<!-- ═══ Conteúdo Matrículas ═══ -->
+<div id="mp-mat-content" class="hidden max-w-7xl mx-auto space-y-5 pb-12">
+
+    <!-- Matrículas Oficiais -->
+    <div class="mp-card p-5 mp-enter">
+        <div class="flex flex-wrap items-center gap-3 mb-4">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm text-blue-400">verified</span>
+                Matrículas Oficiais
+            </h3>
+            <span id="mp-mat-oficial-count" class="text-[10px] text-slate-600 ml-auto"></span>
+        </div>
+        <div class="flex flex-wrap items-end gap-3 mb-3">
+            <div>
+                <label class="text-[10px] text-slate-500 block mb-1">De</label>
+                <input type="date" id="mp-mat-dt-ini" class="input-glass px-3 py-1.5 text-xs text-slate-300">
+            </div>
+            <div>
+                <label class="text-[10px] text-slate-500 block mb-1">Até</label>
+                <input type="date" id="mp-mat-dt-fim" class="input-glass px-3 py-1.5 text-xs text-slate-300">
+            </div>
+            <button onclick="_mpLoadMatriculas()" class="px-3 py-1.5 text-xs font-semibold text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-lg transition-colors flex items-center gap-1">
+                <span class="material-symbols-outlined text-sm">filter_alt</span> Filtrar
+            </button>
+            <button onclick="document.getElementById('mp-mat-dt-ini').value='';document.getElementById('mp-mat-dt-fim').value='';_mpLoadMatriculas()" class="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors">
+                Limpar
+            </button>
+            <!-- Filtro rápido por período de meta -->
+            <div class="relative" id="mp-meta-periodo-wrap">
+                <button onclick="_mpToggleMetaPeriodos()" class="px-3 py-1.5 text-xs font-semibold text-purple-400 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 rounded-lg transition-colors flex items-center gap-1">
+                    <span class="material-symbols-outlined text-sm">flag</span> Aplicar Meta
+                    <span class="material-symbols-outlined text-xs" id="mp-meta-periodo-chevron">expand_more</span>
+                </button>
+                <div id="mp-meta-periodo-dropdown" class="hidden absolute left-0 top-full mt-1 z-50 min-w-[220px] bg-slate-900 border border-slate-700/60 rounded-xl shadow-xl overflow-hidden">
+                    <div id="mp-meta-periodo-list" class="py-1 text-xs text-slate-400 px-3 py-2">Carregando...</div>
+                </div>
+            </div>
+            <input type="text" placeholder="Buscar por nome, RGM, curso..." oninput="_mpFilterOficial()"
+                id="mp-mat-oficial-search" class="input-glass px-3 py-1.5 text-xs text-slate-300 flex-1 min-w-[180px]">
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+                <thead><tr class="text-slate-500 border-b border-slate-700/30">
+                    <th class="text-left py-2 px-2">Nome</th>
+                    <th class="text-left py-2 px-2">RGM</th>
+                    <th class="text-left py-2 px-2">Curso</th>
+                    <th class="text-left py-2 px-2">Polo</th>
+                    <th class="text-left py-2 px-2">Data Mat.</th>
+                    <th class="text-left py-2 px-2">Situação</th>
+                </tr></thead>
+                <tbody id="mp-mat-oficial-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Minha Lista -->
+    <div class="mp-card p-5 mp-enter mp-d1">
+        <div class="flex flex-wrap items-center gap-3 mb-4">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm text-amber-400">edit_note</span>
+                Minha Lista de Vendas
+            </h3>
+            <button onclick="_mpOpenMinhaMatModal()" class="ml-auto flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg transition-colors">
+                <span class="material-symbols-outlined text-sm">add</span> Adicionar
+            </button>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+                <thead><tr class="text-slate-500 border-b border-slate-700/30">
+                    <th class="text-left py-2 px-2">Nome</th>
+                    <th class="text-left py-2 px-2">RGM</th>
+                    <th class="text-left py-2 px-2">Curso</th>
+                    <th class="text-left py-2 px-2">Polo</th>
+                    <th class="text-left py-2 px-2">Data Mat.</th>
+                    <th class="text-left py-2 px-2">Lead Kommo</th>
+                    <th class="text-left py-2 px-2">Ações</th>
+                </tr></thead>
+                <tbody id="mp-minha-lista-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Solicitações de Ajuste -->
+    <div class="mp-card p-5 mp-enter mp-d2">
+        <div class="flex flex-wrap items-center gap-3 mb-4">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm text-orange-400">support_agent</span>
+                Solicitações de Ajuste
+            </h3>
+            <button onclick="_mpOpenAjusteModal()" class="ml-auto flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 rounded-lg transition-colors">
+                <span class="material-symbols-outlined text-sm">add_circle</span> Nova Solicitação
+            </button>
+        </div>
+        <div id="mp-ajustes-list"></div>
+    </div>
+
+</div>
+
+<!-- Modal: Minha Matrícula -->
+<div id="mp-modal-minha-mat" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm" onclick="if(event.target===this){this.classList.add('hidden');this.classList.remove('flex')}">
+    <div class="bg-slate-900 border border-slate-700/50 rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <h3 class="text-sm font-bold text-white mb-4 flex items-center gap-2">
+            <span class="material-symbols-outlined text-amber-400">edit_note</span>
+            <span id="mp-minha-mat-title">Adicionar Matrícula</span>
+        </h3>
+        <input type="hidden" id="mp-minha-mat-id">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div><label class="text-slate-400 block mb-1">Nome do Aluno</label><input id="mp-mm-nome" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div><label class="text-slate-400 block mb-1">RGM</label><input id="mp-mm-rgm" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div><label class="text-slate-400 block mb-1">Curso</label><input id="mp-mm-curso" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div><label class="text-slate-400 block mb-1">Polo</label><input id="mp-mm-polo" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div><label class="text-slate-400 block mb-1">Data Matrícula</label><input id="mp-mm-data" type="date" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div><label class="text-slate-400 block mb-1">Ciclo</label><input id="mp-mm-ciclo" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div><label class="text-slate-400 block mb-1">Nível</label><input id="mp-mm-nivel" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div><label class="text-slate-400 block mb-1">Lead Kommo ID</label><input id="mp-mm-kommo" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div class="sm:col-span-2"><label class="text-slate-400 block mb-1">Observação</label><textarea id="mp-mm-obs" class="input-glass px-3 py-2 w-full text-slate-300 h-16 resize-none"></textarea></div>
+        </div>
+        <div class="flex justify-end gap-2 mt-4">
+            <button onclick="document.getElementById('mp-modal-minha-mat').classList.add('hidden');document.getElementById('mp-modal-minha-mat').classList.remove('flex')" class="px-4 py-2 text-xs text-slate-400 hover:text-white transition-colors">Cancelar</button>
+            <button onclick="_mpSaveMinhaMatricula()" class="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-colors">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Solicitação de Ajuste -->
+<div id="mp-modal-ajuste" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm" onclick="if(event.target===this){this.classList.add('hidden');this.classList.remove('flex')}">
+    <div class="bg-slate-900 border border-slate-700/50 rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <h3 class="text-sm font-bold text-white mb-4 flex items-center gap-2">
+            <span class="material-symbols-outlined text-orange-400">support_agent</span>
+            Nova Solicitação de Ajuste
+        </h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div class="sm:col-span-2">
+                <label class="text-slate-400 block mb-1">Tipo</label>
+                <select id="mp-aj-tipo" class="input-glass px-3 py-2 w-full text-slate-300">
+                    <option value="matricula_nao_computada">Matrícula não computada</option>
+                    <option value="dados_incorretos">Dados incorretos</option>
+                    <option value="evasao_indevida">Evasão indevida</option>
+                </select>
+            </div>
+            <div><label class="text-slate-400 block mb-1">Nome do Aluno</label><input id="mp-aj-nome" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div><label class="text-slate-400 block mb-1">RGM</label><input id="mp-aj-rgm" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div><label class="text-slate-400 block mb-1">Curso</label><input id="mp-aj-curso" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div><label class="text-slate-400 block mb-1">Polo</label><input id="mp-aj-polo" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div><label class="text-slate-400 block mb-1">Data Matrícula</label><input id="mp-aj-data" type="date" class="input-glass px-3 py-2 w-full text-slate-300"></div>
+            <div><label class="text-slate-400 block mb-1">Lead Kommo ID *</label><input id="mp-aj-kommo" class="input-glass px-3 py-2 w-full text-slate-300" required></div>
+            <div class="sm:col-span-2"><label class="text-slate-400 block mb-1">Justificativa *</label><textarea id="mp-aj-desc" class="input-glass px-3 py-2 w-full text-slate-300 h-20 resize-none" required placeholder="Descreva o motivo do ajuste..."></textarea></div>
+        </div>
+        <div class="flex justify-end gap-2 mt-4">
+            <button onclick="document.getElementById('mp-modal-ajuste').classList.add('hidden');document.getElementById('mp-modal-ajuste').classList.remove('flex')" class="px-4 py-2 text-xs text-slate-400 hover:text-white transition-colors">Cancelar</button>
+            <button onclick="_mpSaveAjuste()" class="px-4 py-2 text-xs font-bold text-white bg-orange-600 hover:bg-orange-500 rounded-lg transition-colors">Enviar Solicitação</button>
+        </div>
+    </div>
+</div>
+
+</section>
