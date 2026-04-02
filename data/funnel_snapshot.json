@@ -1,0 +1,19 @@
+{
+  "2026-04-02": {
+    "incoming": 0,
+    "contato_inicial": 0,
+    "sem_resposta": 360,
+    "em_atendimento": 85,
+    "aguardando_resposta": 2611,
+    "aguardando_inscricao": 102,
+    "inscricao": 5,
+    "processo_seletivo": 46,
+    "em_processo": 36,
+    "aprovado_reprovado": 28,
+    "boleto_enviado": 7,
+    "aceite": 10,
+    "qualificacao": 0,
+    "pagamento_confirmado": 10,
+    "_total": 3300
+  }
+}
