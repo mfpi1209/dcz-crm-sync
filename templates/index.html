@@ -34,6 +34,7 @@
             {% include 'partials/_auditoria_comercial.html' %}
             {% include 'partials/_vocacional.html' %}
             {% include 'partials/_leads_parados.html' %}
+            {% include 'partials/_dist_consultor.html' %}
         </main>
     </div>
 </div>
@@ -64,6 +65,7 @@
 <script src="{{ url_for('static', filename='js/meta_campaigns.js') }}"></script>
 <script src="{{ url_for('static', filename='js/recadastros.js') }}"></script>
 <script src="{{ url_for('static', filename='js/leads_parados.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/dist_consultor.js') }}?v={{_v}}"></script>
 
 </body>
 </html>
