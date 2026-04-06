@@ -92,6 +92,75 @@
     </div>
 </div>
 
+<!-- Modal: Vendas em Conflito -->
+<div id="crgm-conflitos-modal" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" style="position:fixed;top:0;left:0;right:0;bottom:0;">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col" style="max-height:92vh;">
+        <!-- Header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-700 shrink-0">
+            <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-amber-400 text-2xl">warning</span>
+                <div>
+                    <p class="text-[10px] text-slate-500 uppercase tracking-wider">Atribuição de vendas</p>
+                    <p class="text-white font-semibold text-sm">Vendas em Conflito</p>
+                </div>
+                <span id="crgm-conflitos-badge-modal" class="ml-2 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-xs font-bold hidden"></span>
+            </div>
+            <button onclick="crgmFecharConflitos()" class="text-slate-500 hover:text-white transition-colors">
+                <span class="material-symbols-outlined text-xl">close</span>
+            </button>
+        </div>
+
+        <!-- Barra de filtro/busca -->
+        <div class="px-4 py-3 border-b border-slate-800 shrink-0 bg-slate-800/40 flex items-center gap-3 flex-wrap">
+            <p class="text-xs text-slate-400 shrink-0">Alunos com leads para mais de um consultor no Kommo.</p>
+            <div class="flex-1 min-w-[180px] relative">
+                <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-base pointer-events-none">search</span>
+                <input id="crgm-conflitos-busca" type="text" placeholder="Buscar por RGM ou nome..."
+                    oninput="crgmFiltrarConflitos()"
+                    class="w-full bg-slate-700/60 border border-slate-600 text-white text-xs rounded-lg pl-8 pr-3 py-2 focus:outline-none focus:border-blue-500 placeholder-slate-500" />
+            </div>
+            <div id="crgm-conflitos-periodo-tag" class="hidden items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs shrink-0">
+                <span class="material-symbols-outlined text-sm">calendar_month</span>
+                <span id="crgm-conflitos-periodo-txt"></span>
+            </div>
+        </div>
+
+        <!-- Lista scroll -->
+        <div class="overflow-y-auto flex-1 px-4 py-3 space-y-3" id="crgm-conflitos-lista">
+            <!-- preenchido via JS -->
+        </div>
+
+        <!-- Loading state -->
+        <div id="crgm-conflitos-loading" class="hidden flex-1 flex items-center justify-center py-12">
+            <div class="flex flex-col items-center gap-3 text-slate-500">
+                <span class="material-symbols-outlined text-4xl animate-spin">progress_activity</span>
+                <p class="text-sm">Buscando conflitos...</p>
+            </div>
+        </div>
+
+        <!-- Empty state -->
+        <div id="crgm-conflitos-empty" class="hidden flex-1 flex items-center justify-center py-12">
+            <div class="flex flex-col items-center gap-3 text-slate-500">
+                <span class="material-symbols-outlined text-4xl text-emerald-500">check_circle</span>
+                <p class="text-sm text-emerald-400 font-medium">Nenhum conflito encontrado no período!</p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-6 py-4 border-t border-slate-700 shrink-0 flex items-center justify-between gap-3">
+            <p class="text-xs text-slate-500" id="crgm-conflitos-status"></p>
+            <div class="flex gap-2">
+                <button onclick="crgmFecharConflitos()" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm transition-colors">Fechar</button>
+                <button id="crgm-conflitos-salvar" onclick="crgmSalvarConflitos()"
+                    class="px-6 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-sm font-semibold transition-colors flex items-center gap-2">
+                    <span class="material-symbols-outlined text-base">save</span>
+                    Salvar Definições
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% set _v = range(100000) | random %}
 <script src="{{ url_for('static', filename='js/utils.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/dashboard.js') }}?v={{_v}}"></script>

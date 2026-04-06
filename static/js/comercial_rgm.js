@@ -13,12 +13,27 @@ async function loadComercialRgm() {
     if (filtersData && (!filtersData.agentes || filtersData.agentes.length === 0)) {
         await _crgmAutoSyncUsers();
     }
-    const hoje = new Date();
-    const ini = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
     const elIni = document.getElementById('crgm-dt-ini');
     const elFim = document.getElementById('crgm-dt-fim');
-    if (!elIni.value) elIni.value = ini.toISOString().substring(0, 10);
-    if (!elFim.value) elFim.value = hoje.toISOString().substring(0, 10);
+    if (!elIni.value || !elFim.value) {
+        // Tenta usar o período da última meta cadastrada
+        try {
+            const res = await api('/api/comercial-rgm/metas?categoria=matriculas');
+            const d = await res.json();
+            const ultima = d.ok && d.metas && d.metas.length > 0 ? d.metas[0] : null;
+            if (ultima && ultima.dt_inicio && ultima.dt_fim) {
+                if (!elIni.value) elIni.value = ultima.dt_inicio;
+                if (!elFim.value) elFim.value = ultima.dt_fim;
+            }
+        } catch (_) {}
+        // Fallback: primeiro dia do mês atual até hoje
+        if (!elIni.value || !elFim.value) {
+            const hoje = new Date();
+            const ini = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+            if (!elIni.value) elIni.value = ini.toISOString().substring(0, 10);
+            if (!elFim.value) elFim.value = hoje.toISOString().substring(0, 10);
+        }
+    }
     crgmAtualizar();
 }
 
@@ -94,6 +109,7 @@ async function crgmAtualizar() {
         _crgmRenderAgentes(d.ranking_agentes || []);
         _crgmRenderAgentesChart(d.ranking_agentes || []);
         _crgmRenderTransferencia(d.transferencia_regresso);
+        crgmAtualizarBadgeConflitos();
     } catch (e) { _crgmErro('Erro: ' + e.message); }
     finally { _crgmLoading(false); }
 }
@@ -781,6 +797,13 @@ function crgmTurmaChanged() {
     if (turma) {
         document.getElementById('crgm-dt-ini').value = turma.dt_inicio;
         document.getElementById('crgm-dt-fim').value = turma.dt_fim;
+        // Aplica o nível da turma automaticamente no filtro
+        const nivelEl = document.getElementById('crgm-nivel');
+        if (nivelEl && turma.nivel) nivelEl.value = turma.nivel;
+    } else {
+        // Turma "Todas" selecionada: limpa o nível
+        const nivelEl = document.getElementById('crgm-nivel');
+        if (nivelEl) nivelEl.value = '';
     }
     crgmAtualizar();
 }
@@ -788,12 +811,84 @@ function crgmTurmaChanged() {
 function crgmToggleNovaTurma() {
     const panel = document.getElementById('crgm-nova-turma');
     const isHidden = panel.classList.contains('hidden');
+    // Fecha o painel de ver turmas se estiver aberto
+    document.getElementById('crgm-ver-turmas')?.classList.add('hidden');
     panel.classList.toggle('hidden');
     if (isHidden) {
         const sel = document.getElementById('crgm-turma-ciclo');
         sel.innerHTML = '<option value="">Nenhum</option>' +
             _crgmCiclosData.map(c => `<option value="${c.id}">${esc(c.descricao || c.nome)}</option>`).join('');
     }
+}
+
+function crgmToggleVerTurmas() {
+    const panel = document.getElementById('crgm-ver-turmas');
+    const isHidden = panel.classList.contains('hidden');
+    document.getElementById('crgm-nova-turma')?.classList.add('hidden');
+    panel.classList.toggle('hidden');
+    if (isHidden) _crgmRenderListaTurmas();
+}
+
+function _crgmRenderListaTurmas() {
+    const lista = document.getElementById('crgm-turmas-lista');
+    if (!_crgmTurmasData || _crgmTurmasData.length === 0) {
+        lista.innerHTML = '<p class="text-xs text-slate-500 italic">Nenhuma turma cadastrada.</p>';
+        return;
+    }
+    const fmt = d => d ? d.split('-').reverse().join('/') : '—';
+    const nivelBadge = n => {
+        if (!n) return '';
+        const cls = n.includes('ós') ? 'bg-purple-500/20 text-purple-300' : 'bg-blue-500/20 text-blue-300';
+        return `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium ${cls}">${n}</span>`;
+    };
+
+    let html = `
+        <div class="grid grid-cols-[1fr_auto_auto_auto] items-center gap-x-3 px-3 py-1 text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-700/40 mb-1">
+            <span>Turma</span>
+            <span>Período</span>
+            <span></span>
+            <span></span>
+        </div>
+    `;
+
+    html += _crgmTurmasData.map(t => {
+        return `
+        <div class="grid grid-cols-[1fr_auto_auto_auto] items-center gap-x-3 px-3 py-2 rounded-lg bg-slate-700/30 hover:bg-slate-700/50 transition-colors">
+            <div class="flex items-center gap-2 min-w-0">
+                <span class="text-white text-xs font-medium truncate">${esc(t.nome || '—')}</span>
+                ${nivelBadge(t.nivel)}
+            </div>
+            <span class="text-slate-400 text-[11px] whitespace-nowrap">${fmt(t.dt_inicio)} → ${fmt(t.dt_fim)}</span>
+            <button onclick="_crgmAplicarDatasMeta('${t.dt_inicio}','${t.dt_fim}'); document.getElementById('crgm-nivel').value='${esc(t.nivel || '')}'; document.getElementById('crgm-ver-turmas').classList.add('hidden');"
+                title="Aplicar período no painel"
+                class="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 text-[10px] transition-colors whitespace-nowrap">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                Ver
+            </button>
+            <button onclick="crgmExcluirTurma(${t.id})" title="Excluir"
+                class="text-slate-600 hover:text-red-400 transition-colors">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+            </button>
+        </div>`;
+    }).join('');
+
+    lista.innerHTML = html;
+}
+
+async function crgmExcluirTurma(id) {
+    if (!confirm('Excluir esta turma?')) return;
+    try {
+        const res = await api(`/api/comercial-rgm/turmas/${id}`, { method: 'DELETE' });
+        const d = await res.json();
+        if (d.ok !== false) {
+            await _crgmLoadTurmas();
+            _crgmRenderListaTurmas();
+        } else {
+            alert('Erro ao excluir: ' + (d.error || 'desconhecido'));
+        }
+    } catch(e) { alert('Erro: ' + e.message); }
 }
 
 async function crgmSalvarTurma() {
@@ -1735,4 +1830,243 @@ async function crgmSalvarBulkMeta() {
         btn.disabled = false;
         btn.innerHTML = '<span class="material-symbols-outlined text-base">save</span> Salvar Tudo';
     }
+}
+
+// ── Vendas em Conflito ────────────────────────────────────────────────────────
+
+let _crgmConflitosData = [];
+
+function _crgmGetFiltrosAtivos() {
+    return {
+        dt_ini: document.getElementById('crgm-dt-ini')?.value || '',
+        dt_fim: document.getElementById('crgm-dt-fim')?.value || '',
+        polo:   document.getElementById('crgm-polo')?.value  || '',
+        nivel:  document.getElementById('crgm-nivel')?.value || '',
+    };
+}
+
+function _crgmFmtData(iso) {
+    if (!iso) return '?';
+    const [y, m, d] = iso.split('-');
+    return `${d}/${m}/${y}`;
+}
+
+async function crgmAbrirConflitos() {
+    const modal = document.getElementById('crgm-conflitos-modal');
+    const lista = document.getElementById('crgm-conflitos-lista');
+    const loading = document.getElementById('crgm-conflitos-loading');
+    const empty = document.getElementById('crgm-conflitos-empty');
+    const status = document.getElementById('crgm-conflitos-status');
+    const busca = document.getElementById('crgm-conflitos-busca');
+    const periodoTag = document.getElementById('crgm-conflitos-periodo-tag');
+    const periodoTxt = document.getElementById('crgm-conflitos-periodo-txt');
+
+    modal.classList.remove('hidden');
+    lista.classList.add('hidden');
+    loading.classList.remove('hidden');
+    empty.classList.add('hidden');
+    periodoTag.classList.add('hidden');
+    status.textContent = '';
+    if (busca) busca.value = '';
+    _crgmConflitosData = [];
+
+    // Usa o período da meta selecionada (dt_ini e dt_fim dos inputs)
+    const f = _crgmGetFiltrosAtivos();
+
+    // Mostra tag do período ativo
+    if (f.dt_ini && f.dt_fim && periodoTxt) {
+        periodoTxt.textContent = `${_crgmFmtData(f.dt_ini)} a ${_crgmFmtData(f.dt_fim)}`;
+        periodoTag.classList.remove('hidden');
+        periodoTag.classList.add('flex');
+    }
+
+    try {
+        const params = new URLSearchParams();
+        if (f.dt_ini) params.set('dt_ini', f.dt_ini);
+        if (f.dt_fim) params.set('dt_fim', f.dt_fim);
+        if (f.polo)   params.set('polo',   f.polo);
+        if (f.nivel)  params.set('nivel',  f.nivel);
+
+        const res = await api('/api/comercial-rgm/conflitos?' + params.toString());
+        const d = await res.json();
+
+        loading.classList.add('hidden');
+
+        if (!d.ok) throw new Error(d.error || 'Erro desconhecido');
+        if (!d.conflitos || d.conflitos.length === 0) {
+            empty.classList.remove('hidden');
+            return;
+        }
+
+        _crgmConflitosData = d.conflitos;
+        _crgmRenderConflitos(d.conflitos);
+        lista.classList.remove('hidden');
+
+        const naoRes = d.total_nao_resolvidos || 0;
+        status.textContent = `${d.total} conflito${d.total !== 1 ? 's' : ''} encontrado${d.total !== 1 ? 's' : ''}${naoRes > 0 ? ` · ${naoRes} pendente${naoRes !== 1 ? 's' : ''}` : ' · todos resolvidos'}`;
+        status.className = naoRes > 0 ? 'text-xs text-amber-400' : 'text-xs text-emerald-400';
+
+    } catch(e) {
+        loading.classList.add('hidden');
+        lista.classList.remove('hidden');
+        lista.innerHTML = `<p class="text-red-400 text-sm px-2">Erro ao carregar conflitos: ${e.message}</p>`;
+    }
+}
+
+function crgmFiltrarConflitos() {
+    const busca = document.getElementById('crgm-conflitos-busca')?.value?.toLowerCase().trim() || '';
+    if (!_crgmConflitosData.length) return;
+
+    // Filtra os dados e re-renderiza
+    const filtrados = busca
+        ? _crgmConflitosData.filter(c =>
+            c.rgm.includes(busca) ||
+            (c.nome_aluno || '').toLowerCase().includes(busca)
+          )
+        : _crgmConflitosData;
+
+    const lista = document.getElementById('crgm-conflitos-lista');
+    const empty = document.getElementById('crgm-conflitos-empty');
+
+    if (filtrados.length === 0) {
+        lista.innerHTML = `<p class="text-slate-500 text-sm text-center py-6">Nenhum resultado para "<span class="text-white">${_escHtml(busca)}</span>"</p>`;
+    } else {
+        _crgmRenderConflitos(filtrados);
+    }
+    lista.classList.remove('hidden');
+    empty.classList.add('hidden');
+}
+
+function _crgmRenderConflitos(conflitos) {
+    const lista = document.getElementById('crgm-conflitos-lista');
+    lista.innerHTML = '';
+
+    for (const c of conflitos) {
+        const isResolvido = c.resolvido;
+        const uidAtual = c.user_id_resolucao ?? c.user_id_atual;
+
+        // Monta opções de agente
+        const opcoesHtml = c.leads.map(l => {
+            const sel = l.user_id === uidAtual ? 'selected' : '';
+            const badge = l.status_id === 142
+                ? '<span class="text-emerald-400 text-[10px] ml-1">[Venda ganha]</span>'
+                : `<span class="text-slate-500 text-[10px] ml-1">[${l.status_nome || 'Ativo'}]</span>`;
+            return `<option value="${l.user_id}" data-nome="${_escHtml(l.agente)}" ${sel}>${_escHtml(l.agente)} — Lead #${l.lead_id}</option>`;
+        }).join('');
+
+        // Agentes únicos para preview
+        const agentesUnicos = [...new Map(c.leads.map(l => [l.user_id, l.agente])).entries()];
+        const tagsHtml = agentesUnicos.map(([uid, nome]) => {
+            const isWin = uid === uidAtual;
+            return `<span class="px-2 py-0.5 rounded-full text-[10px] font-medium ${isWin ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-slate-700 text-slate-400'}">${_escHtml(nome)}</span>`;
+        }).join('');
+
+        const card = document.createElement('div');
+        card.className = `rounded-xl border p-4 transition-all ${isResolvido ? 'border-emerald-700/40 bg-emerald-950/20' : 'border-amber-700/40 bg-amber-950/10'}`;
+        card.dataset.rgm = c.rgm;
+        card.innerHTML = `
+            <div class="flex items-start justify-between gap-4">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="material-symbols-outlined text-sm ${isResolvido ? 'text-emerald-500' : 'text-amber-400'}">${isResolvido ? 'check_circle' : 'warning'}</span>
+                        <p class="text-white font-medium text-sm truncate">${_escHtml(c.nome_aluno || 'Aluno sem nome')}</p>
+                        <span class="text-slate-500 text-xs shrink-0">RGM ${c.rgm}</span>
+                        ${c.data_matricula ? `<span class="text-slate-600 text-[10px] shrink-0">${new Date(c.data_matricula + 'T12:00:00').toLocaleDateString('pt-BR')}</span>` : ''}
+                    </div>
+                    <div class="flex flex-wrap gap-1 mb-3">${tagsHtml}</div>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <label class="text-xs text-slate-400 shrink-0">Creditar para:</label>
+                <select class="crgm-conflito-select flex-1 bg-slate-800 border border-slate-600 text-white text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500" data-rgm="${c.rgm}">
+                    ${opcoesHtml}
+                </select>
+                ${isResolvido ? `<span class="text-emerald-400 text-xs shrink-0 flex items-center gap-1"><span class="material-symbols-outlined text-sm">check</span>Salvo</span>` : ''}
+            </div>
+        `;
+        lista.appendChild(card);
+    }
+}
+
+function _escHtml(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function crgmFecharConflitos() {
+    document.getElementById('crgm-conflitos-modal').classList.add('hidden');
+    _crgmConflitosData = [];
+}
+
+async function crgmSalvarConflitos() {
+    const btn = document.getElementById('crgm-conflitos-salvar');
+    const status = document.getElementById('crgm-conflitos-status');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-symbols-outlined text-base animate-spin">progress_activity</span> Salvando...';
+
+    try {
+        const selects = document.querySelectorAll('.crgm-conflito-select');
+        const items = [];
+        selects.forEach(sel => {
+            const rgm = sel.dataset.rgm;
+            const opt = sel.options[sel.selectedIndex];
+            const uid = parseInt(sel.value);
+            const nome = opt?.dataset?.nome || opt?.text?.split(' — ')[0] || '';
+            if (rgm && uid) items.push({ rgm, user_id: uid, user_name: nome });
+        });
+
+        if (!items.length) return;
+
+        const res = await api('/api/comercial-rgm/conflitos/resolver', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items }),
+        });
+        const d = await res.json();
+
+        if (d.ok) {
+            status.textContent = `${d.saved} conflito${d.saved !== 1 ? 's' : ''} salvo${d.saved !== 1 ? 's' : ''} com sucesso. Recarregando ranking...`;
+            status.className = 'text-xs text-emerald-400';
+            // Atualiza badges
+            document.querySelectorAll('[data-rgm]').forEach(card => {
+                card.className = card.className.replace('border-amber-700/40 bg-amber-950/10', 'border-emerald-700/40 bg-emerald-950/20');
+            });
+            // Recarrega dados do painel
+            setTimeout(() => {
+                crgmFecharConflitos();
+                crgmCarregarDados?.();
+            }, 1200);
+        } else {
+            status.textContent = 'Erro: ' + (d.error || 'desconhecido');
+            status.className = 'text-xs text-red-400';
+        }
+    } catch(e) {
+        status.textContent = 'Erro: ' + e.message;
+        status.className = 'text-xs text-red-400';
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-symbols-outlined text-base">save</span> Salvar Definições';
+    }
+}
+
+async function crgmAtualizarBadgeConflitos() {
+    try {
+        const f = _crgmGetFiltrosAtivos();
+        const params = new URLSearchParams();
+        if (f.dt_ini) params.set('dt_ini', f.dt_ini);
+        if (f.dt_fim) params.set('dt_fim', f.dt_fim);
+        if (f.polo)   params.set('polo',   f.polo);
+        if (f.nivel)  params.set('nivel',  f.nivel);
+
+        const res = await api('/api/comercial-rgm/conflitos?' + params.toString());
+        const d = await res.json();
+        const badge = document.getElementById('crgm-btn-conflitos-badge');
+        if (!badge) return;
+        const n = d.total_nao_resolvidos || 0;
+        if (n > 0) {
+            badge.textContent = n;
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    } catch(_) {}
 }
