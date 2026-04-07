@@ -205,13 +205,16 @@ def api_kommo_sync():
     mode = body.get("mode", "delta")
     task_id = str(uuid.uuid4())[:8]
 
+    _t0 = datetime.now().strftime("%H:%M:%S")
     _tasks[task_id] = {
         "type": "sync",
         "status": "running",
-        "progress": 0,
+        "progress": 1,
         "message": "Iniciando sincronização Kommo...",
         "started_at": datetime.now().isoformat(),
-        "log": [],
+        "log": [
+            {"time": _t0, "msg": "Tarefa aceita. Subindo processo (pode levar alguns segundos até o primeiro log)..."},
+        ],
     }
 
     def _log(msg, progress=None):
@@ -239,7 +242,8 @@ def api_kommo_sync():
 
     def _run():
         try:
-            env = {**os.environ}
+            # Windows: sem PYTHONUNBUFFERED o stdout de main.py pode ficar preso em buffer (UI em 0% por minutos).
+            env = {**os.environ, "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8"}
             cmd = [sys.executable, "-u", "main.py"]
             if mode == "full":
                 cmd.append("--full")
@@ -339,7 +343,7 @@ def api_kommo_task(task_id):
     task = _tasks.get(task_id)
     if not task:
         return jsonify({"ok": False, "error": "Tarefa não encontrada"}), 404
-    t = dict(task)
+    t = {k: v for k, v in task.items() if k != "proc"}  # Popen não é JSON-serializável
     if "log" in t and len(t["log"]) > 30:
         t["log"] = t["log"][-30:]
     return jsonify({"ok": True, "data": t})
