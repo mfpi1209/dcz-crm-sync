@@ -6,7 +6,7 @@ Inclui custom fields (telefone, email, etc.).
 
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from api_client import KommoAPIClient
 from database import (
@@ -15,7 +15,7 @@ from database import (
     set_sync_status,
     get_last_sync,
 )
-from config import PAGE_SIZE, BATCH_SIZE, SLEEP_BETWEEN_PAGES
+from config import PAGE_SIZE, BATCH_SIZE, SLEEP_BETWEEN_PAGES, KOMMO_DELTA_LOOKBACK_DAYS
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +74,10 @@ def sync_contacts(client: KommoAPIClient, force_full: bool = False) -> dict:
 
             if not is_full_sync:
                 params["filter[updated_at][from]"] = from_ts
-                logger.info("Delta sync: buscando contatos atualizados desde %s (ts: %d)", last_sync_at, from_ts)
+                logger.info(
+                    "Delta sync: contatos com updated_at >= ts %d (lookback %d dias)",
+                    from_ts, KOMMO_DELTA_LOOKBACK_DAYS,
+                )
 
         if is_full_sync:
             logger.info("Full sync: buscando TODOS os contatos...")

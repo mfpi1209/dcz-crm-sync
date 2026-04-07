@@ -25,7 +25,17 @@ kommo_bp = Blueprint("kommo_bp", __name__)
 
 _kommo_lib = Path(__file__).resolve().parent.parent / "kommo_lib"
 _kommo_ext = Path(__file__).resolve().parent.parent / "Kommo_Update"
-KOMMO_DIR = str(_kommo_ext) if _kommo_ext.is_dir() else (str(_kommo_lib) if _kommo_lib.is_dir() else None)
+# Antes: preferia Kommo_Update e o painel rodava cópia antiga (sem fixes do repo).
+# Agora: kommo_lib versionado primeiro; Kommo_Update só fallback; ou KOMMO_SYNC_DIR.
+_env_kommo = os.getenv("KOMMO_SYNC_DIR", "").strip()
+if _env_kommo and Path(_env_kommo).is_dir():
+    KOMMO_DIR = _env_kommo
+elif _kommo_lib.is_dir():
+    KOMMO_DIR = str(_kommo_lib)
+elif _kommo_ext.is_dir():
+    KOMMO_DIR = str(_kommo_ext)
+else:
+    KOMMO_DIR = None
 
 PG_KOMMO = {
     "host": os.getenv("KOMMO_PG_HOST", "31.97.91.47"),
@@ -193,8 +203,7 @@ def api_kommo_sync():
     if not KOMMO_DIR:
         return jsonify({
             "ok": False,
-            "error": "Sync indisponível neste ambiente. A pasta Kommo_Update não está presente. "
-                     "Execute a sincronização pelo servidor local (Windows).",
+            "error": "Sync indisponível: pasta kommo_lib (ou KOMMO_SYNC_DIR) não encontrada no servidor.",
         }), 400
 
     for t in _tasks.values():
@@ -225,10 +234,17 @@ def api_kommo_sync():
             _tasks[task_id]["progress"] = progress
 
     def _stream(proc, label, base_pct, end_pct):
-        """Lê stdout linha a linha e atualiza o log em tempo real."""
+        """Lê stdout linha a linha e atualiza o log em tempo real.
+
+        Lê em modo binário e decodifica UTF-8 no Flask — no Windows, text=True no Popen
+        ainda pode usar cp1252 em alguns builds e quebrar em bytes como 0x8d.
+        """
         lines_read = 0
-        for raw in iter(proc.stdout.readline, ""):
-            line = raw.strip()
+        while True:
+            chunk = proc.stdout.readline()
+            if not chunk:
+                break
+            line = chunk.decode("utf-8", errors="replace").strip()
             if not line:
                 continue
             lines_read += 1
@@ -248,12 +264,13 @@ def api_kommo_sync():
             if mode == "full":
                 cmd.append("--full")
 
+            _log(f"Pasta do sync: {KOMMO_DIR}", 4)
             _log(f"Executando: {' '.join(cmd)}", 5)
 
             proc = subprocess.Popen(
                 cmd, cwd=KOMMO_DIR,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, bufsize=1, env=env,
+                bufsize=0, env=env,
             )
             _tasks[task_id]["proc"] = proc
 
@@ -280,7 +297,7 @@ def api_kommo_sync():
                     mig_args,
                     cwd=KOMMO_DIR,
                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                    text=True, bufsize=1, env=env,
+                    bufsize=0, env=env,
                 )
                 _tasks[task_id]["proc"] = mig
                 mig_rc = _stream(mig, "migrate", 82, 98)

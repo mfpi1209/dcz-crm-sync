@@ -6,7 +6,7 @@ Otimizado: batches menores, pausa entre páginas, sem raw_json.
 
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from api_client import KommoAPIClient
 from database import (
@@ -15,7 +15,7 @@ from database import (
     set_sync_status,
     get_last_sync,
 )
-from config import PAGE_SIZE, BATCH_SIZE, SLEEP_BETWEEN_PAGES
+from config import PAGE_SIZE, BATCH_SIZE, SLEEP_BETWEEN_PAGES, KOMMO_DELTA_LOOKBACK_DAYS
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +70,12 @@ def sync_leads(client: KommoAPIClient, force_full: bool = False) -> dict:
                     dt = dt.replace(tzinfo=timezone.utc)
                 # Subtrair 5 minutos de margem para evitar perder registros
                 from_ts = int(dt.timestamp()) - 300
+                # Janela mínima: incluir alterações dos últimos N dias (evita PG defasado vs Kommo)
+                if KOMMO_DELTA_LOOKBACK_DAYS > 0:
+                    floor = int(
+                        (datetime.now(timezone.utc) - timedelta(days=KOMMO_DELTA_LOOKBACK_DAYS)).timestamp()
+                    )
+                    from_ts = min(from_ts, floor)
             except (ValueError, AttributeError):
                 logger.warning("Timestamp inválido no last_sync. Forçando full sync.")
                 is_full_sync = True
@@ -78,7 +84,10 @@ def sync_leads(client: KommoAPIClient, force_full: bool = False) -> dict:
 
             if not is_full_sync:
                 params["filter[updated_at][from]"] = from_ts
-                logger.info("Delta sync: buscando leads atualizados desde %s (ts: %d)", last_sync_at, from_ts)
+                logger.info(
+                    "Delta sync: leads com updated_at >= ts %d (lookback %d dias, ref %s)",
+                    from_ts, KOMMO_DELTA_LOOKBACK_DAYS, last_sync_at[:19],
+                )
         
         if is_full_sync:
             logger.info("Full sync: buscando TODOS os leads...")

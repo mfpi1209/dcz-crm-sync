@@ -420,11 +420,22 @@ def main(light=False, since=None):
     logger.info("Schema criado com sucesso.")
 
     # Detectar delta
-    pg_last_sync = get_pg_last_sync(pg_conn, since_override=since)
-    if pg_last_sync:
-        logger.info("Modo DELTA: migrando apenas registros alterados desde %s", pg_last_sync[:19])
+    # Após main.py --full, update_sync_metadata grava last_full_sync_at = agora. Se usarmos isso
+    # como `since`, o filtro synced_at >= esse instante não inclui nenhum lead (todos foram
+    # upsertados milissegundos antes) — o PostgreSQL permanece com synced_at antigo (ex.: 2024).
+    # Modo migrate FULL (!--light): copiar todas as linhas do SQLite. Modo LIGHT: delta via PG.
+    if since:
+        pg_last_sync = since
+        logger.info("Modo DELTA (--since CLI): migrando desde %s", since[:19])
+    elif not light:
+        pg_last_sync = None
+        logger.info("Modo FULL: migrando todas as linhas do SQLite (pós sync full).")
     else:
-        logger.info("Modo FULL: primeira migração ou sem dados no PostgreSQL")
+        pg_last_sync = get_pg_last_sync(pg_conn, since_override=None)
+        if pg_last_sync:
+            logger.info("Modo DELTA: migrando apenas registros alterados desde %s", pg_last_sync[:19])
+        else:
+            logger.info("Modo FULL: sem last_full_sync_at no PG — migrando tudo.")
 
     # Migrar cada tabela
     order = MIGRATION_ORDER_LIGHT if light else MIGRATION_ORDER
