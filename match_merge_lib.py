@@ -1050,7 +1050,7 @@ kommo_cpf AS (
     FROM lead_custom_field_values lcf
     JOIN leads l ON l.id = lcf.lead_id
     WHERE lcf.field_name = 'CPF'
-      AND length(regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g')) = 11
+      AND length(regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g')) BETWEEN 10 AND 11
     UNION ALL
     SELECT l.id AS lead_id,
            LPAD(regexp_replace(elem->>'value', '[^0-9]', '', 'g'), 11, '0') AS cpf
@@ -1058,7 +1058,7 @@ kommo_cpf AS (
     CROSS JOIN LATERAL jsonb_array_elements(l.custom_fields_json) AS cf
     CROSS JOIN LATERAL jsonb_array_elements(cf->'values') AS elem
     WHERE cf->>'field_name' = 'CPF'
-      AND length(regexp_replace(elem->>'value', '[^0-9]', '', 'g')) = 11
+      AND length(regexp_replace(elem->>'value', '[^0-9]', '', 'g')) BETWEEN 10 AND 11
       AND NOT EXISTS (
           SELECT 1 FROM lead_custom_field_values lcf2
           WHERE lcf2.lead_id = l.id AND lcf2.field_name = 'CPF'
@@ -1070,7 +1070,7 @@ kommo_cpf_auth AS (
     FROM lead_custom_field_values lcf
     JOIN leads l ON l.id = lcf.lead_id
     WHERE lcf.field_name = 'CPF'
-      AND length(regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g')) = 11
+      AND length(regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g')) BETWEEN 10 AND 11
 ),
 kommo_telefone AS (
     SELECT DISTINCT lcf.lead_id,
@@ -2070,15 +2070,20 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
 
     # Load CPFs that already have RGM (already matriculated — no need to restore)
     cpfs_com_rgm = set()
+    cpf_to_rgm: dict[str, str] = {}  # CPF -> RGM (for MATRICULADO actions)
     try:
         conn = get_conn()
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT DISTINCT cpf FROM mm_matriculados
+                SELECT DISTINCT cpf, rgm FROM mm_matriculados
                 WHERE rgm IS NOT NULL AND rgm != ''
                   AND UPPER(COALESCE(situacao,'')) = 'MATRICULADO'
+                  AND cpf IS NOT NULL AND cpf != ''
             """)
-            cpfs_com_rgm = {r[0] for r in cur.fetchall()}
+            for r in cur.fetchall():
+                cpfs_com_rgm.add(r[0])
+                if r[0] not in cpf_to_rgm:
+                    cpf_to_rgm[r[0]] = r[1]
             cur.execute("""
                 SELECT DISTINCT cpf FROM mm_cruzado
                 WHERE rgm IS NOT NULL AND rgm != ''
@@ -2094,6 +2099,7 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
     n_restaurar = 0
     n_cpf_invalido = 0
     n_data_filtrada = 0
+    n_matriculado_via_cpf = 0
     for row in inscritos_match.get("detalhes", []):
         siaa_sit = row.get("siaa_situacao")
         if siaa_sit in SITUACOES_EXCLUIR:
@@ -2216,6 +2222,21 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                     }
                 _perdido_unificar[cpf_val]["lead_ids"].update(dup_ids)
             else:
+                cpf_val = base["cpf"]
+
+                # Se a pessoa já tem RGM no SIAA e o lead Kommo ainda está ativo
+                # (não é Fechado-ganho e não há outro lead ganho), gerar MATRICULADO
+                if cpf_val in cpfs_com_rgm and not ganho_lead_id and is_recente:
+                    rgm_val = cpf_to_rgm.get(cpf_val, "")
+                    n_matriculado_via_cpf += 1
+                    acoes.append({
+                        **base,
+                        "acao": "MATRICULADO",
+                        "lead_id": lead_id,
+                        "rgm": rgm_val,
+                    })
+                    continue
+
                 # ATUALIZAR: sem filtro de data (pode incluir registros antigos)
                 kommo_str = str(kommo_sit) if kommo_sit else None
                 kommo_empty = kommo_str in _NO_VALUE_SITS
@@ -2229,7 +2250,7 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                 else:
                     needs_update = False
 
-                if needs_update and base["cpf"] not in cpfs_com_rgm:
+                if needs_update and cpf_val not in cpfs_com_rgm:
                     acoes.append({**base, "acao": "ATUALIZAR", "lead_id": lead_id})
         else:
             if not is_recente:
@@ -2238,6 +2259,7 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
             acoes.append({**base, "acao": "NOVO", "lead_id": None})
 
     log.info("Filtro data_inscr (>= %s): %d inscritos excluídos", data_corte, n_data_filtrada)
+    log.info("MATRICULADO via CPF (lead ativo + RGM no SIAA): %d", n_matriculado_via_cpf)
 
     # --- UNIFICAR: 1 acao por CPF com leads duplicados no Kommo ---
     # Detecção por CPF + Telefone + RG (dados sensíveis, sem usar nome)
@@ -2301,7 +2323,7 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                            LPAD(regexp_replace(values_json->0->>'value', '[^0-9]', '', 'g'), 11, '0') AS cpf
                     FROM lead_custom_field_values
                     WHERE lead_id = ANY(%s) AND field_name = 'CPF'
-                      AND length(regexp_replace(values_json->0->>'value', '[^0-9]', '', 'g')) = 11
+                      AND length(regexp_replace(values_json->0->>'value', '[^0-9]', '', 'g')) BETWEEN 10 AND 11
                 """, (list(all_dup_rg_ids),))
                 lid_to_cpf = {row[0]: row[1] for row in kcur.fetchall()}
 
@@ -2370,7 +2392,7 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                         AND rgm_cf.field_name = 'RGM'
                     WHERE cpf_cf.field_name = 'CPF'
                       AND length(regexp_replace(cpf_cf.values_json->0->>'value',
-                                  '[^0-9]', '', 'g')) = 11
+                                  '[^0-9]', '', 'g')) BETWEEN 10 AND 11
                       AND rgm_cf.values_json->0->>'value' IS NOT NULL
                       AND rgm_cf.values_json->0->>'value' != ''
                     GROUP BY cpf, rgm_cf.values_json->0->>'value'
