@@ -251,18 +251,34 @@ def api_kommo_sync():
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, bufsize=1, env=env,
             )
+            _tasks[task_id]["proc"] = proc
 
             rc = _stream(proc, "sync", 5, 80)
 
+            if _tasks[task_id].get("cancelled"):
+                _tasks[task_id]["status"] = "cancelled"
+                _log("[CANCELADO] Sincronização interrompida pelo usuário.")
+                return
+
             if rc == 0:
-                _log("Sync concluído. Migrando para PostgreSQL...", 82)
+                # Full sync: migração completa (inclui lead_custom_field_values em massa).
+                # Delta: --light com correção de bug (cf_values por delta desde pg_last_sync).
+                mig_args = [sys.executable, "-u", "migrate_to_postgres.py"]
+                if mode != "full":
+                    mig_args.append("--light")
+                _log(
+                    "Sync concluído. Migrando para PostgreSQL (%s)..."
+                    % ("FULL" if mode == "full" else "LIGHT+cf_values"),
+                    82,
+                )
 
                 mig = subprocess.Popen(
-                    [sys.executable, "-u", "migrate_to_postgres.py", "--light"],
+                    mig_args,
                     cwd=KOMMO_DIR,
                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                     text=True, bufsize=1, env=env,
                 )
+                _tasks[task_id]["proc"] = mig
                 mig_rc = _stream(mig, "migrate", 82, 98)
 
                 if mig_rc == 0:
@@ -274,16 +290,46 @@ def api_kommo_sync():
                 _tasks[task_id]["status"] = "completed"
                 _log("Sincronização concluída com sucesso!", 100)
             else:
-                _tasks[task_id]["status"] = "error"
-                _log(f"Sync falhou (código {rc})")
+                if not _tasks[task_id].get("cancelled"):
+                    _tasks[task_id]["status"] = "error"
+                    _log(f"Sync falhou (código {rc})")
 
         except Exception as e:
             _tasks[task_id]["status"] = "error"
             _log(f"Exceção: {e}")
+        finally:
+            _tasks[task_id].pop("proc", None)
 
     thread = threading.Thread(target=_run, daemon=True)
     thread.start()
     return jsonify({"ok": True, "task_id": task_id})
+
+
+@kommo_bp.route("/api/kommo/sync/cancel", methods=["POST"])
+def api_kommo_sync_cancel():
+    """Cancela o sync em andamento matando o subprocess."""
+    body = request.json or {}
+    task_id = body.get("task_id")
+
+    task = _tasks.get(task_id) if task_id else None
+    if not task:
+        # Tenta achar qualquer task de sync rodando
+        task = next((t for t in _tasks.values() if t.get("type") == "sync" and t.get("status") == "running"), None)
+
+    if not task:
+        return jsonify({"ok": False, "error": "Nenhum sync em andamento."}), 404
+
+    task["cancelled"] = True
+    proc = task.get("proc")
+    if proc:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+    task["status"] = "cancelled"
+    task["message"] = "Cancelado pelo usuário."
+    return jsonify({"ok": True})
 
 
 # ── Task progress ────────────────────────────────────────────────────────

@@ -101,6 +101,16 @@ async function crgmAtualizar() {
         const res = await api(`/api/comercial-rgm/data?${qs}`);
         const d = await res.json();
         if (!d.ok) { _crgmErro(d.error || 'Erro'); return; }
+        const avisoMetas = document.getElementById('crgm-metas-aviso');
+        if (avisoMetas) {
+            if (d.metas_aviso) {
+                avisoMetas.textContent = d.metas_aviso;
+                avisoMetas.classList.remove('hidden');
+            } else {
+                avisoMetas.textContent = '';
+                avisoMetas.classList.add('hidden');
+            }
+        }
         _crgmRenderKPIs(d.kpis);
         _crgmRenderEvasao(d.evasao);
         _crgmRenderEvolucao(d.evolucao, d.evolucao_prev || [], d.evolucao_bruto || []);

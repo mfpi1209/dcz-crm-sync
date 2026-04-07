@@ -265,7 +265,7 @@ function _kommoPollTask() {
                 logEl.scrollTop = logEl.scrollHeight;
             }
 
-            if (t.status === 'completed' || t.status === 'error') {
+            if (t.status === 'completed' || t.status === 'error' || t.status === 'cancelled') {
                 clearInterval(_kommoPolling);
                 _kommoPolling = null;
                 _kommoResetButtons();
@@ -292,4 +292,33 @@ function _kommoResetButtons() {
     const btnF = document.getElementById('kommo-btn-full');
     btnD.disabled = false; btnF.disabled = false;
     btnD.style.opacity = '1'; btnF.style.opacity = '1';
+    document.getElementById('kommo-progress-wrap')?.classList.add('hidden');
+}
+
+async function _kommoCancelSync() {
+    const btn = document.getElementById('kommo-btn-cancel');
+    if (btn) { btn.disabled = true; btn.textContent = 'Cancelando...'; }
+    try {
+        const res = await api('/api/kommo/sync/cancel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task_id: _kommoTaskId }),
+        });
+        const d = await res.json();
+        if (d.ok) {
+            toast('Sync cancelado.', 'info');
+            clearInterval(_kommoPolling);
+            _kommoPolling = null;
+            document.getElementById('kommo-progress-label').textContent = 'Cancelado.';
+            document.getElementById('kommo-progress-bar').className =
+                document.getElementById('kommo-progress-bar').className
+                    .replace('from-emerald-500 to-teal-400', 'from-red-500 to-red-400');
+            setTimeout(() => _kommoResetButtons(), 2000);
+        } else {
+            toast(d.error || 'Erro ao cancelar', 'error');
+            if (btn) { btn.disabled = false; btn.innerHTML = '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg> Cancelar'; }
+        }
+    } catch (e) {
+        toast('Erro: ' + e.message, 'error');
+    }
 }

@@ -62,6 +62,16 @@ def _kommo_api_v4() -> str:
     return b if b.endswith("/api/v4") else f"{b}/api/v4"
 
 
+def _kommo_uid_int(v):
+    """IDs de usuário Kommo: o ranking usa int; o PG pode devolver tipos mistos."""
+    if v is None:
+        return None
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return None
+
+
 def _kommo_upsert_lead_postgres(lead: dict) -> None:
     """Grava/atualiza um lead e campos custom direto no PostgreSQL kommo_sync."""
     from psycopg2.extras import Json
@@ -2505,9 +2515,10 @@ def crgm_data():
         )
 
         # --- Metas por agente: premiacao_campanha_meta (primary) + comercial_metas (fallback) ---
-        # Structure: {cat: {uid: {meta, intermediaria, supermeta}}}
+        # Structure: {cat: {uid_int: {meta, intermediaria, supermeta}}}
         metas_by_cat = {}
         campanha_meta_uids = set()
+        metas_load_error = None
         try:
             conn2 = _pg()
             cur2 = conn2.cursor()
@@ -2519,7 +2530,9 @@ def crgm_data():
                 WHERE pc.dt_inicio <= %s AND pc.dt_fim >= %s
             """, (dt_fim or '9999-12-31', dt_ini or '1900-01-01'))
             for r in cur2.fetchall():
-                uid = r[0]
+                uid = _kommo_uid_int(r[0])
+                if uid is None:
+                    continue
                 campanha_meta_uids.add(uid)
                 metas_by_cat.setdefault("matriculas", {})
                 metas_by_cat["matriculas"][uid] = {
@@ -2535,7 +2548,9 @@ def crgm_data():
                 WHERE dt_inicio <= %s AND dt_fim >= %s
             """, (dt_fim or '9999-12-31', dt_ini or '1900-01-01'))
             for r in cur2.fetchall():
-                uid = r[0]
+                uid = _kommo_uid_int(r[0])
+                if uid is None:
+                    continue
                 cat = r[4] or "matriculas"
                 if cat == "matriculas" and uid in campanha_meta_uids:
                     continue
@@ -2547,8 +2562,9 @@ def crgm_data():
                 metas_by_cat[cat][uid] = prev
             cur2.close()
             conn2.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("metas por periodo: %s", e)
+            metas_load_error = str(e)
 
         mat_metas = metas_by_cat.get("matriculas", {})
         for ag in ranking_agentes:
@@ -2559,14 +2575,15 @@ def crgm_data():
                 ag["supermeta"] = 0
                 ag["metas_cat"] = {}
                 continue
-            m = mat_metas.get(uid, {})
+            uki = _kommo_uid_int(uid)
+            m = mat_metas.get(uki, {}) if uki is not None else {}
             ag["meta"] = m.get("meta", 0)
             ag["meta_intermediaria"] = m.get("intermediaria", 0)
             ag["supermeta"] = m.get("supermeta", 0)
             ag["metas_cat"] = {}
             for cat, users in metas_by_cat.items():
-                if uid in users:
-                    ag["metas_cat"][cat] = users[uid]
+                if uki is not None and uki in users:
+                    ag["metas_cat"][cat] = users[uki]
 
         # --- Evasão: RGMs brutos que não são EM CURSO → breakdown por tipo e por agente ---
         evasao_data = {"total": 0, "por_tipo": {}, "por_agente": [], "itens": []}
@@ -2619,8 +2636,24 @@ def crgm_data():
                 ],
             }
 
+        metas_aviso = None
+        if metas_load_error:
+            metas_aviso = (
+                "Não foi possível carregar as metas deste período. "
+                "Verifique o log do servidor ou a conexão com o banco."
+            )
+        elif not mat_metas and any(
+            (a.get("matriculas_periodo") or 0) > 0 and a.get("user_id") != -1
+            for a in ranking_agentes
+        ):
+            metas_aviso = (
+                "Nenhuma meta de matrículas cadastrada para o intervalo de datas dos filtros "
+                "(ou campanha sem sobreposição). Cadastre metas comerciais ou ajuste dt início/fim."
+            )
+
         return jsonify({
             "ok": True,
+            "metas_aviso": metas_aviso,
             "kpis": {
                 "vendas": vendas,
                 "vendas_liquidas": vendas_liquidas,
