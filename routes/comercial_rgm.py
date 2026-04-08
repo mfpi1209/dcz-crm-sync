@@ -72,93 +72,21 @@ def _kommo_uid_int(v):
         return None
 
 
-def _kommo_upsert_lead_postgres(lead: dict) -> None:
-    """Grava/atualiza um lead e campos custom direto no PostgreSQL kommo_sync."""
-    from psycopg2.extras import Json
+def _kommo_mini_sync_lead_flask(lead_id: int) -> tuple[dict | None, str | None]:
+    """
+    Mesmo pipeline que `python kommo_lib/sync_one_lead.py <id>`:
+    KommoAPIClient -> SQLite (kommo_lib) + PostgreSQL kommo_sync.
+    """
+    import sys
+    from pathlib import Path
 
-    now = datetime.utcnow().isoformat()
-    cfs = lead.get("custom_fields_values") or []
-    emb = lead.get("_embedded") or {}
-    tags = emb.get("tags") or []
-    contacts = emb.get("contacts") or []
-    k = _pg_kommo()
-    c = k.cursor()
-    c.execute(
-        """
-        INSERT INTO leads (
-            id, name, price, responsible_user_id, group_id, status_id, pipeline_id,
-            loss_reason_id, source_id, created_by, updated_by, closed_at, created_at,
-            updated_at, closest_task_at, is_deleted, score, account_id, labor_cost,
-            is_price_modified, custom_fields_json, tags_json, contacts_json, raw_json, synced_at
-        ) VALUES (
-            %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
-        )
-        ON CONFLICT (id) DO UPDATE SET
-            name = EXCLUDED.name, price = EXCLUDED.price,
-            responsible_user_id = EXCLUDED.responsible_user_id, group_id = EXCLUDED.group_id,
-            status_id = EXCLUDED.status_id, pipeline_id = EXCLUDED.pipeline_id,
-            loss_reason_id = EXCLUDED.loss_reason_id, source_id = EXCLUDED.source_id,
-            created_by = EXCLUDED.created_by, updated_by = EXCLUDED.updated_by,
-            closed_at = EXCLUDED.closed_at, created_at = EXCLUDED.created_at,
-            updated_at = EXCLUDED.updated_at, closest_task_at = EXCLUDED.closest_task_at,
-            is_deleted = EXCLUDED.is_deleted, score = EXCLUDED.score,
-            account_id = EXCLUDED.account_id, labor_cost = EXCLUDED.labor_cost,
-            is_price_modified = EXCLUDED.is_price_modified,
-            custom_fields_json = EXCLUDED.custom_fields_json, tags_json = EXCLUDED.tags_json,
-            contacts_json = EXCLUDED.contacts_json, synced_at = EXCLUDED.synced_at
-        """,
-        (
-            lead["id"],
-            lead.get("name"),
-            int(lead.get("price") or 0),
-            lead.get("responsible_user_id"),
-            lead.get("group_id"),
-            lead.get("status_id"),
-            lead.get("pipeline_id"),
-            lead.get("loss_reason_id"),
-            lead.get("source_id"),
-            lead.get("created_by"),
-            lead.get("updated_by"),
-            lead.get("closed_at"),
-            lead.get("created_at"),
-            lead.get("updated_at"),
-            lead.get("closest_task_at"),
-            bool(lead.get("is_deleted")),
-            lead.get("score"),
-            lead.get("account_id"),
-            lead.get("labor_cost"),
-            bool(lead.get("is_price_modified_by_robot")),
-            Json(cfs) if cfs else None,
-            Json(tags) if tags else None,
-            Json(contacts) if contacts else None,
-            None,
-            now,
-        ),
-    )
-    for cf in cfs:
-        c.execute(
-            """
-            INSERT INTO lead_custom_field_values
-            (lead_id, field_id, field_name, field_code, field_type, values_json, synced_at)
-            VALUES (%s,%s,%s,%s,%s,%s,%s)
-            ON CONFLICT (lead_id, field_id) DO UPDATE SET
-                field_name = EXCLUDED.field_name, field_code = EXCLUDED.field_code,
-                field_type = EXCLUDED.field_type, values_json = EXCLUDED.values_json,
-                synced_at = EXCLUDED.synced_at
-            """,
-            (
-                lead["id"],
-                cf.get("field_id"),
-                cf.get("field_name"),
-                cf.get("field_code"),
-                cf.get("field_type"),
-                Json(cf.get("values") or []),
-                now,
-            ),
-        )
-    k.commit()
-    c.close()
-    k.close()
+    kl = Path(__file__).resolve().parents[1] / "kommo_lib"
+    p = str(kl)
+    if p not in sys.path:
+        sys.path.insert(0, p)
+    from sync_one_lead import mini_sync_lead
+
+    return mini_sync_lead(lead_id)
 
 
 def _kommo_resolve_lead_id_by_rgm(rgm_clean: str) -> tuple[list[int], str | None]:
@@ -255,26 +183,6 @@ def _kommo_resolve_lead_id_by_rgm(rgm_clean: str) -> tuple[list[int], str | None
         "Não achamos esse RGM na base nem nas primeiras páginas da API. "
         "Use o ID do lead (número após # na URL do Kommo)."
     )
-
-
-def _kommo_fetch_lead_full(lead_id: int) -> dict | None:
-    api = _kommo_api_v4()
-    r = requests.get(
-        f"{api}/leads/{lead_id}",
-        headers={"Authorization": f"Bearer {KOMMO_TOKEN}", "Accept": "application/json"},
-        params={"with": "contacts"},
-        timeout=45,
-    )
-    if r.status_code != 200:
-        logger.warning("GET lead %s -> %s %s", lead_id, r.status_code, r.text[:200])
-        return None
-    data = r.json()
-    if isinstance(data.get("id"), int):
-        return data
-    emb = data.get("_embedded", {})
-    if emb.get("leads"):
-        return emb["leads"][0]
-    return None
 
 
 def _pg():
@@ -2047,6 +1955,7 @@ def _build_agent_ranking_completa_vw(
             supp_cw.append("regexp_replace(coalesce(r.data->>'rgm',''), '[^0-9]', '', 'g') != ALL(%s)")
             supp_cp.append(list(already))
             supp_where = "WHERE " + " AND ".join(supp_cw)
+            _rgm_nome_antes_supp = len(rgm_nome)
             try:
                 cur2 = conn.cursor() if not conn.closed else _pg().cursor()
                 cur2.execute(f"""
@@ -2068,7 +1977,10 @@ def _build_agent_ranking_completa_vw(
                     if n and n not in rgm_nome:
                         rgm_nome[n] = (nome or "").strip()
                 cur2.close()
-                logger.info("ranking: +%d RGMs cancelados-pós-meta incluídos", len(rgm_nome) - len(mat_rows) if mat_rows else 0)
+                logger.info(
+                    "ranking: +%d RGMs cancelados-pós-meta incluídos",
+                    len(rgm_nome) - _rgm_nome_antes_supp,
+                )
             except Exception as _se:
                 logger.warning("ranking supp cancelados: %s", _se)
 
@@ -2109,31 +2021,39 @@ def _build_agent_ranking_completa_vw(
         ep_fim = _date_to_epoch(dt_fim)
         if ep_fim is not None:
             ep_fim += 86399
+        # CRM no ranking: período DE/ATÉ em leads.created_at / closed_at (epoch).
+        # total / novos = criados no período; ganhos / perdidos = fechados no período (Kommo).
+        # Conv.% = matrículas no período (CSV×Kommo) / total de leads criados no período — não usa ganhos 142.
         kcur.execute("""
             SELECT l.responsible_user_id,
-                   COUNT(*) AS total,
-                   SUM(CASE WHEN l.status_id = 142 THEN 1 ELSE 0 END) AS ganhos,
-                   SUM(CASE WHEN l.status_id = 143 THEN 1 ELSE 0 END) AS perdidos,
-                   SUM(CASE WHEN l.status_id NOT IN (142, 143) THEN 1 ELSE 0 END) AS ativos,
-                   SUM(CASE WHEN l.status_id = 143 AND l.closed_at IS NOT NULL
-                            AND (%(ep_ini)s IS NULL OR l.closed_at >= %(ep_ini)s)
-                            AND (%(ep_fim)s IS NULL OR l.closed_at <= %(ep_fim)s)
-                       THEN 1 ELSE 0 END) AS perdidos_periodo,
                    SUM(CASE WHEN l.created_at IS NOT NULL
                             AND (%(ep_ini)s IS NULL OR l.created_at >= %(ep_ini)s)
                             AND (%(ep_fim)s IS NULL OR l.created_at <= %(ep_fim)s)
-                       THEN 1 ELSE 0 END) AS novos_periodo
+                       THEN 1 ELSE 0 END) AS total_periodo,
+                   SUM(CASE WHEN l.status_id = 142 AND l.closed_at IS NOT NULL
+                            AND (%(ep_ini)s IS NULL OR l.closed_at >= %(ep_ini)s)
+                            AND (%(ep_fim)s IS NULL OR l.closed_at <= %(ep_fim)s)
+                       THEN 1 ELSE 0 END) AS ganhos_periodo,
+                   SUM(CASE WHEN l.status_id = 143 AND l.closed_at IS NOT NULL
+                            AND (%(ep_ini)s IS NULL OR l.closed_at >= %(ep_ini)s)
+                            AND (%(ep_fim)s IS NULL OR l.closed_at <= %(ep_fim)s)
+                       THEN 1 ELSE 0 END) AS perdidos_periodo
             FROM leads l
             WHERE l.responsible_user_id IS NOT NULL AND NOT l.is_deleted
             GROUP BY l.responsible_user_id
         """, {"ep_ini": ep_ini, "ep_fim": ep_fim})
-        crm_stats = {
-            r[0]: {
-                "total": r[1], "ganhos": r[2], "perdidos": r[3], "ativos": r[4],
-                "perdidos_periodo": r[5], "novos_periodo": r[6],
+        crm_stats = {}
+        for r in kcur.fetchall():
+            tot_p = int(r[1] or 0)
+            g_p = int(r[2] or 0)
+            perd_p = int(r[3] or 0)
+            crm_stats[r[0]] = {
+                "total": tot_p,
+                "ganhos": g_p,
+                "perdidos": perd_p,
+                "perdidos_periodo": perd_p,
+                "novos_periodo": tot_p,
             }
-            for r in kcur.fetchall()
-        }
         kcur.close()
         kconn.close()
 
@@ -2155,15 +2075,15 @@ def _build_agent_ranking_completa_vw(
         for uid in uids_real:
             cs = crm_stats.get(uid, {})
             t, g = cs.get("total", 0), cs.get("ganhos", 0)
+            m = mat_per_agent.get(uid, 0)
             ranking.append({
                 "user_id": uid,
                 "nome": user_map.get(uid, f"User #{uid}"),
                 "total": t,
                 "ganhos": g,
                 "perdidos": cs.get("perdidos", 0),
-                "ativos": cs.get("ativos", 0),
-                "taxa_conversao": round(g / t * 100, 1) if t > 0 else 0,
-                "matriculas_periodo": mat_per_agent.get(uid, 0),
+                "taxa_conversao": round(m / t * 100, 1) if t > 0 else 0,
+                "matriculas_periodo": m,
                 "perdidos_periodo": cs.get("perdidos_periodo", 0),
                 "novos_periodo": cs.get("novos_periodo", 0),
             })
@@ -2174,7 +2094,6 @@ def _build_agent_ranking_completa_vw(
                 "total": 0,
                 "ganhos": 0,
                 "perdidos": 0,
-                "ativos": 0,
                 "taxa_conversao": 0.0,
                 "matriculas_periodo": tr_count,
                 "perdidos_periodo": 0,
@@ -3245,7 +3164,8 @@ def crgm_delete_meta(meta_id):
 @comercial_rgm_bp.route("/api/comercial-rgm/kommo-sync-lead", methods=["POST"])
 def crgm_kommo_sync_lead():
     """
-    Busca um lead na API Kommo e grava em kommo_sync (Postgres).
+    Sincronização pontual de 1 lead (mesmo fluxo que `python kommo_lib/sync_one_lead.py <id>`):
+    API Kommo -> SQLite local do kommo_lib + PostgreSQL kommo_sync.
     Body JSON: { "lead_id": 20796123 } OU { "rgm": "48411612" }
     Se vários leads com o mesmo RGM, retorna lista para escolher (ou use lead_id).
     """
@@ -3282,14 +3202,9 @@ def crgm_kommo_sync_lead():
                 "error": "Informe o ID do lead (Kommo) ou o RGM com 8 dígitos.",
             }), 400
 
-        lead = _kommo_fetch_lead_full(lid)
+        lead, sync_err = _kommo_mini_sync_lead_flask(lid)
         if not lead:
-            return jsonify({
-                "ok": False,
-                "error": f"Lead {lid} não encontrado na API (verifique token e URL KOMMO_BASE_URL).",
-            }), 404
-
-        _kommo_upsert_lead_postgres(lead)
+            return jsonify({"ok": False, "error": sync_err or "Falha na sincronização pontual do lead."}), 404
 
         cfs = lead.get("custom_fields_values") or []
         rgm_out = None
@@ -3324,7 +3239,7 @@ def crgm_kommo_sync_lead():
             "pipeline": pipeline,
             "pipeline_id": lead.get("pipeline_id"),
             "status": status_txt,
-            "msg": "Lead atualizado no banco kommo_sync. O cruzamento com matrículas pode refletir na próxima carga.",
+            "msg": "Sincronização pontual concluída (SQLite kommo_lib + PostgreSQL kommo_sync). O cruzamento com matrículas atualiza ao recarregar o dashboard.",
         })
     except Exception as e:
         logger.exception("kommo-sync-lead")

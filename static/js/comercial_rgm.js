@@ -381,7 +381,7 @@ function _crgmRenderAgentes(agentes) {
     const tbody = document.getElementById('crgm-agentes-body');
     const countEl = document.getElementById('crgm-agentes-count');
     if (!agentes || !agentes.length) {
-        tbody.innerHTML = '<tr><td colspan="12" class="px-5 py-8 text-center text-slate-600">Nenhum agente encontrado</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="px-5 py-8 text-center text-slate-600">Nenhum agente encontrado</td></tr>';
         if (countEl) countEl.textContent = ''; return;
     }
     const agenteFilter = document.getElementById('crgm-agente').value;
@@ -426,7 +426,6 @@ function _crgmRenderAgentes(agentes) {
             <td class="px-4 py-2.5 text-right font-mono text-cyan-400">${np.toLocaleString('pt-BR')}</td>
             <td class="px-4 py-2.5 text-right font-mono text-red-400">${pp.toLocaleString('pt-BR')}</td>
             <td class="px-4 py-2.5 text-right font-mono text-slate-300">${a.total.toLocaleString('pt-BR')}</td>
-            <td class="px-4 py-2.5 text-right font-mono text-teal-400">${a.ativos.toLocaleString('pt-BR')}</td>
             <td class="px-4 py-2.5 text-right font-mono font-bold ${taxaClass}">${a.taxa_conversao}%</td>
         </tr>`;
     }).join('');

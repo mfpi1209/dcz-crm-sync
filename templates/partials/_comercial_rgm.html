@@ -127,7 +127,7 @@
             </h3>
             <button onclick="crgmToggleKommoLead()" class="text-slate-500 hover:text-white text-xs">Fechar</button>
         </div>
-        <p class="text-xs text-slate-400 mb-4">Se uma matrícula não cruza com o CRM, puxe o lead direto da API: informe o <strong class="text-slate-300">ID do lead</strong> (número após # na URL do Kommo) ou o <strong class="text-slate-300">RGM</strong> (8 dígitos). Os dados são gravados no PostgreSQL <code class="text-emerald-400/90">kommo_sync</code>.</p>
+        <p class="text-xs text-slate-400 mb-4"><strong class="text-emerald-300/90">Mini sync Kommo</strong> — mesmo fluxo que rodar <code class="text-slate-500">python kommo_lib/sync_one_lead.py &lt;id&gt;</code>: busca só esse lead na API, atualiza o SQLite do sync e espelha no PostgreSQL <code class="text-emerald-400/90">kommo_sync</code>. Informe o <strong class="text-slate-300">ID do lead</strong> (após # na URL) ou o <strong class="text-slate-300">RGM</strong> (8 dígitos). <code class="text-slate-500">KOMMO_BASE_URL</code> = mesmo subdomínio do Kommo no navegador (sem <code class="text-slate-500">/api/v4</code> no fim).</p>
         <div class="flex flex-wrap items-end gap-4">
             <div>
                 <label class="block text-[10px] text-slate-500 mb-1">ID do lead (Kommo)</label>
@@ -499,12 +499,11 @@
                         <th class="text-right px-4 py-3">Novos <span class="text-slate-600">(per.)</span></th>
                         <th class="text-right px-4 py-3">Perdidos <span class="text-slate-600">(per.)</span></th>
                         <th class="text-right px-4 py-3">Total</th>
-                        <th class="text-right px-4 py-3">Ativos</th>
                         <th class="text-right px-4 py-3">Conv.</th>
                     </tr>
                 </thead>
                 <tbody id="crgm-agentes-body" class="divide-y divide-slate-700/10">
-                    <tr><td colspan="12" class="px-5 py-8 text-center text-slate-600">Carregando...</td></tr>
+                    <tr><td colspan="11" class="px-5 py-8 text-center text-slate-600">Carregando...</td></tr>
                 </tbody>
             </table>
         </div>
