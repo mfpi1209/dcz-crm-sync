@@ -10,8 +10,11 @@ function _crgmPickLatestMetaPeriod(periods) {
     const uniq = new Map();
     for (const p of periods) {
         if (!p?.dt_inicio || !p?.dt_fim) continue;
-        const k = `${p.dt_inicio}|${p.dt_fim}`;
-        if (!uniq.has(k)) uniq.set(k, { dt_inicio: p.dt_inicio, dt_fim: p.dt_fim });
+        const di = String(p.dt_inicio).trim().substring(0, 10);
+        const df = String(p.dt_fim).trim().substring(0, 10);
+        if (!di || !df) continue;
+        const k = `${di}|${df}`;
+        if (!uniq.has(k)) uniq.set(k, { dt_inicio: di, dt_fim: df });
     }
     const arr = Array.from(uniq.values());
     arr.sort((a, b) => {
@@ -31,37 +34,47 @@ async function loadComercialRgm() {
     }
     const elIni = document.getElementById('crgm-dt-ini');
     const elFim = document.getElementById('crgm-dt-fim');
-    if (!elIni.value || !elFim.value) {
-        // Período mais recente entre comercial_metas e Premiação (não só metas[0], que pode ser período antigo)
-        try {
-            const periods = [];
-            const res = await api('/api/comercial-rgm/metas?categoria=matriculas');
-            const d = await res.json();
-            if (d.ok && d.metas?.length) {
-                for (const m of d.metas) {
-                    if (m.dt_inicio && m.dt_fim) periods.push({ dt_inicio: m.dt_inicio, dt_fim: m.dt_fim });
-                }
+    // Sempre calcula o período mais recente (comercial_metas + Premiação). Antes só aplicávamos se DE ou ATÉ
+    // estivesse vazio; com ambos preenchidos (restauração do navegador ou sessão antiga) o dashboard ficava preso
+    // a metas antigas mesmo existindo campanha/meta mais nova.
+    try {
+        const periods = [];
+        const res = await api('/api/comercial-rgm/metas?categoria=matriculas');
+        const d = await res.json();
+        if (d.ok && d.metas?.length) {
+            for (const m of d.metas) {
+                if (m.dt_inicio && m.dt_fim) periods.push({ dt_inicio: m.dt_inicio, dt_fim: m.dt_fim });
             }
-            const resC = await api('/api/premiacao/campanhas-periodos');
-            const dc = await resC.json();
-            if (dc.ok && dc.campanhas?.length) {
-                for (const c of dc.campanhas) {
-                    if (c.dt_inicio && c.dt_fim) periods.push({ dt_inicio: c.dt_inicio, dt_fim: c.dt_fim });
-                }
-            }
-            const ultima = _crgmPickLatestMetaPeriod(periods);
-            if (ultima) {
-                if (!elIni.value) elIni.value = ultima.dt_inicio;
-                if (!elFim.value) elFim.value = ultima.dt_fim;
-            }
-        } catch (_) {}
-        // Fallback: primeiro dia do mês atual até hoje
-        if (!elIni.value || !elFim.value) {
-            const hoje = new Date();
-            const ini = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-            if (!elIni.value) elIni.value = ini.toISOString().substring(0, 10);
-            if (!elFim.value) elFim.value = hoje.toISOString().substring(0, 10);
         }
+        const resC = await api('/api/premiacao/campanhas-periodos');
+        const dc = await resC.json();
+        if (dc.ok && dc.campanhas?.length) {
+            for (const c of dc.campanhas) {
+                if (c.dt_inicio && c.dt_fim) periods.push({ dt_inicio: c.dt_inicio, dt_fim: c.dt_fim });
+            }
+        }
+        const ultima = _crgmPickLatestMetaPeriod(periods);
+        if (ultima) {
+            const ni = String(ultima.dt_inicio || '').trim().substring(0, 10);
+            const nf = String(ultima.dt_fim || '').trim().substring(0, 10);
+            if (ni && nf) {
+                const curIni = (elIni.value || '').trim().substring(0, 10);
+                const curFim = (elFim.value || '').trim().substring(0, 10);
+                const empty = !curIni || !curFim;
+                const endsAfter = curFim && nf > curFim;
+                const sameEndLaterStart = curIni && curFim && nf === curFim && ni > curIni;
+                if (empty || endsAfter || sameEndLaterStart) {
+                    elIni.value = ni;
+                    elFim.value = nf;
+                }
+            }
+        }
+    } catch (_) {}
+    if (!elIni.value || !elFim.value) {
+        const hoje = new Date();
+        const ini = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+        if (!elIni.value) elIni.value = ini.toISOString().substring(0, 10);
+        if (!elFim.value) elFim.value = hoje.toISOString().substring(0, 10);
     }
     await _crgmPrefetchHistoricoMetas();
     crgmAtualizar();
