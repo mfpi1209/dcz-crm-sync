@@ -2514,11 +2514,14 @@ def crgm_data():
             excluded_rgms=_excluded,
         )
 
-        # --- Metas por agente: premiacao_campanha_meta (primary) + comercial_metas (fallback) ---
+        # --- Metas por agente: premiacao_campanha_meta (primary) + comercial_metas (fallback)
+        #     + pré-definição na premiacao_campanha (def_meta_*) para agentes sem linha em pcm ---
         # Structure: {cat: {uid_int: {meta, intermediaria, supermeta}}}
         metas_by_cat = {}
         campanha_meta_uids = set()
         metas_load_error = None
+        has_camp_overlap = False
+        camp_defs = None  # (def_inter, def_meta, def_super) from campanha ativa no período
         try:
             conn2 = _pg()
             cur2 = conn2.cursor()
@@ -2527,7 +2530,8 @@ def crgm_data():
                 SELECT pcm.kommo_user_id, pcm.meta, pcm.meta_intermediaria, pcm.supermeta
                 FROM premiacao_campanha_meta pcm
                 JOIN premiacao_campanha pc ON pc.id = pcm.campanha_id
-                WHERE pc.dt_inicio <= %s AND pc.dt_fim >= %s
+                WHERE COALESCE(pc.ativa, TRUE)
+                  AND pc.dt_inicio <= %s AND pc.dt_fim >= %s
             """, (dt_fim or '9999-12-31', dt_ini or '1900-01-01'))
             for r in cur2.fetchall():
                 uid = _kommo_uid_int(r[0])
@@ -2560,6 +2564,21 @@ def crgm_data():
                 prev["intermediaria"] += float(r[2])
                 prev["supermeta"] += float(r[3])
                 metas_by_cat[cat][uid] = prev
+
+            if dt_ini and dt_fim:
+                cur2.execute("""
+                    SELECT def_meta_intermediaria, def_meta, def_supermeta
+                    FROM premiacao_campanha
+                    WHERE COALESCE(ativa, TRUE)
+                      AND dt_inicio <= %s::date AND dt_fim >= %s::date
+                    ORDER BY dt_inicio DESC
+                    LIMIT 1
+                """, (dt_fim, dt_ini))
+                row_c = cur2.fetchone()
+                if row_c:
+                    has_camp_overlap = True
+                    camp_defs = row_c
+
             cur2.close()
             conn2.close()
         except Exception as e:
@@ -2567,6 +2586,24 @@ def crgm_data():
             metas_load_error = str(e)
 
         mat_metas = metas_by_cat.get("matriculas", {})
+        if camp_defs:
+            d_i = float(camp_defs[0] or 0)
+            d_m = float(camp_defs[1] or 0)
+            d_s = float(camp_defs[2] or 0)
+            if d_i > 0 or d_m > 0 or d_s > 0:
+                for ag in ranking_agentes:
+                    uid = ag.get("user_id")
+                    if uid == -1:
+                        continue
+                    uki = _kommo_uid_int(uid)
+                    if uki is None:
+                        continue
+                    if uki not in mat_metas:
+                        mat_metas[uki] = {
+                            "meta": d_m,
+                            "intermediaria": d_i,
+                            "supermeta": d_s,
+                        }
         for ag in ranking_agentes:
             uid = ag["user_id"]
             if uid == -1:
@@ -2642,13 +2679,18 @@ def crgm_data():
                 "Não foi possível carregar as metas deste período. "
                 "Verifique o log do servidor ou a conexão com o banco."
             )
-        elif not mat_metas and any(
-            (a.get("matriculas_periodo") or 0) > 0 and a.get("user_id") != -1
-            for a in ranking_agentes
+        elif (
+            not mat_metas
+            and not has_camp_overlap
+            and any(
+                (a.get("matriculas_periodo") or 0) > 0 and a.get("user_id") != -1
+                for a in ranking_agentes
+            )
         ):
             metas_aviso = (
                 "Nenhuma meta de matrículas cadastrada para o intervalo de datas dos filtros "
-                "(ou campanha sem sobreposição). Cadastre metas comerciais ou ajuste dt início/fim."
+                "(ou campanha sem sobreposição). Cadastre na Premiação (metas por agente ou pré-definição) "
+                "ou ajuste dt início/fim."
             )
 
         return jsonify({
@@ -2969,9 +3011,101 @@ def crgm_get_metas():
                  "dt_fim": r[7].isoformat() if r[7] else None,
                  "descricao": r[8], "categoria": r[9] or "matriculas"}
                 for r in cur.fetchall()]
+
+        premiacao_campanhas = []
+        pcm_sums = {}
+        try:
+            cur.execute("""
+                SELECT campanha_id,
+                       COALESCE(SUM(meta), 0),
+                       COALESCE(SUM(meta_intermediaria), 0),
+                       COALESCE(SUM(supermeta), 0),
+                       COUNT(*)::int
+                FROM premiacao_campanha_meta
+                GROUP BY campanha_id
+            """)
+            for pr in cur.fetchall():
+                pcm_sums[int(pr[0])] = {
+                    "meta": float(pr[1]),
+                    "meta_intermediaria": float(pr[2]),
+                    "supermeta": float(pr[3]),
+                    "agentes": int(pr[4]),
+                }
+        except Exception as e:
+            logger.warning("premiacao_campanha_meta sums: %s", e)
+
+        camp_rows = []
+        row_fmt = "basic"
+        try:
+            cur.execute("""
+                SELECT id, nome, dt_inicio, dt_fim,
+                       def_meta_intermediaria, def_meta, def_supermeta,
+                       COALESCE(ativa, TRUE)
+                FROM premiacao_campanha
+                ORDER BY dt_inicio DESC
+            """)
+            camp_rows = cur.fetchall()
+            row_fmt = "full"
+        except Exception as e:
+            logger.warning("premiacao_campanha (cols def_*): %s", e)
+            try:
+                cur.execute("""
+                    SELECT id, nome, dt_inicio, dt_fim, COALESCE(ativa, TRUE)
+                    FROM premiacao_campanha
+                    ORDER BY dt_inicio DESC
+                """)
+                camp_rows = cur.fetchall()
+            except Exception as e2:
+                logger.warning("premiacao_campanha (basico): %s", e2)
+
+        tier_by_cid = {}
+        try:
+            cur.execute(
+                "SELECT campanha_id, tier, valor_por_mat FROM premiacao_tier_bonus"
+            )
+            for tr in cur.fetchall():
+                cid_t = int(tr[0])
+                tier_by_cid.setdefault(cid_t, {})[tr[1]] = float(tr[2])
+        except Exception as e:
+            logger.warning("premiacao_tier_bonus: %s", e)
+
+        for r in camp_rows:
+            try:
+                if row_fmt == "full":
+                    cid = int(r[0])
+                    di, dm, ds = r[4], r[5], r[6]
+                    ativa = bool(r[7])
+                else:
+                    cid = int(r[0])
+                    di, dm, ds = None, None, None
+                    ativa = bool(r[4])
+                premiacao_campanhas.append({
+                    "id": cid,
+                    "nome": r[1],
+                    "dt_inicio": r[2].isoformat() if r[2] else None,
+                    "dt_fim": r[3].isoformat() if r[3] else None,
+                    "ativa": ativa,
+                    "metas_padrao": {
+                        "meta_intermediaria": float(di) if di is not None else None,
+                        "meta": float(dm) if dm is not None else None,
+                        "supermeta": float(ds) if ds is not None else None,
+                    },
+                    "pcm_totais": pcm_sums.get(cid, {
+                        "meta": 0.0, "meta_intermediaria": 0.0, "supermeta": 0.0, "agentes": 0,
+                    }),
+                    "tiers": tier_by_cid.get(cid, {}),
+                })
+            except Exception as row_e:
+                logger.warning("premiacao_campanha linha ignorada: %s | row=%s", row_e, r)
+
         cur.close()
         conn.close()
-        return jsonify({"ok": True, "metas": rows, "categorias": METAS_CATEGORIAS})
+        return jsonify({
+            "ok": True,
+            "metas": rows,
+            "categorias": METAS_CATEGORIAS,
+            "premiacao_campanhas": premiacao_campanhas,
+        })
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 

@@ -657,6 +657,13 @@ def _ensure_premiacao_tables():
                 )
             """)
 
+            # Pré-definição de metas em quantidade de matrículas (Dashboard comercial + ranking)
+            cur.execute(
+                "ALTER TABLE premiacao_campanha ADD COLUMN IF NOT EXISTS def_meta_intermediaria NUMERIC"
+            )
+            cur.execute("ALTER TABLE premiacao_campanha ADD COLUMN IF NOT EXISTS def_meta NUMERIC")
+            cur.execute("ALTER TABLE premiacao_campanha ADD COLUMN IF NOT EXISTS def_supermeta NUMERIC")
+
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS agent_matriculas (
                     id              SERIAL PRIMARY KEY,

@@ -5,6 +5,22 @@
 let _crgmChartEvolucao = null;
 let _crgmChartAgentes = null;
 
+/** Escolhe o período (dt_ini/dt_fim) mais recente entre comercial_metas e campanhas de Premiação. */
+function _crgmPickLatestMetaPeriod(periods) {
+    const uniq = new Map();
+    for (const p of periods) {
+        if (!p?.dt_inicio || !p?.dt_fim) continue;
+        const k = `${p.dt_inicio}|${p.dt_fim}`;
+        if (!uniq.has(k)) uniq.set(k, { dt_inicio: p.dt_inicio, dt_fim: p.dt_fim });
+    }
+    const arr = Array.from(uniq.values());
+    arr.sort((a, b) => {
+        if (a.dt_inicio !== b.dt_inicio) return a.dt_inicio < b.dt_inicio ? 1 : -1;
+        return a.dt_fim < b.dt_fim ? 1 : a.dt_fim > b.dt_fim ? -1 : 0;
+    });
+    return arr[0] || null;
+}
+
 async function loadComercialRgm() {
     await _crgmLoadCiclos();
     await _crgmLoadTurmas();
@@ -16,12 +32,25 @@ async function loadComercialRgm() {
     const elIni = document.getElementById('crgm-dt-ini');
     const elFim = document.getElementById('crgm-dt-fim');
     if (!elIni.value || !elFim.value) {
-        // Tenta usar o período da última meta cadastrada
+        // Período mais recente entre comercial_metas e Premiação (não só metas[0], que pode ser período antigo)
         try {
+            const periods = [];
             const res = await api('/api/comercial-rgm/metas?categoria=matriculas');
             const d = await res.json();
-            const ultima = d.ok && d.metas && d.metas.length > 0 ? d.metas[0] : null;
-            if (ultima && ultima.dt_inicio && ultima.dt_fim) {
+            if (d.ok && d.metas?.length) {
+                for (const m of d.metas) {
+                    if (m.dt_inicio && m.dt_fim) periods.push({ dt_inicio: m.dt_inicio, dt_fim: m.dt_fim });
+                }
+            }
+            const resC = await api('/api/premiacao/campanhas-periodos');
+            const dc = await resC.json();
+            if (dc.ok && dc.campanhas?.length) {
+                for (const c of dc.campanhas) {
+                    if (c.dt_inicio && c.dt_fim) periods.push({ dt_inicio: c.dt_inicio, dt_fim: c.dt_fim });
+                }
+            }
+            const ultima = _crgmPickLatestMetaPeriod(periods);
+            if (ultima) {
                 if (!elIni.value) elIni.value = ultima.dt_inicio;
                 if (!elFim.value) elFim.value = ultima.dt_fim;
             }
@@ -34,6 +63,7 @@ async function loadComercialRgm() {
             if (!elFim.value) elFim.value = hoje.toISOString().substring(0, 10);
         }
     }
+    await _crgmPrefetchHistoricoMetas();
     crgmAtualizar();
 }
 
@@ -925,127 +955,17 @@ async function crgmSalvarTurma() {
     } catch (e) { _crgmErro('Erro: ' + e.message); }
 }
 
-// ── Metas (painel) ──────────────────────────────────────
+// ── Labels de categoria (metas comercial) ─────────────────────────────────
 let _crgmMetasCategorias = [];
-let _crgmMetasAll = [];
 
 function _crgmCatLabel(catId) {
     const c = _crgmMetasCategorias.find(x => x.id === catId);
     return c ? c.label : catId;
 }
 
-const _CAT_COLORS = {
-    matriculas:'text-blue-400', inscricoes:'text-cyan-400', valor:'text-emerald-400',
-    novos_leads:'text-amber-400', conversao:'text-purple-400',
-};
-
-function crgmToggleMetas() {
-    const panel = document.getElementById('crgm-metas-panel');
-    const isHidden = panel.classList.contains('hidden');
-    panel.classList.toggle('hidden');
-    if (isHidden) _crgmLoadMetasPanel();
-}
-
-async function _crgmLoadMetasPanel() {
-    const grid = document.getElementById('crgm-metas-grid');
-    const hist = document.getElementById('crgm-metas-historico');
-    grid.innerHTML = '<p class="text-slate-500 text-xs col-span-full">Carregando...</p>';
-    hist.innerHTML = '';
-
-    const ini = document.getElementById('crgm-dt-ini').value;
-    const fim = document.getElementById('crgm-dt-fim').value;
-    document.getElementById('crgm-meta-ini').value = ini;
-    document.getElementById('crgm-meta-fim').value = fim;
-
-    try {
-        const [metasRes, filtersRes] = await Promise.all([
-            api('/api/comercial-rgm/metas').then(r=>r.json()),
-            api('/api/comercial-rgm/filters').then(r=>r.json()),
-        ]);
-
-        // Populate category dropdowns
-        if (metasRes.categorias) {
-            _crgmMetasCategorias = metasRes.categorias;
-            const catSelect = document.getElementById('crgm-meta-cat');
-            const histFilter = document.getElementById('crgm-metas-hist-filter');
-            catSelect.innerHTML = metasRes.categorias.map(c =>
-                `<option value="${c.id}">${esc(c.label)}</option>`
-            ).join('');
-            histFilter.innerHTML = '<option value="">Todas categorias</option>' +
-                metasRes.categorias.map(c => `<option value="${c.id}">${esc(c.label)}</option>`).join('');
-        }
-
-        const agentes = filtersRes.ok ? (filtersRes.agentes||[]).filter(a=>!['Admin','T.I','Suporte'].includes(a.name)) : [];
-        if (!agentes.length) { grid.innerHTML='<p class="text-slate-500 text-xs col-span-full">Sync agentes primeiro.</p>'; return; }
-
-        const _inp = (uid, uname, cls, ph, color) =>
-            `<input type="number" min="0" step="any" data-uid="${uid}" data-uname="${esc(uname)}" placeholder="${ph}"
-                class="w-20 text-right text-xs font-mono bg-slate-900/50 border border-slate-700 rounded px-2 py-1 ${color} focus:outline-none ${cls}">`;
-        grid.innerHTML = agentes.map(a =>
-            `<div class="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 bg-slate-800/30 rounded-lg px-3 py-1.5">
-                <span class="text-xs text-slate-300 truncate">${esc(a.name)}</span>
-                ${_inp(a.id, a.name, 'crgm-meta-int', '0', 'text-amber-300 focus:border-amber-500')}
-                ${_inp(a.id, a.name, 'crgm-meta-val', '0', 'text-white focus:border-blue-500')}
-                ${_inp(a.id, a.name, 'crgm-meta-sup', '0', 'text-emerald-300 focus:border-emerald-500')}
-            </div>`
-        ).join('');
-
-        _crgmMetasAll = (metasRes.ok && metasRes.metas) ? metasRes.metas : [];
-        _crgmRenderHistorico();
-    } catch (e) { grid.innerHTML=`<p class="text-red-400 text-xs col-span-full">Erro: ${e.message}</p>`; }
-}
-
-function _crgmRenderHistorico(filterCat) {
-    const hist = document.getElementById('crgm-metas-historico');
-    let metas = _crgmMetasAll;
-    if (filterCat) metas = metas.filter(m => m.categoria === filterCat);
-
-    if (!metas.length) {
-        hist.innerHTML = '<p class="text-slate-600 text-xs">Nenhuma meta cadastrada.</p>';
-        return;
-    }
-
-    // Group by (categoria + dt_inicio + dt_fim + descricao)
-    const groups = {};
-    metas.forEach(m => {
-        const key = `${m.categoria}|${m.dt_inicio}|${m.dt_fim}|${m.descricao||''}`;
-        if (!groups[key]) groups[key] = { ...m, items: [] };
-        groups[key].items.push(m);
-    });
-
-    hist.innerHTML = Object.values(groups).map(g => {
-        const catColor = _CAT_COLORS[g.categoria] || 'text-slate-400';
-        const catLabel = _crgmCatLabel(g.categoria);
-        const agentsList = g.items.map(m => {
-            const parts = [`M:${m.meta}`];
-            if (m.meta_intermediaria > 0) parts.push(`I:${m.meta_intermediaria}`);
-            if (m.supermeta > 0) parts.push(`S:${m.supermeta}`);
-            return `<span class="inline-flex items-center gap-1 bg-slate-700/40 rounded px-2 py-0.5">
-                <b class="text-white">${esc(m.user_name||'?')}</b>
-                <span class="text-blue-300">${parts[0]}</span>
-                ${parts[1]?`<span class="text-amber-300">${parts[1]}</span>`:''}
-                ${parts[2]?`<span class="text-emerald-300">${parts[2]}</span>`:''}
-                <button onclick="crgmDeleteMeta(${m.id})" class="text-red-500/60 hover:text-red-400 ml-0.5 text-[10px]" title="Excluir">&times;</button>
-            </span>`;
-        }).join(' ');
-        return `<div class="bg-slate-800/30 rounded-lg px-4 py-3 text-xs border-l-2 ${catColor.replace('text-','border-')}">
-            <div class="flex items-center gap-2 mb-1.5">
-                <span class="font-semibold ${catColor}">${esc(catLabel)}</span>
-                <span class="text-slate-500">${g.dt_inicio} a ${g.dt_fim}</span>
-                ${g.descricao ? `<span class="text-slate-600 italic">${esc(g.descricao)}</span>` : ''}
-            </div>
-            <div class="flex flex-wrap gap-1.5">${agentsList}</div>
-        </div>`;
-    }).join('');
-}
-
-function _crgmFilterHistorico() {
-    const cat = document.getElementById('crgm-metas-hist-filter').value;
-    _crgmRenderHistorico(cat || null);
-}
-
 // ── Histórico de Metas (painel retrátil) ────────────────────────────────
 let _crgmHistoricoMetasData = [];
+let _crgmHistoricoCampanhas = [];
 let _crgmHistoricoGrupoAtivo = null;
 
 function crgmToggleHistoricoMetas() {
@@ -1057,6 +977,77 @@ function crgmToggleHistoricoMetas() {
     if (isHidden) _crgmCarregarHistoricoMetas();
 }
 
+function _crgmApplyHistoricoMetasPayload(d) {
+    _crgmHistoricoMetasData = d.metas || [];
+    _crgmHistoricoCampanhas = d.premiacao_campanhas || [];
+    _crgmMetasCategorias = d.categorias || [];
+    const catSel = document.getElementById('crgm-hist-cat-filter');
+    if (catSel && d.categorias) {
+        catSel.innerHTML = '<option value="">Todas as categorias</option>' +
+            d.categorias.map(c => `<option value="${c.id}">${esc(c.label)}</option>`).join('');
+    }
+}
+
+/**
+ * Garante períodos da Premiação no histórico: mesma união que o período-padrão do dashboard
+ * (comercial_metas + premiacao_campanha), para não depender só de premiacao_campanhas no GET /metas.
+ */
+async function _crgmSuplementarCampanhasPremiacao() {
+    try {
+        const res = await api('/api/premiacao/campanhas-periodos');
+        const d = await res.json();
+        if (!d.ok || !Array.isArray(d.campanhas) || !d.campanhas.length) return;
+
+        const porDataCamp = new Map();
+        for (const c of _crgmHistoricoCampanhas || []) {
+            porDataCamp.set(`${_crgmNormDate(c.dt_inicio)}|${_crgmNormDate(c.dt_fim)}`, c);
+        }
+        const periodoTemComercialMeta = new Set();
+        for (const m of _crgmHistoricoMetasData || []) {
+            periodoTemComercialMeta.add(`${_crgmNormDate(m.dt_inicio)}|${_crgmNormDate(m.dt_fim)}`);
+        }
+
+        for (const row of d.campanhas) {
+            const k = `${_crgmNormDate(row.dt_inicio)}|${_crgmNormDate(row.dt_fim)}`;
+            if (porDataCamp.has(k)) continue;
+            if (periodoTemComercialMeta.has(k)) continue;
+
+            const idSynth = `per-${k.replace(/\|/g, '_')}`;
+            const c = {
+                id: idSynth,
+                nome: row.nome || 'Campanha',
+                dt_inicio: _crgmNormDate(row.dt_inicio),
+                dt_fim: _crgmNormDate(row.dt_fim),
+                ativa: true,
+                metas_padrao: { meta_intermediaria: null, meta: null, supermeta: null },
+                pcm_totais: { meta: 0, meta_intermediaria: 0, supermeta: 0, agentes: 0 },
+                tiers: {},
+                _somentePeriodos: true,
+            };
+            _crgmHistoricoCampanhas.push(c);
+            porDataCamp.set(k, c);
+        }
+    } catch (e) {
+        console.warn('suplementar campanhas-periodos', e);
+    }
+}
+
+/** Carrega metas legadas + campanhas Premiação ao abrir o dashboard (lista já pronta no Histórico). */
+async function _crgmPrefetchHistoricoMetas() {
+    try {
+        const res = await api('/api/comercial-rgm/metas');
+        const d = await res.json();
+        if (!d.ok) return;
+        _crgmApplyHistoricoMetasPayload(d);
+        await _crgmSuplementarCampanhasPremiacao();
+        const body = document.getElementById('crgm-historico-metas-body');
+        if (body) {
+            _crgmHistoricoGrupoAtivo = null;
+            _crgmRenderHistoricoMetas(document.getElementById('crgm-hist-cat-filter')?.value || null);
+        }
+    } catch (e) { console.warn('prefetch historico metas', e); }
+}
+
 async function _crgmCarregarHistoricoMetas() {
     const body = document.getElementById('crgm-historico-metas-body');
     body.innerHTML = '<p class="text-slate-500 text-xs animate-pulse">Carregando histórico...</p>';
@@ -1066,14 +1057,8 @@ async function _crgmCarregarHistoricoMetas() {
         const d   = await res.json();
         if (!d.ok) { body.innerHTML = `<p class="text-red-400 text-xs">Erro: ${esc(d.error||'')}</p>`; return; }
 
-        _crgmHistoricoMetasData = d.metas || [];
-
-        const catSel = document.getElementById('crgm-hist-cat-filter');
-        if (catSel && d.categorias) {
-            catSel.innerHTML = '<option value="">Todas as categorias</option>' +
-                d.categorias.map(c => `<option value="${c.id}">${esc(c.label)}</option>`).join('');
-        }
-
+        _crgmApplyHistoricoMetasPayload(d);
+        await _crgmSuplementarCampanhasPremiacao();
         _crgmRenderHistoricoMetas(null);
     } catch(e) {
         body.innerHTML = `<p class="text-red-400 text-xs">Erro: ${esc(e.message)}</p>`;
@@ -1099,12 +1084,44 @@ function _crgmAbrirGrupo(key) {
     _crgmRenderHistoricoMetas(document.getElementById('crgm-hist-cat-filter').value || null);
 }
 
+/** Alinha datas ISO / timestamp para comparar períodos (comercial_metas vs Premiação). */
+function _crgmNormDate(s) {
+    if (s == null || s === '') return '';
+    return String(s).trim().substring(0, 10);
+}
+
+function _crgmResumoPremiacaoCampanha(pc) {
+    if (!pc) return '';
+    const mp = pc.metas_padrao || {};
+    const pre = [];
+    if (mp.meta_intermediaria != null) pre.push(`I:${mp.meta_intermediaria}`);
+    if (mp.meta != null) pre.push(`M:${mp.meta}`);
+    if (mp.supermeta != null) pre.push(`S:${mp.supermeta}`);
+    const pcm = pc.pcm_totais || {};
+    const linhas = [];
+    if (pre.length) linhas.push(`Pré-def. matr.: ${pre.join(' · ')}`);
+    if (pcm.agentes > 0) {
+        linhas.push(`Σ agentes: M ${pcm.meta} · I ${pcm.meta_intermediaria} · S ${pcm.supermeta} (${pcm.agentes} ag.)`);
+    }
+    const t = pc.tiers || {};
+    const money = [];
+    if (Number(t.base) > 0) money.push(`Base R$${t.base}`);
+    if (Number(t.intermediaria) > 0) money.push(`Inter R$${t.intermediaria}`);
+    if (Number(t.meta) > 0) money.push(`Meta R$${t.meta}`);
+    if (Number(t.supermeta) > 0) money.push(`Super R$${t.supermeta}`);
+    if (money.length) linhas.push(`Faixas premiação: ${money.join(' · ')}`);
+    if (!linhas.length) return pc.nome ? `Campanha: ${pc.nome}` : '';
+    return linhas.join(' — ');
+}
+
 function _crgmRenderHistoricoMetas(filterCat) {
     const body = document.getElementById('crgm-historico-metas-body');
     let metas = _crgmHistoricoMetasData;
     if (filterCat) metas = metas.filter(m => m.categoria === filterCat);
 
-    if (!metas.length) {
+    const campanhas = (_crgmHistoricoCampanhas || []).filter(() => !filterCat || filterCat === 'matriculas');
+
+    if (!metas.length && !campanhas.length) {
         body.innerHTML = '<p class="text-slate-600 text-xs">Nenhuma meta cadastrada.</p>';
         return;
     }
@@ -1122,6 +1139,32 @@ function _crgmRenderHistoricoMetas(filterCat) {
         groups[key].agentes.push(m);
     });
 
+    const mergedIds = new Set();
+    for (const camp of campanhas) {
+        const match = Object.values(groups).find(g =>
+            _crgmNormDate(g.dt_inicio) === _crgmNormDate(camp.dt_inicio) &&
+            _crgmNormDate(g.dt_fim) === _crgmNormDate(camp.dt_fim)
+        );
+        if (match) {
+            match.premiacao_campanha = camp;
+            mergedIds.add(camp.id);
+        }
+    }
+    for (const camp of campanhas) {
+        if (mergedIds.has(camp.id)) continue;
+        const k = `premio_${camp.id}`;
+        groups[k] = {
+            key: k,
+            dt_inicio: camp.dt_inicio,
+            dt_fim: camp.dt_fim,
+            descricao: camp.nome || '',
+            categorias: {},
+            agentes: [],
+            premiacao_campanha: camp,
+            somente_premiacao: true,
+        };
+    }
+
     const sorted = Object.values(groups).sort((a, b) => b.dt_inicio.localeCompare(a.dt_inicio));
 
     const catColors = {
@@ -1138,6 +1181,12 @@ function _crgmRenderHistoricoMetas(filterCat) {
         const isOpen = _crgmHistoricoGrupoAtivo === g.key;
         const agentesTotal = [...new Map(g.agentes.map(a => [a.user_id, a])).values()];
         const totalMeta = g.agentes.filter(a => a.categoria === 'matriculas').reduce((s, a) => s + (a.meta||0), 0);
+        const pc = g.premiacao_campanha;
+        const resumoCamp = pc ? _crgmResumoPremiacaoCampanha(pc) : '';
+        const agCount = agentesTotal.length > 0 ? agentesTotal.length : ((pc && pc.pcm_totais && pc.pcm_totais.agentes) || 0);
+        const campChip = pc
+            ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/25">Campanha</span>'
+            : '';
         const catBadges = Object.keys(g.categorias).map(cat =>
             `<span class="px-1.5 py-0.5 rounded text-[10px] font-semibold ${catColors[cat]||'bg-slate-700/40 text-slate-400'}">${catLabels[cat]||cat}</span>`
         ).join('');
@@ -1145,6 +1194,10 @@ function _crgmRenderHistoricoMetas(filterCat) {
         // Detalhe expandido por categoria
         let detalhe = '';
         if (isOpen) {
+            const txtPremio = pc ? (resumoCamp || pc.nome || '') : '';
+            const blocoPremioTopo = pc && txtPremio
+                ? `<div class="px-4 py-2.5 bg-amber-500/5 border-b border-amber-500/15 text-[11px] text-amber-200/90 font-mono">${esc(txtPremio)}</div>`
+                : '';
             detalhe = Object.entries(g.categorias).map(([cat, itens]) => {
                 const cc = catColors[cat] || 'bg-slate-700/40 text-slate-400';
                 const cl = catLabels[cat] || cat;
@@ -1188,16 +1241,27 @@ function _crgmRenderHistoricoMetas(filterCat) {
                 </div>`;
             }).join('');
 
-            // Pega categoria principal (matriculas se existir, senão primeira)
-            const catPrincipal = g.categorias['matriculas'] ? 'matriculas' : Object.keys(g.categorias)[0];
+            const semComercial = !Object.keys(g.categorias).length;
+            const msgSoPremio = semComercial && pc
+                ? `<div class="border-t border-slate-700/20 px-4 py-5 text-xs text-slate-400 text-center space-y-2">
+                    <p>Nenhuma linha em <strong class="text-slate-300">comercial_metas</strong> para este período.</p>
+                    <p>Configure metas por agente ou pré-definição em
+                    <a href="#premiacao_admin" onclick="navigate('premiacao_admin')" class="text-amber-400 underline">Premiação</a>.</p>
+                </div>`
+                : '';
+
+            const catPrincipal = g.categorias['matriculas'] ? 'matriculas' : (Object.keys(g.categorias)[0] || 'matriculas');
             const descrEsc = (g.descricao || '').replace(/'/g, "\\'");
-            detalhe = `<div class="border-t border-slate-700/20">${detalhe}
-                <div class="px-4 py-3 flex items-center justify-between border-t border-slate-700/20 bg-slate-800/20 gap-2 flex-wrap">
-                    <button onclick="crgmAbrirBulkMeta('${g.dt_inicio}','${g.dt_fim}','${descrEsc}','${catPrincipal}')"
+            const btnBulk = !semComercial
+                ? `<button onclick="crgmAbrirBulkMeta('${g.dt_inicio}','${g.dt_fim}','${descrEsc}','${catPrincipal}')"
                         class="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600/80 hover:bg-blue-500 text-white text-xs font-semibold transition-colors">
                         <span class="material-symbols-outlined" style="font-size:15px">edit_note</span>
                         Editar todos em massa
-                    </button>
+                    </button>`
+                : '';
+            detalhe = `<div class="border-t border-slate-700/20">${blocoPremioTopo}${detalhe}${msgSoPremio}
+                <div class="px-4 py-3 flex items-center ${semComercial ? 'justify-end' : 'justify-between'} border-t border-slate-700/20 bg-slate-800/20 gap-2 flex-wrap">
+                    ${btnBulk}
                     <button onclick="_crgmAplicarDatasMeta('${g.dt_inicio}','${g.dt_fim}')"
                         class="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition-colors">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
@@ -1215,16 +1279,20 @@ function _crgmRenderHistoricoMetas(filterCat) {
                         <span class="text-white font-semibold text-sm">${fmt(g.dt_inicio)} → ${fmt(g.dt_fim)}</span>
                         ${g.descricao ? `<span class="text-slate-500 text-[11px] italic">${esc(g.descricao)}</span>` : ''}
                     </div>
-                    <div class="flex items-center gap-1.5 flex-wrap">${catBadges}</div>
+                    <div class="flex items-center gap-1.5 flex-wrap">${campChip}${catBadges}</div>
                 </div>
-                <div class="flex items-center gap-4 shrink-0">
+                <div class="flex items-center gap-3 sm:gap-4 shrink-0 flex-wrap justify-end">
                     <div class="text-right">
                         <p class="text-[10px] text-slate-500 uppercase tracking-wider">Agentes</p>
-                        <p class="text-white font-mono font-bold text-sm">${agentesTotal.length}</p>
+                        <p class="text-white font-mono font-bold text-sm">${agCount}</p>
                     </div>
                     ${totalMeta > 0 ? `<div class="text-right">
                         <p class="text-[10px] text-slate-500 uppercase tracking-wider">Meta mat.</p>
                         <p class="text-blue-300 font-mono font-bold text-sm">${totalMeta}</p>
+                    </div>` : ''}
+                    ${pc ? `<div class="text-right max-w-[240px] min-w-0">
+                        <p class="text-[10px] text-slate-500 uppercase tracking-wider">Meta campanha</p>
+                        <p class="text-amber-200/90 font-mono text-[10px] leading-snug break-words">${esc(resumoCamp || pc.nome || '—')}</p>
                     </div>` : ''}
                     <svg class="w-4 h-4 text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
@@ -1236,52 +1304,12 @@ function _crgmRenderHistoricoMetas(filterCat) {
     }).join('');
 }
 
-async function crgmSaveMetas() {
-    const dtIni = document.getElementById('crgm-meta-ini').value;
-    const dtFim = document.getElementById('crgm-meta-fim').value;
-    const desc = document.getElementById('crgm-meta-desc').value || '';
-    const cat = document.getElementById('crgm-meta-cat').value || 'matriculas';
-    if (!dtIni || !dtFim) { _crgmErro('Defina o período da meta'); return; }
-
-    // Collect values per agent (3 inputs each)
-    const metaInputs = document.querySelectorAll('.crgm-meta-val');
-    const intInputs = document.querySelectorAll('.crgm-meta-int');
-    const supInputs = document.querySelectorAll('.crgm-meta-sup');
-    const metas = [];
-    metaInputs.forEach((inp, i) => {
-        const m = parseFloat(inp.value) || 0;
-        const mi = parseFloat(intInputs[i]?.value) || 0;
-        const s = parseFloat(supInputs[i]?.value) || 0;
-        if (m > 0 || mi > 0 || s > 0) {
-            metas.push({
-                user_id: parseInt(inp.dataset.uid),
-                user_name: inp.dataset.uname || '',
-                meta: m, meta_intermediaria: mi, supermeta: s,
-                dt_inicio: dtIni, dt_fim: dtFim,
-                descricao: desc, categoria: cat,
-            });
-        }
-    });
-    if (!metas.length) { _crgmErro('Defina ao menos uma meta > 0'); return; }
-    try {
-        const res = await api('/api/comercial-rgm/metas', {
-            method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({metas}),
-        });
-        const d = await res.json();
-        if (d.ok) { document.getElementById('crgm-metas-panel').classList.add('hidden'); crgmAtualizar(); }
-        else _crgmErro(d.error||'Erro ao salvar');
-    } catch (e) { _crgmErro('Erro: '+e.message); }
-}
-
 async function crgmDeleteMeta(id, origem) {
     if (!confirm('Excluir esta meta?')) return;
     try {
         await api(`/api/comercial-rgm/metas/${id}`, {method:'DELETE'});
         if (origem === 'historico') {
             _crgmCarregarHistoricoMetas();
-        } else {
-            _crgmLoadMetasPanel();
         }
         crgmAtualizar();
     } catch (e) { _crgmErro('Erro: '+e.message); }

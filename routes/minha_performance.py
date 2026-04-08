@@ -1382,6 +1382,22 @@ def api_mp_agentes():
 # API: Campanhas (admin)
 # ---------------------------------------------------------------------------
 
+def _parse_metas_padrao_from_body(body):
+    """Pré-definição em quantidade de matrículas (Dashboard comercial), não confundir com R$/faixa."""
+    mp = (body or {}).get("metas_padrao") or {}
+    out = []
+    for k in ("meta_intermediaria", "meta", "supermeta"):
+        v = mp.get(k)
+        if v is None or v == "":
+            out.append(None)
+            continue
+        try:
+            out.append(float(v))
+        except (TypeError, ValueError):
+            out.append(None)
+    return tuple(out)
+
+
 @minha_performance_bp.route("/api/premiacao/campanhas", methods=["GET"])
 def api_campanhas_list():
     if not _is_admin():
@@ -1399,6 +1415,12 @@ def api_campanhas_list():
             c["tiers"] = {r["tier"]: float(r["valor_por_mat"]) for r in cur.fetchall()}
             cur.execute("SELECT tier, modo, valor FROM premiacao_recebimento_regra WHERE campanha_id = %s", (c["id"],))
             c["receb_regras"] = [dict(r) for r in cur.fetchall()]
+            di, dm, ds = c.get("def_meta_intermediaria"), c.get("def_meta"), c.get("def_supermeta")
+            c["metas_padrao"] = {
+                "meta_intermediaria": float(di) if di is not None else None,
+                "meta": float(dm) if dm is not None else None,
+                "supermeta": float(ds) if ds is not None else None,
+            }
             campanhas.append(c)
         cur.close()
         conn.close()
@@ -1462,11 +1484,16 @@ def api_campanhas_create():
     if not nome or not dt_inicio or not dt_fim:
         return jsonify({"error": "Nome e datas são obrigatórios"}), 400
     try:
+        di, dm, ds = _parse_metas_padrao_from_body(body)
         conn = _pg()
         cur = conn.cursor()
         cur.execute(
-            "INSERT INTO premiacao_campanha (nome, dt_inicio, dt_fim) VALUES (%s, %s, %s) RETURNING id",
-            (nome, dt_inicio, dt_fim),
+            """
+            INSERT INTO premiacao_campanha (nome, dt_inicio, dt_fim,
+                def_meta_intermediaria, def_meta, def_supermeta)
+            VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
+            """,
+            (nome, dt_inicio, dt_fim, di, dm, ds),
         )
         cid = cur.fetchone()[0]
         for tier, valor in tiers.items():
@@ -1522,6 +1549,16 @@ def api_campanhas_update(cid):
                     "INSERT INTO premiacao_recebimento_regra (campanha_id, tier, modo, valor) VALUES (%s, %s, %s, %s)",
                     (cid, rr.get("tier", "qualquer"), rr.get("modo", "percentual"), float(rr.get("valor", 0))),
                 )
+        if "metas_padrao" in body:
+            di, dm, ds = _parse_metas_padrao_from_body(body)
+            cur.execute(
+                """
+                UPDATE premiacao_campanha SET
+                    def_meta_intermediaria = %s, def_meta = %s, def_supermeta = %s
+                WHERE id = %s
+                """,
+                (di, dm, ds, cid),
+            )
         conn.commit()
         cur.close()
         conn.close()

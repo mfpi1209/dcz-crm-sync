@@ -20,11 +20,6 @@
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                     Sync Kommo
                 </button>
-                <button onclick="crgmToggleMetas()" id="crgm-btn-metas"
-                    class="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-amber-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
-                    Metas
-                </button>
                 <button onclick="crgmToggleHistoricoMetas()" id="crgm-btn-historico-metas"
                     class="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-violet-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -151,44 +146,16 @@
         <div id="crgm-kommo-lead-pick" class="hidden mt-3 flex flex-wrap gap-2"></div>
     </div>
 
-    <!-- Painel de Metas (oculto por padrão) -->
-    <div id="crgm-metas-panel" class="hidden glass-card p-5 mb-6">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
-                Metas por Período
-            </h3>
-        </div>
-        <!-- Aviso: metas agora são gerenciadas na Premiação -->
-        <div class="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4 mb-4">
-            <div class="flex items-start gap-3">
-                <svg class="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                <div>
-                    <p class="text-xs font-semibold text-blue-400 mb-1">Metas são configuradas na Premiação</p>
-                    <p class="text-[10px] text-slate-500">O cadastro de metas (Intermediária, Meta, Supermeta) por agente agora é feito dentro da campanha de premiação. Acesse <a href="#premiacao_admin" onclick="navigate('premiacao_admin')" class="text-blue-400 hover:text-blue-300 underline">Premiação</a> para gerenciar.</p>
-                </div>
-            </div>
-        </div>
-        <div id="crgm-metas-grid" class="hidden"></div>
-        <!-- Histórico de metas agrupado por categoria -->
-        <div>
-            <div class="flex items-center gap-3 mb-2">
-                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Histórico de Metas</p>
-                <select id="crgm-metas-hist-filter" onchange="_crgmFilterHistorico()" class="input-glass px-2 py-1 text-[10px] text-slate-400">
-                    <option value="">Todas categorias</option>
-                </select>
-            </div>
-            <div id="crgm-metas-historico" class="space-y-2 max-h-72 overflow-y-auto"></div>
-        </div>
-    </div>
-
     <!-- Histórico de Metas (retrátil) -->
     <div id="crgm-historico-metas-panel" class="hidden glass-card p-5 mb-6 border border-violet-500/20">
         <div class="flex items-center justify-between mb-4">
-            <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                Histórico de Metas
-            </h3>
+            <div>
+                <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
+                    <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Histórico de Metas
+                </h3>
+                <p class="text-[10px] text-slate-500 mt-1">Metas legadas (<code class="text-slate-400">comercial_metas</code>) e campanhas da <a href="#premiacao_admin" onclick="navigate('premiacao_admin')" class="text-amber-400/90 hover:text-amber-300 underline">Premiação</a> (pré-definição e totais por agente).</p>
+            </div>
             <div class="flex items-center gap-2">
                 <select id="crgm-hist-cat-filter" onchange="crgmFiltrarHistoricoMetas()" class="input-glass px-2 py-1 text-[10px] text-slate-400">
                     <option value="">Todas as categorias</option>
