@@ -2737,6 +2737,43 @@ class KommoApiClient:
         """POST /api/v4/leads — create one or more leads."""
         return self._request("POST", "/api/v4/leads", payload)
 
+    def search_lead_by_cpf(self, cpf: str) -> dict | None:
+        """Search Kommo API for a lead with the given CPF (11 digits).
+
+        Returns the first matching lead dict, or None if not found.
+        Tries both raw digits and formatted (XXX.XXX.XXX-XX) forms.
+        Used as a last-mile guard before creating a NOVO lead.
+        """
+        if not cpf or len(cpf) != 11:
+            return None
+        cpf_fmt = f"{cpf[:3]}.{cpf[3:6]}.{cpf[6:9]}-{cpf[9:]}"
+        base = KOMMO_BASE_URL.rstrip("/")
+        for q in (cpf, cpf_fmt):
+            try:
+                time.sleep(0.2)
+                r = self.session.get(
+                    f"{base}/api/v4/leads",
+                    params={"query": q, "limit": 5, "with": "custom_fields_values"},
+                    timeout=15,
+                )
+                if r.status_code != 200 or not r.text.strip():
+                    continue
+                leads = r.json().get("_embedded", {}).get("leads", [])
+                for lead in leads:
+                    cfs = lead.get("custom_fields_values") or []
+                    for cf in cfs:
+                        if cf.get("field_name") == "CPF":
+                            val = (cf.get("values") or [{}])[0].get("value", "")
+                            cpf_raw = re.sub(r"\D", "", str(val))
+                            if cpf_raw.zfill(11) == cpf:
+                                return lead
+                if leads:
+                    break
+            except Exception as exc:
+                log.warning("search_lead_by_cpf erro CPF %s: %s", cpf, exc)
+                break
+        return None
+
     def get_custom_field_ids(self, field_names):
         """Lookup numeric field_id for given field names from the kommo_sync database."""
         conn = get_kommo_conn()
@@ -2928,6 +2965,26 @@ def executar_acoes(acoes, limit=None, log_callback=None):
                 results["restaurar_ok"] += 1
 
         elif tipo == "NOVO":
+            # ── Guard final: checar na API se o CPF já existe antes de criar ──
+            # O kommo_sync pode estar desatualizado; isso evita duplicatas quando
+            # as ações NOVO são executadas em momentos diferentes ou repetidamente.
+            cpf_novo = acao.get("cpf", "")
+            if cpf_novo and len(cpf_novo) == 11:
+                existing = api.search_lead_by_cpf(cpf_novo)
+                if existing:
+                    log.warning(
+                        "NOVO bloqueado (duplicata): CPF %s já existe no Kommo "
+                        "como L%s (%s). Ação ignorada.",
+                        cpf_novo, existing.get("id"), existing.get("name", ""),
+                    )
+                    results["skip"] += 1
+                    if log_callback:
+                        log_callback(
+                            f"[{i+1}/{len(to_process)}] SKIP NOVO {acao.get('nome','')} "
+                            f"— CPF já existe no Kommo (L{existing.get('id')})"
+                        )
+                    continue
+
             cf = _build_custom_fields(field_ids, acao, update_fields_map)
             nome = acao.get("nome") or "Lead SIAA"
             lead_payload = [{"name": nome}]
