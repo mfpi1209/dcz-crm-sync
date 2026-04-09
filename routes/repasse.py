@@ -47,6 +47,29 @@ _REPASSE_FONT = """
 """
 
 
+def _ciclo_repasse_valido(val):
+    """Exclui N/A, #N/A e vazios dos filtros de ciclo/turma."""
+    if val is None:
+        return False
+    s = str(val).strip()
+    if not s:
+        return False
+    n = s.lower().replace("#", "").replace(" ", "").replace(".", "")
+    return n not in ("n/a", "na", "null", "-")
+
+
+def _append_filtro_tipo(wheres, params, tipo):
+    """Repasse: UI só oferece Mensalidade — filtra qualquer variação no texto."""
+    if not (tipo or "").strip():
+        return
+    if tipo.strip().lower() == "mensalidade":
+        wheres.append("tipo_pagamento ILIKE %s")
+        params.append("%mensalidade%")
+    else:
+        wheres.append("tipo_pagamento ILIKE %s")
+        params.append(tipo)
+
+
 def _pg():
     return psycopg2.connect(**DB_DSN)
 
@@ -163,15 +186,10 @@ def api_repasse_filtros():
             WHERE ciclo IS NOT NULL AND ciclo != ''
             ORDER BY ciclo DESC
         """)
-        ciclos = [r[0] for r in cur.fetchall()]
+        ciclos = [r[0] for r in cur.fetchall() if _ciclo_repasse_valido(r[0])]
 
-        cur.execute(f"""
-            SELECT DISTINCT tipo_pagamento
-            FROM {_REPASSE_FONT}
-            WHERE tipo_pagamento IS NOT NULL AND tipo_pagamento != ''
-            ORDER BY tipo_pagamento
-        """)
-        tipos = [r[0] for r in cur.fetchall()]
+        # Só "Mensalidade" no filtro (variações no banco são tratadas no ILIKE ao buscar)
+        tipos = ["Mensalidade"]
 
         # Turmas agrupadas por ciclo para filtro dinâmico
         cur.execute(f"""
@@ -184,6 +202,10 @@ def api_repasse_filtros():
         """)
         turmas_por_ciclo = {}
         for ciclo_val, turma_val in cur.fetchall():
+            if not _ciclo_repasse_valido(ciclo_val):
+                continue
+            if not _ciclo_repasse_valido(turma_val):
+                continue
             turmas_por_ciclo.setdefault(ciclo_val, [])
             if turma_val not in turmas_por_ciclo[ciclo_val]:
                 turmas_por_ciclo[ciclo_val].append(turma_val)
@@ -261,9 +283,7 @@ def api_repasse_agentes():
         if ciclo:
             wheres.append("ciclo = %s")
             params.append(ciclo)
-        if tipo:
-            wheres.append("tipo_pagamento ILIKE %s")
-            params.append(tipo)
+        _append_filtro_tipo(wheres, params, tipo)
         if turma:
             wheres.append("turma ILIKE %s")
             params.append(turma)
@@ -394,9 +414,7 @@ def api_repasse_detalhe():
         if ciclo:
             wheres.append("ciclo = %s")
             params.append(ciclo)
-        if tipo:
-            wheres.append("tipo_pagamento ILIKE %s")
-            params.append(tipo)
+        _append_filtro_tipo(wheres, params, tipo)
         if turma:
             wheres.append("turma ILIKE %s")
             params.append(turma)

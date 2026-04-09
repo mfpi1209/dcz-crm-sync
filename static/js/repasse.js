@@ -122,6 +122,8 @@ async function _repCarregarFiltros() {
 
         d.ciclos.forEach(c => { const o = document.createElement('option'); o.value = o.textContent = c; selCiclo.appendChild(o); });
         d.tipos.forEach(t => { const o = document.createElement('option'); o.value = o.textContent = t; selTipo.appendChild(o); });
+        // Padrão: só mensalidade (filtro único oferecido pela API)
+        if (selTipo && d.tipos && d.tipos.includes('Mensalidade')) selTipo.value = 'Mensalidade';
 
         _repTurmasPorCiclo = d.turmas_por_ciclo || {};
         repAtualizarTurmas();
@@ -238,7 +240,9 @@ function repAtualizarTaxa() {
 
 function repReset() {
     document.getElementById('rep-ciclo').value  = '';
-    document.getElementById('rep-tipo').value   = '';
+    const st = document.getElementById('rep-tipo');
+    if (st && [...st.options].some(o => o.value === 'Mensalidade')) st.value = 'Mensalidade';
+    else if (st) st.value = '';
     document.getElementById('rep-turma').value  = '';
     document.getElementById('rep-search').value = '';
     repAtualizarTurmas();
