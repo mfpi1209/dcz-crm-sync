@@ -364,8 +364,25 @@ function _crgmRenderPoloTable(ranking) {
 // ── Ciclo ───────────────────────────────────────────────
 function _crgmRenderCicloTable(ciclos) {
     const tbody = document.getElementById('crgm-ciclo-body');
-    if (!ciclos || !ciclos.length) { tbody.innerHTML = '<tr><td colspan="2" class="px-5 py-6 text-center text-slate-600">Sem dados</td></tr>'; return; }
-    tbody.innerHTML = ciclos.map(c => `<tr class="hover:bg-white/[0.02] transition-colors"><td class="px-5 py-2.5 text-slate-300">${esc(c.nome)}</td><td class="px-5 py-2.5 text-right text-white font-semibold">${c.total.toLocaleString('pt-BR')}</td></tr>`).join('');
+    if (!ciclos || !ciclos.length) { tbody.innerHTML = '<tr><td colspan="3" class="px-5 py-6 text-center text-slate-600">Sem dados</td></tr>'; return; }
+    const sumBruto = ciclos.reduce((s, c) => s + (c.bruto || 0), 0);
+    const sumEC    = ciclos.reduce((s, c) => s + (c.total || 0), 0);
+    const rows = ciclos.map(c => {
+        const b = (c.bruto || 0), ec = (c.total || 0);
+        const evasao = b - ec;
+        const evasaoTag = evasao > 0 ? `<span class="text-[10px] text-rose-400/70 ml-1">(-${evasao})</span>` : '';
+        return `<tr class="hover:bg-white/[0.02] transition-colors">
+            <td class="px-4 py-2 text-slate-300">${esc(c.nome)}</td>
+            <td class="px-4 py-2 text-right font-mono text-slate-400 tabular-nums">${b.toLocaleString('pt-BR')}</td>
+            <td class="px-4 py-2 text-right tabular-nums"><span class="font-mono text-white font-semibold">${ec.toLocaleString('pt-BR')}</span>${evasaoTag}</td>
+        </tr>`;
+    }).join('');
+    const foot = `<tr class="border-t border-slate-700/30 bg-slate-800/30">
+        <td class="px-4 py-2 text-[11px] font-semibold text-slate-400">Total</td>
+        <td class="px-4 py-2 text-right font-mono text-slate-400 font-bold tabular-nums">${sumBruto.toLocaleString('pt-BR')}</td>
+        <td class="px-4 py-2 text-right font-mono text-amber-200/90 font-bold tabular-nums">${sumEC.toLocaleString('pt-BR')}</td>
+    </tr>`;
+    tbody.innerHTML = rows + foot;
 }
 
 // ── Agentes (tabela) ────────────────────────────────────
@@ -512,6 +529,8 @@ function _crgmDetalheOpen(userId, dtIni, dtFim, qs, data, err) {
                 <tr>
                     <th class="px-3 py-2 text-left">RGM</th>
                     <th class="px-3 py-2 text-left">Nome</th>
+                    <th class="px-3 py-2 text-left">CPF</th>
+                    <th class="px-3 py-2 text-left">Telefone</th>
                     <th class="px-3 py-2 text-left">Tipo</th>
                     <th class="px-3 py-2 text-left">Polo</th>
                     <th class="px-3 py-2 text-left">Nível</th>
@@ -529,6 +548,8 @@ function _crgmDetalheOpen(userId, dtIni, dtFim, qs, data, err) {
                     <tr class="${rowCls}">
                         <td class="px-3 py-2">${rgmTag}</td>
                         <td class="px-3 py-2 text-white">${esc(r.nome)}</td>
+                        <td class="px-3 py-2 font-mono text-slate-400">${esc(r.cpf || '')}</td>
+                        <td class="px-3 py-2 font-mono text-slate-400">${esc(r.telefone || '')}</td>
                         <td class="px-3 py-2">${tipoBadge(r.tipo_matricula)}</td>
                         <td class="px-3 py-2 text-slate-300">${esc(r.polo)}</td>
                         <td class="px-3 py-2 text-slate-400">${esc(r.nivel)}</td>
@@ -588,19 +609,15 @@ function _crgmRenderAgentesChart(agentes) {
     const top = data.slice(-15);
     const labels = top.map(a=>a.nome||`#${a.user_id}`);
 
-    const hasMeta  = top.some(a=>(a.meta||0)>0);
-    const hasInter = top.some(a=>(a.meta_intermediaria||0)>0);
-    const hasSuper = top.some(a=>(a.supermeta||0)>0);
-
-    // Cor de cada barra baseada no tier de performance
+    // Cor de cada barra baseada no tier de performance (metas ficam na tabela / tooltip)
     const barColors = top.map(a => {
         const mp = a.matriculas_periodo||0, m = a.meta||0,
               mi = a.meta_intermediaria||0, s = a.supermeta||0;
-        if (s>0 && mp>=s) return '#34d399';       // supermeta — verde
-        if (mi>0 && mp>=mi) return '#fbbf24';     // intermediária — âmbar
-        if (m>0 && mp>=m)  return '#60a5fa';      // meta — azul
-        if (m>0)           return '#f87171';      // abaixo da meta — vermelho
-        return '#3b82f6';                          // sem meta — azul padrão
+        if (s>0 && mp>=s) return '#34d399';
+        if (mi>0 && mp>=mi) return '#fbbf24';
+        if (m>0 && mp>=m)  return '#60a5fa';
+        if (m>0)           return '#f87171';
+        return '#3b82f6';
     });
 
     const datasets = [{
@@ -609,48 +626,10 @@ function _crgmRenderAgentesChart(agentes) {
         backgroundColor: barColors,
         borderColor: barColors.map(c=>c+'cc'),
         borderWidth: 0,
-        borderRadius: 5,
-        barPercentage: 0.55,
-        categoryPercentage: 0.8,
+        borderRadius: 6,
+        barPercentage: 0.72,
+        categoryPercentage: 0.88,
     }];
-
-    // Linhas de meta como marcadores (barras transparentes de 1px com borda)
-    if (hasInter) datasets.push({
-        label: 'Intermediária',
-        data: top.map(a=>a.meta_intermediaria||0),
-        backgroundColor: 'transparent',
-        borderColor: '#fcd34d',
-        borderWidth: 2,
-        borderSkipped: false,
-        borderRadius: 0,
-        barPercentage: 0.9,
-        categoryPercentage: 0.8,
-        barThickness: 2,
-    });
-    if (hasMeta) datasets.push({
-        label: 'Meta',
-        data: top.map(a=>a.meta||0),
-        backgroundColor: 'transparent',
-        borderColor: '#93c5fd',
-        borderWidth: 2,
-        borderSkipped: false,
-        borderRadius: 0,
-        barPercentage: 0.9,
-        categoryPercentage: 0.8,
-        barThickness: 2,
-    });
-    if (hasSuper) datasets.push({
-        label: 'Supermeta',
-        data: top.map(a=>a.supermeta||0),
-        backgroundColor: 'transparent',
-        borderColor: '#6ee7b7',
-        borderWidth: 2,
-        borderSkipped: false,
-        borderRadius: 0,
-        barPercentage: 0.9,
-        categoryPercentage: 0.8,
-        barThickness: 2,
-    });
 
     // Plugin para escrever o valor ao final de cada barra
     const valueLabelsPlugin = {
@@ -680,7 +659,7 @@ function _crgmRenderAgentesChart(agentes) {
         }
     };
 
-    const maxVal = Math.max(...top.map(a=>Math.max(a.matriculas_periodo||0, a.supermeta||0, a.meta||0, a.meta_intermediaria||0))) * 1.18;
+    const maxVal = Math.max(1, ...top.map(a => a.matriculas_periodo || 0)) * 1.12;
 
     _crgmChartAgentes = new Chart(ctx, {
         type: 'bar',
@@ -691,21 +670,15 @@ function _crgmRenderAgentesChart(agentes) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: {
-                    position: 'top', align: 'end',
-                    labels: { color:'#64748b', font:{size:10}, boxWidth:8, boxHeight:8, padding:14,
-                        generateLabels(chart) {
-                            const orig = Chart.defaults.plugins.legend.labels.generateLabels(chart);
-                            // só mostrar legenda do primeiro dataset + metas
-                            return orig.filter(l => l.datasetIndex === 0 || hasMeta || hasInter || hasSuper);
-                        }
-                    }
-                },
+                legend: { display: false },
                 tooltip: {
                     callbacks: {
+                        title(items) {
+                            const a = top[items[0].dataIndex];
+                            return a.nome || `#${a.user_id}`;
+                        },
                         label(item) {
-                            if (item.datasetIndex === 0) return ` ${item.parsed.x} matrículas`;
-                            return ` ${item.dataset.label}: ${item.parsed.x}`;
+                            return ` ${item.parsed.x} matrícula(s)`;
                         },
                         afterBody(items) {
                             const a = top[items[0].dataIndex];
@@ -713,8 +686,10 @@ function _crgmRenderAgentesChart(agentes) {
                                   mi = a.meta_intermediaria||0, s = a.supermeta||0;
                             const tier = _crgmTierLabel(mp, m, mi, s);
                             const lines = [];
+                            if (mi > 0) lines.push(`Intermediária: ${mi}`);
+                            if (m > 0) lines.push(`Meta: ${m}`);
+                            if (s > 0) lines.push(`Supermeta: ${s}`);
                             if (m > 0) {
-                                lines.push(`─────────────────`);
                                 lines.push(`${Math.round(mp/m*100)}% da meta`);
                                 lines.push(`${tier.icon} ${tier.label}`);
                             }

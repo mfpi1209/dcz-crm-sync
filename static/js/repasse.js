@@ -138,6 +138,9 @@ async function repLoad() {
     const tipo  = document.getElementById('rep-tipo')?.value  || '';
     const turma = document.getElementById('rep-turma')?.value || '';
 
+    const errEl = document.getElementById('rep-empty-err');
+    if (errEl) { errEl.classList.add('hidden'); errEl.textContent = ''; }
+
     _repSetState('loading');
     repFecharDetalhe();
     _repSelectedUid = null;
@@ -149,7 +152,17 @@ async function repLoad() {
         if (turma) qs += `turma=${encodeURIComponent(turma)}&`;
 
         const res = await api(`/api/repasse/agentes?${qs}`);
-        const d   = await res.json();
+        let d;
+        try {
+            d = await res.json();
+        } catch (parseErr) {
+            throw new Error(
+                res.ok
+                    ? 'Resposta inválida do servidor (não é JSON). Verifique proxy/logs.'
+                    : `Erro HTTP ${res.status}. Verifique o servidor ou o login.`
+            );
+        }
+        if (!res.ok) throw new Error(d.error || d.message || `Erro HTTP ${res.status}`);
         if (!d.ok) throw new Error(d.error || 'Erro');
 
         _repAgentesData = d.agentes || [];
@@ -163,10 +176,11 @@ async function repLoad() {
             repSelecionarAgente(String(a.id), a.nome, 0);
         } else {
             _repRenderCarrossel(_repAgentesData);
-            _repSetState(_repAgentesData.length ? 'carrossel' : 'empty');
+            _repSetState(_repAgentesData.length ? 'carrossel' : 'empty', null);
         }
     } catch(e) {
-        _repSetState('empty');
+        const msg = e && e.message ? String(e.message) : 'Falha ao carregar';
+        _repSetState('empty', msg);
         console.error('repasse load error', e);
     }
 }
@@ -232,7 +246,7 @@ function repReset() {
     _repSelectedUid  = null;
     document.getElementById('rep-kpis').classList.add('hidden');
     repFecharDetalhe();
-    _repSetState('empty');
+    _repSetState('empty', null);
 }
 
 // ---------------------------------------------------------------------------
@@ -440,10 +454,25 @@ function repFecharDetalhe() {
 // ---------------------------------------------------------------------------
 // Estado da UI
 // ---------------------------------------------------------------------------
-function _repSetState(state) {
+function _repSetState(state, errMsg) {
     document.getElementById('rep-loading').classList.toggle('hidden',       state !== 'loading');
     document.getElementById('rep-empty').classList.toggle('hidden',         state !== 'empty');
     document.getElementById('rep-carrossel-wrap').classList.toggle('hidden', state !== 'carrossel');
+
+    const titleEl = document.getElementById('rep-empty-title');
+    const subEl   = document.getElementById('rep-empty-sub');
+    const errEl   = document.getElementById('rep-empty-err');
+    if (state === 'empty' && errMsg && titleEl && subEl && errEl) {
+        titleEl.textContent = 'Não foi possível carregar';
+        subEl.classList.add('hidden');
+        errEl.textContent = errMsg;
+        errEl.classList.remove('hidden');
+    } else if (titleEl && subEl && errEl) {
+        titleEl.textContent = 'Nenhum dado carregado';
+        subEl.classList.remove('hidden');
+        errEl.classList.add('hidden');
+        errEl.textContent = '';
+    }
 }
 
 function _repFmtMoeda(v) {

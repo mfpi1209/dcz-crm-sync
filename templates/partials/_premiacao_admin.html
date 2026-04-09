@@ -212,6 +212,20 @@
             <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
             Upload Recebimentos (CSV)
         </h3>
+        <div class="mb-4 p-3 rounded-lg bg-slate-800/40 border border-slate-700/30">
+            <p class="text-[11px] text-slate-400 leading-relaxed mb-2">
+                O arquivo deve ser <strong class="text-slate-300">CSV</strong> (separador <code class="text-violet-300">;</code> ou <code class="text-violet-300">,</code>) com <strong class="text-slate-300">cabeçalho na 1ª linha</strong>.
+            </p>
+            <p class="text-[11px] text-slate-500 mb-2">Colunas obrigatórias:</p>
+            <div class="flex flex-wrap gap-1.5 mb-2">
+                <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-violet-500/15 text-violet-300 border border-violet-500/20">RGM</span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-violet-500/15 text-violet-300 border border-violet-500/20">Valor Pago</span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-violet-500/15 text-violet-300 border border-violet-500/20">Turma</span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-violet-500/15 text-violet-300 border border-violet-500/20">Beleza (tipo)</span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-violet-500/15 text-violet-300 border border-violet-500/20">Ciclo</span>
+            </div>
+            <p class="text-[10px] text-slate-600">Exemplo: <code class="text-slate-500">RGM;Valor Pago;Turma;Beleza;ciclo</code> → <code class="text-slate-500">47990813;49,52;Abril;Mensalidade;2026/1</code></p>
+        </div>
         <div class="flex flex-wrap items-end gap-3">
             <div>
                 <label class="block text-[10px] text-slate-500 mb-1">Mês Referência</label>
