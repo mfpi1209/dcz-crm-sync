@@ -47,7 +47,8 @@ def _is_admin():
 
 
 def _require_login():
-    return bool(session.get("user_id"))
+    # user_id pode ser 0 no login de emergência (APP_USER/APP_PASS em auth.py)
+    return bool(session.get("authenticated")) and session.get("user_id") is not None
 
 
 def _get_kommo_uid():
