@@ -88,14 +88,26 @@ function _fbValidC(arr) {
 
 function _fbCalcProdutividade(arr) {
     if (!arr || arr.length === 0) return arr;
+
+    // Volume: sqrt normalization relative to max — compresses the gap between outliers
     const maxTA = Math.max(...arr.map(c => c.total_atendimentos || 0)) || 1;
-    const tempos = arr.filter(c => c.tempo_medio_resposta_min != null).map(c => c.tempo_medio_resposta_min);
-    const maxT = tempos.length ? Math.max(...tempos) : null;
+
+    // Time: median-relative, anchored at 7 (median response = score 7, faster = higher, slower = lower)
+    const tempos = arr
+        .filter(c => c.tempo_medio_resposta_min != null)
+        .map(c => c.tempo_medio_resposta_min)
+        .sort((a, b) => a - b);
+    const medT = tempos.length > 0 ? tempos[Math.floor((tempos.length - 1) / 2)] : null;
+
     return arr.map(c => {
-        const sv = (c.total_atendimentos / maxTA) * 10;
-        const st = (maxT > 0 && c.tempo_medio_resposta_min != null)
-            ? (1 - c.tempo_medio_resposta_min / maxT) * 10 : null;
-        const np = st != null ? (sv + st) / 2 : sv;
+        const sv = Math.sqrt((c.total_atendimentos || 0) / maxTA) * 10;
+        let st = null;
+        if (c.tempo_medio_resposta_min != null && c.tempo_medio_resposta_min > 0 && medT) {
+            st = Math.min(10, (medT / c.tempo_medio_resposta_min) * 7);
+        } else if (c.tempo_medio_resposta_min === 0) {
+            st = 10;
+        }
+        const np = st != null ? sv * 0.6 + st * 0.4 : sv;
         const ng = c.nota_media != null ? (c.nota_media + np) / 2 : null;
         return { ...c, nota_produtividade: np, nota_geral: ng };
     });
