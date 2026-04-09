@@ -26,6 +26,26 @@ KOMMO_DB_DSN = dict(
     dbname=os.getenv("KOMMO_PG_DB", "kommo_sync"),
 )
 
+# Upload em Premiação grava em comercial_recebimentos; histórico/ETF costuma estar em
+# comercial_pagamentos. O Repasse usa a união das duas fontes.
+_REPASSE_FONT = """
+(
+    SELECT rgm,
+           valor_pago::double precision AS valor_pago,
+           turma,
+           tipo_pagamento,
+           ciclo
+    FROM comercial_pagamentos
+    UNION ALL
+    SELECT rgm,
+           valor::double precision AS valor_pago,
+           turma,
+           tipo_pagamento,
+           ciclo
+    FROM comercial_recebimentos
+) AS repasse_fonte
+"""
+
 
 def _pg():
     return psycopg2.connect(**DB_DSN)
@@ -137,26 +157,26 @@ def api_repasse_filtros():
         conn = _pg()
         cur = conn.cursor()
 
-        cur.execute("""
+        cur.execute(f"""
             SELECT DISTINCT ciclo
-            FROM comercial_pagamentos
+            FROM {_REPASSE_FONT}
             WHERE ciclo IS NOT NULL AND ciclo != ''
             ORDER BY ciclo DESC
         """)
         ciclos = [r[0] for r in cur.fetchall()]
 
-        cur.execute("""
+        cur.execute(f"""
             SELECT DISTINCT tipo_pagamento
-            FROM comercial_pagamentos
+            FROM {_REPASSE_FONT}
             WHERE tipo_pagamento IS NOT NULL AND tipo_pagamento != ''
             ORDER BY tipo_pagamento
         """)
         tipos = [r[0] for r in cur.fetchall()]
 
         # Turmas agrupadas por ciclo para filtro dinâmico
-        cur.execute("""
+        cur.execute(f"""
             SELECT ciclo, turma
-            FROM comercial_pagamentos
+            FROM {_REPASSE_FONT}
             WHERE ciclo IS NOT NULL AND ciclo != ''
               AND turma IS NOT NULL AND turma != ''
             GROUP BY ciclo, turma
@@ -261,7 +281,7 @@ def api_repasse_agentes():
         w = ("WHERE " + " AND ".join(wheres)) if wheres else ""
         cur.execute(f"""
             SELECT rgm, valor_pago
-            FROM comercial_pagamentos
+            FROM {_REPASSE_FONT}
             {w}
         """, params)
 
@@ -384,7 +404,7 @@ def api_repasse_detalhe():
         w = ("WHERE " + " AND ".join(wheres)) if wheres else ""
         cur.execute(f"""
             SELECT rgm, valor_pago, tipo_pagamento, turma, ciclo
-            FROM comercial_pagamentos
+            FROM {_REPASSE_FONT}
             {w}
             ORDER BY valor_pago DESC
         """, params)
