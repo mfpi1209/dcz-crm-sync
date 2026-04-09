@@ -2523,6 +2523,20 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
     # --- FILTRO FINAL DE PIPELINE: garantir que só leads de pipelines permitidos ---
     acoes = _filtrar_por_pipeline(acoes, PIPELINES_PERMITIDOS)
 
+    # --- Remover ATUALIZAR redundante quando mesmo CPF já tem UNIFICAR ---
+    # UNIFICAR deve ser feito antes de ATUALIZAR; ter os dois simultaneamente
+    # causa conflito (ATUALIZAR aponta para lead diferente do que sobrevive ao merge).
+    cpfs_com_unificar = {a["cpf"] for a in acoes if a.get("acao") == "UNIFICAR" and a.get("cpf")}
+    if cpfs_com_unificar:
+        antes = len(acoes)
+        acoes = [
+            a for a in acoes
+            if not (a.get("acao") == "ATUALIZAR" and a.get("cpf") in cpfs_com_unificar)
+        ]
+        removidos = antes - len(acoes)
+        if removidos:
+            log.info("ATUALIZAR removidos por conflito com UNIFICAR: %d", removidos)
+
     n_novo = sum(1 for a in acoes if a["acao"] == "NOVO")
     n_atualizar = sum(1 for a in acoes if a["acao"] == "ATUALIZAR")
     n_matriculado = sum(1 for a in acoes if a["acao"] == "MATRICULADO")
