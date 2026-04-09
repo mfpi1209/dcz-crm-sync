@@ -13,8 +13,8 @@ async function api(url, opts = {}) {
 // ---------------------------------------------------------------------------
 // SPA Navigation
 // ---------------------------------------------------------------------------
-const PAGES = ['dashboard', 'search', 'sync', 'kommo_sync', 'update', 'pipeline', 'match_merge', 'comercial_rgm', 'dist_comercial', 'distribuicao', 'ativacoes', 'intelligence', 'inadimplencia', 'feedback', 'comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos', 'logs', 'config', 'schedule', 'inscricao', 'avisos', 'kommo_dispatcher', 'meta-campaigns', 'recadastros', 'comercial_dashboard', 'auditoria_comercial', 'atualizar_ia', 'vocacional', 'leads_parados', 'minha_performance', 'premiacao_admin', 'macro_email', 'ajustes_matricula'];
-const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', kommo_sync: 'Sync Comercial', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', match_merge: 'Match & Merge', comercial_rgm: 'Dashboard Comercial', dist_comercial: 'Distribuição Comercial', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas', intelligence: 'Inteligência', inadimplencia: 'Inadimplência', feedback: 'Feedback', comparar_cursos: 'Comparar Cursos', recomendacao_cursos: 'Recomendação', localizacao_polos: 'Localização', info_cursos: 'Informações de Cursos', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento', inscricao: 'Inscrição Automática', avisos: 'Avisos', kommo_dispatcher: 'Kommo Dispatcher', 'meta-campaigns': 'Campaign Performance', recadastros: 'Recadastros', comercial_dashboard: 'Dashboard Atendimentos', auditoria_comercial: 'Feedback Comercial', atualizar_ia: 'Atualizar IA', vocacional: 'Dashboard Vocacional', leads_parados: 'Leads Parados', minha_performance: 'Minha Performance', premiacao_admin: 'Premiação', macro_email: 'Macro Email', ajustes_matricula: 'Ajustes de Matrícula' };
+const PAGES = ['dashboard', 'search', 'sync', 'kommo_sync', 'update', 'pipeline', 'match_merge', 'comercial_rgm', 'dist_comercial', 'distribuicao', 'ativacoes', 'intelligence', 'inadimplencia', 'feedback', 'comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos', 'logs', 'config', 'schedule', 'inscricao', 'avisos', 'kommo_dispatcher', 'meta-campaigns', 'recadastros', 'comercial_dashboard', 'auditoria_comercial', 'atualizar_ia', 'vocacional', 'leads_parados', 'minha_performance', 'premiacao_admin', 'macro_email', 'ajustes_matricula', 'repasse', 'dist_consultor'];
+const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', kommo_sync: 'Sync Comercial', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', match_merge: 'Match & Merge', comercial_rgm: 'Dashboard Comercial', dist_comercial: 'Distribuição Comercial', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas', intelligence: 'Inteligência', inadimplencia: 'Inadimplência', feedback: 'Feedback', comparar_cursos: 'Comparar Cursos', recomendacao_cursos: 'Recomendação', localizacao_polos: 'Localização', info_cursos: 'Informações de Cursos', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento', inscricao: 'Inscrição Automática', avisos: 'Avisos', kommo_dispatcher: 'Kommo Dispatcher', 'meta-campaigns': 'Campaign Performance', recadastros: 'Recadastros', comercial_dashboard: 'Dashboard Atendimentos', auditoria_comercial: 'Feedback Comercial', atualizar_ia: 'Atualizar IA', vocacional: 'Dashboard Vocacional', leads_parados: 'Leads Parados', minha_performance: 'Minha Performance', premiacao_admin: 'Premiação', macro_email: 'Macro Email', ajustes_matricula: 'Ajustes de Matrícula', repasse: 'Repasse', dist_consultor: 'Distribuição Consultor' };
 
 function navigate(page, params) {
     PAGES.forEach(p => {
@@ -63,10 +63,12 @@ function navigate(page, params) {
     if (page === 'meta-campaigns') loadMetaCampaigns();
     if (page === 'recadastros') loadRecadastros();
     if (page === 'leads_parados') loadLeadsParados();
+    if (page === 'dist_consultor') loadDistConsultor();
     if (page === 'minha_performance') loadMinhaPerformance(params);
     if (page === 'premiacao_admin') loadPremiacaoAdmin();
     if (page === 'ajustes_matricula') loadAjustesMatricula();
     if (page === 'macro_email') loadMacroEmail();
+    if (page === 'repasse') repInit();
 
     history.replaceState(null, '', '#' + page);
 }
@@ -158,7 +160,7 @@ function refreshBadge() {
 const SIDEBAR_GROUPS = {
     academico: ['ativacoes', 'distribuicao', 'intelligence', 'inadimplencia', 'feedback'],
     ferramentas: ['comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos'],
-    comercial: ['pipeline', 'update', 'match_merge', 'comercial_rgm', 'inscricao', 'auditoria_comercial', 'leads_parados', 'minha_performance'],
+    comercial: ['dist_consultor', 'pipeline', 'update', 'match_merge', 'comercial_rgm', 'inscricao', 'auditoria_comercial', 'leads_parados', 'minha_performance', 'repasse'],
     sistema: ['premiacao_admin', 'ajustes_matricula'],
 };
 

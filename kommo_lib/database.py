@@ -7,6 +7,8 @@ Estratégia: UPSERT incremental
 - Mantém dados disponíveis durante o sync
 - sync_metadata fica no PostgreSQL (persiste entre deploys)
 - Dados de staging (leads, contacts, etc.) ficam no SQLite
+- Cada batch de leads/contatos também pode espelhar no PostgreSQL (kommo_sync) na hora,
+  para o dashboard não depender só do migrate_to_postgres.py. Ver KOMMO_DUAL_WRITE_PG.
 """
 
 import os
@@ -209,11 +211,13 @@ CREATE INDEX IF NOT EXISTS idx_contact_cf_field ON contact_custom_field_values(f
 # ============================
 
 def get_connection() -> sqlite3.Connection:
-    """Cria conexão SQLite com configurações otimizadas."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("PRAGMA journal_mode=WAL")       # Write-Ahead Logging para melhor concorrência
-    conn.execute("PRAGMA synchronous=NORMAL")      # Balanço entre segurança e performance
-    conn.execute("PRAGMA cache_size=-64000")        # 64MB de cache
+    """Cria conexão SQLite com configurações otimizadas (menos travamentos)."""
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA cache_size=-32000")       # 32MB (reduz pico de memória)
+    conn.execute("PRAGMA busy_timeout=10000")      # 10s: espera em vez de travar se DB ocupado
+    conn.execute("PRAGMA temp_store=MEMORY")
     conn.execute("PRAGMA foreign_keys=ON")
     conn.row_factory = sqlite3.Row
     return conn
@@ -390,122 +394,376 @@ def upsert_pipeline_status(status: dict, pipeline_id: int):
 # Operações de Leads
 # ============================
 
-def upsert_leads_batch(leads: list[dict]):
-    """Insere ou atualiza um lote de leads com seus custom fields."""
-    now = datetime.utcnow().isoformat()
-    with get_db() as conn:
+def _lead_row(lead: dict, now: str) -> tuple:
+    """Monta uma tupla para INSERT de lead (sem raw_json para economizar memória e disco)."""
+    custom_fields = lead.get("custom_fields_values") or []
+    tags = lead.get("_embedded", {}).get("tags") or []
+    contacts = lead.get("_embedded", {}).get("contacts") or []
+    return (
+        lead.get("id"),
+        lead.get("name"),
+        lead.get("price"),
+        lead.get("responsible_user_id"),
+        lead.get("group_id"),
+        lead.get("status_id"),
+        lead.get("pipeline_id"),
+        lead.get("loss_reason_id"),
+        lead.get("source_id"),
+        lead.get("created_by"),
+        lead.get("updated_by"),
+        lead.get("closed_at"),
+        lead.get("created_at"),
+        lead.get("updated_at"),
+        lead.get("closest_task_at"),
+        1 if lead.get("is_deleted") else 0,
+        lead.get("score"),
+        lead.get("account_id"),
+        lead.get("labor_cost"),
+        1 if lead.get("is_price_modified_by_robot") else 0,
+        json.dumps(custom_fields, ensure_ascii=False) if custom_fields else None,
+        json.dumps(tags, ensure_ascii=False) if tags else None,
+        json.dumps(contacts, ensure_ascii=False) if contacts else None,
+        None,  # raw_json omitido para reduzir I/O e memória (não usado pelo dashboard)
+        now,
+    )
+
+
+_LEAD_INSERT_SQL = """
+INSERT OR REPLACE INTO leads 
+(id, name, price, responsible_user_id, group_id, status_id, pipeline_id,
+ loss_reason_id, source_id, created_by, updated_by, closed_at, created_at,
+ updated_at, closest_task_at, is_deleted, score, account_id, labor_cost,
+ is_price_modified, custom_fields_json, tags_json, contacts_json, raw_json, synced_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+"""
+
+_LEAD_CF_INSERT_SQL = """
+INSERT OR REPLACE INTO lead_custom_field_values
+(lead_id, field_id, field_name, field_code, field_type, values_json, synced_at)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+"""
+
+
+def _dual_write_pg_enabled() -> bool:
+    v = os.getenv("KOMMO_DUAL_WRITE_PG", "1").strip().lower()
+    return v in ("1", "true", "yes", "on")
+
+
+def _append_lead_postgres_cur(cur, lead: dict, now: str) -> None:
+    """INSERT/UPDATE um lead + CF no PostgreSQL (usa cursor já aberto)."""
+    from psycopg2.extras import Json
+
+    cfs = lead.get("custom_fields_values") or []
+    emb = lead.get("_embedded") or {}
+    tags = emb.get("tags") or []
+    emb_contacts = emb.get("contacts") or []
+    cur.execute(
+        """
+        INSERT INTO leads (
+            id, name, price, responsible_user_id, group_id, status_id, pipeline_id,
+            loss_reason_id, source_id, created_by, updated_by, closed_at, created_at,
+            updated_at, closest_task_at, is_deleted, score, account_id, labor_cost,
+            is_price_modified, custom_fields_json, tags_json, contacts_json, raw_json, synced_at
+        ) VALUES (
+            %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
+        )
+        ON CONFLICT (id) DO UPDATE SET
+            name = EXCLUDED.name, price = EXCLUDED.price,
+            responsible_user_id = EXCLUDED.responsible_user_id, group_id = EXCLUDED.group_id,
+            status_id = EXCLUDED.status_id, pipeline_id = EXCLUDED.pipeline_id,
+            loss_reason_id = EXCLUDED.loss_reason_id, source_id = EXCLUDED.source_id,
+            created_by = EXCLUDED.created_by, updated_by = EXCLUDED.updated_by,
+            closed_at = EXCLUDED.closed_at, created_at = EXCLUDED.created_at,
+            updated_at = EXCLUDED.updated_at, closest_task_at = EXCLUDED.closest_task_at,
+            is_deleted = EXCLUDED.is_deleted, score = EXCLUDED.score,
+            account_id = EXCLUDED.account_id, labor_cost = EXCLUDED.labor_cost,
+            is_price_modified = EXCLUDED.is_price_modified,
+            custom_fields_json = EXCLUDED.custom_fields_json, tags_json = EXCLUDED.tags_json,
+            contacts_json = EXCLUDED.contacts_json, synced_at = EXCLUDED.synced_at
+        """,
+        (
+            lead["id"],
+            lead.get("name"),
+            int(lead.get("price") or 0),
+            lead.get("responsible_user_id"),
+            lead.get("group_id"),
+            lead.get("status_id"),
+            lead.get("pipeline_id"),
+            lead.get("loss_reason_id"),
+            lead.get("source_id"),
+            lead.get("created_by"),
+            lead.get("updated_by"),
+            lead.get("closed_at"),
+            lead.get("created_at"),
+            lead.get("updated_at"),
+            lead.get("closest_task_at"),
+            bool(lead.get("is_deleted")),
+            lead.get("score"),
+            lead.get("account_id"),
+            lead.get("labor_cost"),
+            bool(lead.get("is_price_modified_by_robot")),
+            Json(cfs) if cfs else None,
+            Json(tags) if tags else None,
+            Json(emb_contacts) if emb_contacts else None,
+            None,
+            now,
+        ),
+    )
+    for cf in cfs:
+        cur.execute(
+            """
+            INSERT INTO lead_custom_field_values
+            (lead_id, field_id, field_name, field_code, field_type, values_json, synced_at)
+            VALUES (%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT (lead_id, field_id) DO UPDATE SET
+                field_name = EXCLUDED.field_name, field_code = EXCLUDED.field_code,
+                field_type = EXCLUDED.field_type, values_json = EXCLUDED.values_json,
+                synced_at = EXCLUDED.synced_at
+            """,
+            (
+                lead["id"],
+                cf.get("field_id"),
+                cf.get("field_name"),
+                cf.get("field_code"),
+                cf.get("field_type"),
+                Json(cf.get("values") or []),
+                now,
+            ),
+        )
+
+
+def _mirror_leads_batch_postgres(leads: list[dict], now: str) -> None:
+    if not _dual_write_pg_enabled() or not leads:
+        return
+    k = None
+    c = None
+    try:
+        k = _pg()
+        c = k.cursor()
         for lead in leads:
-            custom_fields = lead.get("custom_fields_values") or []
-            tags = lead.get("_embedded", {}).get("tags") or []
-            contacts = lead.get("_embedded", {}).get("contacts") or []
+            _append_lead_postgres_cur(c, lead, now)
+        k.commit()
+    except Exception as e:
+        logger.error("Espelho PostgreSQL (leads batch): %s", e)
+        if k:
+            try:
+                k.rollback()
+            except Exception:
+                pass
+    finally:
+        if c:
+            try:
+                c.close()
+            except Exception:
+                pass
+        if k:
+            try:
+                k.close()
+            except Exception:
+                pass
 
-            conn.execute("""
-                INSERT OR REPLACE INTO leads 
-                (id, name, price, responsible_user_id, group_id, status_id, pipeline_id,
-                 loss_reason_id, source_id, created_by, updated_by, closed_at, created_at,
-                 updated_at, closest_task_at, is_deleted, score, account_id, labor_cost,
-                 is_price_modified, custom_fields_json, tags_json, contacts_json, raw_json, synced_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                lead.get("id"),
-                lead.get("name"),
-                lead.get("price"),
-                lead.get("responsible_user_id"),
-                lead.get("group_id"),
-                lead.get("status_id"),
-                lead.get("pipeline_id"),
-                lead.get("loss_reason_id"),
-                lead.get("source_id"),
-                lead.get("created_by"),
-                lead.get("updated_by"),
-                lead.get("closed_at"),
-                lead.get("created_at"),
-                lead.get("updated_at"),
-                lead.get("closest_task_at"),
-                1 if lead.get("is_deleted") else 0,
-                lead.get("score"),
-                lead.get("account_id"),
-                lead.get("labor_cost"),
-                1 if lead.get("is_price_modified_by_robot") else 0,
-                json.dumps(custom_fields, ensure_ascii=False) if custom_fields else None,
-                json.dumps(tags, ensure_ascii=False) if tags else None,
-                json.dumps(contacts, ensure_ascii=False) if contacts else None,
-                json.dumps(lead, ensure_ascii=False),
-                now
+
+def upsert_leads_batch(leads: list[dict]):
+    """Insere ou atualiza um lote de leads com executemany (menos locks, menos I/O). Sem raw_json."""
+    if not leads:
+        return
+    now = datetime.utcnow().isoformat()
+    rows = [_lead_row(lead, now) for lead in leads]
+    cf_rows = []
+    for lead in leads:
+        lid = lead.get("id")
+        for cf in lead.get("custom_fields_values") or []:
+            cf_rows.append((
+                lid,
+                cf.get("field_id"),
+                cf.get("field_name"),
+                cf.get("field_code"),
+                cf.get("field_type"),
+                json.dumps(cf.get("values", []), ensure_ascii=False),
+                now,
             ))
+    with get_db() as conn:
+        conn.executemany(_LEAD_INSERT_SQL, rows)
+        if cf_rows:
+            conn.executemany(_LEAD_CF_INSERT_SQL, cf_rows)
+    _mirror_leads_batch_postgres(leads, now)
 
-            # Upsert custom fields normalizados
-            if custom_fields:
-                for cf in custom_fields:
-                    conn.execute("""
-                        INSERT OR REPLACE INTO lead_custom_field_values
-                        (lead_id, field_id, field_name, field_code, field_type, values_json, synced_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        lead["id"],
-                        cf.get("field_id"),
-                        cf.get("field_name"),
-                        cf.get("field_code"),
-                        cf.get("field_type"),
-                        json.dumps(cf.get("values", []), ensure_ascii=False),
-                        now
-                    ))
+
+def upsert_lead_postgres(lead: dict) -> None:
+    """Grava/atualiza um lead e lead_custom_field_values no PostgreSQL kommo_sync (espelho do sync)."""
+    now = datetime.utcnow().isoformat()
+    k = _pg()
+    c = k.cursor()
+    try:
+        _append_lead_postgres_cur(c, lead, now)
+        k.commit()
+    finally:
+        c.close()
+        k.close()
 
 
 # ============================
 # Operações de Contatos
 # ============================
 
-def upsert_contacts_batch(contacts: list[dict]):
-    """Insere ou atualiza um lote de contatos com seus custom fields."""
-    now = datetime.utcnow().isoformat()
-    with get_db() as conn:
+_CONTACT_INSERT_SQL = """
+INSERT OR REPLACE INTO contacts 
+(id, name, first_name, last_name, responsible_user_id, group_id,
+ created_by, updated_by, created_at, updated_at, closest_task_at,
+ is_deleted, account_id, custom_fields_json, tags_json, raw_json, synced_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+"""
+
+_CONTACT_CF_INSERT_SQL = """
+INSERT OR REPLACE INTO contact_custom_field_values
+(contact_id, field_id, field_name, field_code, field_type, values_json, synced_at)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+"""
+
+
+def _append_contact_postgres_cur(cur, contact: dict, now: str) -> None:
+    from psycopg2.extras import Json
+
+    custom_fields = contact.get("custom_fields_values") or []
+    tags = contact.get("_embedded", {}).get("tags") or []
+    cid = contact.get("id")
+    cur.execute(
+        """
+        INSERT INTO contacts (
+            id, name, first_name, last_name, responsible_user_id, group_id,
+            created_by, updated_by, created_at, updated_at, closest_task_at,
+            is_deleted, account_id, custom_fields_json, tags_json, raw_json, synced_at
+        ) VALUES (
+            %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
+        )
+        ON CONFLICT (id) DO UPDATE SET
+            name = EXCLUDED.name, first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name,
+            responsible_user_id = EXCLUDED.responsible_user_id, group_id = EXCLUDED.group_id,
+            created_by = EXCLUDED.created_by, updated_by = EXCLUDED.updated_by,
+            created_at = EXCLUDED.created_at, updated_at = EXCLUDED.updated_at,
+            closest_task_at = EXCLUDED.closest_task_at, is_deleted = EXCLUDED.is_deleted,
+            account_id = EXCLUDED.account_id, custom_fields_json = EXCLUDED.custom_fields_json,
+            tags_json = EXCLUDED.tags_json, synced_at = EXCLUDED.synced_at
+        """,
+        (
+            cid,
+            contact.get("name"),
+            contact.get("first_name"),
+            contact.get("last_name"),
+            contact.get("responsible_user_id"),
+            contact.get("group_id"),
+            contact.get("created_by"),
+            contact.get("updated_by"),
+            contact.get("created_at"),
+            contact.get("updated_at"),
+            contact.get("closest_task_at"),
+            bool(contact.get("is_deleted")),
+            contact.get("account_id"),
+            Json(custom_fields) if custom_fields else None,
+            Json(tags) if tags else None,
+            None,
+            now,
+        ),
+    )
+    for cf in custom_fields:
+        cur.execute(
+            """
+            INSERT INTO contact_custom_field_values
+            (contact_id, field_id, field_name, field_code, field_type, values_json, synced_at)
+            VALUES (%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT (contact_id, field_id) DO UPDATE SET
+                field_name = EXCLUDED.field_name, field_code = EXCLUDED.field_code,
+                field_type = EXCLUDED.field_type, values_json = EXCLUDED.values_json,
+                synced_at = EXCLUDED.synced_at
+            """,
+            (
+                cid,
+                cf.get("field_id"),
+                cf.get("field_name"),
+                cf.get("field_code"),
+                cf.get("field_type"),
+                Json(cf.get("values") or []),
+                now,
+            ),
+        )
+
+
+def _mirror_contacts_batch_postgres(contacts: list[dict], now: str) -> None:
+    if not _dual_write_pg_enabled() or not contacts:
+        return
+    k = None
+    c = None
+    try:
+        k = _pg()
+        c = k.cursor()
         for contact in contacts:
-            custom_fields = contact.get("custom_fields_values") or []
-            tags = contact.get("_embedded", {}).get("tags") or []
+            _append_contact_postgres_cur(c, contact, now)
+        k.commit()
+    except Exception as e:
+        logger.error("Espelho PostgreSQL (contacts batch): %s", e)
+        if k:
+            try:
+                k.rollback()
+            except Exception:
+                pass
+    finally:
+        if c:
+            try:
+                c.close()
+            except Exception:
+                pass
+        if k:
+            try:
+                k.close()
+            except Exception:
+                pass
 
-            conn.execute("""
-                INSERT OR REPLACE INTO contacts 
-                (id, name, first_name, last_name, responsible_user_id, group_id,
-                 created_by, updated_by, created_at, updated_at, closest_task_at,
-                 is_deleted, account_id, custom_fields_json, tags_json, raw_json, synced_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                contact.get("id"),
-                contact.get("name"),
-                contact.get("first_name"),
-                contact.get("last_name"),
-                contact.get("responsible_user_id"),
-                contact.get("group_id"),
-                contact.get("created_by"),
-                contact.get("updated_by"),
-                contact.get("created_at"),
-                contact.get("updated_at"),
-                contact.get("closest_task_at"),
-                1 if contact.get("is_deleted") else 0,
-                contact.get("account_id"),
-                json.dumps(custom_fields, ensure_ascii=False) if custom_fields else None,
-                json.dumps(tags, ensure_ascii=False) if tags else None,
-                json.dumps(contact, ensure_ascii=False),
-                now
+
+def upsert_contacts_batch(contacts: list[dict]):
+    """Insere ou atualiza contatos com executemany; sem raw_json (menos I/O)."""
+    if not contacts:
+        return
+    now = datetime.utcnow().isoformat()
+    rows = []
+    cf_rows = []
+    for contact in contacts:
+        custom_fields = contact.get("custom_fields_values") or []
+        tags = contact.get("_embedded", {}).get("tags") or []
+        cid = contact.get("id")
+        rows.append((
+            cid,
+            contact.get("name"),
+            contact.get("first_name"),
+            contact.get("last_name"),
+            contact.get("responsible_user_id"),
+            contact.get("group_id"),
+            contact.get("created_by"),
+            contact.get("updated_by"),
+            contact.get("created_at"),
+            contact.get("updated_at"),
+            contact.get("closest_task_at"),
+            1 if contact.get("is_deleted") else 0,
+            contact.get("account_id"),
+            json.dumps(custom_fields, ensure_ascii=False) if custom_fields else None,
+            json.dumps(tags, ensure_ascii=False) if tags else None,
+            None,
+            now,
+        ))
+        for cf in custom_fields:
+            cf_rows.append((
+                cid,
+                cf.get("field_id"),
+                cf.get("field_name"),
+                cf.get("field_code"),
+                cf.get("field_type"),
+                json.dumps(cf.get("values", []), ensure_ascii=False),
+                now,
             ))
-
-            # Upsert custom fields normalizados
-            if custom_fields:
-                for cf in custom_fields:
-                    conn.execute("""
-                        INSERT OR REPLACE INTO contact_custom_field_values
-                        (contact_id, field_id, field_name, field_code, field_type, values_json, synced_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        contact["id"],
-                        cf.get("field_id"),
-                        cf.get("field_name"),
-                        cf.get("field_code"),
-                        cf.get("field_type"),
-                        json.dumps(cf.get("values", []), ensure_ascii=False),
-                        now
-                    ))
+    with get_db() as conn:
+        conn.executemany(_CONTACT_INSERT_SQL, rows)
+        if cf_rows:
+            conn.executemany(_CONTACT_CF_INSERT_SQL, cf_rows)
+    _mirror_contacts_batch_postgres(contacts, now)
 
 
 # ============================

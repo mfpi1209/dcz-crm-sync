@@ -1,0 +1,449 @@
+            <div id="page-dist_consultor" class="hidden">
+                <style>
+                    #page-dist_consultor {
+                        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+                    }
+
+                    .light #page-dist_consultor {
+                        --dc-bg-main: #f8fafc;
+                        --dc-bg-card: #ffffff;
+                        --dc-border: #e2e8f0;
+                        --dc-text-primary: #0f172a;
+                        --dc-text-secondary: #475569;
+                        --dc-text-muted: #94a3b8;
+                        --dc-input-bg: #ffffff;
+                        --dc-hover: #f1f5f9;
+                    }
+
+                    .dark #page-dist_consultor {
+                        --dc-bg-main: #0f172a;
+                        --dc-bg-card: #1e293b;
+                        --dc-border: #334155;
+                        --dc-text-primary: #f1f5f9;
+                        --dc-text-secondary: #cbd5e1;
+                        --dc-text-muted: #64748b;
+                        --dc-input-bg: #1e293b;
+                        --dc-hover: #334155;
+                    }
+
+                    #page-dist_consultor {
+                        background: var(--dc-bg-main);
+                        color: var(--dc-text-primary);
+                    }
+
+                    #page-dist_consultor .dc-container {
+                        max-width: 1400px;
+                        margin: 0 auto;
+                        padding: 24px;
+                    }
+
+                    #page-dist_consultor .dc-card {
+                        background: var(--dc-bg-card);
+                        border-radius: 16px;
+                        border: 1px solid var(--dc-border);
+                        padding: 24px;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+                    }
+                    .dark #page-dist_consultor .dc-card {
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                    }
+
+                    #page-dist_consultor .dc-header {
+                        display: flex;
+                        flex-wrap: wrap;
+                        align-items: flex-end;
+                        justify-content: space-between;
+                        gap: 16px;
+                        margin-bottom: 24px;
+                    }
+
+                    #page-dist_consultor .dc-title {
+                        font-size: 24px;
+                        font-weight: 700;
+                        color: var(--dc-text-primary);
+                    }
+
+                    #page-dist_consultor .dc-subtitle {
+                        font-size: 14px;
+                        color: var(--dc-text-muted);
+                        margin-top: 4px;
+                    }
+
+                    #page-dist_consultor .dc-last-update {
+                        font-size: 13px;
+                        color: var(--dc-text-muted);
+                    }
+
+                    #page-dist_consultor .dc-filters {
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        flex-wrap: wrap;
+                        margin-bottom: 24px;
+                    }
+
+                    #page-dist_consultor .dc-filter-group label {
+                        display: block;
+                        font-size: 11px;
+                        font-weight: 600;
+                        color: var(--dc-text-muted);
+                        margin-bottom: 4px;
+                        text-transform: uppercase;
+                        letter-spacing: 0.3px;
+                    }
+
+                    #page-dist_consultor .dc-filter-group select {
+                        padding: 9px 14px;
+                        border: 1px solid var(--dc-border);
+                        border-radius: 8px;
+                        font-size: 13px;
+                        background: var(--dc-input-bg);
+                        color: var(--dc-text-primary);
+                        transition: all 0.2s;
+                        min-width: 160px;
+                        font-family: inherit;
+                    }
+
+                    #page-dist_consultor .dc-filter-group select:focus {
+                        outline: none;
+                        border-color: #2563eb;
+                        box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+                    }
+
+                    #page-dist_consultor .dc-date-btn {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 8px;
+                        padding: 9px 16px;
+                        border-radius: 8px;
+                        border: 1px solid var(--dc-border);
+                        background: var(--dc-input-bg);
+                        color: var(--dc-text-secondary);
+                        cursor: pointer;
+                        font-size: 13px;
+                        font-family: inherit;
+                        font-weight: 500;
+                        transition: all 0.2s;
+                    }
+                    #page-dist_consultor .dc-date-btn:hover {
+                        border-color: #3b82f6;
+                        color: var(--dc-text-primary);
+                    }
+                    #page-dist_consultor .dc-date-btn .material-symbols-outlined { font-size: 18px; }
+
+                    #page-dist_consultor .dc-btn-update {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 8px;
+                        padding: 9px 22px;
+                        background: #2563eb;
+                        color: white;
+                        border: none;
+                        border-radius: 8px;
+                        font-size: 13px;
+                        font-weight: 600;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                        font-family: inherit;
+                    }
+                    #page-dist_consultor .dc-btn-update:hover { background: #1d4ed8; transform: translateY(-1px); }
+                    #page-dist_consultor .dc-btn-update:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+                    #page-dist_consultor .dc-btn-update svg { width: 16px; height: 16px; }
+
+                    #page-dist_consultor .dc-btn-update .dc-spinner {
+                        width: 16px; height: 16px;
+                        border: 2px solid rgba(255,255,255,0.3);
+                        border-top-color: white;
+                        border-radius: 50%;
+                        animation: dc-spin 0.7s linear infinite;
+                    }
+                    @keyframes dc-spin { to { transform: rotate(360deg); } }
+
+                    #page-dist_consultor .dc-metrics {
+                        display: grid;
+                        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                        gap: 16px;
+                        margin-bottom: 24px;
+                    }
+
+                    #page-dist_consultor .dc-metric {
+                        background: var(--dc-bg-card);
+                        border: 1px solid var(--dc-border);
+                        border-radius: 16px;
+                        padding: 20px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        transition: transform 0.2s;
+                    }
+                    #page-dist_consultor .dc-metric:hover { transform: translateY(-2px); }
+                    .dark #page-dist_consultor .dc-metric { box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+
+                    #page-dist_consultor .dc-metric-label {
+                        font-size: 13px;
+                        color: var(--dc-text-muted);
+                    }
+
+                    #page-dist_consultor .dc-metric-value {
+                        font-size: 32px;
+                        font-weight: 800;
+                        color: var(--dc-text-primary);
+                        margin-top: 4px;
+                    }
+
+                    #page-dist_consultor .dc-metric-icon {
+                        width: 48px;
+                        height: 48px;
+                        border-radius: 16px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        flex-shrink: 0;
+                    }
+                    #page-dist_consultor .dc-metric-icon svg {
+                        width: 24px;
+                        height: 24px;
+                    }
+
+                    #page-dist_consultor .dc-charts-row {
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 24px;
+                        margin-bottom: 24px;
+                    }
+
+                    #page-dist_consultor .dc-chart-card {
+                        background: var(--dc-bg-card);
+                        border: 1px solid var(--dc-border);
+                        border-radius: 16px;
+                        padding: 24px;
+                    }
+                    .dark #page-dist_consultor .dc-chart-card { box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+
+                    #page-dist_consultor .dc-chart-title {
+                        font-size: 16px;
+                        font-weight: 700;
+                        color: var(--dc-text-primary);
+                        margin-bottom: 16px;
+                    }
+
+                    #page-dist_consultor .dc-chart-wrap {
+                        position: relative;
+                        height: 340px;
+                    }
+
+                    #page-dist_consultor .dc-alert {
+                        padding: 14px 18px;
+                        border-radius: 12px;
+                        font-size: 14px;
+                        margin-bottom: 16px;
+                    }
+                    #page-dist_consultor .dc-alert-error {
+                        background: rgba(220,38,38,0.08);
+                        border: 1px solid rgba(220,38,38,0.2);
+                        color: #fca5a5;
+                    }
+                    .light #page-dist_consultor .dc-alert-error {
+                        background: #fef2f2;
+                        border-color: #fecaca;
+                        color: #dc2626;
+                    }
+
+                    #page-dist_consultor .dc-alert-warn {
+                        background: rgba(245,158,11,0.08);
+                        border: 1px solid rgba(245,158,11,0.2);
+                        color: #fbbf24;
+                    }
+                    .light #page-dist_consultor .dc-alert-warn {
+                        background: #fffbeb;
+                        border-color: #fde68a;
+                        color: #92400e;
+                    }
+
+                    #page-dist_consultor .dc-raw-preview {
+                        margin-bottom: 24px;
+                    }
+                    #page-dist_consultor .dc-raw-preview pre {
+                        background: var(--dc-input-bg);
+                        border: 1px solid var(--dc-border);
+                        border-radius: 12px;
+                        padding: 16px;
+                        font-size: 12px;
+                        max-height: 240px;
+                        overflow: auto;
+                        white-space: pre-wrap;
+                        word-break: break-word;
+                        color: var(--dc-text-secondary);
+                    }
+
+                    #dcDpPopup {
+                        background: #1e293b !important;
+                        border-color: #334155 !important;
+                    }
+                    .light #dcDpPopup {
+                        background: #ffffff !important;
+                        border-color: #e2e8f0 !important;
+                    }
+                    #dcDpPopup .voc-dp-top,
+                    #dcDpPopup .voc-dp-footer {
+                        border-color: #334155 !important;
+                    }
+                    .light #dcDpPopup .voc-dp-top,
+                    .light #dcDpPopup .voc-dp-footer {
+                        border-color: #e2e8f0 !important;
+                    }
+                    #dcDpPopup .voc-dp-cal + .voc-dp-cal {
+                        border-color: #334155 !important;
+                    }
+                    .light #dcDpPopup .voc-dp-cal + .voc-dp-cal {
+                        border-color: #e2e8f0 !important;
+                    }
+                    #dcDpPopup .voc-dp-preset-label {
+                        background: #1e293b !important;
+                        border-color: #334155 !important;
+                    }
+                    .light #dcDpPopup .voc-dp-preset-label {
+                        background: #ffffff !important;
+                        border-color: #e2e8f0 !important;
+                    }
+                    #dcDpPopup .voc-dp-presets {
+                        background: #1e293b !important;
+                        border-color: #334155 !important;
+                    }
+                    .light #dcDpPopup .voc-dp-presets {
+                        background: #ffffff !important;
+                        border-color: #e2e8f0 !important;
+                    }
+                    #dcDpPopup .voc-dp-btn-cancel {
+                        border-color: #334155 !important;
+                    }
+                    .light #dcDpPopup .voc-dp-btn-cancel {
+                        border-color: #e2e8f0 !important;
+                    }
+
+                    @media (max-width: 768px) {
+                        #page-dist_consultor .dc-container { padding: 16px; }
+                        #page-dist_consultor .dc-charts-row { grid-template-columns: 1fr; }
+                        #page-dist_consultor .dc-header { flex-direction: column; align-items: flex-start; }
+                        #page-dist_consultor .dc-title { font-size: 20px; }
+                    }
+                </style>
+
+                <div class="dc-container">
+                    <!-- Header -->
+                    <div class="dc-header">
+                        <div>
+                            <h1 class="dc-title">Dashboard de Distribuição por Consultor</h1>
+                            <p class="dc-subtitle">Dados consumidos da webhook do n8n por período, consultor e origem.</p>
+                        </div>
+                        <div id="dc-last-update" class="dc-last-update">Aguardando carregamento</div>
+                    </div>
+
+                    <!-- Filters -->
+                    <div class="dc-filters">
+                        <div class="dc-filter-group">
+                            <label>Período</label>
+                            <button class="dc-date-btn" id="dc-date-trigger" onclick="dcDpOpen(this)">
+                                <span class="material-symbols-outlined">date_range</span>
+                                <span id="dc-date-label">Últimos 7 dias</span>
+                                <span class="material-symbols-outlined">expand_more</span>
+                            </button>
+                        </div>
+                        <div class="dc-filter-group">
+                            <label for="dc-consultor-filter">Consultor</label>
+                            <select id="dc-consultor-filter">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+                        <div class="dc-filter-group">
+                            <label for="dc-origem-filter">Origem</label>
+                            <select id="dc-origem-filter">
+                                <option value="">Todas</option>
+                            </select>
+                        </div>
+                        <div class="dc-filter-group" style="align-self:flex-end">
+                            <button id="dc-btn-fetch" class="dc-btn-update" onclick="dcConsultorFetch()">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                Atualizar
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Error / Warning -->
+                    <div id="dc-alert-box" style="display:none"></div>
+
+                    <!-- Raw preview (shown when no rows found) -->
+                    <div id="dc-raw-box" style="display:none" class="dc-card dc-raw-preview">
+                        <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;color:#92400e">Prévia do retorno da webhook</h3>
+                        <pre id="dc-raw-content"></pre>
+                    </div>
+
+                    <!-- Metrics -->
+                    <div class="dc-metrics">
+                        <div class="dc-metric">
+                            <div>
+                                <p class="dc-metric-label">Total de Leads</p>
+                                <p class="dc-metric-value" id="dc-m-leads">0</p>
+                            </div>
+                            <div class="dc-metric-icon" style="background:rgba(37,99,235,0.08)">
+                                <svg fill="none" stroke="#2563eb" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+                            </div>
+                        </div>
+                        <div class="dc-metric">
+                            <div>
+                                <p class="dc-metric-label">Consultores</p>
+                                <p class="dc-metric-value" id="dc-m-consultores">0</p>
+                            </div>
+                            <div class="dc-metric-icon" style="background:rgba(6,182,212,0.08)">
+                                <svg fill="none" stroke="#06b6d4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            </div>
+                        </div>
+                        <div class="dc-metric">
+                            <div>
+                                <p class="dc-metric-label">Origens</p>
+                                <p class="dc-metric-value" id="dc-m-origens">0</p>
+                            </div>
+                            <div class="dc-metric-icon" style="background:rgba(16,185,129,0.08)">
+                                <svg fill="none" stroke="#10b981" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                            </div>
+                        </div>
+                        <div class="dc-metric">
+                            <div>
+                                <p class="dc-metric-label">Média por Dia</p>
+                                <p class="dc-metric-value" id="dc-m-media">0</p>
+                            </div>
+                            <div class="dc-metric-icon" style="background:rgba(139,92,246,0.08)">
+                                <svg fill="none" stroke="#8b5cf6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts row: bar + pie -->
+                    <div class="dc-charts-row">
+                        <div class="dc-chart-card">
+                            <h3 class="dc-chart-title">Leads por Consultor</h3>
+                            <div class="dc-chart-wrap">
+                                <canvas id="dc-chart-consultores"></canvas>
+                            </div>
+                        </div>
+                        <div class="dc-chart-card">
+                            <h3 class="dc-chart-title">Distribuição por Origem</h3>
+                            <div class="dc-chart-wrap">
+                                <canvas id="dc-chart-origens"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Stacked bar chart: leads by day + origin -->
+                    <div class="dc-chart-card">
+                        <h3 class="dc-chart-title">Leads por Dia e Origem</h3>
+                        <div class="dc-chart-wrap">
+                            <canvas id="dc-chart-dia-origem"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Date Range Picker Popup (reuses voc-dp-* global CSS) -->
+                <div class="voc-dp-overlay" id="dcDpOverlay" onclick="dcDpClose()"></div>
+                <div class="voc-dp-popup"   id="dcDpPopup"></div>
+            </div>

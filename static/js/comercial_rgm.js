@@ -5,6 +5,25 @@
 let _crgmChartEvolucao = null;
 let _crgmChartAgentes = null;
 
+/** Escolhe o período (dt_ini/dt_fim) mais recente entre comercial_metas e campanhas de Premiação. */
+function _crgmPickLatestMetaPeriod(periods) {
+    const uniq = new Map();
+    for (const p of periods) {
+        if (!p?.dt_inicio || !p?.dt_fim) continue;
+        const di = String(p.dt_inicio).trim().substring(0, 10);
+        const df = String(p.dt_fim).trim().substring(0, 10);
+        if (!di || !df) continue;
+        const k = `${di}|${df}`;
+        if (!uniq.has(k)) uniq.set(k, { dt_inicio: di, dt_fim: df });
+    }
+    const arr = Array.from(uniq.values());
+    arr.sort((a, b) => {
+        if (a.dt_inicio !== b.dt_inicio) return a.dt_inicio < b.dt_inicio ? 1 : -1;
+        return a.dt_fim < b.dt_fim ? 1 : a.dt_fim > b.dt_fim ? -1 : 0;
+    });
+    return arr[0] || null;
+}
+
 async function loadComercialRgm() {
     await _crgmLoadCiclos();
     await _crgmLoadTurmas();
@@ -13,12 +32,51 @@ async function loadComercialRgm() {
     if (filtersData && (!filtersData.agentes || filtersData.agentes.length === 0)) {
         await _crgmAutoSyncUsers();
     }
-    const hoje = new Date();
-    const ini = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
     const elIni = document.getElementById('crgm-dt-ini');
     const elFim = document.getElementById('crgm-dt-fim');
-    if (!elIni.value) elIni.value = ini.toISOString().substring(0, 10);
-    if (!elFim.value) elFim.value = hoje.toISOString().substring(0, 10);
+    // Sempre calcula o período mais recente (comercial_metas + Premiação). Antes só aplicávamos se DE ou ATÉ
+    // estivesse vazio; com ambos preenchidos (restauração do navegador ou sessão antiga) o dashboard ficava preso
+    // a metas antigas mesmo existindo campanha/meta mais nova.
+    try {
+        const periods = [];
+        const res = await api('/api/comercial-rgm/metas?categoria=matriculas');
+        const d = await res.json();
+        if (d.ok && d.metas?.length) {
+            for (const m of d.metas) {
+                if (m.dt_inicio && m.dt_fim) periods.push({ dt_inicio: m.dt_inicio, dt_fim: m.dt_fim });
+            }
+        }
+        const resC = await api('/api/premiacao/campanhas-periodos');
+        const dc = await resC.json();
+        if (dc.ok && dc.campanhas?.length) {
+            for (const c of dc.campanhas) {
+                if (c.dt_inicio && c.dt_fim) periods.push({ dt_inicio: c.dt_inicio, dt_fim: c.dt_fim });
+            }
+        }
+        const ultima = _crgmPickLatestMetaPeriod(periods);
+        if (ultima) {
+            const ni = String(ultima.dt_inicio || '').trim().substring(0, 10);
+            const nf = String(ultima.dt_fim || '').trim().substring(0, 10);
+            if (ni && nf) {
+                const curIni = (elIni.value || '').trim().substring(0, 10);
+                const curFim = (elFim.value || '').trim().substring(0, 10);
+                const empty = !curIni || !curFim;
+                const endsAfter = curFim && nf > curFim;
+                const sameEndLaterStart = curIni && curFim && nf === curFim && ni > curIni;
+                if (empty || endsAfter || sameEndLaterStart) {
+                    elIni.value = ni;
+                    elFim.value = nf;
+                }
+            }
+        }
+    } catch (_) {}
+    if (!elIni.value || !elFim.value) {
+        const hoje = new Date();
+        const ini = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+        if (!elIni.value) elIni.value = ini.toISOString().substring(0, 10);
+        if (!elFim.value) elFim.value = hoje.toISOString().substring(0, 10);
+    }
+    await _crgmPrefetchHistoricoMetas();
     crgmAtualizar();
 }
 
@@ -86,14 +144,25 @@ async function crgmAtualizar() {
         const res = await api(`/api/comercial-rgm/data?${qs}`);
         const d = await res.json();
         if (!d.ok) { _crgmErro(d.error || 'Erro'); return; }
+        const avisoMetas = document.getElementById('crgm-metas-aviso');
+        if (avisoMetas) {
+            if (d.metas_aviso) {
+                avisoMetas.textContent = d.metas_aviso;
+                avisoMetas.classList.remove('hidden');
+            } else {
+                avisoMetas.textContent = '';
+                avisoMetas.classList.add('hidden');
+            }
+        }
         _crgmRenderKPIs(d.kpis);
         _crgmRenderEvasao(d.evasao);
-        _crgmRenderEvolucao(d.evolucao, d.evolucao_prev || []);
+        _crgmRenderEvolucao(d.evolucao, d.evolucao_prev || [], d.evolucao_bruto || []);
         _crgmRenderPoloTable(d.ranking_polo);
         _crgmRenderCicloTable(d.ranking_ciclo);
         _crgmRenderAgentes(d.ranking_agentes || []);
         _crgmRenderAgentesChart(d.ranking_agentes || []);
         _crgmRenderTransferencia(d.transferencia_regresso);
+        crgmAtualizarBadgeConflitos();
     } catch (e) { _crgmErro('Erro: ' + e.message); }
     finally { _crgmLoading(false); }
 }
@@ -186,31 +255,94 @@ function _crgmBadge(id, pct) {
 }
 
 // ── Evolução ────────────────────────────────────────────
-function _crgmRenderEvolucao(evolucao, evolucaoPrev) {
+function _crgmRenderEvolucao(evolucao, evolucaoPrev, evolucaoBruto) {
     const ctx = document.getElementById('crgm-chart-evolucao');
     if (_crgmChartEvolucao) _crgmChartEvolucao.destroy();
-    const labels = evolucao.map(e => { const d = new Date(e.data+'T00:00:00'); return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}); });
-    const values = evolucao.map(e => e.count);
-    const datasets = [{
-        label: 'Matrículas', data: values,
-        borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.06)',
-        borderWidth: 2.5, fill: true, tension: 0.3,
-        pointRadius: evolucao.length > 60 ? 0 : 4, pointBackgroundColor: '#3b82f6', pointHoverRadius: 6,
-    }];
-    if (evolucaoPrev && evolucaoPrev.length > 0) {
-        const prevMap = {};
-        evolucaoPrev.forEach(e => { const d = new Date(e.data+'T00:00:00'); prevMap[`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`] = (prevMap[`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`]||0) + e.count; });
+
+    // Usa datas do bruto como eixo principal (é o superset)
+    const baseData = (evolucaoBruto && evolucaoBruto.length > 0) ? evolucaoBruto : evolucao;
+    const labels = baseData.map(e => { const d = new Date(e.data+'T00:00:00'); return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}); });
+
+    // Mapeia líquido e bruto por data para alinhar com o eixo
+    const liquidoMap = {};
+    evolucao.forEach(e => { liquidoMap[e.data] = e.count; });
+    const brutoMap = {};
+    if (evolucaoBruto) evolucaoBruto.forEach(e => { brutoMap[e.data] = e.count; });
+
+    const valuesLiquido = baseData.map(e => liquidoMap[e.data] ?? 0);
+    const valuesBruto   = baseData.map(e => brutoMap[e.data]   ?? 0);
+
+    const hasBruto = evolucaoBruto && evolucaoBruto.length > 0;
+    const datasets = [];
+
+    // Sombra bruto (desenhada primeiro, fica atrás)
+    if (hasBruto) {
         datasets.push({
-            label: 'Ano Anterior', data: evolucao.map(e => { const d=new Date(e.data+'T00:00:00'); return prevMap[`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`]||0; }),
-            borderColor: '#475569', backgroundColor: 'transparent',
-            borderWidth: 1.5, borderDash: [6,4], fill: false, tension: 0.3, pointRadius: 0, pointHoverRadius: 4,
+            label: 'Bruto (c/ evasões)',
+            data: valuesBruto,
+            borderColor: 'rgba(251,146,60,0.5)',
+            backgroundColor: 'rgba(251,146,60,0.10)',
+            borderWidth: 1.5,
+            borderDash: [4, 3],
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            order: 2,
         });
     }
-    _crgmChartEvolucao = new Chart(ctx, { type:'line', data:{labels,datasets}, options:{
+
+    // Linha principal — líquido (EM CURSO)
+    datasets.push({
+        label: 'EM CURSO',
+        data: valuesLiquido,
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59,130,246,0.08)',
+        borderWidth: 2.5,
+        fill: true,
+        tension: 0.3,
+        pointRadius: baseData.length > 60 ? 0 : 4,
+        pointBackgroundColor: '#3b82f6',
+        pointHoverRadius: 6,
+        order: 1,
+    });
+
+    // Ano anterior (tracejado)
+    if (evolucaoPrev && evolucaoPrev.length > 0) {
+        const prevMap = {};
+        evolucaoPrev.forEach(e => { const d = new Date(e.data+'T00:00:00'); const k = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`; prevMap[k] = (prevMap[k]||0) + e.count; });
+        datasets.push({
+            label: 'Ano Anterior',
+            data: baseData.map(e => { const d=new Date(e.data+'T00:00:00'); return prevMap[`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`]||0; }),
+            borderColor: '#475569', backgroundColor: 'transparent',
+            borderWidth: 1.5, borderDash: [6,4], fill: false, tension: 0.3, pointRadius: 0, pointHoverRadius: 4,
+            order: 3,
+        });
+    }
+
+    const showLegend = hasBruto || (evolucaoPrev && evolucaoPrev.length > 0);
+    _crgmChartEvolucao = new Chart(ctx, { type:'line', data:{labels, datasets}, options:{
         responsive:true, maintainAspectRatio:false,
         interaction:{mode:'index',intersect:false},
-        plugins:{ legend:{display:evolucaoPrev&&evolucaoPrev.length>0, position:'top',align:'end', labels:{color:'#94a3b8',font:{size:10},boxWidth:12,padding:12}} },
-        scales:{ x:{ticks:{color:'#64748b',maxTicksLimit:15,font:{size:10}},grid:{color:'rgba(100,116,139,0.08)'}}, y:{beginAtZero:true,ticks:{color:'#64748b',font:{size:10}},grid:{color:'rgba(100,116,139,0.08)'}} }
+        plugins:{
+            legend:{
+                display: showLegend,
+                position:'top', align:'end',
+                labels:{color:'#94a3b8', font:{size:10}, boxWidth:12, padding:12}
+            },
+            tooltip:{
+                callbacks:{
+                    label: ctx => {
+                        const label = ctx.dataset.label || '';
+                        return ` ${label}: ${ctx.parsed.y}`;
+                    }
+                }
+            }
+        },
+        scales:{
+            x:{ticks:{color:'#64748b',maxTicksLimit:15,font:{size:10}},grid:{color:'rgba(100,116,139,0.08)'}},
+            y:{beginAtZero:true,ticks:{color:'#64748b',font:{size:10}},grid:{color:'rgba(100,116,139,0.08)'}}
+        }
     }});
 }
 
@@ -238,9 +370,9 @@ function _crgmRenderCicloTable(ciclos) {
 
 // ── Agentes (tabela) ────────────────────────────────────
 function _crgmTierLabel(mp, meta, intermediaria, supermeta) {
-    if (supermeta > 0 && mp >= supermeta) return { label: 'SUPERMETA', cls: 'text-emerald-400 font-bold', icon: '\u2B50' };
+    if (supermeta > 0 && mp >= supermeta)    return { label: 'SUPERMETA', cls: 'text-emerald-400 font-bold',    icon: '\u2B50' };
+    if (meta > 0 && mp >= meta)              return { label: 'META',      cls: 'text-blue-400 font-semibold',   icon: '\u2705' };
     if (intermediaria > 0 && mp >= intermediaria) return { label: 'INTERMED.', cls: 'text-amber-400 font-semibold', icon: '\u26A1' };
-    if (meta > 0 && mp >= meta) return { label: 'META', cls: 'text-blue-400 font-semibold', icon: '\u2705' };
     if (meta > 0) return { label: `${Math.round(mp/meta*100)}%`, cls: 'text-red-400', icon: '' };
     return { label: '\u2014', cls: 'text-slate-600', icon: '' };
 }
@@ -249,7 +381,7 @@ function _crgmRenderAgentes(agentes) {
     const tbody = document.getElementById('crgm-agentes-body');
     const countEl = document.getElementById('crgm-agentes-count');
     if (!agentes || !agentes.length) {
-        tbody.innerHTML = '<tr><td colspan="12" class="px-5 py-8 text-center text-slate-600">Nenhum agente encontrado</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="px-5 py-8 text-center text-slate-600">Nenhum agente encontrado</td></tr>';
         if (countEl) countEl.textContent = ''; return;
     }
     const agenteFilter = document.getElementById('crgm-agente').value;
@@ -294,7 +426,6 @@ function _crgmRenderAgentes(agentes) {
             <td class="px-4 py-2.5 text-right font-mono text-cyan-400">${np.toLocaleString('pt-BR')}</td>
             <td class="px-4 py-2.5 text-right font-mono text-red-400">${pp.toLocaleString('pt-BR')}</td>
             <td class="px-4 py-2.5 text-right font-mono text-slate-300">${a.total.toLocaleString('pt-BR')}</td>
-            <td class="px-4 py-2.5 text-right font-mono text-teal-400">${a.ativos.toLocaleString('pt-BR')}</td>
             <td class="px-4 py-2.5 text-right font-mono font-bold ${taxaClass}">${a.taxa_conversao}%</td>
         </tr>`;
     }).join('');
@@ -718,6 +849,13 @@ function crgmTurmaChanged() {
     if (turma) {
         document.getElementById('crgm-dt-ini').value = turma.dt_inicio;
         document.getElementById('crgm-dt-fim').value = turma.dt_fim;
+        // Aplica o nível da turma automaticamente no filtro
+        const nivelEl = document.getElementById('crgm-nivel');
+        if (nivelEl && turma.nivel) nivelEl.value = turma.nivel;
+    } else {
+        // Turma "Todas" selecionada: limpa o nível
+        const nivelEl = document.getElementById('crgm-nivel');
+        if (nivelEl) nivelEl.value = '';
     }
     crgmAtualizar();
 }
@@ -725,12 +863,84 @@ function crgmTurmaChanged() {
 function crgmToggleNovaTurma() {
     const panel = document.getElementById('crgm-nova-turma');
     const isHidden = panel.classList.contains('hidden');
+    // Fecha o painel de ver turmas se estiver aberto
+    document.getElementById('crgm-ver-turmas')?.classList.add('hidden');
     panel.classList.toggle('hidden');
     if (isHidden) {
         const sel = document.getElementById('crgm-turma-ciclo');
         sel.innerHTML = '<option value="">Nenhum</option>' +
             _crgmCiclosData.map(c => `<option value="${c.id}">${esc(c.descricao || c.nome)}</option>`).join('');
     }
+}
+
+function crgmToggleVerTurmas() {
+    const panel = document.getElementById('crgm-ver-turmas');
+    const isHidden = panel.classList.contains('hidden');
+    document.getElementById('crgm-nova-turma')?.classList.add('hidden');
+    panel.classList.toggle('hidden');
+    if (isHidden) _crgmRenderListaTurmas();
+}
+
+function _crgmRenderListaTurmas() {
+    const lista = document.getElementById('crgm-turmas-lista');
+    if (!_crgmTurmasData || _crgmTurmasData.length === 0) {
+        lista.innerHTML = '<p class="text-xs text-slate-500 italic">Nenhuma turma cadastrada.</p>';
+        return;
+    }
+    const fmt = d => d ? d.split('-').reverse().join('/') : '—';
+    const nivelBadge = n => {
+        if (!n) return '';
+        const cls = n.includes('ós') ? 'bg-purple-500/20 text-purple-300' : 'bg-blue-500/20 text-blue-300';
+        return `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium ${cls}">${n}</span>`;
+    };
+
+    let html = `
+        <div class="grid grid-cols-[1fr_auto_auto_auto] items-center gap-x-3 px-3 py-1 text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-700/40 mb-1">
+            <span>Turma</span>
+            <span>Período</span>
+            <span></span>
+            <span></span>
+        </div>
+    `;
+
+    html += _crgmTurmasData.map(t => {
+        return `
+        <div class="grid grid-cols-[1fr_auto_auto_auto] items-center gap-x-3 px-3 py-2 rounded-lg bg-slate-700/30 hover:bg-slate-700/50 transition-colors">
+            <div class="flex items-center gap-2 min-w-0">
+                <span class="text-white text-xs font-medium truncate">${esc(t.nome || '—')}</span>
+                ${nivelBadge(t.nivel)}
+            </div>
+            <span class="text-slate-400 text-[11px] whitespace-nowrap">${fmt(t.dt_inicio)} → ${fmt(t.dt_fim)}</span>
+            <button onclick="_crgmAplicarDatasMeta('${t.dt_inicio}','${t.dt_fim}'); document.getElementById('crgm-nivel').value='${esc(t.nivel || '')}'; document.getElementById('crgm-ver-turmas').classList.add('hidden');"
+                title="Aplicar período no painel"
+                class="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 text-[10px] transition-colors whitespace-nowrap">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                Ver
+            </button>
+            <button onclick="crgmExcluirTurma(${t.id})" title="Excluir"
+                class="text-slate-600 hover:text-red-400 transition-colors">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+            </button>
+        </div>`;
+    }).join('');
+
+    lista.innerHTML = html;
+}
+
+async function crgmExcluirTurma(id) {
+    if (!confirm('Excluir esta turma?')) return;
+    try {
+        const res = await api(`/api/comercial-rgm/turmas/${id}`, { method: 'DELETE' });
+        const d = await res.json();
+        if (d.ok !== false) {
+            await _crgmLoadTurmas();
+            _crgmRenderListaTurmas();
+        } else {
+            alert('Erro ao excluir: ' + (d.error || 'desconhecido'));
+        }
+    } catch(e) { alert('Erro: ' + e.message); }
 }
 
 async function crgmSalvarTurma() {
@@ -757,127 +967,17 @@ async function crgmSalvarTurma() {
     } catch (e) { _crgmErro('Erro: ' + e.message); }
 }
 
-// ── Metas (painel) ──────────────────────────────────────
+// ── Labels de categoria (metas comercial) ─────────────────────────────────
 let _crgmMetasCategorias = [];
-let _crgmMetasAll = [];
 
 function _crgmCatLabel(catId) {
     const c = _crgmMetasCategorias.find(x => x.id === catId);
     return c ? c.label : catId;
 }
 
-const _CAT_COLORS = {
-    matriculas:'text-blue-400', inscricoes:'text-cyan-400', valor:'text-emerald-400',
-    novos_leads:'text-amber-400', conversao:'text-purple-400',
-};
-
-function crgmToggleMetas() {
-    const panel = document.getElementById('crgm-metas-panel');
-    const isHidden = panel.classList.contains('hidden');
-    panel.classList.toggle('hidden');
-    if (isHidden) _crgmLoadMetasPanel();
-}
-
-async function _crgmLoadMetasPanel() {
-    const grid = document.getElementById('crgm-metas-grid');
-    const hist = document.getElementById('crgm-metas-historico');
-    grid.innerHTML = '<p class="text-slate-500 text-xs col-span-full">Carregando...</p>';
-    hist.innerHTML = '';
-
-    const ini = document.getElementById('crgm-dt-ini').value;
-    const fim = document.getElementById('crgm-dt-fim').value;
-    document.getElementById('crgm-meta-ini').value = ini;
-    document.getElementById('crgm-meta-fim').value = fim;
-
-    try {
-        const [metasRes, filtersRes] = await Promise.all([
-            api('/api/comercial-rgm/metas').then(r=>r.json()),
-            api('/api/comercial-rgm/filters').then(r=>r.json()),
-        ]);
-
-        // Populate category dropdowns
-        if (metasRes.categorias) {
-            _crgmMetasCategorias = metasRes.categorias;
-            const catSelect = document.getElementById('crgm-meta-cat');
-            const histFilter = document.getElementById('crgm-metas-hist-filter');
-            catSelect.innerHTML = metasRes.categorias.map(c =>
-                `<option value="${c.id}">${esc(c.label)}</option>`
-            ).join('');
-            histFilter.innerHTML = '<option value="">Todas categorias</option>' +
-                metasRes.categorias.map(c => `<option value="${c.id}">${esc(c.label)}</option>`).join('');
-        }
-
-        const agentes = filtersRes.ok ? (filtersRes.agentes||[]).filter(a=>!['Admin','T.I','Suporte'].includes(a.name)) : [];
-        if (!agentes.length) { grid.innerHTML='<p class="text-slate-500 text-xs col-span-full">Sync agentes primeiro.</p>'; return; }
-
-        const _inp = (uid, uname, cls, ph, color) =>
-            `<input type="number" min="0" step="any" data-uid="${uid}" data-uname="${esc(uname)}" placeholder="${ph}"
-                class="w-20 text-right text-xs font-mono bg-slate-900/50 border border-slate-700 rounded px-2 py-1 ${color} focus:outline-none ${cls}">`;
-        grid.innerHTML = agentes.map(a =>
-            `<div class="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 bg-slate-800/30 rounded-lg px-3 py-1.5">
-                <span class="text-xs text-slate-300 truncate">${esc(a.name)}</span>
-                ${_inp(a.id, a.name, 'crgm-meta-int', '0', 'text-amber-300 focus:border-amber-500')}
-                ${_inp(a.id, a.name, 'crgm-meta-val', '0', 'text-white focus:border-blue-500')}
-                ${_inp(a.id, a.name, 'crgm-meta-sup', '0', 'text-emerald-300 focus:border-emerald-500')}
-            </div>`
-        ).join('');
-
-        _crgmMetasAll = (metasRes.ok && metasRes.metas) ? metasRes.metas : [];
-        _crgmRenderHistorico();
-    } catch (e) { grid.innerHTML=`<p class="text-red-400 text-xs col-span-full">Erro: ${e.message}</p>`; }
-}
-
-function _crgmRenderHistorico(filterCat) {
-    const hist = document.getElementById('crgm-metas-historico');
-    let metas = _crgmMetasAll;
-    if (filterCat) metas = metas.filter(m => m.categoria === filterCat);
-
-    if (!metas.length) {
-        hist.innerHTML = '<p class="text-slate-600 text-xs">Nenhuma meta cadastrada.</p>';
-        return;
-    }
-
-    // Group by (categoria + dt_inicio + dt_fim + descricao)
-    const groups = {};
-    metas.forEach(m => {
-        const key = `${m.categoria}|${m.dt_inicio}|${m.dt_fim}|${m.descricao||''}`;
-        if (!groups[key]) groups[key] = { ...m, items: [] };
-        groups[key].items.push(m);
-    });
-
-    hist.innerHTML = Object.values(groups).map(g => {
-        const catColor = _CAT_COLORS[g.categoria] || 'text-slate-400';
-        const catLabel = _crgmCatLabel(g.categoria);
-        const agentsList = g.items.map(m => {
-            const parts = [`M:${m.meta}`];
-            if (m.meta_intermediaria > 0) parts.push(`I:${m.meta_intermediaria}`);
-            if (m.supermeta > 0) parts.push(`S:${m.supermeta}`);
-            return `<span class="inline-flex items-center gap-1 bg-slate-700/40 rounded px-2 py-0.5">
-                <b class="text-white">${esc(m.user_name||'?')}</b>
-                <span class="text-blue-300">${parts[0]}</span>
-                ${parts[1]?`<span class="text-amber-300">${parts[1]}</span>`:''}
-                ${parts[2]?`<span class="text-emerald-300">${parts[2]}</span>`:''}
-                <button onclick="crgmDeleteMeta(${m.id})" class="text-red-500/60 hover:text-red-400 ml-0.5 text-[10px]" title="Excluir">&times;</button>
-            </span>`;
-        }).join(' ');
-        return `<div class="bg-slate-800/30 rounded-lg px-4 py-3 text-xs border-l-2 ${catColor.replace('text-','border-')}">
-            <div class="flex items-center gap-2 mb-1.5">
-                <span class="font-semibold ${catColor}">${esc(catLabel)}</span>
-                <span class="text-slate-500">${g.dt_inicio} a ${g.dt_fim}</span>
-                ${g.descricao ? `<span class="text-slate-600 italic">${esc(g.descricao)}</span>` : ''}
-            </div>
-            <div class="flex flex-wrap gap-1.5">${agentsList}</div>
-        </div>`;
-    }).join('');
-}
-
-function _crgmFilterHistorico() {
-    const cat = document.getElementById('crgm-metas-hist-filter').value;
-    _crgmRenderHistorico(cat || null);
-}
-
 // ── Histórico de Metas (painel retrátil) ────────────────────────────────
 let _crgmHistoricoMetasData = [];
+let _crgmHistoricoCampanhas = [];
 let _crgmHistoricoGrupoAtivo = null;
 
 function crgmToggleHistoricoMetas() {
@@ -889,6 +989,77 @@ function crgmToggleHistoricoMetas() {
     if (isHidden) _crgmCarregarHistoricoMetas();
 }
 
+function _crgmApplyHistoricoMetasPayload(d) {
+    _crgmHistoricoMetasData = d.metas || [];
+    _crgmHistoricoCampanhas = d.premiacao_campanhas || [];
+    _crgmMetasCategorias = d.categorias || [];
+    const catSel = document.getElementById('crgm-hist-cat-filter');
+    if (catSel && d.categorias) {
+        catSel.innerHTML = '<option value="">Todas as categorias</option>' +
+            d.categorias.map(c => `<option value="${c.id}">${esc(c.label)}</option>`).join('');
+    }
+}
+
+/**
+ * Garante períodos da Premiação no histórico: mesma união que o período-padrão do dashboard
+ * (comercial_metas + premiacao_campanha), para não depender só de premiacao_campanhas no GET /metas.
+ */
+async function _crgmSuplementarCampanhasPremiacao() {
+    try {
+        const res = await api('/api/premiacao/campanhas-periodos');
+        const d = await res.json();
+        if (!d.ok || !Array.isArray(d.campanhas) || !d.campanhas.length) return;
+
+        const porDataCamp = new Map();
+        for (const c of _crgmHistoricoCampanhas || []) {
+            porDataCamp.set(`${_crgmNormDate(c.dt_inicio)}|${_crgmNormDate(c.dt_fim)}`, c);
+        }
+        const periodoTemComercialMeta = new Set();
+        for (const m of _crgmHistoricoMetasData || []) {
+            periodoTemComercialMeta.add(`${_crgmNormDate(m.dt_inicio)}|${_crgmNormDate(m.dt_fim)}`);
+        }
+
+        for (const row of d.campanhas) {
+            const k = `${_crgmNormDate(row.dt_inicio)}|${_crgmNormDate(row.dt_fim)}`;
+            if (porDataCamp.has(k)) continue;
+            if (periodoTemComercialMeta.has(k)) continue;
+
+            const idSynth = `per-${k.replace(/\|/g, '_')}`;
+            const c = {
+                id: idSynth,
+                nome: row.nome || 'Campanha',
+                dt_inicio: _crgmNormDate(row.dt_inicio),
+                dt_fim: _crgmNormDate(row.dt_fim),
+                ativa: true,
+                metas_padrao: { meta_intermediaria: null, meta: null, supermeta: null },
+                pcm_totais: { meta: 0, meta_intermediaria: 0, supermeta: 0, agentes: 0 },
+                tiers: {},
+                _somentePeriodos: true,
+            };
+            _crgmHistoricoCampanhas.push(c);
+            porDataCamp.set(k, c);
+        }
+    } catch (e) {
+        console.warn('suplementar campanhas-periodos', e);
+    }
+}
+
+/** Carrega metas legadas + campanhas Premiação ao abrir o dashboard (lista já pronta no Histórico). */
+async function _crgmPrefetchHistoricoMetas() {
+    try {
+        const res = await api('/api/comercial-rgm/metas');
+        const d = await res.json();
+        if (!d.ok) return;
+        _crgmApplyHistoricoMetasPayload(d);
+        await _crgmSuplementarCampanhasPremiacao();
+        const body = document.getElementById('crgm-historico-metas-body');
+        if (body) {
+            _crgmHistoricoGrupoAtivo = null;
+            _crgmRenderHistoricoMetas(document.getElementById('crgm-hist-cat-filter')?.value || null);
+        }
+    } catch (e) { console.warn('prefetch historico metas', e); }
+}
+
 async function _crgmCarregarHistoricoMetas() {
     const body = document.getElementById('crgm-historico-metas-body');
     body.innerHTML = '<p class="text-slate-500 text-xs animate-pulse">Carregando histórico...</p>';
@@ -898,14 +1069,8 @@ async function _crgmCarregarHistoricoMetas() {
         const d   = await res.json();
         if (!d.ok) { body.innerHTML = `<p class="text-red-400 text-xs">Erro: ${esc(d.error||'')}</p>`; return; }
 
-        _crgmHistoricoMetasData = d.metas || [];
-
-        const catSel = document.getElementById('crgm-hist-cat-filter');
-        if (catSel && d.categorias) {
-            catSel.innerHTML = '<option value="">Todas as categorias</option>' +
-                d.categorias.map(c => `<option value="${c.id}">${esc(c.label)}</option>`).join('');
-        }
-
+        _crgmApplyHistoricoMetasPayload(d);
+        await _crgmSuplementarCampanhasPremiacao();
         _crgmRenderHistoricoMetas(null);
     } catch(e) {
         body.innerHTML = `<p class="text-red-400 text-xs">Erro: ${esc(e.message)}</p>`;
@@ -931,12 +1096,44 @@ function _crgmAbrirGrupo(key) {
     _crgmRenderHistoricoMetas(document.getElementById('crgm-hist-cat-filter').value || null);
 }
 
+/** Alinha datas ISO / timestamp para comparar períodos (comercial_metas vs Premiação). */
+function _crgmNormDate(s) {
+    if (s == null || s === '') return '';
+    return String(s).trim().substring(0, 10);
+}
+
+function _crgmResumoPremiacaoCampanha(pc) {
+    if (!pc) return '';
+    const mp = pc.metas_padrao || {};
+    const pre = [];
+    if (mp.meta_intermediaria != null) pre.push(`I:${mp.meta_intermediaria}`);
+    if (mp.meta != null) pre.push(`M:${mp.meta}`);
+    if (mp.supermeta != null) pre.push(`S:${mp.supermeta}`);
+    const pcm = pc.pcm_totais || {};
+    const linhas = [];
+    if (pre.length) linhas.push(`Pré-def. matr.: ${pre.join(' · ')}`);
+    if (pcm.agentes > 0) {
+        linhas.push(`Σ agentes: M ${pcm.meta} · I ${pcm.meta_intermediaria} · S ${pcm.supermeta} (${pcm.agentes} ag.)`);
+    }
+    const t = pc.tiers || {};
+    const money = [];
+    if (Number(t.base) > 0) money.push(`Base R$${t.base}`);
+    if (Number(t.intermediaria) > 0) money.push(`Inter R$${t.intermediaria}`);
+    if (Number(t.meta) > 0) money.push(`Meta R$${t.meta}`);
+    if (Number(t.supermeta) > 0) money.push(`Super R$${t.supermeta}`);
+    if (money.length) linhas.push(`Faixas premiação: ${money.join(' · ')}`);
+    if (!linhas.length) return pc.nome ? `Campanha: ${pc.nome}` : '';
+    return linhas.join(' — ');
+}
+
 function _crgmRenderHistoricoMetas(filterCat) {
     const body = document.getElementById('crgm-historico-metas-body');
     let metas = _crgmHistoricoMetasData;
     if (filterCat) metas = metas.filter(m => m.categoria === filterCat);
 
-    if (!metas.length) {
+    const campanhas = (_crgmHistoricoCampanhas || []).filter(() => !filterCat || filterCat === 'matriculas');
+
+    if (!metas.length && !campanhas.length) {
         body.innerHTML = '<p class="text-slate-600 text-xs">Nenhuma meta cadastrada.</p>';
         return;
     }
@@ -954,6 +1151,32 @@ function _crgmRenderHistoricoMetas(filterCat) {
         groups[key].agentes.push(m);
     });
 
+    const mergedIds = new Set();
+    for (const camp of campanhas) {
+        const match = Object.values(groups).find(g =>
+            _crgmNormDate(g.dt_inicio) === _crgmNormDate(camp.dt_inicio) &&
+            _crgmNormDate(g.dt_fim) === _crgmNormDate(camp.dt_fim)
+        );
+        if (match) {
+            match.premiacao_campanha = camp;
+            mergedIds.add(camp.id);
+        }
+    }
+    for (const camp of campanhas) {
+        if (mergedIds.has(camp.id)) continue;
+        const k = `premio_${camp.id}`;
+        groups[k] = {
+            key: k,
+            dt_inicio: camp.dt_inicio,
+            dt_fim: camp.dt_fim,
+            descricao: camp.nome || '',
+            categorias: {},
+            agentes: [],
+            premiacao_campanha: camp,
+            somente_premiacao: true,
+        };
+    }
+
     const sorted = Object.values(groups).sort((a, b) => b.dt_inicio.localeCompare(a.dt_inicio));
 
     const catColors = {
@@ -970,6 +1193,12 @@ function _crgmRenderHistoricoMetas(filterCat) {
         const isOpen = _crgmHistoricoGrupoAtivo === g.key;
         const agentesTotal = [...new Map(g.agentes.map(a => [a.user_id, a])).values()];
         const totalMeta = g.agentes.filter(a => a.categoria === 'matriculas').reduce((s, a) => s + (a.meta||0), 0);
+        const pc = g.premiacao_campanha;
+        const resumoCamp = pc ? _crgmResumoPremiacaoCampanha(pc) : '';
+        const agCount = agentesTotal.length > 0 ? agentesTotal.length : ((pc && pc.pcm_totais && pc.pcm_totais.agentes) || 0);
+        const campChip = pc
+            ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/25">Campanha</span>'
+            : '';
         const catBadges = Object.keys(g.categorias).map(cat =>
             `<span class="px-1.5 py-0.5 rounded text-[10px] font-semibold ${catColors[cat]||'bg-slate-700/40 text-slate-400'}">${catLabels[cat]||cat}</span>`
         ).join('');
@@ -977,6 +1206,10 @@ function _crgmRenderHistoricoMetas(filterCat) {
         // Detalhe expandido por categoria
         let detalhe = '';
         if (isOpen) {
+            const txtPremio = pc ? (resumoCamp || pc.nome || '') : '';
+            const blocoPremioTopo = pc && txtPremio
+                ? `<div class="px-4 py-2.5 bg-amber-500/5 border-b border-amber-500/15 text-[11px] text-amber-200/90 font-mono">${esc(txtPremio)}</div>`
+                : '';
             detalhe = Object.entries(g.categorias).map(([cat, itens]) => {
                 const cc = catColors[cat] || 'bg-slate-700/40 text-slate-400';
                 const cl = catLabels[cat] || cat;
@@ -987,7 +1220,8 @@ function _crgmRenderHistoricoMetas(filterCat) {
                         <td class="px-4 py-2 text-right font-mono text-blue-300">${(a.meta||0)>0 ? a.meta : '—'}</td>
                         <td class="px-4 py-2 text-right font-mono text-amber-300">${(a.meta_intermediaria||0)>0 ? a.meta_intermediaria : '—'}</td>
                         <td class="px-4 py-2 text-right font-mono text-emerald-300">${(a.supermeta||0)>0 ? a.supermeta : '—'}</td>
-                        <td class="px-4 py-2 text-right">
+                        <td class="px-4 py-2 text-right flex items-center justify-end gap-2">
+                            <button onclick="crgmAbrirEditarMeta(${a.id},'${esc(a.user_name||'?')}',${a.meta||0},${a.meta_intermediaria||0},${a.supermeta||0})" class="text-slate-400/60 hover:text-blue-400 text-[11px]" title="Editar"><span class="material-symbols-outlined" style="font-size:13px">edit</span></button>
                             <button onclick="crgmDeleteMeta(${a.id},'historico')" class="text-red-500/40 hover:text-red-400 text-[10px]" title="Excluir">✕</button>
                         </td>
                     </tr>`).join('');
@@ -1019,8 +1253,27 @@ function _crgmRenderHistoricoMetas(filterCat) {
                 </div>`;
             }).join('');
 
-            detalhe = `<div class="border-t border-slate-700/20">${detalhe}
-                <div class="px-4 py-3 flex justify-end border-t border-slate-700/20 bg-slate-800/20">
+            const semComercial = !Object.keys(g.categorias).length;
+            const msgSoPremio = semComercial && pc
+                ? `<div class="border-t border-slate-700/20 px-4 py-5 text-xs text-slate-400 text-center space-y-2">
+                    <p>Nenhuma linha em <strong class="text-slate-300">comercial_metas</strong> para este período.</p>
+                    <p>Configure metas por agente ou pré-definição em
+                    <a href="#premiacao_admin" onclick="navigate('premiacao_admin')" class="text-amber-400 underline">Premiação</a>.</p>
+                </div>`
+                : '';
+
+            const catPrincipal = g.categorias['matriculas'] ? 'matriculas' : (Object.keys(g.categorias)[0] || 'matriculas');
+            const descrEsc = (g.descricao || '').replace(/'/g, "\\'");
+            const btnBulk = !semComercial
+                ? `<button onclick="crgmAbrirBulkMeta('${g.dt_inicio}','${g.dt_fim}','${descrEsc}','${catPrincipal}')"
+                        class="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600/80 hover:bg-blue-500 text-white text-xs font-semibold transition-colors">
+                        <span class="material-symbols-outlined" style="font-size:15px">edit_note</span>
+                        Editar todos em massa
+                    </button>`
+                : '';
+            detalhe = `<div class="border-t border-slate-700/20">${blocoPremioTopo}${detalhe}${msgSoPremio}
+                <div class="px-4 py-3 flex items-center ${semComercial ? 'justify-end' : 'justify-between'} border-t border-slate-700/20 bg-slate-800/20 gap-2 flex-wrap">
+                    ${btnBulk}
                     <button onclick="_crgmAplicarDatasMeta('${g.dt_inicio}','${g.dt_fim}')"
                         class="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition-colors">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
@@ -1038,16 +1291,20 @@ function _crgmRenderHistoricoMetas(filterCat) {
                         <span class="text-white font-semibold text-sm">${fmt(g.dt_inicio)} → ${fmt(g.dt_fim)}</span>
                         ${g.descricao ? `<span class="text-slate-500 text-[11px] italic">${esc(g.descricao)}</span>` : ''}
                     </div>
-                    <div class="flex items-center gap-1.5 flex-wrap">${catBadges}</div>
+                    <div class="flex items-center gap-1.5 flex-wrap">${campChip}${catBadges}</div>
                 </div>
-                <div class="flex items-center gap-4 shrink-0">
+                <div class="flex items-center gap-3 sm:gap-4 shrink-0 flex-wrap justify-end">
                     <div class="text-right">
                         <p class="text-[10px] text-slate-500 uppercase tracking-wider">Agentes</p>
-                        <p class="text-white font-mono font-bold text-sm">${agentesTotal.length}</p>
+                        <p class="text-white font-mono font-bold text-sm">${agCount}</p>
                     </div>
                     ${totalMeta > 0 ? `<div class="text-right">
                         <p class="text-[10px] text-slate-500 uppercase tracking-wider">Meta mat.</p>
                         <p class="text-blue-300 font-mono font-bold text-sm">${totalMeta}</p>
+                    </div>` : ''}
+                    ${pc ? `<div class="text-right max-w-[240px] min-w-0">
+                        <p class="text-[10px] text-slate-500 uppercase tracking-wider">Meta campanha</p>
+                        <p class="text-amber-200/90 font-mono text-[10px] leading-snug break-words">${esc(resumoCamp || pc.nome || '—')}</p>
                     </div>` : ''}
                     <svg class="w-4 h-4 text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
@@ -1059,52 +1316,12 @@ function _crgmRenderHistoricoMetas(filterCat) {
     }).join('');
 }
 
-async function crgmSaveMetas() {
-    const dtIni = document.getElementById('crgm-meta-ini').value;
-    const dtFim = document.getElementById('crgm-meta-fim').value;
-    const desc = document.getElementById('crgm-meta-desc').value || '';
-    const cat = document.getElementById('crgm-meta-cat').value || 'matriculas';
-    if (!dtIni || !dtFim) { _crgmErro('Defina o período da meta'); return; }
-
-    // Collect values per agent (3 inputs each)
-    const metaInputs = document.querySelectorAll('.crgm-meta-val');
-    const intInputs = document.querySelectorAll('.crgm-meta-int');
-    const supInputs = document.querySelectorAll('.crgm-meta-sup');
-    const metas = [];
-    metaInputs.forEach((inp, i) => {
-        const m = parseFloat(inp.value) || 0;
-        const mi = parseFloat(intInputs[i]?.value) || 0;
-        const s = parseFloat(supInputs[i]?.value) || 0;
-        if (m > 0 || mi > 0 || s > 0) {
-            metas.push({
-                user_id: parseInt(inp.dataset.uid),
-                user_name: inp.dataset.uname || '',
-                meta: m, meta_intermediaria: mi, supermeta: s,
-                dt_inicio: dtIni, dt_fim: dtFim,
-                descricao: desc, categoria: cat,
-            });
-        }
-    });
-    if (!metas.length) { _crgmErro('Defina ao menos uma meta > 0'); return; }
-    try {
-        const res = await api('/api/comercial-rgm/metas', {
-            method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({metas}),
-        });
-        const d = await res.json();
-        if (d.ok) { document.getElementById('crgm-metas-panel').classList.add('hidden'); crgmAtualizar(); }
-        else _crgmErro(d.error||'Erro ao salvar');
-    } catch (e) { _crgmErro('Erro: '+e.message); }
-}
-
 async function crgmDeleteMeta(id, origem) {
     if (!confirm('Excluir esta meta?')) return;
     try {
         await api(`/api/comercial-rgm/metas/${id}`, {method:'DELETE'});
         if (origem === 'historico') {
             _crgmCarregarHistoricoMetas();
-        } else {
-            _crgmLoadMetasPanel();
         }
         crgmAtualizar();
     } catch (e) { _crgmErro('Erro: '+e.message); }
@@ -1481,4 +1698,425 @@ function crgmToggleDuplicatas() {
     const text = document.getElementById('crgm-dup-toggle-text');
     const hidden = body.classList.toggle('hidden');
     text.textContent = hidden ? 'Expandir' : 'Recolher';
+}
+
+// ── Editar Meta ────────────────────────────────────────────────────────────
+let _crgmEditMetaId = null;
+
+function crgmAbrirEditarMeta(id, nome, meta, interm, sup) {
+    _crgmEditMetaId = id;
+    document.getElementById('crgm-edit-meta-titulo').textContent = nome;
+    document.getElementById('crgm-edit-meta-val').value   = meta  || '';
+    document.getElementById('crgm-edit-meta-int').value   = interm || '';
+    document.getElementById('crgm-edit-meta-sup').value   = sup   || '';
+    document.getElementById('crgm-edit-meta-modal').classList.remove('hidden');
+    document.getElementById('crgm-edit-meta-val').focus();
+}
+
+function crgmFecharEditarMeta() {
+    document.getElementById('crgm-edit-meta-modal').classList.add('hidden');
+    _crgmEditMetaId = null;
+}
+
+async function crgmSalvarEditarMeta() {
+    if (!_crgmEditMetaId) return;
+    const meta  = parseFloat(document.getElementById('crgm-edit-meta-val').value) || 0;
+    const interm= parseFloat(document.getElementById('crgm-edit-meta-int').value) || 0;
+    const sup   = parseFloat(document.getElementById('crgm-edit-meta-sup').value) || 0;
+    const btn   = document.getElementById('crgm-edit-meta-salvar');
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+    try {
+        const res = await api(`/api/comercial-rgm/metas/${_crgmEditMetaId}`, {
+            method: 'PUT',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ meta, meta_intermediaria: interm, supermeta: sup }),
+        });
+        const d = await res.json();
+        if (d.ok) {
+            // Atualiza o dado local sem fechar o painel ou o grupo expandido
+            const idx = _crgmHistoricoMetasData.findIndex(m => m.id === _crgmEditMetaId);
+            if (idx !== -1) {
+                _crgmHistoricoMetasData[idx].meta = meta;
+                _crgmHistoricoMetasData[idx].meta_intermediaria = interm;
+                _crgmHistoricoMetasData[idx].supermeta = sup;
+            }
+            crgmFecharEditarMeta();
+            // Re-renderiza mantendo o grupo aberto e o filtro atual
+            const cat = document.getElementById('crgm-hist-cat-filter')?.value || null;
+            _crgmRenderHistoricoMetas(cat || null);
+        } else {
+            alert('Erro ao salvar: ' + (d.error || 'desconhecido'));
+        }
+    } catch(e) {
+        alert('Erro: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Salvar';
+    }
+}
+
+// ── Edição em Massa de Metas ─────────────────────────────────────────────────
+let _crgmBulkMeta = null; // { dt_inicio, dt_fim, descricao, categoria, agentes: [{...}] }
+
+async function crgmAbrirBulkMeta(dtIni, dtFim, descr, cat) {
+    const fmt = d => d ? d.split('-').reverse().join('/') : '?';
+    document.getElementById('crgm-bulk-meta-periodo').textContent =
+        `${fmt(dtIni)} → ${fmt(dtFim)}${descr ? ' · ' + descr : ''}`;
+    document.getElementById('crgm-bulk-meta-status').textContent = '';
+
+    const rows = document.getElementById('crgm-bulk-meta-rows');
+    rows.innerHTML = '<tr><td colspan="4" class="py-6 text-center text-slate-500 text-xs">Carregando agentes...</td></tr>';
+    document.getElementById('crgm-bulk-meta-modal').classList.remove('hidden');
+
+    try {
+        // Carrega lista de agentes + metas existentes para o período
+        const [filtersRes, metasRes] = await Promise.all([
+            api('/api/comercial-rgm/filters').then(r => r.json()),
+            api('/api/comercial-rgm/metas').then(r => r.json()),
+        ]);
+
+        const agentes = (filtersRes.agentes || [])
+            .filter(a => !['Admin', 'T.I', 'Suporte'].includes(a.name))
+            .sort((a, b) => a.name.localeCompare(b.name));
+
+        // Metas existentes nesse período e categoria
+        const metasExist = (metasRes.metas || []).filter(m =>
+            m.dt_inicio === dtIni && m.dt_fim === dtFim && m.categoria === cat
+        );
+        const metaByUid = {};
+        metasExist.forEach(m => { metaByUid[m.user_id] = m; });
+
+        _crgmBulkMeta = { dt_inicio: dtIni, dt_fim: dtFim, descricao: descr || '', categoria: cat, agentes };
+
+        const inp = (uid, uname, cls, ph, color, val) =>
+            `<input type="number" min="0" step="1"
+                data-uid="${uid}" data-uname="${esc(uname)}"
+                placeholder="${ph}" value="${val > 0 ? val : ''}"
+                class="w-24 text-right text-xs font-mono bg-slate-800/60 border border-slate-700 rounded px-2 py-1.5 ${color} focus:outline-none focus:ring-1 ${cls}">`;
+
+        rows.innerHTML = agentes.map(a => {
+            const ex = metaByUid[a.id] || {};
+            return `<tr class="hover:bg-white/[0.02] transition-colors">
+                <td class="py-2.5 pl-2 text-sm text-slate-200 truncate max-w-[180px]">${esc(a.name)}</td>
+                <td class="py-2.5 px-2">
+                    ${inp(a.id, a.name, 'crgm-bulk-int focus:ring-amber-500/50', '0', 'text-amber-300', ex.meta_intermediaria || 0)}
+                </td>
+                <td class="py-2.5 px-2">
+                    ${inp(a.id, a.name, 'crgm-bulk-val focus:ring-blue-500/50', '0', 'text-blue-200', ex.meta || 0)}
+                </td>
+                <td class="py-2.5 px-2 pr-2">
+                    ${inp(a.id, a.name, 'crgm-bulk-sup focus:ring-emerald-500/50', '0', 'text-emerald-300', ex.supermeta || 0)}
+                </td>
+            </tr>`;
+        }).join('');
+
+    } catch(e) {
+        rows.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-red-400 text-xs">Erro: ${e.message}</td></tr>`;
+    }
+}
+
+function crgmFecharBulkMeta() {
+    document.getElementById('crgm-bulk-meta-modal').classList.add('hidden');
+    _crgmBulkMeta = null;
+}
+
+async function crgmSalvarBulkMeta() {
+    if (!_crgmBulkMeta) return;
+    const btn = document.getElementById('crgm-bulk-meta-salvar');
+    const statusEl = document.getElementById('crgm-bulk-meta-status');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-symbols-outlined text-base animate-spin">progress_activity</span> Salvando...';
+    statusEl.textContent = '';
+
+    try {
+        // Coleta valores de todos os agentes
+        const agentes = _crgmBulkMeta.agentes;
+        const items = agentes.map(a => {
+            const row = document.querySelector(`input.crgm-bulk-val[data-uid="${a.id}"]`);
+            const intRow = document.querySelector(`input.crgm-bulk-int[data-uid="${a.id}"]`);
+            const supRow = document.querySelector(`input.crgm-bulk-sup[data-uid="${a.id}"]`);
+            return {
+                user_id:           a.id,
+                user_name:         a.name,
+                meta:              parseFloat(row?.value)    || 0,
+                meta_intermediaria: parseFloat(intRow?.value) || 0,
+                supermeta:         parseFloat(supRow?.value) || 0,
+            };
+        }).filter(it => it.meta > 0 || it.meta_intermediaria > 0 || it.supermeta > 0);
+
+        if (!items.length) {
+            statusEl.textContent = 'Preencha ao menos um valor antes de salvar.';
+            statusEl.className = 'text-xs text-amber-400';
+            return;
+        }
+
+        const res = await api('/api/comercial-rgm/metas/batch', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                dt_inicio: _crgmBulkMeta.dt_inicio,
+                dt_fim:    _crgmBulkMeta.dt_fim,
+                descricao: _crgmBulkMeta.descricao,
+                categoria: _crgmBulkMeta.categoria,
+                items,
+            }),
+        });
+        const d = await res.json();
+        if (d.ok) {
+            statusEl.textContent = `${d.saved} agente${d.saved !== 1 ? 's' : ''} salvo${d.saved !== 1 ? 's' : ''} com sucesso.`;
+            statusEl.className = 'text-xs text-emerald-400';
+            // Atualiza dados locais e re-renderiza o painel sem fechar
+            await _crgmCarregarHistoricoMetas();
+            crgmFecharBulkMeta();
+        } else {
+            statusEl.textContent = 'Erro: ' + (d.error || 'desconhecido');
+            statusEl.className = 'text-xs text-red-400';
+        }
+    } catch(e) {
+        statusEl.textContent = 'Erro: ' + e.message;
+        statusEl.className = 'text-xs text-red-400';
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-symbols-outlined text-base">save</span> Salvar Tudo';
+    }
+}
+
+// ── Vendas em Conflito ────────────────────────────────────────────────────────
+
+let _crgmConflitosData = [];
+
+function _crgmGetFiltrosAtivos() {
+    return {
+        dt_ini: document.getElementById('crgm-dt-ini')?.value || '',
+        dt_fim: document.getElementById('crgm-dt-fim')?.value || '',
+        polo:   document.getElementById('crgm-polo')?.value  || '',
+        nivel:  document.getElementById('crgm-nivel')?.value || '',
+    };
+}
+
+function _crgmFmtData(iso) {
+    if (!iso) return '?';
+    const [y, m, d] = iso.split('-');
+    return `${d}/${m}/${y}`;
+}
+
+async function crgmAbrirConflitos() {
+    const modal = document.getElementById('crgm-conflitos-modal');
+    const lista = document.getElementById('crgm-conflitos-lista');
+    const loading = document.getElementById('crgm-conflitos-loading');
+    const empty = document.getElementById('crgm-conflitos-empty');
+    const status = document.getElementById('crgm-conflitos-status');
+    const busca = document.getElementById('crgm-conflitos-busca');
+    const periodoTag = document.getElementById('crgm-conflitos-periodo-tag');
+    const periodoTxt = document.getElementById('crgm-conflitos-periodo-txt');
+
+    modal.classList.remove('hidden');
+    lista.classList.add('hidden');
+    loading.classList.remove('hidden');
+    empty.classList.add('hidden');
+    periodoTag.classList.add('hidden');
+    status.textContent = '';
+    if (busca) busca.value = '';
+    _crgmConflitosData = [];
+
+    // Usa o período da meta selecionada (dt_ini e dt_fim dos inputs)
+    const f = _crgmGetFiltrosAtivos();
+
+    // Mostra tag do período ativo
+    if (f.dt_ini && f.dt_fim && periodoTxt) {
+        periodoTxt.textContent = `${_crgmFmtData(f.dt_ini)} a ${_crgmFmtData(f.dt_fim)}`;
+        periodoTag.classList.remove('hidden');
+        periodoTag.classList.add('flex');
+    }
+
+    try {
+        const params = new URLSearchParams();
+        if (f.dt_ini) params.set('dt_ini', f.dt_ini);
+        if (f.dt_fim) params.set('dt_fim', f.dt_fim);
+        if (f.polo)   params.set('polo',   f.polo);
+        if (f.nivel)  params.set('nivel',  f.nivel);
+
+        const res = await api('/api/comercial-rgm/conflitos?' + params.toString());
+        const d = await res.json();
+
+        loading.classList.add('hidden');
+
+        if (!d.ok) throw new Error(d.error || 'Erro desconhecido');
+        if (!d.conflitos || d.conflitos.length === 0) {
+            empty.classList.remove('hidden');
+            return;
+        }
+
+        _crgmConflitosData = d.conflitos;
+        _crgmRenderConflitos(d.conflitos);
+        lista.classList.remove('hidden');
+
+        const naoRes = d.total_nao_resolvidos || 0;
+        status.textContent = `${d.total} conflito${d.total !== 1 ? 's' : ''} encontrado${d.total !== 1 ? 's' : ''}${naoRes > 0 ? ` · ${naoRes} pendente${naoRes !== 1 ? 's' : ''}` : ' · todos resolvidos'}`;
+        status.className = naoRes > 0 ? 'text-xs text-amber-400' : 'text-xs text-emerald-400';
+
+    } catch(e) {
+        loading.classList.add('hidden');
+        lista.classList.remove('hidden');
+        lista.innerHTML = `<p class="text-red-400 text-sm px-2">Erro ao carregar conflitos: ${e.message}</p>`;
+    }
+}
+
+function crgmFiltrarConflitos() {
+    const busca = document.getElementById('crgm-conflitos-busca')?.value?.toLowerCase().trim() || '';
+    if (!_crgmConflitosData.length) return;
+
+    // Filtra os dados e re-renderiza
+    const filtrados = busca
+        ? _crgmConflitosData.filter(c =>
+            c.rgm.includes(busca) ||
+            (c.nome_aluno || '').toLowerCase().includes(busca)
+          )
+        : _crgmConflitosData;
+
+    const lista = document.getElementById('crgm-conflitos-lista');
+    const empty = document.getElementById('crgm-conflitos-empty');
+
+    if (filtrados.length === 0) {
+        lista.innerHTML = `<p class="text-slate-500 text-sm text-center py-6">Nenhum resultado para "<span class="text-white">${_escHtml(busca)}</span>"</p>`;
+    } else {
+        _crgmRenderConflitos(filtrados);
+    }
+    lista.classList.remove('hidden');
+    empty.classList.add('hidden');
+}
+
+function _crgmRenderConflitos(conflitos) {
+    const lista = document.getElementById('crgm-conflitos-lista');
+    lista.innerHTML = '';
+
+    for (const c of conflitos) {
+        const isResolvido = c.resolvido;
+        const uidAtual = c.user_id_resolucao ?? c.user_id_atual;
+
+        // Monta opções de agente
+        const opcoesHtml = c.leads.map(l => {
+            const sel = l.user_id === uidAtual ? 'selected' : '';
+            const badge = l.status_id === 142
+                ? '<span class="text-emerald-400 text-[10px] ml-1">[Venda ganha]</span>'
+                : `<span class="text-slate-500 text-[10px] ml-1">[${l.status_nome || 'Ativo'}]</span>`;
+            return `<option value="${l.user_id}" data-nome="${_escHtml(l.agente)}" ${sel}>${_escHtml(l.agente)} — Lead #${l.lead_id}</option>`;
+        }).join('');
+
+        // Agentes únicos para preview
+        const agentesUnicos = [...new Map(c.leads.map(l => [l.user_id, l.agente])).entries()];
+        const tagsHtml = agentesUnicos.map(([uid, nome]) => {
+            const isWin = uid === uidAtual;
+            return `<span class="px-2 py-0.5 rounded-full text-[10px] font-medium ${isWin ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-slate-700 text-slate-400'}">${_escHtml(nome)}</span>`;
+        }).join('');
+
+        const card = document.createElement('div');
+        card.className = `rounded-xl border p-4 transition-all ${isResolvido ? 'border-emerald-700/40 bg-emerald-950/20' : 'border-amber-700/40 bg-amber-950/10'}`;
+        card.dataset.rgm = c.rgm;
+        card.innerHTML = `
+            <div class="flex items-start justify-between gap-4">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="material-symbols-outlined text-sm ${isResolvido ? 'text-emerald-500' : 'text-amber-400'}">${isResolvido ? 'check_circle' : 'warning'}</span>
+                        <p class="text-white font-medium text-sm truncate">${_escHtml(c.nome_aluno || 'Aluno sem nome')}</p>
+                        <span class="text-slate-500 text-xs shrink-0">RGM ${c.rgm}</span>
+                        ${c.data_matricula ? `<span class="text-slate-600 text-[10px] shrink-0">${new Date(c.data_matricula + 'T12:00:00').toLocaleDateString('pt-BR')}</span>` : ''}
+                    </div>
+                    <div class="flex flex-wrap gap-1 mb-3">${tagsHtml}</div>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <label class="text-xs text-slate-400 shrink-0">Creditar para:</label>
+                <select class="crgm-conflito-select flex-1 bg-slate-800 border border-slate-600 text-white text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500" data-rgm="${c.rgm}">
+                    ${opcoesHtml}
+                </select>
+                ${isResolvido ? `<span class="text-emerald-400 text-xs shrink-0 flex items-center gap-1"><span class="material-symbols-outlined text-sm">check</span>Salvo</span>` : ''}
+            </div>
+        `;
+        lista.appendChild(card);
+    }
+}
+
+function _escHtml(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function crgmFecharConflitos() {
+    document.getElementById('crgm-conflitos-modal').classList.add('hidden');
+    _crgmConflitosData = [];
+}
+
+async function crgmSalvarConflitos() {
+    const btn = document.getElementById('crgm-conflitos-salvar');
+    const status = document.getElementById('crgm-conflitos-status');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-symbols-outlined text-base animate-spin">progress_activity</span> Salvando...';
+
+    try {
+        const selects = document.querySelectorAll('.crgm-conflito-select');
+        const items = [];
+        selects.forEach(sel => {
+            const rgm = sel.dataset.rgm;
+            const opt = sel.options[sel.selectedIndex];
+            const uid = parseInt(sel.value);
+            const nome = opt?.dataset?.nome || opt?.text?.split(' — ')[0] || '';
+            if (rgm && uid) items.push({ rgm, user_id: uid, user_name: nome });
+        });
+
+        if (!items.length) return;
+
+        const res = await api('/api/comercial-rgm/conflitos/resolver', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items }),
+        });
+        const d = await res.json();
+
+        if (d.ok) {
+            status.textContent = `${d.saved} conflito${d.saved !== 1 ? 's' : ''} salvo${d.saved !== 1 ? 's' : ''} com sucesso. Recarregando ranking...`;
+            status.className = 'text-xs text-emerald-400';
+            // Atualiza badges
+            document.querySelectorAll('[data-rgm]').forEach(card => {
+                card.className = card.className.replace('border-amber-700/40 bg-amber-950/10', 'border-emerald-700/40 bg-emerald-950/20');
+            });
+            // Recarrega dados do painel
+            setTimeout(() => {
+                crgmFecharConflitos();
+                crgmCarregarDados?.();
+            }, 1200);
+        } else {
+            status.textContent = 'Erro: ' + (d.error || 'desconhecido');
+            status.className = 'text-xs text-red-400';
+        }
+    } catch(e) {
+        status.textContent = 'Erro: ' + e.message;
+        status.className = 'text-xs text-red-400';
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-symbols-outlined text-base">save</span> Salvar Definições';
+    }
+}
+
+async function crgmAtualizarBadgeConflitos() {
+    try {
+        const f = _crgmGetFiltrosAtivos();
+        const params = new URLSearchParams();
+        if (f.dt_ini) params.set('dt_ini', f.dt_ini);
+        if (f.dt_fim) params.set('dt_fim', f.dt_fim);
+        if (f.polo)   params.set('polo',   f.polo);
+        if (f.nivel)  params.set('nivel',  f.nivel);
+
+        const res = await api('/api/comercial-rgm/conflitos?' + params.toString());
+        const d = await res.json();
+        const badge = document.getElementById('crgm-btn-conflitos-badge');
+        if (!badge) return;
+        const n = d.total_nao_resolvidos || 0;
+        if (n > 0) {
+            badge.textContent = n;
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    } catch(_) {}
 }

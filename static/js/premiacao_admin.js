@@ -96,14 +96,22 @@ async function paSaveCampanha() {
     const rVal = parseFloat(document.getElementById('pa-camp-receb-valor')?.value || 0);
     if (rVal > 0) receb_regras.push({ tier: 'qualquer', modo: rModo, valor: rVal });
 
-    const raw = await api('/api/premiacao/campanhas', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ nome, dt_inicio, dt_fim, tiers, receb_regras }) });
+    const di = document.getElementById('pa-camp-def-inter')?.value;
+    const dm = document.getElementById('pa-camp-def-meta')?.value;
+    const ds = document.getElementById('pa-camp-def-super')?.value;
+    const metas_padrao = {};
+    if (di !== '' && di != null && !Number.isNaN(parseFloat(di))) metas_padrao.meta_intermediaria = parseFloat(di);
+    if (dm !== '' && dm != null && !Number.isNaN(parseFloat(dm))) metas_padrao.meta = parseFloat(dm);
+    if (ds !== '' && ds != null && !Number.isNaN(parseFloat(ds))) metas_padrao.supermeta = parseFloat(ds);
+
+    const raw = await api('/api/premiacao/campanhas', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ nome, dt_inicio, dt_fim, tiers, receb_regras, metas_padrao }) });
     const res = await raw.json();
     if (res?.ok) {
         toast('Campanha criada!');
         document.getElementById('pa-camp-nome').value = '';
         document.getElementById('pa-camp-ini').value = '';
         document.getElementById('pa-camp-fim').value = '';
-        ['pa-camp-tier-base','pa-camp-tier-inter','pa-camp-tier-meta','pa-camp-tier-super','pa-camp-receb-valor'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
+        ['pa-camp-tier-base','pa-camp-tier-inter','pa-camp-tier-meta','pa-camp-tier-super','pa-camp-receb-valor','pa-camp-def-inter','pa-camp-def-meta','pa-camp-def-super'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
         await _paLoadCampanhas();
     } else { toast(res?.error || 'Erro ao criar', 'error'); }
 }
@@ -134,6 +142,10 @@ function paEditCampanha(id) {
     const rr = (c.receb_regras || [])[0];
     document.getElementById('pa-edit-receb-modo').value = rr?.modo || 'percentual';
     document.getElementById('pa-edit-receb-valor').value = rr?.valor || '';
+    const mp = c.metas_padrao || {};
+    document.getElementById('pa-edit-def-inter').value = mp.meta_intermediaria != null ? mp.meta_intermediaria : '';
+    document.getElementById('pa-edit-def-meta').value = mp.meta != null ? mp.meta : '';
+    document.getElementById('pa-edit-def-super').value = mp.supermeta != null ? mp.supermeta : '';
     document.getElementById('pa-edit-modal').classList.remove('hidden');
 }
 
@@ -158,6 +170,13 @@ async function paSaveEditCampanha() {
     const rModo = document.getElementById('pa-edit-receb-modo').value || 'percentual';
     const rVal = parseFloat(document.getElementById('pa-edit-receb-valor').value || 0);
     if (rVal > 0) body.receb_regras.push({ tier: 'qualquer', modo: rModo, valor: rVal });
+    const edi = document.getElementById('pa-edit-def-inter')?.value;
+    const edm = document.getElementById('pa-edit-def-meta')?.value;
+    const eds = document.getElementById('pa-edit-def-super')?.value;
+    body.metas_padrao = {};
+    if (edi !== '' && edi != null && !Number.isNaN(parseFloat(edi))) body.metas_padrao.meta_intermediaria = parseFloat(edi);
+    if (edm !== '' && edm != null && !Number.isNaN(parseFloat(edm))) body.metas_padrao.meta = parseFloat(edm);
+    if (eds !== '' && eds != null && !Number.isNaN(parseFloat(eds))) body.metas_padrao.supermeta = parseFloat(eds);
     const raw = await api(`/api/premiacao/campanhas/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
     const res = await raw.json();
     if (res?.ok) {

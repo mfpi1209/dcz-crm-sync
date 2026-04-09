@@ -106,8 +106,11 @@ def _resolve_kommo_uid(args_uid=None):
     return _get_kommo_uid()
 
 
-def _get_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None):
-    """Get ALL matriculas for a specific agent (including cancelled) from xl_rows."""
+def _get_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=False):
+    """Get matriculas for a specific agent from xl_rows.
+    only_em_curso=True filters to situacao='EM CURSO' only (para contagens oficiais).
+    only_em_curso=False retorna todas incluindo cancelados (para listagem informativa).
+    """
     try:
         kconn = _pg_kommo()
         kcur = kconn.cursor()
@@ -135,6 +138,8 @@ def _get_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None):
         conn = _pg()
         cur = conn.cursor()
         outer_conds, params = [], []
+        if only_em_curso:
+            outer_conds.append("situacao = 'EM CURSO'")
         if dt_ini:
             outer_conds.append("data_matricula >= %s")
             params.append(dt_ini)
@@ -613,7 +618,7 @@ def api_minha_performance():
     dt_ini = str(campanha["dt_inicio"])
     dt_fim = str(campanha["dt_fim"])
 
-    matriculas = _get_agent_matriculas(kommo_uid, dt_ini, dt_fim)
+    matriculas = _get_agent_matriculas(kommo_uid, dt_ini, dt_fim, only_em_curso=True)
     total = len(matriculas)
     metas = _get_agent_metas(kommo_uid, dt_ini, dt_fim)
     tier = _determine_tier(total, metas)
@@ -673,7 +678,7 @@ def api_minha_premiacao():
     dt_ini = str(campanha["dt_inicio"])
     dt_fim = str(campanha["dt_fim"])
 
-    matriculas = _get_agent_matriculas(kommo_uid, dt_ini, dt_fim)
+    matriculas = _get_agent_matriculas(kommo_uid, dt_ini, dt_fim, only_em_curso=True)
     total_mat = len(matriculas)
     metas = _get_agent_metas(kommo_uid, dt_ini, dt_fim)
     tier = _determine_tier(total_mat, metas)
@@ -767,7 +772,7 @@ def api_minha_historico():
     for c in campanhas:
         dt_ini = str(c["dt_inicio"])
         dt_fim = str(c["dt_fim"])
-        matriculas = _get_agent_matriculas(kommo_uid, dt_ini, dt_fim)
+        matriculas = _get_agent_matriculas(kommo_uid, dt_ini, dt_fim, only_em_curso=True)
         total = len(matriculas)
         metas = _get_agent_metas(kommo_uid, dt_ini, dt_fim)
         tier = _determine_tier(total, metas)
@@ -818,7 +823,7 @@ def api_minha_insights():
     dt_fim = datetime.strptime(dt_fim_str, "%Y-%m-%d").date()
     today = datetime.now(BRT).date()
 
-    matriculas = _get_agent_matriculas(kommo_uid, dt_ini_str, dt_fim_str)
+    matriculas = _get_agent_matriculas(kommo_uid, dt_ini_str, dt_fim_str, only_em_curso=True)
     total_mat = len(matriculas)
     metas = _get_agent_metas(kommo_uid, dt_ini_str, dt_fim_str)
     tier = _determine_tier(total_mat, metas)
@@ -994,7 +999,7 @@ def api_minha_insights():
         conn.close()
         best_total = 0
         for pc in past:
-            pmat = _get_agent_matriculas(kommo_uid, str(pc["dt_inicio"]), str(pc["dt_fim"]))
+            pmat = _get_agent_matriculas(kommo_uid, str(pc["dt_inicio"]), str(pc["dt_fim"]), only_em_curso=True)
             pmetas = _get_agent_metas(kommo_uid, str(pc["dt_inicio"]), str(pc["dt_fim"]))
             ptier = _determine_tier(len(pmat), pmetas)
             if len(pmat) > best_total:
@@ -1232,7 +1237,7 @@ def api_minha_insights():
 
             uni_dt_ini = min(str(c["dt_inicio"]) for c in linked_camps)
             uni_dt_fim = max(str(c["dt_fim"]) for c in linked_camps)
-            uni_matriculas = _get_agent_matriculas(kommo_uid, uni_dt_ini, uni_dt_fim)
+            uni_matriculas = _get_agent_matriculas(kommo_uid, uni_dt_ini, uni_dt_fim, only_em_curso=True)
             uni_total = len(uni_matriculas)
 
             uni_metas_sum = {"meta": 0, "intermediaria": 0, "supermeta": 0}
@@ -1377,6 +1382,22 @@ def api_mp_agentes():
 # API: Campanhas (admin)
 # ---------------------------------------------------------------------------
 
+def _parse_metas_padrao_from_body(body):
+    """Pré-definição em quantidade de matrículas (Dashboard comercial), não confundir com R$/faixa."""
+    mp = (body or {}).get("metas_padrao") or {}
+    out = []
+    for k in ("meta_intermediaria", "meta", "supermeta"):
+        v = mp.get(k)
+        if v is None or v == "":
+            out.append(None)
+            continue
+        try:
+            out.append(float(v))
+        except (TypeError, ValueError):
+            out.append(None)
+    return tuple(out)
+
+
 @minha_performance_bp.route("/api/premiacao/campanhas", methods=["GET"])
 def api_campanhas_list():
     if not _is_admin():
@@ -1394,10 +1415,58 @@ def api_campanhas_list():
             c["tiers"] = {r["tier"]: float(r["valor_por_mat"]) for r in cur.fetchall()}
             cur.execute("SELECT tier, modo, valor FROM premiacao_recebimento_regra WHERE campanha_id = %s", (c["id"],))
             c["receb_regras"] = [dict(r) for r in cur.fetchall()]
+            di, dm, ds = c.get("def_meta_intermediaria"), c.get("def_meta"), c.get("def_supermeta")
+            c["metas_padrao"] = {
+                "meta_intermediaria": float(di) if di is not None else None,
+                "meta": float(dm) if dm is not None else None,
+                "supermeta": float(ds) if ds is not None else None,
+            }
             campanhas.append(c)
         cur.close()
         conn.close()
         return jsonify({"ok": True, "campanhas": campanhas})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@minha_performance_bp.route("/api/premiacao/campanhas-periodos", methods=["GET"])
+def api_campanhas_periodos():
+    """Retorna períodos de metas de comercial_metas + premiacao_campanha — acessível a todos os usuários logados."""
+    if not session.get("user_id"):
+        return jsonify({"error": "Sem permissão"}), 403
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        # Períodos distintos de comercial_metas (mesma fonte do Histórico de Metas do dashboard)
+        cur.execute("""
+            SELECT DISTINCT ON (dt_inicio, dt_fim)
+                dt_inicio, dt_fim,
+                COALESCE(NULLIF(TRIM(descricao), ''), TO_CHAR(dt_inicio, 'DD/MM/YYYY') || ' → ' || TO_CHAR(dt_fim, 'DD/MM/YYYY')) AS nome
+            FROM comercial_metas
+            ORDER BY dt_inicio DESC, dt_fim DESC
+        """)
+        seen = set()
+        rows = []
+        for r in cur.fetchall():
+            key = (str(r[0]), str(r[1]))
+            if key not in seen:
+                seen.add(key)
+                rows.append({"nome": r[2], "dt_inicio": str(r[0]), "dt_fim": str(r[1])})
+
+        # Adiciona campanhas de premiacao_campanha que não estejam já cobertas
+        cur.execute("SELECT nome, dt_inicio, dt_fim FROM premiacao_campanha ORDER BY dt_inicio DESC")
+        for r in cur.fetchall():
+            key = (str(r[1]), str(r[2]))
+            if key not in seen:
+                seen.add(key)
+                rows.append({"nome": r[0], "dt_inicio": str(r[1]), "dt_fim": str(r[2])})
+
+        # Reordena por data decrescente
+        rows.sort(key=lambda x: x["dt_inicio"], reverse=True)
+
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True, "campanhas": rows})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -1415,11 +1484,16 @@ def api_campanhas_create():
     if not nome or not dt_inicio or not dt_fim:
         return jsonify({"error": "Nome e datas são obrigatórios"}), 400
     try:
+        di, dm, ds = _parse_metas_padrao_from_body(body)
         conn = _pg()
         cur = conn.cursor()
         cur.execute(
-            "INSERT INTO premiacao_campanha (nome, dt_inicio, dt_fim) VALUES (%s, %s, %s) RETURNING id",
-            (nome, dt_inicio, dt_fim),
+            """
+            INSERT INTO premiacao_campanha (nome, dt_inicio, dt_fim,
+                def_meta_intermediaria, def_meta, def_supermeta)
+            VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
+            """,
+            (nome, dt_inicio, dt_fim, di, dm, ds),
         )
         cid = cur.fetchone()[0]
         for tier, valor in tiers.items():
@@ -1475,6 +1549,16 @@ def api_campanhas_update(cid):
                     "INSERT INTO premiacao_recebimento_regra (campanha_id, tier, modo, valor) VALUES (%s, %s, %s, %s)",
                     (cid, rr.get("tier", "qualquer"), rr.get("modo", "percentual"), float(rr.get("valor", 0))),
                 )
+        if "metas_padrao" in body:
+            di, dm, ds = _parse_metas_padrao_from_body(body)
+            cur.execute(
+                """
+                UPDATE premiacao_campanha SET
+                    def_meta_intermediaria = %s, def_meta = %s, def_supermeta = %s
+                WHERE id = %s
+                """,
+                (di, dm, ds, cid),
+            )
         conn.commit()
         cur.close()
         conn.close()
@@ -2006,64 +2090,85 @@ def api_recebimentos_upload():
         )
         snap_id = cur.fetchone()[0]
 
+        from psycopg2.extras import Json
+
+        # Detecta mapeamento de colunas de forma flexível (suporta planilhas legadas)
+        # Rodamos uma vez antes do loop para identificar quais colunas existem
+        fieldnames_lower = {k: k.strip().lower() for k in (reader.fieldnames or []) if k}
+
+        def _parse_valor(v):
+            try:
+                return float(str(v).replace("R$", "").replace(".", "").replace(",", ".").strip())
+            except Exception:
+                return 0
+
+        def _parse_date(v):
+            for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
+                try:
+                    return datetime.strptime((v or "").strip(), fmt).date()
+                except Exception:
+                    continue
+            return None
+
         count = 0
         for row in reader:
             rgm = None
             valor = 0
-            for k, v in row.items():
-                if not k:
-                    continue
-                kl = k.strip().lower()
-                if "rgm" in kl:
-                    rgm = _normalize_rgm(v)
-                elif "valor" in kl and "receb" in kl:
-                    try:
-                        valor = float(str(v).replace("R$", "").replace(".", "").replace(",", ".").strip())
-                    except Exception:
-                        valor = 0
-                elif kl == "valor":
-                    try:
-                        valor = float(str(v).replace("R$", "").replace(".", "").replace(",", ".").strip())
-                    except Exception:
-                        valor = 0
-            if not rgm:
-                continue
-
             nivel = ""
             modalidade = ""
             data_mat = None
             tipo_pag = ""
             turma = ""
-            from psycopg2.extras import Json
+            ciclo = ""
+
             for k, v in row.items():
                 if not k:
                     continue
                 kl = k.strip().lower()
-                if "nivel" in kl or "nível" in kl:
-                    nivel = (v or "").strip()
+                sv = (v or "").strip()
+
+                # RGM
+                if "rgm" in kl:
+                    rgm = _normalize_rgm(sv)
+
+                # Valor — aceita "valor receb", "valor pago", "valor" sozinho
+                elif "valor" in kl:
+                    valor = _parse_valor(sv)
+
+                # Nivel
+                elif "nivel" in kl or "nível" in kl:
+                    nivel = sv
+
+                # Modalidade
                 elif "modalidade" in kl:
-                    modalidade = (v or "").strip()
-                elif "matrícula" in kl or "matricula" in kl:
-                    if "data" in kl or "dt" in kl:
-                        try:
-                            for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
-                                try:
-                                    data_mat = datetime.strptime(v.strip(), fmt).date()
-                                    break
-                                except Exception:
-                                    continue
-                        except Exception:
-                            pass
-                elif "tipo" in kl and "pag" in kl:
-                    tipo_pag = (v or "").strip()
+                    modalidade = sv
+
+                # Data de matrícula
+                elif ("data" in kl or "dt" in kl) and ("matric" in kl or "mat" in kl):
+                    data_mat = _parse_date(sv)
+
+                # Tipo de pagamento — aceita "tipo pag", "tipo_pag", "beleza", "categoria"
+                elif ("tipo" in kl and "pag" in kl) or kl in ("beleza", "categoria", "tipo"):
+                    tipo_pag = sv
+
+                # Turma
                 elif "turma" in kl:
-                    turma = (v or "").strip()
+                    turma = sv
+
+                # Ciclo
+                elif "ciclo" in kl:
+                    ciclo = sv
+
+            if not rgm:
+                continue
 
             cur.execute("""
                 INSERT INTO comercial_recebimentos
-                    (snapshot_id, rgm, nivel, modalidade, data_matricula, valor, tipo_pagamento, mes_referencia, turma, data)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (snap_id, rgm, nivel, modalidade, data_mat, valor, tipo_pag, mes_ref, turma, Json(row)))
+                    (snapshot_id, rgm, nivel, modalidade, data_matricula, valor,
+                     tipo_pagamento, mes_referencia, turma, ciclo, data)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (snap_id, rgm, nivel, modalidade, data_mat, valor,
+                  tipo_pag, mes_ref, turma, ciclo, Json(row)))
             count += 1
 
         cur.execute("UPDATE recebimentos_snapshots SET row_count = %s WHERE id = %s", (count, snap_id))
@@ -2098,21 +2203,7 @@ def api_recebimentos_list():
 
 @minha_performance_bp.route("/api/minha-performance/matriculas")
 def api_minha_matriculas():
-    kommo_uid = request.args.get("kommo_uid", type=int)
-    if not kommo_uid:
-        uid = session.get("user_id")
-        if uid:
-            try:
-                conn = _pg()
-                cur = conn.cursor()
-                cur.execute("SELECT kommo_user_id FROM app_users WHERE id = %s", (uid,))
-                row = cur.fetchone()
-                if row:
-                    kommo_uid = row[0]
-                cur.close()
-                conn.close()
-            except Exception:
-                pass
+    kommo_uid = _resolve_kommo_uid(request.args.get("kommo_uid"))
     if not kommo_uid:
         return jsonify({"ok": False, "error": "Sem vínculo Kommo"}), 400
 

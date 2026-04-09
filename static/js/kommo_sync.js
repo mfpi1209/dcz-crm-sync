@@ -11,6 +11,15 @@ const _kommoColors = [
     '#a855f7', '#22d3ee', '#fb923c', '#4ade80', '#f43f5e',
 ];
 
+function escHtml(s) {
+    if (s == null || s === undefined) return '';
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
 const _FUNNEL_GRADIENTS = {
     aguardando_inscricao: { from: '#3b82f6', to: '#6366f1', border: 'border-blue-500/30',   shadow: 'shadow-blue-500/20' },
     inscricao:            { from: '#6366f1', to: '#8b5cf6', border: 'border-indigo-500/30', shadow: 'shadow-indigo-500/20' },
@@ -223,6 +232,8 @@ async function _kommoStartSync(mode) {
     document.getElementById('kommo-progress-bar').style.width = '0%';
     document.getElementById('kommo-progress-pct').textContent = '0%';
     document.getElementById('kommo-progress-label').textContent = 'Iniciando...';
+    const logEl0 = document.getElementById('kommo-sync-log');
+    if (logEl0) logEl0.innerHTML = '<p class="text-xs text-slate-500">Conectando ao servidor...</p>';
 
     try {
         const res = await api('/api/kommo/sync', {
@@ -230,10 +241,11 @@ async function _kommoStartSync(mode) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ mode }),
         });
-        const d = await res.json();
-        if (!d.ok) {
-            toast(d.error || 'Erro ao iniciar sync', 'error');
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok || !d.ok) {
+            toast(d.error || ('HTTP ' + res.status) || 'Erro ao iniciar sync', 'error');
             _kommoResetButtons();
+            if (logEl0) logEl0.innerHTML = '<p class="text-xs text-red-400">' + escHtml(d.error || 'Falha ao iniciar') + '</p>';
             return;
         }
         _kommoTaskId = d.task_id;
@@ -246,11 +258,24 @@ async function _kommoStartSync(mode) {
 
 function _kommoPollTask() {
     if (_kommoPolling) clearInterval(_kommoPolling);
-    _kommoPolling = setInterval(async () => {
+
+    const tick = async () => {
+        if (!_kommoTaskId) return;
         try {
             const res = await api('/api/kommo/task/' + _kommoTaskId);
-            const d = await res.json();
-            if (!d.ok) return;
+            const d = await res.json().catch(() => ({}));
+            if (!res.ok || !d.ok || !d.data) {
+                clearInterval(_kommoPolling);
+                _kommoPolling = null;
+                const msg = d.error || (res.status === 404
+                    ? 'Tarefa não encontrada (servidor reiniciou?). Inicie o sync de novo.'
+                    : 'Erro ao ler status (' + res.status + ')');
+                toast(msg, 'error');
+                _kommoResetButtons();
+                const le = document.getElementById('kommo-sync-log');
+                if (le) le.innerHTML = '<p class="text-xs text-red-400">' + escHtml(msg) + '</p>';
+                return;
+            }
 
             const t = d.data;
             document.getElementById('kommo-progress-bar').style.width = t.progress + '%';
@@ -260,12 +285,12 @@ function _kommoPollTask() {
             const logEl = document.getElementById('kommo-sync-log');
             if (t.log && t.log.length) {
                 logEl.innerHTML = t.log.map(l =>
-                    `<p class="text-xs font-mono text-slate-400"><span class="text-slate-600">${l.time || ''}</span> ${l.msg || ''}</p>`
+                    `<p class="text-xs font-mono text-slate-400"><span class="text-slate-600">${l.time || ''}</span> ${escHtml(l.msg || '')}</p>`
                 ).join('');
                 logEl.scrollTop = logEl.scrollHeight;
             }
 
-            if (t.status === 'completed' || t.status === 'error') {
+            if (t.status === 'completed' || t.status === 'error' || t.status === 'cancelled') {
                 clearInterval(_kommoPolling);
                 _kommoPolling = null;
                 _kommoResetButtons();
@@ -284,7 +309,10 @@ function _kommoPollTask() {
         } catch (e) {
             console.error('Poll error:', e);
         }
-    }, 3000);
+    };
+
+    tick();
+    _kommoPolling = setInterval(tick, 1500);
 }
 
 function _kommoResetButtons() {
@@ -292,4 +320,33 @@ function _kommoResetButtons() {
     const btnF = document.getElementById('kommo-btn-full');
     btnD.disabled = false; btnF.disabled = false;
     btnD.style.opacity = '1'; btnF.style.opacity = '1';
+    document.getElementById('kommo-progress-wrap')?.classList.add('hidden');
+}
+
+async function _kommoCancelSync() {
+    const btn = document.getElementById('kommo-btn-cancel');
+    if (btn) { btn.disabled = true; btn.textContent = 'Cancelando...'; }
+    try {
+        const res = await api('/api/kommo/sync/cancel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task_id: _kommoTaskId }),
+        });
+        const d = await res.json();
+        if (d.ok) {
+            toast('Sync cancelado.', 'info');
+            clearInterval(_kommoPolling);
+            _kommoPolling = null;
+            document.getElementById('kommo-progress-label').textContent = 'Cancelado.';
+            document.getElementById('kommo-progress-bar').className =
+                document.getElementById('kommo-progress-bar').className
+                    .replace('from-emerald-500 to-teal-400', 'from-red-500 to-red-400');
+            setTimeout(() => _kommoResetButtons(), 2000);
+        } else {
+            toast(d.error || 'Erro ao cancelar', 'error');
+            if (btn) { btn.disabled = false; btn.innerHTML = '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg> Cancelar'; }
+        }
+    } catch (e) {
+        toast('Erro: ' + e.message, 'error');
+    }
 }

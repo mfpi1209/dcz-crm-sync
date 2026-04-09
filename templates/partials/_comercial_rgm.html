@@ -20,11 +20,6 @@
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                     Sync Kommo
                 </button>
-                <button onclick="crgmToggleMetas()" id="crgm-btn-metas"
-                    class="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-amber-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
-                    Metas
-                </button>
                 <button onclick="crgmToggleHistoricoMetas()" id="crgm-btn-historico-metas"
                     class="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-violet-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -132,7 +127,7 @@
             </h3>
             <button onclick="crgmToggleKommoLead()" class="text-slate-500 hover:text-white text-xs">Fechar</button>
         </div>
-        <p class="text-xs text-slate-400 mb-4">Se uma matrícula não cruza com o CRM, puxe o lead direto da API: informe o <strong class="text-slate-300">ID do lead</strong> (número após # na URL do Kommo) ou o <strong class="text-slate-300">RGM</strong> (8 dígitos). Os dados são gravados no PostgreSQL <code class="text-emerald-400/90">kommo_sync</code>.</p>
+        <p class="text-xs text-slate-400 mb-4"><strong class="text-emerald-300/90">Mini sync Kommo</strong> — mesmo fluxo que rodar <code class="text-slate-500">python kommo_lib/sync_one_lead.py &lt;id&gt;</code>: busca só esse lead na API, atualiza o SQLite do sync e espelha no PostgreSQL <code class="text-emerald-400/90">kommo_sync</code>. Informe o <strong class="text-slate-300">ID do lead</strong> (após # na URL) ou o <strong class="text-slate-300">RGM</strong> (8 dígitos). <code class="text-slate-500">KOMMO_BASE_URL</code> = mesmo subdomínio do Kommo no navegador (sem <code class="text-slate-500">/api/v4</code> no fim).</p>
         <div class="flex flex-wrap items-end gap-4">
             <div>
                 <label class="block text-[10px] text-slate-500 mb-1">ID do lead (Kommo)</label>
@@ -151,44 +146,16 @@
         <div id="crgm-kommo-lead-pick" class="hidden mt-3 flex flex-wrap gap-2"></div>
     </div>
 
-    <!-- Painel de Metas (oculto por padrão) -->
-    <div id="crgm-metas-panel" class="hidden glass-card p-5 mb-6">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
-                Metas por Período
-            </h3>
-        </div>
-        <!-- Aviso: metas agora são gerenciadas na Premiação -->
-        <div class="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4 mb-4">
-            <div class="flex items-start gap-3">
-                <svg class="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                <div>
-                    <p class="text-xs font-semibold text-blue-400 mb-1">Metas são configuradas na Premiação</p>
-                    <p class="text-[10px] text-slate-500">O cadastro de metas (Intermediária, Meta, Supermeta) por agente agora é feito dentro da campanha de premiação. Acesse <a href="#premiacao_admin" onclick="navigate('premiacao_admin')" class="text-blue-400 hover:text-blue-300 underline">Premiação</a> para gerenciar.</p>
-                </div>
-            </div>
-        </div>
-        <div id="crgm-metas-grid" class="hidden"></div>
-        <!-- Histórico de metas agrupado por categoria -->
-        <div>
-            <div class="flex items-center gap-3 mb-2">
-                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Histórico de Metas</p>
-                <select id="crgm-metas-hist-filter" onchange="_crgmFilterHistorico()" class="input-glass px-2 py-1 text-[10px] text-slate-400">
-                    <option value="">Todas categorias</option>
-                </select>
-            </div>
-            <div id="crgm-metas-historico" class="space-y-2 max-h-72 overflow-y-auto"></div>
-        </div>
-    </div>
-
     <!-- Histórico de Metas (retrátil) -->
     <div id="crgm-historico-metas-panel" class="hidden glass-card p-5 mb-6 border border-violet-500/20">
         <div class="flex items-center justify-between mb-4">
-            <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                Histórico de Metas
-            </h3>
+            <div>
+                <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
+                    <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Histórico de Metas
+                </h3>
+                <p class="text-[10px] text-slate-500 mt-1">Metas legadas (<code class="text-slate-400">comercial_metas</code>) e campanhas da <a href="#premiacao_admin" onclick="navigate('premiacao_admin')" class="text-amber-400/90 hover:text-amber-300 underline">Premiação</a> (pré-definição e totais por agente).</p>
+            </div>
             <div class="flex items-center gap-2">
                 <select id="crgm-hist-cat-filter" onchange="crgmFiltrarHistoricoMetas()" class="input-glass px-2 py-1 text-[10px] text-slate-400">
                     <option value="">Todas as categorias</option>
@@ -198,6 +165,42 @@
         </div>
         <div id="crgm-historico-metas-body" class="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
             <p class="text-slate-500 text-xs">Carregando...</p>
+        </div>
+    </div>
+
+    <!-- Modal: Editar Meta -->
+    <div id="crgm-edit-meta-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <p class="text-[10px] text-slate-500 uppercase tracking-wider">Editar meta</p>
+                    <p class="text-white font-semibold text-sm" id="crgm-edit-meta-titulo">—</p>
+                </div>
+                <button onclick="crgmFecharEditarMeta()" class="text-slate-500 hover:text-white transition-colors">
+                    <span class="material-symbols-outlined text-lg">close</span>
+                </button>
+            </div>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-[10px] text-blue-400 uppercase tracking-wider mb-1">Meta</label>
+                    <input id="crgm-edit-meta-val" type="number" min="0" step="1"
+                        class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-[10px] text-amber-400 uppercase tracking-wider mb-1">Meta Intermediária</label>
+                    <input id="crgm-edit-meta-int" type="number" min="0" step="1"
+                        class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-amber-500">
+                </div>
+                <div>
+                    <label class="block text-[10px] text-emerald-400 uppercase tracking-wider mb-1">Supermeta</label>
+                    <input id="crgm-edit-meta-sup" type="number" min="0" step="1"
+                        class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-emerald-500">
+                </div>
+            </div>
+            <div class="flex gap-2 mt-5">
+                <button onclick="crgmFecharEditarMeta()" class="flex-1 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm transition-colors">Cancelar</button>
+                <button id="crgm-edit-meta-salvar" onclick="crgmSalvarEditarMeta()" class="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors">Salvar</button>
+            </div>
         </div>
     </div>
 
@@ -224,6 +227,17 @@
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                 Nova Turma
             </button>
+            <button onclick="crgmToggleVerTurmas()" class="text-xs text-slate-400 hover:text-blue-400 border border-slate-700 hover:border-blue-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+                Ver Turmas
+            </button>
+        </div>
+        <!-- Lista de Turmas (oculto) -->
+        <div id="crgm-ver-turmas" class="hidden mt-3 bg-slate-800/40 rounded-xl p-4 border border-slate-700/30">
+            <p class="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-3">Turmas Cadastradas</p>
+            <div id="crgm-turmas-lista" class="space-y-2">
+                <p class="text-xs text-slate-500">Carregando...</p>
+            </div>
         </div>
         <!-- Novo Ciclo (oculto) -->
         <div id="crgm-novo-ciclo" class="hidden mt-3 bg-slate-800/40 rounded-xl p-4 border border-slate-700/30">
@@ -455,13 +469,22 @@
 
     <!-- Ranking de Agentes -->
     <div class="glass-card overflow-hidden mb-6">
-        <div class="px-5 py-3 border-b border-slate-700/20 flex items-center justify-between">
+        <div class="px-5 py-3 border-b border-slate-700/20 flex items-center justify-between gap-3">
             <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
                 <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                 Ranking de Agentes Comerciais
             </h3>
-            <span id="crgm-agentes-count" class="text-[10px] text-slate-500"></span>
+            <div class="flex items-center gap-3 ml-auto">
+                <span id="crgm-agentes-count" class="text-[10px] text-slate-500"></span>
+                <button onclick="crgmAbrirConflitos()"
+                    class="relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-semibold transition-all">
+                    <span class="material-symbols-outlined text-sm">warning</span>
+                    Vendas em Conflito
+                    <span id="crgm-btn-conflitos-badge" class="hidden absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-amber-500 text-white text-[10px] font-bold leading-none"></span>
+                </button>
+            </div>
         </div>
+        <div id="crgm-metas-aviso" class="hidden mx-5 mb-3 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-200/90 text-xs leading-relaxed"></div>
         <div class="overflow-x-auto max-h-[500px] overflow-y-auto">
             <table class="w-full text-sm">
                 <thead class="sticky top-0 z-10">
@@ -476,12 +499,11 @@
                         <th class="text-right px-4 py-3">Novos <span class="text-slate-600">(per.)</span></th>
                         <th class="text-right px-4 py-3">Perdidos <span class="text-slate-600">(per.)</span></th>
                         <th class="text-right px-4 py-3">Total</th>
-                        <th class="text-right px-4 py-3">Ativos</th>
                         <th class="text-right px-4 py-3">Conv.</th>
                     </tr>
                 </thead>
                 <tbody id="crgm-agentes-body" class="divide-y divide-slate-700/10">
-                    <tr><td colspan="12" class="px-5 py-8 text-center text-slate-600">Carregando...</td></tr>
+                    <tr><td colspan="11" class="px-5 py-8 text-center text-slate-600">Carregando...</td></tr>
                 </tbody>
             </table>
         </div>

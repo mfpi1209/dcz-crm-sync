@@ -25,7 +25,17 @@ kommo_bp = Blueprint("kommo_bp", __name__)
 
 _kommo_lib = Path(__file__).resolve().parent.parent / "kommo_lib"
 _kommo_ext = Path(__file__).resolve().parent.parent / "Kommo_Update"
-KOMMO_DIR = str(_kommo_ext) if _kommo_ext.is_dir() else (str(_kommo_lib) if _kommo_lib.is_dir() else None)
+# Antes: preferia Kommo_Update e o painel rodava cópia antiga (sem fixes do repo).
+# Agora: kommo_lib versionado primeiro; Kommo_Update só fallback; ou KOMMO_SYNC_DIR.
+_env_kommo = os.getenv("KOMMO_SYNC_DIR", "").strip()
+if _env_kommo and Path(_env_kommo).is_dir():
+    KOMMO_DIR = _env_kommo
+elif _kommo_lib.is_dir():
+    KOMMO_DIR = str(_kommo_lib)
+elif _kommo_ext.is_dir():
+    KOMMO_DIR = str(_kommo_ext)
+else:
+    KOMMO_DIR = None
 
 PG_KOMMO = {
     "host": os.getenv("KOMMO_PG_HOST", "31.97.91.47"),
@@ -193,8 +203,7 @@ def api_kommo_sync():
     if not KOMMO_DIR:
         return jsonify({
             "ok": False,
-            "error": "Sync indisponível neste ambiente. A pasta Kommo_Update não está presente. "
-                     "Execute a sincronização pelo servidor local (Windows).",
+            "error": "Sync indisponível: pasta kommo_lib (ou KOMMO_SYNC_DIR) não encontrada no servidor.",
         }), 400
 
     for t in _tasks.values():
@@ -205,13 +214,16 @@ def api_kommo_sync():
     mode = body.get("mode", "delta")
     task_id = str(uuid.uuid4())[:8]
 
+    _t0 = datetime.now().strftime("%H:%M:%S")
     _tasks[task_id] = {
         "type": "sync",
         "status": "running",
-        "progress": 0,
+        "progress": 1,
         "message": "Iniciando sincronização Kommo...",
         "started_at": datetime.now().isoformat(),
-        "log": [],
+        "log": [
+            {"time": _t0, "msg": "Tarefa aceita. Subindo processo (pode levar alguns segundos até o primeiro log)..."},
+        ],
     }
 
     def _log(msg, progress=None):
@@ -222,10 +234,17 @@ def api_kommo_sync():
             _tasks[task_id]["progress"] = progress
 
     def _stream(proc, label, base_pct, end_pct):
-        """Lê stdout linha a linha e atualiza o log em tempo real."""
+        """Lê stdout linha a linha e atualiza o log em tempo real.
+
+        Lê em modo binário e decodifica UTF-8 no Flask — no Windows, text=True no Popen
+        ainda pode usar cp1252 em alguns builds e quebrar em bytes como 0x8d.
+        """
         lines_read = 0
-        for raw in iter(proc.stdout.readline, ""):
-            line = raw.strip()
+        while True:
+            chunk = proc.stdout.readline()
+            if not chunk:
+                break
+            line = chunk.decode("utf-8", errors="replace").strip()
             if not line:
                 continue
             lines_read += 1
@@ -239,30 +258,48 @@ def api_kommo_sync():
 
     def _run():
         try:
-            env = {**os.environ}
+            # Windows: sem PYTHONUNBUFFERED o stdout de main.py pode ficar preso em buffer (UI em 0% por minutos).
+            env = {**os.environ, "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8"}
             cmd = [sys.executable, "-u", "main.py"]
             if mode == "full":
                 cmd.append("--full")
 
+            _log(f"Pasta do sync: {KOMMO_DIR}", 4)
             _log(f"Executando: {' '.join(cmd)}", 5)
 
             proc = subprocess.Popen(
                 cmd, cwd=KOMMO_DIR,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, bufsize=1, env=env,
+                bufsize=0, env=env,
             )
+            _tasks[task_id]["proc"] = proc
 
             rc = _stream(proc, "sync", 5, 80)
 
+            if _tasks[task_id].get("cancelled"):
+                _tasks[task_id]["status"] = "cancelled"
+                _log("[CANCELADO] Sincronização interrompida pelo usuário.")
+                return
+
             if rc == 0:
-                _log("Sync concluído. Migrando para PostgreSQL...", 82)
+                # Full sync: migração completa (inclui lead_custom_field_values em massa).
+                # Delta: --light com correção de bug (cf_values por delta desde pg_last_sync).
+                mig_args = [sys.executable, "-u", "migrate_to_postgres.py"]
+                if mode != "full":
+                    mig_args.append("--light")
+                _log(
+                    "Sync concluído. Migrando para PostgreSQL (%s)..."
+                    % ("FULL" if mode == "full" else "LIGHT+cf_values"),
+                    82,
+                )
 
                 mig = subprocess.Popen(
-                    [sys.executable, "-u", "migrate_to_postgres.py", "--light"],
+                    mig_args,
                     cwd=KOMMO_DIR,
                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                    text=True, bufsize=1, env=env,
+                    bufsize=0, env=env,
                 )
+                _tasks[task_id]["proc"] = mig
                 mig_rc = _stream(mig, "migrate", 82, 98)
 
                 if mig_rc == 0:
@@ -274,16 +311,46 @@ def api_kommo_sync():
                 _tasks[task_id]["status"] = "completed"
                 _log("Sincronização concluída com sucesso!", 100)
             else:
-                _tasks[task_id]["status"] = "error"
-                _log(f"Sync falhou (código {rc})")
+                if not _tasks[task_id].get("cancelled"):
+                    _tasks[task_id]["status"] = "error"
+                    _log(f"Sync falhou (código {rc})")
 
         except Exception as e:
             _tasks[task_id]["status"] = "error"
             _log(f"Exceção: {e}")
+        finally:
+            _tasks[task_id].pop("proc", None)
 
     thread = threading.Thread(target=_run, daemon=True)
     thread.start()
     return jsonify({"ok": True, "task_id": task_id})
+
+
+@kommo_bp.route("/api/kommo/sync/cancel", methods=["POST"])
+def api_kommo_sync_cancel():
+    """Cancela o sync em andamento matando o subprocess."""
+    body = request.json or {}
+    task_id = body.get("task_id")
+
+    task = _tasks.get(task_id) if task_id else None
+    if not task:
+        # Tenta achar qualquer task de sync rodando
+        task = next((t for t in _tasks.values() if t.get("type") == "sync" and t.get("status") == "running"), None)
+
+    if not task:
+        return jsonify({"ok": False, "error": "Nenhum sync em andamento."}), 404
+
+    task["cancelled"] = True
+    proc = task.get("proc")
+    if proc:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+    task["status"] = "cancelled"
+    task["message"] = "Cancelado pelo usuário."
+    return jsonify({"ok": True})
 
 
 # ── Task progress ────────────────────────────────────────────────────────
@@ -293,7 +360,7 @@ def api_kommo_task(task_id):
     task = _tasks.get(task_id)
     if not task:
         return jsonify({"ok": False, "error": "Tarefa não encontrada"}), 404
-    t = dict(task)
+    t = {k: v for k, v in task.items() if k != "proc"}  # Popen não é JSON-serializável
     if "log" in t and len(t["log"]) > 30:
         t["log"] = t["log"][-30:]
     return jsonify({"ok": True, "data": t})

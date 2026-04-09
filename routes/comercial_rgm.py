@@ -62,93 +62,31 @@ def _kommo_api_v4() -> str:
     return b if b.endswith("/api/v4") else f"{b}/api/v4"
 
 
-def _kommo_upsert_lead_postgres(lead: dict) -> None:
-    """Grava/atualiza um lead e campos custom direto no PostgreSQL kommo_sync."""
-    from psycopg2.extras import Json
+def _kommo_uid_int(v):
+    """IDs de usuário Kommo: o ranking usa int; o PG pode devolver tipos mistos."""
+    if v is None:
+        return None
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return None
 
-    now = datetime.utcnow().isoformat()
-    cfs = lead.get("custom_fields_values") or []
-    emb = lead.get("_embedded") or {}
-    tags = emb.get("tags") or []
-    contacts = emb.get("contacts") or []
-    k = _pg_kommo()
-    c = k.cursor()
-    c.execute(
-        """
-        INSERT INTO leads (
-            id, name, price, responsible_user_id, group_id, status_id, pipeline_id,
-            loss_reason_id, source_id, created_by, updated_by, closed_at, created_at,
-            updated_at, closest_task_at, is_deleted, score, account_id, labor_cost,
-            is_price_modified, custom_fields_json, tags_json, contacts_json, raw_json, synced_at
-        ) VALUES (
-            %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
-        )
-        ON CONFLICT (id) DO UPDATE SET
-            name = EXCLUDED.name, price = EXCLUDED.price,
-            responsible_user_id = EXCLUDED.responsible_user_id, group_id = EXCLUDED.group_id,
-            status_id = EXCLUDED.status_id, pipeline_id = EXCLUDED.pipeline_id,
-            loss_reason_id = EXCLUDED.loss_reason_id, source_id = EXCLUDED.source_id,
-            created_by = EXCLUDED.created_by, updated_by = EXCLUDED.updated_by,
-            closed_at = EXCLUDED.closed_at, created_at = EXCLUDED.created_at,
-            updated_at = EXCLUDED.updated_at, closest_task_at = EXCLUDED.closest_task_at,
-            is_deleted = EXCLUDED.is_deleted, score = EXCLUDED.score,
-            account_id = EXCLUDED.account_id, labor_cost = EXCLUDED.labor_cost,
-            is_price_modified = EXCLUDED.is_price_modified,
-            custom_fields_json = EXCLUDED.custom_fields_json, tags_json = EXCLUDED.tags_json,
-            contacts_json = EXCLUDED.contacts_json, synced_at = EXCLUDED.synced_at
-        """,
-        (
-            lead["id"],
-            lead.get("name"),
-            int(lead.get("price") or 0),
-            lead.get("responsible_user_id"),
-            lead.get("group_id"),
-            lead.get("status_id"),
-            lead.get("pipeline_id"),
-            lead.get("loss_reason_id"),
-            lead.get("source_id"),
-            lead.get("created_by"),
-            lead.get("updated_by"),
-            lead.get("closed_at"),
-            lead.get("created_at"),
-            lead.get("updated_at"),
-            lead.get("closest_task_at"),
-            bool(lead.get("is_deleted")),
-            lead.get("score"),
-            lead.get("account_id"),
-            lead.get("labor_cost"),
-            bool(lead.get("is_price_modified_by_robot")),
-            Json(cfs) if cfs else None,
-            Json(tags) if tags else None,
-            Json(contacts) if contacts else None,
-            None,
-            now,
-        ),
-    )
-    for cf in cfs:
-        c.execute(
-            """
-            INSERT INTO lead_custom_field_values
-            (lead_id, field_id, field_name, field_code, field_type, values_json, synced_at)
-            VALUES (%s,%s,%s,%s,%s,%s,%s)
-            ON CONFLICT (lead_id, field_id) DO UPDATE SET
-                field_name = EXCLUDED.field_name, field_code = EXCLUDED.field_code,
-                field_type = EXCLUDED.field_type, values_json = EXCLUDED.values_json,
-                synced_at = EXCLUDED.synced_at
-            """,
-            (
-                lead["id"],
-                cf.get("field_id"),
-                cf.get("field_name"),
-                cf.get("field_code"),
-                cf.get("field_type"),
-                Json(cf.get("values") or []),
-                now,
-            ),
-        )
-    k.commit()
-    c.close()
-    k.close()
+
+def _kommo_mini_sync_lead_flask(lead_id: int) -> tuple[dict | None, str | None]:
+    """
+    Mesmo pipeline que `python kommo_lib/sync_one_lead.py <id>`:
+    KommoAPIClient -> SQLite (kommo_lib) + PostgreSQL kommo_sync.
+    """
+    import sys
+    from pathlib import Path
+
+    kl = Path(__file__).resolve().parents[1] / "kommo_lib"
+    p = str(kl)
+    if p not in sys.path:
+        sys.path.insert(0, p)
+    from sync_one_lead import mini_sync_lead
+
+    return mini_sync_lead(lead_id)
 
 
 def _kommo_resolve_lead_id_by_rgm(rgm_clean: str) -> tuple[list[int], str | None]:
@@ -245,26 +183,6 @@ def _kommo_resolve_lead_id_by_rgm(rgm_clean: str) -> tuple[list[int], str | None
         "Não achamos esse RGM na base nem nas primeiras páginas da API. "
         "Use o ID do lead (número após # na URL do Kommo)."
     )
-
-
-def _kommo_fetch_lead_full(lead_id: int) -> dict | None:
-    api = _kommo_api_v4()
-    r = requests.get(
-        f"{api}/leads/{lead_id}",
-        headers={"Authorization": f"Bearer {KOMMO_TOKEN}", "Accept": "application/json"},
-        params={"with": "contacts"},
-        timeout=45,
-    )
-    if r.status_code != 200:
-        logger.warning("GET lead %s -> %s %s", lead_id, r.status_code, r.text[:200])
-        return None
-    data = r.json()
-    if isinstance(data.get("id"), int):
-        return data
-    emb = data.get("_embedded", {})
-    if emb.get("leads"):
-        return emb["leads"][0]
-    return None
 
 
 def _pg():
@@ -571,6 +489,32 @@ def _ensure_table():
 
         cur.execute("CREATE INDEX IF NOT EXISTS idx_cm_cat ON comercial_metas(categoria)")
         conn.commit()
+
+        # Tabela de resolucoes de conflito de atribuicao de RGMs
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS comercial_rgm_conflito_resolucao (
+                rgm         TEXT PRIMARY KEY,
+                user_id     INTEGER NOT NULL,
+                user_name   TEXT,
+                resolved_at TIMESTAMPTZ DEFAULT NOW(),
+                resolved_by TEXT DEFAULT 'manual'
+            )
+        """)
+        conn.commit()
+
+        # Ensure unique constraint for batch upsert
+        cur.execute("""
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'uq_cm_user_period_cat'
+        """)
+        if not cur.fetchone():
+            cur.execute("""
+                ALTER TABLE comercial_metas
+                ADD CONSTRAINT uq_cm_user_period_cat
+                UNIQUE (user_id, dt_inicio, dt_fim, categoria)
+            """)
+            conn.commit()
+            logger.info("comercial_metas: added unique constraint uq_cm_user_period_cat")
 
         # Ensure meta column is NUMERIC
         cur.execute("""
@@ -1192,6 +1136,82 @@ def crgm_turmas_list():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@comercial_rgm_bp.route("/api/comercial-rgm/turmas/stats")
+def crgm_turmas_stats():
+    """Contagens de matrículas por turma usando snapshots históricos."""
+    conn = _pg()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, nivel, dt_inicio, dt_fim
+            FROM turmas_comercial
+            ORDER BY nivel, dt_inicio
+        """)
+        turmas = cur.fetchall()
+
+        # Todos os snapshots de matriculados disponíveis
+        cur.execute("""
+            SELECT id, uploaded_at::date FROM xl_snapshots
+            WHERE tipo = 'matriculados' ORDER BY id
+        """)
+        snaps = cur.fetchall()
+        snap_latest = snaps[-1][0] if snaps else None
+
+        # Raw strings: \d chega ao PostgreSQL sem ser consumido pelo Python
+        # empresa 12=Grad, 7=Pos UCS, 79=Pos UCS-CL — todos começam com (12|7x)
+        _NIVEL_SQL = r"""CASE
+            WHEN coalesce(r.data->>'nivel','') ~* 'p[oó]s'
+              OR coalesce(r.data->>'negocio','') ~* 'p[oó]s'
+              OR coalesce(r.data->>'curso','') ~* '(mba|especializa|p[oó]s.gradua|lato.sensu|stricto)'
+            THEN 'Pós-Graduação' ELSE 'Graduação' END"""
+
+        _DM_SQL = r"""CASE
+            WHEN (r.data->>'data_mat') ~ '^\d{2}/\d{2}/\d{4}$'
+                THEN to_date(r.data->>'data_mat', 'DD/MM/YYYY')
+            WHEN (r.data->>'data_mat') ~ '^\d{4}-\d{2}-\d{2}'
+                THEN (r.data->>'data_mat')::date
+            ELSE NULL END"""
+
+        _EMP_SQL = r"trim(coalesce(r.data->>'empresa','')) ~ '^(12|7[0-9]*) -'"
+
+        def _count_snap(snap_id, nivel, dt_ini, dt_fim):
+            cur.execute(f"""
+                SELECT COUNT(DISTINCT regexp_replace(coalesce(r.data->>'rgm',''), '[^0-9]', '', 'g'))
+                FROM xl_rows r
+                WHERE r.snapshot_id = %s
+                  AND upper(trim(coalesce(r.data->>'situacao',''))) = 'EM CURSO'
+                  AND upper(trim(coalesce(r.data->>'tipo_matricula','')))
+                      = ANY(ARRAY['NOVA MATRICULA','RECOMPRA','RETORNO'])
+                  AND {_EMP_SQL}
+                  AND coalesce(r.data->>'rgm','') ~ '[0-9]'
+                  AND {_NIVEL_SQL} = %s
+                  AND {_DM_SQL} BETWEEN %s AND %s
+            """, (snap_id, nivel, dt_ini, dt_fim))
+            return cur.fetchone()[0] or 0
+
+        stats = {}
+        for tid, tnivel, dt_ini, dt_fim in turmas:
+            snaps_ate_dtfim = [s[0] for s in snaps if s[1] <= dt_fim]
+            snap_id_periodo = snaps_ate_dtfim[-1] if snaps_ate_dtfim else None
+
+            mat_periodo = _count_snap(snap_id_periodo, tnivel, dt_ini, dt_fim) if snap_id_periodo else None
+            em_curso = _count_snap(snap_latest, tnivel, dt_ini, dt_fim) if snap_latest else None
+
+            stats[tid] = {
+                "mat_periodo": mat_periodo,
+                "em_curso_hoje": em_curso,
+                "sem_dados": snap_id_periodo is None,
+            }
+
+        cur.close()
+        return jsonify({"ok": True, "stats": stats})
+    except Exception as e:
+        logger.exception("turmas stats error")
+        return jsonify({"ok": False, "error": str(e)}), 500
     finally:
         conn.close()
 
@@ -1885,6 +1905,85 @@ def _build_agent_ranking_completa_vw(
             if not n or n in rgm_nome or n in excluded_rgms:
                 continue
             rgm_nome[n] = (nome or "").strip()
+
+        # Regra de cancelados: inclui alunos que estavam EM CURSO em qualquer upload
+        # feito ATÉ dt_fim, mas foram cancelados depois (cancelamento após meta = conta)
+        if dt_fim:
+            _NIVEL_CASE = """CASE
+                WHEN coalesce(r.data->>'nivel','') ~* 'p[oó]s'
+                  OR coalesce(r.data->>'negocio','') ~* 'p[oó]s'
+                  OR coalesce(r.data->>'curso','') ~* '(mba|especializa|p[oó]s.gradua|lato.sensu|stricto)'
+                THEN 'Pós-Graduação' ELSE 'Graduação' END"""
+            _DM_EXPR = """CASE
+                WHEN (r.data->>'data_mat') ~ E'^\\d{2}/\\d{2}/\\d{4}$'
+                    THEN to_date(r.data->>'data_mat', 'DD/MM/YYYY')
+                WHEN (r.data->>'data_mat') ~ E'^\\d{4}-\\d{2}-\\d{2}'
+                    THEN (r.data->>'data_mat')::date
+                ELSE NULL END"""
+            supp_cw = [
+                "s.tipo = 'matriculados'",
+                "s.uploaded_at::date <= %s",
+                "upper(trim(coalesce(r.data->>'situacao',''))) = 'EM CURSO'",
+                "upper(trim(coalesce(r.data->>'tipo_matricula',''))) = ANY(ARRAY['NOVA MATRICULA','RECOMPRA','RETORNO'])",
+                "trim(coalesce(r.data->>'empresa','')) ~ '^(12|7) -'",
+                "coalesce(r.data->>'rgm','') ~ '\\d'",
+                f"""(({_NIVEL_CASE} = 'Graduação'
+                    AND trim(r.data->>'ciclo') = (SELECT ciclo FROM ciclo_atual_comercial WHERE nivel='Graduação'))
+                   OR ({_NIVEL_CASE} = 'Pós-Graduação'
+                    AND trim(r.data->>'ciclo') = (SELECT ciclo FROM ciclo_atual_comercial WHERE nivel='Pós-Graduação')))""",
+            ]
+            supp_cp = [dt_fim]
+            if dt_ini:
+                supp_cw.append(f"{_DM_EXPR} >= %s")
+                supp_cp.append(dt_ini)
+            if polo:
+                supp_cw.append("trim(regexp_replace(coalesce(r.data->>'polo',''), E'^\\d+\\s*[-–]\\s*', '')) = %s")
+                supp_cp.append(_normalize_polo(polo))
+            if nivel:
+                supp_cw.append(f"{_NIVEL_CASE} = %s")
+                supp_cp.append(nivel)
+            if ciclo:
+                # Ciclo manual: remove o filtro automático e adiciona o manual
+                supp_cw = [c for c in supp_cw if 'ciclo_atual_comercial' not in c]
+                supp_cw.append("trim(coalesce(r.data->>'ciclo','')) = %s")
+                supp_cp.append(ciclo)
+            if turma:
+                supp_cw.append("nullif(trim(coalesce(r.data->>'curso','')), '') = %s")
+                supp_cp.append(turma)
+            # Exclui RGMs já contabilizados na query principal
+            already = tuple(rgm_nome.keys()) if rgm_nome else ('__NONE__',)
+            supp_cw.append("regexp_replace(coalesce(r.data->>'rgm',''), '[^0-9]', '', 'g') != ALL(%s)")
+            supp_cp.append(list(already))
+            supp_where = "WHERE " + " AND ".join(supp_cw)
+            _rgm_nome_antes_supp = len(rgm_nome)
+            try:
+                cur2 = conn.cursor() if not conn.closed else _pg().cursor()
+                cur2.execute(f"""
+                    SELECT DISTINCT ON (rgm_norm) rgm_norm, nome
+                    FROM (
+                        SELECT
+                            regexp_replace(coalesce(r.data->>'rgm',''), '[^0-9]', '', 'g') AS rgm_norm,
+                            nullif(trim(coalesce(r.data->>'nome','')), '') AS nome,
+                            s.uploaded_at
+                        FROM xl_rows r
+                        JOIN xl_snapshots s ON s.id = r.snapshot_id
+                        {supp_where}
+                    ) t
+                    WHERE rgm_norm != ''
+                    ORDER BY rgm_norm, uploaded_at DESC
+                """, supp_cp)
+                for rgm_raw, nome in cur2.fetchall():
+                    n = _normalize_rgm(rgm_raw)
+                    if n and n not in rgm_nome:
+                        rgm_nome[n] = (nome or "").strip()
+                cur2.close()
+                logger.info(
+                    "ranking: +%d RGMs cancelados-pós-meta incluídos",
+                    len(rgm_nome) - _rgm_nome_antes_supp,
+                )
+            except Exception as _se:
+                logger.warning("ranking supp cancelados: %s", _se)
+
         mat_rows = list(rgm_nome.items())
         cur.close()
         conn.close()
@@ -1904,35 +2003,57 @@ def _build_agent_ranking_completa_vw(
             if nk and row[1]:
                 rgm_to_uid[nk] = row[1]
 
+        # Aplicar overrides de conflito salvos manualmente
+        try:
+            _oc = _pg()
+            _oc_cur = _oc.cursor()
+            _oc_cur.execute("SELECT rgm, user_id FROM comercial_rgm_conflito_resolucao")
+            for _rgm_raw, _uid in _oc_cur.fetchall():
+                _nk = _normalize_rgm(_rgm_raw)
+                if _nk:
+                    rgm_to_uid[_nk] = _uid
+            _oc_cur.close()
+            _oc.close()
+        except Exception as _oe:
+            logger.warning("conflito_resolucao override: %s", _oe)
+
         ep_ini = _date_to_epoch(dt_ini)
         ep_fim = _date_to_epoch(dt_fim)
         if ep_fim is not None:
             ep_fim += 86399
+        # CRM no ranking: período DE/ATÉ em leads.created_at / closed_at (epoch).
+        # total / novos = criados no período; ganhos / perdidos = fechados no período (Kommo).
+        # Conv.% = matrículas no período (CSV×Kommo) / total de leads criados no período — não usa ganhos 142.
         kcur.execute("""
             SELECT l.responsible_user_id,
-                   COUNT(*) AS total,
-                   SUM(CASE WHEN l.status_id = 142 THEN 1 ELSE 0 END) AS ganhos,
-                   SUM(CASE WHEN l.status_id = 143 THEN 1 ELSE 0 END) AS perdidos,
-                   SUM(CASE WHEN l.status_id NOT IN (142, 143) THEN 1 ELSE 0 END) AS ativos,
-                   SUM(CASE WHEN l.status_id = 143 AND l.closed_at IS NOT NULL
-                            AND (%(ep_ini)s IS NULL OR l.closed_at >= %(ep_ini)s)
-                            AND (%(ep_fim)s IS NULL OR l.closed_at <= %(ep_fim)s)
-                       THEN 1 ELSE 0 END) AS perdidos_periodo,
                    SUM(CASE WHEN l.created_at IS NOT NULL
                             AND (%(ep_ini)s IS NULL OR l.created_at >= %(ep_ini)s)
                             AND (%(ep_fim)s IS NULL OR l.created_at <= %(ep_fim)s)
-                       THEN 1 ELSE 0 END) AS novos_periodo
+                       THEN 1 ELSE 0 END) AS total_periodo,
+                   SUM(CASE WHEN l.status_id = 142 AND l.closed_at IS NOT NULL
+                            AND (%(ep_ini)s IS NULL OR l.closed_at >= %(ep_ini)s)
+                            AND (%(ep_fim)s IS NULL OR l.closed_at <= %(ep_fim)s)
+                       THEN 1 ELSE 0 END) AS ganhos_periodo,
+                   SUM(CASE WHEN l.status_id = 143 AND l.closed_at IS NOT NULL
+                            AND (%(ep_ini)s IS NULL OR l.closed_at >= %(ep_ini)s)
+                            AND (%(ep_fim)s IS NULL OR l.closed_at <= %(ep_fim)s)
+                       THEN 1 ELSE 0 END) AS perdidos_periodo
             FROM leads l
             WHERE l.responsible_user_id IS NOT NULL AND NOT l.is_deleted
             GROUP BY l.responsible_user_id
         """, {"ep_ini": ep_ini, "ep_fim": ep_fim})
-        crm_stats = {
-            r[0]: {
-                "total": r[1], "ganhos": r[2], "perdidos": r[3], "ativos": r[4],
-                "perdidos_periodo": r[5], "novos_periodo": r[6],
+        crm_stats = {}
+        for r in kcur.fetchall():
+            tot_p = int(r[1] or 0)
+            g_p = int(r[2] or 0)
+            perd_p = int(r[3] or 0)
+            crm_stats[r[0]] = {
+                "total": tot_p,
+                "ganhos": g_p,
+                "perdidos": perd_p,
+                "perdidos_periodo": perd_p,
+                "novos_periodo": tot_p,
             }
-            for r in kcur.fetchall()
-        }
         kcur.close()
         kconn.close()
 
@@ -1954,15 +2075,15 @@ def _build_agent_ranking_completa_vw(
         for uid in uids_real:
             cs = crm_stats.get(uid, {})
             t, g = cs.get("total", 0), cs.get("ganhos", 0)
+            m = mat_per_agent.get(uid, 0)
             ranking.append({
                 "user_id": uid,
                 "nome": user_map.get(uid, f"User #{uid}"),
                 "total": t,
                 "ganhos": g,
                 "perdidos": cs.get("perdidos", 0),
-                "ativos": cs.get("ativos", 0),
-                "taxa_conversao": round(g / t * 100, 1) if t > 0 else 0,
-                "matriculas_periodo": mat_per_agent.get(uid, 0),
+                "taxa_conversao": round(m / t * 100, 1) if t > 0 else 0,
+                "matriculas_periodo": m,
                 "perdidos_periodo": cs.get("perdidos_periodo", 0),
                 "novos_periodo": cs.get("novos_periodo", 0),
             })
@@ -1973,7 +2094,6 @@ def _build_agent_ranking_completa_vw(
                 "total": 0,
                 "ganhos": 0,
                 "perdidos": 0,
-                "ativos": 0,
                 "taxa_conversao": 0.0,
                 "matriculas_periodo": tr_count,
                 "perdidos_periodo": 0,
@@ -2018,9 +2138,7 @@ def crgm_data():
     if ciclo_nome:
         where.append("ciclo = %s")
         params.append(ciclo_nome)
-    if turma_nome:
-        where.append("turma = %s")
-        params.append(turma_nome)
+    # turma_nome é apenas um rótulo de preset (datas+nível) — não filtra por curso
 
     # comercial_rgm_atual já aplica todos os filtros de negócio (ciclo atual, em curso, empresa 7/12, tipos)
     w = ("WHERE " + " AND ".join(where)) if where else ""
@@ -2036,26 +2154,29 @@ def crgm_data():
             polo=polo or None,
             nivel=nivel or None,
             ciclo_filter=ciclo_nome or None,
-            turma=turma_nome or None,
+            turma=None,  # turma é preset de datas/nível, não filtra por curso
         )
 
-        rgms_periodo = set()       # EM CURSO (líquido)
-        rgms_bruto   = set()       # todos (bruto)
-        evasao_rows  = []          # não EM CURSO
-        day_rgms     = defaultdict(set)
-        polo_rgms    = defaultdict(set)
+        rgms_periodo   = set()          # EM CURSO (líquido)
+        rgms_bruto     = set()          # todos (bruto)
+        evasao_rows    = []             # não EM CURSO
+        day_rgms       = defaultdict(set)   # líquido por dia
+        day_rgms_bruto = defaultdict(set)   # bruto por dia (sombra)
+        polo_rgms      = defaultdict(set)
 
         for row in _periodo_rows:
             n = row["rgm"]
             if not n:
                 continue
             rgms_bruto.add(n)
+            try:
+                dt = date.fromisoformat(row["data_matricula"][:10]) if row["data_matricula"] else None
+            except (ValueError, TypeError):
+                dt = None
+            if dt:
+                day_rgms_bruto[dt].add(n)
             if row["situacao"] == "EM CURSO":
                 rgms_periodo.add(n)
-                try:
-                    dt = date.fromisoformat(row["data_matricula"][:10]) if row["data_matricula"] else None
-                except (ValueError, TypeError):
-                    dt = None
                 if dt:
                     day_rgms[dt].add(n)
                 if row["polo"]:
@@ -2067,7 +2188,8 @@ def crgm_data():
         vendas_liquidas = len(rgms_periodo)
         _excluded = rgms_bruto - rgms_periodo   # conjunto excluído (para ranking)
         all_kpi_rgms = rgms_periodo
-        day_counts = {d: len(s) for d, s in day_rgms.items()}
+        day_counts       = {d: len(s) for d, s in day_rgms.items()}
+        day_counts_bruto = {d: len(s) for d, s in day_rgms_bruto.items()}
         polo_counts = {p: len(s) for p, s in polo_rgms.items()}
         dias = len(day_counts) or 1
         media_diaria = round(vendas_liquidas / dias, 1) if dias else 0
@@ -2224,6 +2346,9 @@ def crgm_data():
         pct_ytd = round((vendas_ytd / vendas_prev_ytd - 1) * 100, 1) if vendas_prev_ytd > 0 else 0
 
         evolucao = [{"data": d.isoformat(), "count": c} for d, c in sorted(day_counts.items())]
+        # bruto: union das datas de bruto + liquido para alinhar os dois datasets
+        all_dates_bruto = sorted(set(day_counts_bruto.keys()) | set(day_counts.keys()))
+        evolucao_bruto = [{"data": d.isoformat(), "count": day_counts_bruto.get(d, 0)} for d in all_dates_bruto]
 
         # --- Evolução ano anterior (por linha / data_matricula) ---
         evolucao_prev = []
@@ -2304,14 +2429,18 @@ def crgm_data():
             polo or None,
             nivel or None,
             ciclo_nome or None,
-            turma_nome or None,
+            None,  # turma: preset de datas/nível, não filtra por curso
             excluded_rgms=_excluded,
         )
 
-        # --- Metas por agente: premiacao_campanha_meta (primary) + comercial_metas (fallback) ---
-        # Structure: {cat: {uid: {meta, intermediaria, supermeta}}}
+        # --- Metas por agente: premiacao_campanha_meta (primary) + comercial_metas (fallback)
+        #     + pré-definição na premiacao_campanha (def_meta_*) para agentes sem linha em pcm ---
+        # Structure: {cat: {uid_int: {meta, intermediaria, supermeta}}}
         metas_by_cat = {}
         campanha_meta_uids = set()
+        metas_load_error = None
+        has_camp_overlap = False
+        camp_defs = None  # (def_inter, def_meta, def_super) from campanha ativa no período
         try:
             conn2 = _pg()
             cur2 = conn2.cursor()
@@ -2320,10 +2449,13 @@ def crgm_data():
                 SELECT pcm.kommo_user_id, pcm.meta, pcm.meta_intermediaria, pcm.supermeta
                 FROM premiacao_campanha_meta pcm
                 JOIN premiacao_campanha pc ON pc.id = pcm.campanha_id
-                WHERE pc.dt_inicio <= %s AND pc.dt_fim >= %s
+                WHERE COALESCE(pc.ativa, TRUE)
+                  AND pc.dt_inicio <= %s AND pc.dt_fim >= %s
             """, (dt_fim or '9999-12-31', dt_ini or '1900-01-01'))
             for r in cur2.fetchall():
-                uid = r[0]
+                uid = _kommo_uid_int(r[0])
+                if uid is None:
+                    continue
                 campanha_meta_uids.add(uid)
                 metas_by_cat.setdefault("matriculas", {})
                 metas_by_cat["matriculas"][uid] = {
@@ -2339,7 +2471,9 @@ def crgm_data():
                 WHERE dt_inicio <= %s AND dt_fim >= %s
             """, (dt_fim or '9999-12-31', dt_ini or '1900-01-01'))
             for r in cur2.fetchall():
-                uid = r[0]
+                uid = _kommo_uid_int(r[0])
+                if uid is None:
+                    continue
                 cat = r[4] or "matriculas"
                 if cat == "matriculas" and uid in campanha_meta_uids:
                     continue
@@ -2349,12 +2483,46 @@ def crgm_data():
                 prev["intermediaria"] += float(r[2])
                 prev["supermeta"] += float(r[3])
                 metas_by_cat[cat][uid] = prev
+
+            if dt_ini and dt_fim:
+                cur2.execute("""
+                    SELECT def_meta_intermediaria, def_meta, def_supermeta
+                    FROM premiacao_campanha
+                    WHERE COALESCE(ativa, TRUE)
+                      AND dt_inicio <= %s::date AND dt_fim >= %s::date
+                    ORDER BY dt_inicio DESC
+                    LIMIT 1
+                """, (dt_fim, dt_ini))
+                row_c = cur2.fetchone()
+                if row_c:
+                    has_camp_overlap = True
+                    camp_defs = row_c
+
             cur2.close()
             conn2.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("metas por periodo: %s", e)
+            metas_load_error = str(e)
 
         mat_metas = metas_by_cat.get("matriculas", {})
+        if camp_defs:
+            d_i = float(camp_defs[0] or 0)
+            d_m = float(camp_defs[1] or 0)
+            d_s = float(camp_defs[2] or 0)
+            if d_i > 0 or d_m > 0 or d_s > 0:
+                for ag in ranking_agentes:
+                    uid = ag.get("user_id")
+                    if uid == -1:
+                        continue
+                    uki = _kommo_uid_int(uid)
+                    if uki is None:
+                        continue
+                    if uki not in mat_metas:
+                        mat_metas[uki] = {
+                            "meta": d_m,
+                            "intermediaria": d_i,
+                            "supermeta": d_s,
+                        }
         for ag in ranking_agentes:
             uid = ag["user_id"]
             if uid == -1:
@@ -2363,14 +2531,15 @@ def crgm_data():
                 ag["supermeta"] = 0
                 ag["metas_cat"] = {}
                 continue
-            m = mat_metas.get(uid, {})
+            uki = _kommo_uid_int(uid)
+            m = mat_metas.get(uki, {}) if uki is not None else {}
             ag["meta"] = m.get("meta", 0)
             ag["meta_intermediaria"] = m.get("intermediaria", 0)
             ag["supermeta"] = m.get("supermeta", 0)
             ag["metas_cat"] = {}
             for cat, users in metas_by_cat.items():
-                if uid in users:
-                    ag["metas_cat"][cat] = users[uid]
+                if uki is not None and uki in users:
+                    ag["metas_cat"][cat] = users[uki]
 
         # --- Evasão: RGMs brutos que não são EM CURSO → breakdown por tipo e por agente ---
         evasao_data = {"total": 0, "por_tipo": {}, "por_agente": [], "itens": []}
@@ -2423,8 +2592,29 @@ def crgm_data():
                 ],
             }
 
+        metas_aviso = None
+        if metas_load_error:
+            metas_aviso = (
+                "Não foi possível carregar as metas deste período. "
+                "Verifique o log do servidor ou a conexão com o banco."
+            )
+        elif (
+            not mat_metas
+            and not has_camp_overlap
+            and any(
+                (a.get("matriculas_periodo") or 0) > 0 and a.get("user_id") != -1
+                for a in ranking_agentes
+            )
+        ):
+            metas_aviso = (
+                "Nenhuma meta de matrículas cadastrada para o intervalo de datas dos filtros "
+                "(ou campanha sem sobreposição). Cadastre na Premiação (metas por agente ou pré-definição) "
+                "ou ajuste dt início/fim."
+            )
+
         return jsonify({
             "ok": True,
+            "metas_aviso": metas_aviso,
             "kpis": {
                 "vendas": vendas,
                 "vendas_liquidas": vendas_liquidas,
@@ -2441,6 +2631,7 @@ def crgm_data():
                 "mm_inscritos": mm_insc_count,
             },
             "evolucao": evolucao,
+            "evolucao_bruto": evolucao_bruto,
             "evolucao_prev": evolucao_prev,
             "ranking_polo": ranking_polo,
             "ranking_ciclo": ranking_ciclo,
@@ -2739,9 +2930,101 @@ def crgm_get_metas():
                  "dt_fim": r[7].isoformat() if r[7] else None,
                  "descricao": r[8], "categoria": r[9] or "matriculas"}
                 for r in cur.fetchall()]
+
+        premiacao_campanhas = []
+        pcm_sums = {}
+        try:
+            cur.execute("""
+                SELECT campanha_id,
+                       COALESCE(SUM(meta), 0),
+                       COALESCE(SUM(meta_intermediaria), 0),
+                       COALESCE(SUM(supermeta), 0),
+                       COUNT(*)::int
+                FROM premiacao_campanha_meta
+                GROUP BY campanha_id
+            """)
+            for pr in cur.fetchall():
+                pcm_sums[int(pr[0])] = {
+                    "meta": float(pr[1]),
+                    "meta_intermediaria": float(pr[2]),
+                    "supermeta": float(pr[3]),
+                    "agentes": int(pr[4]),
+                }
+        except Exception as e:
+            logger.warning("premiacao_campanha_meta sums: %s", e)
+
+        camp_rows = []
+        row_fmt = "basic"
+        try:
+            cur.execute("""
+                SELECT id, nome, dt_inicio, dt_fim,
+                       def_meta_intermediaria, def_meta, def_supermeta,
+                       COALESCE(ativa, TRUE)
+                FROM premiacao_campanha
+                ORDER BY dt_inicio DESC
+            """)
+            camp_rows = cur.fetchall()
+            row_fmt = "full"
+        except Exception as e:
+            logger.warning("premiacao_campanha (cols def_*): %s", e)
+            try:
+                cur.execute("""
+                    SELECT id, nome, dt_inicio, dt_fim, COALESCE(ativa, TRUE)
+                    FROM premiacao_campanha
+                    ORDER BY dt_inicio DESC
+                """)
+                camp_rows = cur.fetchall()
+            except Exception as e2:
+                logger.warning("premiacao_campanha (basico): %s", e2)
+
+        tier_by_cid = {}
+        try:
+            cur.execute(
+                "SELECT campanha_id, tier, valor_por_mat FROM premiacao_tier_bonus"
+            )
+            for tr in cur.fetchall():
+                cid_t = int(tr[0])
+                tier_by_cid.setdefault(cid_t, {})[tr[1]] = float(tr[2])
+        except Exception as e:
+            logger.warning("premiacao_tier_bonus: %s", e)
+
+        for r in camp_rows:
+            try:
+                if row_fmt == "full":
+                    cid = int(r[0])
+                    di, dm, ds = r[4], r[5], r[6]
+                    ativa = bool(r[7])
+                else:
+                    cid = int(r[0])
+                    di, dm, ds = None, None, None
+                    ativa = bool(r[4])
+                premiacao_campanhas.append({
+                    "id": cid,
+                    "nome": r[1],
+                    "dt_inicio": r[2].isoformat() if r[2] else None,
+                    "dt_fim": r[3].isoformat() if r[3] else None,
+                    "ativa": ativa,
+                    "metas_padrao": {
+                        "meta_intermediaria": float(di) if di is not None else None,
+                        "meta": float(dm) if dm is not None else None,
+                        "supermeta": float(ds) if ds is not None else None,
+                    },
+                    "pcm_totais": pcm_sums.get(cid, {
+                        "meta": 0.0, "meta_intermediaria": 0.0, "supermeta": 0.0, "agentes": 0,
+                    }),
+                    "tiers": tier_by_cid.get(cid, {}),
+                })
+            except Exception as row_e:
+                logger.warning("premiacao_campanha linha ignorada: %s | row=%s", row_e, r)
+
         cur.close()
         conn.close()
-        return jsonify({"ok": True, "metas": rows, "categorias": METAS_CATEGORIAS})
+        return jsonify({
+            "ok": True,
+            "metas": rows,
+            "categorias": METAS_CATEGORIAS,
+            "premiacao_campanhas": premiacao_campanhas,
+        })
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -2790,6 +3073,77 @@ def crgm_save_metas():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@comercial_rgm_bp.route("/api/comercial-rgm/metas/batch", methods=["PUT"])
+def crgm_update_metas_batch():
+    """Salva metas de múltiplos agentes de uma vez para um período."""
+    try:
+        body    = request.json or {}
+        dt_ini  = body.get("dt_inicio")
+        dt_fim  = body.get("dt_fim")
+        descr   = body.get("descricao", "")
+        cat     = body.get("categoria", "matriculas")
+        items   = body.get("items", [])   # [{user_id, user_name, meta, meta_intermediaria, supermeta}]
+
+        if not dt_ini or not dt_fim or not items:
+            return jsonify({"ok": False, "error": "dt_inicio, dt_fim e items são obrigatórios"}), 400
+
+        conn = _pg()
+        cur  = conn.cursor()
+        saved = 0
+        for it in items:
+            uid   = it.get("user_id")
+            uname = it.get("user_name", "")
+            meta  = float(it.get("meta", 0) or 0)
+            interm= float(it.get("meta_intermediaria", 0) or 0)
+            sup   = float(it.get("supermeta", 0) or 0)
+            if not uid:
+                continue
+            cur.execute("""
+                INSERT INTO comercial_metas
+                    (user_id, user_name, meta, meta_intermediaria, supermeta,
+                     dt_inicio, dt_fim, descricao, categoria)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT (user_id, dt_inicio, dt_fim, categoria)
+                DO UPDATE SET
+                    meta               = EXCLUDED.meta,
+                    meta_intermediaria = EXCLUDED.meta_intermediaria,
+                    supermeta          = EXCLUDED.supermeta,
+                    user_name          = EXCLUDED.user_name,
+                    descricao          = EXCLUDED.descricao
+            """, (uid, uname, meta, interm, sup, dt_ini, dt_fim, descr, cat))
+            saved += 1
+
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True, "saved": saved})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@comercial_rgm_bp.route("/api/comercial-rgm/metas/<int:meta_id>", methods=["PUT"])
+def crgm_update_meta(meta_id):
+    try:
+        body = request.json or {}
+        meta_val   = float(body.get("meta", 0))
+        interm_val = float(body.get("meta_intermediaria", 0))
+        super_val  = float(body.get("supermeta", 0))
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE comercial_metas
+            SET meta = %s, meta_intermediaria = %s, supermeta = %s
+            WHERE id = %s
+        """, (meta_val, interm_val, super_val, meta_id))
+        conn.commit()
+        updated = cur.rowcount
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True, "updated": updated})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @comercial_rgm_bp.route("/api/comercial-rgm/metas/<int:meta_id>", methods=["DELETE"])
 def crgm_delete_meta(meta_id):
     try:
@@ -2810,7 +3164,8 @@ def crgm_delete_meta(meta_id):
 @comercial_rgm_bp.route("/api/comercial-rgm/kommo-sync-lead", methods=["POST"])
 def crgm_kommo_sync_lead():
     """
-    Busca um lead na API Kommo e grava em kommo_sync (Postgres).
+    Sincronização pontual de 1 lead (mesmo fluxo que `python kommo_lib/sync_one_lead.py <id>`):
+    API Kommo -> SQLite local do kommo_lib + PostgreSQL kommo_sync.
     Body JSON: { "lead_id": 20796123 } OU { "rgm": "48411612" }
     Se vários leads com o mesmo RGM, retorna lista para escolher (ou use lead_id).
     """
@@ -2847,14 +3202,9 @@ def crgm_kommo_sync_lead():
                 "error": "Informe o ID do lead (Kommo) ou o RGM com 8 dígitos.",
             }), 400
 
-        lead = _kommo_fetch_lead_full(lid)
+        lead, sync_err = _kommo_mini_sync_lead_flask(lid)
         if not lead:
-            return jsonify({
-                "ok": False,
-                "error": f"Lead {lid} não encontrado na API (verifique token e URL KOMMO_BASE_URL).",
-            }), 404
-
-        _kommo_upsert_lead_postgres(lead)
+            return jsonify({"ok": False, "error": sync_err or "Falha na sincronização pontual do lead."}), 404
 
         cfs = lead.get("custom_fields_values") or []
         rgm_out = None
@@ -2889,7 +3239,7 @@ def crgm_kommo_sync_lead():
             "pipeline": pipeline,
             "pipeline_id": lead.get("pipeline_id"),
             "status": status_txt,
-            "msg": "Lead atualizado no banco kommo_sync. O cruzamento com matrículas pode refletir na próxima carga.",
+            "msg": "Sincronização pontual concluída (SQLite kommo_lib + PostgreSQL kommo_sync). O cruzamento com matrículas atualiza ao recarregar o dashboard.",
         })
     except Exception as e:
         logger.exception("kommo-sync-lead")
@@ -2990,4 +3340,161 @@ def crgm_duplicatas():
         })
     except Exception as e:
         logger.exception("duplicatas error")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ── Conflitos de atribuição ───────────────────────────────────────────────────
+
+@comercial_rgm_bp.route("/api/comercial-rgm/conflitos")
+def crgm_conflitos():
+    """Retorna RGMs do painel atual (filtrado por data) com múltiplos agentes no Kommo."""
+    dt_ini = request.args.get("dt_ini", "")
+    dt_fim = request.args.get("dt_fim", "")
+    polo   = request.args.get("polo", "")
+    nivel  = request.args.get("nivel", "")
+    try:
+        # 1. RGMs e nomes do painel no período filtrado
+        conn = _pg()
+        cur = conn.cursor()
+        cw, cp = [], []
+        if polo:
+            cw.append(f"{_POLO_SQL} = %s"); cp.append(_normalize_polo(polo))
+        if nivel:
+            cw.append("nivel = %s"); cp.append(nivel)
+        if dt_ini:
+            cw.append("data_matricula >= %s"); cp.append(dt_ini)
+        if dt_fim:
+            cw.append("data_matricula <= %s"); cp.append(dt_fim)
+        w = ("WHERE " + " AND ".join(cw)) if cw else ""
+        cur.execute(
+            f"SELECT rgm, nome, data_matricula FROM comercial_rgm_atual {w} ORDER BY data_matricula DESC NULLS LAST",
+            cp,
+        )
+        rgm_info = {}
+        for rgm, nome, dm in cur.fetchall():
+            n = _normalize_rgm(rgm)
+            if n and n not in rgm_info:
+                rgm_info[n] = {"nome": (nome or "").strip(), "data_matricula": dm.isoformat() if dm else None}
+        cur.close()
+        conn.close()
+
+        if not rgm_info:
+            return jsonify({"ok": True, "conflitos": [], "total": 0})
+
+        # 2. Todos os leads ativos para esses RGMs no Kommo
+        kconn = _pg_kommo()
+        kcur = kconn.cursor()
+        kcur.execute("""
+            SELECT v.rgm, l.id AS lead_id, l.responsible_user_id,
+                   l.status_id, u.name AS agente_nome,
+                   ps.name AS status_nome
+            FROM vw_leads_rgm v
+            JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
+            LEFT JOIN users u ON u.id = l.responsible_user_id
+            LEFT JOIN pipeline_statuses ps ON ps.id = l.status_id
+            WHERE l.responsible_user_id IS NOT NULL
+            ORDER BY v.rgm,
+                     CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END,
+                     l.id DESC
+        """)
+
+        from collections import defaultdict
+        rgm_leads_map = defaultdict(list)
+        for rgm_raw, lead_id, uid, status_id, agente, status_nome in kcur.fetchall():
+            nk = _normalize_rgm(rgm_raw)
+            if nk and nk in rgm_info:
+                rgm_leads_map[nk].append({
+                    "lead_id": lead_id,
+                    "user_id": uid,
+                    "agente": agente or f"User #{uid}",
+                    "status_id": status_id,
+                    "status_nome": status_nome or "",
+                })
+
+        # 3. Resolucoes ja salvas
+        kcur.close(); kconn.close()
+        conn2 = _pg()
+        cur2 = conn2.cursor()
+        cur2.execute("SELECT rgm, user_id FROM comercial_rgm_conflito_resolucao")
+        resolucoes = {_normalize_rgm(r[0]): r[1] for r in cur2.fetchall() if _normalize_rgm(r[0])}
+        cur2.close(); conn2.close()
+
+        # 4. Filtra apenas RGMs com agentes diferentes
+        conflitos = []
+        for rgm, leads in rgm_leads_map.items():
+            agentes_set = {l["user_id"] for l in leads}
+            if len(agentes_set) <= 1:
+                continue
+            # Vencedor atual (primeiro da lista, já ordenado)
+            uid_atual = leads[0]["user_id"]
+            # Override salvo
+            uid_override = resolucoes.get(rgm)
+            info = rgm_info[rgm]
+            conflitos.append({
+                "rgm": rgm,
+                "nome_aluno": info["nome"],
+                "data_matricula": info["data_matricula"],
+                "user_id_atual": uid_atual,
+                "user_id_resolucao": uid_override,
+                "resolvido": uid_override is not None,
+                "leads": leads,
+            })
+
+        conflitos.sort(key=lambda x: (x["resolvido"], x["nome_aluno"]))
+        return jsonify({"ok": True, "conflitos": conflitos, "total": len(conflitos),
+                        "total_nao_resolvidos": sum(1 for c in conflitos if not c["resolvido"])})
+    except Exception as e:
+        logger.exception("conflitos error")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@comercial_rgm_bp.route("/api/comercial-rgm/conflitos/resolver", methods=["POST"])
+def crgm_conflitos_resolver():
+    """Salva resoluções de conflito: [{rgm, user_id, user_name}]."""
+    data = request.get_json(force=True) or {}
+    items = data.get("items", [])
+    if not items:
+        return jsonify({"ok": False, "error": "items vazios"}), 400
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        for item in items:
+            rgm = _normalize_rgm(str(item.get("rgm", "")))
+            uid = item.get("user_id")
+            nome = item.get("user_name", "")
+            if not rgm or not uid:
+                continue
+            cur.execute("""
+                INSERT INTO comercial_rgm_conflito_resolucao (rgm, user_id, user_name, resolved_at)
+                VALUES (%s, %s, %s, NOW())
+                ON CONFLICT (rgm) DO UPDATE
+                  SET user_id = EXCLUDED.user_id,
+                      user_name = EXCLUDED.user_name,
+                      resolved_at = NOW()
+            """, (rgm, uid, nome))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True, "saved": len(items)})
+    except Exception as e:
+        logger.exception("conflitos resolver error")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@comercial_rgm_bp.route("/api/comercial-rgm/conflitos/resolver", methods=["DELETE"])
+def crgm_conflitos_resolver_delete():
+    """Remove uma resolução de conflito pelo RGM."""
+    data = request.get_json(force=True) or {}
+    rgm = _normalize_rgm(str(data.get("rgm", "")))
+    if not rgm:
+        return jsonify({"ok": False, "error": "rgm obrigatório"}), 400
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM comercial_rgm_conflito_resolucao WHERE rgm = %s", (rgm,))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500

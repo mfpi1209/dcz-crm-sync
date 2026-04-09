@@ -322,6 +322,16 @@
             <button onclick="document.getElementById('mp-mat-dt-ini').value='';document.getElementById('mp-mat-dt-fim').value='';_mpLoadMatriculas()" class="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors">
                 Limpar
             </button>
+            <!-- Filtro rápido por período de meta -->
+            <div class="relative" id="mp-meta-periodo-wrap">
+                <button onclick="_mpToggleMetaPeriodos()" class="px-3 py-1.5 text-xs font-semibold text-purple-400 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 rounded-lg transition-colors flex items-center gap-1">
+                    <span class="material-symbols-outlined text-sm">flag</span> Aplicar Meta
+                    <span class="material-symbols-outlined text-xs" id="mp-meta-periodo-chevron">expand_more</span>
+                </button>
+                <div id="mp-meta-periodo-dropdown" class="hidden absolute left-0 top-full mt-1 z-50 min-w-[220px] bg-slate-900 border border-slate-700/60 rounded-xl shadow-xl overflow-hidden">
+                    <div id="mp-meta-periodo-list" class="py-1 text-xs text-slate-400 px-3 py-2">Carregando...</div>
+                </div>
+            </div>
             <input type="text" placeholder="Buscar por nome, RGM, curso..." oninput="_mpFilterOficial()"
                 id="mp-mat-oficial-search" class="input-glass px-3 py-1.5 text-xs text-slate-300 flex-1 min-w-[180px]">
         </div>
