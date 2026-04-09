@@ -1936,14 +1936,23 @@ def _filtrar_por_pipeline(acoes, pipelines_permitidos):
         if tipo == "UNIFICAR":
             dup_ids = a.get("dup_lead_ids", [])
             allowed_ids = []
+            api_call_happened = bool(lead_api_data) or bool(ids_to_verify)
             for did in dup_ids:
                 try:
                     did_int = int(did)
                 except (ValueError, TypeError):
                     continue
-                # Skip leads that were verified via API but don't exist (deleted)
-                if did_int in unificar_dup_ids and did_int not in lead_api_data:
-                    continue
+                # Só remove lead se a API foi chamada E confirmou que não existe.
+                # Se a API falhou (lead_api_data vazio), confia no kommo_sync.
+                if api_call_happened and did_int in unificar_dup_ids and did_int not in lead_api_data:
+                    # Verificar se o lead existe no kommo_sync (fallback)
+                    if did_int in lead_pipelines:
+                        # Existe no DB local — API pode ter falhado; mantém
+                        log.debug("Lead %d não retornado pela API mas existe no kommo_sync — mantendo", did_int)
+                    else:
+                        # Não existe nem no DB: deletado
+                        log.info("Lead %d removido do UNIFICAR (deletado: não está na API nem no kommo_sync)", did_int)
+                        continue
                 pipe = lead_pipelines.get(did_int)
                 # Also check API pipeline if available (more up-to-date)
                 api_info = lead_api_data.get(did_int)
