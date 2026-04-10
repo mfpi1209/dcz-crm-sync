@@ -16,7 +16,7 @@
         </div>
         <div class="flex items-center gap-2 text-[10px] text-emerald-400/70 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1">
           <span class="material-symbols-outlined text-xs">verified</span>
-          Dados de comercial_pagamentos
+          Dados: comercial_pagamentos + upload (comercial_recebimentos)
         </div>
       </div>
     </div>
@@ -165,8 +165,9 @@
         <div class="w-14 h-14 rounded-2xl bg-slate-800/60 border border-slate-700/40 flex items-center justify-center mx-auto mb-3">
           <span class="material-symbols-outlined text-2xl text-slate-600">payments</span>
         </div>
-        <p class="text-slate-400 font-medium mb-1">Nenhum dado carregado</p>
-        <p class="text-slate-600">Selecione os filtros e clique em <strong class="text-emerald-500">Buscar</strong></p>
+        <p id="rep-empty-title" class="text-slate-400 font-medium mb-1">Nenhum dado carregado</p>
+        <p id="rep-empty-sub" class="text-slate-600">Selecione os filtros e clique em <strong class="text-emerald-500">Buscar</strong></p>
+        <p id="rep-empty-err" class="hidden mt-3 max-w-lg mx-auto text-[11px] text-red-400/90 leading-relaxed"></p>
       </div>
 
       <!-- Cards carrossel -->

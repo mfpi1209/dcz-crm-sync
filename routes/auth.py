@@ -67,7 +67,7 @@ def require_auth():
         return redirect(url_for("auth_bp.login"))
     if "role" not in session:
         uid = session.get("user_id")
-        if uid and uid != 0:
+        if uid is not None and uid != 0:
             try:
                 conn = get_conn()
                 with conn.cursor() as cur:
@@ -79,6 +79,14 @@ def require_auth():
                     return
             except Exception:
                 pass
+            session.clear()
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "Sessão expirada, faça login novamente"}), 401
+            return redirect(url_for("auth_bp.login"))
+        if uid == 0:
+            # Login de emergência (APP_USER/APP_PASS): mantém admin sem apagar a sessão
+            session["role"] = "admin"
+            return
         session.clear()
         if request.path.startswith("/api/"):
             return jsonify({"error": "Sessão expirada, faça login novamente"}), 401
@@ -118,25 +126,39 @@ def logout():
 def api_me():
     """Returns current user info + permissions for sidebar rendering."""
     uid = session.get("user_id", 0)
-    role = session.get("role", "admin")
-    if role == "admin":
-        pages = list(ALL_PAGES)
-    else:
-        pages = _get_user_permissions(uid)
+    # Recarrega role do banco a cada /api/me — evita sessão antiga após UPDATE em app_users
+    role = session.get("role")
     kommo_user_id = None
     categoria = None
     if uid and uid != 0:
         try:
             conn = get_conn()
             with conn.cursor() as cur:
-                cur.execute("SELECT kommo_user_id, categoria FROM app_users WHERE id = %s", (uid,))
+                cur.execute(
+                    "SELECT role, kommo_user_id, categoria FROM app_users WHERE id = %s",
+                    (uid,),
+                )
                 row = cur.fetchone()
-                if row:
-                    kommo_user_id = row[0]
-                    categoria = row[1]
             conn.close()
+            if row:
+                if row[0]:
+                    role = row[0]
+                    session["role"] = role
+                kommo_user_id = row[1]
+                categoria = row[2]
         except Exception:
             pass
+    elif uid == 0 and session.get("authenticated"):
+        role = "admin"
+        session["role"] = "admin"
+
+    if role is None:
+        role = "viewer"
+
+    if role == "admin":
+        pages = list(ALL_PAGES)
+    else:
+        pages = _get_user_permissions(uid)
     return jsonify({
         "user_id": uid,
         "username": session.get("username", ""),

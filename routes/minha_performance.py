@@ -1432,7 +1432,8 @@ def api_campanhas_list():
 @minha_performance_bp.route("/api/premiacao/campanhas-periodos", methods=["GET"])
 def api_campanhas_periodos():
     """Retorna períodos de metas de comercial_metas + premiacao_campanha — acessível a todos os usuários logados."""
-    if not session.get("user_id"):
+    # Não usar `if not session.get("user_id")`: user_id 0 é válido (login APP_USER/APP_PASS em auth.py)
+    if not session.get("authenticated") or session.get("user_id") is None:
         return jsonify({"error": "Sem permissão"}), 403
     try:
         conn = _pg()

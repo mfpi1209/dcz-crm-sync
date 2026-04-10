@@ -26,6 +26,49 @@ KOMMO_DB_DSN = dict(
     dbname=os.getenv("KOMMO_PG_DB", "kommo_sync"),
 )
 
+# Upload em Premiação grava em comercial_recebimentos; histórico/ETF costuma estar em
+# comercial_pagamentos. O Repasse usa a união das duas fontes.
+_REPASSE_FONT = """
+(
+    SELECT rgm,
+           valor_pago::double precision AS valor_pago,
+           turma,
+           tipo_pagamento,
+           ciclo
+    FROM comercial_pagamentos
+    UNION ALL
+    SELECT rgm,
+           valor::double precision AS valor_pago,
+           turma,
+           tipo_pagamento,
+           ciclo
+    FROM comercial_recebimentos
+) AS repasse_fonte
+"""
+
+
+def _ciclo_repasse_valido(val):
+    """Exclui N/A, #N/A e vazios dos filtros de ciclo/turma."""
+    if val is None:
+        return False
+    s = str(val).strip()
+    if not s:
+        return False
+    n = s.lower().replace("#", "").replace(" ", "").replace(".", "")
+    return n not in ("n/a", "na", "null", "-")
+
+
+def _append_filtro_tipo(wheres, params, tipo):
+    """Repasse: UI só oferece Mensalidade — filtra qualquer variação no texto."""
+    if not (tipo or "").strip():
+        return
+    if tipo.strip().lower() == "mensalidade":
+        wheres.append("tipo_pagamento ILIKE %s")
+        params.append("%mensalidade%")
+    else:
+        wheres.append("tipo_pagamento ILIKE %s")
+        params.append(tipo)
+
 
 def _pg():
     return psycopg2.connect(**DB_DSN)
@@ -47,7 +90,8 @@ def _is_admin():
 
 
 def _require_login():
-    return bool(session.get("user_id"))
+    # user_id pode ser 0 no login de emergência (APP_USER/APP_PASS em auth.py)
+    return bool(session.get("authenticated")) and session.get("user_id") is not None
 
 
 def _get_kommo_uid():
@@ -136,26 +180,21 @@ def api_repasse_filtros():
         conn = _pg()
         cur = conn.cursor()
 
-        cur.execute("""
+        cur.execute(f"""
             SELECT DISTINCT ciclo
-            FROM comercial_pagamentos
+            FROM {_REPASSE_FONT}
             WHERE ciclo IS NOT NULL AND ciclo != ''
             ORDER BY ciclo DESC
         """)
-        ciclos = [r[0] for r in cur.fetchall()]
+        ciclos = [r[0] for r in cur.fetchall() if _ciclo_repasse_valido(r[0])]
 
-        cur.execute("""
-            SELECT DISTINCT tipo_pagamento
-            FROM comercial_pagamentos
-            WHERE tipo_pagamento IS NOT NULL AND tipo_pagamento != ''
-            ORDER BY tipo_pagamento
-        """)
-        tipos = [r[0] for r in cur.fetchall()]
+        # Só "Mensalidade" no filtro (variações no banco são tratadas no ILIKE ao buscar)
+        tipos = ["Mensalidade"]
 
         # Turmas agrupadas por ciclo para filtro dinâmico
-        cur.execute("""
+        cur.execute(f"""
             SELECT ciclo, turma
-            FROM comercial_pagamentos
+            FROM {_REPASSE_FONT}
             WHERE ciclo IS NOT NULL AND ciclo != ''
               AND turma IS NOT NULL AND turma != ''
             GROUP BY ciclo, turma
@@ -163,6 +202,10 @@ def api_repasse_filtros():
         """)
         turmas_por_ciclo = {}
         for ciclo_val, turma_val in cur.fetchall():
+            if not _ciclo_repasse_valido(ciclo_val):
+                continue
+            if not _ciclo_repasse_valido(turma_val):
+                continue
             turmas_por_ciclo.setdefault(ciclo_val, [])
             if turma_val not in turmas_por_ciclo[ciclo_val]:
                 turmas_por_ciclo[ciclo_val].append(turma_val)
@@ -240,9 +283,7 @@ def api_repasse_agentes():
         if ciclo:
             wheres.append("ciclo = %s")
             params.append(ciclo)
-        if tipo:
-            wheres.append("tipo_pagamento ILIKE %s")
-            params.append(tipo)
+        _append_filtro_tipo(wheres, params, tipo)
         if turma:
             wheres.append("turma ILIKE %s")
             params.append(turma)
@@ -260,7 +301,7 @@ def api_repasse_agentes():
         w = ("WHERE " + " AND ".join(wheres)) if wheres else ""
         cur.execute(f"""
             SELECT rgm, valor_pago
-            FROM comercial_pagamentos
+            FROM {_REPASSE_FONT}
             {w}
         """, params)
 
@@ -373,9 +414,7 @@ def api_repasse_detalhe():
         if ciclo:
             wheres.append("ciclo = %s")
             params.append(ciclo)
-        if tipo:
-            wheres.append("tipo_pagamento ILIKE %s")
-            params.append(tipo)
+        _append_filtro_tipo(wheres, params, tipo)
         if turma:
             wheres.append("turma ILIKE %s")
             params.append(turma)
@@ -383,7 +422,7 @@ def api_repasse_detalhe():
         w = ("WHERE " + " AND ".join(wheres)) if wheres else ""
         cur.execute(f"""
             SELECT rgm, valor_pago, tipo_pagamento, turma, ciclo
-            FROM comercial_pagamentos
+            FROM {_REPASSE_FONT}
             {w}
             ORDER BY valor_pago DESC
         """, params)

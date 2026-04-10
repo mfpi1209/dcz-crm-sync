@@ -602,6 +602,9 @@ def _ensure_premiacao_tables():
                     data            JSONB
                 )
             """)
+            cur.execute(
+                "ALTER TABLE comercial_recebimentos ADD COLUMN IF NOT EXISTS ciclo TEXT"
+            )
             cur.execute("CREATE INDEX IF NOT EXISTS idx_cr_rgm ON comercial_recebimentos(rgm)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_cr_snap ON comercial_recebimentos(snapshot_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_pmd_camp ON premiacao_meta_diaria(campanha_id)")

@@ -49,5 +49,22 @@
     "qualificacao": 5,
     "pagamento_confirmado": 15,
     "_total": 3267
+  },
+  "2026-04-09": {
+    "incoming": 0,
+    "contato_inicial": 6,
+    "sem_resposta": 612,
+    "em_atendimento": 105,
+    "aguardando_resposta": 2429,
+    "aguardando_inscricao": 105,
+    "inscricao": 10,
+    "processo_seletivo": 51,
+    "em_processo": 44,
+    "aprovado_reprovado": 38,
+    "boleto_enviado": 9,
+    "aceite": 7,
+    "qualificacao": 0,
+    "pagamento_confirmado": 19,
+    "_total": 3435
   }
 }

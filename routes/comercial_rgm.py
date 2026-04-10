@@ -1866,7 +1866,7 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None, polo=None):
 
 def _build_agent_ranking_completa_vw(
     dt_ini=None, dt_fim=None, polo=None, nivel=None, ciclo=None, turma=None,
-    excluded_rgms: set = None
+    excluded_rgms: set = None, crm_dt_ini=None, crm_dt_fim=None,
 ):
     """Matrículas em comercial_rgm_completa Ã— responsável em vw_leads_rgm. Sem match → transferencia/regresso."""
     TR = -1
@@ -2017,8 +2017,10 @@ def _build_agent_ranking_completa_vw(
         except Exception as _oe:
             logger.warning("conflito_resolucao override: %s", _oe)
 
-        ep_ini = _date_to_epoch(dt_ini)
-        ep_fim = _date_to_epoch(dt_fim)
+        _crm_ini = crm_dt_ini or dt_ini
+        _crm_fim = crm_dt_fim or dt_fim
+        ep_ini = _date_to_epoch(_crm_ini)
+        ep_fim = _date_to_epoch(_crm_fim)
         if ep_fim is not None:
             ep_fim += 86399
         # CRM no ranking: período DE/ATÉ em leads.created_at / closed_at (epoch).
@@ -2120,6 +2122,36 @@ def crgm_data():
     ciclo_nome = request.args.get("ciclo", "")
     turma_nome = request.args.get("turma", "")
 
+    # Quando um ciclo do dropdown é selecionado, buscamos suas datas reais
+    # em ciclos_comercial. Usamos as datas do ciclo para delimitar matrículas
+    # (o nome pode não coincidir com o campo 'ciclo' do CSV).
+    ciclo_dt_ini = None
+    ciclo_dt_fim = None
+    if ciclo_nome:
+        try:
+            _cc = _pg()
+            _cc_cur = _cc.cursor()
+            _cc_cur.execute(
+                "SELECT dt_inicio, dt_fim FROM ciclos_comercial WHERE nome = %s LIMIT 1",
+                (ciclo_nome,),
+            )
+            _cc_row = _cc_cur.fetchone()
+            if _cc_row:
+                ciclo_dt_ini = _cc_row[0].isoformat() if hasattr(_cc_row[0], 'isoformat') else str(_cc_row[0])[:10]
+                ciclo_dt_fim = _cc_row[1].isoformat() if hasattr(_cc_row[1], 'isoformat') else str(_cc_row[1])[:10]
+            _cc_cur.close(); _cc.close()
+        except Exception as _ce:
+            logger.warning("ciclo dates lookup: %s", _ce)
+
+    # Datas para filtrar matrículas (CSV): quando há ciclo+turma, usa as datas
+    # completas do ciclo (turma é só meta mensal, não restringe matrículas).
+    if ciclo_nome and turma_nome and ciclo_dt_ini and ciclo_dt_fim:
+        _pd_dt_ini = ciclo_dt_ini
+        _pd_dt_fim = ciclo_dt_fim
+    else:
+        _pd_dt_ini = dt_ini or None
+        _pd_dt_fim = dt_fim or None
+
     where = []
     params = []
 
@@ -2129,16 +2161,12 @@ def crgm_data():
     if nivel:
         where.append("nivel = %s")
         params.append(nivel)
-    if dt_ini:
+    if _pd_dt_ini:
         where.append("data_matricula >= %s")
-        params.append(dt_ini)
-    if dt_fim:
+        params.append(_pd_dt_ini)
+    if _pd_dt_fim:
         where.append("data_matricula <= %s")
-        params.append(dt_fim)
-    if ciclo_nome:
-        where.append("ciclo = %s")
-        params.append(ciclo_nome)
-    # turma_nome é apenas um rótulo de preset (datas+nível) — não filtra por curso
+        params.append(_pd_dt_fim)
 
     # comercial_rgm_atual já aplica todos os filtros de negócio (ciclo atual, em curso, empresa 7/12, tipos)
     w = ("WHERE " + " AND ".join(where)) if where else ""
@@ -2147,14 +2175,13 @@ def crgm_data():
         conn = _pg()
         cur = conn.cursor()
 
-        # Busca TODOS os RGMs do período (sem filtro de situação) para contagem bruta + evasão
         _periodo_rows = _crgm_periodo_data(
-            dt_ini=dt_ini or None,
-            dt_fim=dt_fim or None,
+            dt_ini=_pd_dt_ini,
+            dt_fim=_pd_dt_fim,
             polo=polo or None,
             nivel=nivel or None,
-            ciclo_filter=ciclo_nome or None,
-            turma=None,  # turma é preset de datas/nível, não filtra por curso
+            ciclo_filter=None,
+            turma=None,
         )
 
         rgms_periodo   = set()          # EM CURSO (líquido)
@@ -2293,10 +2320,6 @@ def crgm_data():
                 cw.append(f"{_POLO_SQL} = %s"); cp.append(_normalize_polo(polo_))
             if nivel_:
                 cw.append("nivel = %s"); cp.append(nivel_)
-            if ciclo_nome:
-                cw.append("ciclo = %s"); cp.append(ciclo_nome)
-            if turma_nome:
-                cw.append("turma = %s"); cp.append(turma_nome)
             cur_.execute(
                 f"SELECT rgm FROM comercial_rgm_atual WHERE {' AND '.join(cw)}",
                 cp,
@@ -2403,34 +2426,38 @@ def crgm_data():
         ranking_polo = [{"nome": p, "total": c}
                         for p, c in sorted(polo_counts.items(), key=lambda x: -x[1])]
 
-        ciclo_extra = " AND ciclo IS NOT NULL" if where else " WHERE ciclo IS NOT NULL"
-        cur.execute(
-            f"SELECT rgm, ciclo FROM comercial_rgm_atual {w}{ciclo_extra}",
-            params,
+        # Total do ciclo: bruto + EM CURSO, sem filtro de data.
+        ciclo_all = _crgm_periodo_data(
+            polo=polo or None, nivel=nivel or None,
         )
-        ciclo_rgms = defaultdict(set)
-        for rgm, ciclo in cur.fetchall():
-            if not ciclo:
+        ciclo_bruto = defaultdict(set)
+        ciclo_em_curso = defaultdict(set)
+        for row in ciclo_all:
+            n = _normalize_rgm(row.get("rgm") or "")
+            if not n:
                 continue
-            n = _normalize_rgm(rgm)
-            if n and n not in _excluded:
-                ciclo_rgms[ciclo].add(n)
+            c = (row.get("ciclo") or "").strip() or "(sem ciclo)"
+            ciclo_bruto[c].add(n)
+            if row.get("situacao") == "EM CURSO":
+                ciclo_em_curso[c].add(n)
         ranking_ciclo = [
-            {"nome": c, "total": len(s)}
-            for c, s in sorted(ciclo_rgms.items(), key=lambda x: -len(x[1]))[:10]
+            {"nome": c, "bruto": len(ciclo_bruto[c]), "total": len(ciclo_em_curso.get(c, set()))}
+            for c in sorted(ciclo_bruto, key=lambda k: -len(ciclo_bruto[k]))
         ]
 
         cur.close()
         conn.close()
 
         ranking_agentes, transferencia_regresso = _build_agent_ranking_completa_vw(
-            dt_ini or None,
-            dt_fim or None,
+            _pd_dt_ini,
+            _pd_dt_fim,
             polo or None,
             nivel or None,
-            ciclo_nome or None,
-            None,  # turma: preset de datas/nível, não filtra por curso
+            None,
+            None,
             excluded_rgms=_excluded,
+            crm_dt_ini=dt_ini or None,
+            crm_dt_fim=dt_fim or None,
         )
 
         # --- Metas por agente: premiacao_campanha_meta (primary) + comercial_metas (fallback)
@@ -2684,6 +2711,31 @@ def crgm_agente_detalhe():
             )
             rows = cur.fetchall()
             _det_excluded = _crgm_excluded_rgms(conn)
+
+            # CPF + telefone via xl_rows (último snapshot matriculados)
+            rgm_extra = {}
+            try:
+                cur.execute("""
+                    SELECT
+                        regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g') AS rgm,
+                        NULLIF(TRIM(COALESCE(r.data->>'cpf','')), '')           AS cpf,
+                        COALESCE(
+                            NULLIF(TRIM(COALESCE(r.data->>'fone_cel','')), ''),
+                            NULLIF(TRIM(COALESCE(r.data->>'fone_res','')), ''),
+                            NULLIF(TRIM(COALESCE(r.data->>'fone_com','')), '')
+                        ) AS telefone
+                    FROM xl_rows r
+                    JOIN xl_snapshots s ON s.id = r.snapshot_id
+                    WHERE s.id = (SELECT id FROM xl_snapshots WHERE tipo = 'matriculados' ORDER BY id DESC LIMIT 1)
+                      AND COALESCE(r.data->>'rgm','') ~ '[0-9]'
+                """)
+                for r_extra in cur.fetchall():
+                    nk = _normalize_rgm(r_extra[0])
+                    if nk and nk not in rgm_extra:
+                        rgm_extra[nk] = {"cpf": r_extra[1] or "", "telefone": r_extra[2] or ""}
+            except Exception as _ex:
+                logger.warning("agente-detalhe cpf/tel: %s", _ex)
+
             cur.close(); conn.close()
         except Exception as e:
             logger.warning("agente-detalhe db: %s", e)
@@ -2742,9 +2794,12 @@ def crgm_agente_detalhe():
             # Flag outlier: qualquer RGM cujo prefixo seja inferior ao dominante do ciclo
             rgm_prefix = int(n[:2]) if len(n) >= 2 and n[:2].isdigit() else dominant_prefix
             outlier = rgm_prefix < dominant_prefix
+            extra = rgm_extra.get(n, {})
             resultado.append({
                 "rgm": rgm_raw or "",
                 "nome": nome or "",
+                "cpf": extra.get("cpf", ""),
+                "telefone": extra.get("telefone", ""),
                 "polo": p_polo or "",
                 "nivel": p_nivel or "",
                 "data_matricula": data_str,
@@ -2757,9 +2812,10 @@ def crgm_agente_detalhe():
         if fmt == "csv":
             buf = io.StringIO()
             writer = csv.writer(buf, delimiter=";")
-            writer.writerow(["RGM", "Nome", "Polo", "Nível", "Data Matrícula", "Ciclo", "Turma", "Tipo Matrícula", "Outlier RGM"])
+            writer.writerow(["RGM", "Nome", "CPF", "Telefone", "Polo", "Nível", "Data Matrícula", "Ciclo", "Turma", "Tipo Matrícula", "Outlier RGM"])
             for r in resultado:
-                writer.writerow([r["rgm"], r["nome"], r["polo"], r["nivel"],
+                writer.writerow([r["rgm"], r["nome"], r["cpf"], r["telefone"],
+                                 r["polo"], r["nivel"],
                                  r["data_matricula"], r["ciclo"], r["turma"],
                                  r["tipo_matricula"], "SIM" if r["outlier"] else ""])
             safe_uid = str(uid).replace("-", "neg")
