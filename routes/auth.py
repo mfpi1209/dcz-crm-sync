@@ -64,6 +64,8 @@ def require_auth():
             session["user_id"] = 0
             session["username"] = "dev"
             session["role"] = "admin"
+        if request.path == "/login":
+            return redirect("/")
         return
 
     if request.path in ("/login", "/health"):

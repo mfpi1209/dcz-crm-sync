@@ -1,4 +1,4 @@
-﻿<!-- ═══════════════════════════════════════════════════════════════════
+<!-- ═══════════════════════════════════════════════════════════════════
      Atualizar Preço — partial (integrado do webapp standalone)
      Rotas /api/* registradas em app.py via routes/atualizar_preco_app.py
      ═══════════════════════════════════════════════════════════════════ -->
@@ -838,7 +838,7 @@
         const res  = await fetch('/api/preview', { method: 'POST', body: fd });
         const data = await res.json();
         if (data.error) { showError(tipo, data.error); return; }
-        renderResults(tipo, data, false);
+        _apRenderResults(tipo, data, false);
         document.getElementById(`btn-atualizar-${tipo}`).disabled = false;
       } catch(e) {
         showError(tipo, e.message);
@@ -873,7 +873,7 @@
     }
 
     // ── Render resultados ──
-    function renderResults(tipo, data, applied) {
+    function _apRenderResults(tipo, data, applied) {
       const el = document.getElementById(`results-${tipo}`);
       el.classList.remove('hidden');
 
