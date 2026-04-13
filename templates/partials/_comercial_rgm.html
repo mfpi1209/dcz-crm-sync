@@ -35,7 +35,7 @@
                 </button>
                 <button onclick="_crgmLoadMatriculasSemData()" id="crgm-btn-semdata"
                     class="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-rose-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5"
-                    title="Relatório matriculados sem data válida em data_mat — para ajustar no Kommo">
+                    title="Leads do período sem data de matrícula preenchida no Kommo — para ajustar no CRM">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                     Sem data
                 </button>
@@ -618,17 +618,17 @@
         </div>
     </div>
 
-    <!-- Matrículas sem data_mat (último relatório) — corrigir no Kommo -->
+    <!-- Leads sem data de matrícula no Kommo dentro do período da meta -->
     <div id="crgm-semdata-panel" class="hidden mt-6">
         <div class="glass-card overflow-hidden border border-rose-500/30">
             <div class="px-5 py-3 border-b border-rose-500/20 bg-rose-500/5 flex flex-wrap items-center justify-between gap-2">
                 <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
                     <svg class="w-4 h-4 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                    <span>Matrículas sem data</span>
+                    <span>Matrículas sem data no Kommo</span>
                     <span id="crgm-semdata-count" class="ml-2 text-xs font-bold bg-rose-500/20 text-rose-200 px-2 py-0.5 rounded-full">0</span>
                 </h3>
                 <div class="flex items-center gap-3">
-                    <span class="text-[10px] text-slate-500 max-w-md">Último upload matriculados: campo <code class="text-slate-400">data_mat</code> vazio ou inválido. O dashboard usa esta data; ajuste o lead no Kommo e/ou o próximo relatório.</span>
+                    <span class="text-[10px] text-slate-500 max-w-md">Leads que aparecem no CSV do período selecionado mas ainda não têm o campo <strong class="text-slate-400">Matrícula</strong> (data) preenchido no Kommo.</span>
                     <button type="button" onclick="_crgmSemDataCsv()" id="crgm-semdata-csv" class="hidden text-xs text-rose-300 hover:text-white border border-rose-500/40 px-2 py-1 rounded-lg">CSV</button>
                     <button onclick="crgmToggleSemData()" class="text-xs text-slate-500 hover:text-white transition-colors">
                         <span id="crgm-semdata-toggle-text">Expandir</span>
@@ -645,8 +645,7 @@
                             <th class="text-left px-2 py-2">Polo</th>
                             <th class="text-left px-2 py-2">Ciclo</th>
                             <th class="text-left px-2 py-2">Tipo matr.</th>
-                            <th class="text-left px-2 py-2">data_mat (bruto)</th>
-                            <th class="text-left px-2 py-2">Situação</th>
+                            <th class="text-left px-2 py-2">Consultora (Kommo)</th>
                         </tr>
                     </thead>
                     <tbody id="crgm-semdata-tbody" class="divide-y divide-slate-700/10"></tbody>

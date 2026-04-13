@@ -1685,7 +1685,23 @@ async function _crgmLoadMatriculasSemData() {
         btn.innerHTML = '<svg class="animate-spin w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Carregando...';
     }
     try {
-        const res = await api('/api/comercial-rgm/matriculas-sem-data');
+        // Passa os filtros ativos do dashboard
+        const qs = new URLSearchParams();
+        const dtIni = document.getElementById('crgm-dt-ini')?.value;
+        const dtFim = document.getElementById('crgm-dt-fim')?.value;
+        if (dtIni) qs.set('dt_ini', dtIni);
+        if (dtFim) qs.set('dt_fim', dtFim);
+        const cicloSel = document.getElementById('crgm-ciclo');
+        const cicloId  = cicloSel ? cicloSel.value : '';
+        const ciclo    = _crgmCiclosData?.find(c => c.id === parseInt(cicloId));
+        if (ciclo) qs.set('ciclo', ciclo.nome);
+        const turmaSel = document.getElementById('crgm-turma');
+        const turmaId  = turmaSel ? turmaSel.value : '';
+        const turma    = _crgmTurmasData?.find(t => t.id === parseInt(turmaId));
+        if (turma) qs.set('turma', turma.nome);
+
+        const url = '/api/comercial-rgm/matriculas-sem-data' + (qs.toString() ? '?' + qs : '');
+        const res = await api(url);
         const d = await res.json();
         if (!d.ok) {
             _crgmErro(d.error || 'Erro ao carregar');
@@ -1707,7 +1723,7 @@ async function _crgmLoadMatriculasSemData() {
         if (csvBtn) csvBtn.classList.toggle('hidden', !_crgmSemDataCache.length);
 
         if (!_crgmSemDataCache.length) {
-            tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-emerald-400/90 text-sm">Nenhuma matrícula sem data no último relatório de matriculados.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-emerald-400/90 text-sm">Nenhuma matrícula sem data no Kommo para o período selecionado.</td></tr>';
         } else {
             tbody.innerHTML = _crgmSemDataCache.map((row, i) => `
                 <tr class="hover:bg-slate-800/30 transition-colors">
@@ -1717,8 +1733,7 @@ async function _crgmLoadMatriculasSemData() {
                     <td class="px-2 py-2 text-slate-400 text-xs">${esc(row.polo || '—')}</td>
                     <td class="px-2 py-2 text-slate-400 text-xs">${esc(row.ciclo || '—')}</td>
                     <td class="px-2 py-2 text-slate-400 text-xs">${esc(row.tipo_matricula || '—')}</td>
-                    <td class="px-2 py-2 text-amber-300/90 text-xs font-mono">${esc(row.data_mat_raw || '(vazio)')}</td>
-                    <td class="px-2 py-2 text-slate-500 text-xs">${esc(row.situacao || '—')}</td>
+                    <td class="px-2 py-2 ${row.no_kommo ? 'text-amber-300/90' : 'text-rose-400/80'} text-xs">${esc(row.consultora || '—')}</td>
                 </tr>`).join('');
         }
     } catch (e) {
@@ -1742,7 +1757,7 @@ function crgmToggleSemData() {
 
 function _crgmSemDataCsv() {
     if (!_crgmSemDataCache.length) return;
-    const headers = ['rgm', 'nome', 'polo', 'nivel', 'ciclo', 'turma', 'tipo_matricula', 'data_mat_raw', 'situacao'];
+    const headers = ['rgm', 'nome', 'polo', 'nivel', 'ciclo', 'tipo_matricula', 'situacao', 'consultora', 'no_kommo'];
     const lines = [headers.join(';')];
     for (const r of _crgmSemDataCache) {
         lines.push(headers.map(h => {
