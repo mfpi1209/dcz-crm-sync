@@ -1675,6 +1675,89 @@ function crgmToggleDuplicatas() {
     text.textContent = hidden ? 'Expandir' : 'Recolher';
 }
 
+let _crgmSemDataCache = [];
+
+async function _crgmLoadMatriculasSemData() {
+    const btn = document.getElementById('crgm-btn-semdata');
+    if (btn) {
+        btn.disabled = true;
+        btn.classList.add('opacity-50');
+        btn.innerHTML = '<svg class="animate-spin w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Carregando...';
+    }
+    try {
+        const res = await api('/api/comercial-rgm/matriculas-sem-data');
+        const d = await res.json();
+        if (!d.ok) {
+            _crgmErro(d.error || 'Erro ao carregar');
+            document.getElementById('crgm-semdata-panel')?.classList.add('hidden');
+            return;
+        }
+        _crgmErro('');
+        _crgmSemDataCache = d.itens || [];
+        const panel = document.getElementById('crgm-semdata-panel');
+        const body = document.getElementById('crgm-semdata-body');
+        const tbody = document.getElementById('crgm-semdata-tbody');
+        const csvBtn = document.getElementById('crgm-semdata-csv');
+        if (!panel || !body || !tbody) return;
+
+        panel.classList.remove('hidden');
+        body.classList.remove('hidden');
+        document.getElementById('crgm-semdata-count').textContent = d.total ?? 0;
+        document.getElementById('crgm-semdata-toggle-text').textContent = 'Recolher';
+        if (csvBtn) csvBtn.classList.toggle('hidden', !_crgmSemDataCache.length);
+
+        if (!_crgmSemDataCache.length) {
+            tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-emerald-400/90 text-sm">Nenhuma matrícula sem data no último relatório de matriculados.</td></tr>';
+        } else {
+            tbody.innerHTML = _crgmSemDataCache.map((row, i) => `
+                <tr class="hover:bg-slate-800/30 transition-colors">
+                    <td class="text-center px-2 py-2 text-slate-600 text-xs">${i + 1}</td>
+                    <td class="px-2 py-2 font-mono text-rose-200 text-xs font-semibold">${esc(row.rgm || '')}</td>
+                    <td class="px-2 py-2 text-slate-300 text-xs">${esc(row.nome || '—')}</td>
+                    <td class="px-2 py-2 text-slate-400 text-xs">${esc(row.polo || '—')}</td>
+                    <td class="px-2 py-2 text-slate-400 text-xs">${esc(row.ciclo || '—')}</td>
+                    <td class="px-2 py-2 text-slate-400 text-xs">${esc(row.tipo_matricula || '—')}</td>
+                    <td class="px-2 py-2 text-amber-300/90 text-xs font-mono">${esc(row.data_mat_raw || '(vazio)')}</td>
+                    <td class="px-2 py-2 text-slate-500 text-xs">${esc(row.situacao || '—')}</td>
+                </tr>`).join('');
+        }
+    } catch (e) {
+        _crgmErro('Erro ao carregar matrículas sem data: ' + e.message);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.classList.remove('opacity-50');
+            btn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg> Sem data';
+        }
+    }
+}
+
+function crgmToggleSemData() {
+    const body = document.getElementById('crgm-semdata-body');
+    const text = document.getElementById('crgm-semdata-toggle-text');
+    if (!body || !text) return;
+    const hidden = body.classList.toggle('hidden');
+    text.textContent = hidden ? 'Expandir' : 'Recolher';
+}
+
+function _crgmSemDataCsv() {
+    if (!_crgmSemDataCache.length) return;
+    const headers = ['rgm', 'nome', 'polo', 'nivel', 'ciclo', 'turma', 'tipo_matricula', 'data_mat_raw', 'situacao'];
+    const lines = [headers.join(';')];
+    for (const r of _crgmSemDataCache) {
+        lines.push(headers.map(h => {
+            const v = r[h] != null ? String(r[h]) : '';
+            return '"' + v.replace(/"/g, '""') + '"';
+        }).join(';'));
+    }
+    const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `matriculas-sem-data_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+}
+
 // ── Editar Meta ────────────────────────────────────────────────────────────
 let _crgmEditMetaId = null;
 

@@ -3399,6 +3399,74 @@ def crgm_duplicatas():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@comercial_rgm_bp.route("/api/comercial-rgm/matriculas-sem-data")
+def crgm_matriculas_sem_data():
+    """Matrículas no último snapshot sem `data_mat` válida (relatório matriculados).
+
+    Usado para corrigir datas no Kommo; o dashboard usa `data_mat` do CSV, não o CRM.
+    """
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT rgm, nome, situacao, polo, nivel, ciclo, turma,
+                   tipo_matricula, data_mat_raw
+            FROM (
+                SELECT DISTINCT ON (regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g'))
+                    regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g') AS rgm,
+                    NULLIF(TRIM(COALESCE(r.data->>'nome','')), '') AS nome,
+                    UPPER(TRIM(COALESCE(r.data->>'situacao',''))) AS situacao,
+                    CASE
+                        WHEN (r.data->>'data_mat') ~ '^[0-9]{2}/[0-9]{2}/[0-9]{4}$'
+                            THEN to_date(r.data->>'data_mat','DD/MM/YYYY')
+                        WHEN (r.data->>'data_mat') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+                            THEN (r.data->>'data_mat')::date
+                        ELSE NULL
+                    END AS data_matricula,
+                    CASE
+                        WHEN COALESCE(r.data->>'nivel','')   ~* 'p[oó]s' THEN 'Pós-Graduação'
+                        WHEN COALESCE(r.data->>'negocio','') ~* 'p[oó]s' THEN 'Pós-Graduação'
+                        WHEN COALESCE(r.data->>'curso','')   ~* '(mba|especializa|p.s.gradua|lato.sensu|stricto)' THEN 'Pós-Graduação'
+                        ELSE 'Graduação'
+                    END AS nivel,
+                    TRIM(regexp_replace(COALESCE(r.data->>'polo',''), '^[0-9]+\\s*[-]\\s*', '')) AS polo,
+                    NULLIF(TRIM(COALESCE(r.data->>'ciclo','')), '') AS ciclo,
+                    NULLIF(TRIM(COALESCE(r.data->>'curso','')), '') AS turma,
+                    NULLIF(TRIM(COALESCE(r.data->>'tipo_matricula','')), '') AS tipo_matricula,
+                    TRIM(COALESCE(r.data->>'data_mat','')) AS data_mat_raw
+                FROM xl_rows r
+                JOIN xl_snapshots s ON s.id = r.snapshot_id
+                WHERE s.id = (SELECT id FROM xl_snapshots WHERE tipo = 'matriculados' ORDER BY id DESC LIMIT 1)
+                  AND COALESCE(r.data->>'rgm','') ~ '[0-9]'
+                  AND UPPER(TRIM(COALESCE(r.data->>'tipo_matricula','')))
+                      = ANY(ARRAY['NOVA MATRICULA','RECOMPRA','RETORNO'])
+                  AND TRIM(COALESCE(r.data->>'empresa','')) ~ '^(12|7) -'
+                ORDER BY regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g'), r.id DESC
+            ) deduped
+            WHERE data_matricula IS NULL
+            ORDER BY rgm
+        """)
+        itens = []
+        for row in cur.fetchall():
+            itens.append({
+                "rgm": row[0],
+                "nome": row[1] or "",
+                "situacao": row[2] or "",
+                "polo": row[3] or "",
+                "nivel": row[4] or "",
+                "ciclo": row[5] or "",
+                "turma": row[6] or "",
+                "tipo_matricula": row[7] or "",
+                "data_mat_raw": row[8] or "",
+            })
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True, "itens": itens, "total": len(itens)})
+    except Exception as e:
+        logger.exception("matriculas-sem-data")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # ── Conflitos de atribuição ───────────────────────────────────────────────────
 
 @comercial_rgm_bp.route("/api/comercial-rgm/conflitos")
