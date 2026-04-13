@@ -57,6 +57,17 @@ def health():
 
 @auth_bp.before_app_request
 def require_auth():
+    # Bypass de autenticação para desenvolvimento local (DEV_SKIP_AUTH=1 no .env)
+    if os.getenv("DEV_SKIP_AUTH") == "1":
+        if not session.get("authenticated"):
+            session["authenticated"] = True
+            session["user_id"] = 0
+            session["username"] = "dev"
+            session["role"] = "admin"
+        if request.path == "/login":
+            return redirect("/")
+        return
+
     if request.path in ("/login", "/health"):
         return
     if request.path.startswith("/static/"):

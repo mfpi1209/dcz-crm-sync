@@ -91,6 +91,27 @@ app.register_blueprint(leads_parados_bp)
 app.register_blueprint(minha_performance_bp)
 app.register_blueprint(repasse_bp)
 
+# ── Atualizar Preço — rotas do webapp standalone integrado ────────────────
+try:
+    from routes.atualizar_preco_app import app as _preco_app
+    for _rule in list(_preco_app.url_map.iter_rules()):
+        _ep = _rule.endpoint
+        if _rule.rule.startswith('/api/') and _ep in _preco_app.view_functions:
+            _methods = [m for m in _rule.methods if m not in ('HEAD', 'OPTIONS')]
+            if _methods:
+                try:
+                    app.add_url_rule(
+                        _rule.rule,
+                        endpoint='preco_' + _ep,
+                        view_func=_preco_app.view_functions[_ep],
+                        methods=_methods,
+                    )
+                except (AssertionError, ValueError):
+                    pass
+except Exception as _e:
+    import logging as _logging
+    _logging.getLogger(__name__).warning(f"Atualizar Preco routes not loaded: {_e}")
+
 # ── Inicialização do banco ────────────────────────────────────────────────
 
 from db import (

@@ -1,0 +1,2461 @@
+<!-- ═══════════════════════════════════════════════════════════════════
+     Atualizar Preço — partial (integrado do webapp standalone)
+     Rotas /api/* registradas em app.py via routes/atualizar_preco_app.py
+     ═══════════════════════════════════════════════════════════════════ -->
+<div id="page-atualizar_preco" class="hidden">
+
+<style>
+  /* Keyframes globais (só declaradas uma vez) */
+  @keyframes ap-spin { to { transform: rotate(360deg); } }
+  @keyframes ap-pbar-shimmer { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
+
+  /* Classes com escopo: prefixadas pelo id da página */
+  #page-atualizar_preco .drop-zone {
+    border: 2px dashed #334155;
+    transition: all .2s;
+  }
+  #page-atualizar_preco .drop-zone.dragover {
+    border-color: #6366f1;
+    background: rgba(99,102,241,.08);
+  }
+  #page-atualizar_preco .drop-zone.has-file {
+    border-color: #22c55e;
+    background: rgba(34,197,94,.06);
+  }
+  #page-atualizar_preco .badge-match   { background:#16a34a22; color:#22c55e; }
+  #page-atualizar_preco .badge-nomatch { background:#dc262622; color:#f87171; }
+  #page-atualizar_preco .spinner {
+    width:20px; height:20px;
+    border:2px solid #334155;
+    border-top-color:#6366f1;
+    border-radius:50%;
+    animation: ap-spin .7s linear infinite;
+    display:inline-block;
+  }
+  #page-atualizar_preco .tab-active  { background: #6366f1; color: #fff; }
+  #page-atualizar_preco .tab-inactive { color: #94a3b8; }
+  #page-atualizar_preco .tab-inactive:hover { color: #e2e8f0; background: #1e293b; }
+</style>
+
+<!-- Cabeçalho da página -->
+<div class="px-6 py-5 flex items-center gap-3 border-b border-slate-800">
+  <div class="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0">
+    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+    </svg>
+  </div>
+  <div>
+    <h2 class="text-base font-semibold text-white">Atualização de Preços</h2>
+    <p class="text-xs text-slate-500">Kommo · IA · Site Cruzeiro · Eduit-ead · Eduit New</p>
+  </div>
+</div>
+  <main class="max-w-6xl mx-auto px-6 py-8">
+
+    <!-- Seção Produtos -->
+    <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
+
+      <!-- Título seção -->
+      <div class="px-6 py-4 border-b border-slate-800 flex items-center gap-2">
+        <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10"/>
+        </svg>
+        <h2 class="text-sm font-semibold text-white uppercase tracking-wider">Produtos</h2>
+      </div>
+
+      <!-- Tabs -->
+      <div class="flex gap-1 px-6 pt-4">
+        <button id="tab-grad" onclick="switchTab('grad')"
+          class="tab-active px-4 py-2 rounded-lg text-sm font-medium transition-all">
+          Graduação
+        </button>
+        <button id="tab-pos" onclick="switchTab('pos')"
+          class="tab-inactive px-4 py-2 rounded-lg text-sm font-medium transition-all">
+          Pós-Graduação
+        </button>
+      </div>
+
+      <!-- ── TAB GRADUAÇÃO ── -->
+      <div id="panel-grad" class="p-6">
+        <UploadPanel tipo="grad" />
+
+        <!-- Drop Zone -->
+        <div id="drop-grad"
+          class="drop-zone rounded-xl p-10 text-center cursor-pointer mb-6 select-none"
+          onclick="document.getElementById('file-grad').click()"
+          ondragover="handleDragOver(event,'grad')"
+          ondragleave="handleDragLeave(event,'grad')"
+          ondrop="handleDrop(event,'grad')">
+          <input type="file" id="file-grad" accept=".xlsx" class="hidden"
+            onchange="handleFileSelect(event,'grad')" />
+          <div id="drop-grad-icon" class="flex flex-col items-center gap-3 pointer-events-none">
+            <div class="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
+              <svg class="w-7 h-7 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586
+                     a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+            <p class="text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-300">curso grad.xlsx</span></p>
+            <p class="text-slate-600 text-xs">ou clique para selecionar</p>
+          </div>
+          <div id="drop-grad-file" class="hidden flex-col items-center gap-2 pointer-events-none">
+            <div class="w-14 h-14 rounded-full bg-emerald-900/40 flex items-center justify-center">
+              <svg class="w-7 h-7 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+              </svg>
+            </div>
+            <p id="drop-grad-filename" class="text-emerald-400 text-sm font-medium"></p>
+            <p class="text-slate-500 text-xs">Clique para trocar o arquivo</p>
+          </div>
+        </div>
+
+        <!-- Botão Verificar -->
+        <div class="flex gap-3 mb-6">
+          <button id="btn-preview-grad" onclick="preview('grad')"
+            class="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500
+                   disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
+                   transition-all flex items-center justify-center gap-2" disabled>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7
+                   -1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+            </svg>
+            Verificar
+          </button>
+          <button id="btn-atualizar-grad" onclick="atualizar('grad')"
+            class="flex-1 bg-emerald-700 hover:bg-emerald-600 disabled:bg-slate-700 disabled:text-slate-500
+                   disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
+                   transition-all flex items-center justify-center gap-2" disabled>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0
+                   a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            Atualizar no Kommo
+          </button>
+        </div>
+
+        <!-- Resultados grad -->
+        <div id="results-grad" class="hidden"></div>
+      </div>
+
+      <!-- ── TAB PÓS-GRADUAÇÃO ── -->
+      <div id="panel-pos" class="p-6 hidden">
+
+        <!-- Drop Zone pos -->
+        <div id="drop-pos"
+          class="drop-zone rounded-xl p-10 text-center cursor-pointer mb-6 select-none"
+          onclick="document.getElementById('file-pos').click()"
+          ondragover="handleDragOver(event,'pos')"
+          ondragleave="handleDragLeave(event,'pos')"
+          ondrop="handleDrop(event,'pos')">
+          <input type="file" id="file-pos" accept=".xlsx" class="hidden"
+            onchange="handleFileSelect(event,'pos')" />
+          <div id="drop-pos-icon" class="flex flex-col items-center gap-3 pointer-events-none">
+            <div class="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
+              <svg class="w-7 h-7 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586
+                     a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+            <p class="text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-300">curso pós.xlsx</span></p>
+            <p class="text-slate-600 text-xs">ou clique para selecionar</p>
+          </div>
+          <div id="drop-pos-file" class="hidden flex-col items-center gap-2 pointer-events-none">
+            <div class="w-14 h-14 rounded-full bg-emerald-900/40 flex items-center justify-center">
+              <svg class="w-7 h-7 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+              </svg>
+            </div>
+            <p id="drop-pos-filename" class="text-emerald-400 text-sm font-medium"></p>
+            <p class="text-slate-500 text-xs">Clique para trocar o arquivo</p>
+          </div>
+        </div>
+
+        <!-- Botões pos -->
+        <div class="flex gap-3 mb-6">
+          <button id="btn-preview-pos" onclick="preview('pos')"
+            class="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500
+                   disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
+                   transition-all flex items-center justify-center gap-2" disabled>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7
+                   -1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+            </svg>
+            Verificar
+          </button>
+          <button id="btn-atualizar-pos" onclick="atualizar('pos')"
+            class="flex-1 bg-emerald-700 hover:bg-emerald-600 disabled:bg-slate-700 disabled:text-slate-500
+                   disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
+                   transition-all flex items-center justify-center gap-2" disabled>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0
+                   a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            Atualizar no Kommo
+          </button>
+        </div>
+
+        <!-- Resultados pos -->
+        <div id="results-pos" class="hidden"></div>
+
+      </div>
+
+    </div>
+
+    <!-- ═══ Seção IA (Supabase) ═══ -->
+    <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden mt-6">
+
+      <!-- Título -->
+      <div class="px-6 py-4 border-b border-slate-800 flex items-center gap-2">
+        <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+        </svg>
+        <h2 class="text-sm font-semibold text-white uppercase tracking-wider">IA</h2>
+        <span class="text-xs text-slate-500 ml-1">Supabase</span>
+        <span class="ml-auto text-xs text-slate-600 bg-slate-800 px-2 py-0.5 rounded-full font-mono">documents_precos</span>
+      </div>
+
+      <!-- Tabs -->
+      <div class="flex gap-1 px-6 pt-4">
+        <button id="supa-tab-grad" onclick="supaTab('grad')"
+          class="tab-active px-4 py-2 rounded-lg text-sm font-medium transition-all">
+          Graduação
+        </button>
+        <button id="supa-tab-pos" onclick="supaTab('pos')"
+          class="tab-inactive px-4 py-2 rounded-lg text-sm font-medium transition-all">
+          Pós-Graduação
+        </button>
+      </div>
+
+      <!-- Panel Graduação -->
+      <div id="supa-panel-grad" class="p-6">
+        <div id="supa-drop-grad"
+          class="drop-zone rounded-xl p-10 text-center cursor-pointer mb-6 select-none"
+          onclick="document.getElementById('supa-file-grad').click()"
+          ondragover="supaDragOver(event,'grad')"
+          ondragleave="supaDragLeave(event,'grad')"
+          ondrop="supaHandleDrop(event,'grad')">
+          <input type="file" id="supa-file-grad" accept=".xlsx" class="hidden"
+            onchange="supaHandleFileSelect(event,'grad')" />
+          <div id="supa-drop-grad-icon" class="flex flex-col items-center gap-3 pointer-events-none">
+            <div class="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
+              <svg class="w-7 h-7 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586
+                     a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+            <p class="text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-300">curso grad.xlsx</span></p>
+            <p class="text-slate-600 text-xs">ou clique para selecionar</p>
+          </div>
+          <div id="supa-drop-grad-file" class="hidden flex-col items-center gap-2 pointer-events-none">
+            <div class="w-14 h-14 rounded-full bg-emerald-900/40 flex items-center justify-center">
+              <svg class="w-7 h-7 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+              </svg>
+            </div>
+            <p id="supa-drop-grad-filename" class="text-emerald-400 text-sm font-medium"></p>
+            <p class="text-slate-500 text-xs">Clique para trocar o arquivo</p>
+          </div>
+        </div>
+        <div class="flex gap-3 mb-6">
+          <button id="supa-btn-preview-grad" onclick="supaPreview('grad')"
+            class="flex-1 bg-violet-700 hover:bg-violet-600 disabled:bg-slate-700 disabled:text-slate-500
+                   disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
+                   transition-all flex items-center justify-center gap-2" disabled>
+            Verificar IA
+          </button>
+          <button id="supa-btn-atualizar-grad" onclick="supaAtualizar('grad')"
+            class="flex-1 bg-emerald-700 hover:bg-emerald-600 disabled:bg-slate-700 disabled:text-slate-500
+                   disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
+                   transition-all flex items-center justify-center gap-2" disabled>
+            Atualizar IA
+          </button>
+        </div>
+        <div id="supa-results-grad" class="hidden"></div>
+      </div>
+
+      <!-- Panel Pós-Graduação -->
+      <div id="supa-panel-pos" class="p-6 hidden">
+        <div id="supa-drop-pos"
+          class="drop-zone rounded-xl p-10 text-center cursor-pointer mb-6 select-none"
+          onclick="document.getElementById('supa-file-pos').click()"
+          ondragover="supaDragOver(event,'pos')"
+          ondragleave="supaDragLeave(event,'pos')"
+          ondrop="supaHandleDrop(event,'pos')">
+          <input type="file" id="supa-file-pos" accept=".xlsx" class="hidden"
+            onchange="supaHandleFileSelect(event,'pos')" />
+          <div id="supa-drop-pos-icon" class="flex flex-col items-center gap-3 pointer-events-none">
+            <div class="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
+              <svg class="w-7 h-7 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586
+                     a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+            <p class="text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-300">curso pós.xlsx</span></p>
+            <p class="text-slate-600 text-xs">ou clique para selecionar</p>
+          </div>
+          <div id="supa-drop-pos-file" class="hidden flex-col items-center gap-2 pointer-events-none">
+            <div class="w-14 h-14 rounded-full bg-emerald-900/40 flex items-center justify-center">
+              <svg class="w-7 h-7 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+              </svg>
+            </div>
+            <p id="supa-drop-pos-filename" class="text-emerald-400 text-sm font-medium"></p>
+            <p class="text-slate-500 text-xs">Clique para trocar o arquivo</p>
+          </div>
+        </div>
+        <div class="flex gap-3 mb-6">
+          <button id="supa-btn-preview-pos" onclick="supaPreview('pos')"
+            class="flex-1 bg-violet-700 hover:bg-violet-600 disabled:bg-slate-700 disabled:text-slate-500
+                   disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
+                   transition-all flex items-center justify-center gap-2" disabled>
+            Verificar IA
+          </button>
+          <button id="supa-btn-atualizar-pos" onclick="supaAtualizar('pos')"
+            class="flex-1 bg-emerald-700 hover:bg-emerald-600 disabled:bg-slate-700 disabled:text-slate-500
+                   disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
+                   transition-all flex items-center justify-center gap-2" disabled>
+            Atualizar IA
+          </button>
+        </div>
+        <div id="supa-results-pos" class="hidden"></div>
+      </div>
+
+    </div>
+
+    <!-- ═══ Seção Salesbot ═══ -->
+    <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden mt-6">
+
+      <!-- Título -->
+      <div class="px-6 py-4 border-b border-slate-800 flex items-center gap-2">
+        <svg class="w-5 h-5 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3v-3z"/>
+        </svg>
+        <h2 class="text-sm font-semibold text-slate-200">Salesbot</h2>
+        <span class="ml-1 text-xs text-slate-500">Graduação — Preço: Mar Aberto</span>
+      </div>
+
+      <div class="p-6">
+        <!-- Drop zone -->
+        <div id="sb-drop"
+          class="drop-zone rounded-xl p-10 text-center cursor-pointer mb-6 select-none"
+          onclick="document.getElementById('sb-file').click()"
+          ondragover="sbDragOver(event)"
+          ondragleave="sbDragLeave(event)"
+          ondrop="sbHandleDrop(event)">
+          <input type="file" id="sb-file" accept=".xlsx" class="hidden"
+            onchange="sbHandleFileSelect(event)" />
+          <div id="sb-drop-icon" class="flex flex-col items-center gap-3 pointer-events-none">
+            <div class="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
+              <svg class="w-7 h-7 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414
+                     5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+            <p class="text-slate-400 text-sm">Arraste o arquivo de <span class="text-teal-400 font-medium">Graduação</span> aqui</p>
+            <p class="text-slate-600 text-xs">ou clique para selecionar</p>
+          </div>
+          <div id="sb-drop-file" class="hidden items-center gap-3 pointer-events-none justify-center">
+            <svg class="w-8 h-8 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414
+                   5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <div class="text-left">
+              <p class="text-sm text-teal-300 font-medium" id="sb-drop-filename"></p>
+              <p class="text-xs text-slate-500">Pronto para verificar</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Botões -->
+        <div class="flex gap-3 mb-6">
+          <button id="sb-btn-preview" onclick="sbPreview()" disabled
+            class="flex-1 py-3 rounded-xl font-semibold text-sm transition-all
+                   bg-teal-600 hover:bg-teal-500 text-white disabled:opacity-40 disabled:cursor-not-allowed">
+            Verificar Salesbot
+          </button>
+          <button id="sb-btn-atualizar" onclick="sbAtualizar()" disabled
+            class="flex-1 py-3 rounded-xl font-semibold text-sm transition-all
+                   bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 disabled:cursor-not-allowed">
+            Atualizar Salesbot
+          </button>
+        </div>
+
+        <!-- Resultados -->
+        <div id="sb-results" class="hidden"></div>
+      </div>
+
+    </div>
+
+    <!-- ═══ Seção Site Cruzeiro (Wix) ═══ -->
+    <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden mt-6">
+
+      <div class="px-6 py-4 border-b border-slate-800 flex items-center gap-2">
+        <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9"/>
+        </svg>
+        <h2 class="text-sm font-semibold text-white uppercase tracking-wider">Site Cruzeiro</h2>
+        <span class="text-xs text-slate-500 ml-1">Wix</span>
+      </div>
+
+      <div class="flex gap-1 px-6 pt-4">
+        <button id="wix-tab-grad" onclick="wixTab('grad')"
+          class="tab-active px-4 py-2 rounded-lg text-sm font-medium transition-all">
+          Graduação
+        </button>
+        <button id="wix-tab-pos" onclick="wixTab('pos')"
+          class="tab-inactive px-4 py-2 rounded-lg text-sm font-medium transition-all">
+          Pós-Graduação
+        </button>
+      </div>
+
+      <!-- Panel Graduação -->
+      <div id="wix-panel-grad" class="p-6">
+        <div id="wix-drop-grad"
+          class="drop-zone rounded-xl p-10 text-center cursor-pointer mb-6 select-none"
+          onclick="document.getElementById('wix-file-grad').click()"
+          ondragover="wixDragOver(event,'grad')"
+          ondragleave="wixDragLeave(event,'grad')"
+          ondrop="wixHandleDrop(event,'grad')">
+          <input type="file" id="wix-file-grad" accept=".xlsx" class="hidden"
+            onchange="wixHandleFileSelect(event,'grad')" />
+          <div id="wix-drop-grad-icon" class="flex flex-col items-center gap-3 pointer-events-none">
+            <div class="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
+              <svg class="w-7 h-7 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586
+                     a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+            <p class="text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-300">graduação site</span></p>
+            <p class="text-slate-600 text-xs">ou clique para selecionar</p>
+          </div>
+          <div id="wix-drop-grad-file" class="hidden flex-col items-center gap-2 pointer-events-none">
+            <div class="w-14 h-14 rounded-full bg-emerald-900/40 flex items-center justify-center">
+              <svg class="w-7 h-7 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+              </svg>
+            </div>
+            <p id="wix-drop-grad-filename" class="text-emerald-400 text-sm font-medium"></p>
+            <p class="text-slate-500 text-xs">Clique para trocar o arquivo</p>
+          </div>
+        </div>
+        <div class="flex gap-3 mb-6">
+          <button id="wix-btn-preview-grad" onclick="wixPreview('grad')"
+            class="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500
+                   disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
+                   transition-all flex items-center justify-center gap-2" disabled>
+            Verificar Site
+          </button>
+          <button id="wix-btn-atualizar-grad" onclick="wixAtualizar('grad')"
+            class="flex-1 bg-emerald-700 hover:bg-emerald-600 disabled:bg-slate-700 disabled:text-slate-500
+                   disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
+                   transition-all flex items-center justify-center gap-2" disabled>
+            Atualizar Site
+          </button>
+        </div>
+        <div id="wix-results-grad" class="hidden"></div>
+      </div>
+
+      <!-- Panel Pós-Graduação -->
+      <div id="wix-panel-pos" class="p-6 hidden">
+        <div id="wix-drop-pos"
+          class="drop-zone rounded-xl p-10 text-center cursor-pointer mb-6 select-none"
+          onclick="document.getElementById('wix-file-pos').click()"
+          ondragover="wixDragOver(event,'pos')"
+          ondragleave="wixDragLeave(event,'pos')"
+          ondrop="wixHandleDrop(event,'pos')">
+          <input type="file" id="wix-file-pos" accept=".xlsx" class="hidden"
+            onchange="wixHandleFileSelect(event,'pos')" />
+          <div id="wix-drop-pos-icon" class="flex flex-col items-center gap-3 pointer-events-none">
+            <div class="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
+              <svg class="w-7 h-7 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586
+                     a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+            <p class="text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-300">pós-graduação site</span></p>
+            <p class="text-slate-600 text-xs">ou clique para selecionar</p>
+          </div>
+          <div id="wix-drop-pos-file" class="hidden flex-col items-center gap-2 pointer-events-none">
+            <div class="w-14 h-14 rounded-full bg-emerald-900/40 flex items-center justify-center">
+              <svg class="w-7 h-7 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+              </svg>
+            </div>
+            <p id="wix-drop-pos-filename" class="text-emerald-400 text-sm font-medium"></p>
+            <p class="text-slate-500 text-xs">Clique para trocar o arquivo</p>
+          </div>
+        </div>
+        <div class="flex gap-3 mb-6">
+          <button id="wix-btn-preview-pos" onclick="wixPreview('pos')"
+            class="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500
+                   disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
+                   transition-all flex items-center justify-center gap-2" disabled>
+            Verificar Site
+          </button>
+          <button id="wix-btn-atualizar-pos" onclick="wixAtualizar('pos')"
+            class="flex-1 bg-emerald-700 hover:bg-emerald-600 disabled:bg-slate-700 disabled:text-slate-500
+                   disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
+                   transition-all flex items-center justify-center gap-2" disabled>
+            Atualizar Site
+          </button>
+        </div>
+        <div id="wix-results-pos" class="hidden"></div>
+      </div>
+
+    </div>
+
+    <!-- ═══ Seção Eduit-ead (Wix 2) ═══ -->
+    <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden mt-6">
+
+      <div class="px-6 py-4 border-b border-slate-800 flex items-center gap-2">
+        <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+        </svg>
+        <h2 class="text-sm font-semibold text-white uppercase tracking-wider">Eduit-ead</h2>
+        <span class="text-xs text-slate-500 ml-1">Wix 2</span>
+      </div>
+
+      <div class="flex gap-1 px-6 pt-4">
+        <button id="wix2-tab-grad" onclick="wix2Tab('grad')"
+          class="tab-active px-4 py-2 rounded-lg text-sm font-medium transition-all">
+          Graduação
+        </button>
+        <button id="wix2-tab-pos" onclick="wix2Tab('pos')"
+          class="tab-inactive px-4 py-2 rounded-lg text-sm font-medium transition-all">
+          Pós-Graduação
+        </button>
+      </div>
+
+      <!-- Panel Graduação -->
+      <div id="wix2-panel-grad" class="p-6">
+        <div id="wix2-drop-grad"
+          class="drop-zone rounded-xl p-10 text-center cursor-pointer mb-6 select-none"
+          onclick="document.getElementById('wix2-file-grad').click()"
+          ondragover="wix2DragOver(event,'grad')"
+          ondragleave="wix2DragLeave(event,'grad')"
+          ondrop="wix2HandleDrop(event,'grad')">
+          <input type="file" id="wix2-file-grad" accept=".xlsx" class="hidden"
+            onchange="wix2HandleFileSelect(event,'grad')" />
+          <div id="wix2-drop-grad-icon" class="flex flex-col items-center gap-3 pointer-events-none">
+            <div class="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
+              <svg class="w-7 h-7 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586
+                     a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+            <p class="text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-300">graduação ead</span></p>
+            <p class="text-slate-600 text-xs">ou clique para selecionar</p>
+          </div>
+          <div id="wix2-drop-grad-file" class="hidden flex-col items-center gap-2 pointer-events-none">
+            <div class="w-14 h-14 rounded-full bg-emerald-900/40 flex items-center justify-center">
+              <svg class="w-7 h-7 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+              </svg>
+            </div>
+            <p id="wix2-drop-grad-filename" class="text-emerald-400 text-sm font-medium"></p>
+            <p class="text-slate-500 text-xs">Clique para trocar o arquivo</p>
+          </div>
+        </div>
+        <div class="flex gap-3 mb-6">
+          <button id="wix2-btn-preview-grad" onclick="wix2Preview('grad')"
+            class="flex-1 bg-violet-700 hover:bg-violet-600 disabled:bg-slate-700 disabled:text-slate-500
+                   disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
+                   transition-all flex items-center justify-center gap-2" disabled>
+            Verificar Site
+          </button>
+          <button id="wix2-btn-atualizar-grad" onclick="wix2Atualizar('grad')"
+            class="flex-1 bg-emerald-700 hover:bg-emerald-600 disabled:bg-slate-700 disabled:text-slate-500
+                   disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
+                   transition-all flex items-center justify-center gap-2" disabled>
+            Atualizar Site
+          </button>
+        </div>
+        <div id="wix2-results-grad" class="hidden"></div>
+      </div>
+
+      <!-- Panel Pós-Graduação -->
+      <div id="wix2-panel-pos" class="p-6 hidden">
+        <div id="wix2-drop-pos"
+          class="drop-zone rounded-xl p-10 text-center cursor-pointer mb-6 select-none"
+          onclick="document.getElementById('wix2-file-pos').click()"
+          ondragover="wix2DragOver(event,'pos')"
+          ondragleave="wix2DragLeave(event,'pos')"
+          ondrop="wix2HandleDrop(event,'pos')">
+          <input type="file" id="wix2-file-pos" accept=".xlsx" class="hidden"
+            onchange="wix2HandleFileSelect(event,'pos')" />
+          <div id="wix2-drop-pos-icon" class="flex flex-col items-center gap-3 pointer-events-none">
+            <div class="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
+              <svg class="w-7 h-7 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586
+                     a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+            <p class="text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-300">pós-graduação ead</span></p>
+            <p class="text-slate-600 text-xs">ou clique para selecionar</p>
+          </div>
+          <div id="wix2-drop-pos-file" class="hidden flex-col items-center gap-2 pointer-events-none">
+            <div class="w-14 h-14 rounded-full bg-emerald-900/40 flex items-center justify-center">
+              <svg class="w-7 h-7 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+              </svg>
+            </div>
+            <p id="wix2-drop-pos-filename" class="text-emerald-400 text-sm font-medium"></p>
+            <p class="text-slate-500 text-xs">Clique para trocar o arquivo</p>
+          </div>
+        </div>
+        <div class="flex gap-3 mb-6">
+          <button id="wix2-btn-preview-pos" onclick="wix2Preview('pos')"
+            class="flex-1 bg-violet-700 hover:bg-violet-600 disabled:bg-slate-700 disabled:text-slate-500
+                   disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
+                   transition-all flex items-center justify-center gap-2" disabled>
+            Verificar Site
+          </button>
+          <button id="wix2-btn-atualizar-pos" onclick="wix2Atualizar('pos')"
+            class="flex-1 bg-emerald-700 hover:bg-emerald-600 disabled:bg-slate-700 disabled:text-slate-500
+                   disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
+                   transition-all flex items-center justify-center gap-2" disabled>
+            Atualizar Site
+          </button>
+        </div>
+        <div id="wix2-results-pos" class="hidden"></div>
+      </div>
+
+    </div>
+
+    <!-- ═══ Seção Eduit New (Wix 3) ═══ -->
+    <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden mt-6">
+
+      <div class="px-6 py-4 border-b border-slate-800 flex items-center gap-2">
+        <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0
+               1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755
+               1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838
+               -.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81
+               .588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
+        </svg>
+        <h2 class="text-sm font-semibold text-white uppercase tracking-wider">Eduit New</h2>
+        <span class="text-xs text-slate-500 ml-1">Wix 3</span>
+      </div>
+
+      <div class="flex gap-1 px-6 pt-4">
+        <button id="wix3-tab-grad" onclick="wix3Tab('grad')"
+          class="tab-active px-4 py-2 rounded-lg text-sm font-medium transition-all">
+          Graduação
+        </button>
+        <button id="wix3-tab-pos" onclick="wix3Tab('pos')"
+          class="tab-inactive px-4 py-2 rounded-lg text-sm font-medium transition-all">
+          Pós-Graduação
+        </button>
+      </div>
+
+      <!-- Panel Graduação -->
+      <div id="wix3-panel-grad" class="p-6">
+        <div id="wix3-drop-grad"
+          class="drop-zone rounded-xl p-10 text-center cursor-pointer mb-6 select-none"
+          onclick="document.getElementById('wix3-file-grad').click()"
+          ondragover="wix3DragOver(event,'grad')"
+          ondragleave="wix3DragLeave(event,'grad')"
+          ondrop="wix3HandleDrop(event,'grad')">
+          <input type="file" id="wix3-file-grad" accept=".xlsx" class="hidden"
+            onchange="wix3HandleFileSelect(event,'grad')" />
+          <div id="wix3-drop-grad-icon" class="flex flex-col items-center gap-3 pointer-events-none">
+            <div class="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
+              <svg class="w-7 h-7 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586
+                     a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+            <p class="text-slate-400 text-sm">Arraste o arquivo de <span class="text-amber-400 font-medium">Graduação</span> aqui</p>
+            <p class="text-slate-600 text-xs">ou clique para selecionar</p>
+          </div>
+          <div id="wix3-drop-grad-file" class="hidden items-center gap-3 pointer-events-none justify-center">
+            <svg class="w-8 h-8 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414
+                   5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <div class="text-left">
+              <p class="text-sm text-amber-300 font-medium" id="wix3-drop-grad-filename"></p>
+              <p class="text-xs text-slate-500">Pronto para verificar</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex gap-3 mb-6">
+          <button id="wix3-btn-preview-grad" onclick="wix3Preview('grad')" disabled
+            class="flex-1 py-3 rounded-xl font-semibold text-sm transition-all
+                   bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-40 disabled:cursor-not-allowed">
+            Verificar Site
+          </button>
+          <button id="wix3-btn-atualizar-grad" onclick="wix3Atualizar('grad')" disabled
+            class="flex-1 py-3 rounded-xl font-semibold text-sm transition-all
+                   bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 disabled:cursor-not-allowed">
+            Atualizar Site
+          </button>
+        </div>
+
+        <div id="wix3-results-grad" class="hidden"></div>
+      </div>
+
+      <!-- Panel Pós-Graduação -->
+      <div id="wix3-panel-pos" class="p-6 hidden">
+        <div id="wix3-drop-pos"
+          class="drop-zone rounded-xl p-10 text-center cursor-pointer mb-6 select-none"
+          onclick="document.getElementById('wix3-file-pos').click()"
+          ondragover="wix3DragOver(event,'pos')"
+          ondragleave="wix3DragLeave(event,'pos')"
+          ondrop="wix3HandleDrop(event,'pos')">
+          <input type="file" id="wix3-file-pos" accept=".xlsx" class="hidden"
+            onchange="wix3HandleFileSelect(event,'pos')" />
+          <div id="wix3-drop-pos-icon" class="flex flex-col items-center gap-3 pointer-events-none">
+            <div class="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
+              <svg class="w-7 h-7 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586
+                     a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+            <p class="text-slate-400 text-sm">Arraste o arquivo de <span class="text-amber-400 font-medium">Pós-Graduação</span> aqui</p>
+            <p class="text-slate-600 text-xs">ou clique para selecionar</p>
+          </div>
+          <div id="wix3-drop-pos-file" class="hidden items-center gap-3 pointer-events-none justify-center">
+            <svg class="w-8 h-8 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414
+                   5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <div class="text-left">
+              <p class="text-sm text-amber-300 font-medium" id="wix3-drop-pos-filename"></p>
+              <p class="text-xs text-slate-500">Pronto para verificar</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex gap-3 mb-6">
+          <button id="wix3-btn-preview-pos" onclick="wix3Preview('pos')" disabled
+            class="flex-1 py-3 rounded-xl font-semibold text-sm transition-all
+                   bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-40 disabled:cursor-not-allowed">
+            Verificar Site
+          </button>
+          <button id="wix3-btn-atualizar-pos" onclick="wix3Atualizar('pos')" disabled
+            class="flex-1 py-3 rounded-xl font-semibold text-sm transition-all
+                   bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 disabled:cursor-not-allowed">
+            Atualizar Site
+          </button>
+        </div>
+
+        <div id="wix3-results-pos" class="hidden"></div>
+      </div>
+
+    </div>
+
+  </main>
+
+    <script>
+    const state = { grad: { file: null }, pos: { file: null } };
+
+    // ── Tabs ──
+    function switchTab(tipo) {
+      ['grad','pos'].forEach(t => {
+        document.getElementById(`tab-${t}`).className =
+          t === tipo
+            ? 'tab-active px-4 py-2 rounded-lg text-sm font-medium transition-all'
+            : 'tab-inactive px-4 py-2 rounded-lg text-sm font-medium transition-all';
+        document.getElementById(`panel-${t}`).classList.toggle('hidden', t !== tipo);
+      });
+    }
+
+    // ── Drag & Drop ──
+    function handleDragOver(e, tipo) {
+      e.preventDefault();
+      document.getElementById(`drop-${tipo}`).classList.add('dragover');
+    }
+    function handleDragLeave(e, tipo) {
+      document.getElementById(`drop-${tipo}`).classList.remove('dragover');
+    }
+    function handleDrop(e, tipo) {
+      e.preventDefault();
+      document.getElementById(`drop-${tipo}`).classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file) setFile(tipo, file);
+    }
+    function handleFileSelect(e, tipo) {
+      const file = e.target.files[0];
+      if (file) setFile(tipo, file);
+    }
+
+    function setFile(tipo, file) {
+      state[tipo].file = file;
+      const icon = document.getElementById(`drop-${tipo}-icon`);
+      const info = document.getElementById(`drop-${tipo}-file`);
+      const name = document.getElementById(`drop-${tipo}-filename`);
+      icon.classList.add('hidden'); icon.classList.remove('flex');
+      info.classList.remove('hidden'); info.classList.add('flex');
+      name.textContent = file.name;
+      document.getElementById(`drop-${tipo}`).classList.add('has-file');
+      document.getElementById(`btn-preview-${tipo}`).disabled = false;
+      document.getElementById(`results-${tipo}`).classList.add('hidden');
+      document.getElementById(`btn-atualizar-${tipo}`).disabled = true;
+    }
+
+    // ── Preview ──
+    async function preview(tipo) {
+      const file = state[tipo].file;
+      if (!file) return;
+      setBtnLoading(`btn-preview-${tipo}`, true, 'Verificando...');
+      document.getElementById(`results-${tipo}`).classList.add('hidden');
+
+      const fd = new FormData();
+      fd.append('tipo', tipo);
+      fd.append('file', file);
+
+      try {
+        const res  = await fetch('/api/preview', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.error) { showError(tipo, data.error); return; }
+        _apRenderResults(tipo, data, false);
+        document.getElementById(`btn-atualizar-${tipo}`).disabled = false;
+      } catch(e) {
+        showError(tipo, e.message);
+      } finally {
+        setBtnLoading(`btn-preview-${tipo}`, false, 'Verificar');
+      }
+    }
+
+    // ── Atualizar ──
+    async function atualizar(tipo) {
+      const file = state[tipo].file;
+      if (!file) return;
+      if (!confirm(`Confirma a atualização de preços de TODOS os produtos de ${tipo === 'grad' ? 'Graduação' : 'Pós-Graduação'} no Kommo?`)) return;
+
+      setBtnLoading(`btn-atualizar-${tipo}`, true, 'Atualizando...');
+
+      const fd = new FormData();
+      fd.append('tipo', tipo);
+      fd.append('file', file);
+
+      try {
+        const res  = await fetch('/api/atualizar', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.error) { showError(tipo, data.error); return; }
+        renderSuccess(tipo, data);
+        document.getElementById(`btn-atualizar-${tipo}`).disabled = true;
+      } catch(e) {
+        showError(tipo, e.message);
+      } finally {
+        setBtnLoading(`btn-atualizar-${tipo}`, false, 'Atualizar no Kommo');
+      }
+    }
+
+    // ── Render resultados ──
+    function _apRenderResults(tipo, data, applied) {
+      const el = document.getElementById(`results-${tipo}`);
+      el.classList.remove('hidden');
+
+      const totalKommo = data.total_match + data.total_nao_kommo;
+      const pct = data.total_planilha
+        ? Math.round(data.total_match / data.total_planilha * 100) : 0;
+
+      const badgeAtualizar = `<span class="inline-flex items-center gap-1.5 text-xs font-medium badge-match px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Será atualizado</span>`;
+      const badgeSemMud   = `<span class="inline-flex items-center gap-1.5 text-xs font-medium bg-slate-700/50 text-slate-400 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Sem mudança</span>`;
+      const badgeKommo    = `<span class="inline-flex items-center gap-1.5 text-xs font-medium badge-nomatch px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-red-400"></span> Não na planilha</span>`;
+      const badgePlan     = `<span class="inline-flex items-center gap-1.5 text-xs font-medium bg-amber-900/30 text-amber-400 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Só na planilha</span>`;
+
+      const fmt = v => v != null ? `R$&nbsp;${v}` : '<span class="text-slate-700">—</span>';
+      const fmtPct = v => v != null ? `<span class="text-slate-400 text-xs">${v}</span>` : '<span class="text-slate-700">—</span>';
+
+      const cmp = (old, nw) => {
+        if (old == null && nw == null) return '<span class="text-slate-700">—</span>';
+        if (old == nw) return `<span class="text-slate-400">R$&nbsp;${old}</span>`;
+        return `<span class="text-slate-500 line-through text-[10px]">R$&nbsp;${old ?? '—'}</span><br><span class="text-emerald-400 font-medium">R$&nbsp;${nw ?? '—'}</span>`;
+      };
+      const cmpPct = (old, nw) => {
+        if (old == null && nw == null) return '<span class="text-slate-700">—</span>';
+        if (old == nw) return `<span class="text-slate-400 text-xs">${old}</span>`;
+        return `<span class="text-slate-500 line-through text-[10px]">${old ?? '—'}</span><br><span class="text-emerald-400 text-xs">${nw ?? '—'}</span>`;
+      };
+
+      let matchRows = sortByName(data.matches, 'nome').map(m => {
+        const d = m.dados;
+        const a = m.atual || {};
+        const mNome = m.nome || m.chave || (d && d.nome) || '';
+        const cat = m.needs_update ? 'atualizar' : 'sem_mudanca';
+        const badge = m.needs_update ? badgeAtualizar : badgeSemMud;
+        return `
+        <tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="${cat}">
+          <td class="py-3 px-4 sticky left-0 bg-slate-900 z-10">${badge}</td>
+          <td class="py-3 px-4 text-sm text-slate-200 whitespace-nowrap">${escHtml(mNome)}</td>
+          <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${cmp(a.preco_cruzeiro, d.preco_cruzeiro)}</td>
+          <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${cmp(a.balcao, d.balcao)}</td>
+          <td class="py-3 px-4 text-center whitespace-nowrap">${cmpPct(a.balcao_pct, d.balcao_pct)}</td>
+          <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${cmp(a.estrategico, d.estrategico)}</td>
+          <td class="py-3 px-4 text-center whitespace-nowrap">${cmpPct(a.pct_estrategico, d.pct_estrategico)}</td>
+          <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${cmp(a.mar_aberto, d.mar_aberto)}</td>
+          <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${cmp(a.dois_grad, d.dois_grad)}</td>
+          <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${cmp(a.transferencia, d.transferencia)}</td>
+        </tr>`;
+      }).join('');
+
+      const emptyPriceCells = `<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>`;
+
+      let naoKommoRows = sortByName(data.nao_no_kommo || [], 'nome').map(n => `
+        <tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="nao_kommo">
+          <td class="py-3 px-4 sticky left-0 bg-slate-900 z-10">${badgeKommo}</td>
+          <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(n.nome || n.chave || '')}</td>
+          ${emptyPriceCells}
+        </tr>`).join('');
+
+      let soloPlanRows = sortByName(data.so_na_planilha || [], 'nome').map(n => `
+        <tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="so_planilha">
+          <td class="py-3 px-4 sticky left-0 bg-slate-900 z-10">${badgePlan}</td>
+          <td class="py-3 px-4 text-sm text-amber-300/80 whitespace-nowrap">${escHtml(n.nome || n.chave || '')}</td>
+          ${emptyPriceCells}
+        </tr>`).join('');
+
+
+      el.innerHTML = `
+        <!-- Stats -->
+        <div class="grid grid-cols-5 gap-3 mb-5">
+          <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 cursor-pointer filter-btn" data-filter="all" onclick="toggleFilter('${tipo}','all')">
+            <p class="text-xs text-slate-500 mb-1">Na planilha</p>
+            <p class="text-2xl font-bold text-white">${data.total_planilha}</p>
+          </div>
+          <div class="bg-emerald-900/30 rounded-xl p-4 border border-emerald-800/50 cursor-pointer filter-btn" data-filter="atualizar" onclick="toggleFilter('${tipo}','atualizar')">
+            <p class="text-xs text-emerald-500 mb-1">Serão atualizados</p>
+            <p class="text-2xl font-bold text-emerald-400">${data.total_atualizar || 0}</p>
+          </div>
+          <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="toggleFilter('${tipo}','sem_mudanca')">
+            <p class="text-xs text-slate-500 mb-1">Sem mudança</p>
+            <p class="text-2xl font-bold text-white">${data.total_sem_mudanca || 0}</p>
+          </div>
+          <div class="bg-red-900/20 rounded-xl p-4 border border-red-900/40 cursor-pointer filter-btn" data-filter="nao_kommo" onclick="toggleFilter('${tipo}','nao_kommo')">
+            <p class="text-xs text-red-500 mb-1">Não na planilha</p>
+            <p class="text-2xl font-bold text-red-400">${data.total_nao_kommo}</p>
+          </div>
+          <div class="bg-amber-900/20 rounded-xl p-4 border border-amber-900/40 cursor-pointer filter-btn" data-filter="so_planilha" onclick="toggleFilter('${tipo}','so_planilha')">
+            <p class="text-xs text-amber-500 mb-1">Só na planilha</p>
+            <p class="text-2xl font-bold text-amber-400">${data.total_so_plan}</p>
+          </div>
+        </div>
+
+        <!-- Barra de progresso -->
+        <div class="mb-5">
+          <div class="flex justify-between text-xs text-slate-500 mb-1.5">
+            <span>Taxa de correspondência</span>
+            <span class="text-slate-300 font-medium">${pct}%</span>
+          </div>
+          <div class="h-2 bg-slate-800 rounded-full overflow-hidden">
+            <div class="h-full bg-gradient-to-r from-indigo-500 to-emerald-500 rounded-full transition-all"
+              style="width:${pct}%"></div>
+          </div>
+        </div>
+
+        <!-- Tabela -->
+        <div class="rounded-xl border border-slate-800 overflow-hidden">
+          <div class="flex items-center gap-3 px-4 py-3 bg-slate-800/60 border-b border-slate-700">
+            <span class="text-xs text-slate-400 font-medium uppercase tracking-wider">Cursos</span>
+            <span class="text-xs text-slate-600">${totalKommo} no Kommo · ${data.total_planilha} na planilha</span>
+          </div>
+          <div class="overflow-auto max-h-[480px]">
+            <table class="w-full text-xs">
+              <thead class="sticky top-0 bg-slate-900 z-20">
+                <tr class="border-b border-slate-700">
+                  <th class="py-2.5 px-4 text-left text-slate-500 font-medium sticky left-0 bg-slate-900 z-20 whitespace-nowrap">Status</th>
+                  <th class="py-2.5 px-4 text-left text-slate-500 font-medium whitespace-nowrap">Nome</th>
+                  <th class="py-2.5 px-4 text-right whitespace-nowrap"><span class="text-indigo-400 font-semibold">Preço Base</span><br><span class="text-[10px] text-slate-600">atual → novo</span></th>
+                  <th class="py-2.5 px-4 text-right whitespace-nowrap"><span class="text-slate-400 font-medium">Balcão R$</span><br><span class="text-[10px] text-slate-600">atual → novo</span></th>
+                  <th class="py-2.5 px-4 text-center text-slate-400 font-medium whitespace-nowrap">Balcão %</th>
+                  <th class="py-2.5 px-4 text-right whitespace-nowrap"><span class="text-slate-400 font-medium">Estratégico</span><br><span class="text-[10px] text-slate-600">atual → novo</span></th>
+                  <th class="py-2.5 px-4 text-center text-slate-400 font-medium whitespace-nowrap">Estratégico %</th>
+                  <th class="py-2.5 px-4 text-right whitespace-nowrap"><span class="text-slate-400 font-medium">Mar Aberto</span><br><span class="text-[10px] text-slate-600">atual → novo</span></th>
+                  <th class="py-2.5 px-4 text-right whitespace-nowrap"><span class="text-slate-400 font-medium">2ª Grad</span><br><span class="text-[10px] text-slate-600">atual → novo</span></th>
+                  <th class="py-2.5 px-4 text-right whitespace-nowrap"><span class="text-slate-400 font-medium">Transferência</span><br><span class="text-[10px] text-slate-600">atual → novo</span></th>
+                </tr>
+              </thead>
+              <tbody id="tbody-${tipo}">
+                ${matchRows}
+                ${naoKommoRows}
+                ${soloPlanRows}
+              </tbody>
+            </table>
+          </div>
+
+        </div>`;
+
+    }
+
+    function renderSuccess(tipo, data) {
+      const el = document.getElementById(`results-${tipo}`);
+      el.classList.remove('hidden');
+      el.innerHTML = `
+        <div class="rounded-xl bg-emerald-900/20 border border-emerald-800/40 p-5 flex items-start gap-4">
+          <div class="w-10 h-10 rounded-full bg-emerald-800/50 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+          </div>
+          <div>
+            <p class="text-emerald-400 font-semibold text-sm mb-1">Atualização concluída!</p>
+            <p class="text-slate-400 text-sm">
+              <span class="text-white font-medium">${data.atualizados}</span> produtos atualizados no Kommo.
+              ${data.nao_no_kommo > 0 ? `<span class="text-red-400"> ${data.nao_no_kommo} sem match no Kommo.</span>` : ''}
+              ${data.so_na_planilha > 0 ? `<span class="text-amber-400"> ${data.so_na_planilha} só na planilha.</span>` : ''}
+              ${data.erros > 0 ? `<span class="text-red-400"> ${data.erros} com erro.</span>` : ''}
+            </p>
+          </div>
+
+        </div>`;
+    }
+
+    function showError(tipo, msg) {
+      const el = document.getElementById(`results-${tipo}`);
+      el.classList.remove('hidden');
+      el.innerHTML = `
+        <div class="rounded-xl bg-red-900/20 border border-red-800/40 p-4 flex gap-3">
+          <svg class="w-5 h-5 text-red-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <p class="text-red-300 text-sm">${escHtml(msg)}</p>
+        </div>`;
+    }
+
+    // ── Helpers ──
+    function setBtnLoading(id, loading, label) {
+      const btn = document.getElementById(id);
+      if (loading) {
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner"></span> ${label}`;
+        startProgressBar(btn);
+      } else {
+        btn.disabled = false;
+        btn.innerHTML = label;
+        stopProgressBar(btn);
+      }
+    }
+
+    // ── Progress Bar ──
+    const _progressState = new WeakMap();
+
+    function startProgressBar(btn) {
+      const section = btn.closest('.flex.gap-3.mb-6') || btn.parentElement;
+      let bar = section.nextElementSibling;
+      if (!bar || !bar.classList.contains('progress-bar-wrap')) {
+        bar = document.createElement('div');
+        bar.className = 'progress-bar-wrap mb-4';
+        bar.innerHTML = `
+          <div style="background:#1e293b;border-radius:9999px;height:8px;overflow:hidden;position:relative">
+            <div class="pbar-fill" style="height:100%;width:0%;border-radius:9999px;
+              background:linear-gradient(90deg,#6366f1,#22c55e);
+              transition:width .4s cubic-bezier(.4,0,.2,1);position:relative;overflow:hidden">
+              <div style="position:absolute;inset:0;
+                background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.2) 50%,transparent 100%);
+                animation:pbar-shimmer 1.5s infinite"></div>
+            </div>
+          </div>
+          <p class="pbar-label" style="text-align:right;font-size:11px;color:#94a3b8;margin-top:4px">0%</p>`;
+        section.after(bar);
+      }
+      bar.style.display = 'block';
+      const fill = bar.querySelector('.pbar-fill');
+      const label = bar.querySelector('.pbar-label');
+      fill.style.width = '0%';
+      label.textContent = '0%';
+
+      let pct = 0;
+      const iv = setInterval(() => {
+        const remaining = 85 - pct;
+        pct += Math.max(0.5, remaining * 0.08);
+        if (pct > 85) pct = 85;
+        fill.style.width = pct.toFixed(1) + '%';
+        label.textContent = Math.round(pct) + '%';
+      }, 300);
+
+      _progressState.set(btn, { bar, iv, fill, label });
+    }
+
+    function stopProgressBar(btn) {
+      const st = _progressState.get(btn);
+      if (!st) return;
+      clearInterval(st.iv);
+      st.fill.style.width = '100%';
+      st.label.textContent = '100%';
+      setTimeout(() => {
+        st.fill.style.transition = 'opacity .5s';
+        st.fill.style.opacity = '0';
+        setTimeout(() => { st.bar.style.display = 'none'; st.fill.style.opacity = '1'; st.fill.style.width = '0%'; }, 600);
+      }, 700);
+      _progressState.delete(btn);
+    }
+
+    // ── Filtro por categoria ──
+    const activeFilters = {};
+
+    function toggleFilter(tipo, cat) {
+      const resultsEl = document.getElementById(`results-${tipo}`);
+      const btns      = resultsEl.querySelectorAll('.filter-btn');
+      const tbody     = document.getElementById(`tbody-${tipo}`);
+      if (!tbody) return;
+
+      // "all" reseta todos os filtros
+      if (cat === 'all') {
+        activeFilters[tipo] = null;
+      } else {
+        activeFilters[tipo] = activeFilters[tipo] === cat ? null : cat;
+      }
+
+      const active = activeFilters[tipo];
+
+      // Atualiza visual dos botões
+      btns.forEach(btn => {
+        const f = btn.dataset.filter;
+        const isActive = (active === null && f === 'all') || f === active;
+        btn.dataset.active = isActive ? 'true' : 'false';
+      });
+
+      // Mostra/oculta linhas
+      tbody.querySelectorAll('tr[data-cat]').forEach(row => {
+        const show = active === null || row.dataset.cat === active;
+        row.style.display = show ? '' : 'none';
+      });
+    }
+
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function parseWixInfo(m) {
+      const curso = m.curso || m.cursoSite || '';
+      let mod = m.modalidade || '';
+      let grau = m.grau || m.grauSite || '';
+      const chave = m.chave || '';
+      const isModality = s => /semipresencial|presencial|\bead\b/i.test(s);
+      if (grau && isModality(grau) && !mod) { mod = grau; grau = ''; }
+      if (!mod && m.tipo && isModality(m.tipo)) mod = m.tipo;
+      if (!mod && chave) {
+        if (/semipresencial/i.test(chave)) mod = 'Semi';
+        else if (/\bEAD\b/i.test(chave)) mod = 'EAD';
+        else if (/presencial/i.test(chave)) mod = 'Presencial';
+      }
+      if (!grau && chave) {
+        if (/bacharelado/i.test(chave)) grau = 'Bacharelado';
+        else if (/licenciatura/i.test(chave)) grau = 'Licenciatura';
+        else if (/tecn[oó]log/i.test(chave)) grau = 'Tecnólogo';
+      }
+      if (mod === 'Semipresencial') mod = 'Semi';
+      const tipoGrau = [mod, grau].filter(Boolean).join(' · ');
+      return { curso: curso || chave, tipoGrau };
+    }
+
+    function sortByName(arr, key) {
+      return [...arr].sort((a, b) => {
+        const na = (typeof a === 'string' ? a : (a[key] || a.nome || a.curso || a.chave || a.cursoSite || '')).toLowerCase();
+        const nb = (typeof b === 'string' ? b : (b[key] || b.nome || b.curso || b.chave || b.cursoSite || '')).toLowerCase();
+        return na.localeCompare(nb, 'pt-BR');
+      });
+    }
+
+    // ═══════════════════════════════════════════════
+    // Supabase IA
+    // ═══════════════════════════════════════════════
+    const supaFiles = { grad: null, pos: null };
+
+    function supaTab(tipo) {
+      ['grad','pos'].forEach(t => {
+        document.getElementById(`supa-tab-${t}`).className =
+          t === tipo
+            ? 'tab-active px-4 py-2 rounded-lg text-sm font-medium transition-all'
+            : 'tab-inactive px-4 py-2 rounded-lg text-sm font-medium transition-all';
+        document.getElementById(`supa-panel-${t}`).classList.toggle('hidden', t !== tipo);
+      });
+    }
+
+    function supaDragOver(e, tipo) {
+      e.preventDefault();
+      document.getElementById(`supa-drop-${tipo}`).classList.add('dragover');
+    }
+    function supaDragLeave(e, tipo) {
+      document.getElementById(`supa-drop-${tipo}`).classList.remove('dragover');
+    }
+    function supaHandleDrop(e, tipo) {
+      e.preventDefault();
+      document.getElementById(`supa-drop-${tipo}`).classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file) supaSetFile(tipo, file);
+    }
+    function supaHandleFileSelect(e, tipo) {
+      const file = e.target.files[0];
+      if (file) supaSetFile(tipo, file);
+    }
+
+    function supaSetFile(tipo, file) {
+      supaFiles[tipo] = file;
+      const icon = document.getElementById(`supa-drop-${tipo}-icon`);
+      const info = document.getElementById(`supa-drop-${tipo}-file`);
+      const name = document.getElementById(`supa-drop-${tipo}-filename`);
+      icon.classList.add('hidden'); icon.classList.remove('flex');
+      info.classList.remove('hidden'); info.classList.add('flex');
+      name.textContent = file.name;
+      document.getElementById(`supa-drop-${tipo}`).classList.add('has-file');
+      document.getElementById(`supa-btn-preview-${tipo}`).disabled = false;
+      document.getElementById(`supa-results-${tipo}`).classList.add('hidden');
+      document.getElementById(`supa-btn-atualizar-${tipo}`).disabled = true;
+    }
+
+    async function supaPreview(tipo) {
+      const file = supaFiles[tipo];
+      if (!file) return;
+      setBtnLoading(`supa-btn-preview-${tipo}`, true, 'Verificando...');
+      document.getElementById(`supa-results-${tipo}`).classList.add('hidden');
+
+      const fd = new FormData();
+      fd.append('tipo', tipo);
+      fd.append('file', file);
+
+      try {
+        const res  = await fetch('/api/preview_supabase', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.error) { supaShowError(tipo, data.error); return; }
+        supaRenderResults(tipo, data);
+        document.getElementById(`supa-btn-atualizar-${tipo}`).disabled = false;
+      } catch(e) {
+        supaShowError(tipo, e.message);
+      } finally {
+        setBtnLoading(`supa-btn-preview-${tipo}`, false, 'Verificar IA');
+      }
+    }
+
+    async function supaAtualizar(tipo) {
+      const file = supaFiles[tipo];
+      if (!file) return;
+      if (!confirm(`Confirma a atualização da IA (Supabase) para ${tipo === 'grad' ? 'Graduação' : 'Pós-Graduação'}?`)) return;
+
+      setBtnLoading(`supa-btn-atualizar-${tipo}`, true, 'Atualizando...');
+
+      const fd = new FormData();
+      fd.append('tipo', tipo);
+      fd.append('file', file);
+
+      try {
+        const res  = await fetch('/api/atualizar_supabase', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.error) { supaShowError(tipo, data.error); return; }
+        supaRenderSuccess(tipo, data);
+        document.getElementById(`supa-btn-atualizar-${tipo}`).disabled = true;
+      } catch(e) {
+        supaShowError(tipo, e.message);
+      } finally {
+        setBtnLoading(`supa-btn-atualizar-${tipo}`, false, 'Atualizar IA');
+      }
+    }
+
+    const supaActiveFilters = {};
+
+    function supaToggleFilter(tipo, cat) {
+      const el = document.getElementById(`supa-results-${tipo}`);
+      const tbody = document.getElementById(`supa-tbody-${tipo}`);
+      if (!tbody) return;
+      supaActiveFilters[tipo] = supaActiveFilters[tipo] === cat ? null : cat;
+      const active = supaActiveFilters[tipo];
+      el.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.style.opacity = (!active || btn.dataset.filter === active) ? '1' : '0.4';
+      });
+      tbody.querySelectorAll('tr[data-cat]').forEach(row => {
+        row.style.display = (!active || row.dataset.cat === active) ? '' : 'none';
+      });
+    }
+
+    function supaBadge(status) {
+      if (status === 'atualizar')
+        return '<span class="inline-flex items-center gap-1.5 text-xs font-medium badge-match px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>Atualizar</span>';
+      if (status === 'sem_mudanca')
+        return '<span class="inline-flex items-center gap-1.5 text-xs font-medium bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>Sem mudança</span>';
+      if (status === 'nao_encontrado')
+        return '<span class="inline-flex items-center gap-1.5 text-xs font-medium badge-nomatch px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>Não encontrado</span>';
+      return '<span class="inline-flex items-center gap-1.5 text-xs font-medium bg-amber-900/30 text-amber-400 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>Só planilha</span>';
+    }
+
+    function supaRenderResults(tipo, data) {
+      const el = document.getElementById(`supa-results-${tipo}`);
+      el.classList.remove('hidden');
+      const isPos = tipo === 'pos';
+
+      let rows = '';
+      sortByName(data.matches || [], 'curso').forEach(m => {
+        const st = m.needs_update ? 'atualizar' : 'sem_mudanca';
+        const mNome = m.curso || m.nome || m.chave || '';
+        if (isPos) {
+          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="${st}">
+            <td class="py-3 px-4">${supaBadge(st)}</td>
+            <td class="py-3 px-4 text-sm text-slate-200 whitespace-nowrap">${escHtml(mNome)}</td>
+            <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(m.duracao || '')}</td>
+            <td class="py-3 px-4 text-right text-sm text-slate-300 whitespace-nowrap">${m.valor_atual != null ? 'R$&nbsp;'+m.valor_atual : '<span class="text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-right text-sm text-violet-300 font-medium whitespace-nowrap">${m.novo_valor != null ? 'R$&nbsp;'+m.novo_valor : '<span class="text-slate-700">—</span>'}</td>
+          </tr>`;
+        } else {
+          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="${st}">
+            <td class="py-3 px-4">${supaBadge(st)}</td>
+            <td class="py-3 px-4 text-sm text-slate-200 whitespace-nowrap">${escHtml(mNome)}</td>
+            <td class="py-3 px-4 text-right text-sm text-slate-300 whitespace-nowrap">${m.valor_atual != null ? 'R$&nbsp;'+m.valor_atual : '<span class="text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-right text-sm text-violet-300 font-medium whitespace-nowrap">${m.novo_valor != null ? 'R$&nbsp;'+m.novo_valor : '<span class="text-slate-700">—</span>'}</td>
+          </tr>`;
+        }
+      });
+      sortByName(data.nao_encontrado || [], 'curso').forEach(n => {
+        const name = typeof n === 'string' ? n : (n.nome || n.curso || n.chave || '');
+        if (isPos) {
+          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
+            <td class="py-3 px-4">${supaBadge('nao_encontrado')}</td>
+            <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(name)}</td>
+            <td></td><td></td><td></td>
+          </tr>`;
+        } else {
+          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
+            <td class="py-3 px-4">${supaBadge('nao_encontrado')}</td>
+            <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(name)}</td>
+            <td></td><td></td>
+          </tr>`;
+        }
+      });
+      sortByName(data.so_na_planilha || [], 'nome').forEach(s => {
+        const name = typeof s === 'string' ? s : (s.nome || s.chave || '');
+        if (isPos) {
+          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="so_planilha">
+            <td class="py-3 px-4">${supaBadge('so_planilha')}</td>
+            <td class="py-3 px-4 text-sm text-amber-300/80 whitespace-nowrap">${escHtml(name)}</td>
+            <td></td><td></td><td></td>
+          </tr>`;
+        } else {
+          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="so_planilha">
+            <td class="py-3 px-4">${supaBadge('so_planilha')}</td>
+            <td class="py-3 px-4 text-sm text-amber-300/80 whitespace-nowrap">${escHtml(name)}</td>
+            <td></td><td></td>
+          </tr>`;
+        }
+      });
+
+      const posHeaders = isPos
+        ? `<th class="py-2.5 px-4 text-left text-slate-500 font-medium">Status</th>
+           <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Curso</th>
+           <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Duração</th>
+           <th class="py-2.5 px-4 text-right text-slate-400 font-medium">Atual</th>
+           <th class="py-2.5 px-4 text-right text-violet-400 font-semibold">Novo</th>`
+        : `<th class="py-2.5 px-4 text-left text-slate-500 font-medium">Status</th>
+           <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Curso</th>
+           <th class="py-2.5 px-4 text-right text-slate-400 font-medium">Atual</th>
+           <th class="py-2.5 px-4 text-right text-violet-400 font-semibold">Novo</th>`;
+
+      el.innerHTML = `
+        <div class="grid grid-cols-4 gap-3 mb-5">
+          <div class="bg-emerald-900/30 rounded-xl p-4 border border-emerald-800/50 cursor-pointer filter-btn" data-filter="atualizar" onclick="supaToggleFilter('${tipo}','atualizar')">
+            <p class="text-xs text-emerald-500 mb-1">Serão atualizados</p>
+            <p class="text-2xl font-bold text-emerald-400">${data.total_atualizar || 0}</p>
+          </div>
+          <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="supaToggleFilter('${tipo}','sem_mudanca')">
+            <p class="text-xs text-slate-500 mb-1">Sem mudança</p>
+            <p class="text-2xl font-bold text-white">${data.total_sem_mudanca || 0}</p>
+          </div>
+          <div class="bg-red-900/20 rounded-xl p-4 border border-red-900/40 cursor-pointer filter-btn" data-filter="nao_encontrado" onclick="supaToggleFilter('${tipo}','nao_encontrado')">
+            <p class="text-xs text-red-500 mb-1">Não encontrado</p>
+            <p class="text-2xl font-bold text-red-400">${data.total_nao_enc || 0}</p>
+          </div>
+          <div class="bg-amber-900/20 rounded-xl p-4 border border-amber-900/40 cursor-pointer filter-btn" data-filter="so_planilha" onclick="supaToggleFilter('${tipo}','so_planilha')">
+            <p class="text-xs text-amber-500 mb-1">Só na planilha</p>
+            <p class="text-2xl font-bold text-amber-400">${data.total_so_plan || 0}</p>
+          </div>
+        </div>
+        <div class="rounded-xl border border-slate-800 overflow-hidden">
+          <div class="overflow-auto max-h-[480px]">
+            <table class="w-full text-xs">
+              <thead class="sticky top-0 bg-slate-900 z-20">
+                <tr class="border-b border-slate-700">${posHeaders}</tr>
+              </thead>
+              <tbody id="supa-tbody-${tipo}">${rows}</tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+
+    function supaRenderSuccess(tipo, data) {
+      const el = document.getElementById(`supa-results-${tipo}`);
+      el.classList.remove('hidden');
+      el.innerHTML = `
+        <div class="rounded-xl bg-emerald-900/20 border border-emerald-800/40 p-5 flex items-start gap-4">
+          <div class="w-10 h-10 rounded-full bg-emerald-800/50 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+          </div>
+          <div>
+            <p class="text-emerald-400 font-semibold text-sm mb-1">Atualização concluída!</p>
+            <p class="text-slate-400 text-sm">
+              <span class="text-white font-medium">${data.atualizados || 0}</span> documentos atualizados no Supabase.
+              ${(data.nao_encontrado || 0) > 0 ? '<span class="text-red-400"> '+data.nao_encontrado+' não encontrados.</span>' : ''}
+              ${(data.erros || 0) > 0 ? '<span class="text-red-400"> '+data.erros+' com erro.</span>' : ''}
+              ${(data.correcoes_aplicadas || 0) > 0 ? '<span class="text-violet-400"> '+data.correcoes_aplicadas+' correções de duração.</span>' : ''}
+              ${(data.so_na_planilha || 0) > 0 ? '<span class="text-amber-400"> '+data.so_na_planilha+' só na planilha.</span>' : ''}
+            </p>
+          </div>
+        </div>`;
+    }
+
+    function supaShowError(tipo, msg) {
+      const el = document.getElementById(`supa-results-${tipo}`);
+      el.classList.remove('hidden');
+      el.innerHTML = `
+        <div class="rounded-xl bg-red-900/20 border border-red-800/40 p-4 flex gap-3">
+          <svg class="w-5 h-5 text-red-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <p class="text-red-300 text-sm">${escHtml(msg)}</p>
+        </div>`;
+    }
+
+    // ═══════════════════════════════════════════════
+    // Salesbot
+    // ═══════════════════════════════════════════════
+    let sbFile = null;
+
+    function sbDragOver(e) {
+      e.preventDefault();
+      document.getElementById('sb-drop').classList.add('dragover');
+    }
+    function sbDragLeave(e) {
+      document.getElementById('sb-drop').classList.remove('dragover');
+    }
+    function sbHandleDrop(e) {
+      e.preventDefault();
+      document.getElementById('sb-drop').classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file) sbSetFile(file);
+    }
+    function sbHandleFileSelect(e) {
+      const file = e.target.files[0];
+      if (file) sbSetFile(file);
+    }
+
+    function sbSetFile(file) {
+      sbFile = file;
+      const icon = document.getElementById('sb-drop-icon');
+      const info = document.getElementById('sb-drop-file');
+      const name = document.getElementById('sb-drop-filename');
+      icon.classList.add('hidden'); icon.classList.remove('flex');
+      info.classList.remove('hidden'); info.classList.add('flex');
+      name.textContent = file.name;
+      document.getElementById('sb-drop').classList.add('has-file');
+      document.getElementById('sb-btn-preview').disabled = false;
+      document.getElementById('sb-results').classList.add('hidden');
+      document.getElementById('sb-btn-atualizar').disabled = true;
+    }
+
+    async function sbPreview() {
+      if (!sbFile) return;
+      setBtnLoading('sb-btn-preview', true, 'Verificando...');
+      document.getElementById('sb-results').classList.add('hidden');
+
+      const fd = new FormData();
+      fd.append('file', sbFile);
+
+      try {
+        const res  = await fetch('/api/preview_salesbot', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.error) { sbShowError(data.error); return; }
+        sbRenderResults(data);
+        document.getElementById('sb-btn-atualizar').disabled = false;
+      } catch(e) {
+        sbShowError(e.message);
+      } finally {
+        setBtnLoading('sb-btn-preview', false, 'Verificar Salesbot');
+      }
+    }
+
+    async function sbAtualizar() {
+      if (!sbFile) return;
+      if (!confirm('Confirma a atualização do Salesbot?')) return;
+
+      setBtnLoading('sb-btn-atualizar', true, 'Atualizando...');
+
+      const fd = new FormData();
+      fd.append('file', sbFile);
+
+      try {
+        const res  = await fetch('/api/atualizar_salesbot', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.error) { sbShowError(data.error); return; }
+        sbRenderSuccess(data);
+        document.getElementById('sb-btn-atualizar').disabled = true;
+      } catch(e) {
+        sbShowError(e.message);
+      } finally {
+        setBtnLoading('sb-btn-atualizar', false, 'Atualizar Salesbot');
+      }
+    }
+
+    let sbActiveFilter = null;
+
+    function sbToggleFilter(cat) {
+      const el = document.getElementById('sb-results');
+      const tbody = document.getElementById('sb-tbody');
+      if (!tbody) return;
+      sbActiveFilter = sbActiveFilter === cat ? null : cat;
+      const active = sbActiveFilter;
+      el.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.style.opacity = (!active || btn.dataset.filter === active) ? '1' : '0.4';
+      });
+      tbody.querySelectorAll('tr[data-cat]').forEach(row => {
+        row.style.display = (!active || row.dataset.cat === active) ? '' : 'none';
+      });
+    }
+
+    function sbBadge(st) {
+      if (st === 'atualizar')
+        return '<span class="inline-flex items-center gap-1.5 text-xs font-medium badge-match px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>Atualizar</span>';
+      if (st === 'sem_mudanca')
+        return '<span class="inline-flex items-center gap-1.5 text-xs font-medium bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>Sem mudança</span>';
+      return '<span class="inline-flex items-center gap-1.5 text-xs font-medium badge-nomatch px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>Não encontrado</span>';
+    }
+
+    function sbRenderResults(data) {
+      const el = document.getElementById('sb-results');
+      el.classList.remove('hidden');
+
+      let rows = '';
+      sortByName(data.matches || [], 'curso').forEach(m => {
+        const st = m.needs_update ? 'atualizar' : 'sem_mudanca';
+        rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="${st}">
+          <td class="py-3 px-4">${sbBadge(st)}</td>
+          <td class="py-3 px-4 text-sm text-slate-200 whitespace-nowrap">${escHtml(m.curso || m.sinonimo || '')}</td>
+          <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(m.chave1 || '')}</td>
+          <td class="py-3 px-4 text-right text-sm text-slate-300 whitespace-nowrap">${m.atual1 != null ? 'R$&nbsp;'+m.atual1 : '<span class="text-slate-700">—</span>'}</td>
+          <td class="py-3 px-4 text-right text-sm text-teal-300 font-medium whitespace-nowrap">${m.novo1 != null ? 'R$&nbsp;'+m.novo1 : '<span class="text-slate-700">—</span>'}</td>
+        </tr>`;
+      });
+      sortByName(data.nao_encontrado || [], 'curso').forEach(n => {
+        const name = typeof n === 'string' ? n : (n.curso || n.sinonimo || n.nome || '');
+        rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
+          <td class="py-3 px-4">${sbBadge('nao_encontrado')}</td>
+          <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(name)}</td>
+          <td></td><td></td><td></td>
+        </tr>`;
+      });
+
+      el.innerHTML = `
+        <div class="grid grid-cols-3 gap-3 mb-5">
+          <div class="bg-emerald-900/30 rounded-xl p-4 border border-emerald-800/50 cursor-pointer filter-btn" data-filter="atualizar" onclick="sbToggleFilter('atualizar')">
+            <p class="text-xs text-emerald-500 mb-1">Serão atualizados</p>
+            <p class="text-2xl font-bold text-emerald-400">${data.total_atualizar || 0}</p>
+          </div>
+          <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="sbToggleFilter('sem_mudanca')">
+            <p class="text-xs text-slate-500 mb-1">Sem mudança</p>
+            <p class="text-2xl font-bold text-white">${data.total_sem_mudanca || 0}</p>
+          </div>
+          <div class="bg-red-900/20 rounded-xl p-4 border border-red-900/40 cursor-pointer filter-btn" data-filter="nao_encontrado" onclick="sbToggleFilter('nao_encontrado')">
+            <p class="text-xs text-red-500 mb-1">Não encontrado</p>
+            <p class="text-2xl font-bold text-red-400">${data.total_nao_enc || 0}</p>
+          </div>
+        </div>
+        <div class="rounded-xl border border-slate-800 overflow-hidden">
+          <div class="overflow-auto max-h-[480px]">
+            <table class="w-full text-xs">
+              <thead class="sticky top-0 bg-slate-900 z-20">
+                <tr class="border-b border-slate-700">
+                  <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Status</th>
+                  <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Curso</th>
+                  <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Chave</th>
+                  <th class="py-2.5 px-4 text-right text-slate-400 font-medium">Atual</th>
+                  <th class="py-2.5 px-4 text-right text-teal-400 font-semibold">Novo (Mar Aberto)</th>
+                </tr>
+              </thead>
+              <tbody id="sb-tbody">${rows}</tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+
+    function sbRenderSuccess(data) {
+      const el = document.getElementById('sb-results');
+      el.classList.remove('hidden');
+      el.innerHTML = `
+        <div class="rounded-xl bg-emerald-900/20 border border-emerald-800/40 p-5 flex items-start gap-4">
+          <div class="w-10 h-10 rounded-full bg-emerald-800/50 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+          </div>
+          <div>
+            <p class="text-emerald-400 font-semibold text-sm mb-1">Atualização concluída!</p>
+            <p class="text-slate-400 text-sm">
+              <span class="text-white font-medium">${data.atualizados}</span> salesbots atualizados.
+              ${(data.nao_encontrado || 0) > 0 ? '<span class="text-red-400"> '+data.nao_encontrado+' não encontrados.</span>' : ''}
+              ${(data.erros || 0) > 0 ? '<span class="text-red-400"> '+data.erros+' com erro.</span>' : ''}
+            </p>
+          </div>
+        </div>`;
+    }
+
+    function sbShowError(msg) {
+      const el = document.getElementById('sb-results');
+      el.classList.remove('hidden');
+      el.innerHTML = `
+        <div class="rounded-xl bg-red-900/20 border border-red-800/40 p-4 flex gap-3">
+          <svg class="w-5 h-5 text-red-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <p class="text-red-300 text-sm">${escHtml(msg)}</p>
+        </div>`;
+    }
+
+    // ═══════════════════════════════════════════════
+    // Wix (Site Cruzeiro)
+    // ═══════════════════════════════════════════════
+    const wixFiles = { grad: null, pos: null };
+
+    function wixTab(tipo) {
+      ['grad','pos'].forEach(t => {
+        document.getElementById(`wix-tab-${t}`).className =
+          t === tipo
+            ? 'tab-active px-4 py-2 rounded-lg text-sm font-medium transition-all'
+            : 'tab-inactive px-4 py-2 rounded-lg text-sm font-medium transition-all';
+        document.getElementById(`wix-panel-${t}`).classList.toggle('hidden', t !== tipo);
+      });
+    }
+
+    function wixDragOver(e, tipo) {
+      e.preventDefault();
+      document.getElementById(`wix-drop-${tipo}`).classList.add('dragover');
+    }
+    function wixDragLeave(e, tipo) {
+      document.getElementById(`wix-drop-${tipo}`).classList.remove('dragover');
+    }
+    function wixHandleDrop(e, tipo) {
+      e.preventDefault();
+      document.getElementById(`wix-drop-${tipo}`).classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file) wixSetFile(tipo, file);
+    }
+    function wixHandleFileSelect(e, tipo) {
+      const file = e.target.files[0];
+      if (file) wixSetFile(tipo, file);
+    }
+
+    function wixSetFile(tipo, file) {
+      wixFiles[tipo] = file;
+      const icon = document.getElementById(`wix-drop-${tipo}-icon`);
+      const info = document.getElementById(`wix-drop-${tipo}-file`);
+      const name = document.getElementById(`wix-drop-${tipo}-filename`);
+      icon.classList.add('hidden'); icon.classList.remove('flex');
+      info.classList.remove('hidden'); info.classList.add('flex');
+      name.textContent = file.name;
+      document.getElementById(`wix-drop-${tipo}`).classList.add('has-file');
+      document.getElementById(`wix-btn-preview-${tipo}`).disabled = false;
+      document.getElementById(`wix-results-${tipo}`).classList.add('hidden');
+      document.getElementById(`wix-btn-atualizar-${tipo}`).disabled = true;
+    }
+
+    async function wixPreview(tipo) {
+      const file = wixFiles[tipo];
+      if (!file) return;
+      setBtnLoading(`wix-btn-preview-${tipo}`, true, 'Verificando...');
+      document.getElementById(`wix-results-${tipo}`).classList.add('hidden');
+
+      const fd = new FormData();
+      fd.append('tipo', tipo);
+      fd.append('file', file);
+
+      try {
+        const res  = await fetch('/api/preview_wix', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.error) { wixShowError(tipo, data.error); return; }
+        wixRenderResults(tipo, data);
+        document.getElementById(`wix-btn-atualizar-${tipo}`).disabled = false;
+      } catch(e) {
+        wixShowError(tipo, e.message);
+      } finally {
+        setBtnLoading(`wix-btn-preview-${tipo}`, false, 'Verificar Site');
+      }
+    }
+
+    async function wixAtualizar(tipo) {
+      const file = wixFiles[tipo];
+      if (!file) return;
+      if (!confirm(`Confirma a atualização do Site Cruzeiro (${tipo === 'grad' ? 'Graduação' : 'Pós-Graduação'})?`)) return;
+
+      setBtnLoading(`wix-btn-atualizar-${tipo}`, true, 'Atualizando...');
+
+      const fd = new FormData();
+      fd.append('tipo', tipo);
+      fd.append('file', file);
+
+      try {
+        const res  = await fetch('/api/atualizar_wix', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.error) { wixShowError(tipo, data.error); return; }
+        wixRenderSuccess(tipo, data);
+        document.getElementById(`wix-btn-atualizar-${tipo}`).disabled = true;
+      } catch(e) {
+        wixShowError(tipo, e.message);
+      } finally {
+        setBtnLoading(`wix-btn-atualizar-${tipo}`, false, 'Atualizar Site');
+      }
+    }
+
+    const wixActiveFilters = {};
+
+    function wixToggleFilter(tipo, cat) {
+      const el    = document.getElementById(`wix-results-${tipo}`);
+      const tbody = document.getElementById(`wix-tbody-${tipo}`);
+      if (!tbody) return;
+
+      wixActiveFilters[tipo] = wixActiveFilters[tipo] === cat ? null : cat;
+      const active = wixActiveFilters[tipo];
+
+      el.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.style.opacity = (!active || btn.dataset.filter === active) ? '1' : '0.4';
+      });
+      tbody.querySelectorAll('tr[data-cat]').forEach(row => {
+        row.style.display = (!active || row.dataset.cat === active) ? '' : 'none';
+      });
+    }
+
+    function wixBadge(status) {
+      if (status === 'atualizar')
+        return '<span class="inline-flex items-center gap-1.5 text-xs font-medium badge-match px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>Atualizar</span>';
+      if (status === 'sem_mudanca')
+        return '<span class="inline-flex items-center gap-1.5 text-xs font-medium bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>Sem mudança</span>';
+      return '<span class="inline-flex items-center gap-1.5 text-xs font-medium badge-nomatch px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>Não encontrado</span>';
+    }
+
+    function wixRenderResults(tipo, data) {
+      const el = document.getElementById(`wix-results-${tipo}`);
+      el.classList.remove('hidden');
+      const isGrad = tipo === 'grad';
+
+      let rows = '';
+      sortByName(data.matches || [], 'curso').forEach(m => {
+        const st = m.needs_update ? 'atualizar' : 'sem_mudanca';
+        if (isGrad) {
+          const info = parseWixInfo(m);
+          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="${st}">
+            <td class="py-3 px-4">${wixBadge(st)}</td>
+            <td class="py-3 px-4 text-sm text-slate-200 whitespace-nowrap">${escHtml(info.curso)}</td>
+            <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(info.tipoGrau)}</td>
+            <td class="py-3 px-4 text-right text-sm text-slate-300 whitespace-nowrap">${m.atual != null ? 'R$&nbsp;'+m.atual : '<span class="text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-right text-sm text-indigo-300 font-medium whitespace-nowrap">${m.novo != null ? 'R$&nbsp;'+m.novo : '<span class="text-slate-700">—</span>'}</td>
+          </tr>`;
+        } else {
+          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="${st}">
+            <td class="py-3 px-4">${wixBadge(st)}</td>
+            <td class="py-3 px-4 text-sm text-slate-200 whitespace-nowrap">${escHtml(m.curso || '')}</td>
+            <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(m.duracao || '')}</td>
+            <td class="py-3 px-4 text-right text-sm text-slate-300 whitespace-nowrap">${m.atual_vs != null ? 'R$&nbsp;'+m.atual_vs : '<span class="text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-right text-sm text-indigo-300 font-medium whitespace-nowrap">${m.novo_vs != null ? 'R$&nbsp;'+m.novo_vs : '<span class="text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-right text-sm text-slate-300 whitespace-nowrap">${m.atual_mix != null ? 'R$&nbsp;'+m.atual_mix : '<span class="text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-right text-sm text-indigo-300 font-medium whitespace-nowrap">${m.novo_mix != null ? 'R$&nbsp;'+m.novo_mix : '<span class="text-slate-700">—</span>'}</td>
+          </tr>`;
+        }
+      });
+      sortByName(data.nao_encontrado || [], 'curso').forEach(n => {
+        const nObj = typeof n === 'string' ? {chave: n} : n;
+        const info = parseWixInfo(nObj);
+        if (isGrad) {
+          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
+            <td class="py-3 px-4">${wixBadge('nao_encontrado')}</td>
+            <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(info.curso)}</td>
+            <td class="py-3 px-4 text-sm text-slate-500 whitespace-nowrap">${escHtml(info.tipoGrau)}</td>
+            <td></td><td></td>
+          </tr>`;
+        } else {
+          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
+            <td class="py-3 px-4">${wixBadge('nao_encontrado')}</td>
+            <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(info.curso)}</td>
+            <td></td><td></td><td></td><td></td><td></td>
+          </tr>`;
+        }
+      });
+
+      const headers = isGrad
+        ? `<th class="py-2.5 px-4 text-left text-slate-500 font-medium">Status</th>
+           <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Curso / chave</th>
+           <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Tipo / Grau</th>
+           <th class="py-2.5 px-4 text-right text-slate-400 font-medium">Atual</th>
+           <th class="py-2.5 px-4 text-right text-indigo-400 font-semibold">Novo (MAR ABERTO)</th>`
+        : `<th class="py-2.5 px-4 text-left text-slate-500 font-medium">Status</th>
+           <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Curso</th>
+           <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Duração</th>
+           <th class="py-2.5 px-4 text-right text-slate-400 font-medium">Valor Site</th>
+           <th class="py-2.5 px-4 text-right text-indigo-400 font-semibold">Novo VS</th>
+           <th class="py-2.5 px-4 text-right text-slate-400 font-medium">Mix Atual</th>
+           <th class="py-2.5 px-4 text-right text-indigo-400 font-semibold">Novo Mix</th>`;
+
+      el.innerHTML = `
+        <div class="grid grid-cols-3 gap-3 mb-5">
+          <div class="bg-emerald-900/30 rounded-xl p-4 border border-emerald-800/50 cursor-pointer filter-btn" data-filter="atualizar" onclick="wixToggleFilter('${tipo}','atualizar')">
+            <p class="text-xs text-emerald-500 mb-1">Serão atualizados</p>
+            <p class="text-2xl font-bold text-emerald-400">${data.total_atualizar || 0}</p>
+          </div>
+          <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="wixToggleFilter('${tipo}','sem_mudanca')">
+            <p class="text-xs text-slate-500 mb-1">Sem mudança</p>
+            <p class="text-2xl font-bold text-white">${data.total_sem_mudanca || 0}</p>
+          </div>
+          <div class="bg-red-900/20 rounded-xl p-4 border border-red-900/40 cursor-pointer filter-btn" data-filter="nao_encontrado" onclick="wixToggleFilter('${tipo}','nao_encontrado')">
+            <p class="text-xs text-red-500 mb-1">Não encontrado</p>
+            <p class="text-2xl font-bold text-red-400">${data.total_nao_enc || 0}</p>
+          </div>
+        </div>
+        <div class="rounded-xl border border-slate-800 overflow-hidden">
+          <div class="overflow-auto max-h-[480px]">
+            <table class="w-full text-xs">
+              <thead class="sticky top-0 bg-slate-900 z-20">
+                <tr class="border-b border-slate-700">${headers}</tr>
+              </thead>
+              <tbody id="wix-tbody-${tipo}">${rows}</tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+
+    function wixRenderSuccess(tipo, data) {
+      const el = document.getElementById(`wix-results-${tipo}`);
+      el.classList.remove('hidden');
+      el.innerHTML = `
+        <div class="rounded-xl bg-emerald-900/20 border border-emerald-800/40 p-5 flex items-start gap-4">
+          <div class="w-10 h-10 rounded-full bg-emerald-800/50 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+          </div>
+          <div>
+            <p class="text-emerald-400 font-semibold text-sm mb-1">Atualização concluída!</p>
+            <p class="text-slate-400 text-sm">
+              <span class="text-white font-medium">${data.atualizados}</span> itens atualizados no site.
+              ${data.nao_encontrado > 0 ? '<span class="text-red-400"> '+data.nao_encontrado+' não encontrados.</span>' : ''}
+              ${data.erros > 0 ? '<span class="text-red-400"> '+data.erros+' com erro.</span>' : ''}
+            </p>
+          </div>
+        </div>`;
+    }
+
+    function wixShowError(tipo, msg) {
+      const el = document.getElementById(`wix-results-${tipo}`);
+      el.classList.remove('hidden');
+      el.innerHTML = `
+        <div class="rounded-xl bg-red-900/20 border border-red-800/40 p-4 flex gap-3">
+          <svg class="w-5 h-5 text-red-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <p class="text-red-300 text-sm">${escHtml(msg)}</p>
+        </div>`;
+    }
+
+    // ═══════════════════════════════════════════════
+    // Wix 2 (Eduit-ead)
+    // ═══════════════════════════════════════════════
+    const wix2Files = { grad: null, pos: null };
+
+    function wix2Tab(tipo) {
+      ['grad','pos'].forEach(t => {
+        document.getElementById(`wix2-tab-${t}`).className =
+          t === tipo
+            ? 'tab-active px-4 py-2 rounded-lg text-sm font-medium transition-all'
+            : 'tab-inactive px-4 py-2 rounded-lg text-sm font-medium transition-all';
+        document.getElementById(`wix2-panel-${t}`).classList.toggle('hidden', t !== tipo);
+      });
+    }
+
+    function wix2DragOver(e, tipo) {
+      e.preventDefault();
+      document.getElementById(`wix2-drop-${tipo}`).classList.add('dragover');
+    }
+    function wix2DragLeave(e, tipo) {
+      document.getElementById(`wix2-drop-${tipo}`).classList.remove('dragover');
+    }
+    function wix2HandleDrop(e, tipo) {
+      e.preventDefault();
+      document.getElementById(`wix2-drop-${tipo}`).classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file) wix2SetFile(tipo, file);
+    }
+    function wix2HandleFileSelect(e, tipo) {
+      const file = e.target.files[0];
+      if (file) wix2SetFile(tipo, file);
+    }
+
+    function wix2SetFile(tipo, file) {
+      wix2Files[tipo] = file;
+      const icon = document.getElementById(`wix2-drop-${tipo}-icon`);
+      const info = document.getElementById(`wix2-drop-${tipo}-file`);
+      const name = document.getElementById(`wix2-drop-${tipo}-filename`);
+      icon.classList.add('hidden'); icon.classList.remove('flex');
+      info.classList.remove('hidden'); info.classList.add('flex');
+      name.textContent = file.name;
+      document.getElementById(`wix2-drop-${tipo}`).classList.add('has-file');
+      document.getElementById(`wix2-btn-preview-${tipo}`).disabled = false;
+      document.getElementById(`wix2-results-${tipo}`).classList.add('hidden');
+      document.getElementById(`wix2-btn-atualizar-${tipo}`).disabled = true;
+    }
+
+    async function wix2Preview(tipo) {
+      const file = wix2Files[tipo];
+      if (!file) return;
+      setBtnLoading(`wix2-btn-preview-${tipo}`, true, 'Verificando...');
+      document.getElementById(`wix2-results-${tipo}`).classList.add('hidden');
+
+      const fd = new FormData();
+      fd.append('tipo', tipo);
+      fd.append('file', file);
+
+      try {
+        const res  = await fetch('/api/preview_wix2', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.error) { wix2ShowError(tipo, data.error); return; }
+        wix2RenderResults(tipo, data);
+        document.getElementById(`wix2-btn-atualizar-${tipo}`).disabled = false;
+      } catch(e) {
+        wix2ShowError(tipo, e.message);
+      } finally {
+        setBtnLoading(`wix2-btn-preview-${tipo}`, false, 'Verificar Site');
+      }
+    }
+
+    async function wix2Atualizar(tipo) {
+      const file = wix2Files[tipo];
+      if (!file) return;
+      if (!confirm(`Confirma a atualização do Eduit-ead (${tipo === 'grad' ? 'Graduação' : 'Pós-Graduação'})?`)) return;
+
+      setBtnLoading(`wix2-btn-atualizar-${tipo}`, true, 'Atualizando...');
+
+      const fd = new FormData();
+      fd.append('tipo', tipo);
+      fd.append('file', file);
+
+      try {
+        const res  = await fetch('/api/atualizar_wix2', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.error) { wix2ShowError(tipo, data.error); return; }
+        wix2RenderSuccess(tipo, data);
+        document.getElementById(`wix2-btn-atualizar-${tipo}`).disabled = true;
+      } catch(e) {
+        wix2ShowError(tipo, e.message);
+      } finally {
+        setBtnLoading(`wix2-btn-atualizar-${tipo}`, false, 'Atualizar Site');
+      }
+    }
+
+    const wix2ActiveFilters = {};
+
+    function wix2ToggleFilter(tipo, cat) {
+      const el    = document.getElementById(`wix2-results-${tipo}`);
+      const tbody = document.getElementById(`wix2-tbody-${tipo}`);
+      if (!tbody) return;
+
+      wix2ActiveFilters[tipo] = wix2ActiveFilters[tipo] === cat ? null : cat;
+      const active = wix2ActiveFilters[tipo];
+
+      el.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.style.opacity = (!active || btn.dataset.filter === active) ? '1' : '0.4';
+      });
+      tbody.querySelectorAll('tr[data-cat]').forEach(row => {
+        row.style.display = (!active || row.dataset.cat === active) ? '' : 'none';
+      });
+    }
+
+    function wix2RenderResults(tipo, data) {
+      const el = document.getElementById(`wix2-results-${tipo}`);
+      el.classList.remove('hidden');
+      const isGrad = tipo === 'grad';
+
+      let allMatches = [];
+      let allNaoEnc = [];
+      let totAtualizar = 0, totSemMud = 0, totNaoEnc = 0;
+
+      if (isGrad) {
+        const p = data.precos || {};
+        const g = data.gradead || {};
+        allMatches = [...(p.matches || []), ...(g.matches || [])];
+        allNaoEnc  = [...(p.nao_encontrado || []), ...(g.nao_encontrado || [])];
+        totAtualizar = (p.total_atualizar || 0) + (g.total_atualizar || 0);
+        totSemMud    = (p.total_sem_mudanca || 0) + (g.total_sem_mudanca || 0);
+        totNaoEnc    = (p.total_nao_enc || 0) + (g.total_nao_enc || 0);
+      } else {
+        const ps = data.pos || data;
+        allMatches = ps.matches || [];
+        allNaoEnc  = ps.nao_encontrado || [];
+        totAtualizar = ps.total_atualizar || 0;
+        totSemMud    = ps.total_sem_mudanca || 0;
+        totNaoEnc    = ps.total_nao_enc || 0;
+      }
+
+      let rows = '';
+      sortByName(allMatches, 'curso').forEach(m => {
+        const st = m.needs_update ? 'atualizar' : 'sem_mudanca';
+        if (isGrad) {
+          const info = parseWixInfo(m);
+          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="${st}">
+            <td class="py-3 px-4">${wixBadge(st)}</td>
+            <td class="py-3 px-4 text-sm text-slate-200 whitespace-nowrap">${escHtml(info.curso)}</td>
+            <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(info.tipoGrau)}</td>
+            <td class="py-3 px-4 text-right text-sm text-slate-300 whitespace-nowrap">${m.atual != null ? 'R$&nbsp;'+m.atual : '<span class="text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-right text-sm text-violet-300 font-medium whitespace-nowrap">${m.novo != null ? 'R$&nbsp;'+m.novo : '<span class="text-slate-700">—</span>'}</td>
+          </tr>`;
+        } else {
+          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="${st}">
+            <td class="py-3 px-4">${wixBadge(st)}</td>
+            <td class="py-3 px-4 text-sm text-slate-200 whitespace-nowrap">${escHtml(m.curso || '')}</td>
+            <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(m.duracao || '')}</td>
+            <td class="py-3 px-4 text-right text-sm text-slate-300 whitespace-nowrap">${m.atual_vs != null ? 'R$&nbsp;'+m.atual_vs : '<span class="text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-right text-sm text-violet-300 font-medium whitespace-nowrap">${m.novo_vs != null ? 'R$&nbsp;'+m.novo_vs : '<span class="text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-right text-sm text-slate-300 whitespace-nowrap">${m.atual_mix != null ? 'R$&nbsp;'+m.atual_mix : '<span class="text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-right text-sm text-violet-300 font-medium whitespace-nowrap">${m.novo_mix != null ? 'R$&nbsp;'+m.novo_mix : '<span class="text-slate-700">—</span>'}</td>
+          </tr>`;
+        }
+      });
+      sortByName(allNaoEnc, 'curso').forEach(n => {
+        const nObj = typeof n === 'string' ? {chave: n} : n;
+        const info = parseWixInfo(nObj);
+        if (isGrad) {
+          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
+            <td class="py-3 px-4">${wixBadge('nao_encontrado')}</td>
+            <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(info.curso)}</td>
+            <td class="py-3 px-4 text-sm text-slate-500 whitespace-nowrap">${escHtml(info.tipoGrau)}</td>
+            <td></td><td></td>
+          </tr>`;
+        } else {
+          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
+            <td class="py-3 px-4">${wixBadge('nao_encontrado')}</td>
+            <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(info.curso)}</td>
+            <td></td><td></td><td></td><td></td><td></td>
+          </tr>`;
+        }
+      });
+
+      const headers = isGrad
+        ? `<th class="py-2.5 px-4 text-left text-slate-500 font-medium">Status</th>
+           <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Curso / chave</th>
+           <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Tipo / Grau</th>
+           <th class="py-2.5 px-4 text-right text-slate-400 font-medium">Atual</th>
+           <th class="py-2.5 px-4 text-right text-violet-400 font-semibold">Novo (MAR ABERTO)</th>`
+        : `<th class="py-2.5 px-4 text-left text-slate-500 font-medium">Status</th>
+           <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Curso</th>
+           <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Duração</th>
+           <th class="py-2.5 px-4 text-right text-slate-400 font-medium">Valor Site</th>
+           <th class="py-2.5 px-4 text-right text-violet-400 font-semibold">Novo VS</th>
+           <th class="py-2.5 px-4 text-right text-slate-400 font-medium">Mix Atual</th>
+           <th class="py-2.5 px-4 text-right text-violet-400 font-semibold">Novo Mix</th>`;
+
+      el.innerHTML = `
+        <div class="grid grid-cols-3 gap-3 mb-5">
+          <div class="bg-emerald-900/30 rounded-xl p-4 border border-emerald-800/50 cursor-pointer filter-btn" data-filter="atualizar" onclick="wix2ToggleFilter('${tipo}','atualizar')">
+            <p class="text-xs text-emerald-500 mb-1">Serão atualizados</p>
+            <p class="text-2xl font-bold text-emerald-400">${totAtualizar}</p>
+          </div>
+          <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="wix2ToggleFilter('${tipo}','sem_mudanca')">
+            <p class="text-xs text-slate-500 mb-1">Sem mudança</p>
+            <p class="text-2xl font-bold text-white">${totSemMud}</p>
+          </div>
+          <div class="bg-red-900/20 rounded-xl p-4 border border-red-900/40 cursor-pointer filter-btn" data-filter="nao_encontrado" onclick="wix2ToggleFilter('${tipo}','nao_encontrado')">
+            <p class="text-xs text-red-500 mb-1">Não encontrado</p>
+            <p class="text-2xl font-bold text-red-400">${totNaoEnc}</p>
+          </div>
+        </div>
+        <div class="rounded-xl border border-slate-800 overflow-hidden">
+          <div class="overflow-auto max-h-[480px]">
+            <table class="w-full text-xs">
+              <thead class="sticky top-0 bg-slate-900 z-20">
+                <tr class="border-b border-slate-700">${headers}</tr>
+              </thead>
+              <tbody id="wix2-tbody-${tipo}">${rows}</tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+
+    function wix2RenderSuccess(tipo, data) {
+      const att = (data.atualizados ?? 0)
+               + (data.gradead_atualizados ?? 0)
+               + (data.precos_atualizados ?? 0)
+               + (data.pos_atualizados ?? 0);
+      const errs = (data.erros ?? 0)
+               + (data.gradead_erros ?? 0)
+               + (data.precos_erros ?? 0)
+               + (data.pos_erros ?? 0);
+      const ne = data.nao_encontrado ?? 0;
+      const el = document.getElementById(`wix2-results-${tipo}`);
+      el.classList.remove('hidden');
+      el.innerHTML = `
+        <div class="rounded-xl bg-emerald-900/20 border border-emerald-800/40 p-5 flex items-start gap-4">
+          <div class="w-10 h-10 rounded-full bg-emerald-800/50 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+          </div>
+          <div>
+            <p class="text-emerald-400 font-semibold text-sm mb-1">Atualização concluída!</p>
+            <p class="text-slate-400 text-sm">
+              <span class="text-white font-medium">${att}</span> itens atualizados no site.
+              ${ne > 0 ? '<span class="text-red-400"> '+ne+' não encontrados.</span>' : ''}
+              ${errs > 0 ? '<span class="text-red-400"> '+errs+' com erro.</span>' : ''}
+            </p>
+          </div>
+        </div>`;
+    }
+
+    function wix2ShowError(tipo, msg) {
+      const el = document.getElementById(`wix2-results-${tipo}`);
+      el.classList.remove('hidden');
+      el.innerHTML = `
+        <div class="rounded-xl bg-red-900/20 border border-red-800/40 p-4 flex gap-3">
+          <svg class="w-5 h-5 text-red-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <p class="text-red-300 text-sm">${escHtml(msg)}</p>
+        </div>`;
+    }
+
+    // ═══════════════════════════════════════════════
+    // Wix 3 (Eduit New)
+    // ═══════════════════════════════════════════════
+    const wix3Files = { grad: null, pos: null };
+
+    function wix3Tab(tipo) {
+      ['grad','pos'].forEach(t => {
+        document.getElementById(`wix3-tab-${t}`).className =
+          t === tipo
+            ? 'tab-active px-4 py-2 rounded-lg text-sm font-medium transition-all'
+            : 'tab-inactive px-4 py-2 rounded-lg text-sm font-medium transition-all';
+        document.getElementById(`wix3-panel-${t}`).classList.toggle('hidden', t !== tipo);
+      });
+    }
+
+    function wix3DragOver(e, tipo) {
+      e.preventDefault();
+      document.getElementById(`wix3-drop-${tipo}`).classList.add('dragover');
+    }
+    function wix3DragLeave(e, tipo) {
+      document.getElementById(`wix3-drop-${tipo}`).classList.remove('dragover');
+    }
+    function wix3HandleDrop(e, tipo) {
+      e.preventDefault();
+      document.getElementById(`wix3-drop-${tipo}`).classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file) wix3SetFile(file, tipo);
+    }
+    function wix3HandleFileSelect(e, tipo) {
+      const file = e.target.files[0];
+      if (file) wix3SetFile(file, tipo);
+    }
+
+    function wix3SetFile(file, tipo) {
+      wix3Files[tipo] = file;
+      const icon = document.getElementById(`wix3-drop-${tipo}-icon`);
+      const info = document.getElementById(`wix3-drop-${tipo}-file`);
+      const name = document.getElementById(`wix3-drop-${tipo}-filename`);
+      icon.classList.add('hidden'); icon.classList.remove('flex');
+      info.classList.remove('hidden'); info.classList.add('flex');
+      name.textContent = file.name;
+      document.getElementById(`wix3-drop-${tipo}`).classList.add('has-file');
+      document.getElementById(`wix3-btn-preview-${tipo}`).disabled = false;
+      document.getElementById(`wix3-results-${tipo}`).classList.add('hidden');
+      document.getElementById(`wix3-btn-atualizar-${tipo}`).disabled = true;
+    }
+
+    async function wix3Preview(tipo) {
+      const file = wix3Files[tipo];
+      if (!file) return;
+      setBtnLoading(`wix3-btn-preview-${tipo}`, true, 'Verificando...');
+      document.getElementById(`wix3-results-${tipo}`).classList.add('hidden');
+
+      const fd = new FormData();
+      fd.append('file', file);
+      const url = tipo === 'pos' ? '/api/preview_wix3_pos' : '/api/preview_wix3';
+
+      try {
+        const res  = await fetch(url, { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.error) { wix3ShowError(tipo, data.error); return; }
+        if (tipo === 'pos') wix3PosRenderResults(data);
+        else                wix3GradRenderResults(data);
+        document.getElementById(`wix3-btn-atualizar-${tipo}`).disabled = false;
+      } catch(e) {
+        wix3ShowError(tipo, e.message);
+      } finally {
+        setBtnLoading(`wix3-btn-preview-${tipo}`, false, 'Verificar Site');
+      }
+    }
+
+    async function wix3Atualizar(tipo) {
+      const file = wix3Files[tipo];
+      if (!file) return;
+      const label = tipo === 'pos' ? 'Pós-Graduação' : 'Graduação';
+      if (!confirm(`Confirma a atualização do Eduit New (${label})?`)) return;
+
+      setBtnLoading(`wix3-btn-atualizar-${tipo}`, true, 'Atualizando...');
+
+      const fd = new FormData();
+      fd.append('file', file);
+      const url = tipo === 'pos' ? '/api/atualizar_wix3_pos' : '/api/atualizar_wix3';
+
+      try {
+        const res  = await fetch(url, { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.error) { wix3ShowError(tipo, data.error); return; }
+        wix3RenderSuccess(tipo, data);
+        document.getElementById(`wix3-btn-atualizar-${tipo}`).disabled = true;
+      } catch(e) {
+        wix3ShowError(tipo, e.message);
+      } finally {
+        setBtnLoading(`wix3-btn-atualizar-${tipo}`, false, 'Atualizar Site');
+      }
+    }
+
+    const wix3ActiveFilters = { grad: null, pos: null };
+
+    function wix3ToggleFilter(tipo, cat) {
+      const el    = document.getElementById(`wix3-results-${tipo}`);
+      const tbody = document.getElementById(`wix3-tbody-${tipo}`);
+      if (!tbody) return;
+
+      wix3ActiveFilters[tipo] = wix3ActiveFilters[tipo] === cat ? null : cat;
+      const active = wix3ActiveFilters[tipo];
+
+      el.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.style.opacity = (!active || btn.dataset.filter === active) ? '1' : '0.4';
+      });
+      tbody.querySelectorAll('tr[data-cat]').forEach(row => {
+        row.style.display = (!active || row.dataset.cat === active) ? '' : 'none';
+      });
+    }
+
+    function wix3GradRenderResults(data) {
+      const el = document.getElementById('wix3-results-grad');
+      el.classList.remove('hidden');
+
+      let rows = '';
+      sortByName(data.matches || [], 'curso').forEach(m => {
+        const st = m.needs_update ? 'atualizar' : 'sem_mudanca';
+        const info = parseWixInfo(m);
+        rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="${st}">
+          <td class="py-3 px-4">${wixBadge(st)}</td>
+          <td class="py-3 px-4 text-sm text-slate-200 whitespace-nowrap">${escHtml(info.curso)}</td>
+          <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(info.tipoGrau)}</td>
+          <td class="py-3 px-4 text-right text-sm text-slate-300 whitespace-nowrap">${m.atual != null ? 'R$&nbsp;'+m.atual : '<span class="text-slate-700">—</span>'}</td>
+          <td class="py-3 px-4 text-right text-sm text-amber-300 font-medium whitespace-nowrap">${m.novo != null ? 'R$&nbsp;'+m.novo : '<span class="text-slate-700">—</span>'}</td>
+        </tr>`;
+      });
+      sortByName(data.nao_encontrado || [], 'curso').forEach(n => {
+        const nObj = typeof n === 'string' ? {chave: n} : n;
+        const info = parseWixInfo(nObj);
+        rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
+          <td class="py-3 px-4">${wixBadge('nao_encontrado')}</td>
+          <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(info.curso)}</td>
+          <td class="py-3 px-4 text-sm text-slate-500 whitespace-nowrap">${escHtml(info.tipoGrau)}</td>
+          <td></td><td></td>
+        </tr>`;
+      });
+
+      el.innerHTML = `
+        <div class="grid grid-cols-3 gap-3 mb-5">
+          <div class="bg-emerald-900/30 rounded-xl p-4 border border-emerald-800/50 cursor-pointer filter-btn" data-filter="atualizar" onclick="wix3ToggleFilter('grad','atualizar')">
+            <p class="text-xs text-emerald-500 mb-1">Serão atualizados</p>
+            <p class="text-2xl font-bold text-emerald-400">${data.total_atualizar || 0}</p>
+          </div>
+          <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="wix3ToggleFilter('grad','sem_mudanca')">
+            <p class="text-xs text-slate-500 mb-1">Sem mudança</p>
+            <p class="text-2xl font-bold text-white">${data.total_sem_mudanca || 0}</p>
+          </div>
+          <div class="bg-red-900/20 rounded-xl p-4 border border-red-900/40 cursor-pointer filter-btn" data-filter="nao_encontrado" onclick="wix3ToggleFilter('grad','nao_encontrado')">
+            <p class="text-xs text-red-500 mb-1">Não encontrado</p>
+            <p class="text-2xl font-bold text-red-400">${data.total_nao_enc || 0}</p>
+          </div>
+        </div>
+        <div class="rounded-xl border border-slate-800 overflow-hidden">
+          <div class="overflow-auto max-h-[480px]">
+            <table class="w-full text-xs">
+              <thead class="sticky top-0 bg-slate-900 z-20">
+                <tr class="border-b border-slate-700">
+                  <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Status</th>
+                  <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Curso</th>
+                  <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Modalidade</th>
+                  <th class="py-2.5 px-4 text-right text-slate-400 font-medium">Atual</th>
+                  <th class="py-2.5 px-4 text-right text-amber-400 font-semibold">Novo (MAR ABERTO)</th>
+                </tr>
+              </thead>
+              <tbody id="wix3-tbody-grad">${rows}</tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+
+    function wix3PosRenderResults(data) {
+      const el = document.getElementById('wix3-results-pos');
+      el.classList.remove('hidden');
+
+      const posD  = data.pos       || {};
+      const ppD   = data.preco_pos || {};
+      const totAtt = (posD.total_atualizar || 0) + (ppD.total_atualizar || 0);
+      const totSem = (posD.total_sem_mudanca || 0) + (ppD.total_sem_mudanca || 0);
+      const totNE  = (posD.total_nao_enc || 0) + (ppD.total_nao_enc || 0);
+
+      let rows = '';
+      const priceFmt = v => v != null ? `<span class="text-amber-300 font-medium">${escHtml(String(v))}</span>` : '<span class="text-slate-700">—</span>';
+      const priceOld = v => v ? `<span class="text-slate-500">${escHtml(String(v))}</span>` : '<span class="text-slate-700">—</span>';
+
+      const durFmt = (d1, d2) => {
+        const a = d1 ? escHtml(d1) : '';
+        const b = d2 ? escHtml(d2) : '';
+        if (a && b) return `<span class="text-slate-400">${a}</span><br><span class="text-slate-500">${b}</span>`;
+        return `<span class="text-slate-400">${a || b || '—'}</span>`;
+      };
+
+      sortByName(posD.matches || [], 'curso').forEach(m => {
+        const st = m.needs_update ? 'atualizar' : 'sem_mudanca';
+        const curso = escHtml(m.curso || m.chave || '');
+        rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="${st}">
+          <td class="py-3 px-4">${wixBadge(st)}</td>
+          <td class="py-3 px-4 text-xs text-amber-400/70">pos</td>
+          <td class="py-3 px-4 text-sm text-slate-200">${curso}</td>
+          <td class="py-3 px-4 text-sm whitespace-nowrap">${durFmt(m.duracao1, m.duracao2)}</td>
+          <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${priceOld(m.atual1)}</td>
+          <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${priceFmt(m.novo1)}</td>
+          <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${priceOld(m.atual2)}</td>
+          <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${priceFmt(m.novo2)}</td>
+        </tr>`;
+      });
+      sortByName(posD.nao_encontrado || [], 'curso').forEach(n => {
+        const nObj = typeof n === 'string' ? {} : n;
+        const nm = typeof n === 'string' ? n : (n.curso || n.chave || '');
+        rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
+          <td class="py-3 px-4">${wixBadge('nao_encontrado')}</td>
+          <td class="py-3 px-4 text-xs text-amber-400/70">pos</td>
+          <td class="py-3 px-4 text-sm text-slate-400">${escHtml(nm)}</td>
+          <td class="py-3 px-4 text-sm whitespace-nowrap">${durFmt(nObj.duracao1, nObj.duracao2)}</td>
+          <td></td><td></td><td></td><td></td>
+        </tr>`;
+      });
+
+      sortByName(ppD.matches || [], 'curso').forEach(m => {
+        const st = m.needs_update ? 'atualizar' : 'sem_mudanca';
+        const curso = escHtml(m.curso || '');
+        rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="${st}">
+          <td class="py-3 px-4">${wixBadge(st)}</td>
+          <td class="py-3 px-4 text-xs text-violet-400/70">PrecoPos</td>
+          <td class="py-3 px-4 text-sm text-slate-200">${curso}</td>
+          <td class="py-3 px-4 text-sm whitespace-nowrap">${durFmt(m.durao, m.durao1)}</td>
+          <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${priceOld(m.atual_vs)}</td>
+          <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${priceFmt(m.novo_vs)}</td>
+          <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${priceOld(m.atual_vs1)}</td>
+          <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${priceFmt(m.novo_vs1)}</td>
+        </tr>`;
+      });
+      sortByName(ppD.nao_encontrado || [], 'curso').forEach(n => {
+        const nObj = typeof n === 'string' ? {} : n;
+        const nm = typeof n === 'string' ? n : (n.curso || n.chave || '');
+        rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
+          <td class="py-3 px-4">${wixBadge('nao_encontrado')}</td>
+          <td class="py-3 px-4 text-xs text-violet-400/70">PrecoPos</td>
+          <td class="py-3 px-4 text-sm text-slate-400">${escHtml(nm)}</td>
+          <td class="py-3 px-4 text-sm whitespace-nowrap">${durFmt(nObj.durao, nObj.durao1)}</td>
+          <td></td><td></td><td></td><td></td>
+        </tr>`;
+      });
+
+      el.innerHTML = `
+        <div class="grid grid-cols-3 gap-3 mb-5">
+          <div class="bg-emerald-900/30 rounded-xl p-4 border border-emerald-800/50 cursor-pointer filter-btn" data-filter="atualizar" onclick="wix3ToggleFilter('pos','atualizar')">
+            <p class="text-xs text-emerald-500 mb-1">Serão atualizados</p>
+            <p class="text-2xl font-bold text-emerald-400">${totAtt}</p>
+          </div>
+          <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="wix3ToggleFilter('pos','sem_mudanca')">
+            <p class="text-xs text-slate-500 mb-1">Sem mudança</p>
+            <p class="text-2xl font-bold text-white">${totSem}</p>
+          </div>
+          <div class="bg-red-900/20 rounded-xl p-4 border border-red-900/40 cursor-pointer filter-btn" data-filter="nao_encontrado" onclick="wix3ToggleFilter('pos','nao_encontrado')">
+            <p class="text-xs text-red-500 mb-1">Não encontrado</p>
+            <p class="text-2xl font-bold text-red-400">${totNE}</p>
+          </div>
+        </div>
+        <div class="rounded-xl border border-slate-800 overflow-hidden">
+          <div class="overflow-auto max-h-[480px]">
+            <table class="w-full text-xs">
+              <thead class="sticky top-0 bg-slate-900 z-20">
+                <tr class="border-b border-slate-700">
+                  <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Status</th>
+                  <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Coleção</th>
+                  <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Curso</th>
+                  <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Duração</th>
+                  <th class="py-2.5 px-4 text-right text-slate-400 font-medium">Atual 1</th>
+                  <th class="py-2.5 px-4 text-right text-amber-400 font-semibold">Novo 1</th>
+                  <th class="py-2.5 px-4 text-right text-slate-400 font-medium">Atual 2</th>
+                  <th class="py-2.5 px-4 text-right text-amber-400 font-semibold">Novo 2</th>
+                </tr>
+              </thead>
+              <tbody id="wix3-tbody-pos">${rows}</tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+
+    function wix3RenderSuccess(tipo, data) {
+      const el = document.getElementById(`wix3-results-${tipo}`);
+      el.classList.remove('hidden');
+      el.innerHTML = `
+        <div class="rounded-xl bg-emerald-900/20 border border-emerald-800/40 p-5 flex items-start gap-4">
+          <div class="w-10 h-10 rounded-full bg-emerald-800/50 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+          </div>
+          <div>
+            <p class="text-emerald-400 font-semibold text-sm mb-1">Atualização concluída!</p>
+            <p class="text-slate-400 text-sm">
+              <span class="text-white font-medium">${data.atualizados}</span> itens atualizados no site.
+              ${data.erros > 0 ? '<span class="text-red-400"> '+data.erros+' com erro.</span>' : ''}
+            </p>
+          </div>
+        </div>`;
+    }
+
+    function wix3ShowError(tipo, msg) {
+      const el = document.getElementById(`wix3-results-${tipo}`);
+      el.classList.remove('hidden');
+      el.innerHTML = `
+        <div class="rounded-xl bg-red-900/20 border border-red-800/40 p-4 flex gap-3">
+          <svg class="w-5 h-5 text-red-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <p class="text-red-300 text-sm">${escHtml(msg)}</p>
+        </div>`;
+    }
+
+  </script>
+</div>
