@@ -321,6 +321,46 @@
                         border-color: #e2e8f0 !important;
                     }
 
+                    #page-dist_consultor .dc-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        font-size: 13px;
+                    }
+                    #page-dist_consultor .dc-table thead th {
+                        padding: 10px 14px;
+                        font-size: 11px;
+                        font-weight: 700;
+                        text-transform: uppercase;
+                        letter-spacing: 0.4px;
+                        color: var(--dc-text-muted);
+                        border-bottom: 2px solid var(--dc-border);
+                        position: sticky;
+                        top: 0;
+                        background: var(--dc-bg-card);
+                    }
+                    #page-dist_consultor .dc-table tbody td {
+                        padding: 9px 14px;
+                        border-bottom: 1px solid var(--dc-border);
+                        color: var(--dc-text-secondary);
+                    }
+                    #page-dist_consultor .dc-table tbody tr:hover {
+                        background: var(--dc-hover);
+                    }
+                    #page-dist_consultor .dc-table .dc-row-highlight {
+                        background: rgba(16,185,129,0.06);
+                    }
+                    #page-dist_consultor .dc-table .dc-row-highlight td {
+                        color: var(--dc-text-primary);
+                        font-weight: 600;
+                    }
+                    #page-dist_consultor .dc-table .dc-badge-conv {
+                        display: inline-block;
+                        padding: 2px 8px;
+                        border-radius: 6px;
+                        font-size: 12px;
+                        font-weight: 700;
+                    }
+
                     @media (max-width: 768px) {
                         #page-dist_consultor .dc-container { padding: 16px; }
                         #page-dist_consultor .dc-charts-row { grid-template-columns: 1fr; }
@@ -416,6 +456,24 @@
                                 <svg fill="none" stroke="#8b5cf6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                             </div>
                         </div>
+                        <div class="dc-metric">
+                            <div>
+                                <p class="dc-metric-label">Matrículas</p>
+                                <p class="dc-metric-value" id="dc-m-conversoes">0</p>
+                            </div>
+                            <div class="dc-metric-icon" style="background:rgba(16,185,129,0.08)">
+                                <svg fill="none" stroke="#10b981" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </div>
+                        </div>
+                        <div class="dc-metric">
+                            <div>
+                                <p class="dc-metric-label">Taxa de Conversão</p>
+                                <p class="dc-metric-value" id="dc-m-taxa" style="font-size:28px">0%</p>
+                            </div>
+                            <div class="dc-metric-icon" style="background:rgba(245,158,11,0.08)">
+                                <svg fill="none" stroke="#f59e0b" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Charts row: bar + pie -->
@@ -439,6 +497,41 @@
                         <h3 class="dc-chart-title">Leads por Dia e Origem</h3>
                         <div class="dc-chart-wrap">
                             <canvas id="dc-chart-dia-origem"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Conversões row: vendas por consultor + conversão por origem -->
+                    <div class="dc-charts-row">
+                        <div class="dc-chart-card">
+                            <h3 class="dc-chart-title">Matrículas por Origem</h3>
+                            <div class="dc-chart-wrap">
+                                <canvas id="dc-chart-conversao-origem"></canvas>
+                            </div>
+                        </div>
+                        <div class="dc-chart-card">
+                            <h3 class="dc-chart-title">Matrículas por Consultor</h3>
+                            <div class="dc-chart-wrap">
+                                <canvas id="dc-chart-vendas-consultor"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabela detalhada: matrículas por consultor + origem -->
+                    <div class="dc-chart-card" id="dc-table-card">
+                        <h3 class="dc-chart-title">Detalhamento: Matrículas por Consultor e Origem</h3>
+                        <div style="overflow-x:auto">
+                            <table class="dc-table" id="dc-table-detalhe">
+                                <thead>
+                                    <tr>
+                                        <th>Consultor</th>
+                                        <th>Origem</th>
+                                        <th style="text-align:right">Leads</th>
+                                        <th style="text-align:right">Matrículas</th>
+                                        <th style="text-align:right">Conversão</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
