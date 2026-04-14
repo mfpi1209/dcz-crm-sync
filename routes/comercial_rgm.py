@@ -3399,6 +3399,155 @@ def crgm_duplicatas():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@comercial_rgm_bp.route("/api/comercial-rgm/matriculas-sem-data")
+def crgm_matriculas_sem_data():
+    """Leads do Kommo com RGM mas sem data de matrícula (campo Matrícula, field_id=31772).
+
+    Filtra pelos RGMs que aparecem no CSV (comercial_rgm_atual) dentro do ciclo/período
+    selecionado, depois cruza com o Kommo sync para verificar quais não têm data preenchida.
+    Parâmetros: ciclo, turma, dt_ini, dt_fim (todos opcionais).
+    """
+    ciclo_nome = request.args.get("ciclo", "").strip()
+    turma_nome = request.args.get("turma", "").strip()
+    dt_ini     = request.args.get("dt_ini", "").strip() or None
+    dt_fim     = request.args.get("dt_fim", "").strip() or None
+
+    try:
+        conn = _pg()
+        cur  = conn.cursor()
+
+        # Resolve datas do ciclo selecionado
+        ciclo_dt_ini = ciclo_dt_fim = None
+        if ciclo_nome:
+            cur.execute(
+                "SELECT dt_inicio, dt_fim FROM ciclos_comercial WHERE nome = %s LIMIT 1",
+                (ciclo_nome,),
+            )
+            row = cur.fetchone()
+            if row:
+                ciclo_dt_ini = row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])[:10]
+                ciclo_dt_fim = row[1].isoformat() if hasattr(row[1], "isoformat") else str(row[1])[:10]
+
+        # Datas efetivas para filtrar o CSV
+        pd_ini = ciclo_dt_ini or dt_ini
+        pd_fim = ciclo_dt_fim or dt_fim
+
+        # Monta WHERE para comercial_rgm_atual (CSV filtrado por ciclo/período)
+        csv_where  = [
+            "UPPER(TRIM(COALESCE(tipo_matricula,''))) = ANY(ARRAY['NOVA MATRICULA','RECOMPRA','RETORNO'])",
+        ]
+        csv_params = []
+
+        if pd_ini:
+            csv_where.append("data_matricula >= %s::date")
+            csv_params.append(pd_ini)
+        if pd_fim:
+            csv_where.append("data_matricula <= %s::date")
+            csv_params.append(pd_fim)
+        if turma_nome:
+            csv_where.append("UPPER(TRIM(COALESCE(ciclo,''))) = UPPER(%s)")
+            csv_params.append(turma_nome)
+
+        csv_where_sql = " AND ".join(csv_where)
+
+        # Busca RGMs válidos no CSV dentro do período
+        cur.execute(f"""
+            SELECT DISTINCT rgm, nome, polo, nivel, ciclo, tipo_matricula, situacao
+            FROM comercial_rgm_atual
+            WHERE {csv_where_sql}
+              AND rgm IS NOT NULL AND rgm != ''
+            ORDER BY rgm
+        """, csv_params)
+        csv_rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        if not csv_rows:
+            return jsonify({"ok": True, "itens": [], "total": 0,
+                            "aviso": "Nenhuma matrícula no CSV para o período selecionado."})
+
+        # Monta set de RGMs para consultar no Kommo
+        csv_by_rgm = {
+            r[0]: {"rgm": r[0], "nome": r[1] or "", "polo": r[2] or "",
+                   "nivel": r[3] or "", "ciclo": r[4] or "",
+                   "tipo_matricula": r[5] or "", "situacao": r[6] or ""}
+            for r in csv_rows
+        }
+        rgm_list = list(csv_by_rgm.keys())
+
+        # Consulta Kommo sync: quais desses RGMs TÊM data de matrícula preenchida
+        kconn = _pg_kommo()
+        kcur  = kconn.cursor()
+
+        kcur.execute("""
+            SELECT
+                regexp_replace(
+                    COALESCE((lcf_rgm.values_json -> 0) ->> 'value', ''),
+                    '[^0-9]', '', 'g'
+                ) AS rgm,
+                COALESCE(u.name, 'N/A') AS consultora,
+                NULLIF(TRIM((lcf_mat.values_json -> 0) ->> 'value'), '') AS ts_mat
+            FROM leads l
+            JOIN lead_custom_field_values lcf_rgm
+                ON lcf_rgm.lead_id = l.id
+               AND lower(lcf_rgm.field_name) = 'rgm'
+            LEFT JOIN lead_custom_field_values lcf_mat
+                ON lcf_mat.lead_id = l.id
+               AND lcf_mat.field_id = 31772
+            LEFT JOIN users u ON u.id = l.responsible_user_id
+            WHERE l.is_deleted = false
+              AND length(regexp_replace(
+                    COALESCE((lcf_rgm.values_json -> 0) ->> 'value', ''),
+                    '[^0-9]', '', 'g')) = 8
+              AND regexp_replace(
+                    COALESCE((lcf_rgm.values_json -> 0) ->> 'value', ''),
+                    '[^0-9]', '', 'g') = ANY(%s)
+        """, (rgm_list,))
+
+        kommo_rows = kcur.fetchall()
+        kcur.close()
+        kconn.close()
+
+        # Monta mapa rgm -> consultora e flag se tem data no Kommo
+        kommo_map = {}
+        for krow in kommo_rows:
+            rgm_k, consultora, ts_mat = krow[0], krow[1], krow[2]
+            if rgm_k not in kommo_map:
+                kommo_map[rgm_k] = {"consultora": consultora or "N/A", "tem_data": False}
+            if ts_mat:
+                try:
+                    import datetime as _dt
+                    ts_val = int(ts_mat)
+                    data_fmt = _dt.datetime.fromtimestamp(ts_val).strftime("%d/%m/%Y")
+                    kommo_map[rgm_k]["tem_data"] = True
+                    kommo_map[rgm_k]["data_kommo"] = data_fmt
+                except Exception:
+                    pass
+
+        # Resultado: RGMs do CSV que NÃO têm data de matrícula no Kommo
+        itens = []
+        for rgm, csv_info in sorted(csv_by_rgm.items()):
+            k = kommo_map.get(rgm, {})
+            if k.get("tem_data"):
+                continue
+            itens.append({
+                "rgm":           rgm,
+                "nome":          csv_info["nome"],
+                "polo":          csv_info["polo"],
+                "nivel":         csv_info["nivel"],
+                "ciclo":         csv_info["ciclo"],
+                "tipo_matricula": csv_info["tipo_matricula"],
+                "situacao":      csv_info["situacao"],
+                "consultora":    k.get("consultora", "Não encontrado no Kommo"),
+                "no_kommo":      bool(k),
+            })
+
+        return jsonify({"ok": True, "itens": itens, "total": len(itens)})
+    except Exception as e:
+        logger.exception("matriculas-sem-data")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # ── Conflitos de atribuição ───────────────────────────────────────────────────
 
 @comercial_rgm_bp.route("/api/comercial-rgm/conflitos")
