@@ -5,48 +5,18 @@
 (function () {
     const WEBHOOK_URL = "https://n8n-new-n8n.ca31ey.easypanel.host/webhook/distribuicaoporconsultor-origens";
     const CHART_COLORS = ["#2563eb", "#0ea5e9", "#14b8a6", "#22c55e", "#eab308", "#f97316", "#ef4444", "#8b5cf6", "#06b6d4", "#84cc16"];
-    const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-    const DP_PRESETS = [
-        { id: 'all',       label: 'Tudo' },
-        { id: 'today',     label: 'Hoje' },
-        { id: 'yesterday', label: 'Ontem' },
-        { id: '7d',        label: 'Últimos 7 dias' },
-        { id: '30d',       label: 'Últimos 30 dias' },
-        { id: 'thismonth', label: 'Este mês' },
-        { id: 'lastmonth', label: 'Mês passado' },
-        { id: 'custom',    label: 'Personalizado' },
-    ];
-
     let _rows = [];
     let _rawTotalVendas = 0;
     let _rawTotalLeads = 0;
+    let _fechadasPeriodo = {};       // map: consultor -> { do_periodo, fora_periodo, total }
+    let _matriculasPorOrigem = [];   // [{origem, do_periodo, fora_periodo, total}]
     let _chartConsultores = null;
     let _chartOrigens = null;
     let _chartDiaOrigem = null;
-    let _chartMatriculasOrigem = null;
-    let _chartMatriculasConsultor = null;
     let _loaded = false;
     let _filtersListening = false;
 
-    // ── Date Picker State ─────────────────────────────────────────────────
-
-    const now = new Date();
-    let DC_DP = {
-        preset: '7d', customStart: null, customEnd: null,
-        startYear: now.getFullYear(), startMonth: now.getMonth(),
-        endYear: now.getFullYear(),   endMonth: now.getMonth(),
-        selecting: 'start', incluirHoje: true,
-    };
-
-    let DC_PICKER = {
-        start: null, end: null, preset: '7d', incluirHoje: true, label: 'Últimos 7 dias',
-    };
-
-    (function () {
-        var r = dpPresetRange('7d', true);
-        DC_PICKER.start = r.start;
-        DC_PICKER.end = r.end;
-    })();
+    // ── Date helpers ──────────────────────────────────────────────────────
 
     function dpPresetRange(id, incluirHoje) {
         var n = new Date();
@@ -85,228 +55,54 @@
         return p.label + suffix;
     }
 
-    // ── Date Picker UI ────────────────────────────────────────────────────
+    // ── Date Picker (simple inline inputs + preset chips) ────────────────
 
-    window.dcDpOpen = function (triggerEl) {
-        DC_DP.preset      = DC_PICKER.preset;
-        DC_DP.incluirHoje = DC_PICKER.incluirHoje;
-        DC_DP.customStart = DC_PICKER.start;
-        DC_DP.customEnd   = DC_PICKER.end;
-        DC_DP.selecting   = 'start';
+    function dcDateInit() {
         var n = new Date();
-        DC_DP.startYear  = DC_DP.customStart ? DC_DP.customStart.getFullYear() : n.getFullYear();
-        DC_DP.startMonth = DC_DP.customStart ? DC_DP.customStart.getMonth()    : n.getMonth();
-        DC_DP.endYear    = DC_DP.customEnd   ? DC_DP.customEnd.getFullYear()   : n.getFullYear();
-        DC_DP.endMonth   = DC_DP.customEnd   ? DC_DP.customEnd.getMonth()      : n.getMonth();
-
-        var popup = document.getElementById('dcDpPopup');
-        var rect  = triggerEl.getBoundingClientRect();
-        var isMobile = window.innerWidth <= 640;
-
-        if (isMobile) {
-            var estH = Math.min(window.innerHeight * 0.8, 560);
-            var spaceBelow = window.innerHeight - rect.bottom - 8;
-            popup.style.top = (spaceBelow >= estH || spaceBelow >= window.innerHeight * 0.45)
-                ? (rect.bottom + 6) + 'px'
-                : Math.max(8, rect.top - estH - 6) + 'px';
-            popup.style.left = '12px';
-        } else {
-            popup.style.top  = (rect.bottom + 6) + 'px';
-            popup.style.left = rect.left + 'px';
-        }
-
-        dcDpRender();
-        document.getElementById('dcDpOverlay').classList.add('open');
-        popup.classList.add('open');
-
-        if (!isMobile) {
-            setTimeout(function () {
-                var pr = popup.getBoundingClientRect();
-                if (pr.right > window.innerWidth - 12)
-                    popup.style.left = Math.max(8, window.innerWidth - pr.width - 12) + 'px';
-                if (pr.bottom > window.innerHeight - 12)
-                    popup.style.top = (rect.top - pr.height - 6) + 'px';
-            }, 0);
-        }
-    };
-
-    window.dcDpClose = function () {
-        document.getElementById('dcDpOverlay').classList.remove('open');
-        document.getElementById('dcDpPopup').classList.remove('open');
-    };
-
-    function dcDpRender() {
-        var popup = document.getElementById('dcDpPopup');
-        var curPreset = DP_PRESETS.find(function(p) { return p.id === DC_DP.preset; }) || DP_PRESETS[0];
-        var previewStart, previewEnd;
-
-        if (DC_DP.preset === 'custom') {
-            previewStart = DC_DP.customStart;
-            previewEnd   = DC_DP.customEnd;
-        } else {
-            var r = dpPresetRange(DC_DP.preset, DC_DP.incluirHoje);
-            previewStart = r.start;
-            previewEnd   = r.end;
-        }
-
-        var presetSuffix = (DC_DP.preset==='7d'||DC_DP.preset==='30d'||DC_DP.preset==='thismonth')
-            ? (DC_DP.incluirHoje ? ', até hoje' : ', sem hoje') : '';
-
-        popup.innerHTML =
-            '<div class="voc-dp-top">' +
-                '<label class="voc-dp-include-today">' +
-                    '<input type="checkbox" id="dcDpHoje" ' + (DC_DP.incluirHoje ? 'checked' : '') +
-                    ' onchange="dcDpHojeToggle(this.checked)"> Incluir hoje' +
-                '</label>' +
-                '<div class="voc-dp-presets-wrap">' +
-                    '<button class="voc-dp-preset-label" onclick="dcDpTogglePresets(event)">' +
-                        '<span>' + curPreset.label + presetSuffix + '</span>' +
-                        '<span class="material-symbols-outlined" style="font-size:18px">expand_more</span>' +
-                    '</button>' +
-                    '<div class="voc-dp-presets" id="dcDpPresets">' +
-                        DP_PRESETS.map(function(p) {
-                            return '<div class="voc-dp-preset-item' + (p.id === DC_DP.preset ? ' active' : '') +
-                                '" onclick="dcDpSelectPreset(\'' + p.id + '\')">' + p.label + '</div>';
-                        }).join('') +
-                    '</div>' +
-                '</div>' +
-            '</div>' +
-            '<div class="voc-dp-calendars">' +
-                '<div class="voc-dp-cal">' +
-                    '<div class="voc-dp-cal-label">Data de início</div>' +
-                    dcDpCalHtml('start', DC_DP.startYear, DC_DP.startMonth, previewStart, previewEnd) +
-                '</div>' +
-                '<div class="voc-dp-cal">' +
-                    '<div class="voc-dp-cal-label">Data de término</div>' +
-                    dcDpCalHtml('end', DC_DP.endYear, DC_DP.endMonth, previewStart, previewEnd) +
-                '</div>' +
-            '</div>' +
-            '<div class="voc-dp-footer">' +
-                '<button class="voc-dp-btn voc-dp-btn-cancel" onclick="dcDpClose()">Cancelar</button>' +
-                '<button class="voc-dp-btn voc-dp-btn-apply" onclick="dcDpApply()">Aplicar</button>' +
-            '</div>';
+        var today = fmtDateISO(n);
+        var ago6  = fmtDateISO(new Date(n.getFullYear(), n.getMonth(), n.getDate() - 6));
+        var inStart = document.getElementById('dc-date-start');
+        var inEnd   = document.getElementById('dc-date-end');
+        if (inStart) inStart.value = ago6;
+        if (inEnd)   inEnd.value   = today;
+        dcPresetHighlight('7d');
     }
-    window.dcDpRender = dcDpRender;
 
-    function dcDpCalHtml(side, year, month, selStart, selEnd) {
-        var DAYS = ['D','S','T','Q','Q','S','S'];
-        var firstDow = new Date(year, month, 1).getDay();
-        var lastDay  = new Date(year, month+1, 0).getDate();
+    function dcPresetHighlight(id) {
+        document.querySelectorAll('.dc-preset-chip').forEach(function(el) {
+            el.classList.toggle('active', el.dataset.preset === id);
+        });
+    }
+
+    window.dcPresetClick = function(id) {
         var n = new Date();
-        var todayY = n.getFullYear(), todayM = n.getMonth(), todayD = n.getDate();
-
-        var grid =
-            '<div class="voc-dp-cal-header">' +
-                '<button class="voc-dp-nav-btn" onclick="dcDpNav(\'' + side + '\',-1)">' +
-                    '<span class="material-symbols-outlined" style="font-size:18px">chevron_left</span>' +
-                '</button>' +
-                '<span class="voc-dp-cal-title">' + MONTHS[month].slice(0,3).toUpperCase() + '. DE ' + year + '</span>' +
-                '<button class="voc-dp-nav-btn" onclick="dcDpNav(\'' + side + '\',1)">' +
-                    '<span class="material-symbols-outlined" style="font-size:18px">chevron_right</span>' +
-                '</button>' +
-            '</div>' +
-            '<div class="voc-dp-weekdays">' + DAYS.map(function(d) { return '<div class="voc-dp-weekday">' + d + '</div>'; }).join('') + '</div>' +
-            '<div class="voc-dp-days">';
-
-        for (var i = 0; i < firstDow; i++) grid += '<div class="voc-dp-day other-month"></div>';
-
-        for (var d = 1; d <= lastDay; d++) {
-            var isToday = (year===todayY && month===todayM && d===todayD);
-            var cls = 'voc-dp-day clickable';
-            if (isToday) cls += ' today';
-
-            if (selStart && selEnd) {
-                var cur = new Date(year, month, d);
-                var ss  = new Date(selStart.getFullYear(), selStart.getMonth(), selStart.getDate());
-                var se  = new Date(selEnd.getFullYear(),   selEnd.getMonth(),   selEnd.getDate());
-                if (+cur === +ss && +cur === +se) cls += ' selected';
-                else if (+cur === +ss)            cls += ' range-start';
-                else if (+cur === +se)            cls += ' range-end';
-                else if (cur > ss && cur < se)   cls += ' in-range';
-            } else if (selStart) {
-                var cur2 = new Date(year, month, d);
-                var ss2  = new Date(selStart.getFullYear(), selStart.getMonth(), selStart.getDate());
-                if (+cur2 === +ss2) cls += ' selected';
+        var today = fmtDateISO(n);
+        var inStart = document.getElementById('dc-date-start');
+        var inEnd   = document.getElementById('dc-date-end');
+        var s, e;
+        switch(id) {
+            case 'yesterday': {
+                var y = new Date(n.getFullYear(), n.getMonth(), n.getDate() - 1);
+                s = fmtDateISO(y); e = s; break;
             }
-
-            grid += '<div class="' + cls + '" onclick="dcDpClickDay(' + year + ',' + month + ',' + d + ')">' + d + '</div>';
+            case '7d':
+                s = fmtDateISO(new Date(n.getFullYear(), n.getMonth(), n.getDate() - 6));
+                e = today; break;
+            case '30d':
+                s = fmtDateISO(new Date(n.getFullYear(), n.getMonth(), n.getDate() - 29));
+                e = today; break;
+            case 'thismonth':
+                s = fmtDateISO(new Date(n.getFullYear(), n.getMonth(), 1));
+                e = today; break;
+            case 'lastmonth':
+                s = fmtDateISO(new Date(n.getFullYear(), n.getMonth() - 1, 1));
+                e = fmtDateISO(new Date(n.getFullYear(), n.getMonth(), 0));
+                break;
+            default: s = null; e = null;
         }
-        grid += '</div>';
-        return grid;
-    }
-
-    window.dcDpNav = function (side, delta) {
-        if (side === 'start') {
-            DC_DP.startMonth += delta;
-            if (DC_DP.startMonth > 11) { DC_DP.startMonth = 0; DC_DP.startYear++; }
-            if (DC_DP.startMonth < 0)  { DC_DP.startMonth = 11; DC_DP.startYear--; }
-        } else {
-            DC_DP.endMonth += delta;
-            if (DC_DP.endMonth > 11) { DC_DP.endMonth = 0; DC_DP.endYear++; }
-            if (DC_DP.endMonth < 0)  { DC_DP.endMonth = 11; DC_DP.endYear--; }
-        }
-        dcDpRender();
-    };
-
-    window.dcDpClickDay = function (year, month, day) {
-        if (DC_DP.preset !== 'custom') {
-            DC_DP.preset = 'custom';
-            DC_DP.customStart = null;
-            DC_DP.customEnd   = null;
-            DC_DP.selecting   = 'start';
-        }
-        var date = new Date(year, month, day);
-        if (!DC_DP.customStart || DC_DP.customEnd) {
-            DC_DP.customStart = date; DC_DP.customEnd = null; DC_DP.selecting = 'end';
-        } else {
-            if (date < DC_DP.customStart) { DC_DP.customEnd = DC_DP.customStart; DC_DP.customStart = date; }
-            else { DC_DP.customEnd = new Date(year, month, day, 23, 59, 59, 999); }
-            DC_DP.selecting = 'start';
-        }
-        dcDpRender();
-    };
-
-    window.dcDpSelectPreset = function (id) {
-        DC_DP.preset = id;
-        if (id === 'custom') { DC_DP.customStart = null; DC_DP.customEnd = null; DC_DP.selecting = 'start'; }
-        var el = document.getElementById('dcDpPresets');
-        if (el) el.classList.remove('open');
-        dcDpRender();
-    };
-
-    window.dcDpTogglePresets = function (e) {
-        e.stopPropagation();
-        var el = document.getElementById('dcDpPresets');
-        if (el) el.classList.toggle('open');
-    };
-
-    window.dcDpHojeToggle = function (checked) {
-        DC_DP.incluirHoje = checked;
-        dcDpRender();
-    };
-
-    window.dcDpApply = function () {
-        var start, end;
-        if (DC_DP.preset === 'custom') {
-            start = DC_DP.customStart;
-            end   = DC_DP.customEnd || (DC_DP.customStart
-                ? new Date(DC_DP.customStart.getFullYear(), DC_DP.customStart.getMonth(), DC_DP.customStart.getDate(), 23,59,59,999)
-                : null);
-        } else {
-            var r = dpPresetRange(DC_DP.preset, DC_DP.incluirHoje);
-            start = r.start; end = r.end;
-        }
-
-        DC_PICKER = {
-            start: start, end: end,
-            preset: DC_DP.preset,
-            incluirHoje: DC_DP.incluirHoje,
-            label: dpLabel(DC_DP.preset, DC_DP.customStart, DC_DP.customEnd, DC_DP.incluirHoje)
-        };
-
-        document.getElementById('dc-date-label').textContent = DC_PICKER.label;
-        dcDpClose();
-        dcConsultorFetch();
+        if (inStart && s) inStart.value = s;
+        if (inEnd   && e) inEnd.value   = e;
+        dcPresetHighlight(id);
     };
 
     // ── helpers ────────────────────────────────────────────────────────────
@@ -425,19 +221,20 @@
     // ── filter + compute ──────────────────────────────────────────────────
 
     function getFiltered(excludeSemConsultor) {
-        var cf = document.getElementById("dc-consultor-filter")?.value || "";
-        var of_ = document.getElementById("dc-origem-filter")?.value || "";
+        var cf  = document.getElementById("dc-consultor-filter")?.value || "";
+        var of_ = document.getElementById("dc-origem-filter")?.value  || "";
         return _rows.filter(function(r) {
             if (excludeSemConsultor && r._semConsultor) return false;
-            if (cf && r.consultor !== cf) return false;
-            if (of_ && r.origem !== of_) return false;
+            if (cf  && r.consultor !== cf)  return false;
+            if (of_ && r.origem   !== of_)  return false;
             return true;
         });
     }
 
     function computeSummary(allRows, chartRows) {
-        var totalLeads = allRows.reduce(function(a, r) { return a + r.total_leads; }, 0);
-        var taxaConversao = _rawTotalLeads > 0 ? (_rawTotalVendas / _rawTotalLeads * 100) : 0;
+        var totalLeads  = allRows.reduce(function(a, r) { return a + r.total_leads;  }, 0);
+        var totalVendas = allRows.reduce(function(a, r) { return a + r.total_vendas; }, 0);
+        var taxaConversao = totalLeads > 0 ? (totalVendas / totalLeads * 100) : 0;
 
         var consultores = new Set(chartRows.map(function(r) { return r.consultor; })).size;
         var origens = new Set(chartRows.map(function(r) { return r.origem; })).size;
@@ -446,7 +243,7 @@
         return {
             totalLeads: totalLeads, consultores: consultores, origens: origens,
             mediaPorDia: allDias ? totalLeads / allDias : 0, hasDias: chartDias > 0,
-            totalVendas: _rawTotalVendas, taxaConversao: taxaConversao
+            totalVendas: totalVendas, taxaConversao: taxaConversao
         };
     }
 
@@ -509,12 +306,23 @@
             g[r.consultor].leads += r.total_leads;
             g[r.consultor].vendas += r.total_vendas;
         });
+        // Inclui consultores que só aparecem em _fechadasPeriodo
+        Object.keys(_fechadasPeriodo).forEach(function(c) {
+            if (!g[c]) g[c] = { leads: 0, vendas: 0 };
+        });
         return Object.entries(g).map(function(e) {
+            var f = _fechadasPeriodo[e[0]] || { do_periodo: 0, fora_periodo: 0, total: 0 };
             return {
-                consultor: e[0], leads: e[1].leads, vendas: e[1].vendas,
+                consultor:    e[0],
+                leads:        e[1].leads,
+                vendas:       e[1].vendas,
+                do_periodo:   f.do_periodo,
+                fora_periodo: f.fora_periodo,
+                total_fechadas: f.total,
                 conversao: e[1].leads > 0 ? (e[1].vendas / e[1].leads * 100) : 0
             };
-        }).filter(function(i) { return i.vendas > 0; }).sort(function(a, b) { return b.vendas - a.vendas; });
+        }).filter(function(i) { return i.vendas > 0 || i.total_fechadas > 0; })
+          .sort(function(a, b) { return (b.total_fechadas || b.vendas) - (a.total_fechadas || a.vendas); });
     }
 
     // ── populate filters ──────────────────────────────────────────────────
@@ -551,15 +359,36 @@
         document.getElementById("dc-m-consultores").textContent = fmtNumber(s.consultores);
         document.getElementById("dc-m-origens").textContent = fmtNumber(s.origens);
         document.getElementById("dc-m-media").textContent = s.hasDias ? fmtNumber(s.mediaPorDia.toFixed(1)) : "—";
-        document.getElementById("dc-m-conversoes").textContent = fmtNumber(s.totalVendas);
+
+        // Total matrículas respeita filtros de consultor e origem ativos
+        var cf  = document.getElementById("dc-consultor-filter")?.value || "";
+        var of_ = document.getElementById("dc-origem-filter")?.value   || "";
+        var totalMatriculas;
+        if (cf && of_) {
+            // Ambos filtros ativos → usa total_vendas do webhook (já filtrado por ambos)
+            totalMatriculas = s.totalVendas;
+        } else if (cf) {
+            // Só consultor → _fechadasPeriodo (fonte do Dashboard Comercial)
+            var fp = _fechadasPeriodo[cf];
+            totalMatriculas = fp ? fp.total : s.totalVendas;
+        } else if (of_ && _matriculasPorOrigem.length) {
+            // Só origem → filtra _matriculasPorOrigem por origem
+            var matFilt = _matriculasPorOrigem.filter(function(r) { return r.origem === of_; });
+            totalMatriculas = matFilt.reduce(function(acc, r) { return acc + r.total; }, 0);
+        } else if (_matriculasPorOrigem.length) {
+            // Sem filtro → soma todos
+            totalMatriculas = _matriculasPorOrigem.reduce(function(acc, r) { return acc + r.total; }, 0);
+        } else {
+            totalMatriculas = s.totalVendas;
+        }
+        document.getElementById("dc-m-conversoes").textContent = fmtNumber(totalMatriculas);
         document.getElementById("dc-m-taxa").textContent = s.taxaConversao.toFixed(2) + "%";
 
         renderBarConsultores(chartFiltered);
         renderPieOrigens(chartFiltered);
         renderStackedDiaOrigem(chartFiltered, s.hasDias);
-        renderMatriculasOrigem(allFiltered);
-        renderMatriculasConsultor(chartFiltered);
-        renderDetalheTable(allFiltered);
+        renderOrigemTable(allFiltered);
+        renderConsultorCards();
     }
 
     function renderBarConsultores(filtered) {
@@ -630,146 +459,6 @@
         });
     }
 
-    function renderMatriculasOrigem(filtered) {
-        var data = matriculasByOrigem(filtered);
-        if (_chartMatriculasOrigem) _chartMatriculasOrigem.destroy();
-        var canvas = document.getElementById("dc-chart-conversao-origem");
-        var wrap = canvas.closest(".dc-chart-wrap");
-        if (wrap) wrap.style.height = Math.max(200, data.length * 48 + 40) + "px";
-        var ctx = canvas.getContext("2d");
-
-        var barColors = data.map(function(d, i) { return CHART_COLORS[i % CHART_COLORS.length]; });
-        var maxVal = data.length ? Math.max.apply(null, data.map(function(d) { return d.vendas; })) : 1;
-
-        _chartMatriculasOrigem = new Chart(ctx, {
-            type: "bar",
-            data: {
-                labels: data.map(function(d) { return d.origem; }),
-                datasets: [{
-                    label: "Matrículas",
-                    data: data.map(function(d) { return d.vendas; }),
-                    backgroundColor: barColors,
-                    borderRadius: 6,
-                    barThickness: 28
-                }]
-            },
-            options: {
-                indexAxis: "y",
-                responsive: true, maintainAspectRatio: false,
-                layout: { padding: { right: 100 } },
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: function(ctx) {
-                                var d = data[ctx.dataIndex];
-                                return " " + d.vendas + " matrículas de " + fmtNumber(d.leads) + " leads";
-                            },
-                            afterLabel: function(ctx) {
-                                var d = data[ctx.dataIndex];
-                                return " Conversão: " + d.conversao.toFixed(2) + "%";
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    y: { ticks: { color: chartTextColor(), font: { size: 12, weight: "600" } }, grid: { display: false } },
-                    x: {
-                        ticks: { color: chartTextColor(), font: { size: 11 }, stepSize: 1 },
-                        grid: { color: chartGridColor() }, beginAtZero: true,
-                        suggestedMax: Math.ceil(maxVal * 1.25)
-                    }
-                }
-            },
-            plugins: [{
-                afterDatasetsDraw: function(chart) {
-                    var ctx2 = chart.ctx;
-                    chart.data.datasets[0].data.forEach(function(val, i) {
-                        var d = data[i];
-                        var meta = chart.getDatasetMeta(0).data[i];
-                        ctx2.save();
-                        ctx2.font = "bold 11px Inter, sans-serif";
-                        ctx2.fillStyle = chartTextColor();
-                        ctx2.textAlign = "left";
-                        ctx2.textBaseline = "middle";
-                        ctx2.fillText(d.vendas + "  (" + d.conversao.toFixed(1) + "%)", meta.x + 8, meta.y);
-                        ctx2.restore();
-                    });
-                }
-            }]
-        });
-    }
-
-    function renderMatriculasConsultor(filtered) {
-        var data = matriculasByConsultor(filtered);
-        if (_chartMatriculasConsultor) _chartMatriculasConsultor.destroy();
-        var canvas = document.getElementById("dc-chart-vendas-consultor");
-        var wrap = canvas.closest(".dc-chart-wrap");
-        if (wrap) wrap.style.height = Math.max(200, data.length * 48 + 40) + "px";
-        var ctx = canvas.getContext("2d");
-
-        var barColors = data.map(function(d, i) { return CHART_COLORS[i % CHART_COLORS.length]; });
-        var maxVal = data.length ? Math.max.apply(null, data.map(function(d) { return d.vendas; })) : 1;
-
-        _chartMatriculasConsultor = new Chart(ctx, {
-            type: "bar",
-            data: {
-                labels: data.map(function(d) { return d.consultor; }),
-                datasets: [{
-                    label: "Matrículas",
-                    data: data.map(function(d) { return d.vendas; }),
-                    backgroundColor: barColors,
-                    borderRadius: 6,
-                    barThickness: 28
-                }]
-            },
-            options: {
-                indexAxis: "y",
-                responsive: true, maintainAspectRatio: false,
-                layout: { padding: { right: 100 } },
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: function(ctx) {
-                                var d = data[ctx.dataIndex];
-                                return " " + d.vendas + " matrículas de " + fmtNumber(d.leads) + " leads";
-                            },
-                            afterLabel: function(ctx) {
-                                var d = data[ctx.dataIndex];
-                                return " Conversão: " + d.conversao.toFixed(2) + "%";
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    y: { ticks: { color: chartTextColor(), font: { size: 12, weight: "600" } }, grid: { display: false } },
-                    x: {
-                        ticks: { color: chartTextColor(), font: { size: 11 }, stepSize: 1 },
-                        grid: { color: chartGridColor() }, beginAtZero: true,
-                        suggestedMax: Math.ceil(maxVal * 1.25)
-                    }
-                }
-            },
-            plugins: [{
-                afterDatasetsDraw: function(chart) {
-                    var ctx2 = chart.ctx;
-                    chart.data.datasets[0].data.forEach(function(val, i) {
-                        var d = data[i];
-                        var meta = chart.getDatasetMeta(0).data[i];
-                        ctx2.save();
-                        ctx2.font = "bold 11px Inter, sans-serif";
-                        ctx2.fillStyle = chartTextColor();
-                        ctx2.textAlign = "left";
-                        ctx2.textBaseline = "middle";
-                        ctx2.fillText(d.vendas + "  (" + d.conversao.toFixed(1) + "%)", meta.x + 8, meta.y);
-                        ctx2.restore();
-                    });
-                }
-            }]
-        });
-    }
-
     // ── fetch data ────────────────────────────────────────────────────────
 
     function renderDetalheTable(filtered) {
@@ -784,9 +473,22 @@
         if (!tbody) return;
 
         if (rows.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--dc-text-muted)">Nenhuma matrícula encontrada no período</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--dc-text-muted)">Nenhuma matrícula encontrada no período</td></tr>';
             return;
         }
+
+        // Agrega fechadas por consultor para mostrar na primeira linha de cada grupo
+        var fechadasPorConsultor = {};
+        rows.forEach(function(r) {
+            if (!fechadasPorConsultor[r.consultor]) {
+                var fp = _fechadasPeriodo[r.consultor] || { do_periodo: 0, fora_periodo: 0, total: 0 };
+                fechadasPorConsultor[r.consultor] = {
+                    do_periodo:   fp.do_periodo   || 0,
+                    fora_periodo: fp.fora_periodo  || 0,
+                    total:        fp.total         || 0
+                };
+            }
+        });
 
         var html = "";
         var lastConsultor = "";
@@ -800,15 +502,271 @@
             else if (conv >= 2) { badgeColor = "#f59e0b"; badgeBg = "rgba(245,158,11,0.12)"; }
             else { badgeColor = "#94a3b8"; badgeBg = "rgba(148,163,184,0.1)"; }
 
+            var fechadasCell = "";
+            var naoDistCell  = "";
+            if (isNew) {
+                var fc = fechadasPorConsultor[r.consultor] || { do_periodo: 0, fora_periodo: 0 };
+                var fColor = fc.do_periodo > 0 ? "#10b981" : "#64748b";
+                fechadasCell = '<span style="font-weight:700;color:' + fColor + '">' + fc.do_periodo + '</span>';
+                var ndColor = fc.fora_periodo > 0 ? "#f59e0b" : "#64748b";
+                naoDistCell  = '<span style="font-weight:700;color:' + ndColor + '">' + fc.fora_periodo + '</span>';
+            }
+
             html += '<tr' + (isNew ? ' class="dc-row-highlight"' : '') + '>';
             html += '<td>' + (isNew ? r.consultor : '') + '</td>';
             html += '<td>' + r.origem + '</td>';
             html += '<td style="text-align:right">' + fmtNumber(r.total_leads) + '</td>';
             html += '<td style="text-align:right;font-weight:700">' + fmtNumber(r.total_vendas) + '</td>';
+            html += '<td style="text-align:right">' + fechadasCell + '</td>';
+            html += '<td style="text-align:right">' + naoDistCell + '</td>';
             html += '<td style="text-align:right"><span class="dc-badge-conv" style="color:' + badgeColor + ';background:' + badgeBg + '">' + conv.toFixed(2) + '%</span></td>';
             html += '</tr>';
         });
         tbody.innerHTML = html;
+    }
+
+    // ── Bloco 1: Tabela de Leads por Origem ───────────────────────────────
+
+    function renderOrigemTable(filtered) {
+        var tbody = document.querySelector("#dc-table-origem tbody");
+        if (!tbody) return;
+
+        // Ambas as colunas do webhook — mesma base, taxa de conversão consistente
+        var g = {};
+        filtered.forEach(function(r) {
+            if (!g[r.origem]) g[r.origem] = { leads: 0, vendas: 0 };
+            g[r.origem].leads  += r.total_leads;
+            g[r.origem].vendas += r.total_vendas;
+        });
+
+        var data = Object.entries(g).map(function(e) {
+            return {
+                origem: e[0],
+                leads:  e[1].leads,
+                vendas: e[1].vendas,
+                taxa:   e[1].leads > 0 ? (e[1].vendas / e[1].leads * 100) : 0
+            };
+        }).sort(function(a, b) { return b.taxa - a.taxa || b.leads - a.leads; });
+
+        if (data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--dc-text-muted)">Sem dados</td></tr>';
+            return;
+        }
+
+        var maxTaxa = Math.max.apply(null, data.map(function(d) { return d.taxa; })) || 1;
+
+        var html = "";
+        data.forEach(function(d) {
+            var badgeColor, badgeBg;
+            if (d.taxa >= 6)      { badgeColor = "#10b981"; badgeBg = "rgba(16,185,129,0.12)"; }
+            else if (d.taxa >= 3) { badgeColor = "#3b82f6"; badgeBg = "rgba(59,130,246,0.12)"; }
+            else if (d.taxa >= 1) { badgeColor = "#f59e0b"; badgeBg = "rgba(245,158,11,0.12)"; }
+            else                  { badgeColor = "#94a3b8"; badgeBg = "rgba(148,163,184,0.08)"; }
+
+            var barW = maxTaxa > 0 ? (d.taxa / maxTaxa * 100).toFixed(1) : 0;
+            html += '<tr>';
+            html += '<td style="font-weight:600">' + d.origem + '</td>';
+            html += '<td style="text-align:right">' + fmtNumber(d.leads) + '</td>';
+            html += '<td style="text-align:right;font-weight:700;color:#2563eb">' + fmtNumber(d.vendas) + '</td>';
+            html += '<td style="text-align:right"><span class="dc-badge-conv" style="color:' + badgeColor + ';background:' + badgeBg + '">' + d.taxa.toFixed(2) + '%</span></td>';
+            html += '<td><div style="background:var(--dc-border);border-radius:4px;height:8px;overflow:hidden"><div style="width:' + barW + '%;height:100%;background:' + badgeColor + ';border-radius:4px;transition:width 0.4s"></div></div></td>';
+            html += '</tr>';
+        });
+        tbody.innerHTML = html;
+    }
+
+    // ── Bloco 2: Cards por Consultor (Dashboard Comercial) ────────────────
+
+    function renderConsultorCards() {
+        var container = document.getElementById("dc-consultor-cards");
+        if (!container) return;
+
+        var cf  = document.getElementById("dc-consultor-filter")?.value || "";
+        var of_ = document.getElementById("dc-origem-filter")?.value   || "";
+
+        var consultores;
+
+        if (of_) {
+            // Origem filtrada: agrega a partir do webhook (já filtrado por origem)
+            var filtRows = getFiltered(true);
+            var g = {};
+            filtRows.forEach(function(r) {
+                if (!g[r.consultor]) g[r.consultor] = 0;
+                g[r.consultor] += r.total_vendas;
+            });
+            consultores = Object.entries(g)
+                .map(function(e) { return { nome: e[0], total: e[1], do_periodo: e[1], fora_periodo: 0 }; })
+                .filter(function(c) { return c.total > 0 && (!cf || c.nome === cf); })
+                .sort(function(a, b) { return b.total - a.total; });
+        } else {
+            // Sem filtro de origem: usa _fechadasPeriodo (fonte do Dashboard Comercial)
+            consultores = Object.entries(_fechadasPeriodo).map(function(e) {
+                return {
+                    nome:         e[0],
+                    total:        e[1].total        || 0,
+                    do_periodo:   e[1].do_periodo    || 0,
+                    fora_periodo: e[1].fora_periodo  || 0
+                };
+            }).filter(function(c) {
+                return c.total > 0 && (!cf || c.nome === cf);
+            }).sort(function(a, b) { return b.total - a.total; });
+        }
+
+        if (consultores.length === 0) {
+            container.innerHTML = '<p style="color:var(--dc-text-muted);font-size:13px">Sem dados de matrículas no período.</p>';
+            return;
+        }
+
+        var sourceNote = of_
+            ? '<p style="font-size:11px;color:var(--dc-text-muted);margin:0 0 12px;padding:6px 12px;background:rgba(37,99,235,0.07);border:1px solid rgba(37,99,235,0.15);border-radius:8px">'
+              + 'Filtrado por origem <strong style="color:#60a5fa">' + of_ + '</strong> — valores baseados nas conversões do webhook.'
+              + '</p>'
+            : '';
+
+        var html = sourceNote + consultores.map(function(c) {
+            var pctDo   = c.total > 0 ? (c.do_periodo   / c.total * 100).toFixed(0) : 0;
+            var pctFora = c.total > 0 ? (c.fora_periodo / c.total * 100).toFixed(0) : 0;
+            var nomeEsc = c.nome.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+            return '<div data-consultor="' + nomeEsc + '" class="dc-consultor-card" '
+                + 'style="background:var(--dc-bg-main);border:1px solid var(--dc-border);border-radius:12px;padding:16px;cursor:pointer;transition:border-color 0.15s">'
+                + '<div style="font-size:13px;font-weight:700;color:var(--dc-text-primary);margin-bottom:10px">' + c.nome + '</div>'
+                + '<div style="font-size:28px;font-weight:800;color:var(--dc-text-primary);margin-bottom:10px">' + c.total + '</div>'
+                + '<div style="display:flex;height:6px;border-radius:4px;overflow:hidden;margin-bottom:8px">'
+                +   '<div style="width:' + pctDo + '%;background:#10b981"></div>'
+                +   '<div style="width:' + pctFora + '%;background:#f59e0b"></div>'
+                + '</div>'
+                + '<div style="display:flex;gap:10px;font-size:11px">'
+                +   (c.do_periodo > 0 ? '<span style="color:#10b981;font-weight:600">' + c.do_periodo + ' desta semana</span>' : '')
+                +   (c.fora_periodo > 0 ? '<span style="color:#f59e0b;font-weight:600">' + c.fora_periodo + ' carteira/sem dist.</span>' : '')
+                + '</div>'
+                + '</div>';
+        }).join('');
+        container.innerHTML = html;
+
+        // Attach click listeners via JS (more reliable than inline onclick)
+        container.querySelectorAll('.dc-consultor-card').forEach(function(card) {
+            card.addEventListener('mouseenter', function() { this.style.borderColor = '#3b82f6'; });
+            card.addEventListener('mouseleave', function() { this.style.borderColor = 'var(--dc-border)'; });
+            card.addEventListener('click', function() {
+                var nome = this.getAttribute('data-consultor');
+                dcAbrirDetalheInterno(nome);
+            });
+        });
+    }
+
+    // ── Conversão por Tipo de Origem (chart — mantido para compatibilidade) ─
+    var _chartConvOrigem = null;
+
+    function renderConversaoOrigem(filtered) {
+        var canvas = document.getElementById("dc-chart-conv-origem");
+        if (!canvas) return;
+
+        // Agrega TODAS as origens (inclusive sem conversão)
+        var g = {};
+        filtered.forEach(function(r) {
+            if (!g[r.origem]) g[r.origem] = { leads: 0, vendas: 0 };
+            g[r.origem].leads  += r.total_leads;
+            g[r.origem].vendas += r.total_vendas;
+        });
+
+        var data = Object.entries(g).map(function(e) {
+            return {
+                origem:   e[0],
+                leads:    e[1].leads,
+                vendas:   e[1].vendas,
+                taxa:     e[1].leads > 0 ? (e[1].vendas / e[1].leads * 100) : 0
+            };
+        }).sort(function(a, b) { return b.taxa - a.taxa; });
+
+        if (data.length === 0) {
+            if (_chartConvOrigem) { _chartConvOrigem.destroy(); _chartConvOrigem = null; }
+            return;
+        }
+
+        // Ajusta altura do canvas dinamicamente
+        var wrap = document.getElementById("dc-conv-origem-wrap");
+        var barH = 36, minH = 120;
+        var h = Math.max(minH, data.length * barH + 60);
+        if (wrap) wrap.style.height = h + "px";
+        canvas.style.height = h + "px";
+
+        var labels  = data.map(function(d) { return d.origem; });
+        var taxas   = data.map(function(d) { return parseFloat(d.taxa.toFixed(2)); });
+        var colors  = taxas.map(function(t) {
+            if (t >= 6)  return "rgba(16,185,129,0.85)";
+            if (t >= 3)  return "rgba(59,130,246,0.85)";
+            if (t >= 1)  return "rgba(245,158,11,0.85)";
+            return "rgba(100,116,139,0.55)";
+        });
+
+        if (_chartConvOrigem) { _chartConvOrigem.destroy(); _chartConvOrigem = null; }
+
+        _chartConvOrigem = new Chart(canvas.getContext("2d"), {
+            type: "bar",
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: "Taxa de Conversão (%)",
+                    data: taxas,
+                    backgroundColor: colors,
+                    borderRadius: 6,
+                    barThickness: 24
+                }]
+            },
+            options: {
+                indexAxis: "y",
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) {
+                                var d = data[ctx.dataIndex];
+                                return [
+                                    " Taxa: " + ctx.parsed.x.toFixed(2) + "%",
+                                    " Matrículas: " + d.vendas,
+                                    " Leads: " + d.leads
+                                ];
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        grid:  { color: chartGridColor() },
+                        ticks: { color: chartTextColor(), callback: function(v) { return v + "%"; } }
+                    },
+                    y: {
+                        grid:  { display: false },
+                        ticks: { color: chartTextColor(), font: { size: 12 } }
+                    }
+                },
+                animation: { duration: 400 }
+            },
+            plugins: [{
+                id: "convOrigemLabels",
+                afterDatasetsDraw: function(chart) {
+                    var ctx2 = chart.ctx;
+                    chart.data.datasets[0].data.forEach(function(val, i) {
+                        var meta = chart.getDatasetMeta(0);
+                        var bar  = meta.data[i];
+                        if (!bar) return;
+                        var d = data[i];
+                        ctx2.save();
+                        ctx2.fillStyle = chartTextColor();
+                        ctx2.font = "bold 11px Inter, sans-serif";
+                        ctx2.textAlign  = "left";
+                        ctx2.textBaseline = "middle";
+                        var x = bar.x + 6;
+                        var y = bar.y;
+                        ctx2.fillText(val.toFixed(2) + "% (" + d.vendas + "/" + d.leads + ")", x, y);
+                        ctx2.restore();
+                    });
+                }
+            }]
+        });
     }
 
     // ── fetch data ────────────────────────────────────────────────────────
@@ -816,17 +774,13 @@
     window.dcConsultorFetch = async function () {
         var btn = document.getElementById("dc-btn-fetch");
 
-        var startDate, endDate;
-        if (DC_PICKER.start) {
-            startDate = fmtDateISO(DC_PICKER.start);
-        } else {
-            var ago = new Date(); ago.setDate(ago.getDate() - 6);
-            startDate = fmtDateISO(ago);
-        }
-        if (DC_PICKER.end) {
-            endDate = fmtDateISO(DC_PICKER.end);
-        } else {
-            endDate = fmtDateISO(new Date());
+        var startDate = (document.getElementById('dc-date-start')?.value || '').trim();
+        var endDate   = (document.getElementById('dc-date-end')?.value   || '').trim();
+        if (!startDate || !endDate) {
+            var n = new Date();
+            endDate   = endDate   || fmtDateISO(n);
+            var ago = new Date(n.getFullYear(), n.getMonth(), n.getDate() - 6);
+            startDate = startDate || fmtDateISO(ago);
         }
 
         btn.disabled = true;
@@ -862,6 +816,38 @@
             _rawTotalVendas = rawTotals.totalVendas;
             _rawTotalLeads = rawTotals.totalLeads;
             _rows = mapRows(allItems);
+
+            // Busca fechamentos do período em paralelo (por consultor e por origem)
+            _fechadasPeriodo = {};
+            _matriculasPorOrigem = [];
+            var qs = 'start_date=' + encodeURIComponent(startDate) + '&end_date=' + encodeURIComponent(endDate);
+            try {
+                var [fechResp, matOrigResp] = await Promise.all([
+                    fetch('/api/dist-consultor/fechadas-periodo?' + qs),
+                    fetch('/api/dist-consultor/matriculas-por-origem?' + qs)
+                ]);
+                if (fechResp.ok) {
+                    var fechJson = await fechResp.json();
+                    if (fechJson.ok && Array.isArray(fechJson.data)) {
+                        fechJson.data.forEach(function(item) {
+                            _fechadasPeriodo[item.consultor] = {
+                                do_periodo:   item.do_periodo   || 0,
+                                fora_periodo: item.fora_periodo || 0,
+                                total:        item.total        || 0
+                            };
+                        });
+                    }
+                }
+                if (matOrigResp.ok) {
+                    var matOrigJson = await matOrigResp.json();
+                    if (matOrigJson.ok && Array.isArray(matOrigJson.data)) {
+                        _matriculasPorOrigem = matOrigJson.data;
+                        _rawTotalVendas = matOrigJson.total || _rawTotalVendas;
+                    }
+                }
+            } catch (fe) {
+                console.warn("Erro ao buscar fechadas/matriculas-por-origem:", fe);
+            }
 
             document.getElementById("dc-last-update").textContent = "Última atualização: " + new Date().toLocaleString("pt-BR");
 
@@ -899,15 +885,120 @@
 
     // ── init ──────────────────────────────────────────────────────────────
 
+    // ── Modal de detalhe por consultor ───────────────────────────────────
+
+    function dcModalFecharInterno() {
+        var el = document.getElementById('dc-modal-overlay');
+        if (el) el.classList.remove('open');
+    }
+
+    window.dcModalFechar = dcModalFecharInterno;
+
+    window.dcModalClose = function (e) {
+        if (e.target === document.getElementById('dc-modal-overlay')) dcModalFecharInterno();
+    };
+
+    async function dcAbrirDetalheInterno(nome) {
+        var overlay = document.getElementById('dc-modal-overlay');
+        var body    = document.getElementById('dc-modal-body');
+        var title   = document.getElementById('dc-modal-title');
+
+        if (!overlay) { console.error('[dcz] #dc-modal-overlay não encontrado no DOM'); return; }
+
+        // Move para o body para garantir que position:fixed seja relativo ao viewport
+        if (overlay.parentNode !== document.body) {
+            document.body.appendChild(overlay);
+        }
+
+        title.textContent = nome;
+        body.innerHTML = '<div class="dc-modal-loading">Carregando...</div>';
+        overlay.classList.add('open');
+
+        var startDate = (document.getElementById('dc-date-start')?.value || '').trim();
+        var endDate   = (document.getElementById('dc-date-end')?.value   || '').trim();
+        var qs = 'consultor=' + encodeURIComponent(nome) +
+                 '&start_date=' + encodeURIComponent(startDate) +
+                 '&end_date='   + encodeURIComponent(endDate);
+
+        try {
+            var resp = await fetch('/api/dist-consultor/detalhe-consultor?' + qs);
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            var json = await resp.json();
+            if (!json.ok) throw new Error(json.error || 'Erro desconhecido');
+
+            body.innerHTML = renderModalBody(json);
+        } catch (err) {
+            body.innerHTML = '<div class="dc-modal-loading" style="color:#f87171">Erro: ' + err.message + '</div>';
+        }
+    }
+
+    window.dcAbrirDetalhe = dcAbrirDetalheInterno;
+
+    function renderModalBody(data) {
+        function tabelaLeads(lista, tipo) {
+            if (!lista.length) return '<p style="color:var(--dc-text-muted);font-size:12px;padding:8px 0">Nenhum lead nesta categoria.</p>';
+            var rows = lista.map(function(l) {
+                var distInfo = l.ultima_dist
+                    ? l.ultima_dist + (l.dist_consultor ? ' <span style="color:var(--dc-text-muted)">(' + l.dist_consultor + ')</span>' : '')
+                    : '<span style="color:var(--dc-text-muted)">Nunca dist.</span>';
+                var kommoLink = '<a href="https://eduitbr.kommo.com/leads/detail/' + l.lead_id + '" target="_blank" '
+                    + 'style="color:#60a5fa;text-decoration:none" title="Abrir no Kommo">'
+                    + l.lead_id + ' ↗</a>';
+                return '<tr>'
+                    + '<td style="font-weight:600;color:var(--dc-text-primary)">' + (l.rgm || '—') + '</td>'
+                    + '<td>' + (l.nome || '—') + '</td>'
+                    + '<td>' + kommoLink + '</td>'
+                    + '<td>' + (l.lead_criado || '—') + '</td>'
+                    + '<td>' + (l.data_matricula || '—') + '</td>'
+                    + '<td>' + distInfo + '</td>'
+                    + '</tr>';
+            }).join('');
+            return '<div style="overflow-x:auto"><table class="dc-modal-table">'
+                + '<thead><tr>'
+                + '<th>RGM</th><th>Nome</th><th>Lead ID</th>'
+                + '<th>Criado</th><th>Matrícula</th><th>Última dist.</th>'
+                + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+        }
+
+        var total = data.do_periodo.length + data.fora_periodo.length;
+        return '<div class="dc-modal-section-title" style="color:#10b981">'
+            + '<span style="width:10px;height:10px;border-radius:50%;background:#10b981;display:inline-block"></span>'
+            + 'Desta semana — ' + data.do_periodo.length + ' de ' + total
+            + '</div>'
+            + tabelaLeads(data.do_periodo, 'verde')
+            + '<div class="dc-modal-section-title" style="color:#f59e0b;margin-top:8px">'
+            + '<span style="width:10px;height:10px;border-radius:50%;background:#f59e0b;display:inline-block"></span>'
+            + 'Carteira / sem dist. — ' + data.fora_periodo.length + ' de ' + total
+            + '</div>'
+            + tabelaLeads(data.fora_periodo, 'laranja');
+    }
+
     window.loadDistConsultor = function () {
         if (!_filtersListening) {
             _filtersListening = true;
             document.getElementById("dc-consultor-filter").addEventListener("change", render);
             document.getElementById("dc-origem-filter").addEventListener("change", render);
+            ['dc-date-start','dc-date-end'].forEach(function(id) {
+                var el = document.getElementById(id);
+                if (el) el.addEventListener('change', function() { dcPresetHighlight('custom'); });
+            });
+
+            // Modal: close on backdrop click or X button
+            var overlay = document.getElementById('dc-modal-overlay');
+            if (overlay) {
+                overlay.addEventListener('click', function(e) {
+                    if (e.target === overlay) dcModalFecharInterno();
+                });
+            }
+            var btnClose = document.getElementById('dc-modal-close');
+            if (btnClose) {
+                btnClose.addEventListener('click', dcModalFecharInterno);
+            }
         }
 
         if (!_loaded) {
             _loaded = true;
+            dcDateInit();
             dcConsultorFetch();
         }
     };

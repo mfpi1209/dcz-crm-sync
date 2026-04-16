@@ -233,6 +233,48 @@ def _crgm_excluded_rgms(_unused=None) -> set:
                 pass
 
 
+def _crgm_dashboard_rgm_list(dt_ini: str, dt_fim: str,
+                              polo: str = None, nivel: str = None) -> list[str]:
+    """Retorna lista de RGMs únicos para o período, usando EXATAMENTE a mesma
+    fonte do Dashboard Comercial (comercial_rgm_atual + excluded_rgms +
+    conflict_resolucao). Garantia: total bate com 'Matrículas no Período' do Dash."""
+    try:
+        conn = _pg()
+        excluded = _crgm_excluded_rgms(conn)
+        cur = conn.cursor()
+        extra = ""
+        params: list = [dt_ini, dt_fim]
+        if polo:
+            extra += f" AND {_POLO_SQL} = %s"
+            params.append(_normalize_polo(polo))
+        if nivel:
+            extra += " AND nivel = %s"
+            params.append(nivel)
+        cur.execute(
+            f"SELECT rgm FROM comercial_rgm_atual "
+            f"WHERE data_matricula BETWEEN %s AND %s{extra} "
+            "ORDER BY data_matricula DESC NULLS LAST",
+            params,
+        )
+        seen: set[str] = set()
+        rgm_list: list[str] = []
+        for (raw,) in cur.fetchall():
+            n = _normalize_rgm(raw)
+            if n and n not in seen and n not in excluded:
+                seen.add(n)
+                rgm_list.append(n)
+        cur.close()
+        conn.close()
+
+        # Overrides de conflito manuais (mesmos do Dashboard Comercial)
+        # — não afetam a lista de RGMs, só a atribuição ao usuário; retornamos
+        #   a lista bruta para que os endpoints façam o mapeamento próprio.
+        return rgm_list
+    except Exception as e:
+        logger.warning("_crgm_dashboard_rgm_list: %s", e)
+        return []
+
+
 def _crgm_periodo_data(dt_ini=None, dt_fim=None, polo=None, nivel=None, ciclo_filter=None, turma=None):
     """
     Retorna TODOS os RGMs únicos do período (registro mais recente por id),
@@ -3702,4 +3744,419 @@ def crgm_conflitos_resolver_delete():
         conn.close()
         return jsonify({"ok": True})
     except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ── Distribuição por Consultor — fechamentos no período ───────────────────────
+
+@comercial_rgm_bp.route("/api/dist-consultor/fechadas-periodo")
+def dist_consultor_fechadas_periodo():
+    """Matrículas com data_matricula (CSV) no período, divididas em:
+      - do_periodo: lead foi distribuído ao consultor dentro do período
+      - fora_periodo: lead foi distribuído ANTES do período (ou não rastreado)
+      - total: soma dos dois (= mesmo número do Dashboard Comercial)
+
+    Parâmetros: start_date (YYYY-MM-DD), end_date (YYYY-MM-DD), polo (opcional), nivel (opcional).
+    """
+    start_date = request.args.get("start_date", "").strip()
+    end_date   = request.args.get("end_date", "").strip()
+    polo       = request.args.get("polo", "").strip() or None
+    nivel      = request.args.get("nivel", "").strip() or None
+    if not start_date or not end_date:
+        return jsonify({"ok": False, "error": "start_date e end_date obrigatórios"}), 400
+
+    try:
+        import datetime as _dt
+        _dt.date.fromisoformat(start_date)
+        _dt.date.fromisoformat(end_date)
+    except ValueError:
+        return jsonify({"ok": False, "error": "Datas inválidas. Use YYYY-MM-DD"}), 400
+
+    try:
+        # 1. RGMs do período — mesma fonte do Dashboard Comercial
+        # (comercial_rgm_atual: xl_rows EM CURSO + ciclo_atual + dedup + excluded)
+        rgm_list = _crgm_dashboard_rgm_list(start_date, end_date, polo=polo, nivel=nivel)
+
+        if not rgm_list:
+            return jsonify({"ok": True, "data": [], "total": 0})
+
+        # 2. No Kommo: para cada RGM, descobre lead_id + consultor responsável
+        kconn = _pg_kommo()
+        kcur  = kconn.cursor()
+        kcur.execute("""
+            SELECT DISTINCT ON (v.rgm)
+                v.rgm,
+                v.lead_id,
+                COALESCE(u.name, 'N/A') AS consultor,
+                l.responsible_user_id   AS id_consultor
+            FROM vw_leads_rgm v
+            JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
+            LEFT JOIN users u ON u.id = l.responsible_user_id
+            WHERE v.rgm = ANY(%s)
+            ORDER BY v.rgm,
+                     CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END,
+                     l.id DESC
+        """, (rgm_list,))
+        rgm_rows = kcur.fetchall()  # [(rgm, lead_id, consultor, uid)]
+
+        # 3. Busca lead_ids que foram distribuídos no período
+        lead_ids = [r[1] for r in rgm_rows if r[1]]
+        distributed_in_period = set()
+        dist_name_map = {}   # lead_id -> nome canônico de distribuicao_por_consultor (trimmed)
+        if lead_ids:
+            # 3a. Quais leads foram distribuídos no período
+            kcur.execute("""
+                SELECT DISTINCT id_lead
+                FROM distribuicao_por_consultor
+                WHERE ("timestamp" AT TIME ZONE 'America/Sao_Paulo')::date
+                      BETWEEN %s::date AND %s::date
+                  AND id_lead = ANY(%s)
+            """, (start_date, end_date, lead_ids))
+            distributed_in_period = {r[0] for r in kcur.fetchall()}
+
+            # 3b. Nome canônico (mais recente) de cada lead na tabela de distribuição
+            # Usado para garantir que o frontend faça match pelo mesmo nome da webhook
+            kcur.execute("""
+                SELECT DISTINCT ON (id_lead) id_lead, TRIM(consultor)
+                FROM distribuicao_por_consultor
+                WHERE id_lead = ANY(%s)
+                  AND consultor IS NOT NULL AND TRIM(consultor) != ''
+                ORDER BY id_lead, "timestamp" DESC
+            """, (lead_ids,))
+            for lead_id_val, dist_name in kcur.fetchall():
+                dist_name_map[lead_id_val] = dist_name
+
+        kcur.close()
+        kconn.close()
+
+        # 4. Agrupa por consultor, separando do_periodo vs fora_periodo
+        # Usa o nome de distribuicao_por_consultor (mesma chave da webhook) para garantir
+        # match correto no frontend, com fallback para users.name do Kommo.
+        from collections import defaultdict
+
+        # Mapa auxiliar: responsible_user_id → nome webhook (via leads já mapeados)
+        uid_to_dist_name = {}
+        for rgm, lead_id, kommo_name, uid in rgm_rows:
+            if lead_id and uid and lead_id in dist_name_map:
+                uid_to_dist_name[uid] = dist_name_map[lead_id]
+
+        contagem = defaultdict(lambda: {
+            "consultor": "", "id_consultor": None,
+            "do_periodo": 0, "fora_periodo": 0, "total": 0
+        })
+        for rgm, lead_id, kommo_name, uid in rgm_rows:
+            # Prioridade igual ao Dashboard Comercial: uid conhecido > uid via dist
+            # > nome na dist do lead específico > nome Kommo.
+            # Garante que leads transferidos entre consultores ficam com o dono atual.
+            key = (_KNOWN_USERS.get(uid) if uid and uid in _KNOWN_USERS else None) \
+                  or (uid_to_dist_name.get(uid) if uid else None) \
+                  or (dist_name_map.get(lead_id) if lead_id else None) \
+                  or (kommo_name or "N/A").strip()
+            c = contagem[key]
+            c["consultor"]    = key
+            c["id_consultor"] = uid
+            c["total"]       += 1
+            if lead_id and lead_id in distributed_in_period:
+                c["do_periodo"]   += 1
+            else:
+                c["fora_periodo"] += 1
+
+        result = sorted(contagem.values(), key=lambda x: -x["total"])
+        return jsonify({
+            "ok": True,
+            "data": result,
+            "total": sum(r["total"] for r in result)
+        })
+    except Exception as e:
+        logger.exception("dist-consultor-fechadas-periodo")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ── Distribuição por Consultor — matrículas no período por origem ─────────────
+
+@comercial_rgm_bp.route("/api/dist-consultor/matriculas-por-origem")
+def dist_consultor_matriculas_por_origem():
+    """Matrículas com data_matricula no período, agrupadas por origem, separadas em:
+      - do_periodo: lead foi distribuído ao consultor dentro do período
+      - fora_periodo: lead foi distribuído ANTES do período
+      - total: soma dos dois (= mesmo número do Dashboard Comercial)
+    """
+    start_date = request.args.get("start_date", "").strip()
+    end_date   = request.args.get("end_date", "").strip()
+    polo       = request.args.get("polo", "").strip() or None
+    nivel      = request.args.get("nivel", "").strip() or None
+    if not start_date or not end_date:
+        return jsonify({"ok": False, "error": "start_date e end_date obrigatórios"}), 400
+
+    try:
+        import datetime as _dt
+        _dt.date.fromisoformat(start_date)
+        _dt.date.fromisoformat(end_date)
+    except ValueError:
+        return jsonify({"ok": False, "error": "Datas inválidas. Use YYYY-MM-DD"}), 400
+
+    try:
+        # 1. RGMs do período — mesma fonte do Dashboard Comercial
+        # (comercial_rgm_atual: xl_rows EM CURSO + ciclo_atual + dedup + excluded)
+        rgm_list = _crgm_dashboard_rgm_list(start_date, end_date, polo=polo, nivel=nivel)
+
+        if not rgm_list:
+            return jsonify({"ok": True, "data": [], "total_do_periodo": 0,
+                            "total_fora_periodo": 0, "total": 0})
+
+        # 2. Para cada RGM, busca lead_id no Kommo
+        kconn = _pg_kommo()
+        kcur  = kconn.cursor()
+        kcur.execute("""
+            SELECT DISTINCT ON (v.rgm) v.rgm, v.lead_id
+            FROM vw_leads_rgm v
+            JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
+            WHERE v.rgm = ANY(%s)
+            ORDER BY v.rgm,
+                     CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END,
+                     l.id DESC
+        """, (rgm_list,))
+        rgm_to_lead = {r[0]: r[1] for r in kcur.fetchall() if r[1]}
+        lead_ids = list(rgm_to_lead.values())
+
+        # 3. Busca origem + se foi distribuído no período por lead_id
+        distributed_in_period = set()
+        lead_to_origem = {}   # lead_id -> origem (da distribuição mais recente)
+        if lead_ids:
+            # Quais foram distribuídos no período
+            kcur.execute("""
+                SELECT DISTINCT id_lead
+                FROM distribuicao_por_consultor
+                WHERE ("timestamp" AT TIME ZONE 'America/Sao_Paulo')::date
+                      BETWEEN %s::date AND %s::date
+                  AND id_lead = ANY(%s)
+            """, (start_date, end_date, lead_ids))
+            distributed_in_period = {r[0] for r in kcur.fetchall()}
+
+            # Origem mais recente de cada lead (sem filtro de período)
+            kcur.execute("""
+                SELECT DISTINCT ON (id_lead) id_lead, TRIM(COALESCE(origem, 'Sem origem'))
+                FROM distribuicao_por_consultor
+                WHERE id_lead = ANY(%s)
+                  AND origem IS NOT NULL AND TRIM(origem) != ''
+                ORDER BY id_lead, "timestamp" DESC
+            """, (lead_ids,))
+            for lead_id_val, origem in kcur.fetchall():
+                lead_to_origem[lead_id_val] = origem
+
+        kcur.close()
+        kconn.close()
+
+        # 4. Agrupa por origem
+        from collections import defaultdict
+        contagem = defaultdict(lambda: {"origem": "", "do_periodo": 0, "fora_periodo": 0, "total": 0})
+        for rgm in rgm_list:
+            lead_id = rgm_to_lead.get(rgm)
+            if not lead_id:
+                origem = "Sem origem"
+            else:
+                origem = lead_to_origem.get(lead_id, "Sem origem")
+            c = contagem[origem]
+            c["origem"] = origem
+            c["total"] += 1
+            if lead_id and lead_id in distributed_in_period:
+                c["do_periodo"] += 1
+            else:
+                c["fora_periodo"] += 1
+
+        result = sorted(contagem.values(), key=lambda x: -x["total"])
+        return jsonify({
+            "ok": True,
+            "data": result,
+            "total_do_periodo":   sum(r["do_periodo"]   for r in result),
+            "total_fora_periodo": sum(r["fora_periodo"] for r in result),
+            "total":              sum(r["total"]        for r in result),
+        })
+    except Exception as e:
+        logger.exception("dist-consultor-matriculas-por-origem")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@comercial_rgm_bp.route("/api/dist-consultor/filters")
+def dist_consultor_filters():
+    """Retorna polos e níveis disponíveis para o período (para popular os selects do frontend)."""
+    start_date = request.args.get("start_date", "").strip()
+    end_date   = request.args.get("end_date", "").strip()
+    if not start_date or not end_date:
+        return jsonify({"ok": False, "error": "start_date e end_date obrigatórios"}), 400
+    try:
+        conn = _pg()
+        cur  = conn.cursor()
+        cur.execute(
+            f"SELECT DISTINCT {_POLO_SQL} AS polo "
+            "FROM comercial_rgm_atual "
+            "WHERE data_matricula BETWEEN %s AND %s "
+            "  AND polo IS NOT NULL AND TRIM(polo) != '' "
+            "ORDER BY polo",
+            (start_date, end_date),
+        )
+        polos = [r[0] for r in cur.fetchall() if r[0] and r[0].strip()]
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True, "polos": polos, "niveis": ["Graduação", "Pós-Graduação"]})
+    except Exception as e:
+        logger.warning("dist_consultor_filters: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@comercial_rgm_bp.route("/api/dist-consultor/detalhe-consultor")
+def dist_consultor_detalhe():
+    """Retorna lista detalhada de leads (RGM) de um consultor no período,
+    indicando se cada um é do_periodo (verde) ou fora_periodo (laranja).
+
+    Parâmetros: consultor (nome), start_date, end_date
+    """
+    consultor  = request.args.get("consultor", "").strip()
+    start_date = request.args.get("start_date", "").strip()
+    end_date   = request.args.get("end_date", "").strip()
+
+    if not consultor or not start_date or not end_date:
+        return jsonify({"ok": False, "error": "consultor, start_date e end_date obrigatórios"}), 400
+
+    try:
+        import datetime as _dt
+        _dt.date.fromisoformat(start_date)
+        _dt.date.fromisoformat(end_date)
+    except ValueError:
+        return jsonify({"ok": False, "error": "Datas inválidas. Use YYYY-MM-DD"}), 400
+
+    try:
+        # 1. RGMs do período (ERP)
+        conn = _pg()
+        cur  = conn.cursor()
+        cur.execute(
+            "SELECT rgm, nome, data_matricula FROM comercial_rgm_atual "
+            "WHERE data_matricula BETWEEN %s AND %s ORDER BY data_matricula DESC",
+            (start_date, end_date),
+        )
+        erp_rows = {_normalize_rgm(r[0]): {"nome": r[1], "data_matricula": str(r[2])}
+                    for r in cur.fetchall() if _normalize_rgm(r[0])}
+        cur.close(); conn.close()
+
+        rgm_list = list(erp_rows.keys())
+        if not rgm_list:
+            return jsonify({"ok": True, "consultor": consultor, "do_periodo": [], "fora_periodo": []})
+
+        # 2. Kommo: lead_id + consultor responsável + created_at por RGM
+        kconn = _pg_kommo()
+        kcur  = kconn.cursor()
+        kcur.execute("""
+            SELECT DISTINCT ON (v.rgm)
+                v.rgm,
+                v.lead_id,
+                COALESCE(u.name, 'N/A')       AS consultor_kommo,
+                l.responsible_user_id          AS uid,
+                l.created_at                   AS lead_created_at
+            FROM vw_leads_rgm v
+            JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
+            LEFT JOIN users u ON u.id = l.responsible_user_id
+            WHERE v.rgm = ANY(%s)
+            ORDER BY v.rgm,
+                     CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END,
+                     l.id DESC
+        """, (rgm_list,))
+        lead_rows = kcur.fetchall()
+
+        # Filtra pelo consultor solicitado (usando _KNOWN_USERS e fallbacks)
+        uid_to_dist_name = {}
+        dist_name_map    = {}
+        lead_ids_all = [r[1] for r in lead_rows if r[1]]
+        if lead_ids_all:
+            kcur.execute("""
+                SELECT DISTINCT ON (id_lead) id_lead, TRIM(consultor)
+                FROM distribuicao_por_consultor
+                WHERE id_lead = ANY(%s)
+                ORDER BY id_lead, "timestamp" DESC
+            """, (lead_ids_all,))
+            dist_name_map = {r[0]: r[1] for r in kcur.fetchall()}
+
+        # Distribuídos no período
+        if lead_ids_all:
+            kcur.execute("""
+                SELECT DISTINCT id_lead,
+                    ("timestamp" AT TIME ZONE 'America/Sao_Paulo')::date AS dist_date
+                FROM distribuicao_por_consultor
+                WHERE ("timestamp" AT TIME ZONE 'America/Sao_Paulo')::date
+                      BETWEEN %s::date AND %s::date
+                  AND id_lead = ANY(%s)
+            """, (start_date, end_date, lead_ids_all))
+            dist_in_period = {r[0]: r[1] for r in kcur.fetchall()}
+        else:
+            dist_in_period = {}
+
+        # Data da última distribuição de cada lead
+        if lead_ids_all:
+            kcur.execute("""
+                SELECT DISTINCT ON (id_lead) id_lead,
+                    ("timestamp" AT TIME ZONE 'America/Sao_Paulo')::date AS dist_date,
+                    TRIM(consultor) AS consultor
+                FROM distribuicao_por_consultor
+                WHERE id_lead = ANY(%s)
+                ORDER BY id_lead, "timestamp" DESC
+            """, (lead_ids_all,))
+            last_dist = {r[0]: {"data": str(r[1]), "consultor": r[2]} for r in kcur.fetchall()}
+        else:
+            last_dist = {}
+
+        kcur.close(); kconn.close()
+
+        # 3. Monta resultado — filtra só os leads atribuídos ao consultor solicitado
+        do_periodo   = []
+        fora_periodo = []
+
+        for rgm, lead_id, kommo_name, uid, created_at_raw in lead_rows:
+            if not lead_id:
+                continue
+
+            # Atribuição de consultor (mesma lógica do endpoint fechadas-periodo)
+            key = (_KNOWN_USERS.get(uid) if uid and uid in _KNOWN_USERS else None) \
+                  or (uid_to_dist_name.get(uid) if uid else None) \
+                  or (dist_name_map.get(lead_id) if lead_id else None) \
+                  or (kommo_name or "N/A").strip()
+
+            if key != consultor:
+                continue
+
+            # Converte created_at (Unix timestamp ou datetime)
+            if isinstance(created_at_raw, int):
+                import datetime as _dt2
+                criado_str = str(_dt2.datetime.utcfromtimestamp(created_at_raw).date())
+            elif created_at_raw and hasattr(created_at_raw, 'date'):
+                criado_str = str(created_at_raw.date())
+            else:
+                criado_str = None
+
+            erp = erp_rows.get(rgm, {})
+            ld  = last_dist.get(lead_id, {})
+
+            item = {
+                "rgm":            rgm,
+                "nome":           erp.get("nome", ""),
+                "data_matricula": erp.get("data_matricula", ""),
+                "lead_id":        lead_id,
+                "lead_criado":    criado_str,
+                "ultima_dist":    ld.get("data"),
+                "dist_consultor": ld.get("consultor"),
+            }
+
+            if lead_id in dist_in_period:
+                item["dist_no_periodo"] = str(dist_in_period[lead_id])
+                do_periodo.append(item)
+            else:
+                fora_periodo.append(item)
+
+        return jsonify({
+            "ok":          True,
+            "consultor":   consultor,
+            "do_periodo":  sorted(do_periodo,   key=lambda x: x["data_matricula"], reverse=True),
+            "fora_periodo": sorted(fora_periodo, key=lambda x: x["data_matricula"], reverse=True),
+        })
+
+    except Exception as e:
+        logger.exception("dist-consultor-detalhe")
         return jsonify({"ok": False, "error": str(e)}), 500

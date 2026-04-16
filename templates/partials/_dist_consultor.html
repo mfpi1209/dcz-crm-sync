@@ -150,6 +150,47 @@
                     #page-dist_consultor .dc-btn-update:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
                     #page-dist_consultor .dc-btn-update svg { width: 16px; height: 16px; }
 
+                    #page-dist_consultor .dc-date-input {
+                        padding: 9px 12px;
+                        border: 1px solid var(--dc-border);
+                        border-radius: 8px;
+                        font-size: 13px;
+                        background: var(--dc-input-bg);
+                        color: var(--dc-text-primary);
+                        font-family: inherit;
+                        transition: all 0.2s;
+                        min-width: 140px;
+                        cursor: pointer;
+                    }
+                    #page-dist_consultor .dc-date-input:focus {
+                        outline: none;
+                        border-color: #2563eb;
+                        box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+                    }
+
+                    #page-dist_consultor .dc-preset-chip {
+                        padding: 5px 12px;
+                        border-radius: 20px;
+                        border: 1px solid var(--dc-border);
+                        background: var(--dc-input-bg);
+                        color: var(--dc-text-secondary);
+                        font-size: 12px;
+                        font-weight: 500;
+                        cursor: pointer;
+                        font-family: inherit;
+                        transition: all 0.15s;
+                        white-space: nowrap;
+                    }
+                    #page-dist_consultor .dc-preset-chip:hover {
+                        border-color: #3b82f6;
+                        color: var(--dc-text-primary);
+                    }
+                    #page-dist_consultor .dc-preset-chip.active {
+                        background: #2563eb;
+                        border-color: #2563eb;
+                        color: #fff;
+                    }
+
                     #page-dist_consultor .dc-btn-update .dc-spinner {
                         width: 16px; height: 16px;
                         border: 2px solid rgba(255,255,255,0.3);
@@ -361,6 +402,69 @@
                         font-weight: 700;
                     }
 
+                    /* ── Modal de detalhe ── (usa vars globais pois é movido pro body) */
+                    #dc-modal-overlay {
+                        display: none;
+                        position: fixed;
+                        inset: 0;
+                        background: rgba(0,0,0,0.65);
+                        z-index: 99999;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 16px;
+                        box-sizing: border-box;
+                    }
+                    #dc-modal-overlay.open { display: flex; }
+                    #dc-modal-box {
+                        background: var(--bg-elevated, #1e293b);
+                        border: 1px solid var(--border, #334155);
+                        border-radius: 16px;
+                        width: 100%;
+                        max-width: 720px;
+                        max-height: 85vh;
+                        display: flex;
+                        flex-direction: column;
+                        box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+                        color: var(--text-primary, #f1f5f9);
+                        font-family: 'Inter', sans-serif;
+                    }
+                    #dc-modal-header {
+                        padding: 20px 24px 16px;
+                        border-bottom: 1px solid var(--border, #334155);
+                        display: flex; align-items: center; justify-content: space-between;
+                        flex-shrink: 0;
+                    }
+                    #dc-modal-header h2 { font-size: 17px; font-weight: 700; margin: 0; color: var(--text-primary, #f1f5f9); }
+                    #dc-modal-close {
+                        background: none; border: none; cursor: pointer;
+                        color: var(--text-muted, #64748b); padding: 4px;
+                        border-radius: 8px; transition: all 0.15s;
+                        display: flex; align-items: center;
+                    }
+                    #dc-modal-close:hover { background: var(--bg-main, #0f172a); color: var(--text-primary, #f1f5f9); }
+                    #dc-modal-body { overflow-y: auto; padding: 0 24px 24px; flex: 1; }
+                    .dc-modal-section-title {
+                        font-size: 12px; font-weight: 700; text-transform: uppercase;
+                        letter-spacing: 0.5px; padding: 16px 0 8px;
+                        display: flex; align-items: center; gap: 8px;
+                        position: sticky; top: 0;
+                        background: var(--bg-elevated, #1e293b); z-index: 1;
+                    }
+                    .dc-modal-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+                    .dc-modal-table th {
+                        padding: 7px 10px; font-size: 10px; font-weight: 700;
+                        text-transform: uppercase; letter-spacing: 0.4px;
+                        color: var(--text-muted, #64748b); border-bottom: 2px solid var(--border, #334155);
+                        text-align: left; white-space: nowrap;
+                    }
+                    .dc-modal-table td {
+                        padding: 7px 10px; border-bottom: 1px solid var(--border, #334155);
+                        color: var(--text-secondary, #cbd5e1);
+                    }
+                    .dc-modal-table tr:last-child td { border-bottom: none; }
+                    .dc-modal-table tr:hover td { background: rgba(255,255,255,0.04); }
+                    .dc-modal-loading { padding: 40px; text-align: center; color: var(--text-muted, #64748b); font-size: 14px; }
+
                     @media (max-width: 768px) {
                         #page-dist_consultor .dc-container { padding: 16px; }
                         #page-dist_consultor .dc-charts-row { grid-template-columns: 1fr; }
@@ -380,14 +484,24 @@
                     </div>
 
                     <!-- Filters -->
-                    <div class="dc-filters">
+                    <div class="dc-filters" style="flex-direction:column;align-items:flex-start;gap:10px">
+                        <!-- Preset chips -->
+                        <div style="display:flex;gap:6px;flex-wrap:wrap">
+                            <button class="dc-preset-chip active" data-preset="7d"        onclick="dcPresetClick('7d')">Últ. 7 dias</button>
+                            <button class="dc-preset-chip"        data-preset="yesterday" onclick="dcPresetClick('yesterday')">Ontem</button>
+                            <button class="dc-preset-chip"        data-preset="30d"       onclick="dcPresetClick('30d')">Últ. 30 dias</button>
+                            <button class="dc-preset-chip"        data-preset="thismonth" onclick="dcPresetClick('thismonth')">Este mês</button>
+                            <button class="dc-preset-chip"        data-preset="lastmonth" onclick="dcPresetClick('lastmonth')">Mês passado</button>
+                        </div>
+                        <!-- Date inputs + other filters -->
+                        <div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap">
                         <div class="dc-filter-group">
-                            <label>Período</label>
-                            <button class="dc-date-btn" id="dc-date-trigger" onclick="dcDpOpen(this)">
-                                <span class="material-symbols-outlined">date_range</span>
-                                <span id="dc-date-label">Últimos 7 dias</span>
-                                <span class="material-symbols-outlined">expand_more</span>
-                            </button>
+                            <label>De</label>
+                            <input type="date" id="dc-date-start" class="dc-date-input">
+                        </div>
+                        <div class="dc-filter-group">
+                            <label>Até</label>
+                            <input type="date" id="dc-date-end" class="dc-date-input">
                         </div>
                         <div class="dc-filter-group">
                             <label for="dc-consultor-filter">Consultor</label>
@@ -407,6 +521,7 @@
                                 Atualizar
                             </button>
                         </div>
+                        </div><!-- end date+filters row -->
                     </div>
 
                     <!-- Error / Warning -->
@@ -458,7 +573,7 @@
                         </div>
                         <div class="dc-metric">
                             <div>
-                                <p class="dc-metric-label">Matrículas</p>
+                                <p class="dc-metric-label">Matrículas no Período</p>
                                 <p class="dc-metric-value" id="dc-m-conversoes">0</p>
                             </div>
                             <div class="dc-metric-icon" style="background:rgba(16,185,129,0.08)">
@@ -500,43 +615,54 @@
                         </div>
                     </div>
 
-                    <!-- Conversões row: vendas por consultor + conversão por origem -->
-                    <div class="dc-charts-row">
-                        <div class="dc-chart-card">
-                            <h3 class="dc-chart-title">Matrículas por Origem</h3>
-                            <div class="dc-chart-wrap">
-                                <canvas id="dc-chart-conversao-origem"></canvas>
-                            </div>
-                        </div>
-                        <div class="dc-chart-card">
-                            <h3 class="dc-chart-title">Matrículas por Consultor</h3>
-                            <div class="dc-chart-wrap">
-                                <canvas id="dc-chart-vendas-consultor"></canvas>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Tabela detalhada: matrículas por consultor + origem -->
-                    <div class="dc-chart-card" id="dc-table-card">
-                        <h3 class="dc-chart-title">Detalhamento: Matrículas por Consultor e Origem</h3>
+                    <!-- Bloco 1: Leads por Origem -->
+                    <div class="dc-chart-card" style="margin-bottom:24px">
+                        <h3 class="dc-chart-title">Leads por Origem</h3>
+                        <p style="font-size:11px;color:var(--dc-text-muted);margin:-8px 0 16px">
+                            Fonte: webhook n8n &nbsp;|&nbsp;
+                            <strong style="color:#2563eb">Matrículas</strong> = leads desta origem marcados como ganhos no Kommo no período
+                        </p>
                         <div style="overflow-x:auto">
-                            <table class="dc-table" id="dc-table-detalhe">
+                            <table class="dc-table" id="dc-table-origem">
                                 <thead>
                                     <tr>
-                                        <th>Consultor</th>
                                         <th>Origem</th>
                                         <th style="text-align:right">Leads</th>
                                         <th style="text-align:right">Matrículas</th>
-                                        <th style="text-align:right">Conversão</th>
+                                        <th style="text-align:right">Taxa de Conversão</th>
+                                        <th style="min-width:160px">Progresso</th>
                                     </tr>
                                 </thead>
                                 <tbody></tbody>
                             </table>
                         </div>
                     </div>
+
+                    <!-- Modal de detalhe por consultor -->
+                    <div id="dc-modal-overlay">
+                        <div id="dc-modal-box">
+                            <div id="dc-modal-header">
+                                <h2 id="dc-modal-title">Detalhe</h2>
+                                <button id="dc-modal-close">
+                                    <span class="material-symbols-outlined">close</span>
+                                </button>
+                            </div>
+                            <div id="dc-modal-body">
+                                <div class="dc-modal-loading">Carregando...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bloco 2: Total Dashboard Comercial por Consultor -->
+                    <div class="dc-chart-card" id="dc-table-card">
+                        <h3 class="dc-chart-title">Matrículas no Período por Consultor</h3>
+                        <p style="font-size:11px;color:var(--dc-text-muted);margin:-8px 0 16px">
+                            Fonte: Dashboard Comercial &nbsp;|&nbsp;
+                            <strong style="color:#10b981">Desta semana</strong> = distribuídos neste período &nbsp;|&nbsp;
+                            <strong style="color:#f59e0b">Carteira / sem dist.</strong> = distribuídos antes ou nunca distribuídos
+                        </p>
+                        <div id="dc-consultor-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
+                    </div>
                 </div>
 
-                <!-- Date Range Picker Popup (reuses voc-dp-* global CSS) -->
-                <div class="voc-dp-overlay" id="dcDpOverlay" onclick="dcDpClose()"></div>
-                <div class="voc-dp-popup"   id="dcDpPopup"></div>
             </div>
