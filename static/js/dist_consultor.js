@@ -624,10 +624,19 @@
             }
 
             var origemColor = isEntradaDireta ? '#a78bfa' : (isSemLead ? '#f87171' : null);
-            var origemCell = isDestacar
-                ? '<span style="font-weight:600;color:' + origemColor + ';cursor:pointer;text-decoration:underline dotted" title="Clique para ver a lista" onclick="dcAbrirSemOrigem()">'
-                  + d.origem + ' <span style="font-size:11px">↗</span></span>'
-                : '<span style="font-weight:600">' + d.origem + '</span>';
+            var origemCell;
+            if (isDestacar) {
+                var filtro = isEntradaDireta ? 'entrada_direta' : 'sem_lead';
+                origemCell = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+                    + '<span style="font-weight:600;color:' + origemColor + '">' + d.origem + '</span>'
+                    + '<button onclick="dcAbrirSemOrigem(\'' + filtro + '\')" '
+                    + 'style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;border:1px solid '
+                    + origemColor + ';background:transparent;color:' + origemColor + ';cursor:pointer;font-family:inherit">'
+                    + 'Ver lista</button>'
+                    + '</div>';
+            } else {
+                origemCell = '<span style="font-weight:600">' + d.origem + '</span>';
+            }
 
             html += '<tr' + (isDestacar ? ' style="background:rgba(167,139,250,0.05)"' : '') + '>';
             html += '<td>' + origemCell + '</td>';
@@ -1001,14 +1010,18 @@
 
     // ── Modal "Sem Origem" ────────────────────────────────────────────────
 
-    window.dcAbrirSemOrigem = async function () {
+    window.dcAbrirSemOrigem = async function (filtro) {
         var overlay = document.getElementById('dc-modal-overlay');
         var body    = document.getElementById('dc-modal-body');
         var title   = document.getElementById('dc-modal-title');
         if (!overlay) return;
         if (overlay.parentNode !== document.body) document.body.appendChild(overlay);
 
-        title.textContent = 'Matrículas sem origem (não distribuídas via n8n)';
+        var titles = {
+            'entrada_direta': 'Entrada direta no Kommo — sem distribuição via n8n',
+            'sem_lead':       'Sem lead no Kommo'
+        };
+        title.textContent = titles[filtro] || 'Matrículas sem origem';
         body.innerHTML = '<div class="dc-modal-loading">Carregando...</div>';
         overlay.classList.add('open');
 
@@ -1028,9 +1041,12 @@
                 return;
             }
 
-            // Agrupa por motivo
+            // Filtra pelo grupo solicitado
             var semKommo  = rows.filter(function(r) { return r.motivo === 'Sem lead no Kommo'; });
             var semDist   = rows.filter(function(r) { return r.motivo !== 'Sem lead no Kommo'; });
+            var listaFiltrada = filtro === 'sem_lead' ? semKommo
+                              : filtro === 'entrada_direta' ? semDist
+                              : rows;
 
             function tabelaAlunos(lista) {
                 if (!lista.length) return '<p style="color:var(--dc-text-muted);font-size:12px;padding:8px 0">Nenhum.</p>';
@@ -1054,23 +1070,15 @@
                     }).join('') + '</tbody></table></div>';
             }
 
+            var aviso = filtro === 'entrada_direta'
+                ? '⚠️ Lead existe no Kommo com responsável, mas <strong>nunca foi distribuído via n8n</strong>. As vendas já estão contabilizadas nos cards por consultor.'
+                : filtro === 'sem_lead'
+                ? '⚠️ RGMs matriculados no período <strong>sem nenhum lead vinculado no Kommo</strong>.'
+                : '⚠️ Alunos matriculados no período sem origem identificada via n8n.';
+
             body.innerHTML =
-                '<div style="padding:12px 0 8px;font-size:12px;color:var(--dc-text-muted);line-height:1.6">'
-                + '⚠️ Esses alunos matricularam no período mas o lead <strong>nunca passou pelo webhook n8n</strong>. '
-                + 'Os que têm responsável no Kommo já estão contabilizados nos cards por consultor.'
-                + '</div>'
-
-                + '<div class="dc-modal-section-title" style="color:#a78bfa">'
-                + '<span style="width:10px;height:10px;border-radius:50%;background:#a78bfa;display:inline-block"></span>'
-                + 'Entrada direta no Kommo (sem dist. n8n) — ' + semDist.length
-                + '</div>'
-                + tabelaAlunos(semDist)
-
-                + '<div class="dc-modal-section-title" style="color:#f87171;margin-top:8px">'
-                + '<span style="width:10px;height:10px;border-radius:50%;background:#f87171;display:inline-block"></span>'
-                + 'Sem lead no Kommo — ' + semKommo.length
-                + '</div>'
-                + tabelaAlunos(semKommo);
+                '<div style="padding:12px 0 8px;font-size:12px;color:var(--dc-text-muted);line-height:1.6">' + aviso + '</div>'
+                + tabelaAlunos(listaFiltrada);
 
         } catch (err) {
             body.innerHTML = '<div class="dc-modal-loading" style="color:#f87171">Erro: ' + err.message + '</div>';
