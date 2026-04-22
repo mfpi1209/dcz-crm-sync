@@ -3957,12 +3957,32 @@ def dist_consultor_matriculas_por_origem():
                 if origem:
                     lead_to_origem[lead_id_val] = origem
 
+            # Fallback: para leads sem origem no n8n, busca campo "Origem" do custom_fields_json no Kommo
+            sem_origem_ids = [lid for lid in lead_ids if lid not in lead_to_origem]
+            if sem_origem_ids:
+                kcur.execute("""
+                    SELECT DISTINCT ON (l.id)
+                        l.id,
+                        TRIM((cf_elem.value -> 'values' -> 0) ->> 'value') AS origem_kommo
+                    FROM leads l
+                    CROSS JOIN LATERAL jsonb_array_elements(
+                        COALESCE(l.custom_fields_json, '[]'::jsonb)
+                    ) cf_elem(value)
+                    WHERE l.id = ANY(%s)
+                      AND lower(cf_elem.value ->> 'field_name') = 'origem'
+                      AND (cf_elem.value -> 'values' -> 0) ->> 'value' IS NOT NULL
+                      AND TRIM((cf_elem.value -> 'values' -> 0) ->> 'value') != ''
+                """, (sem_origem_ids,))
+                for lead_id_val, origem_kommo in kcur.fetchall():
+                    if origem_kommo:
+                        lead_to_origem[lead_id_val] = origem_kommo
+
         kcur.close()
         kconn.close()
 
         # 4. Agrupa por origem
-        # - Lead com origem registrada → usa a origem
-        # - Lead no Kommo mas nunca passou pelo n8n → "Entrada direta"
+        # - Lead com origem registrada (n8n ou campo Kommo) → usa a origem
+        # - Lead no Kommo mas sem origem em nenhuma fonte → "Entrada direta"
         # - RGM sem nenhum lead no Kommo → "Sem lead no Kommo"
         from collections import defaultdict
         contagem = defaultdict(lambda: {"origem": "", "do_periodo": 0, "fora_periodo": 0, "total": 0})
@@ -4063,32 +4083,57 @@ def dist_consultor_sem_origem():
             uid = data.pop("responsible_user_id", None)
             data["responsavel"] = user_names.get(uid, "—") if uid else "—"
 
-        # Quais lead_ids têm entrada em distribuicao_por_consultor
+        # Quais lead_ids têm origem no n8n (distribuicao_por_consultor)
         lead_ids_all = [v["lead_id"] for v in kommo_map.values()]
-        lead_ids_com_origem = set()
+        lead_ids_com_origem_n8n = set()
+        # Origem do campo "Origem" no Kommo (custom_fields_json) — fallback
+        lead_to_origem_kommo = {}
         if lead_ids_all:
             kcur.execute(
                 "SELECT DISTINCT id_lead FROM distribuicao_por_consultor "
                 "WHERE id_lead = ANY(%s) AND origem IS NOT NULL AND TRIM(origem) != ''",
                 (lead_ids_all,)
             )
-            lead_ids_com_origem = {r[0] for r in kcur.fetchall()}
+            lead_ids_com_origem_n8n = {r[0] for r in kcur.fetchall()}
+
+            # Busca campo "Origem" direto do Kommo para os que não têm no n8n
+            sem_n8n = [lid for lid in lead_ids_all if lid not in lead_ids_com_origem_n8n]
+            if sem_n8n:
+                kcur.execute("""
+                    SELECT DISTINCT ON (l.id)
+                        l.id,
+                        TRIM((cf_elem.value -> 'values' -> 0) ->> 'value') AS origem_kommo
+                    FROM leads l
+                    CROSS JOIN LATERAL jsonb_array_elements(
+                        COALESCE(l.custom_fields_json, '[]'::jsonb)
+                    ) cf_elem(value)
+                    WHERE l.id = ANY(%s)
+                      AND lower(cf_elem.value ->> 'field_name') = 'origem'
+                      AND (cf_elem.value -> 'values' -> 0) ->> 'value' IS NOT NULL
+                      AND TRIM((cf_elem.value -> 'values' -> 0) ->> 'value') != ''
+                """, (sem_n8n,))
+                for lead_id_val, origem_kommo in kcur.fetchall():
+                    if origem_kommo:
+                        lead_to_origem_kommo[lead_id_val] = origem_kommo
+
         kcur.close()
         kconn.close()
 
         # Filtra apenas os sem origem e classifica o motivo
+        # Leads com origem no n8n OU no campo Kommo → já têm origem, não listamos aqui
         result = []
         for rgm in rgm_list:
             kdata   = kommo_map.get(rgm)
             lead_id = kdata["lead_id"] if kdata else None
-            if lead_id and lead_id in lead_ids_com_origem:
-                continue  # tem origem — não é "Sem origem"
+            if lead_id and (lead_id in lead_ids_com_origem_n8n or lead_id in lead_to_origem_kommo):
+                continue  # tem origem — não exibir nesta listagem
             aluno = aluno_map.get(rgm, {"rgm": rgm, "nome": "—", "data_matricula": "—",
                                          "polo": "—", "nivel": "—"})
             if not lead_id:
                 motivo = "Sem lead no Kommo"
             else:
                 motivo = "Lead no Kommo sem distribuição via n8n"
+            origem_kommo = lead_to_origem_kommo.get(lead_id, "—") if lead_id else "—"
             result.append({
                 "rgm":            aluno["rgm"],
                 "nome":           aluno["nome"],
@@ -4098,6 +4143,7 @@ def dist_consultor_sem_origem():
                 "lead_id":        lead_id,
                 "lead_criado":    kdata["lead_criado"]  if kdata else "—",
                 "responsavel":    kdata["responsavel"]  if kdata else "—",
+                "origem_kommo":   origem_kommo,
                 "motivo":         motivo,
             })
 
