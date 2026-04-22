@@ -3844,6 +3844,7 @@ def dist_consultor_fechadas_periodo():
             "consultor": "", "id_consultor": None,
             "do_periodo": 0, "fora_periodo": 0, "total": 0
         })
+        matched_rgms = {r[0] for r in rgm_rows}
         for rgm, lead_id, kommo_name, uid in rgm_rows:
             # Prioridade igual ao Dashboard Comercial: uid conhecido > uid via dist
             # > nome na dist do lead específico > nome Kommo.
@@ -3860,6 +3861,16 @@ def dist_consultor_fechadas_periodo():
                 c["do_periodo"]   += 1
             else:
                 c["fora_periodo"] += 1
+
+        # RGMs do Dashboard Comercial sem match no Kommo → agrupados em "Sem consultor"
+        # para que o total bata com matriculas-por-origem e com o card "Matrículas no Período"
+        sem_match = [r for r in rgm_list if r not in matched_rgms]
+        if sem_match:
+            c = contagem["Sem consultor"]
+            c["consultor"]    = "Sem consultor"
+            c["id_consultor"] = None
+            c["total"]       += len(sem_match)
+            c["fora_periodo"] += len(sem_match)
 
         result = sorted(contagem.values(), key=lambda x: -x["total"])
         return jsonify({

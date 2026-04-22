@@ -363,7 +363,7 @@
         // Total matrículas respeita filtros de consultor e origem ativos
         var cf  = document.getElementById("dc-consultor-filter")?.value || "";
         var of_ = document.getElementById("dc-origem-filter")?.value   || "";
-        var totalMatriculas;
+        var totalMatriculas, doPeriodo = null, foraPeriodo = null;
         if (cf && of_) {
             // Ambos filtros ativos → usa total_vendas do webhook (já filtrado por ambos)
             totalMatriculas = s.totalVendas;
@@ -371,18 +371,35 @@
             // Só consultor → _fechadasPeriodo (fonte do Dashboard Comercial)
             var fp = _fechadasPeriodo[cf];
             totalMatriculas = fp ? fp.total : s.totalVendas;
+            if (fp) { doPeriodo = fp.do_periodo; foraPeriodo = fp.fora_periodo; }
         } else if (of_ && _matriculasPorOrigem.length) {
             // Só origem → filtra _matriculasPorOrigem por origem
             var matFilt = _matriculasPorOrigem.filter(function(r) { return r.origem === of_; });
             totalMatriculas = matFilt.reduce(function(acc, r) { return acc + r.total; }, 0);
+            doPeriodo   = matFilt.reduce(function(acc, r) { return acc + (r.do_periodo   || 0); }, 0);
+            foraPeriodo = matFilt.reduce(function(acc, r) { return acc + (r.fora_periodo || 0); }, 0);
         } else if (_matriculasPorOrigem.length) {
             // Sem filtro → soma todos
             totalMatriculas = _matriculasPorOrigem.reduce(function(acc, r) { return acc + r.total; }, 0);
+            doPeriodo   = _matriculasPorOrigem.reduce(function(acc, r) { return acc + (r.do_periodo   || 0); }, 0);
+            foraPeriodo = _matriculasPorOrigem.reduce(function(acc, r) { return acc + (r.fora_periodo || 0); }, 0);
         } else {
             totalMatriculas = s.totalVendas;
         }
         document.getElementById("dc-m-conversoes").textContent = fmtNumber(totalMatriculas);
         document.getElementById("dc-m-taxa").textContent = s.taxaConversao.toFixed(2) + "%";
+
+        // Breakdown do_periodo / fora_periodo
+        var bdEl = document.getElementById("dc-m-conversoes-breakdown");
+        if (bdEl) {
+            if (doPeriodo !== null && foraPeriodo !== null && totalMatriculas > 0) {
+                document.getElementById("dc-m-do-periodo").textContent   = fmtNumber(doPeriodo);
+                document.getElementById("dc-m-fora-periodo").textContent = fmtNumber(foraPeriodo);
+                bdEl.style.display = "flex";
+            } else {
+                bdEl.style.display = "none";
+            }
+        }
 
         renderBarConsultores(chartFiltered);
         renderPieOrigens(chartFiltered);
@@ -531,22 +548,46 @@
         var tbody = document.querySelector("#dc-table-origem tbody");
         if (!tbody) return;
 
-        // Ambas as colunas do webhook — mesma base, taxa de conversão consistente
-        var g = {};
+        // Leads por origem: webhook n8n
+        var gLeads = {};
         filtered.forEach(function(r) {
-            if (!g[r.origem]) g[r.origem] = { leads: 0, vendas: 0 };
-            g[r.origem].leads  += r.total_leads;
-            g[r.origem].vendas += r.total_vendas;
+            gLeads[r.origem] = (gLeads[r.origem] || 0) + r.total_leads;
         });
 
-        var data = Object.entries(g).map(function(e) {
-            return {
-                origem: e[0],
-                leads:  e[1].leads,
-                vendas: e[1].vendas,
-                taxa:   e[1].leads > 0 ? (e[1].vendas / e[1].leads * 100) : 0
-            };
-        }).sort(function(a, b) { return b.taxa - a.taxa || b.leads - a.leads; });
+        // Matrículas por origem: Dashboard Comercial (_matriculasPorOrigem)
+        // Normaliza nomes de origem para match case-insensitive
+        var cf  = document.getElementById("dc-consultor-filter")?.value || "";
+        var of_ = document.getElementById("dc-origem-filter")?.value   || "";
+
+        // Monta mapa de matrículas por origem (normalizado)
+        var matMap = {};    // origem_normalizada → {total, do_periodo, fora_periodo}
+        var matSource = _matriculasPorOrigem;
+        if (cf) {
+            // Filtrado por consultor: usa vendas do webhook como fallback
+            matSource = [];
+        }
+        matSource.forEach(function(m) {
+            var key = String(m.origem || "").trim().toLowerCase();
+            matMap[key] = { total: m.total || 0, do_periodo: m.do_periodo || 0, fora_periodo: m.fora_periodo || 0 };
+        });
+
+        // Unifica origens de ambas as fontes
+        var allOrigens = new Set(Object.keys(gLeads));
+        matSource.forEach(function(m) { if (m.origem) allOrigens.add(m.origem.trim()); });
+        if (of_) {
+            // Quando filtrado por origem, mostra só essa
+            allOrigens = new Set([of_]);
+        }
+
+        var data = Array.from(allOrigens).map(function(orig) {
+            var leads = gLeads[orig] || 0;
+            var matKey = orig.toLowerCase();
+            var mat = matMap[matKey] || { total: 0, do_periodo: 0, fora_periodo: 0 };
+            var taxa = leads > 0 && mat.total > 0 ? (mat.total / leads * 100) : 0;
+            return { origem: orig, leads: leads, vendas: mat.total,
+                     do_periodo: mat.do_periodo, fora_periodo: mat.fora_periodo, taxa: taxa };
+        }).filter(function(d) { return d.leads > 0 || d.vendas > 0; })
+          .sort(function(a, b) { return b.vendas - a.vendas || b.leads - a.leads; });
 
         if (data.length === 0) {
             tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--dc-text-muted)">Sem dados</td></tr>';
@@ -554,6 +595,7 @@
         }
 
         var maxTaxa = Math.max.apply(null, data.map(function(d) { return d.taxa; })) || 1;
+        var useDCData = matSource.length > 0 && !cf;
 
         var html = "";
         data.forEach(function(d) {
@@ -564,10 +606,24 @@
             else                  { badgeColor = "#94a3b8"; badgeBg = "rgba(148,163,184,0.08)"; }
 
             var barW = maxTaxa > 0 ? (d.taxa / maxTaxa * 100).toFixed(1) : 0;
+
+            // Célula de matrículas com breakdown período/carteira
+            var vendCell;
+            if (useDCData && d.vendas > 0) {
+                vendCell = '<span style="font-weight:700;color:#2563eb">' + fmtNumber(d.vendas) + '</span>';
+                if (d.do_periodo > 0 || d.fora_periodo > 0) {
+                    vendCell += '<br><span style="font-size:11px;color:#10b981;font-weight:600">' + d.do_periodo + ' período</span>'
+                              + '<span style="font-size:11px;color:#94a3b8"> · </span>'
+                              + '<span style="font-size:11px;color:#f59e0b;font-weight:600">' + d.fora_periodo + ' carteira</span>';
+                }
+            } else {
+                vendCell = '<span style="font-weight:700;color:' + (d.vendas > 0 ? '#2563eb' : 'var(--dc-text-muted)') + '">' + fmtNumber(d.vendas) + '</span>';
+            }
+
             html += '<tr>';
             html += '<td style="font-weight:600">' + d.origem + '</td>';
             html += '<td style="text-align:right">' + fmtNumber(d.leads) + '</td>';
-            html += '<td style="text-align:right;font-weight:700;color:#2563eb">' + fmtNumber(d.vendas) + '</td>';
+            html += '<td style="text-align:right">' + vendCell + '</td>';
             html += '<td style="text-align:right"><span class="dc-badge-conv" style="color:' + badgeColor + ';background:' + badgeBg + '">' + d.taxa.toFixed(2) + '%</span></td>';
             html += '<td><div style="background:var(--dc-border);border-radius:4px;height:8px;overflow:hidden"><div style="width:' + barW + '%;height:100%;background:' + badgeColor + ';border-radius:4px;transition:width 0.4s"></div></div></td>';
             html += '</tr>';
