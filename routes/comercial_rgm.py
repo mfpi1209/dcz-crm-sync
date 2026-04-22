@@ -4028,21 +4028,28 @@ def dist_consultor_sem_origem():
         cur.close()
         conn.close()
 
-        # Lead_id no Kommo (quando disponível)
+        # Lead_id + data de criação no Kommo (quando disponível)
         kconn = _pg_kommo()
         kcur  = kconn.cursor()
         kcur.execute(
-            "SELECT DISTINCT ON (v.rgm) v.rgm, v.lead_id "
+            "SELECT DISTINCT ON (v.rgm) v.rgm, v.lead_id, "
+            "  to_char((l.created_at AT TIME ZONE 'America/Sao_Paulo'), 'DD/MM/YYYY') AS lead_criado, "
+            "  COALESCE(u.name, 'N/A') AS responsavel "
             "FROM vw_leads_rgm v "
             "JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted "
+            "LEFT JOIN users u ON u.id = l.responsible_user_id "
             "WHERE v.rgm = ANY(%s) "
             "ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC",
             (rgm_list,)
         )
-        kommo_map = {r[0]: r[1] for r in kcur.fetchall() if r[1]}
+        # kommo_map: rgm -> {lead_id, lead_criado, responsavel}
+        kommo_map = {}
+        for row in kcur.fetchall():
+            if row[1]:
+                kommo_map[row[0]] = {"lead_id": row[1], "lead_criado": row[2] or "—", "responsavel": row[3] or "—"}
 
         # Quais lead_ids têm entrada em distribuicao_por_consultor
-        lead_ids_all = list(kommo_map.values())
+        lead_ids_all = [v["lead_id"] for v in kommo_map.values()]
         lead_ids_com_origem = set()
         if lead_ids_all:
             kcur.execute(
@@ -4057,7 +4064,8 @@ def dist_consultor_sem_origem():
         # Filtra apenas os sem origem e classifica o motivo
         result = []
         for rgm in rgm_list:
-            lead_id = kommo_map.get(rgm)
+            kdata   = kommo_map.get(rgm)
+            lead_id = kdata["lead_id"] if kdata else None
             if lead_id and lead_id in lead_ids_com_origem:
                 continue  # tem origem — não é "Sem origem"
             aluno = aluno_map.get(rgm, {"rgm": rgm, "nome": "—", "data_matricula": "—",
@@ -4073,6 +4081,8 @@ def dist_consultor_sem_origem():
                 "polo":           aluno["polo"],
                 "nivel":          aluno["nivel"],
                 "lead_id":        lead_id,
+                "lead_criado":    kdata["lead_criado"]  if kdata else "—",
+                "responsavel":    kdata["responsavel"]  if kdata else "—",
                 "motivo":         motivo,
             })
 

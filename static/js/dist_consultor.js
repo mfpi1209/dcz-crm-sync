@@ -1032,7 +1032,7 @@
             function tabelaAlunos(lista) {
                 if (!lista.length) return '<p style="color:var(--dc-text-muted);font-size:12px;padding:8px 0">Nenhum.</p>';
                 return '<div style="overflow-x:auto"><table class="dc-modal-table">'
-                    + '<thead><tr><th>RGM</th><th>Nome</th><th>Polo</th><th>Nível</th><th>Matrícula</th><th>Lead Kommo</th></tr></thead>'
+                    + '<thead><tr><th>RGM</th><th>Nome</th><th>Polo</th><th>Nível</th><th>Dt. Matrícula</th><th>Lead Kommo</th><th>Lead criado</th><th>Responsável Kommo</th></tr></thead>'
                     + '<tbody>' + lista.map(function(r) {
                         var kommoCell = r.lead_id
                             ? '<a href="https://eduitbr.kommo.com/leads/detail/' + r.lead_id + '" target="_blank" '
@@ -1045,6 +1045,8 @@
                             + '<td style="font-size:11px">' + (r.nivel || '—') + '</td>'
                             + '<td>' + (r.data_matricula || '—') + '</td>'
                             + '<td>' + kommoCell + '</td>'
+                            + '<td style="font-size:11px;color:var(--dc-text-muted)">' + (r.lead_criado || '—') + '</td>'
+                            + '<td style="font-size:11px">' + (r.responsavel || '—') + '</td>'
                             + '</tr>';
                     }).join('') + '</tbody></table></div>';
             }
