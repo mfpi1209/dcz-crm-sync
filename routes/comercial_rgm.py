@@ -3958,40 +3958,38 @@ def dist_consultor_matriculas_por_origem():
                     lead_to_origem[lead_id_val] = origem
 
             # Fallback: para leads sem origem no n8n, busca campo "Origem" no Kommo
-            # Verifica tanto custom_fields_json quanto lead_custom_field_values
             sem_origem_ids = [lid for lid in lead_ids if lid not in lead_to_origem]
             if sem_origem_ids:
+                # Fonte 1: custom_fields_json
                 kcur.execute("""
-                    SELECT lead_id, origem_kommo FROM (
-                        -- Fonte 1: custom_fields_json
-                        SELECT DISTINCT ON (l.id)
-                            l.id AS lead_id,
-                            TRIM((cf_elem.value -> 'values' -> 0) ->> 'value') AS origem_kommo,
-                            1 AS prioridade
-                        FROM leads l
-                        CROSS JOIN LATERAL jsonb_array_elements(
-                            COALESCE(l.custom_fields_json, '[]'::jsonb)
-                        ) cf_elem(value)
-                        WHERE l.id = ANY(%s)
-                          AND lower(cf_elem.value ->> 'field_name') = 'origem'
-                          AND TRIM(COALESCE((cf_elem.value -> 'values' -> 0) ->> 'value', '')) != ''
-                        UNION ALL
-                        -- Fonte 2: lead_custom_field_values
-                        SELECT DISTINCT ON (lcf.lead_id)
-                            lcf.lead_id,
-                            TRIM((lcf.values_json -> 0) ->> 'value') AS origem_kommo,
-                            2 AS prioridade
+                    SELECT DISTINCT l.id,
+                        TRIM((cf_elem.value -> 'values' -> 0) ->> 'value')
+                    FROM leads l
+                    CROSS JOIN LATERAL jsonb_array_elements(
+                        COALESCE(l.custom_fields_json, '[]'::jsonb)
+                    ) cf_elem(value)
+                    WHERE l.id = ANY(%s)
+                      AND lower(cf_elem.value ->> 'field_name') = 'origem'
+                      AND TRIM(COALESCE((cf_elem.value -> 'values' -> 0) ->> 'value', '')) != ''
+                """, (sem_origem_ids,))
+                for lead_id_val, origem_kommo in kcur.fetchall():
+                    if origem_kommo and lead_id_val not in lead_to_origem:
+                        lead_to_origem[lead_id_val] = origem_kommo
+
+                # Fonte 2: lead_custom_field_values (para os que não achamos na fonte 1)
+                ainda_sem = [lid for lid in sem_origem_ids if lid not in lead_to_origem]
+                if ainda_sem:
+                    kcur.execute("""
+                        SELECT DISTINCT lcf.lead_id,
+                            TRIM((lcf.values_json -> 0) ->> 'value')
                         FROM lead_custom_field_values lcf
                         WHERE lcf.lead_id = ANY(%s)
                           AND lower(lcf.field_name) = 'origem'
                           AND TRIM(COALESCE((lcf.values_json -> 0) ->> 'value', '')) != ''
-                    ) t
-                    WHERE origem_kommo IS NOT NULL AND origem_kommo != ''
-                    ORDER BY lead_id, prioridade
-                """, (sem_origem_ids, sem_origem_ids))
-                for lead_id_val, origem_kommo in kcur.fetchall():
-                    if lead_id_val not in lead_to_origem:
-                        lead_to_origem[lead_id_val] = origem_kommo
+                    """, (ainda_sem,))
+                    for lead_id_val, origem_kommo in kcur.fetchall():
+                        if origem_kommo and lead_id_val not in lead_to_origem:
+                            lead_to_origem[lead_id_val] = origem_kommo
 
         kcur.close()
         kconn.close()
@@ -4115,35 +4113,36 @@ def dist_consultor_sem_origem():
             # Busca campo "Origem" direto do Kommo (custom_fields_json + lead_custom_field_values)
             sem_n8n = [lid for lid in lead_ids_all if lid not in lead_ids_com_origem_n8n]
             if sem_n8n:
+                # Fonte 1: custom_fields_json
                 kcur.execute("""
-                    SELECT lead_id, origem_kommo FROM (
-                        SELECT DISTINCT ON (l.id)
-                            l.id AS lead_id,
-                            TRIM((cf_elem.value -> 'values' -> 0) ->> 'value') AS origem_kommo,
-                            1 AS prioridade
-                        FROM leads l
-                        CROSS JOIN LATERAL jsonb_array_elements(
-                            COALESCE(l.custom_fields_json, '[]'::jsonb)
-                        ) cf_elem(value)
-                        WHERE l.id = ANY(%s)
-                          AND lower(cf_elem.value ->> 'field_name') = 'origem'
-                          AND TRIM(COALESCE((cf_elem.value -> 'values' -> 0) ->> 'value', '')) != ''
-                        UNION ALL
-                        SELECT DISTINCT ON (lcf.lead_id)
-                            lcf.lead_id,
-                            TRIM((lcf.values_json -> 0) ->> 'value') AS origem_kommo,
-                            2 AS prioridade
+                    SELECT DISTINCT l.id,
+                        TRIM((cf_elem.value -> 'values' -> 0) ->> 'value')
+                    FROM leads l
+                    CROSS JOIN LATERAL jsonb_array_elements(
+                        COALESCE(l.custom_fields_json, '[]'::jsonb)
+                    ) cf_elem(value)
+                    WHERE l.id = ANY(%s)
+                      AND lower(cf_elem.value ->> 'field_name') = 'origem'
+                      AND TRIM(COALESCE((cf_elem.value -> 'values' -> 0) ->> 'value', '')) != ''
+                """, (sem_n8n,))
+                for lead_id_val, origem_kommo in kcur.fetchall():
+                    if origem_kommo and lead_id_val not in lead_to_origem_kommo:
+                        lead_to_origem_kommo[lead_id_val] = origem_kommo
+
+                # Fonte 2: lead_custom_field_values
+                ainda_sem = [lid for lid in sem_n8n if lid not in lead_to_origem_kommo]
+                if ainda_sem:
+                    kcur.execute("""
+                        SELECT DISTINCT lcf.lead_id,
+                            TRIM((lcf.values_json -> 0) ->> 'value')
                         FROM lead_custom_field_values lcf
                         WHERE lcf.lead_id = ANY(%s)
                           AND lower(lcf.field_name) = 'origem'
                           AND TRIM(COALESCE((lcf.values_json -> 0) ->> 'value', '')) != ''
-                    ) t
-                    WHERE origem_kommo IS NOT NULL AND origem_kommo != ''
-                    ORDER BY lead_id, prioridade
-                """, (sem_n8n, sem_n8n))
-                for lead_id_val, origem_kommo in kcur.fetchall():
-                    if lead_id_val not in lead_to_origem_kommo:
-                        lead_to_origem_kommo[lead_id_val] = origem_kommo
+                    """, (ainda_sem,))
+                    for lead_id_val, origem_kommo in kcur.fetchall():
+                        if origem_kommo and lead_id_val not in lead_to_origem_kommo:
+                            lead_to_origem_kommo[lead_id_val] = origem_kommo
 
         kcur.close()
         kconn.close()
