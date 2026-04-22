@@ -3988,6 +3988,103 @@ def dist_consultor_matriculas_por_origem():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@comercial_rgm_bp.route("/api/dist-consultor/sem-origem")
+def dist_consultor_sem_origem():
+    """Lista os RGMs do Dashboard Comercial que não têm registro em
+    distribuicao_por_consultor (origem desconhecida).
+    Retorna dados do aluno de comercial_rgm_atual + lead_id do Kommo quando disponível.
+    """
+    start_date = request.args.get("start_date", "").strip()
+    end_date   = request.args.get("end_date",   "").strip()
+    if not start_date or not end_date:
+        return jsonify({"ok": False, "error": "start_date e end_date obrigatórios"}), 400
+    try:
+        import datetime as _dt
+        _dt.date.fromisoformat(start_date)
+        _dt.date.fromisoformat(end_date)
+    except ValueError:
+        return jsonify({"ok": False, "error": "Datas inválidas. Use YYYY-MM-DD"}), 400
+
+    try:
+        rgm_list = _crgm_dashboard_rgm_list(start_date, end_date)
+        if not rgm_list:
+            return jsonify({"ok": True, "data": [], "total": 0})
+
+        # Detalhes do aluno na base interna
+        conn = _pg()
+        cur  = conn.cursor()
+        cur.execute(
+            "SELECT DISTINCT ON (rgm) rgm, nome, data_matricula, polo, nivel, curso "
+            "FROM comercial_rgm_atual "
+            "WHERE data_matricula BETWEEN %s AND %s "
+            "  AND rgm = ANY(%s) "
+            "ORDER BY rgm, data_matricula DESC NULLS LAST",
+            (start_date, end_date, rgm_list)
+        )
+        aluno_map = {r[0]: {"rgm": r[0], "nome": r[1] or "—",
+                             "data_matricula": str(r[2]) if r[2] else "—",
+                             "polo": r[3] or "—", "nivel": r[4] or "—",
+                             "curso": r[5] or "—"}
+                     for r in cur.fetchall()}
+        cur.close()
+        conn.close()
+
+        # Lead_id no Kommo (quando disponível)
+        kconn = _pg_kommo()
+        kcur  = kconn.cursor()
+        kcur.execute(
+            "SELECT DISTINCT ON (v.rgm) v.rgm, v.lead_id "
+            "FROM vw_leads_rgm v "
+            "JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted "
+            "WHERE v.rgm = ANY(%s) "
+            "ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC",
+            (rgm_list,)
+        )
+        kommo_map = {r[0]: r[1] for r in kcur.fetchall() if r[1]}
+
+        # Quais lead_ids têm entrada em distribuicao_por_consultor
+        lead_ids_all = list(kommo_map.values())
+        lead_ids_com_origem = set()
+        if lead_ids_all:
+            kcur.execute(
+                "SELECT DISTINCT id_lead FROM distribuicao_por_consultor "
+                "WHERE id_lead = ANY(%s) AND origem IS NOT NULL AND TRIM(origem) != ''",
+                (lead_ids_all,)
+            )
+            lead_ids_com_origem = {r[0] for r in kcur.fetchall()}
+        kcur.close()
+        kconn.close()
+
+        # Filtra apenas os sem origem e classifica o motivo
+        result = []
+        for rgm in rgm_list:
+            lead_id = kommo_map.get(rgm)
+            if lead_id and lead_id in lead_ids_com_origem:
+                continue  # tem origem — não é "Sem origem"
+            aluno = aluno_map.get(rgm, {"rgm": rgm, "nome": "—", "data_matricula": "—",
+                                         "polo": "—", "nivel": "—", "curso": "—"})
+            if not lead_id:
+                motivo = "Sem lead no Kommo"
+            else:
+                motivo = "Lead no Kommo sem distribuição via n8n"
+            result.append({
+                "rgm":            aluno["rgm"],
+                "nome":           aluno["nome"],
+                "data_matricula": aluno["data_matricula"],
+                "polo":           aluno["polo"],
+                "nivel":          aluno["nivel"],
+                "curso":          aluno["curso"],
+                "lead_id":        lead_id,
+                "motivo":         motivo,
+            })
+
+        result.sort(key=lambda x: x["data_matricula"], reverse=True)
+        return jsonify({"ok": True, "data": result, "total": len(result)})
+    except Exception as e:
+        logger.exception("dist-consultor-sem-origem")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @comercial_rgm_bp.route("/api/dist-consultor/filters")
 def dist_consultor_filters():
     """Retorna polos e níveis disponíveis para o período (para popular os selects do frontend)."""

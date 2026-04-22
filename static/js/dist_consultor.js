@@ -606,6 +606,7 @@
             else                  { badgeColor = "#94a3b8"; badgeBg = "rgba(148,163,184,0.08)"; }
 
             var barW = maxTaxa > 0 ? (d.taxa / maxTaxa * 100).toFixed(1) : 0;
+            var isSemOrigem = d.origem.toLowerCase() === 'sem origem';
 
             // Célula de matrículas com breakdown período/carteira
             var vendCell;
@@ -620,8 +621,13 @@
                 vendCell = '<span style="font-weight:700;color:' + (d.vendas > 0 ? '#2563eb' : 'var(--dc-text-muted)') + '">' + fmtNumber(d.vendas) + '</span>';
             }
 
-            html += '<tr>';
-            html += '<td style="font-weight:600">' + d.origem + '</td>';
+            var origemCell = isSemOrigem
+                ? '<span style="font-weight:600;color:#f59e0b;cursor:pointer;text-decoration:underline dotted" title="Clique para ver a lista" onclick="dcAbrirSemOrigem()">'
+                  + d.origem + ' <span style="font-size:11px">↗</span></span>'
+                : '<span style="font-weight:600">' + d.origem + '</span>';
+
+            html += '<tr' + (isSemOrigem ? ' style="background:rgba(245,158,11,0.05)"' : '') + '>';
+            html += '<td>' + origemCell + '</td>';
             html += '<td style="text-align:right">' + fmtNumber(d.leads) + '</td>';
             html += '<td style="text-align:right">' + vendCell + '</td>';
             html += '<td style="text-align:right"><span class="dc-badge-conv" style="color:' + badgeColor + ';background:' + badgeBg + '">' + d.taxa.toFixed(2) + '%</span></td>';
@@ -989,6 +995,81 @@
     }
 
     window.dcAbrirDetalhe = dcAbrirDetalheInterno;
+
+    // ── Modal "Sem Origem" ────────────────────────────────────────────────
+
+    window.dcAbrirSemOrigem = async function () {
+        var overlay = document.getElementById('dc-modal-overlay');
+        var body    = document.getElementById('dc-modal-body');
+        var title   = document.getElementById('dc-modal-title');
+        if (!overlay) return;
+        if (overlay.parentNode !== document.body) document.body.appendChild(overlay);
+
+        title.textContent = 'Matrículas sem origem (não distribuídas via n8n)';
+        body.innerHTML = '<div class="dc-modal-loading">Carregando...</div>';
+        overlay.classList.add('open');
+
+        var startDate = (document.getElementById('dc-date-start')?.value || '').trim();
+        var endDate   = (document.getElementById('dc-date-end')?.value   || '').trim();
+        var qs = 'start_date=' + encodeURIComponent(startDate) + '&end_date=' + encodeURIComponent(endDate);
+
+        try {
+            var resp = await fetch('/api/dist-consultor/sem-origem?' + qs);
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            var json = await resp.json();
+            if (!json.ok) throw new Error(json.error || 'Erro desconhecido');
+
+            var rows = json.data;
+            if (!rows.length) {
+                body.innerHTML = '<p style="padding:24px;color:var(--dc-text-muted)">Nenhum lead sem origem encontrado.</p>';
+                return;
+            }
+
+            // Agrupa por motivo
+            var semKommo  = rows.filter(function(r) { return r.motivo === 'Sem lead no Kommo'; });
+            var semDist   = rows.filter(function(r) { return r.motivo !== 'Sem lead no Kommo'; });
+
+            function tabelaAlunos(lista) {
+                if (!lista.length) return '<p style="color:var(--dc-text-muted);font-size:12px;padding:8px 0">Nenhum.</p>';
+                return '<div style="overflow-x:auto"><table class="dc-modal-table">'
+                    + '<thead><tr><th>RGM</th><th>Nome</th><th>Curso</th><th>Polo</th><th>Matrícula</th><th>Lead Kommo</th></tr></thead>'
+                    + '<tbody>' + lista.map(function(r) {
+                        var kommoCell = r.lead_id
+                            ? '<a href="https://eduitbr.kommo.com/leads/detail/' + r.lead_id + '" target="_blank" '
+                              + 'style="color:#60a5fa;text-decoration:none">' + r.lead_id + ' ↗</a>'
+                            : '<span style="color:var(--dc-text-muted)">—</span>';
+                        return '<tr>'
+                            + '<td style="font-weight:600;color:var(--dc-text-primary)">' + (r.rgm || '—') + '</td>'
+                            + '<td>' + (r.nome || '—') + '</td>'
+                            + '<td style="font-size:11px">' + (r.curso || '—') + '</td>'
+                            + '<td style="font-size:11px">' + (r.polo || '—') + '</td>'
+                            + '<td>' + (r.data_matricula || '—') + '</td>'
+                            + '<td>' + kommoCell + '</td>'
+                            + '</tr>';
+                    }).join('') + '</tbody></table></div>';
+            }
+
+            body.innerHTML =
+                '<div style="padding:12px 0 4px">'
+                + '<span style="background:rgba(245,158,11,0.12);color:#f59e0b;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px">'
+                + json.total + ' alunos sem origem</span></div>'
+
+                + '<div class="dc-modal-section-title" style="color:#ef4444">'
+                + '<span style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block"></span>'
+                + 'Sem lead no Kommo — ' + semKommo.length
+                + '</div>'
+                + tabelaAlunos(semKommo)
+
+                + '<div class="dc-modal-section-title" style="color:#f59e0b;margin-top:8px">'
+                + '<span style="width:10px;height:10px;border-radius:50%;background:#f59e0b;display:inline-block"></span>'
+                + 'Lead no Kommo sem distribuição via n8n — ' + semDist.length
+                + '</div>'
+                + tabelaAlunos(semDist);
+
+        } catch (err) {
+            body.innerHTML = '<div class="dc-modal-loading" style="color:#f87171">Erro: ' + err.message + '</div>';
+        }
+    };
 
     function renderModalBody(data) {
         function tabelaLeads(lista, tipo) {
