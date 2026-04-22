@@ -4014,7 +4014,7 @@ def dist_consultor_sem_origem():
         conn = _pg()
         cur  = conn.cursor()
         cur.execute(
-            "SELECT DISTINCT ON (rgm) rgm, nome, data_matricula, polo, nivel, curso "
+            "SELECT DISTINCT ON (rgm) rgm, nome, data_matricula, polo, nivel "
             "FROM comercial_rgm_atual "
             "WHERE data_matricula BETWEEN %s AND %s "
             "  AND rgm = ANY(%s) "
@@ -4023,8 +4023,7 @@ def dist_consultor_sem_origem():
         )
         aluno_map = {r[0]: {"rgm": r[0], "nome": r[1] or "—",
                              "data_matricula": str(r[2]) if r[2] else "—",
-                             "polo": r[3] or "—", "nivel": r[4] or "—",
-                             "curso": r[5] or "—"}
+                             "polo": r[3] or "—", "nivel": r[4] or "—"}
                      for r in cur.fetchall()}
         cur.close()
         conn.close()
@@ -4062,7 +4061,7 @@ def dist_consultor_sem_origem():
             if lead_id and lead_id in lead_ids_com_origem:
                 continue  # tem origem — não é "Sem origem"
             aluno = aluno_map.get(rgm, {"rgm": rgm, "nome": "—", "data_matricula": "—",
-                                         "polo": "—", "nivel": "—", "curso": "—"})
+                                         "polo": "—", "nivel": "—"})
             if not lead_id:
                 motivo = "Sem lead no Kommo"
             else:
@@ -4073,7 +4072,6 @@ def dist_consultor_sem_origem():
                 "data_matricula": aluno["data_matricula"],
                 "polo":           aluno["polo"],
                 "nivel":          aluno["nivel"],
-                "curso":          aluno["curso"],
                 "lead_id":        lead_id,
                 "motivo":         motivo,
             })
