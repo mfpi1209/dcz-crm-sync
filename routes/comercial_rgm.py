@@ -4033,20 +4033,28 @@ def dist_consultor_sem_origem():
         kcur  = kconn.cursor()
         kcur.execute(
             "SELECT DISTINCT ON (v.rgm) v.rgm, v.lead_id, "
-            "  to_char((l.created_at AT TIME ZONE 'America/Sao_Paulo'), 'DD/MM/YYYY') AS lead_criado, "
-            "  COALESCE(u.name, 'N/A') AS responsavel "
+            "  to_char(to_timestamp(l.created_at) AT TIME ZONE 'America/Sao_Paulo', 'DD/MM/YYYY') AS lead_criado, "
+            "  l.responsible_user_id "
             "FROM vw_leads_rgm v "
             "JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted "
-            "LEFT JOIN users u ON u.id = l.responsible_user_id "
             "WHERE v.rgm = ANY(%s) "
             "ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC",
             (rgm_list,)
         )
-        # kommo_map: rgm -> {lead_id, lead_criado, responsavel}
+        # kommo_map: rgm -> {lead_id, lead_criado, responsible_user_id}
         kommo_map = {}
+        uid_set = set()
         for row in kcur.fetchall():
             if row[1]:
-                kommo_map[row[0]] = {"lead_id": row[1], "lead_criado": row[2] or "—", "responsavel": row[3] or "—"}
+                kommo_map[row[0]] = {"lead_id": row[1], "lead_criado": row[2] or "—", "responsible_user_id": row[3]}
+                if row[3]:
+                    uid_set.add(row[3])
+
+        # Resolve nomes dos responsáveis via _KNOWN_USERS + fallback DB
+        user_names = _fetch_kommo_user_names(list(uid_set)) if uid_set else {}
+        for data in kommo_map.values():
+            uid = data.pop("responsible_user_id", None)
+            data["responsavel"] = user_names.get(uid, "—") if uid else "—"
 
         # Quais lead_ids têm entrada em distribuicao_por_consultor
         lead_ids_all = [v["lead_id"] for v in kommo_map.values()]
