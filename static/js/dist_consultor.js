@@ -606,7 +606,9 @@
             else                  { badgeColor = "#94a3b8"; badgeBg = "rgba(148,163,184,0.08)"; }
 
             var barW = maxTaxa > 0 ? (d.taxa / maxTaxa * 100).toFixed(1) : 0;
-            var isSemOrigem = d.origem.toLowerCase() === 'sem origem';
+            var isEntradaDireta  = d.origem === 'Entrada direta';
+            var isSemLead        = d.origem === 'Sem lead no Kommo';
+            var isDestacar       = isEntradaDireta || isSemLead;
 
             // Célula de matrículas com breakdown período/carteira
             var vendCell;
@@ -621,12 +623,13 @@
                 vendCell = '<span style="font-weight:700;color:' + (d.vendas > 0 ? '#2563eb' : 'var(--dc-text-muted)') + '">' + fmtNumber(d.vendas) + '</span>';
             }
 
-            var origemCell = isSemOrigem
-                ? '<span style="font-weight:600;color:#f59e0b;cursor:pointer;text-decoration:underline dotted" title="Clique para ver a lista" onclick="dcAbrirSemOrigem()">'
+            var origemColor = isEntradaDireta ? '#a78bfa' : (isSemLead ? '#f87171' : null);
+            var origemCell = isDestacar
+                ? '<span style="font-weight:600;color:' + origemColor + ';cursor:pointer;text-decoration:underline dotted" title="Clique para ver a lista" onclick="dcAbrirSemOrigem()">'
                   + d.origem + ' <span style="font-size:11px">↗</span></span>'
                 : '<span style="font-weight:600">' + d.origem + '</span>';
 
-            html += '<tr' + (isSemOrigem ? ' style="background:rgba(245,158,11,0.05)"' : '') + '>';
+            html += '<tr' + (isDestacar ? ' style="background:rgba(167,139,250,0.05)"' : '') + '>';
             html += '<td>' + origemCell + '</td>';
             html += '<td style="text-align:right">' + fmtNumber(d.leads) + '</td>';
             html += '<td style="text-align:right">' + vendCell + '</td>';
@@ -1052,21 +1055,22 @@
             }
 
             body.innerHTML =
-                '<div style="padding:12px 0 4px">'
-                + '<span style="background:rgba(245,158,11,0.12);color:#f59e0b;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px">'
-                + json.total + ' alunos sem origem</span></div>'
+                '<div style="padding:12px 0 8px;font-size:12px;color:var(--dc-text-muted);line-height:1.6">'
+                + '⚠️ Esses alunos matricularam no período mas o lead <strong>nunca passou pelo webhook n8n</strong>. '
+                + 'Os que têm responsável no Kommo já estão contabilizados nos cards por consultor.'
+                + '</div>'
 
-                + '<div class="dc-modal-section-title" style="color:#ef4444">'
-                + '<span style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block"></span>'
+                + '<div class="dc-modal-section-title" style="color:#a78bfa">'
+                + '<span style="width:10px;height:10px;border-radius:50%;background:#a78bfa;display:inline-block"></span>'
+                + 'Entrada direta no Kommo (sem dist. n8n) — ' + semDist.length
+                + '</div>'
+                + tabelaAlunos(semDist)
+
+                + '<div class="dc-modal-section-title" style="color:#f87171;margin-top:8px">'
+                + '<span style="width:10px;height:10px;border-radius:50%;background:#f87171;display:inline-block"></span>'
                 + 'Sem lead no Kommo — ' + semKommo.length
                 + '</div>'
-                + tabelaAlunos(semKommo)
-
-                + '<div class="dc-modal-section-title" style="color:#f59e0b;margin-top:8px">'
-                + '<span style="width:10px;height:10px;border-radius:50%;background:#f59e0b;display:inline-block"></span>'
-                + 'Lead no Kommo sem distribuição via n8n — ' + semDist.length
-                + '</div>'
-                + tabelaAlunos(semDist);
+                + tabelaAlunos(semKommo);
 
         } catch (err) {
             body.innerHTML = '<div class="dc-modal-loading" style="color:#f87171">Erro: ' + err.message + '</div>';

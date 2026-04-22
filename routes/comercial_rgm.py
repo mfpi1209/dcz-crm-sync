@@ -3933,6 +3933,7 @@ def dist_consultor_matriculas_por_origem():
         # 3. Busca origem + se foi distribuído no período por lead_id
         distributed_in_period = set()
         lead_to_origem = {}   # lead_id -> origem (da distribuição mais recente)
+        lead_ids_com_qualquer_dist = set()   # lead_ids que aparecem em distribuicao_por_consultor
         if lead_ids:
             # Quais foram distribuídos no período
             kcur.execute("""
@@ -3946,27 +3947,33 @@ def dist_consultor_matriculas_por_origem():
 
             # Origem mais recente de cada lead (sem filtro de período)
             kcur.execute("""
-                SELECT DISTINCT ON (id_lead) id_lead, TRIM(COALESCE(origem, 'Sem origem'))
+                SELECT DISTINCT ON (id_lead) id_lead, TRIM(COALESCE(origem, ''))
                 FROM distribuicao_por_consultor
                 WHERE id_lead = ANY(%s)
-                  AND origem IS NOT NULL AND TRIM(origem) != ''
                 ORDER BY id_lead, "timestamp" DESC
             """, (lead_ids,))
             for lead_id_val, origem in kcur.fetchall():
-                lead_to_origem[lead_id_val] = origem
+                lead_ids_com_qualquer_dist.add(lead_id_val)
+                if origem:
+                    lead_to_origem[lead_id_val] = origem
 
         kcur.close()
         kconn.close()
 
         # 4. Agrupa por origem
+        # - Lead com origem registrada → usa a origem
+        # - Lead no Kommo mas nunca passou pelo n8n → "Entrada direta"
+        # - RGM sem nenhum lead no Kommo → "Sem lead no Kommo"
         from collections import defaultdict
         contagem = defaultdict(lambda: {"origem": "", "do_periodo": 0, "fora_periodo": 0, "total": 0})
         for rgm in rgm_list:
             lead_id = rgm_to_lead.get(rgm)
             if not lead_id:
-                origem = "Sem origem"
+                origem = "Sem lead no Kommo"
             else:
-                origem = lead_to_origem.get(lead_id, "Sem origem")
+                origem = lead_to_origem.get(lead_id)
+                if not origem:
+                    origem = "Entrada direta"
             c = contagem[origem]
             c["origem"] = origem
             c["total"] += 1
