@@ -37,6 +37,23 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dcz-sync-default-key-change-me")
 app.config["CACHE_BUST"] = str(int(time.time()))
 
+
+def kommo_web_base_url() -> str:
+    """URL base do Kommo no navegador (sem /api/v4), ex.: https://subdominio.kommo.com"""
+    w = os.getenv("KOMMO_WEB_URL", "").strip().rstrip("/")
+    if w:
+        return w
+    b = os.getenv("KOMMO_BASE_URL", "https://admamoeduitcombr.kommo.com").strip().rstrip("/")
+    if "/api" in b:
+        b = b.split("/api", 1)[0].rstrip("/")
+    return b or "https://admamoeduitcombr.kommo.com"
+
+
+@app.context_processor
+def inject_kommo_web_base():
+    return {"kommo_web_base": kommo_web_base_url()}
+
+
 from collections import deque
 
 _sync_running = False

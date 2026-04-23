@@ -4,6 +4,12 @@
 
 (function () {
     const WEBHOOK_URL = "https://n8n-new-n8n.ca31ey.easypanel.host/webhook/distribuicaoporconsultor-origens";
+    /** Base do Kommo no navegador — injetada em _dist_consultor.html (KOMMO_WEB_URL ou KOMMO_BASE_URL). */
+    function dcKommoLeadDetailUrl(leadId) {
+        var raw = (typeof window !== "undefined" && window.DC_KOMMO_WEB_BASE) ? String(window.DC_KOMMO_WEB_BASE) : "";
+        var b = raw.replace(/\/+$/, "") || "https://admamoeduitcombr.kommo.com";
+        return b + "/leads/detail/" + encodeURIComponent(String(leadId));
+    }
     const CHART_COLORS = ["#2563eb", "#0ea5e9", "#14b8a6", "#22c55e", "#eab308", "#f97316", "#ef4444", "#8b5cf6", "#06b6d4", "#84cc16"];
     let _rows = [];
     let _rawTotalVendas = 0;
@@ -1067,7 +1073,7 @@
                     + '<thead><tr><th>RGM</th><th>Nome</th><th>Polo</th><th>Nível</th><th>Dt. Matrícula</th><th>Lead Kommo</th><th>Lead criado</th><th>Responsável</th><th>Origem Kommo</th></tr></thead>'
                     + '<tbody>' + lista.map(function(r) {
                         var kommoCell = r.lead_id
-                            ? '<a href="https://eduitbr.kommo.com/leads/detail/' + r.lead_id + '" target="_blank" '
+                            ? '<a href="' + dcKommoLeadDetailUrl(r.lead_id) + '" target="_blank" rel="noopener noreferrer" '
                               + 'style="color:#60a5fa;text-decoration:none">' + r.lead_id + ' ↗</a>'
                             : '<span style="color:var(--dc-text-muted)">—</span>';
                         var origemKommoCell = (r.origem_kommo && r.origem_kommo !== '—')
@@ -1123,7 +1129,7 @@
             }
 
             var rows = lista.map(function(l) {
-                var kommoLink = '<a href="https://eduitbr.kommo.com/leads/detail/' + l.lead_id + '" target="_blank" '
+                var kommoLink = '<a href="' + dcKommoLeadDetailUrl(l.lead_id) + '" target="_blank" rel="noopener noreferrer" '
                     + 'style="color:#60a5fa;text-decoration:none" title="Abrir no Kommo">'
                     + l.lead_id + ' ↗</a>';
 
