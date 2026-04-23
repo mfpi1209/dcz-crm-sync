@@ -548,42 +548,55 @@
         var tbody = document.querySelector("#dc-table-origem tbody");
         if (!tbody) return;
 
-        // Leads por origem: webhook n8n
-        var gLeads = {};
+        // Leads por origem: webhook n8n (agrupa case-insensitive)
+        var gLeads   = {};   // key_lower → total_leads
+        var gDisplay = {};   // key_lower → grafia preferida para exibir
         filtered.forEach(function(r) {
-            gLeads[r.origem] = (gLeads[r.origem] || 0) + r.total_leads;
+            var raw  = String(r.origem || "").trim();
+            if (!raw) return;
+            var key  = raw.toLowerCase();
+            gLeads[key] = (gLeads[key] || 0) + r.total_leads;
+            if (!gDisplay[key]) gDisplay[key] = raw;
         });
 
         // Matrículas por origem: Dashboard Comercial (_matriculasPorOrigem)
-        // Normaliza nomes de origem para match case-insensitive
         var cf  = document.getElementById("dc-consultor-filter")?.value || "";
         var of_ = document.getElementById("dc-origem-filter")?.value   || "";
 
-        // Monta mapa de matrículas por origem (normalizado)
-        var matMap = {};    // origem_normalizada → {total, do_periodo, fora_periodo}
+        // Monta mapa de matrículas por origem (normalizado case-insensitive)
+        var matMap = {};    // key_lower → {total, do_periodo, fora_periodo}
         var matSource = _matriculasPorOrigem;
         if (cf) {
             // Filtrado por consultor: usa vendas do webhook como fallback
             matSource = [];
         }
         matSource.forEach(function(m) {
-            var key = String(m.origem || "").trim().toLowerCase();
-            matMap[key] = { total: m.total || 0, do_periodo: m.do_periodo || 0, fora_periodo: m.fora_periodo || 0 };
+            var raw = String(m.origem || "").trim();
+            if (!raw) return;
+            var key = raw.toLowerCase();
+            var prev = matMap[key] || { total: 0, do_periodo: 0, fora_periodo: 0 };
+            matMap[key] = {
+                total:        prev.total        + (m.total        || 0),
+                do_periodo:   prev.do_periodo   + (m.do_periodo   || 0),
+                fora_periodo: prev.fora_periodo + (m.fora_periodo || 0),
+            };
+            if (!gDisplay[key]) gDisplay[key] = raw;
         });
 
-        // Unifica origens de ambas as fontes
-        var allOrigens = new Set(Object.keys(gLeads));
-        matSource.forEach(function(m) { if (m.origem) allOrigens.add(m.origem.trim()); });
+        // Unifica origens de ambas as fontes (chaves lowercase)
+        var allKeys = new Set(Object.keys(gLeads));
+        Object.keys(matMap).forEach(function(k) { allKeys.add(k); });
         if (of_) {
-            // Quando filtrado por origem, mostra só essa
-            allOrigens = new Set([of_]);
+            var ofKey = of_.toLowerCase();
+            allKeys = new Set([ofKey]);
+            if (!gDisplay[ofKey]) gDisplay[ofKey] = of_;
         }
 
-        var data = Array.from(allOrigens).map(function(orig) {
-            var leads = gLeads[orig] || 0;
-            var matKey = orig.toLowerCase();
-            var mat = matMap[matKey] || { total: 0, do_periodo: 0, fora_periodo: 0 };
-            var taxa = leads > 0 && mat.total > 0 ? (mat.total / leads * 100) : 0;
+        var data = Array.from(allKeys).map(function(key) {
+            var leads = gLeads[key] || 0;
+            var mat   = matMap[key] || { total: 0, do_periodo: 0, fora_periodo: 0 };
+            var taxa  = leads > 0 && mat.total > 0 ? (mat.total / leads * 100) : 0;
+            var orig  = gDisplay[key] || key;
             return { origem: orig, leads: leads, vendas: mat.total,
                      do_periodo: mat.do_periodo, fora_periodo: mat.fora_periodo, taxa: taxa };
         }).filter(function(d) { return d.leads > 0 || d.vendas > 0; })
@@ -606,9 +619,9 @@
             else                  { badgeColor = "#94a3b8"; badgeBg = "rgba(148,163,184,0.08)"; }
 
             var barW = maxTaxa > 0 ? (d.taxa / maxTaxa * 100).toFixed(1) : 0;
-            var isEntradaDireta  = d.origem === 'Entrada direta';
+            var isSemOrigemKommo = d.origem === 'Sem origem preenchida';
             var isSemLead        = d.origem === 'Sem lead no Kommo';
-            var isDestacar       = isEntradaDireta || isSemLead;
+            var isDestacar       = isSemOrigemKommo || isSemLead;
 
             // Célula de matrículas com breakdown período/carteira
             var vendCell;
@@ -623,10 +636,10 @@
                 vendCell = '<span style="font-weight:700;color:' + (d.vendas > 0 ? '#2563eb' : 'var(--dc-text-muted)') + '">' + fmtNumber(d.vendas) + '</span>';
             }
 
-            var origemColor = isEntradaDireta ? '#a78bfa' : (isSemLead ? '#f87171' : null);
+            var origemColor = isSemOrigemKommo ? '#a78bfa' : (isSemLead ? '#f87171' : null);
             var origemCell;
             if (isDestacar) {
-                var filtro = isEntradaDireta ? 'entrada_direta' : 'sem_lead';
+                var filtro = isSemOrigemKommo ? 'sem_origem' : 'sem_lead';
                 origemCell = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
                     + '<span style="font-weight:600;color:' + origemColor + '">' + d.origem + '</span>'
                     + '<button onclick="dcAbrirSemOrigem(\'' + filtro + '\')" '
@@ -1018,7 +1031,7 @@
         if (overlay.parentNode !== document.body) document.body.appendChild(overlay);
 
         var titles = {
-            'entrada_direta': 'Entrada direta no Kommo — sem distribuição via n8n',
+            'sem_origem': 'Sem origem preenchida — lead no Kommo (n8n/campo Origem vazio)',
             'sem_lead':       'Sem lead no Kommo'
         };
         title.textContent = titles[filtro] || 'Matrículas sem origem';
@@ -1045,7 +1058,7 @@
             var semKommo  = rows.filter(function(r) { return r.motivo === 'Sem lead no Kommo'; });
             var semDist   = rows.filter(function(r) { return r.motivo !== 'Sem lead no Kommo'; });
             var listaFiltrada = filtro === 'sem_lead' ? semKommo
-                              : filtro === 'entrada_direta' ? semDist
+                              : filtro === 'sem_origem' ? semDist
                               : rows;
 
             function tabelaAlunos(lista) {
@@ -1074,8 +1087,8 @@
                     }).join('') + '</tbody></table></div>';
             }
 
-            var aviso = filtro === 'entrada_direta'
-                ? '⚠️ Lead existe no Kommo com responsável, mas <strong>nunca foi distribuído via n8n</strong>. As vendas já estão contabilizadas nos cards por consultor.'
+            var aviso = filtro === 'sem_origem'
+                ? '⚠️ Lead no Kommo com responsável, mas <strong>sem origem de marketing identificada</strong> (n8n/Kommo). As vendas já estão nos cards por consultor.'
                 : filtro === 'sem_lead'
                 ? '⚠️ RGMs matriculados no período <strong>sem nenhum lead vinculado no Kommo</strong>.'
                 : '⚠️ Alunos matriculados no período sem origem identificada via n8n.';
@@ -1090,28 +1103,80 @@
     };
 
     function renderModalBody(data) {
+        // Calcula tempo médio de fechamento (apenas onde dias >= 0)
+        function mediaFechamento(lista) {
+            var validos = lista.filter(function(l) { return typeof l.dias_ate_matricula === 'number' && l.dias_ate_matricula >= 0; });
+            if (!validos.length) return null;
+            var soma = validos.reduce(function(acc, l) { return acc + l.dias_ate_matricula; }, 0);
+            return Math.round(soma / validos.length);
+        }
+
         function tabelaLeads(lista, tipo) {
             if (!lista.length) return '<p style="color:var(--dc-text-muted);font-size:12px;padding:8px 0">Nenhum lead nesta categoria.</p>';
+
+            var media = mediaFechamento(lista);
+            var mediaHtml = '';
+            if (media !== null) {
+                mediaHtml = '<div style="font-size:11px;color:var(--dc-text-muted);margin-bottom:6px">'
+                    + 'Tempo médio de fechamento: <strong style="color:#a78bfa">' + media + ' dias</strong>'
+                    + ' (desde que o lead chegou ao consultor)</div>';
+            }
+
             var rows = lista.map(function(l) {
-                var distInfo = l.ultima_dist
-                    ? l.ultima_dist + (l.dist_consultor ? ' <span style="color:var(--dc-text-muted)">(' + l.dist_consultor + ')</span>' : '')
-                    : '<span style="color:var(--dc-text-muted)">Nunca dist.</span>';
                 var kommoLink = '<a href="https://eduitbr.kommo.com/leads/detail/' + l.lead_id + '" target="_blank" '
                     + 'style="color:#60a5fa;text-decoration:none" title="Abrir no Kommo">'
                     + l.lead_id + ' ↗</a>';
+
+                // Célula "Recebido": data em que o consultor recebeu o lead
+                // Se igual ao criado, significa que veio diretamente (sem transferência)
+                var recebCell;
+                if (l.data_recebimento && l.data_recebimento !== l.lead_criado) {
+                    recebCell = '<span style="color:#a78bfa;font-weight:600">' + l.data_recebimento + '</span>'
+                        + '<span style="font-size:10px;color:var(--dc-text-muted);display:block">transferido</span>';
+                } else if (l.data_recebimento) {
+                    recebCell = l.data_recebimento;
+                } else {
+                    recebCell = '<span style="color:var(--dc-text-muted)">—</span>';
+                }
+
+                // Célula "Dias p/ fechar"
+                var diasCell;
+                if (typeof l.dias_ate_matricula === 'number' && l.dias_ate_matricula >= 0) {
+                    var cor = l.dias_ate_matricula <= 7  ? '#10b981'
+                            : l.dias_ate_matricula <= 30 ? '#f59e0b'
+                            :                             '#f87171';
+                    diasCell = '<span style="font-weight:600;color:' + cor + '">' + l.dias_ate_matricula + 'd</span>';
+                } else {
+                    diasCell = '<span style="color:var(--dc-text-muted)">—</span>';
+                }
+
+                // Última dist n8n — esconde o nome se for diferente do responsável atual
+                // (indica transferência — a data já aparece em "Recebido")
+                var distInfo;
+                if (!l.ultima_dist) {
+                    distInfo = '<span style="color:var(--dc-text-muted)">Nunca dist.</span>';
+                } else {
+                    distInfo = l.ultima_dist;
+                }
+
                 return '<tr>'
                     + '<td style="font-weight:600;color:var(--dc-text-primary)">' + (l.rgm || '—') + '</td>'
                     + '<td>' + (l.nome || '—') + '</td>'
                     + '<td>' + kommoLink + '</td>'
-                    + '<td>' + (l.lead_criado || '—') + '</td>'
+                    + '<td style="font-size:11px;color:var(--dc-text-muted)">' + (l.lead_criado || '—') + '</td>'
+                    + '<td>' + recebCell + '</td>'
                     + '<td>' + (l.data_matricula || '—') + '</td>'
-                    + '<td>' + distInfo + '</td>'
+                    + '<td style="text-align:center">' + diasCell + '</td>'
+                    + '<td style="font-size:11px;color:var(--dc-text-muted)">' + distInfo + '</td>'
                     + '</tr>';
             }).join('');
-            return '<div style="overflow-x:auto"><table class="dc-modal-table">'
+
+            return mediaHtml
+                + '<div style="overflow-x:auto"><table class="dc-modal-table">'
                 + '<thead><tr>'
                 + '<th>RGM</th><th>Nome</th><th>Lead ID</th>'
-                + '<th>Criado</th><th>Matrícula</th><th>Última dist.</th>'
+                + '<th>Criado</th><th>Recebido</th><th>Matrícula</th>'
+                + '<th>Dias p/ fechar</th><th>Última dist. n8n</th>'
                 + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
         }
 

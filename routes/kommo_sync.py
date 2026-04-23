@@ -768,3 +768,172 @@ def api_kommo_funnel_live():
     except Exception as e:
         logger.error("funnel-live error: %s", e)
         return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# Histórico de responsável — lead_responsible_history
+# ---------------------------------------------------------------------------
+# Sincroniza eventos do tipo "lead_responsible_changed" da API Kommo e salva
+# em lead_responsible_history.  Chamada pelo scheduler diário e pelo backfill
+# manual via endpoint /api/kommo/sync-responsible-history.
+# ---------------------------------------------------------------------------
+
+_RESPONSIBLE_SYNC_META_KEY = "lead_responsible_history"
+
+
+def _sync_responsible_history(days_back: int = 1) -> dict:
+    """Busca eventos 'lead_responsible_changed' da API Kommo e persiste em
+    lead_responsible_history.
+
+    Args:
+        days_back: quantos dias para trás buscar (1 = incremental, 90 = backfill).
+
+    Returns:
+        dict com campos inserted, skipped, pages, errors.
+    """
+    if not KOMMO_TOKEN:
+        return {"error": "KOMMO_TOKEN not set"}
+
+    BRT = timezone(timedelta(hours=-3))
+    from_ts = int((datetime.now(BRT) - timedelta(days=days_back)).timestamp())
+
+    inserted = 0
+    skipped  = 0
+    pages    = 0
+    errors   = []
+
+    conn = _pg()
+    cur  = conn.cursor()
+
+    page = 1
+    while True:
+        try:
+            # Sem filter[entity]: no Kommo, filter[entity]=lead costuma zerar o resultado;
+            # o backfill (run_backfill.py) só usa type + created_at e filtra lead no Python.
+            resp = _kommo_get("/events", {
+                "filter[type]":             "entity_responsible_changed",
+                "filter[created_at][from]": from_ts,
+                "limit":                    250,
+                "page":                     page,
+            })
+        except Exception as exc:
+            errors.append(f"page {page}: {exc}")
+            break
+
+        if resp.status_code == 204 or resp.status_code == 404:
+            break
+        if resp.status_code != 200:
+            errors.append(f"page {page}: HTTP {resp.status_code}")
+            break
+
+        try:
+            data = resp.json()
+        except Exception as exc:
+            errors.append(f"page {page}: json parse error {exc}")
+            break
+
+        items = (data.get("_embedded") or {}).get("events") or []
+        if not items:
+            break
+
+        pages += 1
+        for ev in items:
+            try:
+                entity_id   = ev.get("entity_id")
+                entity_type = ev.get("entity_type", "")
+                # Só processa eventos de lead (filtra contatos que podem vir junto)
+                if str(entity_type).lower() not in ("lead", "leads"):
+                    skipped += 1
+                    continue
+
+                created_at_ts = ev.get("created_at")
+                if not created_at_ts:
+                    skipped += 1
+                    continue
+                changed_at = datetime.fromtimestamp(created_at_ts, tz=timezone.utc)
+
+                # value_after / value_before: lista com dict {responsible_user: {id: X}}
+                value_after  = ev.get("value_after")  or []
+                value_before = ev.get("value_before") or []
+                if isinstance(value_after,  list): value_after  = value_after[0]  if value_after  else {}
+                if isinstance(value_before, list): value_before = value_before[0] if value_before else {}
+
+                to_user_id   = (value_after.get("responsible_user")  or {}).get("id") if isinstance(value_after,  dict) else None
+                from_user_id = (value_before.get("responsible_user") or {}).get("id") if isinstance(value_before, dict) else None
+
+                # Ignora quando to_user_id = 0 (sem responsável definido)
+                if not to_user_id or to_user_id == 0 or not entity_id:
+                    skipped += 1
+                    continue
+
+                cur.execute("""
+                    INSERT INTO lead_responsible_history (lead_id, changed_at, from_user_id, to_user_id, source)
+                    VALUES (%s, %s, %s, %s, 'kommo_events')
+                    ON CONFLICT (lead_id, changed_at) DO NOTHING
+                """, (entity_id, changed_at, from_user_id, to_user_id))
+
+                if cur.rowcount:
+                    inserted += 1
+                else:
+                    skipped += 1
+
+            except Exception as exc:
+                errors.append(f"event parse: {exc}")
+                skipped += 1
+                continue
+
+        conn.commit()
+
+        # Verifica se há próxima página
+        links = data.get("_links") or {}
+        if not links.get("next"):
+            break
+        page += 1
+
+    # Atualiza metadado de última sync
+    try:
+        cur.execute("""
+            INSERT INTO sync_metadata (entity_type, last_sync_at, records_synced, status)
+            VALUES (%s, NOW(), %s, 'ok')
+            ON CONFLICT (entity_type) DO UPDATE
+               SET last_sync_at   = EXCLUDED.last_sync_at,
+                   records_synced = EXCLUDED.records_synced,
+                   status         = EXCLUDED.status
+        """, (_RESPONSIBLE_SYNC_META_KEY, inserted))
+        conn.commit()
+    except Exception:
+        pass
+
+    cur.close()
+    conn.close()
+
+    result = {"inserted": inserted, "skipped": skipped, "pages": pages, "errors": errors[:10]}
+    logger.info("responsible_history sync: %s", result)
+    return result
+
+
+def run_responsible_history_daily():
+    """Job diário chamado pelo scheduler: puxa últimas 2 horas com margem."""
+    try:
+        # 1.5 dias de margem para não perder nada no caso de atraso do scheduler
+        result = _sync_responsible_history(days_back=2)
+        logger.info("responsible_history daily job: %s", result)
+    except Exception as exc:
+        logger.exception("responsible_history daily job failed: %s", exc)
+
+
+@kommo_bp.route("/api/kommo/sync-responsible-history")
+def api_sync_responsible_history():
+    """Endpoint manual: dispara backfill ou sync incremental.
+
+    Query params:
+        days_back (int, default 1): quantos dias para trás buscar.
+    """
+    try:
+        days_back = int(request.args.get("days_back", 1))
+    except ValueError:
+        days_back = 1
+
+    days_back = max(1, min(days_back, 365))
+    result = _sync_responsible_history(days_back=days_back)
+    return jsonify({"ok": True, **result})
