@@ -32,7 +32,7 @@ function navigate(page, params) {
     document.querySelectorAll('.sidebar-link').forEach(el => {
         el.classList.toggle('active', el.dataset.page === page);
     });
-    document.getElementById('mobile-title').textContent = PAGE_TITLES[page] || page;
+    setPageTitle(PAGE_TITLES[page] || page);
 
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('sidebar-overlay').classList.remove('open');
@@ -85,12 +85,21 @@ function navigateVoc(tab) {
     document.querySelectorAll('.sidebar-link').forEach(el => {
         el.classList.toggle('active', el.dataset.page === 'voc_' + tab);
     });
-    document.getElementById('mobile-title').textContent = PAGE_TITLES['vocacional'] || 'Vocacional';
+    setPageTitle(PAGE_TITLES['vocacional'] || 'Vocacional');
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('sidebar-overlay').classList.remove('open');
     vocLoadPage();
     vocSwitchTab(tab);
     history.replaceState(null, '', '#vocacional');
+}
+
+function setPageTitle(text) {
+    var title = text || '';
+    var topbar = document.getElementById('page-title');
+    if (topbar) topbar.textContent = title;
+    var mobile = document.getElementById('mobile-title');
+    if (mobile) mobile.textContent = title;
+    if (title) document.title = title + ' · eduit.';
 }
 
 function toggleSidebar() {
@@ -297,18 +306,24 @@ function toggleTheme() {
 }
 
 function updateThemeUI(theme) {
-    const sunIcon = document.getElementById('theme-icon-sun');
-    const moonIcon = document.getElementById('theme-icon-moon');
-    const label = document.getElementById('theme-label');
-    if (theme === 'dark') {
-        sunIcon.classList.add('hidden');
-        moonIcon.classList.remove('hidden');
-        label.textContent = 'Modo claro';
-    } else {
-        sunIcon.classList.remove('hidden');
-        moonIcon.classList.add('hidden');
-        label.textContent = 'Modo escuro';
-    }
+    var pairs = [
+        { sun: 'theme-icon-sun',    moon: 'theme-icon-moon' },
+        { sun: 'tb-theme-icon-sun', moon: 'tb-theme-icon-moon' },
+    ];
+    pairs.forEach(function(p) {
+        var sun  = document.getElementById(p.sun);
+        var moon = document.getElementById(p.moon);
+        if (!sun || !moon) return;
+        if (theme === 'dark') {
+            sun.classList.add('hidden');
+            moon.classList.remove('hidden');
+        } else {
+            sun.classList.remove('hidden');
+            moon.classList.add('hidden');
+        }
+    });
+    var label = document.getElementById('theme-label');
+    if (label) label.textContent = theme === 'dark' ? 'Modo claro' : 'Modo escuro';
 }
 
 // ---------------------------------------------------------------------------

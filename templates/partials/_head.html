@@ -170,6 +170,53 @@
             color: var(--text-secondary);
         }
 
+        /* ═══════════════════════════════════════════════════════════════
+           COMPONENTES — TopBar
+           ═══════════════════════════════════════════════════════════════ */
+        .topbar {
+            background: rgba(247, 249, 251, 0.85);
+            backdrop-filter: blur(14px) saturate(160%);
+            -webkit-backdrop-filter: blur(14px) saturate(160%);
+            border-bottom-color: var(--border);
+        }
+        .dark .topbar {
+            background: rgba(11, 22, 35, 0.85);
+            border-bottom-color: var(--border);
+        }
+        .topbar-title {
+            font-size: 1.1rem;
+            color: var(--primary);
+            line-height: 1;
+            letter-spacing: -0.01em;
+        }
+        @media (min-width: 768px) {
+            .topbar-title { font-size: 1.25rem; }
+        }
+        .dark .topbar-title { color: var(--text-primary); }
+
+        .topbar-action {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 999px;
+            color: var(--text-secondary);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            position: relative;
+        }
+        .topbar-action:hover {
+            color: var(--primary);
+            background: var(--bg-elevated);
+        }
+        .dark .topbar-action:hover {
+            color: var(--primary);
+            background: rgba(116, 174, 233, 0.08);
+        }
+
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
         }

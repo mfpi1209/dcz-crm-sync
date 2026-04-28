@@ -302,12 +302,48 @@
 
     <!-- Main content -->
     <div class="flex-1 flex flex-col min-w-0">
-        <!-- Top bar (mobile) -->
-        <header class="md:hidden glass-sidebar px-4 py-3 flex items-center gap-3">
-            <button onclick="toggleSidebar()" class="text-gray-400 hover:text-gray-700 dark:hover:text-white transition">
-                <span class="material-symbols-outlined">menu</span>
-            </button>
-            <span class="text-sm font-semibold" id="mobile-title">Dashboard</span>
+        <!-- TopBar global -->
+        <header id="topbar"
+                class="topbar sticky top-0 z-30 flex items-center justify-between gap-3 px-4 md:px-8 h-14 md:h-16 border-b">
+            <!-- Esquerda: menu mobile + título -->
+            <div class="flex items-center gap-3 min-w-0">
+                <button onclick="toggleSidebar()" class="md:hidden text-[var(--text-muted)] hover:text-[var(--primary)] transition flex-shrink-0">
+                    <span class="material-symbols-outlined">menu</span>
+                </button>
+                <h2 id="page-title" class="topbar-title font-headline font-extrabold truncate">Dashboard</h2>
+                <span id="mobile-title" class="hidden">Dashboard</span>
+                <span class="hidden md:inline-block h-6 w-px bg-[var(--border)] mx-2"></span>
+                <div id="topbar-meta" class="hidden md:flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.15em] px-3 py-1.5 rounded-full"
+                     style="background: var(--bg-elevated); color: var(--text-secondary);">
+                    <span class="material-symbols-outlined text-[14px]" style="color: var(--primary)">calendar_month</span>
+                    <span id="topbar-meta-text">eduit. · cockpit</span>
+                </div>
+            </div>
+
+            <!-- Direita: ações -->
+            <div class="flex items-center gap-1 md:gap-2">
+                <button id="topbar-search" onclick="navigate('search')"
+                        class="topbar-action hidden sm:flex"
+                        title="Buscar">
+                    <span class="material-symbols-outlined text-[20px]">search</span>
+                </button>
+                <button id="topbar-avisos" onclick="navigate('avisos')"
+                        class="topbar-action relative"
+                        title="Avisos">
+                    <span class="material-symbols-outlined text-[20px]">notifications</span>
+                    <span id="tb-avisos-dot" class="absolute top-2 right-2 w-2 h-2 rounded-full hidden"
+                          style="background: #ef4444; border: 2px solid var(--bg-card);"></span>
+                </button>
+                <button id="topbar-theme" onclick="toggleTheme()"
+                        class="topbar-action"
+                        title="Alternar tema">
+                    <span id="tb-theme-icon-sun" class="material-symbols-outlined text-[20px] hidden">light_mode</span>
+                    <span id="tb-theme-icon-moon" class="material-symbols-outlined text-[20px]">dark_mode</span>
+                </button>
+                <a href="/logout" class="topbar-action" title="Sair">
+                    <span class="material-symbols-outlined text-[20px]">logout</span>
+                </a>
+            </div>
         </header>
 
         <main class="flex-1 overflow-auto">
