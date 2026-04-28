@@ -214,14 +214,13 @@ function mmLoadPreview() {
             document.getElementById('mm-act-sematch').textContent = (ap.ATUALIZAR || 0).toLocaleString();
             document.getElementById('mm-act-perdido').textContent = (ap.MOVER_PERDIDO || 0).toLocaleString();
             document.getElementById('mm-act-restaurar').textContent = (ap.RESTAURAR || 0).toLocaleString();
-            const uAuto = ap.UNIFICAR_AUTO || 0;
-            const uManual = ap.UNIFICAR_MANUAL || 0;
-            document.getElementById('mm-act-unificar').textContent = (ap.UNIFICAR || 0).toLocaleString();
+            const elUnificar = document.getElementById('mm-act-unificar');
+            if (elUnificar) elUnificar.textContent = (ap.UNIFICAR || 0).toLocaleString();
             const unifDetail = document.getElementById('mm-act-unificar-detail');
-            if (unifDetail) unifDetail.textContent = `${uAuto} auto / ${uManual} manual`;
+            if (unifDetail) unifDetail.textContent = `${ap.UNIFICAR_AUTO || 0} auto / ${ap.UNIFICAR_MANUAL || 0} manual`;
             const unifLoteBtn = document.getElementById('mm-btn-unif-lote');
             if (unifLoteBtn) {
-                if (uAuto > 0) { unifLoteBtn.classList.remove('hidden'); unifLoteBtn.querySelector('.mm-unif-auto-count').textContent = uAuto; }
+                if ((ap.UNIFICAR_AUTO || 0) > 0) { unifLoteBtn.classList.remove('hidden'); unifLoteBtn.querySelector('.mm-unif-auto-count').textContent = ap.UNIFICAR_AUTO; }
                 else unifLoteBtn.classList.add('hidden');
             }
             document.getElementById('mm-act-fechado').textContent = (m.lead_fechado || 0).toLocaleString();

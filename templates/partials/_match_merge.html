@@ -177,16 +177,6 @@
                             </div>
                         </div>
                         <div class="glass-card p-4 flex items-center gap-4">
-                            <div class="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                                <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
-                            </div>
-                            <div>
-                                <p class="text-xs text-gray-500">Unificar</p>
-                                <p class="text-lg font-bold text-purple-400" id="mm-act-unificar">0</p>
-                                <p class="text-[10px] text-gray-500 mt-0.5" id="mm-act-unificar-detail"></p>
-                            </div>
-                        </div>
-                        <div class="glass-card p-4 flex items-center gap-4">
                             <div class="w-10 h-10 rounded-lg bg-gray-500/10 flex items-center justify-center">
                                 <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                             </div>
@@ -212,7 +202,6 @@
                                     <option value="MATRICULADO">Matriculados</option>
                                     <option value="MOVER_PERDIDO">Mover Perdido</option>
                                     <option value="RESTAURAR">Restaurar</option>
-                                    <option value="UNIFICAR">Unificar</option>
                                 </select>
                                 <button onclick="mmExportCSV()" class="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg bg-emerald-600/80 hover:bg-emerald-600 text-white transition">
                                     <span class="material-symbols-rounded text-base">download</span>
@@ -266,7 +255,6 @@
                                 <option value="MATRICULADO">Matriculados</option>
                                 <option value="MOVER_PERDIDO">Mover Perdido</option>
                                 <option value="RESTAURAR">Restaurar</option>
-                                <option value="UNIFICAR">Unificar</option>
                             </select>
                             <div class="flex items-center gap-2">
                                 <label class="text-xs text-gray-400">Limite:</label>
@@ -275,10 +263,6 @@
                             <button onclick="mmExecute()" id="mm-btn-execute" class="btn-primary text-white font-medium text-sm px-6 py-2.5 rounded-xl flex items-center gap-2">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3l14 9-14 9V3z"/></svg>
                                 Executar
-                            </button>
-                            <button onclick="mmExecuteUnifLote()" id="mm-btn-unif-lote" class="hidden bg-purple-600 hover:bg-purple-500 text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center gap-2 transition">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
-                                Unificar Lote (<span class="mm-unif-auto-count">0</span>)
                             </button>
                             <span id="mm-exec-status" class="text-xs text-gray-500"></span>
                         </div>
@@ -297,33 +281,4 @@
                     <pre id="mm-log-content" class="bg-gray-950/50 rounded-lg p-3 text-xs text-gray-400 font-mono max-h-[300px] overflow-y-auto whitespace-pre-wrap"></pre>
                 </div>
 
-                <!-- Modal: Unificar Leads -->
-                <div id="mm-merge-modal" class="fixed inset-0 z-50 hidden">
-                    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="mmCloseMergeModal()"></div>
-                    <div class="relative z-10 flex items-center justify-center min-h-screen p-4">
-                        <div class="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-                            <div class="flex items-center justify-between p-5 border-b border-gray-700/40">
-                                <h3 class="text-lg font-bold text-[var(--text-primary)] font-display flex items-center gap-2">
-                                    <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
-                                    Unificar Leads
-                                </h3>
-                                <button onclick="mmCloseMergeModal()" class="text-gray-400 hover:text-white">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                                </button>
-                            </div>
-                            <div class="p-5">
-                                <p class="text-sm text-gray-400 mb-4">Selecione qual lead <strong class="text-purple-400">manter</strong>. O outro sera mesclado e removido.</p>
-                                <div id="mm-merge-leads" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5"></div>
-                                <div id="mm-merge-status" class="text-xs text-gray-500 mb-3 hidden"></div>
-                                <div class="flex items-center justify-end gap-3">
-                                    <button onclick="mmCloseMergeModal()" class="btn-secondary text-gray-300 text-sm px-5 py-2.5 rounded-xl">Cancelar</button>
-                                    <button onclick="mmConfirmMerge()" id="mm-merge-confirm-btn" class="btn-primary text-white font-medium text-sm px-6 py-2.5 rounded-xl flex items-center gap-2 disabled:opacity-40" disabled>
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                                        Confirmar Merge
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
