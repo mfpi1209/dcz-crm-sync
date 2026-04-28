@@ -151,6 +151,28 @@
                     #page-dist_consultor .dc-btn-update:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
                     #page-dist_consultor .dc-btn-update svg { width: 16px; height: 16px; }
 
+                    #page-dist_consultor .dc-btn-secondary {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 8px;
+                        padding: 9px 16px;
+                        background: transparent;
+                        color: var(--dc-text-secondary);
+                        border: 1px solid var(--dc-border);
+                        border-radius: 8px;
+                        font-size: 13px;
+                        font-weight: 600;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                        font-family: inherit;
+                    }
+                    #page-dist_consultor .dc-btn-secondary:hover {
+                        border-color: #10b981;
+                        color: #10b981;
+                        transform: translateY(-1px);
+                    }
+                    #page-dist_consultor .dc-btn-secondary svg { width: 16px; height: 16px; }
+
                     #page-dist_consultor .dc-date-input {
                         padding: 9px 12px;
                         border: 1px solid var(--dc-border);
@@ -522,7 +544,41 @@
                                 Atualizar
                             </button>
                         </div>
+                        <div class="dc-filter-group" style="align-self:flex-end">
+                            <button type="button" class="dc-btn-secondary" onclick="dcToggleKommoLead()">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                                Atualizar lead
+                            </button>
+                        </div>
                         </div><!-- end date+filters row -->
+                    </div>
+
+                    <!-- Atualizar 1 lead no Kommo -->
+                    <div id="dc-kommo-lead-panel" class="dc-card" style="display:none;margin-bottom:24px;border-color:rgba(16,185,129,0.35)">
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px">
+                            <h3 style="font-size:14px;font-weight:700;color:var(--dc-text-primary);display:flex;align-items:center;gap:8px;margin:0">
+                                <svg style="width:16px;height:16px;color:#10b981" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                Atualizar lead na base Kommo
+                            </h3>
+                            <button type="button" onclick="dcToggleKommoLead()" style="background:transparent;border:0;color:var(--dc-text-muted);cursor:pointer;font-family:inherit;font-size:12px">Fechar</button>
+                        </div>
+                        <p style="font-size:12px;color:var(--dc-text-muted);line-height:1.5;margin:0 0 14px">
+                            Busca um lead específico na API do Kommo, atualiza a base local e recarrega este dashboard. Informe o ID do lead ou o RGM.
+                        </p>
+                        <div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap">
+                            <div class="dc-filter-group">
+                                <label for="dc-kommo-lead-id">ID do lead</label>
+                                <input type="text" id="dc-kommo-lead-id" class="dc-date-input" style="min-width:150px" placeholder="Ex: 21097655" inputmode="numeric">
+                            </div>
+                            <div style="color:var(--dc-text-muted);font-size:12px;padding-bottom:10px">ou</div>
+                            <div class="dc-filter-group">
+                                <label for="dc-kommo-rgm">RGM</label>
+                                <input type="text" id="dc-kommo-rgm" class="dc-date-input" style="min-width:150px" placeholder="Ex: 48825573" maxlength="12">
+                            </div>
+                            <button type="button" id="dc-kommo-sync-btn" class="dc-btn-update" onclick="dcKommoSyncLead()">Buscar e atualizar</button>
+                        </div>
+                        <div id="dc-kommo-lead-msg" style="display:none;margin-top:14px;font-size:12px;padding:10px 12px;border-radius:8px;border:1px solid var(--dc-border);background:rgba(15,23,42,0.25);color:var(--dc-text-secondary)"></div>
+                        <div id="dc-kommo-lead-pick" style="display:none;margin-top:10px;gap:8px;flex-wrap:wrap"></div>
                     </div>
 
                     <!-- Error / Warning -->
@@ -581,7 +637,7 @@
                                         <span id="dc-m-do-periodo">0</span> no período
                                     </span>
                                     <span style="font-size:12px;font-weight:600;color:#f59e0b">
-                                        <span id="dc-m-fora-periodo">0</span> carteira
+                                        <span id="dc-m-fora-periodo">0</span> lead antigo
                                     </span>
                                 </div>
                             </div>
@@ -628,10 +684,11 @@
                     <div class="dc-chart-card" style="margin-bottom:24px">
                         <h3 class="dc-chart-title">Leads por Origem</h3>
                         <p style="font-size:11px;color:var(--dc-text-muted);margin:-8px 0 16px">
-                            Leads: webhook n8n &nbsp;|&nbsp;
-                            <strong style="color:#2563eb">Matrículas</strong> = Dashboard Comercial &nbsp;|&nbsp;
-                            <span style="color:#10b981;font-weight:600">período</span> = distribuído no período &nbsp;·&nbsp;
-                            <span style="color:#f59e0b;font-weight:600">carteira</span> = antes do período ou sem dist. &nbsp;|&nbsp;
+                            <strong>Leads da Semana</strong> = webhook n8n no período &nbsp;|&nbsp;
+                            <strong style="color:#2563eb">Matrículas Semana</strong> = fechamentos de leads recebidos no período &nbsp;|&nbsp;
+                            <strong style="color:#10b981">Conversão</strong> = % de leads do período que viraram matrícula &nbsp;|&nbsp;
+                            <strong style="color:#f59e0b">Lead Antigo</strong> = matrículas de leads recebidos antes do período &nbsp;|&nbsp;
+                            <strong>Total</strong> = Matrículas Semana + Lead Antigo &nbsp;|&nbsp;
                             <span style="color:#a78bfa;font-weight:600">Sem origem preenchida</span> = lead no Kommo sem valor de origem no n8n nem no campo Origem (clique em Ver lista)
                         </p>
                         <div style="overflow-x:auto">
@@ -639,10 +696,11 @@
                                 <thead>
                                     <tr>
                                         <th>Origem</th>
-                                        <th style="text-align:right">Leads</th>
-                                        <th style="text-align:right">Matrículas</th>
-                                        <th style="text-align:right">Taxa de Conversão</th>
-                                        <th style="min-width:160px">Progresso</th>
+                                        <th style="text-align:right">Leads da Semana</th>
+                                        <th style="text-align:right">Matrículas Semana</th>
+                                        <th style="text-align:right">Conversão</th>
+                                        <th style="text-align:right">Lead Antigo</th>
+                                        <th style="text-align:right">Total</th>
                                     </tr>
                                 </thead>
                                 <tbody></tbody>
@@ -670,8 +728,8 @@
                         <h3 class="dc-chart-title">Matrículas no Período por Consultor</h3>
                         <p style="font-size:11px;color:var(--dc-text-muted);margin:-8px 0 16px">
                             Fonte: Dashboard Comercial &nbsp;|&nbsp;
-                            <strong style="color:#10b981">Desta semana</strong> = distribuídos neste período &nbsp;|&nbsp;
-                            <strong style="color:#f59e0b">Carteira / sem dist.</strong> = distribuídos antes ou nunca distribuídos
+                            <strong style="color:#10b981">Desta semana</strong> = distribuídos/recebidos neste período &nbsp;|&nbsp;
+                            <strong style="color:#f59e0b">Lead antigo</strong> = recebidos antes do período ou sem vínculo no Kommo
                         </p>
                         <div id="dc-consultor-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
                     </div>

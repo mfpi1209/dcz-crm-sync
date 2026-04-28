@@ -1575,6 +1575,94 @@ def _dist_consultor_owner_key(
     return kn or dist_uid or dist_lead or (km if km != "N/A" else None) or "N/A"
 
 
+def _kommo_date_iso(raw) -> str | None:
+    """Normaliza datas do Kommo (timestamp/datetime/date/string) para YYYY-MM-DD."""
+    if raw is None:
+        return None
+    try:
+        import datetime as _dt
+        if isinstance(raw, (int, float)):
+            return str(_dt.datetime.utcfromtimestamp(raw).date())
+        if hasattr(raw, "date"):
+            return str(raw.date())
+        s = str(raw).strip()
+        if not s:
+            return None
+        return s[:10]
+    except Exception:
+        return None
+
+
+def _date_in_period(date_value, start_date: str, end_date: str) -> bool:
+    if not date_value:
+        return False
+    return start_date <= str(date_value)[:10] <= end_date
+
+
+def _fetch_dist_consultor_received_maps(kcur, lead_ids: list) -> tuple[dict, dict]:
+    """Datas em que o responsável atual recebeu o lead, geral e antes do ganho."""
+    received_at_map = {}
+    received_at_won_map = {}
+    if not lead_ids:
+        return received_at_map, received_at_won_map
+
+    kcur.execute("""
+        SELECT DISTINCT ON (lrh.lead_id)
+            lrh.lead_id,
+            (lrh.changed_at AT TIME ZONE 'America/Sao_Paulo')::date AS received_date
+        FROM lead_responsible_history lrh
+        JOIN leads l ON l.id = lrh.lead_id
+        WHERE lrh.lead_id = ANY(%s)
+          AND lrh.to_user_id = l.responsible_user_id
+        ORDER BY lrh.lead_id, lrh.changed_at DESC
+    """, (lead_ids,))
+    received_at_map = {r[0]: str(r[1]) for r in kcur.fetchall()}
+
+    kcur.execute("""
+        SELECT DISTINCT ON (lrh.lead_id)
+            lrh.lead_id,
+            (lrh.changed_at AT TIME ZONE 'America/Sao_Paulo')::date AS received_date
+        FROM lead_responsible_history lrh
+        JOIN leads l ON l.id = lrh.lead_id
+        WHERE lrh.lead_id = ANY(%s)
+          AND l.status_id = 142
+          AND l.closed_at IS NOT NULL
+          AND l.closed_at > 0
+          AND lrh.to_user_id = l.responsible_user_id
+          AND lrh.changed_at <= to_timestamp(l.closed_at)
+        ORDER BY lrh.lead_id, lrh.changed_at DESC
+    """, (lead_ids,))
+    received_at_won_map = {r[0]: str(r[1]) for r in kcur.fetchall()}
+
+    return received_at_map, received_at_won_map
+
+
+def _dist_consultor_period_date(
+    lead_id,
+    status_id,
+    created_at_raw,
+    dist_in_period: dict,
+    received_at_map: dict,
+    received_at_won_map: dict,
+    start_date: str,
+    end_date: str,
+) -> str | None:
+    """Data que coloca a venda no grupo 'Desta semana'."""
+    if lead_id in dist_in_period:
+        return str(dist_in_period[lead_id])
+
+    received = (received_at_won_map.get(lead_id) if status_id == 142 else None) \
+        or received_at_map.get(lead_id)
+    if _date_in_period(received, start_date, end_date):
+        return str(received)[:10]
+
+    created = _kommo_date_iso(created_at_raw)
+    if _date_in_period(created, start_date, end_date):
+        return created
+
+    return None
+
+
 def _fetch_kommo_user_names(user_ids):
     """Get user names: known map -> kommo_sync.users -> dcz_sync.kommo_users -> API."""
     user_map = {}
@@ -3801,6 +3889,7 @@ def dist_consultor_fechadas_periodo():
     end_date   = request.args.get("end_date", "").strip()
     polo       = request.args.get("polo", "").strip() or None
     nivel      = request.args.get("nivel", "").strip() or None
+    consultor  = request.args.get("consultor", "").strip() or None
     if not start_date or not end_date:
         return jsonify({"ok": False, "error": "start_date e end_date obrigatórios"}), 400
 
@@ -3828,7 +3917,8 @@ def dist_consultor_fechadas_periodo():
                 v.lead_id,
                 COALESCE(u.name, 'N/A') AS consultor,
                 l.responsible_user_id   AS id_consultor,
-                l.status_id               AS status_id
+                l.status_id               AS status_id,
+                l.created_at              AS lead_created_at
             FROM vw_leads_rgm v
             JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
             LEFT JOIN users u ON u.id = l.responsible_user_id
@@ -3837,22 +3927,24 @@ def dist_consultor_fechadas_periodo():
                      CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END,
                      l.id DESC
         """, (rgm_list,))
-        rgm_rows = kcur.fetchall()  # [(rgm, lead_id, consultor, uid, status_id)]
+        rgm_rows = kcur.fetchall()  # [(rgm, lead_id, consultor, uid, status_id, created_at)]
 
         # 3. Busca lead_ids que foram distribuídos no período
         lead_ids = [r[1] for r in rgm_rows if r[1]]
-        distributed_in_period = set()
+        distributed_in_period = {}
         dist_name_map = {}   # lead_id -> nome canônico de distribuicao_por_consultor (trimmed)
         if lead_ids:
             # 3a. Quais leads foram distribuídos no período
             kcur.execute("""
-                SELECT DISTINCT id_lead
+                SELECT DISTINCT ON (id_lead) id_lead,
+                    ("timestamp" AT TIME ZONE 'America/Sao_Paulo')::date AS dist_date
                 FROM distribuicao_por_consultor
                 WHERE ("timestamp" AT TIME ZONE 'America/Sao_Paulo')::date
                       BETWEEN %s::date AND %s::date
                   AND id_lead = ANY(%s)
+                ORDER BY id_lead, "timestamp" DESC
             """, (start_date, end_date, lead_ids))
-            distributed_in_period = {r[0] for r in kcur.fetchall()}
+            distributed_in_period = {r[0]: r[1] for r in kcur.fetchall()}
 
             # 3b. Nome canônico (mais recente) de cada lead na tabela de distribuição
             # Usado para garantir que o frontend faça match pelo mesmo nome da webhook
@@ -3866,6 +3958,8 @@ def dist_consultor_fechadas_periodo():
             for lead_id_val, dist_name in kcur.fetchall():
                 dist_name_map[lead_id_val] = dist_name
 
+        received_at_map, received_at_won_map = _fetch_dist_consultor_received_maps(kcur, lead_ids)
+
         kcur.close()
         kconn.close()
 
@@ -3876,7 +3970,7 @@ def dist_consultor_fechadas_periodo():
 
         # Mapa auxiliar: responsible_user_id → nome webhook (via leads já mapeados)
         uid_to_dist_name = {}
-        for rgm, lead_id, kommo_name, uid, status_id in rgm_rows:
+        for rgm, lead_id, kommo_name, uid, status_id, created_at_raw in rgm_rows:
             if lead_id and uid and lead_id in dist_name_map:
                 uid_to_dist_name[uid] = dist_name_map[lead_id]
 
@@ -3885,7 +3979,7 @@ def dist_consultor_fechadas_periodo():
             "do_periodo": 0, "fora_periodo": 0, "total": 0
         })
         matched_rgms = {r[0] for r in rgm_rows}
-        for rgm, lead_id, kommo_name, uid, status_id in rgm_rows:
+        for rgm, lead_id, kommo_name, uid, status_id, created_at_raw in rgm_rows:
             key = _dist_consultor_owner_key(
                 uid, lead_id, dist_name_map, uid_to_dist_name, kommo_name, status_id,
             )
@@ -3893,7 +3987,10 @@ def dist_consultor_fechadas_periodo():
             c["consultor"]    = key
             c["id_consultor"] = uid
             c["total"]       += 1
-            if lead_id and lead_id in distributed_in_period:
+            if lead_id and _dist_consultor_period_date(
+                lead_id, status_id, created_at_raw, distributed_in_period,
+                received_at_map, received_at_won_map, start_date, end_date,
+            ):
                 c["do_periodo"]   += 1
             else:
                 c["fora_periodo"] += 1
@@ -3932,6 +4029,7 @@ def dist_consultor_matriculas_por_origem():
     end_date   = request.args.get("end_date", "").strip()
     polo       = request.args.get("polo", "").strip() or None
     nivel      = request.args.get("nivel", "").strip() or None
+    consultor  = request.args.get("consultor", "").strip() or None
     if not start_date or not end_date:
         return jsonify({"ok": False, "error": "start_date e end_date obrigatórios"}), 400
 
@@ -3955,31 +4053,44 @@ def dist_consultor_matriculas_por_origem():
         kconn = _pg_kommo()
         kcur  = kconn.cursor()
         kcur.execute("""
-            SELECT DISTINCT ON (v.rgm) v.rgm, v.lead_id
+            SELECT DISTINCT ON (v.rgm)
+                v.rgm,
+                v.lead_id,
+                COALESCE(u.name, 'N/A') AS consultor_kommo,
+                l.responsible_user_id AS uid,
+                l.status_id,
+                l.created_at
             FROM vw_leads_rgm v
             JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
+            LEFT JOIN users u ON u.id = l.responsible_user_id
             WHERE v.rgm = ANY(%s)
             ORDER BY v.rgm,
                      CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END,
                      l.id DESC
         """, (rgm_list,))
-        rgm_to_lead = {r[0]: r[1] for r in kcur.fetchall() if r[1]}
+        lead_rows = kcur.fetchall()
+        rgm_to_lead = {r[0]: r[1] for r in lead_rows if r[1]}
+        lead_meta = {r[1]: {"status_id": r[4], "created_at": r[5]} for r in lead_rows if r[1]}
         lead_ids = list(rgm_to_lead.values())
 
         # 3. Busca origem + se foi distribuído no período por lead_id
-        distributed_in_period = set()
+        distributed_in_period = {}
         lead_to_origem = {}   # lead_id -> origem (da distribuição mais recente)
+        lead_origin_source = {}  # lead_id -> "n8n" | "kommo"
         lead_ids_com_qualquer_dist = set()   # lead_ids que aparecem em distribuicao_por_consultor
+        dist_name_map = {}     # lead_id -> último consultor n8n (para owner key)
         if lead_ids:
             # Quais foram distribuídos no período
             kcur.execute("""
-                SELECT DISTINCT id_lead
+                SELECT DISTINCT ON (id_lead) id_lead,
+                    ("timestamp" AT TIME ZONE 'America/Sao_Paulo')::date AS dist_date
                 FROM distribuicao_por_consultor
                 WHERE ("timestamp" AT TIME ZONE 'America/Sao_Paulo')::date
                       BETWEEN %s::date AND %s::date
                   AND id_lead = ANY(%s)
+                ORDER BY id_lead, "timestamp" DESC
             """, (start_date, end_date, lead_ids))
-            distributed_in_period = {r[0] for r in kcur.fetchall()}
+            distributed_in_period = {r[0]: r[1] for r in kcur.fetchall()}
 
             # Origem mais recente de cada lead (sem filtro de período)
             kcur.execute("""
@@ -3992,6 +4103,17 @@ def dist_consultor_matriculas_por_origem():
                 lead_ids_com_qualquer_dist.add(lead_id_val)
                 if origem:
                     lead_to_origem[lead_id_val] = origem
+                    lead_origin_source[lead_id_val] = "n8n"
+
+            kcur.execute("""
+                SELECT DISTINCT ON (id_lead) id_lead, TRIM(consultor)
+                FROM distribuicao_por_consultor
+                WHERE id_lead = ANY(%s)
+                  AND consultor IS NOT NULL AND TRIM(consultor) != ''
+                ORDER BY id_lead, "timestamp" DESC
+            """, (lead_ids,))
+            for lead_id_val, dist_name in kcur.fetchall():
+                dist_name_map[lead_id_val] = dist_name
 
             # Fallback: para leads sem origem no n8n, busca campo "Origem" no Kommo
             sem_origem_ids = [lid for lid in lead_ids if lid not in lead_to_origem]
@@ -4005,12 +4127,13 @@ def dist_consultor_matriculas_por_origem():
                         COALESCE(l.custom_fields_json, '[]'::jsonb)
                     ) cf_elem(value)
                     WHERE l.id = ANY(%s)
-                      AND lower(cf_elem.value ->> 'field_name') = 'origem'
+                      AND lower(cf_elem.value ->> 'field_name') IN ('origem', 'origem-new')
                       AND TRIM(COALESCE((cf_elem.value -> 'values' -> 0) ->> 'value', '')) != ''
                 """, (sem_origem_ids,))
                 for lead_id_val, origem_kommo in kcur.fetchall():
                     if origem_kommo and lead_id_val not in lead_to_origem:
                         lead_to_origem[lead_id_val] = origem_kommo
+                        lead_origin_source[lead_id_val] = "kommo"
 
                 # Fonte 2: lead_custom_field_values (para os que não achamos na fonte 1)
                 ainda_sem = [lid for lid in sem_origem_ids if lid not in lead_to_origem]
@@ -4020,21 +4143,37 @@ def dist_consultor_matriculas_por_origem():
                             TRIM((lcf.values_json -> 0) ->> 'value')
                         FROM lead_custom_field_values lcf
                         WHERE lcf.lead_id = ANY(%s)
-                          AND lower(lcf.field_name) = 'origem'
+                          AND lower(lcf.field_name) IN ('origem', 'origem-new')
                           AND TRIM(COALESCE((lcf.values_json -> 0) ->> 'value', '')) != ''
                     """, (ainda_sem,))
                     for lead_id_val, origem_kommo in kcur.fetchall():
                         if origem_kommo and lead_id_val not in lead_to_origem:
                             lead_to_origem[lead_id_val] = origem_kommo
+                            lead_origin_source[lead_id_val] = "kommo"
+
+        received_at_map, received_at_won_map = _fetch_dist_consultor_received_maps(kcur, lead_ids)
 
         kcur.close()
         kconn.close()
+
+        uid_to_dist_name = {}
+        for rgm, lead_id, kommo_name, uid, status_id, created_at_raw in lead_rows:
+            if lead_id and uid and lead_id in dist_name_map:
+                uid_to_dist_name[uid] = dist_name_map[lead_id]
+        rgm_to_owner = {}
+        for rgm, lead_id, kommo_name, uid, status_id, created_at_raw in lead_rows:
+            rgm_to_owner[rgm] = _dist_consultor_owner_key(
+                uid, lead_id, dist_name_map, uid_to_dist_name, kommo_name, status_id,
+            )
 
         # 4. Agrupa por origem (case-insensitive — n8n usa minúsculo, Kommo usa
         # maiúsculo; precisamos unificar). Mantemos a primeira grafia vista
         # (preferindo a do n8n quando existir) como display.
         from collections import defaultdict
-        contagem = defaultdict(lambda: {"origem": "", "do_periodo": 0, "fora_periodo": 0, "total": 0})
+        contagem = defaultdict(lambda: {
+            "origem": "", "do_periodo": 0, "fora_periodo": 0, "total": 0,
+            "leads_fallback": 0,
+        })
         # Display canônico por chave lowercase. Prioriza grafia do n8n
         # (distribuicao_por_consultor) sobre a do Kommo.
         origem_display = {}
@@ -4053,7 +4192,12 @@ def dist_consultor_matriculas_por_origem():
 
         for rgm in rgm_list:
             lead_id = rgm_to_lead.get(rgm)
+            owner = rgm_to_owner.get(rgm)
+            if consultor and (owner or "").strip().lower() not in _distribuicao_consultor_aliases(consultor):
+                continue
             if not lead_id:
+                if consultor:
+                    continue
                 origem_key = "sem lead no kommo"
                 origem_label = "Sem lead no Kommo"
             else:
@@ -4067,8 +4211,15 @@ def dist_consultor_matriculas_por_origem():
             c = contagem[origem_key]
             c["origem"] = origem_label
             c["total"] += 1
-            if lead_id and lead_id in distributed_in_period:
+            meta = lead_meta.get(lead_id, {})
+            period_date = lead_id and _dist_consultor_period_date(
+                lead_id, meta.get("status_id"), meta.get("created_at"), distributed_in_period,
+                received_at_map, received_at_won_map, start_date, end_date,
+            )
+            if period_date:
                 c["do_periodo"] += 1
+                if lead_origin_source.get(lead_id) == "kommo":
+                    c["leads_fallback"] += 1
             else:
                 c["fora_periodo"] += 1
 
@@ -4093,6 +4244,7 @@ def dist_consultor_sem_origem():
     """
     start_date = request.args.get("start_date", "").strip()
     end_date   = request.args.get("end_date",   "").strip()
+    consultor  = request.args.get("consultor",  "").strip() or None
     if not start_date or not end_date:
         return jsonify({"ok": False, "error": "start_date e end_date obrigatórios"}), 400
     try:
@@ -4131,19 +4283,27 @@ def dist_consultor_sem_origem():
         kcur.execute(
             "SELECT DISTINCT ON (v.rgm) v.rgm, v.lead_id, "
             "  to_char(to_timestamp(l.created_at) AT TIME ZONE 'America/Sao_Paulo', 'DD/MM/YYYY') AS lead_criado, "
-            "  l.responsible_user_id "
+            "  l.responsible_user_id, "
+            "  l.status_id, "
+            "  l.created_at "
             "FROM vw_leads_rgm v "
             "JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted "
             "WHERE v.rgm = ANY(%s) "
             "ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC",
             (rgm_list,)
         )
-        # kommo_map: rgm -> {lead_id, lead_criado, responsible_user_id}
+        # kommo_map: rgm -> {lead_id, lead_criado, responsible_user_id, status_id, created_at}
         kommo_map = {}
         uid_set = set()
         for row in kcur.fetchall():
             if row[1]:
-                kommo_map[row[0]] = {"lead_id": row[1], "lead_criado": row[2] or "—", "responsible_user_id": row[3]}
+                kommo_map[row[0]] = {
+                    "lead_id": row[1],
+                    "lead_criado": row[2] or "—",
+                    "responsible_user_id": row[3],
+                    "status_id": row[4],
+                    "created_at": row[5],
+                }
                 if row[3]:
                     uid_set.add(row[3])
 
@@ -4158,7 +4318,22 @@ def dist_consultor_sem_origem():
         lead_ids_com_origem_n8n = set()
         # Origem do campo "Origem" no Kommo (custom_fields_json) — fallback
         lead_to_origem_kommo = {}
+        distributed_in_period = {}
+        received_at_map = {}
+        received_at_won_map = {}
         if lead_ids_all:
+            kcur.execute("""
+                SELECT DISTINCT ON (id_lead) id_lead,
+                    ("timestamp" AT TIME ZONE 'America/Sao_Paulo')::date AS dist_date
+                FROM distribuicao_por_consultor
+                WHERE ("timestamp" AT TIME ZONE 'America/Sao_Paulo')::date
+                      BETWEEN %s::date AND %s::date
+                  AND id_lead = ANY(%s)
+                ORDER BY id_lead, "timestamp" DESC
+            """, (start_date, end_date, lead_ids_all))
+            distributed_in_period = {r[0]: r[1] for r in kcur.fetchall()}
+            received_at_map, received_at_won_map = _fetch_dist_consultor_received_maps(kcur, lead_ids_all)
+
             kcur.execute(
                 "SELECT DISTINCT id_lead FROM distribuicao_por_consultor "
                 "WHERE id_lead = ANY(%s) AND origem IS NOT NULL AND TRIM(origem) != ''",
@@ -4178,7 +4353,7 @@ def dist_consultor_sem_origem():
                         COALESCE(l.custom_fields_json, '[]'::jsonb)
                     ) cf_elem(value)
                     WHERE l.id = ANY(%s)
-                      AND lower(cf_elem.value ->> 'field_name') = 'origem'
+                      AND lower(cf_elem.value ->> 'field_name') IN ('origem', 'origem-new')
                       AND TRIM(COALESCE((cf_elem.value -> 'values' -> 0) ->> 'value', '')) != ''
                 """, (sem_n8n,))
                 for lead_id_val, origem_kommo in kcur.fetchall():
@@ -4193,7 +4368,7 @@ def dist_consultor_sem_origem():
                             TRIM((lcf.values_json -> 0) ->> 'value')
                         FROM lead_custom_field_values lcf
                         WHERE lcf.lead_id = ANY(%s)
-                          AND lower(lcf.field_name) = 'origem'
+                          AND lower(lcf.field_name) IN ('origem', 'origem-new')
                           AND TRIM(COALESCE((lcf.values_json -> 0) ->> 'value', '')) != ''
                     """, (ainda_sem,))
                     for lead_id_val, origem_kommo in kcur.fetchall():
@@ -4211,12 +4386,27 @@ def dist_consultor_sem_origem():
             lead_id = kdata["lead_id"] if kdata else None
             if lead_id and (lead_id in lead_ids_com_origem_n8n or lead_id in lead_to_origem_kommo):
                 continue  # tem origem — não exibir nesta listagem
+            # Filtro por consultor: aplica quando parâmetro informado
+            if consultor:
+                responsavel = kdata["responsavel"] if kdata else "—"
+                if (responsavel or "").strip().lower() not in _distribuicao_consultor_aliases(consultor):
+                    continue
             aluno = aluno_map.get(rgm, {"rgm": rgm, "nome": "—", "data_matricula": "—",
                                          "polo": "—", "nivel": "—"})
             if not lead_id:
                 motivo = "Sem lead no Kommo"
             else:
                 motivo = "Lead no Kommo sem distribuição via n8n"
+            period_date = lead_id and _dist_consultor_period_date(
+                lead_id,
+                kdata.get("status_id") if kdata else None,
+                kdata.get("created_at") if kdata else None,
+                distributed_in_period,
+                received_at_map,
+                received_at_won_map,
+                start_date,
+                end_date,
+            )
             origem_kommo = lead_to_origem_kommo.get(lead_id, "—") if lead_id else "—"
             result.append({
                 "rgm":            aluno["rgm"],
@@ -4229,6 +4419,7 @@ def dist_consultor_sem_origem():
                 "responsavel":    kdata["responsavel"]  if kdata else "—",
                 "origem_kommo":   origem_kommo,
                 "motivo":         motivo,
+                "periodo":        "do_periodo" if period_date else "fora_periodo",
             })
 
         result.sort(key=lambda x: x["data_matricula"], reverse=True)
@@ -4346,12 +4537,13 @@ def dist_consultor_detalhe():
         # Distribuídos no período
         if lead_ids_all:
             kcur.execute("""
-                SELECT DISTINCT id_lead,
+                SELECT DISTINCT ON (id_lead) id_lead,
                     ("timestamp" AT TIME ZONE 'America/Sao_Paulo')::date AS dist_date
                 FROM distribuicao_por_consultor
                 WHERE ("timestamp" AT TIME ZONE 'America/Sao_Paulo')::date
                       BETWEEN %s::date AND %s::date
                   AND id_lead = ANY(%s)
+                ORDER BY id_lead, "timestamp" DESC
             """, (start_date, end_date, lead_ids_all))
             dist_in_period = {r[0]: r[1] for r in kcur.fetchall()}
         else:
@@ -4441,13 +4633,7 @@ def dist_consultor_detalhe():
                 continue
 
             # Converte created_at (Unix timestamp ou datetime)
-            if isinstance(created_at_raw, int):
-                import datetime as _dt2
-                criado_str = str(_dt2.datetime.utcfromtimestamp(created_at_raw).date())
-            elif created_at_raw and hasattr(created_at_raw, 'date'):
-                criado_str = str(created_at_raw.date())
-            else:
-                criado_str = None
+            criado_str = _kommo_date_iso(created_at_raw)
 
             erp = erp_rows.get(rgm, {})
             ld  = last_dist.get(lead_id, {})
@@ -4490,8 +4676,12 @@ def dist_consultor_detalhe():
                 "dist_consultor":    ld.get("consultor"),
             }
 
-            if lead_id in dist_in_period:
-                item["dist_no_periodo"] = str(dist_in_period[lead_id])
+            period_date = _dist_consultor_period_date(
+                lead_id, status_id, created_at_raw, dist_in_period,
+                received_at_map, received_at_won_map, start_date, end_date,
+            )
+            if period_date:
+                item["dist_no_periodo"] = str(period_date)
                 do_periodo.append(item)
             else:
                 fora_periodo.append(item)
