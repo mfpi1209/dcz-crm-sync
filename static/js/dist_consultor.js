@@ -16,6 +16,9 @@
     let _rawTotalLeads = 0;
     let _fechadasPeriodo = {};       // map: consultor -> { do_periodo, fora_periodo, total }
     let _matriculasPorOrigem = [];   // [{origem, do_periodo, fora_periodo, total}]
+    let _matriculasPorOrigemConsultor = {}; // consultor -> [{origem, do_periodo, fora_periodo, total}]
+    let _matriculasPorOrigemConsultorLoading = {};
+    let _matriculasPorOrigemConsultorError = {};
     let _chartConsultores = null;
     let _chartOrigens = null;
     let _chartDiaOrigem = null;
@@ -141,6 +144,12 @@
         return t || (fb || "Sem informação");
     }
 
+    function escapeHtml(v) {
+        return String(v ?? '').replace(/[&<>"']/g, function(ch) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+        });
+    }
+
     function slugOrigin(v) {
         return String(v || "origem")
             .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -192,6 +201,54 @@
         return !c || String(c).trim().toLowerCase() === SEM_CONSULTOR;
     }
 
+    function consultorKey(c) {
+        var key = String(c || '').trim().toLowerCase();
+        if (key === 'kamilly') return 'kamily';
+        return key;
+    }
+
+    function consultorMatches(a, b) {
+        return consultorKey(a) === consultorKey(b);
+    }
+
+    function fechadasPeriodoConsultor(consultor) {
+        if (!consultor) return null;
+        var best = _fechadasPeriodo[consultor] || null;
+        var keys = Object.keys(_fechadasPeriodo);
+        for (var i = 0; i < keys.length; i++) {
+            if (consultorMatches(keys[i], consultor)) {
+                var candidate = _fechadasPeriodo[keys[i]];
+                if (!best || (candidate.total || 0) > (best.total || 0)) best = candidate;
+            }
+        }
+        return best;
+    }
+
+    function matriculasOrigemConsultor(consultor) {
+        if (!consultor) return [];
+        var canonical = consultorKey(consultor);
+        if (_matriculasPorOrigemConsultor[canonical]) return _matriculasPorOrigemConsultor[canonical];
+        if (_matriculasPorOrigemConsultor[consultor]) return _matriculasPorOrigemConsultor[consultor];
+        var keys = Object.keys(_matriculasPorOrigemConsultor);
+        for (var i = 0; i < keys.length; i++) {
+            if (consultorMatches(keys[i], consultor)) return _matriculasPorOrigemConsultor[keys[i]];
+        }
+        return [];
+    }
+
+    function matriculasOrigemConsultorLoading(consultor) {
+        if (!consultor) return false;
+        return !!_matriculasPorOrigemConsultorLoading[consultorKey(consultor)]
+            || !!_matriculasPorOrigemConsultorLoading[consultor];
+    }
+
+    function matriculasOrigemConsultorErro(consultor) {
+        if (!consultor) return null;
+        return _matriculasPorOrigemConsultorError[consultorKey(consultor)]
+            || _matriculasPorOrigemConsultorError[consultor]
+            || null;
+    }
+
     function computeRawTotals(rawItems) {
         var totalVendas = 0, totalLeads = 0;
         rawItems.forEach(function(item) {
@@ -231,7 +288,7 @@
         var of_ = document.getElementById("dc-origem-filter")?.value  || "";
         return _rows.filter(function(r) {
             if (excludeSemConsultor && r._semConsultor) return false;
-            if (cf  && r.consultor !== cf)  return false;
+            if (cf  && !consultorMatches(r.consultor, cf))  return false;
             if (of_ && r.origem   !== of_)  return false;
             return true;
         });
@@ -314,10 +371,11 @@
         });
         // Inclui consultores que só aparecem em _fechadasPeriodo
         Object.keys(_fechadasPeriodo).forEach(function(c) {
-            if (!g[c]) g[c] = { leads: 0, vendas: 0 };
+            var existing = Object.keys(g).find(function(k) { return consultorMatches(k, c); });
+            if (!existing) g[c] = { leads: 0, vendas: 0 };
         });
         return Object.entries(g).map(function(e) {
-            var f = _fechadasPeriodo[e[0]] || { do_periodo: 0, fora_periodo: 0, total: 0 };
+            var f = fechadasPeriodoConsultor(e[0]) || { do_periodo: 0, fora_periodo: 0, total: 0 };
             return {
                 consultor:    e[0],
                 leads:        e[1].leads,
@@ -369,13 +427,16 @@
         // Total matrículas respeita filtros de consultor e origem ativos
         var cf  = document.getElementById("dc-consultor-filter")?.value || "";
         var of_ = document.getElementById("dc-origem-filter")?.value   || "";
+        if (cf && !matriculasOrigemConsultor(cf).length && !matriculasOrigemConsultorLoading(cf)) {
+            fetchMatriculasOrigemConsultor(cf);
+        }
         var totalMatriculas, doPeriodo = null, foraPeriodo = null;
         if (cf && of_) {
             // Ambos filtros ativos → usa total_vendas do webhook (já filtrado por ambos)
             totalMatriculas = s.totalVendas;
         } else if (cf) {
             // Só consultor → _fechadasPeriodo (fonte do Dashboard Comercial)
-            var fp = _fechadasPeriodo[cf];
+            var fp = fechadasPeriodoConsultor(cf);
             totalMatriculas = fp ? fp.total : s.totalVendas;
             if (fp) { doPeriodo = fp.do_periodo; foraPeriodo = fp.fora_periodo; }
         } else if (of_ && _matriculasPorOrigem.length) {
@@ -573,8 +634,27 @@
         var matMap = {};    // key_lower → {total, do_periodo, fora_periodo}
         var matSource = _matriculasPorOrigem;
         if (cf) {
-            // Filtrado por consultor: usa vendas do webhook como fallback
-            matSource = [];
+            matSource = matriculasOrigemConsultor(cf);
+            var fpConsultor = fechadasPeriodoConsultor(cf);
+            var esperadoConsultor = fpConsultor ? (fpConsultor.total || 0) : null;
+            var totalMatSource = matSource.reduce(function(acc, m) { return acc + (m.total || 0); }, 0);
+            if (esperadoConsultor !== null && totalMatSource > esperadoConsultor) {
+                // Protege contra resposta antiga/cacheada do agregado geral sendo
+                // reaproveitada no filtro individual.
+                delete _matriculasPorOrigemConsultor[cf];
+                matSource = [];
+                fetchMatriculasOrigemConsultor(cf);
+            }
+            if (!matSource.length) {
+                var matErr = matriculasOrigemConsultorErro(cf);
+                if (matErr) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:#f87171">Erro ao carregar matrículas por origem: ' + matErr + '</td></tr>';
+                    return;
+                }
+                fetchMatriculasOrigemConsultor(cf);
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--dc-text-muted)">Carregando matrículas por origem (consultor)...</td></tr>';
+                return;
+            }
         }
         matSource.forEach(function(m) {
             var raw = String(m.origem || "").trim();
@@ -586,6 +666,9 @@
                 do_periodo:   prev.do_periodo   + (m.do_periodo   || 0),
                 fora_periodo: prev.fora_periodo + (m.fora_periodo || 0),
             };
+            if (m.leads_fallback) {
+                gLeads[key] = (gLeads[key] || 0) + (m.leads_fallback || 0);
+            }
             if (!gDisplay[key]) gDisplay[key] = raw;
         });
 
@@ -601,7 +684,7 @@
         var data = Array.from(allKeys).map(function(key) {
             var leads = gLeads[key] || 0;
             var mat   = matMap[key] || { total: 0, do_periodo: 0, fora_periodo: 0 };
-            var taxa  = leads > 0 && mat.total > 0 ? (mat.total / leads * 100) : 0;
+            var taxa  = leads > 0 && mat.do_periodo > 0 ? (mat.do_periodo / leads * 100) : 0;
             var orig  = gDisplay[key] || key;
             return { origem: orig, leads: leads, vendas: mat.total,
                      do_periodo: mat.do_periodo, fora_periodo: mat.fora_periodo, taxa: taxa };
@@ -609,7 +692,7 @@
           .sort(function(a, b) { return b.vendas - a.vendas || b.leads - a.leads; });
 
         if (data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--dc-text-muted)">Sem dados</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--dc-text-muted)">Sem dados</td></tr>';
             return;
         }
 
@@ -629,19 +712,6 @@
             var isSemLead        = d.origem === 'Sem lead no Kommo';
             var isDestacar       = isSemOrigemKommo || isSemLead;
 
-            // Célula de matrículas com breakdown período/carteira
-            var vendCell;
-            if (useDCData && d.vendas > 0) {
-                vendCell = '<span style="font-weight:700;color:#2563eb">' + fmtNumber(d.vendas) + '</span>';
-                if (d.do_periodo > 0 || d.fora_periodo > 0) {
-                    vendCell += '<br><span style="font-size:11px;color:#10b981;font-weight:600">' + d.do_periodo + ' período</span>'
-                              + '<span style="font-size:11px;color:#94a3b8"> · </span>'
-                              + '<span style="font-size:11px;color:#f59e0b;font-weight:600">' + d.fora_periodo + ' carteira</span>';
-                }
-            } else {
-                vendCell = '<span style="font-weight:700;color:' + (d.vendas > 0 ? '#2563eb' : 'var(--dc-text-muted)') + '">' + fmtNumber(d.vendas) + '</span>';
-            }
-
             var origemColor = isSemOrigemKommo ? '#a78bfa' : (isSemLead ? '#f87171' : null);
             var origemCell;
             if (isDestacar) {
@@ -657,15 +727,78 @@
                 origemCell = '<span style="font-weight:600">' + d.origem + '</span>';
             }
 
+            var matSemanaCell = '<span style="font-weight:700;color:' + (d.do_periodo > 0 ? '#2563eb' : 'var(--dc-text-muted)') + '">' + fmtNumber(d.do_periodo) + '</span>';
+            var leadAntigoCell;
+            if (d.fora_periodo > 0) {
+                leadAntigoCell = '<span style="font-weight:700;color:#f59e0b">' + fmtNumber(d.fora_periodo) + '</span>';
+            } else {
+                leadAntigoCell = '<span style="color:var(--dc-text-muted)">0</span>';
+            }
+            var totalCell = '<span style="font-weight:700;color:' + (d.vendas > 0 ? 'var(--dc-text-primary)' : 'var(--dc-text-muted)') + '">' + fmtNumber(d.vendas) + '</span>';
+            var taxaCell  = d.taxa > 0
+                ? '<span class="dc-badge-conv" style="color:' + badgeColor + ';background:' + badgeBg + '">' + d.taxa.toFixed(2) + '%</span>'
+                : '<span style="color:var(--dc-text-muted)">—</span>';
+
             html += '<tr' + (isDestacar ? ' style="background:rgba(167,139,250,0.05)"' : '') + '>';
             html += '<td>' + origemCell + '</td>';
             html += '<td style="text-align:right">' + fmtNumber(d.leads) + '</td>';
-            html += '<td style="text-align:right">' + vendCell + '</td>';
-            html += '<td style="text-align:right"><span class="dc-badge-conv" style="color:' + badgeColor + ';background:' + badgeBg + '">' + d.taxa.toFixed(2) + '%</span></td>';
-            html += '<td><div style="background:var(--dc-border);border-radius:4px;height:8px;overflow:hidden"><div style="width:' + barW + '%;height:100%;background:' + badgeColor + ';border-radius:4px;transition:width 0.4s"></div></div></td>';
+            html += '<td style="text-align:right">' + matSemanaCell + '</td>';
+            html += '<td style="text-align:right">' + taxaCell + '</td>';
+            html += '<td style="text-align:right">' + leadAntigoCell + '</td>';
+            html += '<td style="text-align:right">' + totalCell + '</td>';
             html += '</tr>';
         });
         tbody.innerHTML = html;
+    }
+
+    async function fetchMatriculasOrigemConsultor(consultor) {
+        var canonical = consultorKey(consultor);
+        if (!consultor || _matriculasPorOrigemConsultorLoading[canonical]) return;
+        _matriculasPorOrigemConsultorLoading[canonical] = true;
+        delete _matriculasPorOrigemConsultorError[canonical];
+        delete _matriculasPorOrigemConsultorError[consultor];
+        var startDate = (document.getElementById('dc-date-start')?.value || '').trim();
+        var endDate   = (document.getElementById('dc-date-end')?.value   || '').trim();
+        var qs = 'start_date=' + encodeURIComponent(startDate)
+            + '&end_date=' + encodeURIComponent(endDate)
+            + '&consultor=' + encodeURIComponent(consultor)
+            + '&_ts=' + Date.now();
+        var controller = new AbortController();
+        var timeoutId = setTimeout(function() { controller.abort(); }, 20000);
+        try {
+            var resp = await fetch('/api/dist-consultor/matriculas-por-origem?' + qs, {
+                cache: 'no-store',
+                signal: controller.signal
+            });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            var json = await resp.json();
+            if (json.ok && Array.isArray(json.data)) {
+                var fp = fechadasPeriodoConsultor(consultor);
+                var esperado = fp ? (fp.total || 0) : null;
+                var recebido = json.data.reduce(function(acc, m) { return acc + (m.total || 0); }, 0);
+                if (esperado !== null && recebido > esperado && !consultorMatches(consultor, 'Kamily')) {
+                    console.warn("Ignorando matrículas por origem agregadas para consultor:", consultor, recebido, esperado);
+                    return;
+                }
+                _matriculasPorOrigemConsultor[canonical] = json.data;
+                _matriculasPorOrigemConsultor[consultor] = json.data;
+                var current = document.getElementById("dc-consultor-filter")?.value || "";
+                if (consultorMatches(current, consultor)) render();
+            } else {
+                throw new Error(json.error || 'Resposta inválida');
+            }
+        } catch (err) {
+            _matriculasPorOrigemConsultorError[canonical] = err.name === 'AbortError'
+                ? 'Tempo esgotado ao buscar dados do consultor'
+                : (err.message || String(err));
+            console.warn("Erro ao buscar matrículas por origem do consultor:", err);
+        } finally {
+            clearTimeout(timeoutId);
+            delete _matriculasPorOrigemConsultorLoading[canonical];
+            delete _matriculasPorOrigemConsultorLoading[consultor];
+            var currentFinal = document.getElementById("dc-consultor-filter")?.value || "";
+            if (consultorMatches(currentFinal, consultor)) render();
+        }
     }
 
     // ── Bloco 2: Cards por Consultor (Dashboard Comercial) ────────────────
@@ -689,7 +822,7 @@
             });
             consultores = Object.entries(g)
                 .map(function(e) { return { nome: e[0], total: e[1], do_periodo: e[1], fora_periodo: 0 }; })
-                .filter(function(c) { return c.total > 0 && (!cf || c.nome === cf); })
+                .filter(function(c) { return c.total > 0 && (!cf || consultorMatches(c.nome, cf)); })
                 .sort(function(a, b) { return b.total - a.total; });
         } else {
             // Sem filtro de origem: usa _fechadasPeriodo (fonte do Dashboard Comercial)
@@ -701,7 +834,7 @@
                     fora_periodo: e[1].fora_periodo  || 0
                 };
             }).filter(function(c) {
-                return c.total > 0 && (!cf || c.nome === cf);
+                return c.total > 0 && (!cf || consultorMatches(c.nome, cf));
             }).sort(function(a, b) { return b.total - a.total; });
         }
 
@@ -730,7 +863,7 @@
                 + '</div>'
                 + '<div style="display:flex;gap:10px;font-size:11px">'
                 +   (c.do_periodo > 0 ? '<span style="color:#10b981;font-weight:600">' + c.do_periodo + ' desta semana</span>' : '')
-                +   (c.fora_periodo > 0 ? '<span style="color:#f59e0b;font-weight:600">' + c.fora_periodo + ' carteira/sem dist.</span>' : '')
+                +   (c.fora_periodo > 0 ? '<span style="color:#f59e0b;font-weight:600">' + c.fora_periodo + ' lead antigo</span>' : '')
                 + '</div>'
                 + '</div>';
         }).join('');
@@ -913,6 +1046,8 @@
             // Busca fechamentos do período em paralelo (por consultor e por origem)
             _fechadasPeriodo = {};
             _matriculasPorOrigem = [];
+            _matriculasPorOrigemConsultor = {};
+            _matriculasPorOrigemConsultorLoading = {};
             var qs = 'start_date=' + encodeURIComponent(startDate) + '&end_date=' + encodeURIComponent(endDate);
             try {
                 var [fechResp, matOrigResp] = await Promise.all([
@@ -975,6 +1110,114 @@
         box.style.display = "block";
         document.getElementById("dc-raw-content").textContent = (text || "").slice(0, 3000);
     }
+
+    // ── Atualizar 1 lead Kommo ────────────────────────────────────────────
+
+    window.dcToggleKommoLead = function () {
+        var panel = document.getElementById('dc-kommo-lead-panel');
+        if (!panel) return;
+        panel.style.display = panel.style.display === 'none' || !panel.style.display ? 'block' : 'none';
+        var msg = document.getElementById('dc-kommo-lead-msg');
+        var pick = document.getElementById('dc-kommo-lead-pick');
+        if (msg) msg.style.display = 'none';
+        if (pick) {
+            pick.style.display = 'none';
+            pick.innerHTML = '';
+        }
+    };
+
+    function dcSetKommoMsg(type, html) {
+        var msg = document.getElementById('dc-kommo-lead-msg');
+        if (!msg) return;
+        msg.style.display = 'block';
+        msg.style.color = type === 'error' ? '#f87171' : type === 'success' ? '#10b981' : 'var(--dc-text-secondary)';
+        msg.innerHTML = html;
+    }
+
+    window.dcKommoSyncLead = async function (forcedLeadId) {
+        var btn = document.getElementById('dc-kommo-sync-btn');
+        var pick = document.getElementById('dc-kommo-lead-pick');
+        var idEl = document.getElementById('dc-kommo-lead-id');
+        var rgmEl = document.getElementById('dc-kommo-rgm');
+        var leadId = forcedLeadId;
+
+        if (pick) {
+            pick.style.display = 'none';
+            pick.innerHTML = '';
+        }
+
+        var body = {};
+        if (leadId == null) {
+            var idVal = (idEl && idEl.value || '').trim();
+            var rgmVal = (rgmEl && rgmEl.value || '').trim().replace(/\D/g, '');
+            if (idVal) {
+                leadId = parseInt(idVal, 10);
+                if (!Number.isFinite(leadId)) {
+                    dcSetKommoMsg('error', 'ID do lead inválido.');
+                    return;
+                }
+                body.lead_id = leadId;
+            } else if (rgmVal.length === 8) {
+                body.rgm = rgmVal;
+            } else {
+                dcSetKommoMsg('error', 'Informe o ID do lead ou um RGM com 8 dígitos.');
+                return;
+            }
+        } else {
+            body.lead_id = leadId;
+            if (idEl) idEl.value = String(leadId);
+            if (rgmEl) rgmEl.value = '';
+        }
+
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Atualizando...';
+        }
+        dcSetKommoMsg('info', 'Buscando lead no Kommo e atualizando a base...');
+
+        try {
+            var resp = await fetch('/api/comercial-rgm/kommo-sync-lead', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            var data = await resp.json();
+
+            if (resp.status === 409 && data.lead_ids && data.lead_ids.length) {
+                dcSetKommoMsg('error', escapeHtml(data.error || 'Vários leads encontrados. Escolha o ID correto:'));
+                if (pick) {
+                    pick.style.display = 'flex';
+                    pick.innerHTML = data.lead_ids.map(function(id) {
+                        return '<button type="button" onclick="dcKommoSyncLead(' + Number(id) + ')" '
+                            + 'style="font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid var(--dc-border);background:var(--dc-input-bg);color:var(--dc-text-primary);cursor:pointer">'
+                            + 'Lead #' + escapeHtml(id) + '</button>';
+                    }).join('');
+                }
+                return;
+            }
+
+            if (!data.ok) {
+                dcSetKommoMsg('error', escapeHtml(data.error || 'Erro ao atualizar lead.'));
+                return;
+            }
+
+            dcSetKommoMsg('success',
+                '<strong>OK</strong> — Lead <strong>#' + escapeHtml(data.lead_id) + '</strong>'
+                + ' · RGM: <strong>' + escapeHtml(data.rgm || '—') + '</strong>'
+                + (data.pipeline ? ' · ' + escapeHtml(data.pipeline) : '')
+                + (data.status ? ' · ' + escapeHtml(data.status) : '')
+                + '. Recarregando dashboard...'
+            );
+            await window.dcConsultorFetch();
+        } catch (err) {
+            dcSetKommoMsg('error', 'Erro: ' + escapeHtml(err.message || err));
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = 'Buscar e atualizar';
+            }
+        }
+    };
 
     // ── init ──────────────────────────────────────────────────────────────
 
@@ -1046,23 +1289,42 @@
 
         var startDate = (document.getElementById('dc-date-start')?.value || '').trim();
         var endDate   = (document.getElementById('dc-date-end')?.value   || '').trim();
+        var consultor = (document.getElementById('dc-consultor-filter')?.value || '').trim();
         var qs = 'start_date=' + encodeURIComponent(startDate) + '&end_date=' + encodeURIComponent(endDate);
+        if (consultor) qs += '&consultor=' + encodeURIComponent(consultor);
 
         try {
-            var resp = await fetch('/api/dist-consultor/sem-origem?' + qs);
+            var resp = await fetch('/api/dist-consultor/sem-origem?' + qs, { cache: 'no-store' });
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             var json = await resp.json();
             if (!json.ok) throw new Error(json.error || 'Erro desconhecido');
 
             var rows = json.data;
+            if (consultor) {
+                rows = rows.filter(function(r) {
+                    return consultorMatches(r.responsavel, consultor);
+                });
+            }
             if (!rows.length) {
                 body.innerHTML = '<p style="padding:24px;color:var(--dc-text-muted)">Nenhum lead sem origem encontrado.</p>';
                 return;
             }
 
+            function leadCriadoDentroPeriodo(r) {
+                var raw = String(r.lead_criado || '').trim();
+                var m = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+                if (!m) return true;
+                var iso = m[3] + '-' + m[2] + '-' + m[1];
+                return iso >= startDate && iso <= endDate;
+            }
+
             // Filtra pelo grupo solicitado
             var semKommo  = rows.filter(function(r) { return r.motivo === 'Sem lead no Kommo'; });
-            var semDist   = rows.filter(function(r) { return r.motivo !== 'Sem lead no Kommo'; });
+            var semDist   = rows.filter(function(r) {
+                return r.motivo !== 'Sem lead no Kommo'
+                    && r.periodo !== 'fora_periodo'
+                    && leadCriadoDentroPeriodo(r);
+            });
             var listaFiltrada = filtro === 'sem_lead' ? semKommo
                               : filtro === 'sem_origem' ? semDist
                               : rows;
@@ -1094,7 +1356,7 @@
             }
 
             var aviso = filtro === 'sem_origem'
-                ? '⚠️ Lead no Kommo com responsável, mas <strong>sem origem de marketing identificada</strong> (n8n/Kommo). As vendas já estão nos cards por consultor.'
+                ? '⚠️ Lead no Kommo com responsável, mas <strong>sem origem de marketing identificada</strong> (n8n/Kommo). Mostrando apenas as matrículas da semana; Lead Antigo fica fora desta lista.'
                 : filtro === 'sem_lead'
                 ? '⚠️ RGMs matriculados no período <strong>sem nenhum lead vinculado no Kommo</strong>.'
                 : '⚠️ Alunos matriculados no período sem origem identificada via n8n.';
@@ -1194,7 +1456,7 @@
             + tabelaLeads(data.do_periodo, 'verde')
             + '<div class="dc-modal-section-title" style="color:#f59e0b;margin-top:8px">'
             + '<span style="width:10px;height:10px;border-radius:50%;background:#f59e0b;display:inline-block"></span>'
-            + 'Carteira / sem dist. — ' + data.fora_periodo.length + ' de ' + total
+            + 'Lead antigo — ' + data.fora_periodo.length + ' de ' + total
             + '</div>'
             + tabelaLeads(data.fora_periodo, 'laranja');
     }
