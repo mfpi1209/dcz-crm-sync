@@ -9,3 +9,5 @@ _*.txt
 *.egg-info/
 .venv/
 venv/
+kommo_lib/kommo_sync.db
+kommo_lib/kommo_sync.log

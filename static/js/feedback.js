@@ -78,11 +78,39 @@ function _fbUnify(arr) {
     }));
 }
 function _fbValidC(arr) {
-    return _fbUnify(arr).filter(c => c.consultor && c.consultor !== 'NaN' &&
+    const unified = _fbUnify(arr).filter(c => c.consultor && c.consultor !== 'NaN' &&
         !['não informado','nan'].includes(c.consultor.toLowerCase()) &&
         !c.consultor.toLowerCase().includes('consta apenas') &&
         !c.consultor.toLowerCase().includes('atendentes automáticos')
     ).sort((a, b) => b.total_atendimentos - a.total_atendimentos);
+    return _fbCalcProdutividade(unified);
+}
+
+function _fbCalcProdutividade(arr) {
+    if (!arr || arr.length === 0) return arr;
+
+    // Volume: sqrt normalization relative to max — compresses the gap between outliers
+    const maxTA = Math.max(...arr.map(c => c.total_atendimentos || 0)) || 1;
+
+    // Time: median-relative, anchored at 7 (median response = score 7, faster = higher, slower = lower)
+    const tempos = arr
+        .filter(c => c.tempo_medio_resposta_min != null)
+        .map(c => c.tempo_medio_resposta_min)
+        .sort((a, b) => a - b);
+    const medT = tempos.length > 0 ? tempos[Math.floor((tempos.length - 1) / 2)] : null;
+
+    return arr.map(c => {
+        const sv = Math.sqrt((c.total_atendimentos || 0) / maxTA) * 10;
+        let st = null;
+        if (c.tempo_medio_resposta_min != null && c.tempo_medio_resposta_min > 0 && medT) {
+            st = Math.min(10, (medT / c.tempo_medio_resposta_min) * 7);
+        } else if (c.tempo_medio_resposta_min === 0) {
+            st = 10;
+        }
+        const np = st != null ? sv * 0.6 + st * 0.4 : sv;
+        const ng = c.nota_media != null ? (c.nota_media + np) / 2 : null;
+        return { ...c, nota_produtividade: np, nota_geral: ng };
+    });
 }
 
 function _fbShowLoading(v) {
@@ -118,22 +146,44 @@ function _fbPopulateDD(consultores) {
     if (cv) sel.value = cv;
 }
 
-function _fbUpdateKPIs(g) {
+function _fbUpdateKPIs(g, consultores) {
     document.getElementById('fbKpiTotal').textContent = _fbFmtNum(g.total_atendimentos);
     document.getElementById('fbKpiNota').textContent = _fbFmtDec(g.nota_media);
     document.getElementById('fbKpiNotasSub').textContent = _fbFmtNum(g.notas_informadas) + ' notas informadas';
     document.getElementById('fbKpiTempoResposta').textContent = _fbFmtTime(g.tempo_medio_resposta_min);
     document.getElementById('fbKpiTempoAtend').textContent = _fbFmtTime(g.tempo_medio_atendimento_min);
     document.getElementById('fbPeriodBadge').textContent = _fbFmtDate(document.getElementById('fbStartDate').value) + ' - ' + _fbFmtDate(document.getElementById('fbEndDate').value);
+
+    // Calcula médias globais de produtividade e nota geral a partir dos consultores
+    if (consultores && consultores.length > 0) {
+        const valid = _fbValidC(consultores);
+        const withProd = valid.filter(c => c.nota_produtividade != null);
+        const avgProd = withProd.length > 0 ? withProd.reduce((s, c) => s + c.nota_produtividade, 0) / withProd.length : null;
+        const withGeral = valid.filter(c => c.nota_geral != null);
+        const avgGeral = withGeral.length > 0 ? withGeral.reduce((s, c) => s + c.nota_geral, 0) / withGeral.length : null;
+        document.getElementById('fbKpiNotaProd').textContent = _fbFmtDec(avgProd);
+        document.getElementById('fbKpiNotaGeral').textContent = _fbFmtDec(avgGeral);
+    }
 }
 
 function _fbRenderTable(consultores) {
     const tb = document.getElementById('fbTableBody');
     const valid = _fbValidC(consultores);
-    if (valid.length === 0) { tb.innerHTML = '<tr><td colspan="8" class="px-4 py-12 text-center text-slate-500">Nenhum consultor encontrado</td></tr>'; return; }
+    if (valid.length === 0) { tb.innerHTML = '<tr><td colspan="10" class="px-4 py-12 text-center text-slate-500">Nenhum consultor encontrado</td></tr>'; return; }
     tb.innerHTML = valid.map((c, i) => {
         const nm = c.nomes_originais ? c.nomes_originais[0] : c.consultor;
-        return '<tr><td><strong>' + (i+1) + '</strong></td><td><div class="fb-consultor-name"><div class="fb-avatar">' + _fbInitials(c.consultor) + '</div>' + c.consultor + '</div></td><td><strong>' + _fbFmtNum(c.total_atendimentos) + '</strong></td><td><span class="fb-nota-badge ' + _fbBadgeCls(c.nota_media) + '">' + (c.nota_media != null ? _fbFmtDec(c.nota_media) : 'N/A') + '</span></td><td>' + _fbFmtNum(c.notas_informadas) + '</td><td>' + (c.tempo_medio_resposta_min != null ? _fbFmtTime(c.tempo_medio_resposta_min) : 'N/A') + '</td><td>' + (c.tempo_medio_atendimento_min != null ? _fbFmtTime(c.tempo_medio_atendimento_min) : 'N/A') + '</td><td><button class="fb-btn-detail" onclick="fbViewDetail(\'' + nm.replace(/'/g, "\\'") + '\')"><svg viewBox="0 0 24 24" width="16" height="16" style="fill:currentColor;margin-right:4px;"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>Ver detalhes</button></td></tr>';
+        return '<tr>' +
+            '<td><strong>' + (i+1) + '</strong></td>' +
+            '<td><div class="fb-consultor-name"><div class="fb-avatar">' + _fbInitials(c.consultor) + '</div>' + c.consultor + '</div></td>' +
+            '<td><strong>' + _fbFmtNum(c.total_atendimentos) + '</strong></td>' +
+            '<td><span class="fb-nota-badge ' + _fbBadgeCls(c.nota_media) + '">' + (c.nota_media != null ? _fbFmtDec(c.nota_media) : 'N/A') + '</span></td>' +
+            '<td><span class="fb-nota-badge ' + _fbBadgeCls(c.nota_produtividade) + '">' + (c.nota_produtividade != null ? _fbFmtDec(c.nota_produtividade) : 'N/A') + '</span></td>' +
+            '<td><span class="fb-nota-badge ' + _fbBadgeCls(c.nota_geral) + '">' + (c.nota_geral != null ? _fbFmtDec(c.nota_geral) : 'N/A') + '</span></td>' +
+            '<td>' + _fbFmtNum(c.notas_informadas) + '</td>' +
+            '<td>' + (c.tempo_medio_resposta_min != null ? _fbFmtTime(c.tempo_medio_resposta_min) : 'N/A') + '</td>' +
+            '<td>' + (c.tempo_medio_atendimento_min != null ? _fbFmtTime(c.tempo_medio_atendimento_min) : 'N/A') + '</td>' +
+            '<td><button class="fb-btn-detail" onclick="fbViewDetail(\'' + nm.replace(/'/g, "\\'") + '\')"><svg viewBox="0 0 24 24" width="16" height="16" style="fill:currentColor;margin-right:4px;"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>Ver detalhes</button></td>' +
+            '</tr>';
     }).join('');
 }
 
@@ -149,7 +199,7 @@ function _fbMakeChart(canvasId, chartRef, data) {
             labels,
             datasets: [
                 { label: 'Atendimentos', data: sorted.map(d => d.atendimentos || 0), borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,.1)', fill: true, tension: .4, yAxisID: 'y' },
-                { label: 'Nota Média', data: sorted.map(d => d.nota_media != null ? d.nota_media : null), borderColor: '#059669', backgroundColor: 'transparent', borderDash: [5, 5], tension: .4, yAxisID: 'y1', spanGaps: true }
+                { label: 'Nota Atendimento', data: sorted.map(d => d.nota_media != null ? d.nota_media : null), borderColor: '#059669', backgroundColor: 'transparent', borderDash: [5, 5], tension: .4, yAxisID: 'y1', spanGaps: true }
             ]
         },
         options: {
@@ -178,7 +228,7 @@ async function fbFetch() {
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
         _fbData = data;
-        if (data.global) _fbUpdateKPIs(data.global);
+        if (data.global) _fbUpdateKPIs(data.global, data.consultores);
         if (data.consultores) _fbPopulateDD(data.consultores);
         let det = data.consultor_detalhe || data.detalhe || null;
         if (!det && cons && data.consultores) {

@@ -257,6 +257,8 @@ MIGRATION_ORDER_LIGHT = [
 ]
 
 BATCH_SIZE = 5000
+# Após sync pelo painel, migrar cf_values em lotes (evita estourar memória / limite SQLite IN)
+_CF_LEAD_CHUNK = 3000
 
 
 def convert_row(row, columns, json_cols, bool_cols):
@@ -418,11 +420,22 @@ def main(light=False, since=None):
     logger.info("Schema criado com sucesso.")
 
     # Detectar delta
-    pg_last_sync = get_pg_last_sync(pg_conn, since_override=since)
-    if pg_last_sync:
-        logger.info("Modo DELTA: migrando apenas registros alterados desde %s", pg_last_sync[:19])
+    # Após main.py --full, update_sync_metadata grava last_full_sync_at = agora. Se usarmos isso
+    # como `since`, o filtro synced_at >= esse instante não inclui nenhum lead (todos foram
+    # upsertados milissegundos antes) — o PostgreSQL permanece com synced_at antigo (ex.: 2024).
+    # Modo migrate FULL (!--light): copiar todas as linhas do SQLite. Modo LIGHT: delta via PG.
+    if since:
+        pg_last_sync = since
+        logger.info("Modo DELTA (--since CLI): migrando desde %s", since[:19])
+    elif not light:
+        pg_last_sync = None
+        logger.info("Modo FULL: migrando todas as linhas do SQLite (pós sync full).")
     else:
-        logger.info("Modo FULL: primeira migração ou sem dados no PostgreSQL")
+        pg_last_sync = get_pg_last_sync(pg_conn, since_override=None)
+        if pg_last_sync:
+            logger.info("Modo DELTA: migrando apenas registros alterados desde %s", pg_last_sync[:19])
+        else:
+            logger.info("Modo FULL: sem last_full_sync_at no PG — migrando tudo.")
 
     # Migrar cada tabela
     order = MIGRATION_ORDER_LIGHT if light else MIGRATION_ORDER
@@ -440,29 +453,37 @@ def main(light=False, since=None):
             pg_conn.rollback()
             stats[table_name] = f"ERRO: {e}"
 
-    # Se light + since: sincronizar cf_values apenas dos leads/contacts recentes (por ID, não por synced_at)
-    if light and since:
+    # Modo LIGHT: a tabela leads já veio (com custom_fields_json), mas lead_custom_field_values
+    # precisa ser espelhada no PG — o ranking e consultas usam lcf / view.
+    # BUG antigo: só rodava com --since na CLI; o painel chama só --light → cf_values nunca migrava.
+    if light:
+        sync_ref = since or pg_last_sync
         try:
-            sqlite_cur = sqlite_conn.cursor()
-
-            # Leads: pegar IDs recentes
-            sqlite_cur.execute(f"SELECT id FROM leads WHERE synced_at >= '{since}'")
-            lead_ids = [r[0] for r in sqlite_cur.fetchall()]
-
-            if lead_ids:
-                logger.info("  Sincronizando cf_values para %d leads recentes...", len(lead_ids))
-                pg_cur = pg_conn.cursor()
-                batch_ids = lead_ids[:500]  # Limitar para não sobrecarregar
-                placeholders_sq = ",".join(["?" for _ in batch_ids])
-                sqlite_cur.execute(
-                    f"SELECT lead_id, field_id, field_name, field_code, field_type, values_json, synced_at "
-                    f"FROM lead_custom_field_values WHERE lead_id IN ({placeholders_sq})",
-                    batch_ids,
+            if not sync_ref:
+                logger.info(
+                    "LIGHT: sem referência de delta — migrando lead/contact_custom_field_values completos..."
                 )
-                rows = sqlite_cur.fetchall()
-                if rows:
+                for tname in ("lead_custom_field_values", "contact_custom_field_values"):
+                    cfg = TABLE_MAP[tname]
+                    cnt = migrate_table(sqlite_conn, pg_conn, tname, cfg, since=None)
+                    stats[tname] = cnt
+            else:
+                sqlite_cur = sqlite_conn.cursor()
+                # Leads alterados desde a última migração de referência
+                sqlite_cur.execute(
+                    "SELECT id FROM leads WHERE synced_at >= ? ORDER BY id",
+                    (sync_ref,),
+                )
+                lead_ids = [r[0] for r in sqlite_cur.fetchall()]
+                total_lcf = 0
+                if lead_ids:
+                    logger.info(
+                        "  LIGHT: sincronizando lead_custom_field_values para %d leads (em lotes de %d)...",
+                        len(lead_ids),
+                        _CF_LEAD_CHUNK,
+                    )
+                    pg_cur = pg_conn.cursor()
                     cf_config = TABLE_MAP["lead_custom_field_values"]
-                    converted = [convert_row(r, cf_config["columns"], cf_config["json_cols"], cf_config["bool_cols"]) for r in rows]
                     insert_sql = """
                         INSERT INTO lead_custom_field_values (lead_id, field_id, field_name, field_code, field_type, values_json, synced_at)
                         VALUES (%s, %s, %s, %s, %s, %s, %s)
@@ -471,29 +492,39 @@ def main(light=False, since=None):
                             field_type = EXCLUDED.field_type, values_json = EXCLUDED.values_json,
                             synced_at = EXCLUDED.synced_at
                     """
-                    psycopg2.extras.execute_batch(pg_cur, insert_sql, converted, page_size=1000)
-                    pg_conn.commit()
-                    logger.info("  lead_custom_field_values: %d registros migrados", len(rows))
-                    stats["lead_custom_field_values"] = len(rows)
+                    for i in range(0, len(lead_ids), _CF_LEAD_CHUNK):
+                        batch_ids = lead_ids[i : i + _CF_LEAD_CHUNK]
+                        placeholders_sq = ",".join(["?" for _ in batch_ids])
+                        sqlite_cur.execute(
+                            f"SELECT lead_id, field_id, field_name, field_code, field_type, values_json, synced_at "
+                            f"FROM lead_custom_field_values WHERE lead_id IN ({placeholders_sq})",
+                            batch_ids,
+                        )
+                        rows = sqlite_cur.fetchall()
+                        if rows:
+                            converted = [
+                                convert_row(r, cf_config["columns"], cf_config["json_cols"], cf_config["bool_cols"])
+                                for r in rows
+                            ]
+                            psycopg2.extras.execute_batch(pg_cur, insert_sql, converted, page_size=1000)
+                            pg_conn.commit()
+                            total_lcf += len(rows)
+                    logger.info("  lead_custom_field_values: %d registros (LIGHT/delta)", total_lcf)
+                    stats["lead_custom_field_values"] = total_lcf
 
-            # Contacts: pegar IDs recentes
-            sqlite_cur.execute(f"SELECT id FROM contacts WHERE synced_at >= '{since}'")
-            contact_ids = [r[0] for r in sqlite_cur.fetchall()]
-
-            if contact_ids:
-                logger.info("  Sincronizando cf_values para %d contatos recentes...", len(contact_ids))
-                pg_cur = pg_conn.cursor()
-                batch_ids_c = contact_ids[:500]
-                placeholders_sq_c = ",".join(["?" for _ in batch_ids_c])
                 sqlite_cur.execute(
-                    f"SELECT contact_id, field_id, field_name, field_code, field_type, values_json, synced_at "
-                    f"FROM contact_custom_field_values WHERE contact_id IN ({placeholders_sq_c})",
-                    batch_ids_c,
+                    "SELECT id FROM contacts WHERE synced_at >= ? ORDER BY id",
+                    (sync_ref,),
                 )
-                rows_c = sqlite_cur.fetchall()
-                if rows_c:
+                contact_ids = [r[0] for r in sqlite_cur.fetchall()]
+                total_ccf = 0
+                if contact_ids:
+                    logger.info(
+                        "  LIGHT: sincronizando contact_custom_field_values para %d contatos...",
+                        len(contact_ids),
+                    )
+                    pg_cur = pg_conn.cursor()
                     cf_config_c = TABLE_MAP["contact_custom_field_values"]
-                    converted_c = [convert_row(r, cf_config_c["columns"], cf_config_c["json_cols"], cf_config_c["bool_cols"]) for r in rows_c]
                     insert_sql_c = """
                         INSERT INTO contact_custom_field_values (contact_id, field_id, field_name, field_code, field_type, values_json, synced_at)
                         VALUES (%s, %s, %s, %s, %s, %s, %s)
@@ -502,13 +533,28 @@ def main(light=False, since=None):
                             field_type = EXCLUDED.field_type, values_json = EXCLUDED.values_json,
                             synced_at = EXCLUDED.synced_at
                     """
-                    psycopg2.extras.execute_batch(pg_cur, insert_sql_c, converted_c, page_size=1000)
-                    pg_conn.commit()
-                    logger.info("  contact_custom_field_values: %d registros migrados", len(rows_c))
-                    stats["contact_custom_field_values"] = len(rows_c)
+                    for i in range(0, len(contact_ids), _CF_LEAD_CHUNK):
+                        batch_ids_c = contact_ids[i : i + _CF_LEAD_CHUNK]
+                        placeholders_sq_c = ",".join(["?" for _ in batch_ids_c])
+                        sqlite_cur.execute(
+                            f"SELECT contact_id, field_id, field_name, field_code, field_type, values_json, synced_at "
+                            f"FROM contact_custom_field_values WHERE contact_id IN ({placeholders_sq_c})",
+                            batch_ids_c,
+                        )
+                        rows_c = sqlite_cur.fetchall()
+                        if rows_c:
+                            converted_c = [
+                                convert_row(r, cf_config_c["columns"], cf_config_c["json_cols"], cf_config_c["bool_cols"])
+                                for r in rows_c
+                            ]
+                            psycopg2.extras.execute_batch(pg_cur, insert_sql_c, converted_c, page_size=1000)
+                            pg_conn.commit()
+                            total_ccf += len(rows_c)
+                    logger.info("  contact_custom_field_values: %d registros (LIGHT/delta)", total_ccf)
+                    stats["contact_custom_field_values"] = total_ccf
 
         except Exception as e:
-            logger.error("Erro ao migrar cf_values por ID: %s", e)
+            logger.error("Erro ao migrar cf_values (modo LIGHT): %s", e)
 
     # Fechar conexões
     sqlite_conn.close()

@@ -46,7 +46,8 @@
                         <h3 class="text-sm font-bold text-slate-300 font-display">Visão Geral</h3>
                         <span class="tag-pill bg-indigo-500/15 text-indigo-400 border border-indigo-500/20" id="fbPeriodBadge">--</span>
                     </div>
-                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                        <!-- Total Atendimentos -->
                         <div class="glass-card p-5 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-blue-500 to-indigo-500"></div>
                             <div class="flex items-center gap-3 mb-3">
@@ -57,17 +58,43 @@
                             </div>
                             <p class="text-2xl font-bold text-white font-display pl-1" id="fbKpiTotal">--</p>
                         </div>
+                        <!-- Nota Atendimento (antes: Nota Média) -->
                         <div class="glass-card p-5 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-emerald-500 to-green-500"></div>
                             <div class="flex items-center gap-3 mb-3">
                                 <div class="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center">
                                     <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
                                 </div>
-                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nota Média</p>
+                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nota Atendimento</p>
                             </div>
                             <p class="text-2xl font-bold text-white font-display pl-1" id="fbKpiNota">--</p>
                             <p class="text-[10px] text-slate-500 pl-1 mt-1" id="fbKpiNotasSub">-- notas informadas</p>
                         </div>
+                        <!-- Nota Produtividade (nova) -->
+                        <div class="glass-card p-5 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-violet-500 to-purple-500"></div>
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-10 h-10 rounded-xl bg-violet-500/15 flex items-center justify-center">
+                                    <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                                </div>
+                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nota Produtividade</p>
+                            </div>
+                            <p class="text-2xl font-bold text-white font-display pl-1" id="fbKpiNotaProd">--</p>
+                            <p class="text-[10px] text-slate-500 pl-1 mt-1">vol. + tempo resposta</p>
+                        </div>
+                        <!-- Nota Geral (nova) -->
+                        <div class="glass-card p-5 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-rose-500 to-pink-500"></div>
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-10 h-10 rounded-xl bg-rose-500/15 flex items-center justify-center">
+                                    <svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                                </div>
+                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nota Geral</p>
+                            </div>
+                            <p class="text-2xl font-bold text-white font-display pl-1" id="fbKpiNotaGeral">--</p>
+                            <p class="text-[10px] text-slate-500 pl-1 mt-1">atendimento + produtiv.</p>
+                        </div>
+                        <!-- T. Resposta -->
                         <div class="glass-card p-5 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-amber-500 to-orange-500"></div>
                             <div class="flex items-center gap-3 mb-3">
@@ -79,6 +106,7 @@
                             <p class="text-2xl font-bold text-white font-display pl-1" id="fbKpiTempoResposta">--:--</p>
                             <p class="text-[10px] text-slate-500 pl-1 mt-1">min:seg</p>
                         </div>
+                        <!-- T. Atendimento -->
                         <div class="glass-card p-5 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-cyan-500 to-teal-500"></div>
                             <div class="flex items-center gap-3 mb-3">
@@ -181,7 +209,9 @@
                                     <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">#</th>
                                     <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Consultor</th>
                                     <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Atendimentos</th>
-                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nota Média</th>
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nota Atendimento</th>
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nota Produtividade</th>
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nota Geral</th>
                                     <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Notas Inform.</th>
                                     <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">T. Resposta</th>
                                     <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">T. Atendimento</th>
@@ -189,7 +219,7 @@
                                 </tr>
                             </thead>
                             <tbody id="fbTableBody">
-                                <tr><td colspan="8" class="px-4 py-12 text-center text-slate-500">
+                                <tr><td colspan="10" class="px-4 py-12 text-center text-slate-500">
                                     <svg class="w-8 h-8 mx-auto mb-2 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                                     <p>Clique em "Buscar" para carregar os dados</p>
                                 </td></tr>

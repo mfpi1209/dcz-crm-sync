@@ -37,6 +37,23 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dcz-sync-default-key-change-me")
 app.config["CACHE_BUST"] = str(int(time.time()))
 
+
+def kommo_web_base_url() -> str:
+    """URL base do Kommo no navegador (sem /api/v4), ex.: https://subdominio.kommo.com"""
+    w = os.getenv("KOMMO_WEB_URL", "").strip().rstrip("/")
+    if w:
+        return w
+    b = os.getenv("KOMMO_BASE_URL", "https://admamoeduitcombr.kommo.com").strip().rstrip("/")
+    if "/api" in b:
+        b = b.split("/api", 1)[0].rstrip("/")
+    return b or "https://admamoeduitcombr.kommo.com"
+
+
+@app.context_processor
+def inject_kommo_web_base():
+    return {"kommo_web_base": kommo_web_base_url()}
+
+
 from collections import deque
 
 _sync_running = False
@@ -60,7 +77,7 @@ from routes.dashboard import dashboard_bp
 from routes.crm import crm_bp
 from routes.upload import upload_bp
 from routes.engagement import engagement_bp, register_engagement_job
-from routes.config import config_bp, init_scheduler, _load_schedules_from_db, register_delta_interval, register_aceite_reconcile
+from routes.config import config_bp, init_scheduler, _load_schedules_from_db, register_delta_interval, register_aceite_reconcile, register_responsible_history_job
 from routes.logs import logs_bp
 from routes.kommo_sync import kommo_bp
 from routes.match_merge import match_merge_bp
@@ -71,6 +88,7 @@ from routes.kommo_merge_route import kommo_merge_bp
 from routes.kommo_dispatcher import kommo_dispatcher_bp
 from routes.leads_parados import leads_parados_bp
 from routes.minha_performance import minha_performance_bp
+from routes.repasse import repasse_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(dashboard_bp)
@@ -88,6 +106,28 @@ app.register_blueprint(kommo_merge_bp)
 app.register_blueprint(kommo_dispatcher_bp)
 app.register_blueprint(leads_parados_bp)
 app.register_blueprint(minha_performance_bp)
+app.register_blueprint(repasse_bp)
+
+# ── Atualizar Preço — rotas do webapp standalone integrado ────────────────
+try:
+    from routes.atualizar_preco_app import app as _preco_app
+    for _rule in list(_preco_app.url_map.iter_rules()):
+        _ep = _rule.endpoint
+        if _rule.rule.startswith('/api/') and _ep in _preco_app.view_functions:
+            _methods = [m for m in _rule.methods if m not in ('HEAD', 'OPTIONS')]
+            if _methods:
+                try:
+                    app.add_url_rule(
+                        _rule.rule,
+                        endpoint='preco_' + _ep,
+                        view_func=_preco_app.view_functions[_ep],
+                        methods=_methods,
+                    )
+                except (AssertionError, ValueError):
+                    pass
+except Exception as _e:
+    import logging as _logging
+    _logging.getLogger(__name__).warning(f"Atualizar Preco routes not loaded: {_e}")
 
 # ── Inicialização do banco ────────────────────────────────────────────────
 
@@ -95,6 +135,9 @@ from db import (
     _ensure_schedules_table,
     _ensure_turmas_table,
     _ensure_ciclos_table,
+    _ensure_ciclos_comercial_table,
+    _ensure_turmas_comercial_table,
+    _ensure_ciclo_atual_comercial_table,
     _ensure_users_table,
     _ensure_xl_snapshots_table,
     _ensure_engagement_tables,
@@ -106,6 +149,9 @@ from db import (
 _ensure_schedules_table()
 _ensure_turmas_table()
 _ensure_ciclos_table()
+_ensure_ciclos_comercial_table()
+_ensure_turmas_comercial_table()
+_ensure_ciclo_atual_comercial_table()
 _ensure_users_table()
 _ensure_xl_snapshots_table()
 _ensure_engagement_tables()
@@ -124,6 +170,7 @@ _load_schedules_from_db()
 register_engagement_job(scheduler)
 register_delta_interval(scheduler)
 register_aceite_reconcile(scheduler)
+register_responsible_history_job(scheduler)
 
 # ── Entrypoint ────────────────────────────────────────────────────────────
 

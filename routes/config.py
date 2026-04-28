@@ -649,6 +649,33 @@ def register_aceite_reconcile(sched):
     logger.info("Aceite reconcile registered: every %d minutes", ACEITE_RECONCILE_MINUTES)
 
 
+def _run_responsible_history_daily():
+    """Job diário: sincroniza histórico de responsável dos leads."""
+    try:
+        from routes.kommo_sync import run_responsible_history_daily
+        run_responsible_history_daily()
+    except Exception as e:
+        logger.error("Responsible history daily error: %s", e)
+
+
+def register_responsible_history_job(sched):
+    """Registra job diário de sync do histórico de responsável (03:00 BRT)."""
+    try:
+        sched.remove_job("responsible_history_daily")
+    except Exception:
+        pass
+
+    sched.add_job(
+        _run_responsible_history_daily,
+        trigger=CronTrigger(hour=3, minute=0, timezone="America/Sao_Paulo"),
+        id="responsible_history_daily",
+        replace_existing=True,
+        misfire_grace_time=3600,
+        max_instances=1,
+    )
+    logger.info("Responsible history daily job registered (03:00 BRT)")
+
+
 # ---------------------------------------------------------------------------
 # Rotas — Macro Email Consultores
 # ---------------------------------------------------------------------------

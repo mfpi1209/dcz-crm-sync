@@ -23,6 +23,17 @@ LOG_FILE = os.getenv("KOMMO_LOG_FILE", os.path.join(os.path.dirname(__file__), "
 
 PAGE_SIZE = 250
 
+# Otimização: batches menores = transações menores (menos travamento)
+BATCH_SIZE = int(os.getenv("KOMMO_BATCH_SIZE", "25"))
+# Pausa entre páginas da API (segundos) para não saturar CPU/disco
+SLEEP_BETWEEN_PAGES = float(os.getenv("KOMMO_SLEEP_PAGES", "0.12"))
+
+# Delta sync: filter[updated_at][from] usa o último sync, mas isso deixa leads antigos no PG
+# se o Kommo não os devolveu no intervalo. Com N>0, o "from" nunca é mais recente que (agora − N dias),
+# re-buscando alterações dos últimos N dias a cada incremental (mesma gravação que sync_one_lead).
+# 0 = desliga (comportamento antigo: só desde last_sync_at − 5 min).
+KOMMO_DELTA_LOOKBACK_DAYS = int(os.getenv("KOMMO_DELTA_LOOKBACK_DAYS", "7"))
+
 PIPELINES = {
     "licenciado": {
         "id": 9994596,

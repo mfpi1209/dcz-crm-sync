@@ -93,7 +93,12 @@ class KommoAPIClient:
         Retorna o JSON da resposta ou None se não houver dados.
         Levanta exceção em caso de erro irrecuperável.
         """
-        url = f"{self.base_url}/{endpoint.lstrip('/')}"
+        ep = endpoint.lstrip("/")
+        # Evita .../api/v4/api/v4/... se alguém passar endpoint com prefixo api/v4/
+        base = self.base_url.rstrip("/")
+        if base.endswith("/api/v4") and ep.startswith("api/v4/"):
+            ep = ep[7:]
+        url = f"{base}/{ep}"
 
         for attempt in range(max_retries):
             # Rate limiting

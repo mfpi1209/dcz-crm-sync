@@ -46,7 +46,8 @@ def sync_users(client) -> dict:
     logger.info("Iniciando sincronização de usuários...")
 
     try:
-        all_users = client.get_all_pages("api/v4/users", embedded_key="users")
+        # Endpoint relativo ao base_url (já contém /api/v4); não repetir "api/v4/".
+        all_users = client.get_all_pages("users", embedded_key="users")
     except Exception as e:
         logger.error("Falha ao buscar usuários: %s", e)
         set_sync_status("users", "error")

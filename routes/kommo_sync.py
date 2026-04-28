@@ -25,7 +25,17 @@ kommo_bp = Blueprint("kommo_bp", __name__)
 
 _kommo_lib = Path(__file__).resolve().parent.parent / "kommo_lib"
 _kommo_ext = Path(__file__).resolve().parent.parent / "Kommo_Update"
-KOMMO_DIR = str(_kommo_ext) if _kommo_ext.is_dir() else (str(_kommo_lib) if _kommo_lib.is_dir() else None)
+# Antes: preferia Kommo_Update e o painel rodava cópia antiga (sem fixes do repo).
+# Agora: kommo_lib versionado primeiro; Kommo_Update só fallback; ou KOMMO_SYNC_DIR.
+_env_kommo = os.getenv("KOMMO_SYNC_DIR", "").strip()
+if _env_kommo and Path(_env_kommo).is_dir():
+    KOMMO_DIR = _env_kommo
+elif _kommo_lib.is_dir():
+    KOMMO_DIR = str(_kommo_lib)
+elif _kommo_ext.is_dir():
+    KOMMO_DIR = str(_kommo_ext)
+else:
+    KOMMO_DIR = None
 
 PG_KOMMO = {
     "host": os.getenv("KOMMO_PG_HOST", "31.97.91.47"),
@@ -193,8 +203,7 @@ def api_kommo_sync():
     if not KOMMO_DIR:
         return jsonify({
             "ok": False,
-            "error": "Sync indisponível neste ambiente. A pasta Kommo_Update não está presente. "
-                     "Execute a sincronização pelo servidor local (Windows).",
+            "error": "Sync indisponível: pasta kommo_lib (ou KOMMO_SYNC_DIR) não encontrada no servidor.",
         }), 400
 
     for t in _tasks.values():
@@ -205,13 +214,16 @@ def api_kommo_sync():
     mode = body.get("mode", "delta")
     task_id = str(uuid.uuid4())[:8]
 
+    _t0 = datetime.now().strftime("%H:%M:%S")
     _tasks[task_id] = {
         "type": "sync",
         "status": "running",
-        "progress": 0,
+        "progress": 1,
         "message": "Iniciando sincronização Kommo...",
         "started_at": datetime.now().isoformat(),
-        "log": [],
+        "log": [
+            {"time": _t0, "msg": "Tarefa aceita. Subindo processo (pode levar alguns segundos até o primeiro log)..."},
+        ],
     }
 
     def _log(msg, progress=None):
@@ -222,10 +234,17 @@ def api_kommo_sync():
             _tasks[task_id]["progress"] = progress
 
     def _stream(proc, label, base_pct, end_pct):
-        """Lê stdout linha a linha e atualiza o log em tempo real."""
+        """Lê stdout linha a linha e atualiza o log em tempo real.
+
+        Lê em modo binário e decodifica UTF-8 no Flask — no Windows, text=True no Popen
+        ainda pode usar cp1252 em alguns builds e quebrar em bytes como 0x8d.
+        """
         lines_read = 0
-        for raw in iter(proc.stdout.readline, ""):
-            line = raw.strip()
+        while True:
+            chunk = proc.stdout.readline()
+            if not chunk:
+                break
+            line = chunk.decode("utf-8", errors="replace").strip()
             if not line:
                 continue
             lines_read += 1
@@ -239,30 +258,48 @@ def api_kommo_sync():
 
     def _run():
         try:
-            env = {**os.environ}
+            # Windows: sem PYTHONUNBUFFERED o stdout de main.py pode ficar preso em buffer (UI em 0% por minutos).
+            env = {**os.environ, "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8"}
             cmd = [sys.executable, "-u", "main.py"]
             if mode == "full":
                 cmd.append("--full")
 
+            _log(f"Pasta do sync: {KOMMO_DIR}", 4)
             _log(f"Executando: {' '.join(cmd)}", 5)
 
             proc = subprocess.Popen(
                 cmd, cwd=KOMMO_DIR,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, bufsize=1, env=env,
+                bufsize=0, env=env,
             )
+            _tasks[task_id]["proc"] = proc
 
             rc = _stream(proc, "sync", 5, 80)
 
+            if _tasks[task_id].get("cancelled"):
+                _tasks[task_id]["status"] = "cancelled"
+                _log("[CANCELADO] Sincronização interrompida pelo usuário.")
+                return
+
             if rc == 0:
-                _log("Sync concluído. Migrando para PostgreSQL...", 82)
+                # Full sync: migração completa (inclui lead_custom_field_values em massa).
+                # Delta: --light com correção de bug (cf_values por delta desde pg_last_sync).
+                mig_args = [sys.executable, "-u", "migrate_to_postgres.py"]
+                if mode != "full":
+                    mig_args.append("--light")
+                _log(
+                    "Sync concluído. Migrando para PostgreSQL (%s)..."
+                    % ("FULL" if mode == "full" else "LIGHT+cf_values"),
+                    82,
+                )
 
                 mig = subprocess.Popen(
-                    [sys.executable, "-u", "migrate_to_postgres.py", "--light"],
+                    mig_args,
                     cwd=KOMMO_DIR,
                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                    text=True, bufsize=1, env=env,
+                    bufsize=0, env=env,
                 )
+                _tasks[task_id]["proc"] = mig
                 mig_rc = _stream(mig, "migrate", 82, 98)
 
                 if mig_rc == 0:
@@ -274,16 +311,46 @@ def api_kommo_sync():
                 _tasks[task_id]["status"] = "completed"
                 _log("Sincronização concluída com sucesso!", 100)
             else:
-                _tasks[task_id]["status"] = "error"
-                _log(f"Sync falhou (código {rc})")
+                if not _tasks[task_id].get("cancelled"):
+                    _tasks[task_id]["status"] = "error"
+                    _log(f"Sync falhou (código {rc})")
 
         except Exception as e:
             _tasks[task_id]["status"] = "error"
             _log(f"Exceção: {e}")
+        finally:
+            _tasks[task_id].pop("proc", None)
 
     thread = threading.Thread(target=_run, daemon=True)
     thread.start()
     return jsonify({"ok": True, "task_id": task_id})
+
+
+@kommo_bp.route("/api/kommo/sync/cancel", methods=["POST"])
+def api_kommo_sync_cancel():
+    """Cancela o sync em andamento matando o subprocess."""
+    body = request.json or {}
+    task_id = body.get("task_id")
+
+    task = _tasks.get(task_id) if task_id else None
+    if not task:
+        # Tenta achar qualquer task de sync rodando
+        task = next((t for t in _tasks.values() if t.get("type") == "sync" and t.get("status") == "running"), None)
+
+    if not task:
+        return jsonify({"ok": False, "error": "Nenhum sync em andamento."}), 404
+
+    task["cancelled"] = True
+    proc = task.get("proc")
+    if proc:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+    task["status"] = "cancelled"
+    task["message"] = "Cancelado pelo usuário."
+    return jsonify({"ok": True})
 
 
 # ── Task progress ────────────────────────────────────────────────────────
@@ -293,7 +360,7 @@ def api_kommo_task(task_id):
     task = _tasks.get(task_id)
     if not task:
         return jsonify({"ok": False, "error": "Tarefa não encontrada"}), 404
-    t = dict(task)
+    t = {k: v for k, v in task.items() if k != "proc"}  # Popen não é JSON-serializável
     if "log" in t and len(t["log"]) > 30:
         t["log"] = t["log"][-30:]
     return jsonify({"ok": True, "data": t})
@@ -701,3 +768,172 @@ def api_kommo_funnel_live():
     except Exception as e:
         logger.error("funnel-live error: %s", e)
         return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# Histórico de responsável — lead_responsible_history
+# ---------------------------------------------------------------------------
+# Sincroniza eventos do tipo "lead_responsible_changed" da API Kommo e salva
+# em lead_responsible_history.  Chamada pelo scheduler diário e pelo backfill
+# manual via endpoint /api/kommo/sync-responsible-history.
+# ---------------------------------------------------------------------------
+
+_RESPONSIBLE_SYNC_META_KEY = "lead_responsible_history"
+
+
+def _sync_responsible_history(days_back: int = 1) -> dict:
+    """Busca eventos 'lead_responsible_changed' da API Kommo e persiste em
+    lead_responsible_history.
+
+    Args:
+        days_back: quantos dias para trás buscar (1 = incremental, 90 = backfill).
+
+    Returns:
+        dict com campos inserted, skipped, pages, errors.
+    """
+    if not KOMMO_TOKEN:
+        return {"error": "KOMMO_TOKEN not set"}
+
+    BRT = timezone(timedelta(hours=-3))
+    from_ts = int((datetime.now(BRT) - timedelta(days=days_back)).timestamp())
+
+    inserted = 0
+    skipped  = 0
+    pages    = 0
+    errors   = []
+
+    conn = _pg()
+    cur  = conn.cursor()
+
+    page = 1
+    while True:
+        try:
+            # Sem filter[entity]: no Kommo, filter[entity]=lead costuma zerar o resultado;
+            # o backfill (run_backfill.py) só usa type + created_at e filtra lead no Python.
+            resp = _kommo_get("/events", {
+                "filter[type]":             "entity_responsible_changed",
+                "filter[created_at][from]": from_ts,
+                "limit":                    250,
+                "page":                     page,
+            })
+        except Exception as exc:
+            errors.append(f"page {page}: {exc}")
+            break
+
+        if resp.status_code == 204 or resp.status_code == 404:
+            break
+        if resp.status_code != 200:
+            errors.append(f"page {page}: HTTP {resp.status_code}")
+            break
+
+        try:
+            data = resp.json()
+        except Exception as exc:
+            errors.append(f"page {page}: json parse error {exc}")
+            break
+
+        items = (data.get("_embedded") or {}).get("events") or []
+        if not items:
+            break
+
+        pages += 1
+        for ev in items:
+            try:
+                entity_id   = ev.get("entity_id")
+                entity_type = ev.get("entity_type", "")
+                # Só processa eventos de lead (filtra contatos que podem vir junto)
+                if str(entity_type).lower() not in ("lead", "leads"):
+                    skipped += 1
+                    continue
+
+                created_at_ts = ev.get("created_at")
+                if not created_at_ts:
+                    skipped += 1
+                    continue
+                changed_at = datetime.fromtimestamp(created_at_ts, tz=timezone.utc)
+
+                # value_after / value_before: lista com dict {responsible_user: {id: X}}
+                value_after  = ev.get("value_after")  or []
+                value_before = ev.get("value_before") or []
+                if isinstance(value_after,  list): value_after  = value_after[0]  if value_after  else {}
+                if isinstance(value_before, list): value_before = value_before[0] if value_before else {}
+
+                to_user_id   = (value_after.get("responsible_user")  or {}).get("id") if isinstance(value_after,  dict) else None
+                from_user_id = (value_before.get("responsible_user") or {}).get("id") if isinstance(value_before, dict) else None
+
+                # Ignora quando to_user_id = 0 (sem responsável definido)
+                if not to_user_id or to_user_id == 0 or not entity_id:
+                    skipped += 1
+                    continue
+
+                cur.execute("""
+                    INSERT INTO lead_responsible_history (lead_id, changed_at, from_user_id, to_user_id, source)
+                    VALUES (%s, %s, %s, %s, 'kommo_events')
+                    ON CONFLICT (lead_id, changed_at) DO NOTHING
+                """, (entity_id, changed_at, from_user_id, to_user_id))
+
+                if cur.rowcount:
+                    inserted += 1
+                else:
+                    skipped += 1
+
+            except Exception as exc:
+                errors.append(f"event parse: {exc}")
+                skipped += 1
+                continue
+
+        conn.commit()
+
+        # Verifica se há próxima página
+        links = data.get("_links") or {}
+        if not links.get("next"):
+            break
+        page += 1
+
+    # Atualiza metadado de última sync
+    try:
+        cur.execute("""
+            INSERT INTO sync_metadata (entity_type, last_sync_at, records_synced, status)
+            VALUES (%s, NOW(), %s, 'ok')
+            ON CONFLICT (entity_type) DO UPDATE
+               SET last_sync_at   = EXCLUDED.last_sync_at,
+                   records_synced = EXCLUDED.records_synced,
+                   status         = EXCLUDED.status
+        """, (_RESPONSIBLE_SYNC_META_KEY, inserted))
+        conn.commit()
+    except Exception:
+        pass
+
+    cur.close()
+    conn.close()
+
+    result = {"inserted": inserted, "skipped": skipped, "pages": pages, "errors": errors[:10]}
+    logger.info("responsible_history sync: %s", result)
+    return result
+
+
+def run_responsible_history_daily():
+    """Job diário chamado pelo scheduler: puxa últimas 2 horas com margem."""
+    try:
+        # 1.5 dias de margem para não perder nada no caso de atraso do scheduler
+        result = _sync_responsible_history(days_back=2)
+        logger.info("responsible_history daily job: %s", result)
+    except Exception as exc:
+        logger.exception("responsible_history daily job failed: %s", exc)
+
+
+@kommo_bp.route("/api/kommo/sync-responsible-history")
+def api_sync_responsible_history():
+    """Endpoint manual: dispara backfill ou sync incremental.
+
+    Query params:
+        days_back (int, default 1): quantos dias para trás buscar.
+    """
+    try:
+        days_back = int(request.args.get("days_back", 1))
+    except ValueError:
+        days_back = 1
+
+    days_back = max(1, min(days_back, 365))
+    result = _sync_responsible_history(days_back=days_back)
+    return jsonify({"ok": True, **result})

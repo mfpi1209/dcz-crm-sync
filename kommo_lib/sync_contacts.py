@@ -5,7 +5,8 @@ Inclui custom fields (telefone, email, etc.).
 """
 
 import logging
-from datetime import datetime, timezone
+import time
+from datetime import datetime, timezone, timedelta
 
 from api_client import KommoAPIClient
 from database import (
@@ -14,11 +15,9 @@ from database import (
     set_sync_status,
     get_last_sync,
 )
-from config import PAGE_SIZE
+from config import PAGE_SIZE, BATCH_SIZE, SLEEP_BETWEEN_PAGES, KOMMO_DELTA_LOOKBACK_DAYS
 
 logger = logging.getLogger(__name__)
-
-BATCH_SIZE = 50  # Registros por batch de escrita no banco
 
 
 def sync_contacts(client: KommoAPIClient, force_full: bool = False) -> dict:
@@ -75,21 +74,27 @@ def sync_contacts(client: KommoAPIClient, force_full: bool = False) -> dict:
 
             if not is_full_sync:
                 params["filter[updated_at][from]"] = from_ts
-                logger.info("Delta sync: buscando contatos atualizados desde %s (ts: %d)", last_sync_at, from_ts)
+                logger.info(
+                    "Delta sync: contatos com updated_at >= ts %d (lookback %d dias)",
+                    from_ts, KOMMO_DELTA_LOOKBACK_DAYS,
+                )
 
         if is_full_sync:
             logger.info("Full sync: buscando TODOS os contatos...")
 
-        # Paginação
         page = 1
         batch = []
 
         while True:
+            if page > 1:
+                time.sleep(SLEEP_BETWEEN_PAGES)
+
             params["page"] = page
-            logger.info(
-                "Contatos - página %d (acumulado: %d registros)...",
-                page, stats["total"]
-            )
+            if page % 10 == 1 or page <= 3:
+                logger.info(
+                    "Contatos - página %d (acumulado: %d registros)...",
+                    page, stats["total"]
+                )
 
             data = client.get("contacts", params=params)
 
@@ -108,27 +113,24 @@ def sync_contacts(client: KommoAPIClient, force_full: bool = False) -> dict:
             stats["total"] += len(contacts)
             stats["pages"] += 1
 
-            # Persistir em batches
-            if len(batch) >= BATCH_SIZE:
-                logger.debug("Persistindo batch de %d contatos...", len(batch))
-                upsert_contacts_batch(batch)
-                batch = []
+            while len(batch) >= BATCH_SIZE:
+                chunk = batch[:BATCH_SIZE]
+                batch = batch[BATCH_SIZE:]
+                upsert_contacts_batch(chunk)
 
-            logger.info(
-                "Página %d: %d contatos recebidos (total acumulado: %d)",
-                page, len(contacts), stats["total"]
-            )
+            if page % 10 == 0 or page <= 2:
+                logger.info(
+                    "Página %d: %d contatos (total: %d)",
+                    page, len(contacts), stats["total"]
+                )
 
-            # Verificar próxima página
             links = data.get("_links", {})
             if "next" not in links:
                 break
 
             page += 1
 
-        # Persistir últimos registros
         if batch:
-            logger.debug("Persistindo batch final de %d contatos...", len(batch))
             upsert_contacts_batch(batch)
 
         # Atualizar metadados
