@@ -9,7 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Manrope:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
     <script>
         tailwind.config = {
@@ -18,13 +18,19 @@
                 extend: {
                     colors: {
                         primary: 'rgb(var(--primary-rgb) / <alpha-value>)',
+                        'primary-container': 'var(--primary-container)',
+                        'secondary': 'var(--secondary)',
+                        'secondary-container': 'var(--secondary-container)',
                         'card-bg': '#1E293B',
                         'deep-slate': '#0c1719',
-                        'background-light': '#f8fafc',
+                        'background-light': '#f7f9fb',
                         'background-dark': '#101f22',
+                        'surface-variant': 'var(--surface-variant)',
+                        'outline-soft': 'var(--outline)',
                     },
                     fontFamily: {
-                        display: ['Inter', 'sans-serif'],
+                        headline: ['Manrope', 'Inter', 'sans-serif'],
+                        display: ['Manrope', 'Inter', 'sans-serif'],
                         sans: ['Inter', 'sans-serif'],
                         mono: ['JetBrains Mono', 'monospace'],
                     },
@@ -40,40 +46,57 @@
            ═══════════════════════════════════════════════════════════════ */
 
         :root {
-            --primary-rgb: 37 99 235;
-            --primary: #2563eb;
-            --primary-dark: #1d4ed8;
-            --primary-light: #dbeafe;
-            --secondary: #64748b;
+            /* === Primary (Executive Blue) === */
+            --primary-rgb: 0 52 111;             /* #00346f */
+            --primary: #00346f;
+            --primary-container: #004a99;
+            --primary-deep: #002D5E;
+            --primary-medium: #4C709A;
+            --primary-dark: #002247;
+            --primary-light: #e6edf6;
+
+            /* === Secondary (Executive Green) === */
+            --secondary: #006c49;
+            --secondary-container: #6cf8bb;
+
+            /* === Status === */
             --accent: #f59e0b;
-            --success: #10b981;
+            --success: #006c49;
             --warning: #d97706;
             --danger: #dc2626;
 
-            --bg-main: #f8fafc;
+            /* === Surfaces === */
+            --bg-main: #f7f9fb;
             --bg-card: #ffffff;
             --bg-elevated: #f1f5f9;
-            --bg-overlay: rgba(248, 250, 252, 0.95);
+            --bg-overlay: rgba(247, 249, 251, 0.85);
+            --surface-variant: #e0e3e5;
 
-            --text-primary: #1e293b;
-            --text-secondary: #64748b;
-            --text-muted: #94a3b8;
+            /* === Texto === */
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #64748b;
             --text-disabled: #cbd5e1;
 
+            /* === Bordas === */
             --border: #e2e8f0;
             --border-subtle: rgba(226, 232, 240, 0.8);
             --border-hover: #cbd5e1;
+            --outline: #737783;
 
-            --shadow-sm: 0 1px 2px rgba(0,0,0,.05);
-            --shadow: 0 1px 3px rgba(0,0,0,.05), 0 1px 2px rgba(0,0,0,.02);
-            --shadow-md: 0 4px 6px -1px rgba(0,0,0,.07), 0 2px 4px -2px rgba(0,0,0,.05);
-            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.08), 0 4px 6px -2px rgba(0,0,0,.04);
-            --shadow-xl: 0 20px 25px -5px rgba(0,0,0,.08), 0 8px 10px -6px rgba(0,0,0,.04);
+            /* === Sombras (executivas, mais sutis) === */
+            --shadow-sm: 0 1px 2px rgba(15, 23, 42, .04);
+            --shadow: 0 1px 3px rgba(15, 23, 42, .06), 0 1px 2px rgba(15, 23, 42, .03);
+            --shadow-md: 0 4px 8px -2px rgba(15, 23, 42, .08), 0 2px 4px -2px rgba(15, 23, 42, .04);
+            --shadow-lg: 0 12px 20px -6px rgba(0, 52, 111, .10), 0 6px 8px -3px rgba(15, 23, 42, .04);
+            --shadow-xl: 0 24px 40px -8px rgba(0, 52, 111, .14), 0 10px 14px -6px rgba(15, 23, 42, .06);
 
-            --radius-sm: 6px;
-            --radius-btn: 8px;
-            --radius-card: 16px;
-            --radius-xl: 20px;
+            /* === Raios (executivos: cards 2xl/3xl) === */
+            --radius-sm: 8px;
+            --radius-btn: 10px;
+            --radius-card: 20px;
+            --radius-xl: 24px;
+            --radius-2xl: 28px;
 
             --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
             --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -81,30 +104,39 @@
         }
 
         .dark {
-            --primary-rgb: 13 204 242;
-            --primary: #0dccf2;
-            --primary-dark: #0bb8d9;
-            --primary-light: #0c2a30;
+            /* Primary executiva clara em dark — azul mais luminoso */
+            --primary-rgb: 116 174 233;          /* #74AEE9 */
+            --primary: #74AEE9;
+            --primary-container: #4C709A;
+            --primary-deep: #002D5E;
+            --primary-medium: #4C709A;
+            --primary-dark: #00346f;
+            --primary-light: rgba(116, 174, 233, 0.12);
 
-            --bg-main: #101f22;
-            --bg-card: rgba(30, 41, 59, 0.5);
-            --bg-elevated: #1e293b;
-            --bg-overlay: rgba(16, 31, 34, 0.95);
+            --secondary: #6cf8bb;
+            --secondary-container: #006c49;
 
-            --text-primary: #e2e8f0;
-            --text-secondary: #94a3b8;
-            --text-muted: #64748b;
+            --bg-main: #0b1623;
+            --bg-card: #122033;
+            --bg-elevated: #1a2942;
+            --bg-overlay: rgba(11, 22, 35, 0.92);
+            --surface-variant: rgba(255, 255, 255, 0.04);
+
+            --text-primary: #e6edf6;
+            --text-secondary: #9aabc3;
+            --text-muted: #6b7d97;
             --text-disabled: #475569;
 
-            --border: rgba(51, 65, 85, 0.5);
-            --border-subtle: rgba(51, 65, 85, 0.3);
-            --border-hover: #475569;
+            --border: rgba(76, 112, 154, 0.25);
+            --border-subtle: rgba(76, 112, 154, 0.15);
+            --border-hover: rgba(116, 174, 233, 0.45);
+            --outline: rgba(154, 171, 195, 0.4);
 
-            --shadow-sm: 0 1px 2px rgba(0,0,0,.2);
-            --shadow: 0 1px 3px rgba(0,0,0,.2), 0 1px 2px rgba(0,0,0,.15);
-            --shadow-md: 0 4px 6px -1px rgba(0,0,0,.25), 0 2px 4px -2px rgba(0,0,0,.15);
-            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.3), 0 4px 6px -2px rgba(0,0,0,.2);
-            --shadow-xl: 0 20px 25px -5px rgba(0,0,0,.4), 0 8px 10px -6px rgba(0,0,0,.3);
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, .35);
+            --shadow: 0 2px 6px rgba(0, 0, 0, .35), 0 1px 2px rgba(0, 0, 0, .2);
+            --shadow-md: 0 6px 14px -2px rgba(0, 0, 0, .4), 0 2px 4px -2px rgba(0, 0, 0, .25);
+            --shadow-lg: 0 14px 28px -6px rgba(0, 0, 0, .5), 0 6px 8px -3px rgba(0, 0, 0, .3);
+            --shadow-xl: 0 28px 48px -8px rgba(0, 0, 0, .6), 0 12px 16px -6px rgba(0, 0, 0, .4);
         }
 
         * { box-sizing: border-box; }
@@ -113,9 +145,30 @@
             font-family: 'Inter', sans-serif;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
+            background: var(--bg-main);
+            color: var(--text-primary);
         }
 
-        h1, h2, h3, h4, h5, h6 { font-family: 'Inter', sans-serif; font-weight: 700; }
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Manrope', 'Inter', sans-serif;
+            font-weight: 800;
+            letter-spacing: -0.01em;
+        }
+
+        .font-headline,
+        .text-headline {
+            font-family: 'Manrope', 'Inter', sans-serif;
+        }
+
+        /* Etiquetas executivas — pequenos rótulos uppercase com tracking widget */
+        .label-exec {
+            font-family: 'Manrope', 'Inter', sans-serif;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+        }
 
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -161,37 +214,39 @@
         }
 
         /* ═══════════════════════════════════════════════════════════════
-           COMPONENTES — Glass Card
+           COMPONENTES — Glass Card (executivo)
            ═══════════════════════════════════════════════════════════════ */
         .glass-card {
-            background: white;
-            border: 1px solid #e2e8f0;
-            border-radius: 16px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-            transition: transform var(--transition-base), box-shadow var(--transition-base);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-card);
+            box-shadow: var(--shadow);
+            transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-base);
         }
         .glass-card:hover {
-            box-shadow: 0 4px 6px rgba(0,0,0,0.07);
+            box-shadow: var(--shadow-md);
+            border-color: rgba(0, 52, 111, 0.16);
         }
         .dark .glass-card {
-            background: rgba(30, 41, 59, 0.5);
-            border-color: rgba(51, 65, 85, 0.5);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            background: var(--bg-card);
+            border-color: var(--border);
+            box-shadow: var(--shadow);
         }
         .dark .glass-card:hover {
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            box-shadow: var(--shadow-md);
+            border-color: rgba(116, 174, 233, 0.35);
         }
 
         /* ═══════════════════════════════════════════════════════════════
-           COMPONENTES — Sidebar
+           COMPONENTES — Sidebar (executivo)
            ═══════════════════════════════════════════════════════════════ */
         .glass-sidebar {
-            background: #ffffff;
+            background: #f1f4f8;
             border-right: 1px solid #e2e8f0;
         }
         .dark .glass-sidebar {
-            background: #0c1719;
-            border-right-color: rgba(51, 65, 85, 0.5);
+            background: #0a1320;
+            border-right-color: rgba(76, 112, 154, 0.18);
         }
 
         .sidebar-link {
@@ -199,10 +254,12 @@
             align-items: center;
             gap: 0.75rem;
             padding: 0.65rem 1rem;
-            border-radius: 10px;
-            font-size: 0.875rem;
-            font-family: 'Inter', sans-serif;
-            font-weight: 500;
+            border-radius: 12px;
+            font-family: 'Manrope', 'Inter', sans-serif;
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
             transition: all var(--transition-base);
             cursor: pointer;
             color: #64748b;
@@ -210,14 +267,15 @@
         }
 
         .sidebar-link:hover {
-            color: #1e293b;
-            background: #f1f5f9;
+            color: var(--primary);
+            background: rgba(255, 255, 255, 0.7);
         }
 
         .sidebar-link.active {
-            background: rgb(var(--primary-rgb) / 0.08);
-            color: rgb(var(--primary-rgb));
-            font-weight: 600;
+            background: #ffffff;
+            color: var(--primary);
+            font-weight: 700;
+            box-shadow: 0 1px 3px rgba(0, 52, 111, 0.08);
             border-color: transparent;
             position: relative;
         }
@@ -229,7 +287,7 @@
             transform: translateY(-50%);
             width: 3px;
             height: 60%;
-            background: rgb(var(--primary-rgb));
+            background: var(--primary);
             border-radius: 0 3px 3px 0;
             animation: slideBarIn 0.2s ease-out;
         }
@@ -239,16 +297,17 @@
         }
 
         .dark .sidebar-link {
-            color: #94a3b8;
+            color: #9aabc3;
         }
         .dark .sidebar-link:hover {
             color: #ffffff;
-            background: rgba(30, 41, 59, 0.5);
+            background: rgba(116, 174, 233, 0.08);
         }
         .dark .sidebar-link.active {
-            background: rgb(var(--primary-rgb) / 0.1);
-            color: rgb(var(--primary-rgb));
-            border-color: rgb(var(--primary-rgb) / 0.2);
+            background: rgba(116, 174, 233, 0.15);
+            color: var(--primary);
+            border-color: transparent;
+            box-shadow: 0 1px 3px rgba(116, 174, 233, 0.18);
         }
 
         .sidebar-link .material-symbols-outlined,
@@ -258,16 +317,22 @@
         }
 
         .sidebar-sub {
-            padding-left: 2rem;
-            font-size: 0.82rem;
+            padding-left: 1.75rem;
+            font-size: 0.7rem;
+            margin-left: 0.75rem;
+            border-left: 1px solid var(--border);
+        }
+        .dark .sidebar-sub {
+            border-left-color: rgba(76, 112, 154, 0.2);
         }
 
         .sidebar-section-label {
+            font-family: 'Manrope', 'Inter', sans-serif;
             font-size: 0.6rem;
-            font-weight: 700;
+            font-weight: 800;
             text-transform: uppercase;
-            letter-spacing: 1.2px;
-            color: #94a3b8;
+            letter-spacing: 0.2em;
+            color: var(--outline);
             padding: 0 0.75rem;
         }
 
@@ -276,26 +341,29 @@
             align-items: center;
             justify-content: space-between;
             width: 100%;
-            padding: 0.5rem 0.75rem;
-            font-size: 0.78rem;
-            font-weight: 600;
-            color: #64748b;
+            padding: 0.55rem 0.85rem;
+            font-family: 'Manrope', 'Inter', sans-serif;
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.18em;
+            color: #94a3b8;
             border: none;
             background: none;
             cursor: pointer;
-            border-radius: 8px;
+            border-radius: 10px;
             transition: all var(--transition-base);
         }
         .sidebar-group-toggle:hover {
-            color: #1e293b;
-            background: #f1f5f9;
+            color: var(--primary);
+            background: transparent;
         }
         .dark .sidebar-group-toggle {
-            color: #94a3b8;
+            color: #6b7d97;
         }
         .dark .sidebar-group-toggle:hover {
             color: #ffffff;
-            background: rgba(255,255,255,0.04);
+            background: rgba(116, 174, 233, 0.06);
         }
 
         .sidebar-group-chevron {
@@ -319,35 +387,96 @@
         /* Light mode is the base - no overrides needed */
 
         /* ═══════════════════════════════════════════════════════════════
-           COMPONENTES — Metric Cards
+           COMPONENTES — Metric / KPI Cards (executivo)
            ═══════════════════════════════════════════════════════════════ */
         .metric-card {
             position: relative;
             overflow: hidden;
-            border-radius: 12px;
+            border-radius: var(--radius-card);
             padding: 1.5rem;
-            background: white;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-            transition: transform var(--transition-base), box-shadow var(--transition-base);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-sm);
+            transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-base);
         }
         .metric-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.07);
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+            border-color: rgba(0, 52, 111, 0.18);
         }
         .dark .metric-card {
-            background: rgba(30, 41, 59, 0.5);
-            border-color: rgba(51, 65, 85, 0.5);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            background: var(--bg-card);
+            border-color: var(--border);
+            box-shadow: var(--shadow);
         }
         .dark .metric-card:hover {
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            box-shadow: var(--shadow-lg);
+            border-color: rgba(116, 174, 233, 0.35);
         }
 
-        .metric-indigo { border-color: rgba(37,99,235,0.3); }
-        .metric-emerald { border-color: rgba(16,185,129,0.3); }
-        .metric-amber { border-color: rgba(217,119,6,0.3); }
-        .metric-cyan { border-color: rgba(6,182,212,0.3); }
+        /* Variantes de cor ajustadas para a paleta executiva */
+        .metric-indigo  { border-color: rgba(0, 52, 111, 0.25); }
+        .metric-primary { border-color: rgba(0, 52, 111, 0.25); }
+        .metric-emerald { border-color: rgba(0, 108, 73, 0.30); }
+        .metric-amber   { border-color: rgba(217, 119, 6, 0.30); }
+        .metric-cyan    { border-color: rgba(76, 112, 154, 0.45); }
+
+        /* Variante "Solid Primary" — card escuro sólido (estilo template) */
+        .metric-card-solid {
+            position: relative;
+            overflow: hidden;
+            border-radius: var(--radius-xl);
+            padding: 2rem;
+            background: var(--primary-deep);
+            color: #fff;
+            border: 1px solid transparent;
+            box-shadow: var(--shadow);
+            transition: transform var(--transition-base), box-shadow var(--transition-base);
+        }
+        .metric-card-solid:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 18px 32px -10px rgba(0, 52, 111, 0.45);
+        }
+        .metric-card-solid .label-exec {
+            color: rgba(190, 210, 235, 0.8);
+        }
+        .metric-card-solid .metric-value {
+            color: #fff;
+        }
+
+        /* Variante "Medium Primary" — card azul médio (estilo template) */
+        .metric-card-medium {
+            position: relative;
+            overflow: hidden;
+            border-radius: var(--radius-xl);
+            padding: 2rem;
+            background: var(--primary-medium);
+            color: #fff;
+            border: 1px solid transparent;
+            box-shadow: var(--shadow);
+            transition: transform var(--transition-base), box-shadow var(--transition-base);
+        }
+        .metric-card-medium:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 18px 32px -10px rgba(76, 112, 154, 0.5);
+        }
+        .metric-card-medium .label-exec {
+            color: rgba(220, 232, 248, 0.85);
+        }
+        .metric-card-medium .metric-value {
+            color: #fff;
+        }
+
+        /* Valor numérico padrão dos KPIs */
+        .metric-value {
+            font-family: 'Manrope', 'Inter', sans-serif;
+            font-weight: 800;
+            font-size: 2.25rem;
+            line-height: 1.05;
+            letter-spacing: -0.02em;
+            color: var(--primary-deep);
+        }
+        .dark .metric-value { color: var(--text-primary); }
 
         /* Status dot */
         .green-dot {
@@ -363,26 +492,30 @@
            COMPONENTES — Botões
            ═══════════════════════════════════════════════════════════════ */
         .btn-primary {
-            background: rgb(var(--primary-rgb));
+            background: var(--primary);
             border: none;
-            border-radius: 8px;
-            box-shadow: none;
+            border-radius: var(--radius-btn);
+            box-shadow: 0 4px 12px rgba(0, 52, 111, 0.18);
             transition: all var(--transition-base);
             color: white;
-            font-weight: 600;
+            font-weight: 700;
+            font-family: 'Manrope', 'Inter', sans-serif;
+            letter-spacing: 0.02em;
         }
         .btn-primary:hover {
-            background: rgb(var(--primary-rgb) / 0.85);
+            background: var(--primary-container);
             transform: translateY(-1px);
+            box-shadow: 0 8px 22px rgba(0, 52, 111, 0.28);
         }
         .btn-primary:active { transform: translateY(0); }
         .dark .btn-primary {
-            background: rgb(var(--primary-rgb));
-            box-shadow: 0 4px 14px rgb(var(--primary-rgb) / 0.3);
+            background: var(--primary);
+            color: var(--primary-deep);
+            box-shadow: 0 4px 14px rgba(116, 174, 233, 0.25);
         }
         .dark .btn-primary:hover {
-            background: rgb(var(--primary-rgb) / 0.85);
-            box-shadow: 0 6px 20px rgb(var(--primary-rgb) / 0.4);
+            background: #9ec6f0;
+            box-shadow: 0 6px 20px rgba(116, 174, 233, 0.4);
         }
 
         .btn-danger {
