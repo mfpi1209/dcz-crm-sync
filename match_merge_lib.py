@@ -56,8 +56,20 @@ KOMMO_DB_DSN = dict(
     dbname=os.getenv("KOMMO_PG_DB", "kommo_sync"),
 )
 
-KOMMO_BASE_URL = os.getenv("KOMMO_BASE_URL", "https://eduitbr.kommo.com")
-KOMMO_TOKEN = os.getenv("KOMMO_TOKEN", "")
+def _load_from_app_config(chave, fallback=""):
+    """Read a config value from app_config table (shared DB) when env var is empty."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT valor FROM app_config WHERE chave = %s", (chave,))
+            row = cur.fetchone()
+        conn.close()
+        return row[0] if row else fallback
+    except Exception:
+        return fallback
+
+KOMMO_BASE_URL = os.getenv("KOMMO_BASE_URL", "") or _load_from_app_config("KOMMO_BASE_URL", "https://admamoeduitcombr.kommo.com")
+KOMMO_TOKEN = os.getenv("KOMMO_TOKEN", "") or _load_from_app_config("KOMMO_TOKEN", "")
 
 ACEITE_STATUS_ID = 48566207
 
