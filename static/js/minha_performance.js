@@ -113,6 +113,7 @@ async function loadMinhaPerformance(params) {
         if (tabs) tabs.classList.remove('hidden');
 
         _mpRenderHero(insights);
+        _mpRenderIncentiveTiers(insights);
         _mpRenderPixDia(insights);
         _mpRenderRanking(insights);
         _mpRenderConquistas(insights);
@@ -664,12 +665,19 @@ function _mpRenderCalendar(d) {
     let cur = new Date(startMonth);
     while (cur <= endMonth) { months.push({ year: cur.getFullYear(), month: cur.getMonth() }); cur.setMonth(cur.getMonth() + 1); }
 
-    const sc = {
+    const _mpDark = document.documentElement.classList.contains('dark');
+    const sc = _mpDark ? {
         hit:     { bg: '#064e3b', bg2: '#065f46', border: '#10b981', text: '#6ee7b7', glow: '0 0 16px rgba(16,185,129,.25)' },
         partial: { bg: '#78350f', bg2: '#92400e', border: '#f59e0b', text: '#fcd34d', glow: 'none' },
         miss:    { bg: '#450a0a', bg2: '#7f1d1d', border: '#ef4444', text: '#fca5a5', glow: 'none' },
         rest:    { bg: '#0f172a', bg2: '#1e293b', border: '#334155', text: '#475569', glow: 'none' },
         future:  { bg: '#0f172a', bg2: '#1e293b', border: '#1e293b', text: '#334155', glow: 'none' },
+    } : {
+        hit:     { bg: '#d1fae5', bg2: '#a7f3d0', border: '#059669', text: '#065f46', glow: '0 0 14px rgba(16,185,129,.18)' },
+        partial: { bg: '#fef3c7', bg2: '#fde68a', border: '#d97706', text: '#78350f', glow: 'none' },
+        miss:    { bg: '#fee2e2', bg2: '#fecaca', border: '#dc2626', text: '#7f1d1d', glow: 'none' },
+        rest:    { bg: '#f1f5f9', bg2: '#e2e8f0', border: '#cbd5e1', text: '#64748b', glow: 'none' },
+        future:  { bg: '#f8fafc', bg2: '#f1f5f9', border: '#e2e8f0', text: '#94a3b8', glow: 'none' },
     };
 
     const html = months.map(({ year, month }) => {
@@ -743,11 +751,11 @@ function _mpRenderCalendar(d) {
     }).join('');
 
     const legend = `<div class="flex flex-wrap items-center justify-center gap-5 mt-4 pt-3 border-t border-[var(--border)] text-[10px]">
-        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#065f46;border:1px solid #10b981"></span><span class="text-emerald-400 font-medium">Bateu ✅</span></span>
-        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#92400e;border:1px solid #f59e0b"></span><span class="text-amber-400 font-medium">Parcial ⚡</span></span>
-        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#7f1d1d;border:1px solid #ef4444"></span><span class="text-red-400 font-medium">Não bateu ❌</span></span>
-        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#1e293b;border:1px solid #334155"></span><span class="text-slate-500 font-medium">Futuro</span></span>
-        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded ring-2 ring-cyan-400" style="background:#1e293b"></span><span class="text-cyan-400 font-medium">Hoje</span></span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:${sc.hit.bg2};border:1px solid ${sc.hit.border}"></span><span class="text-emerald-700 dark:text-emerald-400 font-medium">Bateu ✅</span></span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:${sc.partial.bg2};border:1px solid ${sc.partial.border}"></span><span class="text-amber-700 dark:text-amber-400 font-medium">Parcial ⚡</span></span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:${sc.miss.bg2};border:1px solid ${sc.miss.border}"></span><span class="text-rose-700 dark:text-red-400 font-medium">Não bateu ❌</span></span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:${sc.future.bg2};border:1px solid ${sc.future.border}"></span><span class="text-slate-500 font-medium">Futuro</span></span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded ring-2 ring-cyan-400" style="background:${sc.future.bg2}"></span><span class="text-cyan-600 dark:text-cyan-400 font-medium">Hoje</span></span>
     </div>`;
 
     wrap.innerHTML = html + legend;
@@ -799,10 +807,14 @@ function _mpCalendarTooltips(wrap, tip) {
 
             let rows = '';
             if (data.status !== 'future') {
+                const _isDark = document.documentElement.classList.contains('dark');
+                const cTxt = _isDark ? '#e2e8f0' : '#1e293b';
+                const cMuted = _isDark ? '#94a3b8' : '#475569';
+                const cAceite = _isDark ? '#c084fc' : '#7c3aed';
                 const mkRow = (label, val, color) => `<div class="flex justify-between items-center py-0.5"><span class="text-slate-500 text-[10px]">${label}</span><span class="font-bold text-[11px]" style="color:${color}">${val}</span></div>`;
-                if (data.matCount > 0 || data.aceCount > 0) rows += mkRow('📋 Matrículas', data.matCount, '#e2e8f0');
-                if (data.aceCount > 0) rows += mkRow('🤝 Aceites', data.aceCount, '#c084fc');
-                if (data.meta > 0) rows += mkRow('🎯 Meta', data.meta, '#94a3b8');
+                if (data.matCount > 0 || data.aceCount > 0) rows += mkRow('📋 Matrículas', data.matCount, cTxt);
+                if (data.aceCount > 0) rows += mkRow('🤝 Aceites', data.aceCount, cAceite);
+                if (data.meta > 0) rows += mkRow('🎯 Meta', data.meta, cMuted);
                 if (data.bonus > 0) rows += `<div class="flex justify-between items-center py-1 mt-1 border-t border-[var(--border)]"><span class="text-slate-500 text-[10px]">💰 Bônus do dia</span><span class="font-black text-xs text-emerald-600 dark:text-emerald-400">${_mpFmt(data.bonus)}</span></div>`;
             }
 
@@ -816,9 +828,9 @@ function _mpCalendarTooltips(wrap, tip) {
                         </div>
                         ${data.isToday ? '<span class="text-[9px] font-black text-cyan-400 bg-cyan-400/15 px-2 py-0.5 rounded-full tracking-wide">HOJE</span>' : ''}
                     </div>
-                    <div class="px-4 py-3" style="background:#0c1222">
+                    <div class="px-4 py-3" style="background: var(--bg-card);">
                         ${barHtml}
-                        <div class="mt-1.5">${rows || '<p class="text-slate-600 text-[10px]">Sem atividade</p>'}</div>
+                        <div class="mt-1.5">${rows || '<p class="text-slate-500 dark:text-slate-600 text-[10px]">Sem atividade</p>'}</div>
                     </div>
                     <div class="h-[3px]" style="background:linear-gradient(90deg,${s.accent},${s.color})"></div>
                 </div>`;
@@ -892,6 +904,112 @@ function _mpRenderTierProgress(d) {
             </div>
         </div>`;
     }).join('');
+}
+
+
+/* ═══ Níveis de Meta (Incentive Tiers — visão por R$) ═══ */
+function _mpRenderIncentiveTiers(d) {
+    const wrap = document.getElementById('mp-incentive-tiers');
+    const outer = document.getElementById('mp-incentive-tiers-wrap');
+    if (!wrap) return;
+
+    const progress = (d.tier_progress || []).filter(p => p.tier !== 'base');
+    if (!progress.length) {
+        if (outer) outer.classList.add('hidden');
+        wrap.innerHTML = '';
+        return;
+    }
+    if (outer) outer.classList.remove('hidden');
+
+    const totalMat = d.total_matriculas || 0;
+    const tierMeta = {
+        intermediaria: {
+            label: 'Intermediária',
+            badge: 'BRONZE',
+            iconBg: 'bg-orange-100 dark:bg-orange-500/15',
+            iconColor: 'text-orange-600 dark:text-orange-400',
+            badgeBg: 'bg-orange-100 dark:bg-orange-500/20',
+            badgeText: 'text-orange-700 dark:text-orange-300',
+            barFrom: '#fb923c',
+            barTo: '#f97316',
+            icon: 'workspace_premium',
+        },
+        meta: {
+            label: 'Meta',
+            badge: 'PRATA',
+            iconBg: 'bg-blue-100 dark:bg-blue-500/15',
+            iconColor: 'text-blue-600 dark:text-blue-400',
+            badgeBg: 'bg-blue-100 dark:bg-blue-500/20',
+            badgeText: 'text-blue-700 dark:text-blue-300',
+            barFrom: '#60a5fa',
+            barTo: '#3b82f6',
+            icon: 'military_tech',
+        },
+        supermeta: {
+            label: 'Supermeta',
+            badge: 'OURO',
+            iconBg: 'bg-amber-100 dark:bg-amber-500/15',
+            iconColor: 'text-amber-600 dark:text-amber-400',
+            badgeBg: 'bg-amber-100 dark:bg-amber-500/20',
+            badgeText: 'text-amber-700 dark:text-amber-300',
+            barFrom: '#fcd34d',
+            barTo: '#f59e0b',
+            icon: 'emoji_events',
+        },
+    };
+
+    const html = progress.map(p => {
+        const meta = tierMeta[p.tier];
+        if (!meta) return '';
+        const target = p.target || 0;
+        const pct = Math.min(p.pct || 0, 100);
+        const ganhoTotal = (p.valor_por_mat || 0) * (target || 0);
+        const ganhoAtual = p.atingido ? ganhoTotal : (p.valor_por_mat || 0) * Math.min(totalMat, target);
+        const falta = Math.max(0, target - totalMat);
+        const status = p.atingido
+            ? `<span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400"><span class="material-symbols-outlined text-[14px]">check_circle</span> Atingido</span>`
+            : (falta > 0
+                ? `<span class="text-[10px] font-semibold text-[var(--text-secondary)]">faltam <strong class="text-[var(--text-primary)]">${falta}</strong> mat.</span>`
+                : '');
+
+        return `<div class="rounded-2xl border p-4 sm:p-5 transition-all hover:shadow-md"
+                     style="background: var(--bg-elevated); border-color: var(--border);">
+            <div class="flex items-start gap-3">
+                <div class="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${meta.iconBg}">
+                    <span class="material-symbols-outlined text-[22px] ${meta.iconColor}">${meta.icon}</span>
+                </div>
+                <div class="min-w-0 flex-1">
+                    <div class="flex items-center justify-between gap-2 flex-wrap">
+                        <div class="flex items-center gap-2">
+                            <h4 class="text-sm font-bold text-[var(--text-primary)]">${meta.label}</h4>
+                            <span class="text-[9px] font-bold px-2 py-0.5 rounded-full tracking-wider ${meta.badgeBg} ${meta.badgeText}">${meta.badge}</span>
+                        </div>
+                        ${status}
+                    </div>
+                    <p class="text-[11px] text-[var(--text-muted)] mt-0.5">${target} matrículas · ${_mpFmt(p.valor_por_mat || 0)}/mat</p>
+                </div>
+            </div>
+            <div class="mt-3">
+                <div class="flex items-end justify-between gap-2 mb-1.5">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Recompensa</span>
+                    <div class="flex items-baseline gap-1">
+                        <span class="text-base font-extrabold tabular-nums text-[var(--text-primary)]">${_mpFmt(ganhoAtual)}</span>
+                        <span class="text-[10px] text-[var(--text-muted)]">/ ${_mpFmt(ganhoTotal)}</span>
+                    </div>
+                </div>
+                <div class="h-2.5 rounded-full overflow-hidden" style="background: rgba(0,0,0,0.06);">
+                    <div class="h-full rounded-full transition-all duration-700"
+                         style="width:${pct}%; background: linear-gradient(90deg, ${meta.barFrom}, ${meta.barTo}); box-shadow: 0 0 10px ${meta.barTo}40;"></div>
+                </div>
+                <div class="flex items-center justify-between mt-1.5 text-[10px] text-[var(--text-muted)]">
+                    <span class="tabular-nums font-semibold">${Math.min(totalMat, target)}/${target}</span>
+                    <span class="font-bold tabular-nums" style="color: ${meta.barTo};">${pct}%</span>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+
+    wrap.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-3 gap-3">${html}</div>`;
 }
 
 

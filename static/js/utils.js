@@ -23,8 +23,8 @@ async function api(url, opts = {}) {
 // ---------------------------------------------------------------------------
 // SPA Navigation
 // ---------------------------------------------------------------------------
-const PAGES = ['dashboard', 'search', 'sync', 'kommo_sync', 'update', 'pipeline', 'match_merge', 'comercial_rgm', 'dist_comercial', 'distribuicao', 'ativacoes', 'intelligence', 'inadimplencia', 'feedback', 'comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos', 'logs', 'config', 'schedule', 'inscricao', 'avisos', 'kommo_dispatcher', 'meta-campaigns', 'recadastros', 'comercial_dashboard', 'auditoria_comercial', 'atualizar_preco', 'vocacional', 'leads_parados', 'minha_performance', 'premiacao_admin', 'macro_email', 'ajustes_matricula', 'repasse', 'dist_consultor'];
-const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', kommo_sync: 'Sync Comercial', update: 'Upload Acadêmico', pipeline: 'Saneamento / Pipeline', match_merge: 'Match & Merge', comercial_rgm: 'Dashboard Comercial', dist_comercial: 'Distribuição Comercial', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas', intelligence: 'Análises', inadimplencia: 'Inadimplência', feedback: 'Feedback', comparar_cursos: 'Comparar Cursos', recomendacao_cursos: 'Recomendação', localizacao_polos: 'Localização', info_cursos: 'Informações de Cursos', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento', inscricao: 'Inscrições', avisos: 'Avisos', kommo_dispatcher: 'Kommo Dispatcher', 'meta-campaigns': 'Campaign Performance', recadastros: 'Recadastros', comercial_dashboard: 'Dashboard Atendimentos', auditoria_comercial: 'Feedback Comercial', atualizar_preco: 'Atualizar Preço', vocacional: 'Dashboard Vocacional', leads_parados: 'Parados', minha_performance: 'Minha Performance', premiacao_admin: 'Premiação', macro_email: 'Macro Email', ajustes_matricula: 'Ajustes de Matrícula', repasse: 'Repasse', dist_consultor: 'Distribuição Consultor' };
+const PAGES = ['dashboard', 'search', 'sync', 'kommo_sync', 'update', 'pipeline', 'match_merge', 'comercial_rgm', 'dist_comercial', 'distribuicao', 'ativacoes', 'intelligence', 'inadimplencia', 'feedback', 'comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos', 'logs', 'config', 'schedule', 'inscricao', 'avisos', 'kommo_dispatcher', 'meta-campaigns', 'recadastros', 'comercial_dashboard', 'auditoria_comercial', 'atualizar_preco', 'vocacional', 'leads_parados', 'minha_performance', 'premiacao_admin', 'macro_email', 'ajustes_matricula', 'repasse', 'dist_consultor', 'profile'];
+const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', kommo_sync: 'Sync Comercial', update: 'Upload Acadêmico', pipeline: 'Saneamento / Pipeline', match_merge: 'Match & Merge', comercial_rgm: 'Dashboard Comercial', dist_comercial: 'Distribuição Comercial', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas', intelligence: 'Análises', inadimplencia: 'Inadimplência', feedback: 'Feedback', comparar_cursos: 'Comparar Cursos', recomendacao_cursos: 'Recomendação', localizacao_polos: 'Localização', info_cursos: 'Informações de Cursos', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento', inscricao: 'Inscrições', avisos: 'Avisos', kommo_dispatcher: 'Kommo Dispatcher', 'meta-campaigns': 'Campaign Performance', recadastros: 'Recadastros', comercial_dashboard: 'Dashboard Atendimentos', auditoria_comercial: 'Feedback Comercial', atualizar_preco: 'Atualizar Preço', vocacional: 'Dashboard Vocacional', leads_parados: 'Parados', minha_performance: 'Minha Performance', premiacao_admin: 'Premiação', macro_email: 'Macro Email', ajustes_matricula: 'Ajustes de Matrícula', repasse: 'Repasse', dist_consultor: 'Distribuição Consultor', profile: 'Meu Perfil' };
 
 function navigate(page, params) {
     PAGES.forEach(p => {
@@ -79,6 +79,7 @@ function navigate(page, params) {
     if (page === 'ajustes_matricula') loadAjustesMatricula();
     if (page === 'macro_email') loadMacroEmail();
     if (page === 'repasse') repInit();
+    if (page === 'profile') loadProfile();
 
     history.replaceState(null, '', '#' + page);
     refreshTopbarForPage(page);
@@ -286,6 +287,8 @@ async function checkAvisosNaoLidos() {
         const res = await api('/api/avisos/nao-lidos');
         const data = await res.json();
         const count = data.count || 0;
+        window._avisosCache = Array.isArray(data.avisos) ? data.avisos : [];
+        window._avisosNaoLidos = count;
 
         const badge = document.getElementById('av-sidebar-badge');
         if (badge) {
@@ -293,11 +296,111 @@ async function checkAvisosNaoLidos() {
             else badge.classList.add('hidden');
         }
 
+        const tbDot = document.getElementById('tb-avisos-dot');
+        const tbCount = document.getElementById('tb-avisos-count');
+        if (tbDot && tbCount) {
+            if (count > 0) {
+                tbCount.textContent = count > 99 ? '99+' : count;
+                tbCount.classList.remove('hidden');
+                tbDot.classList.add('hidden');
+            } else {
+                tbCount.classList.add('hidden');
+                tbDot.classList.add('hidden');
+            }
+        }
+        renderNotifPanel(window._avisosCache);
+
         if (count > 0 && !sessionStorage.getItem('avisos_popup_shown')) {
             _showAvisosPopup(data.avisos);
             sessionStorage.setItem('avisos_popup_shown', '1');
         }
     } catch (e) { console.error('checkAvisosNaoLidos', e); }
+}
+
+// ---------------------------------------------------------------------------
+// Topbar notification dropdown
+// ---------------------------------------------------------------------------
+function _initNotifPanel() {
+    document.addEventListener('click', function(ev) {
+        const wrap = document.getElementById('topbar-notif-wrap');
+        const panel = document.getElementById('notif-panel');
+        if (!wrap || !panel) return;
+        if (!wrap.contains(ev.target)) closeNotifPanel();
+    });
+    document.addEventListener('keydown', function(ev) {
+        if (ev.key === 'Escape') closeNotifPanel();
+    });
+}
+
+function toggleNotifPanel(ev) {
+    if (ev) ev.stopPropagation();
+    const panel = document.getElementById('notif-panel');
+    if (!panel) return;
+    if (panel.classList.contains('hidden')) openNotifPanel();
+    else closeNotifPanel();
+}
+
+function openNotifPanel() {
+    const panel = document.getElementById('notif-panel');
+    if (!panel) return;
+    panel.classList.remove('hidden');
+    renderNotifPanel(window._avisosCache || []);
+    api('/api/avisos').then(r => r.json()).then(rows => {
+        if (Array.isArray(rows)) renderNotifPanel(rows.slice(0, 12));
+    }).catch(()=>{});
+}
+
+function closeNotifPanel() {
+    const panel = document.getElementById('notif-panel');
+    if (panel) panel.classList.add('hidden');
+}
+
+function renderNotifPanel(items) {
+    const list = document.getElementById('notif-panel-list');
+    const countLabel = document.getElementById('notif-panel-count');
+    if (!list) return;
+    const naoLidos = (window._avisosNaoLidos || 0);
+    if (countLabel) countLabel.textContent = naoLidos > 0 ? (naoLidos + ' Nova' + (naoLidos > 1 ? 's' : '')) : 'Em dia';
+
+    if (!items || !items.length) {
+        list.innerHTML = '<div class="p-8 text-center"><div class="w-10 h-10 mx-auto mb-2 rounded-full flex items-center justify-center" style="background: var(--bg-elevated);"><span class="material-symbols-outlined text-[20px]" style="color: var(--text-muted);">inbox</span></div><p class="text-xs text-[var(--text-muted)]">Sem avisos no momento.</p></div>';
+        return;
+    }
+    const ICONS = {
+        urgente:    { icon: 'priority_high', cls: 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' },
+        importante: { icon: 'warning',       cls: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' },
+        normal:     { icon: 'info',          cls: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300' },
+    };
+    const fmtTime = (iso) => {
+        if (!iso) return '';
+        const d = new Date(iso);
+        const diffMs = Date.now() - d.getTime();
+        const m = Math.floor(diffMs / 60000);
+        if (m < 1) return 'agora';
+        if (m < 60) return m + ' min';
+        const h = Math.floor(m / 60);
+        if (h < 24) return h + 'h';
+        const dd = Math.floor(h / 24);
+        return dd + 'd';
+    };
+    list.innerHTML = items.map(a => {
+        const ic = ICONS[a.prioridade] || ICONS.normal;
+        const unreadBg = a.lido ? '' : 'background: rgba(0,52,111,0.04);';
+        return `<div class="flex gap-3 px-4 py-3 border-b cursor-default transition-colors hover:bg-[var(--bg-elevated)]"
+                     style="border-color: var(--border); ${unreadBg}">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${ic.cls}">
+                <span class="material-symbols-outlined text-[16px]">${ic.icon}</span>
+            </div>
+            <div class="min-w-0 flex-1 space-y-0.5">
+                <div class="flex items-center justify-between gap-2">
+                    <p class="text-xs font-bold text-[var(--text-primary)] leading-tight truncate">${esc(a.titulo || '')}</p>
+                    <span class="text-[10px] font-medium text-[var(--text-muted)] shrink-0">${fmtTime(a.created_at)}</span>
+                </div>
+                <p class="text-[11px] text-[var(--text-secondary)] leading-snug line-clamp-2">${esc(a.corpo || '')}</p>
+                ${a.autor ? `<p class="text-[10px] text-[var(--text-muted)] mt-0.5">${esc(a.autor)}</p>` : ''}
+            </div>
+        </div>`;
+    }).join('');
 }
 
 function _showAvisosPopup(avisos) {
@@ -364,6 +467,7 @@ function toggleTheme() {
     html.classList.add(newTheme);
     localStorage.setItem('eduit-theme', newTheme);
     updateThemeUI(newTheme);
+    if (typeof profSyncThemeButtons === 'function') profSyncThemeButtons();
 }
 
 function updateThemeUI(theme) {
@@ -530,6 +634,48 @@ function showSkeleton(containerId, count = 4) {
 }
 
 // ---------------------------------------------------------------------------
+// Scroll to top (works on window scroll AND inner <main> overflow scroll)
+// ---------------------------------------------------------------------------
+function _scrollContainer() {
+    var main = document.querySelector('main.flex-1.overflow-auto');
+    if (main && main.scrollHeight > main.clientHeight) return main;
+    return window;
+}
+
+function scrollPageToTop() {
+    var c = _scrollContainer();
+    if (c === window) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+        try { c.scrollTo({ top: 0, behavior: 'smooth' }); }
+        catch (_) { c.scrollTop = 0; }
+    }
+}
+
+function _initScrollToTop() {
+    var btn = document.getElementById('scroll-to-top');
+    if (!btn) return;
+    var threshold = 300;
+
+    function update() {
+        var c = _scrollContainer();
+        var y = c === window ? (window.pageYOffset || document.documentElement.scrollTop) : c.scrollTop;
+        if (y > threshold) {
+            btn.classList.remove('opacity-0', 'translate-y-4', 'pointer-events-none');
+            btn.classList.add('opacity-100', 'translate-y-0');
+        } else {
+            btn.classList.add('opacity-0', 'translate-y-4', 'pointer-events-none');
+            btn.classList.remove('opacity-100', 'translate-y-0');
+        }
+    }
+
+    var main = document.querySelector('main.flex-1.overflow-auto');
+    if (main) main.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+}
+
+// ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
 const currentTheme = localStorage.getItem('eduit-theme') || 'dark';
@@ -537,6 +683,8 @@ updateThemeUI(currentTheme);
 
 document.addEventListener('DOMContentLoaded', () => {
     initTopbarUser();
+    _initScrollToTop();
+    _initNotifPanel();
     const hash = window.location.hash.replace('#', '') || 'dashboard';
     if (PAGES.includes(hash)) {
         navigate(hash);

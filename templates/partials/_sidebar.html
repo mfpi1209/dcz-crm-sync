@@ -319,22 +319,46 @@
 
             <!-- Direita: usuário + ações -->
             <div class="flex items-center gap-1 md:gap-2">
-                <div id="topbar-user" class="topbar-user" title="">
+                <button type="button" id="topbar-user" onclick="navigate('profile')" class="topbar-user" title="Meu perfil">
                     <div class="topbar-user-avatar" id="topbar-user-initials">–</div>
                     <span class="topbar-user-name" id="topbar-user-name"></span>
-                </div>
+                </button>
                 <button id="topbar-search" onclick="navigate('search')"
                         class="topbar-action hidden sm:flex"
                         title="Buscar">
                     <span class="material-symbols-outlined text-[20px]">search</span>
                 </button>
-                <button id="topbar-avisos" onclick="navigate('avisos')"
-                        class="topbar-action relative"
-                        title="Avisos">
-                    <span class="material-symbols-outlined text-[20px]">notifications</span>
-                    <span id="tb-avisos-dot" class="absolute top-2 right-2 w-2 h-2 rounded-full hidden"
-                          style="background: #ef4444; border: 2px solid var(--bg-card);"></span>
-                </button>
+                <div class="relative" id="topbar-notif-wrap">
+                    <button id="topbar-avisos" type="button" onclick="toggleNotifPanel(event)"
+                            class="topbar-action relative"
+                            title="Avisos">
+                        <span class="material-symbols-outlined text-[20px]">notifications</span>
+                        <span id="tb-avisos-dot" class="absolute top-2 right-2 w-2 h-2 rounded-full hidden"
+                              style="background: #ef4444; border: 2px solid var(--bg-card);"></span>
+                        <span id="tb-avisos-count"
+                              class="hidden absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 flex items-center justify-center rounded-full text-[9px] font-bold leading-none"
+                              style="background:#ef4444;color:#fff;border:2px solid var(--bg-card);"></span>
+                    </button>
+                    <!-- Dropdown -->
+                    <div id="notif-panel"
+                         class="hidden absolute right-0 mt-2 w-[22rem] max-w-[calc(100vw-1rem)] rounded-2xl overflow-hidden shadow-2xl border z-50 origin-top-right"
+                         style="background: var(--bg-card); border-color: var(--border); box-shadow: 0 20px 50px -12px rgba(15,23,42,.25);">
+                        <div class="flex items-center justify-between px-4 py-3 border-b" style="border-color: var(--border); background: var(--bg-elevated);">
+                            <h3 class="text-[10px] font-bold uppercase tracking-[0.2em]" style="color: var(--primary);">Notificações</h3>
+                            <span id="notif-panel-count"
+                                  class="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                                  style="background: rgba(0,52,111,0.10); color: var(--primary);">0 Novas</span>
+                        </div>
+                        <div id="notif-panel-list" class="max-h-[60vh] overflow-y-auto">
+                            <div class="p-6 text-center text-xs text-[var(--text-muted)]">Carregando...</div>
+                        </div>
+                        <button onclick="(function(ev){ev.stopPropagation();closeNotifPanel();navigate('avisos');})(event)"
+                                class="w-full p-3 text-[10px] font-bold uppercase tracking-[0.2em] transition-colors border-t hover:opacity-80"
+                                style="border-color: var(--border); color: var(--primary); background: var(--bg-card);">
+                            Ver todas as notificações
+                        </button>
+                    </div>
+                </div>
                 <button id="topbar-theme" onclick="toggleTheme()"
                         class="topbar-action"
                         title="Alternar tema">

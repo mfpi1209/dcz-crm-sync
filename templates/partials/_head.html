@@ -366,7 +366,12 @@
             background: var(--bg-elevated);
             border: 1px solid var(--border);
             max-width: 11rem;
+            cursor: pointer;
+            transition: border-color .15s, background .15s, transform .15s;
+            font: inherit;
         }
+        .topbar-user:hover { border-color: var(--primary); }
+        .topbar-user:active { transform: scale(0.98); }
         @media (min-width: 640px) {
             .topbar-user.has-name { display: inline-flex; }
         }
