@@ -233,26 +233,70 @@
                     #page-dist_consultor .dc-metric {
                         background: var(--dc-bg-card);
                         border: 1px solid var(--dc-border);
-                        border-radius: 16px;
-                        padding: 20px;
+                        border-radius: 20px;
+                        padding: 22px;
                         display: flex;
                         align-items: center;
                         justify-content: space-between;
-                        transition: transform 0.2s;
+                        transition: transform 0.25s, box-shadow 0.25s, border-color 0.25s;
                     }
-                    #page-dist_consultor .dc-metric:hover { transform: translateY(-2px); }
+                    #page-dist_consultor .dc-metric:hover {
+                        transform: translateY(-4px);
+                        box-shadow: 0 12px 24px -8px rgba(0, 52, 111, 0.15);
+                        border-color: rgba(0, 52, 111, 0.18);
+                    }
                     .dark #page-dist_consultor .dc-metric { box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+                    .dark #page-dist_consultor .dc-metric:hover {
+                        border-color: rgba(116, 174, 233, 0.35);
+                        box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.4);
+                    }
+
+                    /* Variante executiva: card escuro sólido (primary deep) */
+                    #page-dist_consultor .dc-metric--primary {
+                        background: var(--primary-deep, #002D5E);
+                        border-color: transparent;
+                        color: #fff;
+                    }
+                    #page-dist_consultor .dc-metric--primary:hover {
+                        box-shadow: 0 18px 36px -10px rgba(0, 52, 111, 0.45);
+                        border-color: transparent;
+                    }
+                    #page-dist_consultor .dc-metric--primary .dc-metric-label { color: rgba(190, 210, 235, 0.8); }
+                    #page-dist_consultor .dc-metric--primary .dc-metric-value { color: #fff; }
+                    #page-dist_consultor .dc-metric--primary .dc-metric-icon  { background: rgba(255,255,255,0.08) !important; }
+                    #page-dist_consultor .dc-metric--primary .dc-metric-icon svg { stroke: #fff !important; }
+
+                    /* Variante executiva: card azul médio (primary medium) */
+                    #page-dist_consultor .dc-metric--medium {
+                        background: var(--primary-medium, #4C709A);
+                        border-color: transparent;
+                        color: #fff;
+                    }
+                    #page-dist_consultor .dc-metric--medium:hover {
+                        box-shadow: 0 18px 36px -10px rgba(76, 112, 154, 0.5);
+                        border-color: transparent;
+                    }
+                    #page-dist_consultor .dc-metric--medium .dc-metric-label { color: rgba(220, 232, 248, 0.85); }
+                    #page-dist_consultor .dc-metric--medium .dc-metric-value { color: #fff; }
+                    #page-dist_consultor .dc-metric--medium .dc-metric-icon  { background: rgba(255,255,255,0.12) !important; }
+                    #page-dist_consultor .dc-metric--medium .dc-metric-icon svg { stroke: #fff !important; }
 
                     #page-dist_consultor .dc-metric-label {
-                        font-size: 13px;
+                        font-family: 'Manrope', 'Inter', sans-serif;
+                        font-size: 10px;
+                        font-weight: 700;
+                        letter-spacing: 0.18em;
+                        text-transform: uppercase;
                         color: var(--dc-text-muted);
                     }
 
                     #page-dist_consultor .dc-metric-value {
-                        font-size: 32px;
+                        font-family: 'Manrope', 'Inter', sans-serif;
+                        font-size: 36px;
                         font-weight: 800;
+                        letter-spacing: -0.02em;
                         color: var(--dc-text-primary);
-                        margin-top: 4px;
+                        margin-top: 8px;
                     }
 
                     #page-dist_consultor .dc-metric-icon {
@@ -592,13 +636,13 @@
 
                     <!-- Metrics -->
                     <div class="dc-metrics">
-                        <div class="dc-metric">
+                        <div class="dc-metric dc-metric--primary">
                             <div>
                                 <p class="dc-metric-label">Total de Leads</p>
                                 <p class="dc-metric-value" id="dc-m-leads">0</p>
                             </div>
-                            <div class="dc-metric-icon" style="background:rgba(37,99,235,0.08)">
-                                <svg fill="none" stroke="#2563eb" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+                            <div class="dc-metric-icon" style="background:rgba(255,255,255,0.08)">
+                                <svg fill="none" stroke="#fff" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
                             </div>
                         </div>
                         <div class="dc-metric">
@@ -628,21 +672,21 @@
                                 <svg fill="none" stroke="#8b5cf6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                             </div>
                         </div>
-                        <div class="dc-metric">
+                        <div class="dc-metric dc-metric--medium">
                             <div style="flex:1">
                                 <p class="dc-metric-label">Matrículas no Período</p>
                                 <p class="dc-metric-value" id="dc-m-conversoes">0</p>
-                                <div id="dc-m-conversoes-breakdown" style="margin-top:6px;display:none;gap:10px;flex-wrap:wrap">
-                                    <span style="font-size:12px;font-weight:600;color:#10b981">
+                                <div id="dc-m-conversoes-breakdown" style="margin-top:8px;display:none;gap:10px;flex-wrap:wrap">
+                                    <span style="font-size:11px;font-weight:700;color:#6cf8bb;letter-spacing:0.05em;text-transform:uppercase">
                                         <span id="dc-m-do-periodo">0</span> no período
                                     </span>
-                                    <span style="font-size:12px;font-weight:600;color:#f59e0b">
+                                    <span style="font-size:11px;font-weight:700;color:#fbbf24;letter-spacing:0.05em;text-transform:uppercase">
                                         <span id="dc-m-fora-periodo">0</span> lead antigo
                                     </span>
                                 </div>
                             </div>
-                            <div class="dc-metric-icon" style="background:rgba(16,185,129,0.08)">
-                                <svg fill="none" stroke="#10b981" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <div class="dc-metric-icon" style="background:rgba(255,255,255,0.12)">
+                                <svg fill="none" stroke="#fff" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                             </div>
                         </div>
                         <div class="dc-metric">

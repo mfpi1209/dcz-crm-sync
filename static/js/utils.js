@@ -1,4 +1,14 @@
 // ---------------------------------------------------------------------------
+// Abas segmentadas (design system — classe .ds-segment no HTML)
+// ---------------------------------------------------------------------------
+function dsSegActive(extraClasses = '') {
+    return ('ds-segment__btn ds-segment__btn--active ' + extraClasses).trim();
+}
+function dsSegInactive(extraClasses = '') {
+    return ('ds-segment__btn ds-segment__btn--inactive ' + extraClasses).trim();
+}
+
+// ---------------------------------------------------------------------------
 // API helper
 // ---------------------------------------------------------------------------
 async function api(url, opts = {}) {
@@ -13,8 +23,8 @@ async function api(url, opts = {}) {
 // ---------------------------------------------------------------------------
 // SPA Navigation
 // ---------------------------------------------------------------------------
-const PAGES = ['dashboard', 'search', 'sync', 'kommo_sync', 'update', 'pipeline', 'match_merge', 'comercial_rgm', 'dist_comercial', 'distribuicao', 'ativacoes', 'intelligence', 'inadimplencia', 'feedback', 'comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos', 'logs', 'config', 'schedule', 'inscricao', 'avisos', 'kommo_dispatcher', 'meta-campaigns', 'recadastros', 'comercial_dashboard', 'auditoria_comercial', 'atualizar_preco', 'vocacional', 'leads_parados', 'minha_performance', 'premiacao_admin', 'macro_email', 'ajustes_matricula', 'repasse', 'dist_consultor'];
-const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', kommo_sync: 'Sync Comercial', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', match_merge: 'Match & Merge', comercial_rgm: 'Dashboard Comercial', dist_comercial: 'Distribuição Comercial', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas', intelligence: 'Inteligência', inadimplencia: 'Inadimplência', feedback: 'Feedback', comparar_cursos: 'Comparar Cursos', recomendacao_cursos: 'Recomendação', localizacao_polos: 'Localização', info_cursos: 'Informações de Cursos', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento', inscricao: 'Inscrição Automática', avisos: 'Avisos', kommo_dispatcher: 'Kommo Dispatcher', 'meta-campaigns': 'Campaign Performance', recadastros: 'Recadastros', comercial_dashboard: 'Dashboard Atendimentos', auditoria_comercial: 'Feedback Comercial', atualizar_preco: 'Atualizar Preço', vocacional: 'Dashboard Vocacional', leads_parados: 'Leads Parados', minha_performance: 'Minha Performance', premiacao_admin: 'Premiação', macro_email: 'Macro Email', ajustes_matricula: 'Ajustes de Matrícula', repasse: 'Repasse', dist_consultor: 'Distribuição Consultor' };
+const PAGES = ['dashboard', 'search', 'sync', 'kommo_sync', 'update', 'pipeline', 'match_merge', 'comercial_rgm', 'dist_comercial', 'distribuicao', 'ativacoes', 'intelligence', 'inadimplencia', 'feedback', 'comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos', 'logs', 'config', 'schedule', 'inscricao', 'avisos', 'kommo_dispatcher', 'meta-campaigns', 'recadastros', 'comercial_dashboard', 'auditoria_comercial', 'atualizar_preco', 'vocacional', 'leads_parados', 'minha_performance', 'premiacao_admin', 'macro_email', 'ajustes_matricula', 'repasse', 'dist_consultor', 'profile'];
+const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', kommo_sync: 'Sync Comercial', update: 'Upload Acadêmico', pipeline: 'Saneamento / Pipeline', match_merge: 'Match & Merge', comercial_rgm: 'Dashboard Comercial', dist_comercial: 'Distribuição Comercial', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas', intelligence: 'Análises', inadimplencia: 'Inadimplência', feedback: 'Feedback', comparar_cursos: 'Comparar Cursos', recomendacao_cursos: 'Recomendação', localizacao_polos: 'Localização', info_cursos: 'Informações de Cursos', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento', inscricao: 'Inscrições', avisos: 'Avisos', kommo_dispatcher: 'Kommo Dispatcher', 'meta-campaigns': 'Campaign Performance', recadastros: 'Recadastros', comercial_dashboard: 'Dashboard Atendimentos', auditoria_comercial: 'Feedback Comercial', atualizar_preco: 'Atualizar Preço', vocacional: 'Dashboard Vocacional', leads_parados: 'Parados', minha_performance: 'Minha Performance', premiacao_admin: 'Premiação', macro_email: 'Macro Email', ajustes_matricula: 'Ajustes de Matrícula', repasse: 'Repasse', dist_consultor: 'Distribuição Consultor', profile: 'Meu Perfil' };
 
 function navigate(page, params) {
     PAGES.forEach(p => {
@@ -32,7 +42,7 @@ function navigate(page, params) {
     document.querySelectorAll('.sidebar-link').forEach(el => {
         el.classList.toggle('active', el.dataset.page === page);
     });
-    document.getElementById('mobile-title').textContent = PAGE_TITLES[page] || page;
+    setPageTitle(PAGE_TITLES[page] || page);
 
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('sidebar-overlay').classList.remove('open');
@@ -69,8 +79,10 @@ function navigate(page, params) {
     if (page === 'ajustes_matricula') loadAjustesMatricula();
     if (page === 'macro_email') loadMacroEmail();
     if (page === 'repasse') repInit();
+    if (page === 'profile') loadProfile();
 
     history.replaceState(null, '', '#' + page);
+    refreshTopbarForPage(page);
 }
 
 window.addEventListener('hashchange', () => {
@@ -85,12 +97,71 @@ function navigateVoc(tab) {
     document.querySelectorAll('.sidebar-link').forEach(el => {
         el.classList.toggle('active', el.dataset.page === 'voc_' + tab);
     });
-    document.getElementById('mobile-title').textContent = PAGE_TITLES['vocacional'] || 'Vocacional';
+    setPageTitle(PAGE_TITLES['vocacional'] || 'Vocacional');
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('sidebar-overlay').classList.remove('open');
     vocLoadPage();
     vocSwitchTab(tab);
     history.replaceState(null, '', '#vocacional');
+    refreshTopbarForPage('vocacional');
+}
+
+function setPageTitle(text) {
+    var title = text || '';
+    var topbar = document.getElementById('page-title');
+    if (topbar) {
+        topbar.textContent = title;
+        topbar.setAttribute('title', title);
+    }
+    var mobile = document.getElementById('mobile-title');
+    if (mobile) mobile.textContent = title;
+    if (title) document.title = title + ' · eduit.';
+}
+
+/** Intervalo de datas no pill da TopBar (ex.: Comercial RGM). */
+function formatTopbarDateRange(isoFrom, isoTo) {
+    function fmt(iso) {
+        if (!iso) return '';
+        var d = new Date(String(iso).substring(0, 10) + 'T12:00:00');
+        if (isNaN(d.getTime())) return iso;
+        return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, '');
+    }
+    return fmt(isoFrom) + ' — ' + fmt(isoTo);
+}
+
+function refreshTopbarForPage(page) {
+    var metaText = document.getElementById('topbar-meta-text');
+    if (!metaText) return;
+    if (page === 'comercial_rgm') {
+        var i = document.getElementById('crgm-dt-ini');
+        var f = document.getElementById('crgm-dt-fim');
+        if (i && f && i.value && f.value) {
+            metaText.textContent = formatTopbarDateRange(i.value, f.value);
+            return;
+        }
+    }
+    metaText.textContent = 'eduit. · cockpit';
+}
+
+function initTopbarUser() {
+    var raw = (document.body && document.body.getAttribute('data-username')) || '';
+    var uname = (raw || '').trim();
+    var wrap = document.getElementById('topbar-user');
+    var elName = document.getElementById('topbar-user-name');
+    var elIni = document.getElementById('topbar-user-initials');
+    if (!wrap || !elName || !elIni) return;
+    if (!uname) {
+        wrap.classList.remove('has-name');
+        wrap.removeAttribute('title');
+        return;
+    }
+    elName.textContent = uname;
+    wrap.setAttribute('title', uname);
+    wrap.classList.add('has-name');
+    var parts = uname.split(/\s+/).filter(Boolean);
+    var a = (parts[0] && parts[0][0]) ? parts[0][0] : '';
+    var b = (parts.length > 1 && parts[parts.length - 1][0]) ? parts[parts.length - 1][0] : '';
+    elIni.textContent = (a + b).toUpperCase() || uname.slice(0, 2).toUpperCase();
 }
 
 function toggleSidebar() {
@@ -164,6 +235,9 @@ const SIDEBAR_GROUPS = {
     sistema: ['premiacao_admin', 'ajustes_matricula'],
 };
 
+// Páginas pessoais — sempre visíveis no menu, independente de permissão.
+const SIDEBAR_ALWAYS_VISIBLE = new Set(['dashboard', 'avisos', 'profile']);
+
 async function applySidebarPermissions() {
     try {
         const res = await api('/api/me');
@@ -173,7 +247,7 @@ async function applySidebarPermissions() {
 
         document.querySelectorAll('#sidebar .sidebar-link[data-page]').forEach(link => {
             const page = link.getAttribute('data-page');
-            if (role === 'admin' || pages.includes(page)) {
+            if (SIDEBAR_ALWAYS_VISIBLE.has(page) || role === 'admin' || pages.includes(page)) {
                 link.style.display = '';
             } else {
                 link.style.display = 'none';
@@ -216,12 +290,28 @@ async function checkAvisosNaoLidos() {
         const res = await api('/api/avisos/nao-lidos');
         const data = await res.json();
         const count = data.count || 0;
+        window._avisosCache = Array.isArray(data.avisos) ? data.avisos : [];
+        window._avisosNaoLidos = count;
 
         const badge = document.getElementById('av-sidebar-badge');
         if (badge) {
             if (count > 0) { badge.textContent = count; badge.classList.remove('hidden'); }
             else badge.classList.add('hidden');
         }
+
+        const tbDot = document.getElementById('tb-avisos-dot');
+        const tbCount = document.getElementById('tb-avisos-count');
+        if (tbDot && tbCount) {
+            if (count > 0) {
+                tbCount.textContent = count > 99 ? '99+' : count;
+                tbCount.classList.remove('hidden');
+                tbDot.classList.add('hidden');
+            } else {
+                tbCount.classList.add('hidden');
+                tbDot.classList.add('hidden');
+            }
+        }
+        renderNotifPanel(window._avisosCache);
 
         if (count > 0 && !sessionStorage.getItem('avisos_popup_shown')) {
             _showAvisosPopup(data.avisos);
@@ -230,43 +320,129 @@ async function checkAvisosNaoLidos() {
     } catch (e) { console.error('checkAvisosNaoLidos', e); }
 }
 
+// ---------------------------------------------------------------------------
+// Topbar notification dropdown
+// ---------------------------------------------------------------------------
+function _initNotifPanel() {
+    document.addEventListener('click', function(ev) {
+        const wrap = document.getElementById('topbar-notif-wrap');
+        const panel = document.getElementById('notif-panel');
+        if (!wrap || !panel) return;
+        if (!wrap.contains(ev.target)) closeNotifPanel();
+    });
+    document.addEventListener('keydown', function(ev) {
+        if (ev.key === 'Escape') closeNotifPanel();
+    });
+}
+
+function toggleNotifPanel(ev) {
+    if (ev) ev.stopPropagation();
+    const panel = document.getElementById('notif-panel');
+    if (!panel) return;
+    if (panel.classList.contains('hidden')) openNotifPanel();
+    else closeNotifPanel();
+}
+
+function openNotifPanel() {
+    const panel = document.getElementById('notif-panel');
+    if (!panel) return;
+    panel.classList.remove('hidden');
+    renderNotifPanel(window._avisosCache || []);
+    api('/api/avisos').then(r => r.json()).then(rows => {
+        if (Array.isArray(rows)) renderNotifPanel(rows.slice(0, 12));
+    }).catch(()=>{});
+}
+
+function closeNotifPanel() {
+    const panel = document.getElementById('notif-panel');
+    if (panel) panel.classList.add('hidden');
+}
+
+function renderNotifPanel(items) {
+    const list = document.getElementById('notif-panel-list');
+    const countLabel = document.getElementById('notif-panel-count');
+    if (!list) return;
+    const naoLidos = (window._avisosNaoLidos || 0);
+    if (countLabel) countLabel.textContent = naoLidos > 0 ? (naoLidos + ' Nova' + (naoLidos > 1 ? 's' : '')) : 'Em dia';
+
+    if (!items || !items.length) {
+        list.innerHTML = '<div class="p-8 text-center"><div class="w-10 h-10 mx-auto mb-2 rounded-full flex items-center justify-center" style="background: var(--bg-elevated);"><span class="material-symbols-outlined text-[20px]" style="color: var(--text-muted);">inbox</span></div><p class="text-xs text-[var(--text-muted)]">Sem avisos no momento.</p></div>';
+        return;
+    }
+    const ICONS = {
+        urgente:    { icon: 'priority_high', cls: 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' },
+        importante: { icon: 'warning',       cls: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' },
+        normal:     { icon: 'info',          cls: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300' },
+    };
+    const fmtTime = (iso) => {
+        if (!iso) return '';
+        const d = new Date(iso);
+        const diffMs = Date.now() - d.getTime();
+        const m = Math.floor(diffMs / 60000);
+        if (m < 1) return 'agora';
+        if (m < 60) return m + ' min';
+        const h = Math.floor(m / 60);
+        if (h < 24) return h + 'h';
+        const dd = Math.floor(h / 24);
+        return dd + 'd';
+    };
+    list.innerHTML = items.map(a => {
+        const ic = ICONS[a.prioridade] || ICONS.normal;
+        const unreadBg = a.lido ? '' : 'background: rgba(0,52,111,0.04);';
+        return `<div class="flex gap-3 px-4 py-3 border-b cursor-default transition-colors hover:bg-[var(--bg-elevated)]"
+                     style="border-color: var(--border); ${unreadBg}">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${ic.cls}">
+                <span class="material-symbols-outlined text-[16px]">${ic.icon}</span>
+            </div>
+            <div class="min-w-0 flex-1 space-y-0.5">
+                <div class="flex items-center justify-between gap-2">
+                    <p class="text-xs font-bold text-[var(--text-primary)] leading-tight truncate">${esc(a.titulo || '')}</p>
+                    <span class="text-[10px] font-medium text-[var(--text-muted)] shrink-0">${fmtTime(a.created_at)}</span>
+                </div>
+                <p class="text-[11px] text-[var(--text-secondary)] leading-snug line-clamp-2">${esc(a.corpo || '')}</p>
+                ${a.autor ? `<p class="text-[10px] text-[var(--text-muted)] mt-0.5">${esc(a.autor)}</p>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+}
+
 function _showAvisosPopup(avisos) {
     if (!avisos || !avisos.length) return;
     const existing = document.getElementById('avisos-popup-overlay');
     if (existing) existing.remove();
 
-    const prioBadge = { urgente: 'bg-red-500/20 text-red-400', importante: 'bg-amber-500/20 text-amber-400', normal: 'bg-slate-500/20 text-slate-400' };
+    const prioBadge = { urgente: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400', importante: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400', normal: 'bg-slate-200 text-slate-700 dark:bg-slate-500/20 dark:text-slate-400' };
 
     const cards = avisos.slice(0, 10).map(a => {
         const pb = prioBadge[a.prioridade] || prioBadge.normal;
         const dt = a.created_at ? new Date(a.created_at).toLocaleDateString('pt-BR') : '';
-        return `<div class="p-3 rounded-lg bg-slate-800/50 border border-slate-700/40 mb-2">
+        return `<div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-[var(--border)] mb-2">
             <div class="flex items-center gap-2 mb-1">
                 <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${pb}">${a.prioridade}</span>
-                <span class="text-sm font-semibold text-white">${a.titulo}</span>
+                <span class="text-sm font-semibold text-[var(--text-primary)]">${a.titulo}</span>
             </div>
-            <p class="text-xs text-slate-300 whitespace-pre-line">${a.corpo}</p>
-            <p class="text-[10px] text-slate-600 mt-1">${dt} — ${a.autor || 'Sistema'}</p>
+            <p class="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-line">${a.corpo}</p>
+            <p class="text-[10px] text-slate-500 dark:text-slate-600 mt-1">${dt} — ${a.autor || 'Sistema'}</p>
         </div>`;
     }).join('');
 
     const overlay = document.createElement('div');
     overlay.id = 'avisos-popup-overlay';
-    overlay.className = 'fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm';
+    overlay.className = 'fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm';
     overlay.innerHTML = `
-        <div class="glass-card w-full max-w-lg mx-4 max-h-[80vh] flex flex-col rounded-2xl shadow-2xl border border-slate-700/50">
-            <div class="flex items-center justify-between p-5 border-b border-slate-700/40">
+        <div class="glass-card w-full max-w-lg mx-4 max-h-[80vh] flex flex-col rounded-2xl shadow-2xl">
+            <div class="flex items-center justify-between p-5 border-b border-[var(--border)]">
                 <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
-                        <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                    <div class="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-500/20 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-amber-700 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
                     </div>
-                    <h3 class="text-base font-bold text-white">Avisos (${avisos.length} não lido${avisos.length > 1 ? 's' : ''})</h3>
+                    <h3 class="text-base font-bold text-[var(--text-primary)]">Avisos (${avisos.length} não lido${avisos.length > 1 ? 's' : ''})</h3>
                 </div>
-                <button onclick="document.getElementById('avisos-popup-overlay').remove()" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+                <button onclick="document.getElementById('avisos-popup-overlay').remove()" class="text-slate-500 hover:text-[var(--text-primary)] text-xl leading-none">&times;</button>
             </div>
             <div class="overflow-y-auto p-5 flex-1">${cards}</div>
-            <div class="flex items-center justify-between p-4 border-t border-slate-700/40">
-                <button onclick="_popupMarcarTodos()" class="text-xs text-violet-400 hover:text-violet-300 transition">Marcar todos como lidos</button>
+            <div class="flex items-center justify-between p-4 border-t border-[var(--border)]">
+                <button onclick="_popupMarcarTodos()" class="text-xs text-violet-700 dark:text-violet-400 hover:text-violet-900 dark:hover:text-violet-300 transition">Marcar todos como lidos</button>
                 <button onclick="document.getElementById('avisos-popup-overlay').remove(); navigate('avisos');" class="btn-primary text-white font-medium text-xs px-4 py-2 rounded-lg">Ver todos</button>
             </div>
         </div>`;
@@ -294,20 +470,90 @@ function toggleTheme() {
     html.classList.add(newTheme);
     localStorage.setItem('eduit-theme', newTheme);
     updateThemeUI(newTheme);
+    if (typeof profSyncThemeButtons === 'function') profSyncThemeButtons();
 }
 
 function updateThemeUI(theme) {
-    const sunIcon = document.getElementById('theme-icon-sun');
-    const moonIcon = document.getElementById('theme-icon-moon');
-    const label = document.getElementById('theme-label');
-    if (theme === 'dark') {
-        sunIcon.classList.add('hidden');
-        moonIcon.classList.remove('hidden');
-        label.textContent = 'Modo claro';
-    } else {
-        sunIcon.classList.remove('hidden');
-        moonIcon.classList.add('hidden');
-        label.textContent = 'Modo escuro';
+    var pairs = [
+        { sun: 'theme-icon-sun',    moon: 'theme-icon-moon' },
+        { sun: 'tb-theme-icon-sun', moon: 'tb-theme-icon-moon' },
+    ];
+    pairs.forEach(function(p) {
+        var sun  = document.getElementById(p.sun);
+        var moon = document.getElementById(p.moon);
+        if (!sun || !moon) return;
+        if (theme === 'dark') {
+            sun.classList.add('hidden');
+            moon.classList.remove('hidden');
+        } else {
+            sun.classList.remove('hidden');
+            moon.classList.add('hidden');
+        }
+    });
+    var label = document.getElementById('theme-label');
+    if (label) label.textContent = theme === 'dark' ? 'Modo claro' : 'Modo escuro';
+
+    applyChartTheme(theme);
+}
+
+// ---------------------------------------------------------------------------
+// Chart.js global theming (light/dark)
+// ---------------------------------------------------------------------------
+function applyChartTheme(theme) {
+    if (typeof Chart === 'undefined' || !Chart.defaults) return;
+    var isDark = theme === 'dark';
+    var textColor   = isDark ? 'rgba(226, 232, 240, 0.85)' : 'rgba(30, 41, 59, 0.9)';
+    var mutedColor  = isDark ? 'rgba(148, 163, 184, 0.7)'  : 'rgba(71, 85, 105, 0.85)';
+    var gridColor   = isDark ? 'rgba(148, 163, 184, 0.10)' : 'rgba(15, 23, 42, 0.08)';
+    var borderColor = isDark ? 'rgba(148, 163, 184, 0.20)' : 'rgba(15, 23, 42, 0.15)';
+    var tooltipBg   = isDark ? 'rgba(15, 23, 42, 0.95)'    : 'rgba(255, 255, 255, 0.97)';
+    var tooltipText = isDark ? 'rgba(226, 232, 240, 1)'    : 'rgba(15, 23, 42, 1)';
+
+    Chart.defaults.color = textColor;
+    Chart.defaults.borderColor = borderColor;
+    if (Chart.defaults.font) Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+
+    if (Chart.defaults.plugins) {
+        if (Chart.defaults.plugins.legend) {
+            Chart.defaults.plugins.legend.labels = Chart.defaults.plugins.legend.labels || {};
+            Chart.defaults.plugins.legend.labels.color = textColor;
+        }
+        if (Chart.defaults.plugins.tooltip) {
+            Chart.defaults.plugins.tooltip.backgroundColor = tooltipBg;
+            Chart.defaults.plugins.tooltip.titleColor = tooltipText;
+            Chart.defaults.plugins.tooltip.bodyColor = tooltipText;
+            Chart.defaults.plugins.tooltip.borderColor = borderColor;
+            Chart.defaults.plugins.tooltip.borderWidth = 1;
+        }
+    }
+
+    if (Chart.defaults.scale) {
+        Chart.defaults.scale.grid = Chart.defaults.scale.grid || {};
+        Chart.defaults.scale.grid.color = gridColor;
+        Chart.defaults.scale.ticks = Chart.defaults.scale.ticks || {};
+        Chart.defaults.scale.ticks.color = mutedColor;
+    }
+    ['scales', 'category', 'linear', 'logarithmic', 'time', 'radialLinear'].forEach(function(scale) {
+        var s = Chart.defaults.scales && Chart.defaults.scales[scale];
+        if (s) {
+            s.grid = s.grid || {}; s.grid.color = gridColor;
+            s.ticks = s.ticks || {}; s.ticks.color = mutedColor;
+            if (s.angleLines) s.angleLines.color = gridColor;
+        }
+    });
+
+    try {
+        var instances = Chart.instances ? Object.values(Chart.instances) : [];
+        instances.forEach(function(inst) {
+            try { inst.update('none'); } catch (_) {}
+        });
+    } catch (_) {}
+
+    if (typeof ApexCharts !== 'undefined') {
+        try {
+            var apexMode = isDark ? 'dark' : 'light';
+            (window.ApexCharts._instances || []).forEach(function(){});
+        } catch (_) {}
     }
 }
 
@@ -391,12 +637,100 @@ function showSkeleton(containerId, count = 4) {
 }
 
 // ---------------------------------------------------------------------------
+// KPI Card — componente reutilizável estilo Arquiteto Executivo.
+// Uso:
+//   kpiCard({ title: 'Receita', value: 'R$ 1,2M', subtitle: 'mês', trend: '+12%', isPositive: true })
+//   kpiCard({ ..., variant: 'primary' })          // azul escuro
+//   kpiCard({ ..., variant: 'secondary' })        // azul médio
+//   kpiCard({ ..., id: 'kpi-receita-mes' })       // adiciona id
+//   kpiCard({ ..., sparkId: 'spark-receita' })    // reserva canvas <canvas id> para sparkline
+// ---------------------------------------------------------------------------
+function kpiCard(opts) {
+    opts = opts || {};
+    const variant = opts.variant === 'primary' || opts.variant === 'secondary' ? opts.variant : null;
+    const variantCls = variant === 'primary' ? 'is-primary' : variant === 'secondary' ? 'is-secondary' : '';
+    const isPositive = !!opts.isPositive;
+    const trendCls = isPositive ? 'up' : 'down';
+    const trendIcon = isPositive ? 'trending_up' : 'trending_down';
+    const trendHtml = (opts.trend === undefined || opts.trend === null || opts.trend === '')
+        ? ''
+        : `<span class="kpi-trend ${trendCls}">
+            <span class="material-symbols-outlined ms-icon">${trendIcon}</span>
+            ${esc(String(opts.trend))}
+           </span>`;
+    const sparkHtml = opts.sparkId
+        ? `<div class="kpi-spark"><canvas id="${esc(opts.sparkId)}"></canvas></div>`
+        : '';
+    const idAttr = opts.id ? ` id="${esc(opts.id)}"` : '';
+    const valueId = opts.valueId ? ` id="${esc(opts.valueId)}"` : '';
+    const subtitleId = opts.subtitleId ? ` id="${esc(opts.subtitleId)}"` : '';
+    const trendId = opts.trendId ? ` id="${esc(opts.trendId)}"` : '';
+
+    return `<div class="kpi-card ${variantCls}"${idAttr}>
+        <div class="kpi-head">
+            <span class="kpi-title">${esc(opts.title || '')}</span>
+            ${trendHtml ? `<span${trendId}>${trendHtml}</span>` : ''}
+        </div>
+        <div class="kpi-value-row">
+            <span class="kpi-value"${valueId}>${esc(String(opts.value != null ? opts.value : '—'))}</span>
+            ${opts.subtitle ? `<span class="kpi-subtitle"${subtitleId}>${esc(opts.subtitle)}</span>` : ''}
+        </div>
+        ${sparkHtml}
+    </div>`;
+}
+
+// ---------------------------------------------------------------------------
+// Scroll to top (works on window scroll AND inner <main> overflow scroll)
+// ---------------------------------------------------------------------------
+function _scrollContainer() {
+    var main = document.querySelector('main.flex-1.overflow-auto');
+    if (main && main.scrollHeight > main.clientHeight) return main;
+    return window;
+}
+
+function scrollPageToTop() {
+    var c = _scrollContainer();
+    if (c === window) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+        try { c.scrollTo({ top: 0, behavior: 'smooth' }); }
+        catch (_) { c.scrollTop = 0; }
+    }
+}
+
+function _initScrollToTop() {
+    var btn = document.getElementById('scroll-to-top');
+    if (!btn) return;
+    var threshold = 300;
+
+    function update() {
+        var c = _scrollContainer();
+        var y = c === window ? (window.pageYOffset || document.documentElement.scrollTop) : c.scrollTop;
+        if (y > threshold) {
+            btn.classList.remove('opacity-0', 'translate-y-4', 'pointer-events-none');
+            btn.classList.add('opacity-100', 'translate-y-0');
+        } else {
+            btn.classList.add('opacity-0', 'translate-y-4', 'pointer-events-none');
+            btn.classList.remove('opacity-100', 'translate-y-0');
+        }
+    }
+
+    var main = document.querySelector('main.flex-1.overflow-auto');
+    if (main) main.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+}
+
+// ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
 const currentTheme = localStorage.getItem('eduit-theme') || 'dark';
 updateThemeUI(currentTheme);
 
 document.addEventListener('DOMContentLoaded', () => {
+    initTopbarUser();
+    _initScrollToTop();
+    _initNotifPanel();
     const hash = window.location.hash.replace('#', '') || 'dashboard';
     if (PAGES.includes(hash)) {
         navigate(hash);

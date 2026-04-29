@@ -12,27 +12,29 @@
                 </div>
 
                 <!-- Tabs de configuração -->
-                <div class="flex gap-2 mb-6 border-b border-gray-700/30 pb-3">
+                <div class="mb-6">
+                    <div class="ds-segment">
                     <button onclick="switchConfigTab('ciclos')" id="cfg-tab-ciclos"
-                        class="text-sm font-semibold px-5 py-2 rounded-lg transition bg-blue-500/15 text-blue-400 border border-blue-500/30 flex items-center gap-2">
+                        class="ds-segment__btn ds-segment__btn--active flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                         Ciclos
                     </button>
                     <button onclick="switchConfigTab('turmas')" id="cfg-tab-turmas"
-                        class="text-sm font-semibold px-5 py-2 rounded-lg transition text-gray-500 hover:text-gray-300 flex items-center gap-2">
+                        class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                         Turmas
                     </button>
                     <button onclick="switchConfigTab('usuarios')" id="cfg-tab-usuarios"
-                        class="text-sm font-semibold px-5 py-2 rounded-lg transition text-gray-500 hover:text-gray-300 flex items-center gap-2">
+                        class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
                         Usuários
                     </button>
                     <button onclick="switchConfigTab('regua')" id="cfg-tab-regua"
-                        class="text-sm font-semibold px-5 py-2 rounded-lg transition text-gray-500 hover:text-gray-300 flex items-center gap-2">
+                        class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                         Régua
                     </button>
+                    </div>
                 </div>
 
                 <!-- ── Seção: Ciclos ── -->
@@ -51,15 +53,17 @@
                             <button onclick="loadCiclos()" class="btn-secondary text-sm px-4 py-2 rounded-xl">Atualizar</button>
                         </div>
 
-                        <div class="flex gap-3 mb-5">
+                        <div class="mb-5">
+                            <div class="ds-segment">
                             <button onclick="switchCicloTab('grad')" id="tab-ciclo-grad"
-                                class="text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                                class="ds-segment__btn ds-segment__btn--active">
                                 Graduação
                             </button>
                             <button onclick="switchCicloTab('pos')" id="tab-ciclo-pos"
-                                class="text-sm font-semibold px-4 py-1.5 rounded-lg transition text-gray-500 hover:text-gray-300">
+                                class="ds-segment__btn ds-segment__btn--inactive">
                                 Pós-Graduação
                             </button>
+                            </div>
                         </div>
 
                         <div id="ciclo-table-container" class="overflow-x-auto">
@@ -123,15 +127,17 @@
                             <button onclick="loadTurmas()" class="btn-secondary text-sm px-4 py-2 rounded-xl">Atualizar</button>
                         </div>
 
-                        <div class="flex gap-3 mb-5">
+                        <div class="mb-5">
+                            <div class="ds-segment">
                             <button onclick="switchTurmaTab('grad')" id="tab-turma-grad"
-                                class="text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                                class="ds-segment__btn ds-segment__btn--active">
                                 Graduação
                             </button>
                             <button onclick="switchTurmaTab('pos')" id="tab-turma-pos"
-                                class="text-sm font-semibold px-4 py-1.5 rounded-lg transition text-gray-500 hover:text-gray-300">
+                                class="ds-segment__btn ds-segment__btn--inactive">
                                 Pós-Graduação
                             </button>
+                            </div>
                         </div>
 
                         <div id="turma-table-container" class="overflow-x-auto">

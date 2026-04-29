@@ -1,47 +1,47 @@
             <div id="page-meta-campaigns" class="hidden flex-1 flex flex-col min-w-0">
                 <!-- Header -->
-                <header class="bg-slate-950 border-b border-slate-800/50 px-4 lg:px-8 py-6">
+                <header class="glass-card border border-[var(--border)] rounded-2xl px-4 lg:px-8 py-6 mx-4 lg:mx-8 mt-4 mb-6">
                     <div class="flex items-center justify-between gap-4 mb-6">
                         <div>
-                            <h2 class="text-2xl font-black text-white">Performance de Campanhas</h2>
-                            <p class="text-xs text-slate-500 mt-1 uppercase tracking-widest">Rastreamento de Leads & Conversões</p>
+                            <h2 class="text-2xl font-black text-[var(--text-primary)] dark:text-white">Performance de Campanhas</h2>
+                            <p class="text-xs text-slate-600 dark:text-slate-500 mt-1 uppercase tracking-widest">Rastreamento de Leads & Conversões</p>
                         </div>
                     </div>
 
                     <!-- Cards de Métricas -->
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <!-- Total Leads -->
-                        <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+                        <div class="glass-card border border-[var(--border)] border-l-4 border-l-blue-500 rounded-xl p-6">
                             <div class="flex items-center justify-between">
                                 <div>
-                                    <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-2">Total Leads</p>
-                                    <p class="text-4xl font-black text-white" id="meta-total-leads">0</p>
+                                    <p class="text-xs text-slate-600 dark:text-slate-500 uppercase tracking-wider font-semibold mb-2">Total Leads</p>
+                                    <p class="text-4xl font-black text-[var(--text-primary)] dark:text-white" id="meta-total-leads">0</p>
                                 </div>
-                                <div class="p-3 bg-blue-500/10 rounded-lg">
+                                <div class="p-3 bg-blue-100 dark:bg-blue-500/10 rounded-lg">
                                     <svg class="w-7 h-7 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
                                 </div>
                             </div>
                         </div>
                         <!-- Leads Ganhos -->
-                        <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+                        <div class="glass-card border border-[var(--border)] border-l-4 border-l-emerald-500 rounded-xl p-6">
                             <div class="flex items-center justify-between">
                                 <div>
-                                    <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-2">Leads Ganhos</p>
-                                    <p class="text-4xl font-black text-white"><span id="meta-leads-ganhos">0</span> <span class="text-lg text-green-400" id="meta-ganhos-pct">(0%)</span></p>
+                                    <p class="text-xs text-slate-600 dark:text-slate-500 uppercase tracking-wider font-semibold mb-2">Leads Ganhos</p>
+                                    <p class="text-4xl font-black text-[var(--text-primary)] dark:text-white"><span id="meta-leads-ganhos">0</span> <span class="text-lg text-green-600 dark:text-green-400" id="meta-ganhos-pct">(0%)</span></p>
                                 </div>
-                                <div class="p-3 bg-green-500/10 rounded-lg">
+                                <div class="p-3 bg-emerald-100 dark:bg-green-500/10 rounded-lg">
                                     <svg class="w-7 h-7 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                 </div>
                             </div>
                         </div>
                         <!-- Leads Perdidos -->
-                        <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+                        <div class="glass-card border border-[var(--border)] border-l-4 border-l-red-500 rounded-xl p-6">
                             <div class="flex items-center justify-between">
                                 <div>
-                                    <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-2">Leads Perdidos</p>
-                                    <p class="text-4xl font-black text-white"><span id="meta-leads-perdidos">0</span> <span class="text-lg text-red-400" id="meta-perdidos-pct">(0%)</span></p>
+                                    <p class="text-xs text-slate-600 dark:text-slate-500 uppercase tracking-wider font-semibold mb-2">Leads Perdidos</p>
+                                    <p class="text-4xl font-black text-[var(--text-primary)] dark:text-white"><span id="meta-leads-perdidos">0</span> <span class="text-lg text-red-600 dark:text-red-400" id="meta-perdidos-pct">(0%)</span></p>
                                 </div>
-                                <div class="p-3 bg-red-500/10 rounded-lg">
+                                <div class="p-3 bg-red-100 dark:bg-red-500/10 rounded-lg">
                                     <svg class="w-7 h-7 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                 </div>
                             </div>
@@ -58,14 +58,14 @@
                                 <!-- Criativo -->
                                 <div>
                                     <label class="block text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Criativo</label>
-                                    <select id="meta-filter-criativo" onchange="filterMetaCampaigns()" class="px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer w-[140px]">
+                                    <select id="meta-filter-criativo" onchange="filterMetaCampaigns()" class="input-glass px-3 py-2.5 rounded-lg text-sm text-slate-900 dark:text-white w-[140px]">
                                         <option value="">Todos os Tipos</option>
                                     </select>
                                 </div>
                                 <!-- Campanha -->
                                 <div>
                                     <label class="block text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Campanha</label>
-                                    <select id="meta-filter-campanha" onchange="filterMetaCampaigns()" class="px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer w-[180px]">
+                                    <select id="meta-filter-campanha" onchange="filterMetaCampaigns()" class="input-glass px-3 py-2.5 rounded-lg text-sm text-slate-900 dark:text-white w-[180px]">
                                         <option value="">Todas as Campanhas</option>
                                     </select>
                                 </div>
@@ -73,8 +73,8 @@
                                 <div>
                                     <label class="block text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Período</label>
                                     <div class="flex gap-2">
-                                        <input type="date" id="meta-filter-from" onchange="filterMetaCampaigns()" class="px-2 py-2.5 bg-slate-900 border border-slate-800 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-[130px]">
-                                        <input type="date" id="meta-filter-to" onchange="filterMetaCampaigns()" class="px-2 py-2.5 bg-slate-900 border border-slate-800 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-[130px]">
+                                        <input type="date" id="meta-filter-from" onchange="filterMetaCampaigns()" class="input-glass px-2 py-2.5 rounded-lg text-sm text-slate-900 dark:text-white w-[130px]">
+                                        <input type="date" id="meta-filter-to" onchange="filterMetaCampaigns()" class="input-glass px-2 py-2.5 rounded-lg text-sm text-slate-900 dark:text-white w-[130px]">
                                     </div>
                                 </div>
                             </div>
@@ -82,26 +82,26 @@
                             <div class="flex gap-3 items-end flex-wrap sm:flex-nowrap">
                                 <div class="relative flex-1 min-w-[200px]">
                                     <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                                    <input type="text" id="meta-search" onkeyup="filterMetaCampaigns()" placeholder="Buscar campanhas..." class="w-full pl-10 pr-3 py-2.5 bg-slate-900 border border-slate-800 rounded-lg text-white text-sm placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <input type="text" id="meta-search" onkeyup="filterMetaCampaigns()" placeholder="Buscar campanhas..." class="w-full pl-10 pr-3 py-2.5 input-glass rounded-lg text-slate-900 dark:text-white text-sm placeholder:text-slate-400">
                                 </div>
-                                <button onclick="loadMetaCampaigns()" id="meta-btn-atualizar" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition-all text-sm whitespace-nowrap flex-shrink-0">
+                                <button onclick="loadMetaCampaigns()" id="meta-btn-atualizar" class="px-5 py-2.5 bg-[var(--primary)] hover:opacity-90 text-white font-semibold rounded-lg transition-all text-sm whitespace-nowrap flex-shrink-0">
                                     Atualizar
                                 </button>
                             </div>
                         </div>
                         <!-- Contador e Status -->
                         <div class="flex items-center justify-between">
-                            <p class="text-sm text-slate-400">Mostrando <span class="font-bold text-white text-lg" id="meta-campaigns-count">0</span> campanhas</p>
+                            <p class="text-sm text-slate-600 dark:text-slate-400">Mostrando <span class="font-bold text-[var(--text-primary)] dark:text-white text-lg" id="meta-campaigns-count">0</span> campanhas</p>
                             <p class="text-sm text-slate-500">Status: <span id="meta-status" class="text-green-400 font-semibold">—</span></p>
                         </div>
                     </div>
 
                     <!-- Tabela de Campanhas -->
-                    <div id="meta-campaigns-table-container" class="bg-slate-900/50 border border-slate-800 rounded-2xl overflow-hidden">
+                    <div id="meta-campaigns-table-container" class="glass-card border border-[var(--border)] rounded-2xl overflow-hidden">
                         <div class="overflow-x-auto">
                             <table class="w-full">
                                 <thead>
-                                    <tr class="border-b border-slate-800">
+                                    <tr class="border-b border-[var(--border)]">
                                         <th class="text-left px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Nome da Campanha</th>
                                         <th class="text-left px-4 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Tipo</th>
                                         <th class="text-center px-4 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Total</th>

@@ -1,36 +1,36 @@
             <div id="page-feedback" class="p-4 lg:p-8 max-w-7xl mx-auto hidden" style="position:relative;">
                 <!-- Header -->
-                <div class="mb-8">
-                    <div class="flex items-center gap-3 mb-2">
+                <div class="mb-8 pb-6 border-b border-[var(--border)]">
+                    <div class="flex items-center gap-3 mb-1">
                         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
                             <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
                         </div>
                         <div>
-                            <h2 class="text-3xl font-bold text-white font-display">Feedback Acadêmico</h2>
-                            <p class="text-slate-500 text-sm">Dashboard de Atendimentos</p>
+                            <h2 class="text-3xl font-bold text-[var(--text-primary)] dark:text-white font-display">Feedback acadêmico</h2>
+                            <p class="text-sm text-[var(--text-muted)] mt-0.5">Dashboard de atendimentos</p>
                         </div>
                     </div>
                 </div>
 
                 <!-- Filters -->
-                <div class="glass-card p-5 mb-6">
+                <div class="glass-card border border-[var(--border)] shadow-sm p-5 mb-6">
                     <div class="flex items-center gap-2 mb-4">
-                        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
-                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Filtros</span>
+                        <svg class="w-4 h-4 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+                        <span class="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Filtros</span>
                     </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 items-end">
                         <div>
-                            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Data Início</label>
-                            <input type="date" id="fbStartDate" class="input-glass w-full text-sm px-3 py-2.5">
+                            <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-500 uppercase tracking-wider mb-1.5">Data início</label>
+                            <input type="date" id="fbStartDate" class="input-glass w-full text-sm px-3 py-2.5 text-slate-900 dark:text-slate-100">
                         </div>
                         <div>
-                            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Data Fim</label>
-                            <input type="date" id="fbEndDate" class="input-glass w-full text-sm px-3 py-2.5">
+                            <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-500 uppercase tracking-wider mb-1.5">Data fim</label>
+                            <input type="date" id="fbEndDate" class="input-glass w-full text-sm px-3 py-2.5 text-slate-900 dark:text-slate-100">
                         </div>
-                        <div>
-                            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Consultor (opcional)</label>
-                            <select id="fbConsultorFilter" class="input-glass w-full text-sm px-3 py-2.5">
-                                <option value="">Todos os consultores</option>
+                        <div class="min-w-0 sm:min-w-[200px]">
+                            <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-500 uppercase tracking-wider mb-1.5">Consultor (opcional)</label>
+                            <select id="fbConsultorFilter" class="input-glass w-full max-w-full text-sm px-3 py-2.5 text-slate-900 dark:text-slate-100">
+                                <option value="">Todos</option>
                             </select>
                         </div>
                         <button id="fbBtnBuscar" onclick="fbFetch()" class="btn-primary text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center justify-center gap-2">
@@ -42,180 +42,180 @@
 
                 <!-- KPIs -->
                 <div class="mb-6">
-                    <div class="flex items-center gap-2 mb-4">
-                        <h3 class="text-sm font-bold text-slate-300 font-display">Visão Geral</h3>
-                        <span class="tag-pill bg-indigo-500/15 text-indigo-400 border border-indigo-500/20" id="fbPeriodBadge">--</span>
+                    <div class="flex flex-wrap items-center gap-2 mb-4">
+                        <h3 class="text-sm font-bold text-[var(--text-primary)] dark:text-slate-200 font-display">Visão geral</h3>
+                        <span class="text-xs font-semibold px-2.5 py-1 rounded-full border bg-indigo-50 text-indigo-800 border-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:border-indigo-500/25" id="fbPeriodBadge">--</span>
                     </div>
                     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
                         <!-- Total Atendimentos -->
-                        <div class="glass-card p-5 relative overflow-hidden">
+                        <div class="glass-card border border-[var(--border)] shadow-sm p-5 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-blue-500 to-indigo-500"></div>
                             <div class="flex items-center gap-3 mb-3">
                                 <div class="w-10 h-10 rounded-xl bg-blue-500/15 flex items-center justify-center">
-                                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                    <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                                 </div>
-                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Atendimentos</p>
+                                <p class="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Total atendimentos</p>
                             </div>
-                            <p class="text-2xl font-bold text-white font-display pl-1" id="fbKpiTotal">--</p>
+                            <p class="text-2xl font-bold text-[var(--text-primary)] dark:text-white font-display tabular-nums pl-1" id="fbKpiTotal">--</p>
                         </div>
                         <!-- Nota Atendimento (antes: Nota Média) -->
-                        <div class="glass-card p-5 relative overflow-hidden">
+                        <div class="glass-card border border-[var(--border)] shadow-sm p-5 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-emerald-500 to-green-500"></div>
                             <div class="flex items-center gap-3 mb-3">
                                 <div class="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center">
-                                    <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+                                    <svg class="w-5 h-5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
                                 </div>
-                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nota Atendimento</p>
+                                <p class="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Nota atendimento</p>
                             </div>
-                            <p class="text-2xl font-bold text-white font-display pl-1" id="fbKpiNota">--</p>
-                            <p class="text-[10px] text-slate-500 pl-1 mt-1" id="fbKpiNotasSub">-- notas informadas</p>
+                            <p class="text-2xl font-bold text-[var(--text-primary)] dark:text-white font-display tabular-nums pl-1" id="fbKpiNota">--</p>
+                            <p class="text-[10px] text-slate-600 dark:text-slate-400 pl-1 mt-1" id="fbKpiNotasSub">-- notas informadas</p>
                         </div>
                         <!-- Nota Produtividade (nova) -->
-                        <div class="glass-card p-5 relative overflow-hidden">
+                        <div class="glass-card border border-[var(--border)] shadow-sm p-5 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-violet-500 to-purple-500"></div>
                             <div class="flex items-center gap-3 mb-3">
                                 <div class="w-10 h-10 rounded-xl bg-violet-500/15 flex items-center justify-center">
-                                    <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                                    <svg class="w-5 h-5 text-violet-600 dark:text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                                 </div>
-                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nota Produtividade</p>
+                                <p class="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Nota produtividade</p>
                             </div>
-                            <p class="text-2xl font-bold text-white font-display pl-1" id="fbKpiNotaProd">--</p>
-                            <p class="text-[10px] text-slate-500 pl-1 mt-1">vol. + tempo resposta</p>
+                            <p class="text-2xl font-bold text-[var(--text-primary)] dark:text-white font-display tabular-nums pl-1" id="fbKpiNotaProd">--</p>
+                            <p class="text-[10px] text-slate-600 dark:text-slate-400 pl-1 mt-1">vol. + tempo resposta</p>
                         </div>
                         <!-- Nota Geral (nova) -->
-                        <div class="glass-card p-5 relative overflow-hidden">
+                        <div class="glass-card border border-[var(--border)] shadow-sm p-5 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-rose-500 to-pink-500"></div>
                             <div class="flex items-center gap-3 mb-3">
                                 <div class="w-10 h-10 rounded-xl bg-rose-500/15 flex items-center justify-center">
-                                    <svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                                    <svg class="w-5 h-5 text-rose-600 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                                 </div>
-                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nota Geral</p>
+                                <p class="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Nota geral</p>
                             </div>
-                            <p class="text-2xl font-bold text-white font-display pl-1" id="fbKpiNotaGeral">--</p>
-                            <p class="text-[10px] text-slate-500 pl-1 mt-1">atendimento + produtiv.</p>
+                            <p class="text-2xl font-bold text-[var(--text-primary)] dark:text-white font-display tabular-nums pl-1" id="fbKpiNotaGeral">--</p>
+                            <p class="text-[10px] text-slate-600 dark:text-slate-400 pl-1 mt-1">atendimento + produtiv.</p>
                         </div>
                         <!-- T. Resposta -->
-                        <div class="glass-card p-5 relative overflow-hidden">
+                        <div class="glass-card border border-[var(--border)] shadow-sm p-5 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-amber-500 to-orange-500"></div>
                             <div class="flex items-center gap-3 mb-3">
                                 <div class="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center">
-                                    <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                    <svg class="w-5 h-5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                 </div>
-                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">T. Resposta</p>
+                                <p class="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">T. resposta</p>
                             </div>
-                            <p class="text-2xl font-bold text-white font-display pl-1" id="fbKpiTempoResposta">--:--</p>
-                            <p class="text-[10px] text-slate-500 pl-1 mt-1">min:seg</p>
+                            <p class="text-2xl font-bold text-[var(--text-primary)] dark:text-white font-display tabular-nums pl-1" id="fbKpiTempoResposta">--:--</p>
+                            <p class="text-[10px] text-slate-600 dark:text-slate-400 pl-1 mt-1">min:seg</p>
                         </div>
                         <!-- T. Atendimento -->
-                        <div class="glass-card p-5 relative overflow-hidden">
+                        <div class="glass-card border border-[var(--border)] shadow-sm p-5 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-cyan-500 to-teal-500"></div>
                             <div class="flex items-center gap-3 mb-3">
                                 <div class="w-10 h-10 rounded-xl bg-cyan-500/15 flex items-center justify-center">
-                                    <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                    <svg class="w-5 h-5 text-cyan-600 dark:text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                                 </div>
-                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">T. Atendimento</p>
+                                <p class="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">T. atendimento</p>
                             </div>
-                            <p class="text-2xl font-bold text-white font-display pl-1" id="fbKpiTempoAtend">--:--</p>
-                            <p class="text-[10px] text-slate-500 pl-1 mt-1">min:seg</p>
+                            <p class="text-2xl font-bold text-[var(--text-primary)] dark:text-white font-display tabular-nums pl-1" id="fbKpiTempoAtend">--:--</p>
+                            <p class="text-[10px] text-slate-600 dark:text-slate-400 pl-1 mt-1">min:seg</p>
                         </div>
                     </div>
                 </div>
 
                 <!-- Detail section (consultor selected) -->
                 <div id="fbDetailSection" style="display:none;">
-                    <div class="glass-card p-5 mb-6 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border-indigo-500/30">
+                    <div class="glass-card border border-[var(--border)] shadow-sm p-5 mb-6 bg-gradient-to-r from-indigo-500/[0.08] to-purple-500/[0.08] dark:from-indigo-500/10 dark:to-purple-500/10 dark:border-indigo-500/20">
                         <div class="flex items-center justify-between flex-wrap gap-3">
                             <div>
-                                <h2 id="fbDetailName" class="text-xl font-bold text-white font-display">Detalhes do Consultor</h2>
-                                <p class="text-slate-400 text-sm mt-1">Feedbacks e métricas detalhadas</p>
+                                <h2 id="fbDetailName" class="text-xl font-bold text-[var(--text-primary)] dark:text-white font-display">Detalhes do consultor</h2>
+                                <p class="text-[var(--text-muted)] text-sm mt-1">Feedbacks e métricas detalhadas</p>
                             </div>
-                            <button onclick="fbVoltarTodos()" class="btn-secondary text-slate-300 font-medium text-sm px-4 py-2 rounded-xl flex items-center gap-2">
+                            <button type="button" onclick="fbVoltarTodos()" class="btn-secondary font-medium text-sm px-4 py-2 rounded-xl flex items-center gap-2">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
                                 Voltar para Todos
                             </button>
                         </div>
                     </div>
 
-                    <div class="glass-card p-5 mb-6">
+                    <div class="glass-card border border-[var(--border)] shadow-sm p-5 mb-6">
                         <div class="flex items-center gap-2 mb-4">
-                            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
-                            <span class="text-sm font-bold text-slate-300">Análise Geral</span>
+                            <svg class="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+                            <span class="text-sm font-bold text-[var(--text-primary)] dark:text-slate-200">Análise geral</span>
                         </div>
-                        <div id="fbFeedGeral" class="text-sm leading-relaxed text-slate-400">
-                            <p class="text-slate-500">Selecione um consultor para ver a análise</p>
+                        <div id="fbFeedGeral" class="text-sm leading-relaxed text-slate-700 dark:text-slate-400">
+                            <p class="text-slate-600 dark:text-slate-500">Selecione um consultor para ver a análise</p>
                         </div>
                     </div>
 
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-                        <div class="glass-card p-5">
+                        <div class="glass-card border border-[var(--border)] shadow-sm p-5">
                             <div class="flex items-center justify-between mb-4">
                                 <div class="flex items-center gap-2">
-                                    <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"/></svg>
-                                    <span class="text-sm font-bold text-emerald-400">Pontos Positivos</span>
+                                    <svg class="w-5 h-5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"/></svg>
+                                    <span class="text-sm font-bold text-emerald-700 dark:text-emerald-400">Pontos positivos</span>
                                 </div>
                                 <button class="fb-btn-exemplos pos" onclick="fbVerExemplos('positivo')">
                                     <svg viewBox="0 0 24 24" width="14" height="14" style="fill:currentColor;"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
                                     Ver exemplos
                                 </button>
                             </div>
-                            <div id="fbFeedPos" class="text-sm leading-relaxed text-slate-400">
+                            <div id="fbFeedPos" class="text-sm leading-relaxed text-slate-700 dark:text-slate-400">
                                 <p class="text-slate-500">Nenhum feedback disponível</p>
                             </div>
                         </div>
-                        <div class="glass-card p-5">
+                        <div class="glass-card border border-[var(--border)] shadow-sm p-5">
                             <div class="flex items-center justify-between mb-4">
                                 <div class="flex items-center gap-2">
-                                    <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018a2 2 0 01.485.06L17 4m-7 10v2a2 2 0 002 2h.095c.5 0 .905-.405.905-.905 0-.714.211-1.412.608-2.006L17 13V4m-7 10h2m5-6h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5"/></svg>
-                                    <span class="text-sm font-bold text-red-400">Pontos de Melhoria</span>
+                                    <svg class="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018a2 2 0 01.485.06L17 4m-7 10v2a2 2 0 002 2h.095c.5 0 .905-.405.905-.905 0-.714.211-1.412.608-2.006L17 13V4m-7 10h2m5-6h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5"/></svg>
+                                    <span class="text-sm font-bold text-red-700 dark:text-red-400">Pontos de melhoria</span>
                                 </div>
                                 <button class="fb-btn-exemplos neg" onclick="fbVerExemplos('negativo')">
                                     <svg viewBox="0 0 24 24" width="14" height="14" style="fill:currentColor;"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
                                     Ver exemplos
                                 </button>
                             </div>
-                            <div id="fbFeedNeg" class="text-sm leading-relaxed text-slate-400">
+                            <div id="fbFeedNeg" class="text-sm leading-relaxed text-slate-700 dark:text-slate-400">
                                 <p class="text-slate-500">Nenhum feedback disponível</p>
                             </div>
                         </div>
                     </div>
 
-                    <div class="glass-card p-5 mb-6">
-                        <h3 class="text-sm font-bold text-slate-300 font-display mb-4">Atendimentos e Nota por Dia</h3>
+                    <div class="glass-card border border-[var(--border)] shadow-sm p-5 mb-6">
+                        <h3 class="text-sm font-bold text-[var(--text-primary)] dark:text-slate-200 font-display mb-4">Atendimentos e nota por dia</h3>
                         <div class="fb-chart-box"><canvas id="fbChartDetail"></canvas></div>
                     </div>
                 </div>
 
                 <!-- Global chart (all consultors) -->
-                <div id="fbGlobalChartSection" class="glass-card p-5 mb-6">
+                <div id="fbGlobalChartSection" class="glass-card border border-[var(--border)] shadow-sm p-5 mb-6">
                     <div class="flex items-center gap-2 mb-4">
-                        <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
-                        <h3 class="text-sm font-bold text-slate-300 font-display">Atendimentos por Dia</h3>
+                        <svg class="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+                        <h3 class="text-sm font-bold text-[var(--text-primary)] dark:text-slate-200 font-display">Atendimentos por dia</h3>
                     </div>
                     <div class="fb-chart-box"><canvas id="fbChartGlobal"></canvas></div>
                 </div>
 
                 <!-- Ranking table -->
-                <div id="fbRankingSection" class="glass-card overflow-hidden mb-6">
-                    <div class="p-5 border-b border-slate-700/30">
+                <div id="fbRankingSection" class="glass-card border border-[var(--border)] shadow-sm overflow-hidden mb-6">
+                    <div class="p-5 border-b border-[var(--border)] bg-slate-50/80 dark:bg-slate-800/35">
                         <div class="flex items-center gap-2">
-                            <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
-                            <h3 class="text-sm font-bold text-slate-300 font-display">Ranking de Consultores</h3>
+                            <svg class="w-5 h-5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
+                            <h3 class="text-sm font-bold text-[var(--text-primary)] dark:text-slate-200 font-display">Ranking de consultores</h3>
                         </div>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-xs">
                             <thead>
-                                <tr class="border-b border-slate-700/30">
-                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">#</th>
-                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Consultor</th>
-                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Atendimentos</th>
-                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nota Atendimento</th>
-                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nota Produtividade</th>
-                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nota Geral</th>
-                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Notas Inform.</th>
-                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">T. Resposta</th>
-                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">T. Atendimento</th>
-                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Ação</th>
+                                <tr class="border-b border-[var(--border)] bg-slate-100/95 dark:bg-slate-800/55">
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">#</th>
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Consultor</th>
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Atendimentos</th>
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Nota atendimento</th>
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Nota produtividade</th>
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Nota geral</th>
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Notas inform.</th>
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">T. resposta</th>
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">T. atendimento</th>
+                                    <th class="px-4 py-3 text-left text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Ação</th>
                                 </tr>
                             </thead>
                             <tbody id="fbTableBody">
@@ -239,10 +239,10 @@
 
             <!-- Modal de edição de regra de comunicação -->
             <div id="rule-modal-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] hidden items-center justify-center" onclick="if(event.target===this)_closeRuleModal()">
-                <div class="bg-slate-900 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-                    <div class="flex items-center justify-between p-6 border-b border-slate-700/30">
-                        <h3 class="text-lg font-bold text-white font-display" id="rule-modal-title">Nova Regra</h3>
-                        <button onclick="_closeRuleModal()" class="text-slate-500 hover:text-white transition">
+                <div class="glass-card rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+                    <div class="flex items-center justify-between p-6 border-b border-[var(--border)]">
+                        <h3 class="text-lg font-bold text-[var(--text-primary)] font-display" id="rule-modal-title">Nova Regra</h3>
+                        <button onclick="_closeRuleModal()" class="text-slate-500 hover:text-[var(--text-primary)] transition">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                         </button>
                     </div>
@@ -251,11 +251,11 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs text-slate-500 mb-1.5 font-medium">Nome da Regra</label>
-                                <input type="text" id="rule-name" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg" placeholder="Ex: Lembrete 3 dias">
+                                <input type="text" id="rule-name" class="input-glass px-3 py-2 text-sm w-full rounded-lg" placeholder="Ex: Lembrete 3 dias">
                             </div>
                             <div>
                                 <label class="block text-xs text-slate-500 mb-1.5 font-medium">Audiência</label>
-                                <select id="rule-audience" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg">
+                                <select id="rule-audience" class="input-glass px-3 py-2 text-sm w-full rounded-lg">
                                     <option value="todos">Todos</option>
                                     <option value="novo_aluno">Novo Aluno (até 30 dias)</option>
                                     <option value="veterano">Veterano (mais de 30 dias)</option>
@@ -264,12 +264,12 @@
                         </div>
                         <div>
                             <label class="block text-xs text-slate-500 mb-1.5 font-medium">Descrição</label>
-                            <input type="text" id="rule-description" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg" placeholder="Descrição breve da regra">
+                            <input type="text" id="rule-description" class="input-glass px-3 py-2 text-sm w-full rounded-lg" placeholder="Descrição breve da regra">
                         </div>
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                             <div>
                                 <label class="block text-xs text-slate-500 mb-1.5 font-medium">Tipo de Gatilho</label>
-                                <select id="rule-trigger-type" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg">
+                                <select id="rule-trigger-type" class="input-glass px-3 py-2 text-sm w-full rounded-lg">
                                     <option value="sem_acesso_inicial">Sem acesso inicial</option>
                                     <option value="inatividade">Inatividade</option>
                                     <option value="score_baixo">Score baixo</option>
@@ -277,11 +277,11 @@
                             </div>
                             <div>
                                 <label class="block text-xs text-slate-500 mb-1.5 font-medium">Dias / Score</label>
-                                <input type="number" id="rule-trigger-days" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg" value="7" min="0">
+                                <input type="number" id="rule-trigger-days" class="input-glass px-3 py-2 text-sm w-full rounded-lg" value="7" min="0">
                             </div>
                             <div>
                                 <label class="block text-xs text-slate-500 mb-1.5 font-medium">Canal Principal</label>
-                                <select id="rule-channel" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg">
+                                <select id="rule-channel" class="input-glass px-3 py-2 text-sm w-full rounded-lg">
                                     <option value="email">E-mail</option>
                                     <option value="whatsapp">WhatsApp</option>
                                     <option value="ambos">Ambos</option>
@@ -289,21 +289,21 @@
                             </div>
                             <div>
                                 <label class="block text-xs text-slate-500 mb-1.5 font-medium">Prioridade</label>
-                                <input type="number" id="rule-priority" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg" value="0" min="0">
+                                <input type="number" id="rule-priority" class="input-glass px-3 py-2 text-sm w-full rounded-lg" value="0" min="0">
                             </div>
                         </div>
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                             <div>
                                 <label class="block text-xs text-slate-500 mb-1.5 font-medium">Cooldown (dias)</label>
-                                <input type="number" id="rule-cooldown" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg" value="3" min="1">
+                                <input type="number" id="rule-cooldown" class="input-glass px-3 py-2 text-sm w-full rounded-lg" value="3" min="1">
                             </div>
                             <div>
                                 <label class="block text-xs text-slate-500 mb-1.5 font-medium">Máx/Semana</label>
-                                <input type="number" id="rule-max-week" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg" value="2" min="1">
+                                <input type="number" id="rule-max-week" class="input-glass px-3 py-2 text-sm w-full rounded-lg" value="2" min="1">
                             </div>
                             <div>
                                 <label class="block text-xs text-slate-500 mb-1.5 font-medium">Canal Escalação</label>
-                                <select id="rule-escalation-channel" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg">
+                                <select id="rule-escalation-channel" class="input-glass px-3 py-2 text-sm w-full rounded-lg">
                                     <option value="">Nenhum</option>
                                     <option value="email">E-mail</option>
                                     <option value="whatsapp">WhatsApp</option>
@@ -312,19 +312,19 @@
                             </div>
                             <div>
                                 <label class="block text-xs text-slate-500 mb-1.5 font-medium">Escalar após (dias)</label>
-                                <input type="number" id="rule-escalation-days" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg" value="" min="1" placeholder="—">
+                                <input type="number" id="rule-escalation-days" class="input-glass px-3 py-2 text-sm w-full rounded-lg" value="" min="1" placeholder="—">
                             </div>
                         </div>
                         <div>
                             <label class="block text-xs text-slate-500 mb-1.5 font-medium">Template de Mensagem</label>
-                            <textarea id="rule-template" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg h-28 resize-y" placeholder="Use {{primeiro_nome}}, {{curso}}, {{polo}}, {{dias_sem_acesso}}..."></textarea>
+                            <textarea id="rule-template" class="input-glass px-3 py-2 text-sm w-full rounded-lg h-28 resize-y" placeholder="Use {{primeiro_nome}}, {{curso}}, {{polo}}, {{dias_sem_acesso}}..."></textarea>
                         </div>
-                        <div class="glass-card p-3 bg-slate-800/40">
+                        <div class="glass-card p-3 bg-slate-50 dark:bg-slate-800/40">
                             <p class="text-[10px] text-slate-500 uppercase font-bold mb-1">Preview</p>
-                            <p class="text-sm text-slate-300" id="rule-preview">—</p>
+                            <p class="text-sm text-slate-700 dark:text-slate-300" id="rule-preview">—</p>
                         </div>
                     </div>
-                    <div class="flex items-center justify-end gap-3 p-6 border-t border-slate-700/30">
+                    <div class="flex items-center justify-end gap-3 p-6 border-t border-[var(--border)]">
                         <button onclick="_closeRuleModal()" class="btn-secondary text-sm px-5 py-2 rounded-xl">Cancelar</button>
                         <button onclick="_saveRule()" class="btn-primary text-sm px-5 py-2 rounded-xl">Salvar</button>
                     </div>

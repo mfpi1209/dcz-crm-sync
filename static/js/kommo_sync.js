@@ -27,7 +27,119 @@ const _FUNNEL_GRADIENTS = {
     em_processo:          { from: '#06b6d4', to: '#0ea5e9', border: 'border-cyan-500/30',   shadow: 'shadow-cyan-500/20' },
     aprovado_reprovado:   { from: '#f59e0b', to: '#f97316', border: 'border-amber-500/30',  shadow: 'shadow-amber-500/20' },
     aceite:               { from: '#10b981', to: '#14b8a6', border: 'border-emerald-500/30', shadow: 'shadow-emerald-500/20' },
+    pagamento_confirmado: { from: '#059669', to: '#047857', border: 'border-emerald-600/40', shadow: 'shadow-emerald-600/20' },
 };
+
+const _FUNNEL_VISUAL_ORDER = [
+    'aguardando_inscricao', 'inscricao', 'processo_seletivo',
+    'em_processo', 'aprovado_reprovado', 'aceite', 'pagamento_confirmado',
+];
+
+function _fmtKCount(n) {
+    n = Number(n) || 0;
+    if (n >= 1000) {
+        const v = n / 1000;
+        return (v >= 10 ? v.toFixed(0) : v.toFixed(1).replace(/\.0$/, '')) + 'k';
+    }
+    return n.toLocaleString('pt-BR');
+}
+
+function _renderFunnelVisual(data, prefix) {
+    const wrap = document.getElementById(prefix + '-visual');
+    if (!wrap) return;
+
+    const stages = data.stages || [];
+    if (!stages.length) { wrap.innerHTML = ''; return; }
+
+    const byKey = {};
+    stages.forEach(s => { byKey[s.key] = s; });
+
+    const ordered = _FUNNEL_VISUAL_ORDER
+        .map(k => byKey[k])
+        .filter(Boolean);
+    if (!ordered.length) { wrap.innerHTML = ''; return; }
+
+    const lost = byKey.sem_resposta;
+
+    // Heights: each stage height proportional to count vs the largest in the funnel chain
+    const maxCount = Math.max(...ordered.map(s => s.count || 0), 1);
+    const minPctHeight = 14; // each bar at least 14% so labels don't overlap
+    const aceiteCount = (byKey.aceite && byKey.aceite.count) || 0;
+    const startCount = ordered[0]?.count || 0;
+    const conversaoGlobal = startCount > 0 ? ((aceiteCount / startCount) * 100).toFixed(1) : '0.0';
+
+    const visualLabels = {
+        aguardando_inscricao: 'Aguardando Inscrição',
+        inscricao: 'Inscrição',
+        processo_seletivo: 'Seletivo',
+        em_processo: 'Em Processo',
+        aprovado_reprovado: 'Aprovados',
+        aceite: 'Aceite',
+        pagamento_confirmado: 'Pagamento',
+        sem_resposta: 'Sem Resposta',
+    };
+
+    const stageBars = ordered.map((s, i) => {
+        const g = _FUNNEL_GRADIENTS[s.key] || { from: '#64748b', to: '#475569' };
+        const pctHeight = Math.max(minPctHeight, Math.round(((s.count || 0) / maxCount) * 100));
+        const isActive = s.key === 'aceite';
+        const valueLabel = _fmtKCount(s.count || 0);
+        const ringCls = isActive ? `ring-2 ring-offset-2 ring-offset-[var(--bg-card)] ring-emerald-500` : '';
+
+        return `
+        <div class="flex-1 min-w-0 flex flex-col group cursor-default">
+            <div class="text-center mb-2 min-h-[28px]">
+                <p class="text-[9px] font-bold uppercase tracking-wider leading-tight ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}">${visualLabels[s.key] || s.label}</p>
+            </div>
+            <div class="flex-1 flex items-end">
+                <div class="rounded-t-xl w-full flex flex-col items-center justify-center transition-all duration-500 group-hover:brightness-110 ${ringCls}"
+                     style="height:${pctHeight}%; background: linear-gradient(180deg, ${g.from}, ${g.to}); box-shadow: 0 -4px 18px ${g.from}30;">
+                    <span class="text-white font-extrabold text-lg sm:text-xl leading-none">${valueLabel}</span>
+                    ${s.pct != null ? `<span class="text-white/75 text-[10px] mt-1 font-semibold">${s.pct}%</span>` : ''}
+                </div>
+            </div>
+        </div>`;
+    }).map((bar, i) => {
+        if (i === ordered.length - 1) return bar;
+        return bar + `
+        <div class="w-5 sm:w-6 flex items-end pb-3 shrink-0">
+            <span class="material-symbols-outlined text-slate-400 dark:text-slate-600 text-lg">chevron_right</span>
+        </div>`;
+    }).join('');
+
+    let lostHtml = '';
+    if (lost) {
+        const lostPctHeight = Math.max(minPctHeight, Math.round(((lost.count || 0) / maxCount) * 100));
+        lostHtml = `
+        <div class="hidden md:flex w-px self-stretch mx-2 bg-slate-200 dark:bg-slate-700"></div>
+        <div class="w-24 sm:w-28 flex flex-col">
+            <div class="text-center mb-2 min-h-[28px]">
+                <p class="text-[9px] font-bold uppercase tracking-wider leading-tight text-rose-500 dark:text-rose-400">Perdidos</p>
+            </div>
+            <div class="flex-1 flex items-end">
+                <div class="rounded-t-xl w-full flex flex-col items-center justify-center bg-slate-200 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-700"
+                     style="height:${lostPctHeight}%;">
+                    <span class="material-symbols-outlined text-rose-500 dark:text-rose-400 text-base">close</span>
+                    <span class="text-slate-700 dark:text-slate-300 font-extrabold text-base leading-none">${_fmtKCount(lost.count || 0)}</span>
+                    ${lost.pct != null ? `<span class="text-slate-500 dark:text-slate-500 text-[10px] mt-1 font-semibold">${lost.pct}%</span>` : ''}
+                </div>
+            </div>
+        </div>`;
+    }
+
+    wrap.innerHTML = `
+    <div class="flex items-center justify-between mb-3">
+        <p class="text-[10px] font-bold uppercase tracking-[.18em] text-slate-500 dark:text-slate-400">Visualização do funil</p>
+        <div class="flex items-center gap-2 text-xs">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Conversão global</span>
+            <span class="text-sm font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums">${conversaoGlobal}%</span>
+        </div>
+    </div>
+    <div class="flex items-stretch gap-1 h-44 sm:h-52">
+        ${stageBars}
+        ${lostHtml}
+    </div>`;
+}
 
 async function loadKommoSync() {
     _kommoRefreshFunnel(false);
@@ -83,6 +195,39 @@ function _renderFunnelCards(data, prefix) {
         const label = data.fetched_at ? `Live ${data.fetched_at}` : '';
         tsEl.textContent = label;
     }
+
+    // KPI row extras (aceite + conversão)
+    const stages = data.stages || [];
+    const byKey = {};
+    stages.forEach(s => { byKey[s.key] = s; });
+
+    const aceiteEl = document.getElementById(prefix + '-aceite');
+    const aceiteTrendEl = document.getElementById(prefix + '-aceite-trend');
+    const aceiteDeltaEl = document.getElementById(prefix + '-aceite-delta');
+    if (aceiteEl) {
+        const ace = byKey.aceite;
+        aceiteEl.textContent = (ace?.count || 0).toLocaleString('pt-BR');
+        if (aceiteTrendEl && aceiteDeltaEl && ace && ace.delta !== undefined && ace.delta !== 0) {
+            const positive = ace.delta > 0;
+            aceiteTrendEl.classList.remove('up', 'down');
+            aceiteTrendEl.classList.add(positive ? 'up' : 'down');
+            aceiteTrendEl.style.display = '';
+            const icon = aceiteTrendEl.querySelector('.ms-icon');
+            if (icon) icon.textContent = positive ? 'trending_up' : 'trending_down';
+            aceiteDeltaEl.textContent = (positive ? '+' : '') + ace.delta;
+        } else if (aceiteTrendEl) {
+            aceiteTrendEl.style.display = 'none';
+        }
+    }
+    const convEl = document.getElementById(prefix + '-conversao');
+    if (convEl) {
+        const start = byKey.aguardando_inscricao?.count || 0;
+        const aceite = byKey.aceite?.count || 0;
+        const pct = start > 0 ? ((aceite / start) * 100).toFixed(1) : '0.0';
+        convEl.textContent = pct + '%';
+    }
+
+    _renderFunnelVisual(data, prefix);
 
     const container = document.getElementById(prefix + '-cards');
     if (!container) return;
@@ -149,11 +294,11 @@ function _kommoRenderStatus(d) {
 
     tbody.innerHTML = entities.map(e => {
         const lastSync = e.last_sync_at ? new Date(e.last_sync_at).toLocaleString('pt-BR') : '—';
-        const statusCls = e.status === 'success' ? 'text-emerald-400' : e.status === 'error' ? 'text-red-400' : 'text-slate-400';
+        const statusCls = e.status === 'success' ? 'text-emerald-600 dark:text-emerald-400' : e.status === 'error' ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400';
         const statusIcon = e.status === 'success' ? '●' : e.status === 'error' ? '✕' : '○';
-        return `<tr class="border-b border-slate-800/40 hover:bg-slate-800/30 transition">
+        return `<tr class="border-b border-slate-200 dark:border-slate-800/40 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
             <td class="py-2 pr-2 font-medium">${entityLabels[e.entity_type] || e.entity_type}</td>
-            <td class="py-2 pr-2 text-xs text-slate-400">${lastSync}</td>
+            <td class="py-2 pr-2 text-xs text-slate-500 dark:text-slate-400">${lastSync}</td>
             <td class="py-2 pr-2 text-right font-bold">${(e.records_synced || 0).toLocaleString('pt-BR')}</td>
             <td class="py-2 text-xs ${statusCls}">${statusIcon} ${e.status || '—'}</td>
         </tr>`;
@@ -171,6 +316,11 @@ function _kommoRenderChanges(d) {
 
     const byStage = d.updated_by_stage || [];
     if (!byStage.length) return;
+
+    const dark = document.documentElement.classList.contains('dark');
+    const tick = dark ? '#94a3b8' : '#64748b';
+    const gridX = dark ? '#1e293b' : '#e2e8f0';
+    const tickY = dark ? '#94a3b8' : '#475569';
 
     const labels = byStage.map(s => s.stage_name);
     const values = byStage.map(s => s.total);
@@ -196,8 +346,8 @@ function _kommoRenderChanges(d) {
                 tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.x.toLocaleString('pt-BR')} leads` } }
             },
             scales: {
-                x: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, beginAtZero: true },
-                y: { ticks: { color: '#94a3b8', font: { size: 11 } }, grid: { display: false } }
+                x: { ticks: { color: tick }, grid: { color: gridX }, beginAtZero: true },
+                y: { ticks: { color: tickY, font: { size: 11 } }, grid: { display: false } }
             }
         }
     });
@@ -212,11 +362,11 @@ function _kommoRenderStagesTable(data) {
     }
     tbody.innerHTML = data.map(s => {
         const pct = totalAll > 0 ? ((s.total / totalAll) * 100).toFixed(1) : '0';
-        return `<tr class="border-b border-slate-800/40 hover:bg-slate-800/30 transition">
-            <td class="py-2 pr-2 text-xs text-slate-400">${s.pipeline_name}</td>
+        return `<tr class="border-b border-slate-200 dark:border-slate-800/40 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+            <td class="py-2 pr-2 text-xs text-slate-500 dark:text-slate-400">${s.pipeline_name}</td>
             <td class="py-2 pr-2 font-medium">${s.stage_name}</td>
-            <td class="py-2 pr-2 text-right font-bold text-white">${s.total.toLocaleString('pt-BR')}</td>
-            <td class="py-2 text-right text-xs text-slate-400">${pct}%</td>
+            <td class="py-2 pr-2 text-right font-bold text-[#00346f] dark:text-white">${s.total.toLocaleString('pt-BR')}</td>
+            <td class="py-2 text-right text-xs text-slate-500 dark:text-slate-400">${pct}%</td>
         </tr>`;
     }).join('');
 }

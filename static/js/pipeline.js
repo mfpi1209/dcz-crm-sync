@@ -128,16 +128,11 @@ function showPipelineLog(which) {
         const el = document.getElementById(id);
         if (el) el.classList.toggle('hidden', i !== idx);
     });
+    const base = 'ds-segment__btn text-xs font-semibold';
     tabs.forEach((id, i) => {
         const el = document.getElementById(id);
         if (!el) return;
-        if (i === idx) {
-            el.classList.add('text-indigo-400','border-b-2','border-indigo-400');
-            el.classList.remove('text-slate-500');
-        } else {
-            el.classList.remove('text-indigo-400','border-b-2','border-indigo-400');
-            el.classList.add('text-slate-500');
-        }
+        el.className = base + (i === idx ? ' ds-segment__btn--active' : ' ds-segment__btn--inactive');
     });
 }
 

@@ -62,9 +62,9 @@ function _amRenderStats() {
         <div class="am-card p-4 ${i.bg}">
             <div class="flex items-center gap-2 mb-1">
                 <span class="material-symbols-outlined text-sm ${i.color}">${i.icon}</span>
-                <span class="text-[10px] text-slate-500 uppercase tracking-wider">${_amStatusLabel[i.key]}</span>
+                <span class="text-[10px] text-slate-600 dark:text-slate-500 uppercase tracking-wider">${_amStatusLabel[i.key]}</span>
             </div>
-            <p class="text-2xl font-black text-white">${counts[i.key]}</p>
+            <p class="text-2xl font-black text-[var(--text-primary)] dark:text-white">${counts[i.key]}</p>
         </div>
     `).join('');
 }
@@ -85,10 +85,10 @@ function _amRenderList() {
                 <span class="text-[10px] text-slate-600 ml-auto">${_amFmtDate(a.created_at)}</span>
             </div>
             <div class="flex flex-wrap gap-x-6 gap-y-1 mb-1">
-                <p class="text-xs text-white font-semibold">${a.agent_name || 'Agente #' + a.user_id}</p>
-                <p class="text-xs text-slate-400">Aluno: <strong class="text-slate-300">${a.nome_aluno || '—'}</strong></p>
-                <p class="text-xs text-slate-400">RGM: <span class="font-mono">${a.rgm || '—'}</span></p>
-                <p class="text-xs text-slate-400">Lead: <span class="font-mono">${a.kommo_lead_id || '—'}</span></p>
+                <p class="text-xs text-[var(--text-primary)] dark:text-white font-semibold">${a.agent_name || 'Agente #' + a.user_id}</p>
+                <p class="text-xs text-slate-600 dark:text-slate-400">Aluno: <strong class="text-slate-800 dark:text-slate-300">${a.nome_aluno || '—'}</strong></p>
+                <p class="text-xs text-slate-600 dark:text-slate-400">RGM: <span class="font-mono">${a.rgm || '—'}</span></p>
+                <p class="text-xs text-slate-600 dark:text-slate-400">Lead: <span class="font-mono">${a.kommo_lead_id || '—'}</span></p>
             </div>
             <p class="text-[10px] text-slate-500 line-clamp-2">${a.descricao || ''}</p>
             ${a.resposta_admin ? `<p class="text-[10px] text-blue-400 mt-1"><strong>Resposta:</strong> ${a.resposta_admin}</p>` : ''}
@@ -107,15 +107,15 @@ function amOpenDetail(id) {
 
     if (body) body.innerHTML = `
         <div class="grid grid-cols-2 gap-3 text-xs">
-            <div><span class="text-slate-500">Agente:</span><p class="text-white font-medium">${a.agent_name || 'Agente #' + a.user_id}</p></div>
-            <div><span class="text-slate-500">Tipo:</span><p class="text-white">${_amTipoLabel[a.tipo] || a.tipo}</p></div>
-            <div><span class="text-slate-500">Nome do Aluno:</span><p class="text-white">${a.nome_aluno || '—'}</p></div>
-            <div><span class="text-slate-500">RGM:</span><p class="text-white font-mono">${a.rgm || '—'}</p></div>
-            <div><span class="text-slate-500">Curso:</span><p class="text-white">${a.curso || '—'}</p></div>
-            <div><span class="text-slate-500">Polo:</span><p class="text-white">${a.polo || '—'}</p></div>
-            <div><span class="text-slate-500">Data Matrícula:</span><p class="text-white">${_amFmtDate(a.data_matricula)}</p></div>
-            <div><span class="text-slate-500">Lead Kommo:</span><p class="text-white font-mono">${a.kommo_lead_id || '—'}</p></div>
-            <div class="col-span-2"><span class="text-slate-500">Justificativa:</span><p class="text-white mt-1">${a.descricao || '—'}</p></div>
+            <div><span class="text-slate-500">Agente:</span><p class="text-[var(--text-primary)] dark:text-white font-medium">${a.agent_name || 'Agente #' + a.user_id}</p></div>
+            <div><span class="text-slate-500">Tipo:</span><p class="text-[var(--text-primary)] dark:text-white">${_amTipoLabel[a.tipo] || a.tipo}</p></div>
+            <div><span class="text-slate-500">Nome do Aluno:</span><p class="text-[var(--text-primary)] dark:text-white">${a.nome_aluno || '—'}</p></div>
+            <div><span class="text-slate-500">RGM:</span><p class="text-[var(--text-primary)] dark:text-white font-mono">${a.rgm || '—'}</p></div>
+            <div><span class="text-slate-500">Curso:</span><p class="text-[var(--text-primary)] dark:text-white">${a.curso || '—'}</p></div>
+            <div><span class="text-slate-500">Polo:</span><p class="text-[var(--text-primary)] dark:text-white">${a.polo || '—'}</p></div>
+            <div><span class="text-slate-500">Data Matrícula:</span><p class="text-[var(--text-primary)] dark:text-white">${_amFmtDate(a.data_matricula)}</p></div>
+            <div><span class="text-slate-500">Lead Kommo:</span><p class="text-[var(--text-primary)] dark:text-white font-mono">${a.kommo_lead_id || '—'}</p></div>
+            <div class="col-span-2"><span class="text-slate-500">Justificativa:</span><p class="text-[var(--text-primary)] dark:text-white mt-1">${a.descricao || '—'}</p></div>
             <div class="col-span-2"><span class="text-slate-500">Enviada em:</span><p class="text-slate-400">${_amFmtDate(a.created_at)}</p></div>
             ${a.resolved_at ? `<div class="col-span-2"><span class="text-slate-500">Resolvida em:</span><p class="text-slate-400">${_amFmtDate(a.resolved_at)}</p></div>` : ''}
         </div>`;
