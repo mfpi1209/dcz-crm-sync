@@ -10,8 +10,28 @@ try:
 except ImportError:
     pass
 
-KOMMO_BASE_URL = os.getenv("KOMMO_BASE_URL", "https://admamoeduitcombr.kommo.com/api/v4")
-KOMMO_TOKEN = os.getenv("KOMMO_TOKEN", "")
+def _load_from_app_config(chave, fallback=""):
+    """Read a config value from app_config table (shared DB) when env var is empty."""
+    try:
+        import psycopg2
+        conn = psycopg2.connect(
+            host=os.getenv("DB_HOST", "localhost"),
+            port=os.getenv("DB_PORT", "5432"),
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASS"),
+            dbname=os.getenv("DB_NAME", "dcz_sync"),
+        )
+        with conn.cursor() as cur:
+            cur.execute("SELECT valor FROM app_config WHERE chave = %s", (chave,))
+            row = cur.fetchone()
+        conn.close()
+        return row[0] if row else fallback
+    except Exception:
+        return fallback
+
+_raw_base = os.getenv("KOMMO_BASE_URL", "") or _load_from_app_config("KOMMO_BASE_URL", "https://admamoeduitcombr.kommo.com/api/v4")
+KOMMO_BASE_URL = _raw_base if _raw_base.rstrip("/").endswith("/api/v4") else _raw_base.rstrip("/") + "/api/v4"
+KOMMO_TOKEN = os.getenv("KOMMO_TOKEN", "") or _load_from_app_config("KOMMO_TOKEN", "")
 
 DB_PATH = os.getenv("KOMMO_DB_PATH", os.path.join(os.path.dirname(__file__), "kommo_sync.db"))
 
