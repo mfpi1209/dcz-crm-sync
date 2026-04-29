@@ -634,6 +634,49 @@ function showSkeleton(containerId, count = 4) {
 }
 
 // ---------------------------------------------------------------------------
+// KPI Card — componente reutilizável estilo Arquiteto Executivo.
+// Uso:
+//   kpiCard({ title: 'Receita', value: 'R$ 1,2M', subtitle: 'mês', trend: '+12%', isPositive: true })
+//   kpiCard({ ..., variant: 'primary' })          // azul escuro
+//   kpiCard({ ..., variant: 'secondary' })        // azul médio
+//   kpiCard({ ..., id: 'kpi-receita-mes' })       // adiciona id
+//   kpiCard({ ..., sparkId: 'spark-receita' })    // reserva canvas <canvas id> para sparkline
+// ---------------------------------------------------------------------------
+function kpiCard(opts) {
+    opts = opts || {};
+    const variant = opts.variant === 'primary' || opts.variant === 'secondary' ? opts.variant : null;
+    const variantCls = variant === 'primary' ? 'is-primary' : variant === 'secondary' ? 'is-secondary' : '';
+    const isPositive = !!opts.isPositive;
+    const trendCls = isPositive ? 'up' : 'down';
+    const trendIcon = isPositive ? 'trending_up' : 'trending_down';
+    const trendHtml = (opts.trend === undefined || opts.trend === null || opts.trend === '')
+        ? ''
+        : `<span class="kpi-trend ${trendCls}">
+            <span class="material-symbols-outlined ms-icon">${trendIcon}</span>
+            ${esc(String(opts.trend))}
+           </span>`;
+    const sparkHtml = opts.sparkId
+        ? `<div class="kpi-spark"><canvas id="${esc(opts.sparkId)}"></canvas></div>`
+        : '';
+    const idAttr = opts.id ? ` id="${esc(opts.id)}"` : '';
+    const valueId = opts.valueId ? ` id="${esc(opts.valueId)}"` : '';
+    const subtitleId = opts.subtitleId ? ` id="${esc(opts.subtitleId)}"` : '';
+    const trendId = opts.trendId ? ` id="${esc(opts.trendId)}"` : '';
+
+    return `<div class="kpi-card ${variantCls}"${idAttr}>
+        <div class="kpi-head">
+            <span class="kpi-title">${esc(opts.title || '')}</span>
+            ${trendHtml ? `<span${trendId}>${trendHtml}</span>` : ''}
+        </div>
+        <div class="kpi-value-row">
+            <span class="kpi-value"${valueId}>${esc(String(opts.value != null ? opts.value : '—'))}</span>
+            ${opts.subtitle ? `<span class="kpi-subtitle"${subtitleId}>${esc(opts.subtitle)}</span>` : ''}
+        </div>
+        ${sparkHtml}
+    </div>`;
+}
+
+// ---------------------------------------------------------------------------
 // Scroll to top (works on window scroll AND inner <main> overflow scroll)
 // ---------------------------------------------------------------------------
 function _scrollContainer() {

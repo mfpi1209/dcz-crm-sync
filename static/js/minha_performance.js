@@ -1204,6 +1204,16 @@ function _mpSwitchTab(tab) {
 
 let _mpOficialData = [];
 
+let _mpStatusFilter = 'all'; // 'all' | 'ativo' | 'evadido' | 'outros'
+
+function _mpClassifySituacao(sit) {
+    const s = (sit || '').toUpperCase();
+    if (!s) return 'outros';
+    if (s === 'EM CURSO') return 'ativo';
+    if (s.includes('CANCEL') || s.includes('EVAD') || s.includes('DESIST') || s.includes('TRANC')) return 'evadido';
+    return 'outros';
+}
+
 async function _mpLoadMatriculas() {
     const uid = (_mpIsAdmin && _mpSelectedUid) ? _mpSelectedUid : _mpMyUid;
     if (!uid) return;
@@ -1219,18 +1229,23 @@ async function _mpLoadMatriculas() {
         const res = await api(`/api/minha-performance/matriculas?${qs}`);
         const d = await res.json();
         _mpOficialData = d.matriculas || [];
-        const emCurso = _mpOficialData.filter(m => (m.situacao||'').toUpperCase() === 'EM CURSO').length;
-        const cancel = _mpOficialData.filter(m => {
-            const s = (m.situacao||'').toUpperCase();
-            return s.includes('CANCEL') || s.includes('EVAD') || s.includes('DESIST');
-        }).length;
-        const outros = _mpOficialData.length - emCurso - cancel;
-        let summary = `${_mpOficialData.length} total`;
-        if (emCurso) summary += ` · <span class="text-emerald-400">${emCurso} em curso</span>`;
-        if (cancel) summary += ` · <span class="text-red-400">${cancel} cancelado${cancel > 1 ? 's' : ''}</span>`;
-        if (outros) summary += ` · <span class="text-amber-400">${outros} outro${outros > 1 ? 's' : ''}</span>`;
+
+        const counts = { all: _mpOficialData.length, ativo: 0, evadido: 0, outros: 0 };
+        _mpOficialData.forEach(m => { counts[_mpClassifySituacao(m.situacao)]++; });
+
+        let summary = `${counts.all} total`;
+        if (counts.ativo)   summary += ` · <span class="text-emerald-600 dark:text-emerald-400">${counts.ativo} em curso</span>`;
+        if (counts.evadido) summary += ` · <span class="text-rose-600 dark:text-red-400">${counts.evadido} evadido${counts.evadido > 1 ? 's' : ''}</span>`;
+        if (counts.outros)  summary += ` · <span class="text-amber-600 dark:text-amber-400">${counts.outros} outro${counts.outros > 1 ? 's' : ''}</span>`;
         if (countEl) countEl.innerHTML = summary;
+
+        document.querySelectorAll('#mp-mat-oficial-pills .mp-status-pill').forEach(btn => {
+            const c = btn.querySelector('.mp-pill-count');
+            if (c) c.textContent = counts[btn.dataset.status] || 0;
+        });
+
         _mpRenderOficialTable(_mpOficialData);
+        _mpFilterOficial();
     } catch(e) {
         if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-red-400 text-xs">Erro ao carregar</td></tr>';
     }
@@ -1245,29 +1260,59 @@ function _mpRenderOficialTable(mats) {
     }
     tbody.innerHTML = mats.map(m => {
         const sit = (m.situacao || '').toUpperCase();
-        const isEvadido = sit.includes('EVAD') || sit.includes('CANCEL') || sit.includes('DESIST');
+        const cat = _mpClassifySituacao(sit);
         const badge = sit
-            ? (isEvadido
+            ? (cat === 'evadido'
                 ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/15 text-red-400 border border-red-500/20">${sit}</span>`
-                : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">${sit}</span>`)
+                : cat === 'ativo'
+                    ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">${sit}</span>`
+                    : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/20">${sit}</span>`)
             : '<span class="text-slate-600">—</span>';
         return `<tr class="border-b border-slate-200 dark:border-slate-800/50 mp-oficial-row hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors"
-                    data-search="${(m.nome||'').toLowerCase()} ${(m.rgm||'').toLowerCase()} ${(m.curso||'').toLowerCase()}">
-            <td class="py-1.5 px-2 text-slate-300">${m.nome||'—'}</td>
-            <td class="py-1.5 px-2 text-slate-400 font-mono">${m.rgm||'—'}</td>
-            <td class="py-1.5 px-2 text-slate-400">${m.curso || m.nivel || '—'}</td>
-            <td class="py-1.5 px-2 text-slate-400">${m.polo||'—'}</td>
-            <td class="py-1.5 px-2 text-slate-400">${_mpFmtDate(m.data_matricula)}</td>
+                    data-search="${(m.nome||'').toLowerCase()} ${(m.rgm||'').toLowerCase()} ${(m.curso||'').toLowerCase()}"
+                    data-status="${cat}">
+            <td class="py-1.5 px-2 text-slate-700 dark:text-slate-300">${m.nome||'—'}</td>
+            <td class="py-1.5 px-2 text-slate-500 dark:text-slate-400 font-mono">${m.rgm||'—'}</td>
+            <td class="py-1.5 px-2 text-slate-500 dark:text-slate-400">${m.curso || m.nivel || '—'}</td>
+            <td class="py-1.5 px-2 text-slate-500 dark:text-slate-400">${m.polo||'—'}</td>
+            <td class="py-1.5 px-2 text-slate-500 dark:text-slate-400">${_mpFmtDate(m.data_matricula)}</td>
             <td class="py-1.5 px-2">${badge}</td>
         </tr>`;
     }).join('');
 }
 
+function _mpSetStatusFilter(status) {
+    _mpStatusFilter = status || 'all';
+    document.querySelectorAll('#mp-mat-oficial-pills .mp-status-pill').forEach(btn => {
+        btn.classList.toggle('is-active', btn.dataset.status === _mpStatusFilter);
+    });
+    _mpFilterOficial();
+}
+
 function _mpFilterOficial() {
     const q = (document.getElementById('mp-mat-oficial-search')?.value || '').toLowerCase();
+    let visible = 0;
     document.querySelectorAll('.mp-oficial-row').forEach(row => {
-        row.style.display = !q || row.dataset.search.includes(q) ? '' : 'none';
+        const matchSearch = !q || row.dataset.search.includes(q);
+        const matchStatus = _mpStatusFilter === 'all' || row.dataset.status === _mpStatusFilter;
+        const show = matchSearch && matchStatus;
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
     });
+    const tbody = document.getElementById('mp-mat-oficial-tbody');
+    let empty = document.getElementById('mp-mat-oficial-empty');
+    if (tbody && _mpOficialData.length && visible === 0) {
+        if (!empty) {
+            empty = document.createElement('tr');
+            empty.id = 'mp-mat-oficial-empty';
+            empty.innerHTML = '<td colspan="6" class="py-6 text-center text-slate-500 dark:text-slate-600 text-xs">Nenhuma matrícula corresponde aos filtros.</td>';
+            tbody.appendChild(empty);
+        } else {
+            empty.style.display = '';
+        }
+    } else if (empty) {
+        empty.style.display = 'none';
+    }
 }
 
 

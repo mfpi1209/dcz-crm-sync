@@ -48,6 +48,29 @@
         animation: mp-shimmer 3s infinite;
     }
 
+    .mp-status-pill {
+        background: var(--bg-elevated);
+        border-color: var(--border);
+        color: var(--text-secondary);
+        cursor: pointer;
+    }
+    .mp-status-pill:hover { color: var(--text-primary); border-color: var(--primary); }
+    .mp-status-pill[data-status="all"].is-active     { background: rgba(0,52,111,.10);  border-color: var(--primary);  color: var(--primary); }
+    .mp-status-pill[data-status="ativo"].is-active   { background: rgba(16,185,129,.12); border-color: rgba(16,185,129,.55); color: rgb(5,150,105); }
+    .mp-status-pill[data-status="evadido"].is-active { background: rgba(239,68,68,.12);  border-color: rgba(239,68,68,.55);  color: rgb(220,38,38); }
+    .mp-status-pill[data-status="outros"].is-active  { background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.55); color: rgb(180,83,9); }
+    .dark .mp-status-pill[data-status="all"].is-active     { color: rgb(125,180,235); }
+    .dark .mp-status-pill[data-status="ativo"].is-active   { color: rgb(110,231,183); }
+    .dark .mp-status-pill[data-status="evadido"].is-active { color: rgb(252,165,165); }
+    .dark .mp-status-pill[data-status="outros"].is-active  { color: rgb(252,211,77); }
+    .mp-status-pill .mp-pill-count {
+        font-size: 10px;
+        padding: 1px 6px;
+        border-radius: 999px;
+        background: rgba(0,0,0,0.06);
+    }
+    .dark .mp-status-pill .mp-pill-count { background: rgba(255,255,255,0.06); }
+
     .mp-stat-value { font-variant-numeric: tabular-nums }
 
     .apexcharts-tooltip { border-radius: .75rem !important; border: 1px solid rgba(148,163,184,.12) !important; background: rgba(15,23,42,.95) !important; backdrop-filter: blur(8px) !important; }
@@ -351,6 +374,33 @@
             </div>
             <input type="text" placeholder="Buscar por nome, RGM, curso..." oninput="_mpFilterOficial()"
                 id="mp-mat-oficial-search" class="input-glass px-3 py-1.5 text-xs flex-1 min-w-[180px]">
+        </div>
+        <!-- Pills de filtro por situação -->
+        <div class="flex flex-wrap items-center gap-1.5 mb-3" id="mp-mat-oficial-pills" role="tablist">
+            <button type="button" data-status="all" onclick="_mpSetStatusFilter('all')"
+                    class="mp-status-pill is-active px-3 py-1 text-[11px] font-bold uppercase tracking-wider rounded-full border transition-all flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[14px]">list</span>
+                Todos
+                <span class="mp-pill-count tabular-nums opacity-80">0</span>
+            </button>
+            <button type="button" data-status="ativo" onclick="_mpSetStatusFilter('ativo')"
+                    class="mp-status-pill px-3 py-1 text-[11px] font-bold uppercase tracking-wider rounded-full border transition-all flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[14px]">trending_up</span>
+                Em curso
+                <span class="mp-pill-count tabular-nums opacity-80">0</span>
+            </button>
+            <button type="button" data-status="evadido" onclick="_mpSetStatusFilter('evadido')"
+                    class="mp-status-pill px-3 py-1 text-[11px] font-bold uppercase tracking-wider rounded-full border transition-all flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[14px]">person_off</span>
+                Evadidos
+                <span class="mp-pill-count tabular-nums opacity-80">0</span>
+            </button>
+            <button type="button" data-status="outros" onclick="_mpSetStatusFilter('outros')"
+                    class="mp-status-pill px-3 py-1 text-[11px] font-bold uppercase tracking-wider rounded-full border transition-all flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[14px]">help</span>
+                Outros
+                <span class="mp-pill-count tabular-nums opacity-80">0</span>
+            </button>
         </div>
         <div class="overflow-x-auto">
             <table class="w-full text-xs">
