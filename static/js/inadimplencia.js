@@ -314,15 +314,15 @@ function _renderInadComparison(series) {
     const keys = [...allKeys].sort();
 
     let html = `
-        <div class="glass-card p-4 bg-slate-800/30 rounded-xl">
+        <div class="glass-card p-4 bg-slate-100/80 dark:bg-slate-800/30 rounded-xl">
             <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Primeiro: ${first.date.split(' ')[0]}</p>
-            <p class="text-xl font-bold text-white">${first.total.toLocaleString('pt-BR')}</p>
+            <p class="text-xl font-bold text-[var(--text-primary)] tabular-nums">${first.total.toLocaleString('pt-BR')}</p>
         </div>
-        <div class="glass-card p-4 bg-slate-800/30 rounded-xl">
+        <div class="glass-card p-4 bg-slate-100/80 dark:bg-slate-800/30 rounded-xl">
             <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Último: ${last.date.split(' ')[0]}</p>
-            <p class="text-xl font-bold text-white">${last.total.toLocaleString('pt-BR')}</p>
+            <p class="text-xl font-bold text-[var(--text-primary)] tabular-nums">${last.total.toLocaleString('pt-BR')}</p>
         </div>
-        <div class="glass-card p-4 bg-slate-800/30 rounded-xl">
+        <div class="glass-card p-4 bg-slate-100/80 dark:bg-slate-800/30 rounded-xl">
             <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Variação Total</p>
             <p class="text-xl font-bold">${_varBadge(last.total, first.total)}</p>
         </div>`;
@@ -334,9 +334,9 @@ function _renderInadComparison(series) {
         keys.forEach(k => {
             const v1 = (first[groupKey] || {})[k] || 0;
             const v2 = (last[groupKey] || {})[k] || 0;
-            html += `<div class="p-3 rounded-lg bg-slate-800/40">
+            html += `<div class="p-3 rounded-lg bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50">
                 <p class="text-[10px] text-slate-500 font-medium truncate" title="${k}">${k || 'N/I'}</p>
-                <p class="text-sm font-bold text-white mt-1">${v1.toLocaleString('pt-BR')} → ${v2.toLocaleString('pt-BR')}</p>
+                <p class="text-sm font-bold text-[var(--text-primary)] mt-1 tabular-nums">${v1.toLocaleString('pt-BR')} → ${v2.toLocaleString('pt-BR')}</p>
                 <p class="text-xs mt-0.5">${_varBadge(v2, v1)}</p>
             </div>`;
         });
@@ -362,10 +362,10 @@ function _renderInadTable(series) {
         const prev = realIdx > 0 ? series[realIdx - 1] : null;
         const varHtml = prev ? _varBadge(s.total, prev.total) : '<span class="text-slate-600">—</span>';
 
-        return `<tr class="border-b border-slate-800/40 hover:bg-slate-800/30 transition">
-            <td class="py-2 pr-2 text-xs text-slate-400">${s.date}</td>
-            <td class="py-2 pr-2 text-xs"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${nivelLabel.includes('Pós') ? 'bg-purple-500/15 text-purple-400' : nivelLabel === 'Todos' ? 'bg-slate-500/15 text-slate-400' : 'bg-sky-500/15 text-sky-400'}">${nivelLabel}</span></td>
-            <td class="py-2 pr-2 text-right font-bold text-white">${s.total.toLocaleString('pt-BR')}</td>
+        return `<tr class="border-b border-slate-200 dark:border-slate-800/40 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+            <td class="py-2 pr-2 text-xs text-slate-500 dark:text-slate-400">${s.date}</td>
+            <td class="py-2 pr-2 text-xs"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${nivelLabel.includes('Pós') ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400' : nivelLabel === 'Todos' ? 'bg-slate-500/15 text-slate-600 dark:text-slate-400' : 'bg-sky-500/15 text-sky-700 dark:text-sky-400'}">${nivelLabel}</span></td>
+            <td class="py-2 pr-2 text-right font-bold text-[var(--text-primary)] tabular-nums">${s.total.toLocaleString('pt-BR')}</td>
             <td class="py-2 pr-2 text-right text-sky-400">${grad.toLocaleString('pt-BR')}</td>
             <td class="py-2 pr-2 text-right text-purple-400">${pos.toLocaleString('pt-BR')}</td>
             <td class="py-2 text-right text-xs">${varHtml}</td>
@@ -508,10 +508,10 @@ function _renderSfPolos(inadByPolo, totalAlunos) {
         const w = Math.round((count / maxVal) * 100);
         return `<div class="flex items-center gap-2">
             <span class="text-[11px] text-slate-400 truncate w-32 flex-shrink-0" title="${esc(polo)}">${esc(polo.replace(/^\d+\s*[-–]\s*/, ''))}</span>
-            <div class="flex-1 h-2 rounded-full bg-slate-700/50">
+            <div class="flex-1 h-2 rounded-full bg-slate-200 dark:bg-slate-700/50">
                 <div class="h-2 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 transition-all" style="width:${w}%"></div>
             </div>
-            <span class="text-[11px] font-mono text-white font-semibold w-10 text-right">${count.toLocaleString('pt-BR')}</span>
+            <span class="text-[11px] font-mono text-[var(--text-primary)] font-semibold w-10 text-right tabular-nums">${count.toLocaleString('pt-BR')}</span>
         </div>`;
     }).join('');
 }
@@ -532,12 +532,12 @@ function _renderSfHistoryTable(series) {
             ? _varBadge(s.inadimplentes, prev.inadimplentes)
             : '<span class="text-slate-600">—</span>';
 
-        return `<tr class="border-b border-slate-800/40 hover:bg-slate-800/30 transition">
-            <td class="py-2 pr-2 text-xs text-slate-400">${s.date}</td>
-            <td class="py-2 pr-2 text-right font-bold text-white">${(s.total_alunos || 0).toLocaleString('pt-BR')}</td>
-            <td class="py-2 pr-2 text-right text-emerald-400">${(s.adimplentes || 0).toLocaleString('pt-BR')}</td>
-            <td class="py-2 pr-2 text-right text-amber-400">${(s.inadimplentes || 0).toLocaleString('pt-BR')}</td>
-            <td class="py-2 pr-2 text-right text-white">${(s.pct_inadimplencia || 0).toFixed(1).replace('.', ',')}%</td>
+        return `<tr class="border-b border-slate-200 dark:border-slate-800/40 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+            <td class="py-2 pr-2 text-xs text-slate-500 dark:text-slate-400">${s.date}</td>
+            <td class="py-2 pr-2 text-right font-bold text-[var(--text-primary)] tabular-nums">${(s.total_alunos || 0).toLocaleString('pt-BR')}</td>
+            <td class="py-2 pr-2 text-right text-emerald-600 dark:text-emerald-400">${(s.adimplentes || 0).toLocaleString('pt-BR')}</td>
+            <td class="py-2 pr-2 text-right text-amber-600 dark:text-amber-400">${(s.inadimplentes || 0).toLocaleString('pt-BR')}</td>
+            <td class="py-2 pr-2 text-right text-[var(--text-primary)] tabular-nums">${(s.pct_inadimplencia || 0).toFixed(1).replace('.', ',')}%</td>
             <td class="py-2 text-right text-xs">${varHtml}</td>
         </tr>`;
     }).join('');

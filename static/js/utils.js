@@ -1,4 +1,14 @@
 // ---------------------------------------------------------------------------
+// Abas segmentadas (design system — classe .ds-segment no HTML)
+// ---------------------------------------------------------------------------
+function dsSegActive(extraClasses = '') {
+    return ('ds-segment__btn ds-segment__btn--active ' + extraClasses).trim();
+}
+function dsSegInactive(extraClasses = '') {
+    return ('ds-segment__btn ds-segment__btn--inactive ' + extraClasses).trim();
+}
+
+// ---------------------------------------------------------------------------
 // API helper
 // ---------------------------------------------------------------------------
 async function api(url, opts = {}) {
@@ -14,7 +24,7 @@ async function api(url, opts = {}) {
 // SPA Navigation
 // ---------------------------------------------------------------------------
 const PAGES = ['dashboard', 'search', 'sync', 'kommo_sync', 'update', 'pipeline', 'match_merge', 'comercial_rgm', 'dist_comercial', 'distribuicao', 'ativacoes', 'intelligence', 'inadimplencia', 'feedback', 'comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos', 'logs', 'config', 'schedule', 'inscricao', 'avisos', 'kommo_dispatcher', 'meta-campaigns', 'recadastros', 'comercial_dashboard', 'auditoria_comercial', 'atualizar_preco', 'vocacional', 'leads_parados', 'minha_performance', 'premiacao_admin', 'macro_email', 'ajustes_matricula', 'repasse', 'dist_consultor'];
-const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', kommo_sync: 'Sync Comercial', update: 'Atualização CRM', pipeline: 'Saneamento / Pipeline', match_merge: 'Match & Merge', comercial_rgm: 'Dashboard Comercial', dist_comercial: 'Distribuição Comercial', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas', intelligence: 'Inteligência', inadimplencia: 'Inadimplência', feedback: 'Feedback', comparar_cursos: 'Comparar Cursos', recomendacao_cursos: 'Recomendação', localizacao_polos: 'Localização', info_cursos: 'Informações de Cursos', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento', inscricao: 'Inscrição Automática', avisos: 'Avisos', kommo_dispatcher: 'Kommo Dispatcher', 'meta-campaigns': 'Campaign Performance', recadastros: 'Recadastros', comercial_dashboard: 'Dashboard Atendimentos', auditoria_comercial: 'Feedback Comercial', atualizar_preco: 'Atualizar Preço', vocacional: 'Dashboard Vocacional', leads_parados: 'Leads Parados', minha_performance: 'Minha Performance', premiacao_admin: 'Premiação', macro_email: 'Macro Email', ajustes_matricula: 'Ajustes de Matrícula', repasse: 'Repasse', dist_consultor: 'Distribuição Consultor' };
+const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', kommo_sync: 'Sync Comercial', update: 'Upload Acadêmico', pipeline: 'Saneamento / Pipeline', match_merge: 'Match & Merge', comercial_rgm: 'Dashboard Comercial', dist_comercial: 'Distribuição Comercial', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas', intelligence: 'Análises', inadimplencia: 'Inadimplência', feedback: 'Feedback', comparar_cursos: 'Comparar Cursos', recomendacao_cursos: 'Recomendação', localizacao_polos: 'Localização', info_cursos: 'Informações de Cursos', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento', inscricao: 'Inscrições', avisos: 'Avisos', kommo_dispatcher: 'Kommo Dispatcher', 'meta-campaigns': 'Campaign Performance', recadastros: 'Recadastros', comercial_dashboard: 'Dashboard Atendimentos', auditoria_comercial: 'Feedback Comercial', atualizar_preco: 'Atualizar Preço', vocacional: 'Dashboard Vocacional', leads_parados: 'Parados', minha_performance: 'Minha Performance', premiacao_admin: 'Premiação', macro_email: 'Macro Email', ajustes_matricula: 'Ajustes de Matrícula', repasse: 'Repasse', dist_consultor: 'Distribuição Consultor' };
 
 function navigate(page, params) {
     PAGES.forEach(p => {
@@ -71,6 +81,7 @@ function navigate(page, params) {
     if (page === 'repasse') repInit();
 
     history.replaceState(null, '', '#' + page);
+    refreshTopbarForPage(page);
 }
 
 window.addEventListener('hashchange', () => {
@@ -91,15 +102,65 @@ function navigateVoc(tab) {
     vocLoadPage();
     vocSwitchTab(tab);
     history.replaceState(null, '', '#vocacional');
+    refreshTopbarForPage('vocacional');
 }
 
 function setPageTitle(text) {
     var title = text || '';
     var topbar = document.getElementById('page-title');
-    if (topbar) topbar.textContent = title;
+    if (topbar) {
+        topbar.textContent = title;
+        topbar.setAttribute('title', title);
+    }
     var mobile = document.getElementById('mobile-title');
     if (mobile) mobile.textContent = title;
     if (title) document.title = title + ' · eduit.';
+}
+
+/** Intervalo de datas no pill da TopBar (ex.: Comercial RGM). */
+function formatTopbarDateRange(isoFrom, isoTo) {
+    function fmt(iso) {
+        if (!iso) return '';
+        var d = new Date(String(iso).substring(0, 10) + 'T12:00:00');
+        if (isNaN(d.getTime())) return iso;
+        return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, '');
+    }
+    return fmt(isoFrom) + ' — ' + fmt(isoTo);
+}
+
+function refreshTopbarForPage(page) {
+    var metaText = document.getElementById('topbar-meta-text');
+    if (!metaText) return;
+    if (page === 'comercial_rgm') {
+        var i = document.getElementById('crgm-dt-ini');
+        var f = document.getElementById('crgm-dt-fim');
+        if (i && f && i.value && f.value) {
+            metaText.textContent = formatTopbarDateRange(i.value, f.value);
+            return;
+        }
+    }
+    metaText.textContent = 'eduit. · cockpit';
+}
+
+function initTopbarUser() {
+    var raw = (document.body && document.body.getAttribute('data-username')) || '';
+    var uname = (raw || '').trim();
+    var wrap = document.getElementById('topbar-user');
+    var elName = document.getElementById('topbar-user-name');
+    var elIni = document.getElementById('topbar-user-initials');
+    if (!wrap || !elName || !elIni) return;
+    if (!uname) {
+        wrap.classList.remove('has-name');
+        wrap.removeAttribute('title');
+        return;
+    }
+    elName.textContent = uname;
+    wrap.setAttribute('title', uname);
+    wrap.classList.add('has-name');
+    var parts = uname.split(/\s+/).filter(Boolean);
+    var a = (parts[0] && parts[0][0]) ? parts[0][0] : '';
+    var b = (parts.length > 1 && parts[parts.length - 1][0]) ? parts[parts.length - 1][0] : '';
+    elIni.textContent = (a + b).toUpperCase() || uname.slice(0, 2).toUpperCase();
 }
 
 function toggleSidebar() {
@@ -412,6 +473,7 @@ const currentTheme = localStorage.getItem('eduit-theme') || 'dark';
 updateThemeUI(currentTheme);
 
 document.addEventListener('DOMContentLoaded', () => {
+    initTopbarUser();
     const hash = window.location.hash.replace('#', '') || 'dashboard';
     if (PAGES.includes(hash)) {
         navigate(hash);
