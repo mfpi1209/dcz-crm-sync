@@ -2364,47 +2364,12 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                 continue
             acoes.append({**base, "acao": "NOVO", "lead_id": None})
 
-    # --- VENDA GANHA: atualizar somente dados faltantes (sem regredir fase) ---
-    _CAMPOS_GANHO = ['RGM', 'Polo', 'Email Acadêmico', 'Matrícula', 'Situação']
+    # --- VENDA GANHA: leads já em Fechado Ganho → contar como JÁ EXISTE ---
     if ganho_para_verificar:
-        ganho_lead_ids = [lid for _, lid in ganho_para_verificar]
-        try:
-            kconn_ganho = get_kommo_conn()
-            with kconn_ganho.cursor() as kcur_ganho:
-                kcur_ganho.execute("""
-                    SELECT lead_id, field_name,
-                           NULLIF(TRIM(values_json->0->>'value'), '') AS val
-                    FROM lead_custom_field_values
-                    WHERE lead_id = ANY(%s)
-                      AND field_name IN ('RGM', 'Polo', 'Email Acadêmico',
-                                         'Matrícula', 'Situação')
-                """, (ganho_lead_ids,))
-                dados_por_lead: dict[int, dict[str, str]] = {}
-                for lid, fname, val in kcur_ganho.fetchall():
-                    dados_por_lead.setdefault(lid, {})[fname] = val
-            kconn_ganho.close()
-        except Exception as e:
-            log.warning("Erro ao verificar campos Venda ganha: %s", e)
-            dados_por_lead = {}
-
-        for base_g, lead_id_g in ganho_para_verificar:
-            dados = dados_por_lead.get(lead_id_g, {})
-            faltantes = [c for c in _CAMPOS_GANHO
-                         if not (dados.get(c) or "").strip()]
-            if faltantes:
-                n_ganho_dados_faltantes += 1
-                acoes.append({
-                    **base_g,
-                    "acao": "ATUALIZAR",
-                    "lead_id": lead_id_g,
-                    "somente_dados": True,
-                    "campos_faltantes": faltantes,
-                })
-            else:
-                n_ja_existe += 1
-        log.info("Venda ganha verificados: %d total, %d com dados faltantes, %d completos",
-                 len(ganho_para_verificar), n_ganho_dados_faltantes,
-                 len(ganho_para_verificar) - n_ganho_dados_faltantes)
+        n_ja_existe += len(ganho_para_verificar)
+        n_ganho_dados_faltantes = 0
+        log.info("Venda ganha (Fechado Ganho): %d leads contados como JÁ EXISTE",
+                 len(ganho_para_verificar))
 
     log.info("Filtro data_inscr (>= %s): %d inscritos excluídos", data_corte, n_data_filtrada)
     log.info("ATUALIZAR skip: Kommo=Matriculado/Cancelado=%d, Situação igual=%d, Regressão=%d",
