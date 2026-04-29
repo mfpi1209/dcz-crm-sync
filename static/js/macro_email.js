@@ -39,10 +39,10 @@ function meTab(tab) {
         const btn = document.getElementById('me-tab-' + t);
         if (t === tab) {
             sec.classList.remove('hidden');
-            btn.className = 'text-sm font-semibold px-5 py-2 rounded-lg transition bg-blue-500/15 text-blue-400 border border-blue-500/30 flex items-center gap-2 whitespace-nowrap';
+            btn.className = dsSegActive('flex items-center gap-2 whitespace-nowrap');
         } else {
             sec.classList.add('hidden');
-            btn.className = 'text-sm font-semibold px-5 py-2 rounded-lg transition text-gray-500 hover:text-gray-300 flex items-center gap-2 whitespace-nowrap';
+            btn.className = dsSegInactive('flex items-center gap-2 whitespace-nowrap');
         }
     });
     if (tab === 'dash') meLoadDash();
@@ -236,7 +236,7 @@ async function meLoadAgentes() {
                     <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-xl bg-gradient-to-br ${avatarColor} flex items-center justify-center text-white text-xs font-bold shadow-lg">${initials}</div>
                         <div>
-                            <span class="font-medium text-slate-200">${esc(c.responsavel)}</span>
+                            <span class="font-medium text-[var(--text-primary)]">${esc(c.responsavel)}</span>
                             ${linked}
                         </div>
                     </div>
@@ -254,7 +254,7 @@ async function meLoadAgentes() {
                 <td class="py-2.5">
                     <input type="text" class="input-glass px-2 py-1 text-xs text-gray-200 w-full min-w-[200px] me-email-input" data-id="${c.dist_id}" value="${esc(emailCruz)}" placeholder="email@cruzeirodosul.edu.br">
                 </td>
-                <td class="py-2.5 text-center font-semibold text-slate-300">${c.total_emails || 0}</td>
+                <td class="py-2.5 text-center font-semibold text-slate-700 dark:text-slate-300">${c.total_emails || 0}</td>
                 <td class="py-2.5 text-center text-cyan-400 font-semibold">${c.emails_hoje || 0}</td>
                 <td class="py-2.5 text-center text-teal-400 text-xs">${c.emails_7dias || 0}</td>
             </tr>`;
@@ -415,7 +415,7 @@ async function meLoadDistribuicao() {
                 <td class="py-2 text-xs">${esc(e.de_nome || e.de_email || '—')}</td>
                 <td class="py-2 text-xs truncate max-w-[200px]">${esc((e.assunto || '').substring(0, 50))}</td>
                 <td class="py-2">${esc(e.categoria_nome || '—')}</td>
-                <td class="py-2 font-medium text-slate-200 text-xs">${esc(e.agente_nome || '—')}</td>
+                <td class="py-2 font-medium text-[var(--text-primary)] text-xs">${esc(e.agente_nome || '—')}</td>
                 <td class="py-2">${meBadge(e.status, 'status')}</td>
                 <td class="py-2">
                     <button onclick="meReassign(${e.id})" class="text-[10px] text-violet-400 hover:text-violet-300 flex items-center gap-0.5">
@@ -487,7 +487,7 @@ async function meLoadCategorias() {
             return;
         }
         tbody.innerHTML = cats.map(c => `<tr class="border-b border-gray-800/30 hover:bg-gray-800/20 transition">
-            <td class="py-2.5 font-medium text-slate-200">${esc(c.nome)}</td>
+            <td class="py-2.5 font-medium text-[var(--text-primary)]">${esc(c.nome)}</td>
             <td class="py-2.5 text-xs truncate max-w-[200px]">${esc((c.descricao || '').substring(0, 60))}</td>
             <td class="py-2.5 text-center">${c.total_agentes}</td>
             <td class="py-2.5 text-center">${c.total_emails}</td>
@@ -586,9 +586,9 @@ async function meLoadLogs() {
 
         const pag = document.getElementById('me-logs-pag');
         pag.innerHTML = `
-            <button onclick="meLogsPage--;meLoadLogs()" ${meLogsPage === 0 ? 'disabled' : ''} class="text-xs px-3 py-1.5 rounded-lg border border-gray-700/30 text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-default transition">Anterior</button>
+            <button onclick="meLogsPage--;meLoadLogs()" ${meLogsPage === 0 ? 'disabled' : ''} class="text-xs px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-700/30 text-slate-600 dark:text-gray-400 hover:text-[var(--text-primary)] disabled:opacity-30 disabled:cursor-default transition">Anterior</button>
             <span class="text-xs text-gray-500">Página ${meLogsPage + 1}</span>
-            <button onclick="meLogsPage++;meLoadLogs()" ${logs.length < ME_LOGS_LIMIT ? 'disabled' : ''} class="text-xs px-3 py-1.5 rounded-lg border border-gray-700/30 text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-default transition">Próximo</button>`;
+            <button onclick="meLogsPage++;meLoadLogs()" ${logs.length < ME_LOGS_LIMIT ? 'disabled' : ''} class="text-xs px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-700/30 text-slate-600 dark:text-gray-400 hover:text-[var(--text-primary)] disabled:opacity-30 disabled:cursor-default transition">Próximo</button>`;
     } catch (e) { toast(e.message, 'error'); }
 }
 
@@ -715,7 +715,7 @@ function meRenderKB() {
                     <button onclick="meDeleteKB(${item.id})" class="text-xs text-red-400 hover:text-red-300">Excluir</button>
                 </div>
             </div>
-            <p class="text-sm text-slate-200 font-medium mb-2">${esc(item.pergunta_exemplo)}</p>
+            <p class="text-sm text-[var(--text-primary)] font-medium mb-2">${esc(item.pergunta_exemplo)}</p>
             <p class="text-xs text-gray-400 line-clamp-3">${esc(item.resposta_modelo)}</p>
             ${item.palavras_chave ? `<div class="mt-2 flex flex-wrap gap-1">${item.palavras_chave.split(',').map(w => `<span class="text-[9px] bg-gray-700/50 text-gray-400 px-1.5 py-0.5 rounded">${esc(w.trim())}</span>`).join('')}</div>` : ''}
         </div>`;

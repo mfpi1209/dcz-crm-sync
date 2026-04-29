@@ -9,13 +9,13 @@ async function loadSyncState() {
         const stateDiv = document.getElementById('sync-state-table');
         if (data.states && data.states.length) {
             stateDiv.innerHTML = `<table class="w-full text-left">
-                <thead><tr class="text-xs text-slate-500 border-b border-slate-700/20">
+                <thead><tr class="text-xs text-slate-500 border-b border-slate-200 dark:border-slate-700/20">
                     <th class="pb-2 font-semibold">Entidade</th><th class="pb-2 font-semibold">Último sync</th><th class="pb-2 font-semibold">Runs</th>
                 </tr></thead>
                 <tbody>${data.states.map(s => `<tr class="border-b border-slate-700/10 hover:bg-slate-800/20 transition">
-                    <td class="py-2 text-slate-300 font-mono text-xs">${esc(s.entity_type)}</td>
-                    <td class="py-2 text-slate-400 text-xs">${s.last_sync_at ? fmtDate(s.last_sync_at) : '—'}</td>
-                    <td class="py-2 text-slate-300 font-semibold">${s.run_count || 0}</td>
+                    <td class="py-2 text-slate-800 dark:text-slate-300 font-mono text-xs">${esc(s.entity_type)}</td>
+                    <td class="py-2 text-slate-600 dark:text-slate-400 text-xs">${s.last_sync_at ? fmtDate(s.last_sync_at) : '—'}</td>
+                    <td class="py-2 text-slate-800 dark:text-slate-300 font-semibold">${s.run_count || 0}</td>
                 </tr>`).join('')}</tbody></table>`;
         } else {
             stateDiv.textContent = 'Nenhuma sincronização realizada ainda.';
@@ -26,8 +26,8 @@ async function loadSyncState() {
             recentDiv.innerHTML = data.recent_updates.map(u => `
                 <div class="flex items-center justify-between py-2 border-b border-slate-700/10 hover:bg-slate-800/10 transition">
                     <div>
-                        <span class="text-slate-300 text-sm">${esc(u.nome_lead || '—')}</span>
-                        <span class="text-slate-600 text-xs ml-2">${esc(u.pipeline || '')} &rarr; ${esc(u.etapa || '')}</span>
+                        <span class="text-slate-800 dark:text-slate-300 text-sm">${esc(u.nome_lead || '—')}</span>
+                        <span class="text-slate-600 dark:text-slate-500 text-xs ml-2">${esc(u.pipeline || '')} &rarr; ${esc(u.etapa || '')}</span>
                     </div>
                     <span class="tag-pill ${u.status === 'won' ? 'bg-emerald-500/15 text-emerald-400' : u.status === 'lost' ? 'bg-red-500/15 text-red-400' : 'bg-blue-500/15 text-blue-400'}">
                         ${{won:'Ganho', in_process:'Aberto', lost:'Perdido'}[u.status] || u.status}

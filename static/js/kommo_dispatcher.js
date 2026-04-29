@@ -128,9 +128,9 @@ function _kdRenderDispatches(recent) {
                           d.http && d.http >= 400 ? 'text-rose-400' : 'text-slate-400';
         const statusColor = d.result === 'ok' || d.result === 'sent' ? 'text-green-400' :
                             d.result === 'failed' || d.result === 'error' ? 'text-rose-400' : 'text-slate-400';
-        return `<tr class="hover:bg-slate-800/30">
+        return `<tr class="hover:bg-slate-100 dark:hover:bg-slate-800/30">
             <td class="py-1.5 px-3 text-slate-500 font-mono">${_kdTime(d.ts)}</td>
-            <td class="py-1.5 px-3 text-slate-300">${d.event || '—'}</td>
+            <td class="py-1.5 px-3 text-slate-700 dark:text-slate-300">${d.event || '—'}</td>
             <td class="py-1.5 px-3 text-slate-400 font-mono">${d.lead || d.uid || '—'}</td>
             <td class="py-1.5 px-3 text-slate-400">${d.type || '—'}</td>
             <td class="py-1.5 px-3 ${httpColor} font-mono">${d.http || '—'}</td>
@@ -152,10 +152,10 @@ function _kdRenderMessages(msgs) {
         const typeColor = m.message_type === 'voice' ? 'text-fuchsia-400' :
                           m.message_type === 'picture' ? 'text-amber-400' : 'text-slate-400';
         const txt = (m.text || '').length > 50 ? m.text.substring(0, 50) + '…' : (m.text || '—');
-        return `<tr class="hover:bg-slate-800/30">
+        return `<tr class="hover:bg-slate-100 dark:hover:bg-slate-800/30">
             <td class="py-1.5 px-2 text-slate-500 font-mono text-[10px]">${_kdTime(m.sent_at)}</td>
-            <td class="py-1.5 px-2 text-slate-400 truncate max-w-[100px]" title="${m.chat_label || m.chat_id || ''}">${m.chat_label || m.chat_id || '—'}</td>
-            <td class="py-1.5 px-2 text-slate-300 truncate max-w-[80px]">${m.sender_name || m.sender_type || '—'}</td>
+            <td class="py-1.5 px-2 text-slate-600 dark:text-slate-400 truncate max-w-[100px]" title="${m.chat_label || m.chat_id || ''}">${m.chat_label || m.chat_id || '—'}</td>
+            <td class="py-1.5 px-2 text-slate-800 dark:text-slate-300 truncate max-w-[80px]">${m.sender_name || m.sender_type || '—'}</td>
             <td class="py-1.5 px-2">${dirIcon}</td>
             <td class="py-1.5 px-2 ${typeColor}">${m.message_type || '—'}</td>
             <td class="py-1.5 px-2 text-slate-400 truncate max-w-[200px]" title="${(m.text || '').replace(/"/g, '&quot;')}">${txt}</td>
@@ -170,8 +170,8 @@ function _kdRenderTopChats(chats) {
         return;
     }
     tbody.innerHTML = chats.slice(0, 20).map(c => {
-        return `<tr class="hover:bg-slate-800/30">
-            <td class="py-1.5 px-2 text-slate-300 truncate max-w-[200px]" title="${c.label || c.chat_id}">${c.label || c.chat_id}</td>
+        return `<tr class="hover:bg-slate-100 dark:hover:bg-slate-800/30">
+            <td class="py-1.5 px-2 text-slate-800 dark:text-slate-300 truncate max-w-[200px]" title="${c.label || c.chat_id}">${c.label || c.chat_id}</td>
             <td class="py-1.5 px-2 text-cyan-400 font-mono font-bold">${_kdFmt(c.msg_count)}</td>
             <td class="py-1.5 px-2 text-slate-500 font-mono text-[10px]">${_kdTime(c.last_at)}</td>
         </tr>`;

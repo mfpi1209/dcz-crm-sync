@@ -73,8 +73,8 @@ let _configTab = 'ciclos';
 function switchConfigTab(tab) {
     _configTab = tab;
     const tabs = ['ciclos', 'turmas', 'usuarios', 'regua'];
-    const activeClass = 'text-sm font-semibold px-5 py-2 rounded-lg transition bg-blue-500/15 text-blue-400 border border-blue-500/30 flex items-center gap-2';
-    const inactiveClass = 'text-sm font-semibold px-5 py-2 rounded-lg transition text-gray-500 hover:text-gray-300 flex items-center gap-2';
+    const activeClass = dsSegActive('flex items-center gap-2');
+    const inactiveClass = dsSegInactive('flex items-center gap-2');
     tabs.forEach(t => {
         const tabEl = document.getElementById('cfg-tab-' + t);
         const secEl = document.getElementById('cfg-section-' + t);
@@ -102,11 +102,11 @@ async function loadTurmas() {
 function switchTurmaTab(tab) {
     _turmaTab = tab;
     document.getElementById('tab-turma-grad').className = tab === 'grad'
-        ? 'text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-blue-500/15 text-blue-400 border border-blue-500/30'
-        : 'text-sm font-semibold px-4 py-1.5 rounded-lg transition text-gray-500 hover:text-gray-300';
+        ? dsSegActive()
+        : dsSegInactive();
     document.getElementById('tab-turma-pos').className = tab === 'pos'
-        ? 'text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-blue-500/15 text-blue-400 border border-blue-500/30'
-        : 'text-sm font-semibold px-4 py-1.5 rounded-lg transition text-gray-500 hover:text-gray-300';
+        ? dsSegActive()
+        : dsSegInactive();
     renderTurmas();
 }
 
@@ -207,11 +207,11 @@ async function loadCiclos() {
 function switchCicloTab(tab) {
     _cicloTab = tab;
     document.getElementById('tab-ciclo-grad').className = tab === 'grad'
-        ? 'text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-blue-500/15 text-blue-400 border border-blue-500/30'
-        : 'text-sm font-semibold px-4 py-1.5 rounded-lg transition text-gray-500 hover:text-gray-300';
+        ? dsSegActive()
+        : dsSegInactive();
     document.getElementById('tab-ciclo-pos').className = tab === 'pos'
-        ? 'text-sm font-semibold px-4 py-1.5 rounded-lg transition bg-blue-500/15 text-blue-400 border border-blue-500/30'
-        : 'text-sm font-semibold px-4 py-1.5 rounded-lg transition text-gray-500 hover:text-gray-300';
+        ? dsSegActive()
+        : dsSegInactive();
     renderCiclos();
 }
 
@@ -397,7 +397,7 @@ const PAGE_LABELS = {
     logs: 'Logs / Relatórios', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas',
     intelligence: 'Inteligência', inadimplencia: 'Inadimplência',
     feedback: 'Feedback', config: 'Configurações', schedule: 'Agendamento',
-    inscricao: 'Inscrição Automática',
+    inscricao: 'Inscrições',
     comparar_cursos: 'Comparar Cursos',
     recomendacao_cursos: 'Recomendação',
     localizacao_polos: 'Localização',

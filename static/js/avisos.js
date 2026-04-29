@@ -59,16 +59,20 @@ function _avisoCard(a, showReadBtn) {
 function avisosTab(tab) {
     _avCurrentTab = tab;
     const tabs = ['nao-lidos', 'todos', 'admin'];
+    const rowExtra = 'inline-flex items-center gap-1';
     tabs.forEach(t => {
         const btn = document.getElementById(`av-tab-${t}`);
         const sec = document.getElementById(`av-section-${t}`);
         if (!btn || !sec) return;
         if (t === tab) {
-            btn.className = 'px-4 py-2 text-sm font-medium rounded-lg transition-all bg-violet-600/20 text-violet-400 border border-violet-500/30';
+            btn.className = dsSegActive(rowExtra);
             sec.classList.remove('hidden');
         } else {
-            btn.className = 'px-4 py-2 text-sm font-medium rounded-lg transition-all text-slate-400 hover:text-white';
+            btn.className = dsSegInactive(rowExtra);
             sec.classList.add('hidden');
+        }
+        if (t === 'admin' && document.body.dataset.role !== 'admin') {
+            btn.classList.add('hidden');
         }
     });
     if (tab === 'nao-lidos') _loadNaoLidos();

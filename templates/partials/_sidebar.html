@@ -8,10 +8,7 @@
                 style="color: var(--primary)">
                 <span class="text-[var(--text-primary)]">edu</span>it.
             </h1>
-            <p class="text-[10px] font-bold uppercase tracking-[0.2em] mt-1.5"
-               style="color: var(--outline)">
-                Cockpit · Gestão
-            </p>
+            <p class="text-[10px] font-bold uppercase tracking-[0.2em] mt-1.5 text-[var(--text-secondary)]">Cockpit · Gestão</p>
         </div>
 
         <!-- Nav -->
@@ -127,7 +124,7 @@
                     </a>
                     <a href="#inscricao" onclick="navigate('inscricao')" class="sidebar-link sidebar-sub" data-page="inscricao">
                         <span class="material-symbols-outlined text-base">assignment</span>
-                        Inscrição Automática
+                        Inscrições
                     </a>
                     <a href="#recadastros" onclick="navigate('recadastros')" class="sidebar-link sidebar-sub" data-page="recadastros">
                         <span class="material-symbols-outlined text-base">person_search</span>
@@ -306,11 +303,11 @@
         <header id="topbar"
                 class="topbar sticky top-0 z-30 flex items-center justify-between gap-3 px-4 md:px-8 h-14 md:h-16 border-b">
             <!-- Esquerda: menu mobile + título -->
-            <div class="flex items-center gap-3 min-w-0">
+            <div class="flex items-center gap-3 min-w-0 flex-1">
                 <button onclick="toggleSidebar()" class="md:hidden text-[var(--text-muted)] hover:text-[var(--primary)] transition flex-shrink-0">
                     <span class="material-symbols-outlined">menu</span>
                 </button>
-                <h2 id="page-title" class="topbar-title font-headline font-extrabold truncate">Dashboard</h2>
+                <h2 id="page-title" class="topbar-title font-headline font-extrabold min-w-0 flex-1 truncate" title="">Dashboard</h2>
                 <span id="mobile-title" class="hidden">Dashboard</span>
                 <span class="hidden md:inline-block h-6 w-px bg-[var(--border)] mx-2"></span>
                 <div id="topbar-meta" class="hidden md:flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.15em] px-3 py-1.5 rounded-full"
@@ -320,8 +317,12 @@
                 </div>
             </div>
 
-            <!-- Direita: ações -->
+            <!-- Direita: usuário + ações -->
             <div class="flex items-center gap-1 md:gap-2">
+                <div id="topbar-user" class="topbar-user" title="">
+                    <div class="topbar-user-avatar" id="topbar-user-initials">–</div>
+                    <span class="topbar-user-name" id="topbar-user-name"></span>
+                </div>
                 <button id="topbar-search" onclick="navigate('search')"
                         class="topbar-action hidden sm:flex"
                         title="Buscar">

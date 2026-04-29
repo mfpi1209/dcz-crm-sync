@@ -41,9 +41,10 @@
                         height: 72px;
                         display: flex;
                         align-items: center;
-                        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+                        box-shadow: 0 4px 24px rgba(0,0,0,0.12);
                         border-radius: var(--insc-radius-lg);
                         margin: 16px 16px 0;
+                        border: 1px solid rgba(255,255,255,0.08);
                     }
 
                     #page-inscricao .insc-header-inner {
@@ -83,7 +84,7 @@
 
                     #page-inscricao .insc-logo-text span {
                         font-size: 12px;
-                        color: var(--insc-text-muted);
+                        color: rgba(255,255,255,0.72);
                         font-weight: 400;
                     }
 
@@ -92,7 +93,7 @@
                         align-items: center;
                         gap: 8px;
                         font-size: 13px;
-                        color: var(--insc-text-muted);
+                        color: rgba(255,255,255,0.72);
                     }
 
                     #page-inscricao .insc-status-dot {
@@ -116,16 +117,16 @@
                     }
 
                     #page-inscricao .insc-toolbar {
-                        background: var(--insc-bg-card);
-                        border-radius: var(--insc-radius-lg);
                         padding: 20px 24px;
                         margin-bottom: 28px;
-                        box-shadow: var(--insc-shadow);
                         display: flex;
                         align-items: flex-end;
                         gap: 16px;
                         flex-wrap: wrap;
-                        border: 1px solid var(--insc-border-light);
+                    }
+
+                    .dark #page-inscricao .insc-toolbar.glass-card {
+                        background-image: linear-gradient(180deg, rgba(30,41,59,0.85) 0%, rgba(15,23,42,0.92) 100%);
                     }
 
                     #page-inscricao .insc-toolbar-group {
@@ -135,29 +136,15 @@
                     }
 
                     #page-inscricao .insc-toolbar-group label {
-                        font-size: 12px;
+                        font-size: 11px;
                         font-weight: 600;
-                        color: var(--insc-text-muted);
+                        color: #64748b;
                         text-transform: uppercase;
-                        letter-spacing: 0.5px;
+                        letter-spacing: 0.06em;
                     }
 
-                    #page-inscricao .insc-toolbar-group input[type="date"] {
-                        padding: 10px 14px;
-                        border: 1.5px solid var(--insc-border);
-                        border-radius: var(--insc-radius);
-                        font-family: inherit;
-                        font-size: 14px;
-                        color: var(--insc-text-primary);
-                        background: var(--insc-bg-main);
-                        outline: none;
-                        transition: var(--insc-transition);
-                        min-width: 170px;
-                    }
-
-                    #page-inscricao .insc-toolbar-group input[type="date"]:focus {
-                        border-color: var(--insc-primary);
-                        box-shadow: 0 0 0 3px var(--insc-primary-glow);
+                    .dark #page-inscricao .insc-toolbar-group label {
+                        color: #94a3b8;
                     }
 
                     #page-inscricao .insc-toolbar-actions {
@@ -209,15 +196,27 @@
                     }
 
                     #page-inscricao .insc-btn-danger {
-                        background: var(--insc-danger-light);
-                        color: var(--insc-danger);
+                        background: transparent;
+                        color: #b91c1c;
                         border-color: #fecaca;
                     }
 
                     #page-inscricao .insc-btn-danger:hover {
-                        background: #fee2e2;
-                        border-color: #fca5a5;
+                        background: #fef2f2;
+                        border-color: #f87171;
+                        color: #991b1b;
                         transform: translateY(-1px);
+                    }
+
+                    .dark #page-inscricao .insc-btn-danger {
+                        background: rgba(239, 68, 68, 0.08);
+                        color: #fca5a5;
+                        border-color: rgba(248, 113, 113, 0.4);
+                    }
+
+                    .dark #page-inscricao .insc-btn-danger:hover {
+                        background: rgba(239, 68, 68, 0.15);
+                        border-color: rgba(248, 113, 113, 0.55);
                     }
 
                     #page-inscricao .insc-btn-danger.active {
@@ -781,14 +780,14 @@
                 <div class="insc-main">
 
                     <!-- TOOLBAR -->
-                    <div class="insc-toolbar">
+                    <div class="insc-toolbar glass-card shadow-sm">
                         <div class="insc-toolbar-group">
-                            <label for="insc-inputFrom">Data Inicial</label>
-                            <input type="date" id="insc-inputFrom">
+                            <label for="insc-inputFrom">Data inicial</label>
+                            <input type="date" id="insc-inputFrom" class="input-glass px-3 py-2.5 rounded-xl text-sm min-w-[170px] text-slate-900 dark:text-slate-100">
                         </div>
                         <div class="insc-toolbar-group">
-                            <label for="insc-inputTo">Data Final</label>
-                            <input type="date" id="insc-inputTo">
+                            <label for="insc-inputTo">Data final</label>
+                            <input type="date" id="insc-inputTo" class="input-glass px-3 py-2.5 rounded-xl text-sm min-w-[170px] text-slate-900 dark:text-slate-100">
                         </div>
                         <div class="insc-toolbar-actions">
                             <button class="insc-btn insc-btn-primary" id="insc-btnApply" onclick="inscApplyFilter()">

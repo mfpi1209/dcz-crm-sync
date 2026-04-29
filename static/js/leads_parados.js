@@ -102,24 +102,24 @@ function _lpRenderTable(leads) {
 
     for (const lead of leads) {
         const tr = document.createElement('tr');
-        tr.className = 'hover:bg-white/5 transition-colors';
+        tr.className = 'transition-colors hover:bg-slate-50 dark:hover:bg-white/5';
         tr.dataset.leadId = lead.id;
         tr.dataset.contactId = lead.contact_id || '';
         tr.dataset.responsibleUserId = lead.responsible_user_id || '';
 
         const corTempo = lead.segundos_parado >= 7200
-            ? 'text-red-400 font-bold'
+            ? 'text-red-700 dark:text-red-400 font-bold tabular-nums'
             : lead.segundos_parado >= 3600
-                ? 'text-amber-400'
-                : 'text-slate-300';
+                ? 'text-amber-800 dark:text-amber-400 font-semibold tabular-nums'
+                : 'text-slate-700 dark:text-slate-400 tabular-nums';
 
         const kommoUrl = 'https://admamoeduitcombr.kommo.com/leads/detail/' + lead.id;
         tr.innerHTML = `
-            <td class="px-4 py-3"><input type="checkbox" class="lp-check accent-blue-500 w-4 h-4 cursor-pointer" value="${lead.id}" onchange="lpUpdateSelBadge()"></td>
-            <td class="px-4 py-3 font-mono text-xs"><a href="${kommoUrl}" target="_blank" class="text-blue-400 hover:text-blue-300 underline">${lead.id}</a></td>
-            <td class="px-4 py-3 text-slate-200">${_lpEscape(lead.name)}</td>
-            <td class="px-4 py-3 text-slate-300">${_lpEscape(lead.consultor)}</td>
-            <td class="px-4 py-3 text-slate-400 text-xs">${lead.updated_at}</td>
+            <td class="px-4 py-3"><input type="checkbox" class="lp-check accent-indigo-600 w-4 h-4 cursor-pointer rounded border-slate-300 dark:border-slate-600" value="${lead.id}" onchange="lpUpdateSelBadge()"></td>
+            <td class="px-4 py-3 font-mono text-xs"><a href="${kommoUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-700 dark:text-blue-400 hover:underline font-medium">${lead.id}</a></td>
+            <td class="px-4 py-3 text-slate-900 dark:text-slate-100 font-medium">${_lpEscape(lead.name)}</td>
+            <td class="px-4 py-3 text-slate-700 dark:text-slate-300">${_lpEscape(lead.consultor)}</td>
+            <td class="px-4 py-3 text-slate-600 dark:text-slate-400 text-xs tabular-nums">${lead.updated_at}</td>
             <td class="px-4 py-3 ${corTempo}">${lead.tempo_parado}</td>
         `;
         tbody.appendChild(tr);
@@ -185,11 +185,11 @@ async function lpDistribuir() {
         const data = await res.json().catch(() => ({}));
         if (res.ok) {
             btn.innerHTML = '<span class="material-symbols-outlined text-base">check</span> Concluído! (' + (data.total || 0) + ' leads)';
-            btn.classList.replace('bg-emerald-600', 'bg-green-600');
+            btn.classList.add('ring-2', 'ring-white/80', 'dark:ring-emerald-300/50');
             setTimeout(() => {
                 btn.innerHTML = original;
                 btn.disabled = false;
-                btn.classList.replace('bg-green-600', 'bg-emerald-600');
+                btn.classList.remove('ring-2', 'ring-white/80', 'dark:ring-emerald-300/50');
                 loadLeadsParados();
             }, 4000);
         } else {

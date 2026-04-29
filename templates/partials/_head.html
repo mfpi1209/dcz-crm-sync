@@ -23,7 +23,7 @@
                         'secondary-container': 'var(--secondary-container)',
                         'card-bg': '#1E293B',
                         'deep-slate': '#0c1719',
-                        'background-light': '#f7f9fb',
+                        'background-light': '#e4eaf2',
                         'background-dark': '#101f22',
                         'surface-variant': 'var(--surface-variant)',
                         'outline-soft': 'var(--outline)',
@@ -65,12 +65,13 @@
             --warning: #d97706;
             --danger: #dc2626;
 
-            /* === Surfaces === */
-            --bg-main: #f7f9fb;
-            --bg-card: #ffffff;
-            --bg-elevated: #f1f5f9;
-            --bg-overlay: rgba(247, 249, 251, 0.85);
-            --surface-variant: #e0e3e5;
+            /* === Surfaces ===
+               Claro: cartões nunca #fff puro — alívio visual + hierarquia com o canvas */
+            --bg-main: #e4eaf2;
+            --bg-card: #f3f6fa;
+            --bg-elevated: #eef2f7;
+            --bg-overlay: rgba(243, 246, 250, 0.92);
+            --surface-variant: #e2e8f0;
 
             /* === Texto === */
             --text-primary: #0f172a;
@@ -79,16 +80,16 @@
             --text-disabled: #cbd5e1;
 
             /* === Bordas === */
-            --border: #e2e8f0;
-            --border-subtle: rgba(226, 232, 240, 0.8);
-            --border-hover: #cbd5e1;
+            --border: #d1dae6;
+            --border-subtle: rgba(209, 218, 230, 0.85);
+            --border-hover: #b8c5d4;
             --outline: #737783;
 
             /* === Sombras (executivas, mais sutis) === */
-            --shadow-sm: 0 1px 2px rgba(15, 23, 42, .04);
-            --shadow: 0 1px 3px rgba(15, 23, 42, .06), 0 1px 2px rgba(15, 23, 42, .03);
-            --shadow-md: 0 4px 8px -2px rgba(15, 23, 42, .08), 0 2px 4px -2px rgba(15, 23, 42, .04);
-            --shadow-lg: 0 12px 20px -6px rgba(0, 52, 111, .10), 0 6px 8px -3px rgba(15, 23, 42, .04);
+            --shadow-sm: 0 1px 2px rgba(15, 23, 42, .05);
+            --shadow: 0 1px 3px rgba(15, 23, 42, .07), 0 2px 8px -2px rgba(0, 52, 111, .05);
+            --shadow-md: 0 4px 12px -2px rgba(15, 23, 42, .09), 0 2px 6px -2px rgba(0, 52, 111, .06);
+            --shadow-lg: 0 12px 24px -6px rgba(0, 52, 111, .11), 0 6px 10px -4px rgba(15, 23, 42, .05);
             --shadow-xl: 0 24px 40px -8px rgba(0, 52, 111, .14), 0 10px 14px -6px rgba(15, 23, 42, .06);
 
             /* === Raios (executivos: cards 2xl/3xl) === */
@@ -174,10 +175,8 @@
            COMPONENTES — TopBar
            ═══════════════════════════════════════════════════════════════ */
         .topbar {
-            background: rgba(247, 249, 251, 0.85);
-            backdrop-filter: blur(14px) saturate(160%);
-            -webkit-backdrop-filter: blur(14px) saturate(160%);
-            border-bottom-color: var(--border);
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
         }
         .dark .topbar {
             background: rgba(11, 22, 35, 0.85);
@@ -201,12 +200,15 @@
             width: 36px;
             height: 36px;
             border-radius: 999px;
-            color: var(--text-secondary);
+            color: #334155;
             background: transparent;
             border: none;
             cursor: pointer;
             transition: all var(--transition-fast);
             position: relative;
+        }
+        .dark .topbar-action {
+            color: var(--text-secondary);
         }
         .topbar-action:hover {
             color: var(--primary);
@@ -215,6 +217,10 @@
         .dark .topbar-action:hover {
             color: var(--primary);
             background: rgba(116, 174, 233, 0.08);
+        }
+
+        .topbar .topbar-action .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
         }
 
         .material-symbols-outlined {
@@ -265,17 +271,19 @@
            ═══════════════════════════════════════════════════════════════ */
         .glass-card {
             background: var(--bg-card);
+            background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 48%);
             border: 1px solid var(--border);
             border-radius: var(--radius-card);
-            box-shadow: var(--shadow);
+            box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.75);
             transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-base);
         }
         .glass-card:hover {
-            box-shadow: var(--shadow-md);
-            border-color: rgba(0, 52, 111, 0.16);
+            box-shadow: var(--shadow-md), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+            border-color: rgba(0, 52, 111, 0.14);
         }
         .dark .glass-card {
             background: var(--bg-card);
+            background-image: none;
             border-color: var(--border);
             box-shadow: var(--shadow);
         }
@@ -284,11 +292,116 @@
             border-color: rgba(116, 174, 233, 0.35);
         }
 
+        /* ═══ Abas segmentadas (padrão cockpit / Arquiteto Executivo) ═══ */
+        .ds-segment {
+            display: inline-flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 4px;
+            padding: 5px;
+            border-radius: 14px;
+            background: rgba(0, 52, 111, 0.06);
+            border: 1px solid rgba(0, 52, 111, 0.12);
+        }
+        .dark .ds-segment {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(116, 174, 233, 0.18);
+        }
+        .ds-segment--compact {
+            padding: 4px;
+            gap: 3px;
+            border-radius: 12px;
+        }
+        .ds-segment--compact .ds-segment__btn {
+            padding: 0.35rem 0.65rem;
+            font-size: 0.75rem;
+            border-radius: 9px;
+        }
+        .ds-segment__btn {
+            border: none;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+            border-radius: 10px;
+            transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+            background: transparent;
+            color: var(--text-secondary);
+            font-family: inherit;
+        }
+        .ds-segment__btn:hover:not(.ds-segment__btn--active) {
+            color: var(--primary);
+            background: rgba(0, 52, 111, 0.08);
+        }
+        .dark .ds-segment__btn:hover:not(.ds-segment__btn--active) {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.08);
+        }
+        .ds-segment__btn--active {
+            background: var(--primary);
+            color: #fff !important;
+            box-shadow: 0 1px 3px rgba(0, 52, 111, 0.22);
+        }
+        .dark .ds-segment__btn--active {
+            box-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
+        }
+        .ds-segment__btn--active .material-symbols-outlined {
+            color: #fff !important;
+        }
+
+        /* KPI secundário — azul médio (mesma família do template executivo) */
+        .kpi-tile-medium {
+            background: var(--primary-medium);
+            background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0) 48%);
+            color: #fff;
+            box-shadow: var(--shadow-md), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .topbar-user {
+            display: none;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.6rem 0.25rem 0.35rem;
+            border-radius: 999px;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            max-width: 11rem;
+        }
+        @media (min-width: 640px) {
+            .topbar-user.has-name { display: inline-flex; }
+        }
+        .topbar-user-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 999px;
+            background: var(--primary);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-family: 'Manrope', 'Inter', sans-serif;
+        }
+        .dark .topbar-user-avatar {
+            background: rgba(116, 174, 233, 0.35);
+            color: var(--text-primary);
+        }
+        .topbar-user-name {
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
         /* ═══════════════════════════════════════════════════════════════
            COMPONENTES — Sidebar (executivo)
            ═══════════════════════════════════════════════════════════════ */
         .glass-sidebar {
-            background: #f1f4f8;
+            background: #f1f5f9; /* slate-100 — igual ao template executivo */
             border-right: 1px solid #e2e8f0;
         }
         .dark .glass-sidebar {
@@ -309,20 +422,24 @@
             letter-spacing: 0.12em;
             transition: all var(--transition-base);
             cursor: pointer;
-            color: #64748b;
+            color: #1e3a5f;
             border: 1px solid transparent;
+        }
+
+        .glass-sidebar .sidebar-link .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
         }
 
         .sidebar-link:hover {
             color: var(--primary);
-            background: rgba(255, 255, 255, 0.7);
+            background: rgba(255, 255, 255, 0.92);
         }
 
         .sidebar-link.active {
-            background: #ffffff;
+            background: var(--bg-card);
             color: var(--primary);
             font-weight: 700;
-            box-shadow: 0 1px 3px rgba(0, 52, 111, 0.08);
+            box-shadow: 0 1px 3px rgba(0, 52, 111, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8);
             border-color: transparent;
             position: relative;
         }
@@ -379,8 +496,12 @@
             font-weight: 800;
             text-transform: uppercase;
             letter-spacing: 0.2em;
-            color: var(--outline);
+            color: #64748b;
             padding: 0 0.75rem;
+        }
+
+        .dark .sidebar-section-label {
+            color: var(--outline);
         }
 
         .sidebar-group-toggle {
@@ -394,16 +515,20 @@
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.18em;
-            color: #94a3b8;
+            color: #475569;
             border: none;
             background: none;
             cursor: pointer;
             border-radius: 10px;
             transition: all var(--transition-base);
         }
+        .sidebar-group-toggle .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+        }
+
         .sidebar-group-toggle:hover {
             color: var(--primary);
-            background: transparent;
+            background: rgba(255, 255, 255, 0.65);
         }
         .dark .sidebar-group-toggle {
             color: #6b7d97;
@@ -442,17 +567,19 @@
             border-radius: var(--radius-card);
             padding: 1.5rem;
             background: var(--bg-card);
+            background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 45%);
             border: 1px solid var(--border);
-            box-shadow: var(--shadow-sm);
+            box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.72);
             transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-base);
         }
         .metric-card:hover {
             transform: translateY(-4px);
-            box-shadow: var(--shadow-lg);
+            box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.85);
             border-color: rgba(0, 52, 111, 0.18);
         }
         .dark .metric-card {
             background: var(--bg-card);
+            background-image: none;
             border-color: var(--border);
             box-shadow: var(--shadow);
         }
@@ -683,6 +810,18 @@
         .dark .input-glass:focus {
             border-color: rgb(var(--primary-rgb));
             box-shadow: 0 0 0 3px rgb(var(--primary-rgb) / 0.2);
+        }
+
+        /* Listas nativas do <select>: contraste no painel claro */
+        select.input-glass option,
+        select.input-glass optgroup {
+            color: #0f172a;
+            background: #ffffff;
+        }
+        .dark select.input-glass option,
+        .dark select.input-glass optgroup {
+            color: #e2e8f0;
+            background: #1e293b;
         }
 
         /* ═══════════════════════════════════════════════════════════════
@@ -969,8 +1108,18 @@
         /* Feedback — estilos mantidos para componentes JS-dinâmicos */
         /* Feedback — tabela dinâmica (JS) */
         #page-feedback table tbody tr { transition: background .15s; }
-        #page-feedback table tbody tr:hover { background: rgba(99,102,241,.04); }
-        #page-feedback table tbody td { padding:12px 16px; font-size:13px; color:#cbd5e1; border-bottom:1px solid rgba(255,255,255,.06); }
+        #page-feedback table tbody tr:hover { background: rgba(99,102,241,.06); }
+        .dark #page-feedback table tbody tr:hover { background: rgba(99,102,241,.08); }
+        #page-feedback table tbody td {
+            padding:12px 16px;
+            font-size:13px;
+            color:#334155;
+            border-bottom:1px solid rgba(15,23,42,.08);
+        }
+        .dark #page-feedback table tbody td {
+            color:#cbd5e1;
+            border-bottom:1px solid rgba(255,255,255,.06);
+        }
         #page-feedback table tbody tr:last-child td { border-bottom:none; }
         #page-feedback .fb-consultor-name { font-weight:600; display:flex; align-items:center; gap:10px; }
         #page-feedback .fb-avatar {

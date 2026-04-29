@@ -11,12 +11,12 @@
 
   /* Classes com escopo: prefixadas pelo id da página */
   #page-atualizar_preco .drop-zone {
-    border: 2px dashed #334155;
+    border: 2px dashed var(--border);
     transition: all .2s;
   }
   #page-atualizar_preco .drop-zone.dragover {
-    border-color: #6366f1;
-    background: rgba(99,102,241,.08);
+    border-color: var(--primary);
+    background: rgba(0,52,111,.06);
   }
   #page-atualizar_preco .drop-zone.has-file {
     border-color: #22c55e;
@@ -32,48 +32,47 @@
     animation: ap-spin .7s linear infinite;
     display:inline-block;
   }
-  #page-atualizar_preco .tab-active  { background: #6366f1; color: #fff; }
-  #page-atualizar_preco .tab-inactive { color: #94a3b8; }
-  #page-atualizar_preco .tab-inactive:hover { color: #e2e8f0; background: #1e293b; }
 </style>
 
 <!-- Cabeçalho da página -->
-<div class="px-6 py-5 flex items-center gap-3 border-b border-slate-800">
-  <div class="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0">
+<div class="glass-card mx-0 mb-6 rounded-none border-x-0 border-t-0 px-6 py-5 flex items-center gap-3 border-b border-[var(--border)]">
+  <div class="w-9 h-9 rounded-lg bg-[var(--primary)] flex items-center justify-center shrink-0 shadow-sm">
     <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
         d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
     </svg>
   </div>
   <div>
-    <h2 class="text-base font-semibold text-white">Atualização de Preços</h2>
-    <p class="text-xs text-slate-500">Kommo · IA · Site Cruzeiro · Eduit-ead · Eduit New</p>
+    <h2 class="text-base font-semibold text-[var(--text-primary)]">Atualização de Preços</h2>
+    <p class="text-xs text-[var(--text-muted)]">Kommo · IA · Site Cruzeiro · Eduit-ead · Eduit New</p>
   </div>
 </div>
   <main class="max-w-6xl mx-auto px-6 py-8">
 
     <!-- Seção Produtos -->
-    <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
+    <div class="glass-card overflow-hidden">
 
       <!-- Título seção -->
-      <div class="px-6 py-4 border-b border-slate-800 flex items-center gap-2">
-        <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="px-6 py-4 border-b border-[var(--border)] flex items-center gap-2 bg-slate-50/80 dark:bg-slate-800/30">
+        <svg class="w-5 h-5 text-[var(--primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10"/>
         </svg>
-        <h2 class="text-sm font-semibold text-white uppercase tracking-wider">Produtos</h2>
+        <h2 class="text-sm font-semibold text-[var(--text-primary)] uppercase tracking-wider">Produtos</h2>
       </div>
 
       <!-- Tabs -->
-      <div class="flex gap-1 px-6 pt-4">
+      <div class="px-6 pt-4">
+        <div class="ds-segment">
         <button id="tab-grad" onclick="switchTab('grad')"
-          class="tab-active px-4 py-2 rounded-lg text-sm font-medium transition-all">
+          class="ds-segment__btn ds-segment__btn--active">
           Graduação
         </button>
         <button id="tab-pos" onclick="switchTab('pos')"
-          class="tab-inactive px-4 py-2 rounded-lg text-sm font-medium transition-all">
+          class="ds-segment__btn ds-segment__btn--inactive">
           Pós-Graduação
         </button>
+        </div>
       </div>
 
       <!-- ── TAB GRADUAÇÃO ── -->
@@ -90,15 +89,15 @@
           <input type="file" id="file-grad" accept=".xlsx" class="hidden"
             onchange="handleFileSelect(event,'grad')" />
           <div id="drop-grad-icon" class="flex flex-col items-center gap-3 pointer-events-none">
-            <div class="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
-              <svg class="w-7 h-7 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="w-14 h-14 rounded-full bg-slate-200/90 dark:bg-slate-800 flex items-center justify-center">
+              <svg class="w-7 h-7 text-slate-500 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                   d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586
                      a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
               </svg>
             </div>
-            <p class="text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-300">curso grad.xlsx</span></p>
-            <p class="text-slate-600 text-xs">ou clique para selecionar</p>
+            <p class="text-slate-600 dark:text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-800 dark:text-slate-300">curso grad.xlsx</span></p>
+            <p class="text-slate-500 text-xs">ou clique para selecionar</p>
           </div>
           <div id="drop-grad-file" class="hidden flex-col items-center gap-2 pointer-events-none">
             <div class="w-14 h-14 rounded-full bg-emerald-900/40 flex items-center justify-center">
@@ -114,7 +113,7 @@
         <!-- Botão Verificar -->
         <div class="flex gap-3 mb-6">
           <button id="btn-preview-grad" onclick="preview('grad')"
-            class="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500
+            class="flex-1 bg-[var(--primary)] hover:opacity-90 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
                    disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
                    transition-all flex items-center justify-center gap-2" disabled>
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -127,7 +126,7 @@
             Verificar
           </button>
           <button id="btn-atualizar-grad" onclick="atualizar('grad')"
-            class="flex-1 bg-emerald-700 hover:bg-emerald-600 disabled:bg-slate-700 disabled:text-slate-500
+            class="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
                    disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
                    transition-all flex items-center justify-center gap-2" disabled>
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -156,15 +155,15 @@
           <input type="file" id="file-pos" accept=".xlsx" class="hidden"
             onchange="handleFileSelect(event,'pos')" />
           <div id="drop-pos-icon" class="flex flex-col items-center gap-3 pointer-events-none">
-            <div class="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
-              <svg class="w-7 h-7 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="w-14 h-14 rounded-full bg-slate-200/90 dark:bg-slate-800 flex items-center justify-center">
+              <svg class="w-7 h-7 text-slate-500 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                   d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586
                      a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
               </svg>
             </div>
-            <p class="text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-300">curso pós.xlsx</span></p>
-            <p class="text-slate-600 text-xs">ou clique para selecionar</p>
+            <p class="text-slate-600 dark:text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-800 dark:text-slate-300">curso pós.xlsx</span></p>
+            <p class="text-slate-500 text-xs">ou clique para selecionar</p>
           </div>
           <div id="drop-pos-file" class="hidden flex-col items-center gap-2 pointer-events-none">
             <div class="w-14 h-14 rounded-full bg-emerald-900/40 flex items-center justify-center">
@@ -180,7 +179,7 @@
         <!-- Botões pos -->
         <div class="flex gap-3 mb-6">
           <button id="btn-preview-pos" onclick="preview('pos')"
-            class="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500
+            class="flex-1 bg-[var(--primary)] hover:opacity-90 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
                    disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
                    transition-all flex items-center justify-center gap-2" disabled>
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -193,7 +192,7 @@
             Verificar
           </button>
           <button id="btn-atualizar-pos" onclick="atualizar('pos')"
-            class="flex-1 bg-emerald-700 hover:bg-emerald-600 disabled:bg-slate-700 disabled:text-slate-500
+            class="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
                    disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
                    transition-all flex items-center justify-center gap-2" disabled>
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -213,29 +212,31 @@
     </div>
 
     <!-- ═══ Seção IA (Supabase) ═══ -->
-    <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden mt-6">
+    <div class="glass-card overflow-hidden mt-6">
 
       <!-- Título -->
-      <div class="px-6 py-4 border-b border-slate-800 flex items-center gap-2">
-        <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="px-6 py-4 border-b border-[var(--border)] flex items-center gap-2 bg-slate-50/80 dark:bg-slate-800/30">
+        <svg class="w-5 h-5 text-violet-600 dark:text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
         </svg>
-        <h2 class="text-sm font-semibold text-white uppercase tracking-wider">IA</h2>
+        <h2 class="text-sm font-semibold text-[var(--text-primary)] uppercase tracking-wider">IA</h2>
         <span class="text-xs text-slate-500 ml-1">Supabase</span>
-        <span class="ml-auto text-xs text-slate-600 bg-slate-800 px-2 py-0.5 rounded-full font-mono">documents_precos</span>
+        <span class="ml-auto text-xs text-slate-600 dark:text-slate-300 bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded-full font-mono">documents_precos</span>
       </div>
 
       <!-- Tabs -->
-      <div class="flex gap-1 px-6 pt-4">
+      <div class="px-6 pt-4">
+        <div class="ds-segment">
         <button id="supa-tab-grad" onclick="supaTab('grad')"
-          class="tab-active px-4 py-2 rounded-lg text-sm font-medium transition-all">
+          class="ds-segment__btn ds-segment__btn--active">
           Graduação
         </button>
         <button id="supa-tab-pos" onclick="supaTab('pos')"
-          class="tab-inactive px-4 py-2 rounded-lg text-sm font-medium transition-all">
+          class="ds-segment__btn ds-segment__btn--inactive">
           Pós-Graduação
         </button>
+        </div>
       </div>
 
       <!-- Panel Graduação -->
@@ -249,15 +250,15 @@
           <input type="file" id="supa-file-grad" accept=".xlsx" class="hidden"
             onchange="supaHandleFileSelect(event,'grad')" />
           <div id="supa-drop-grad-icon" class="flex flex-col items-center gap-3 pointer-events-none">
-            <div class="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
-              <svg class="w-7 h-7 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="w-14 h-14 rounded-full bg-slate-200/90 dark:bg-slate-800 flex items-center justify-center">
+              <svg class="w-7 h-7 text-slate-500 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                   d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586
                      a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
               </svg>
             </div>
-            <p class="text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-300">curso grad.xlsx</span></p>
-            <p class="text-slate-600 text-xs">ou clique para selecionar</p>
+            <p class="text-slate-600 dark:text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-800 dark:text-slate-300">curso grad.xlsx</span></p>
+            <p class="text-slate-500 text-xs">ou clique para selecionar</p>
           </div>
           <div id="supa-drop-grad-file" class="hidden flex-col items-center gap-2 pointer-events-none">
             <div class="w-14 h-14 rounded-full bg-emerald-900/40 flex items-center justify-center">
@@ -271,13 +272,13 @@
         </div>
         <div class="flex gap-3 mb-6">
           <button id="supa-btn-preview-grad" onclick="supaPreview('grad')"
-            class="flex-1 bg-violet-700 hover:bg-violet-600 disabled:bg-slate-700 disabled:text-slate-500
+            class="flex-1 bg-[var(--primary)] hover:opacity-90 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
                    disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
                    transition-all flex items-center justify-center gap-2" disabled>
             Verificar IA
           </button>
           <button id="supa-btn-atualizar-grad" onclick="supaAtualizar('grad')"
-            class="flex-1 bg-emerald-700 hover:bg-emerald-600 disabled:bg-slate-700 disabled:text-slate-500
+            class="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
                    disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
                    transition-all flex items-center justify-center gap-2" disabled>
             Atualizar IA
@@ -297,15 +298,15 @@
           <input type="file" id="supa-file-pos" accept=".xlsx" class="hidden"
             onchange="supaHandleFileSelect(event,'pos')" />
           <div id="supa-drop-pos-icon" class="flex flex-col items-center gap-3 pointer-events-none">
-            <div class="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
-              <svg class="w-7 h-7 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="w-14 h-14 rounded-full bg-slate-200/90 dark:bg-slate-800 flex items-center justify-center">
+              <svg class="w-7 h-7 text-slate-500 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                   d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586
                      a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
               </svg>
             </div>
-            <p class="text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-300">curso pós.xlsx</span></p>
-            <p class="text-slate-600 text-xs">ou clique para selecionar</p>
+            <p class="text-slate-600 dark:text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-800 dark:text-slate-300">curso pós.xlsx</span></p>
+            <p class="text-slate-500 text-xs">ou clique para selecionar</p>
           </div>
           <div id="supa-drop-pos-file" class="hidden flex-col items-center gap-2 pointer-events-none">
             <div class="w-14 h-14 rounded-full bg-emerald-900/40 flex items-center justify-center">
@@ -319,13 +320,13 @@
         </div>
         <div class="flex gap-3 mb-6">
           <button id="supa-btn-preview-pos" onclick="supaPreview('pos')"
-            class="flex-1 bg-violet-700 hover:bg-violet-600 disabled:bg-slate-700 disabled:text-slate-500
+            class="flex-1 bg-[var(--primary)] hover:opacity-90 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
                    disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
                    transition-all flex items-center justify-center gap-2" disabled>
             Verificar IA
           </button>
           <button id="supa-btn-atualizar-pos" onclick="supaAtualizar('pos')"
-            class="flex-1 bg-emerald-700 hover:bg-emerald-600 disabled:bg-slate-700 disabled:text-slate-500
+            class="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
                    disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
                    transition-all flex items-center justify-center gap-2" disabled>
             Atualizar IA
@@ -337,15 +338,15 @@
     </div>
 
     <!-- ═══ Seção Salesbot ═══ -->
-    <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden mt-6">
+    <div class="glass-card overflow-hidden mt-6">
 
       <!-- Título -->
-      <div class="px-6 py-4 border-b border-slate-800 flex items-center gap-2">
-        <svg class="w-5 h-5 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="px-6 py-4 border-b border-[var(--border)] flex items-center gap-2 bg-slate-50/80 dark:bg-slate-800/30">
+        <svg class="w-5 h-5 text-teal-600 dark:text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3v-3z"/>
         </svg>
-        <h2 class="text-sm font-semibold text-slate-200">Salesbot</h2>
+        <h2 class="text-sm font-semibold text-[var(--text-primary)]">Salesbot</h2>
         <span class="ml-1 text-xs text-slate-500">Graduação — Preço: Mar Aberto</span>
       </div>
 
@@ -360,15 +361,15 @@
           <input type="file" id="sb-file" accept=".xlsx" class="hidden"
             onchange="sbHandleFileSelect(event)" />
           <div id="sb-drop-icon" class="flex flex-col items-center gap-3 pointer-events-none">
-            <div class="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
+            <div class="w-14 h-14 rounded-full bg-slate-200/90 dark:bg-slate-800 flex items-center justify-center">
               <svg class="w-7 h-7 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                   d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414
                      5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
               </svg>
             </div>
-            <p class="text-slate-400 text-sm">Arraste o arquivo de <span class="text-teal-400 font-medium">Graduação</span> aqui</p>
-            <p class="text-slate-600 text-xs">ou clique para selecionar</p>
+            <p class="text-slate-600 dark:text-slate-400 text-sm">Arraste o arquivo de <span class="text-teal-700 dark:text-teal-400 font-medium">Graduação</span> aqui</p>
+            <p class="text-slate-500 text-xs">ou clique para selecionar</p>
           </div>
           <div id="sb-drop-file" class="hidden items-center gap-3 pointer-events-none justify-center">
             <svg class="w-8 h-8 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -404,26 +405,28 @@
     </div>
 
     <!-- ═══ Seção Site Cruzeiro (Wix) ═══ -->
-    <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden mt-6">
+    <div class="glass-card overflow-hidden mt-6">
 
-      <div class="px-6 py-4 border-b border-slate-800 flex items-center gap-2">
-        <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="px-6 py-4 border-b border-[var(--border)] flex items-center gap-2 bg-slate-50/80 dark:bg-slate-800/30">
+        <svg class="w-5 h-5 text-[var(--primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9"/>
         </svg>
-        <h2 class="text-sm font-semibold text-white uppercase tracking-wider">Site Cruzeiro</h2>
+        <h2 class="text-sm font-semibold text-[var(--text-primary)] uppercase tracking-wider">Site Cruzeiro</h2>
         <span class="text-xs text-slate-500 ml-1">Wix</span>
       </div>
 
-      <div class="flex gap-1 px-6 pt-4">
+      <div class="px-6 pt-4">
+        <div class="ds-segment">
         <button id="wix-tab-grad" onclick="wixTab('grad')"
-          class="tab-active px-4 py-2 rounded-lg text-sm font-medium transition-all">
+          class="ds-segment__btn ds-segment__btn--active">
           Graduação
         </button>
         <button id="wix-tab-pos" onclick="wixTab('pos')"
-          class="tab-inactive px-4 py-2 rounded-lg text-sm font-medium transition-all">
+          class="ds-segment__btn ds-segment__btn--inactive">
           Pós-Graduação
         </button>
+        </div>
       </div>
 
       <!-- Panel Graduação -->
@@ -437,15 +440,15 @@
           <input type="file" id="wix-file-grad" accept=".xlsx" class="hidden"
             onchange="wixHandleFileSelect(event,'grad')" />
           <div id="wix-drop-grad-icon" class="flex flex-col items-center gap-3 pointer-events-none">
-            <div class="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
-              <svg class="w-7 h-7 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="w-14 h-14 rounded-full bg-slate-200/90 dark:bg-slate-800 flex items-center justify-center">
+              <svg class="w-7 h-7 text-slate-500 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                   d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586
                      a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
               </svg>
             </div>
-            <p class="text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-300">graduação site</span></p>
-            <p class="text-slate-600 text-xs">ou clique para selecionar</p>
+            <p class="text-slate-600 dark:text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-800 dark:text-slate-300">graduação site</span></p>
+            <p class="text-slate-500 text-xs">ou clique para selecionar</p>
           </div>
           <div id="wix-drop-grad-file" class="hidden flex-col items-center gap-2 pointer-events-none">
             <div class="w-14 h-14 rounded-full bg-emerald-900/40 flex items-center justify-center">
@@ -459,13 +462,13 @@
         </div>
         <div class="flex gap-3 mb-6">
           <button id="wix-btn-preview-grad" onclick="wixPreview('grad')"
-            class="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500
+            class="flex-1 bg-[var(--primary)] hover:opacity-90 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
                    disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
                    transition-all flex items-center justify-center gap-2" disabled>
             Verificar Site
           </button>
           <button id="wix-btn-atualizar-grad" onclick="wixAtualizar('grad')"
-            class="flex-1 bg-emerald-700 hover:bg-emerald-600 disabled:bg-slate-700 disabled:text-slate-500
+            class="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
                    disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
                    transition-all flex items-center justify-center gap-2" disabled>
             Atualizar Site
@@ -485,15 +488,15 @@
           <input type="file" id="wix-file-pos" accept=".xlsx" class="hidden"
             onchange="wixHandleFileSelect(event,'pos')" />
           <div id="wix-drop-pos-icon" class="flex flex-col items-center gap-3 pointer-events-none">
-            <div class="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
-              <svg class="w-7 h-7 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="w-14 h-14 rounded-full bg-slate-200/90 dark:bg-slate-800 flex items-center justify-center">
+              <svg class="w-7 h-7 text-slate-500 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                   d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586
                      a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
               </svg>
             </div>
-            <p class="text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-300">pós-graduação site</span></p>
-            <p class="text-slate-600 text-xs">ou clique para selecionar</p>
+            <p class="text-slate-600 dark:text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-800 dark:text-slate-300">pós-graduação site</span></p>
+            <p class="text-slate-500 text-xs">ou clique para selecionar</p>
           </div>
           <div id="wix-drop-pos-file" class="hidden flex-col items-center gap-2 pointer-events-none">
             <div class="w-14 h-14 rounded-full bg-emerald-900/40 flex items-center justify-center">
@@ -507,13 +510,13 @@
         </div>
         <div class="flex gap-3 mb-6">
           <button id="wix-btn-preview-pos" onclick="wixPreview('pos')"
-            class="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500
+            class="flex-1 bg-[var(--primary)] hover:opacity-90 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
                    disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
                    transition-all flex items-center justify-center gap-2" disabled>
             Verificar Site
           </button>
           <button id="wix-btn-atualizar-pos" onclick="wixAtualizar('pos')"
-            class="flex-1 bg-emerald-700 hover:bg-emerald-600 disabled:bg-slate-700 disabled:text-slate-500
+            class="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
                    disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
                    transition-all flex items-center justify-center gap-2" disabled>
             Atualizar Site
@@ -525,26 +528,28 @@
     </div>
 
     <!-- ═══ Seção Eduit-ead (Wix 2) ═══ -->
-    <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden mt-6">
+    <div class="glass-card overflow-hidden mt-6">
 
-      <div class="px-6 py-4 border-b border-slate-800 flex items-center gap-2">
-        <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="px-6 py-4 border-b border-[var(--border)] flex items-center gap-2 bg-slate-50/80 dark:bg-slate-800/30">
+        <svg class="w-5 h-5 text-violet-600 dark:text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
         </svg>
-        <h2 class="text-sm font-semibold text-white uppercase tracking-wider">Eduit-ead</h2>
+        <h2 class="text-sm font-semibold text-[var(--text-primary)] uppercase tracking-wider">Eduit-ead</h2>
         <span class="text-xs text-slate-500 ml-1">Wix 2</span>
       </div>
 
-      <div class="flex gap-1 px-6 pt-4">
+      <div class="px-6 pt-4">
+        <div class="ds-segment">
         <button id="wix2-tab-grad" onclick="wix2Tab('grad')"
-          class="tab-active px-4 py-2 rounded-lg text-sm font-medium transition-all">
+          class="ds-segment__btn ds-segment__btn--active">
           Graduação
         </button>
         <button id="wix2-tab-pos" onclick="wix2Tab('pos')"
-          class="tab-inactive px-4 py-2 rounded-lg text-sm font-medium transition-all">
+          class="ds-segment__btn ds-segment__btn--inactive">
           Pós-Graduação
         </button>
+        </div>
       </div>
 
       <!-- Panel Graduação -->
@@ -558,15 +563,15 @@
           <input type="file" id="wix2-file-grad" accept=".xlsx" class="hidden"
             onchange="wix2HandleFileSelect(event,'grad')" />
           <div id="wix2-drop-grad-icon" class="flex flex-col items-center gap-3 pointer-events-none">
-            <div class="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
-              <svg class="w-7 h-7 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="w-14 h-14 rounded-full bg-slate-200/90 dark:bg-slate-800 flex items-center justify-center">
+              <svg class="w-7 h-7 text-slate-500 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                   d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586
                      a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
               </svg>
             </div>
-            <p class="text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-300">graduação ead</span></p>
-            <p class="text-slate-600 text-xs">ou clique para selecionar</p>
+            <p class="text-slate-600 dark:text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-800 dark:text-slate-300">graduação ead</span></p>
+            <p class="text-slate-500 text-xs">ou clique para selecionar</p>
           </div>
           <div id="wix2-drop-grad-file" class="hidden flex-col items-center gap-2 pointer-events-none">
             <div class="w-14 h-14 rounded-full bg-emerald-900/40 flex items-center justify-center">
@@ -580,13 +585,13 @@
         </div>
         <div class="flex gap-3 mb-6">
           <button id="wix2-btn-preview-grad" onclick="wix2Preview('grad')"
-            class="flex-1 bg-violet-700 hover:bg-violet-600 disabled:bg-slate-700 disabled:text-slate-500
+            class="flex-1 bg-[var(--primary)] hover:opacity-90 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
                    disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
                    transition-all flex items-center justify-center gap-2" disabled>
             Verificar Site
           </button>
           <button id="wix2-btn-atualizar-grad" onclick="wix2Atualizar('grad')"
-            class="flex-1 bg-emerald-700 hover:bg-emerald-600 disabled:bg-slate-700 disabled:text-slate-500
+            class="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
                    disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
                    transition-all flex items-center justify-center gap-2" disabled>
             Atualizar Site
@@ -606,15 +611,15 @@
           <input type="file" id="wix2-file-pos" accept=".xlsx" class="hidden"
             onchange="wix2HandleFileSelect(event,'pos')" />
           <div id="wix2-drop-pos-icon" class="flex flex-col items-center gap-3 pointer-events-none">
-            <div class="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
-              <svg class="w-7 h-7 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="w-14 h-14 rounded-full bg-slate-200/90 dark:bg-slate-800 flex items-center justify-center">
+              <svg class="w-7 h-7 text-slate-500 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                   d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586
                      a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
               </svg>
             </div>
-            <p class="text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-300">pós-graduação ead</span></p>
-            <p class="text-slate-600 text-xs">ou clique para selecionar</p>
+            <p class="text-slate-600 dark:text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-800 dark:text-slate-300">pós-graduação ead</span></p>
+            <p class="text-slate-500 text-xs">ou clique para selecionar</p>
           </div>
           <div id="wix2-drop-pos-file" class="hidden flex-col items-center gap-2 pointer-events-none">
             <div class="w-14 h-14 rounded-full bg-emerald-900/40 flex items-center justify-center">
@@ -628,13 +633,13 @@
         </div>
         <div class="flex gap-3 mb-6">
           <button id="wix2-btn-preview-pos" onclick="wix2Preview('pos')"
-            class="flex-1 bg-violet-700 hover:bg-violet-600 disabled:bg-slate-700 disabled:text-slate-500
+            class="flex-1 bg-[var(--primary)] hover:opacity-90 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
                    disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
                    transition-all flex items-center justify-center gap-2" disabled>
             Verificar Site
           </button>
           <button id="wix2-btn-atualizar-pos" onclick="wix2Atualizar('pos')"
-            class="flex-1 bg-emerald-700 hover:bg-emerald-600 disabled:bg-slate-700 disabled:text-slate-500
+            class="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
                    disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
                    transition-all flex items-center justify-center gap-2" disabled>
             Atualizar Site
@@ -646,9 +651,9 @@
     </div>
 
     <!-- ═══ Seção Eduit New (Wix 3) ═══ -->
-    <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden mt-6">
+    <div class="glass-card overflow-hidden mt-6">
 
-      <div class="px-6 py-4 border-b border-slate-800 flex items-center gap-2">
+      <div class="px-6 py-4 border-b border-[var(--border)] flex items-center gap-2 bg-slate-50/80 dark:bg-slate-800/30">
         <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0
@@ -657,19 +662,21 @@
                -.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81
                .588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
         </svg>
-        <h2 class="text-sm font-semibold text-white uppercase tracking-wider">Eduit New</h2>
+        <h2 class="text-sm font-semibold text-[var(--text-primary)] uppercase tracking-wider">Eduit New</h2>
         <span class="text-xs text-slate-500 ml-1">Wix 3</span>
       </div>
 
-      <div class="flex gap-1 px-6 pt-4">
+      <div class="px-6 pt-4">
+        <div class="ds-segment">
         <button id="wix3-tab-grad" onclick="wix3Tab('grad')"
-          class="tab-active px-4 py-2 rounded-lg text-sm font-medium transition-all">
+          class="ds-segment__btn ds-segment__btn--active">
           Graduação
         </button>
         <button id="wix3-tab-pos" onclick="wix3Tab('pos')"
-          class="tab-inactive px-4 py-2 rounded-lg text-sm font-medium transition-all">
+          class="ds-segment__btn ds-segment__btn--inactive">
           Pós-Graduação
         </button>
+        </div>
       </div>
 
       <!-- Panel Graduação -->
@@ -683,15 +690,15 @@
           <input type="file" id="wix3-file-grad" accept=".xlsx" class="hidden"
             onchange="wix3HandleFileSelect(event,'grad')" />
           <div id="wix3-drop-grad-icon" class="flex flex-col items-center gap-3 pointer-events-none">
-            <div class="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
+            <div class="w-14 h-14 rounded-full bg-slate-200/90 dark:bg-slate-800 flex items-center justify-center">
               <svg class="w-7 h-7 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                   d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586
                      a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
               </svg>
             </div>
-            <p class="text-slate-400 text-sm">Arraste o arquivo de <span class="text-amber-400 font-medium">Graduação</span> aqui</p>
-            <p class="text-slate-600 text-xs">ou clique para selecionar</p>
+            <p class="text-slate-600 dark:text-slate-400 text-sm">Arraste o arquivo de <span class="text-amber-700 dark:text-amber-400 font-medium">Graduação</span> aqui</p>
+            <p class="text-slate-500 text-xs">ou clique para selecionar</p>
           </div>
           <div id="wix3-drop-grad-file" class="hidden items-center gap-3 pointer-events-none justify-center">
             <svg class="w-8 h-8 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -733,15 +740,15 @@
           <input type="file" id="wix3-file-pos" accept=".xlsx" class="hidden"
             onchange="wix3HandleFileSelect(event,'pos')" />
           <div id="wix3-drop-pos-icon" class="flex flex-col items-center gap-3 pointer-events-none">
-            <div class="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center">
+            <div class="w-14 h-14 rounded-full bg-slate-200/90 dark:bg-slate-800 flex items-center justify-center">
               <svg class="w-7 h-7 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                   d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586
                      a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
               </svg>
             </div>
-            <p class="text-slate-400 text-sm">Arraste o arquivo de <span class="text-amber-400 font-medium">Pós-Graduação</span> aqui</p>
-            <p class="text-slate-600 text-xs">ou clique para selecionar</p>
+            <p class="text-slate-600 dark:text-slate-400 text-sm">Arraste o arquivo de <span class="text-amber-700 dark:text-amber-400 font-medium">Pós-Graduação</span> aqui</p>
+            <p class="text-slate-500 text-xs">ou clique para selecionar</p>
           </div>
           <div id="wix3-drop-pos-file" class="hidden items-center gap-3 pointer-events-none justify-center">
             <svg class="w-8 h-8 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -784,8 +791,8 @@
       ['grad','pos'].forEach(t => {
         document.getElementById(`tab-${t}`).className =
           t === tipo
-            ? 'tab-active px-4 py-2 rounded-lg text-sm font-medium transition-all'
-            : 'tab-inactive px-4 py-2 rounded-lg text-sm font-medium transition-all';
+            ? dsSegActive()
+            : dsSegInactive();
         document.getElementById(`panel-${t}`).classList.toggle('hidden', t !== tipo);
       });
     }
@@ -882,7 +889,7 @@
         ? Math.round(data.total_match / data.total_planilha * 100) : 0;
 
       const badgeAtualizar = `<span class="inline-flex items-center gap-1.5 text-xs font-medium badge-match px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Será atualizado</span>`;
-      const badgeSemMud   = `<span class="inline-flex items-center gap-1.5 text-xs font-medium bg-slate-700/50 text-slate-400 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Sem mudança</span>`;
+      const badgeSemMud   = `<span class="inline-flex items-center gap-1.5 text-xs font-medium bg-slate-200 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Sem mudança</span>`;
       const badgeKommo    = `<span class="inline-flex items-center gap-1.5 text-xs font-medium badge-nomatch px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-red-400"></span> Não na planilha</span>`;
       const badgePlan     = `<span class="inline-flex items-center gap-1.5 text-xs font-medium bg-amber-900/30 text-amber-400 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Só na planilha</span>`;
 
@@ -892,12 +899,12 @@
       const cmp = (old, nw) => {
         if (old == null && nw == null) return '<span class="text-slate-700">—</span>';
         if (old == nw) return `<span class="text-slate-400">R$&nbsp;${old}</span>`;
-        return `<span class="text-slate-500 line-through text-[10px]">R$&nbsp;${old ?? '—'}</span><br><span class="text-emerald-400 font-medium">R$&nbsp;${nw ?? '—'}</span>`;
+        return `<span class="text-slate-500 dark:text-slate-500 line-through text-[10px]">R$&nbsp;${old ?? '—'}</span><br><span class="text-emerald-600 dark:text-emerald-400 font-medium">R$&nbsp;${nw ?? '—'}</span>`;
       };
       const cmpPct = (old, nw) => {
         if (old == null && nw == null) return '<span class="text-slate-700">—</span>';
         if (old == nw) return `<span class="text-slate-400 text-xs">${old}</span>`;
-        return `<span class="text-slate-500 line-through text-[10px]">${old ?? '—'}</span><br><span class="text-emerald-400 text-xs">${nw ?? '—'}</span>`;
+        return `<span class="text-slate-500 dark:text-slate-500 line-through text-[10px]">${old ?? '—'}</span><br><span class="text-emerald-600 dark:text-emerald-400 text-xs">${nw ?? '—'}</span>`;
       };
 
       let matchRows = sortByName(data.matches, 'nome').map(m => {
@@ -907,9 +914,9 @@
         const cat = m.needs_update ? 'atualizar' : 'sem_mudanca';
         const badge = m.needs_update ? badgeAtualizar : badgeSemMud;
         return `
-        <tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="${cat}">
-          <td class="py-3 px-4 sticky left-0 bg-slate-900 z-10">${badge}</td>
-          <td class="py-3 px-4 text-sm text-slate-200 whitespace-nowrap">${escHtml(mNome)}</td>
+        <tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="${cat}">
+          <td class="py-3 px-4 sticky left-0 bg-[var(--bg-card)] z-10">${badge}</td>
+          <td class="py-3 px-4 text-sm text-[var(--text-primary)] whitespace-nowrap">${escHtml(mNome)}</td>
           <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${cmp(a.preco_cruzeiro, d.preco_cruzeiro)}</td>
           <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${cmp(a.balcao, d.balcao)}</td>
           <td class="py-3 px-4 text-center whitespace-nowrap">${cmpPct(a.balcao_pct, d.balcao_pct)}</td>
@@ -924,15 +931,15 @@
       const emptyPriceCells = `<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>`;
 
       let naoKommoRows = sortByName(data.nao_no_kommo || [], 'nome').map(n => `
-        <tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="nao_kommo">
-          <td class="py-3 px-4 sticky left-0 bg-slate-900 z-10">${badgeKommo}</td>
+        <tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="nao_kommo">
+          <td class="py-3 px-4 sticky left-0 bg-[var(--bg-card)] z-10">${badgeKommo}</td>
           <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(n.nome || n.chave || '')}</td>
           ${emptyPriceCells}
         </tr>`).join('');
 
       let soloPlanRows = sortByName(data.so_na_planilha || [], 'nome').map(n => `
-        <tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="so_planilha">
-          <td class="py-3 px-4 sticky left-0 bg-slate-900 z-10">${badgePlan}</td>
+        <tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="so_planilha">
+          <td class="py-3 px-4 sticky left-0 bg-[var(--bg-card)] z-10">${badgePlan}</td>
           <td class="py-3 px-4 text-sm text-amber-300/80 whitespace-nowrap">${escHtml(n.nome || n.chave || '')}</td>
           ${emptyPriceCells}
         </tr>`).join('');
@@ -941,17 +948,17 @@
       el.innerHTML = `
         <!-- Stats -->
         <div class="grid grid-cols-5 gap-3 mb-5">
-          <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 cursor-pointer filter-btn" data-filter="all" onclick="toggleFilter('${tipo}','all')">
+          <div class="bg-slate-100 dark:bg-slate-800 rounded-xl p-4 border border-[var(--border)] cursor-pointer filter-btn" data-filter="all" onclick="toggleFilter('${tipo}','all')">
             <p class="text-xs text-slate-500 mb-1">Na planilha</p>
-            <p class="text-2xl font-bold text-white">${data.total_planilha}</p>
+            <p class="text-2xl font-bold text-[var(--text-primary)] tabular-nums">${data.total_planilha}</p>
           </div>
           <div class="bg-emerald-900/30 rounded-xl p-4 border border-emerald-800/50 cursor-pointer filter-btn" data-filter="atualizar" onclick="toggleFilter('${tipo}','atualizar')">
             <p class="text-xs text-emerald-500 mb-1">Serão atualizados</p>
             <p class="text-2xl font-bold text-emerald-400">${data.total_atualizar || 0}</p>
           </div>
-          <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="toggleFilter('${tipo}','sem_mudanca')">
+          <div class="bg-slate-100 dark:bg-slate-800 rounded-xl p-4 border border-[var(--border)] cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="toggleFilter('${tipo}','sem_mudanca')">
             <p class="text-xs text-slate-500 mb-1">Sem mudança</p>
-            <p class="text-2xl font-bold text-white">${data.total_sem_mudanca || 0}</p>
+            <p class="text-2xl font-bold text-[var(--text-primary)] tabular-nums">${data.total_sem_mudanca || 0}</p>
           </div>
           <div class="bg-red-900/20 rounded-xl p-4 border border-red-900/40 cursor-pointer filter-btn" data-filter="nao_kommo" onclick="toggleFilter('${tipo}','nao_kommo')">
             <p class="text-xs text-red-500 mb-1">Não na planilha</p>
@@ -967,9 +974,9 @@
         <div class="mb-5">
           <div class="flex justify-between text-xs text-slate-500 mb-1.5">
             <span>Taxa de correspondência</span>
-            <span class="text-slate-300 font-medium">${pct}%</span>
+            <span class="text-slate-700 dark:text-slate-300 font-medium">${pct}%</span>
           </div>
-          <div class="h-2 bg-slate-800 rounded-full overflow-hidden">
+          <div class="h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
             <div class="h-full bg-gradient-to-r from-indigo-500 to-emerald-500 rounded-full transition-all"
               style="width:${pct}%"></div>
           </div>
@@ -977,24 +984,24 @@
 
         <!-- Tabela -->
         <div class="rounded-xl border border-slate-800 overflow-hidden">
-          <div class="flex items-center gap-3 px-4 py-3 bg-slate-800/60 border-b border-slate-700">
-            <span class="text-xs text-slate-400 font-medium uppercase tracking-wider">Cursos</span>
+          <div class="flex items-center gap-3 px-4 py-3 bg-slate-50 dark:bg-slate-800/60 border-b border-[var(--border)]">
+            <span class="text-xs text-slate-600 dark:text-slate-400 font-medium uppercase tracking-wider">Cursos</span>
             <span class="text-xs text-slate-600">${totalKommo} no Kommo · ${data.total_planilha} na planilha</span>
           </div>
           <div class="overflow-auto max-h-[480px]">
             <table class="w-full text-xs">
-              <thead class="sticky top-0 bg-slate-900 z-20">
-                <tr class="border-b border-slate-700">
-                  <th class="py-2.5 px-4 text-left text-slate-500 font-medium sticky left-0 bg-slate-900 z-20 whitespace-nowrap">Status</th>
-                  <th class="py-2.5 px-4 text-left text-slate-500 font-medium whitespace-nowrap">Nome</th>
-                  <th class="py-2.5 px-4 text-right whitespace-nowrap"><span class="text-indigo-400 font-semibold">Preço Base</span><br><span class="text-[10px] text-slate-600">atual → novo</span></th>
-                  <th class="py-2.5 px-4 text-right whitespace-nowrap"><span class="text-slate-400 font-medium">Balcão R$</span><br><span class="text-[10px] text-slate-600">atual → novo</span></th>
-                  <th class="py-2.5 px-4 text-center text-slate-400 font-medium whitespace-nowrap">Balcão %</th>
-                  <th class="py-2.5 px-4 text-right whitespace-nowrap"><span class="text-slate-400 font-medium">Estratégico</span><br><span class="text-[10px] text-slate-600">atual → novo</span></th>
-                  <th class="py-2.5 px-4 text-center text-slate-400 font-medium whitespace-nowrap">Estratégico %</th>
-                  <th class="py-2.5 px-4 text-right whitespace-nowrap"><span class="text-slate-400 font-medium">Mar Aberto</span><br><span class="text-[10px] text-slate-600">atual → novo</span></th>
-                  <th class="py-2.5 px-4 text-right whitespace-nowrap"><span class="text-slate-400 font-medium">2ª Grad</span><br><span class="text-[10px] text-slate-600">atual → novo</span></th>
-                  <th class="py-2.5 px-4 text-right whitespace-nowrap"><span class="text-slate-400 font-medium">Transferência</span><br><span class="text-[10px] text-slate-600">atual → novo</span></th>
+              <thead class="sticky top-0 bg-[var(--bg-card)] z-20">
+                <tr class="border-b border-[var(--border)]">
+                  <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium sticky left-0 bg-[var(--bg-card)] z-20 whitespace-nowrap">Status</th>
+                  <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium whitespace-nowrap">Nome</th>
+                  <th class="py-2.5 px-4 text-right whitespace-nowrap"><span class="text-[var(--primary)] font-semibold">Preço Base</span><br><span class="text-[10px] text-slate-600">atual → novo</span></th>
+                  <th class="py-2.5 px-4 text-right whitespace-nowrap"><span class="text-slate-600 dark:text-slate-400 font-medium">Balcão R$</span><br><span class="text-[10px] text-slate-600">atual → novo</span></th>
+                  <th class="py-2.5 px-4 text-center text-slate-600 dark:text-slate-400 font-medium whitespace-nowrap">Balcão %</th>
+                  <th class="py-2.5 px-4 text-right whitespace-nowrap"><span class="text-slate-600 dark:text-slate-400 font-medium">Estratégico</span><br><span class="text-[10px] text-slate-600">atual → novo</span></th>
+                  <th class="py-2.5 px-4 text-center text-slate-600 dark:text-slate-400 font-medium whitespace-nowrap">Estratégico %</th>
+                  <th class="py-2.5 px-4 text-right whitespace-nowrap"><span class="text-slate-600 dark:text-slate-400 font-medium">Mar Aberto</span><br><span class="text-[10px] text-slate-600">atual → novo</span></th>
+                  <th class="py-2.5 px-4 text-right whitespace-nowrap"><span class="text-slate-600 dark:text-slate-400 font-medium">2ª Grad</span><br><span class="text-[10px] text-slate-600">atual → novo</span></th>
+                  <th class="py-2.5 px-4 text-right whitespace-nowrap"><span class="text-slate-600 dark:text-slate-400 font-medium">Transferência</span><br><span class="text-[10px] text-slate-600">atual → novo</span></th>
                 </tr>
               </thead>
               <tbody id="tbody-${tipo}">
@@ -1022,7 +1029,7 @@
           <div>
             <p class="text-emerald-400 font-semibold text-sm mb-1">Atualização concluída!</p>
             <p class="text-slate-400 text-sm">
-              <span class="text-white font-medium">${data.atualizados}</span> produtos atualizados no Kommo.
+              <span class="text-[var(--text-primary)] font-semibold">${data.atualizados}</span> produtos atualizados no Kommo.
               ${data.nao_no_kommo > 0 ? `<span class="text-red-400"> ${data.nao_no_kommo} sem match no Kommo.</span>` : ''}
               ${data.so_na_planilha > 0 ? `<span class="text-amber-400"> ${data.so_na_planilha} só na planilha.</span>` : ''}
               ${data.erros > 0 ? `<span class="text-red-400"> ${data.erros} com erro.</span>` : ''}
@@ -1190,8 +1197,8 @@
       ['grad','pos'].forEach(t => {
         document.getElementById(`supa-tab-${t}`).className =
           t === tipo
-            ? 'tab-active px-4 py-2 rounded-lg text-sm font-medium transition-all'
-            : 'tab-inactive px-4 py-2 rounded-lg text-sm font-medium transition-all';
+            ? dsSegActive()
+            : dsSegInactive();
         document.getElementById(`supa-panel-${t}`).classList.toggle('hidden', t !== tipo);
       });
     }
@@ -1295,7 +1302,7 @@
       if (status === 'atualizar')
         return '<span class="inline-flex items-center gap-1.5 text-xs font-medium badge-match px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>Atualizar</span>';
       if (status === 'sem_mudanca')
-        return '<span class="inline-flex items-center gap-1.5 text-xs font-medium bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>Sem mudança</span>';
+        return '<span class="inline-flex items-center gap-1.5 text-xs font-medium bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>Sem mudança</span>';
       if (status === 'nao_encontrado')
         return '<span class="inline-flex items-center gap-1.5 text-xs font-medium badge-nomatch px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>Não encontrado</span>';
       return '<span class="inline-flex items-center gap-1.5 text-xs font-medium bg-amber-900/30 text-amber-400 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>Só planilha</span>';
@@ -1311,32 +1318,32 @@
         const st = m.needs_update ? 'atualizar' : 'sem_mudanca';
         const mNome = m.curso || m.nome || m.chave || '';
         if (isPos) {
-          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="${st}">
+          rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="${st}">
             <td class="py-3 px-4">${supaBadge(st)}</td>
-            <td class="py-3 px-4 text-sm text-slate-200 whitespace-nowrap">${escHtml(mNome)}</td>
-            <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(m.duracao || '')}</td>
-            <td class="py-3 px-4 text-right text-sm text-slate-300 whitespace-nowrap">${m.valor_atual != null ? 'R$&nbsp;'+m.valor_atual : '<span class="text-slate-700">—</span>'}</td>
-            <td class="py-3 px-4 text-right text-sm text-violet-300 font-medium whitespace-nowrap">${m.novo_valor != null ? 'R$&nbsp;'+m.novo_valor : '<span class="text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-sm text-[var(--text-primary)] whitespace-nowrap">${escHtml(mNome)}</td>
+            <td class="py-3 px-4 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">${escHtml(m.duracao || '')}</td>
+            <td class="py-3 px-4 text-right text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap tabular-nums">${m.valor_atual != null ? 'R$&nbsp;'+m.valor_atual : '<span class="text-slate-400 dark:text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-right text-sm text-violet-700 dark:text-violet-300 font-medium whitespace-nowrap tabular-nums">${m.novo_valor != null ? 'R$&nbsp;'+m.novo_valor : '<span class="text-slate-400 dark:text-slate-700">—</span>'}</td>
           </tr>`;
         } else {
-          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="${st}">
+          rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="${st}">
             <td class="py-3 px-4">${supaBadge(st)}</td>
-            <td class="py-3 px-4 text-sm text-slate-200 whitespace-nowrap">${escHtml(mNome)}</td>
-            <td class="py-3 px-4 text-right text-sm text-slate-300 whitespace-nowrap">${m.valor_atual != null ? 'R$&nbsp;'+m.valor_atual : '<span class="text-slate-700">—</span>'}</td>
-            <td class="py-3 px-4 text-right text-sm text-violet-300 font-medium whitespace-nowrap">${m.novo_valor != null ? 'R$&nbsp;'+m.novo_valor : '<span class="text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-sm text-[var(--text-primary)] whitespace-nowrap">${escHtml(mNome)}</td>
+            <td class="py-3 px-4 text-right text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap tabular-nums">${m.valor_atual != null ? 'R$&nbsp;'+m.valor_atual : '<span class="text-slate-400 dark:text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-right text-sm text-violet-700 dark:text-violet-300 font-medium whitespace-nowrap tabular-nums">${m.novo_valor != null ? 'R$&nbsp;'+m.novo_valor : '<span class="text-slate-400 dark:text-slate-700">—</span>'}</td>
           </tr>`;
         }
       });
       sortByName(data.nao_encontrado || [], 'curso').forEach(n => {
         const name = typeof n === 'string' ? n : (n.nome || n.curso || n.chave || '');
         if (isPos) {
-          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
+          rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
             <td class="py-3 px-4">${supaBadge('nao_encontrado')}</td>
             <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(name)}</td>
             <td></td><td></td><td></td>
           </tr>`;
         } else {
-          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
+          rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
             <td class="py-3 px-4">${supaBadge('nao_encontrado')}</td>
             <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(name)}</td>
             <td></td><td></td>
@@ -1346,13 +1353,13 @@
       sortByName(data.so_na_planilha || [], 'nome').forEach(s => {
         const name = typeof s === 'string' ? s : (s.nome || s.chave || '');
         if (isPos) {
-          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="so_planilha">
+          rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="so_planilha">
             <td class="py-3 px-4">${supaBadge('so_planilha')}</td>
             <td class="py-3 px-4 text-sm text-amber-300/80 whitespace-nowrap">${escHtml(name)}</td>
             <td></td><td></td><td></td>
           </tr>`;
         } else {
-          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="so_planilha">
+          rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="so_planilha">
             <td class="py-3 px-4">${supaBadge('so_planilha')}</td>
             <td class="py-3 px-4 text-sm text-amber-300/80 whitespace-nowrap">${escHtml(name)}</td>
             <td></td><td></td>
@@ -1361,14 +1368,14 @@
       });
 
       const posHeaders = isPos
-        ? `<th class="py-2.5 px-4 text-left text-slate-500 font-medium">Status</th>
-           <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Curso</th>
-           <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Duração</th>
-           <th class="py-2.5 px-4 text-right text-slate-400 font-medium">Atual</th>
+        ? `<th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Status</th>
+           <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Curso</th>
+           <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Duração</th>
+           <th class="py-2.5 px-4 text-right text-slate-600 dark:text-slate-400 font-medium">Atual</th>
            <th class="py-2.5 px-4 text-right text-violet-400 font-semibold">Novo</th>`
-        : `<th class="py-2.5 px-4 text-left text-slate-500 font-medium">Status</th>
-           <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Curso</th>
-           <th class="py-2.5 px-4 text-right text-slate-400 font-medium">Atual</th>
+        : `<th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Status</th>
+           <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Curso</th>
+           <th class="py-2.5 px-4 text-right text-slate-600 dark:text-slate-400 font-medium">Atual</th>
            <th class="py-2.5 px-4 text-right text-violet-400 font-semibold">Novo</th>`;
 
       el.innerHTML = `
@@ -1377,9 +1384,9 @@
             <p class="text-xs text-emerald-500 mb-1">Serão atualizados</p>
             <p class="text-2xl font-bold text-emerald-400">${data.total_atualizar || 0}</p>
           </div>
-          <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="supaToggleFilter('${tipo}','sem_mudanca')">
+          <div class="bg-slate-100 dark:bg-slate-800 rounded-xl p-4 border border-[var(--border)] cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="supaToggleFilter('${tipo}','sem_mudanca')">
             <p class="text-xs text-slate-500 mb-1">Sem mudança</p>
-            <p class="text-2xl font-bold text-white">${data.total_sem_mudanca || 0}</p>
+            <p class="text-2xl font-bold text-[var(--text-primary)] tabular-nums">${data.total_sem_mudanca || 0}</p>
           </div>
           <div class="bg-red-900/20 rounded-xl p-4 border border-red-900/40 cursor-pointer filter-btn" data-filter="nao_encontrado" onclick="supaToggleFilter('${tipo}','nao_encontrado')">
             <p class="text-xs text-red-500 mb-1">Não encontrado</p>
@@ -1393,8 +1400,8 @@
         <div class="rounded-xl border border-slate-800 overflow-hidden">
           <div class="overflow-auto max-h-[480px]">
             <table class="w-full text-xs">
-              <thead class="sticky top-0 bg-slate-900 z-20">
-                <tr class="border-b border-slate-700">${posHeaders}</tr>
+              <thead class="sticky top-0 bg-[var(--bg-card)] z-20">
+                <tr class="border-b border-[var(--border)]">${posHeaders}</tr>
               </thead>
               <tbody id="supa-tbody-${tipo}">${rows}</tbody>
             </table>
@@ -1415,7 +1422,7 @@
           <div>
             <p class="text-emerald-400 font-semibold text-sm mb-1">Atualização concluída!</p>
             <p class="text-slate-400 text-sm">
-              <span class="text-white font-medium">${data.atualizados || 0}</span> documentos atualizados no Supabase.
+              <span class="text-[var(--text-primary)] font-semibold">${data.atualizados || 0}</span> documentos atualizados no Supabase.
               ${(data.nao_encontrado || 0) > 0 ? '<span class="text-red-400"> '+data.nao_encontrado+' não encontrados.</span>' : ''}
               ${(data.erros || 0) > 0 ? '<span class="text-red-400"> '+data.erros+' com erro.</span>' : ''}
               ${(data.correcoes_aplicadas || 0) > 0 ? '<span class="text-violet-400"> '+data.correcoes_aplicadas+' correções de duração.</span>' : ''}
@@ -1538,7 +1545,7 @@
       if (st === 'atualizar')
         return '<span class="inline-flex items-center gap-1.5 text-xs font-medium badge-match px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>Atualizar</span>';
       if (st === 'sem_mudanca')
-        return '<span class="inline-flex items-center gap-1.5 text-xs font-medium bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>Sem mudança</span>';
+        return '<span class="inline-flex items-center gap-1.5 text-xs font-medium bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>Sem mudança</span>';
       return '<span class="inline-flex items-center gap-1.5 text-xs font-medium badge-nomatch px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>Não encontrado</span>';
     }
 
@@ -1549,17 +1556,17 @@
       let rows = '';
       sortByName(data.matches || [], 'curso').forEach(m => {
         const st = m.needs_update ? 'atualizar' : 'sem_mudanca';
-        rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="${st}">
+        rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="${st}">
           <td class="py-3 px-4">${sbBadge(st)}</td>
-          <td class="py-3 px-4 text-sm text-slate-200 whitespace-nowrap">${escHtml(m.curso || m.sinonimo || '')}</td>
+          <td class="py-3 px-4 text-sm text-[var(--text-primary)] whitespace-nowrap">${escHtml(m.curso || m.sinonimo || '')}</td>
           <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(m.chave1 || '')}</td>
-          <td class="py-3 px-4 text-right text-sm text-slate-300 whitespace-nowrap">${m.atual1 != null ? 'R$&nbsp;'+m.atual1 : '<span class="text-slate-700">—</span>'}</td>
+          <td class="py-3 px-4 text-right text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap tabular-nums">${m.atual1 != null ? 'R$&nbsp;'+m.atual1 : '<span class="text-slate-400 dark:text-slate-700">—</span>'}</td>
           <td class="py-3 px-4 text-right text-sm text-teal-300 font-medium whitespace-nowrap">${m.novo1 != null ? 'R$&nbsp;'+m.novo1 : '<span class="text-slate-700">—</span>'}</td>
         </tr>`;
       });
       sortByName(data.nao_encontrado || [], 'curso').forEach(n => {
         const name = typeof n === 'string' ? n : (n.curso || n.sinonimo || n.nome || '');
-        rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
+        rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
           <td class="py-3 px-4">${sbBadge('nao_encontrado')}</td>
           <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(name)}</td>
           <td></td><td></td><td></td>
@@ -1572,9 +1579,9 @@
             <p class="text-xs text-emerald-500 mb-1">Serão atualizados</p>
             <p class="text-2xl font-bold text-emerald-400">${data.total_atualizar || 0}</p>
           </div>
-          <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="sbToggleFilter('sem_mudanca')">
+          <div class="bg-slate-100 dark:bg-slate-800 rounded-xl p-4 border border-[var(--border)] cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="sbToggleFilter('sem_mudanca')">
             <p class="text-xs text-slate-500 mb-1">Sem mudança</p>
-            <p class="text-2xl font-bold text-white">${data.total_sem_mudanca || 0}</p>
+            <p class="text-2xl font-bold text-[var(--text-primary)] tabular-nums">${data.total_sem_mudanca || 0}</p>
           </div>
           <div class="bg-red-900/20 rounded-xl p-4 border border-red-900/40 cursor-pointer filter-btn" data-filter="nao_encontrado" onclick="sbToggleFilter('nao_encontrado')">
             <p class="text-xs text-red-500 mb-1">Não encontrado</p>
@@ -1584,12 +1591,12 @@
         <div class="rounded-xl border border-slate-800 overflow-hidden">
           <div class="overflow-auto max-h-[480px]">
             <table class="w-full text-xs">
-              <thead class="sticky top-0 bg-slate-900 z-20">
-                <tr class="border-b border-slate-700">
-                  <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Status</th>
-                  <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Curso</th>
-                  <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Chave</th>
-                  <th class="py-2.5 px-4 text-right text-slate-400 font-medium">Atual</th>
+              <thead class="sticky top-0 bg-[var(--bg-card)] z-20">
+                <tr class="border-b border-[var(--border)]">
+                  <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Status</th>
+                  <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Curso</th>
+                  <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Chave</th>
+                  <th class="py-2.5 px-4 text-right text-slate-600 dark:text-slate-400 font-medium">Atual</th>
                   <th class="py-2.5 px-4 text-right text-teal-400 font-semibold">Novo (Mar Aberto)</th>
                 </tr>
               </thead>
@@ -1612,7 +1619,7 @@
           <div>
             <p class="text-emerald-400 font-semibold text-sm mb-1">Atualização concluída!</p>
             <p class="text-slate-400 text-sm">
-              <span class="text-white font-medium">${data.atualizados}</span> salesbots atualizados.
+              <span class="text-[var(--text-primary)] font-semibold">${data.atualizados}</span> salesbots atualizados.
               ${(data.nao_encontrado || 0) > 0 ? '<span class="text-red-400"> '+data.nao_encontrado+' não encontrados.</span>' : ''}
               ${(data.erros || 0) > 0 ? '<span class="text-red-400"> '+data.erros+' com erro.</span>' : ''}
             </p>
@@ -1642,8 +1649,8 @@
       ['grad','pos'].forEach(t => {
         document.getElementById(`wix-tab-${t}`).className =
           t === tipo
-            ? 'tab-active px-4 py-2 rounded-lg text-sm font-medium transition-all'
-            : 'tab-inactive px-4 py-2 rounded-lg text-sm font-medium transition-all';
+            ? dsSegActive()
+            : dsSegInactive();
         document.getElementById(`wix-panel-${t}`).classList.toggle('hidden', t !== tipo);
       });
     }
@@ -1749,7 +1756,7 @@
       if (status === 'atualizar')
         return '<span class="inline-flex items-center gap-1.5 text-xs font-medium badge-match px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>Atualizar</span>';
       if (status === 'sem_mudanca')
-        return '<span class="inline-flex items-center gap-1.5 text-xs font-medium bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>Sem mudança</span>';
+        return '<span class="inline-flex items-center gap-1.5 text-xs font-medium bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>Sem mudança</span>';
       return '<span class="inline-flex items-center gap-1.5 text-xs font-medium badge-nomatch px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>Não encontrado</span>';
     }
 
@@ -1763,22 +1770,22 @@
         const st = m.needs_update ? 'atualizar' : 'sem_mudanca';
         if (isGrad) {
           const info = parseWixInfo(m);
-          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="${st}">
+          rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="${st}">
             <td class="py-3 px-4">${wixBadge(st)}</td>
-            <td class="py-3 px-4 text-sm text-slate-200 whitespace-nowrap">${escHtml(info.curso)}</td>
+            <td class="py-3 px-4 text-sm text-[var(--text-primary)] whitespace-nowrap">${escHtml(info.curso)}</td>
             <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(info.tipoGrau)}</td>
-            <td class="py-3 px-4 text-right text-sm text-slate-300 whitespace-nowrap">${m.atual != null ? 'R$&nbsp;'+m.atual : '<span class="text-slate-700">—</span>'}</td>
-            <td class="py-3 px-4 text-right text-sm text-indigo-300 font-medium whitespace-nowrap">${m.novo != null ? 'R$&nbsp;'+m.novo : '<span class="text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-right text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap tabular-nums">${m.atual != null ? 'R$&nbsp;'+m.atual : '<span class="text-slate-400 dark:text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-right text-sm text-indigo-700 dark:text-indigo-300 font-medium whitespace-nowrap tabular-nums">${m.novo != null ? 'R$&nbsp;'+m.novo : '<span class="text-slate-400 dark:text-slate-700">—</span>'}</td>
           </tr>`;
         } else {
-          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="${st}">
+          rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="${st}">
             <td class="py-3 px-4">${wixBadge(st)}</td>
-            <td class="py-3 px-4 text-sm text-slate-200 whitespace-nowrap">${escHtml(m.curso || '')}</td>
-            <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(m.duracao || '')}</td>
-            <td class="py-3 px-4 text-right text-sm text-slate-300 whitespace-nowrap">${m.atual_vs != null ? 'R$&nbsp;'+m.atual_vs : '<span class="text-slate-700">—</span>'}</td>
-            <td class="py-3 px-4 text-right text-sm text-indigo-300 font-medium whitespace-nowrap">${m.novo_vs != null ? 'R$&nbsp;'+m.novo_vs : '<span class="text-slate-700">—</span>'}</td>
-            <td class="py-3 px-4 text-right text-sm text-slate-300 whitespace-nowrap">${m.atual_mix != null ? 'R$&nbsp;'+m.atual_mix : '<span class="text-slate-700">—</span>'}</td>
-            <td class="py-3 px-4 text-right text-sm text-indigo-300 font-medium whitespace-nowrap">${m.novo_mix != null ? 'R$&nbsp;'+m.novo_mix : '<span class="text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-sm text-[var(--text-primary)] whitespace-nowrap">${escHtml(m.curso || '')}</td>
+            <td class="py-3 px-4 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">${escHtml(m.duracao || '')}</td>
+            <td class="py-3 px-4 text-right text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap tabular-nums">${m.atual_vs != null ? 'R$&nbsp;'+m.atual_vs : '<span class="text-slate-400 dark:text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-right text-sm text-indigo-700 dark:text-indigo-300 font-medium whitespace-nowrap tabular-nums">${m.novo_vs != null ? 'R$&nbsp;'+m.novo_vs : '<span class="text-slate-400 dark:text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-right text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap tabular-nums">${m.atual_mix != null ? 'R$&nbsp;'+m.atual_mix : '<span class="text-slate-400 dark:text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-right text-sm text-indigo-700 dark:text-indigo-300 font-medium whitespace-nowrap tabular-nums">${m.novo_mix != null ? 'R$&nbsp;'+m.novo_mix : '<span class="text-slate-400 dark:text-slate-700">—</span>'}</td>
           </tr>`;
         }
       });
@@ -1786,14 +1793,14 @@
         const nObj = typeof n === 'string' ? {chave: n} : n;
         const info = parseWixInfo(nObj);
         if (isGrad) {
-          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
+          rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
             <td class="py-3 px-4">${wixBadge('nao_encontrado')}</td>
             <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(info.curso)}</td>
             <td class="py-3 px-4 text-sm text-slate-500 whitespace-nowrap">${escHtml(info.tipoGrau)}</td>
             <td></td><td></td>
           </tr>`;
         } else {
-          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
+          rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
             <td class="py-3 px-4">${wixBadge('nao_encontrado')}</td>
             <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(info.curso)}</td>
             <td></td><td></td><td></td><td></td><td></td>
@@ -1802,17 +1809,17 @@
       });
 
       const headers = isGrad
-        ? `<th class="py-2.5 px-4 text-left text-slate-500 font-medium">Status</th>
-           <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Curso / chave</th>
-           <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Tipo / Grau</th>
-           <th class="py-2.5 px-4 text-right text-slate-400 font-medium">Atual</th>
+        ? `<th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Status</th>
+           <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Curso / chave</th>
+           <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Tipo / Grau</th>
+           <th class="py-2.5 px-4 text-right text-slate-600 dark:text-slate-400 font-medium">Atual</th>
            <th class="py-2.5 px-4 text-right text-indigo-400 font-semibold">Novo (MAR ABERTO)</th>`
-        : `<th class="py-2.5 px-4 text-left text-slate-500 font-medium">Status</th>
-           <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Curso</th>
-           <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Duração</th>
-           <th class="py-2.5 px-4 text-right text-slate-400 font-medium">Valor Site</th>
+        : `<th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Status</th>
+           <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Curso</th>
+           <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Duração</th>
+           <th class="py-2.5 px-4 text-right text-slate-600 dark:text-slate-400 font-medium">Valor Site</th>
            <th class="py-2.5 px-4 text-right text-indigo-400 font-semibold">Novo VS</th>
-           <th class="py-2.5 px-4 text-right text-slate-400 font-medium">Mix Atual</th>
+           <th class="py-2.5 px-4 text-right text-slate-600 dark:text-slate-400 font-medium">Mix Atual</th>
            <th class="py-2.5 px-4 text-right text-indigo-400 font-semibold">Novo Mix</th>`;
 
       el.innerHTML = `
@@ -1821,9 +1828,9 @@
             <p class="text-xs text-emerald-500 mb-1">Serão atualizados</p>
             <p class="text-2xl font-bold text-emerald-400">${data.total_atualizar || 0}</p>
           </div>
-          <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="wixToggleFilter('${tipo}','sem_mudanca')">
+          <div class="bg-slate-100 dark:bg-slate-800 rounded-xl p-4 border border-[var(--border)] cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="wixToggleFilter('${tipo}','sem_mudanca')">
             <p class="text-xs text-slate-500 mb-1">Sem mudança</p>
-            <p class="text-2xl font-bold text-white">${data.total_sem_mudanca || 0}</p>
+            <p class="text-2xl font-bold text-[var(--text-primary)] tabular-nums">${data.total_sem_mudanca || 0}</p>
           </div>
           <div class="bg-red-900/20 rounded-xl p-4 border border-red-900/40 cursor-pointer filter-btn" data-filter="nao_encontrado" onclick="wixToggleFilter('${tipo}','nao_encontrado')">
             <p class="text-xs text-red-500 mb-1">Não encontrado</p>
@@ -1833,8 +1840,8 @@
         <div class="rounded-xl border border-slate-800 overflow-hidden">
           <div class="overflow-auto max-h-[480px]">
             <table class="w-full text-xs">
-              <thead class="sticky top-0 bg-slate-900 z-20">
-                <tr class="border-b border-slate-700">${headers}</tr>
+              <thead class="sticky top-0 bg-[var(--bg-card)] z-20">
+                <tr class="border-b border-[var(--border)]">${headers}</tr>
               </thead>
               <tbody id="wix-tbody-${tipo}">${rows}</tbody>
             </table>
@@ -1885,8 +1892,8 @@
       ['grad','pos'].forEach(t => {
         document.getElementById(`wix2-tab-${t}`).className =
           t === tipo
-            ? 'tab-active px-4 py-2 rounded-lg text-sm font-medium transition-all'
-            : 'tab-inactive px-4 py-2 rounded-lg text-sm font-medium transition-all';
+            ? dsSegActive()
+            : dsSegInactive();
         document.getElementById(`wix2-panel-${t}`).classList.toggle('hidden', t !== tipo);
       });
     }
@@ -2019,22 +2026,22 @@
         const st = m.needs_update ? 'atualizar' : 'sem_mudanca';
         if (isGrad) {
           const info = parseWixInfo(m);
-          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="${st}">
+          rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="${st}">
             <td class="py-3 px-4">${wixBadge(st)}</td>
-            <td class="py-3 px-4 text-sm text-slate-200 whitespace-nowrap">${escHtml(info.curso)}</td>
+            <td class="py-3 px-4 text-sm text-[var(--text-primary)] whitespace-nowrap">${escHtml(info.curso)}</td>
             <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(info.tipoGrau)}</td>
-            <td class="py-3 px-4 text-right text-sm text-slate-300 whitespace-nowrap">${m.atual != null ? 'R$&nbsp;'+m.atual : '<span class="text-slate-700">—</span>'}</td>
-            <td class="py-3 px-4 text-right text-sm text-violet-300 font-medium whitespace-nowrap">${m.novo != null ? 'R$&nbsp;'+m.novo : '<span class="text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-right text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap tabular-nums">${m.atual != null ? 'R$&nbsp;'+m.atual : '<span class="text-slate-400 dark:text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-right text-sm text-violet-700 dark:text-violet-300 font-medium whitespace-nowrap tabular-nums">${m.novo != null ? 'R$&nbsp;'+m.novo : '<span class="text-slate-400 dark:text-slate-700">—</span>'}</td>
           </tr>`;
         } else {
-          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="${st}">
+          rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="${st}">
             <td class="py-3 px-4">${wixBadge(st)}</td>
-            <td class="py-3 px-4 text-sm text-slate-200 whitespace-nowrap">${escHtml(m.curso || '')}</td>
-            <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(m.duracao || '')}</td>
-            <td class="py-3 px-4 text-right text-sm text-slate-300 whitespace-nowrap">${m.atual_vs != null ? 'R$&nbsp;'+m.atual_vs : '<span class="text-slate-700">—</span>'}</td>
-            <td class="py-3 px-4 text-right text-sm text-violet-300 font-medium whitespace-nowrap">${m.novo_vs != null ? 'R$&nbsp;'+m.novo_vs : '<span class="text-slate-700">—</span>'}</td>
-            <td class="py-3 px-4 text-right text-sm text-slate-300 whitespace-nowrap">${m.atual_mix != null ? 'R$&nbsp;'+m.atual_mix : '<span class="text-slate-700">—</span>'}</td>
-            <td class="py-3 px-4 text-right text-sm text-violet-300 font-medium whitespace-nowrap">${m.novo_mix != null ? 'R$&nbsp;'+m.novo_mix : '<span class="text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-sm text-[var(--text-primary)] whitespace-nowrap">${escHtml(m.curso || '')}</td>
+            <td class="py-3 px-4 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">${escHtml(m.duracao || '')}</td>
+            <td class="py-3 px-4 text-right text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap tabular-nums">${m.atual_vs != null ? 'R$&nbsp;'+m.atual_vs : '<span class="text-slate-400 dark:text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-right text-sm text-violet-700 dark:text-violet-300 font-medium whitespace-nowrap tabular-nums">${m.novo_vs != null ? 'R$&nbsp;'+m.novo_vs : '<span class="text-slate-400 dark:text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-right text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap tabular-nums">${m.atual_mix != null ? 'R$&nbsp;'+m.atual_mix : '<span class="text-slate-400 dark:text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-right text-sm text-violet-700 dark:text-violet-300 font-medium whitespace-nowrap tabular-nums">${m.novo_mix != null ? 'R$&nbsp;'+m.novo_mix : '<span class="text-slate-400 dark:text-slate-700">—</span>'}</td>
           </tr>`;
         }
       });
@@ -2042,14 +2049,14 @@
         const nObj = typeof n === 'string' ? {chave: n} : n;
         const info = parseWixInfo(nObj);
         if (isGrad) {
-          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
+          rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
             <td class="py-3 px-4">${wixBadge('nao_encontrado')}</td>
             <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(info.curso)}</td>
             <td class="py-3 px-4 text-sm text-slate-500 whitespace-nowrap">${escHtml(info.tipoGrau)}</td>
             <td></td><td></td>
           </tr>`;
         } else {
-          rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
+          rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
             <td class="py-3 px-4">${wixBadge('nao_encontrado')}</td>
             <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(info.curso)}</td>
             <td></td><td></td><td></td><td></td><td></td>
@@ -2058,17 +2065,17 @@
       });
 
       const headers = isGrad
-        ? `<th class="py-2.5 px-4 text-left text-slate-500 font-medium">Status</th>
-           <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Curso / chave</th>
-           <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Tipo / Grau</th>
-           <th class="py-2.5 px-4 text-right text-slate-400 font-medium">Atual</th>
+        ? `<th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Status</th>
+           <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Curso / chave</th>
+           <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Tipo / Grau</th>
+           <th class="py-2.5 px-4 text-right text-slate-600 dark:text-slate-400 font-medium">Atual</th>
            <th class="py-2.5 px-4 text-right text-violet-400 font-semibold">Novo (MAR ABERTO)</th>`
-        : `<th class="py-2.5 px-4 text-left text-slate-500 font-medium">Status</th>
-           <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Curso</th>
-           <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Duração</th>
-           <th class="py-2.5 px-4 text-right text-slate-400 font-medium">Valor Site</th>
+        : `<th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Status</th>
+           <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Curso</th>
+           <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Duração</th>
+           <th class="py-2.5 px-4 text-right text-slate-600 dark:text-slate-400 font-medium">Valor Site</th>
            <th class="py-2.5 px-4 text-right text-violet-400 font-semibold">Novo VS</th>
-           <th class="py-2.5 px-4 text-right text-slate-400 font-medium">Mix Atual</th>
+           <th class="py-2.5 px-4 text-right text-slate-600 dark:text-slate-400 font-medium">Mix Atual</th>
            <th class="py-2.5 px-4 text-right text-violet-400 font-semibold">Novo Mix</th>`;
 
       el.innerHTML = `
@@ -2077,7 +2084,7 @@
             <p class="text-xs text-emerald-500 mb-1">Serão atualizados</p>
             <p class="text-2xl font-bold text-emerald-400">${totAtualizar}</p>
           </div>
-          <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="wix2ToggleFilter('${tipo}','sem_mudanca')">
+          <div class="bg-slate-100 dark:bg-slate-800 rounded-xl p-4 border border-[var(--border)] cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="wix2ToggleFilter('${tipo}','sem_mudanca')">
             <p class="text-xs text-slate-500 mb-1">Sem mudança</p>
             <p class="text-2xl font-bold text-white">${totSemMud}</p>
           </div>
@@ -2089,8 +2096,8 @@
         <div class="rounded-xl border border-slate-800 overflow-hidden">
           <div class="overflow-auto max-h-[480px]">
             <table class="w-full text-xs">
-              <thead class="sticky top-0 bg-slate-900 z-20">
-                <tr class="border-b border-slate-700">${headers}</tr>
+              <thead class="sticky top-0 bg-[var(--bg-card)] z-20">
+                <tr class="border-b border-[var(--border)]">${headers}</tr>
               </thead>
               <tbody id="wix2-tbody-${tipo}">${rows}</tbody>
             </table>
@@ -2150,8 +2157,8 @@
       ['grad','pos'].forEach(t => {
         document.getElementById(`wix3-tab-${t}`).className =
           t === tipo
-            ? 'tab-active px-4 py-2 rounded-lg text-sm font-medium transition-all'
-            : 'tab-inactive px-4 py-2 rounded-lg text-sm font-medium transition-all';
+            ? dsSegActive()
+            : dsSegInactive();
         document.getElementById(`wix3-panel-${t}`).classList.toggle('hidden', t !== tipo);
       });
     }
@@ -2263,18 +2270,18 @@
       sortByName(data.matches || [], 'curso').forEach(m => {
         const st = m.needs_update ? 'atualizar' : 'sem_mudanca';
         const info = parseWixInfo(m);
-        rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="${st}">
+        rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="${st}">
           <td class="py-3 px-4">${wixBadge(st)}</td>
-          <td class="py-3 px-4 text-sm text-slate-200 whitespace-nowrap">${escHtml(info.curso)}</td>
+          <td class="py-3 px-4 text-sm text-[var(--text-primary)] whitespace-nowrap">${escHtml(info.curso)}</td>
           <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(info.tipoGrau)}</td>
-          <td class="py-3 px-4 text-right text-sm text-slate-300 whitespace-nowrap">${m.atual != null ? 'R$&nbsp;'+m.atual : '<span class="text-slate-700">—</span>'}</td>
+          <td class="py-3 px-4 text-right text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap tabular-nums">${m.atual != null ? 'R$&nbsp;'+m.atual : '<span class="text-slate-400 dark:text-slate-700">—</span>'}</td>
           <td class="py-3 px-4 text-right text-sm text-amber-300 font-medium whitespace-nowrap">${m.novo != null ? 'R$&nbsp;'+m.novo : '<span class="text-slate-700">—</span>'}</td>
         </tr>`;
       });
       sortByName(data.nao_encontrado || [], 'curso').forEach(n => {
         const nObj = typeof n === 'string' ? {chave: n} : n;
         const info = parseWixInfo(nObj);
-        rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
+        rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
           <td class="py-3 px-4">${wixBadge('nao_encontrado')}</td>
           <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(info.curso)}</td>
           <td class="py-3 px-4 text-sm text-slate-500 whitespace-nowrap">${escHtml(info.tipoGrau)}</td>
@@ -2288,9 +2295,9 @@
             <p class="text-xs text-emerald-500 mb-1">Serão atualizados</p>
             <p class="text-2xl font-bold text-emerald-400">${data.total_atualizar || 0}</p>
           </div>
-          <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="wix3ToggleFilter('grad','sem_mudanca')">
+          <div class="bg-slate-100 dark:bg-slate-800 rounded-xl p-4 border border-[var(--border)] cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="wix3ToggleFilter('grad','sem_mudanca')">
             <p class="text-xs text-slate-500 mb-1">Sem mudança</p>
-            <p class="text-2xl font-bold text-white">${data.total_sem_mudanca || 0}</p>
+            <p class="text-2xl font-bold text-[var(--text-primary)] tabular-nums">${data.total_sem_mudanca || 0}</p>
           </div>
           <div class="bg-red-900/20 rounded-xl p-4 border border-red-900/40 cursor-pointer filter-btn" data-filter="nao_encontrado" onclick="wix3ToggleFilter('grad','nao_encontrado')">
             <p class="text-xs text-red-500 mb-1">Não encontrado</p>
@@ -2300,12 +2307,12 @@
         <div class="rounded-xl border border-slate-800 overflow-hidden">
           <div class="overflow-auto max-h-[480px]">
             <table class="w-full text-xs">
-              <thead class="sticky top-0 bg-slate-900 z-20">
-                <tr class="border-b border-slate-700">
-                  <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Status</th>
-                  <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Curso</th>
-                  <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Modalidade</th>
-                  <th class="py-2.5 px-4 text-right text-slate-400 font-medium">Atual</th>
+              <thead class="sticky top-0 bg-[var(--bg-card)] z-20">
+                <tr class="border-b border-[var(--border)]">
+                  <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Status</th>
+                  <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Curso</th>
+                  <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Modalidade</th>
+                  <th class="py-2.5 px-4 text-right text-slate-600 dark:text-slate-400 font-medium">Atual</th>
                   <th class="py-2.5 px-4 text-right text-amber-400 font-semibold">Novo (MAR ABERTO)</th>
                 </tr>
               </thead>
@@ -2339,10 +2346,10 @@
       sortByName(posD.matches || [], 'curso').forEach(m => {
         const st = m.needs_update ? 'atualizar' : 'sem_mudanca';
         const curso = escHtml(m.curso || m.chave || '');
-        rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="${st}">
+        rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="${st}">
           <td class="py-3 px-4">${wixBadge(st)}</td>
           <td class="py-3 px-4 text-xs text-amber-400/70">pos</td>
-          <td class="py-3 px-4 text-sm text-slate-200">${curso}</td>
+          <td class="py-3 px-4 text-sm text-[var(--text-primary)]">${curso}</td>
           <td class="py-3 px-4 text-sm whitespace-nowrap">${durFmt(m.duracao1, m.duracao2)}</td>
           <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${priceOld(m.atual1)}</td>
           <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${priceFmt(m.novo1)}</td>
@@ -2353,7 +2360,7 @@
       sortByName(posD.nao_encontrado || [], 'curso').forEach(n => {
         const nObj = typeof n === 'string' ? {} : n;
         const nm = typeof n === 'string' ? n : (n.curso || n.chave || '');
-        rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
+        rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
           <td class="py-3 px-4">${wixBadge('nao_encontrado')}</td>
           <td class="py-3 px-4 text-xs text-amber-400/70">pos</td>
           <td class="py-3 px-4 text-sm text-slate-400">${escHtml(nm)}</td>
@@ -2365,10 +2372,10 @@
       sortByName(ppD.matches || [], 'curso').forEach(m => {
         const st = m.needs_update ? 'atualizar' : 'sem_mudanca';
         const curso = escHtml(m.curso || '');
-        rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="${st}">
+        rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="${st}">
           <td class="py-3 px-4">${wixBadge(st)}</td>
-          <td class="py-3 px-4 text-xs text-violet-400/70">PrecoPos</td>
-          <td class="py-3 px-4 text-sm text-slate-200">${curso}</td>
+          <td class="py-3 px-4 text-xs text-violet-600 dark:text-violet-400/70">PrecoPos</td>
+          <td class="py-3 px-4 text-sm text-[var(--text-primary)]">${curso}</td>
           <td class="py-3 px-4 text-sm whitespace-nowrap">${durFmt(m.durao, m.durao1)}</td>
           <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${priceOld(m.atual_vs)}</td>
           <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${priceFmt(m.novo_vs)}</td>
@@ -2379,9 +2386,9 @@
       sortByName(ppD.nao_encontrado || [], 'curso').forEach(n => {
         const nObj = typeof n === 'string' ? {} : n;
         const nm = typeof n === 'string' ? n : (n.curso || n.chave || '');
-        rows += `<tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
+        rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
           <td class="py-3 px-4">${wixBadge('nao_encontrado')}</td>
-          <td class="py-3 px-4 text-xs text-violet-400/70">PrecoPos</td>
+          <td class="py-3 px-4 text-xs text-violet-600 dark:text-violet-400/70">PrecoPos</td>
           <td class="py-3 px-4 text-sm text-slate-400">${escHtml(nm)}</td>
           <td class="py-3 px-4 text-sm whitespace-nowrap">${durFmt(nObj.durao, nObj.durao1)}</td>
           <td></td><td></td><td></td><td></td>
@@ -2394,7 +2401,7 @@
             <p class="text-xs text-emerald-500 mb-1">Serão atualizados</p>
             <p class="text-2xl font-bold text-emerald-400">${totAtt}</p>
           </div>
-          <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="wix3ToggleFilter('pos','sem_mudanca')">
+          <div class="bg-slate-100 dark:bg-slate-800 rounded-xl p-4 border border-[var(--border)] cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="wix3ToggleFilter('pos','sem_mudanca')">
             <p class="text-xs text-slate-500 mb-1">Sem mudança</p>
             <p class="text-2xl font-bold text-white">${totSem}</p>
           </div>
@@ -2406,15 +2413,15 @@
         <div class="rounded-xl border border-slate-800 overflow-hidden">
           <div class="overflow-auto max-h-[480px]">
             <table class="w-full text-xs">
-              <thead class="sticky top-0 bg-slate-900 z-20">
-                <tr class="border-b border-slate-700">
-                  <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Status</th>
-                  <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Coleção</th>
-                  <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Curso</th>
-                  <th class="py-2.5 px-4 text-left text-slate-500 font-medium">Duração</th>
-                  <th class="py-2.5 px-4 text-right text-slate-400 font-medium">Atual 1</th>
+              <thead class="sticky top-0 bg-[var(--bg-card)] z-20">
+                <tr class="border-b border-[var(--border)]">
+                  <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Status</th>
+                  <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Coleção</th>
+                  <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Curso</th>
+                  <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Duração</th>
+                  <th class="py-2.5 px-4 text-right text-slate-600 dark:text-slate-400 font-medium">Atual 1</th>
                   <th class="py-2.5 px-4 text-right text-amber-400 font-semibold">Novo 1</th>
-                  <th class="py-2.5 px-4 text-right text-slate-400 font-medium">Atual 2</th>
+                  <th class="py-2.5 px-4 text-right text-slate-600 dark:text-slate-400 font-medium">Atual 2</th>
                   <th class="py-2.5 px-4 text-right text-amber-400 font-semibold">Novo 2</th>
                 </tr>
               </thead>

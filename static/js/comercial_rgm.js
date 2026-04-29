@@ -5,6 +5,16 @@
 let _crgmChartEvolucao = null;
 let _crgmChartAgentes = null;
 
+function _crgmChartTheme() {
+    var dark = document.documentElement.classList.contains('dark');
+    return {
+        legend: dark ? '#94a3b8' : '#475569',
+        tick: dark ? '#94a3b8' : '#5a6b82',
+        grid: dark ? 'rgba(100,116,139,0.1)' : 'rgba(0, 52, 111, 0.07)',
+        prevLine: dark ? '#64748b' : '#7d8ea3',
+    };
+}
+
 /** Escolhe o período (dt_ini/dt_fim) mais recente entre comercial_metas e campanhas de Premiação. */
 function _crgmPickLatestMetaPeriod(periods) {
     const uniq = new Map();
@@ -77,7 +87,21 @@ async function loadComercialRgm() {
         if (!elFim.value) elFim.value = hoje.toISOString().substring(0, 10);
     }
     await _crgmPrefetchHistoricoMetas();
+    _crgmBindTopbarDates();
     crgmAtualizar();
+    if (typeof refreshTopbarForPage === 'function') refreshTopbarForPage('comercial_rgm');
+}
+
+let _crgmTopbarDatesBound = false;
+function _crgmBindTopbarDates() {
+    if (_crgmTopbarDatesBound) return;
+    _crgmTopbarDatesBound = true;
+    ['crgm-dt-ini', 'crgm-dt-fim'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', () => {
+            if (typeof refreshTopbarForPage === 'function') refreshTopbarForPage('comercial_rgm');
+        });
+    });
 }
 
 async function _crgmAutoSyncUsers() {
@@ -164,7 +188,10 @@ async function crgmAtualizar() {
         _crgmRenderTransferencia(d.transferencia_regresso);
         crgmAtualizarBadgeConflitos();
     } catch (e) { _crgmErro('Erro: ' + e.message); }
-    finally { _crgmLoading(false); }
+    finally {
+        _crgmLoading(false);
+        if (typeof refreshTopbarForPage === 'function') refreshTopbarForPage('comercial_rgm');
+    }
 }
 
 // ── KPIs ────────────────────────────────────────────────
@@ -195,9 +222,9 @@ function _crgmRenderKPIs(k) {
 
 // ── Evasão ──────────────────────────────────────────────
 const _EVASAO_COLORS = {
-    'CANCELADO':   'bg-rose-500/20 text-rose-300',
-    'TRANCADO':    'bg-amber-500/20 text-amber-300',
-    'TRANSFERIDO': 'bg-purple-500/20 text-purple-300',
+    'CANCELADO':   'bg-rose-100 dark:bg-rose-500/20 text-rose-800 dark:text-rose-300',
+    'TRANCADO':    'bg-amber-100 dark:bg-amber-500/20 text-amber-900 dark:text-amber-300',
+    'TRANSFERIDO': 'bg-violet-100 dark:bg-purple-500/20 text-violet-900 dark:text-purple-300',
 };
 function _crgmRenderEvasao(evasao) {
     const panel = document.getElementById('crgm-evasao-panel');
@@ -210,7 +237,7 @@ function _crgmRenderEvasao(evasao) {
     const tiposEl = document.getElementById('crgm-evasao-tipos');
     tiposEl.innerHTML = '';
     for (const [tipo, qtd] of Object.entries(evasao.por_tipo)) {
-        const cls = _EVASAO_COLORS[tipo] || 'bg-slate-500/20 text-slate-300';
+        const cls = _EVASAO_COLORS[tipo] || 'bg-slate-500/20 text-slate-700 dark:text-slate-300';
         tiposEl.insertAdjacentHTML('beforeend',
             `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${cls}">${tipo.charAt(0)+tipo.slice(1).toLowerCase()}: ${qtd}</span>`);
     }
@@ -221,16 +248,16 @@ function _crgmRenderEvasao(evasao) {
     (evasao.por_agente || []).forEach(ag => {
         agEl.insertAdjacentHTML('beforeend', `
             <details class="group">
-                <summary class="flex items-center justify-between px-4 py-2.5 cursor-pointer hover:bg-rose-500/5 list-none">
-                    <span class="text-sm text-slate-300 font-medium">${ag.agente}</span>
+                <summary class="flex items-center justify-between px-4 py-2.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-rose-500/5 list-none">
+                    <span class="text-sm text-slate-800 dark:text-slate-300 font-medium">${ag.agente}</span>
                     <div class="flex items-center gap-2">
-                        <span class="text-xs font-bold text-rose-300">${ag.total}</span>
+                        <span class="text-xs font-bold text-rose-600 dark:text-rose-300">${ag.total}</span>
                         <svg class="w-3.5 h-3.5 text-slate-500 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     </div>
                 </summary>
                 <div class="px-4 pb-3 space-y-1">
                     ${(ag.itens || []).map(it => `
-                        <div class="flex items-center gap-2 text-xs text-slate-400">
+                        <div class="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
                             <span class="font-mono text-slate-500">${it.rgm}</span>
                             <span class="flex-1 truncate">${it.nome}</span>
                             <span class="${(_EVASAO_COLORS[it.situacao]||'bg-slate-500/20 text-slate-400')} text-[10px] px-1.5 py-0.5 rounded font-bold">${it.situacao.charAt(0)+it.situacao.slice(1).toLowerCase()}</span>
@@ -251,7 +278,7 @@ function crgmToggleEvasaoDetalhes() {
 function _crgmBadge(id, pct) {
     const el = document.getElementById(id); if (!el) return;
     el.textContent = `${pct >= 0 ? '\u2191' : '\u2193'} ${Math.abs(pct)}%`;
-    el.className = pct >= 0 ? 'font-bold px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400' : 'font-bold px-1.5 py-0.5 rounded text-[10px] bg-red-500/20 text-red-400';
+    el.className = pct >= 0 ? 'font-bold px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-700 dark:text-emerald-400' : 'font-bold px-1.5 py-0.5 rounded text-[10px] bg-red-500/20 text-red-600 dark:text-red-400';
 }
 
 // ── Evolução ────────────────────────────────────────────
@@ -321,6 +348,12 @@ function _crgmRenderEvolucao(evolucao, evolucaoPrev, evolucaoBruto) {
     }
 
     const showLegend = hasBruto || (evolucaoPrev && evolucaoPrev.length > 0);
+    const th = _crgmChartTheme();
+    datasets.forEach(ds => {
+        if (ds.label === 'Ano Anterior') {
+            ds.borderColor = th.prevLine;
+        }
+    });
     _crgmChartEvolucao = new Chart(ctx, { type:'line', data:{labels, datasets}, options:{
         responsive:true, maintainAspectRatio:false,
         interaction:{mode:'index',intersect:false},
@@ -328,7 +361,7 @@ function _crgmRenderEvolucao(evolucao, evolucaoPrev, evolucaoBruto) {
             legend:{
                 display: showLegend,
                 position:'top', align:'end',
-                labels:{color:'#94a3b8', font:{size:10}, boxWidth:12, padding:12}
+                labels:{color: th.legend, font:{size:10}, boxWidth:12, padding:12}
             },
             tooltip:{
                 callbacks:{
@@ -340,8 +373,8 @@ function _crgmRenderEvolucao(evolucao, evolucaoPrev, evolucaoBruto) {
             }
         },
         scales:{
-            x:{ticks:{color:'#64748b',maxTicksLimit:15,font:{size:10}},grid:{color:'rgba(100,116,139,0.08)'}},
-            y:{beginAtZero:true,ticks:{color:'#64748b',font:{size:10}},grid:{color:'rgba(100,116,139,0.08)'}}
+            x:{ticks:{color: th.tick, maxTicksLimit:15, font:{size:10}}, grid:{color: th.grid}},
+            y:{beginAtZero:true, ticks:{color: th.tick, font:{size:10}}, grid:{color: th.grid}}
         }
     }});
 }
@@ -352,11 +385,11 @@ function _crgmRenderPoloTable(ranking) {
     if (!ranking || !ranking.length) { tbody.innerHTML = '<tr><td colspan="4" class="px-5 py-6 text-center text-slate-600">Sem dados</td></tr>'; return; }
     const max = Math.max(...ranking.map(r => r.total));
     tbody.innerHTML = ranking.map((r, i) =>
-        `<tr class="hover:bg-white/[0.02] transition-colors">
+        `<tr class="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors">
             <td class="text-center px-3 py-2 text-slate-500 font-medium text-xs">${i+1}</td>
-            <td class="px-4 py-2 text-slate-300 text-xs truncate max-w-[200px]">${esc(r.nome)}</td>
-            <td class="px-4 py-2 text-right font-mono text-white font-semibold text-xs">${r.total.toLocaleString('pt-BR')}</td>
-            <td class="px-4 py-2"><div class="h-3 rounded-full bg-slate-800 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-500" style="width:${Math.round(r.total/max*100)}%"></div></div></td>
+            <td class="px-4 py-2 text-slate-700 dark:text-slate-300 text-xs truncate max-w-[200px]">${esc(r.nome)}</td>
+            <td class="px-4 py-2 text-right font-mono text-[#00346f] dark:text-white font-semibold text-xs">${r.total.toLocaleString('pt-BR')}</td>
+            <td class="px-4 py-2"><div class="h-3 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-500" style="width:${Math.round(r.total/max*100)}%"></div></div></td>
         </tr>`
     ).join('');
 }
@@ -371,27 +404,27 @@ function _crgmRenderCicloTable(ciclos) {
         const b = (c.bruto || 0), ec = (c.total || 0);
         const evasao = b - ec;
         const evasaoTag = evasao > 0 ? `<span class="text-[10px] text-rose-400/70 ml-1">(-${evasao})</span>` : '';
-        return `<tr class="hover:bg-white/[0.02] transition-colors">
-            <td class="px-4 py-2 text-slate-300">${esc(c.nome)}</td>
-            <td class="px-4 py-2 text-right font-mono text-slate-400 tabular-nums">${b.toLocaleString('pt-BR')}</td>
-            <td class="px-4 py-2 text-right tabular-nums"><span class="font-mono text-white font-semibold">${ec.toLocaleString('pt-BR')}</span>${evasaoTag}</td>
+        return `<tr class="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors">
+            <td class="px-4 py-2 text-slate-700 dark:text-slate-300">${esc(c.nome)}</td>
+            <td class="px-4 py-2 text-right font-mono text-slate-500 dark:text-slate-400 tabular-nums">${b.toLocaleString('pt-BR')}</td>
+            <td class="px-4 py-2 text-right tabular-nums"><span class="font-mono text-[#00346f] dark:text-white font-semibold">${ec.toLocaleString('pt-BR')}</span>${evasaoTag}</td>
         </tr>`;
     }).join('');
-    const foot = `<tr class="border-t border-slate-700/30 bg-slate-800/30">
-        <td class="px-4 py-2 text-[11px] font-semibold text-slate-400">Total</td>
-        <td class="px-4 py-2 text-right font-mono text-slate-400 font-bold tabular-nums">${sumBruto.toLocaleString('pt-BR')}</td>
-        <td class="px-4 py-2 text-right font-mono text-amber-200/90 font-bold tabular-nums">${sumEC.toLocaleString('pt-BR')}</td>
+    const foot = `<tr class="border-t border-slate-200 dark:border-slate-700/30 bg-slate-50 dark:bg-slate-800/30">
+        <td class="px-4 py-2 text-[11px] font-semibold text-slate-600 dark:text-slate-400">Total</td>
+        <td class="px-4 py-2 text-right font-mono text-slate-500 dark:text-slate-400 font-bold tabular-nums">${sumBruto.toLocaleString('pt-BR')}</td>
+        <td class="px-4 py-2 text-right font-mono text-amber-800 dark:text-amber-200/90 font-bold tabular-nums">${sumEC.toLocaleString('pt-BR')}</td>
     </tr>`;
     tbody.innerHTML = rows + foot;
 }
 
 // ── Agentes (tabela) ────────────────────────────────────
 function _crgmTierLabel(mp, meta, intermediaria, supermeta) {
-    if (supermeta > 0 && mp >= supermeta)    return { label: 'SUPERMETA', cls: 'text-emerald-400 font-bold',    icon: '\u2B50' };
-    if (meta > 0 && mp >= meta)              return { label: 'META',      cls: 'text-blue-400 font-semibold',   icon: '\u2705' };
-    if (intermediaria > 0 && mp >= intermediaria) return { label: 'INTERMED.', cls: 'text-amber-400 font-semibold', icon: '\u26A1' };
-    if (meta > 0) return { label: `${Math.round(mp/meta*100)}%`, cls: 'text-red-400', icon: '' };
-    return { label: '\u2014', cls: 'text-slate-600', icon: '' };
+    if (supermeta > 0 && mp >= supermeta)    return { label: 'SUPERMETA', cls: 'text-emerald-600 dark:text-emerald-400 font-bold',    icon: '\u2B50' };
+    if (meta > 0 && mp >= meta)              return { label: 'META',      cls: 'text-blue-600 dark:text-blue-400 font-semibold',   icon: '\u2705' };
+    if (intermediaria > 0 && mp >= intermediaria) return { label: 'INTERMED.', cls: 'text-amber-600 dark:text-amber-400 font-semibold', icon: '\u26A1' };
+    if (meta > 0) return { label: `${Math.round(mp/meta*100)}%`, cls: 'text-red-600 dark:text-red-400', icon: '' };
+    return { label: '\u2014', cls: 'text-slate-500 dark:text-slate-600', icon: '' };
 }
 
 function _crgmRenderAgentes(agentes) {
@@ -413,9 +446,9 @@ function _crgmRenderAgentes(agentes) {
         const intermediaria = a.meta_intermediaria||0;
         const supermeta = a.supermeta||0;
         const tier = _crgmTierLabel(mp, meta, intermediaria, supermeta);
-        const taxaClass = a.taxa_conversao>=20 ? 'text-emerald-400' : a.taxa_conversao>=8 ? 'text-amber-400' : 'text-red-400';
+        const taxaClass = a.taxa_conversao>=20 ? 'text-emerald-600 dark:text-emerald-400' : a.taxa_conversao>=8 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400';
         const rank = i<3 ? medals[i] : (i+1);
-        const rowBg = a.is_transferencia ? 'bg-amber-500/[0.06]' : (i<3 ? 'bg-blue-500/[0.03]' : '');
+        const rowBg = a.is_transferencia ? 'bg-amber-500/[0.08] dark:bg-amber-500/[0.06]' : (i<3 ? 'bg-blue-500/[0.06] dark:bg-blue-500/[0.03]' : '');
 
         // Tooltip with all category metas
         const mc = a.metas_cat || {};
@@ -425,24 +458,24 @@ function _crgmRenderAgentes(agentes) {
             ).join(' | ')
             : 'Sem meta definida';
 
-        return `<tr class="hover:bg-white/[0.03] transition-colors cursor-pointer ${rowBg}" title="${tooltip}" onclick="crgmAgenteDetalhe(${a.user_id})">
-            <td class="text-center px-3 py-2.5 font-bold text-slate-400">${rank}</td>
-            <td class="px-4 py-2.5 font-medium ${a.nome&&a.nome.startsWith('User #')?'text-slate-500 italic':'text-white'}">
+        return `<tr class="group hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors cursor-pointer ${rowBg}" title="${tooltip}" onclick="crgmAgenteDetalhe(${a.user_id})">
+            <td class="text-center px-3 py-2.5 font-bold text-slate-500 dark:text-slate-400">${rank}</td>
+            <td class="px-4 py-2.5 font-medium ${a.nome&&a.nome.startsWith('User #')?'text-slate-500 italic':'text-slate-900 dark:text-white'}">
                 <div class="flex items-center gap-2">
                     <span>${esc(a.nome)}</span>
-                    <button onclick="event.stopPropagation();navigateToPerformance(${a.user_id})" title="Ver painel de performance" class="opacity-0 group-hover:opacity-100 hover:opacity-100 text-indigo-400 hover:text-indigo-300 transition-all p-0.5 rounded hover:bg-indigo-500/10 flex-shrink-0" style="opacity:.35">
+                    <button onclick="event.stopPropagation();navigateToPerformance(${a.user_id})" title="Ver painel de performance" class="opacity-0 group-hover:opacity-100 hover:opacity-100 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-all p-0.5 rounded hover:bg-indigo-500/10 flex-shrink-0" style="opacity:.35">
                         <span class="material-symbols-outlined text-sm">monitoring</span>
                     </button>
                 </div>
             </td>
-            <td class="px-4 py-2.5 text-right font-mono text-blue-400 font-semibold">${mp.toLocaleString('pt-BR')}</td>
-            <td class="px-4 py-2.5 text-right font-mono text-amber-300/70">${intermediaria>0?intermediaria:'\u2014'}</td>
-            <td class="px-4 py-2.5 text-right font-mono text-blue-300/70">${meta>0?meta:'\u2014'}</td>
-            <td class="px-4 py-2.5 text-right font-mono text-emerald-300/70">${supermeta>0?supermeta:'\u2014'}</td>
+            <td class="px-4 py-2.5 text-right font-mono text-[#00346f] dark:text-blue-400 font-semibold">${mp.toLocaleString('pt-BR')}</td>
+            <td class="px-4 py-2.5 text-right font-mono text-amber-700 dark:text-amber-300/70">${intermediaria>0?intermediaria:'\u2014'}</td>
+            <td class="px-4 py-2.5 text-right font-mono text-blue-800 dark:text-blue-300/70">${meta>0?meta:'\u2014'}</td>
+            <td class="px-4 py-2.5 text-right font-mono text-emerald-700 dark:text-emerald-300/70">${supermeta>0?supermeta:'\u2014'}</td>
             <td class="px-4 py-2.5 text-right font-mono ${tier.cls}">${tier.icon} ${tier.label}</td>
-            <td class="px-4 py-2.5 text-right font-mono text-cyan-400">${np.toLocaleString('pt-BR')}</td>
-            <td class="px-4 py-2.5 text-right font-mono text-red-400">${pp.toLocaleString('pt-BR')}</td>
-            <td class="px-4 py-2.5 text-right font-mono text-slate-300">${a.total.toLocaleString('pt-BR')}</td>
+            <td class="px-4 py-2.5 text-right font-mono text-cyan-700 dark:text-cyan-400">${np.toLocaleString('pt-BR')}</td>
+            <td class="px-4 py-2.5 text-right font-mono text-red-600 dark:text-red-400">${pp.toLocaleString('pt-BR')}</td>
+            <td class="px-4 py-2.5 text-right font-mono text-slate-700 dark:text-slate-300">${a.total.toLocaleString('pt-BR')}</td>
             <td class="px-4 py-2.5 text-right font-mono font-bold ${taxaClass}">${a.taxa_conversao}%</td>
         </tr>`;
     }).join('');
@@ -515,8 +548,8 @@ function _crgmDetalheOpen(userId, dtIni, dtFim, qs, data, err) {
         corpo = `
         <div class="mb-3 flex items-center justify-between gap-3 flex-wrap">
             <div class="flex items-center gap-2 flex-wrap text-xs">
-                <span class="text-slate-400">Total: <span class="text-white font-semibold">${data.total}</span></span>
-                <span class="text-slate-600">·</span>
+                <span class="text-slate-600 dark:text-slate-400">Total: <span class="text-[var(--text-primary)] font-semibold">${data.total}</span></span>
+                <span class="text-slate-400 dark:text-slate-600">·</span>
                 ${outlierBadge}
             </div>
             <a href="${csvUrl}" download class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors shrink-0">
@@ -525,7 +558,7 @@ function _crgmDetalheOpen(userId, dtIni, dtFim, qs, data, err) {
         </div>
         <div class="overflow-auto max-h-[52vh]">
         <table class="w-full text-xs">
-            <thead class="sticky top-0 bg-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
+            <thead class="sticky top-0 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 uppercase tracking-wider text-[10px]">
                 <tr>
                     <th class="px-3 py-2 text-left">RGM</th>
                     <th class="px-3 py-2 text-left">Nome</th>
@@ -538,32 +571,32 @@ function _crgmDetalheOpen(userId, dtIni, dtFim, qs, data, err) {
                     <th class="px-3 py-2 text-left">Curso</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-slate-700/30">
+            <tbody class="divide-y divide-slate-200 dark:divide-slate-700/30">
                 ${data.itens.map(r => {
-                    const rowCls = r.outlier ? 'hover:bg-white/[0.03] bg-orange-500/5' : 'hover:bg-white/[0.03]';
+                    const rowCls = r.outlier ? 'hover:bg-slate-50 dark:hover:bg-white/[0.03] bg-orange-50 dark:bg-orange-500/5' : 'hover:bg-slate-50 dark:hover:bg-white/[0.03]';
                     const rgmTag = r.outlier
-                        ? `<span class="font-mono text-orange-300" title="RGM fora do padrão do ciclo">${esc(r.rgm)} ⚠</span>`
-                        : `<span class="font-mono text-slate-300">${esc(r.rgm)}</span>`;
+                        ? `<span class="font-mono text-orange-700 dark:text-orange-300" title="RGM fora do padrão do ciclo">${esc(r.rgm)} ⚠</span>`
+                        : `<span class="font-mono text-slate-700 dark:text-slate-300">${esc(r.rgm)}</span>`;
                     return `
                     <tr class="${rowCls}">
                         <td class="px-3 py-2">${rgmTag}</td>
-                        <td class="px-3 py-2 text-white">${esc(r.nome)}</td>
-                        <td class="px-3 py-2 font-mono text-slate-400">${esc(r.cpf || '')}</td>
-                        <td class="px-3 py-2 font-mono text-slate-400">${esc(r.telefone || '')}</td>
+                        <td class="px-3 py-2 text-[var(--text-primary)]">${esc(r.nome)}</td>
+                        <td class="px-3 py-2 font-mono text-slate-600 dark:text-slate-400">${esc(r.cpf || '')}</td>
+                        <td class="px-3 py-2 font-mono text-slate-600 dark:text-slate-400">${esc(r.telefone || '')}</td>
                         <td class="px-3 py-2">${tipoBadge(r.tipo_matricula)}</td>
-                        <td class="px-3 py-2 text-slate-300">${esc(r.polo)}</td>
-                        <td class="px-3 py-2 text-slate-400">${esc(r.nivel)}</td>
-                        <td class="px-3 py-2 font-mono text-blue-300">${esc(r.data_matricula)}</td>
-                        <td class="px-3 py-2 text-slate-300 max-w-[200px] truncate" title="${esc(r.turma)}">${esc(r.turma)}</td>
+                        <td class="px-3 py-2 text-slate-700 dark:text-slate-300">${esc(r.polo)}</td>
+                        <td class="px-3 py-2 text-slate-600 dark:text-slate-400">${esc(r.nivel)}</td>
+                        <td class="px-3 py-2 font-mono text-blue-700 dark:text-blue-300">${esc(r.data_matricula)}</td>
+                        <td class="px-3 py-2 text-slate-700 dark:text-slate-300 max-w-[200px] truncate" title="${esc(r.turma)}">${esc(r.turma)}</td>
                     </tr>`;
                 }).join('')}
             </tbody>
         </table></div>`;
     }
     modal.innerHTML = `
-    <div class="bg-slate-900 border border-slate-700/40 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
-        <div class="px-5 py-4 border-b border-slate-700/30 flex items-center justify-between gap-3">
-            <h3 class="text-sm font-bold text-white">${titulo} — período ${dtIni} a ${dtFim}</h3>
+    <div class="glass-card rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
+        <div class="px-5 py-4 border-b border-[var(--border)] flex items-center justify-between gap-3">
+            <h3 class="text-sm font-bold text-[var(--text-primary)]">${titulo} — período ${dtIni} a ${dtFim}</h3>
             <div class="flex items-center gap-2 flex-shrink-0">
                 <button onclick="document.getElementById('crgm-detalhe-modal').remove();navigateToPerformance(${userId})"
                     class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors"
@@ -572,7 +605,7 @@ function _crgmDetalheOpen(userId, dtIni, dtFim, qs, data, err) {
                     Ver Performance
                 </button>
                 <button onclick="document.getElementById('crgm-detalhe-modal').remove()"
-                    class="text-slate-500 hover:text-white transition-colors text-lg leading-none">&times;</button>
+                    class="text-slate-500 hover:text-[var(--text-primary)] transition-colors text-lg leading-none">&times;</button>
             </div>
         </div>
         <div class="p-5 overflow-auto flex-1">${corpo}</div>
@@ -644,14 +677,15 @@ function _crgmRenderAgentesChart(agentes) {
                 if (val === 0) return;
                 const xPos = x.getPixelForValue(val) + 6;
                 const yPos = bar.y;
+                const isDark = document.documentElement.classList.contains('dark');
                 c.font = '500 11px Inter, sans-serif';
-                c.fillStyle = '#e2e8f0';
+                c.fillStyle = isDark ? '#e2e8f0' : '#334155';
                 c.textBaseline = 'middle';
                 c.fillText(val, xPos, yPos);
                 if (m > 0) {
                     const pct = Math.round(val / m * 100);
                     c.font = '400 9px Inter, sans-serif';
-                    c.fillStyle = pct >= 100 ? '#34d399' : '#94a3b8';
+                    c.fillStyle = pct >= 100 ? '#059669' : (isDark ? '#94a3b8' : '#64748b');
                     c.fillText(`${pct}%`, xPos + 22, yPos);
                 }
             });
@@ -660,6 +694,7 @@ function _crgmRenderAgentesChart(agentes) {
     };
 
     const maxVal = Math.max(1, ...top.map(a => a.matriculas_periodo || 0)) * 1.12;
+    const th = _crgmChartTheme();
 
     _crgmChartAgentes = new Chart(ctx, {
         type: 'bar',
@@ -702,11 +737,11 @@ function _crgmRenderAgentesChart(agentes) {
                 x: {
                     beginAtZero: true,
                     max: maxVal || undefined,
-                    ticks: { color:'#475569', font:{size:10} },
-                    grid: { color:'rgba(100,116,139,0.07)' }
+                    ticks: { color: th.tick, font:{size:10} },
+                    grid: { color: th.grid }
                 },
                 y: {
-                    ticks: { color:'#cbd5e1', font:{size:11, weight:'500'} },
+                    ticks: { color: th.tick, font:{size:11, weight:'500'} },
                     grid: { display:false }
                 }
             }
@@ -865,12 +900,12 @@ function _crgmRenderListaTurmas() {
     const fmt = d => d ? d.split('-').reverse().join('/') : '—';
     const nivelBadge = n => {
         if (!n) return '';
-        const cls = n.includes('ós') ? 'bg-purple-500/20 text-purple-300' : 'bg-blue-500/20 text-blue-300';
+        const cls = n.includes('ós') ? 'bg-purple-500/15 dark:bg-purple-500/20 text-purple-800 dark:text-purple-300' : 'bg-blue-500/15 dark:bg-blue-500/20 text-blue-800 dark:text-blue-300';
         return `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium ${cls}">${n}</span>`;
     };
 
     let html = `
-        <div class="grid grid-cols-[1fr_auto_auto_auto] items-center gap-x-3 px-3 py-1 text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-700/40 mb-1">
+        <div class="grid grid-cols-[1fr_auto_auto_auto] items-center gap-x-3 px-3 py-1 text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-700/40 mb-1">
             <span>Turma</span>
             <span>Período</span>
             <span></span>
@@ -880,15 +915,15 @@ function _crgmRenderListaTurmas() {
 
     html += _crgmTurmasData.map(t => {
         return `
-        <div class="grid grid-cols-[1fr_auto_auto_auto] items-center gap-x-3 px-3 py-2 rounded-lg bg-slate-700/30 hover:bg-slate-700/50 transition-colors">
+        <div class="grid grid-cols-[1fr_auto_auto_auto] items-center gap-x-3 px-3 py-2 rounded-lg bg-slate-100/80 dark:bg-slate-700/30 hover:bg-slate-200/80 dark:hover:bg-slate-700/50 transition-colors">
             <div class="flex items-center gap-2 min-w-0">
-                <span class="text-white text-xs font-medium truncate">${esc(t.nome || '—')}</span>
+                <span class="text-slate-900 dark:text-white text-xs font-medium truncate">${esc(t.nome || '—')}</span>
                 ${nivelBadge(t.nivel)}
             </div>
             <span class="text-slate-400 text-[11px] whitespace-nowrap">${fmt(t.dt_inicio)} → ${fmt(t.dt_fim)}</span>
             <button onclick="_crgmAplicarDatasMeta('${t.dt_inicio}','${t.dt_fim}'); document.getElementById('crgm-nivel').value='${esc(t.nivel || '')}'; document.getElementById('crgm-ver-turmas').classList.add('hidden');"
                 title="Aplicar período no painel"
-                class="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 text-[10px] transition-colors whitespace-nowrap">
+                class="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-600/15 dark:bg-blue-600/20 hover:bg-blue-600/25 dark:hover:bg-blue-600/40 text-[#00346f] dark:text-blue-400 text-[10px] transition-colors whitespace-nowrap">
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
                 Ver
             </button>
@@ -1155,11 +1190,11 @@ function _crgmRenderHistoricoMetas(filterCat) {
     const sorted = Object.values(groups).sort((a, b) => b.dt_inicio.localeCompare(a.dt_inicio));
 
     const catColors = {
-        matriculas: 'bg-blue-500/20 text-blue-300',
-        inscricoes:  'bg-cyan-500/20 text-cyan-300',
-        valor:       'bg-emerald-500/20 text-emerald-300',
-        novos_leads: 'bg-amber-500/20 text-amber-300',
-        conversao:   'bg-purple-500/20 text-purple-300',
+        matriculas: 'bg-blue-500/15 dark:bg-blue-500/20 text-blue-800 dark:text-blue-300',
+        inscricoes:  'bg-cyan-500/15 dark:bg-cyan-500/20 text-cyan-800 dark:text-cyan-300',
+        valor:       'bg-emerald-500/15 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300',
+        novos_leads: 'bg-amber-500/15 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300',
+        conversao:   'bg-purple-500/15 dark:bg-purple-500/20 text-purple-800 dark:text-purple-300',
     };
     const catLabels = { matriculas:'Matrículas', inscricoes:'Inscrições', valor:'Valor', novos_leads:'Novos Leads', conversao:'Conversão' };
     const fmt = d => d ? d.split('-').reverse().join('/') : '?';
@@ -1172,10 +1207,10 @@ function _crgmRenderHistoricoMetas(filterCat) {
         const resumoCamp = pc ? _crgmResumoPremiacaoCampanha(pc) : '';
         const agCount = agentesTotal.length > 0 ? agentesTotal.length : ((pc && pc.pcm_totais && pc.pcm_totais.agentes) || 0);
         const campChip = pc
-            ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/25">Campanha</span>'
+            ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/25">Campanha</span>'
             : '';
         const catBadges = Object.keys(g.categorias).map(cat =>
-            `<span class="px-1.5 py-0.5 rounded text-[10px] font-semibold ${catColors[cat]||'bg-slate-700/40 text-slate-400'}">${catLabels[cat]||cat}</span>`
+            `<span class="px-1.5 py-0.5 rounded text-[10px] font-semibold ${catColors[cat]||'bg-slate-200 dark:bg-slate-700/40 text-slate-600 dark:text-slate-400'}">${catLabels[cat]||cat}</span>`
         ).join('');
 
         // Detalhe expandido por categoria
@@ -1183,45 +1218,45 @@ function _crgmRenderHistoricoMetas(filterCat) {
         if (isOpen) {
             const txtPremio = pc ? (resumoCamp || pc.nome || '') : '';
             const blocoPremioTopo = pc && txtPremio
-                ? `<div class="px-4 py-2.5 bg-amber-500/5 border-b border-amber-500/15 text-[11px] text-amber-200/90 font-mono">${esc(txtPremio)}</div>`
+                ? `<div class="px-4 py-2.5 bg-amber-500/5 border-b border-amber-500/15 text-[11px] text-amber-900 dark:text-amber-200/90 font-mono">${esc(txtPremio)}</div>`
                 : '';
             detalhe = Object.entries(g.categorias).map(([cat, itens]) => {
-                const cc = catColors[cat] || 'bg-slate-700/40 text-slate-400';
+                const cc = catColors[cat] || 'bg-slate-200 dark:bg-slate-700/40 text-slate-600 dark:text-slate-400';
                 const cl = catLabels[cat] || cat;
                 const ordenados = [...itens].sort((a,b) => (b.meta||0)-(a.meta||0));
                 const linhas = ordenados.map(a => `
-                    <tr class="border-b border-slate-700/20 hover:bg-white/[0.02]">
-                        <td class="px-4 py-2 text-sm text-white">${esc(a.user_name||'?')}</td>
-                        <td class="px-4 py-2 text-right font-mono text-blue-300">${(a.meta||0)>0 ? a.meta : '—'}</td>
-                        <td class="px-4 py-2 text-right font-mono text-amber-300">${(a.meta_intermediaria||0)>0 ? a.meta_intermediaria : '—'}</td>
-                        <td class="px-4 py-2 text-right font-mono text-emerald-300">${(a.supermeta||0)>0 ? a.supermeta : '—'}</td>
+                    <tr class="border-b border-slate-200 dark:border-slate-700/20 hover:bg-slate-50 dark:hover:bg-white/[0.02]">
+                        <td class="px-4 py-2 text-sm text-slate-900 dark:text-white">${esc(a.user_name||'?')}</td>
+                        <td class="px-4 py-2 text-right font-mono text-blue-800 dark:text-blue-300">${(a.meta||0)>0 ? a.meta : '—'}</td>
+                        <td class="px-4 py-2 text-right font-mono text-amber-800 dark:text-amber-300">${(a.meta_intermediaria||0)>0 ? a.meta_intermediaria : '—'}</td>
+                        <td class="px-4 py-2 text-right font-mono text-emerald-800 dark:text-emerald-300">${(a.supermeta||0)>0 ? a.supermeta : '—'}</td>
                         <td class="px-4 py-2 text-right flex items-center justify-end gap-2">
-                            <button onclick="crgmAbrirEditarMeta(${a.id},'${esc(a.user_name||'?')}',${a.meta||0},${a.meta_intermediaria||0},${a.supermeta||0})" class="text-slate-400/60 hover:text-blue-400 text-[11px]" title="Editar"><span class="material-symbols-outlined" style="font-size:13px">edit</span></button>
-                            <button onclick="crgmDeleteMeta(${a.id},'historico')" class="text-red-500/40 hover:text-red-400 text-[10px]" title="Excluir">✕</button>
+                            <button onclick="crgmAbrirEditarMeta(${a.id},'${esc(a.user_name||'?')}',${a.meta||0},${a.meta_intermediaria||0},${a.supermeta||0})" class="text-slate-500 dark:text-slate-400/60 hover:text-blue-600 dark:hover:text-blue-400 text-[11px]" title="Editar"><span class="material-symbols-outlined" style="font-size:13px">edit</span></button>
+                            <button onclick="crgmDeleteMeta(${a.id},'historico')" class="text-red-500/60 dark:text-red-500/40 hover:text-red-600 dark:hover:text-red-400 text-[10px]" title="Excluir">✕</button>
                         </td>
                     </tr>`).join('');
                 const totM = ordenados.reduce((s,a)=>s+(a.meta||0),0);
                 const totI = ordenados.reduce((s,a)=>s+(a.meta_intermediaria||0),0);
                 const totS = ordenados.reduce((s,a)=>s+(a.supermeta||0),0);
-                return `<div class="border-t border-slate-700/20">
-                    <div class="px-4 py-2 flex items-center gap-2 bg-slate-800/20">
+                return `<div class="border-t border-slate-200 dark:border-slate-700/20">
+                    <div class="px-4 py-2 flex items-center gap-2 bg-slate-100 dark:bg-slate-800/20">
                         <span class="text-[10px] font-semibold px-2 py-0.5 rounded ${cc}">${cl}</span>
                         <span class="text-[10px] text-slate-500">${ordenados.length} agente${ordenados.length!==1?'s':''}</span>
                     </div>
                     <table class="w-full text-xs">
                         <thead><tr class="text-[10px] text-slate-500 uppercase tracking-wider">
                             <th class="px-4 py-1.5 text-left">Agente</th>
-                            <th class="px-4 py-1.5 text-right text-blue-400">Meta</th>
-                            <th class="px-4 py-1.5 text-right text-amber-400">Interm.</th>
-                            <th class="px-4 py-1.5 text-right text-emerald-400">Super</th>
+                            <th class="px-4 py-1.5 text-right text-blue-700 dark:text-blue-400">Meta</th>
+                            <th class="px-4 py-1.5 text-right text-amber-700 dark:text-amber-400">Interm.</th>
+                            <th class="px-4 py-1.5 text-right text-emerald-700 dark:text-emerald-400">Super</th>
                             <th class="px-4 py-1.5"></th>
                         </tr></thead>
                         <tbody>${linhas}</tbody>
-                        <tfoot><tr class="bg-slate-800/30 text-[11px] font-semibold">
+                        <tfoot><tr class="bg-slate-100 dark:bg-slate-800/30 text-[11px] font-semibold">
                             <td class="px-4 py-1.5 text-slate-500">Total</td>
-                            <td class="px-4 py-1.5 text-right font-mono text-blue-300/70">${totM||'—'}</td>
-                            <td class="px-4 py-1.5 text-right font-mono text-amber-300/70">${totI||'—'}</td>
-                            <td class="px-4 py-1.5 text-right font-mono text-emerald-300/70">${totS||'—'}</td>
+                            <td class="px-4 py-1.5 text-right font-mono text-blue-800 dark:text-blue-300/70">${totM||'—'}</td>
+                            <td class="px-4 py-1.5 text-right font-mono text-amber-800 dark:text-amber-300/70">${totI||'—'}</td>
+                            <td class="px-4 py-1.5 text-right font-mono text-emerald-800 dark:text-emerald-300/70">${totS||'—'}</td>
                             <td></td>
                         </tr></tfoot>
                     </table>
@@ -1230,10 +1265,10 @@ function _crgmRenderHistoricoMetas(filterCat) {
 
             const semComercial = !Object.keys(g.categorias).length;
             const msgSoPremio = semComercial && pc
-                ? `<div class="border-t border-slate-700/20 px-4 py-5 text-xs text-slate-400 text-center space-y-2">
-                    <p>Nenhuma linha em <strong class="text-slate-300">comercial_metas</strong> para este período.</p>
+                ? `<div class="border-t border-slate-200 dark:border-slate-700/20 px-4 py-5 text-xs text-slate-600 dark:text-slate-400 text-center space-y-2">
+                    <p>Nenhuma linha em <strong class="text-slate-800 dark:text-slate-300">comercial_metas</strong> para este período.</p>
                     <p>Configure metas por agente ou pré-definição em
-                    <a href="#premiacao_admin" onclick="navigate('premiacao_admin')" class="text-amber-400 underline">Premiação</a>.</p>
+                    <a href="#premiacao_admin" onclick="navigate('premiacao_admin')" class="text-amber-700 dark:text-amber-400 underline">Premiação</a>.</p>
                 </div>`
                 : '';
 
@@ -1246,8 +1281,8 @@ function _crgmRenderHistoricoMetas(filterCat) {
                         Editar todos em massa
                     </button>`
                 : '';
-            detalhe = `<div class="border-t border-slate-700/20">${blocoPremioTopo}${detalhe}${msgSoPremio}
-                <div class="px-4 py-3 flex items-center ${semComercial ? 'justify-end' : 'justify-between'} border-t border-slate-700/20 bg-slate-800/20 gap-2 flex-wrap">
+            detalhe = `<div class="border-t border-slate-200 dark:border-slate-700/20">${blocoPremioTopo}${detalhe}${msgSoPremio}
+                <div class="px-4 py-3 flex items-center ${semComercial ? 'justify-end' : 'justify-between'} border-t border-slate-200 dark:border-slate-700/20 bg-slate-50 dark:bg-slate-800/20 gap-2 flex-wrap">
                     ${btnBulk}
                     <button onclick="_crgmAplicarDatasMeta('${g.dt_inicio}','${g.dt_fim}')"
                         class="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition-colors">
@@ -1258,12 +1293,12 @@ function _crgmRenderHistoricoMetas(filterCat) {
             </div>`;
         }
 
-        return `<div class="rounded-xl border ${isOpen ? 'border-violet-500/40' : 'border-slate-700/30'} overflow-hidden transition-all">
+        return `<div class="rounded-xl border ${isOpen ? 'border-violet-500/40' : 'border-slate-200 dark:border-slate-700/30'} overflow-hidden transition-all">
             <button onclick="_crgmAbrirGrupo('${g.key}')"
-                class="w-full flex items-center justify-between px-4 py-3 bg-slate-800/40 hover:bg-slate-800/60 transition-colors text-left">
+                class="w-full flex items-center justify-between px-4 py-3 bg-slate-100 dark:bg-slate-800/40 hover:bg-slate-200/80 dark:hover:bg-slate-800/60 transition-colors text-left">
                 <div class="flex items-center gap-3 flex-wrap">
                     <div class="flex flex-col items-start">
-                        <span class="text-white font-semibold text-sm">${fmt(g.dt_inicio)} → ${fmt(g.dt_fim)}</span>
+                        <span class="text-slate-900 dark:text-white font-semibold text-sm">${fmt(g.dt_inicio)} → ${fmt(g.dt_fim)}</span>
                         ${g.descricao ? `<span class="text-slate-500 text-[11px] italic">${esc(g.descricao)}</span>` : ''}
                     </div>
                     <div class="flex items-center gap-1.5 flex-wrap">${campChip}${catBadges}</div>
@@ -1271,15 +1306,15 @@ function _crgmRenderHistoricoMetas(filterCat) {
                 <div class="flex items-center gap-3 sm:gap-4 shrink-0 flex-wrap justify-end">
                     <div class="text-right">
                         <p class="text-[10px] text-slate-500 uppercase tracking-wider">Agentes</p>
-                        <p class="text-white font-mono font-bold text-sm">${agCount}</p>
+                        <p class="text-[#00346f] dark:text-white font-mono font-bold text-sm">${agCount}</p>
                     </div>
                     ${totalMeta > 0 ? `<div class="text-right">
                         <p class="text-[10px] text-slate-500 uppercase tracking-wider">Meta mat.</p>
-                        <p class="text-blue-300 font-mono font-bold text-sm">${totalMeta}</p>
+                        <p class="text-blue-800 dark:text-blue-300 font-mono font-bold text-sm">${totalMeta}</p>
                     </div>` : ''}
                     ${pc ? `<div class="text-right max-w-[240px] min-w-0">
                         <p class="text-[10px] text-slate-500 uppercase tracking-wider">Meta campanha</p>
-                        <p class="text-amber-200/90 font-mono text-[10px] leading-snug break-words">${esc(resumoCamp || pc.nome || '—')}</p>
+                        <p class="text-amber-900 dark:text-amber-200/90 font-mono text-[10px] leading-snug break-words">${esc(resumoCamp || pc.nome || '—')}</p>
                     </div>` : ''}
                     <svg class="w-4 h-4 text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
@@ -1316,7 +1351,7 @@ async function crgmToggleCongelar() {
                 const info = document.getElementById('crgm-congelar-info');
                 const grad = d.ciclos['Graduação'] || '?';
                 const pos = d.ciclos['Pós-Graduação'] || '?';
-                info.innerHTML = `Ciclo ativo: <b class="text-blue-400">Graduação → ${grad}</b> | <b class="text-purple-400">Pós-Graduação → ${pos}</b>`;
+                info.innerHTML = `Ciclo ativo: <b class="text-blue-700 dark:text-blue-400">Graduação → ${grad}</b> | <b class="text-purple-700 dark:text-purple-400">Pós-Graduação → ${pos}</b>`;
             }
         } catch (e) { console.error('ciclo-atual', e); }
     }
@@ -1554,7 +1589,7 @@ async function crgmKommoSyncLead(forcedLeadId) {
                 }
                 if (pickEl) {
                     pickEl.classList.remove('hidden');
-                    pickEl.innerHTML = d.lead_ids.map(id => `<button type="button" onclick="crgmKommoSyncLead(${id})" class="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-emerald-600 text-white">Lead #${id}</button>`).join('');
+                    pickEl.innerHTML = d.lead_ids.map(id => `<button type="button" onclick="crgmKommoSyncLead(${id})" class="text-xs px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-emerald-100 dark:hover:bg-emerald-600 text-slate-900 dark:text-white hover:text-emerald-900 dark:hover:text-white transition-colors">Lead #${id}</button>`).join('');
                 }
                 btn.disabled = false;
                 return;
@@ -1642,18 +1677,18 @@ async function _crgmLoadDuplicatas() {
                                     l.status === 'Perdido' ? 'text-red-400' : 'text-blue-400';
                 return `<div class="flex items-center gap-2 text-xs py-0.5">
                     <a href="https://eduitbr.kommo.com/leads/detail/${l.lead_id}" target="_blank"
-                       class="text-blue-400 hover:text-blue-300 underline font-mono">#${l.lead_id}</a>
-                    <span class="text-slate-400">${l.consultora}</span>
-                    <span class="${statusColor} text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-800">${l.status}</span>
+                       class="text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 underline font-mono">#${l.lead_id}</a>
+                    <span class="text-slate-600 dark:text-slate-400">${l.consultora}</span>
+                    <span class="${statusColor} text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800">${l.status}</span>
                     <span class="text-slate-500">${l.pipeline}</span>
-                    ${l.preco ? `<span class="text-emerald-400">R$ ${(l.preco/100).toLocaleString('pt-BR')}</span>` : ''}
+                    ${l.preco ? `<span class="text-emerald-700 dark:text-emerald-400">R$ ${(l.preco/100).toLocaleString('pt-BR')}</span>` : ''}
                 </div>`;
             }).join('');
-            return `<tr class="hover:bg-slate-800/30 transition-colors">
-                <td class="text-center px-3 py-3 text-slate-600 text-xs">${i + 1}</td>
-                <td class="px-4 py-3 font-mono text-amber-300 text-xs font-bold">${dup.rgm}</td>
+            return `<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                <td class="text-center px-3 py-3 text-slate-500 dark:text-slate-600 text-xs">${i + 1}</td>
+                <td class="px-4 py-3 font-mono text-amber-700 dark:text-amber-300 text-xs font-bold">${dup.rgm}</td>
                 <td class="text-center px-4 py-3">
-                    <span class="bg-amber-500/20 text-amber-300 font-bold text-xs px-2 py-0.5 rounded-full">${dup.count}</span>
+                    <span class="bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 font-bold text-xs px-2 py-0.5 rounded-full">${dup.count}</span>
                 </td>
                 <td class="px-4 py-3">${details}</td>
             </tr>`;
@@ -1726,14 +1761,14 @@ async function _crgmLoadMatriculasSemData() {
             tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-emerald-400/90 text-sm">Nenhuma matrícula sem data no Kommo para o período selecionado.</td></tr>';
         } else {
             tbody.innerHTML = _crgmSemDataCache.map((row, i) => `
-                <tr class="hover:bg-slate-800/30 transition-colors">
+                <tr class="hover:bg-slate-100 dark:hover:bg-slate-800/30 transition-colors">
                     <td class="text-center px-2 py-2 text-slate-600 text-xs">${i + 1}</td>
-                    <td class="px-2 py-2 font-mono text-rose-200 text-xs font-semibold">${esc(row.rgm || '')}</td>
-                    <td class="px-2 py-2 text-slate-300 text-xs">${esc(row.nome || '—')}</td>
-                    <td class="px-2 py-2 text-slate-400 text-xs">${esc(row.polo || '—')}</td>
-                    <td class="px-2 py-2 text-slate-400 text-xs">${esc(row.ciclo || '—')}</td>
-                    <td class="px-2 py-2 text-slate-400 text-xs">${esc(row.tipo_matricula || '—')}</td>
-                    <td class="px-2 py-2 ${row.no_kommo ? 'text-amber-300/90' : 'text-rose-400/80'} text-xs">${esc(row.consultora || '—')}</td>
+                    <td class="px-2 py-2 font-mono text-rose-700 dark:text-rose-200 text-xs font-semibold">${esc(row.rgm || '')}</td>
+                    <td class="px-2 py-2 text-slate-700 dark:text-slate-300 text-xs">${esc(row.nome || '—')}</td>
+                    <td class="px-2 py-2 text-slate-600 dark:text-slate-400 text-xs">${esc(row.polo || '—')}</td>
+                    <td class="px-2 py-2 text-slate-600 dark:text-slate-400 text-xs">${esc(row.ciclo || '—')}</td>
+                    <td class="px-2 py-2 text-slate-600 dark:text-slate-400 text-xs">${esc(row.tipo_matricula || '—')}</td>
+                    <td class="px-2 py-2 ${row.no_kommo ? 'text-amber-800 dark:text-amber-300/90' : 'text-rose-700 dark:text-rose-400/80'} text-xs">${esc(row.consultora || '—')}</td>
                 </tr>`).join('');
         }
     } catch (e) {
@@ -1866,12 +1901,12 @@ async function crgmAbrirBulkMeta(dtIni, dtFim, descr, cat) {
             `<input type="number" min="0" step="1"
                 data-uid="${uid}" data-uname="${esc(uname)}"
                 placeholder="${ph}" value="${val > 0 ? val : ''}"
-                class="w-24 text-right text-xs font-mono bg-slate-800/60 border border-slate-700 rounded px-2 py-1.5 ${color} focus:outline-none focus:ring-1 ${cls}">`;
+                class="w-24 text-right text-xs font-mono bg-white dark:bg-slate-800/60 border border-slate-300 dark:border-slate-700 rounded px-2 py-1.5 ${color} focus:outline-none focus:ring-1 ${cls}">`;
 
         rows.innerHTML = agentes.map(a => {
             const ex = metaByUid[a.id] || {};
             return `<tr class="hover:bg-white/[0.02] transition-colors">
-                <td class="py-2.5 pl-2 text-sm text-slate-200 truncate max-w-[180px]">${esc(a.name)}</td>
+                <td class="py-2.5 pl-2 text-sm text-[var(--text-primary)] truncate max-w-[180px]">${esc(a.name)}</td>
                 <td class="py-2.5 px-2">
                     ${inp(a.id, a.name, 'crgm-bulk-int focus:ring-amber-500/50', '0', 'text-amber-300', ex.meta_intermediaria || 0)}
                 </td>
@@ -2052,7 +2087,7 @@ function crgmFiltrarConflitos() {
     const empty = document.getElementById('crgm-conflitos-empty');
 
     if (filtrados.length === 0) {
-        lista.innerHTML = `<p class="text-slate-500 text-sm text-center py-6">Nenhum resultado para "<span class="text-white">${_escHtml(busca)}</span>"</p>`;
+        lista.innerHTML = `<p class="text-slate-500 text-sm text-center py-6">Nenhum resultado para "<span class="text-slate-900 dark:text-white font-medium">${_escHtml(busca)}</span>"</p>`;
     } else {
         _crgmRenderConflitos(filtrados);
     }
@@ -2081,7 +2116,7 @@ function _crgmRenderConflitos(conflitos) {
         const agentesUnicos = [...new Map(c.leads.map(l => [l.user_id, l.agente])).entries()];
         const tagsHtml = agentesUnicos.map(([uid, nome]) => {
             const isWin = uid === uidAtual;
-            return `<span class="px-2 py-0.5 rounded-full text-[10px] font-medium ${isWin ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-slate-700 text-slate-400'}">${_escHtml(nome)}</span>`;
+            return `<span class="px-2 py-0.5 rounded-full text-[10px] font-medium ${isWin ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-400'}">${_escHtml(nome)}</span>`;
         }).join('');
 
         const card = document.createElement('div');
@@ -2092,7 +2127,7 @@ function _crgmRenderConflitos(conflitos) {
                 <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2 mb-1">
                         <span class="material-symbols-outlined text-sm ${isResolvido ? 'text-emerald-500' : 'text-amber-400'}">${isResolvido ? 'check_circle' : 'warning'}</span>
-                        <p class="text-white font-medium text-sm truncate">${_escHtml(c.nome_aluno || 'Aluno sem nome')}</p>
+                        <p class="text-[var(--text-primary)] font-medium text-sm truncate">${_escHtml(c.nome_aluno || 'Aluno sem nome')}</p>
                         <span class="text-slate-500 text-xs shrink-0">RGM ${c.rgm}</span>
                         ${c.data_matricula ? `<span class="text-slate-600 text-[10px] shrink-0">${new Date(c.data_matricula + 'T12:00:00').toLocaleDateString('pt-BR')}</span>` : ''}
                     </div>
@@ -2101,7 +2136,7 @@ function _crgmRenderConflitos(conflitos) {
             </div>
             <div class="flex items-center gap-3">
                 <label class="text-xs text-slate-400 shrink-0">Creditar para:</label>
-                <select class="crgm-conflito-select flex-1 bg-slate-800 border border-slate-600 text-white text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500" data-rgm="${c.rgm}">
+                <select class="crgm-conflito-select flex-1 input-glass text-xs rounded-lg px-3 py-2 focus:outline-none" data-rgm="${c.rgm}">
                     ${opcoesHtml}
                 </select>
                 ${isResolvido ? `<span class="text-emerald-400 text-xs shrink-0 flex items-center gap-1"><span class="material-symbols-outlined text-sm">check</span>Salvo</span>` : ''}

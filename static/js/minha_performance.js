@@ -419,20 +419,20 @@ function _mpRenderRanking(d) {
         const absDiff = Math.abs(diffMedia).toFixed(1);
         if (diffMedia > 1) {
             mediaHtml = `
-                <div class="mt-3 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/15">
-                    <p class="text-[10px] text-slate-400">Média do time: <strong class="text-white">${media}</strong></p>
+                <div class="mt-3 p-2.5 rounded-lg bg-emerald-100 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/15">
+                    <p class="text-[10px] text-slate-600 dark:text-slate-400">Média do time: <strong class="text-[var(--text-primary)]">${media}</strong></p>
                     <p class="text-xs text-emerald-400 font-semibold mt-0.5">📈 Você está ${absDiff} acima da média! Continue assim!</p>
                 </div>`;
         } else if (diffMedia >= -1) {
             mediaHtml = `
-                <div class="mt-3 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/15">
-                    <p class="text-[10px] text-slate-400">Média do time: <strong class="text-white">${media}</strong></p>
+                <div class="mt-3 p-2.5 rounded-lg bg-amber-100 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/15">
+                    <p class="text-[10px] text-slate-600 dark:text-slate-400">Média do time: <strong class="text-[var(--text-primary)]">${media}</strong></p>
                     <p class="text-xs text-amber-400 font-semibold mt-0.5">⚡ Você está na média do time — dá pra mais!</p>
                 </div>`;
         } else {
             mediaHtml = `
-                <div class="mt-3 p-2.5 rounded-lg bg-orange-500/10 border border-orange-500/15">
-                    <p class="text-[10px] text-slate-400">Média do time: <strong class="text-white">${media}</strong></p>
+                <div class="mt-3 p-2.5 rounded-lg bg-orange-100 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/15">
+                    <p class="text-[10px] text-slate-600 dark:text-slate-400">Média do time: <strong class="text-[var(--text-primary)]">${media}</strong></p>
                     <p class="text-xs text-orange-400 font-semibold mt-0.5">🔥 Você está ${absDiff} abaixo da média — bora reverter esse jogo!</p>
                 </div>`;
         }
@@ -442,10 +442,10 @@ function _mpRenderRanking(d) {
         <div class="flex items-center gap-5">
             <div class="w-20 h-20 rounded-2xl flex items-center justify-center border-2 bg-gradient-to-br ${m ? m.gradient + ' ' + m.border : 'from-slate-700/40 to-slate-800/40 border-slate-600/30'} shadow-lg">
                 ${m ? `<span class="material-symbols-outlined text-4xl ${m.iconColor}">${m.icon}</span>`
-                    : `<span class="text-3xl font-black text-slate-300">${pos}°</span>`}
+                    : `<span class="text-3xl font-black text-slate-700 dark:text-slate-300">${pos}°</span>`}
             </div>
             <div class="flex-1">
-                <p class="text-3xl font-black text-white mp-stat-value">${pos}°</p>
+                <p class="text-3xl font-black text-[var(--text-primary)] mp-stat-value">${pos}°</p>
                 <p class="text-sm text-slate-500">de ${total}</p>
                 ${scoreDetail}
                 ${m ? `<p class="text-xs font-bold ${m.labelColor} mt-1">${m.label}</p>` : ''}
@@ -521,8 +521,8 @@ function _mpRenderDesbloqueie(d) {
         return `<div class="mp-card p-4 ${c.border} ${isProximo ? 'mp-pulse' : ''} ${c.glow} relative overflow-hidden">
             ${isProximo ? '<div class="absolute top-0 right-0 px-2 py-0.5 text-[9px] font-bold bg-emerald-500/20 text-emerald-400 rounded-bl-lg">PRÓXIMO</div>' : ''}
             <p class="text-[10px] ${c.text} uppercase font-bold tracking-wider mb-1">${tierLabels[t.tier]}</p>
-            <p class="text-2xl font-black text-white mb-1">+${_mpFmt(t.ganho_adicional)}</p>
-            <p class="text-xs text-slate-400">Faltam <span class="font-bold text-white">${t.falta}</span> matrículas</p>
+            <p class="text-2xl font-black text-[var(--text-primary)] mb-1">+${_mpFmt(t.ganho_adicional)}</p>
+            <p class="text-xs text-slate-600 dark:text-slate-400">Faltam <span class="font-bold text-[var(--text-primary)]">${t.falta}</span> matrículas</p>
             <p class="text-[10px] text-slate-600 mt-1">${_mpFmt(t.valor_por_mat)}/mat · Total: ${_mpFmt(t.ganho_total)}</p>
         </div>`;
     }).join('');
@@ -731,7 +731,7 @@ function _mpRenderCalendar(d) {
         }
 
         return `<div class="mb-5 last:mb-0">
-            <p class="text-sm font-bold text-slate-200 mb-3 flex items-center gap-2">
+            <p class="text-sm font-bold text-[var(--text-primary)] mb-3 flex items-center gap-2">
                 <span class="material-symbols-outlined text-base text-indigo-400">date_range</span>
                 ${monthNames[month]} ${year}
             </p>
@@ -742,7 +742,7 @@ function _mpRenderCalendar(d) {
         </div>`;
     }).join('');
 
-    const legend = `<div class="flex flex-wrap items-center justify-center gap-5 mt-4 pt-3 border-t border-slate-700/20 text-[10px]">
+    const legend = `<div class="flex flex-wrap items-center justify-center gap-5 mt-4 pt-3 border-t border-[var(--border)] text-[10px]">
         <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#065f46;border:1px solid #10b981"></span><span class="text-emerald-400 font-medium">Bateu ✅</span></span>
         <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#92400e;border:1px solid #f59e0b"></span><span class="text-amber-400 font-medium">Parcial ⚡</span></span>
         <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#7f1d1d;border:1px solid #ef4444"></span><span class="text-red-400 font-medium">Não bateu ❌</span></span>
@@ -803,7 +803,7 @@ function _mpCalendarTooltips(wrap, tip) {
                 if (data.matCount > 0 || data.aceCount > 0) rows += mkRow('📋 Matrículas', data.matCount, '#e2e8f0');
                 if (data.aceCount > 0) rows += mkRow('🤝 Aceites', data.aceCount, '#c084fc');
                 if (data.meta > 0) rows += mkRow('🎯 Meta', data.meta, '#94a3b8');
-                if (data.bonus > 0) rows += `<div class="flex justify-between items-center py-1 mt-1 border-t border-slate-700/40"><span class="text-slate-400 text-[10px]">💰 Bônus do dia</span><span class="font-black text-xs text-emerald-400">${_mpFmt(data.bonus)}</span></div>`;
+                if (data.bonus > 0) rows += `<div class="flex justify-between items-center py-1 mt-1 border-t border-[var(--border)]"><span class="text-slate-500 text-[10px]">💰 Bônus do dia</span><span class="font-black text-xs text-emerald-600 dark:text-emerald-400">${_mpFmt(data.bonus)}</span></div>`;
             }
 
             tip.innerHTML = `
@@ -811,7 +811,7 @@ function _mpCalendarTooltips(wrap, tip) {
                     <div class="px-4 py-2.5 flex items-center gap-2" style="background:linear-gradient(135deg,${s.accent}25,${s.accent}10)">
                         <span class="material-symbols-outlined text-lg" style="color:${s.color}">${s.icon}</span>
                         <div class="flex-1">
-                            <p class="text-xs font-bold text-white">${dateFmt}</p>
+                            <p class="text-xs font-bold text-[var(--text-primary)]">${dateFmt}</p>
                             <p class="text-[10px] font-semibold" style="color:${s.color}">${s.label}</p>
                         </div>
                         ${data.isToday ? '<span class="text-[9px] font-black text-cyan-400 bg-cyan-400/15 px-2 py-0.5 rounded-full tracking-wide">HOJE</span>' : ''}
@@ -878,7 +878,7 @@ function _mpRenderTierProgress(d) {
                 ${p.target > 0 ? `<span class="text-[10px] text-slate-600 ml-1">(${p.target})</span>` : ''}
             </div>
             <div class="flex-1">
-                <div class="bg-slate-700/30 rounded-full h-4 overflow-hidden relative">
+                <div class="bg-slate-200 dark:bg-slate-700/30 rounded-full h-4 overflow-hidden relative">
                     <div class="h-full rounded-full transition-all duration-1000 flex items-center justify-end pr-1.5" style="width:${pct}%;background:${c.bar};box-shadow:0 0 12px ${c.bar}33">
                         ${pct >= 18 ? `<span class="text-[9px] font-bold text-white/90">${totalMat}/${p.target||'∞'}</span>` : ''}
                     </div>
@@ -926,13 +926,13 @@ function _mpRenderFinanceiro(d) {
         const pct = Math.round((i.value / maxVal) * 100);
         return `<div class="flex items-center gap-3">
             <span class="text-xs text-slate-400 w-24 flex-shrink-0">${i.label}</span>
-            <div class="flex-1 bg-slate-700/30 rounded-full h-3 overflow-hidden">
+            <div class="flex-1 bg-slate-200 dark:bg-slate-700/30 rounded-full h-3 overflow-hidden">
                 <div class="h-full rounded-full transition-all duration-1000" style="width:${pct}%;background:${i.color};box-shadow:0 0 8px ${i.color}33"></div>
             </div>
-            <span class="text-xs font-bold text-white w-24 text-right">${_mpFmt(i.value)}</span>
+            <span class="text-xs font-bold text-[var(--text-primary)] w-24 text-right">${_mpFmt(i.value)}</span>
         </div>`;
     }).join('') + `
-        <div class="flex items-center justify-between pt-3 border-t border-slate-700/20">
+        <div class="flex items-center justify-between pt-3 border-t border-[var(--border)]">
             <span class="text-sm font-bold text-emerald-400">TOTAL</span>
             <span class="text-2xl font-black text-emerald-400 mp-stat-value" id="mp-fin-total">${_mpFmt(total)}</span>
         </div>`;
@@ -1020,12 +1020,12 @@ function _mpRenderHistorico(hist) {
     };
 
     wrap.innerHTML = hist.filter(h => !h.ativa).map(h => {
-        const border = tierBorders[h.tier] || 'border-slate-700/30';
+        const border = tierBorders[h.tier] || 'border-[var(--border)]';
         return `<div class="mp-card p-4 min-w-[210px] flex-shrink-0 ${border} snap-start">
-            <p class="text-xs font-semibold text-white mb-1">${h.nome}</p>
+            <p class="text-xs font-semibold text-[var(--text-primary)] mb-1">${h.nome}</p>
             <p class="text-[10px] text-slate-500">${_mpFmtDate(h.dt_inicio)} — ${_mpFmtDate(h.dt_fim)}</p>
             <div class="flex items-baseline gap-2 mt-2">
-                <span class="text-lg font-bold text-white">${h.total_matriculas}</span>
+                <span class="text-lg font-bold text-[var(--text-primary)]">${h.total_matriculas}</span>
                 <span class="text-[10px] text-slate-500">matrículas</span>
             </div>
             <p class="text-xs ${h.tier ? 'text-emerald-400 font-semibold' : 'text-slate-600'}">${h.tier ? tierLabels[h.tier] : 'Sem tier'}</p>
@@ -1050,23 +1050,18 @@ function _mpSwitchTab(tab) {
     const tabM = document.getElementById('mp-tab-matriculas');
     if (!perf || !mat) return;
 
-    const activeClasses   = 'border-emerald-500 text-emerald-400';
-    const inactiveClasses = 'border-transparent text-slate-500 hover:text-slate-300';
+    const rowCls = 'ds-segment__btn flex items-center gap-1 text-xs font-bold uppercase tracking-wider';
 
     if (tab === 'performance') {
         perf.classList.remove('hidden');
         mat.classList.add('hidden');
-        tabP.className = tabP.className.replace(inactiveClasses, '').replace(activeClasses, '') ;
-        tabP.classList.add(...activeClasses.split(' '));
-        tabM.className = tabM.className.replace(activeClasses, '').replace(inactiveClasses, '');
-        tabM.classList.add(...inactiveClasses.split(' '));
+        tabP.className = rowCls + ' ds-segment__btn--active';
+        tabM.className = rowCls + ' ds-segment__btn--inactive';
     } else {
         perf.classList.add('hidden');
         mat.classList.remove('hidden');
-        tabM.className = tabM.className.replace(inactiveClasses, '').replace(activeClasses, '');
-        tabM.classList.add(...activeClasses.split(' '));
-        tabP.className = tabP.className.replace(activeClasses, '').replace(inactiveClasses, '');
-        tabP.classList.add(...inactiveClasses.split(' '));
+        tabM.className = rowCls + ' ds-segment__btn--active';
+        tabP.className = rowCls + ' ds-segment__btn--inactive';
         if (!_mpMatLoaded) {
             _mpMatLoaded = true;
             const now = new Date();
@@ -1138,7 +1133,7 @@ function _mpRenderOficialTable(mats) {
                 ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/15 text-red-400 border border-red-500/20">${sit}</span>`
                 : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">${sit}</span>`)
             : '<span class="text-slate-600">—</span>';
-        return `<tr class="border-b border-slate-800/50 mp-oficial-row hover:bg-slate-800/30 transition-colors"
+        return `<tr class="border-b border-slate-200 dark:border-slate-800/50 mp-oficial-row hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors"
                     data-search="${(m.nome||'').toLowerCase()} ${(m.rgm||'').toLowerCase()} ${(m.curso||'').toLowerCase()}">
             <td class="py-1.5 px-2 text-slate-300">${m.nome||'—'}</td>
             <td class="py-1.5 px-2 text-slate-400 font-mono">${m.rgm||'—'}</td>
@@ -1184,8 +1179,8 @@ function _mpRenderMinhaLista() {
         tbody.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-slate-600 text-xs">Nenhuma matrícula cadastrada. Clique em "Adicionar" acima.</td></tr>';
         return;
     }
-    tbody.innerHTML = _mpMinhasData.map(m => `<tr class="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors">
-        <td class="py-1.5 px-2 text-slate-300">${m.nome||'—'}</td>
+    tbody.innerHTML = _mpMinhasData.map(m => `<tr class="border-b border-slate-200 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+        <td class="py-1.5 px-2 text-[var(--text-primary)]">${m.nome||'—'}</td>
         <td class="py-1.5 px-2 text-slate-400 font-mono">${m.rgm||'—'}</td>
         <td class="py-1.5 px-2 text-slate-400">${m.curso||'—'}</td>
         <td class="py-1.5 px-2 text-slate-400">${m.polo||'—'}</td>
@@ -1301,16 +1296,16 @@ function _mpRenderAjustesList() {
     }
     list.innerHTML = _mpAjustesData.map(a => {
         const sc = _mpAjStatusColor[a.status] || _mpAjStatusColor.pendente;
-        return `<div class="border border-slate-700/30 rounded-lg p-3 mb-2 hover:bg-slate-800/20 transition-colors">
+        return `<div class="border border-[var(--border)] rounded-lg p-3 mb-2 hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-colors">
             <div class="flex flex-wrap items-center gap-2 mb-1">
                 <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border ${sc}">${_mpAjStatusLabel[a.status] || a.status}</span>
                 <span class="text-[10px] text-slate-500">${_mpAjTipoLabel[a.tipo] || a.tipo}</span>
                 <span class="text-[10px] text-slate-600 ml-auto">${_mpFmtDate(String(a.created_at).substring(0,10))}</span>
             </div>
-            <p class="text-xs text-slate-300"><strong>${a.nome_aluno || '—'}</strong> — RGM: ${a.rgm || '—'} — Lead: ${a.kommo_lead_id || '—'}</p>
+            <p class="text-xs text-slate-700 dark:text-slate-300"><strong>${a.nome_aluno || '—'}</strong> — RGM: ${a.rgm || '—'} — Lead: ${a.kommo_lead_id || '—'}</p>
             <p class="text-[10px] text-slate-500 mt-1">${a.descricao || ''}</p>
-            ${a.resposta_admin ? `<div class="mt-2 px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700/30">
-                <p class="text-[10px] text-slate-400"><span class="font-semibold text-slate-300">Resposta:</span> ${a.resposta_admin}</p>
+            ${a.resposta_admin ? `<div class="mt-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800/50 border border-[var(--border)]">
+                <p class="text-[10px] text-slate-600 dark:text-slate-400"><span class="font-semibold text-slate-700 dark:text-slate-300">Resposta:</span> ${a.resposta_admin}</p>
             </div>` : ''}
         </div>`;
     }).join('');
@@ -1407,8 +1402,8 @@ function _mpRenderMetaPeriodos(campanhas) {
         const label = c.nome || `${_mpFmtDate(ini)} → ${_mpFmtDate(fim)}`;
         const sub = `${_mpFmtDate(ini)} → ${_mpFmtDate(fim)}`;
         return `<button onclick="_mpAplicarMetaPeriodo('${ini}','${fim}')"
-            class="w-full text-left px-3 py-2 hover:bg-slate-800 transition-colors border-b border-slate-800/50 last:border-0">
-            <div class="font-semibold text-slate-200">${label}</div>
+            class="w-full text-left px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border-b border-slate-200 dark:border-slate-800/50 last:border-0">
+            <div class="font-semibold text-[var(--text-primary)]">${label}</div>
             <div class="text-[10px] text-slate-500 mt-0.5">${sub}</div>
         </button>`;
     }).join('');

@@ -149,11 +149,11 @@ function _kommoRenderStatus(d) {
 
     tbody.innerHTML = entities.map(e => {
         const lastSync = e.last_sync_at ? new Date(e.last_sync_at).toLocaleString('pt-BR') : '—';
-        const statusCls = e.status === 'success' ? 'text-emerald-400' : e.status === 'error' ? 'text-red-400' : 'text-slate-400';
+        const statusCls = e.status === 'success' ? 'text-emerald-600 dark:text-emerald-400' : e.status === 'error' ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400';
         const statusIcon = e.status === 'success' ? '●' : e.status === 'error' ? '✕' : '○';
-        return `<tr class="border-b border-slate-800/40 hover:bg-slate-800/30 transition">
+        return `<tr class="border-b border-slate-200 dark:border-slate-800/40 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
             <td class="py-2 pr-2 font-medium">${entityLabels[e.entity_type] || e.entity_type}</td>
-            <td class="py-2 pr-2 text-xs text-slate-400">${lastSync}</td>
+            <td class="py-2 pr-2 text-xs text-slate-500 dark:text-slate-400">${lastSync}</td>
             <td class="py-2 pr-2 text-right font-bold">${(e.records_synced || 0).toLocaleString('pt-BR')}</td>
             <td class="py-2 text-xs ${statusCls}">${statusIcon} ${e.status || '—'}</td>
         </tr>`;
@@ -171,6 +171,11 @@ function _kommoRenderChanges(d) {
 
     const byStage = d.updated_by_stage || [];
     if (!byStage.length) return;
+
+    const dark = document.documentElement.classList.contains('dark');
+    const tick = dark ? '#94a3b8' : '#64748b';
+    const gridX = dark ? '#1e293b' : '#e2e8f0';
+    const tickY = dark ? '#94a3b8' : '#475569';
 
     const labels = byStage.map(s => s.stage_name);
     const values = byStage.map(s => s.total);
@@ -196,8 +201,8 @@ function _kommoRenderChanges(d) {
                 tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.x.toLocaleString('pt-BR')} leads` } }
             },
             scales: {
-                x: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, beginAtZero: true },
-                y: { ticks: { color: '#94a3b8', font: { size: 11 } }, grid: { display: false } }
+                x: { ticks: { color: tick }, grid: { color: gridX }, beginAtZero: true },
+                y: { ticks: { color: tickY, font: { size: 11 } }, grid: { display: false } }
             }
         }
     });
@@ -212,11 +217,11 @@ function _kommoRenderStagesTable(data) {
     }
     tbody.innerHTML = data.map(s => {
         const pct = totalAll > 0 ? ((s.total / totalAll) * 100).toFixed(1) : '0';
-        return `<tr class="border-b border-slate-800/40 hover:bg-slate-800/30 transition">
-            <td class="py-2 pr-2 text-xs text-slate-400">${s.pipeline_name}</td>
+        return `<tr class="border-b border-slate-200 dark:border-slate-800/40 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+            <td class="py-2 pr-2 text-xs text-slate-500 dark:text-slate-400">${s.pipeline_name}</td>
             <td class="py-2 pr-2 font-medium">${s.stage_name}</td>
-            <td class="py-2 pr-2 text-right font-bold text-white">${s.total.toLocaleString('pt-BR')}</td>
-            <td class="py-2 text-right text-xs text-slate-400">${pct}%</td>
+            <td class="py-2 pr-2 text-right font-bold text-[#00346f] dark:text-white">${s.total.toLocaleString('pt-BR')}</td>
+            <td class="py-2 text-right text-xs text-slate-500 dark:text-slate-400">${pct}%</td>
         </tr>`;
     }).join('');
 }

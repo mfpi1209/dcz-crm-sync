@@ -3,7 +3,8 @@
 <head>
     {% include 'partials/_head.html' %}
 </head>
-<body class="h-full bg-[var(--bg-main)] text-[var(--text-primary)] font-sans antialiased">
+<body class="h-full bg-[var(--bg-main)] text-[var(--text-primary)] font-sans antialiased"
+      data-username="{{ session.get('username', '')|e }}">
 
 <div class="h-full flex">
     {% include 'partials/_sidebar.html' %}
