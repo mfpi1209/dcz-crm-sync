@@ -235,6 +235,9 @@ const SIDEBAR_GROUPS = {
     sistema: ['premiacao_admin', 'ajustes_matricula'],
 };
 
+// Páginas pessoais — sempre visíveis no menu, independente de permissão.
+const SIDEBAR_ALWAYS_VISIBLE = new Set(['dashboard', 'avisos', 'profile']);
+
 async function applySidebarPermissions() {
     try {
         const res = await api('/api/me');
@@ -244,7 +247,7 @@ async function applySidebarPermissions() {
 
         document.querySelectorAll('#sidebar .sidebar-link[data-page]').forEach(link => {
             const page = link.getAttribute('data-page');
-            if (role === 'admin' || pages.includes(page)) {
+            if (SIDEBAR_ALWAYS_VISIBLE.has(page) || role === 'admin' || pages.includes(page)) {
                 link.style.display = '';
             } else {
                 link.style.display = 'none';
