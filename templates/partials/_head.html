@@ -1357,6 +1357,14 @@
     </style>
     <script>
         (function() {
+            // Default global = dark. Migration v2: reseta uma vez quem tinha light salvo
+            // de versoes anteriores, restaurando o tema escuro como padrao oficial.
+            try {
+                if (!localStorage.getItem('eduit-theme-default-v2')) {
+                    localStorage.removeItem('eduit-theme');
+                    localStorage.setItem('eduit-theme-default-v2', '1');
+                }
+            } catch (_) {}
             var t = localStorage.getItem('eduit-theme') || 'dark';
             document.documentElement.classList.add(t);
         })();

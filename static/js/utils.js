@@ -172,13 +172,14 @@ function toggleSidebar() {
 function toggleSidebarGroup(name) {
     const group = document.querySelector(`.sidebar-group[data-group="${name}"]`);
     if (group) group.classList.toggle('collapsed');
-    localStorage.setItem('sb-' + name, group.classList.contains('collapsed') ? '0' : '1');
 }
 
-(function restoreSidebarGroups() {
+// Sidebar sempre comeca recolhida em cada page load. O usuario pode abrir os
+// grupos durante a sessao via toggleSidebarGroup, mas a cada refresh o estado
+// retorna ao padrao "tudo fechado" para um menu mais limpo no primeiro acesso.
+(function collapseAllSidebarGroups() {
     document.querySelectorAll('.sidebar-group[data-group]').forEach(g => {
-        const key = 'sb-' + g.dataset.group;
-        if (localStorage.getItem(key) !== '1') g.classList.add('collapsed');
+        g.classList.add('collapsed');
     });
 })();
 
