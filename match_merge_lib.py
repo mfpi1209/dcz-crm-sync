@@ -1168,7 +1168,7 @@ match_cpf AS (
     JOIN leads l2 ON l2.id = kc.lead_id
     ORDER BY s.id,
              CASE WHEN l2.status_id NOT IN (142, 143) THEN 0 ELSE 1 END,
-             kc.lead_id
+             kc.lead_id DESC
 ),
 match_telefone AS (
     SELECT DISTINCT ON (s.id)
@@ -1180,7 +1180,7 @@ match_telefone AS (
     WHERE s.id NOT IN (SELECT siaa_id FROM match_cpf)
     ORDER BY s.id,
              CASE WHEN l2.status_id NOT IN (142, 143) THEN 0 ELSE 1 END,
-             kt.lead_id
+             kt.lead_id DESC
 ),
 all_matches AS (
     SELECT * FROM match_cpf
@@ -1321,7 +1321,7 @@ match_rgm AS (
         s.id AS mat_id, kr.lead_id, 'rgm' AS match_tipo
     FROM _tmp_mm_matriculados s
     JOIN kommo_rgm kr ON s.rgm IS NOT NULL AND kr.rgm = s.rgm
-    ORDER BY s.id, kr.lead_id
+    ORDER BY s.id, kr.lead_id DESC
 )
 SELECT
     s.id AS mat_id, s.nome, s.cpf, s.rgm,
@@ -1979,11 +1979,38 @@ def _filtrar_por_pipeline(acoes, pipelines_permitidos):
             log.info("Leads deletados detectados via API: %d (de %d UNIFICAR dups)",
                      n_deleted, len(unificar_dup_ids))
 
+    deleted_lead_ids = set()
+    if ids_to_verify and lead_api_data is not None:
+        for lid in ids_to_verify:
+            if lid not in lead_api_data:
+                deleted_lead_ids.add(lid)
+        if deleted_lead_ids:
+            log.info("Leads deletados (API sem resposta): %d — %s",
+                     len(deleted_lead_ids), sorted(deleted_lead_ids)[:20])
+
+    def _find_alternative_lead(acao, deleted_lid):
+        """If the matched lead was deleted, try to find another valid lead for the same person."""
+        alt_ids = set()
+        for src in ("dup_lead_ids", "dup_tel_lead_ids"):
+            for did in (acao.get(src) or []):
+                try:
+                    did_int = int(did)
+                    if did_int != deleted_lid and did_int not in deleted_lead_ids:
+                        alt_ids.add(did_int)
+                except (ValueError, TypeError):
+                    pass
+        for alt_lid in sorted(alt_ids, reverse=True):
+            if alt_lid in lead_api_data:
+                return alt_lid
+        return None
+
     filtered = []
     n_removed = 0
     n_unificar_trimmed = 0
     n_ja_atendido = 0
     n_ja_atualizado = 0
+    n_deleted_skip = 0
+    n_deleted_swapped = 0
 
     for a in acoes:
         tipo = a.get("acao")
@@ -2037,6 +2064,22 @@ def _filtrar_por_pipeline(acoes, pipelines_permitidos):
                     lid_int = None
 
                 if lid_int:
+                    if lid_int in deleted_lead_ids and tipo in ("ATUALIZAR", "RESTAURAR", "MOVER_PERDIDO"):
+                        alt = _find_alternative_lead(a, lid_int)
+                        if alt:
+                            log.info("Lead %d deletado → usando alternativo %d para %s",
+                                     lid_int, alt, tipo)
+                            a["lead_id"] = alt
+                            lid_int = alt
+                            api_alt = lead_api_data.get(alt, {})
+                            a["situacao_kommo"] = api_alt.get("situacao")
+                            n_deleted_swapped += 1
+                        else:
+                            log.info("Skip %s lead %d — lead deletado, sem alternativo",
+                                     tipo, lid_int)
+                            n_deleted_skip += 1
+                            continue
+
                     pipe = lead_pipelines.get(lid_int)
                     if pipe is not None and pipe not in pipelines_permitidos:
                         n_removed += 1
@@ -2064,8 +2107,10 @@ def _filtrar_por_pipeline(acoes, pipelines_permitidos):
 
     log.info(
         "Filtro pipeline final: %d removidos, %d já atendidos, "
-        "%d já atualizados, %d UNIFICAR ajustados, %d restantes",
+        "%d já atualizados, %d deletados (skip=%d swap=%d), "
+        "%d UNIFICAR ajustados, %d restantes",
         n_removed, n_ja_atendido, n_ja_atualizado,
+        n_deleted_skip + n_deleted_swapped, n_deleted_skip, n_deleted_swapped,
         n_unificar_trimmed, len(filtered),
     )
     return filtered
