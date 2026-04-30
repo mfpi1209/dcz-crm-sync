@@ -39,6 +39,10 @@ ALL_PAGES = [
     "feedback", "config", "schedule", "inscricao", "avisos", "kommo_dispatcher",
     "leads_parados", "dist_consultor", "minha_performance", "premiacao_admin",
     "macro_email", "ajustes_matricula", "repasse",
+    "recadastros", "vocacional", "comercial_dashboard", "auditoria_comercial",
+    "meta-campaigns", "dist_comercial", "atualizar_preco",
+    "comparar_cursos", "recomendacao_cursos", "localizacao_polos", "info_cursos",
+    "leads_inscricao",
 ]
 
 APP_USER_FALLBACK = os.getenv("APP_USER", "admin")
