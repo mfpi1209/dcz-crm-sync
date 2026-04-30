@@ -264,14 +264,26 @@
                                     <option value="">— Nenhuma —</option>
                                     <option value="Comercial">Comercial</option>
                                     <option value="Suporte Comercial">Suporte Comercial</option>
+                                    <option value="Supervisor Comercial">Supervisor Comercial</option>
                                     <option value="Acadêmico">Acadêmico</option>
+                                    <option value="Supervisor Acadêmico">Supervisor Acadêmico</option>
                                 </select>
+                            </div>
+                            <div>
+                                <button type="button"
+                                        onclick="applyCategoryPresetFromSelect('user-new-categoria', 'user-new-page-cb')"
+                                        class="btn-secondary text-[11px] font-bold uppercase tracking-wider px-4 py-2 rounded-xl flex items-center gap-1.5 whitespace-nowrap"
+                                        title="Aplicar preset de permissões da categoria selecionada">
+                                    <span class="material-symbols-outlined text-[15px]">auto_fix_high</span>
+                                    Aplicar preset
+                                </button>
                             </div>
                             <div>
                                 <label class="block text-xs text-[var(--text-secondary)] mb-1.5 font-medium">Nível</label>
                                 <select id="user-new-role" class="input-glass px-3 py-2 text-sm"
                                     onchange="toggleNewUserPerms()">
                                     <option value="viewer">Visualizador</option>
+                                    <option value="editor">Editor</option>
                                     <option value="admin">Administrador</option>
                                 </select>
                             </div>
