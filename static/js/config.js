@@ -393,8 +393,9 @@ const PAGE_LABELS = {
     dashboard: 'Dashboard', search: 'Buscar', sync: 'Sync/Delta CRM Acadêmico',
     kommo_sync: 'Sync/Delta CRM Comercial',
     update: 'Upload Acadêmico', pipeline: 'Atualização CRM Acadêmico',
-    match_merge: 'Upload Comercial', comercial_rgm: 'Dashboard Comercial',
-    logs: 'Logs / Relatórios', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas',
+    match_merge: 'Upload Comercial', comercial_rgm: 'Comercial RGM',
+    logs: 'Logs / Relatórios', distribuicao: 'Distribuição',
+    ativacoes: 'Ativações Acadêmicas',
     intelligence: 'Inteligência', inadimplencia: 'Inadimplência',
     feedback: 'Feedback', config: 'Configurações', schedule: 'Agendamento',
     inscricao: 'Inscrições',
@@ -402,21 +403,105 @@ const PAGE_LABELS = {
     recomendacao_cursos: 'Recomendação',
     localizacao_polos: 'Localização',
     info_cursos: 'Informações de Cursos',
+    leads_inscricao: 'Leads em Inscrição Automática',
     avisos: 'Avisos',
     kommo_dispatcher: 'Monitor de Conversas',
     minha_performance: 'Minha Performance',
     leads_parados: 'Leads Parados',
     premiacao_admin: 'Premiação (Admin)',
     ajustes_matricula: 'Ajustes de Matrícula',
+    macro_email: 'Macro Email',
+    repasse: 'Repasse',
+    dist_consultor: 'Distribuição Consultor',
+    // Acrescentadas
+    recadastros: 'Recadastros',
+    vocacional: 'Dashboard Vocacional',
+    comercial_dashboard: 'Dashboard Atendimentos',
+    auditoria_comercial: 'Feedback Comercial',
+    'meta-campaigns': 'Campaign Performance',
+    dist_comercial: 'Distribuição Comercial',
+    atualizar_preco: 'Atualizar Preço',
 };
 
+// Espelho dos grupos do sidebar (templates/partials/_sidebar.html).
+// Mantenha em sincronia com o sidebar caso reorganize a navegação.
 const PAGE_GROUPS_CONFIG = [
-    { label: 'Geral', pages: ['dashboard', 'search', 'avisos'] },
-    { label: 'Operação — Acadêmico', pages: ['ativacoes', 'distribuicao', 'intelligence', 'inadimplencia', 'feedback'] },
-    { label: 'Ferramentas', pages: ['comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos'] },
-    { label: 'Operação — Comercial', pages: ['comercial_rgm', 'inscricao', 'minha_performance', 'leads_parados'] },
-    { label: 'Sistema', pages: ['kommo_dispatcher', 'logs', 'config', 'schedule', 'premiacao_admin', 'ajustes_matricula'] },
-    { label: 'Sistema — CRM', pages: ['pipeline', 'sync', 'kommo_sync', 'update', 'match_merge'] },
+    {
+        label: 'Geral',
+        icon: 'dashboard',
+        color: 'var(--primary)',
+        pages: ['dashboard', 'search', 'avisos'],
+    },
+    {
+        label: 'Acadêmico',
+        section: 'Operação',
+        icon: 'school',
+        color: 'var(--primary)',
+        pages: [
+            'ativacoes', 'distribuicao', 'intelligence', 'inadimplencia',
+            'feedback', 'macro_email',
+        ],
+    },
+    {
+        label: 'Ferramentas',
+        section: 'Operação',
+        icon: 'lightbulb',
+        color: 'var(--primary)',
+        pages: ['comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos', 'leads_inscricao'],
+    },
+    {
+        label: 'Comercial',
+        section: 'Operação',
+        icon: 'trending_up',
+        color: 'var(--secondary)',
+        pages: [
+            'dist_consultor', 'comercial_rgm', 'dist_comercial', 'inscricao',
+            'recadastros', 'comercial_dashboard', 'auditoria_comercial',
+            'atualizar_preco', 'leads_parados', 'minha_performance', 'repasse',
+        ],
+    },
+    {
+        label: 'Vocacional',
+        section: 'Operação',
+        icon: 'psychology',
+        color: 'var(--primary-medium)',
+        pages: ['vocacional'],
+        // Sub-abas dentro da pagina Vocacional — compartilham a permissao "vocacional"
+        // (sem checkbox individual; sao apenas informativas).
+        subItems: [
+            { icon: 'filter_alt', label: 'Visão Geral do Funil' },
+            { icon: 'ads_click', label: 'Análise de Tráfego' },
+            { icon: 'quiz', label: 'Comportamento Quiz' },
+            { icon: 'person_add', label: 'Conversão de Leads' },
+            { icon: 'school', label: 'Interesse em Cursos' },
+            { icon: 'swap_horiz', label: 'Funil por Canal' },
+            { icon: 'phone_in_talk', label: 'Status Comercial' },
+        ],
+    },
+    {
+        label: 'Meta · Campanhas',
+        section: 'Operação',
+        icon: 'pie_chart',
+        color: 'var(--primary)',
+        pages: ['meta-campaigns'],
+    },
+    {
+        label: 'Sistema',
+        section: 'Sistema',
+        icon: 'settings',
+        color: 'var(--outline)',
+        pages: [
+            'config', 'schedule', 'kommo_dispatcher', 'logs',
+            'premiacao_admin', 'ajustes_matricula',
+        ],
+    },
+    {
+        label: 'Sistema — CRM',
+        section: 'Sistema',
+        icon: 'sync_alt',
+        color: 'var(--outline)',
+        pages: ['pipeline', 'update', 'sync', 'kommo_sync', 'match_merge'],
+    },
 ];
 let _allPages = [];
 let _usersData = [];
@@ -435,63 +520,151 @@ async function loadUsers() {
 function renderUsers() {
     const tbody = document.getElementById('users-tbody');
     if (!_usersData.length) {
-        tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-gray-500">Nenhum usuário</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="py-4 text-center text-[var(--text-muted)]">Nenhum usuário</td></tr>';
         return;
     }
-    const _catColors = {
-        'Comercial': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-        'Suporte Comercial': 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-        'Acadêmico': 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+    const _catClass = {
+        'Comercial': 'tag-cat-comercial',
+        'Suporte Comercial': 'tag-cat-suporte',
+        'Acadêmico': 'tag-cat-academico',
     };
     tbody.innerHTML = _usersData.map(u => {
         const roleLabel = u.role === 'admin'
-            ? '<span class="tag-pill bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">Admin</span>'
-            : '<span class="tag-pill bg-gray-700/50 text-gray-400 border border-gray-600/30">Viewer</span>';
+            ? '<span class="tag-pill tag-role-admin">Admin</span>'
+            : '<span class="tag-pill tag-role-viewer">Viewer</span>';
         const catLabel = u.categoria
-            ? `<span class="tag-pill text-[10px] border ${_catColors[u.categoria] || 'bg-gray-700/50 text-gray-400 border-gray-600/30'}">${u.categoria}</span>`
-            : '<span class="text-gray-600 text-xs">—</span>';
+            ? `<span class="tag-pill text-[10px] ${_catClass[u.categoria] || 'tag-cat-fallback'}">${u.categoria}</span>`
+            : '<span class="text-xs" style="color: var(--text-muted)">—</span>';
         const permsHtml = u.role === 'admin'
-            ? '<span class="text-xs text-emerald-400">Acesso total</span>'
-            : (u.pages || []).map(p => `<span class="inline-block text-[10px] bg-gray-100 dark:bg-gray-800/50 text-gray-400 px-1.5 py-0.5 rounded mr-1 mb-1">${PAGE_LABELS[p] || p}</span>`).join('');
+            ? '<span class="tag-page-all">Acesso total</span>'
+            : (u.pages || []).map(p => `<span class="tag-page">${PAGE_LABELS[p] || p}</span>`).join('');
         return `<tr class="border-b border-[var(--border)]">
-            <td class="py-3 font-medium">${u.username}</td>
+            <td class="py-3 font-medium" style="color: var(--text-primary)">${u.username}</td>
             <td class="py-3">${catLabel}</td>
             <td class="py-3">${roleLabel}</td>
             <td class="py-3 max-w-xs">${permsHtml}</td>
-            <td class="py-3 text-xs text-gray-500">${u.created_at || ''}</td>
+            <td class="py-3 text-xs" style="color: var(--text-muted)">${u.created_at || ''}</td>
             <td class="py-3">
                 <div class="flex gap-2">
-                    <button onclick="editUser(${u.id})" class="text-xs text-indigo-400 hover:text-indigo-300">Editar</button>
-                    <button onclick="deleteUser(${u.id}, '${u.username}')" class="text-xs text-red-400 hover:text-red-300">Excluir</button>
+                    <button onclick="editUser(${u.id})" class="text-xs font-semibold transition-colors" style="color: var(--primary)">Editar</button>
+                    <button onclick="deleteUser(${u.id}, '${u.username}')" class="text-xs font-semibold text-red-600 hover:text-red-500 dark:text-red-400 dark:hover:text-red-300 transition-colors">Excluir</button>
                 </div>
             </td>
         </tr>`;
     }).join('');
 }
 
+// ---------------------------------------------------------------------------
+// Helpers de seleção de permissões (toolbar global + por grupo)
+// ---------------------------------------------------------------------------
+function permSelectAll(cbClass) {
+    document.querySelectorAll('.' + cbClass + ':not(:disabled)').forEach(cb => { cb.checked = true; });
+}
+function permClearAll(cbClass) {
+    document.querySelectorAll('.' + cbClass + ':not(:disabled)').forEach(cb => { cb.checked = false; });
+}
+function togglePermGroup(cbClass, groupSlug) {
+    const cbs = document.querySelectorAll(
+        `.${cbClass}[data-perm-group="${groupSlug}"]:not(:disabled)`
+    );
+    if (!cbs.length) return;
+    const allChecked = Array.from(cbs).every(cb => cb.checked);
+    cbs.forEach(cb => { cb.checked = !allChecked; });
+}
+function _renderPermsToolbar(cbClass) {
+    return `<div class="perm-toolbar">
+        <button type="button" class="perm-toolbar-btn primary"
+                onclick="permSelectAll('${cbClass}')">
+            <span class="material-symbols-outlined text-[15px]">done_all</span>
+            Marcar tudo
+        </button>
+        <button type="button" class="perm-toolbar-btn"
+                onclick="permClearAll('${cbClass}')">
+            <span class="material-symbols-outlined text-[15px]">remove_done</span>
+            Limpar seleção
+        </button>
+    </div>`;
+}
+
 function _renderPermsGrouped(cbClass, checkedPages, disabled) {
-    const groups = PAGE_GROUPS_CONFIG.map(g => {
+    const slugify = (s) => String(s)
+        .toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'grp';
+    const renderGroup = (g) => {
         const groupPages = g.pages.filter(p => _allPages.includes(p));
         if (!groupPages.length) return '';
+        const groupSlug = slugify(g.label);
         const items = groupPages.map(p => {
             const ck = checkedPages.includes(p) ? 'checked' : '';
             const dis = disabled ? 'disabled' : '';
-            return `<label class="flex items-center gap-2.5 py-1 px-2 rounded-lg hover:bg-white/5 cursor-pointer transition-colors text-[13px] text-gray-300 select-none">
-                <input type="checkbox" value="${p}" class="${cbClass} accent-indigo-500 w-3.5 h-3.5 rounded flex-shrink-0" ${ck} ${dis}>
+            return `<label class="perm-item flex items-center gap-2.5 py-1 px-2 rounded-lg cursor-pointer transition-colors text-[13px] select-none">
+                <input type="checkbox" value="${p}" data-perm-group="${groupSlug}" class="${cbClass} accent-indigo-500 w-3.5 h-3.5 rounded flex-shrink-0" ${ck} ${dis}>
                 <span class="truncate">${PAGE_LABELS[p] || p}</span>
             </label>`;
         }).join('');
-        return `<div class="bg-slate-800/30 rounded-xl p-3 border border-slate-700/20">
-            <p class="text-[10px] font-bold text-indigo-400/70 uppercase tracking-wider mb-2 px-1">${g.label}</p>
+        // Sub-abas decorativas (compartilham a permissao do checkbox acima).
+        const subItemsHtml = (g.subItems && g.subItems.length)
+            ? `<div class="perm-subitems">
+                <p class="perm-subitems-label">Inclui</p>
+                ${g.subItems.map(s => `<div class="perm-subitem">
+                    <span class="material-symbols-outlined text-[13px]">${s.icon || 'subdirectory_arrow_right'}</span>
+                    <span class="truncate">${s.label}</span>
+                </div>`).join('')}
+            </div>`
+            : '';
+        const iconHtml = g.icon
+            ? `<span class="material-symbols-outlined text-[14px] perm-group-icon" style="color: ${g.color || 'var(--primary)'}">${g.icon}</span>`
+            : '';
+        const toggleBtn = disabled
+            ? ''
+            : `<button type="button" class="perm-group-toggle"
+                       title="Marcar/Desmarcar todos deste grupo"
+                       onclick="togglePermGroup('${cbClass}', '${groupSlug}')">
+                  <span class="material-symbols-outlined text-[15px]">done_all</span>
+               </button>`;
+        return `<div class="perm-group rounded-xl p-3 border" data-perm-group-card="${groupSlug}">
+            <div class="flex items-center gap-1.5 mb-2 px-1">
+                ${iconHtml}
+                <p class="perm-group-title text-[10px] font-bold uppercase tracking-wider flex-1">${g.label}</p>
+                ${toggleBtn}
+            </div>
             <div class="space-y-0.5">${items}</div>
+            ${subItemsHtml}
+        </div>`;
+    };
+
+    // Agrupa por section ("Operação", "Sistema") preservando a ordem do array.
+    // Itens sem section (ex.: Geral) viram um bloco solto.
+    const sections = [];
+    const sectionMap = new Map();
+    for (const g of PAGE_GROUPS_CONFIG) {
+        const key = g.section || '__top';
+        if (!sectionMap.has(key)) {
+            sectionMap.set(key, []);
+            sections.push({ key, label: g.section || null });
+        }
+        sectionMap.get(key).push(g);
+    }
+
+    const blocks = sections.map(s => {
+        const groupsHtml = sectionMap.get(s.key).map(renderGroup).filter(Boolean).join('');
+        if (!groupsHtml) return '';
+        const header = s.label
+            ? `<p class="perm-section-label">— ${s.label} —</p>`
+            : '';
+        return `<div class="perm-section">${header}
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">${groupsHtml}</div>
         </div>`;
     }).filter(Boolean);
-    return groups.join('');
+
+    return blocks.join('');
 }
 
 function renderNewUserPermsGrid() {
     const grid = document.getElementById('user-new-perms-grid');
-    grid.innerHTML = _renderPermsGrouped('user-new-page-cb', _allPages, false);
+    const toolbar = _renderPermsToolbar('user-new-page-cb');
+    grid.innerHTML = toolbar + _renderPermsGrouped('user-new-page-cb', _allPages, false);
 }
 
 function toggleNewUserPerms() {
@@ -539,37 +712,44 @@ async function editUser(uid) {
     const u = _usersData.find(x => x.id === uid);
     if (!u) return;
     const userPages = u.role === 'admin' ? _allPages : (u.pages || []);
-    const permsHtml = _renderPermsGrouped('edit-perm-cb', userPages, u.role === 'admin');
+    const isAdmin = u.role === 'admin';
+    const permsToolbar = isAdmin ? '' : _renderPermsToolbar('edit-perm-cb');
+    const permsHtml = _renderPermsGrouped('edit-perm-cb', userPages, isAdmin);
 
     const modal = document.createElement('div');
     modal.id = 'user-edit-modal';
     modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4';
     modal.onclick = e => { if (e.target === modal) modal.remove(); };
     modal.innerHTML = `
-        <div class="glass-card w-full max-w-2xl max-h-[90vh] overflow-y-auto" style="background:rgba(15,23,42,0.97)" onclick="event.stopPropagation()">
-            <div class="sticky top-0 z-10 px-6 py-4 border-b border-slate-700/30 bg-slate-900/95 backdrop-blur flex items-center justify-between">
-                <h3 class="text-lg font-bold text-white font-display">Editar: ${u.username}</h3>
-                <button onclick="document.getElementById('user-edit-modal').remove()" class="text-slate-500 hover:text-white transition-colors">
+        <div class="glass-card w-full max-w-2xl max-h-[90vh] overflow-y-auto p-0" onclick="event.stopPropagation()">
+            <div class="sticky top-0 z-10 px-6 py-4 border-b backdrop-blur flex items-center justify-between"
+                 style="border-color: var(--border); background: var(--bg-overlay);">
+                <h3 class="text-lg font-bold font-display" style="color: var(--text-primary);">Editar: ${u.username}</h3>
+                <button onclick="document.getElementById('user-edit-modal').remove()"
+                        class="transition-colors"
+                        style="color: var(--text-muted);"
+                        onmouseover="this.style.color='var(--text-primary)'"
+                        onmouseout="this.style.color='var(--text-muted)'">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
             </div>
             <div class="p-6 space-y-5">
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
-                        <label class="block text-xs text-gray-500 mb-1.5 font-medium">Nova Senha</label>
-                        <input type="password" id="edit-user-pw" class="input-glass px-3 py-2 text-sm text-gray-200 w-full" autocomplete="new-password" placeholder="Vazio = manter">
+                        <label class="block text-xs mb-1.5 font-medium" style="color: var(--text-secondary);">Nova Senha</label>
+                        <input type="password" id="edit-user-pw" class="input-glass px-3 py-2 text-sm w-full" autocomplete="new-password" placeholder="Vazio = manter">
                     </div>
                     <div>
-                        <label class="block text-xs text-gray-500 mb-1.5 font-medium">Kommo User ID</label>
-                        <input type="number" id="edit-user-kommo-uid" value="${u.kommo_user_id||''}" class="input-glass px-3 py-2 text-sm text-gray-200 w-full" placeholder="ID do Kommo">
+                        <label class="block text-xs mb-1.5 font-medium" style="color: var(--text-secondary);">Kommo User ID</label>
+                        <input type="number" id="edit-user-kommo-uid" value="${u.kommo_user_id||''}" class="input-glass px-3 py-2 text-sm w-full" placeholder="ID do Kommo">
                     </div>
                     <div>
-                        <label class="block text-xs text-gray-500 mb-1.5 font-medium">E-mail Cruzeiro</label>
-                        <input type="email" id="edit-user-email-cruzeiro" value="${u.email_cruzeiro||''}" class="input-glass px-3 py-2 text-sm text-gray-200 w-full" placeholder="nome@cruzeirodosul.edu.br">
+                        <label class="block text-xs mb-1.5 font-medium" style="color: var(--text-secondary);">E-mail Cruzeiro</label>
+                        <input type="email" id="edit-user-email-cruzeiro" value="${u.email_cruzeiro||''}" class="input-glass px-3 py-2 text-sm w-full" placeholder="nome@cruzeirodosul.edu.br">
                     </div>
                     <div>
-                        <label class="block text-xs text-gray-500 mb-1.5 font-medium">Categoria</label>
-                        <select id="edit-user-categoria" class="input-glass px-3 py-2 text-sm text-gray-200 w-full">
+                        <label class="block text-xs mb-1.5 font-medium" style="color: var(--text-secondary);">Categoria</label>
+                        <select id="edit-user-categoria" class="input-glass px-3 py-2 text-sm w-full">
                             <option value="">— Nenhuma —</option>
                             <option value="Comercial" ${u.categoria==='Comercial'?'selected':''}>Comercial</option>
                             <option value="Suporte Comercial" ${u.categoria==='Suporte Comercial'?'selected':''}>Suporte Comercial</option>
@@ -577,20 +757,21 @@ async function editUser(uid) {
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs text-gray-500 mb-1.5 font-medium">Nível</label>
-                        <select id="edit-user-role" class="input-glass px-3 py-2 text-sm text-gray-200 w-full"
+                        <label class="block text-xs mb-1.5 font-medium" style="color: var(--text-secondary);">Nível</label>
+                        <select id="edit-user-role" class="input-glass px-3 py-2 text-sm w-full"
                             onchange="document.querySelectorAll('.edit-perm-cb').forEach(cb=>{cb.disabled=this.value==='admin';if(this.value==='admin')cb.checked=true});document.getElementById('edit-perms-section').style.display=this.value==='admin'?'none':''">
                             <option value="viewer" ${u.role==='viewer'?'selected':''}>Visualizador</option>
                             <option value="admin" ${u.role==='admin'?'selected':''}>Administrador</option>
                         </select>
                     </div>
                 </div>
-                <div id="edit-perms-section" ${u.role==='admin'?'style="display:none"':''}>
-                    <label class="block text-xs text-gray-500 mb-3 font-medium">Permissões por página</label>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">${permsHtml}</div>
+                <div id="edit-perms-section" ${isAdmin?'style="display:none"':''}>
+                    <label class="block text-xs mb-3 font-medium" style="color: var(--text-secondary);">Permissões por página</label>
+                    ${permsToolbar}
+                    <div class="perm-grid">${permsHtml}</div>
                 </div>
-                <div class="flex gap-3 pt-2 border-t border-slate-700/20">
-                    <button onclick="saveUserEdit(${uid})" class="btn-primary text-white text-sm px-6 py-2.5 rounded-xl font-medium">Salvar Alterações</button>
+                <div class="flex gap-3 pt-4 border-t" style="border-color: var(--border);">
+                    <button onclick="saveUserEdit(${uid})" class="btn-primary text-sm px-6 py-2.5 rounded-xl font-medium">Salvar Alterações</button>
                     <button onclick="document.getElementById('user-edit-modal').remove()" class="btn-secondary text-sm px-5 py-2.5 rounded-xl">Cancelar</button>
                 </div>
             </div>
