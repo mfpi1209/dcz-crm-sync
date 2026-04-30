@@ -423,6 +423,76 @@ const PAGE_LABELS = {
     atualizar_preco: 'Atualizar Preço',
 };
 
+// ---------------------------------------------------------------------------
+// Presets de permissão por categoria
+// Aplicados quando o admin clica em "Aplicar preset" ao lado do select de
+// Categoria no formulário de Novo Usuário ou no modal de Editar Usuário.
+// Cada preset substitui completamente as permissões marcadas.
+// ---------------------------------------------------------------------------
+const _PRESET_FERRAMENTAS_FULL  = ['comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos', 'leads_inscricao'];
+const _PRESET_FERRAMENTAS_BASIC = ['comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos']; // sem Leads em Inscrição
+
+const CATEGORY_PRESETS = {
+    'Comercial': [
+        ..._PRESET_FERRAMENTAS_FULL,
+        'minha_performance', 'repasse', 'search', 'avisos',
+    ],
+    'Acadêmico': [
+        ..._PRESET_FERRAMENTAS_BASIC,
+        'search', 'avisos',
+    ],
+    'Suporte Comercial': [
+        ..._PRESET_FERRAMENTAS_BASIC,
+        'search', 'avisos',
+    ],
+    // Geral (Dashboard, Buscar, Avisos) + Ferramentas completas + Comercial
+    // (todas exceto Atualizar Preço). Sem Acadêmico, sem Sistema.
+    'Supervisor Comercial': [
+        'dashboard', 'search', 'avisos',
+        ..._PRESET_FERRAMENTAS_FULL,
+        'dist_consultor', 'comercial_rgm', 'dist_comercial', 'inscricao',
+        'recadastros', 'comercial_dashboard', 'auditoria_comercial',
+        'leads_parados', 'minha_performance', 'repasse',
+    ],
+    // Geral (Dashboard, Buscar, Avisos) + Acadêmico completo + Ferramentas
+    // exceto Leads em Inscrição. Sem Comercial, sem Sistema.
+    'Supervisor Acadêmico': [
+        'dashboard', 'search', 'avisos',
+        'ativacoes', 'distribuicao', 'intelligence', 'inadimplencia',
+        'feedback', 'macro_email',
+        ..._PRESET_FERRAMENTAS_BASIC,
+    ],
+};
+
+function applyCategoryPreset(cbClass, categoria) {
+    const pages = CATEGORY_PRESETS[categoria];
+    if (!pages) {
+        toast('Sem preset definido para "' + (categoria || '—') + '"', 'warning');
+        return;
+    }
+    const set = new Set(pages);
+    let touched = 0;
+    document.querySelectorAll('.' + cbClass + ':not(:disabled)').forEach(cb => {
+        const before = cb.checked;
+        cb.checked = set.has(cb.value);
+        if (before !== cb.checked) touched++;
+    });
+    toast(`Preset "${categoria}" aplicado (${pages.length} páginas marcadas).`, 'success');
+}
+
+// Lê a categoria atualmente selecionada (Novo Usuário ou Editar Usuário) e
+// aplica o preset correspondente nas checkboxes do `cbClass`.
+function applyCategoryPresetFromSelect(selectId, cbClass) {
+    const sel = document.getElementById(selectId);
+    if (!sel) return;
+    const categoria = sel.value || '';
+    if (!categoria) {
+        toast('Selecione uma categoria antes de aplicar o preset.', 'warning');
+        return;
+    }
+    applyCategoryPreset(cbClass, categoria);
+}
+
 // Espelho dos grupos do sidebar (templates/partials/_sidebar.html).
 // Mantenha em sincronia com o sidebar caso reorganize a navegação.
 const PAGE_GROUPS_CONFIG = [
@@ -527,11 +597,16 @@ function renderUsers() {
         'Comercial': 'tag-cat-comercial',
         'Suporte Comercial': 'tag-cat-suporte',
         'Acadêmico': 'tag-cat-academico',
+        'Supervisor Comercial': 'tag-cat-supervisor-comercial',
+        'Supervisor Acadêmico': 'tag-cat-supervisor-academico',
+    };
+    const _roleTag = {
+        admin:  '<span class="tag-pill tag-role-admin">Admin</span>',
+        editor: '<span class="tag-pill tag-role-editor">Editor</span>',
+        viewer: '<span class="tag-pill tag-role-viewer">Viewer</span>',
     };
     tbody.innerHTML = _usersData.map(u => {
-        const roleLabel = u.role === 'admin'
-            ? '<span class="tag-pill tag-role-admin">Admin</span>'
-            : '<span class="tag-pill tag-role-viewer">Viewer</span>';
+        const roleLabel = _roleTag[u.role] || _roleTag.viewer;
         const catLabel = u.categoria
             ? `<span class="tag-pill text-[10px] ${_catClass[u.categoria] || 'tag-cat-fallback'}">${u.categoria}</span>`
             : '<span class="text-xs" style="color: var(--text-muted)">—</span>';
@@ -749,18 +824,30 @@ async function editUser(uid) {
                     </div>
                     <div>
                         <label class="block text-xs mb-1.5 font-medium" style="color: var(--text-secondary);">Categoria</label>
-                        <select id="edit-user-categoria" class="input-glass px-3 py-2 text-sm w-full">
-                            <option value="">— Nenhuma —</option>
-                            <option value="Comercial" ${u.categoria==='Comercial'?'selected':''}>Comercial</option>
-                            <option value="Suporte Comercial" ${u.categoria==='Suporte Comercial'?'selected':''}>Suporte Comercial</option>
-                            <option value="Acadêmico" ${u.categoria==='Acadêmico'?'selected':''}>Acadêmico</option>
-                        </select>
+                        <div class="flex items-stretch gap-2">
+                            <select id="edit-user-categoria" class="input-glass px-3 py-2 text-sm flex-1 min-w-0">
+                                <option value="">— Nenhuma —</option>
+                                <option value="Comercial" ${u.categoria==='Comercial'?'selected':''}>Comercial</option>
+                                <option value="Suporte Comercial" ${u.categoria==='Suporte Comercial'?'selected':''}>Suporte Comercial</option>
+                                <option value="Supervisor Comercial" ${u.categoria==='Supervisor Comercial'?'selected':''}>Supervisor Comercial</option>
+                                <option value="Acadêmico" ${u.categoria==='Acadêmico'?'selected':''}>Acadêmico</option>
+                                <option value="Supervisor Acadêmico" ${u.categoria==='Supervisor Acadêmico'?'selected':''}>Supervisor Acadêmico</option>
+                            </select>
+                            <button type="button"
+                                    onclick="applyCategoryPresetFromSelect('edit-user-categoria', 'edit-perm-cb')"
+                                    class="btn-secondary text-[11px] font-bold uppercase tracking-wider px-3 rounded-xl flex items-center gap-1 whitespace-nowrap"
+                                    title="Aplicar preset de permissões da categoria">
+                                <span class="material-symbols-outlined text-[14px]">auto_fix_high</span>
+                                Preset
+                            </button>
+                        </div>
                     </div>
                     <div>
                         <label class="block text-xs mb-1.5 font-medium" style="color: var(--text-secondary);">Nível</label>
                         <select id="edit-user-role" class="input-glass px-3 py-2 text-sm w-full"
                             onchange="document.querySelectorAll('.edit-perm-cb').forEach(cb=>{cb.disabled=this.value==='admin';if(this.value==='admin')cb.checked=true});document.getElementById('edit-perms-section').style.display=this.value==='admin'?'none':''">
                             <option value="viewer" ${u.role==='viewer'?'selected':''}>Visualizador</option>
+                            <option value="editor" ${u.role==='editor'?'selected':''}>Editor</option>
                             <option value="admin" ${u.role==='admin'?'selected':''}>Administrador</option>
                         </select>
                     </div>
