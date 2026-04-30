@@ -13,15 +13,32 @@
 
         <!-- Nav -->
         <nav class="flex-1 px-3 py-4 overflow-y-auto" style="min-height:0">
+            {% set _show_acad = nav_can('ativacoes') or nav_can('distribuicao') or nav_can('intelligence') or nav_can('inadimplencia') or nav_can('feedback') or nav_can('macro_email') %}
+            {% set _show_ferramentas = nav_can('comparar_cursos') or nav_can('recomendacao_cursos') or nav_can('localizacao_polos') or nav_can('info_cursos') or nav_can('leads_inscricao') %}
+            {% set _show_minha_perf_in_comercial = (not nav_is_comercial) and nav_can('minha_performance') %}
+            {% set _show_comercial = nav_can('dist_consultor') or nav_can('comercial_rgm') or nav_can('dist_comercial') or nav_can('inscricao') or nav_can('recadastros') or nav_can('comercial_dashboard') or nav_can('auditoria_comercial') or nav_can('atualizar_preco') or nav_can('leads_parados') or _show_minha_perf_in_comercial or nav_can('repasse') %}
+            {% set _show_voc = nav_can('vocacional') %}
+            {% set _show_meta = nav_can('meta-campaigns') %}
+            {% set _show_sistema = nav_can('pipeline') or nav_can('update') or nav_can('sync') or nav_can('premiacao_admin') or nav_can('ajustes_matricula') or nav_can('kommo_sync') or nav_can('match_merge') or nav_can('config') or nav_can('schedule') or nav_can('kommo_dispatcher') or nav_can('logs') %}
             <div class="space-y-1">
+                {% if nav_is_comercial and nav_can('minha_performance') %}
+                <a href="#minha_performance" onclick="navigate('minha_performance')" class="sidebar-link active" data-page="minha_performance">
+                    <span class="material-symbols-outlined text-lg">military_tech</span>
+                    Minha Performance
+                </a>
+                {% endif %}
+                {% if nav_can('dashboard') %}
                 <a href="#dashboard" onclick="navigate('dashboard')" class="sidebar-link active" data-page="dashboard">
                     <span class="material-symbols-outlined text-lg">dashboard</span>
                     Dashboard
                 </a>
+                {% endif %}
+                {% if nav_can('search') %}
                 <a href="#search" onclick="navigate('search')" class="sidebar-link" data-page="search">
                     <span class="material-symbols-outlined text-lg">search</span>
                     Buscar
                 </a>
+                {% endif %}
                 <a href="#avisos" onclick="navigate('avisos')" class="sidebar-link" data-page="avisos">
                     <span class="material-symbols-outlined text-lg">notifications</span>
                     Avisos
@@ -33,11 +50,14 @@
                 </a>
             </div>
 
+            {% if _show_acad or _show_comercial %}
             <!-- OPERAÇÃO -->
             <div class="mt-6 mb-2" id="sidebar-section-operacao">
                 <p class="sidebar-section-label">— Operação —</p>
             </div>
+            {% endif %}
 
+            {% if _show_acad %}
             <!-- Acadêmico -->
             <div class="sidebar-group" data-group="academico">
                 <button class="sidebar-group-toggle" onclick="toggleSidebarGroup('academico')">
@@ -48,33 +68,47 @@
                     <span class="material-symbols-outlined text-sm sidebar-group-chevron">expand_more</span>
                 </button>
                 <div class="sidebar-group-items">
+                    {% if nav_can('ativacoes') %}
                     <a href="#ativacoes" onclick="navigate('ativacoes')" class="sidebar-link sidebar-sub" data-page="ativacoes">
                         <span class="material-symbols-outlined text-base">campaign</span>
                         Ativações
                     </a>
+                    {% endif %}
+                    {% if nav_can('distribuicao') %}
                     <a href="#distribuicao" onclick="navigate('distribuicao')" class="sidebar-link sidebar-sub" data-page="distribuicao">
                         <span class="material-symbols-outlined text-base">groups</span>
                         Distribuição
                     </a>
+                    {% endif %}
+                    {% if nav_can('intelligence') %}
                     <a href="#intelligence" onclick="navigate('intelligence')" class="sidebar-link sidebar-sub" data-page="intelligence">
                         <span class="material-symbols-outlined text-base">analytics</span>
                         Inteligência
                     </a>
+                    {% endif %}
+                    {% if nav_can('inadimplencia') %}
                     <a href="#inadimplencia" onclick="navigate('inadimplencia')" class="sidebar-link sidebar-sub" data-page="inadimplencia">
                         <span class="material-symbols-outlined text-base">payments</span>
                         Inadimplência
                     </a>
+                    {% endif %}
+                    {% if nav_can('feedback') %}
                     <a href="#feedback" onclick="navigate('feedback')" class="sidebar-link sidebar-sub" data-page="feedback">
                         <span class="material-symbols-outlined text-base">rate_review</span>
                         Feedback
                     </a>
+                    {% endif %}
+                    {% if nav_can('macro_email') %}
                     <a href="#macro_email" onclick="navigate('macro_email')" class="sidebar-link sidebar-sub" data-page="macro_email">
                         <span class="material-symbols-outlined text-base">forward_to_inbox</span>
                         Macro Email
                     </a>
+                    {% endif %}
                 </div>
             </div>
+            {% endif %}
 
+            {% if _show_ferramentas %}
             <!-- Ferramentas -->
             <div class="sidebar-group" data-group="ferramentas">
                 <button class="sidebar-group-toggle" onclick="toggleSidebarGroup('ferramentas')">
@@ -85,29 +119,41 @@
                     <span class="material-symbols-outlined text-sm sidebar-group-chevron">expand_more</span>
                 </button>
                 <div class="sidebar-group-items">
+                    {% if nav_can('comparar_cursos') %}
                     <a href="#comparar_cursos" onclick="navigate('comparar_cursos')" class="sidebar-link sidebar-sub" data-page="comparar_cursos">
                         <span class="material-symbols-outlined text-base">compare_arrows</span>
                         Comparar Cursos
                     </a>
+                    {% endif %}
+                    {% if nav_can('recomendacao_cursos') %}
                     <a href="#recomendacao_cursos" onclick="navigate('recomendacao_cursos')" class="sidebar-link sidebar-sub" data-page="recomendacao_cursos">
                         <span class="material-symbols-outlined text-base">star</span>
                         Recomendação
                     </a>
+                    {% endif %}
+                    {% if nav_can('localizacao_polos') %}
                     <a href="#localizacao_polos" onclick="navigate('localizacao_polos')" class="sidebar-link sidebar-sub" data-page="localizacao_polos">
                         <span class="material-symbols-outlined text-base">location_on</span>
                         Localização
                     </a>
+                    {% endif %}
+                    {% if nav_can('info_cursos') %}
                     <a href="#info_cursos" onclick="navigate('info_cursos')" class="sidebar-link sidebar-sub" data-page="info_cursos">
                         <span class="material-symbols-outlined text-base">info</span>
                         Informações de Cursos
                     </a>
+                    {% endif %}
+                    {% if nav_can('leads_inscricao') %}
                     <a href="#leads_inscricao" onclick="navigate('leads_inscricao')" class="sidebar-link sidebar-sub" data-page="leads_inscricao">
                         <span class="material-symbols-outlined text-base">how_to_reg</span>
                         Leads em Inscrição
                     </a>
+                    {% endif %}
                 </div>
             </div>
+            {% endif %}
 
+            {% if _show_comercial %}
             <!-- Comercial -->
             <div class="sidebar-group" data-group="comercial">
                 <button class="sidebar-group-toggle" onclick="toggleSidebarGroup('comercial')">
@@ -118,53 +164,77 @@
                     <span class="material-symbols-outlined text-sm sidebar-group-chevron">expand_more</span>
                 </button>
                 <div class="sidebar-group-items">
+                    {% if nav_can('dist_consultor') %}
                     <a href="#dist_consultor" onclick="navigate('dist_consultor')" class="sidebar-link sidebar-sub" data-page="dist_consultor">
                         <span class="material-symbols-outlined text-base">bar_chart</span>
                         Distribuição Consultor
                     </a>
+                    {% endif %}
+                    {% if nav_can('comercial_rgm') %}
                     <a href="#comercial_rgm" onclick="navigate('comercial_rgm')" class="sidebar-link sidebar-sub" data-page="comercial_rgm">
                         <span class="material-symbols-outlined text-base">storefront</span>
                         Dashboard Comercial
                     </a>
+                    {% endif %}
+                    {% if nav_can('dist_comercial') %}
                     <a href="#dist_comercial" onclick="navigate('dist_comercial')" class="sidebar-link sidebar-sub" data-page="dist_comercial">
                         <svg class="w-[16px] h-[16px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
                         Distribuição
                     </a>
+                    {% endif %}
+                    {% if nav_can('inscricao') %}
                     <a href="#inscricao" onclick="navigate('inscricao')" class="sidebar-link sidebar-sub" data-page="inscricao">
                         <span class="material-symbols-outlined text-base">assignment</span>
                         Inscrições
                     </a>
+                    {% endif %}
+                    {% if nav_can('recadastros') %}
                     <a href="#recadastros" onclick="navigate('recadastros')" class="sidebar-link sidebar-sub" data-page="recadastros">
                         <span class="material-symbols-outlined text-base">person_search</span>
                         Recadastros
                     </a>
+                    {% endif %}
+                    {% if nav_can('comercial_dashboard') %}
                     <a href="#comercial_dashboard" onclick="navigate('comercial_dashboard')" class="sidebar-link sidebar-sub" data-page="comercial_dashboard">
                         <span class="material-symbols-outlined text-base">monitoring</span>
                         Dashboard Atendimentos
                     </a>
+                    {% endif %}
+                    {% if nav_can('auditoria_comercial') %}
                     <a href="#auditoria_comercial" onclick="navigate('auditoria_comercial')" class="sidebar-link sidebar-sub" data-page="auditoria_comercial">
                         <span class="material-symbols-outlined text-base">rate_review</span>
                         Feedback Comercial
                     </a>
+                    {% endif %}
+                    {% if nav_can('atualizar_preco') %}
                     <a href="#atualizar_preco" onclick="navigate('atualizar_preco')" class="sidebar-link sidebar-sub" data-page="atualizar_preco">
                         <span class="material-symbols-outlined text-base">price_change</span>
                         Atualizar Preço
                     </a>
+                    {% endif %}
+                    {% if nav_can('leads_parados') %}
                     <a href="#leads_parados" onclick="navigate('leads_parados')" class="sidebar-link sidebar-sub" data-page="leads_parados">
                         <span class="material-symbols-outlined text-base">hourglass_top</span>
                         Leads Parados
                     </a>
+                    {% endif %}
+                    {% if _show_minha_perf_in_comercial %}
                     <a href="#minha_performance" onclick="navigate('minha_performance')" class="sidebar-link sidebar-sub" data-page="minha_performance">
                         <span class="material-symbols-outlined text-base">military_tech</span>
                         Minha Performance
                     </a>
+                    {% endif %}
+                    {% if nav_can('repasse') %}
                     <a href="#repasse" onclick="navigate('repasse')" class="sidebar-link sidebar-sub" data-page="repasse">
                         <span class="material-symbols-outlined text-base">payments</span>
                         Repasse
                     </a>
+                    {% endif %}
                 </div>
             </div>
+            {% endif %}
 
+            {% if _show_voc %}
             <!-- Vocacional -->
             <div class="sidebar-group" data-group="vocacional">
                 <button class="sidebar-group-toggle" onclick="toggleSidebarGroup('vocacional')">
@@ -205,7 +275,9 @@
                     </a>
                 </div>
             </div>
+            {% endif %}
 
+            {% if _show_meta %}
             <!-- META - CAMPANHAS -->
             <div class="sidebar-group" data-group="meta">
                 <button class="sidebar-group-toggle" onclick="toggleSidebarGroup('meta')">
@@ -222,7 +294,9 @@
                     </a>
                 </div>
             </div>
+            {% endif %}
 
+            {% if _show_sistema %}
             <!-- SISTEMA -->
             <div class="sidebar-group mt-5" data-group="sistema">
                 <button class="sidebar-group-toggle" onclick="toggleSidebarGroup('sistema')">
@@ -233,54 +307,83 @@
                     <span class="material-symbols-outlined text-sm sidebar-group-chevron">expand_more</span>
                 </button>
                 <div class="sidebar-group-items">
+                    {% set _show_crm = nav_can('pipeline') or nav_can('update') or nav_can('sync') or nav_can('premiacao_admin') or nav_can('ajustes_matricula') or nav_can('kommo_sync') or nav_can('match_merge') %}
+                    {% set _show_geral = nav_can('config') or nav_can('schedule') or nav_can('kommo_dispatcher') or nav_can('logs') %}
+                    {% if _show_crm %}
                     <p class="px-3 pt-3 pb-1 text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">CRM</p>
+                    {% if nav_can('pipeline') %}
                     <a href="#pipeline" onclick="navigate('pipeline')" class="sidebar-link sidebar-sub" data-page="pipeline">
                         <span class="material-symbols-outlined text-base">sync_alt</span>
                         Atualização CRM Acadêmico
                     </a>
+                    {% endif %}
+                    {% if nav_can('update') %}
                     <a href="#update" onclick="navigate('update')" class="sidebar-link sidebar-sub" data-page="update">
                         <span class="material-symbols-outlined text-base">upload_file</span>
                         Upload Acadêmico
                     </a>
+                    {% endif %}
+                    {% if nav_can('sync') %}
                     <a href="#sync" onclick="navigate('sync')" class="sidebar-link sidebar-sub" data-page="sync">
                         <span class="material-symbols-outlined text-base">sync</span>
                         Sync/Delta CRM Acadêmico
                     </a>
+                    {% endif %}
+                    {% if nav_can('premiacao_admin') %}
                     <a href="#premiacao_admin" onclick="navigate('premiacao_admin')" class="sidebar-link sidebar-sub" data-page="premiacao_admin">
                         <span class="material-symbols-outlined text-base">emoji_events</span>
                         Premiação
                     </a>
+                    {% endif %}
+                    {% if nav_can('ajustes_matricula') %}
                     <a href="#ajustes_matricula" onclick="navigate('ajustes_matricula')" class="sidebar-link sidebar-sub" data-page="ajustes_matricula">
                         <span class="material-symbols-outlined text-base">fact_check</span>
                         Ajustes de Matrícula
                     </a>
+                    {% endif %}
+                    {% if nav_can('kommo_sync') %}
                     <a href="#kommo_sync" onclick="navigate('kommo_sync')" class="sidebar-link sidebar-sub" data-page="kommo_sync">
                         <span class="material-symbols-outlined text-base">cloud_sync</span>
                         Sync/Delta CRM Comercial
                     </a>
+                    {% endif %}
+                    {% if nav_can('match_merge') %}
                     <a href="#match_merge" onclick="navigate('match_merge')" class="sidebar-link sidebar-sub" data-page="match_merge">
                         <span class="material-symbols-outlined text-base">upload_file</span>
                         Upload Comercial
                     </a>
+                    {% endif %}
+                    {% endif %}
+                    {% if _show_geral %}
                     <p class="px-3 pt-3 pb-1 text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Geral</p>
+                    {% if nav_can('config') %}
                     <a href="#config" onclick="navigate('config')" class="sidebar-link sidebar-sub" data-page="config">
                         <span class="material-symbols-outlined text-base">settings</span>
                         Configurações
                     </a>
+                    {% endif %}
+                    {% if nav_can('schedule') %}
                     <a href="#schedule" onclick="navigate('schedule')" class="sidebar-link sidebar-sub" data-page="schedule">
                         <span class="material-symbols-outlined text-base">schedule</span>
                         Agendamento
                     </a>
+                    {% endif %}
+                    {% if nav_can('kommo_dispatcher') %}
                     <a href="#kommo_dispatcher" onclick="navigate('kommo_dispatcher')" class="sidebar-link sidebar-sub" data-page="kommo_dispatcher">
                         <span class="material-symbols-outlined text-base">send</span>
                         Monitor de Conversas
                     </a>
+                    {% endif %}
+                    {% if nav_can('logs') %}
                     <a href="#logs" onclick="navigate('logs')" class="sidebar-link sidebar-sub" data-page="logs">
                         <span class="material-symbols-outlined text-base">description</span>
                         Logs / Relatórios
                     </a>
+                    {% endif %}
+                    {% endif %}
                 </div>
             </div>
+            {% endif %}
         </nav>
 
         <!-- Footer -->
