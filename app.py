@@ -29,7 +29,7 @@ if sys.platform == "win32":
 import time
 from pathlib import Path
 from dotenv import load_dotenv
-from flask import Flask
+from flask import Flask, session
 
 load_dotenv(Path(__file__).parent / ".env")
 
@@ -52,6 +52,77 @@ def kommo_web_base_url() -> str:
 @app.context_processor
 def inject_kommo_web_base():
     return {"kommo_web_base": kommo_web_base_url()}
+
+
+# ── Permissões de navegação injetadas no template (sem flash de UI) ───────
+from helpers import ALL_PAGES as _NAV_ALL_PAGES
+from db import get_conn as _nav_get_conn
+
+# Páginas pessoais — sempre visíveis (exceto regras específicas, ex: comercial sem dashboard)
+_NAV_ALWAYS = ("avisos", "profile")
+# Conjunto completo conhecido pelo front (PAGES no utils.js + páginas pessoais)
+_NAV_KNOWN_PAGES = sorted(set(_NAV_ALL_PAGES) | set(_NAV_ALWAYS) | {"dashboard"})
+
+
+def _nav_load_user_data():
+    """Retorna (role, set(pages), categoria) do usuário logado, com fallback seguro."""
+    if not session.get("authenticated"):
+        return "", set(), ""
+    role = (session.get("role") or "").strip()
+    uid = session.get("user_id", 0)
+    if role == "admin" or uid == 0:
+        return (role or "admin"), set(_NAV_ALL_PAGES), ""
+    pages = set()
+    categoria = ""
+    try:
+        conn = _nav_get_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT categoria FROM app_users WHERE id = %s", (uid,))
+            r = cur.fetchone()
+            if r and r[0]:
+                categoria = r[0]
+            cur.execute("SELECT page FROM user_permissions WHERE user_id = %s", (uid,))
+            pages = {row[0] for row in cur.fetchall()}
+        conn.close()
+    except Exception:
+        pages = set()
+    return role, pages, categoria
+
+
+@app.context_processor
+def inject_nav_perms():
+    role, pages, categoria = _nav_load_user_data()
+    is_admin = role == "admin"
+    is_comercial = (not is_admin) and ((categoria or "").strip().lower() == "comercial")
+
+    def nav_can(page):
+        if is_admin:
+            return True
+        if is_comercial and page == "dashboard":
+            return False
+        if page in _NAV_ALWAYS:
+            return True
+        if (not is_comercial) and page == "dashboard":
+            return True
+        return page in pages
+
+    if is_comercial:
+        nav_initial_page = "minha_performance"
+    else:
+        nav_initial_page = "dashboard"
+
+    allowed_pages = sorted(p for p in _NAV_KNOWN_PAGES if nav_can(p))
+
+    return {
+        "nav_role": role,
+        "nav_pages": sorted(pages),
+        "nav_categoria": categoria,
+        "nav_is_admin": is_admin,
+        "nav_is_comercial": is_comercial,
+        "nav_can": nav_can,
+        "nav_initial_page": nav_initial_page,
+        "nav_allowed_pages": allowed_pages,
+    }
 
 
 from collections import deque

@@ -26,9 +26,48 @@ async function api(url, opts = {}) {
 const PAGES = ['dashboard', 'search', 'sync', 'kommo_sync', 'update', 'pipeline', 'match_merge', 'comercial_rgm', 'dist_comercial', 'distribuicao', 'ativacoes', 'intelligence', 'inadimplencia', 'feedback', 'comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos', 'leads_inscricao', 'logs', 'config', 'schedule', 'inscricao', 'avisos', 'kommo_dispatcher', 'meta-campaigns', 'recadastros', 'comercial_dashboard', 'auditoria_comercial', 'atualizar_preco', 'vocacional', 'leads_parados', 'minha_performance', 'premiacao_admin', 'macro_email', 'ajustes_matricula', 'repasse', 'dist_consultor', 'profile'];
 const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', kommo_sync: 'Sync Comercial', update: 'Upload Acadêmico', pipeline: 'Saneamento / Pipeline', match_merge: 'Match & Merge', comercial_rgm: 'Dashboard Comercial', dist_comercial: 'Distribuição Comercial', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas', intelligence: 'Análises', inadimplencia: 'Inadimplência', feedback: 'Feedback', comparar_cursos: 'Comparar Cursos', recomendacao_cursos: 'Recomendação', localizacao_polos: 'Localização', info_cursos: 'Informações de Cursos', leads_inscricao: 'Leads em Inscrição Automática', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento', inscricao: 'Inscrições', avisos: 'Avisos', kommo_dispatcher: 'Kommo Dispatcher', 'meta-campaigns': 'Campaign Performance', recadastros: 'Recadastros', comercial_dashboard: 'Dashboard Atendimentos', auditoria_comercial: 'Feedback Comercial', atualizar_preco: 'Atualizar Preço', vocacional: 'Dashboard Vocacional', leads_parados: 'Parados', minha_performance: 'Minha Performance', premiacao_admin: 'Premiação', macro_email: 'Macro Email', ajustes_matricula: 'Ajustes de Matrícula', repasse: 'Repasse', dist_consultor: 'Distribuição Consultor', profile: 'Meu Perfil' };
 
+// Páginas permitidas vêm do servidor (data-allowed-pages no <body>) — evita
+// flash de UI carregando conteúdo proibido antes de o JS esconder.
+let ALLOWED_PAGES = null;
+function _initAllowedPages() {
+    try {
+        const raw = document.body && document.body.dataset.allowedPages;
+        if (raw) ALLOWED_PAGES = new Set(JSON.parse(raw));
+    } catch (e) { ALLOWED_PAGES = null; }
+}
+_initAllowedPages();
+
+function isPageAllowed(page) {
+    if (!ALLOWED_PAGES) return true;
+    return ALLOWED_PAGES.has(page);
+}
+
+function _initialPageFromBody() {
+    const ip = (document.body && document.body.dataset.initialPage) || '';
+    return ip || 'dashboard';
+}
+
+let _bootSplashDismissed = false;
+function _dismissBootSplash() {
+    if (_bootSplashDismissed) return;
+    _bootSplashDismissed = true;
+    document.body.classList.remove('initial-bootstrap');
+    setTimeout(() => {
+        const sp = document.getElementById('boot-splash');
+        if (sp && sp.parentNode) sp.parentNode.removeChild(sp);
+    }, 350);
+}
+
 function navigate(page, params) {
+    if (!isPageAllowed(page)) {
+        const fallback = _initialPageFromBody();
+        if (page !== fallback && isPageAllowed(fallback)) {
+            page = fallback;
+        }
+    }
     PAGES.forEach(p => {
         const el = document.getElementById('page-' + p);
+        if (!el) return;
         if (p === page) {
             el.classList.remove('hidden');
             el.classList.remove('page-enter');
@@ -39,6 +78,7 @@ function navigate(page, params) {
             el.classList.remove('page-enter');
         }
     });
+    _dismissBootSplash();
     document.querySelectorAll('.sidebar-link').forEach(el => {
         el.classList.toggle('active', el.dataset.page === page);
     });
@@ -87,13 +127,16 @@ function navigate(page, params) {
 }
 
 window.addEventListener('hashchange', () => {
-    const hash = location.hash.replace('#', '') || 'dashboard';
+    const fallback = _initialPageFromBody();
+    const hash = location.hash.replace('#', '') || fallback;
     if (PAGES.includes(hash)) navigate(hash);
 });
 
 function navigateVoc(tab) {
+    _dismissBootSplash();
     PAGES.forEach(p => {
-        document.getElementById('page-' + p).classList.toggle('hidden', p !== 'vocacional');
+        const el = document.getElementById('page-' + p);
+        if (el) el.classList.toggle('hidden', p !== 'vocacional');
     });
     document.querySelectorAll('.sidebar-link').forEach(el => {
         el.classList.toggle('active', el.dataset.page === 'voc_' + tab);
@@ -228,57 +271,16 @@ function refreshBadge() {
 }
 
 // ---------------------------------------------------------------------------
-// Sidebar — permissões dinâmicas
+// Sidebar — permissões aplicadas no servidor (Jinja). Aqui apenas mantemos
+// o role no body em sincronia com /api/me e disparamos o check de avisos.
 // ---------------------------------------------------------------------------
-const SIDEBAR_GROUPS = {
-    academico: ['ativacoes', 'distribuicao', 'intelligence', 'inadimplencia', 'feedback'],
-    ferramentas: ['comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos', 'leads_inscricao'],
-    comercial: ['dist_consultor', 'pipeline', 'update', 'match_merge', 'comercial_rgm', 'inscricao', 'auditoria_comercial', 'leads_parados', 'minha_performance', 'repasse'],
-    sistema: ['premiacao_admin', 'ajustes_matricula'],
-};
-
-// Páginas pessoais — sempre visíveis no menu, independente de permissão.
-const SIDEBAR_ALWAYS_VISIBLE = new Set(['dashboard', 'avisos', 'profile']);
-
 async function applySidebarPermissions() {
     try {
         const res = await api('/api/me');
         const d = await res.json();
-        const pages = d.pages || [];
         const role = d.role || '';
-
-        document.querySelectorAll('#sidebar .sidebar-link[data-page]').forEach(link => {
-            const page = link.getAttribute('data-page');
-            if (SIDEBAR_ALWAYS_VISIBLE.has(page) || role === 'admin' || pages.includes(page)) {
-                link.style.display = '';
-            } else {
-                link.style.display = 'none';
-            }
-        });
-
-        Object.entries(SIDEBAR_GROUPS).forEach(([group, groupPages]) => {
-            const el = document.querySelector(`.sidebar-group[data-group="${group}"]`);
-            if (!el) return;
-            const hasAny = role === 'admin' || groupPages.some(p => pages.includes(p));
-            el.style.display = hasAny ? '' : 'none';
-        });
-
-        const operacaoLabel = document.getElementById('sidebar-section-operacao');
-        if (operacaoLabel) {
-            const anyOp = role === 'admin' || [...SIDEBAR_GROUPS.academico, ...SIDEBAR_GROUPS.comercial].some(p => pages.includes(p));
-            operacaoLabel.style.display = anyOp ? '' : 'none';
-        }
-        const sistemaLabel = document.getElementById('sidebar-section-sistema');
-        if (sistemaLabel) {
-            const sysPages = ['sync', 'kommo_sync', 'logs', 'config', 'schedule', 'kommo_dispatcher'];
-            const anySys = role === 'admin' || sysPages.some(p => pages.includes(p));
-            sistemaLabel.style.display = anySys ? '' : 'none';
-        }
-
-        const cfgTab = document.getElementById('cfg-tab-usuarios');
-        if (cfgTab) cfgTab.style.display = role === 'admin' ? '' : 'none';
-
         document.body.dataset.role = role;
+        if (d.categoria) document.body.dataset.categoria = d.categoria;
     } catch (e) { console.error('sidebar permissions', e); }
 }
 
@@ -733,10 +735,11 @@ document.addEventListener('DOMContentLoaded', () => {
     initTopbarUser();
     _initScrollToTop();
     _initNotifPanel();
-    const hash = window.location.hash.replace('#', '') || 'dashboard';
-    if (PAGES.includes(hash)) {
+    const initial = _initialPageFromBody();
+    const hash = window.location.hash.replace('#', '') || initial;
+    if (PAGES.includes(hash) && isPageAllowed(hash)) {
         navigate(hash);
     } else {
-        navigate('dashboard');
+        navigate(initial);
     }
 });

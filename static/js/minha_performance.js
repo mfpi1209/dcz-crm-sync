@@ -89,6 +89,7 @@ async function loadMinhaPerformance(params) {
         if (!effectiveUid && !_mpIsAdmin) {
             if (loading) loading.classList.add('hidden');
             if (noLink) noLink.classList.remove('hidden');
+            if (typeof _dismissBootSplash === 'function') _dismissBootSplash();
             return;
         }
 
@@ -106,6 +107,7 @@ async function loadMinhaPerformance(params) {
 
         if (!insights?.campanha) {
             if (noCamp) noCamp.classList.remove('hidden');
+            if (typeof _dismissBootSplash === 'function') _dismissBootSplash();
             return;
         }
 
@@ -130,6 +132,8 @@ async function loadMinhaPerformance(params) {
         console.error('loadMinhaPerformance', e);
         if (loading) loading.classList.add('hidden');
         if (noCamp) { noCamp.classList.remove('hidden'); noCamp.querySelector('p').textContent = 'Erro ao carregar dados.'; }
+    } finally {
+        if (typeof _dismissBootSplash === 'function') _dismissBootSplash();
     }
 }
 

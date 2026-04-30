@@ -1,6 +1,98 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>eduit. — Gestão Acadêmica</title>
+    <style>
+        /* Render guard: até o JS de navegação SPA assumir o controle, o
+           servidor já decide qual página deve aparecer no primeiro paint
+           (evita flash do "Dashboard Acadêmico" quando o usuário deveria
+           ver "Minha Performance", por exemplo). */
+        body.initial-bootstrap [id^="page-"]:not(#page-{{ nav_initial_page }}) {
+            display: none !important;
+        }
+        body.initial-bootstrap #page-{{ nav_initial_page }} {
+            display: block !important;
+        }
+
+        /* Splash de boot — cobre a tela até o JS aplicar a navegação inicial.
+           Garante que NUNCA seja exibida outra página (ex.: dashboard global)
+           durante o carregamento. */
+        #boot-splash {
+            position: fixed;
+            inset: 0;
+            z-index: 999999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1.25rem;
+            background: #0b1216;
+            color: #e2e8f0;
+            font-family: 'Manrope', 'Inter', system-ui, -apple-system, sans-serif;
+            transition: opacity .25s ease;
+        }
+        html.light #boot-splash {
+            background: #f4f6fa;
+            color: #0f172a;
+        }
+        body:not(.initial-bootstrap) #boot-splash {
+            opacity: 0;
+            pointer-events: none;
+        }
+        #boot-splash .boot-brand {
+            font-weight: 800;
+            font-size: 1.85rem;
+            letter-spacing: -0.02em;
+            line-height: 1;
+        }
+        #boot-splash .boot-brand .accent {
+            color: #2563eb;
+        }
+        html.light #boot-splash .boot-brand .accent {
+            color: #00346F;
+        }
+        #boot-splash .boot-sub {
+            font-size: .68rem;
+            font-weight: 700;
+            letter-spacing: .28em;
+            text-transform: uppercase;
+            opacity: .55;
+        }
+        #boot-splash .boot-spinner {
+            width: 28px;
+            height: 28px;
+            border: 2px solid rgba(148, 163, 184, .25);
+            border-top-color: #2563eb;
+            border-radius: 50%;
+            animation: boot-spin .8s linear infinite;
+        }
+        html.light #boot-splash .boot-spinner {
+            border-top-color: #00346F;
+        }
+        @keyframes boot-spin { to { transform: rotate(360deg); } }
+    </style>
+    <script>
+        /* Aplica o tema persistido o quanto antes para o splash já nascer
+           na cor correta (sem flash claro→escuro). */
+        (function() {
+            try {
+                var t = localStorage.getItem('eduit-theme') || 'dark';
+                document.documentElement.classList.add(t);
+            } catch (e) { document.documentElement.classList.add('dark'); }
+        })();
+        /* Failsafe: se utils.js não chegar a chamar navigate (erro fatal de
+           carregamento), garantimos a remoção do splash. */
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                if (document.body && document.body.classList.contains('initial-bootstrap')) {
+                    document.body.classList.remove('initial-bootstrap');
+                    setTimeout(function() {
+                        var sp = document.getElementById('boot-splash');
+                        if (sp && sp.parentNode) sp.parentNode.removeChild(sp);
+                    }, 350);
+                }
+            }, 2500);
+        });
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
