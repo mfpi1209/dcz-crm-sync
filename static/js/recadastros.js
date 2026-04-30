@@ -286,20 +286,20 @@ function renderRecadTable() {
             : '0.0';
 
         return `
-            <tr class="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors">
+            <tr class="transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40">
                 <td class="px-6 py-4">
-                    <div class="flex items-center gap-3">
-                        <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-lg shadow-cyan-400/50"></span>
-                        <span class="text-sm font-medium text-white">${escapeHtml(row.origem)}</span>
+                    <div class="flex items-center gap-3 min-w-0">
+                        <span class="w-2.5 h-2.5 rounded-full shrink-0 bg-cyan-500 dark:bg-cyan-400 shadow-sm shadow-cyan-500/40"></span>
+                        <span class="text-sm font-medium text-slate-900 dark:text-white font-mono truncate">${escapeHtml(row.origem)}</span>
                     </div>
                 </td>
-                <td class="px-6 py-4 text-sm text-slate-300">${row.total_recadastros.toLocaleString('pt-BR')}</td>
+                <td class="px-6 py-4 text-sm tabular-nums text-slate-800 dark:text-slate-200 font-medium">${row.total_recadastros.toLocaleString('pt-BR')}</td>
                 <td class="px-6 py-4">
-                    <div class="flex items-center gap-3">
-                        <div class="w-32 h-2 bg-slate-800 rounded-full overflow-hidden">
-                            <div class="h-full rounded-full bg-gradient-to-r from-cyan-400 to-violet-500 transition-all" style="width: ${Math.max(parseFloat(percentual), 4)}%"></div>
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <div class="w-36 sm:w-44 h-2 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-700 border border-slate-300/80 dark:border-slate-600/50">
+                            <div class="h-full rounded-full bg-gradient-to-r from-cyan-500 to-violet-600 dark:from-cyan-400 dark:to-violet-500 transition-all" style="width: ${Math.max(parseFloat(percentual), 4)}%"></div>
                         </div>
-                        <span class="text-sm text-slate-300 min-w-[50px]">${percentual}%</span>
+                        <span class="text-sm font-semibold tabular-nums text-slate-800 dark:text-slate-100 min-w-[3.25rem]">${percentual}%</span>
                     </div>
                 </td>
             </tr>

@@ -115,62 +115,63 @@ function renderDistTable(items) {
     tbody.innerHTML = items.map((d, idx) => {
         const isAtivo = d.status === 'Ativo';
         const filaNum = parseInt(d.fila) || 0;
-        const filaBg = filaNum > 5 ? 'bg-rose-500/15 text-rose-400 border-rose-500/30' :
-                       filaNum > 0 ? 'bg-amber-500/15 text-amber-400 border-amber-500/30' :
-                       'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+        const filaBg = filaNum > 5 ? 'bg-rose-100 text-rose-800 border border-rose-200 dark:bg-rose-500/15 dark:text-rose-400 dark:border-rose-500/30' :
+                       filaNum > 0 ? 'bg-amber-100 text-amber-900 border border-amber-200 dark:bg-amber-500/15 dark:text-amber-400 dark:border-amber-500/30' :
+                       'bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20';
 
-        // Avatar com iniciais
         const initials = d.responsavel ? d.responsavel.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '??';
         const avatarColors = ['from-indigo-500 to-purple-500', 'from-emerald-500 to-teal-500', 'from-amber-500 to-orange-500', 'from-rose-500 to-pink-500', 'from-cyan-500 to-blue-500'];
         const avatarColor = avatarColors[idx % avatarColors.length];
 
-        // Tipo badge
-        const tipoBadge = d.tipo_atendimento === 'Atendimento'
-            ? 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30'
-            : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
+        const statusSelectCls = isAtivo
+            ? 'text-emerald-900 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500 bg-emerald-50 dark:bg-emerald-500/20'
+            : 'text-rose-900 dark:text-rose-300 border-rose-300 dark:border-rose-500 bg-rose-50 dark:bg-rose-500/20';
 
-        return `<tr data-id="${esc(d.id)}" class="group hover:bg-slate-800/40 transition-all duration-200">
+        // Tipo: leve destaque sem “pill” pesado
+        const tipoCls = d.tipo_atendimento === 'Atendimento'
+            ? 'border-violet-200 bg-violet-50 text-violet-900 dark:border-indigo-500/35 dark:bg-indigo-500/10 dark:text-indigo-300'
+            : 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-500/35 dark:bg-emerald-500/10 dark:text-emerald-300';
+
+        return `<tr data-id="${esc(d.id)}" class="group hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
             <td class="px-4 py-3">
                 <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br ${avatarColor} flex items-center justify-center text-white text-xs font-bold shadow-lg">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br ${avatarColor} flex items-center justify-center text-white text-xs font-bold shadow-sm">
                         ${initials}
                     </div>
-                    <span class="text-sm font-medium text-slate-200 group-hover:text-white transition-colors">${esc(d.responsavel)}</span>
+                    <span class="text-sm font-medium text-[var(--text-primary)]">${esc(d.responsavel)}</span>
                 </div>
             </td>
             <td class="px-3 py-3 text-center">
-                <select data-field="status" class="px-4 py-2 text-xs font-bold rounded-xl border-2 cursor-pointer transition-all duration-200 outline-none ${isAtivo
-                    ? 'text-emerald-300 border-emerald-500 bg-emerald-500/25 shadow-[0_0_12px_rgba(16,185,129,0.25)] hover:bg-emerald-500/35'
-                    : 'text-rose-300 border-rose-500 bg-rose-500/25 shadow-[0_0_12px_rgba(244,63,94,0.25)] hover:bg-rose-500/35'}">
+                <select data-field="status" class="status-dist-select px-3 py-1.5 text-xs font-semibold rounded-lg border cursor-pointer transition-colors outline-none ${statusSelectCls} hover:opacity-90">
                     <option value="Ativo" ${isAtivo ? 'selected' : ''}>● Ativo</option>
                     <option value="Inativo" ${!isAtivo ? 'selected' : ''}>● Inativo</option>
                 </select>
             </td>
             <td class="px-2 py-2 text-center">
-                <input type="time" value="${esc(d.almoco || '')}" class="text-xs text-slate-300 text-center rounded-lg outline-none" style="background:rgba(15,23,42,0.6);border:1px solid rgba(51,65,85,0.5);padding:6px 8px;width:90px;">
+                <input type="time" value="${esc(d.almoco || '')}" class="input-glass px-2 py-1.5 text-xs text-center tabular-nums w-[92px]">
             </td>
             <td class="px-2 py-2 text-center">
-                <input type="time" value="${esc(d.final_expediente || '')}" class="text-xs text-slate-300 text-center rounded-lg outline-none" style="background:rgba(15,23,42,0.6);border:1px solid rgba(51,65,85,0.5);padding:6px 8px;width:90px;">
+                <input type="time" value="${esc(d.final_expediente || '')}" class="input-glass px-2 py-1.5 text-xs text-center tabular-nums w-[92px]">
             </td>
             <td class="px-2 py-2 text-center">
-                <input type="number" value="${esc(d.pausa || '')}" placeholder="0" class="text-xs text-slate-300 text-center rounded-lg outline-none" style="background:rgba(15,23,42,0.6);border:1px solid rgba(51,65,85,0.5);padding:6px 4px;width:52px;">
+                <input type="number" value="${esc(d.pausa || '')}" placeholder="0" class="input-glass px-2 py-1.5 text-xs text-center tabular-nums w-14">
             </td>
             <td class="px-2 py-2 text-center">
-                <input type="number" value="${esc(d.volume || '')}" placeholder="0" class="text-xs text-slate-300 text-center rounded-lg outline-none" style="background:rgba(15,23,42,0.6);border:1px solid rgba(51,65,85,0.5);padding:6px 4px;width:52px;">
+                <input type="number" value="${esc(d.volume || '')}" placeholder="0" class="input-glass px-2 py-1.5 text-xs text-center tabular-nums w-14">
             </td>
             <td class="px-3 py-3 text-center">
-                <span class="inline-flex items-center justify-center min-w-[40px] px-2.5 py-1 rounded-lg text-xs font-bold border ${filaBg}">
+                <span class="inline-flex items-center justify-center min-w-[2rem] px-2 py-0.5 rounded-md text-xs font-semibold tabular-nums ${filaBg}">
                     ${esc(d.fila || '0')}
                 </span>
             </td>
             <td class="px-3 py-3 text-center whitespace-nowrap">
-                <span class="text-xs text-slate-400 inline-flex items-center gap-1">
-                    <svg class="w-3 h-3 text-slate-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span class="text-xs text-slate-600 dark:text-slate-400 inline-flex items-center gap-1 tabular-nums">
+                    <svg class="w-3 h-3 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     ${esc(d.ultima_execucao || '—')}
                 </span>
             </td>
             <td class="px-3 py-3 text-center">
-                <select data-field="tipo" class="input-glass px-3 py-1.5 text-xs rounded-lg border ${tipoBadge} cursor-pointer hover:opacity-80 transition-opacity">
+                <select data-field="tipo" class="input-glass px-2 py-1.5 text-xs rounded-lg border ${tipoCls} cursor-pointer hover:opacity-90 transition-opacity">
                     <option value="Atendimento" ${d.tipo_atendimento === 'Atendimento' ? 'selected' : ''}>Atendimento</option>
                     <option value="Acolhimento" ${d.tipo_atendimento === 'Acolhimento' ? 'selected' : ''}>Acolhimento</option>
                 </select>
@@ -178,7 +179,7 @@ function renderDistTable(items) {
             <td class="px-3 py-3 text-center">
                 <label class="relative inline-flex items-center cursor-pointer">
                     <input type="checkbox" data-field="distribuir_email" ${d.distribuir_email ? 'checked' : ''} class="sr-only peer">
-                    <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-slate-400 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-600 peer-checked:after:bg-white"></div>
+                    <div class="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-600 peer-checked:after:bg-white shadow-inner"></div>
                 </label>
             </td>
         </tr>`;
@@ -187,9 +188,10 @@ function renderDistTable(items) {
     tbody.querySelectorAll('select[data-field="status"]').forEach(sel => {
         sel.addEventListener('change', function() {
             const isActive = this.value === 'Ativo';
-            this.className = `px-4 py-2 text-xs font-bold rounded-xl border-2 cursor-pointer transition-all duration-200 outline-none ${isActive
-                ? 'text-emerald-300 border-emerald-500 bg-emerald-500/25 shadow-[0_0_12px_rgba(16,185,129,0.25)] hover:bg-emerald-500/35'
-                : 'text-rose-300 border-rose-500 bg-rose-500/25 shadow-[0_0_12px_rgba(244,63,94,0.25)] hover:bg-rose-500/35'}`;
+            const statusSelectCls = isActive
+                ? 'text-emerald-900 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500 bg-emerald-50 dark:bg-emerald-500/20'
+                : 'text-rose-900 dark:text-rose-300 border-rose-300 dark:border-rose-500 bg-rose-50 dark:bg-rose-500/20';
+            this.className = `status-dist-select px-3 py-1.5 text-xs font-semibold rounded-lg border cursor-pointer transition-colors outline-none ${statusSelectCls} hover:opacity-90`;
         });
     });
 }

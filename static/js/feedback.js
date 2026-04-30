@@ -136,7 +136,7 @@ function _fbEscHtml(t) { const d = document.createElement('div'); d.textContent 
 
 function _fbPopulateDD(consultores) {
     const sel = document.getElementById('fbConsultorFilter'), cv = sel.value;
-    sel.innerHTML = '<option value="">Todos os consultores</option>';
+    sel.innerHTML = '<option value="">Todos</option>';
     _fbValidC(consultores).forEach(c => {
         const o = document.createElement('option');
         o.value = c.nomes_originais ? c.nomes_originais[0] : c.consultor;

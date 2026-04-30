@@ -45,18 +45,18 @@ function _paRenderCampanhasList() {
         const badge = c.ativa
             ? '<span class="px-2 py-0.5 text-[10px] rounded-full bg-emerald-500/20 text-emerald-400">Ativa</span>'
             : '<span class="px-2 py-0.5 text-[10px] rounded-full bg-slate-500/20 text-slate-400">Inativa</span>';
-        return `<div class="bg-slate-800/40 rounded-xl p-4 border border-slate-700/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        return `<div class="bg-slate-100/90 dark:bg-slate-800/40 rounded-xl p-4 border border-[var(--border)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 mb-1">
-                    <span class="text-sm font-semibold text-white truncate">${c.nome}</span>
+                    <span class="text-sm font-semibold text-[var(--text-primary)] dark:text-white truncate">${c.nome}</span>
                     ${badge}
                 </div>
                 <p class="text-[10px] text-slate-500">${_paFmtDateBR(c.dt_inicio)} — ${_paFmtDateBR(c.dt_fim)}</p>
                 <p class="text-[10px] text-slate-500 mt-0.5">Base: ${_paFmt(tiers.base||0)} · Inter: ${_paFmt(tiers.intermediaria||0)} · Meta: ${_paFmt(tiers.meta||0)} · Super: ${_paFmt(tiers.supermeta||0)}</p>
             </div>
             <div class="flex items-center gap-1.5 flex-shrink-0">
-                <button onclick="paEditCampanha(${c.id})" class="text-[10px] px-2.5 py-1 rounded-lg border border-slate-600/40 text-slate-400 hover:text-white hover:border-slate-500 transition-all">Editar</button>
-                <button onclick="paToggleCampanha(${c.id},${c.ativa})" class="text-[10px] px-2.5 py-1 rounded-lg border border-slate-600/40 text-slate-400 hover:text-white hover:border-slate-500 transition-all">${c.ativa?'Desativar':'Ativar'}</button>
+                <button onclick="paEditCampanha(${c.id})" class="text-[10px] px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-600/40 text-slate-600 dark:text-slate-400 hover:text-[var(--text-primary)] hover:border-slate-400 dark:hover:border-slate-500 transition-all">Editar</button>
+                <button onclick="paToggleCampanha(${c.id},${c.ativa})" class="text-[10px] px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-600/40 text-slate-600 dark:text-slate-400 hover:text-[var(--text-primary)] hover:border-slate-400 dark:hover:border-slate-500 transition-all">${c.ativa?'Desativar':'Ativar'}</button>
                 <button onclick="paDeleteCampanha(${c.id})" class="text-[10px] px-2.5 py-1 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-all">Excluir</button>
             </div>
         </div>`;
@@ -209,7 +209,7 @@ async function paLoadMetasAgente() {
         }
 
         let html = `<table class="w-full text-xs">
-            <thead><tr class="text-slate-500 border-b border-slate-700/30">
+            <thead><tr class="text-slate-500 border-b border-[var(--border)]">
                 <th class="text-left py-2 pr-3 min-w-[140px]">Agente</th>
                 <th class="text-center px-2 py-2 w-24">Intermediária</th>
                 <th class="text-center px-2 py-2 w-24">Meta</th>
@@ -219,10 +219,10 @@ async function paLoadMetasAgente() {
         _paAgentes.forEach(a => {
             const m = lookup[a.kommo_uid] || {};
             html += `<tr class="border-b border-slate-800/30">
-                <td class="py-1.5 pr-3 text-slate-300 font-medium">${a.name}</td>
-                <td class="px-2 py-1.5"><input type="number" min="0" step="1" value="${m.meta_intermediaria || ''}" data-uid="${a.kommo_uid}" data-field="inter" class="pa-meta-input input-glass px-1.5 py-1 text-center text-xs text-slate-300 w-full"></td>
-                <td class="px-2 py-1.5"><input type="number" min="0" step="1" value="${m.meta || ''}" data-uid="${a.kommo_uid}" data-field="meta" class="pa-meta-input input-glass px-1.5 py-1 text-center text-xs text-slate-300 w-full"></td>
-                <td class="px-2 py-1.5"><input type="number" min="0" step="1" value="${m.supermeta || ''}" data-uid="${a.kommo_uid}" data-field="super" class="pa-meta-input input-glass px-1.5 py-1 text-center text-xs text-slate-300 w-full"></td>
+                <td class="py-1.5 pr-3 text-slate-800 dark:text-slate-300 font-medium">${a.name}</td>
+                <td class="px-2 py-1.5"><input type="number" min="0" step="1" value="${m.meta_intermediaria || ''}" data-uid="${a.kommo_uid}" data-field="inter" class="pa-meta-input input-glass px-1.5 py-1 text-center text-xs text-slate-900 dark:text-slate-300 w-full"></td>
+                <td class="px-2 py-1.5"><input type="number" min="0" step="1" value="${m.meta || ''}" data-uid="${a.kommo_uid}" data-field="meta" class="pa-meta-input input-glass px-1.5 py-1 text-center text-xs text-slate-900 dark:text-slate-300 w-full"></td>
+                <td class="px-2 py-1.5"><input type="number" min="0" step="1" value="${m.supermeta || ''}" data-uid="${a.kommo_uid}" data-field="super" class="pa-meta-input input-glass px-1.5 py-1 text-center text-xs text-slate-900 dark:text-slate-300 w-full"></td>
             </tr>`;
         });
 
@@ -302,11 +302,11 @@ function _paRenderGrupos() {
         const chips = g.membros.map(uid =>
             `<span class="inline-flex items-center px-2 py-0.5 text-[10px] rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">${agentName(uid)}</span>`
         ).join('');
-        return `<div class="bg-slate-800/40 rounded-xl p-4 border border-slate-700/30">
+        return `<div class="bg-slate-100/90 dark:bg-slate-800/40 rounded-xl p-4 border border-[var(--border)]">
             <div class="flex items-center justify-between mb-2">
-                <span class="text-sm font-semibold text-white">${g.nome}</span>
+                <span class="text-sm font-semibold text-[var(--text-primary)] dark:text-white">${g.nome}</span>
                 <div class="flex items-center gap-1.5">
-                    <button onclick="paEditGrupo(${g.id})" class="text-[10px] px-2.5 py-1 rounded-lg border border-slate-600/40 text-slate-400 hover:text-white hover:border-slate-500 transition-all">Editar</button>
+                    <button onclick="paEditGrupo(${g.id})" class="text-[10px] px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-600/40 text-slate-600 dark:text-slate-400 hover:text-[var(--text-primary)] hover:border-slate-400 dark:hover:border-slate-500 transition-all">Editar</button>
                     <button onclick="paDeleteGrupo(${g.id})" class="text-[10px] px-2.5 py-1 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-all">Excluir</button>
                 </div>
             </div>
@@ -350,9 +350,9 @@ function _paRenderGrupoMembrosModal(selectedUids) {
     if (!wrap) return;
     const sel = new Set(selectedUids.map(Number));
     wrap.innerHTML = _paAgentes.map(a => `
-        <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-700/30 cursor-pointer transition-colors">
+        <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/30 cursor-pointer transition-colors">
             <input type="checkbox" value="${a.kommo_uid}" class="pa-grupo-chk rounded border-slate-600 text-emerald-500 focus:ring-emerald-500/30" ${sel.has(a.kommo_uid)?'checked':''}>
-            <span class="text-xs text-slate-300">${a.name}</span>
+            <span class="text-xs text-slate-700 dark:text-slate-300">${a.name}</span>
         </label>
     `).join('');
 }
@@ -421,10 +421,10 @@ async function paLoadDailyGrid() {
         let html = '';
         grupos.forEach(g => {
             const membrosStr = g.membros.map(uid => agentName(uid)).join(', ') || 'Sem membros';
-            html += `<div class="bg-slate-800/40 rounded-xl p-4 border border-slate-700/30">
+            html += `<div class="bg-slate-100/90 dark:bg-slate-800/40 rounded-xl p-4 border border-[var(--border)]">
                 <div class="flex items-center justify-between mb-3">
                     <div>
-                        <span class="text-sm font-semibold text-white">${g.nome}</span>
+                        <span class="text-sm font-semibold text-[var(--text-primary)] dark:text-white">${g.nome}</span>
                         <p class="text-[10px] text-slate-500">${membrosStr}</p>
                     </div>
                 </div>
@@ -441,21 +441,21 @@ async function paLoadDailyGrid() {
                                 <td class="text-slate-400 pr-3 py-1 font-medium">Meta</td>
                                 ${_paDias.map((_, dow) => {
                                     const v = lookup[`${g.id}_${dow}`]?.meta_diaria || '';
-                                    return `<td class="px-1 py-1"><input type="number" min="0" value="${v}" data-gid="${g.id}" data-dow="${dow}" data-field="meta" class="pa-daily-input input-glass px-1.5 py-1 text-center text-xs text-slate-300 w-full"></td>`;
+                                    return `<td class="px-1 py-1"><input type="number" min="0" value="${v}" data-gid="${g.id}" data-dow="${dow}" data-field="meta" class="pa-daily-input input-glass px-1.5 py-1 text-center text-xs text-slate-900 dark:text-slate-300 w-full"></td>`;
                                 }).join('')}
                             </tr>
                             <tr>
                                 <td class="text-slate-400 pr-3 py-1 font-medium">Fixo R$</td>
                                 ${_paDias.map((_, dow) => {
                                     const v = lookup[`${g.id}_${dow}`]?.bonus_fixo || '';
-                                    return `<td class="px-1 py-1"><input type="number" min="0" step="0.01" value="${v}" data-gid="${g.id}" data-dow="${dow}" data-field="fixo" class="pa-daily-input input-glass px-1.5 py-1 text-center text-xs text-slate-300 w-full"></td>`;
+                                    return `<td class="px-1 py-1"><input type="number" min="0" step="0.01" value="${v}" data-gid="${g.id}" data-dow="${dow}" data-field="fixo" class="pa-daily-input input-glass px-1.5 py-1 text-center text-xs text-slate-900 dark:text-slate-300 w-full"></td>`;
                                 }).join('')}
                             </tr>
                             <tr>
                                 <td class="text-slate-400 pr-3 py-1 font-medium">Extra R$</td>
                                 ${_paDias.map((_, dow) => {
                                     const v = lookup[`${g.id}_${dow}`]?.bonus_extra || '';
-                                    return `<td class="px-1 py-1"><input type="number" min="0" step="0.01" value="${v}" data-gid="${g.id}" data-dow="${dow}" data-field="extra" class="pa-daily-input input-glass px-1.5 py-1 text-center text-xs text-slate-300 w-full"></td>`;
+                                    return `<td class="px-1 py-1"><input type="number" min="0" step="0.01" value="${v}" data-gid="${g.id}" data-dow="${dow}" data-field="extra" class="pa-daily-input input-glass px-1.5 py-1 text-center text-xs text-slate-900 dark:text-slate-300 w-full"></td>`;
                                 }).join('')}
                             </tr>
                         </tbody>
@@ -554,8 +554,8 @@ async function _paLoadLinks() {
             return;
         }
         container.innerHTML = links.map(l => `
-            <div class="flex items-center justify-between p-2 rounded-lg bg-slate-800/40 border border-pink-500/10">
-                <span class="text-xs text-slate-300">
+            <div class="flex items-center justify-between p-2 rounded-lg bg-slate-100/90 dark:bg-slate-800/40 border border-pink-500/20 dark:border-pink-500/10">
+                <span class="text-xs text-slate-700 dark:text-slate-300">
                     <span class="text-pink-400 font-medium">${l.nome_a}</span>
                     <span class="text-slate-600 mx-1">⟷</span>
                     <span class="text-pink-400 font-medium">${l.nome_b}</span>

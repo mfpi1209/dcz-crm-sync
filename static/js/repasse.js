@@ -277,9 +277,11 @@ function _repRenderCarrossel(agentes) {
         const isSelected = String(a.id) === String(_repSelectedUid);
         const baraPct = Math.round((repasse / maxRepasse) * 100);
         const borderClass = isSelected
-            ? 'border-2 border-purple-400 shadow-lg shadow-purple-500/20'
-            : 'border border-slate-700/50 hover:border-purple-500/40 hover:shadow-md hover:shadow-purple-500/10';
-        const bgCard = isSelected ? 'bg-gradient-to-b from-purple-900/30 to-slate-800/80' : 'bg-slate-800/60 hover:bg-slate-800/80';
+            ? 'border-2 border-violet-500 dark:border-purple-400 shadow-lg shadow-violet-300/40 dark:shadow-purple-500/20'
+            : 'border border-slate-200 dark:border-slate-700/50 hover:border-violet-400 dark:hover:border-purple-500/40 hover:shadow-md hover:shadow-slate-200/80 dark:hover:shadow-purple-500/10';
+        const bgCard = isSelected
+            ? 'bg-violet-50 dark:bg-gradient-to-b dark:from-purple-900/30 dark:to-slate-800/80'
+            : 'bg-white dark:bg-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/80';
 
         return `<div class="rep-card flex-shrink-0 w-48 rounded-2xl p-4 cursor-pointer transition-all duration-200 ${bgCard} ${borderClass} snap-start group"
                      data-uid="${a.id || ''}"
@@ -287,16 +289,16 @@ function _repRenderCarrossel(agentes) {
                      onclick="repSelecionarAgente('${a.id || ''}', '${(a.nome||'').replace(/'/g,"\\'")}', ${i})">
             <!-- Avatar com rank -->
             <div class="relative flex justify-center mb-3">
-                <div class="w-14 h-14 rounded-2xl ${bgClass} ${textClass} flex items-center justify-center text-xl font-bold select-none shadow-lg ring-2 ${isSelected ? 'ring-purple-400/60' : 'ring-white/5 group-hover:ring-white/10'} transition-all">
+                <div class="w-14 h-14 rounded-2xl ${bgClass} ${textClass} flex items-center justify-center text-xl font-bold select-none shadow-lg ring-2 ${isSelected ? 'ring-violet-500 dark:ring-purple-400/60' : 'ring-slate-200 dark:ring-white/5 group-hover:ring-slate-300 dark:group-hover:ring-white/10'} transition-all">
                     ${initials}
                 </div>
                 ${i === 0 ? '<span class="absolute -top-1 -right-1 w-5 h-5 bg-amber-400 rounded-full flex items-center justify-center text-[9px] font-bold text-amber-900">1</span>' : ''}
             </div>
             <!-- Nome -->
-            <p class="text-xs font-bold text-slate-200 text-center truncate mb-1" title="${a.nome || '—'}">${a.nome || '—'}</p>
+            <p class="text-xs font-bold text-slate-900 dark:text-slate-200 text-center truncate mb-1" title="${a.nome || '—'}">${a.nome || '—'}</p>
             <p class="text-[9px] text-slate-500 text-center mb-3">${(a.qtd_alunos||0).toLocaleString('pt-BR')} alunos</p>
             <!-- Barra de progresso -->
-            <div class="h-1 rounded-full bg-slate-700/60 mb-2.5 overflow-hidden">
+            <div class="h-1 rounded-full bg-slate-200 dark:bg-slate-700/60 mb-2.5 overflow-hidden">
                 <div class="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-400 transition-all duration-500" style="width:${baraPct}%"></div>
             </div>
             <!-- Stats -->
@@ -304,19 +306,19 @@ function _repRenderCarrossel(agentes) {
                 ${_repIsAdmin ? `
                 <div class="flex justify-between items-center text-[10px]">
                     <span class="text-slate-500 flex items-center gap-0.5"><span class="material-symbols-outlined text-[10px]">account_balance_wallet</span> Recebido</span>
-                    <span class="text-emerald-400 font-mono text-[10px]">${_repFmtMoeda(a.total_valor)}</span>
+                    <span class="text-emerald-700 dark:text-emerald-400 font-mono text-[10px]">${_repFmtMoeda(a.total_valor)}</span>
                 </div>` : ''}
                 <div class="flex justify-between items-center text-[10px]">
-                    <span class="text-amber-400/80 flex items-center gap-0.5"><span class="material-symbols-outlined text-[10px]">savings</span> Repasse</span>
-                    <span class="text-amber-400 font-mono font-bold">${_repFmtMoeda(repasse)}</span>
+                    <span class="text-amber-700/80 dark:text-amber-400/80 flex items-center gap-0.5"><span class="material-symbols-outlined text-[10px]">savings</span> Repasse</span>
+                    <span class="text-amber-800 dark:text-amber-400 font-mono font-bold">${_repFmtMoeda(repasse)}</span>
                 </div>
             </div>
             ${isSelected ? `
-            <div class="mt-3 flex items-center justify-center gap-1 text-[9px] text-purple-400 bg-purple-500/10 border border-purple-500/20 rounded-full py-0.5">
+            <div class="mt-3 flex items-center justify-center gap-1 text-[9px] text-violet-700 dark:text-purple-400 bg-violet-100 dark:bg-purple-500/10 border border-violet-300 dark:border-purple-500/20 rounded-full py-0.5">
                 <span class="material-symbols-outlined text-[10px]">check_circle</span>
                 <span class="font-semibold uppercase tracking-wider">Selecionado</span>
             </div>` : `
-            <div class="mt-3 flex items-center justify-center gap-1 text-[9px] text-slate-600 group-hover:text-slate-400 transition-colors">
+            <div class="mt-3 flex items-center justify-center gap-1 text-[9px] text-slate-500 group-hover:text-[#00346f] dark:group-hover:text-slate-400 transition-colors">
                 <span class="material-symbols-outlined text-[10px]">open_in_new</span>
                 <span>Ver detalhe</span>
             </div>`}
@@ -430,14 +432,14 @@ function _repRenderDetalhe(alunos) {
     });
     tbody.innerHTML = alunos.map(a => {
         const repasse = (a.valor || 0) * taxa;
-        return `<tr class="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors rep-detalhe-row"
+        return `<tr class="border-b border-slate-200 dark:border-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800/20 transition-colors rep-detalhe-row"
             data-search="${(a.rgm||'').toLowerCase()} ${(a.tipo_pagamento||'').toLowerCase()} ${(a.turma||'').toLowerCase()}">
-            <td class="py-1.5 px-4 font-mono text-slate-400">${a.rgm || '—'}</td>
-            <td class="py-1.5 px-4 text-slate-300">${a.tipo_pagamento || '—'}</td>
-            <td class="py-1.5 px-4 text-slate-400">${a.turma || '—'}</td>
-            <td class="py-1.5 px-4 text-slate-400">${a.ciclo || '—'}</td>
-            ${_repIsAdmin ? `<td class="py-1.5 px-4 text-right text-emerald-400 font-mono rep-col-recebido">${_repFmtMoeda(a.valor)}</td>` : ''}
-            <td class="py-1.5 px-4 text-right text-amber-400 font-mono font-semibold">${_repFmtMoeda(repasse)}</td>
+            <td class="py-1.5 px-4 font-mono text-slate-600 dark:text-slate-400">${a.rgm || '—'}</td>
+            <td class="py-1.5 px-4 text-slate-800 dark:text-slate-300">${a.tipo_pagamento || '—'}</td>
+            <td class="py-1.5 px-4 text-slate-600 dark:text-slate-400">${a.turma || '—'}</td>
+            <td class="py-1.5 px-4 text-slate-600 dark:text-slate-400">${a.ciclo || '—'}</td>
+            ${_repIsAdmin ? `<td class="py-1.5 px-4 text-right text-emerald-700 dark:text-emerald-400 font-mono rep-col-recebido">${_repFmtMoeda(a.valor)}</td>` : ''}
+            <td class="py-1.5 px-4 text-right text-amber-800 dark:text-amber-400 font-mono font-semibold">${_repFmtMoeda(repasse)}</td>
         </tr>`;
     }).join('');
 }

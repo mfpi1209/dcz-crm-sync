@@ -36,7 +36,7 @@ async function _loadIntelOverview() {
             const label = INTEL_TIPO_LABELS[tipo];
             html += `<div class="glass-card p-4 border ${c.border} bg-gradient-to-br ${c.bg}">
                 <p class="text-xs font-medium text-slate-400 mb-1">${label}</p>
-                <p class="text-2xl font-bold text-white font-display">${s ? s.row_count.toLocaleString('pt-BR') : '—'}</p>
+                <p class="text-2xl font-bold text-[var(--text-primary)] font-display tabular-nums">${s ? s.row_count.toLocaleString('pt-BR') : '—'}</p>
                 <p class="text-[10px] text-slate-500 mt-1">${s ? s.uploaded_at : 'Nenhum snapshot'}</p>
             </div>`;
         }
@@ -55,17 +55,17 @@ async function _loadIntelCompare() {
         if (d.error) { container.innerHTML = `<p class="text-slate-500 text-sm col-span-3">${d.error}</p>`; detail.innerHTML=''; return; }
         const sa = d.snap_a, sb = d.snap_b;
         const deltaP = sb && sb.row_count > 0 ? ((sa.row_count - sb.row_count) / sb.row_count * 100).toFixed(1) : '—';
-        const deltaClass = d.delta_total > 0 ? 'text-emerald-400' : d.delta_total < 0 ? 'text-rose-400' : 'text-slate-400';
+        const deltaClass = d.delta_total > 0 ? 'text-emerald-700 dark:text-emerald-400' : d.delta_total < 0 ? 'text-rose-700 dark:text-rose-400' : 'text-slate-600 dark:text-slate-400';
         const deltaSign = d.delta_total > 0 ? '+' : '';
         container.innerHTML = `
             <div class="glass-card p-4">
                 <p class="text-xs text-slate-500 mb-1">Snapshot Atual</p>
-                <p class="text-xl font-bold text-white">${sa.row_count.toLocaleString('pt-BR')}</p>
+                <p class="text-xl font-bold text-[var(--text-primary)] tabular-nums">${sa.row_count.toLocaleString('pt-BR')}</p>
                 <p class="text-[10px] text-slate-500">${sa.uploaded_at}</p>
             </div>
             <div class="glass-card p-4">
                 <p class="text-xs text-slate-500 mb-1">Snapshot Anterior</p>
-                <p class="text-xl font-bold text-white">${sb ? sb.row_count.toLocaleString('pt-BR') : 'N/D'}</p>
+                <p class="text-xl font-bold text-[var(--text-primary)] tabular-nums">${sb ? sb.row_count.toLocaleString('pt-BR') : 'N/D'}</p>
                 <p class="text-[10px] text-slate-500">${sb ? sb.uploaded_at : '—'}</p>
             </div>
             <div class="glass-card p-4">
@@ -88,7 +88,7 @@ async function _loadIntelCompare() {
                 const va = statsA[m], vb = statsB[m];
                 const delta = vb != null ? va - vb : 0;
                 const cls = delta > 0 ? 'text-emerald-400' : delta < 0 ? 'text-rose-400' : 'text-slate-500';
-                detailHtml += `<div class="bg-slate-800/40 rounded-lg p-3"><p class="text-[10px] text-slate-500 uppercase">${m.replace(/_/g,' ')}</p><p class="text-sm font-bold text-white">${typeof va==='number'?va.toLocaleString('pt-BR'):va}</p>${vb!=null?`<p class="text-[10px] ${cls}">${delta>0?'+':''}${delta.toLocaleString('pt-BR')}</p>`:''}
+                detailHtml += `<div class="bg-slate-100 dark:bg-slate-800/40 rounded-lg p-3 border border-slate-200 dark:border-slate-700/50"><p class="text-[10px] text-slate-500 uppercase">${m.replace(/_/g,' ')}</p><p class="text-sm font-bold text-[var(--text-primary)] tabular-nums">${typeof va==='number'?va.toLocaleString('pt-BR'):va}</p>${vb!=null?`<p class="text-[10px] ${cls}">${delta>0?'+':''}${delta.toLocaleString('pt-BR')}</p>`:''}
                 </div>`;
             }
             detailHtml += '</div>';
@@ -117,8 +117,8 @@ async function _loadIntelCrossref() {
             const pct = d.total_a > 0 ? (d.em_ambos / d.total_a * 100).toFixed(1) : '0';
             html += `<div class="glass-card p-4">
                 <p class="text-xs text-slate-500 mb-2">${label}</p>
-                <p class="text-xl font-bold text-white">${d.em_ambos.toLocaleString('pt-BR')} <span class="text-sm text-cyan-400">(${pct}%)</span></p>
-                <div class="w-full bg-slate-800 rounded-full h-1.5 mt-2">
+                <p class="text-xl font-bold text-[var(--text-primary)] tabular-nums">${d.em_ambos.toLocaleString('pt-BR')} <span class="text-sm text-cyan-600 dark:text-cyan-400">(${pct}%)</span></p>
+                <div class="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 mt-2">
                     <div class="bg-cyan-500 h-1.5 rounded-full" style="width:${Math.min(pct,100)}%"></div>
                 </div>
                 <div class="flex justify-between text-[10px] text-slate-500 mt-1">
@@ -210,13 +210,13 @@ async function _loadIntelAlerts() {
         if (alerts.length === 0) {
             alerts.push({level:'low', icon:'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', title:'Nenhum alerta no momento', desc:'Faça upload dos snapshots para gerar alertas automáticos.'});
         }
-        const levelColors = {high:'border-rose-500/60 bg-rose-500/5',medium:'border-amber-500/60 bg-amber-500/5',low:'border-slate-700/40 bg-slate-800/20'};
+        const levelColors = {high:'border-rose-300 dark:border-rose-500/60 bg-rose-50 dark:bg-rose-500/5',medium:'border-amber-300 dark:border-amber-500/60 bg-amber-50 dark:bg-amber-500/5',low:'border-slate-200 dark:border-slate-700/40 bg-slate-50 dark:bg-slate-800/20'};
         const levelIcons = {high:'text-rose-400',medium:'text-amber-400',low:'text-slate-500'};
         container.innerHTML = alerts.map(a => `
             <div class="border rounded-xl p-4 flex items-start gap-3 ${levelColors[a.level]}">
                 <svg class="w-5 h-5 flex-shrink-0 mt-0.5 ${levelIcons[a.level]}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${a.icon}"/></svg>
                 <div class="flex-1">
-                    <p class="text-sm font-semibold text-white">${a.title}</p>
+                    <p class="text-sm font-semibold text-[var(--text-primary)]">${a.title}</p>
                     <p class="text-xs text-slate-400 mt-0.5">${a.desc}</p>
                 </div>
                 ${a.exportParams ? `<button onclick="window.open('/api/snapshots/crossref/export?${a.exportParams}','_blank')" class="flex-shrink-0 btn-secondary text-[10px] px-2.5 py-1 rounded-lg flex items-center gap-1" title="Exportar CSV">
@@ -418,13 +418,13 @@ async function _loadCommLog() {
         tbody.innerHTML = items.map(i => {
             const chIcon = _channelIcons[i.channel] || _channelIcons.email;
             const stBadge = _statusBadge[i.status] || _statusBadge.pendente;
-            return `<tr class="border-b border-slate-800/40 hover:bg-slate-800/30 transition">
-                <td class="py-2 pr-2 text-xs text-slate-400">${i.sent_at || '—'}</td>
-                <td class="py-2 pr-2 font-mono text-xs">${esc(i.rgm || '—')}</td>
-                <td class="py-2 pr-2 text-xs">${esc(i.rule_name || '—')}</td>
+            return `<tr class="border-b border-slate-200 dark:border-slate-800/40 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+                <td class="py-2 pr-2 text-xs text-slate-500 dark:text-slate-400">${i.sent_at || '—'}</td>
+                <td class="py-2 pr-2 font-mono text-xs text-[var(--text-primary)]">${esc(i.rgm || '—')}</td>
+                <td class="py-2 pr-2 text-xs text-slate-700 dark:text-slate-200">${esc(i.rule_name || '—')}</td>
                 <td class="py-2 pr-2">${chIcon}</td>
                 <td class="py-2 pr-2"><span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${stBadge}">${i.status}</span></td>
-                <td class="py-2 text-xs text-slate-400 max-w-xs truncate">${esc((i.message_preview || '').substring(0, 80))}</td>
+                <td class="py-2 text-xs text-slate-500 dark:text-slate-400 max-w-xs truncate">${esc((i.message_preview || '').substring(0, 80))}</td>
             </tr>`;
         }).join('');
     } catch(e) { console.error('Comm log error:', e); }
@@ -455,13 +455,13 @@ async function _loadCommRules() {
                 : 'bg-slate-500/15 text-slate-400 border-slate-500/30';
             const enLbl = r.enabled ? 'Ativa' : 'Inativa';
             const chIcon = _channelIcons[r.channel] || _channelIcons.email;
-            return `<tr class="border-b border-slate-800/40 hover:bg-slate-800/30 transition">
+            return `<tr class="border-b border-slate-200 dark:border-slate-800/40 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
                 <td class="py-2.5">
                     <button onclick="_toggleRuleEnabled(${r.id}, ${!r.enabled})" title="${r.enabled ? 'Desativar' : 'Ativar'}" class="cursor-pointer">
                         <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${enCls}">${enLbl}</span>
                     </button>
                 </td>
-                <td class="py-2.5 font-medium">${esc(r.name)}</td>
+                <td class="py-2.5 font-medium text-[var(--text-primary)]">${esc(r.name)}</td>
                 <td class="py-2.5 text-xs">${audienceLabels[r.audience] || r.audience}</td>
                 <td class="py-2.5 text-xs">${triggerLabels[r.trigger_type] || r.trigger_type} (${r.trigger_days}d)</td>
                 <td class="py-2.5">${chIcon} <span class="text-xs ml-1">${r.channel}${r.escalation_channel ? ' → '+r.escalation_channel : ''}</span></td>
@@ -495,20 +495,20 @@ function _showRuleModal(ruleId) {
     modal.id = 'rule-modal';
     modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm';
     modal.innerHTML = `
-        <div class="glass-card p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" style="background:rgba(15,23,42,0.95)">
-            <h3 class="text-lg font-bold text-white font-display mb-5">${isNew ? 'Nova Regra' : 'Editar Regra'}</h3>
+        <div class="glass-card p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto shadow-xl">
+            <h3 class="text-lg font-bold text-[var(--text-primary)] font-display mb-5">${isNew ? 'Nova Regra' : 'Editar Regra'}</h3>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="md:col-span-2">
                     <label class="block text-xs text-slate-500 mb-1 font-medium">Nome</label>
-                    <input id="rule-name" value="${esc(r.name)}" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg">
+                    <input id="rule-name" value="${esc(r.name)}" class="input-glass px-3 py-2 text-sm w-full rounded-lg">
                 </div>
                 <div class="md:col-span-2">
                     <label class="block text-xs text-slate-500 mb-1 font-medium">Descrição</label>
-                    <input id="rule-desc" value="${esc(r.description)}" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg">
+                    <input id="rule-desc" value="${esc(r.description)}" class="input-glass px-3 py-2 text-sm w-full rounded-lg">
                 </div>
                 <div>
                     <label class="block text-xs text-slate-500 mb-1 font-medium">Audiência</label>
-                    <select id="rule-audience" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg">
+                    <select id="rule-audience" class="input-glass px-3 py-2 text-sm w-full rounded-lg">
                         <option value="todos" ${r.audience==='todos'?'selected':''}>Todos</option>
                         <option value="calouros" ${r.audience==='calouros'?'selected':''}>Calouros</option>
                         <option value="veteranos" ${r.audience==='veteranos'?'selected':''}>Veteranos</option>
@@ -517,7 +517,7 @@ function _showRuleModal(ruleId) {
                 </div>
                 <div>
                     <label class="block text-xs text-slate-500 mb-1 font-medium">Tipo de Gatilho</label>
-                    <select id="rule-trigger" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg">
+                    <select id="rule-trigger" class="input-glass px-3 py-2 text-sm w-full rounded-lg">
                         <option value="inatividade" ${r.trigger_type==='inatividade'?'selected':''}>Inatividade</option>
                         <option value="score_baixo" ${r.trigger_type==='score_baixo'?'selected':''}>Score Baixo</option>
                         <option value="primeiro_acesso" ${r.trigger_type==='primeiro_acesso'?'selected':''}>1º Acesso</option>
@@ -526,11 +526,11 @@ function _showRuleModal(ruleId) {
                 </div>
                 <div>
                     <label class="block text-xs text-slate-500 mb-1 font-medium">Dias do Gatilho</label>
-                    <input id="rule-trigdays" type="number" value="${r.trigger_days}" min="1" max="365" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg">
+                    <input id="rule-trigdays" type="number" value="${r.trigger_days}" min="1" max="365" class="input-glass px-3 py-2 text-sm w-full rounded-lg">
                 </div>
                 <div>
                     <label class="block text-xs text-slate-500 mb-1 font-medium">Canal Principal</label>
-                    <select id="rule-channel" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg">
+                    <select id="rule-channel" class="input-glass px-3 py-2 text-sm w-full rounded-lg">
                         <option value="email" ${r.channel==='email'?'selected':''}>E-mail</option>
                         <option value="whatsapp" ${r.channel==='whatsapp'?'selected':''}>WhatsApp</option>
                         <option value="ambos" ${r.channel==='ambos'?'selected':''}>Ambos</option>
@@ -538,7 +538,7 @@ function _showRuleModal(ruleId) {
                 </div>
                 <div>
                     <label class="block text-xs text-slate-500 mb-1 font-medium">Canal de Escalação</label>
-                    <select id="rule-esc-channel" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg">
+                    <select id="rule-esc-channel" class="input-glass px-3 py-2 text-sm w-full rounded-lg">
                         <option value="" ${!r.escalation_channel?'selected':''}>Nenhum</option>
                         <option value="whatsapp" ${r.escalation_channel==='whatsapp'?'selected':''}>WhatsApp</option>
                         <option value="email" ${r.escalation_channel==='email'?'selected':''}>E-mail</option>
@@ -547,28 +547,28 @@ function _showRuleModal(ruleId) {
                 </div>
                 <div>
                     <label class="block text-xs text-slate-500 mb-1 font-medium">Escalar Após (dias)</label>
-                    <input id="rule-esc-days" type="number" value="${r.escalation_after_days || ''}" min="1" max="30" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg" placeholder="—">
+                    <input id="rule-esc-days" type="number" value="${r.escalation_after_days || ''}" min="1" max="30" class="input-glass px-3 py-2 text-sm w-full rounded-lg" placeholder="—">
                 </div>
                 <div>
                     <label class="block text-xs text-slate-500 mb-1 font-medium">Cooldown (dias)</label>
-                    <input id="rule-cooldown" type="number" value="${r.cooldown_days}" min="1" max="30" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg">
+                    <input id="rule-cooldown" type="number" value="${r.cooldown_days}" min="1" max="30" class="input-glass px-3 py-2 text-sm w-full rounded-lg">
                 </div>
                 <div>
                     <label class="block text-xs text-slate-500 mb-1 font-medium">Máx por Semana</label>
-                    <input id="rule-maxweek" type="number" value="${r.max_per_week}" min="1" max="10" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg">
+                    <input id="rule-maxweek" type="number" value="${r.max_per_week}" min="1" max="10" class="input-glass px-3 py-2 text-sm w-full rounded-lg">
                 </div>
                 <div>
                     <label class="block text-xs text-slate-500 mb-1 font-medium">Prioridade</label>
-                    <input id="rule-priority" type="number" value="${r.priority}" min="0" max="100" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg">
+                    <input id="rule-priority" type="number" value="${r.priority}" min="0" max="100" class="input-glass px-3 py-2 text-sm w-full rounded-lg">
                 </div>
                 <div class="md:col-span-2">
                     <label class="block text-xs text-slate-500 mb-1 font-medium">Template da Mensagem</label>
-                    <textarea id="rule-template" rows="4" class="input-glass px-3 py-2 text-sm text-slate-200 w-full rounded-lg" placeholder="Olá {{primeiro_nome}}, notamos que...">${esc(r.message_template)}</textarea>
+                    <textarea id="rule-template" rows="4" class="input-glass px-3 py-2 text-sm w-full rounded-lg" placeholder="Olá {{primeiro_nome}}, notamos que...">${esc(r.message_template)}</textarea>
                     <p class="text-[10px] text-slate-600 mt-1">Variáveis: {{nome}}, {{primeiro_nome}}, {{curso}}, {{polo}}, {{email}}, {{rgm}}, {{dias_sem_acesso}}, {{score}}</p>
                 </div>
                 <div class="flex items-center gap-2">
                     <input type="checkbox" id="rule-enabled" ${r.enabled ? 'checked' : ''} class="rounded border-slate-600">
-                    <label for="rule-enabled" class="text-sm text-slate-300">Regra ativa</label>
+                    <label for="rule-enabled" class="text-sm text-slate-700 dark:text-slate-300">Regra ativa</label>
                 </div>
             </div>
             <div class="flex justify-end gap-3 mt-6">

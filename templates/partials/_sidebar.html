@@ -2,15 +2,13 @@
 
     <!-- Sidebar -->
     <aside id="sidebar" class="w-72 glass-sidebar flex flex-col flex-shrink-0 transition-transform duration-300 md:translate-x-0" style="height:100vh;max-height:100vh">
-        <!-- Logo -->
-        <div class="px-5 py-5 flex items-center gap-3 border-b border-[var(--border)]">
-            <div class="w-10 h-10 rounded-tremor-default bg-primary text-white flex items-center justify-center">
-                <span class="material-symbols-outlined text-xl">school</span>
-            </div>
-            <div>
-                <h1 class="text-base font-bold font-display"><span class="text-gray-900 dark:text-white">edu</span><span class="text-primary">it.</span></h1>
-                <p class="text-[10px] text-gray-400 font-medium tracking-wider uppercase">Cockpit de Gestão</p>
-            </div>
+        <!-- Logo / Brand -->
+        <div class="px-6 py-6 border-b border-[var(--border)]">
+            <h1 class="font-headline font-extrabold text-[1.05rem] uppercase tracking-tight leading-none"
+                style="color: var(--primary)">
+                <span class="text-[var(--text-primary)]">edu</span>it.
+            </h1>
+            <p class="text-[10px] font-bold uppercase tracking-[0.2em] mt-1.5 text-[var(--text-secondary)]">Cockpit · Gestão</p>
         </div>
 
         <!-- Nav -->
@@ -29,18 +27,22 @@
                     Avisos
                     <span id="av-sidebar-badge" class="hidden ml-auto text-[10px] font-bold bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center">0</span>
                 </a>
+                <a href="#profile" onclick="navigate('profile')" class="sidebar-link" data-page="profile">
+                    <span class="material-symbols-outlined text-lg">account_circle</span>
+                    Meu Perfil
+                </a>
             </div>
 
             <!-- OPERAÇÃO -->
-            <div class="mt-5 mb-1" id="sidebar-section-operacao">
-                <p class="sidebar-section-label">Operação</p>
+            <div class="mt-6 mb-2" id="sidebar-section-operacao">
+                <p class="sidebar-section-label">— Operação —</p>
             </div>
 
             <!-- Acadêmico -->
             <div class="sidebar-group" data-group="academico">
                 <button class="sidebar-group-toggle" onclick="toggleSidebarGroup('academico')">
-                    <span class="flex items-center gap-2">
-                        <span class="material-symbols-outlined text-sm text-sky-400">school</span>
+                    <span class="flex items-center gap-2.5">
+                        <span class="material-symbols-outlined text-base" style="color: var(--primary)">school</span>
                         Acadêmico
                     </span>
                     <span class="material-symbols-outlined text-sm sidebar-group-chevron">expand_more</span>
@@ -76,8 +78,8 @@
             <!-- Ferramentas -->
             <div class="sidebar-group" data-group="ferramentas">
                 <button class="sidebar-group-toggle" onclick="toggleSidebarGroup('ferramentas')">
-                    <span class="flex items-center gap-2">
-                        <span class="material-symbols-outlined text-sm text-violet-400">lightbulb</span>
+                    <span class="flex items-center gap-2.5">
+                        <span class="material-symbols-outlined text-base" style="color: var(--primary)">lightbulb</span>
                         Ferramentas
                     </span>
                     <span class="material-symbols-outlined text-sm sidebar-group-chevron">expand_more</span>
@@ -105,8 +107,8 @@
             <!-- Comercial -->
             <div class="sidebar-group" data-group="comercial">
                 <button class="sidebar-group-toggle" onclick="toggleSidebarGroup('comercial')">
-                    <span class="flex items-center gap-2">
-                        <span class="material-symbols-outlined text-sm text-emerald-400">trending_up</span>
+                    <span class="flex items-center gap-2.5">
+                        <span class="material-symbols-outlined text-base" style="color: var(--secondary)">trending_up</span>
                         Comercial
                     </span>
                     <span class="material-symbols-outlined text-sm sidebar-group-chevron">expand_more</span>
@@ -126,7 +128,7 @@
                     </a>
                     <a href="#inscricao" onclick="navigate('inscricao')" class="sidebar-link sidebar-sub" data-page="inscricao">
                         <span class="material-symbols-outlined text-base">assignment</span>
-                        Inscrição Automática
+                        Inscrições
                     </a>
                     <a href="#recadastros" onclick="navigate('recadastros')" class="sidebar-link sidebar-sub" data-page="recadastros">
                         <span class="material-symbols-outlined text-base">person_search</span>
@@ -162,8 +164,8 @@
             <!-- Vocacional -->
             <div class="sidebar-group" data-group="vocacional">
                 <button class="sidebar-group-toggle" onclick="toggleSidebarGroup('vocacional')">
-                    <span class="flex items-center gap-2">
-                        <span class="material-symbols-outlined text-sm text-violet-400">lightbulb</span>
+                    <span class="flex items-center gap-2.5">
+                        <span class="material-symbols-outlined text-base" style="color: var(--primary-medium)">psychology</span>
                         Vocacional
                     </span>
                     <span class="material-symbols-outlined text-sm sidebar-group-chevron">expand_more</span>
@@ -203,9 +205,9 @@
             <!-- META - CAMPANHAS -->
             <div class="sidebar-group" data-group="meta">
                 <button class="sidebar-group-toggle" onclick="toggleSidebarGroup('meta')">
-                    <span class="flex items-center gap-2">
-                        <span class="material-symbols-outlined text-sm text-blue-400">pie_chart</span>
-                        Meta - Campanhas
+                    <span class="flex items-center gap-2.5">
+                        <span class="material-symbols-outlined text-base" style="color: var(--primary)">pie_chart</span>
+                        Meta · Campanhas
                     </span>
                     <span class="material-symbols-outlined text-sm sidebar-group-chevron">expand_more</span>
                 </button>
@@ -220,8 +222,8 @@
             <!-- SISTEMA -->
             <div class="sidebar-group mt-5" data-group="sistema">
                 <button class="sidebar-group-toggle" onclick="toggleSidebarGroup('sistema')">
-                    <span class="flex items-center gap-2">
-                        <span class="material-symbols-outlined text-sm text-gray-400">settings</span>
+                    <span class="flex items-center gap-2.5">
+                        <span class="material-symbols-outlined text-base" style="color: var(--outline)">settings</span>
                         Sistema
                     </span>
                     <span class="material-symbols-outlined text-sm sidebar-group-chevron">expand_more</span>
@@ -278,14 +280,20 @@
         </nav>
 
         <!-- Footer -->
-        <div class="flex-shrink-0 px-4 py-3 border-t border-[var(--border)] space-y-2">
+        <div class="flex-shrink-0 px-4 py-4 border-t border-[var(--border)] space-y-3">
             <div class="flex items-center justify-between">
-                <div id="global-badge" class="text-xs px-2.5 py-1 rounded-tremor-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                <div id="global-badge"
+                     class="text-[10px] font-bold uppercase tracking-[0.15em] px-2.5 py-1 rounded-full flex items-center gap-1.5"
+                     style="background: rgba(0,108,73,0.10); color: var(--secondary);">
                     <span class="green-dot"></span> Conectado
                 </div>
-                <a href="/logout" class="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition">Sair</a>
+                <a href="/logout"
+                   class="text-[10px] font-bold uppercase tracking-[0.15em] hover:text-red-600 transition"
+                   style="color: var(--text-muted)">Sair</a>
             </div>
-            <button onclick="toggleTheme()" id="theme-toggle" class="w-full flex items-center gap-2 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition px-1 py-1">
+            <button onclick="toggleTheme()" id="theme-toggle"
+                    class="w-full flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.15em] px-2 py-1.5 rounded-lg transition"
+                    style="color: var(--text-muted)">
                 <span id="theme-icon-sun" class="material-symbols-outlined text-base hidden">light_mode</span>
                 <span id="theme-icon-moon" class="material-symbols-outlined text-base">dark_mode</span>
                 <span id="theme-label">Modo claro</span>
@@ -295,12 +303,76 @@
 
     <!-- Main content -->
     <div class="flex-1 flex flex-col min-w-0">
-        <!-- Top bar (mobile) -->
-        <header class="md:hidden glass-sidebar px-4 py-3 flex items-center gap-3">
-            <button onclick="toggleSidebar()" class="text-gray-400 hover:text-gray-700 dark:hover:text-white transition">
-                <span class="material-symbols-outlined">menu</span>
-            </button>
-            <span class="text-sm font-semibold" id="mobile-title">Dashboard</span>
+        <!-- TopBar global -->
+        <header id="topbar"
+                class="topbar sticky top-0 z-30 flex items-center justify-between gap-3 px-4 md:px-8 h-14 md:h-16 border-b">
+            <!-- Esquerda: menu mobile + título -->
+            <div class="flex items-center gap-3 min-w-0 flex-1">
+                <button onclick="toggleSidebar()" class="md:hidden text-[var(--text-muted)] hover:text-[var(--primary)] transition flex-shrink-0">
+                    <span class="material-symbols-outlined">menu</span>
+                </button>
+                <h2 id="page-title" class="topbar-title font-headline font-extrabold min-w-0 flex-1 truncate" title="">Dashboard</h2>
+                <span id="mobile-title" class="hidden">Dashboard</span>
+                <span class="hidden md:inline-block h-6 w-px bg-[var(--border)] mx-2"></span>
+                <div id="topbar-meta" class="hidden md:flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.15em] px-3 py-1.5 rounded-full"
+                     style="background: var(--bg-elevated); color: var(--text-secondary);">
+                    <span class="material-symbols-outlined text-[14px]" style="color: var(--primary)">calendar_month</span>
+                    <span id="topbar-meta-text">eduit. · cockpit</span>
+                </div>
+            </div>
+
+            <!-- Direita: usuário + ações -->
+            <div class="flex items-center gap-1 md:gap-2">
+                <button type="button" id="topbar-user" onclick="navigate('profile')" class="topbar-user" title="Meu perfil">
+                    <div class="topbar-user-avatar" id="topbar-user-initials">–</div>
+                    <span class="topbar-user-name" id="topbar-user-name"></span>
+                </button>
+                <button id="topbar-search" onclick="navigate('search')"
+                        class="topbar-action hidden sm:flex"
+                        title="Buscar">
+                    <span class="material-symbols-outlined text-[20px]">search</span>
+                </button>
+                <div class="relative" id="topbar-notif-wrap">
+                    <button id="topbar-avisos" type="button" onclick="toggleNotifPanel(event)"
+                            class="topbar-action relative"
+                            title="Avisos">
+                        <span class="material-symbols-outlined text-[20px]">notifications</span>
+                        <span id="tb-avisos-dot" class="absolute top-2 right-2 w-2 h-2 rounded-full hidden"
+                              style="background: #ef4444; border: 2px solid var(--bg-card);"></span>
+                        <span id="tb-avisos-count"
+                              class="hidden absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 flex items-center justify-center rounded-full text-[9px] font-bold leading-none"
+                              style="background:#ef4444;color:#fff;border:2px solid var(--bg-card);"></span>
+                    </button>
+                    <!-- Dropdown -->
+                    <div id="notif-panel"
+                         class="hidden absolute right-0 mt-2 w-[22rem] max-w-[calc(100vw-1rem)] rounded-2xl overflow-hidden shadow-2xl border z-50 origin-top-right"
+                         style="background: var(--bg-card); border-color: var(--border); box-shadow: 0 20px 50px -12px rgba(15,23,42,.25);">
+                        <div class="flex items-center justify-between px-4 py-3 border-b" style="border-color: var(--border); background: var(--bg-elevated);">
+                            <h3 class="text-[10px] font-bold uppercase tracking-[0.2em]" style="color: var(--primary);">Notificações</h3>
+                            <span id="notif-panel-count"
+                                  class="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                                  style="background: rgba(0,52,111,0.10); color: var(--primary);">0 Novas</span>
+                        </div>
+                        <div id="notif-panel-list" class="max-h-[60vh] overflow-y-auto">
+                            <div class="p-6 text-center text-xs text-[var(--text-muted)]">Carregando...</div>
+                        </div>
+                        <button onclick="(function(ev){ev.stopPropagation();closeNotifPanel();navigate('avisos');})(event)"
+                                class="w-full p-3 text-[10px] font-bold uppercase tracking-[0.2em] transition-colors border-t hover:opacity-80"
+                                style="border-color: var(--border); color: var(--primary); background: var(--bg-card);">
+                            Ver todas as notificações
+                        </button>
+                    </div>
+                </div>
+                <button id="topbar-theme" onclick="toggleTheme()"
+                        class="topbar-action"
+                        title="Alternar tema">
+                    <span id="tb-theme-icon-sun" class="material-symbols-outlined text-[20px] hidden">light_mode</span>
+                    <span id="tb-theme-icon-moon" class="material-symbols-outlined text-[20px]">dark_mode</span>
+                </button>
+                <a href="/logout" class="topbar-action" title="Sair">
+                    <span class="material-symbols-outlined text-[20px]">logout</span>
+                </a>
+            </div>
         </header>
 
         <main class="flex-1 overflow-auto">

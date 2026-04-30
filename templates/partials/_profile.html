@@ -1,0 +1,184 @@
+<!-- ===================== Profile (Meu Perfil) ===================== -->
+<div id="page-profile" class="hidden p-4 md:p-6 lg:p-8">
+    <div class="max-w-5xl mx-auto space-y-6">
+
+        <!-- Header -->
+        <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+            <div>
+                <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-muted)]">Conta</p>
+                <h2 class="text-2xl md:text-3xl font-bold font-headline text-[var(--text-primary)] dark:text-white">Meu Perfil</h2>
+                <p class="text-sm text-[var(--text-secondary)] mt-1">Gerencie suas informações e preferências.</p>
+            </div>
+            <span id="prof-status-pill"
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.15em]"
+                  style="background: rgba(16,185,129,0.10); color: rgb(5,150,105); border: 1px solid rgba(16,185,129,0.25);">
+                <span class="w-1.5 h-1.5 rounded-full" style="background: rgb(16,185,129); box-shadow: 0 0 8px rgb(16,185,129);"></span>
+                Conta ativa
+            </span>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+            <!-- Left: avatar + identidade -->
+            <div class="lg:col-span-1 space-y-4">
+                <div class="glass-card p-6 flex flex-col items-center text-center">
+                    <div class="relative">
+                        <div id="prof-avatar"
+                             class="w-28 h-28 rounded-full flex items-center justify-center text-3xl font-extrabold font-headline shadow-lg"
+                             style="background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%); color: #fff;">
+                            –
+                        </div>
+                    </div>
+                    <h3 id="prof-username" class="mt-4 text-lg font-bold font-headline text-[var(--text-primary)]">—</h3>
+                    <p id="prof-role-label" class="text-[10px] font-bold uppercase tracking-[0.2em] mt-1" style="color: var(--primary);">—</p>
+                    <div class="w-full h-px my-5" style="background: var(--border);"></div>
+                    <div class="w-full space-y-3 text-xs">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[var(--text-muted)] font-medium">ID do usuário</span>
+                            <span id="prof-uid" class="font-bold tabular-nums text-[var(--text-primary)]">—</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-[var(--text-muted)] font-medium">Kommo User</span>
+                            <span id="prof-kommo" class="font-bold tabular-nums text-[var(--text-primary)]">—</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-[var(--text-muted)] font-medium">Categoria</span>
+                            <span id="prof-categoria" class="font-semibold text-[var(--text-primary)]">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Status card colorido -->
+                <div class="rounded-2xl p-5 shadow-lg text-white"
+                     style="background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%); box-shadow: 0 12px 32px -8px rgba(0,52,111,0.35);">
+                    <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">Status da conta</p>
+                    <div class="mt-2 flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span>
+                        <span class="text-sm font-semibold">Ativo e verificado</span>
+                    </div>
+                    <p class="text-[11px] text-white/70 mt-3 leading-relaxed">
+                        Suas permissões de acesso são controladas pelo administrador.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Right: dados + preferências -->
+            <div class="lg:col-span-2 space-y-4">
+
+                <!-- Dados da conta (read-only) -->
+                <div class="glass-card p-6">
+                    <div class="flex items-center gap-2 mb-5">
+                        <span class="material-symbols-outlined text-[20px]" style="color: var(--primary);">badge</span>
+                        <h3 class="text-base font-bold font-headline text-[var(--text-primary)]">Dados da conta</h3>
+                        <span class="ml-auto text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)]">somente leitura</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-1.5">
+                            <label class="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-muted)]">Usuário</label>
+                            <div class="relative">
+                                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-[var(--text-muted)]">person</span>
+                                <input id="prof-input-username" type="text" readonly
+                                       class="input-glass w-full pl-10 pr-3 py-2.5 text-sm font-medium rounded-xl cursor-default opacity-90">
+                            </div>
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-muted)]">Função</label>
+                            <div class="relative">
+                                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-[var(--text-muted)]">shield_person</span>
+                                <input id="prof-input-role" type="text" readonly
+                                       class="input-glass w-full pl-10 pr-3 py-2.5 text-sm font-medium rounded-xl cursor-default opacity-90">
+                            </div>
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-muted)]">ID</label>
+                            <div class="relative">
+                                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-[var(--text-muted)]">tag</span>
+                                <input id="prof-input-uid" type="text" readonly
+                                       class="input-glass w-full pl-10 pr-3 py-2.5 text-sm font-medium font-mono rounded-xl cursor-default opacity-90">
+                            </div>
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-muted)]">Categoria comercial</label>
+                            <div class="relative">
+                                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-[var(--text-muted)]">category</span>
+                                <input id="prof-input-cat" type="text" readonly
+                                       class="input-glass w-full pl-10 pr-3 py-2.5 text-sm font-medium rounded-xl cursor-default opacity-90">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-5 p-3 rounded-xl flex items-start gap-3"
+                         style="background: var(--bg-elevated); border: 1px solid var(--border);">
+                        <span class="material-symbols-outlined text-[18px] mt-0.5" style="color: var(--primary);">info</span>
+                        <p class="text-[11px] leading-relaxed text-[var(--text-secondary)]">
+                            Para alterar usuário, função ou categoria, peça ao <strong class="text-[var(--text-primary)]">administrador</strong>
+                            do sistema. Suas permissões de página são reavaliadas a cada login.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Preferências de aparência -->
+                <div class="glass-card p-6">
+                    <div class="flex items-center gap-2 mb-5">
+                        <span class="material-symbols-outlined text-[20px]" style="color: var(--primary);">palette</span>
+                        <h3 class="text-base font-bold font-headline text-[var(--text-primary)]">Aparência</h3>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button type="button" onclick="profSetTheme('light')"
+                                id="prof-theme-light"
+                                class="rounded-xl p-4 text-left transition-all border"
+                                style="background: var(--bg-elevated); border-color: var(--border);">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="material-symbols-outlined text-[20px]" style="color: rgb(245, 158, 11);">light_mode</span>
+                                <span class="text-sm font-bold text-[var(--text-primary)]">Modo claro</span>
+                            </div>
+                            <p class="text-[11px] text-[var(--text-muted)] leading-relaxed">Fundo branco, alto contraste para uso diurno.</p>
+                            <div class="mt-3 h-2 w-full rounded-full overflow-hidden flex">
+                                <div class="flex-1" style="background: #f7f9fb;"></div>
+                                <div class="flex-1" style="background: #00346f;"></div>
+                                <div class="flex-1" style="background: #006c49;"></div>
+                            </div>
+                        </button>
+                        <button type="button" onclick="profSetTheme('dark')"
+                                id="prof-theme-dark"
+                                class="rounded-xl p-4 text-left transition-all border"
+                                style="background: var(--bg-elevated); border-color: var(--border);">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="material-symbols-outlined text-[20px]" style="color: rgb(99, 102, 241);">dark_mode</span>
+                                <span class="text-sm font-bold text-[var(--text-primary)]">Modo escuro</span>
+                            </div>
+                            <p class="text-[11px] text-[var(--text-muted)] leading-relaxed">Conforto visual em ambientes com pouca luz.</p>
+                            <div class="mt-3 h-2 w-full rounded-full overflow-hidden flex">
+                                <div class="flex-1" style="background: #0f172a;"></div>
+                                <div class="flex-1" style="background: #4C709A;"></div>
+                                <div class="flex-1" style="background: #6cf8bb;"></div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sessão -->
+                <div class="glass-card p-6">
+                    <div class="flex items-center gap-2 mb-5">
+                        <span class="material-symbols-outlined text-[20px]" style="color: var(--primary);">key</span>
+                        <h3 class="text-base font-bold font-headline text-[var(--text-primary)]">Sessão</h3>
+                    </div>
+                    <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <p class="text-xs text-[var(--text-secondary)] flex-1 leading-relaxed">
+                            Encerre a sessão para forçar novo login. Isso limpa cookies e cache local da aplicação.
+                        </p>
+                        <a href="/logout"
+                           class="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all"
+                           style="background: rgba(239,68,68,0.10); color: rgb(220,38,38); border: 1px solid rgba(239,68,68,0.30);">
+                            <span class="material-symbols-outlined text-[18px]">logout</span>
+                            Sair da conta
+                        </a>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+</div>

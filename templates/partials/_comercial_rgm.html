@@ -5,50 +5,50 @@
     <div class="mb-6">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                <div class="w-10 h-10 rounded-xl bg-[#00346f] dark:bg-gradient-to-br dark:from-blue-500 dark:to-cyan-600 flex items-center justify-center shadow-md shadow-slate-900/10 dark:shadow-blue-500/20">
                     <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                 </div>
                 <div>
-                    <h2 class="text-3xl font-bold text-white font-display">Dashboard Comercial</h2>
-                    <p class="text-slate-500 text-sm" id="crgm-snapshot-info">Performance comercial e ranking de agentes</p>
+                    <h2 class="text-2xl md:text-3xl font-bold text-[#00346f] dark:text-white font-display">Dashboard Comercial</h2>
+                    <p class="text-slate-600 dark:text-slate-500 text-sm" id="crgm-snapshot-info">Performance comercial e ranking de agentes</p>
                 </div>
             </div>
             <!-- Linha 1: ações principais -->
             <div class="flex flex-wrap items-center gap-2">
                 <button onclick="crgmToggleSyncKommo()" id="crgm-btn-sync-kommo"
-                    class="text-xs font-semibold text-green-300 hover:text-white border border-green-600/50 hover:border-green-400 bg-green-600/10 hover:bg-green-600/20 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                    class="text-xs font-semibold text-emerald-700 dark:text-green-300 hover:text-emerald-900 dark:hover:text-white border border-emerald-200 dark:border-green-600/50 hover:border-emerald-400 dark:hover:border-green-400 bg-emerald-50 dark:bg-green-600/10 hover:bg-emerald-100 dark:hover:bg-green-600/20 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                     Sync Kommo
                 </button>
                 <button onclick="crgmToggleHistoricoMetas()" id="crgm-btn-historico-metas"
-                    class="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-violet-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                    class="text-xs text-slate-600 dark:text-slate-400 hover:text-[#00346f] dark:hover:text-white border border-slate-200 dark:border-slate-700 hover:border-violet-400 dark:hover:border-violet-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     Histórico
                 </button>
-                <button onclick="crgmToggleCongelar()" class="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-cyan-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                <button onclick="crgmToggleCongelar()" class="text-xs text-slate-600 dark:text-slate-400 hover:text-[#00346f] dark:hover:text-white border border-slate-200 dark:border-slate-700 hover:border-cyan-400 dark:hover:border-cyan-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
                     Congelar
                 </button>
-                <button onclick="_crgmLoadDuplicatas()" id="crgm-btn-dup" class="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-amber-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                <button onclick="_crgmLoadDuplicatas()" id="crgm-btn-dup" class="text-xs text-slate-600 dark:text-slate-400 hover:text-[#00346f] dark:hover:text-white border border-slate-200 dark:border-slate-700 hover:border-amber-400 dark:hover:border-amber-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
                     Duplicatas
                 </button>
                 <button onclick="_crgmLoadMatriculasSemData()" id="crgm-btn-semdata"
-                    class="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-rose-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5"
+                    class="text-xs text-slate-600 dark:text-slate-400 hover:text-[#00346f] dark:hover:text-white border border-slate-200 dark:border-slate-700 hover:border-rose-400 dark:hover:border-rose-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5"
                     title="Leads do período sem data de matrícula preenchida no Kommo — para ajustar no CRM">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                     Sem data
                 </button>
-                <button onclick="crgmToggleKommoLead()" class="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-emerald-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                <button onclick="crgmToggleKommoLead()" class="text-xs text-slate-600 dark:text-slate-400 hover:text-[#00346f] dark:hover:text-white border border-slate-200 dark:border-slate-700 hover:border-emerald-400 dark:hover:border-emerald-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                     Atualizar lead
                 </button>
                 <button onclick="crgmSyncUsers()" id="crgm-btn-sync"
-                    class="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-blue-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                    class="text-xs text-slate-600 dark:text-slate-400 hover:text-[#00346f] dark:hover:text-white border border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                     Sync Agentes
                 </button>
-                <label class="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-blue-500 px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5">
+                <label class="text-xs text-slate-600 dark:text-slate-400 hover:text-[#00346f] dark:hover:text-white border border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
                     Upload
                     <input type="file" accept=".csv,.xlsx,.xlsm" class="hidden" onchange="crgmUpload(this)">
@@ -60,22 +60,22 @@
     <!-- Painel Congelar (oculto por padrão) -->
     <div id="crgm-congelar-panel" class="hidden glass-card p-5 mb-6 border border-cyan-500/30">
         <div class="flex items-center justify-between mb-4">
-            <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+            <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display flex items-center gap-2">
+                <svg class="w-4 h-4 text-cyan-600 dark:text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
                 Congelar Base
             </h3>
-            <button onclick="crgmToggleCongelar()" class="text-slate-500 hover:text-white text-xs">Fechar</button>
+            <button onclick="crgmToggleCongelar()" class="text-slate-500 hover:text-[#00346f] dark:hover:text-white text-xs">Fechar</button>
         </div>
-        <p class="text-xs text-slate-400 mb-2">Selecione o nível que deseja congelar. Os registros da view atual serão copiados para a tabela de congelados (apenas RGMs novos).</p>
+        <p class="text-xs text-slate-600 dark:text-slate-400 mb-2">Selecione o nível que deseja congelar. Os registros da view atual serão copiados para a tabela de congelados (apenas RGMs novos).</p>
         <p class="text-xs text-slate-500 mb-4" id="crgm-congelar-info">Carregando ciclos ativos...</p>
         <div class="flex flex-wrap items-end gap-4">
-            <label class="flex items-center gap-2 cursor-pointer bg-slate-800/50 rounded-lg px-4 py-3 border border-slate-700 hover:border-blue-500 transition-all">
+            <label class="flex items-center gap-2 cursor-pointer bg-slate-100 dark:bg-slate-800/50 rounded-lg px-4 py-3 border border-slate-200 dark:border-slate-700 hover:border-blue-500 transition-all">
                 <input type="radio" name="crgm-congelar-nivel" value="Graduação" checked class="text-blue-500">
-                <span class="text-sm text-slate-300 font-medium">Graduação</span>
+                <span class="text-sm text-slate-800 dark:text-slate-300 font-medium">Graduação</span>
             </label>
-            <label class="flex items-center gap-2 cursor-pointer bg-slate-800/50 rounded-lg px-4 py-3 border border-slate-700 hover:border-purple-500 transition-all">
+            <label class="flex items-center gap-2 cursor-pointer bg-slate-100 dark:bg-slate-800/50 rounded-lg px-4 py-3 border border-slate-200 dark:border-slate-700 hover:border-purple-500 transition-all">
                 <input type="radio" name="crgm-congelar-nivel" value="Pós-Graduação" class="text-purple-500">
-                <span class="text-sm text-slate-300 font-medium">Pós-Graduação</span>
+                <span class="text-sm text-slate-800 dark:text-slate-300 font-medium">Pós-Graduação</span>
             </label>
             <button onclick="crgmCongelar()" class="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold px-5 py-3 rounded-lg transition-all flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
@@ -88,21 +88,21 @@
     <!-- Painel Sync Kommo -->
     <div id="crgm-sync-kommo-panel" class="hidden glass-card p-5 mb-6 border border-green-500/30">
         <div class="flex items-center justify-between mb-4">
-            <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display flex items-center gap-2">
+                <svg class="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 Sincronizar Kommo
             </h3>
-            <button onclick="crgmToggleSyncKommo()" class="text-slate-500 hover:text-white text-xs">Fechar</button>
+            <button onclick="crgmToggleSyncKommo()" class="text-slate-500 hover:text-[#00346f] dark:hover:text-white text-xs">Fechar</button>
         </div>
-        <p class="text-xs text-slate-400 mb-4">Busca novos leads e atualiza o banco. Use <strong class="text-white">Delta</strong> para sincronizar apenas o que mudou (mais rápido) ou <strong class="text-white">Completo</strong> para reprocessar tudo.</p>
+        <p class="text-xs text-slate-600 dark:text-slate-400 mb-4">Busca novos leads e atualiza o banco. Use <strong class="text-[#00346f] dark:text-white">Delta</strong> para sincronizar apenas o que mudou (mais rápido) ou <strong class="text-[#00346f] dark:text-white">Completo</strong> para reprocessar tudo.</p>
         <div class="flex flex-wrap items-end gap-3 mb-4">
-            <label class="flex items-center gap-2 cursor-pointer bg-slate-800/50 rounded-lg px-4 py-3 border border-slate-700 hover:border-green-500 transition-all">
+            <label class="flex items-center gap-2 cursor-pointer bg-slate-100 dark:bg-slate-800/50 rounded-lg px-4 py-3 border border-slate-200 dark:border-slate-700 hover:border-green-500 transition-all">
                 <input type="radio" name="crgm-sync-mode" value="delta" checked class="text-green-500">
-                <span class="text-sm text-slate-300 font-medium">Delta (rápido)</span>
+                <span class="text-sm text-slate-800 dark:text-slate-300 font-medium">Delta (rápido)</span>
             </label>
-            <label class="flex items-center gap-2 cursor-pointer bg-slate-800/50 rounded-lg px-4 py-3 border border-slate-700 hover:border-amber-500 transition-all">
+            <label class="flex items-center gap-2 cursor-pointer bg-slate-100 dark:bg-slate-800/50 rounded-lg px-4 py-3 border border-slate-200 dark:border-slate-700 hover:border-amber-500 transition-all">
                 <input type="radio" name="crgm-sync-mode" value="full" class="text-amber-500">
-                <span class="text-sm text-slate-300 font-medium">Completo</span>
+                <span class="text-sm text-slate-800 dark:text-slate-300 font-medium">Completo</span>
             </label>
             <button id="crgm-sync-kommo-btn" onclick="crgmRunSyncKommo()"
                 class="bg-green-600 hover:bg-green-500 text-white text-xs font-semibold px-5 py-3 rounded-lg transition-all flex items-center gap-2">
@@ -114,41 +114,41 @@
         <div id="crgm-sync-kommo-progress-wrap" class="hidden">
             <div class="flex items-center justify-between mb-1">
                 <span class="text-[10px] text-slate-500 uppercase tracking-wider">Progresso</span>
-                <span id="crgm-sync-kommo-pct" class="text-[10px] font-bold text-green-400">0%</span>
+                <span id="crgm-sync-kommo-pct" class="text-[10px] font-bold text-green-600 dark:text-green-400">0%</span>
             </div>
-            <div class="w-full bg-slate-800 rounded-full h-2 mb-3">
+            <div class="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 mb-3">
                 <div id="crgm-sync-kommo-bar" class="bg-green-500 h-2 rounded-full transition-all duration-500" style="width:0%"></div>
             </div>
             <!-- Log em tempo real -->
-            <div id="crgm-sync-kommo-log" class="bg-slate-900/80 rounded-lg p-3 max-h-40 overflow-y-auto font-mono text-[11px] text-slate-400 space-y-0.5"></div>
+            <div id="crgm-sync-kommo-log" class="bg-slate-100 dark:bg-slate-900/80 rounded-lg p-3 max-h-40 overflow-y-auto font-mono text-[11px] text-slate-600 dark:text-slate-400 space-y-0.5"></div>
         </div>
     </div>
 
     <!-- Atualizar 1 lead no Kommo → banco (quando não aparece no cruzamento) -->
     <div id="crgm-kommo-lead-panel" class="hidden glass-card p-5 mb-6 border border-emerald-500/30">
         <div class="flex items-center justify-between mb-3">
-            <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display flex items-center gap-2">
+                <svg class="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 Atualizar lead na base Kommo
             </h3>
-            <button onclick="crgmToggleKommoLead()" class="text-slate-500 hover:text-white text-xs">Fechar</button>
+            <button onclick="crgmToggleKommoLead()" class="text-slate-500 hover:text-[#00346f] dark:hover:text-white text-xs">Fechar</button>
         </div>
-        <p class="text-xs text-slate-400 mb-4"><strong class="text-emerald-300/90">Mini sync Kommo</strong> — mesmo fluxo que rodar <code class="text-slate-500">python kommo_lib/sync_one_lead.py &lt;id&gt;</code>: busca só esse lead na API, atualiza o SQLite do sync e espelha no PostgreSQL <code class="text-emerald-400/90">kommo_sync</code>. Informe o <strong class="text-slate-300">ID do lead</strong> (após # na URL) ou o <strong class="text-slate-300">RGM</strong> (8 dígitos). <code class="text-slate-500">KOMMO_BASE_URL</code> = mesmo subdomínio do Kommo no navegador (sem <code class="text-slate-500">/api/v4</code> no fim).</p>
+        <p class="text-xs text-slate-600 dark:text-slate-400 mb-4"><strong class="text-emerald-700 dark:text-emerald-300/90">Mini sync Kommo</strong> — mesmo fluxo que rodar <code class="text-slate-600 dark:text-slate-500">python kommo_lib/sync_one_lead.py &lt;id&gt;</code>: busca só esse lead na API, atualiza o SQLite do sync e espelha no PostgreSQL <code class="text-emerald-700 dark:text-emerald-400/90">kommo_sync</code>. Informe o <strong class="text-slate-800 dark:text-slate-300">ID do lead</strong> (após # na URL) ou o <strong class="text-slate-800 dark:text-slate-300">RGM</strong> (8 dígitos). <code class="text-slate-600 dark:text-slate-500">KOMMO_BASE_URL</code> = mesmo subdomínio do Kommo no navegador (sem <code class="text-slate-600 dark:text-slate-500">/api/v4</code> no fim).</p>
         <div class="flex flex-wrap items-end gap-4">
             <div>
                 <label class="block text-[10px] text-slate-500 mb-1">ID do lead (Kommo)</label>
-                <input type="text" id="crgm-kommo-lead-id" placeholder="Ex: 20796123" class="input-glass px-3 py-2 text-sm text-slate-200 w-36" inputmode="numeric">
+                <input type="text" id="crgm-kommo-lead-id" placeholder="Ex: 20796123" class="input-glass px-3 py-2 text-sm text-slate-900 dark:text-slate-200 w-36" inputmode="numeric">
             </div>
             <div class="text-slate-600 text-xs pt-6">ou</div>
             <div>
                 <label class="block text-[10px] text-slate-500 mb-1">RGM (8 dígitos)</label>
-                <input type="text" id="crgm-kommo-rgm" placeholder="Ex: 48411612" class="input-glass px-3 py-2 text-sm text-slate-200 w-36" maxlength="12">
+                <input type="text" id="crgm-kommo-rgm" placeholder="Ex: 48411612" class="input-glass px-3 py-2 text-sm text-slate-900 dark:text-slate-200 w-36" maxlength="12">
             </div>
             <button type="button" onclick="crgmKommoSyncLead()" id="crgm-kommo-sync-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-5 py-2.5 rounded-lg transition-all">
                 Buscar e atualizar
             </button>
         </div>
-        <div id="crgm-kommo-lead-msg" class="hidden mt-4 text-xs p-3 rounded-lg border border-slate-700/50 bg-slate-900/40"></div>
+        <div id="crgm-kommo-lead-msg" class="hidden mt-4 text-xs p-3 rounded-lg border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900/40"></div>
         <div id="crgm-kommo-lead-pick" class="hidden mt-3 flex flex-wrap gap-2"></div>
     </div>
 
@@ -156,17 +156,17 @@
     <div id="crgm-historico-metas-panel" class="hidden glass-card p-5 mb-6 border border-violet-500/20">
         <div class="flex items-center justify-between mb-4">
             <div>
-                <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                    <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display flex items-center gap-2">
+                    <svg class="w-4 h-4 text-violet-600 dark:text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     Histórico de Metas
                 </h3>
-                <p class="text-[10px] text-slate-500 mt-1">Metas legadas (<code class="text-slate-400">comercial_metas</code>) e campanhas da <a href="#premiacao_admin" onclick="navigate('premiacao_admin')" class="text-amber-400/90 hover:text-amber-300 underline">Premiação</a> (pré-definição e totais por agente).</p>
+                <p class="text-[10px] text-slate-500 mt-1">Metas legadas (<code class="text-slate-600 dark:text-slate-400">comercial_metas</code>) e campanhas da <a href="#premiacao_admin" onclick="navigate('premiacao_admin')" class="text-amber-700 dark:text-amber-400/90 hover:text-amber-900 dark:hover:text-amber-300 underline">Premiação</a> (pré-definição e totais por agente).</p>
             </div>
             <div class="flex items-center gap-2">
-                <select id="crgm-hist-cat-filter" onchange="crgmFiltrarHistoricoMetas()" class="input-glass px-2 py-1 text-[10px] text-slate-400">
+                <select id="crgm-hist-cat-filter" onchange="crgmFiltrarHistoricoMetas()" class="input-glass px-2 py-1 text-[10px] text-slate-900 dark:text-slate-400">
                     <option value="">Todas as categorias</option>
                 </select>
-                <button onclick="crgmToggleHistoricoMetas()" class="text-slate-500 hover:text-white transition-colors text-lg leading-none">&times;</button>
+                <button onclick="crgmToggleHistoricoMetas()" class="text-slate-500 hover:text-[#00346f] dark:hover:text-white transition-colors text-lg leading-none">&times;</button>
             </div>
         </div>
         <div id="crgm-historico-metas-body" class="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
@@ -175,37 +175,37 @@
     </div>
 
     <!-- Modal: Editar Meta -->
-    <div id="crgm-edit-meta-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-        <div class="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+    <div id="crgm-edit-meta-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div class="glass-card rounded-2xl p-6 w-full max-w-sm shadow-2xl">
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <p class="text-[10px] text-slate-500 uppercase tracking-wider">Editar meta</p>
-                    <p class="text-white font-semibold text-sm" id="crgm-edit-meta-titulo">—</p>
+                    <p class="text-[var(--text-primary)] font-semibold text-sm" id="crgm-edit-meta-titulo">—</p>
                 </div>
-                <button onclick="crgmFecharEditarMeta()" class="text-slate-500 hover:text-white transition-colors">
+                <button onclick="crgmFecharEditarMeta()" class="text-slate-500 hover:text-[var(--text-primary)] transition-colors">
                     <span class="material-symbols-outlined text-lg">close</span>
                 </button>
             </div>
             <div class="space-y-3">
                 <div>
-                    <label class="block text-[10px] text-blue-400 uppercase tracking-wider mb-1">Meta</label>
+                    <label class="block text-[10px] text-blue-700 dark:text-blue-400 uppercase tracking-wider mb-1 font-semibold">Meta</label>
                     <input id="crgm-edit-meta-val" type="number" min="0" step="1"
-                        class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-blue-500">
+                        class="input-glass w-full px-3 py-2 font-mono text-sm focus:outline-none">
                 </div>
                 <div>
-                    <label class="block text-[10px] text-amber-400 uppercase tracking-wider mb-1">Meta Intermediária</label>
+                    <label class="block text-[10px] text-amber-700 dark:text-amber-400 uppercase tracking-wider mb-1 font-semibold">Meta Intermediária</label>
                     <input id="crgm-edit-meta-int" type="number" min="0" step="1"
-                        class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-amber-500">
+                        class="input-glass w-full px-3 py-2 font-mono text-sm focus:outline-none">
                 </div>
                 <div>
-                    <label class="block text-[10px] text-emerald-400 uppercase tracking-wider mb-1">Supermeta</label>
+                    <label class="block text-[10px] text-emerald-700 dark:text-emerald-400 uppercase tracking-wider mb-1 font-semibold">Supermeta</label>
                     <input id="crgm-edit-meta-sup" type="number" min="0" step="1"
-                        class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-emerald-500">
+                        class="input-glass w-full px-3 py-2 font-mono text-sm focus:outline-none">
                 </div>
             </div>
             <div class="flex gap-2 mt-5">
-                <button onclick="crgmFecharEditarMeta()" class="flex-1 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm transition-colors">Cancelar</button>
-                <button id="crgm-edit-meta-salvar" onclick="crgmSalvarEditarMeta()" class="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors">Salvar</button>
+                <button onclick="crgmFecharEditarMeta()" class="btn-secondary flex-1 py-2 rounded-lg text-sm">Cancelar</button>
+                <button id="crgm-edit-meta-salvar" onclick="crgmSalvarEditarMeta()" class="btn-primary flex-1 py-2 rounded-lg text-sm font-semibold">Salvar</button>
             </div>
         </div>
     </div>
@@ -215,47 +215,47 @@
         <div class="flex flex-wrap items-end gap-3">
             <div>
                 <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">Ciclo</label>
-                <select id="crgm-ciclo" onchange="crgmCicloChanged()" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[140px]">
+                <select id="crgm-ciclo" onchange="crgmCicloChanged()" class="input-glass px-3 py-1.5 text-xs text-slate-900 dark:text-slate-300 min-w-[140px]">
                     <option value="">Todos</option>
                 </select>
             </div>
             <div>
                 <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">Turma</label>
-                <select id="crgm-turma" onchange="crgmTurmaChanged()" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[140px]">
+                <select id="crgm-turma" onchange="crgmTurmaChanged()" class="input-glass px-3 py-1.5 text-xs text-slate-900 dark:text-slate-300 min-w-[140px]">
                     <option value="">Todas</option>
                 </select>
             </div>
-            <button onclick="crgmToggleNovoCiclo()" class="text-xs text-slate-400 hover:text-emerald-400 border border-slate-700 hover:border-emerald-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+            <button onclick="crgmToggleNovoCiclo()" class="text-xs text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 border border-slate-200 dark:border-slate-700 hover:border-emerald-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                 Novo Ciclo
             </button>
-            <button onclick="crgmToggleNovaTurma()" class="text-xs text-slate-400 hover:text-amber-400 border border-slate-700 hover:border-amber-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+            <button onclick="crgmToggleNovaTurma()" class="text-xs text-slate-600 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 border border-slate-200 dark:border-slate-700 hover:border-amber-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                 Nova Turma
             </button>
-            <button onclick="crgmToggleVerTurmas()" class="text-xs text-slate-400 hover:text-blue-400 border border-slate-700 hover:border-blue-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+            <button onclick="crgmToggleVerTurmas()" class="text-xs text-slate-600 dark:text-slate-400 hover:text-[#00346f] dark:hover:text-blue-400 border border-slate-200 dark:border-slate-700 hover:border-blue-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
                 Ver Turmas
             </button>
         </div>
         <!-- Lista de Turmas (oculto) -->
-        <div id="crgm-ver-turmas" class="hidden mt-3 bg-slate-800/40 rounded-xl p-4 border border-slate-700/30">
-            <p class="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-3">Turmas Cadastradas</p>
+        <div id="crgm-ver-turmas" class="hidden mt-3 bg-slate-100 dark:bg-slate-800/40 rounded-xl p-4 border border-slate-200 dark:border-slate-700/30">
+            <p class="text-xs font-semibold text-[#00346f] dark:text-blue-400 uppercase tracking-wider mb-3">Turmas Cadastradas</p>
             <div id="crgm-turmas-lista" class="space-y-2">
                 <p class="text-xs text-slate-500">Carregando...</p>
             </div>
         </div>
         <!-- Novo Ciclo (oculto) -->
-        <div id="crgm-novo-ciclo" class="hidden mt-3 bg-slate-800/40 rounded-xl p-4 border border-slate-700/30">
-            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Criar Ciclo</p>
+        <div id="crgm-novo-ciclo" class="hidden mt-3 bg-slate-100 dark:bg-slate-800/40 rounded-xl p-4 border border-slate-200 dark:border-slate-700/30">
+            <p class="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-3">Criar Ciclo</p>
             <div class="flex flex-wrap items-end gap-3">
                 <div>
                     <label class="block text-[10px] text-slate-500 mb-1">Nome</label>
-                    <input type="text" id="crgm-ciclo-nome" placeholder="Ex: 26.2" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-24">
+                    <input type="text" id="crgm-ciclo-nome" placeholder="Ex: 26.2" class="input-glass px-3 py-1.5 text-xs text-slate-900 dark:text-slate-300 w-24">
                 </div>
                 <div>
                     <label class="block text-[10px] text-slate-500 mb-1">Nível</label>
-                    <select id="crgm-ciclo-nivel" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[130px]">
+                    <select id="crgm-ciclo-nivel" class="input-glass px-3 py-1.5 text-xs text-slate-900 dark:text-slate-300 min-w-[130px]">
                         <option value="Ambos">Ambos</option>
                         <option value="Graduação">Graduação</option>
                         <option value="Pós-Graduação">Pós-Graduação</option>
@@ -263,14 +263,14 @@
                 </div>
                 <div>
                     <label class="block text-[10px] text-slate-500 mb-1">Início</label>
-                    <input type="date" id="crgm-ciclo-ini" class="input-glass px-3 py-1.5 text-xs text-slate-300">
+                    <input type="date" id="crgm-ciclo-ini" class="input-glass px-3 py-1.5 text-xs text-slate-900 dark:text-slate-300">
                 </div>
                 <div>
                     <label class="block text-[10px] text-slate-500 mb-1">Fim</label>
-                    <input type="date" id="crgm-ciclo-fim" class="input-glass px-3 py-1.5 text-xs text-slate-300">
+                    <input type="date" id="crgm-ciclo-fim" class="input-glass px-3 py-1.5 text-xs text-slate-900 dark:text-slate-300">
                 </div>
-                <label class="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer">
-                    <input type="checkbox" id="crgm-ciclo-ativo" class="rounded border-slate-600">
+                <label class="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 cursor-pointer">
+                    <input type="checkbox" id="crgm-ciclo-ativo" class="rounded border-slate-300 dark:border-slate-600">
                     Ativo
                 </label>
                 <button onclick="crgmSalvarCiclo()" class="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5">
@@ -280,33 +280,33 @@
             </div>
         </div>
         <!-- Nova Turma (oculto) -->
-        <div id="crgm-nova-turma" class="hidden mt-3 bg-slate-800/40 rounded-xl p-4 border border-slate-700/30">
-            <p class="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-3">Criar Turma</p>
+        <div id="crgm-nova-turma" class="hidden mt-3 bg-slate-100 dark:bg-slate-800/40 rounded-xl p-4 border border-slate-200 dark:border-slate-700/30">
+            <p class="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider mb-3">Criar Turma</p>
             <div class="flex flex-wrap items-end gap-3">
                 <div>
                     <label class="block text-[10px] text-slate-500 mb-1">Nome</label>
-                    <input type="text" id="crgm-turma-nome" placeholder="Ex: Fevereiro" class="input-glass px-3 py-1.5 text-xs text-slate-300 w-32">
+                    <input type="text" id="crgm-turma-nome" placeholder="Ex: Fevereiro" class="input-glass px-3 py-1.5 text-xs text-slate-900 dark:text-slate-300 w-32">
                 </div>
                 <div>
                     <label class="block text-[10px] text-slate-500 mb-1">Nível</label>
-                    <select id="crgm-turma-nivel" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[130px]">
+                    <select id="crgm-turma-nivel" class="input-glass px-3 py-1.5 text-xs text-slate-900 dark:text-slate-300 min-w-[130px]">
                         <option value="Graduação">Graduação</option>
                         <option value="Pós-Graduação">Pós-Graduação</option>
                     </select>
                 </div>
                 <div>
                     <label class="block text-[10px] text-slate-500 mb-1">Ciclo</label>
-                    <select id="crgm-turma-ciclo" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[120px]">
+                    <select id="crgm-turma-ciclo" class="input-glass px-3 py-1.5 text-xs text-slate-900 dark:text-slate-300 min-w-[120px]">
                         <option value="">Nenhum</option>
                     </select>
                 </div>
                 <div>
                     <label class="block text-[10px] text-slate-500 mb-1">Início</label>
-                    <input type="date" id="crgm-turma-ini" class="input-glass px-3 py-1.5 text-xs text-slate-300">
+                    <input type="date" id="crgm-turma-ini" class="input-glass px-3 py-1.5 text-xs text-slate-900 dark:text-slate-300">
                 </div>
                 <div>
                     <label class="block text-[10px] text-slate-500 mb-1">Fim</label>
-                    <input type="date" id="crgm-turma-fim" class="input-glass px-3 py-1.5 text-xs text-slate-300">
+                    <input type="date" id="crgm-turma-fim" class="input-glass px-3 py-1.5 text-xs text-slate-900 dark:text-slate-300">
                 </div>
                 <button onclick="crgmSalvarTurma()" class="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
@@ -321,29 +321,29 @@
         <div class="flex flex-wrap items-end gap-3">
             <div>
                 <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">Polo</label>
-                <select id="crgm-polo" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[140px]">
+                <select id="crgm-polo" class="input-glass px-3 py-1.5 text-xs text-slate-900 dark:text-slate-300 min-w-[140px]">
                     <option value="">Todos</option>
                 </select>
             </div>
             <div>
                 <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">Nível</label>
-                <select id="crgm-nivel" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[120px]">
+                <select id="crgm-nivel" class="input-glass px-3 py-1.5 text-xs text-slate-900 dark:text-slate-300 min-w-[120px]">
                     <option value="">Todos</option>
                 </select>
             </div>
             <div>
                 <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">Agente</label>
-                <select id="crgm-agente" class="input-glass px-3 py-1.5 text-xs text-slate-300 min-w-[160px]">
+                <select id="crgm-agente" class="input-glass px-3 py-1.5 text-xs text-slate-900 dark:text-slate-300 min-w-[160px]">
                     <option value="">Todos</option>
                 </select>
             </div>
             <div>
                 <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">De</label>
-                <input type="date" id="crgm-dt-ini" autocomplete="off" class="input-glass px-3 py-1.5 text-xs text-slate-300">
+                <input type="date" id="crgm-dt-ini" autocomplete="off" class="input-glass px-3 py-1.5 text-xs text-slate-900 dark:text-slate-300">
             </div>
             <div>
                 <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">Até</label>
-                <input type="date" id="crgm-dt-fim" autocomplete="off" class="input-glass px-3 py-1.5 text-xs text-slate-300">
+                <input type="date" id="crgm-dt-fim" autocomplete="off" class="input-glass px-3 py-1.5 text-xs text-slate-900 dark:text-slate-300">
             </div>
             <button onclick="crgmAtualizar()" class="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
@@ -353,105 +353,105 @@
     </div>
 
     <!-- Loading / Error -->
-    <div id="crgm-loading" class="hidden text-center py-6 text-sm text-blue-400 flex items-center justify-center gap-2">
+    <div id="crgm-loading" class="hidden text-center py-6 text-sm text-[#00346f] dark:text-blue-400 flex items-center justify-center gap-2">
         <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
         Carregando dados...
     </div>
     <div id="crgm-erro" class="hidden text-center py-2 text-sm text-red-400 glass-card mb-4 p-3"></div>
 
-    <!-- KPI Hero -->
+    <!-- KPI Hero — azul sólido (executivo), sem gradiente -->
     <div class="mb-4">
-        <div class="relative rounded-2xl overflow-hidden bg-gradient-to-r from-blue-600/20 to-cyan-600/10 border border-blue-500/20 p-4 flex items-center gap-5">
-            <div class="flex-shrink-0 w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
+        <div class="relative rounded-2xl overflow-hidden bg-[#002D5E] dark:bg-[#002D5E] border border-[#002247] dark:border-[#004a99]/40 p-5 flex flex-wrap items-center gap-5 shadow-lg shadow-slate-900/10 dark:shadow-blue-900/30">
+            <div class="flex-shrink-0 w-14 h-14 rounded-xl bg-white/15 flex items-center justify-center">
                 <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
             </div>
             <div>
-                <p class="text-[10px] font-bold text-blue-400/70 uppercase tracking-widest">Matrículas no Período</p>
+                <p class="text-[10px] font-bold text-blue-100/90 uppercase tracking-widest">Matrículas no Período</p>
                 <div class="flex items-baseline gap-3">
                     <p class="text-4xl font-black text-white font-display" id="crgm-vendas">—</p>
-                    <p class="text-sm text-slate-400 hidden" id="crgm-vendas-liquidas-label">
-                        <span class="text-emerald-400 font-bold" id="crgm-vendas-liquidas">—</span> em curso
+                    <p class="text-sm text-blue-200/80 hidden" id="crgm-vendas-liquidas-label">
+                        <span class="text-emerald-300 font-bold" id="crgm-vendas-liquidas">—</span> em curso
                     </p>
                 </div>
             </div>
             <div class="ml-auto flex items-center gap-6">
                 <div class="text-right">
-                    <p class="text-[10px] text-slate-500 uppercase tracking-wider">YTD</p>
-                    <p class="text-2xl font-bold text-slate-300 font-display" id="crgm-ytd">—</p>
+                    <p class="text-[10px] text-blue-200/75 uppercase tracking-wider">YTD</p>
+                    <p class="text-2xl font-bold text-white font-display tabular-nums" id="crgm-ytd">—</p>
                 </div>
                 <div class="text-right">
-                    <p class="text-[10px] text-slate-500 uppercase tracking-wider">Inscritos M&M</p>
-                    <p class="text-2xl font-bold text-cyan-400 font-display" id="crgm-mm-inscritos">—</p>
+                    <p class="text-[10px] text-blue-200/75 uppercase tracking-wider">Inscritos M&M</p>
+                    <p class="text-2xl font-bold text-cyan-200 font-display" id="crgm-mm-inscritos">—</p>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Painel de Evasão -->
+    <!-- Painel de Evasão — alerta executivo (claro: discreto; escuro: destaque rosa) -->
     <div id="crgm-evasao-panel" class="hidden mb-6">
-        <div class="rounded-2xl border border-rose-500/20 bg-rose-500/5 overflow-hidden">
+        <div class="rounded-2xl border border-slate-200 dark:border-rose-500/25 bg-[var(--bg-card)] dark:bg-rose-500/5 shadow-sm dark:shadow-none overflow-hidden border-l-[3px] border-l-amber-600/80 dark:border-l-rose-500/50">
             <!-- Header clicável -->
-            <button onclick="crgmToggleEvasaoDetalhes()" class="w-full flex items-center gap-3 p-4 text-left hover:bg-rose-500/10 transition-colors">
-                <div class="flex-shrink-0 w-9 h-9 rounded-lg bg-rose-500/20 flex items-center justify-center">
-                    <svg class="w-4.5 h-4.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:18px;height:18px">
+            <button onclick="crgmToggleEvasaoDetalhes()" class="w-full flex items-center gap-3 p-4 text-left hover:bg-slate-50 dark:hover:bg-rose-500/10 transition-colors">
+                <div class="flex-shrink-0 w-9 h-9 rounded-lg bg-amber-100 dark:bg-rose-500/20 flex items-center justify-center">
+                    <svg class="w-4.5 h-4.5 text-amber-800 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:18px;height:18px">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                     </svg>
                 </div>
                 <div class="flex-1">
-                    <p class="text-[10px] font-bold text-rose-400/80 uppercase tracking-widest">Evasão no Período</p>
+                    <p class="text-[10px] font-bold text-slate-600 dark:text-rose-400/80 uppercase tracking-widest">Evasão no Período</p>
                     <div class="flex items-center gap-3 flex-wrap mt-0.5">
-                        <span class="text-xl font-black text-rose-300 font-display" id="crgm-evasao-total">—</span>
+                        <span class="text-xl font-black text-slate-900 dark:text-rose-300 font-display" id="crgm-evasao-total">—</span>
                         <div id="crgm-evasao-tipos" class="flex gap-2 flex-wrap"></div>
                     </div>
                 </div>
-                <svg id="crgm-evasao-chevron" class="w-4 h-4 text-slate-400 transition-transform duration-200 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg id="crgm-evasao-chevron" class="w-4 h-4 text-slate-500 dark:text-slate-400 transition-transform duration-200 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                 </svg>
             </button>
             <!-- Detalhes por agente (colapsável) -->
-            <div id="crgm-evasao-detalhes" class="hidden border-t border-rose-500/20">
-                <div id="crgm-evasao-agentes" class="divide-y divide-rose-500/10 max-h-80 overflow-y-auto"></div>
+            <div id="crgm-evasao-detalhes" class="hidden border-t border-slate-200 dark:border-rose-500/20">
+                <div id="crgm-evasao-agentes" class="divide-y divide-slate-100 dark:divide-rose-500/10 max-h-80 overflow-y-auto"></div>
             </div>
         </div>
     </div>
 
     <!-- KPI Cards Row -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div class="glass-card p-4">
+        <div class="glass-card p-4 border-slate-100 dark:border-[var(--border)]">
             <div class="flex items-center justify-between mb-2">
                 <span class="text-[10px] uppercase tracking-wider font-bold text-slate-500">Média Diária</span>
-                <div class="w-7 h-7 rounded-lg bg-cyan-500/15 flex items-center justify-center">
-                    <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                <div class="w-7 h-7 rounded-lg bg-[#00346f]/10 dark:bg-cyan-500/15 flex items-center justify-center">
+                    <svg class="w-3.5 h-3.5 text-[#00346f] dark:text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
                 </div>
             </div>
-            <p class="text-2xl font-black text-white" id="crgm-media">—</p>
-            <p class="text-[10px] text-slate-500 mt-1"><span id="crgm-dias" class="text-slate-400 font-medium">—</span> dias no período</p>
+            <p class="text-2xl font-black text-[#00346f] dark:text-white" id="crgm-media">—</p>
+            <p class="text-[10px] text-slate-500 mt-1"><span id="crgm-dias" class="text-slate-600 dark:text-slate-400 font-medium">—</span> dias no período</p>
         </div>
-        <div class="glass-card p-4">
+        <div class="kpi-tile-medium rounded-[var(--radius-card)] p-4 border border-white/15 shadow-md">
             <div class="flex items-center justify-between mb-2">
-                <span class="text-[10px] uppercase tracking-wider font-bold text-slate-500">Ticket Médio (30%)</span>
-                <div class="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center">
-                    <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span class="text-[10px] uppercase tracking-wider font-bold text-white/85">Ticket Médio (30%)</span>
+                <div class="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center">
+                    <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 </div>
             </div>
-            <p class="text-2xl font-black text-white" id="crgm-ticket">—</p>
+            <p class="text-2xl font-black text-white font-display" id="crgm-ticket">—</p>
         </div>
-        <div class="glass-card p-4">
+        <div class="glass-card p-4 border-slate-100 dark:border-[var(--border)]">
             <div class="flex items-center justify-between mb-2">
                 <span class="text-[10px] uppercase tracking-wider font-bold text-slate-500">vs 6 Meses</span>
                 <span id="crgm-6m-badge" class="font-bold px-1.5 py-0.5 rounded text-[10px]">—</span>
             </div>
-            <p class="text-2xl font-black text-white" id="crgm-6m-val">—</p>
+            <p class="text-2xl font-black text-[#00346f] dark:text-white" id="crgm-6m-val">—</p>
             <p class="text-[10px] text-slate-500 mt-1">mesmo período</p>
         </div>
-        <div class="glass-card p-4">
+        <div class="glass-card p-4 border-slate-100 dark:border-[var(--border)]">
             <div class="flex items-center justify-between mb-2">
                 <span class="text-[10px] uppercase tracking-wider font-bold text-slate-500">vs 1 Ano</span>
                 <span id="crgm-1a-badge" class="font-bold px-1.5 py-0.5 rounded text-[10px]">—</span>
             </div>
-            <p class="text-2xl font-black text-white" id="crgm-1a-val">—</p>
+            <p class="text-2xl font-black text-[#00346f] dark:text-white" id="crgm-1a-val">—</p>
             <div class="flex items-center gap-2 mt-1 text-[10px]">
-                <span class="text-slate-500">YTD ant: <span id="crgm-ytd-prev" class="text-slate-400 font-medium">—</span></span>
+                <span class="text-slate-500">YTD ant: <span id="crgm-ytd-prev" class="text-slate-600 dark:text-slate-400 font-medium">—</span></span>
                 <span id="crgm-ytd-badge" class="font-bold px-1.5 py-0.5 rounded">—</span>
             </div>
         </div>
@@ -460,14 +460,14 @@
     <!-- Chart: Evolução (full width) -->
     <div class="glass-card overflow-hidden mb-6">
         <div class="px-5 pt-4 pb-2 flex items-center justify-between">
-            <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+            <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display flex items-center gap-2">
+                <svg class="w-4 h-4 text-[#00346f] dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
                 Matrículas por Dia
             </h3>
-            <span class="text-[10px] text-slate-600">tracejado = ano anterior</span>
+            <span class="text-[10px] text-slate-500 dark:text-slate-600">tracejado = ano anterior</span>
         </div>
         <div class="px-5 pb-5">
-            <div class="rounded-xl p-3 bg-slate-800/20 border border-slate-700/20" style="height:300px;">
+            <div class="rounded-xl p-3 bg-slate-100 border border-slate-200 dark:bg-slate-800/20 dark:border-slate-700/20" style="height:300px;">
                 <canvas id="crgm-chart-evolucao"></canvas>
             </div>
         </div>
@@ -475,9 +475,9 @@
 
     <!-- Ranking de Agentes -->
     <div class="glass-card overflow-hidden mb-6">
-        <div class="px-5 py-3 border-b border-slate-700/20 flex items-center justify-between gap-3">
-            <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        <div class="px-5 py-3 border-b border-slate-200 dark:border-slate-700/20 flex items-center justify-between gap-3">
+            <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display flex items-center gap-2">
+                <svg class="w-4 h-4 text-[#00346f] dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                 Ranking de Agentes Comerciais
             </h3>
             <div class="flex items-center gap-3 ml-auto">
@@ -490,33 +490,33 @@
                 </button>
             </div>
         </div>
-        <div id="crgm-metas-aviso" class="hidden mx-5 mb-3 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-200/90 text-xs leading-relaxed"></div>
+        <div id="crgm-metas-aviso" class="hidden mx-5 mb-3 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-900 dark:text-amber-200/90 text-xs leading-relaxed"></div>
         <div class="overflow-x-auto max-h-[500px] overflow-y-auto">
             <table class="w-full text-sm">
                 <thead class="sticky top-0 z-10">
-                    <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-700/20 bg-slate-900/95 backdrop-blur">
+                    <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-700/20 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur">
                         <th class="text-center px-3 py-3 w-10">#</th>
                         <th class="text-left px-4 py-3">Agente</th>
-                        <th class="text-right px-4 py-3">Matr. <span class="text-slate-600">(per.)</span></th>
+                        <th class="text-right px-4 py-3">Matr. <span class="text-slate-500 dark:text-slate-600">(per.)</span></th>
                         <th class="text-right px-4 py-3">Interm.</th>
                         <th class="text-right px-4 py-3">Meta</th>
                         <th class="text-right px-4 py-3">Super</th>
                         <th class="text-right px-4 py-3">Nível</th>
-                        <th class="text-right px-4 py-3">Novos <span class="text-slate-600">(per.)</span></th>
-                        <th class="text-right px-4 py-3">Perdidos <span class="text-slate-600">(per.)</span></th>
+                        <th class="text-right px-4 py-3">Novos <span class="text-slate-500 dark:text-slate-600">(per.)</span></th>
+                        <th class="text-right px-4 py-3">Perdidos <span class="text-slate-500 dark:text-slate-600">(per.)</span></th>
                         <th class="text-right px-4 py-3">Total</th>
                         <th class="text-right px-4 py-3">Conv.</th>
                     </tr>
                 </thead>
-                <tbody id="crgm-agentes-body" class="divide-y divide-slate-700/10">
+                <tbody id="crgm-agentes-body" class="divide-y divide-slate-200 dark:divide-slate-700/10">
                     <tr><td colspan="11" class="px-5 py-8 text-center text-slate-600">Carregando...</td></tr>
                 </tbody>
             </table>
         </div>
-        <div id="crgm-transferencia-wrap" class="hidden px-5 py-4 border-t border-slate-700/20 bg-amber-500/5">
-            <h4 class="text-xs font-bold uppercase tracking-wider text-amber-400 mb-2">transferencia/regresso <span id="crgm-transferencia-total" class="text-slate-400 font-mono"></span></h4>
+        <div id="crgm-transferencia-wrap" class="hidden px-5 py-4 border-t border-slate-200 dark:border-slate-700/20 bg-amber-500/5">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-400 mb-2">transferencia/regresso <span id="crgm-transferencia-total" class="text-slate-600 dark:text-slate-400 font-mono"></span></h4>
             <p class="text-[11px] text-slate-500 mb-2">RGMs sem lead correspondente em vw_leads_rgm (Kommo).</p>
-            <div id="crgm-transferencia-body" class="max-h-40 overflow-y-auto text-xs font-mono text-slate-300 space-y-1"></div>
+            <div id="crgm-transferencia-body" class="max-h-40 overflow-y-auto text-xs font-mono text-slate-700 dark:text-slate-300 space-y-1"></div>
         </div>
     </div>
 
@@ -524,22 +524,22 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6 items-start">
         <div class="lg:col-span-2 glass-card overflow-hidden">
             <div class="px-5 pt-4 pb-1">
-                <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                    <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display flex items-center gap-2">
+                    <svg class="w-4 h-4 text-[#00346f] dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                     Matrículas por Agente
                 </h3>
                 <p class="text-[11px] text-slate-500 mt-1 mb-2">Barras = matrículas no período. Cores = desempenho vs meta (detalhes na tabela acima).</p>
             </div>
             <div class="px-5 pb-5">
-                <div class="rounded-xl p-3 bg-slate-800/20 border border-slate-700/20" style="height:min(420px, 55vh); max-height:480px;">
+                <div class="rounded-xl p-3 bg-slate-100 border border-slate-200 dark:bg-slate-800/20 dark:border-slate-700/20" style="height:min(420px, 55vh); max-height:480px;">
                     <canvas id="crgm-chart-agentes"></canvas>
                 </div>
             </div>
         </div>
         <div class="glass-card overflow-hidden self-start w-full">
-            <div class="px-5 py-3 border-b border-slate-700/20">
-                <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                    <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            <div class="px-5 py-3 border-b border-slate-200 dark:border-slate-700/20">
+                <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display flex items-center gap-2">
+                    <svg class="w-4 h-4 text-[#00346f] dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                     Matrículas por Ciclo
                 </h3>
                 <p class="text-[11px] text-slate-500 mt-1">Total do ciclo completo (sem restrição de datas).</p>
@@ -547,13 +547,13 @@
             <div class="overflow-x-auto max-h-72 overflow-y-auto">
                 <table class="w-full text-sm">
                     <thead class="sticky top-0 z-10">
-                        <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-700/20 bg-slate-900/95 backdrop-blur">
+                        <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-700/20 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur">
                             <th class="text-left px-4 py-2.5">Ciclo</th>
                             <th class="text-right px-4 py-2.5">Bruto</th>
                             <th class="text-right px-4 py-2.5">EM Curso</th>
                         </tr>
                     </thead>
-                    <tbody id="crgm-ciclo-body" class="divide-y divide-slate-700/10">
+                    <tbody id="crgm-ciclo-body" class="divide-y divide-slate-200 dark:divide-slate-700/10">
                         <tr><td colspan="3" class="px-5 py-6 text-center text-slate-600">Carregando...</td></tr>
                     </tbody>
                 </table>
@@ -563,23 +563,23 @@
 
     <!-- Ranking por Polo (tabela limpa no final) -->
     <div class="glass-card overflow-hidden">
-        <div class="px-5 py-3 border-b border-slate-700/20">
-            <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        <div class="px-5 py-3 border-b border-slate-200 dark:border-slate-700/20">
+            <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display flex items-center gap-2">
+                <svg class="w-4 h-4 text-[#00346f] dark:text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                 Matrículas por Polo
             </h3>
         </div>
         <div class="overflow-x-auto max-h-[400px] overflow-y-auto">
             <table class="w-full text-sm">
                 <thead class="sticky top-0 z-10">
-                    <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-700/20 bg-slate-900/95 backdrop-blur">
+                    <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-700/20 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur">
                         <th class="text-center px-3 py-3 w-10">#</th>
                         <th class="text-left px-4 py-3">Polo</th>
                         <th class="text-right px-4 py-3">Total</th>
                         <th class="text-left px-4 py-3 w-48">Proporção</th>
                     </tr>
                 </thead>
-                <tbody id="crgm-polo-body" class="divide-y divide-slate-700/10">
+                <tbody id="crgm-polo-body" class="divide-y divide-slate-200 dark:divide-slate-700/10">
                     <tr><td colspan="4" class="px-5 py-6 text-center text-slate-600">Carregando...</td></tr>
                 </tbody>
             </table>
@@ -590,14 +590,14 @@
     <div id="crgm-duplicatas-panel" class="hidden mt-6">
         <div class="glass-card overflow-hidden border border-amber-500/30">
             <div class="px-5 py-3 border-b border-amber-500/20 bg-amber-500/5 flex items-center justify-between">
-                <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                    <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+                <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display flex items-center gap-2">
+                    <svg class="w-4 h-4 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
                     <span>Duplicatas de RGM</span>
-                    <span id="crgm-dup-count" class="ml-2 text-xs font-bold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full">0</span>
+                    <span id="crgm-dup-count" class="ml-2 text-xs font-bold bg-amber-200/80 dark:bg-amber-500/20 text-amber-900 dark:text-amber-300 px-2 py-0.5 rounded-full">0</span>
                 </h3>
                 <div class="flex items-center gap-3">
                     <span class="text-[10px] text-slate-500">RGMs com mais de 1 lead no Kommo</span>
-                    <button onclick="crgmToggleDuplicatas()" class="text-xs text-slate-500 hover:text-white transition-colors">
+                    <button onclick="crgmToggleDuplicatas()" class="text-xs text-slate-600 hover:text-[#00346f] dark:text-slate-500 dark:hover:text-white transition-colors">
                         <span id="crgm-dup-toggle-text">Expandir</span>
                     </button>
                 </div>
@@ -605,14 +605,14 @@
             <div id="crgm-duplicatas-body" class="hidden overflow-x-auto max-h-[500px] overflow-y-auto">
                 <table class="w-full text-sm">
                     <thead class="sticky top-0 z-10">
-                        <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-700/20 bg-slate-900/95 backdrop-blur">
+                        <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-700/20 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur">
                             <th class="text-center px-3 py-3 w-10">#</th>
                             <th class="text-left px-4 py-3">RGM</th>
                             <th class="text-center px-4 py-3">Leads</th>
                             <th class="text-left px-4 py-3">Detalhes</th>
                         </tr>
                     </thead>
-                    <tbody id="crgm-dup-tbody" class="divide-y divide-slate-700/10"></tbody>
+                    <tbody id="crgm-dup-tbody" class="divide-y divide-slate-200 dark:divide-slate-700/10"></tbody>
                 </table>
             </div>
         </div>
@@ -622,15 +622,15 @@
     <div id="crgm-semdata-panel" class="hidden mt-6">
         <div class="glass-card overflow-hidden border border-rose-500/30">
             <div class="px-5 py-3 border-b border-rose-500/20 bg-rose-500/5 flex flex-wrap items-center justify-between gap-2">
-                <h3 class="text-sm font-bold text-white font-display flex items-center gap-2">
-                    <svg class="w-4 h-4 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display flex items-center gap-2">
+                    <svg class="w-4 h-4 text-rose-600 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                     <span>Matrículas sem data no Kommo</span>
-                    <span id="crgm-semdata-count" class="ml-2 text-xs font-bold bg-rose-500/20 text-rose-200 px-2 py-0.5 rounded-full">0</span>
+                    <span id="crgm-semdata-count" class="ml-2 text-xs font-bold bg-rose-200/80 dark:bg-rose-500/20 text-rose-900 dark:text-rose-200 px-2 py-0.5 rounded-full">0</span>
                 </h3>
                 <div class="flex items-center gap-3">
-                    <span class="text-[10px] text-slate-500 max-w-md">Leads que aparecem no CSV do período selecionado mas ainda não têm o campo <strong class="text-slate-400">Matrícula</strong> (data) preenchido no Kommo.</span>
-                    <button type="button" onclick="_crgmSemDataCsv()" id="crgm-semdata-csv" class="hidden text-xs text-rose-300 hover:text-white border border-rose-500/40 px-2 py-1 rounded-lg">CSV</button>
-                    <button onclick="crgmToggleSemData()" class="text-xs text-slate-500 hover:text-white transition-colors">
+                    <span class="text-[10px] text-slate-500 max-w-md">Leads que aparecem no CSV do período selecionado mas ainda não têm o campo <strong class="text-slate-700 dark:text-slate-400">Matrícula</strong> (data) preenchido no Kommo.</span>
+                    <button type="button" onclick="_crgmSemDataCsv()" id="crgm-semdata-csv" class="hidden text-xs text-rose-700 dark:text-rose-300 hover:text-rose-900 dark:hover:text-white border border-rose-400/60 dark:border-rose-500/40 px-2 py-1 rounded-lg">CSV</button>
+                    <button onclick="crgmToggleSemData()" class="text-xs text-slate-600 hover:text-[#00346f] dark:text-slate-500 dark:hover:text-white transition-colors">
                         <span id="crgm-semdata-toggle-text">Expandir</span>
                     </button>
                 </div>
@@ -638,7 +638,7 @@
             <div id="crgm-semdata-body" class="hidden overflow-x-auto max-h-[480px] overflow-y-auto">
                 <table class="w-full text-sm">
                     <thead class="sticky top-0 z-10">
-                        <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-700/20 bg-slate-900/95 backdrop-blur">
+                        <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-700/20 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur">
                             <th class="text-center px-2 py-2 w-8">#</th>
                             <th class="text-left px-2 py-2">RGM</th>
                             <th class="text-left px-2 py-2">Nome</th>
@@ -648,7 +648,7 @@
                             <th class="text-left px-2 py-2">Consultora (Kommo)</th>
                         </tr>
                     </thead>
-                    <tbody id="crgm-semdata-tbody" class="divide-y divide-slate-700/10"></tbody>
+                    <tbody id="crgm-semdata-tbody" class="divide-y divide-slate-200 dark:divide-slate-700/10"></tbody>
                 </table>
             </div>
         </div>

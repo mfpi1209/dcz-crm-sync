@@ -3,7 +3,8 @@
 <head>
     {% include 'partials/_head.html' %}
 </head>
-<body class="h-full bg-[var(--bg-main)] text-[var(--text-primary)] font-sans antialiased">
+<body class="h-full bg-[var(--bg-main)] text-[var(--text-primary)] font-sans antialiased"
+      data-username="{{ session.get('username', '')|e }}">
 
 <div class="h-full flex">
     {% include 'partials/_sidebar.html' %}
@@ -41,11 +42,20 @@
             {% include 'partials/_premiacao_admin.html' %}
             {% include 'partials/_ajustes_matricula.html' %}
             {% include 'partials/_macro_email.html' %}
+            {% include 'partials/_profile.html' %}
         </main>
     </div>
 </div>
 
 <div id="toast-container"></div>
+
+<!-- Scroll to top button -->
+<button id="scroll-to-top" type="button" onclick="scrollPageToTop()"
+        class="fixed bottom-6 right-6 z-40 w-11 h-11 rounded-full shadow-xl flex items-center justify-center transition-all duration-300 opacity-0 translate-y-4 pointer-events-none"
+        style="background: var(--primary); color: #fff; box-shadow: 0 10px 25px -5px rgba(0,52,111,0.35);"
+        aria-label="Voltar ao topo" title="Voltar ao topo">
+    <span class="material-symbols-outlined text-[22px]">arrow_upward</span>
+</button>
 
 <!-- Modal: Editar Metas em Massa (fora do main para position:fixed funcionar corretamente) -->
 <div id="crgm-bulk-meta-modal" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" style="position:fixed;top:0;left:0;right:0;bottom:0;">
@@ -192,6 +202,7 @@
 <script src="{{ url_for('static', filename='js/ajustes_matricula.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/macro_email.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/repasse.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/profile.js') }}?v={{_v}}"></script>
 
 </body>
 </html>
