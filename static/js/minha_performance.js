@@ -201,6 +201,17 @@ function _mpRenderHero(d) {
     const el = id => document.getElementById(id);
     el('mp-hero-campanha').textContent = d.campanha?.nome || '';
 
+    const banner = document.getElementById('mp-campanha-encerrada');
+    if (banner) {
+        if (d.campanha && d.campanha.is_active === false) {
+            const nomeEl = document.getElementById('mp-campanha-encerrada-nome');
+            if (nomeEl) nomeEl.textContent = d.campanha.nome || '—';
+            banner.classList.remove('hidden');
+        } else {
+            banner.classList.add('hidden');
+        }
+    }
+
     _mpCountUp('mp-hero-saldo', total, { prefix: 'R$ ', decimalPlaces: 2, formattedValue: _mpFmt(total) });
 
     const maxPotencial = _mpCalcMaxPotencial(d);

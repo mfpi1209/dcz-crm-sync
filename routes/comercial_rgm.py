@@ -211,7 +211,16 @@ def _crgm_excluded_rgms(_unused=None) -> set:
                     SELECT id FROM xl_snapshots WHERE tipo = 'matriculados' ORDER BY id DESC LIMIT 1
                 )
                   AND COALESCE(r2.data->>'rgm','') ~ '[0-9]'
-                ORDER BY regexp_replace(COALESCE(r2.data->>'rgm',''), '[^0-9]', '', 'g'), r2.id DESC
+                ORDER BY
+                    regexp_replace(COALESCE(r2.data->>'rgm',''), '[^0-9]', '', 'g'),
+                    -- Em transferências internas, prioriza linha EM CURSO
+                    -- sobre TRANSFERIDO/CANCELADO para o aluno não ser excluído.
+                    CASE
+                        WHEN UPPER(TRIM(COALESCE(r2.data->>'situacao',''))) = 'EM CURSO' THEN 0
+                        WHEN UPPER(TRIM(COALESCE(r2.data->>'situacao',''))) IN ('TRANCADO','SEM EVOLUCAO','SEM EVOLUÇÃO') THEN 1
+                        ELSE 2
+                    END,
+                    r2.id DESC
             ) r
             WHERE UPPER(TRIM(COALESCE(r.data->>'situacao',''))) != 'EM CURSO'
         """)
@@ -345,7 +354,24 @@ def _crgm_periodo_data(dt_ini=None, dt_fim=None, polo=None, nivel=None, ciclo_fi
                   AND UPPER(TRIM(COALESCE(r.data->>'tipo_matricula','')))
                       = ANY(ARRAY['NOVA MATRICULA','RECOMPRA','RETORNO'])
                   AND TRIM(COALESCE(r.data->>'empresa','')) ~ '^(12|7) -'
-                ORDER BY regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g'), r.id DESC
+                ORDER BY
+                    regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g'),
+                    -- Em transferências internas o aluno aparece 2x: prioriza
+                    -- a linha que ainda está EM CURSO sobre TRANSFERIDO/CANCELADO.
+                    CASE
+                        WHEN UPPER(TRIM(COALESCE(r.data->>'situacao',''))) = 'EM CURSO' THEN 0
+                        WHEN UPPER(TRIM(COALESCE(r.data->>'situacao',''))) IN ('TRANCADO','SEM EVOLUCAO','SEM EVOLUÇÃO') THEN 1
+                        ELSE 2
+                    END,
+                    -- Desempate: matrícula mais recente.
+                    CASE
+                        WHEN (r.data->>'data_mat') ~ '^[0-9]{{2}}/[0-9]{{2}}/[0-9]{{4}}$'
+                            THEN to_date(r.data->>'data_mat','DD/MM/YYYY')
+                        WHEN (r.data->>'data_mat') ~ '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}'
+                            THEN (r.data->>'data_mat')::date
+                        ELSE NULL
+                    END DESC NULLS LAST,
+                    r.id DESC
             ) deduped
             {outer_where}
         """

@@ -180,7 +180,24 @@ def _get_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=Fal
                   AND UPPER(TRIM(COALESCE(r.data->>'tipo_matricula','')))
                       = ANY(ARRAY['NOVA MATRICULA','RECOMPRA','RETORNO'])
                   AND TRIM(COALESCE(r.data->>'empresa','')) ~ '^(12|7) -'
-                ORDER BY regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g'), r.id DESC
+                ORDER BY
+                    regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g'),
+                    -- Em transferências internas o aluno aparece 2x: prioriza
+                    -- a linha que ainda está EM CURSO sobre TRANSFERIDO/CANCELADO.
+                    CASE
+                        WHEN UPPER(TRIM(COALESCE(r.data->>'situacao',''))) = 'EM CURSO' THEN 0
+                        WHEN UPPER(TRIM(COALESCE(r.data->>'situacao',''))) IN ('TRANCADO','SEM EVOLUCAO','SEM EVOLUÇÃO') THEN 1
+                        ELSE 2
+                    END,
+                    -- Desempate: matrícula mais recente.
+                    CASE
+                        WHEN (r.data->>'data_mat') ~ '^[0-9]{{2}}/[0-9]{{2}}/[0-9]{{4}}$'
+                            THEN to_date(r.data->>'data_mat','DD/MM/YYYY')
+                        WHEN (r.data->>'data_mat') ~ '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}'
+                            THEN (r.data->>'data_mat')::date
+                        ELSE NULL
+                    END DESC NULLS LAST,
+                    r.id DESC
             ) deduped
             {outer_where}
             ORDER BY data_matricula DESC NULLS LAST
@@ -376,7 +393,12 @@ def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
 
 
 def _get_active_campanha(dt=None):
-    """Return the active campaign covering the given date (or today)."""
+    """Return the active campaign covering the given date (or today).
+
+    Fallback: se não houver campanha vigente, devolve a mais recente
+    cadastrada (por dt_inicio DESC) marcada com is_active=False, pra
+    que a tela continue mostrando dados históricos ao invés de ficar vazia.
+    """
     ref = dt or datetime.now(BRT).date()
     try:
         conn = _pg()
@@ -387,9 +409,26 @@ def _get_active_campanha(dt=None):
             ORDER BY dt_inicio DESC LIMIT 1
         """, (ref, ref))
         row = cur.fetchone()
+
+        if row:
+            result = dict(row)
+            result["is_active"] = True
+            cur.close()
+            conn.close()
+            return result
+
+        cur.execute("""
+            SELECT * FROM premiacao_campanha
+            ORDER BY dt_inicio DESC LIMIT 1
+        """)
+        row = cur.fetchone()
         cur.close()
         conn.close()
-        return dict(row) if row else None
+        if not row:
+            return None
+        result = dict(row)
+        result["is_active"] = False
+        return result
     except Exception:
         return None
 
@@ -651,6 +690,7 @@ def api_minha_performance():
             "nome": campanha["nome"],
             "dt_inicio": str(campanha["dt_inicio"]),
             "dt_fim": str(campanha["dt_fim"]),
+            "is_active": campanha.get("is_active", True),
         },
         "matriculas": matriculas,
         "total": total,
@@ -731,7 +771,7 @@ def api_minha_premiacao():
 
     return jsonify({
         "ok": True,
-        "campanha": {"id": cid, "nome": campanha["nome"]},
+        "campanha": {"id": cid, "nome": campanha["nome"], "is_active": campanha.get("is_active", True)},
         "total_matriculas": total_mat,
         "tier": tier,
         "tier_valor_por_mat": tier_valor,
@@ -1087,6 +1127,23 @@ def api_minha_insights():
     base_v = tier_bonuses.get("base", 0)
     _fmt = lambda v: f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+    # Quebra do saldo total (tier + diárias + recebimentos), pro usuário
+    # entender de onde vem cada parte quando o número total é diferente
+    # do simples "matrículas × valor por mat".
+    def _build_breakdown_html():
+        parts = []
+        if tier_bonus_total > 0:
+            parts.append(f"<span class=\"text-white/70\">Por matrícula:</span> <strong>{_fmt(tier_bonus_total)}</strong>")
+        if daily_bonus_total > 0:
+            parts.append(f"<span class=\"text-white/70\">Bônus diário:</span> <strong>{_fmt(daily_bonus_total)}</strong>")
+        if receb_bonus_total > 0:
+            parts.append(f"<span class=\"text-white/70\">Recebimentos:</span> <strong>{_fmt(receb_bonus_total)}</strong>")
+        if len(parts) > 1:
+            return "<br><span class=\"text-[11px] text-white/60\">" + " · ".join(parts) + "</span>"
+        return ""
+
+    breakdown_html = _build_breakdown_html()
+
     if super_val > 0 and total_mat >= super_val:
         sv = tier_bonuses.get("supermeta", 0)
         extra_mat = total_mat - super_val
@@ -1102,7 +1159,7 @@ def api_minha_insights():
         falta_s = max(0, super_val - total_mat) if super_val > 0 else 0
         sv = tier_bonuses.get("supermeta", 0)
         ganho_extra = round((sv - tier_valor) * total_mat, 2) if sv > tier_valor else 0
-        mensagem = f"🔥 <strong>Meta batida! Você já garantiu {_fmt(tier_bonus_total)}!</strong>"
+        mensagem = f"🔥 <strong>Meta batida! Você já garantiu {_fmt(total_acumulado)}!</strong>{breakdown_html}"
         if falta_s > 0 and dias_uteis_restantes > 0:
             pace_s = round(falta_s / dias_uteis_restantes, 1)
             mensagem += (
@@ -1146,8 +1203,10 @@ def api_minha_insights():
     elif inter_val > 0:
         falta_i = max(0, inter_val - total_mat)
         iv = tier_bonuses.get("intermediaria", 0)
-        base_total = round(base_v * total_mat, 2) if base_v > 0 else 0
-        upgrade_total = round(iv * total_mat, 2)
+        # base_total = saldo total acumulado (inclui tier + diárias + recebs),
+        # pra bater com o número exibido no Hero ("Seu saldo acumulado").
+        base_total = round(total_acumulado, 2)
+        upgrade_total = round(iv * total_mat + daily_bonus_total + receb_bonus_total, 2)
         if falta_i <= 2 and falta_i > 0:
             mensagem = (
                 f"🔥 <strong>Quase lá!</strong> Só <strong>{falta_i} matrícula{'s' if falta_i > 1 else ''}</strong> "
@@ -1179,7 +1238,8 @@ def api_minha_insights():
         if base_v > 0 and total_mat > 0:
             mensagem = (
                 f"💰 Cada matrícula = <strong>{_fmt(base_v)}</strong>!<br>"
-                f"Você já acumula <strong>{_fmt(round(base_v * total_mat, 2))}</strong>. Continue assim! 🚀"
+                f"Você já acumula <strong>{_fmt(round(total_acumulado, 2))}</strong>. Continue assim! 🚀"
+                f"{breakdown_html}"
             )
         elif total_mat > 0:
             mensagem = "🔥 Campanha ativa! Você já tem matrículas — agora é acelerar! 💪"
@@ -1289,6 +1349,7 @@ def api_minha_insights():
             "nome": campanha["nome"],
             "dt_inicio": dt_ini_str,
             "dt_fim": dt_fim_str,
+            "is_active": campanha.get("is_active", True),
         },
         "total_matriculas": total_mat,
         "metas": metas,
