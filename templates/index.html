@@ -3,8 +3,19 @@
 <head>
     {% include 'partials/_head.html' %}
 </head>
-<body class="h-full bg-[var(--bg-main)] text-[var(--text-primary)] font-sans antialiased"
-      data-username="{{ session.get('username', '')|e }}">
+<body class="h-full bg-[var(--bg-main)] text-[var(--text-primary)] font-sans antialiased initial-bootstrap"
+      data-username="{{ session.get('username', '')|e }}"
+      data-role="{{ nav_role }}"
+      data-categoria="{{ nav_categoria }}"
+      data-is-comercial="{{ '1' if nav_is_comercial else '0' }}"
+      data-initial-page="{{ nav_initial_page }}"
+      data-allowed-pages='{{ nav_allowed_pages|tojson }}'>
+
+<div id="boot-splash" aria-hidden="true">
+    <div class="boot-brand"><span>edu</span><span class="accent">it.</span></div>
+    <div class="boot-sub">Cockpit · Gestão</div>
+    <div class="boot-spinner"></div>
+</div>
 
 <div class="h-full flex">
     {% include 'partials/_sidebar.html' %}

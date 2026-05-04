@@ -40,6 +40,7 @@ async function loadDashboard() {
     loadTimeline();
     loadCicloMaster();
     _loadInadimplenciaCard();
+    if (typeof _dismissBootSplash === 'function') _dismissBootSplash();
 }
 
 async function _dashRefreshFunnel(force) {
