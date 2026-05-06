@@ -437,7 +437,7 @@ const _PRESET_FERRAMENTAS_BASIC = ['comparar_cursos', 'recomendacao_cursos', 'lo
 const CATEGORY_PRESETS = {
     'Comercial': [
         ..._PRESET_FERRAMENTAS_FULL,
-        'minha_performance', 'repasse', 'search', 'avisos',
+        'minha_performance', 'repasse', 'dist_consultor', 'search', 'avisos',
     ],
     'Acadêmico': [
         ..._PRESET_FERRAMENTAS_BASIC,
