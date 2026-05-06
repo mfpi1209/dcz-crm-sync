@@ -106,6 +106,45 @@ def _resolve_kommo_uid(args_uid=None):
     return _get_kommo_uid()
 
 
+def _load_conflito_overrides() -> dict:
+    """Mapa rgm_normalizado -> kommo_user_id resolvido manualmente em
+    'Vendas em Conflito' (Dashboard Comercial). Esses overrides DEVEM ser
+    respeitados em qualquer relatório por agente, senão o mesmo RGM é
+    contabilizado para mais de um consultor (ex.: lead Hugo + lead Bruno
+    com a venda atribuída ao Bruno via conflito_resolucao).
+    """
+    out: dict[str, int] = {}
+    try:
+        conn = _pg()
+        with conn.cursor() as cur:
+            cur.execute("SELECT rgm, user_id FROM comercial_rgm_conflito_resolucao")
+            for r_raw, uid in cur.fetchall():
+                n = _normalize_rgm(r_raw)
+                if n and uid:
+                    out[n] = int(uid)
+        conn.close()
+    except Exception as e:
+        logger.warning("conflito_resolucao override load: %s", e)
+    return out
+
+
+def _apply_conflito_overrides_to_agent_rgms(agent_rgms: set, kommo_uid) -> set:
+    """Ajusta o conjunto de RGMs do agente conforme overrides:
+       - Se override.user_id == kommo_uid → garante que o RGM aparece.
+       - Se override.user_id != kommo_uid → remove o RGM (pertence a outro).
+    Retorna o conjunto ajustado (mutação in-place também aplicada).
+    """
+    overrides = _load_conflito_overrides()
+    if not overrides:
+        return agent_rgms
+    for rgm, owner_uid in overrides.items():
+        if owner_uid == kommo_uid:
+            agent_rgms.add(rgm)
+        else:
+            agent_rgms.discard(rgm)
+    return agent_rgms
+
+
 def _get_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=False):
     """Get matriculas for a specific agent from xl_rows.
     only_em_curso=True filters to situacao='EM CURSO' only (para contagens oficiais).
@@ -130,6 +169,11 @@ def _get_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=Fal
     except Exception as e:
         logger.warning("Error fetching agent RGMs from Kommo: %s", e)
         return []
+
+    # Aplica overrides manuais de "Vendas em Conflito" — mesma lógica do
+    # Dashboard Comercial. Sem isso, RGMs com lead em mais de um consultor
+    # apareciam para todos eles.
+    _apply_conflito_overrides_to_agent_rgms(agent_rgms, kommo_uid)
 
     if not agent_rgms:
         return []
@@ -306,6 +350,12 @@ def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
         n = _normalize_rgm(rgm_raw)
         if n and uid:
             rgm_to_uid[n] = uid
+
+    # Aplica overrides manuais de conflito (mesma lógica do Dashboard Comercial)
+    overrides_rgm = _load_conflito_overrides()
+    if overrides_rgm:
+        for r, uid in overrides_rgm.items():
+            rgm_to_uid[r] = uid
 
     # Count aceites per agent (leads in ANY Aceite stage)
     ace_ids = _get_aceite_status_ids()
