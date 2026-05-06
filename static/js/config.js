@@ -421,6 +421,8 @@ const PAGE_LABELS = {
     'meta-campaigns': 'Campaign Performance',
     dist_comercial: 'Distribuição Comercial',
     atualizar_preco: 'Atualizar Preço',
+    captacao: 'Captação Externa',
+    clicks: 'QR Codes',
 };
 
 // ---------------------------------------------------------------------------
@@ -528,6 +530,7 @@ const PAGE_GROUPS_CONFIG = [
             'dist_consultor', 'comercial_rgm', 'dist_comercial', 'inscricao',
             'recadastros', 'comercial_dashboard', 'auditoria_comercial',
             'atualizar_preco', 'leads_parados', 'minha_performance', 'repasse',
+            'captacao', 'clicks',
         ],
     },
     {
@@ -576,6 +579,21 @@ const PAGE_GROUPS_CONFIG = [
 let _allPages = [];
 let _usersData = [];
 
+function filterUsersTable() {
+    const q = (document.getElementById('cfg-users-search').value || '').toLowerCase().trim();
+    const cat = document.getElementById('cfg-users-cat-filter').value;
+    const rows = document.querySelectorAll('#users-tbody tr[data-user-row]');
+    rows.forEach(row => {
+        const name = (row.dataset.userName || '').toLowerCase();
+        const rowCat = row.dataset.userCat || '';
+        let show = true;
+        if (q && !name.includes(q)) show = false;
+        if (cat === '__none__' && rowCat !== '') show = false;
+        else if (cat && cat !== '__none__' && rowCat !== cat) show = false;
+        row.style.display = show ? '' : 'none';
+    });
+}
+
 async function loadUsers() {
     try {
         const res = await api('/api/users');
@@ -612,15 +630,15 @@ function renderUsers() {
             : '<span class="text-xs" style="color: var(--text-muted)">—</span>';
         const permsHtml = u.role === 'admin'
             ? '<span class="tag-page-all">Acesso total</span>'
-            : (u.pages || []).map(p => `<span class="tag-page">${PAGE_LABELS[p] || p}</span>`).join('');
-        return `<tr class="border-b border-[var(--border)]">
-            <td class="py-3 font-medium" style="color: var(--text-primary)">${u.username}</td>
-            <td class="py-3">${catLabel}</td>
-            <td class="py-3">${roleLabel}</td>
-            <td class="py-3 max-w-xs">${permsHtml}</td>
-            <td class="py-3 text-xs" style="color: var(--text-muted)">${u.created_at || ''}</td>
-            <td class="py-3">
-                <div class="flex gap-2">
+            : `<div class="flex flex-wrap gap-1">${(u.pages || []).map(p => `<span class="tag-page">${PAGE_LABELS[p] || p}</span>`).join('')}</div>`;
+        return `<tr class="border-b border-[var(--border)] align-top" data-user-row data-user-name="${(u.username||'').toLowerCase()}" data-user-cat="${u.categoria||''}">
+            <td class="py-2.5 pr-3 font-medium text-[13px] whitespace-nowrap" style="color: var(--text-primary)">${u.username}</td>
+            <td class="py-2.5 pr-3 whitespace-nowrap">${catLabel}</td>
+            <td class="py-2.5 pr-3 whitespace-nowrap">${roleLabel}</td>
+            <td class="py-2.5 pr-3" style="max-width:320px">${permsHtml}</td>
+            <td class="py-2.5 pr-3 text-xs whitespace-nowrap" style="color: var(--text-muted)">${u.created_at || ''}</td>
+            <td class="py-2.5">
+                <div class="flex gap-2 whitespace-nowrap">
                     <button onclick="editUser(${u.id})" class="text-xs font-semibold transition-colors" style="color: var(--primary)">Editar</button>
                     <button onclick="deleteUser(${u.id}, '${u.username}')" class="text-xs font-semibold text-red-600 hover:text-red-500 dark:text-red-400 dark:hover:text-red-300 transition-colors">Excluir</button>
                 </div>
