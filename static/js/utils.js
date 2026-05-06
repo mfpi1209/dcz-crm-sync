@@ -284,7 +284,8 @@ async function applySidebarPermissions() {
     } catch (e) { console.error('sidebar permissions', e); }
 }
 
-applySidebarPermissions().then(() => checkAvisosNaoLidos());
+window._sidebarPermsReady = applySidebarPermissions();
+window._sidebarPermsReady.then(() => checkAvisosNaoLidos());
 
 // ---------------------------------------------------------------------------
 // Avisos — popup ao logar + badge sidebar

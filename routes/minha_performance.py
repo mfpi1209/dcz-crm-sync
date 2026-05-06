@@ -392,17 +392,33 @@ def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
     }
 
 
-def _get_active_campanha(dt=None):
-    """Return the active campaign covering the given date (or today).
+def _get_active_campanha(dt=None, campanha_id=None):
+    """Retorna a campanha solicitada.
 
-    Fallback: se não houver campanha vigente, devolve a mais recente
-    cadastrada (por dt_inicio DESC) marcada com is_active=False, pra
-    que a tela continue mostrando dados históricos ao invés de ficar vazia.
+    - Se ``campanha_id`` for informado, busca exatamente essa campanha.
+      O flag ``is_active`` reflete se ela cobre a data ``dt`` (ou hoje).
+    - Senão, retorna a campanha vigente para ``dt`` (ou hoje).
+    - Fallback: a mais recente por ``dt_inicio DESC`` com ``is_active=False``,
+      para a tela continuar mostrando dados históricos ao invés de ficar vazia.
     """
     ref = dt or datetime.now(BRT).date()
     try:
         conn = _pg()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        if campanha_id:
+            cur.execute("SELECT * FROM premiacao_campanha WHERE id = %s", (campanha_id,))
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            if not row:
+                return None
+            result = dict(row)
+            result["is_active"] = bool(
+                row.get("ativa") and row["dt_inicio"] <= ref <= row["dt_fim"]
+            )
+            return result
+
         cur.execute("""
             SELECT * FROM premiacao_campanha
             WHERE ativa = TRUE AND dt_inicio <= %s AND dt_fim >= %s
@@ -431,6 +447,50 @@ def _get_active_campanha(dt=None):
         return result
     except Exception:
         return None
+
+
+def _parse_campanha_id():
+    """Lê e normaliza o param ``campanha_id`` da query atual."""
+    raw = (request.args.get("campanha_id") or "").strip()
+    try:
+        return int(raw) if raw else None
+    except ValueError:
+        return None
+
+
+@minha_performance_bp.route("/api/minha-performance/campanhas")
+def api_minha_campanhas():
+    """Lista todas as campanhas pra popular o seletor da tela Minha Performance."""
+    try:
+        ref = datetime.now(BRT).date()
+        conn = _pg()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT id, nome, dt_inicio, dt_fim, ativa
+            FROM premiacao_campanha
+            ORDER BY dt_inicio DESC
+        """)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        out = []
+        default_id = None
+        for r in rows:
+            d = dict(r)
+            d["dt_inicio"] = str(d["dt_inicio"])
+            d["dt_fim"] = str(d["dt_fim"])
+            d["is_active"] = bool(d.get("ativa")) and d["dt_inicio"] <= str(ref) <= d["dt_fim"]
+            out.append(d)
+            if default_id is None and d["is_active"]:
+                default_id = d["id"]
+        if default_id is None and out:
+            default_id = out[0]["id"]
+
+        return jsonify({"ok": True, "campanhas": out, "default_id": default_id})
+    except Exception as e:
+        logger.exception("listar campanhas")
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 def _get_tier_bonuses(campanha_id):
@@ -642,7 +702,7 @@ def api_minha_performance():
     if not kommo_uid:
         return jsonify({"ok": False, "error": "Agente não vinculado ao Kommo"}), 400
 
-    campanha = _get_active_campanha()
+    campanha = _get_active_campanha(campanha_id=_parse_campanha_id())
     if not campanha:
         return jsonify({
             "ok": True,
@@ -709,7 +769,7 @@ def api_minha_premiacao():
     if not kommo_uid:
         return jsonify({"ok": False, "error": "Agente não vinculado"}), 400
 
-    campanha = _get_active_campanha()
+    campanha = _get_active_campanha(campanha_id=_parse_campanha_id())
     if not campanha:
         return jsonify({"ok": True, "campanha": None, "tier_bonus": 0, "daily_bonus": 0,
                         "receb_bonus": 0, "total": 0, "breakdown": []})
@@ -852,7 +912,7 @@ def api_minha_insights():
     if not kommo_uid:
         return jsonify({"ok": False, "error": "Agente não vinculado"}), 400
 
-    campanha = _get_active_campanha()
+    campanha = _get_active_campanha(campanha_id=_parse_campanha_id())
     if not campanha:
         return jsonify({"ok": True, "campanha": None})
 

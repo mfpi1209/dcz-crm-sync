@@ -187,6 +187,8 @@
 {% set _v = range(100000) | random %}
 <script src="{{ url_for('static', filename='js/utils.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/dashboard.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/dashboard_supervisor.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/dashboard_supervisor_academico.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/search.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/sync.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/update.js') }}?v={{_v}}"></script>
