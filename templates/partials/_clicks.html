@@ -1,0 +1,273 @@
+            <div id="page-clicks" class="hidden">
+                <style>
+                    #page-clicks {
+                        --clk-primary: #2563eb;
+                        --clk-primary-dark: #1d4ed8;
+                        --clk-gradient: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+                        --clk-success: #10b981;
+                        --clk-amber: #f59e0b;
+                        --clk-red: #ef4444;
+                        --clk-bg: #f8fafc;
+                        --clk-card: #ffffff;
+                        --clk-border: #e2e8f0;
+                        --clk-text: #0f172a;
+                        --clk-text-sec: #64748b;
+                        --clk-text-muted: #94a3b8;
+                    }
+                    .dark #page-clicks {
+                        --clk-bg: #0f172a;
+                        --clk-card: #1e293b;
+                        --clk-border: #334155;
+                        --clk-text: #f1f5f9;
+                        --clk-text-sec: #94a3b8;
+                        --clk-text-muted: #64748b;
+                    }
+                    #page-clicks .clk-main { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+                    #page-clicks .clk-grid { display: grid; grid-template-columns: 1fr; gap: 24px; }
+                    @media (min-width: 1024px) { #page-clicks .clk-grid { grid-template-columns: 2fr 1fr; } }
+                    #page-clicks .clk-card {
+                        background: var(--clk-card); border-radius: 16px; border: 1px solid var(--clk-border);
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.06); padding: 24px;
+                    }
+                    #page-clicks .clk-card-form { padding: 32px; }
+                    #page-clicks .clk-title { font-size: 1.5rem; font-weight: 700; color: var(--clk-text); margin-bottom: 4px; }
+                    #page-clicks .clk-subtitle { font-size: 0.875rem; color: var(--clk-text-sec); margin-bottom: 24px; }
+                    #page-clicks .clk-step-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+                    #page-clicks .clk-step-badge {
+                        width: 28px; height: 28px; border-radius: 50%; background: var(--clk-gradient);
+                        color: #fff; font-size: 12px; font-weight: 700;
+                        display: flex; align-items: center; justify-content: center;
+                    }
+                    #page-clicks .clk-step-title { font-size: 0.9rem; font-weight: 600; color: var(--clk-text-sec); }
+                    #page-clicks .clk-date-trigger {
+                        display: flex; align-items: center; gap: 12px; width: 100%; padding: 16px 20px;
+                        border-radius: 12px; border: 1.5px solid var(--clk-border); background: var(--clk-bg);
+                        cursor: pointer; transition: all 0.2s; text-align: left;
+                    }
+                    #page-clicks .clk-date-trigger:hover { border-color: var(--clk-primary); }
+                    #page-clicks .clk-date-text { font-size: 0.9rem; font-weight: 600; color: var(--clk-text); }
+                    #page-clicks .clk-date-hint { font-size: 0.7rem; color: var(--clk-text-muted); }
+                    #page-clicks .clk-btn-submit {
+                        width: 100%; padding: 14px 24px; border-radius: 12px; border: none; margin-top: 16px;
+                        background: var(--clk-gradient); color: #fff; font-size: 0.9rem; font-weight: 700;
+                        cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;
+                        box-shadow: 0 4px 12px rgba(37,99,235,0.3);
+                    }
+                    #page-clicks .clk-btn-submit:hover { transform: translateY(-1px); }
+                    #page-clicks .clk-btn-submit:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+                    #page-clicks .clk-status-msg {
+                        margin-top: 16px; padding: 12px 16px; border-radius: 10px; font-size: 0.85rem; font-weight: 500;
+                        display: none;
+                    }
+                    #page-clicks .clk-status-msg.success { display: block; background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
+                    #page-clicks .clk-status-msg.error { display: block; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+                    .dark #page-clicks .clk-status-msg.success { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.3); color: #6ee7b7; }
+                    .dark #page-clicks .clk-status-msg.error { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3); color: #fca5a5; }
+                    #page-clicks .clk-info-footer { text-align: center; font-size: 0.75rem; color: var(--clk-text-muted); margin-top: 16px; }
+                    #page-clicks .clk-resumo-title {
+                        font-weight: 700; color: var(--clk-text); margin-bottom: 16px;
+                        display: flex; align-items: center; justify-content: space-between;
+                    }
+                    #page-clicks .clk-badge {
+                        font-size: 10px; padding: 3px 8px; border-radius: 4px; font-weight: 700; transition: all 0.2s;
+                    }
+                    #page-clicks .clk-badge-idle { background: #f1f5f9; color: #64748b; }
+                    #page-clicks .clk-badge-loading { background: #fef3c7; color: #92400e; }
+                    #page-clicks .clk-badge-ok { background: #d1fae5; color: #065f46; }
+                    #page-clicks .clk-badge-err { background: #fef2f2; color: #991b1b; }
+                    .dark #page-clicks .clk-badge-idle { background: rgba(100,116,139,0.2); color: #94a3b8; }
+                    .dark #page-clicks .clk-badge-loading { background: rgba(245,158,11,0.15); color: #fbbf24; }
+                    .dark #page-clicks .clk-badge-ok { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+                    .dark #page-clicks .clk-badge-err { background: rgba(239,68,68,0.15); color: #fca5a5; }
+                    #page-clicks .clk-resumo-item {
+                        padding: 10px; background: var(--clk-bg); border-radius: 8px; margin-bottom: 10px;
+                    }
+                    #page-clicks .clk-resumo-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--clk-text-muted); }
+                    #page-clicks .clk-resumo-value { font-size: 1.1rem; font-weight: 700; color: var(--clk-text); margin-top: 2px; }
+                    #page-clicks .clk-resumo-value.blue { color: var(--clk-primary); }
+                    #page-clicks .clk-resumo-value.green { color: var(--clk-success); }
+
+                    /* Calendar overlay */
+                    #page-clicks .clk-cal-overlay {
+                        display: none; position: fixed; inset: 0; z-index: 9999;
+                        background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+                        justify-content: center; align-items: center; padding: 16px;
+                    }
+                    #page-clicks .clk-cal-overlay.open { display: flex; }
+                    #page-clicks .clk-cal-picker {
+                        background: var(--clk-card); border-radius: 16px; padding: 24px; width: 100%; max-width: 600px;
+                        box-shadow: 0 20px 40px rgba(0,0,0,0.2); border: 1px solid var(--clk-border);
+                    }
+                    #page-clicks .clk-cal-check { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; font-size: 0.85rem; color: var(--clk-text-sec); }
+                    #page-clicks .clk-cal-check input { accent-color: var(--clk-primary); }
+                    #page-clicks .clk-cal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+                    @media (max-width: 500px) { #page-clicks .clk-cal-grid { grid-template-columns: 1fr; } }
+                    #page-clicks .clk-cal-month-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--clk-text-muted); margin-bottom: 8px; }
+                    #page-clicks .clk-cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+                    #page-clicks .clk-cal-header span { font-size: 0.8rem; font-weight: 700; color: var(--clk-text); }
+                    #page-clicks .clk-cal-header button {
+                        background: none; border: none; cursor: pointer; color: var(--clk-text-sec); font-size: 14px; padding: 4px;
+                    }
+                    #page-clicks .clk-cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-size: 0.65rem; font-weight: 700; color: var(--clk-text-muted); margin-bottom: 4px; }
+                    #page-clicks .clk-cal-days { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; gap: 2px; }
+                    #page-clicks .clk-cal-days span {
+                        padding: 6px 0; border-radius: 6px; font-size: 0.8rem; cursor: pointer; color: var(--clk-text-sec); transition: all 0.15s;
+                    }
+                    #page-clicks .clk-cal-days span:hover { background: var(--clk-bg); }
+                    #page-clicks .clk-cal-days span.empty { cursor: default; }
+                    #page-clicks .clk-cal-days span.today { background: #dbeafe; color: var(--clk-primary); font-weight: 700; }
+                    #page-clicks .clk-cal-days span.selected { background: var(--clk-primary); color: #fff; font-weight: 700; }
+                    #page-clicks .clk-cal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+                    #page-clicks .clk-cal-btn {
+                        padding: 8px 18px; border-radius: 8px; font-size: 0.8rem; font-weight: 700; cursor: pointer; border: none; transition: all 0.2s;
+                    }
+                    #page-clicks .clk-cal-btn-cancel { background: var(--clk-bg); color: var(--clk-text-sec); }
+                    #page-clicks .clk-cal-btn-apply { background: var(--clk-primary); color: #fff; }
+
+                    /* Results table */
+                    #page-clicks .clk-results { margin-top: 24px; display: none; }
+                    #page-clicks .clk-results.show { display: block; }
+                    #page-clicks .clk-results-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+                    #page-clicks .clk-results-title { font-size: 1.1rem; font-weight: 700; color: var(--clk-text); }
+                    #page-clicks .clk-results-sub { font-size: 0.8rem; color: var(--clk-text-sec); }
+                    #page-clicks .clk-filter-select {
+                        padding: 8px 12px; border-radius: 8px; font-size: 0.8rem; border: 1.5px solid var(--clk-border);
+                        background: var(--clk-bg); color: var(--clk-text); min-width: 180px;
+                    }
+                    #page-clicks .clk-table-wrap { border: 1px solid var(--clk-border); border-radius: 12px; overflow: hidden; }
+                    #page-clicks .clk-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+                    #page-clicks .clk-table th {
+                        padding: 12px 16px; text-align: left; font-size: 0.7rem; font-weight: 700;
+                        text-transform: uppercase; letter-spacing: 0.05em; color: var(--clk-text-muted);
+                        background: var(--clk-bg); border-bottom: 1px solid var(--clk-border);
+                    }
+                    #page-clicks .clk-table td { padding: 12px 16px; border-bottom: 1px solid var(--clk-border); color: var(--clk-text); }
+                    #page-clicks .clk-table tr:last-child td { border-bottom: none; }
+                    #page-clicks .clk-badge-camp {
+                        display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.7rem;
+                        font-weight: 600; background: #dbeafe; color: #1d4ed8;
+                    }
+                    .dark #page-clicks .clk-badge-camp { background: rgba(37,99,235,0.2); color: #93c5fd; }
+                    #page-clicks .clk-empty-results { padding: 32px; text-align: center; color: var(--clk-text-muted); font-size: 0.85rem; }
+                </style>
+
+                <div class="clk-main">
+                    <div class="clk-grid">
+                        <!-- Form -->
+                        <div class="clk-card clk-card-form">
+                            <h2 class="clk-title">QR Codes</h2>
+                            <p class="clk-subtitle">Selecione o período e envie os parâmetros para a webhook do n8n.</p>
+
+                            <div class="clk-step-header">
+                                <span class="clk-step-badge">1</span>
+                                <span class="clk-step-title">Período da Consulta</span>
+                            </div>
+
+                            <button type="button" class="clk-date-trigger" onclick="clkAbrirCalendario()">
+                                <span class="material-symbols-outlined" style="color:var(--clk-primary)">calendar_month</span>
+                                <div>
+                                    <div class="clk-date-text" id="clk-date-display">Selecione o período</div>
+                                    <div class="clk-date-hint">Clique para abrir o calendário</div>
+                                </div>
+                            </button>
+
+                            <button type="button" class="clk-btn-submit" id="clk-btn-submit" onclick="clkEnviarConsulta()">
+                                <span class="material-symbols-outlined text-base">search</span> CONSULTAR
+                            </button>
+
+                            <div id="clk-status-msg" class="clk-status-msg"></div>
+
+                            <p class="clk-info-footer">
+                                <span class="material-symbols-outlined text-xs" style="vertical-align:middle">info</span>
+                                Payload: <strong>{"start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD"}</strong>
+                            </p>
+                        </div>
+
+                        <!-- Resumo -->
+                        <div style="display:flex;flex-direction:column;gap:16px;">
+                            <div class="clk-card" style="border-top:3px solid var(--clk-primary);">
+                                <div class="clk-resumo-title">
+                                    Resumo da Consulta
+                                    <span class="clk-badge clk-badge-idle" id="clk-badge">Aguardando</span>
+                                </div>
+                                <div class="clk-resumo-item">
+                                    <div class="clk-resumo-label">Total de Registros</div>
+                                    <div class="clk-resumo-value" id="clk-res-registros">0</div>
+                                </div>
+                                <div class="clk-resumo-item">
+                                    <div class="clk-resumo-label">Total de Cliques</div>
+                                    <div class="clk-resumo-value blue" id="clk-res-cliques">0</div>
+                                </div>
+                                <div class="clk-resumo-item">
+                                    <div class="clk-resumo-label">Campanhas Únicas</div>
+                                    <div class="clk-resumo-value green" id="clk-res-campanhas">0</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Results -->
+                    <div id="clk-results" class="clk-results">
+                        <div class="clk-card">
+                            <div class="clk-results-header">
+                                <div>
+                                    <div class="clk-results-title">Resultado da consulta</div>
+                                    <div class="clk-results-sub">Resumo dos cliques por campanha no período selecionado</div>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:8px;">
+                                    <span style="font-size:0.7rem;font-weight:700;text-transform:uppercase;color:var(--clk-text-muted);">Filtrar:</span>
+                                    <select id="clk-filter" class="clk-filter-select" onchange="clkApplyFilter()">
+                                        <option value="">Todas as campanhas</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="clk-table-wrap">
+                                <table class="clk-table">
+                                    <thead><tr><th>Dia</th><th>Campanha</th><th>Total de cliques</th></tr></thead>
+                                    <tbody id="clk-table-body"></tbody>
+                                </table>
+                                <div id="clk-empty-results" class="clk-empty-results" style="display:none;">
+                                    <span class="material-symbols-outlined" style="font-size:2rem;color:var(--clk-border);display:block;margin-bottom:8px;">inbox</span>
+                                    Nenhum dado encontrado para o período selecionado.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Calendar overlay -->
+                <div id="clk-cal-overlay" class="clk-cal-overlay" onclick="if(event.target===this)clkFecharCalendario()">
+                    <div class="clk-cal-picker">
+                        <div class="clk-cal-check">
+                            <input type="checkbox" id="clk-chk-hoje" checked>
+                            <label for="clk-chk-hoje">Incluir hoje</label>
+                        </div>
+                        <div class="clk-cal-grid">
+                            <div>
+                                <div class="clk-cal-month-label">Data de Início</div>
+                                <div class="clk-cal-header">
+                                    <button onclick="clkNavMonth('start',-1)"><span class="material-symbols-outlined text-sm">chevron_left</span></button>
+                                    <span id="clk-cal-start-label"></span>
+                                    <button onclick="clkNavMonth('start',1)"><span class="material-symbols-outlined text-sm">chevron_right</span></button>
+                                </div>
+                                <div class="clk-cal-weekdays"><span>D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span></div>
+                                <div class="clk-cal-days" id="clk-cal-start-days"></div>
+                            </div>
+                            <div>
+                                <div class="clk-cal-month-label">Data de Término</div>
+                                <div class="clk-cal-header">
+                                    <button onclick="clkNavMonth('end',-1)"><span class="material-symbols-outlined text-sm">chevron_left</span></button>
+                                    <span id="clk-cal-end-label"></span>
+                                    <button onclick="clkNavMonth('end',1)"><span class="material-symbols-outlined text-sm">chevron_right</span></button>
+                                </div>
+                                <div class="clk-cal-weekdays"><span>D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span></div>
+                                <div class="clk-cal-days" id="clk-cal-end-days"></div>
+                            </div>
+                        </div>
+                        <div class="clk-cal-footer">
+                            <button class="clk-cal-btn clk-cal-btn-cancel" onclick="clkFecharCalendario()">Cancelar</button>
+                            <button class="clk-cal-btn clk-cal-btn-apply" onclick="clkAplicarDatas()">Aplicar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>

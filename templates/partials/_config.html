@@ -195,12 +195,37 @@
                 <!-- ── Seção: Usuários ── -->
                 <div id="cfg-section-usuarios" class="hidden">
                     <div class="glass-card p-6 mb-6">
-                        <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center justify-between mb-4">
                             <h3 class="text-base font-bold text-[var(--text-primary)] font-display">Usuários Cadastrados</h3>
                             <button onclick="loadUsers()" class="btn-secondary text-sm px-4 py-2 rounded-xl">Atualizar</button>
                         </div>
+                        <div class="flex flex-wrap items-center gap-3 mb-4">
+                            <div class="relative flex-1 min-w-[200px] max-w-xs">
+                                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-base pointer-events-none">search</span>
+                                <input type="text" id="cfg-users-search" placeholder="Buscar por nome..."
+                                    oninput="filterUsersTable()"
+                                    class="input-glass pl-9 pr-3 py-2 text-sm w-full">
+                            </div>
+                            <select id="cfg-users-cat-filter" onchange="filterUsersTable()" class="input-glass px-3 py-2 text-sm">
+                                <option value="">Todas as categorias</option>
+                                <option value="Comercial">Comercial</option>
+                                <option value="Suporte Comercial">Suporte Comercial</option>
+                                <option value="Supervisor Comercial">Supervisor Comercial</option>
+                                <option value="Acadêmico">Acadêmico</option>
+                                <option value="Supervisor Acadêmico">Supervisor Acadêmico</option>
+                                <option value="__none__">Sem categoria</option>
+                            </select>
+                        </div>
                         <div class="overflow-x-auto">
-                            <table class="w-full text-left text-sm">
+                            <table class="w-full text-left text-sm" style="table-layout:fixed">
+                                <colgroup>
+                                    <col style="width:20%">
+                                    <col style="width:12%">
+                                    <col style="width:8%">
+                                    <col style="width:36%">
+                                    <col style="width:12%">
+                                    <col style="width:12%">
+                                </colgroup>
                                 <thead>
                                     <tr class="text-xs text-[var(--text-muted)] border-b border-[var(--border)] uppercase tracking-wider">
                                         <th class="pb-2 font-semibold">Usuário (login)</th>
@@ -208,7 +233,7 @@
                                         <th class="pb-2 font-semibold">Nível</th>
                                         <th class="pb-2 font-semibold">Permissões</th>
                                         <th class="pb-2 font-semibold">Criado</th>
-                                        <th class="pb-2 font-semibold w-28">Ações</th>
+                                        <th class="pb-2 font-semibold">Ações</th>
                                     </tr>
                                 </thead>
                                 <tbody id="users-tbody" class="text-[var(--text-secondary)]">

@@ -42,7 +42,7 @@ ALL_PAGES = [
     "recadastros", "vocacional", "comercial_dashboard", "auditoria_comercial",
     "meta-campaigns", "dist_comercial", "atualizar_preco",
     "comparar_cursos", "recomendacao_cursos", "localizacao_polos", "info_cursos",
-    "leads_inscricao",
+    "leads_inscricao", "captacao", "clicks",
 ]
 
 APP_USER_FALLBACK = os.getenv("APP_USER", "admin")

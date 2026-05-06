@@ -2720,14 +2720,21 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                         match_by.setdefault(lid, "rgm")
 
                 # Filtrar: só pipelines permitidos, e não já em Venda ganha (142)
+                # Se a pessoa JÁ possui qualquer lead em 142 => não gerar MATRICULADO
                 # Selecionar apenas 1 lead por pessoa: prioridade = fase mais quente (sort maior)
                 # Fases frias (perdida, robô) recebem prioridade mínima
-                # MATRICULADO tem prioridade sobre ATUALIZAR/NOVO
                 _STATUS_FRIOS = {
                     143,       # Venda perdida
                     53917599,  # ROBÔ (Funil de vendas)
                     76715668,  # Robo (Licenciado)
                 }
+                any_already_ganho = any(
+                    lead_pipe.get(lid, (None, None, None))[1] == 142
+                    for lid in candidates
+                )
+                if any_already_ganho:
+                    continue
+
                 best_lid = None
                 best_sort = -1
                 for lid in candidates:
