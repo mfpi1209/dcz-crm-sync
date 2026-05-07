@@ -2618,7 +2618,7 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                        polo_aulas, situacao, data_matricula, tipo_matricula, tipo,
                        email_ad
                 FROM mm_matriculados
-                WHERE data_matricula = %s
+                WHERE data_matricula::date >= (%s::date - INTERVAL '7 days')
                   AND UPPER(COALESCE(tipo_matricula, '')) IN (
                       'NOVA MATRICULA', 'RECOMPRA', 'RETORNO'
                   )
@@ -2630,7 +2630,7 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
             """, (str(data_corte),))
             mat_d1 = dcur_mat.fetchall()
         dconn_mat.close()
-        log.info("Matriculados de D-1 (%s): %d pessoas", data_corte, len(mat_d1))
+        log.info("Matriculados (janela 7d ate %s): %d pessoas", data_corte, len(mat_d1))
 
         if mat_d1:
             kconn_mat = get_kommo_conn()
@@ -2728,12 +2728,16 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                     53917599,  # ROBÔ (Funil de vendas)
                     76715668,  # Robo (Licenciado)
                 }
-                any_already_ganho = any(
-                    lead_pipe.get(lid, (None, None, None))[1] == 142
-                    for lid in candidates
-                )
-                if any_already_ganho:
-                    continue
+                # Se a pessoa ja tem lead em 142 COM O MESMO RGM, pular
+                # (ja foi processada para esta matricula). Se o 142 nao tem
+                # o mesmo RGM, e' outra matricula antiga — pode prosseguir.
+                if rgm_clean:
+                    ganho_lids = {lid for lid in candidates
+                                  if lead_pipe.get(lid, (None, None, None))[1] == 142}
+                    if ganho_lids:
+                        rgm_lids = idx_rgm.get(rgm_clean.lower(), set())
+                        if ganho_lids & rgm_lids:
+                            continue
 
                 best_lid = None
                 best_sort = -1
@@ -2773,7 +2777,7 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                     })
                     acoes_lead_ids.add(best_lid)
                     n_mat_d1 += 1
-        log.info("MATRICULADO via D-1 (%s) cruzado com kommo_sync: %d", data_corte, n_mat_d1)
+        log.info("MATRICULADO (janela 7d) cruzado com kommo_sync: %d", n_mat_d1)
     except Exception as exc:
         log.warning("Erro na geração de MATRICULADO D-1: %s", exc, exc_info=True)
 
