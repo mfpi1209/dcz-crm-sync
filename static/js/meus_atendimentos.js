@@ -23,6 +23,10 @@
         'emanuel felipe':'Emanuel Felipe','emnauel felipe':'Emanuel Felipe',
         'maitê carine da silva':'Maitê Carine da Silva',
         'maite carine da silva':'Maitê Carine da Silva',
+        // unificação solicitada (mesma pessoa, nomes variantes vindos do n8n)
+        'felipe':'Felipe Guimarães','felipe guimaraes':'Felipe Guimarães',
+        'felipe guimarães':'Felipe Guimarães',
+        'marilia':'Marilia Souza','marilia souza':'Marilia Souza',
     };
     function _norm(s) { return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase(); }
     function _canon(n) { if (!n) return n; const k = _norm(n); return FB_CANON[k] || n; }
@@ -117,9 +121,11 @@
         const sel = document.getElementById('ma-cons-select');
         if (sel && !sel.dataset.listening) {
             sel.dataset.listening = '1';
+            let _debounceId = null;
             sel.addEventListener('change', () => {
                 _ma.consultor = (sel.value || '').trim() || null;
-                maFetch();
+                if (_debounceId) clearTimeout(_debounceId);
+                _debounceId = setTimeout(() => { _debounceId = null; maFetch(); }, 180);
             });
         }
     }
