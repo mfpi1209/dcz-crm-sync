@@ -423,6 +423,7 @@ const PAGE_LABELS = {
     atualizar_preco: 'Atualizar Preço',
     captacao: 'Captação Externa',
     clicks: 'QR Codes',
+    meus_atendimentos: 'Meus Atendimentos',
 };
 
 // ---------------------------------------------------------------------------
@@ -441,6 +442,7 @@ const CATEGORY_PRESETS = {
     ],
     'Acadêmico': [
         ..._PRESET_FERRAMENTAS_BASIC,
+        'meus_atendimentos',
         'search', 'avisos',
     ],
     'Suporte Comercial': [
@@ -461,7 +463,7 @@ const CATEGORY_PRESETS = {
     'Supervisor Acadêmico': [
         'dashboard', 'search', 'avisos',
         'ativacoes', 'distribuicao', 'intelligence', 'inadimplencia',
-        'feedback', 'macro_email',
+        'feedback', 'macro_email', 'meus_atendimentos',
         ..._PRESET_FERRAMENTAS_BASIC,
     ],
 };
@@ -510,8 +512,8 @@ const PAGE_GROUPS_CONFIG = [
         icon: 'school',
         color: 'var(--primary)',
         pages: [
-            'ativacoes', 'distribuicao', 'intelligence', 'inadimplencia',
-            'feedback', 'macro_email',
+            'meus_atendimentos', 'ativacoes', 'distribuicao', 'intelligence',
+            'inadimplencia', 'feedback', 'macro_email',
         ],
     },
     {

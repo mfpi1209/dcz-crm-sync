@@ -1,0 +1,228 @@
+<!-- ═══════════════ Meus Atendimentos — Painel Consultor ═══════════════ -->
+<section id="page-meus_atendimentos" class="hidden">
+<style>
+    @keyframes ma-fade-in  { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:translateY(0) } }
+    .ma-enter { animation: ma-fade-in .45s cubic-bezier(.22,1,.36,1) both }
+    .ma-d1{animation-delay:.05s} .ma-d2{animation-delay:.1s} .ma-d3{animation-delay:.15s}
+    .ma-d4{animation-delay:.2s}  .ma-d5{animation-delay:.25s} .ma-d6{animation-delay:.3s}
+
+    .ma-card {
+        background: var(--bg-card);
+        backdrop-filter: blur(12px);
+        border: 1px solid var(--border);
+        border-radius: 1.25rem;
+        transition: transform .2s, box-shadow .2s, border-color .2s;
+        box-shadow: var(--shadow);
+    }
+    .dark .ma-card { background: rgba(30,41,59,.65); border-color: rgba(148,163,184,.08); box-shadow:none }
+    .ma-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md) }
+    .dark .ma-card:hover { box-shadow: 0 8px 32px rgba(0,0,0,.25) }
+
+    .ma-kpi-icon { width:2.5rem; height:2.5rem; border-radius:.75rem; display:inline-flex; align-items:center; justify-content:center; color: var(--text-secondary); background: var(--bg-elevated); }
+    .dark .ma-kpi-icon { background: rgba(148,163,184,.08); color:#cbd5e1 }
+
+    .ma-pill {
+        display:inline-flex; align-items:center; gap:.3rem;
+        font-size:.65rem; font-weight:700; letter-spacing:.05em;
+        padding:.25rem .55rem; border-radius:999px;
+        text-transform:uppercase;
+    }
+    .ma-pill-pos { background: rgba(16,185,129,.12); color: rgb(5,150,105) }
+    .ma-pill-neg { background: rgba(239,68,68,.12);  color: rgb(220,38,38) }
+    .ma-pill-neu { background: rgba(59,130,246,.12); color: rgb(37,99,235) }
+
+    .ma-hero {
+        background: linear-gradient(135deg, #002D5E 0%, #004a99 60%, #0061cc 100%);
+        color:#fff;
+    }
+    .ma-hero-total {
+        background: linear-gradient(135deg, #004a99 0%, #002D5E 100%);
+        color:#fff;
+        position:relative;
+        overflow:hidden;
+    }
+    .ma-hero-total::after {
+        content:""; position:absolute; right:-30%; bottom:-30%;
+        width:14rem; height:14rem; border-radius:9999px;
+        background: rgba(255,255,255,.05);
+        filter: blur(40px);
+    }
+
+    .ma-tab {
+        padding:.45rem .9rem; border-radius:.65rem;
+        font-size:.75rem; font-weight:600;
+        background: var(--bg-elevated);
+        color: var(--text-secondary);
+        border:1px solid var(--border);
+        cursor:pointer; transition: all .15s;
+    }
+    .ma-tab:hover { color: var(--text-primary); border-color: var(--primary) }
+    .ma-tab.is-active {
+        background: var(--primary);
+        color:#fff; border-color: var(--primary);
+    }
+
+    .ma-star { color:#cbd5e1 }
+    .dark .ma-star { color:#475569 }
+    .ma-star-on { color:#10b981 }
+
+    .ma-prog { height:.35rem; border-radius:9999px; overflow:hidden; background:var(--bg-elevated); }
+    .ma-prog > div { height:100%; background: linear-gradient(90deg,#10b981,#059669); border-radius:inherit; }
+</style>
+
+<div class="p-4 lg:p-8 max-w-7xl mx-auto">
+
+    <!-- Aviso erro -->
+    <div id="ma-alert" class="hidden ma-card p-4 mb-4" style="border-left:4px solid #ef4444">
+        <span id="ma-alert-text" class="text-sm text-red-400"></span>
+    </div>
+
+    <!-- Hero -->
+    <div class="flex flex-wrap items-end justify-between gap-4 mb-6 ma-enter">
+        <div>
+            <h2 class="text-2xl lg:text-3xl font-bold text-[var(--text-primary)] font-display tracking-tight mb-1">
+                Meus Atendimentos
+            </h2>
+            <p id="ma-hello" class="text-slate-500 text-sm font-medium">Bem-vindo. Aqui está o seu desempenho recente.</p>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+            <button class="ma-tab is-active" data-preset="7" onclick="maPreset(7)">Últ. 7 dias</button>
+            <button class="ma-tab" data-preset="15" onclick="maPreset(15)">Últ. 15 dias</button>
+            <button class="ma-tab" data-preset="30" onclick="maPreset(30)">Mês</button>
+            <div class="flex items-center gap-1 ml-2">
+                <input type="date" id="ma-start" class="input-glass text-xs" style="padding:.45rem .6rem;border-radius:.65rem">
+                <span class="text-xs text-slate-400">→</span>
+                <input type="date" id="ma-end" class="input-glass text-xs" style="padding:.45rem .6rem;border-radius:.65rem">
+                <button class="ma-tab" onclick="maFetch()" style="margin-left:.25rem">Aplicar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bar Supervisor Acadêmico/Admin: seletor de consultor -->
+    <div id="ma-cons-bar" class="hidden ma-card p-3 mb-5 flex items-center gap-3 flex-wrap ma-enter ma-d2">
+        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Consultor</label>
+        <select id="ma-cons-select" class="input-glass text-sm" style="min-width:220px;padding:.45rem .7rem;border-radius:.65rem">
+            <option value="">Todos os consultores</option>
+        </select>
+        <span class="text-[11px] text-slate-400" id="ma-cons-info"></span>
+    </div>
+
+    <!-- KPIs -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div class="ma-card p-5 ma-enter ma-d1 flex flex-col justify-between">
+            <div class="flex items-start justify-between mb-3">
+                <span class="ma-kpi-icon">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                </span>
+                <span id="ma-kpi-day-delta" class="ma-pill ma-pill-neu hidden"></span>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Atendimento do dia</p>
+                <p class="text-3xl font-bold font-display text-[var(--text-primary)]" id="ma-kpi-day">—</p>
+                <p class="text-[10px] font-semibold text-slate-400 mt-1" id="ma-kpi-day-sub">Capacidade: —</p>
+            </div>
+        </div>
+
+        <div class="ma-card p-5 ma-enter ma-d2 flex flex-col justify-between">
+            <div class="flex items-start justify-between mb-3">
+                <span class="ma-kpi-icon">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </span>
+                <span id="ma-kpi-resp-delta" class="ma-pill ma-pill-neu hidden"></span>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Tempo de resposta</p>
+                <p class="text-3xl font-bold font-display text-[var(--text-primary)]" id="ma-kpi-resp">—</p>
+                <p class="text-[10px] font-semibold text-slate-400 mt-1">Meta: &lt; 20 min</p>
+            </div>
+        </div>
+
+        <div class="ma-card p-5 ma-enter ma-d3 flex flex-col justify-between">
+            <div class="flex items-start justify-between mb-3">
+                <span class="ma-kpi-icon">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.957a1 1 0 00.95.69h4.162c.969 0 1.371 1.24.588 1.81l-3.37 2.449a1 1 0 00-.363 1.118l1.287 3.957c.3.922-.755 1.688-1.54 1.118l-3.37-2.448a1 1 0 00-1.175 0l-3.37 2.448c-.784.57-1.838-.196-1.539-1.118l1.287-3.957a1 1 0 00-.363-1.118L2.05 9.384c-.783-.57-.38-1.81.588-1.81h4.16a1 1 0 00.951-.69l1.287-3.957z"/></svg>
+                </span>
+                <div id="ma-kpi-stars" class="flex gap-0.5"></div>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Nota de atendimento</p>
+                <p class="text-3xl font-bold font-display text-[var(--text-primary)]" id="ma-kpi-nota">—</p>
+                <p class="text-[10px] font-semibold text-slate-400 mt-1" id="ma-kpi-nota-sub">— avaliações</p>
+            </div>
+        </div>
+
+        <div class="ma-card p-5 ma-enter ma-d4 flex flex-col justify-between">
+            <div class="flex items-start justify-between mb-3">
+                <span class="ma-kpi-icon">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                </span>
+                <span id="ma-kpi-prod-pill" class="ma-pill ma-pill-pos hidden">ALTA</span>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Nota de produtividade</p>
+                <p class="text-3xl font-bold font-display text-[var(--text-primary)]" id="ma-kpi-prod">—</p>
+                <p class="text-[10px] font-semibold text-slate-400 mt-1" id="ma-kpi-prod-sub">—</p>
+                <div class="ma-prog mt-2"><div id="ma-kpi-prod-bar" style="width:0%"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart + Total card -->
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-5 mb-6">
+        <div class="ma-card p-6 lg:col-span-3 ma-enter ma-d5">
+            <div class="flex items-start justify-between mb-4 flex-wrap gap-3">
+                <div>
+                    <h3 class="text-lg font-bold font-display text-[var(--text-primary)] mb-1">Atendimento vs Nota</h3>
+                    <p class="text-xs text-slate-500">Tendência diária no período selecionado</p>
+                </div>
+                <div class="flex gap-4 flex-wrap">
+                    <span class="flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-slate-400">
+                        <span class="w-2.5 h-2.5 rounded-full" style="background:#002D5E"></span> Atendimentos
+                    </span>
+                    <span class="flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-slate-400">
+                        <span class="w-2.5 h-2.5 rounded-full" style="background:#10b981"></span> Nota média
+                    </span>
+                </div>
+            </div>
+            <div style="position:relative;height:340px">
+                <canvas id="ma-chart"></canvas>
+            </div>
+        </div>
+
+        <div class="ma-hero-total ma-card p-6 lg:p-7 ma-enter ma-d6 flex flex-col justify-between relative" style="border-color:transparent">
+            <div>
+                <p class="text-[10px] font-bold uppercase tracking-widest text-blue-200/80 mb-3">Total de atendimentos do mês</p>
+                <p class="text-5xl lg:text-6xl font-black font-display text-white tracking-tight" id="ma-month-total">—</p>
+            </div>
+            <div class="flex items-center gap-2 mt-6 relative z-10">
+                <svg class="w-4 h-4 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                <span id="ma-month-delta" class="text-xs font-bold text-emerald-300">— vs mês anterior</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Feedback Section (preenche se houver) -->
+    <div id="ma-feedback" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div class="ma-card p-5 ma-enter">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Feedback geral</p>
+            <p id="ma-feed-geral" class="text-sm text-[var(--text-secondary)] leading-relaxed">—</p>
+        </div>
+        <div class="ma-card p-5 ma-enter">
+            <p class="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-2">Pontos fortes</p>
+            <p id="ma-feed-pos" class="text-sm text-[var(--text-secondary)] leading-relaxed">—</p>
+        </div>
+        <div class="ma-card p-5 ma-enter">
+            <p class="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-2">Oportunidades</p>
+            <p id="ma-feed-neg" class="text-sm text-[var(--text-secondary)] leading-relaxed">—</p>
+        </div>
+    </div>
+
+    <div id="ma-loading" class="text-center py-10 hidden">
+        <div class="inline-flex items-center gap-3 text-slate-500 text-sm">
+            <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            Carregando…
+        </div>
+    </div>
+</div>
+</section>

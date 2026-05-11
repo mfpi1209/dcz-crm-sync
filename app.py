@@ -161,6 +161,7 @@ from routes.leads_parados import leads_parados_bp
 from routes.minha_performance import minha_performance_bp
 from routes.repasse import repasse_bp
 from routes.supervisor_dashboard import supervisor_dashboard_bp
+from routes.meus_atendimentos import meus_atendimentos_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(dashboard_bp)
@@ -180,6 +181,7 @@ app.register_blueprint(leads_parados_bp)
 app.register_blueprint(minha_performance_bp)
 app.register_blueprint(repasse_bp)
 app.register_blueprint(supervisor_dashboard_bp)
+app.register_blueprint(meus_atendimentos_bp)
 
 # ── Atualizar Preço — rotas do webapp standalone integrado ────────────────
 try:
