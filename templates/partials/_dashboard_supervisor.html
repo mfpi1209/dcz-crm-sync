@@ -1,0 +1,187 @@
+<!-- ═══════════════  Painel Supervisor Comercial  ═══════════════ -->
+<section id="dash-supervisor" class="hidden p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
+
+    <!-- Header -->
+    <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div class="flex flex-col gap-1">
+            <h2 class="text-2xl font-bold text-slate-900 dark:text-white font-display">Painel Comercial</h2>
+            <p class="text-slate-500 text-sm">Visão consolidada da operação comercial.</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-base text-slate-500">calendar_month</span>
+            <input type="date" id="ds-dt-ini" class="input-glass px-3 py-1.5 text-xs">
+            <span class="text-xs text-slate-400">até</span>
+            <input type="date" id="ds-dt-fim" class="input-glass px-3 py-1.5 text-xs">
+            <button onclick="loadDashboardSupervisor()"
+                class="px-3 py-1.5 text-xs font-semibold text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors flex items-center gap-1">
+                <span class="material-symbols-outlined text-sm">filter_alt</span> Aplicar
+            </button>
+        </div>
+    </header>
+
+    <!-- ═══ KPI ROW ═══ -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4" id="ds-kpis">
+        <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm p-5 animate-pulse">
+            <div class="h-9 w-9 rounded-lg bg-slate-200 dark:bg-slate-700/40 mb-3"></div>
+            <div class="h-3 w-24 rounded bg-slate-200 dark:bg-slate-700/40 mb-2"></div>
+            <div class="h-7 w-16 rounded bg-slate-200 dark:bg-slate-700/40"></div>
+        </div>
+        <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm p-5 animate-pulse">
+            <div class="h-9 w-9 rounded-lg bg-slate-200 dark:bg-slate-700/40 mb-3"></div>
+            <div class="h-3 w-24 rounded bg-slate-200 dark:bg-slate-700/40 mb-2"></div>
+            <div class="h-7 w-16 rounded bg-slate-200 dark:bg-slate-700/40"></div>
+        </div>
+        <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm p-5 animate-pulse">
+            <div class="h-9 w-9 rounded-lg bg-slate-200 dark:bg-slate-700/40 mb-3"></div>
+            <div class="h-3 w-24 rounded bg-slate-200 dark:bg-slate-700/40 mb-2"></div>
+            <div class="h-7 w-16 rounded bg-slate-200 dark:bg-slate-700/40"></div>
+        </div>
+        <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm p-5 animate-pulse">
+            <div class="h-9 w-9 rounded-lg bg-slate-200 dark:bg-slate-700/40 mb-3"></div>
+            <div class="h-3 w-24 rounded bg-slate-200 dark:bg-slate-700/40 mb-2"></div>
+            <div class="h-7 w-16 rounded bg-slate-200 dark:bg-slate-700/40"></div>
+        </div>
+    </div>
+
+    <!-- ═══ PERFORMANCE DIÁRIA + MÉDIAS ═══ -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+        <div class="lg:col-span-2 bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm p-5 sm:p-6">
+            <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
+                <div>
+                    <h3 class="text-base font-bold text-slate-900 dark:text-white font-display">Performance Diária</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">Volume de leads e vendas no período (com comparativo de 1 ano atrás).</p>
+                </div>
+                <div class="flex items-center gap-3 flex-wrap text-[11px]">
+                    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span><span class="text-slate-500">Leads</span></span>
+                    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span><span class="text-slate-500">Vendas</span></span>
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-px bg-indigo-500/60 dashed-line"></span><span class="text-slate-500">Leads 1 ano atrás</span></span>
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-px bg-amber-500/60 dashed-line"></span><span class="text-slate-500">Vendas 1 ano atrás</span></span>
+                </div>
+            </div>
+            <div class="h-[280px] w-full bg-slate-50 dark:bg-slate-800/30 rounded-xl p-2">
+                <canvas id="ds-perf-chart"></canvas>
+            </div>
+        </div>
+
+        <!-- Médias laterais -->
+        <div class="space-y-3 lg:space-y-4">
+            <div class="rounded-2xl p-5 text-white shadow-md" style="background:linear-gradient(135deg, #0f172a 0%, #1e293b 100%)">
+                <p class="text-[10px] font-bold uppercase tracking-[.18em] text-white/50 mb-2">Média de Leads / Dia</p>
+                <p id="ds-medlead-atual" class="text-3xl font-extrabold tabular-nums">—</p>
+                <div class="mt-4 space-y-1.5 text-[11px]">
+                    <div class="flex items-center justify-between">
+                        <span class="text-white/60">6 meses</span>
+                        <span class="font-semibold tabular-nums" id="ds-medlead-6m">—</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-white/60">1 ano</span>
+                        <span class="font-semibold tabular-nums" id="ds-medlead-1a">—</span>
+                    </div>
+                </div>
+            </div>
+            <div class="rounded-2xl p-5 text-white shadow-md" style="background:linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)">
+                <p class="text-[10px] font-bold uppercase tracking-[.18em] text-white/60 mb-2">Vendas no Período</p>
+                <p id="ds-vendas-atual" class="text-3xl font-extrabold tabular-nums">—</p>
+                <div class="mt-4 space-y-1.5 text-[11px]">
+                    <div class="flex items-center justify-between">
+                        <span class="text-white/60">6 meses</span>
+                        <span class="font-semibold tabular-nums" id="ds-vendas-6m">—</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-white/60">1 ano</span>
+                        <span class="font-semibold tabular-nums" id="ds-vendas-1a">—</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ FUNIL DE CONVERSÃO ═══ -->
+    <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm p-5 sm:p-6"
+         id="ds-funnel-visual">
+        <p class="text-xs text-slate-500">Carregando funil...</p>
+    </div>
+
+    <!-- ═══ RANKING + TOTAIS ═══ -->
+    <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm overflow-hidden">
+        <div class="px-5 sm:px-6 py-4 border-b border-slate-100 dark:border-slate-700/50 flex items-center gap-2">
+            <span class="material-symbols-outlined text-amber-500 dark:text-amber-400">leaderboard</span>
+            <h3 class="text-base font-bold text-slate-900 dark:text-white font-display">Ranking dos Consultores</h3>
+            <span id="ds-camp-label" class="ml-auto text-[10px] text-slate-500 font-medium"></span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+                <thead>
+                    <tr class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700/50">
+                        <th class="text-left py-3 px-4 font-bold">Rank</th>
+                        <th class="text-left py-3 px-4 font-bold">Consultor</th>
+                        <th class="text-right py-3 px-4 font-bold">Vendas</th>
+                        <th class="text-right py-3 px-4 font-bold">Leads</th>
+                        <th class="text-right py-3 px-4 font-bold">Conversão</th>
+                        <th class="text-center py-3 px-4 font-bold">Status</th>
+                        <th class="text-left py-3 px-4 font-bold w-44">Progresso</th>
+                    </tr>
+                </thead>
+                <tbody id="ds-ranking-tbody">
+                    <tr><td colspan="7" class="py-8 text-center text-slate-500">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ═══ TOTAIS / STATUS DA CAMPANHA ═══ -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4">
+        <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm p-5">
+            <p class="text-[10px] font-bold uppercase tracking-[.15em] text-slate-500">Total de Vendas</p>
+            <p id="ds-total-vendas" class="text-3xl font-extrabold tabular-nums text-slate-900 dark:text-white mt-2">—</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm p-5">
+            <p class="text-[10px] font-bold uppercase tracking-[.15em] text-slate-500">Média por Analista</p>
+            <p id="ds-media-analista" class="text-3xl font-extrabold tabular-nums text-slate-900 dark:text-white mt-2">—</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm p-5">
+            <p class="text-[10px] font-bold uppercase tracking-[.15em] text-slate-500">Meta Global</p>
+            <p id="ds-meta-global" class="text-3xl font-extrabold tabular-nums text-slate-900 dark:text-white mt-2">—</p>
+            <p id="ds-meta-restam" class="text-[11px] text-slate-500 mt-1"></p>
+        </div>
+        <div class="rounded-2xl p-5 text-white shadow-md flex flex-col" style="background:linear-gradient(135deg,#0f172a,#1e293b)">
+            <div class="flex items-start justify-between">
+                <p class="text-[10px] font-bold uppercase tracking-[.15em] text-white/60">Status da Campanha</p>
+                <span id="ds-status-icon" class="material-symbols-outlined text-amber-300 text-[20px]">bolt</span>
+            </div>
+            <p id="ds-status-campanha" class="text-2xl font-extrabold mt-2">—</p>
+            <p id="ds-status-sub" class="text-[10px] text-white/55 mt-auto pt-2"></p>
+        </div>
+    </div>
+
+    <!-- ═══ ATALHOS OPERACIONAIS ═══ -->
+    <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm p-5">
+        <div class="flex items-center gap-2 mb-4">
+            <span class="material-symbols-outlined text-primary text-base">apps</span>
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Atalhos Operacionais</h3>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+            <button onclick="navigate('comercial_rgm')" class="text-left p-3 rounded-xl border border-slate-200 dark:border-slate-700/40 hover:border-primary/60 hover:bg-primary/5 transition-colors flex items-start gap-2">
+                <span class="material-symbols-outlined text-primary text-[20px] mt-0.5">groups</span>
+                <span class="flex flex-col"><span class="text-xs font-semibold text-slate-900 dark:text-white">RGM Comercial</span><span class="text-[10px] text-slate-500">Time + matrículas</span></span>
+            </button>
+            <button onclick="navigate('pipeline')" class="text-left p-3 rounded-xl border border-slate-200 dark:border-slate-700/40 hover:border-primary/60 hover:bg-primary/5 transition-colors flex items-start gap-2">
+                <span class="material-symbols-outlined text-cyan-500 text-[20px] mt-0.5">view_kanban</span>
+                <span class="flex flex-col"><span class="text-xs font-semibold text-slate-900 dark:text-white">Pipeline</span><span class="text-[10px] text-slate-500">Funil Kommo</span></span>
+            </button>
+            <button onclick="navigate('leads_parados')" class="text-left p-3 rounded-xl border border-slate-200 dark:border-slate-700/40 hover:border-primary/60 hover:bg-primary/5 transition-colors flex items-start gap-2">
+                <span class="material-symbols-outlined text-rose-500 text-[20px] mt-0.5">pause_circle</span>
+                <span class="flex flex-col"><span class="text-xs font-semibold text-slate-900 dark:text-white">Leads Parados</span><span class="text-[10px] text-slate-500">Sem movimentação</span></span>
+            </button>
+            <button onclick="navigate('distribuicao')" class="text-left p-3 rounded-xl border border-slate-200 dark:border-slate-700/40 hover:border-primary/60 hover:bg-primary/5 transition-colors flex items-start gap-2">
+                <span class="material-symbols-outlined text-emerald-500 text-[20px] mt-0.5">share</span>
+                <span class="flex flex-col"><span class="text-xs font-semibold text-slate-900 dark:text-white">Distribuição</span><span class="text-[10px] text-slate-500">Roteamento de leads</span></span>
+            </button>
+            <button onclick="navigate('premiacao_admin')" class="text-left p-3 rounded-xl border border-slate-200 dark:border-slate-700/40 hover:border-primary/60 hover:bg-primary/5 transition-colors flex items-start gap-2">
+                <span class="material-symbols-outlined text-amber-500 text-[20px] mt-0.5">military_tech</span>
+                <span class="flex flex-col"><span class="text-xs font-semibold text-slate-900 dark:text-white">Premiação</span><span class="text-[10px] text-slate-500">Metas e tiers</span></span>
+            </button>
+        </div>
+    </div>
+
+</section>

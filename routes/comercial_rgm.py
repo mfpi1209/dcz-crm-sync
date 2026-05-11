@@ -25,7 +25,7 @@ from pathlib import Path
 
 import psycopg2
 import psycopg2.extras
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, session
 
 logger = logging.getLogger(__name__)
 
@@ -211,7 +211,16 @@ def _crgm_excluded_rgms(_unused=None) -> set:
                     SELECT id FROM xl_snapshots WHERE tipo = 'matriculados' ORDER BY id DESC LIMIT 1
                 )
                   AND COALESCE(r2.data->>'rgm','') ~ '[0-9]'
-                ORDER BY regexp_replace(COALESCE(r2.data->>'rgm',''), '[^0-9]', '', 'g'), r2.id DESC
+                ORDER BY
+                    regexp_replace(COALESCE(r2.data->>'rgm',''), '[^0-9]', '', 'g'),
+                    -- Em transferências internas, prioriza linha EM CURSO
+                    -- sobre TRANSFERIDO/CANCELADO para o aluno não ser excluído.
+                    CASE
+                        WHEN UPPER(TRIM(COALESCE(r2.data->>'situacao',''))) = 'EM CURSO' THEN 0
+                        WHEN UPPER(TRIM(COALESCE(r2.data->>'situacao',''))) IN ('TRANCADO','SEM EVOLUCAO','SEM EVOLUÇÃO') THEN 1
+                        ELSE 2
+                    END,
+                    r2.id DESC
             ) r
             WHERE UPPER(TRIM(COALESCE(r.data->>'situacao',''))) != 'EM CURSO'
         """)
@@ -345,7 +354,24 @@ def _crgm_periodo_data(dt_ini=None, dt_fim=None, polo=None, nivel=None, ciclo_fi
                   AND UPPER(TRIM(COALESCE(r.data->>'tipo_matricula','')))
                       = ANY(ARRAY['NOVA MATRICULA','RECOMPRA','RETORNO'])
                   AND TRIM(COALESCE(r.data->>'empresa','')) ~ '^(12|7) -'
-                ORDER BY regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g'), r.id DESC
+                ORDER BY
+                    regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g'),
+                    -- Em transferências internas o aluno aparece 2x: prioriza
+                    -- a linha que ainda está EM CURSO sobre TRANSFERIDO/CANCELADO.
+                    CASE
+                        WHEN UPPER(TRIM(COALESCE(r.data->>'situacao',''))) = 'EM CURSO' THEN 0
+                        WHEN UPPER(TRIM(COALESCE(r.data->>'situacao',''))) IN ('TRANCADO','SEM EVOLUCAO','SEM EVOLUÇÃO') THEN 1
+                        ELSE 2
+                    END,
+                    -- Desempate: matrícula mais recente.
+                    CASE
+                        WHEN (r.data->>'data_mat') ~ '^[0-9]{{2}}/[0-9]{{2}}/[0-9]{{4}}$'
+                            THEN to_date(r.data->>'data_mat','DD/MM/YYYY')
+                        WHEN (r.data->>'data_mat') ~ '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}'
+                            THEN (r.data->>'data_mat')::date
+                        ELSE NULL
+                    END DESC NULLS LAST,
+                    r.id DESC
             ) deduped
             {outer_where}
         """
@@ -1547,6 +1573,150 @@ def _distribuicao_consultor_aliases(consultor: str) -> list:
     elif c == "kamilly":
         out.add("kamily")
     return list(out)
+
+
+# ── Hierarquia "Minha Performance" para Distribuição por Consultor ─────────
+#
+# Não-admin só pode ver seus próprios dados. Resolvemos:
+#   1. session["user_id"] -> app_users.kommo_user_id
+#   2. kommo_user_id -> nome canônico em distribuicao_por_consultor (id_consultor)
+#                       (mesmo nome que a webhook do n8n devolve)
+#                       fallback: kommo_sync.users.name -> primeiro nome
+def _dist_consultor_kommo_uid_for_session():
+    """Retorna o kommo_user_id do usuário logado, ou None."""
+    uid = session.get("user_id", 0)
+    if not uid:
+        return None
+    try:
+        conn = _pg()
+        with conn.cursor() as cur:
+            cur.execute("SELECT kommo_user_id FROM app_users WHERE id = %s", (uid,))
+            row = cur.fetchone()
+        conn.close()
+        return _kommo_uid_int(row[0]) if row else None
+    except Exception as e:
+        logger.warning("dist_consultor: kommo_user_id lookup failed: %s", e)
+        return None
+
+
+def _dist_consultor_name_for_kommo_uid(kommo_uid: int) -> str | None:
+    """Resolve o nome canônico do consultor (mesma string da webhook n8n).
+
+    Ordem: distribuicao_por_consultor.consultor (mais recente) → users.name no
+    Kommo PG (primeiro nome) → kommo_users.name no app PG (primeiro nome).
+    """
+    if not kommo_uid:
+        return None
+    # 1) Nome usado na própria webhook (mais confiável)
+    try:
+        kconn = _pg_kommo()
+        try:
+            with kconn.cursor() as kcur:
+                kcur.execute(
+                    """
+                    SELECT TRIM(consultor)
+                    FROM distribuicao_por_consultor
+                    WHERE id_consultor = %s
+                      AND consultor IS NOT NULL
+                      AND TRIM(consultor) != ''
+                    ORDER BY "timestamp" DESC
+                    LIMIT 1
+                    """,
+                    (kommo_uid,),
+                )
+                row = kcur.fetchone()
+                if row and row[0]:
+                    return row[0].strip()
+        finally:
+            kconn.close()
+    except Exception as e:
+        logger.warning("dist_consultor: dist_por_consultor lookup failed: %s", e)
+
+    # 2) users.name no Kommo PG → primeiro nome
+    try:
+        kconn = _pg_kommo()
+        try:
+            with kconn.cursor() as kcur:
+                kcur.execute("SELECT name FROM users WHERE id = %s", (kommo_uid,))
+                row = kcur.fetchone()
+                if row and row[0]:
+                    return row[0].strip().split()[0]
+        finally:
+            kconn.close()
+    except Exception as e:
+        logger.warning("dist_consultor: users.name lookup failed: %s", e)
+
+    # 3) kommo_users.name no app PG → primeiro nome
+    try:
+        conn = _pg()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT name FROM kommo_users WHERE id = %s", (kommo_uid,))
+                row = cur.fetchone()
+                if row and row[0]:
+                    return row[0].strip().split()[0]
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.warning("dist_consultor: kommo_users lookup failed: %s", e)
+
+    # 4) _KNOWN_USERS hardcoded
+    if kommo_uid in _KNOWN_USERS:
+        n = _KNOWN_USERS[kommo_uid]
+        if n:
+            return n.strip().split()[0]
+    return None
+
+
+def _dist_consultor_is_admin() -> bool:
+    return session.get("role") == "admin"
+
+
+def _dist_consultor_session_info() -> dict:
+    """Resumo de identidade da sessão para o ACL do dashboard."""
+    is_admin = _dist_consultor_is_admin()
+    kuid = _dist_consultor_kommo_uid_for_session()
+    nome = None if is_admin else _dist_consultor_name_for_kommo_uid(kuid)
+    return {
+        "is_admin": is_admin,
+        "kommo_user_id": kuid,
+        "consultor_nome": nome,
+    }
+
+
+def _dist_consultor_acl(arg_consultor: str | None) -> tuple[str | None, dict]:
+    """Aplica a regra de visibilidade.
+
+    - Admin → respeita o `consultor` que veio na query string.
+    - Não-admin → ignora o que veio e força o nome do consultor logado.
+                   Se não conseguir resolver o nome, devolve string sentinela
+                   "__no_access__" para garantir resultado vazio.
+    """
+    info = _dist_consultor_session_info()
+    if info["is_admin"]:
+        c = (arg_consultor or "").strip()
+        return (c or None, info)
+    nome = (info["consultor_nome"] or "").strip()
+    if not nome:
+        return ("__no_access__", info)
+    return (nome, info)
+
+
+@comercial_rgm_bp.route("/api/dist-consultor/me")
+def dist_consultor_me():
+    """Identidade do usuário logado para o dashboard de Distribuição.
+
+    Mesma regra de hierarquia da Minha Performance:
+      - Admin: vê tudo (consultor_nome = null).
+      - Demais: só veem o próprio funil.
+    """
+    info = _dist_consultor_session_info()
+    return jsonify({
+        "ok": True,
+        "is_admin":       info["is_admin"],
+        "kommo_user_id":  info["kommo_user_id"],
+        "consultor_nome": info["consultor_nome"],
+    })
 
 
 def _dist_consultor_owner_key(
@@ -3889,7 +4059,9 @@ def dist_consultor_fechadas_periodo():
     end_date   = request.args.get("end_date", "").strip()
     polo       = request.args.get("polo", "").strip() or None
     nivel      = request.args.get("nivel", "").strip() or None
-    consultor  = request.args.get("consultor", "").strip() or None
+    consultor, _acl_info = _dist_consultor_acl(request.args.get("consultor"))
+    if consultor == "__no_access__":
+        return jsonify({"ok": True, "data": [], "total": 0})
     if not start_date or not end_date:
         return jsonify({"ok": False, "error": "start_date e end_date obrigatórios"}), 400
 
@@ -3997,13 +4169,22 @@ def dist_consultor_fechadas_periodo():
 
         # RGMs do Dashboard Comercial sem match no Kommo → agrupados em "Sem consultor"
         # para que o total bata com matriculas-por-origem e com o card "Matrículas no Período"
+        # Não-admin: NÃO inclui "Sem consultor" — somente leads do próprio consultor.
         sem_match = [r for r in rgm_list if r not in matched_rgms]
-        if sem_match:
+        if sem_match and not consultor:
             c = contagem["Sem consultor"]
             c["consultor"]    = "Sem consultor"
             c["id_consultor"] = None
             c["total"]       += len(sem_match)
             c["fora_periodo"] += len(sem_match)
+
+        # Hierarquia: filtra resultado pelo consultor solicitado (admin) ou logado.
+        if consultor:
+            allowed = set(_distribuicao_consultor_aliases(consultor))
+            contagem = {
+                k: v for k, v in contagem.items()
+                if (k or "").strip().lower() in allowed
+            }
 
         result = sorted(contagem.values(), key=lambda x: -x["total"])
         return jsonify({
@@ -4029,7 +4210,10 @@ def dist_consultor_matriculas_por_origem():
     end_date   = request.args.get("end_date", "").strip()
     polo       = request.args.get("polo", "").strip() or None
     nivel      = request.args.get("nivel", "").strip() or None
-    consultor  = request.args.get("consultor", "").strip() or None
+    consultor, _acl_info = _dist_consultor_acl(request.args.get("consultor"))
+    if consultor == "__no_access__":
+        return jsonify({"ok": True, "data": [], "total_do_periodo": 0,
+                        "total_fora_periodo": 0, "total": 0})
     if not start_date or not end_date:
         return jsonify({"ok": False, "error": "start_date e end_date obrigatórios"}), 400
 
@@ -4244,7 +4428,9 @@ def dist_consultor_sem_origem():
     """
     start_date = request.args.get("start_date", "").strip()
     end_date   = request.args.get("end_date",   "").strip()
-    consultor  = request.args.get("consultor",  "").strip() or None
+    consultor, _acl_info = _dist_consultor_acl(request.args.get("consultor"))
+    if consultor == "__no_access__":
+        return jsonify({"ok": True, "data": [], "total": 0})
     if not start_date or not end_date:
         return jsonify({"ok": False, "error": "start_date e end_date obrigatórios"}), 400
     try:
@@ -4463,7 +4649,9 @@ def dist_consultor_detalhe():
 
     Parâmetros: consultor (nome), start_date, end_date
     """
-    consultor  = request.args.get("consultor", "").strip()
+    consultor, _acl_info = _dist_consultor_acl(request.args.get("consultor"))
+    if consultor == "__no_access__":
+        return jsonify({"ok": True, "consultor": None, "do_periodo": [], "fora_periodo": []})
     start_date = request.args.get("start_date", "").strip()
     end_date   = request.args.get("end_date", "").strip()
 

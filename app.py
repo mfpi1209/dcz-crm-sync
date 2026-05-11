@@ -106,8 +106,17 @@ def inject_nav_perms():
             return True
         return page in pages
 
+    cat_lower = (categoria or "").strip().lower()
+    is_academico_simples = (
+        (not is_admin)
+        and cat_lower in ("acadêmico", "academico")
+        and ("meus_atendimentos" in pages)
+    )
+
     if is_comercial:
         nav_initial_page = "minha_performance"
+    elif is_academico_simples:
+        nav_initial_page = "meus_atendimentos"
     else:
         nav_initial_page = "dashboard"
 
@@ -160,6 +169,8 @@ from routes.kommo_dispatcher import kommo_dispatcher_bp
 from routes.leads_parados import leads_parados_bp
 from routes.minha_performance import minha_performance_bp
 from routes.repasse import repasse_bp
+from routes.supervisor_dashboard import supervisor_dashboard_bp
+from routes.meus_atendimentos import meus_atendimentos_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(dashboard_bp)
@@ -178,6 +189,8 @@ app.register_blueprint(kommo_dispatcher_bp)
 app.register_blueprint(leads_parados_bp)
 app.register_blueprint(minha_performance_bp)
 app.register_blueprint(repasse_bp)
+app.register_blueprint(supervisor_dashboard_bp)
+app.register_blueprint(meus_atendimentos_bp)
 
 # ── Atualizar Preço — rotas do webapp standalone integrado ────────────────
 try:

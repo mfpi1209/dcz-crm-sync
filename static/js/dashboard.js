@@ -2,6 +2,65 @@
 // Dashboard
 // ---------------------------------------------------------------------------
 async function loadDashboard() {
+    try {
+        if (window._sidebarPermsReady && window._sidebarPermsReady.then) {
+            await window._sidebarPermsReady;
+        }
+    } catch (_) { /* noop */ }
+
+    const _dashAcad      = document.getElementById('dash-academic');
+    const _dashSupComm   = document.getElementById('dash-supervisor');
+    const _dashSupAcad   = document.getElementById('dash-supervisor-academico');
+    const _dashAcadSimp  = document.getElementById('dash-acad-simple');
+    const _hideAll = () => {
+        if (_dashAcad)     _dashAcad.classList.add('hidden');
+        if (_dashSupComm)  _dashSupComm.classList.add('hidden');
+        if (_dashSupAcad)  _dashSupAcad.classList.add('hidden');
+        if (_dashAcadSimp) _dashAcadSimp.classList.add('hidden');
+    };
+
+    const _categoria = (document.body.dataset.categoria || '').toLowerCase().trim();
+    const _isAcademicoSimples = _categoria === 'acadêmico' || _categoria === 'academico';
+
+    if (typeof isSupervisorComercial === 'function' && isSupervisorComercial()) {
+        _hideAll();
+        if (_dashSupComm) _dashSupComm.classList.remove('hidden');
+        if (typeof loadDashboardSupervisor === 'function') loadDashboardSupervisor();
+        return;
+    }
+    if (typeof isSupervisorAcademico === 'function' && isSupervisorAcademico()) {
+        _hideAll();
+        if (_dashSupAcad) _dashSupAcad.classList.remove('hidden');
+        if (typeof loadDashboardSupervisorAcademico === 'function') loadDashboardSupervisorAcademico();
+        return;
+    }
+    if (_isAcademicoSimples) {
+        _hideAll();
+        // Acadêmico simples agora vai direto para "Meus Atendimentos" —
+        // os atalhos antigos foram removidos da experiência inicial.
+        const canMA = (typeof isPageAllowed === 'function') ? isPageAllowed('meus_atendimentos') : true;
+        if (canMA && typeof navigate === 'function') {
+            if (typeof _dismissBootSplash === 'function') _dismissBootSplash();
+            navigate('meus_atendimentos');
+            return;
+        }
+        // Fallback: se por algum motivo não tiver acesso, mantém o painel simples.
+        if (_dashAcadSimp) _dashAcadSimp.classList.remove('hidden');
+        try {
+            const r = await api('/api/me');
+            const me = await r.json();
+            const nameEl = document.getElementById('dash-acad-simple-name');
+            if (nameEl) {
+                const nm = (me?.username || '').split('@')[0].split('.')[0];
+                nameEl.textContent = nm ? nm.charAt(0).toUpperCase() + nm.slice(1) : '';
+            }
+        } catch (_) { /* noop */ }
+        if (typeof _dismissBootSplash === 'function') _dismissBootSplash();
+        return;
+    }
+    _hideAll();
+    if (_dashAcad) _dashAcad.classList.remove('hidden');
+
     _dashRefreshFunnel(false);
 
     try {

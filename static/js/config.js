@@ -424,6 +424,7 @@ const PAGE_LABELS = {
     captacao: 'Captação Externa',
     clicks: 'QR Codes',
     leads_promotores: 'Leads · Promotores',
+    meus_atendimentos: 'Meus Atendimentos',
 };
 
 // ---------------------------------------------------------------------------
@@ -438,10 +439,11 @@ const _PRESET_FERRAMENTAS_BASIC = ['comparar_cursos', 'recomendacao_cursos', 'lo
 const CATEGORY_PRESETS = {
     'Comercial': [
         ..._PRESET_FERRAMENTAS_FULL,
-        'minha_performance', 'repasse', 'search', 'avisos',
+        'minha_performance', 'repasse', 'dist_consultor', 'search', 'avisos',
     ],
     'Acadêmico': [
         ..._PRESET_FERRAMENTAS_BASIC,
+        'meus_atendimentos',
         'search', 'avisos',
     ],
     'Suporte Comercial': [
@@ -462,7 +464,7 @@ const CATEGORY_PRESETS = {
     'Supervisor Acadêmico': [
         'dashboard', 'search', 'avisos',
         'ativacoes', 'distribuicao', 'intelligence', 'inadimplencia',
-        'feedback', 'macro_email',
+        'feedback', 'macro_email', 'meus_atendimentos',
         ..._PRESET_FERRAMENTAS_BASIC,
     ],
 };
@@ -511,8 +513,8 @@ const PAGE_GROUPS_CONFIG = [
         icon: 'school',
         color: 'var(--primary)',
         pages: [
-            'ativacoes', 'distribuicao', 'intelligence', 'inadimplencia',
-            'feedback', 'macro_email',
+            'meus_atendimentos', 'ativacoes', 'distribuicao', 'intelligence',
+            'inadimplencia', 'feedback', 'macro_email',
         ],
     },
     {

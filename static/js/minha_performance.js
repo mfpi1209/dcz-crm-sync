@@ -5,6 +5,8 @@ let _mpSelectedUid = null;
 let _mpMyUid = null;
 let _mpIsAdmin = false;
 let _mpAgentsLoaded = false;
+let _mpSelectedCampanhaId = null;
+let _mpCampanhasLoaded = false;
 
 const _mpFmt  = v => Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const _mpFmtN = v => Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
@@ -95,7 +97,13 @@ async function loadMinhaPerformance(params) {
 
         _mpUpdateAdminViewingState(effectiveUid);
 
-        const qs = effectiveUid ? `?kommo_uid=${effectiveUid}` : '';
+        await _mpLoadCampanhasSelector();
+
+        const qsParams = new URLSearchParams();
+        if (effectiveUid) qsParams.set('kommo_uid', effectiveUid);
+        if (_mpSelectedCampanhaId) qsParams.set('campanha_id', _mpSelectedCampanhaId);
+        const qs = qsParams.toString() ? '?' + qsParams.toString() : '';
+
         const [insightsRes, histRes] = await Promise.all([
             api(`/api/minha-performance/insights${qs}`),
             api(`/api/minha-performance/historico${qs}`),
@@ -184,6 +192,51 @@ function mpAdminBackToSelf() {
     loadMinhaPerformance();
 }
 
+/* ── Seletor de campanha ── */
+async function _mpLoadCampanhasSelector() {
+    const sel = document.getElementById('mp-campanha-select');
+    const status = document.getElementById('mp-campanha-bar-status');
+    if (!sel) return;
+    try {
+        const res = await api('/api/minha-performance/campanhas');
+        const d = await res.json();
+        if (!d?.ok) throw new Error(d?.error || 'erro');
+        const lista = d.campanhas || [];
+        if (!lista.length) {
+            sel.innerHTML = '<option value="">Nenhuma campanha cadastrada</option>';
+            sel.disabled = true;
+            return;
+        }
+        sel.innerHTML = lista.map(c => {
+            const tag = c.is_active ? '🟢 ' : '';
+            const periodo = `${_mpFmtDate(c.dt_inicio)} – ${_mpFmtDate(c.dt_fim)}`;
+            return `<option value="${c.id}">${tag}${c.nome} · ${periodo}</option>`;
+        }).join('');
+        sel.disabled = false;
+        if (!_mpSelectedCampanhaId) {
+            _mpSelectedCampanhaId = d.default_id || lista[0].id;
+        }
+        sel.value = String(_mpSelectedCampanhaId);
+        if (status) {
+            const cur = lista.find(c => c.id === _mpSelectedCampanhaId);
+            status.textContent = cur ? (cur.is_active ? 'Ativa' : 'Histórica') : '';
+        }
+        _mpCampanhasLoaded = true;
+    } catch (e) {
+        console.error('_mpLoadCampanhasSelector', e);
+        sel.innerHTML = '<option value="">Erro ao carregar campanhas</option>';
+    }
+}
+
+function mpSelectCampanha() {
+    const sel = document.getElementById('mp-campanha-select');
+    if (!sel) return;
+    const id = sel.value ? Number(sel.value) : null;
+    if (id === _mpSelectedCampanhaId) return;
+    _mpSelectedCampanhaId = id;
+    loadMinhaPerformance();
+}
+
 
 /* ═══ S1: Hero + Gauge ═══ */
 function _mpRenderHero(d) {
@@ -204,6 +257,17 @@ function _mpRenderHero(d) {
 
     const el = id => document.getElementById(id);
     el('mp-hero-campanha').textContent = d.campanha?.nome || '';
+
+    const banner = document.getElementById('mp-campanha-encerrada');
+    if (banner) {
+        if (d.campanha && d.campanha.is_active === false) {
+            const nomeEl = document.getElementById('mp-campanha-encerrada-nome');
+            if (nomeEl) nomeEl.textContent = d.campanha.nome || '—';
+            banner.classList.remove('hidden');
+        } else {
+            banner.classList.add('hidden');
+        }
+    }
 
     _mpCountUp('mp-hero-saldo', total, { prefix: 'R$ ', decimalPlaces: 2, formattedValue: _mpFmt(total) });
 

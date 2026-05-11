@@ -66,6 +66,7 @@
             {% include 'partials/_clicks.html' %}
             {% include 'partials/_leads_promotores.html' %}
             {% include 'partials/_profile.html' %}
+            {% include 'partials/_meus_atendimentos.html' %}
         </main>
     </div>
 </div>
@@ -198,6 +199,8 @@
 {% set _v = range(100000) | random %}
 <script src="{{ url_for('static', filename='js/utils.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/dashboard.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/dashboard_supervisor.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/dashboard_supervisor_academico.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/search.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/sync.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/update.js') }}?v={{_v}}"></script>
@@ -222,6 +225,7 @@
 <script src="{{ url_for('static', filename='js/leads_parados.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/dist_consultor.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/minha_performance.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/meus_atendimentos.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/premiacao_admin.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/ajustes_matricula.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/macro_email.js') }}?v={{_v}}"></script>
