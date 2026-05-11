@@ -1,4 +1,4 @@
-            <div id="page-captacao" class="hidden">
+            <div id="page-captacao" class="hidden" data-modo="promotor">
                 <style>
                     #page-captacao {
                         --cap-primary: #2563eb;
@@ -154,14 +154,54 @@
                         display: flex; align-items: center; justify-content: center;
                     }
                     #page-captacao .cap-info-footer { text-align: center; font-size: 0.75rem; color: var(--cap-text-muted); margin-top: 16px; }
+
+                    /* Toggle Promotor/Candidato */
+                    #page-captacao .cap-modo-wrap {
+                        max-width: 1200px; margin: 0 auto 0; padding: 24px 16px 0;
+                    }
+                    #page-captacao .cap-modo-toggle {
+                        display: inline-flex; padding: 4px; background: var(--cap-card);
+                        border: 1px solid var(--cap-border); border-radius: 999px;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+                    }
+                    #page-captacao .cap-modo-btn {
+                        padding: 8px 20px; border-radius: 999px; border: none; background: transparent;
+                        color: var(--cap-text-sec); font-size: 0.8rem; font-weight: 700;
+                        cursor: pointer; transition: all 0.2s;
+                        display: inline-flex; align-items: center; gap: 6px;
+                    }
+                    #page-captacao .cap-modo-btn .material-symbols-outlined { font-size: 16px; }
+                    #page-captacao .cap-modo-btn.active {
+                        background: var(--cap-gradient); color: #fff;
+                        box-shadow: 0 2px 8px rgba(37,99,235,0.25);
+                    }
+
+                    /* Modo CANDIDATO: oculta elementos internos do promotor */
+                    #page-captacao[data-modo="candidato"] .cap-side-promotor { display: none; }
+                    #page-captacao[data-modo="candidato"] .cap-badge-rascunho { display: none; }
+                    #page-captacao[data-modo="candidato"] .cap-grid { grid-template-columns: 1fr; max-width: 720px; margin: 0 auto; }
+                    #page-captacao[data-modo="candidato"] .cap-card-form {
+                        border-top: 4px solid var(--cap-primary);
+                    }
                 </style>
+
+                <div class="cap-modo-wrap">
+                    <div class="cap-modo-toggle" role="tablist" aria-label="Modo de captação">
+                        <button type="button" class="cap-modo-btn active" data-modo="promotor" onclick="capSetModo('promotor')" role="tab">
+                            <span class="material-symbols-outlined">support_agent</span> Promotor
+                        </button>
+                        <button type="button" class="cap-modo-btn" data-modo="candidato" onclick="capSetModo('candidato')" role="tab">
+                            <span class="material-symbols-outlined">person</span> Candidato
+                        </button>
+                    </div>
+                </div>
 
                 <div class="cap-main">
                     <div class="cap-grid">
                         <!-- Formulário -->
                         <div class="cap-card cap-card-form">
-                            <h2 class="cap-title">Novo Cadastro</h2>
-                            <p class="cap-subtitle">Preencha os dados abaixo para registrar o lead captado externamente.</p>
+                            <h2 class="cap-title" id="cap-title">Novo Cadastro</h2>
+                            <p class="cap-subtitle" id="cap-subtitle">Preencha os dados abaixo para registrar o lead captado externamente.</p>
 
                             <form id="cap-form" onsubmit="capSubmit(event)">
                                 <div class="cap-section">
@@ -176,11 +216,11 @@
                                         </div>
                                         <div>
                                             <label class="cap-label cap-label-req">Contato (Celular/WhatsApp)</label>
-                                            <input type="text" id="cap-contato" class="cap-input" placeholder="(00) 00000-0000" required oninput="capFormatContato(this)">
+                                            <input type="tel" id="cap-contato" class="cap-input" placeholder="(00) 00000-0000" required oninput="capFormatContato(this)" maxlength="15" inputmode="numeric" autocomplete="tel">
                                         </div>
                                         <div>
-                                            <label class="cap-label cap-label-req">E-mail</label>
-                                            <input type="email" id="cap-email" class="cap-input" placeholder="exemplo@email.com" required>
+                                            <label class="cap-label">E-mail</label>
+                                            <input type="email" id="cap-email" class="cap-input" placeholder="exemplo@email.com">
                                         </div>
                                     </div>
                                 </div>
@@ -192,7 +232,7 @@
                                     </div>
                                     <div class="cap-field-grid">
                                         <div class="cap-full">
-                                            <label class="cap-label cap-label-req">Nível</label>
+                                            <label class="cap-label">Nível</label>
                                             <div class="cap-nivel-grid">
                                                 <button type="button" class="cap-nivel-btn" data-nivel="Graduação" onclick="capSelectNivel(this)">
                                                     <span class="material-symbols-outlined text-base">school</span> Graduação
@@ -204,9 +244,9 @@
                                         </div>
 
                                         <div class="cap-full">
-                                            <label class="cap-label cap-label-req">Curso Desejado</label>
+                                            <label class="cap-label">Curso Desejado</label>
                                             <div class="cap-autocomplete">
-                                                <input type="text" id="cap-curso-input" class="cap-input" placeholder="Digite para buscar o curso..." autocomplete="off" oninput="capCursoInput(this)">
+                                                <input type="text" id="cap-curso-input" class="cap-input" placeholder="Digite para buscar o curso..." autocomplete="off" oninput="capCursoInput(this)" onfocus="capCursoFocus(this)">
                                                 <div id="cap-ac-list" class="cap-ac-list"></div>
                                             </div>
                                         </div>
@@ -256,7 +296,7 @@
                         </div>
 
                         <!-- Coluna lateral -->
-                        <div style="display:flex;flex-direction:column;gap:16px;">
+                        <div class="cap-side-promotor" style="display:flex;flex-direction:column;gap:16px;">
                             <div class="cap-card" style="border-top:3px solid var(--cap-primary);">
                                 <div class="cap-resumo-title">
                                     Resumo do Lead
@@ -287,7 +327,15 @@
                             </div>
 
                             <a id="cap-voc-link" href="https://descubra.cruzeiroead.com.br/" target="_blank" rel="noopener noreferrer" class="cap-voc-link">
-                                <div class="cap-voc-icon"><span class="material-symbols-outlined">explore</span></div>
+                                <div class="cap-voc-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22" aria-hidden="true">
+                                        <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"/>
+                                        <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"/>
+                                        <path d="M6 9.5h.01"/>
+                                        <path d="M18 9.5h-.01"/>
+                                        <path d="M9 13a3 3 0 0 0 3 3 3 3 0 0 0 3-3"/>
+                                    </svg>
+                                </div>
                                 <div class="cap-voc-text">
                                     <h4>Fazer Vocacional</h4>
                                     <p>Descubra o curso ideal em 2 minutos</p>
