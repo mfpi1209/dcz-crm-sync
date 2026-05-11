@@ -36,6 +36,15 @@ async function loadDashboard() {
     }
     if (_isAcademicoSimples) {
         _hideAll();
+        // Acadêmico simples agora vai direto para "Meus Atendimentos" —
+        // os atalhos antigos foram removidos da experiência inicial.
+        const canMA = (typeof isPageAllowed === 'function') ? isPageAllowed('meus_atendimentos') : true;
+        if (canMA && typeof navigate === 'function') {
+            if (typeof _dismissBootSplash === 'function') _dismissBootSplash();
+            navigate('meus_atendimentos');
+            return;
+        }
+        // Fallback: se por algum motivo não tiver acesso, mantém o painel simples.
         if (_dashAcadSimp) _dashAcadSimp.classList.remove('hidden');
         try {
             const r = await api('/api/me');

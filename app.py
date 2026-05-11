@@ -106,8 +106,17 @@ def inject_nav_perms():
             return True
         return page in pages
 
+    cat_lower = (categoria or "").strip().lower()
+    is_academico_simples = (
+        (not is_admin)
+        and cat_lower in ("acadêmico", "academico")
+        and ("meus_atendimentos" in pages)
+    )
+
     if is_comercial:
         nav_initial_page = "minha_performance"
+    elif is_academico_simples:
+        nav_initial_page = "meus_atendimentos"
     else:
         nav_initial_page = "dashboard"
 
