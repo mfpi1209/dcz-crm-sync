@@ -423,6 +423,7 @@ const PAGE_LABELS = {
     atualizar_preco: 'Atualizar Preço',
     captacao: 'Captação Externa',
     clicks: 'QR Codes',
+    leads_promotores: 'Leads · Promotores',
 };
 
 // ---------------------------------------------------------------------------
@@ -530,7 +531,7 @@ const PAGE_GROUPS_CONFIG = [
             'dist_consultor', 'comercial_rgm', 'dist_comercial', 'inscricao',
             'recadastros', 'comercial_dashboard', 'auditoria_comercial',
             'atualizar_preco', 'leads_parados', 'minha_performance', 'repasse',
-            'captacao', 'clicks',
+            'captacao', 'clicks', 'leads_promotores',
         ],
     },
     {

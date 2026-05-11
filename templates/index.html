@@ -12,6 +12,14 @@
       data-allowed-pages='{{ nav_allowed_pages|tojson }}'>
 
 <div id="boot-splash" aria-hidden="true">
+    <div class="boot-shutter boot-shutter--top"></div>
+    <div class="boot-shutter boot-shutter--bottom"></div>
+    <div class="boot-shutter boot-shutter--left"></div>
+    <div class="boot-shutter boot-shutter--right"></div>
+    <div class="boot-beams">
+        <div class="boot-beam boot-beam--a"></div>
+        <div class="boot-beam boot-beam--b"></div>
+    </div>
     <div class="boot-brand"><span>edu</span><span class="accent">it.</span></div>
     <div class="boot-sub">Cockpit · Gestão</div>
     <div class="boot-spinner"></div>
@@ -56,6 +64,7 @@
             {% include 'partials/_macro_email.html' %}
             {% include 'partials/_captacao.html' %}
             {% include 'partials/_clicks.html' %}
+            {% include 'partials/_leads_promotores.html' %}
             {% include 'partials/_profile.html' %}
         </main>
     </div>
@@ -219,6 +228,7 @@
 <script src="{{ url_for('static', filename='js/repasse.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/captacao.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/clicks.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/leads_promotores.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/profile.js') }}?v={{_v}}"></script>
 
 </body>
