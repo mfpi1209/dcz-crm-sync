@@ -28,6 +28,18 @@
         'felipe guimarães':'Felipe Guimarães',
         'marilia':'Marilia Souza','marilia souza':'Marilia Souza',
     };
+
+    // ---------------------------------------------------------------------------
+    // Metas absolutas usadas no cálculo da Nota de Produtividade.
+    // Ajuste aqui caso o time mude as metas — a UI inteira recalibra sozinha.
+    // ---------------------------------------------------------------------------
+    const META_ATENDIMENTOS_DIA = 15;     // meta de atendimentos por dia
+    const META_TEMPO_RESPOSTA_MIN = 5;    // tempo de resposta alvo (em minutos)
+    const TEMPO_RESPOSTA_LIMITE_MIN = 30; // a partir daqui a nota de tempo zera
+    const PESO_VOLUME = 0.4;
+    const PESO_TEMPO  = 0.3;
+    const PESO_NOTA   = 0.3;
+
     function _norm(s) { return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase(); }
     function _canon(n) { if (!n) return n; const k = _norm(n); return FB_CANON[k] || n; }
     function _equalsName(a, b) { return _norm(_canon(a)) === _norm(_canon(b)); }
@@ -48,6 +60,18 @@
     }
     function _isoDate(d) {
         return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    }
+
+    // Parseia "YYYY-MM-DD" como data LOCAL (sem deslocamento de fuso).
+    // `new Date("2026-05-11")` puro é interpretado como UTC e em BRT
+    // recua um dia — o que faria o painel mostrar "10 de mai." no lugar de "11".
+    function _parseLocalDate(raw) {
+        if (!raw) return null;
+        const s = String(raw);
+        const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+        const d = new Date(s);
+        return isNaN(d) ? null : d;
     }
 
     function _maAlert(msg) {
@@ -225,38 +249,44 @@
         };
     }
 
-    function _calcProdutividade(consultores, met) {
+    // Cálculo absoluto da Nota de Produtividade (0..10):
+    //   • Volume (PESO_VOLUME): atend/dia vs META_ATENDIMENTOS_DIA.
+    //   • Tempo  (PESO_TEMPO ): 10 se ≤ META_TEMPO_RESPOSTA_MIN, decai
+    //     linearmente até 0 em TEMPO_RESPOSTA_LIMITE_MIN.
+    //   • Nota   (PESO_NOTA  ): nota_media (já em 0..10).
+    // Os pesos são renormalizados quando algum componente está indisponível.
+    function _calcProdutividade(met, serie) {
         if (!met) return null;
-        if (!consultores || !consultores.length) {
-            const ta = met.total_atendimentos || 0;
-            const sv = Math.min(10, Math.sqrt(ta / 50) * 10);
-            const t  = met.tempo_medio_resposta_min;
-            let st = null;
-            if (t != null) {
-                if (t === 0) st = 10;
-                else st = Math.min(10, (20 / t) * 7);
-            }
-            return Math.min(10, st != null ? sv * 0.6 + st * 0.4 : sv);
-        }
-        const ta = met.total_atendimentos || 0;
-        const allTAs = consultores
-            .map(c => c.metricas?.total_atendimentos ?? c.total_atendimentos ?? 0)
-            .concat([ta]);
-        const maxTA = Math.max(...allTAs, 1);
-        const tempos = consultores
-            .map(c => c.metricas?.tempo_medio_resposta_min ?? c.tempo_medio_resposta_min)
-            .filter(v => v != null);
-        if (met.tempo_medio_resposta_min != null) tempos.push(met.tempo_medio_resposta_min);
-        tempos.sort((a,b) => a-b);
-        const medT = tempos.length ? tempos[Math.floor((tempos.length - 1)/2)] : null;
-        const sv = Math.min(10, Math.sqrt(ta / maxTA) * 10);
+        const dias = Array.isArray(serie) && serie.length ? serie.length : 1;
+        const atendDia = (met.total_atendimentos || 0) / dias;
+        const sv = Math.min(10, Math.max(0, (atendDia / META_ATENDIMENTOS_DIA) * 10));
+
+        const t = met.tempo_medio_resposta_min;
         let st = null;
-        if (met.tempo_medio_resposta_min != null && met.tempo_medio_resposta_min > 0 && medT) {
-            st = Math.min(10, (medT / met.tempo_medio_resposta_min) * 7);
-        } else if (met.tempo_medio_resposta_min === 0) {
-            st = 10;
+        if (t != null) {
+            if (t <= META_TEMPO_RESPOSTA_MIN) {
+                st = 10;
+            } else if (t >= TEMPO_RESPOSTA_LIMITE_MIN) {
+                st = 0;
+            } else {
+                const range = TEMPO_RESPOSTA_LIMITE_MIN - META_TEMPO_RESPOSTA_MIN;
+                st = Math.max(0, 10 - ((t - META_TEMPO_RESPOSTA_MIN) / range) * 10);
+            }
         }
-        return Math.min(10, st != null ? sv * 0.6 + st * 0.4 : sv);
+
+        const sn = met.nota_media != null
+            ? Math.min(10, Math.max(0, Number(met.nota_media)))
+            : null;
+
+        const comps = [
+            { v: sv, w: PESO_VOLUME },
+            { v: st, w: PESO_TEMPO },
+            { v: sn, w: PESO_NOTA  },
+        ].filter(c => c.v != null && !isNaN(c.v));
+        if (!comps.length) return null;
+        const wSum = comps.reduce((acc, c) => acc + c.w, 0);
+        const score = comps.reduce((acc, c) => acc + c.v * c.w, 0) / wSum;
+        return Math.min(10, Math.max(0, score));
     }
 
     function _renderStars(value) {
@@ -276,11 +306,12 @@
     function _renderKPIs(payload) {
         const det = _pickDetalhe(payload);
         const met = _metricasFromPayload(payload, det);
+        const serie = _serieDia(payload, det);
 
         // Tempo de resposta
         document.getElementById('ma-kpi-resp').textContent = _fmtMin(met.tempo_medio_resposta_min);
         const respDelta = document.getElementById('ma-kpi-resp-delta');
-        if (met.tempo_medio_resposta_min != null && met.tempo_medio_resposta_min <= 20) {
+        if (met.tempo_medio_resposta_min != null && met.tempo_medio_resposta_min <= META_TEMPO_RESPOSTA_MIN) {
             respDelta.textContent = 'Dentro da meta'; respDelta.classList.remove('hidden','ma-pill-neu','ma-pill-neg'); respDelta.classList.add('ma-pill-pos');
         } else if (met.tempo_medio_resposta_min != null) {
             respDelta.textContent = 'Acima da meta'; respDelta.classList.remove('hidden','ma-pill-pos','ma-pill-neu'); respDelta.classList.add('ma-pill-neg');
@@ -293,8 +324,8 @@
         document.getElementById('ma-kpi-nota-sub').textContent = _fmtNum(met.notas_informadas) + ' avaliações';
         _renderStars(met.nota_media);
 
-        // Produtividade
-        const prod = _calcProdutividade(payload?.consultores, met);
+        // Produtividade (escala absoluta: metas fixas, sem comparação relativa)
+        const prod = _calcProdutividade(met, serie);
         const prodEl = document.getElementById('ma-kpi-prod');
         const prodSub = document.getElementById('ma-kpi-prod-sub');
         const prodPill = document.getElementById('ma-kpi-prod-pill');
@@ -318,7 +349,6 @@
 
         // Atendimento do dia: pega o último ponto da série COM dado (> 0).
         // Se o último ponto for 0 (dia atual incompleto), regride até achar um dia com valor.
-        const serie = _serieDia(payload, det);
         const serieVals = (Array.isArray(serie) ? serie : []).map(p => ({
             label: p?.data || p?.dia || p?.date || '',
             v: Number(p?.atendimentos ?? p?.total ?? p?.qtd ?? 0) || 0,
@@ -334,8 +364,8 @@
         document.getElementById('ma-kpi-day').textContent = dayValue != null ? _fmtNum(dayValue) : '—';
         const daySub = document.getElementById('ma-kpi-day-sub');
         if (dayValue != null && dayIdx >= 0 && serieVals[dayIdx].label) {
-            const d = new Date(serieVals[dayIdx].label);
-            const lbl = isNaN(d) ? String(serieVals[dayIdx].label) : d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+            const d = _parseLocalDate(serieVals[dayIdx].label);
+            const lbl = d ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : String(serieVals[dayIdx].label);
             daySub.textContent = 'Último dia: ' + lbl + (periodAvg != null ? ' • média ' + _fmtNum(periodAvg) + '/dia' : '');
         } else {
             daySub.textContent = periodAvg != null ? 'Média do período: ' + _fmtNum(periodAvg) + '/dia' : 'Sem dados';
@@ -352,12 +382,47 @@
         }
     }
 
+    // Expande a série para cobrir TODOS os dias do range [start, end],
+    // preenchendo com zero os dias que o webhook não retornou (ex.: dias
+    // em que o consultor não atendeu). Garante que o eixo X do gráfico
+    // reflita o filtro escolhido, sem "pular" datas faltantes.
+    function _expandSerieToRange(serie, startIso, endIso) {
+        const idx = new Map();
+        (serie || []).forEach(p => {
+            const raw = p?.data || p?.dia || p?.date || '';
+            if (raw) idx.set(String(raw).slice(0, 10), p);
+        });
+        const s = _parseLocalDate(startIso);
+        const e = _parseLocalDate(endIso);
+        if (!s || !e || e < s) return serie || [];
+        const out = [];
+        const cur = new Date(s.getTime());
+        while (cur <= e) {
+            const iso = _isoDate(cur);
+            const found = idx.get(iso);
+            if (found) {
+                out.push(found);
+            } else {
+                out.push({ date: iso, atendimentos: 0, notas_informadas: 0, nota_media: null });
+            }
+            cur.setDate(cur.getDate() + 1);
+        }
+        return out;
+    }
+
     function _renderChart(payload) {
         const det = _pickDetalhe(payload);
-        const serie = _serieDia(payload, det);
+        const rawSerie = _serieDia(payload, det);
         const canvas = document.getElementById('ma-chart');
         if (!canvas) return;
         if (_ma.chart) { _ma.chart.destroy(); _ma.chart = null; }
+
+        const startIso = (document.getElementById('ma-start')?.value || '').trim();
+        const endIso   = (document.getElementById('ma-end')?.value || '').trim();
+        const serie = startIso && endIso
+            ? _expandSerieToRange(rawSerie, startIso, endIso)
+            : (rawSerie || []);
+
         if (!Array.isArray(serie) || !serie.length) {
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -366,8 +431,8 @@
         const labels = serie.map(p => {
             const raw = p.data || p.dia || p.date || '';
             if (!raw) return '';
-            const d = new Date(raw);
-            return isNaN(d) ? String(raw).slice(5) : d.toLocaleDateString('pt-BR', { day:'2-digit', month:'short' });
+            const d = _parseLocalDate(raw);
+            return d ? d.toLocaleDateString('pt-BR', { day:'2-digit', month:'short' }) : String(raw).slice(5);
         });
         const atend = serie.map(p => Number(p.atendimentos ?? p.total ?? p.qtd ?? 0));
         const nota  = serie.map(p => p.nota_media != null ? Number(p.nota_media) : null);

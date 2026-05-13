@@ -17,7 +17,7 @@ import time
 import logging
 import threading
 import unicodedata
-from concurrent.futures import ThreadPoolExecutor
+from datetime import date as _date, datetime, timedelta
 
 import requests
 from flask import Blueprint, request, jsonify, session
@@ -122,10 +122,19 @@ def _cache_set(key: tuple, data: dict) -> None:
 
 # ---------------------------------------------------------------------------
 # Chamada bruta ao webhook (com retry / timeout escalonado).
+#
+# IMPORTANTE: o webhook do n8n passou a devolver corpo vazio quando recebe
+# o parâmetro `consultor`. Por isso sempre buscamos o payload global (sem
+# filtro) — que já traz `consultores[]` com `metricas` e `serie_dia` por
+# consultor — e fazemos o filtro localmente. Como bônus, isso permite que
+# múltiplos consultores no mesmo período compartilhem o mesmo cache.
 # ---------------------------------------------------------------------------
-def _call_webhook(start: str, end: str, consultor: str | None,
+def _call_webhook(start: str, end: str, consultor: str | None = None,
                   tipo: str | None = None, top_n: int = 5) -> dict:
-    cache_key = (start, end, (consultor or "").strip(), tipo or "", int(top_n))
+    # `consultor` é mantido na assinatura por compatibilidade, mas NÃO é
+    # enviado ao n8n. O filtro acontece em `_extract_consultor_payload`.
+    _ = consultor  # noqa: F841 (intencional)
+    cache_key = (start, end, "__GLOBAL__", tipo or "", int(top_n))
     cached = _cache_get(cache_key)
     if cached is not None:
         return {**cached, "_cached": True}
@@ -138,8 +147,6 @@ def _call_webhook(start: str, end: str, consultor: str | None,
     if tipo:
         params["tipo"] = tipo
     params["topN"] = top_n
-    if consultor:
-        params["consultor"] = consultor
 
     last_exc: Exception | None = None
     for attempt in (1, 2):
@@ -179,27 +186,37 @@ def _safe_num(v) -> float:
 
 
 def _agg_metrics(items: list[dict]) -> dict:
-    """Agrega listas de métricas (estilo `global` ou `metricas` por consultor)."""
+    """Agrega listas de métricas (estilo `global` ou `metricas` por consultor).
+
+    Os campos `tempo_medio_*` são ponderados pelo `total_atendimentos` apenas
+    dos itens em que estão definidos — assim, se nenhum item informa o tempo,
+    o resultado fica `None` (em vez de zero, que seria interpretado pelo
+    frontend como "dentro da meta").
+    """
+    items = [i for i in items if isinstance(i, dict)]
     total = sum(_safe_num(i.get("total_atendimentos")) for i in items)
     notas = sum(_safe_num(i.get("notas_informadas")) for i in items)
     nota_sum = sum(
         _safe_num(i.get("nota_media")) * _safe_num(i.get("notas_informadas"))
         for i in items
     )
-    tr_sum = sum(
-        _safe_num(i.get("tempo_medio_resposta_min")) * _safe_num(i.get("total_atendimentos"))
-        for i in items
-    )
-    ta_sum = sum(
-        _safe_num(i.get("tempo_medio_atendimento_min")) * _safe_num(i.get("total_atendimentos"))
-        for i in items
-    )
+
+    def _weighted(field: str) -> float | None:
+        with_field = [i for i in items if i.get(field) is not None]
+        if not with_field:
+            return None
+        w = sum(_safe_num(i.get("total_atendimentos")) for i in with_field)
+        if w <= 0:
+            return None
+        s = sum(_safe_num(i.get(field)) * _safe_num(i.get("total_atendimentos")) for i in with_field)
+        return s / w
+
     return {
         "total_atendimentos": int(total),
         "notas_informadas": int(notas),
         "nota_media": (nota_sum / notas) if notas > 0 else None,
-        "tempo_medio_resposta_min": (tr_sum / total) if total > 0 else None,
-        "tempo_medio_atendimento_min": (ta_sum / total) if total > 0 else None,
+        "tempo_medio_resposta_min": _weighted("tempo_medio_resposta_min"),
+        "tempo_medio_atendimento_min": _weighted("tempo_medio_atendimento_min"),
     }
 
 
@@ -240,46 +257,189 @@ def _agg_series(series_list: list[list[dict]]) -> list[dict]:
     return out
 
 
-def _merge_payloads_for_canon(payloads: list[dict], canon_name: str) -> dict:
-    """Unifica respostas do webhook (uma por alias) em um único payload."""
-    metrics_inputs: list[dict] = []
-    series_inputs: list[list[dict]] = []
-    feedback_geral, feedback_pos, feedback_neg = [], [], []
+def _parse_iso_date(s: str) -> _date | None:
+    try:
+        return datetime.strptime(s, "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return None
 
-    for p in payloads:
-        if not isinstance(p, dict):
+
+def _metrics_from_serie(serie: list[dict]) -> dict:
+    """Recomputa métricas agregadas a partir de uma `serie_dia` filtrada.
+
+    `tempo_medio_resposta_min` e `tempo_medio_atendimento_min` não estão
+    detalhados por dia na resposta do n8n; ficam `None` no recorte.
+    """
+    total = sum(_safe_num(p.get("atendimentos") or p.get("total") or p.get("qtd")) for p in (serie or []))
+    notas = sum(_safe_num(p.get("notas_informadas")) for p in (serie or []))
+    nota_sum = sum(
+        _safe_num(p.get("nota_media")) * _safe_num(p.get("notas_informadas"))
+        for p in (serie or [])
+    )
+    return {
+        "total_atendimentos": int(total),
+        "notas_informadas": int(notas),
+        "nota_media": (nota_sum / notas) if notas > 0 else None,
+        "tempo_medio_resposta_min": None,
+        "tempo_medio_atendimento_min": None,
+    }
+
+
+def _filter_payload_by_range(payload: dict, start: str, end: str) -> dict:
+    """Recorta `serie_dia` (global e por consultor) para [start, end] inclusive.
+
+    Útil quando precisamos expandir o range pedido ao webhook como workaround
+    (ex.: o n8n devolve corpo vazio quando `start == end`).
+    """
+    if not isinstance(payload, dict):
+        return payload
+    d0, d1 = _parse_iso_date(start), _parse_iso_date(end)
+    if not d0 or not d1:
+        return payload
+
+    def _in_range(raw: str | None) -> bool:
+        if not raw:
+            return False
+        d = _parse_iso_date(raw[:10])
+        return bool(d and d0 <= d <= d1)
+
+    out = {**payload}
+
+    sg = payload.get("serie_dia_global")
+    if isinstance(sg, list):
+        out["serie_dia_global"] = [p for p in sg if _in_range(p.get("date") or p.get("data") or p.get("dia"))]
+
+    cons = payload.get("consultores")
+    if isinstance(cons, list):
+        new_cons: list[dict] = []
+        for c in cons:
+            if not isinstance(c, dict):
+                continue
+            sd = c.get("serie_dia") or (c.get("metricas") or {}).get("serie_dia") or []
+            filtered = [p for p in sd if _in_range(p.get("date") or p.get("data") or p.get("dia"))]
+            orig_metrics = c.get("metricas") or {}
+
+            # Caso feliz: o filtro não removeu nenhum dia → as métricas
+            # originais já refletem exatamente o range pedido (preserva
+            # `tempo_medio_*` que a serie por dia não detalha).
+            if filtered and len(filtered) == len(sd) and orig_metrics:
+                metrics_out = orig_metrics
+            else:
+                recomputed = _metrics_from_serie(filtered)
+                if recomputed["total_atendimentos"] <= 0:
+                    continue
+                # Aproveita os tempos médios originais quando a série filtrada
+                # ainda representa a maior parte dos atendimentos do consultor.
+                # É uma aproximação melhor do que `None` na maioria dos casos.
+                if orig_metrics.get("tempo_medio_resposta_min") is not None:
+                    recomputed["tempo_medio_resposta_min"] = orig_metrics["tempo_medio_resposta_min"]
+                if orig_metrics.get("tempo_medio_atendimento_min") is not None:
+                    recomputed["tempo_medio_atendimento_min"] = orig_metrics["tempo_medio_atendimento_min"]
+                metrics_out = recomputed
+
+            if (metrics_out.get("total_atendimentos") or 0) <= 0:
+                continue
+
+            new_cons.append({
+                **{k: v for k, v in c.items() if k not in ("metricas", "serie_dia")},
+                "consultor": c.get("consultor"),
+                "metricas": metrics_out,
+                "serie_dia": filtered,
+            })
+        out["consultores"] = new_cons
+
+    # Recomputa o `global` agregado a partir dos consultores filtrados.
+    g_metrics = _agg_metrics([c.get("metricas") for c in out.get("consultores") or []])
+    out["global"] = g_metrics
+
+    out["_filtered_range"] = {"start": start, "end": end}
+    return out
+
+
+def _call_webhook_with_fallback(start: str, end: str,
+                                tipo: str | None = None, top_n: int = 5) -> dict:
+    """Wrapper que normaliza o range para o webhook do n8n.
+
+    O webhook trata `end` como **exclusivo** (não inclui o último dia).
+    Para o usuário, o esperado é que `[start, end]` seja **inclusivo** nas
+    duas pontas — em especial quando `start == end` (consulta de um único
+    dia), em que o webhook devolveria corpo vazio.
+
+    Estratégia: chamamos o webhook com `end + 1d` e depois filtramos
+    localmente para `[start, end]` inclusive.
+    """
+    d0, d1 = _parse_iso_date(start), _parse_iso_date(end)
+    if not d0 or not d1:
+        return _call_webhook(start, end, None, tipo, top_n)
+
+    ext_end = (d1 + timedelta(days=1)).strftime("%Y-%m-%d")
+    data = _call_webhook(start, ext_end, None, tipo, top_n)
+    if not isinstance(data, dict) or not (data.get("consultores") or data.get("global")):
+        return data
+    return _filter_payload_by_range(data, start, end)
+
+
+def _extract_consultor_payload(global_payload: dict, canon_name: str) -> dict:
+    """A partir do payload global do n8n, monta a resposta filtrada por consultor.
+
+    Funciona com aliases: se o canônico tiver variantes (ex.: "Felipe" e
+    "Felipe Guimarães"), agrega todas elas em um único registro.
+    """
+    consultores = (global_payload.get("consultores") if isinstance(global_payload, dict) else None) or []
+    target_names = {_norm_name(v) for v in CONSULTOR_ALIASES.get(canon_name, [canon_name])}
+    target_names.add(_norm_name(canon_name))
+
+    matches: list[dict] = []
+    for c in consultores:
+        if not isinstance(c, dict):
             continue
-        # Quando o webhook é chamado com ?consultor=, ele devolve o detalhe
-        # diretamente em `global` (e a `serie_dia` no topo). Quando vem em
-        # `consultor_detalhe.metricas`, usamos isso.
-        det = p.get("consultor_detalhe") or p.get("detalhe")
-        if det:
-            m = det.get("metricas") or det
-            metrics_inputs.append(m)
-            sd = det.get("serie_dia") or (det.get("metricas") or {}).get("serie_dia") or p.get("serie_dia")
-            if sd:
-                series_inputs.append(sd)
-            for tgt, key in ((feedback_geral, "feedback_geral"),
-                             (feedback_pos, "feedback_positivo"),
-                             (feedback_neg, "feedback_negativo")):
-                v = m.get(key) or det.get(key)
-                if v:
-                    tgt.append(str(v))
-        else:
-            g = p.get("global") or {}
-            metrics_inputs.append(g)
-            sd = p.get("serie_dia")
-            if sd:
-                series_inputs.append(sd)
-            for tgt, key in ((feedback_geral, "feedback_geral"),
-                             (feedback_pos, "feedback_positivo"),
-                             (feedback_neg, "feedback_negativo")):
-                v = g.get(key)
-                if v:
-                    tgt.append(str(v))
+        if _norm_name(c.get("consultor")) in target_names:
+            matches.append(c)
 
+    if not matches:
+        return {
+            "ok": True,
+            "filtros": {"consultor_filtro": canon_name},
+            "global": {
+                "total_atendimentos": 0,
+                "notas_informadas": 0,
+                "nota_media": None,
+                "tempo_medio_resposta_min": None,
+                "tempo_medio_atendimento_min": None,
+            },
+            "serie_dia": [],
+            "consultor_detalhe": {
+                "consultor": canon_name,
+                "metricas": {
+                    "total_atendimentos": 0,
+                    "notas_informadas": 0,
+                    "nota_media": None,
+                    "tempo_medio_resposta_min": None,
+                    "tempo_medio_atendimento_min": None,
+                },
+                "serie_dia": [],
+                "feedback_geral": None,
+                "feedback_positivo": None,
+                "feedback_negativo": None,
+            },
+            "_no_match": True,
+        }
+
+    metrics_inputs = [(c.get("metricas") or c) for c in matches]
+    series_inputs = [c.get("serie_dia") or (c.get("metricas") or {}).get("serie_dia") for c in matches]
+    series_inputs = [s for s in series_inputs if s]
     merged_metrics = _agg_metrics(metrics_inputs)
-    merged_serie = _agg_series(series_inputs)
+    merged_serie = _agg_series(series_inputs) if series_inputs else []
+
+    fb_geral, fb_pos, fb_neg = [], [], []
+    for c in matches:
+        m = c.get("metricas") or {}
+        for tgt, key in ((fb_geral, "feedback_geral"),
+                         (fb_pos, "feedback_positivo"),
+                         (fb_neg, "feedback_negativo")):
+            v = m.get(key) or c.get(key)
+            if v:
+                tgt.append(str(v))
 
     return {
         "ok": True,
@@ -290,11 +450,11 @@ def _merge_payloads_for_canon(payloads: list[dict], canon_name: str) -> dict:
             "consultor": canon_name,
             "metricas": merged_metrics,
             "serie_dia": merged_serie,
-            "feedback_geral": " ".join(feedback_geral) if feedback_geral else None,
-            "feedback_positivo": " ".join(feedback_pos) if feedback_pos else None,
-            "feedback_negativo": " ".join(feedback_neg) if feedback_neg else None,
+            "feedback_geral": " ".join(fb_geral) if fb_geral else None,
+            "feedback_positivo": " ".join(fb_pos) if fb_pos else None,
+            "feedback_negativo": " ".join(fb_neg) if fb_neg else None,
         },
-        "_merged_from": [v for c, vs in CONSULTOR_ALIASES.items() if c == canon_name for v in vs],
+        "_merged_from": [c.get("consultor") for c in matches],
     }
 
 
@@ -438,21 +598,22 @@ def meus_atendimentos_data():
         top_n = 5
 
     try:
-        if consultor and consultor in CONSULTOR_ALIASES:
-            variants = CONSULTOR_ALIASES[consultor]
-            with ThreadPoolExecutor(max_workers=max(2, len(variants))) as ex:
-                results = list(ex.map(
-                    lambda v: _call_webhook(start, end, v, tipo, top_n),
-                    variants,
-                ))
-            data = _merge_payloads_for_canon(results, consultor)
+        # Sempre buscamos o payload global (sem filtro) — o webhook do n8n
+        # devolve corpo vazio quando recebe `?consultor=`, então fazemos o
+        # filtro localmente a partir de `consultores[]`.
+        # Também usa fallback para o bug do n8n de devolver vazio quando
+        # `start == end` (consulta de um único dia).
+        global_data = _call_webhook_with_fallback(start, end, tipo, top_n)
+
+        if consultor:
+            data = _extract_consultor_payload(global_data, consultor)
+            # Mantém a lista global de consultores no payload para que o
+            # frontend continue populando o seletor de consultor (admin).
+            cons_list = (global_data.get("consultores") if isinstance(global_data, dict) else None) or []
+            if cons_list:
+                data["consultores"] = cons_list
         else:
-            data = _call_webhook(start, end, consultor, tipo, top_n)
-            if not consultor:
-                data = _dedupe_consultores_global(data)
-            else:
-                # Garante o filtros.consultor_filtro consistente para o front.
-                data = {**data, "filtros": {**(data.get("filtros") or {}), "consultor_filtro": consultor}}
+            data = _dedupe_consultores_global(global_data)
 
         data = {**data}
         data.setdefault("ok", True)
