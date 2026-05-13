@@ -1,0 +1,216 @@
+            <div id="page-leads_promotores" class="hidden">
+                <style>
+                    #page-leads_promotores {
+                        --lp-primary: #2563eb;
+                        --lp-primary-dark: #1d4ed8;
+                        --lp-gradient: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+                        --lp-success: #10b981;
+                        --lp-amber: #f59e0b;
+                        --lp-red: #ef4444;
+                        --lp-bg: #f8fafc;
+                        --lp-card: #ffffff;
+                        --lp-border: #e2e8f0;
+                        --lp-text: #0f172a;
+                        --lp-text-sec: #64748b;
+                        --lp-text-muted: #94a3b8;
+                    }
+                    .dark #page-leads_promotores {
+                        --lp-bg: #0f172a;
+                        --lp-card: #1e293b;
+                        --lp-border: #334155;
+                        --lp-text: #f1f5f9;
+                        --lp-text-sec: #94a3b8;
+                        --lp-text-muted: #64748b;
+                    }
+                    #page-leads_promotores .lp-main { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+                    #page-leads_promotores .lp-card {
+                        background: var(--lp-card); border-radius: 16px; border: 1px solid var(--lp-border);
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.06); padding: 24px;
+                    }
+                    #page-leads_promotores .lp-card-form { padding: 24px 28px; }
+                    #page-leads_promotores .lp-title { font-size: 1.5rem; font-weight: 700; color: var(--lp-text); margin-bottom: 4px; }
+                    #page-leads_promotores .lp-subtitle { font-size: 0.875rem; color: var(--lp-text-sec); margin-bottom: 20px; }
+
+                    #page-leads_promotores .lp-filters {
+                        display: flex; flex-wrap: wrap; gap: 12px; align-items: end;
+                    }
+                    #page-leads_promotores .lp-field { display: flex; flex-direction: column; gap: 6px; }
+                    #page-leads_promotores .lp-label {
+                        font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+                        color: var(--lp-text-muted);
+                    }
+                    #page-leads_promotores .lp-input {
+                        padding: 10px 14px; border-radius: 10px; font-size: 0.875rem;
+                        border: 1.5px solid var(--lp-border); background: var(--lp-bg); color: var(--lp-text);
+                        transition: border-color 0.2s; min-width: 180px;
+                    }
+                    #page-leads_promotores .lp-input:focus { outline: none; border-color: var(--lp-primary); }
+                    #page-leads_promotores .lp-input::-webkit-calendar-picker-indicator {
+                        filter: invert(0); cursor: pointer;
+                    }
+                    .dark #page-leads_promotores .lp-input::-webkit-calendar-picker-indicator { filter: invert(1); }
+
+                    #page-leads_promotores .lp-btn {
+                        padding: 11px 20px; border-radius: 10px; border: none;
+                        background: var(--lp-gradient); color: #fff; font-size: 0.85rem; font-weight: 700;
+                        cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px;
+                        box-shadow: 0 4px 12px rgba(37,99,235,0.3);
+                    }
+                    #page-leads_promotores .lp-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(37,99,235,0.4); }
+                    #page-leads_promotores .lp-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+                    /* Status badges */
+                    #page-leads_promotores .lp-badge {
+                        font-size: 10px; padding: 3px 10px; border-radius: 999px; font-weight: 700;
+                    }
+                    #page-leads_promotores .lp-badge-idle { background: #f1f5f9; color: #64748b; }
+                    #page-leads_promotores .lp-badge-loading { background: #fef3c7; color: #92400e; }
+                    #page-leads_promotores .lp-badge-ok { background: #d1fae5; color: #065f46; }
+                    #page-leads_promotores .lp-badge-err { background: #fef2f2; color: #991b1b; }
+                    .dark #page-leads_promotores .lp-badge-idle { background: rgba(100,116,139,0.2); color: #94a3b8; }
+                    .dark #page-leads_promotores .lp-badge-loading { background: rgba(245,158,11,0.15); color: #fbbf24; }
+                    .dark #page-leads_promotores .lp-badge-ok { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+                    .dark #page-leads_promotores .lp-badge-err { background: rgba(239,68,68,0.15); color: #fca5a5; }
+
+                    /* Status message */
+                    #page-leads_promotores .lp-status-msg {
+                        margin-top: 16px; padding: 12px 16px; border-radius: 10px; font-size: 0.85rem; font-weight: 500;
+                        display: none; white-space: pre-wrap;
+                    }
+                    #page-leads_promotores .lp-status-msg.success { display: block; background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
+                    #page-leads_promotores .lp-status-msg.error   { display: block; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+                    #page-leads_promotores .lp-status-msg.warn    { display: block; background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; }
+                    .dark #page-leads_promotores .lp-status-msg.success { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.3); color: #6ee7b7; }
+                    .dark #page-leads_promotores .lp-status-msg.error   { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3); color: #fca5a5; }
+                    .dark #page-leads_promotores .lp-status-msg.warn    { background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.3); color: #fbbf24; }
+
+                    /* Métricas */
+                    #page-leads_promotores .lp-cards {
+                        display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                        gap: 16px; margin-top: 24px;
+                    }
+                    #page-leads_promotores .lp-metric { padding: 18px; border-top: 3px solid var(--lp-primary); }
+                    #page-leads_promotores .lp-metric.green { border-top-color: var(--lp-success); }
+                    #page-leads_promotores .lp-metric.red   { border-top-color: var(--lp-red); }
+                    #page-leads_promotores .lp-metric-label {
+                        font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+                        color: var(--lp-text-muted);
+                    }
+                    #page-leads_promotores .lp-metric-value {
+                        font-size: 1.85rem; font-weight: 800; color: var(--lp-text); margin-top: 4px;
+                    }
+                    #page-leads_promotores .lp-metric-value.green { color: var(--lp-success); }
+                    #page-leads_promotores .lp-metric-value.red   { color: var(--lp-red); }
+
+                    /* Results table */
+                    #page-leads_promotores .lp-results { margin-top: 24px; }
+                    #page-leads_promotores .lp-results-header {
+                        display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+                        gap: 12px; margin-bottom: 16px;
+                    }
+                    #page-leads_promotores .lp-results-title { font-size: 1.05rem; font-weight: 700; color: var(--lp-text); }
+                    #page-leads_promotores .lp-results-sub   { font-size: 0.8rem; color: var(--lp-text-sec); }
+                    #page-leads_promotores .lp-filter-select {
+                        padding: 8px 12px; border-radius: 8px; font-size: 0.8rem;
+                        border: 1.5px solid var(--lp-border); background: var(--lp-bg); color: var(--lp-text);
+                        min-width: 220px;
+                    }
+                    #page-leads_promotores .lp-table-wrap { border: 1px solid var(--lp-border); border-radius: 12px; overflow: hidden; }
+                    #page-leads_promotores .lp-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+                    #page-leads_promotores .lp-table th {
+                        padding: 12px 16px; text-align: left; font-size: 0.7rem; font-weight: 700;
+                        text-transform: uppercase; letter-spacing: 0.05em; color: var(--lp-text-muted);
+                        background: var(--lp-bg); border-bottom: 1px solid var(--lp-border);
+                    }
+                    #page-leads_promotores .lp-table td { padding: 12px 16px; border-bottom: 1px solid var(--lp-border); color: var(--lp-text); }
+                    #page-leads_promotores .lp-table tr:last-child td { border-bottom: none; }
+                    #page-leads_promotores .lp-table tr:hover td { background: var(--lp-bg); }
+                    #page-leads_promotores .lp-num { font-variant-numeric: tabular-nums; font-weight: 600; }
+                    #page-leads_promotores .lp-num.green { color: var(--lp-success); }
+                    #page-leads_promotores .lp-num.red   { color: var(--lp-red); }
+                    #page-leads_promotores .lp-empty-results {
+                        padding: 32px; text-align: center; color: var(--lp-text-muted); font-size: 0.85rem;
+                    }
+                </style>
+
+                <div class="lp-main">
+                    <!-- Form -->
+                    <div class="lp-card lp-card-form">
+                        <h2 class="lp-title">Leads · Promotores</h2>
+                        <p class="lp-subtitle">Consulta de leads por promotor, separados por recadastro.</p>
+
+                        <div class="lp-filters">
+                            <div class="lp-field">
+                                <label class="lp-label" for="lp-start-date">Data inicial</label>
+                                <input type="date" id="lp-start-date" class="lp-input" />
+                            </div>
+                            <div class="lp-field">
+                                <label class="lp-label" for="lp-end-date">Data final</label>
+                                <input type="date" id="lp-end-date" class="lp-input" />
+                            </div>
+                            <div class="lp-field">
+                                <button type="button" class="lp-btn" id="lp-btn-submit" onclick="lpBuscarDados()">
+                                    <span class="material-symbols-outlined text-base">search</span> Buscar
+                                </button>
+                            </div>
+                            <div class="lp-field" style="margin-left:auto;">
+                                <span class="lp-label">Status</span>
+                                <span id="lp-badge" class="lp-badge lp-badge-idle">Aguardando</span>
+                            </div>
+                        </div>
+
+                        <div id="lp-status-msg" class="lp-status-msg"></div>
+                    </div>
+
+                    <!-- Métricas -->
+                    <div class="lp-cards">
+                        <div class="lp-card lp-metric">
+                            <div class="lp-metric-label">Total de Leads</div>
+                            <div class="lp-metric-value" id="lp-total-leads">0</div>
+                        </div>
+                        <div class="lp-card lp-metric green">
+                            <div class="lp-metric-label">Recadastro Sim</div>
+                            <div class="lp-metric-value green" id="lp-total-sim">0</div>
+                        </div>
+                        <div class="lp-card lp-metric red">
+                            <div class="lp-metric-label">Recadastro Não</div>
+                            <div class="lp-metric-value red" id="lp-total-nao">0</div>
+                        </div>
+                    </div>
+
+                    <!-- Results -->
+                    <div class="lp-results">
+                        <div class="lp-card">
+                            <div class="lp-results-header">
+                                <div>
+                                    <div class="lp-results-title">Resultado por promotor</div>
+                                    <div class="lp-results-sub" id="lp-results-sub">Selecione um período e clique em Buscar.</div>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:8px;">
+                                    <span style="font-size:0.7rem;font-weight:700;text-transform:uppercase;color:var(--lp-text-muted);">Filtrar:</span>
+                                    <select id="lp-filter" class="lp-filter-select" onchange="lpAplicarFiltro()">
+                                        <option value="">Todos os promotores</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="lp-table-wrap">
+                                <table class="lp-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Promotor</th>
+                                            <th>Total Leads</th>
+                                            <th>Recadastro Sim</th>
+                                            <th>Recadastro Não</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="lp-table-body"></tbody>
+                                </table>
+                                <div id="lp-empty-results" class="lp-empty-results">
+                                    <span class="material-symbols-outlined" style="font-size:2rem;color:var(--lp-border);display:block;margin-bottom:8px;">inbox</span>
+                                    Nenhum dado encontrado para o período selecionado.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
