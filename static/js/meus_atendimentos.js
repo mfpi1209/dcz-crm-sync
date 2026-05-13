@@ -347,15 +347,17 @@
             prodPill.classList.add('hidden');
         }
 
-        // Atendimento do dia: pega o último ponto da série COM dado (> 0).
-        // Se o último ponto for 0 (dia atual incompleto), regride até achar um dia com valor.
+        // Atendimento do dia: prioriza HOJE quando hoje está no range da série.
+        // Se hoje não estiver na série (filtro no passado), cai para o último ponto — sem regredir por valor.
         const serieVals = (Array.isArray(serie) ? serie : []).map(p => ({
             label: p?.data || p?.dia || p?.date || '',
             v: Number(p?.atendimentos ?? p?.total ?? p?.qtd ?? 0) || 0,
         }));
-        let dayIdx = -1;
-        for (let i = serieVals.length - 1; i >= 0; i--) {
-            if (serieVals[i].v > 0) { dayIdx = i; break; }
+        const todayIso = _isoDate(new Date());
+        let dayIdx = serieVals.findIndex(p => String(p.label || '').slice(0, 10) === todayIso);
+        const isToday = dayIdx >= 0;
+        if (!isToday) {
+            dayIdx = serieVals.length - 1;
         }
         const dayValue = dayIdx >= 0 ? serieVals[dayIdx].v : null;
         const dayPrev  = dayIdx > 0 ? serieVals[dayIdx - 1].v : null;
@@ -366,7 +368,8 @@
         if (dayValue != null && dayIdx >= 0 && serieVals[dayIdx].label) {
             const d = _parseLocalDate(serieVals[dayIdx].label);
             const lbl = d ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : String(serieVals[dayIdx].label);
-            daySub.textContent = 'Último dia: ' + lbl + (periodAvg != null ? ' • média ' + _fmtNum(periodAvg) + '/dia' : '');
+            const prefix = isToday ? 'Hoje, ' : 'Último dia: ';
+            daySub.textContent = prefix + lbl + (periodAvg != null ? ' • média ' + _fmtNum(periodAvg) + '/dia' : '');
         } else {
             daySub.textContent = periodAvg != null ? 'Média do período: ' + _fmtNum(periodAvg) + '/dia' : 'Sem dados';
         }
