@@ -347,32 +347,58 @@
             prodPill.classList.add('hidden');
         }
 
-        // Atendimento do dia: prioriza HOJE quando hoje está no range da série.
-        // Se hoje não estiver na série (filtro no passado), cai para o último ponto — sem regredir por valor.
+        // Atendimento do dia: detecta "hoje" pelo range do filtro (não pela série),
+        // porque a série crua não inclui dias sem atendimento — hoje pode ter 0 e
+        // ainda assim ser o dia ativo do usuário.
         const serieVals = (Array.isArray(serie) ? serie : []).map(p => ({
             label: p?.data || p?.dia || p?.date || '',
             v: Number(p?.atendimentos ?? p?.total ?? p?.qtd ?? 0) || 0,
         }));
+        const startIso = (document.getElementById('ma-start')?.value || '').trim();
+        const endIso   = (document.getElementById('ma-end')?.value || '').trim();
         const todayIso = _isoDate(new Date());
-        let dayIdx = serieVals.findIndex(p => String(p.label || '').slice(0, 10) === todayIso);
-        const isToday = dayIdx >= 0;
-        if (!isToday) {
+        const isToday = !!(startIso && endIso && todayIso >= startIso && todayIso <= endIso);
+
+        let dayIdx = -1;
+        let dayValue = null;
+        let dayPrev = null;
+        if (isToday) {
+            dayIdx = serieVals.findIndex(p => String(p.label || '').slice(0, 10) === todayIso);
+            if (dayIdx >= 0) {
+                dayValue = serieVals[dayIdx].v;
+                dayPrev = dayIdx > 0 ? serieVals[dayIdx - 1].v : null;
+            } else {
+                // Hoje no range mas sem ponto na série: usuário não atendeu hoje
+                dayValue = 0;
+                dayPrev = serieVals.length ? serieVals[serieVals.length - 1].v : null;
+            }
+        } else if (serieVals.length) {
             dayIdx = serieVals.length - 1;
+            dayValue = serieVals[dayIdx].v;
+            dayPrev = dayIdx > 0 ? serieVals[dayIdx - 1].v : null;
         }
-        const dayValue = dayIdx >= 0 ? serieVals[dayIdx].v : null;
-        const dayPrev  = dayIdx > 0 ? serieVals[dayIdx - 1].v : null;
+
         const periodAvg = serieVals.length ? Math.round((met.total_atendimentos || 0) / serieVals.length) : null;
 
         document.getElementById('ma-kpi-day').textContent = dayValue != null ? _fmtNum(dayValue) : '—';
         const daySub = document.getElementById('ma-kpi-day-sub');
-        if (dayValue != null && dayIdx >= 0 && serieVals[dayIdx].label) {
-            const d = _parseLocalDate(serieVals[dayIdx].label);
-            const lbl = d ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : String(serieVals[dayIdx].label);
+        if (dayValue != null) {
+            let lbl;
+            if (isToday) {
+                const d = _parseLocalDate(todayIso);
+                lbl = d ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : todayIso;
+            } else if (dayIdx >= 0 && serieVals[dayIdx].label) {
+                const d = _parseLocalDate(serieVals[dayIdx].label);
+                lbl = d ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : String(serieVals[dayIdx].label);
+            }
             const prefix = isToday ? 'Hoje, ' : 'Último dia: ';
-            daySub.textContent = prefix + lbl + (periodAvg != null ? ' • média ' + _fmtNum(periodAvg) + '/dia' : '');
+            daySub.textContent = lbl
+                ? prefix + lbl + (periodAvg != null ? ' • média ' + _fmtNum(periodAvg) + '/dia' : '')
+                : (periodAvg != null ? 'Média do período: ' + _fmtNum(periodAvg) + '/dia' : 'Sem dados');
         } else {
             daySub.textContent = periodAvg != null ? 'Média do período: ' + _fmtNum(periodAvg) + '/dia' : 'Sem dados';
         }
+        // Delta continua igual ao código anterior
         const dayDelta = document.getElementById('ma-kpi-day-delta');
         if (dayValue != null && dayPrev != null && dayPrev > 0) {
             const pct = ((dayValue - dayPrev) / dayPrev) * 100;
