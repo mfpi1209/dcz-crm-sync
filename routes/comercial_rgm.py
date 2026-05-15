@@ -4044,6 +4044,129 @@ def crgm_conflitos_resolver_delete():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@comercial_rgm_bp.route("/api/comercial-rgm/rgm-atribuicao")
+def crgm_rgm_atribuicao():
+    """Consulta quem está com o RGM no Kommo e quem recebe crédito no dashboard."""
+    rgm_n = _normalize_rgm(request.args.get("rgm", ""))
+    if not rgm_n:
+        return jsonify({"ok": False, "error": "Informe um RGM válido"}), 400
+
+    academico = None
+    override = None
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT nome, polo, data_matricula, situacao, nivel, ciclo, tipo_matricula
+            FROM comercial_rgm_atual
+            WHERE regexp_replace(COALESCE(rgm, ''), '[^0-9]', '', 'g') = %s
+            ORDER BY data_matricula DESC NULLS LAST
+            LIMIT 1
+            """,
+            (rgm_n,),
+        )
+        row = cur.fetchone()
+        if row:
+            academico = {
+                "nome": row[0],
+                "polo": row[1],
+                "data_matricula": row[2].isoformat() if row[2] else None,
+                "situacao": row[3],
+                "nivel": row[4],
+                "ciclo": row[5],
+                "tipo_matricula": row[6],
+            }
+        cur.execute(
+            """
+            SELECT user_id, user_name, resolved_by, resolved_at
+            FROM comercial_rgm_conflito_resolucao
+            WHERE rgm = %s
+            """,
+            (rgm_n,),
+        )
+        ov = cur.fetchone()
+        if ov:
+            override = {
+                "user_id": ov[0],
+                "user_name": ov[1],
+                "resolved_by": ov[2],
+                "resolved_at": ov[3].isoformat() if ov[3] else None,
+            }
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logger.warning("rgm-atribuicao academico/override: %s", e)
+
+    leads = []
+    kommo_erro = None
+    try:
+        kconn = _pg_kommo()
+        kcur = kconn.cursor()
+        kcur.execute(
+            """
+            SELECT l.id, l.responsible_user_id, u.name, ps.name, l.status_id
+            FROM vw_leads_rgm v
+            JOIN leads l ON l.id = v.lead_id AND l.is_deleted = FALSE
+            LEFT JOIN users u ON u.id = l.responsible_user_id
+            LEFT JOIN pipeline_statuses ps ON ps.id = l.status_id
+            WHERE regexp_replace(COALESCE(v.rgm, ''), '[^0-9]', '', 'g') = %s
+              AND l.responsible_user_id IS NOT NULL
+            ORDER BY CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC
+            """,
+            (rgm_n,),
+        )
+        for lead_id, uid, agente, status_nome, status_id in kcur.fetchall():
+            leads.append({
+                "lead_id": lead_id,
+                "user_id": uid,
+                "agente": agente or f"User #{uid}",
+                "status_nome": status_nome or "",
+                "status_id": status_id,
+            })
+        kcur.close()
+        kconn.close()
+    except Exception as e:
+        logger.exception("rgm-atribuicao kommo")
+        kommo_erro = str(e)
+
+    agentes_ids = {l["user_id"] for l in leads if l.get("user_id")}
+    creditado = None
+    if override and override.get("user_id"):
+        origem = override.get("resolved_by") or "conflito_manual"
+        origem_label = {
+            "ajuste_aprovado": "Ajuste de matrícula aprovado",
+            "conflito_manual": "Vendas em Conflito",
+            "manual": "Vendas em Conflito",
+        }.get(origem, origem)
+        creditado = {
+            "user_id": override["user_id"],
+            "agente": override.get("user_name") or f"User #{override['user_id']}",
+            "origem": origem,
+            "origem_label": origem_label,
+        }
+    elif leads:
+        creditado = {
+            "user_id": leads[0]["user_id"],
+            "agente": leads[0]["agente"],
+            "origem": "kommo",
+            "origem_label": "Responsável no Kommo (lead prioritário)",
+        }
+
+    return jsonify({
+        "ok": True,
+        "rgm": rgm_n,
+        "academico": academico,
+        "leads": leads,
+        "kommo_erro": kommo_erro,
+        "conflito": len(agentes_ids) > 1,
+        "override": override,
+        "creditado_para": creditado,
+        "no_kommo": bool(leads),
+        "no_dashboard": academico is not None,
+    })
+
+
 # ── Distribuição por Consultor — fechamentos no período ───────────────────────
 
 @comercial_rgm_bp.route("/api/dist-consultor/fechadas-periodo")

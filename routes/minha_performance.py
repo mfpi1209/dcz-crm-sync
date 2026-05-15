@@ -145,6 +145,57 @@ def _apply_conflito_overrides_to_agent_rgms(agent_rgms: set, kommo_uid) -> set:
     return agent_rgms
 
 
+def _kommo_user_display_name(kommo_uid: int | None) -> str | None:
+    """Nome exibido do consultor (app_users ou tabela users do kommo_sync)."""
+    if not kommo_uid:
+        return None
+    try:
+        conn = _pg()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT username FROM app_users WHERE kommo_user_id = %s LIMIT 1",
+                (kommo_uid,),
+            )
+            row = cur.fetchone()
+        conn.close()
+        if row and row[0]:
+            return str(row[0]).strip() or None
+    except Exception as e:
+        logger.warning("kommo_user_display_name app_users: %s", e)
+    try:
+        kconn = _pg_kommo()
+        with kconn.cursor() as cur:
+            cur.execute("SELECT name FROM users WHERE id = %s", (kommo_uid,))
+            row = cur.fetchone()
+        kconn.close()
+        if row and row[0]:
+            return str(row[0]).strip() or None
+    except Exception as e:
+        logger.warning("kommo_user_display_name kommo users: %s", e)
+    return None
+
+
+def _upsert_conflito_resolucao(cur, rgm, kommo_user_id, user_name: str | None = None) -> bool:
+    """Credita RGM ao consultor (mesma tabela de Vendas em Conflito no Dashboard Comercial)."""
+    rgm_n = _normalize_rgm(rgm)
+    if not rgm_n or not kommo_user_id:
+        return False
+    nome = (user_name or "").strip() or _kommo_user_display_name(kommo_user_id) or f"User #{kommo_user_id}"
+    cur.execute(
+        """
+        INSERT INTO comercial_rgm_conflito_resolucao (rgm, user_id, user_name, resolved_at, resolved_by)
+        VALUES (%s, %s, %s, NOW(), 'ajuste_aprovado')
+        ON CONFLICT (rgm) DO UPDATE SET
+            user_id = EXCLUDED.user_id,
+            user_name = EXCLUDED.user_name,
+            resolved_at = NOW(),
+            resolved_by = EXCLUDED.resolved_by
+        """,
+        (rgm_n, int(kommo_user_id), nome),
+    )
+    return True
+
+
 def _get_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=False):
     """Get matriculas for a specific agent from xl_rows.
     only_em_curso=True filters to situacao='EM CURSO' only (para contagens oficiais).
@@ -2701,6 +2752,16 @@ def api_ajustes_admin_update(aid):
     try:
         conn = _pg()
         cur = conn.cursor()
+        cur.execute(
+            "SELECT rgm, kommo_user_id, kommo_lead_id FROM matricula_ajustes WHERE id = %s",
+            (aid,),
+        )
+        ajuste_row = cur.fetchone()
+        if not ajuste_row:
+            cur.close()
+            conn.close()
+            return jsonify({"ok": False, "error": "Solicitação não encontrada"}), 404
+
         resolved = "NOW()" if new_status in ("aprovado", "rejeitado") else "NULL"
         cur.execute(f"""
             UPDATE matricula_ajustes
@@ -2712,9 +2773,31 @@ def api_ajustes_admin_update(aid):
             session.get("user_id"),
             aid,
         ))
+
+        conflito_aplicado = False
+        conflito_aviso = None
+        if new_status == "aprovado":
+            rgm, kommo_uid, lead_id = ajuste_row[0], ajuste_row[1], ajuste_row[2]
+            if kommo_uid and _upsert_conflito_resolucao(cur, rgm, kommo_uid):
+                conflito_aplicado = True
+            elif kommo_uid and not _normalize_rgm(rgm):
+                conflito_aviso = (
+                    "Aprovado, mas sem RGM válido — crédito manual em Vendas em Conflito pode ser necessário."
+                )
+                logger.warning(
+                    "ajuste %s aprovado sem RGM (lead=%s, kommo_uid=%s)",
+                    aid, lead_id, kommo_uid,
+                )
+            elif not kommo_uid:
+                conflito_aviso = "Aprovado, mas o agente não tem kommo_user_id vinculado."
+                logger.warning("ajuste %s aprovado sem kommo_user_id", aid)
+
         conn.commit()
         cur.close()
         conn.close()
-        return jsonify({"ok": True})
+        out = {"ok": True, "conflito_aplicado": conflito_aplicado}
+        if conflito_aviso:
+            out["aviso"] = conflito_aviso
+        return jsonify(out)
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500

@@ -87,10 +87,43 @@ def mini_sync_lead(lead_id: int) -> tuple[dict | None, str | None]:
     """
     Ponto de entrada para o Flask / dashboard: inicializa o SQLite do kommo_lib
     e executa o mesmo sync pontual que `python sync_one_lead.py <id>`.
+
+    Antes do GET do lead, ressincroniza pipelines/statuses para evitar erro
+    "FOREIGN KEY constraint failed" caso o Kommo tenha pipelines/statuses
+    criados após o último sync_pipelines.
     """
     init_database()
     client = KommoAPIClient()
-    return sync_one_lead_core(client, lead_id)
+
+    # 1) Garantir que pipelines/statuses locais conhecem os IDs que o lead pode referenciar
+    try:
+        from sync_pipelines import sync_pipelines
+        sync_pipelines(client)
+    except Exception as e:
+        logger.warning("mini_sync_lead: sync_pipelines pré-falhou (seguindo mesmo assim): %s", e)
+
+    lead, err = sync_one_lead_core(client, lead_id)
+
+    # 2) Retry defensivo: se ainda for FK error, ressincronizar pipelines e tentar 1x
+    if err and "FOREIGN KEY constraint failed" in err:
+        logger.warning(
+            "mini_sync_lead: FK estourou após primeiro sync_pipelines; tentando novamente. lead=%s",
+            lead_id,
+        )
+        try:
+            from sync_pipelines import sync_pipelines
+            sync_pipelines(client)
+        except Exception as e:
+            logger.warning("mini_sync_lead: sync_pipelines no retry falhou: %s", e)
+        lead, err = sync_one_lead_core(client, lead_id)
+
+        if err and "FOREIGN KEY constraint failed" in err:
+            err = (
+                f"Lead {lead_id} referencia pipeline/status que não existe localmente mesmo após ressincronização. "
+                "Rode `python kommo_lib/sync_pipelines.py` manualmente e tente novamente."
+            )
+
+    return lead, err
 
 
 def sync_one_lead(client: KommoAPIClient, lid: int) -> bool:

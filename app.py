@@ -29,7 +29,7 @@ if sys.platform == "win32":
 import time
 from pathlib import Path
 from dotenv import load_dotenv
-from flask import Flask, session
+from flask import Flask, session, request
 
 load_dotenv(Path(__file__).parent / ".env")
 
