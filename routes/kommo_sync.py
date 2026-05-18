@@ -54,6 +54,37 @@ def _pg():
 
 # ── Status da sincronização ──────────────────────────────────────────────
 
+@kommo_bp.route("/api/kommo/connection-test", methods=["GET"])
+def api_kommo_connection_test():
+    """Testa token Kommo sem rodar sync completo."""
+    token = os.getenv("KOMMO_TOKEN", "") or ""
+    base = os.getenv("KOMMO_BASE_URL", "https://admamoeduitcombr.kommo.com").strip().rstrip("/")
+    if not token:
+        return jsonify({"ok": False, "error": "KOMMO_TOKEN não configurado no servidor."}), 500
+    url = base if base.endswith("/api/v4") else f"{base}/api/v4/account"
+    try:
+        r = _requests.get(
+            url,
+            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+            timeout=15,
+        )
+        if r.status_code == 200:
+            d = r.json()
+            return jsonify({
+                "ok": True,
+                "account": d.get("name"),
+                "subdomain": d.get("subdomain"),
+                "token_length": len(token),
+            })
+        return jsonify({
+            "ok": False,
+            "http_status": r.status_code,
+            "error": (r.text or "")[:200],
+        }), 502
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @kommo_bp.route("/api/kommo/status")
 def api_kommo_status():
     try:
@@ -215,13 +246,16 @@ def api_kommo_sync():
     task_id = str(uuid.uuid4())[:8]
 
     _t0 = datetime.now().strftime("%H:%M:%S")
+    _mode_label = "INCREMENTAL" if mode != "full" else "FULL"
     _tasks[task_id] = {
         "type": "sync",
+        "mode": mode,
         "status": "running",
         "progress": 1,
-        "message": "Iniciando sincronização Kommo...",
+        "message": f"Iniciando sync {_mode_label}...",
         "started_at": datetime.now().isoformat(),
         "log": [
+            {"time": _t0, "msg": f"Modo solicitado: {_mode_label} (botão {'Incremental' if mode != 'full' else 'Full'})"},
             {"time": _t0, "msg": "Tarefa aceita. Subindo processo (pode levar alguns segundos até o primeiro log)..."},
         ],
     }
@@ -256,10 +290,22 @@ def api_kommo_sync():
         proc.wait()
         return proc.returncode
 
+    def _dual_write_on():
+        v = os.getenv("KOMMO_DUAL_WRITE_PG", "1").strip().lower()
+        return v in ("1", "true", "yes", "on")
+
     def _run():
         try:
             # Windows: sem PYTHONUNBUFFERED o stdout de main.py pode ficar preso em buffer (UI em 0% por minutos).
             env = {**os.environ, "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8"}
+            # Full sync: grava só no SQLite local (rápido); migração em massa para PG no fim.
+            # Incremental: dual-write durante o sync (poucos registros) e pula migrate redundante.
+            if mode == "full":
+                env["KOMMO_DUAL_WRITE_PG"] = "0"
+                _log("Full sync: espelho PG desligado durante download (migração em lote no fim).", 3)
+            elif _dual_write_on():
+                _log("Incremental: espelho PG ativo durante o sync.", 3)
+
             cmd = [sys.executable, "-u", "main.py"]
             if mode == "full":
                 cmd.append("--full")
@@ -282,30 +328,35 @@ def api_kommo_sync():
                 return
 
             if rc == 0:
-                # Full sync: migração completa (inclui lead_custom_field_values em massa).
-                # Delta: --light com correção de bug (cf_values por delta desde pg_last_sync).
-                mig_args = [sys.executable, "-u", "migrate_to_postgres.py"]
-                if mode != "full":
-                    mig_args.append("--light")
-                _log(
-                    "Sync concluído. Migrando para PostgreSQL (%s)..."
-                    % ("FULL" if mode == "full" else "LIGHT+cf_values"),
-                    82,
-                )
-
-                mig = subprocess.Popen(
-                    mig_args,
-                    cwd=KOMMO_DIR,
-                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                    bufsize=0, env=env,
-                )
-                _tasks[task_id]["proc"] = mig
-                mig_rc = _stream(mig, "migrate", 82, 98)
-
-                if mig_rc == 0:
-                    _log("PostgreSQL atualizado!", 99)
+                skip_migrate = mode != "full" and _dual_write_on()
+                if skip_migrate:
+                    _log("Sync concluído. PostgreSQL já atualizado (dual-write).", 90)
+                    mig_rc = 0
                 else:
-                    _log(f"Aviso PG: retorno {mig_rc}", 99)
+                    # Full sync: migração completa (inclui lead_custom_field_values em massa).
+                    # Delta sem dual-write: --light + cf_values.
+                    mig_args = [sys.executable, "-u", "migrate_to_postgres.py"]
+                    if mode != "full":
+                        mig_args.append("--light")
+                    _log(
+                        "Sync concluído. Migrando para PostgreSQL (%s)..."
+                        % ("FULL" if mode == "full" else "LIGHT+cf_values"),
+                        82,
+                    )
+
+                    mig = subprocess.Popen(
+                        mig_args,
+                        cwd=KOMMO_DIR,
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                        bufsize=0, env=env,
+                    )
+                    _tasks[task_id]["proc"] = mig
+                    mig_rc = _stream(mig, "migrate", 82, 98)
+
+                    if mig_rc == 0:
+                        _log("PostgreSQL atualizado!", 99)
+                    else:
+                        _log(f"Aviso PG: retorno {mig_rc}", 99)
 
                 _tasks[task_id]["progress"] = 100
                 _tasks[task_id]["status"] = "completed"

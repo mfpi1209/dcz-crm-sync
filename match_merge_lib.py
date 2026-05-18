@@ -2119,11 +2119,10 @@ def _filtrar_por_pipeline(acoes, pipelines_permitidos):
 def _calcular_data_corte():
     """Return the cutoff date for the pipeline.
 
-    Mon:      D-2 (Saturday — covers the weekend)
+    Mon:      D-2 (Saturday — regra padrão)
     Tue-Sun:  D-1 (yesterday)
 
-    Override: set DATA_CORTE_OVERRIDE env var to 'YYYY-MM-DD' to force a
-    specific cutoff (useful for manual re-processing of wider date ranges).
+    Override: DATA_CORTE_OVERRIDE=YYYY-MM-DD (ex.: recuperar sexta após falha de sync).
     """
     from datetime import date as _date, timedelta as _td
     import os as _os
@@ -2137,6 +2136,35 @@ def _calcular_data_corte():
     if hoje.weekday() == 0:  # Monday
         return hoje - _td(days=2)
     return hoje - _td(days=1)
+
+
+def _data_corte_info() -> dict:
+    """Metadados da data de corte (UI e logs)."""
+    from datetime import date as _date, timedelta as _td
+    import os as _os
+
+    hoje = _date.today()
+    override = _os.environ.get("DATA_CORTE_OVERRIDE", "").strip()
+    if override:
+        try:
+            dc = _date.fromisoformat(override)
+            regra = f"Override manual ({override}) — inclui inscrições/matriculados desde esta data"
+        except ValueError:
+            dc = _calcular_data_corte()
+            regra = "Override inválido; usando regra automática"
+    elif hoje.weekday() == 0:
+        dc = hoje - _td(days=2)
+        regra = "Segunda-feira: D-2 (sábado) — padrão"
+    else:
+        dc = hoje - _td(days=1)
+        regra = "D-1 (ontem) — padrão"
+    return {
+        "data_corte": dc.isoformat(),
+        "hoje": hoje.isoformat(),
+        "dia_semana": ["seg", "ter", "qua", "qui", "sex", "sab", "dom"][hoje.weekday()],
+        "regra": regra,
+        "override_ativo": bool(override),
+    }
 
 
 PREPOSICOES_TITLE = {"de", "da", "do", "dos", "das", "e", "em", "com", "para", "por", "a", "o", "no", "na", "nos", "nas", "ao", "à"}
@@ -3712,6 +3740,8 @@ def run_pipeline(candidatos_files, matriculados_files, nivel="grad", log_callbac
 
     # 7. Generate actions
     _log(">>> ETAPA 7: GERAR ACOES")
+    _dc_info = _data_corte_info()
+    _log(f"  Data de corte: {_dc_info['data_corte']} — {_dc_info['regra']}")
     acoes = gerar_acoes(inscritos_match, matriculados_match)
 
     # 7b. Enrich UNIFICAR with auto-decision
@@ -3752,4 +3782,5 @@ def run_pipeline(candidatos_files, matriculados_files, nivel="grad", log_callbac
         },
         "acoes": acoes,
         "elapsed": elapsed,
+        "data_corte": _dc_info,
     }

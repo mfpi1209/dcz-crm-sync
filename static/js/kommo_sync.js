@@ -372,6 +372,16 @@ function _kommoRenderStagesTable(data) {
 }
 
 async function _kommoStartSync(mode) {
+    if (mode === 'full') {
+        const ok = confirm(
+            'Full Sync baixa TODOS os leads do Kommo e pode levar 30–90+ minutos, ' +
+            'deixando o PC mais lento.\n\n' +
+            'No dia a dia use Sync Incremental (1–5 min).\n\n' +
+            'Deseja continuar com o Full Sync?'
+        );
+        if (!ok) return;
+    }
+
     const btnD = document.getElementById('kommo-btn-delta');
     const btnF = document.getElementById('kommo-btn-full');
     btnD.disabled = true; btnF.disabled = true;
@@ -428,9 +438,12 @@ function _kommoPollTask() {
             }
 
             const t = d.data;
+            const modeTag = t.mode === 'full' ? 'FULL' : (t.mode === 'delta' ? 'INCREMENTAL' : '');
             document.getElementById('kommo-progress-bar').style.width = t.progress + '%';
             document.getElementById('kommo-progress-pct').textContent = t.progress + '%';
-            document.getElementById('kommo-progress-label').textContent = t.message || '...';
+            const baseMsg = t.message || '...';
+            document.getElementById('kommo-progress-label').textContent =
+                modeTag ? `[${modeTag}] ${baseMsg}` : baseMsg;
 
             const logEl = document.getElementById('kommo-sync-log');
             if (t.log && t.log.length) {

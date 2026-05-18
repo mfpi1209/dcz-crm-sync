@@ -14,6 +14,30 @@ function loadMatchMerge() {
     _mmPreviewPage = 1;
     mmRefreshFileList();
     mmCheckStatus();
+    mmLoadDataCorte();
+}
+
+function mmLoadDataCorte() {
+    const banner = document.getElementById('mm-data-corte-banner');
+    const text = document.getElementById('mm-data-corte-text');
+    if (!banner || !text) return;
+    fetch('/api/match-merge/data-corte')
+        .then(r => r.json())
+        .then(d => {
+            if (!d.ok) return;
+            const br = (s) => {
+                if (!s || s.length !== 10) return s;
+                const [y, m, day] = s.split('-');
+                return `${day}/${m}/${y}`;
+            };
+            banner.classList.remove('hidden');
+            text.textContent =
+                `Hoje: ${br(d.hoje)} (${d.dia_semana}) · Corte: ${br(d.data_corte)} — ${d.regra}`;
+            if (d.override_ativo) {
+                banner.classList.add('border-amber-500/50');
+            }
+        })
+        .catch(() => {});
 }
 
 /* ── Upload ─────────────────────────────────────── */
