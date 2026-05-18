@@ -578,15 +578,102 @@ def _append_lead_postgres_cur(cur, lead: dict, now: str) -> None:
 
 
 def _mirror_leads_batch_postgres(leads: list[dict], now: str) -> None:
+    """Espelha lote no PostgreSQL remoto (executemany — bem mais rápido que 1 query/campo)."""
     if not _dual_write_pg_enabled() or not leads:
         return
+    from psycopg2.extras import Json, execute_values
+
+    lead_rows = []
+    cf_rows = []
+    for lead in leads:
+        cfs = lead.get("custom_fields_values") or []
+        emb = lead.get("_embedded") or {}
+        tags = emb.get("tags") or []
+        emb_contacts = emb.get("contacts") or []
+        lead_rows.append((
+            lead["id"],
+            lead.get("name"),
+            int(lead.get("price") or 0),
+            lead.get("responsible_user_id"),
+            lead.get("group_id"),
+            lead.get("status_id"),
+            lead.get("pipeline_id"),
+            lead.get("loss_reason_id"),
+            lead.get("source_id"),
+            lead.get("created_by"),
+            lead.get("updated_by"),
+            lead.get("closed_at"),
+            lead.get("created_at"),
+            lead.get("updated_at"),
+            lead.get("closest_task_at"),
+            bool(lead.get("is_deleted")),
+            lead.get("score"),
+            lead.get("account_id"),
+            lead.get("labor_cost"),
+            bool(lead.get("is_price_modified_by_robot")),
+            Json(cfs) if cfs else None,
+            Json(tags) if tags else None,
+            Json(emb_contacts) if emb_contacts else None,
+            None,
+            now,
+        ))
+        for cf in cfs:
+            cf_rows.append((
+                lead["id"],
+                cf.get("field_id"),
+                cf.get("field_name"),
+                cf.get("field_code"),
+                cf.get("field_type"),
+                Json(cf.get("values") or []),
+                now,
+            ))
+
     k = None
     c = None
     try:
         k = _pg()
         c = k.cursor()
-        for lead in leads:
-            _append_lead_postgres_cur(c, lead, now)
+        execute_values(
+            c,
+            """
+            INSERT INTO leads (
+                id, name, price, responsible_user_id, group_id, status_id, pipeline_id,
+                loss_reason_id, source_id, created_by, updated_by, closed_at, created_at,
+                updated_at, closest_task_at, is_deleted, score, account_id, labor_cost,
+                is_price_modified, custom_fields_json, tags_json, contacts_json, raw_json, synced_at
+            ) VALUES %s
+            ON CONFLICT (id) DO UPDATE SET
+                name = EXCLUDED.name, price = EXCLUDED.price,
+                responsible_user_id = EXCLUDED.responsible_user_id, group_id = EXCLUDED.group_id,
+                status_id = EXCLUDED.status_id, pipeline_id = EXCLUDED.pipeline_id,
+                loss_reason_id = EXCLUDED.loss_reason_id, source_id = EXCLUDED.source_id,
+                created_by = EXCLUDED.created_by, updated_by = EXCLUDED.updated_by,
+                closed_at = EXCLUDED.closed_at, created_at = EXCLUDED.created_at,
+                updated_at = EXCLUDED.updated_at, closest_task_at = EXCLUDED.closest_task_at,
+                is_deleted = EXCLUDED.is_deleted, score = EXCLUDED.score,
+                account_id = EXCLUDED.account_id, labor_cost = EXCLUDED.labor_cost,
+                is_price_modified = EXCLUDED.is_price_modified,
+                custom_fields_json = EXCLUDED.custom_fields_json, tags_json = EXCLUDED.tags_json,
+                contacts_json = EXCLUDED.contacts_json, synced_at = EXCLUDED.synced_at
+            """,
+            lead_rows,
+            page_size=200,
+        )
+        if cf_rows:
+            execute_values(
+                c,
+                """
+                INSERT INTO lead_custom_field_values
+                (lead_id, field_id, field_name, field_code, field_type, values_json, synced_at)
+                VALUES %s
+                ON CONFLICT (lead_id, field_id) DO UPDATE SET
+                    field_name = EXCLUDED.field_name, field_code = EXCLUDED.field_code,
+                    field_type = EXCLUDED.field_type, values_json = EXCLUDED.values_json,
+                    synced_at = EXCLUDED.synced_at
+                """,
+                cf_rows,
+                page_size=500,
+            )
         k.commit()
     except Exception as e:
         logger.error("Espelho PostgreSQL (leads batch): %s", e)
@@ -753,13 +840,84 @@ def _append_contact_postgres_cur(cur, contact: dict, now: str) -> None:
 def _mirror_contacts_batch_postgres(contacts: list[dict], now: str) -> None:
     if not _dual_write_pg_enabled() or not contacts:
         return
+    from psycopg2.extras import Json, execute_values
+
+    contact_rows = []
+    cf_rows = []
+    for contact in contacts:
+        custom_fields = contact.get("custom_fields_values") or []
+        tags = contact.get("_embedded", {}).get("tags") or []
+        cid = contact.get("id")
+        contact_rows.append((
+            cid,
+            contact.get("name"),
+            contact.get("first_name"),
+            contact.get("last_name"),
+            contact.get("responsible_user_id"),
+            contact.get("group_id"),
+            contact.get("created_by"),
+            contact.get("updated_by"),
+            contact.get("created_at"),
+            contact.get("updated_at"),
+            contact.get("closest_task_at"),
+            bool(contact.get("is_deleted")),
+            contact.get("account_id"),
+            Json(custom_fields) if custom_fields else None,
+            Json(tags) if tags else None,
+            None,
+            now,
+        ))
+        for cf in custom_fields:
+            cf_rows.append((
+                cid,
+                cf.get("field_id"),
+                cf.get("field_name"),
+                cf.get("field_code"),
+                cf.get("field_type"),
+                Json(cf.get("values") or []),
+                now,
+            ))
+
     k = None
     c = None
     try:
         k = _pg()
         c = k.cursor()
-        for contact in contacts:
-            _append_contact_postgres_cur(c, contact, now)
+        execute_values(
+            c,
+            """
+            INSERT INTO contacts (
+                id, name, first_name, last_name, responsible_user_id, group_id,
+                created_by, updated_by, created_at, updated_at, closest_task_at,
+                is_deleted, account_id, custom_fields_json, tags_json, raw_json, synced_at
+            ) VALUES %s
+            ON CONFLICT (id) DO UPDATE SET
+                name = EXCLUDED.name, first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name,
+                responsible_user_id = EXCLUDED.responsible_user_id, group_id = EXCLUDED.group_id,
+                created_by = EXCLUDED.created_by, updated_by = EXCLUDED.updated_by,
+                created_at = EXCLUDED.created_at, updated_at = EXCLUDED.updated_at,
+                closest_task_at = EXCLUDED.closest_task_at, is_deleted = EXCLUDED.is_deleted,
+                account_id = EXCLUDED.account_id, custom_fields_json = EXCLUDED.custom_fields_json,
+                tags_json = EXCLUDED.tags_json, synced_at = EXCLUDED.synced_at
+            """,
+            contact_rows,
+            page_size=200,
+        )
+        if cf_rows:
+            execute_values(
+                c,
+                """
+                INSERT INTO contact_custom_field_values
+                (contact_id, field_id, field_name, field_code, field_type, values_json, synced_at)
+                VALUES %s
+                ON CONFLICT (contact_id, field_id) DO UPDATE SET
+                    field_name = EXCLUDED.field_name, field_code = EXCLUDED.field_code,
+                    field_type = EXCLUDED.field_type, values_json = EXCLUDED.values_json,
+                    synced_at = EXCLUDED.synced_at
+                """,
+                cf_rows,
+                page_size=500,
+            )
         k.commit()
     except Exception as e:
         logger.error("Espelho PostgreSQL (contacts batch): %s", e)

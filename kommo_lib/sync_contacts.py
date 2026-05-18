@@ -6,8 +6,6 @@ Inclui custom fields (telefone, email, etc.).
 
 import logging
 import time
-from datetime import datetime, timezone, timedelta
-
 from api_client import KommoAPIClient
 from database import (
     upsert_contacts_batch,
@@ -16,6 +14,7 @@ from database import (
     get_last_sync,
 )
 from config import PAGE_SIZE, BATCH_SIZE, SLEEP_BETWEEN_PAGES, KOMMO_DELTA_LOOKBACK_DAYS
+from sync_delta import delta_from_ts
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +48,7 @@ def sync_contacts(client: KommoAPIClient, force_full: bool = False) -> dict:
     try:
         # Determinar se é full ou delta sync
         last_sync = get_last_sync(entity)
-        is_full_sync = force_full or last_sync is None or last_sync.get("last_full_sync_at") is None
+        is_full_sync = force_full or last_sync is None or not (last_sync.get("last_sync_at") or "").strip()
         stats["is_full_sync"] = is_full_sync
 
         # Montar parâmetros
@@ -58,14 +57,9 @@ def sync_contacts(client: KommoAPIClient, force_full: bool = False) -> dict:
         }
 
         if not is_full_sync:
-            # Delta sync
             last_sync_at = last_sync["last_sync_at"]
             try:
-                dt = datetime.fromisoformat(last_sync_at.replace("Z", "+00:00"))
-                # last_sync_at é UTC (salvo com utcnow) — marcar timezone
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=timezone.utc)
-                from_ts = int(dt.timestamp()) - 300  # 5 min de margem
+                from_ts = delta_from_ts(last_sync_at)
             except (ValueError, AttributeError):
                 logger.warning("Timestamp inválido no last_sync. Forçando full sync.")
                 is_full_sync = True
@@ -75,8 +69,8 @@ def sync_contacts(client: KommoAPIClient, force_full: bool = False) -> dict:
             if not is_full_sync:
                 params["filter[updated_at][from]"] = from_ts
                 logger.info(
-                    "Delta sync: contatos com updated_at >= ts %d (lookback %d dias)",
-                    from_ts, KOMMO_DELTA_LOOKBACK_DAYS,
+                    "Delta sync: contatos com updated_at >= ts %d (máx. %d dias, ref %s)",
+                    from_ts, KOMMO_DELTA_LOOKBACK_DAYS, last_sync_at[:19],
                 )
 
         if is_full_sync:

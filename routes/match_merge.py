@@ -183,6 +183,13 @@ def mm_process():
                     "candidatos": len(cand_files), "matriculados": len(mat_files)})
 
 
+@match_merge_bp.route("/api/match-merge/data-corte", methods=["GET"])
+def mm_data_corte():
+    """Data de corte usada no pipeline (regra D-1/D-2 ou override)."""
+    from match_merge_lib import _data_corte_info
+    return jsonify({"ok": True, **_data_corte_info()})
+
+
 @match_merge_bp.route("/api/match-merge/status", methods=["GET"])
 def mm_status():
     return jsonify({
