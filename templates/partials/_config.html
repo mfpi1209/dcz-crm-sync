@@ -25,7 +25,8 @@
                         Turmas
                     </button>
                     <button onclick="switchConfigTab('usuarios')" id="cfg-tab-usuarios"
-                        class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2">
+                        class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2"
+                        {% if not nav_is_admin %}style="display:none"{% endif %}>
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
                         Usuários
                     </button>
@@ -194,24 +195,49 @@
                 <!-- ── Seção: Usuários ── -->
                 <div id="cfg-section-usuarios" class="hidden">
                     <div class="glass-card p-6 mb-6">
-                        <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center justify-between mb-4">
                             <h3 class="text-base font-bold text-[var(--text-primary)] font-display">Usuários Cadastrados</h3>
                             <button onclick="loadUsers()" class="btn-secondary text-sm px-4 py-2 rounded-xl">Atualizar</button>
                         </div>
+                        <div class="flex flex-wrap items-center gap-3 mb-4">
+                            <div class="relative flex-1 min-w-[200px] max-w-xs">
+                                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-base pointer-events-none">search</span>
+                                <input type="text" id="cfg-users-search" placeholder="Buscar por nome..."
+                                    oninput="filterUsersTable()"
+                                    class="input-glass pl-9 pr-3 py-2 text-sm w-full">
+                            </div>
+                            <select id="cfg-users-cat-filter" onchange="filterUsersTable()" class="input-glass px-3 py-2 text-sm">
+                                <option value="">Todas as categorias</option>
+                                <option value="Comercial">Comercial</option>
+                                <option value="Suporte Comercial">Suporte Comercial</option>
+                                <option value="Supervisor Comercial">Supervisor Comercial</option>
+                                <option value="Acadêmico">Acadêmico</option>
+                                <option value="Supervisor Acadêmico">Supervisor Acadêmico</option>
+                                <option value="__none__">Sem categoria</option>
+                            </select>
+                        </div>
                         <div class="overflow-x-auto">
-                            <table class="w-full text-left text-sm">
+                            <table class="w-full text-left text-sm" style="table-layout:fixed">
+                                <colgroup>
+                                    <col style="width:20%">
+                                    <col style="width:12%">
+                                    <col style="width:8%">
+                                    <col style="width:36%">
+                                    <col style="width:12%">
+                                    <col style="width:12%">
+                                </colgroup>
                                 <thead>
-                                    <tr class="text-xs text-gray-500 border-b border-gray-700/30">
+                                    <tr class="text-xs text-[var(--text-muted)] border-b border-[var(--border)] uppercase tracking-wider">
                                         <th class="pb-2 font-semibold">Usuário (login)</th>
                                         <th class="pb-2 font-semibold">Categoria</th>
                                         <th class="pb-2 font-semibold">Nível</th>
                                         <th class="pb-2 font-semibold">Permissões</th>
                                         <th class="pb-2 font-semibold">Criado</th>
-                                        <th class="pb-2 font-semibold w-28">Ações</th>
+                                        <th class="pb-2 font-semibold">Ações</th>
                                     </tr>
                                 </thead>
-                                <tbody id="users-tbody" class="text-gray-300">
-                                    <tr><td colspan="6" class="py-4 text-center text-gray-500">Carregando...</td></tr>
+                                <tbody id="users-tbody" class="text-[var(--text-secondary)]">
+                                    <tr><td colspan="6" class="py-4 text-center text-[var(--text-muted)]">Carregando...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -239,46 +265,58 @@
                         <h3 class="text-base font-bold text-[var(--text-primary)] font-display mb-4">Novo Usuário</h3>
                         <div class="flex flex-wrap items-end gap-4 mb-5">
                             <div>
-                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">Usuário</label>
+                                <label class="block text-xs text-[var(--text-secondary)] mb-1.5 font-medium">Usuário</label>
                                 <input type="text" id="user-new-username" placeholder="login"
-                                    class="input-glass px-3 py-2 text-sm text-gray-200 w-40" autocomplete="off">
+                                    class="input-glass px-3 py-2 text-sm w-40" autocomplete="off">
                             </div>
                             <div>
-                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">Senha</label>
+                                <label class="block text-xs text-[var(--text-secondary)] mb-1.5 font-medium">Senha</label>
                                 <input type="password" id="user-new-password" placeholder="••••••"
-                                    class="input-glass px-3 py-2 text-sm text-gray-200 w-40" autocomplete="new-password">
+                                    class="input-glass px-3 py-2 text-sm w-40" autocomplete="new-password">
                             </div>
                             <div>
-                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">Kommo User ID</label>
+                                <label class="block text-xs text-[var(--text-secondary)] mb-1.5 font-medium">Kommo User ID</label>
                                 <input type="number" id="user-new-kommo-uid" placeholder="Ex: 9876543"
-                                    class="input-glass px-3 py-2 text-sm text-gray-200 w-36" autocomplete="off">
+                                    class="input-glass px-3 py-2 text-sm w-36" autocomplete="off">
                             </div>
                             <div>
-                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">E-mail Cruzeiro</label>
+                                <label class="block text-xs text-[var(--text-secondary)] mb-1.5 font-medium">E-mail Cruzeiro</label>
                                 <input type="email" id="user-new-email-cruzeiro" placeholder="nome@cruzeirodosul.edu.br"
-                                    class="input-glass px-3 py-2 text-sm text-gray-200 w-56" autocomplete="off">
+                                    class="input-glass px-3 py-2 text-sm w-56" autocomplete="off">
                             </div>
                             <div>
-                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">Categoria</label>
-                                <select id="user-new-categoria" class="input-glass px-3 py-2 text-sm text-gray-200">
+                                <label class="block text-xs text-[var(--text-secondary)] mb-1.5 font-medium">Categoria</label>
+                                <select id="user-new-categoria" class="input-glass px-3 py-2 text-sm">
                                     <option value="">— Nenhuma —</option>
                                     <option value="Comercial">Comercial</option>
                                     <option value="Suporte Comercial">Suporte Comercial</option>
+                                    <option value="Supervisor Comercial">Supervisor Comercial</option>
                                     <option value="Acadêmico">Acadêmico</option>
+                                    <option value="Supervisor Acadêmico">Supervisor Acadêmico</option>
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-xs text-gray-500 mb-1.5 font-medium">Nível</label>
-                                <select id="user-new-role" class="input-glass px-3 py-2 text-sm text-gray-200"
+                                <button type="button"
+                                        onclick="applyCategoryPresetFromSelect('user-new-categoria', 'user-new-page-cb')"
+                                        class="btn-secondary text-[11px] font-bold uppercase tracking-wider px-4 py-2 rounded-xl flex items-center gap-1.5 whitespace-nowrap"
+                                        title="Aplicar preset de permissões da categoria selecionada">
+                                    <span class="material-symbols-outlined text-[15px]">auto_fix_high</span>
+                                    Aplicar preset
+                                </button>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-[var(--text-secondary)] mb-1.5 font-medium">Nível</label>
+                                <select id="user-new-role" class="input-glass px-3 py-2 text-sm"
                                     onchange="toggleNewUserPerms()">
                                     <option value="viewer">Visualizador</option>
+                                    <option value="editor">Editor</option>
                                     <option value="admin">Administrador</option>
                                 </select>
                             </div>
                         </div>
                         <div id="user-new-perms" class="mb-5">
-                            <label class="block text-xs text-gray-500 mb-3 font-medium">Permissões por página</label>
-                            <div id="user-new-perms-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+                            <label class="block text-xs text-[var(--text-secondary)] mb-3 font-medium">Permissões por página</label>
+                            <div id="user-new-perms-grid" class="perm-grid"></div>
                         </div>
                         <button onclick="createUser()" class="btn-primary text-sm px-5 py-2 rounded-xl">Criar Usuário</button>
                     </div>

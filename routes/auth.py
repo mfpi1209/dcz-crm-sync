@@ -233,7 +233,7 @@ def api_users_create():
     datacrazy_user_id = (body.get("datacrazy_user_id") or "").strip() or None
     if not username or not password:
         return jsonify({"error": "Usuário e senha são obrigatórios"}), 400
-    if role not in ("admin", "viewer"):
+    if role not in ("admin", "editor", "viewer"):
         role = "viewer"
     is_bootstrap = session.get("role") != "admin"
     if is_bootstrap:
@@ -279,7 +279,7 @@ def api_users_update(uid):
         if password:
             cur.execute("UPDATE app_users SET pw_hash = %s WHERE id = %s",
                         (_hash_pw(password), uid))
-        if role and role in ("admin", "viewer"):
+        if role and role in ("admin", "editor", "viewer"):
             cur.execute("UPDATE app_users SET role = %s WHERE id = %s", (role, uid))
         if "kommo_user_id" in body:
             cur.execute("UPDATE app_users SET kommo_user_id = %s WHERE id = %s",

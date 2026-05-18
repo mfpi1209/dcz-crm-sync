@@ -3,8 +3,27 @@
 <head>
     {% include 'partials/_head.html' %}
 </head>
-<body class="h-full bg-[var(--bg-main)] text-[var(--text-primary)] font-sans antialiased"
-      data-username="{{ session.get('username', '')|e }}">
+<body class="h-full bg-[var(--bg-main)] text-[var(--text-primary)] font-sans antialiased initial-bootstrap"
+      data-username="{{ session.get('username', '')|e }}"
+      data-role="{{ nav_role }}"
+      data-categoria="{{ nav_categoria }}"
+      data-is-comercial="{{ '1' if nav_is_comercial else '0' }}"
+      data-initial-page="{{ nav_initial_page }}"
+      data-allowed-pages='{{ nav_allowed_pages|tojson }}'>
+
+<div id="boot-splash" aria-hidden="true">
+    <div class="boot-shutter boot-shutter--top"></div>
+    <div class="boot-shutter boot-shutter--bottom"></div>
+    <div class="boot-shutter boot-shutter--left"></div>
+    <div class="boot-shutter boot-shutter--right"></div>
+    <div class="boot-beams">
+        <div class="boot-beam boot-beam--a"></div>
+        <div class="boot-beam boot-beam--b"></div>
+    </div>
+    <div class="boot-brand"><span>edu</span><span class="accent">it.</span></div>
+    <div class="boot-sub">Cockpit · Gestão</div>
+    <div class="boot-spinner"></div>
+</div>
 
 <div class="h-full flex">
     {% include 'partials/_sidebar.html' %}
@@ -27,6 +46,7 @@
             {% include 'partials/_schedule.html' %}
             {% include 'partials/_inscricao.html' %}
             {% include 'partials/_ferramentas.html' %}
+            {% include 'partials/_leads_inscricao.html' %}
             {% include 'partials/_avisos.html' %}
             {% include 'partials/_kommo_dispatcher.html' %}
             {% include 'partials/_meta_campaigns.html' %}
@@ -42,7 +62,11 @@
             {% include 'partials/_premiacao_admin.html' %}
             {% include 'partials/_ajustes_matricula.html' %}
             {% include 'partials/_macro_email.html' %}
+            {% include 'partials/_captacao.html' %}
+            {% include 'partials/_clicks.html' %}
+            {% include 'partials/_leads_promotores.html' %}
             {% include 'partials/_profile.html' %}
+            {% include 'partials/_meus_atendimentos.html' %}
         </main>
     </div>
 </div>
@@ -172,9 +196,48 @@
     </div>
 </div>
 
+<!-- Modal: Consultar atribuição por RGM -->
+<div id="crgm-rgm-busca-modal" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" style="position:fixed;top:0;left:0;right:0;bottom:0;">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg flex flex-col" style="max-height:90vh;">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-700 shrink-0">
+            <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-blue-400 text-2xl">search</span>
+                <div>
+                    <p class="text-[10px] text-slate-500 uppercase tracking-wider">Atribuição de vendas</p>
+                    <p class="text-white font-semibold text-sm">Consultar RGM</p>
+                </div>
+            </div>
+            <button type="button" onclick="crgmFecharBuscaRgm()" class="text-slate-500 hover:text-white transition-colors">
+                <span class="material-symbols-outlined text-xl">close</span>
+            </button>
+        </div>
+        <div class="px-6 py-4 border-b border-slate-800 shrink-0">
+            <label class="text-[10px] text-slate-500 uppercase tracking-wider block mb-2">RGM da matrícula</label>
+            <div class="flex gap-2">
+                <input id="crgm-rgm-busca-input" type="text" inputmode="numeric" placeholder="Ex.: 45454545"
+                    class="flex-1 bg-slate-700/60 border border-slate-600 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 placeholder-slate-500 font-mono"
+                    onkeydown="if(event.key==='Enter')crgmBuscarRgmAtribuicao()" />
+                <button type="button" onclick="crgmBuscarRgmAtribuicao()"
+                    class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold flex items-center gap-1.5 shrink-0">
+                    <span class="material-symbols-outlined text-base">search</span>
+                    Buscar
+                </button>
+            </div>
+        </div>
+        <div id="crgm-rgm-busca-result" class="overflow-y-auto flex-1 px-6 py-4 text-sm text-slate-400">
+            <p class="text-xs text-slate-500 text-center py-6">Informe o RGM e clique em Buscar.</p>
+        </div>
+        <div class="px-6 py-3 border-t border-slate-700 shrink-0 flex justify-end">
+            <button type="button" onclick="crgmFecharBuscaRgm()" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm">Fechar</button>
+        </div>
+    </div>
+</div>
+
 {% set _v = range(100000) | random %}
 <script src="{{ url_for('static', filename='js/utils.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/dashboard.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/dashboard_supervisor.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/dashboard_supervisor_academico.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/search.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/sync.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/update.js') }}?v={{_v}}"></script>
@@ -190,6 +253,7 @@
 <script src="{{ url_for('static', filename='js/feedback.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/inscricao.js') }}"></script>
 <script src="{{ url_for('static', filename='js/ferramentas.js') }}"></script>
+<script src="{{ url_for('static', filename='js/leads_inscricao.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/avisos.js') }}"></script>
 <script src="{{ url_for('static', filename='js/kommo_dispatcher.js') }}"></script>
 <script src="{{ url_for('static', filename='js/config.js') }}"></script>
@@ -198,10 +262,14 @@
 <script src="{{ url_for('static', filename='js/leads_parados.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/dist_consultor.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/minha_performance.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/meus_atendimentos.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/premiacao_admin.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/ajustes_matricula.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/macro_email.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/repasse.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/captacao.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/clicks.js') }}?v={{_v}}"></script>
+<script src="{{ url_for('static', filename='js/leads_promotores.js') }}?v={{_v}}"></script>
 <script src="{{ url_for('static', filename='js/profile.js') }}?v={{_v}}"></script>
 
 </body>

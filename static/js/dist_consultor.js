@@ -24,6 +24,50 @@
     let _chartDiaOrigem = null;
     let _loaded = false;
     let _filtersListening = false;
+    // Hierarquia (mesmo padrão da Minha Performance):
+    //   admin -> vê tudo. Demais -> só seu próprio funil.
+    let _dcMe = null;          // { is_admin, kommo_user_id, consultor_nome }
+    let _dcMePromise = null;
+
+    function dcLoadMe() {
+        if (_dcMePromise) return _dcMePromise;
+        _dcMePromise = fetch('/api/dist-consultor/me', { cache: 'no-store' })
+            .then(function(r) { return r.ok ? r.json() : null; })
+            .then(function(j) {
+                if (j && j.ok) {
+                    _dcMe = {
+                        is_admin: !!j.is_admin,
+                        kommo_user_id: j.kommo_user_id || null,
+                        consultor_nome: (j.consultor_nome || '').trim() || null
+                    };
+                } else {
+                    _dcMe = { is_admin: false, kommo_user_id: null, consultor_nome: null };
+                }
+                dcApplyAdminUi();
+                return _dcMe;
+            })
+            .catch(function() {
+                _dcMe = { is_admin: false, kommo_user_id: null, consultor_nome: null };
+                dcApplyAdminUi();
+                return _dcMe;
+            });
+        return _dcMePromise;
+    }
+
+    function dcApplyAdminUi() {
+        var isAdmin = !!(_dcMe && _dcMe.is_admin);
+        var wrap = document.getElementById('dc-btn-kommo-lead-wrap');
+        if (wrap) wrap.style.display = isAdmin ? '' : 'none';
+        if (!isAdmin) {
+            var panel = document.getElementById('dc-kommo-lead-panel');
+            if (panel) panel.style.display = 'none';
+        }
+    }
+
+    function dcAclConsultor() {
+        if (_dcMe && !_dcMe.is_admin && _dcMe.consultor_nome) return _dcMe.consultor_nome;
+        return null;
+    }
 
     // ── Date helpers ──────────────────────────────────────────────────────
 
@@ -251,8 +295,13 @@
 
     function computeRawTotals(rawItems) {
         var totalVendas = 0, totalLeads = 0;
+        var aclName = dcAclConsultor();
         rawItems.forEach(function(item) {
             if (!item || typeof item !== "object" || Array.isArray(item)) return;
+            if (aclName) {
+                var c = String(item.consultor || "").trim();
+                if (!c || !consultorMatches(c, aclName)) return;
+            }
             totalVendas += toNum(item.total_vendas);
             totalLeads += toNum(item.total_leads ?? item.total);
         });
@@ -260,6 +309,7 @@
     }
 
     function mapRows(rawItems) {
+        var aclName = dcAclConsultor();   // se não-admin: força filtro pelo próprio consultor
         return rawItems.filter(function(item) {
             return item && typeof item === "object" && !Array.isArray(item);
         }).map(function(item) {
@@ -278,7 +328,11 @@
                 total_vendas: toNum(item.total_vendas),
                 conversao_pct: toNum(item.conversao_pct)
             };
-        }).filter(function(r) { return r && r.total_leads > 0; });
+        }).filter(function(r) {
+            if (!r || r.total_leads <= 0) return false;
+            if (aclName && !consultorMatches(r.consultor, aclName)) return false;
+            return true;
+        });
     }
 
     // ── filter + compute ──────────────────────────────────────────────────
@@ -399,12 +453,25 @@
         var consultores = [...new Set(_rows.filter(function(r) { return !r._semConsultor; }).map(function(r) { return r.consultor; }))].sort();
         var origens = [...new Set(_rows.map(function(r) { return r.origem; }))].sort();
 
-        cSel.innerHTML = '<option value="">Todos</option>' +
-            consultores.map(function(c) { return '<option value="' + c + '">' + c + '</option>'; }).join('');
+        var aclName = dcAclConsultor();
+        if (aclName) {
+            // Não-admin: trava o filtro no próprio consultor (mesma hierarquia da Minha Performance).
+            // Mantém a versão com o casing que o webhook devolve (ou usa o nome canônico se vazio).
+            var displayName = consultores.find(function(c) { return consultorMatches(c, aclName); }) || aclName;
+            cSel.innerHTML = '<option value="' + displayName + '">' + displayName + '</option>';
+            cSel.value = displayName;
+            cSel.disabled = true;
+            cSel.title = "Você só pode visualizar seus próprios dados.";
+        } else {
+            cSel.disabled = false;
+            cSel.title = "";
+            cSel.innerHTML = '<option value="">Todos</option>' +
+                consultores.map(function(c) { return '<option value="' + c + '">' + c + '</option>'; }).join('');
+            if (consultores.includes(cVal)) cSel.value = cVal;
+        }
+
         oSel.innerHTML = '<option value="">Todas</option>' +
             origens.map(function(o) { return '<option value="' + o + '">' + o + '</option>'; }).join('');
-
-        if (consultores.includes(cVal)) cSel.value = cVal;
         if (origens.includes(oVal)) oSel.value = oVal;
     }
 
@@ -1487,7 +1554,8 @@
         if (!_loaded) {
             _loaded = true;
             dcDateInit();
-            dcConsultorFetch();
+            // Resolve identidade primeiro para aplicar ACL antes do primeiro render.
+            dcLoadMe().then(function() { dcConsultorFetch(); });
         }
     };
 })();

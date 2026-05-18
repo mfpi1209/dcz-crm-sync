@@ -106,6 +106,96 @@ def _resolve_kommo_uid(args_uid=None):
     return _get_kommo_uid()
 
 
+def _load_conflito_overrides() -> dict:
+    """Mapa rgm_normalizado -> kommo_user_id resolvido manualmente em
+    'Vendas em Conflito' (Dashboard Comercial). Esses overrides DEVEM ser
+    respeitados em qualquer relatório por agente, senão o mesmo RGM é
+    contabilizado para mais de um consultor (ex.: lead Hugo + lead Bruno
+    com a venda atribuída ao Bruno via conflito_resolucao).
+    """
+    out: dict[str, int] = {}
+    try:
+        conn = _pg()
+        with conn.cursor() as cur:
+            cur.execute("SELECT rgm, user_id FROM comercial_rgm_conflito_resolucao")
+            for r_raw, uid in cur.fetchall():
+                n = _normalize_rgm(r_raw)
+                if n and uid:
+                    out[n] = int(uid)
+        conn.close()
+    except Exception as e:
+        logger.warning("conflito_resolucao override load: %s", e)
+    return out
+
+
+def _apply_conflito_overrides_to_agent_rgms(agent_rgms: set, kommo_uid) -> set:
+    """Ajusta o conjunto de RGMs do agente conforme overrides:
+       - Se override.user_id == kommo_uid → garante que o RGM aparece.
+       - Se override.user_id != kommo_uid → remove o RGM (pertence a outro).
+    Retorna o conjunto ajustado (mutação in-place também aplicada).
+    """
+    overrides = _load_conflito_overrides()
+    if not overrides:
+        return agent_rgms
+    for rgm, owner_uid in overrides.items():
+        if owner_uid == kommo_uid:
+            agent_rgms.add(rgm)
+        else:
+            agent_rgms.discard(rgm)
+    return agent_rgms
+
+
+def _kommo_user_display_name(kommo_uid: int | None) -> str | None:
+    """Nome exibido do consultor (app_users ou tabela users do kommo_sync)."""
+    if not kommo_uid:
+        return None
+    try:
+        conn = _pg()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT username FROM app_users WHERE kommo_user_id = %s LIMIT 1",
+                (kommo_uid,),
+            )
+            row = cur.fetchone()
+        conn.close()
+        if row and row[0]:
+            return str(row[0]).strip() or None
+    except Exception as e:
+        logger.warning("kommo_user_display_name app_users: %s", e)
+    try:
+        kconn = _pg_kommo()
+        with kconn.cursor() as cur:
+            cur.execute("SELECT name FROM users WHERE id = %s", (kommo_uid,))
+            row = cur.fetchone()
+        kconn.close()
+        if row and row[0]:
+            return str(row[0]).strip() or None
+    except Exception as e:
+        logger.warning("kommo_user_display_name kommo users: %s", e)
+    return None
+
+
+def _upsert_conflito_resolucao(cur, rgm, kommo_user_id, user_name: str | None = None) -> bool:
+    """Credita RGM ao consultor (mesma tabela de Vendas em Conflito no Dashboard Comercial)."""
+    rgm_n = _normalize_rgm(rgm)
+    if not rgm_n or not kommo_user_id:
+        return False
+    nome = (user_name or "").strip() or _kommo_user_display_name(kommo_user_id) or f"User #{kommo_user_id}"
+    cur.execute(
+        """
+        INSERT INTO comercial_rgm_conflito_resolucao (rgm, user_id, user_name, resolved_at, resolved_by)
+        VALUES (%s, %s, %s, NOW(), 'ajuste_aprovado')
+        ON CONFLICT (rgm) DO UPDATE SET
+            user_id = EXCLUDED.user_id,
+            user_name = EXCLUDED.user_name,
+            resolved_at = NOW(),
+            resolved_by = EXCLUDED.resolved_by
+        """,
+        (rgm_n, int(kommo_user_id), nome),
+    )
+    return True
+
+
 def _get_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=False):
     """Get matriculas for a specific agent from xl_rows.
     only_em_curso=True filters to situacao='EM CURSO' only (para contagens oficiais).
@@ -130,6 +220,11 @@ def _get_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=Fal
     except Exception as e:
         logger.warning("Error fetching agent RGMs from Kommo: %s", e)
         return []
+
+    # Aplica overrides manuais de "Vendas em Conflito" — mesma lógica do
+    # Dashboard Comercial. Sem isso, RGMs com lead em mais de um consultor
+    # apareciam para todos eles.
+    _apply_conflito_overrides_to_agent_rgms(agent_rgms, kommo_uid)
 
     if not agent_rgms:
         return []
@@ -180,7 +275,24 @@ def _get_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=Fal
                   AND UPPER(TRIM(COALESCE(r.data->>'tipo_matricula','')))
                       = ANY(ARRAY['NOVA MATRICULA','RECOMPRA','RETORNO'])
                   AND TRIM(COALESCE(r.data->>'empresa','')) ~ '^(12|7) -'
-                ORDER BY regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g'), r.id DESC
+                ORDER BY
+                    regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g'),
+                    -- Em transferências internas o aluno aparece 2x: prioriza
+                    -- a linha que ainda está EM CURSO sobre TRANSFERIDO/CANCELADO.
+                    CASE
+                        WHEN UPPER(TRIM(COALESCE(r.data->>'situacao',''))) = 'EM CURSO' THEN 0
+                        WHEN UPPER(TRIM(COALESCE(r.data->>'situacao',''))) IN ('TRANCADO','SEM EVOLUCAO','SEM EVOLUÇÃO') THEN 1
+                        ELSE 2
+                    END,
+                    -- Desempate: matrícula mais recente.
+                    CASE
+                        WHEN (r.data->>'data_mat') ~ '^[0-9]{{2}}/[0-9]{{2}}/[0-9]{{4}}$'
+                            THEN to_date(r.data->>'data_mat','DD/MM/YYYY')
+                        WHEN (r.data->>'data_mat') ~ '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}'
+                            THEN (r.data->>'data_mat')::date
+                        ELSE NULL
+                    END DESC NULLS LAST,
+                    r.id DESC
             ) deduped
             {outer_where}
             ORDER BY data_matricula DESC NULLS LAST
@@ -290,6 +402,12 @@ def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
         if n and uid:
             rgm_to_uid[n] = uid
 
+    # Aplica overrides manuais de conflito (mesma lógica do Dashboard Comercial)
+    overrides_rgm = _load_conflito_overrides()
+    if overrides_rgm:
+        for r, uid in overrides_rgm.items():
+            rgm_to_uid[r] = uid
+
     # Count aceites per agent (leads in ANY Aceite stage)
     ace_ids = _get_aceite_status_ids()
     aceites_per_agent = {}
@@ -375,23 +493,105 @@ def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
     }
 
 
-def _get_active_campanha(dt=None):
-    """Return the active campaign covering the given date (or today)."""
+def _get_active_campanha(dt=None, campanha_id=None):
+    """Retorna a campanha solicitada.
+
+    - Se ``campanha_id`` for informado, busca exatamente essa campanha.
+      O flag ``is_active`` reflete se ela cobre a data ``dt`` (ou hoje).
+    - Senão, retorna a campanha vigente para ``dt`` (ou hoje).
+    - Fallback: a mais recente por ``dt_inicio DESC`` com ``is_active=False``,
+      para a tela continuar mostrando dados históricos ao invés de ficar vazia.
+    """
     ref = dt or datetime.now(BRT).date()
     try:
         conn = _pg()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        if campanha_id:
+            cur.execute("SELECT * FROM premiacao_campanha WHERE id = %s", (campanha_id,))
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            if not row:
+                return None
+            result = dict(row)
+            result["is_active"] = bool(
+                row.get("ativa") and row["dt_inicio"] <= ref <= row["dt_fim"]
+            )
+            return result
+
         cur.execute("""
             SELECT * FROM premiacao_campanha
             WHERE ativa = TRUE AND dt_inicio <= %s AND dt_fim >= %s
             ORDER BY dt_inicio DESC LIMIT 1
         """, (ref, ref))
         row = cur.fetchone()
+
+        if row:
+            result = dict(row)
+            result["is_active"] = True
+            cur.close()
+            conn.close()
+            return result
+
+        cur.execute("""
+            SELECT * FROM premiacao_campanha
+            ORDER BY dt_inicio DESC LIMIT 1
+        """)
+        row = cur.fetchone()
         cur.close()
         conn.close()
-        return dict(row) if row else None
+        if not row:
+            return None
+        result = dict(row)
+        result["is_active"] = False
+        return result
     except Exception:
         return None
+
+
+def _parse_campanha_id():
+    """Lê e normaliza o param ``campanha_id`` da query atual."""
+    raw = (request.args.get("campanha_id") or "").strip()
+    try:
+        return int(raw) if raw else None
+    except ValueError:
+        return None
+
+
+@minha_performance_bp.route("/api/minha-performance/campanhas")
+def api_minha_campanhas():
+    """Lista todas as campanhas pra popular o seletor da tela Minha Performance."""
+    try:
+        ref = datetime.now(BRT).date()
+        conn = _pg()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT id, nome, dt_inicio, dt_fim, ativa
+            FROM premiacao_campanha
+            ORDER BY dt_inicio DESC
+        """)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        out = []
+        default_id = None
+        for r in rows:
+            d = dict(r)
+            d["dt_inicio"] = str(d["dt_inicio"])
+            d["dt_fim"] = str(d["dt_fim"])
+            d["is_active"] = bool(d.get("ativa")) and d["dt_inicio"] <= str(ref) <= d["dt_fim"]
+            out.append(d)
+            if default_id is None and d["is_active"]:
+                default_id = d["id"]
+        if default_id is None and out:
+            default_id = out[0]["id"]
+
+        return jsonify({"ok": True, "campanhas": out, "default_id": default_id})
+    except Exception as e:
+        logger.exception("listar campanhas")
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 def _get_tier_bonuses(campanha_id):
@@ -603,7 +803,7 @@ def api_minha_performance():
     if not kommo_uid:
         return jsonify({"ok": False, "error": "Agente não vinculado ao Kommo"}), 400
 
-    campanha = _get_active_campanha()
+    campanha = _get_active_campanha(campanha_id=_parse_campanha_id())
     if not campanha:
         return jsonify({
             "ok": True,
@@ -651,6 +851,7 @@ def api_minha_performance():
             "nome": campanha["nome"],
             "dt_inicio": str(campanha["dt_inicio"]),
             "dt_fim": str(campanha["dt_fim"]),
+            "is_active": campanha.get("is_active", True),
         },
         "matriculas": matriculas,
         "total": total,
@@ -669,7 +870,7 @@ def api_minha_premiacao():
     if not kommo_uid:
         return jsonify({"ok": False, "error": "Agente não vinculado"}), 400
 
-    campanha = _get_active_campanha()
+    campanha = _get_active_campanha(campanha_id=_parse_campanha_id())
     if not campanha:
         return jsonify({"ok": True, "campanha": None, "tier_bonus": 0, "daily_bonus": 0,
                         "receb_bonus": 0, "total": 0, "breakdown": []})
@@ -731,7 +932,7 @@ def api_minha_premiacao():
 
     return jsonify({
         "ok": True,
-        "campanha": {"id": cid, "nome": campanha["nome"]},
+        "campanha": {"id": cid, "nome": campanha["nome"], "is_active": campanha.get("is_active", True)},
         "total_matriculas": total_mat,
         "tier": tier,
         "tier_valor_por_mat": tier_valor,
@@ -812,7 +1013,7 @@ def api_minha_insights():
     if not kommo_uid:
         return jsonify({"ok": False, "error": "Agente não vinculado"}), 400
 
-    campanha = _get_active_campanha()
+    campanha = _get_active_campanha(campanha_id=_parse_campanha_id())
     if not campanha:
         return jsonify({"ok": True, "campanha": None})
 
@@ -1087,6 +1288,23 @@ def api_minha_insights():
     base_v = tier_bonuses.get("base", 0)
     _fmt = lambda v: f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+    # Quebra do saldo total (tier + diárias + recebimentos), pro usuário
+    # entender de onde vem cada parte quando o número total é diferente
+    # do simples "matrículas × valor por mat".
+    def _build_breakdown_html():
+        parts = []
+        if tier_bonus_total > 0:
+            parts.append(f"<span class=\"text-white/70\">Por matrícula:</span> <strong>{_fmt(tier_bonus_total)}</strong>")
+        if daily_bonus_total > 0:
+            parts.append(f"<span class=\"text-white/70\">Bônus diário:</span> <strong>{_fmt(daily_bonus_total)}</strong>")
+        if receb_bonus_total > 0:
+            parts.append(f"<span class=\"text-white/70\">Recebimentos:</span> <strong>{_fmt(receb_bonus_total)}</strong>")
+        if len(parts) > 1:
+            return "<br><span class=\"text-[11px] text-white/60\">" + " · ".join(parts) + "</span>"
+        return ""
+
+    breakdown_html = _build_breakdown_html()
+
     if super_val > 0 and total_mat >= super_val:
         sv = tier_bonuses.get("supermeta", 0)
         extra_mat = total_mat - super_val
@@ -1102,7 +1320,7 @@ def api_minha_insights():
         falta_s = max(0, super_val - total_mat) if super_val > 0 else 0
         sv = tier_bonuses.get("supermeta", 0)
         ganho_extra = round((sv - tier_valor) * total_mat, 2) if sv > tier_valor else 0
-        mensagem = f"🔥 <strong>Meta batida! Você já garantiu {_fmt(tier_bonus_total)}!</strong>"
+        mensagem = f"🔥 <strong>Meta batida! Você já garantiu {_fmt(total_acumulado)}!</strong>{breakdown_html}"
         if falta_s > 0 and dias_uteis_restantes > 0:
             pace_s = round(falta_s / dias_uteis_restantes, 1)
             mensagem += (
@@ -1146,8 +1364,10 @@ def api_minha_insights():
     elif inter_val > 0:
         falta_i = max(0, inter_val - total_mat)
         iv = tier_bonuses.get("intermediaria", 0)
-        base_total = round(base_v * total_mat, 2) if base_v > 0 else 0
-        upgrade_total = round(iv * total_mat, 2)
+        # base_total = saldo total acumulado (inclui tier + diárias + recebs),
+        # pra bater com o número exibido no Hero ("Seu saldo acumulado").
+        base_total = round(total_acumulado, 2)
+        upgrade_total = round(iv * total_mat + daily_bonus_total + receb_bonus_total, 2)
         if falta_i <= 2 and falta_i > 0:
             mensagem = (
                 f"🔥 <strong>Quase lá!</strong> Só <strong>{falta_i} matrícula{'s' if falta_i > 1 else ''}</strong> "
@@ -1179,7 +1399,8 @@ def api_minha_insights():
         if base_v > 0 and total_mat > 0:
             mensagem = (
                 f"💰 Cada matrícula = <strong>{_fmt(base_v)}</strong>!<br>"
-                f"Você já acumula <strong>{_fmt(round(base_v * total_mat, 2))}</strong>. Continue assim! 🚀"
+                f"Você já acumula <strong>{_fmt(round(total_acumulado, 2))}</strong>. Continue assim! 🚀"
+                f"{breakdown_html}"
             )
         elif total_mat > 0:
             mensagem = "🔥 Campanha ativa! Você já tem matrículas — agora é acelerar! 💪"
@@ -1289,6 +1510,7 @@ def api_minha_insights():
             "nome": campanha["nome"],
             "dt_inicio": dt_ini_str,
             "dt_fim": dt_fim_str,
+            "is_active": campanha.get("is_active", True),
         },
         "total_matriculas": total_mat,
         "metas": metas,
@@ -2093,10 +2315,6 @@ def api_recebimentos_upload():
 
         from psycopg2.extras import Json
 
-        # Detecta mapeamento de colunas de forma flexível (suporta planilhas legadas)
-        # Rodamos uma vez antes do loop para identificar quais colunas existem
-        fieldnames_lower = {k: k.strip().lower() for k in (reader.fieldnames or []) if k}
-
         def _parse_valor(v):
             try:
                 return float(str(v).replace("R$", "").replace(".", "").replace(",", ".").strip())
@@ -2111,57 +2329,97 @@ def api_recebimentos_upload():
                     continue
             return None
 
+        # ── Mapeamento de colunas resolvido UMA VEZ antes do loop ───────────
+        # Para cada campo definimos: (matchers exatos, matchers substring).
+        # A escolha prefere match exato; só cai para substring se não houver.
+        field_defs = {
+            "rgm":         (("rgm",), ("rgm",)),
+            "valor":       (("valor pago", "valor recebido", "valor receb", "valor"),
+                            ("valor",)),
+            "nivel":       (("nivel", "nível"), ("nivel", "nível")),
+            "modalidade":  (("modalidade",), ("modalidade",)),
+            "data_mat":    (("data matricula", "data matrícula", "dt matricula", "dt mat"),
+                            ()),
+            "tipo_pag":    (("tipo pagamento", "tipo pag", "tipo_pag", "beleza", "categoria"),
+                            ("beleza",)),
+            "turma":       (("turma",), ("turma",)),
+            "ciclo":       (("ciclo",), ("ciclo",)),
+        }
+
+        original_headers = [k for k in (reader.fieldnames or []) if k]
+        norm_headers = {k: k.strip().lower() for k in original_headers}
+
+        col_map: dict[str, str] = {}
+        used_cols: set[str] = set()
+
+        # 1ª passada: matches exatos (do mais específico para o mais genérico)
+        for field, (exact_list, _) in field_defs.items():
+            for cand in exact_list:
+                for col, kl in norm_headers.items():
+                    if col in used_cols:
+                        continue
+                    if kl == cand:
+                        col_map[field] = col
+                        used_cols.add(col)
+                        break
+                if field in col_map:
+                    break
+
+        # 2ª passada: substring para o que sobrou
+        for field, (_, substr_list) in field_defs.items():
+            if field in col_map:
+                continue
+            for cand in substr_list:
+                for col, kl in norm_headers.items():
+                    if col in used_cols:
+                        continue
+                    if cand in kl:
+                        col_map[field] = col
+                        used_cols.add(col)
+                        break
+                if field in col_map:
+                    break
+
+        # Validações: campos obrigatórios devem ter sido mapeados
+        missing = [f for f in ("rgm", "valor", "turma", "tipo_pag", "ciclo") if f not in col_map]
+        if missing:
+            label = {"rgm": "RGM", "valor": "Valor Pago", "turma": "Turma",
+                     "tipo_pag": "Beleza (tipo)", "ciclo": "Ciclo"}
+            return jsonify({
+                "ok": False,
+                "error": "Colunas obrigatórias não encontradas no cabeçalho do CSV: "
+                         + ", ".join(label.get(m, m) for m in missing)
+                         + f". Cabeçalho recebido: {original_headers}",
+            }), 400
+
+        ciclo_re = re.compile(r"^\s*\d{4}\s*/\s*\d\s*$")  # ex.: 2026/1
+
         count = 0
-        for row in reader:
-            rgm = None
-            valor = 0
-            nivel = ""
-            modalidade = ""
-            data_mat = None
-            tipo_pag = ""
-            turma = ""
-            ciclo = ""
-
-            for k, v in row.items():
-                if not k:
-                    continue
-                kl = k.strip().lower()
-                sv = (v or "").strip()
-
-                # RGM
-                if "rgm" in kl:
-                    rgm = _normalize_rgm(sv)
-
-                # Valor — aceita "valor receb", "valor pago", "valor" sozinho
-                elif "valor" in kl:
-                    valor = _parse_valor(sv)
-
-                # Nivel
-                elif "nivel" in kl or "nível" in kl:
-                    nivel = sv
-
-                # Modalidade
-                elif "modalidade" in kl:
-                    modalidade = sv
-
-                # Data de matrícula
-                elif ("data" in kl or "dt" in kl) and ("matric" in kl or "mat" in kl):
-                    data_mat = _parse_date(sv)
-
-                # Tipo de pagamento — aceita "tipo pag", "tipo_pag", "beleza", "categoria"
-                elif ("tipo" in kl and "pag" in kl) or kl in ("beleza", "categoria", "tipo"):
-                    tipo_pag = sv
-
-                # Turma
-                elif "turma" in kl:
-                    turma = sv
-
-                # Ciclo
-                elif "ciclo" in kl:
-                    ciclo = sv
-
+        first_row_issues: list[str] = []
+        for row_idx, row in enumerate(reader, start=2):  # linha 1 é cabeçalho
+            rgm = _normalize_rgm(row.get(col_map["rgm"], ""))
             if not rgm:
                 continue
+            valor = _parse_valor(row.get(col_map["valor"], ""))
+            nivel = (row.get(col_map.get("nivel", ""), "") or "").strip()
+            modalidade = (row.get(col_map.get("modalidade", ""), "") or "").strip()
+            data_mat = _parse_date(row.get(col_map.get("data_mat", ""), ""))
+            tipo_pag = (row.get(col_map["tipo_pag"], "") or "").strip()
+            turma = (row.get(col_map["turma"], "") or "").strip()
+            ciclo = (row.get(col_map["ciclo"], "") or "").strip()
+
+            # Detecção precoce de colunas trocadas: se na primeira linha
+            # válida o `turma` veio em formato YYYY/N (típico de ciclo) e
+            # `ciclo` não, aborta com mensagem clara para o usuário.
+            if count == 0 and len(first_row_issues) == 0:
+                if ciclo_re.match(turma) and not ciclo_re.match(ciclo):
+                    first_row_issues.append(
+                        f"Linha {row_idx}: a coluna mapeada como 'Turma' "
+                        f"({col_map['turma']!r}) tem valor {turma!r}, que parece um Ciclo. "
+                        f"O cabeçalho está fora da ordem esperada? "
+                        f"Mapeamento detectado: turma={col_map['turma']!r}, ciclo={col_map['ciclo']!r}."
+                    )
+                    break
 
             cur.execute("""
                 INSERT INTO comercial_recebimentos
@@ -2172,11 +2430,25 @@ def api_recebimentos_upload():
                   tipo_pag, mes_ref, turma, ciclo, Json(row)))
             count += 1
 
+        if first_row_issues:
+            conn.rollback()
+            cur.close()
+            conn.close()
+            return jsonify({
+                "ok": False,
+                "error": "Upload abortado: " + " ".join(first_row_issues),
+            }), 400
+
         cur.execute("UPDATE recebimentos_snapshots SET row_count = %s WHERE id = %s", (count, snap_id))
         conn.commit()
         cur.close()
         conn.close()
-        return jsonify({"ok": True, "snapshot_id": snap_id, "rows": count})
+        return jsonify({
+            "ok": True,
+            "snapshot_id": snap_id,
+            "rows": count,
+            "_col_map": col_map,
+        })
     except Exception as e:
         logger.error("Recebimentos upload error: %s", e)
         return jsonify({"ok": False, "error": str(e)}), 500
@@ -2480,6 +2752,16 @@ def api_ajustes_admin_update(aid):
     try:
         conn = _pg()
         cur = conn.cursor()
+        cur.execute(
+            "SELECT rgm, kommo_user_id, kommo_lead_id FROM matricula_ajustes WHERE id = %s",
+            (aid,),
+        )
+        ajuste_row = cur.fetchone()
+        if not ajuste_row:
+            cur.close()
+            conn.close()
+            return jsonify({"ok": False, "error": "Solicitação não encontrada"}), 404
+
         resolved = "NOW()" if new_status in ("aprovado", "rejeitado") else "NULL"
         cur.execute(f"""
             UPDATE matricula_ajustes
@@ -2491,9 +2773,31 @@ def api_ajustes_admin_update(aid):
             session.get("user_id"),
             aid,
         ))
+
+        conflito_aplicado = False
+        conflito_aviso = None
+        if new_status == "aprovado":
+            rgm, kommo_uid, lead_id = ajuste_row[0], ajuste_row[1], ajuste_row[2]
+            if kommo_uid and _upsert_conflito_resolucao(cur, rgm, kommo_uid):
+                conflito_aplicado = True
+            elif kommo_uid and not _normalize_rgm(rgm):
+                conflito_aviso = (
+                    "Aprovado, mas sem RGM válido — crédito manual em Vendas em Conflito pode ser necessário."
+                )
+                logger.warning(
+                    "ajuste %s aprovado sem RGM (lead=%s, kommo_uid=%s)",
+                    aid, lead_id, kommo_uid,
+                )
+            elif not kommo_uid:
+                conflito_aviso = "Aprovado, mas o agente não tem kommo_user_id vinculado."
+                logger.warning("ajuste %s aprovado sem kommo_user_id", aid)
+
         conn.commit()
         cur.close()
         conn.close()
-        return jsonify({"ok": True})
+        out = {"ok": True, "conflito_aplicado": conflito_aplicado}
+        if conflito_aviso:
+            out["aviso"] = conflito_aviso
+        return jsonify(out)
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500

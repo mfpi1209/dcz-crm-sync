@@ -1,0 +1,362 @@
+            <div id="page-captacao" class="hidden" data-modo="promotor">
+                <style>
+                    #page-captacao {
+                        --cap-primary: #2563eb;
+                        --cap-primary-dark: #1d4ed8;
+                        --cap-gradient: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+                        --cap-success: #10b981;
+                        --cap-bg: #f8fafc;
+                        --cap-card: #ffffff;
+                        --cap-border: #e2e8f0;
+                        --cap-text: #0f172a;
+                        --cap-text-sec: #64748b;
+                        --cap-text-muted: #94a3b8;
+                    }
+                    .dark #page-captacao {
+                        --cap-bg: #0f172a;
+                        --cap-card: #1e293b;
+                        --cap-border: #334155;
+                        --cap-text: #f1f5f9;
+                        --cap-text-sec: #94a3b8;
+                        --cap-text-muted: #64748b;
+                    }
+                    #page-captacao .cap-main { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+                    #page-captacao .cap-grid { display: grid; grid-template-columns: 1fr; gap: 24px; }
+                    @media (min-width: 1024px) { #page-captacao .cap-grid { grid-template-columns: 2fr 1fr; } }
+                    #page-captacao .cap-card {
+                        background: var(--cap-card); border-radius: 16px; border: 1px solid var(--cap-border);
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.06); padding: 24px;
+                    }
+                    #page-captacao .cap-card-form { padding: 32px; }
+                    #page-captacao .cap-title { font-size: 1.5rem; font-weight: 700; color: var(--cap-text); margin-bottom: 4px; }
+                    #page-captacao .cap-subtitle { font-size: 0.875rem; color: var(--cap-text-sec); margin-bottom: 24px; }
+                    #page-captacao .cap-section { margin-bottom: 24px; padding-top: 16px; border-top: 1px solid var(--cap-border); }
+                    #page-captacao .cap-section:first-of-type { border-top: none; padding-top: 0; }
+                    #page-captacao .cap-step-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+                    #page-captacao .cap-step-badge {
+                        width: 28px; height: 28px; border-radius: 50%; background: var(--cap-gradient);
+                        color: #fff; font-size: 12px; font-weight: 700;
+                        display: flex; align-items: center; justify-content: center;
+                    }
+                    #page-captacao .cap-step-title { font-size: 0.9rem; font-weight: 600; color: var(--cap-text-sec); }
+                    #page-captacao .cap-field-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+                    @media (min-width: 640px) { #page-captacao .cap-field-grid { grid-template-columns: 1fr 1fr; } }
+                    #page-captacao .cap-full { grid-column: 1 / -1; }
+                    #page-captacao .cap-label {
+                        display: block; font-size: 0.8rem; font-weight: 600; color: var(--cap-text-sec); margin-bottom: 6px;
+                    }
+                    #page-captacao .cap-label-req::after { content: ' *'; color: #ef4444; }
+                    #page-captacao .cap-input {
+                        width: 100%; padding: 10px 14px; border-radius: 10px; font-size: 0.875rem;
+                        border: 1.5px solid var(--cap-border); background: var(--cap-bg); color: var(--cap-text);
+                        transition: border-color 0.2s;
+                    }
+                    #page-captacao .cap-input:focus { outline: none; border-color: var(--cap-primary); }
+                    #page-captacao .cap-nivel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+                    #page-captacao .cap-nivel-btn {
+                        padding: 12px; border-radius: 10px; font-size: 0.85rem; font-weight: 700;
+                        border: 2px solid var(--cap-border); background: transparent; color: var(--cap-text-sec);
+                        cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;
+                    }
+                    #page-captacao .cap-nivel-btn.active { background: var(--cap-primary); color: #fff; border-color: var(--cap-primary); }
+                    #page-captacao .cap-mod-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+                    #page-captacao .cap-mod-btn {
+                        padding: 8px; border-radius: 8px; font-size: 0.75rem; font-weight: 700;
+                        border: 2px solid var(--cap-border); background: transparent; color: var(--cap-text-sec);
+                        cursor: pointer; transition: all 0.2s;
+                    }
+                    #page-captacao .cap-mod-btn.active { background: var(--cap-primary); color: #fff; border-color: var(--cap-primary); }
+                    #page-captacao .cap-ingresso-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
+                    #page-captacao .cap-ingresso-label {
+                        display: flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 999px;
+                        background: var(--cap-bg); border: 1px solid var(--cap-border); cursor: pointer;
+                        font-size: 0.8rem; font-weight: 500; color: var(--cap-text-sec); transition: all 0.2s;
+                    }
+                    #page-captacao .cap-ingresso-label:hover { background: var(--cap-border); }
+                    #page-captacao .cap-ingresso-label input { accent-color: var(--cap-primary); }
+                    #page-captacao .cap-actions { display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
+                    #page-captacao .cap-btn-submit {
+                        flex: 1; padding: 14px 24px; border-radius: 12px; border: none;
+                        background: var(--cap-gradient); color: #fff; font-size: 0.9rem; font-weight: 700;
+                        cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;
+                        box-shadow: 0 4px 12px rgba(37,99,235,0.3);
+                    }
+                    #page-captacao .cap-btn-submit:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(37,99,235,0.4); }
+                    #page-captacao .cap-btn-submit:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+                    #page-captacao .cap-btn-clear {
+                        padding: 14px 24px; border-radius: 12px; border: none;
+                        background: var(--cap-bg); color: var(--cap-text-muted); font-size: 0.9rem; font-weight: 700;
+                        cursor: pointer; transition: all 0.2s;
+                    }
+                    #page-captacao .cap-btn-clear:hover { background: var(--cap-border); }
+                    #page-captacao .cap-autocomplete { position: relative; }
+                    #page-captacao .cap-ac-list {
+                        position: absolute; top: 100%; left: 0; right: 0; z-index: 50;
+                        background: var(--cap-card); border: 1px solid var(--cap-border); border-radius: 10px;
+                        box-shadow: 0 10px 25px rgba(0,0,0,0.1); max-height: 200px; overflow-y: auto;
+                        margin-top: 4px; display: none;
+                    }
+                    #page-captacao .cap-ac-list.open { display: block; }
+                    #page-captacao .cap-ac-item {
+                        padding: 10px 14px; font-size: 0.85rem; cursor: pointer; color: var(--cap-text);
+                        transition: background 0.15s;
+                    }
+                    #page-captacao .cap-ac-item:hover { background: var(--cap-bg); }
+                    #page-captacao .cap-ac-empty { padding: 10px 14px; font-size: 0.8rem; color: var(--cap-text-muted); }
+                    #page-captacao .cap-resumo-title {
+                        font-weight: 700; color: var(--cap-text); margin-bottom: 16px;
+                        display: flex; align-items: center; justify-content: space-between;
+                    }
+                    #page-captacao .cap-badge-rascunho {
+                        background: #dbeafe; color: #1d4ed8; font-size: 10px; padding: 3px 8px; border-radius: 4px; font-weight: 700;
+                    }
+                    .dark #page-captacao .cap-badge-rascunho { background: rgba(37,99,235,0.2); color: #93c5fd; }
+                    #page-captacao .cap-resumo-item {
+                        padding: 10px; background: var(--cap-bg); border-radius: 8px; margin-bottom: 10px;
+                    }
+                    #page-captacao .cap-resumo-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--cap-text-muted); }
+                    #page-captacao .cap-resumo-value { font-size: 0.85rem; font-weight: 600; color: var(--cap-text); margin-top: 2px; }
+                    #page-captacao .cap-resumo-value.highlight { color: var(--cap-primary); }
+                    #page-captacao .cap-resumo-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+                    #page-captacao .cap-voc-link {
+                        display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 12px;
+                        background: var(--cap-card); border: 1px solid var(--cap-border); border-top: 3px solid var(--cap-success);
+                        text-decoration: none; transition: all 0.2s;
+                    }
+                    #page-captacao .cap-voc-link:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+                    #page-captacao .cap-voc-icon {
+                        width: 36px; height: 36px; border-radius: 8px; background: #d1fae5; color: #059669;
+                        display: flex; align-items: center; justify-content: center; font-size: 14px;
+                    }
+                    #page-captacao .cap-voc-text h4 { font-size: 0.8rem; font-weight: 700; color: var(--cap-text); }
+                    #page-captacao .cap-voc-text p { font-size: 0.7rem; color: var(--cap-text-muted); }
+                    #page-captacao .cap-recent-title { font-size: 0.85rem; font-weight: 700; color: var(--cap-text); margin-bottom: 12px; }
+                    #page-captacao .cap-recent-item {
+                        display: flex; align-items: center; gap: 10px; padding: 8px; background: var(--cap-bg);
+                        border-radius: 8px; border: 1px solid var(--cap-border); margin-bottom: 8px;
+                    }
+                    #page-captacao .cap-recent-avatar {
+                        width: 32px; height: 32px; border-radius: 6px; background: #dbeafe; color: var(--cap-primary);
+                        display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;
+                    }
+                    #page-captacao .cap-recent-name { font-size: 0.75rem; font-weight: 700; color: var(--cap-text); }
+                    #page-captacao .cap-recent-curso { font-size: 0.65rem; color: var(--cap-text-muted); }
+                    #page-captacao .cap-recent-empty { font-size: 0.7rem; color: var(--cap-text-muted); text-align: center; font-style: italic; }
+                    #page-captacao .cap-toast {
+                        position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(100px);
+                        background: #0f172a; color: #fff; padding: 14px 24px; border-radius: 16px;
+                        box-shadow: 0 20px 40px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 12px;
+                        z-index: 9999; transition: transform 0.3s ease; opacity: 0;
+                    }
+                    #page-captacao .cap-toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+                    #page-captacao .cap-toast-icon {
+                        width: 36px; height: 36px; border-radius: 50%; background: var(--cap-success);
+                        display: flex; align-items: center; justify-content: center;
+                    }
+                    #page-captacao .cap-info-footer { text-align: center; font-size: 0.75rem; color: var(--cap-text-muted); margin-top: 16px; }
+
+                    /* Toggle Promotor/Candidato */
+                    #page-captacao .cap-modo-wrap {
+                        max-width: 1200px; margin: 0 auto 0; padding: 24px 16px 0;
+                    }
+                    #page-captacao .cap-modo-toggle {
+                        display: inline-flex; padding: 4px; background: var(--cap-card);
+                        border: 1px solid var(--cap-border); border-radius: 999px;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+                    }
+                    #page-captacao .cap-modo-btn {
+                        padding: 8px 20px; border-radius: 999px; border: none; background: transparent;
+                        color: var(--cap-text-sec); font-size: 0.8rem; font-weight: 700;
+                        cursor: pointer; transition: all 0.2s;
+                        display: inline-flex; align-items: center; gap: 6px;
+                    }
+                    #page-captacao .cap-modo-btn .material-symbols-outlined { font-size: 16px; }
+                    #page-captacao .cap-modo-btn.active {
+                        background: var(--cap-gradient); color: #fff;
+                        box-shadow: 0 2px 8px rgba(37,99,235,0.25);
+                    }
+
+                    /* Modo CANDIDATO: oculta elementos internos do promotor */
+                    #page-captacao[data-modo="candidato"] .cap-side-promotor { display: none; }
+                    #page-captacao[data-modo="candidato"] .cap-badge-rascunho { display: none; }
+                    #page-captacao[data-modo="candidato"] .cap-grid { grid-template-columns: 1fr; max-width: 720px; margin: 0 auto; }
+                    #page-captacao[data-modo="candidato"] .cap-card-form {
+                        border-top: 4px solid var(--cap-primary);
+                    }
+                </style>
+
+                <div class="cap-modo-wrap">
+                    <div class="cap-modo-toggle" role="tablist" aria-label="Modo de captação">
+                        <button type="button" class="cap-modo-btn active" data-modo="promotor" onclick="capSetModo('promotor')" role="tab">
+                            <span class="material-symbols-outlined">support_agent</span> Promotor
+                        </button>
+                        <button type="button" class="cap-modo-btn" data-modo="candidato" onclick="capSetModo('candidato')" role="tab">
+                            <span class="material-symbols-outlined">person</span> Candidato
+                        </button>
+                    </div>
+                </div>
+
+                <div class="cap-main">
+                    <div class="cap-grid">
+                        <!-- Formulário -->
+                        <div class="cap-card cap-card-form">
+                            <h2 class="cap-title" id="cap-title">Novo Cadastro</h2>
+                            <p class="cap-subtitle" id="cap-subtitle">Preencha os dados abaixo para registrar o lead captado externamente.</p>
+
+                            <form id="cap-form" onsubmit="capSubmit(event)">
+                                <div class="cap-section">
+                                    <div class="cap-step-header">
+                                        <span class="cap-step-badge">1</span>
+                                        <span class="cap-step-title">Dados de Identificação</span>
+                                    </div>
+                                    <div class="cap-field-grid">
+                                        <div class="cap-full">
+                                            <label class="cap-label cap-label-req">Nome Completo</label>
+                                            <input type="text" id="cap-nome" class="cap-input" placeholder="Ex: Maria Oliveira Silva" required>
+                                        </div>
+                                        <div>
+                                            <label class="cap-label cap-label-req">Contato (Celular/WhatsApp)</label>
+                                            <input type="tel" id="cap-contato" class="cap-input" placeholder="(00) 00000-0000" required oninput="capFormatContato(this)" maxlength="15" inputmode="numeric" autocomplete="tel">
+                                        </div>
+                                        <div>
+                                            <label class="cap-label">E-mail</label>
+                                            <input type="email" id="cap-email" class="cap-input" placeholder="exemplo@email.com">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="cap-section">
+                                    <div class="cap-step-header">
+                                        <span class="cap-step-badge">2</span>
+                                        <span class="cap-step-title">Interesse Acadêmico</span>
+                                    </div>
+                                    <div class="cap-field-grid">
+                                        <div class="cap-full">
+                                            <label class="cap-label">Nível</label>
+                                            <div class="cap-nivel-grid">
+                                                <button type="button" class="cap-nivel-btn" data-nivel="Graduação" onclick="capSelectNivel(this)">
+                                                    <span class="material-symbols-outlined text-base">school</span> Graduação
+                                                </button>
+                                                <button type="button" class="cap-nivel-btn" data-nivel="Pós-Graduação" onclick="capSelectNivel(this)">
+                                                    <span class="material-symbols-outlined text-base">workspace_premium</span> Pós-Graduação
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div class="cap-full">
+                                            <label class="cap-label">Curso Desejado</label>
+                                            <div class="cap-autocomplete">
+                                                <input type="text" id="cap-curso-input" class="cap-input" placeholder="Digite para buscar o curso..." autocomplete="off" oninput="capCursoInput(this)" onfocus="capCursoFocus(this)">
+                                                <div id="cap-ac-list" class="cap-ac-list"></div>
+                                            </div>
+                                        </div>
+
+                                        <div id="cap-grau-wrap">
+                                            <label class="cap-label">Grau</label>
+                                            <select id="cap-grau" class="cap-input">
+                                                <option value="">Selecione o grau</option>
+                                                <option>Bacharelado</option>
+                                                <option>Licenciatura</option>
+                                                <option>Tecnólogo</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label class="cap-label">Modalidade</label>
+                                            <div class="cap-mod-grid" id="cap-mod-grid">
+                                                <button type="button" class="cap-mod-btn" data-mod="EAD" onclick="capSelectMod(this)">EAD</button>
+                                                <button type="button" class="cap-mod-btn" data-mod="Semi" onclick="capSelectMod(this)">Semipresencial</button>
+                                            </div>
+                                        </div>
+
+                                        <div class="cap-full" id="cap-ingresso-wrap">
+                                            <label class="cap-label">Forma de Ingresso</label>
+                                            <div class="cap-ingresso-wrap">
+                                                <label class="cap-ingresso-label"><input type="radio" name="cap-ingresso" value="Vestibular"> Vestibular</label>
+                                                <label class="cap-ingresso-label"><input type="radio" name="cap-ingresso" value="ENEM"> Nota do ENEM</label>
+                                                <label class="cap-ingresso-label"><input type="radio" name="cap-ingresso" value="Segunda Graduação"> 2ª Graduação</label>
+                                                <label class="cap-ingresso-label"><input type="radio" name="cap-ingresso" value="Transferência"> Transferência</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="cap-actions">
+                                    <button type="submit" class="cap-btn-submit" id="cap-btn-submit">
+                                        <span class="material-symbols-outlined text-base">cloud_upload</span> FINALIZAR CADASTRO
+                                    </button>
+                                    <button type="button" class="cap-btn-clear" onclick="capReset()">LIMPAR</button>
+                                </div>
+
+                                <p class="cap-info-footer">
+                                    <span class="material-symbols-outlined text-xs" style="vertical-align:middle">info</span>
+                                    Campos marcados com <span style="color:#ef4444">*</span> são de preenchimento obrigatório.
+                                </p>
+                            </form>
+                        </div>
+
+                        <!-- Coluna lateral -->
+                        <div class="cap-side-promotor" style="display:flex;flex-direction:column;gap:16px;">
+                            <div class="cap-card" style="border-top:3px solid var(--cap-primary);">
+                                <div class="cap-resumo-title">
+                                    Resumo do Lead
+                                    <span class="cap-badge-rascunho">Rascunho</span>
+                                </div>
+                                <div class="cap-resumo-item">
+                                    <div class="cap-resumo-label">Lead</div>
+                                    <div class="cap-resumo-value" id="cap-res-nome">---</div>
+                                </div>
+                                <div class="cap-resumo-item">
+                                    <div class="cap-resumo-label">Nível</div>
+                                    <div class="cap-resumo-value" id="cap-res-nivel">---</div>
+                                </div>
+                                <div class="cap-resumo-item">
+                                    <div class="cap-resumo-label">Curso de Interesse</div>
+                                    <div class="cap-resumo-value highlight" id="cap-res-curso">---</div>
+                                </div>
+                                <div class="cap-resumo-row">
+                                    <div class="cap-resumo-item">
+                                        <div class="cap-resumo-label">Grau</div>
+                                        <div class="cap-resumo-value" id="cap-res-grau">---</div>
+                                    </div>
+                                    <div class="cap-resumo-item">
+                                        <div class="cap-resumo-label">Ingresso</div>
+                                        <div class="cap-resumo-value" id="cap-res-ingresso">---</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <a id="cap-voc-link" href="https://descubra.cruzeiroead.com.br/" target="_blank" rel="noopener noreferrer" class="cap-voc-link">
+                                <div class="cap-voc-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22" aria-hidden="true">
+                                        <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"/>
+                                        <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"/>
+                                        <path d="M6 9.5h.01"/>
+                                        <path d="M18 9.5h-.01"/>
+                                        <path d="M9 13a3 3 0 0 0 3 3 3 3 0 0 0 3-3"/>
+                                    </svg>
+                                </div>
+                                <div class="cap-voc-text">
+                                    <h4>Fazer Vocacional</h4>
+                                    <p>Descubra o curso ideal em 2 minutos</p>
+                                </div>
+                            </a>
+
+                            <div class="cap-card">
+                                <div class="cap-recent-title">Cadastrados Recentemente</div>
+                                <div id="cap-recent-list">
+                                    <p class="cap-recent-empty">Nenhum registro nesta sessão</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="cap-toast" class="cap-toast">
+                    <div class="cap-toast-icon"><span class="material-symbols-outlined" style="color:#fff">check</span></div>
+                    <div>
+                        <p style="font-weight:700;font-size:0.85rem;">Lead Cadastrado!</p>
+                        <p style="font-size:0.75rem;color:#94a3b8;">Os dados foram enviados.</p>
+                    </div>
+                </div>
+            </div>
