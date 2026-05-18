@@ -35,7 +35,18 @@ load_dotenv(Path(__file__).parent / ".env")
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dcz-sync-default-key-change-me")
-app.config["CACHE_BUST"] = str(int(time.time()))
+
+
+def _static_cache_bust() -> str:
+    """Versão dos assets estáticos (?v=) — maior mtime em static/js."""
+    js_dir = Path(__file__).parent / "static" / "js"
+    try:
+        return str(int(max(f.stat().st_mtime for f in js_dir.glob("*.js"))))
+    except (ValueError, OSError):
+        return str(int(time.time()))
+
+
+app.config["CACHE_BUST"] = _static_cache_bust()
 
 
 def kommo_web_base_url() -> str:
@@ -52,6 +63,11 @@ def kommo_web_base_url() -> str:
 @app.context_processor
 def inject_kommo_web_base():
     return {"kommo_web_base": kommo_web_base_url()}
+
+
+@app.context_processor
+def inject_static_version():
+    return {"_v": app.config.get("CACHE_BUST", "1")}
 
 
 # ── Permissões de navegação injetadas no template (sem flash de UI) ───────
