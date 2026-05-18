@@ -2228,3 +2228,110 @@ async function crgmAtualizarBadgeConflitos() {
         }
     } catch(_) {}
 }
+
+function _crgmKommoLeadUrl(leadId) {
+    const base = (typeof window !== 'undefined' && window.DC_KOMMO_WEB_BASE) || 'https://eduitbr.kommo.com';
+    return `${String(base).replace(/\/$/, '')}/leads/detail/${leadId}`;
+}
+
+function crgmAbrirBuscaRgm(rgmPrefill) {
+    const modal = document.getElementById('crgm-rgm-busca-modal');
+    const input = document.getElementById('crgm-rgm-busca-input');
+    const result = document.getElementById('crgm-rgm-busca-result');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    if (input) {
+        input.value = rgmPrefill ? String(rgmPrefill) : '';
+        if (rgmPrefill) setTimeout(() => crgmBuscarRgmAtribuicao(), 50);
+        else input.focus();
+    }
+    if (result && !rgmPrefill) {
+        result.innerHTML = '<p class="text-xs text-slate-500 text-center py-6">Informe o RGM e clique em Buscar.</p>';
+    }
+}
+
+function crgmFecharBuscaRgm() {
+    const modal = document.getElementById('crgm-rgm-busca-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+async function crgmBuscarRgmAtribuicao() {
+    const input = document.getElementById('crgm-rgm-busca-input');
+    const result = document.getElementById('crgm-rgm-busca-result');
+    if (!input || !result) return;
+    const rgm = input.value.trim();
+    if (!rgm) {
+        result.innerHTML = '<p class="text-xs text-amber-400 text-center py-6">Informe um RGM.</p>';
+        return;
+    }
+    result.innerHTML = '<p class="text-xs text-slate-500 text-center py-8 flex items-center justify-center gap-2"><span class="material-symbols-outlined animate-spin">progress_activity</span> Buscando...</p>';
+    try {
+        const res = await api(`/api/comercial-rgm/rgm-atribuicao?rgm=${encodeURIComponent(rgm)}`);
+        const raw = await res.text();
+        let d;
+        try {
+            d = JSON.parse(raw);
+        } catch (_) {
+            const hint = res.status === 404
+                ? 'Rota não encontrada — reinicie o servidor Flask (python app.py).'
+                : `Resposta inválida (HTTP ${res.status}). Início: ${raw.slice(0, 80).replace(/</g, '&lt;')}`;
+            result.innerHTML = `<p class="text-xs text-red-400 text-center py-6">${hint}</p>`;
+            return;
+        }
+        if (!d.ok) {
+            result.innerHTML = `<p class="text-xs text-red-400 text-center py-6">${d.error || 'Erro na busca'}</p>`;
+            return;
+        }
+        const ac = d.academico;
+        const cred = d.creditado_para;
+        let html = `<div class="space-y-4">`;
+        html += `<div class="rounded-xl border border-slate-700 bg-slate-800/50 p-4">`;
+        html += `<p class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">RGM</p>`;
+        html += `<p class="text-lg font-mono font-bold text-white">${d.rgm}</p>`;
+        if (cred) {
+            const cor = d.conflito && !d.override ? 'amber' : 'emerald';
+            html += `<div class="mt-3 pt-3 border-t border-slate-700">`;
+            html += `<p class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Creditado no dashboard</p>`;
+            html += `<p class="text-base font-semibold text-${cor}-400">${cred.agente}</p>`;
+            html += `<p class="text-[10px] text-slate-500 mt-1">${cred.origem_label || cred.origem}</p>`;
+            if (d.conflito && !d.override) {
+                html += `<p class="text-[10px] text-amber-400/90 mt-2">⚠ Mais de um consultor no Kommo — use <strong>Vendas em Conflito</strong> ou aprove um ajuste para definir o dono.</p>`;
+            }
+            html += `</div>`;
+        } else if (!d.no_kommo) {
+            html += `<p class="text-xs text-slate-500 mt-3">Nenhum lead ativo no Kommo com este RGM.</p>`;
+        }
+        html += `</div>`;
+        if (ac) {
+            html += `<div class="rounded-xl border border-slate-700 bg-slate-800/30 p-3 text-xs text-slate-400">`;
+            html += `<p class="text-[10px] text-slate-500 uppercase mb-2">Planilha acadêmica</p>`;
+            html += `<p class="text-white font-medium">${ac.nome || '—'}</p>`;
+            const acLine = [ac.polo, ac.nivel, ac.ciclo, ac.tipo_matricula, ac.situacao].filter(Boolean).join(' · ') || '—';
+            html += `<p>${acLine}</p>`;
+            if (ac.data_matricula) html += `<p class="mt-1">Matrícula: ${_crgmFmtData(ac.data_matricula)}</p>`;
+            html += `</div>`;
+        } else {
+            html += `<p class="text-xs text-slate-600">RGM não encontrado na base atual do dashboard comercial.</p>`;
+        }
+        if (d.kommo_erro) {
+            html += `<p class="text-xs text-amber-400/90 mt-2">Kommo indisponível: ${d.kommo_erro}</p>`;
+        }
+        if (d.leads && d.leads.length) {
+            html += `<div><p class="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Leads no Kommo (${d.leads.length})</p>`;
+            html += `<div class="space-y-2">`;
+            d.leads.forEach((l, i) => {
+                const pri = i === 0 && !d.override ? 'border-blue-500/40 bg-blue-500/5' : 'border-slate-700/60';
+                html += `<div class="rounded-lg border ${pri} p-3 text-xs">`;
+                html += `<p class="text-white font-medium">${l.agente}</p>`;
+                html += `<p class="text-slate-500 mt-0.5">${l.status_nome || '—'}</p>`;
+                html += `<a href="${_crgmKommoLeadUrl(l.lead_id)}" target="_blank" rel="noopener" class="text-blue-400 hover:underline mt-1 inline-block">Lead #${l.lead_id}</a>`;
+                html += `</div>`;
+            });
+            html += `</div></div>`;
+        }
+        html += `</div>`;
+        result.innerHTML = html;
+    } catch (e) {
+        result.innerHTML = `<p class="text-xs text-red-400 text-center py-6">Erro: ${e.message}</p>`;
+    }
+}

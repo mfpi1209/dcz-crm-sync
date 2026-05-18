@@ -129,14 +129,20 @@ async function amSaveReview() {
     const status = document.getElementById('am-detail-status').value;
     const resposta = document.getElementById('am-detail-resposta').value;
     try {
-        await api(`/api/ajustes-matricula/${id}`, {
+        const res = await api(`/api/ajustes-matricula/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status, resposta_admin: resposta }),
         });
+        const d = await res.json();
         document.getElementById('am-modal-detail').classList.add('hidden');
         document.getElementById('am-modal-detail').classList.remove('flex');
         amLoadAjustes();
+        if (status === 'aprovado' && d.conflito_aplicado) {
+            alert('Aprovado. A venda foi creditada ao consultor (mesma regra de Vendas em Conflito).');
+        } else if (status === 'aprovado' && d.aviso) {
+            alert('Aprovado.\n\n' + d.aviso);
+        }
     } catch(e) {
         alert('Erro ao salvar: ' + e.message);
     }

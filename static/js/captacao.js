@@ -7,32 +7,65 @@ const CAP_WEBHOOK_URL = 'https://n8n-new-n8n.ca31ey.easypanel.host/webhook/leads
 
 const capState = {
     cursos: [],
+    cursosPos: [],
     nivelSelecionado: '',
     modalidadeSelecionada: '',
     cursoValue: '',
     leads: [],
-    initialized: false
+    initialized: false,
+    modo: 'promotor'
 };
 
 async function capCarregarCursos() {
-    try {
-        const res = await fetch(
-            `${CAP_SUPABASE_URL}/rest/v1/cursos_salesbot_nome?select=id,content&order=content.asc`,
-            { headers: { apikey: CAP_SUPABASE_KEY, Authorization: `Bearer ${CAP_SUPABASE_KEY}` } }
-        );
-        const data = await res.json();
-        const unique = [...new Set(data.map(c => c.content))].sort();
-        capState.cursos = unique;
-    } catch (e) {
-        console.error('Erro ao carregar cursos:', e);
-    }
+    const headers = { apikey: CAP_SUPABASE_KEY, Authorization: `Bearer ${CAP_SUPABASE_KEY}` };
+    const fetchTabela = async (tabela) => {
+        try {
+            const res = await fetch(
+                `${CAP_SUPABASE_URL}/rest/v1/${tabela}?select=content&order=content.asc`,
+                { headers }
+            );
+            if (!res.ok) {
+                const errText = await res.text();
+                console.error(`[Captação] HTTP ${res.status} em ${tabela}:`, errText);
+                return [];
+            }
+            const data = await res.json();
+            if (!Array.isArray(data)) {
+                console.error(`[Captação] Resposta inválida de ${tabela}:`, data);
+                return [];
+            }
+            const lista = [...new Set(data.map(c => c.content).filter(Boolean))].sort();
+            console.info(`[Captação] ${tabela}: ${lista.length} curso(s) carregado(s)`);
+            return lista;
+        } catch (e) {
+            console.error(`[Captação] Erro ao carregar ${tabela}:`, e);
+            return [];
+        }
+    };
+
+    const [grad, pos] = await Promise.all([
+        fetchTabela('cursos_salesbot_nome'),
+        fetchTabela('cursos_salesbot_pos_nome')
+    ]);
+    capState.cursos = grad;
+    capState.cursosPos = pos;
 }
 
 function capFormatContato(el) {
-    let v = el.value.replace(/\D/g, '');
-    v = v.replace(/^(\d{2})(\d)/g, '($1) $2');
-    v = v.replace(/(\d)(\d{4})$/, '$1-$2');
-    el.value = v;
+    let v = el.value.replace(/\D/g, '').slice(0, 11);
+    if (v.length === 0) {
+        el.value = '';
+        return;
+    }
+    if (v.length <= 2) {
+        el.value = '(' + v;
+    } else if (v.length <= 6) {
+        el.value = '(' + v.slice(0, 2) + ') ' + v.slice(2);
+    } else if (v.length <= 10) {
+        el.value = '(' + v.slice(0, 2) + ') ' + v.slice(2, 6) + '-' + v.slice(6);
+    } else {
+        el.value = '(' + v.slice(0, 2) + ') ' + v.slice(2, 7) + '-' + v.slice(7);
+    }
 }
 
 function capSelectNivel(btn) {
@@ -67,6 +100,12 @@ function capSelectNivel(btn) {
     document.querySelectorAll('#page-captacao .cap-mod-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('input[name="cap-ingresso"]').forEach(r => r.checked = false);
 
+    const cursoInput = document.getElementById('cap-curso-input');
+    if (cursoInput) {
+        capRenderAutocomplete('');
+        cursoInput.focus();
+    }
+
     capUpdateResumo();
 }
 
@@ -76,26 +115,24 @@ function capSelectMod(btn) {
     btn.classList.add('active');
 }
 
-function capCursoInput(el) {
-    const val = el.value;
+function capRenderAutocomplete(val) {
     const acList = document.getElementById('cap-ac-list');
+    const isPos = capState.nivelSelecionado === 'Pós-Graduação';
+    const lista = isPos ? capState.cursosPos : capState.cursos;
 
-    if (capState.nivelSelecionado === 'Pós-Graduação') {
-        capState.cursoValue = val;
-        acList.classList.remove('open');
-        capUpdateResumo();
+    if (lista.length === 0) {
+        const msg = isPos
+            ? 'Lista de pós-graduação ainda não disponível. Você pode digitar livremente.'
+            : 'Lista de cursos ainda não carregada. Você pode digitar livremente.';
+        acList.innerHTML = `<div class="cap-ac-empty">${msg}</div>`;
+        acList.classList.add('open');
         return;
     }
 
-    if (val.length < 1) {
-        acList.classList.remove('open');
-        capState.cursoValue = '';
-        capUpdateResumo();
-        return;
-    }
-
-    const q = val.toLowerCase().trim();
-    const filtered = capState.cursos.filter(c => c.toLowerCase().includes(q)).slice(0, 15);
+    const q = (val || '').toLowerCase().trim();
+    const filtered = q
+        ? lista.filter(c => c.toLowerCase().includes(q)).slice(0, 15)
+        : lista.slice(0, 15);
 
     if (filtered.length === 0) {
         acList.innerHTML = '<div class="cap-ac-empty">Nenhum curso encontrado</div>';
@@ -105,7 +142,18 @@ function capCursoInput(el) {
         ).join('');
     }
     acList.classList.add('open');
+}
+
+function capCursoInput(el) {
+    const val = el.value;
+    capState.cursoValue = val;
+    capRenderAutocomplete(val);
     capUpdateResumo();
+}
+
+function capCursoFocus(el) {
+    if (!capState.nivelSelecionado) return;
+    capRenderAutocomplete(el.value || '');
 }
 
 function capSelectCurso(nome) {
@@ -153,11 +201,14 @@ function capReset() {
 async function capSubmit(e) {
     e.preventDefault();
     const btn = document.getElementById('cap-btn-submit');
+    const modo = capState.modo || 'promotor';
+    const labelEnviando = modo === 'candidato' ? 'ENVIANDO...' : 'ENVIANDO...';
     btn.disabled = true;
-    btn.innerHTML = '<span class="material-symbols-outlined text-base animate-spin">progress_activity</span> ENVIANDO...';
+    btn.innerHTML = `<span class="material-symbols-outlined text-base animate-spin">progress_activity</span> ${labelEnviando}`;
 
     const ingressoEl = document.querySelector('input[name="cap-ingresso"]:checked');
     const ingressoFinal = capState.nivelSelecionado === 'Pós-Graduação' ? 'Pós-Graduação' : (ingressoEl ? ingressoEl.value : '---');
+    const usuarioLogado = (document.body.dataset.username || '').trim() || '---';
 
     const leadData = {
         nome: document.getElementById('cap-nome').value,
@@ -168,6 +219,9 @@ async function capSubmit(e) {
         grau: document.getElementById('cap-grau').value || '---',
         modalidade: capState.modalidadeSelecionada || '---',
         ingresso: ingressoFinal,
+        tipo: modo,
+        usuario_logado: usuarioLogado,
+        promotor: modo === 'promotor' ? usuarioLogado : '---',
         hora: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
     };
 
@@ -187,7 +241,7 @@ async function capSubmit(e) {
     capReset();
 
     btn.disabled = false;
-    btn.innerHTML = '<span class="material-symbols-outlined text-base">cloud_upload</span> FINALIZAR CADASTRO';
+    capAplicarCopyModo();
 }
 
 function capRenderRecent() {
@@ -209,8 +263,51 @@ function capRenderRecent() {
 
 function capShowToast() {
     const toast = document.getElementById('cap-toast');
+    const modo = capState.modo || 'promotor';
+    const titulo = toast.querySelector('p[style*="font-weight:700"]');
+    const sub = toast.querySelector('p[style*="font-size:0.75rem"]');
+    if (titulo && sub) {
+        if (modo === 'candidato') {
+            titulo.textContent = 'Cadastro recebido!';
+            sub.textContent = 'Em breve entraremos em contato.';
+        } else {
+            titulo.textContent = 'Lead Cadastrado!';
+            sub.textContent = 'Os dados foram enviados.';
+        }
+    }
     toast.classList.add('show');
     setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+function capAplicarCopyModo() {
+    const modo = capState.modo || 'promotor';
+    const title = document.getElementById('cap-title');
+    const subtitle = document.getElementById('cap-subtitle');
+    const submitBtn = document.getElementById('cap-btn-submit');
+
+    if (modo === 'candidato') {
+        if (title) title.textContent = 'Bem-vindo(a)!';
+        if (subtitle) subtitle.textContent = 'Preencha seus dados para conhecer nossos cursos. Entraremos em contato em breve.';
+        if (submitBtn) submitBtn.innerHTML = '<span class="material-symbols-outlined text-base">send</span> QUERO SABER MAIS!';
+    } else {
+        if (title) title.textContent = 'Novo Cadastro';
+        if (subtitle) subtitle.textContent = 'Preencha os dados abaixo para registrar o lead captado externamente.';
+        if (submitBtn) submitBtn.innerHTML = '<span class="material-symbols-outlined text-base">cloud_upload</span> FINALIZAR CADASTRO';
+    }
+}
+
+function capSetModo(modo) {
+    if (modo !== 'promotor' && modo !== 'candidato') return;
+    capState.modo = modo;
+
+    const root = document.getElementById('page-captacao');
+    if (root) root.dataset.modo = modo;
+
+    document.querySelectorAll('#page-captacao .cap-modo-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.modo === modo);
+    });
+
+    capAplicarCopyModo();
 }
 
 function loadCaptacao() {
@@ -226,6 +323,8 @@ function loadCaptacao() {
             }
         }
     }
+
+    capSetModo(capState.modo || 'promotor');
     capUpdateResumo();
 
     document.getElementById('cap-nome').addEventListener('input', capUpdateResumo);
