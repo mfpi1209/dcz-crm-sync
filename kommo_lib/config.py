@@ -3,9 +3,14 @@ Configurações do sync Kommo — lê de variáveis de ambiente.
 """
 
 import os
+from pathlib import Path
 
 try:
     from dotenv import load_dotenv
+    # .env na raiz do projeto (Flask); fallback cwd ao rodar python main.py em kommo_lib/
+    _root_env = Path(__file__).resolve().parent.parent / ".env"
+    if _root_env.is_file():
+        load_dotenv(_root_env)
     load_dotenv()
 except ImportError:
     pass
@@ -43,16 +48,17 @@ LOG_FILE = os.getenv("KOMMO_LOG_FILE", os.path.join(os.path.dirname(__file__), "
 
 PAGE_SIZE = 250
 
-# Otimização: batches menores = transações menores (menos travamento)
-BATCH_SIZE = int(os.getenv("KOMMO_BATCH_SIZE", "25"))
-# Pausa entre páginas da API (segundos) para não saturar CPU/disco
-SLEEP_BETWEEN_PAGES = float(os.getenv("KOMMO_SLEEP_PAGES", "0.12"))
+# Lote SQLite/PG por página da API (25 = mais leve no PC; 100+ = sync mais rápido)
+BATCH_SIZE = int(os.getenv("KOMMO_BATCH_SIZE", "100"))
+# Pausa entre páginas (0 = mais rápido; 0.12 = menos pico de CPU)
+SLEEP_BETWEEN_PAGES = float(os.getenv("KOMMO_SLEEP_PAGES", "0"))
 
 # Delta sync: filter[updated_at][from] usa o último sync, mas isso deixa leads antigos no PG
 # se o Kommo não os devolveu no intervalo. Com N>0, o "from" nunca é mais recente que (agora − N dias),
 # re-buscando alterações dos últimos N dias a cada incremental (mesma gravação que sync_one_lead).
 # 0 = desliga (comportamento antigo: só desde last_sync_at − 5 min).
-KOMMO_DELTA_LOOKBACK_DAYS = int(os.getenv("KOMMO_DELTA_LOOKBACK_DAYS", "7"))
+# Incremental: no máximo N dias de alterações (1 = dia a dia mais rápido; 7 = mais seguro)
+KOMMO_DELTA_LOOKBACK_DAYS = int(os.getenv("KOMMO_DELTA_LOOKBACK_DAYS", "1"))
 
 PIPELINES = {
     "licenciado": {

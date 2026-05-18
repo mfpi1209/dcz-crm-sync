@@ -61,21 +61,9 @@ function _renderFunnelVisual(data, prefix) {
 
     const lost = byKey.sem_resposta;
 
-    // Para o gráfico considera o maior valor entre TODOS os estágios,
-    // inclusive Perdidos, pra ele nunca explodir e quebrar a escala.
-    const maxCount = Math.max(
-        ...ordered.map(s => s.count || 0),
-        lost ? (lost.count || 0) : 0,
-        1,
-    );
-    // Escala suavizada (raiz quadrada): comprime a diferença entre o maior
-    // e o menor estágio, evitando barras minúsculas com texto cortado.
-    const heightFor = (count) => {
-        const ratio = (count || 0) / maxCount;
-        const pct = Math.sqrt(Math.max(0, ratio)) * 100;
-        return Math.max(28, Math.min(100, Math.round(pct)));
-    };
-
+    // Heights: each stage height proportional to count vs the largest in the funnel chain
+    const maxCount = Math.max(...ordered.map(s => s.count || 0), 1);
+    const minPctHeight = 14; // each bar at least 14% so labels don't overlap
     const aceiteCount = (byKey.aceite && byKey.aceite.count) || 0;
     const startCount = ordered[0]?.count || 0;
     const conversaoGlobal = startCount > 0 ? ((aceiteCount / startCount) * 100).toFixed(1) : '0.0';
@@ -93,50 +81,47 @@ function _renderFunnelVisual(data, prefix) {
 
     const stageBars = ordered.map((s, i) => {
         const g = _FUNNEL_GRADIENTS[s.key] || { from: '#64748b', to: '#475569' };
-        const pctHeight = heightFor(s.count);
+        const pctHeight = Math.max(minPctHeight, Math.round(((s.count || 0) / maxCount) * 100));
         const isActive = s.key === 'aceite';
         const valueLabel = _fmtKCount(s.count || 0);
         const ringCls = isActive ? `ring-2 ring-offset-2 ring-offset-[var(--bg-card)] ring-emerald-500` : '';
 
         return `
-        <div class="flex-1 min-w-0 min-h-0 flex flex-col group cursor-default">
-            <div class="text-center mb-2 min-h-[28px] px-0.5">
+        <div class="flex-1 min-w-0 flex flex-col group cursor-default">
+            <div class="text-center mb-2 min-h-[28px]">
                 <p class="text-[9px] font-bold uppercase tracking-wider leading-tight ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}">${visualLabels[s.key] || s.label}</p>
             </div>
-            <div class="flex-1 flex items-end min-h-0">
-                <div class="rounded-t-xl w-full flex flex-col items-center justify-center px-1 transition-all duration-500 group-hover:brightness-110 ${ringCls}"
+            <div class="flex-1 flex items-end">
+                <div class="rounded-t-xl w-full flex flex-col items-center justify-center transition-all duration-500 group-hover:brightness-110 ${ringCls}"
                      style="height:${pctHeight}%; background: linear-gradient(180deg, ${g.from}, ${g.to}); box-shadow: 0 -4px 18px ${g.from}30;">
-                    <span class="text-white font-extrabold text-base sm:text-lg leading-none">${valueLabel}</span>
-                    ${s.pct != null ? `<span class="text-white/80 text-[10px] mt-1 font-semibold">${s.pct}%</span>` : ''}
+                    <span class="text-white font-extrabold text-lg sm:text-xl leading-none">${valueLabel}</span>
+                    ${s.pct != null ? `<span class="text-white/75 text-[10px] mt-1 font-semibold">${s.pct}%</span>` : ''}
                 </div>
             </div>
         </div>`;
     }).map((bar, i) => {
         if (i === ordered.length - 1) return bar;
         return bar + `
-        <div class="w-4 sm:w-5 flex items-end pb-3 shrink-0">
-            <span class="material-symbols-outlined text-slate-400 dark:text-slate-600 text-base">chevron_right</span>
+        <div class="w-5 sm:w-6 flex items-end pb-3 shrink-0">
+            <span class="material-symbols-outlined text-slate-400 dark:text-slate-600 text-lg">chevron_right</span>
         </div>`;
     }).join('');
 
     let lostHtml = '';
     if (lost) {
-        const lostPctHeight = heightFor(lost.count);
+        const lostPctHeight = Math.max(minPctHeight, Math.round(((lost.count || 0) / maxCount) * 100));
         lostHtml = `
         <div class="hidden md:flex w-px self-stretch mx-2 bg-slate-200 dark:bg-slate-700"></div>
-        <div class="w-20 sm:w-24 flex flex-col min-h-0">
-            <div class="text-center mb-2 min-h-[28px] px-0.5">
+        <div class="w-24 sm:w-28 flex flex-col">
+            <div class="text-center mb-2 min-h-[28px]">
                 <p class="text-[9px] font-bold uppercase tracking-wider leading-tight text-rose-500 dark:text-rose-400">Perdidos</p>
             </div>
-            <div class="flex-1 flex items-end min-h-0">
-                <div class="rounded-t-xl w-full flex flex-col items-center justify-center px-1 border"
-                     style="height:${lostPctHeight}%;
-                            background: linear-gradient(180deg, #fb7185, #e11d48);
-                            border-color: rgba(225, 29, 72, 0.45);
-                            box-shadow: 0 -4px 18px rgba(225, 29, 72, 0.20);">
-                    <span class="material-symbols-outlined text-white text-sm">close</span>
-                    <span class="text-white font-extrabold text-base leading-none">${_fmtKCount(lost.count || 0)}</span>
-                    ${lost.pct != null ? `<span class="text-white/80 text-[10px] mt-1 font-semibold">${lost.pct}%</span>` : ''}
+            <div class="flex-1 flex items-end">
+                <div class="rounded-t-xl w-full flex flex-col items-center justify-center bg-slate-200 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-700"
+                     style="height:${lostPctHeight}%;">
+                    <span class="material-symbols-outlined text-rose-500 dark:text-rose-400 text-base">close</span>
+                    <span class="text-slate-700 dark:text-slate-300 font-extrabold text-base leading-none">${_fmtKCount(lost.count || 0)}</span>
+                    ${lost.pct != null ? `<span class="text-slate-500 dark:text-slate-500 text-[10px] mt-1 font-semibold">${lost.pct}%</span>` : ''}
                 </div>
             </div>
         </div>`;
@@ -150,7 +135,7 @@ function _renderFunnelVisual(data, prefix) {
             <span class="text-sm font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums">${conversaoGlobal}%</span>
         </div>
     </div>
-    <div class="flex items-stretch gap-1 h-52 sm:h-60 overflow-hidden">
+    <div class="flex items-stretch gap-1 h-44 sm:h-52">
         ${stageBars}
         ${lostHtml}
     </div>`;
@@ -276,19 +261,18 @@ function _renderFunnelCards(data, prefix) {
 
         return `
         <div class="bg-white dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm
-                    hover:shadow-md transition-all duration-300 cursor-default overflow-hidden min-w-0">
+                    hover:shadow-md transition-all duration-300 cursor-default overflow-hidden">
             <div class="h-1 rounded-t-xl" style="background:linear-gradient(90deg, ${g.from}, ${g.to})"></div>
-            <div class="p-4 lg:p-5">
-                <p class="text-[10px] font-bold uppercase tracking-wider leading-tight mb-3 break-words"
-                   style="color:${g.from}">${s.label}</p>
-                <p class="text-3xl font-black text-slate-900 dark:text-white font-display leading-none mb-3">${s.count.toLocaleString('pt-BR')}</p>
-                <div class="flex items-center justify-between gap-2 flex-wrap">
-                    <div class="flex items-center gap-1.5 min-w-0">
-                        <span class="text-[10px] text-slate-400 dark:text-slate-500 shrink-0">D0:</span>
-                        ${deltaHtml}
-                        ${deltaPctHtml}
-                    </div>
-                    <span class="text-[10px] text-slate-400 dark:text-slate-500 font-mono shrink-0">${s.pct || 0}%</span>
+            <div class="p-5">
+                <div class="flex items-start justify-between mb-3">
+                    <p class="text-[10px] font-bold uppercase tracking-widest" style="color:${g.from}">${s.label}</p>
+                    <span class="text-[10px] text-slate-400 dark:text-slate-500 font-mono">${s.pct || 0}%</span>
+                </div>
+                <p class="text-3xl font-black text-slate-900 dark:text-white font-display mb-2">${s.count.toLocaleString('pt-BR')}</p>
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] text-slate-400 dark:text-slate-500">D0:</span>
+                    ${deltaHtml}
+                    ${deltaPctHtml}
                 </div>
             </div>
         </div>`;
@@ -388,6 +372,16 @@ function _kommoRenderStagesTable(data) {
 }
 
 async function _kommoStartSync(mode) {
+    if (mode === 'full') {
+        const ok = confirm(
+            'Full Sync baixa TODOS os leads do Kommo e pode levar 30–90+ minutos, ' +
+            'deixando o PC mais lento.\n\n' +
+            'No dia a dia use Sync Incremental (1–5 min).\n\n' +
+            'Deseja continuar com o Full Sync?'
+        );
+        if (!ok) return;
+    }
+
     const btnD = document.getElementById('kommo-btn-delta');
     const btnF = document.getElementById('kommo-btn-full');
     btnD.disabled = true; btnF.disabled = true;
@@ -444,9 +438,12 @@ function _kommoPollTask() {
             }
 
             const t = d.data;
+            const modeTag = t.mode === 'full' ? 'FULL' : (t.mode === 'delta' ? 'INCREMENTAL' : '');
             document.getElementById('kommo-progress-bar').style.width = t.progress + '%';
             document.getElementById('kommo-progress-pct').textContent = t.progress + '%';
-            document.getElementById('kommo-progress-label').textContent = t.message || '...';
+            const baseMsg = t.message || '...';
+            document.getElementById('kommo-progress-label').textContent =
+                modeTag ? `[${modeTag}] ${baseMsg}` : baseMsg;
 
             const logEl = document.getElementById('kommo-sync-log');
             if (t.log && t.log.length) {
