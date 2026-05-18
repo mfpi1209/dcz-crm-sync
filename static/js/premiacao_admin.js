@@ -388,114 +388,180 @@ async function paDeleteGrupo(gid) {
     await paLoadGrupos();
 }
 
-/* ═══ C) PIX Diário por Grupo ═══ */
+
+/* ═══ D) PIX Diário por Equipe (faixas por matrículas) ═══ */
+
+const _paPixPresets = {
+    alta: {
+        semana: [{ min: 10, valor: 120 }, { min: 12, valor: 150 }, { min: 15, valor: 200 }],
+        sabado: [{ min: 6, valor: 80 }],
+    },
+    impulso: {
+        semana: [{ min: 8, valor: 100 }, { min: 10, valor: 120 }, { min: 12, valor: 150 }],
+        sabado: [{ min: 4, valor: 60 }],
+    },
+};
+
+function _paAgentName(uid) {
+    const a = _paAgentes.find(x => x.kommo_uid === uid);
+    return a ? a.name : `#${uid}`;
+}
+
+function _paPresetForGrupo(nome) {
+    const n = (nome || '').toLowerCase();
+    if (n.includes('alta')) return _paPixPresets.alta;
+    if (n.includes('impulso')) return _paPixPresets.impulso;
+    return { semana: [{ min: '', valor: '' }], sabado: [{ min: '', valor: '' }] };
+}
+
+function _paFaixasFromEquipe(faixas, preset) {
+    const semana = faixas.filter(f => !f.apenas_sabado).map(f => ({ min: f.min_matriculas, valor: f.valor }));
+    const sabado = faixas.filter(f => f.apenas_sabado).map(f => ({ min: f.min_matriculas, valor: f.valor }));
+    return {
+        semana: semana.length ? semana : preset.semana,
+        sabado: sabado.length ? sabado : preset.sabado,
+    };
+}
+
+function _paRenderFaixaRows(gid, rows, sab) {
+    return rows.map(r => `
+        <tr>
+            <td class="px-1 py-1"><input type="number" min="1" value="${r.min}" data-gid="${gid}" data-sab="${sab ? '1' : '0'}" data-field="min" class="pa-pix-faixa-input input-glass px-1.5 py-1 text-center text-xs w-full"></td>
+            <td class="px-1 py-1"><input type="number" min="0" step="0.01" value="${r.valor}" data-gid="${gid}" data-sab="${sab ? '1' : '0'}" data-field="valor" class="pa-pix-faixa-input input-glass px-1.5 py-1 text-center text-xs w-full"></td>
+            <td class="px-1 py-1 w-8"><button type="button" onclick="paRemoveFaixaRow(this)" class="text-red-400 hover:text-red-300 text-xs" title="Remover">×</button></td>
+        </tr>
+    `).join('');
+}
+
+function paRemoveFaixaRow(btn) {
+    const tr = btn.closest('tr');
+    const tbody = tr?.parentElement;
+    if (tr && tbody && tbody.querySelectorAll('tr').length > 1) tr.remove();
+}
+
+function paAddFaixaRow(gid, sab) {
+    const tbody = document.querySelector(`#pa-faixas-${gid}-${sab ? 'sab' : 'sem'} tbody`);
+    if (!tbody) return;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td class="px-1 py-1"><input type="number" min="1" value="" data-gid="${gid}" data-sab="${sab ? '1' : '0'}" data-field="min" class="pa-pix-faixa-input input-glass px-1.5 py-1 text-center text-xs w-full"></td>
+        <td class="px-1 py-1"><input type="number" min="0" step="0.01" value="" data-gid="${gid}" data-sab="${sab ? '1' : '0'}" data-field="valor" class="pa-pix-faixa-input input-glass px-1.5 py-1 text-center text-xs w-full"></td>
+        <td class="px-1 py-1 w-8"><button type="button" onclick="paRemoveFaixaRow(this)" class="text-red-400 hover:text-red-300 text-xs">×</button></td>
+    `;
+    tbody.appendChild(tr);
+}
+
+function _paFaixaTableHtml(gid, rows, sab, label) {
+    return `
+        <div class="mb-3">
+            <div class="flex items-center justify-between mb-1">
+                <span class="text-[10px] font-medium text-slate-500">${label}</span>
+                <button type="button" onclick="paAddFaixaRow(${gid}, ${sab})" class="text-[10px] text-cyan-500 hover:text-cyan-400">+ faixa</button>
+            </div>
+            <table id="pa-faixas-${gid}-${sab ? 'sab' : 'sem'}" class="w-full text-[10px]">
+                <thead><tr class="text-slate-500"><th class="text-center pb-1">Matrículas</th><th class="text-center pb-1">PIX R$</th><th></th></tr></thead>
+                <tbody>${_paRenderFaixaRows(gid, rows, sab)}</tbody>
+            </table>
+        </div>`;
+}
 
 async function paLoadDailyGrid() {
     const cid = document.getElementById('pa-daily-camp')?.value;
     const wrap = document.getElementById('pa-daily-grid-wrap');
     if (!cid || !wrap) { if (wrap) wrap.innerHTML = '<p class="text-xs text-slate-600">Selecione uma campanha</p>'; return; }
 
-    try {
-        const [gruposRaw, diariasRaw] = await Promise.all([
-            api(`/api/premiacao/campanhas/${cid}/grupos`),
-            api(`/api/premiacao/campanhas/${cid}/diarias-grupo`),
-        ]);
-        const gruposRes = await gruposRaw.json();
-        const diariasRes = await diariasRaw.json();
-        const grupos = gruposRes?.grupos || [];
-        const diarias = diariasRes?.diarias || [];
+    wrap.innerHTML = '<p class="text-xs text-slate-500">Carregando...</p>';
 
-        if (!grupos.length) {
-            wrap.innerHTML = '<p class="text-xs text-amber-400">Crie grupos de agentes primeiro na seção acima</p>';
+    try {
+        if (!_paAgentes.length) {
+            const agRaw = await api('/api/minha-performance/agentes');
+            const agRes = await agRaw.json();
+            _paAgentes = agRes?.agentes || [];
+        }
+
+        const raw = await api(`/api/premiacao/campanhas/${cid}/pix-equipe`);
+        let res;
+        try { res = await raw.json(); } catch (_) {
+            throw new Error(raw.status === 404 ? 'Reinicie o servidor da aplicação' : `Resposta inválida (HTTP ${raw.status})`);
+        }
+        if (!raw.ok || res?.ok === false) throw new Error(res?.error || `HTTP ${raw.status}`);
+
+        const equipes = res?.equipes || [];
+        if (!equipes.length) {
+            wrap.innerHTML = '<p class="text-xs text-amber-400">Crie as equipes (ex.: Alta Performance, Impulso) na seção <strong>Grupos de Agentes</strong> acima e atribua os agentes.</p>';
             return;
         }
 
-        const lookup = {};
-        diarias.forEach(d => { lookup[`${d.grupo_id}_${d.dia_semana}`] = d; });
-
-        const agentName = uid => {
-            const a = _paAgentes.find(x => x.kommo_uid === uid);
-            return a ? a.name : `#${uid}`;
-        };
-
         let html = '';
-        grupos.forEach(g => {
-            const membrosStr = g.membros.map(uid => agentName(uid)).join(', ') || 'Sem membros';
-            html += `<div class="bg-slate-100/90 dark:bg-slate-800/40 rounded-xl p-4 border border-[var(--border)]">
-                <div class="flex items-center justify-between mb-3">
-                    <div>
-                        <span class="text-sm font-semibold text-[var(--text-primary)] dark:text-white">${g.nome}</span>
-                        <p class="text-[10px] text-slate-500">${membrosStr}</p>
-                    </div>
+        equipes.forEach(g => {
+            const preset = _paPresetForGrupo(g.nome);
+            const { semana, sabado } = _paFaixasFromEquipe(g.faixas || [], preset);
+            const chips = (g.membros || []).map(uid =>
+                `<span class="inline-flex items-center px-2 py-0.5 text-[10px] rounded-full bg-cyan-500/15 text-cyan-400 border border-cyan-500/20">${_paAgentName(uid)}</span>`
+            ).join('') || '<span class="text-[10px] text-slate-600">Nenhum agente — atribua na seção Grupos</span>';
+
+            html += `<div class="bg-slate-100/90 dark:bg-slate-800/40 rounded-xl p-4 border border-cyan-500/25 mb-4">
+                <div class="mb-2">
+                    <span class="text-sm font-semibold text-[var(--text-primary)] dark:text-white">${g.nome}</span>
+                    <p class="text-[10px] text-slate-500 mt-0.5">PIX conforme matrículas do dia (maior faixa atingida).</p>
                 </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-[10px]">
-                        <thead>
-                            <tr class="text-slate-500">
-                                <th class="text-left pr-3 pb-1 w-16"></th>
-                                ${_paDias.map(d => `<th class="text-center px-1 pb-1 min-w-[52px]">${d}</th>`).join('')}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td class="text-slate-400 pr-3 py-1 font-medium">Meta</td>
-                                ${_paDias.map((_, dow) => {
-                                    const v = lookup[`${g.id}_${dow}`]?.meta_diaria || '';
-                                    return `<td class="px-1 py-1"><input type="number" min="0" value="${v}" data-gid="${g.id}" data-dow="${dow}" data-field="meta" class="pa-daily-input input-glass px-1.5 py-1 text-center text-xs text-slate-900 dark:text-slate-300 w-full"></td>`;
-                                }).join('')}
-                            </tr>
-                            <tr>
-                                <td class="text-slate-400 pr-3 py-1 font-medium">Fixo R$</td>
-                                ${_paDias.map((_, dow) => {
-                                    const v = lookup[`${g.id}_${dow}`]?.bonus_fixo || '';
-                                    return `<td class="px-1 py-1"><input type="number" min="0" step="0.01" value="${v}" data-gid="${g.id}" data-dow="${dow}" data-field="fixo" class="pa-daily-input input-glass px-1.5 py-1 text-center text-xs text-slate-900 dark:text-slate-300 w-full"></td>`;
-                                }).join('')}
-                            </tr>
-                            <tr>
-                                <td class="text-slate-400 pr-3 py-1 font-medium">Extra R$</td>
-                                ${_paDias.map((_, dow) => {
-                                    const v = lookup[`${g.id}_${dow}`]?.bonus_extra || '';
-                                    return `<td class="px-1 py-1"><input type="number" min="0" step="0.01" value="${v}" data-gid="${g.id}" data-dow="${dow}" data-field="extra" class="pa-daily-input input-glass px-1.5 py-1 text-center text-xs text-slate-900 dark:text-slate-300 w-full"></td>`;
-                                }).join('')}
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+                <div class="flex flex-wrap gap-1 mb-3">${chips}</div>
+                ${_paFaixaTableHtml(g.id, semana, false, 'Dias úteis (seg–sex)')}
+                ${_paFaixaTableHtml(g.id, sabado, true, 'Sábado')}
             </div>`;
         });
 
         wrap.innerHTML = html;
     } catch(e) {
         console.error('paLoadDailyGrid', e);
-        wrap.innerHTML = '<p class="text-xs text-red-400">Erro ao carregar</p>';
+        const p = document.createElement('p');
+        p.className = 'text-xs text-red-400';
+        p.textContent = e?.message || 'Erro ao carregar';
+        wrap.innerHTML = '';
+        wrap.appendChild(p);
     }
 }
 
-async function paSaveDailyGrupo() {
+async function paSaveDailyPix() {
     const cid = document.getElementById('pa-daily-camp')?.value;
     if (!cid) { toast('Selecione uma campanha', 'error'); return; }
 
-    const inputs = document.querySelectorAll('.pa-daily-input');
-    const byKey = {};
-    inputs.forEach(inp => {
-        const gid = inp.dataset.gid;
-        const dow = inp.dataset.dow;
-        const field = inp.dataset.field;
-        const key = `${gid}_${dow}`;
-        if (!byKey[key]) byKey[key] = { grupo_id: parseInt(gid), dia_semana: parseInt(dow), meta_diaria: 0, bonus_fixo: 0, bonus_extra: 0 };
-        if (field === 'meta') byKey[key].meta_diaria = parseInt(inp.value || 0);
-        if (field === 'fixo') byKey[key].bonus_fixo = parseFloat(inp.value || 0);
-        if (field === 'extra') byKey[key].bonus_extra = parseFloat(inp.value || 0);
+    const faixas = [];
+    document.querySelectorAll('[id^="pa-faixas-"]').forEach(tbl => {
+        tbl.querySelectorAll('tbody tr').forEach(tr => {
+            const minInp = tr.querySelector('[data-field="min"]');
+            const valInp = tr.querySelector('[data-field="valor"]');
+            if (!minInp || !valInp) return;
+            const mn = parseInt(minInp.value || 0);
+            const val = parseFloat(valInp.value || 0);
+            if (mn > 0 && val > 0) {
+                faixas.push({
+                    grupo_id: parseInt(minInp.dataset.gid),
+                    min_matriculas: mn,
+                    valor: val,
+                    apenas_sabado: minInp.dataset.sab === '1',
+                });
+            }
+        });
     });
 
-    const items = Object.values(byKey).filter(i => i.meta_diaria > 0 || i.bonus_fixo > 0 || i.bonus_extra > 0);
-    if (!items.length) { toast('Nenhuma meta preenchida', 'error'); return; }
+    if (!faixas.length) { toast('Preencha ao menos uma faixa', 'error'); return; }
 
-    const raw = await api(`/api/premiacao/campanhas/${cid}/diarias-grupo`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ items }) });
+    const raw = await api(`/api/premiacao/campanhas/${cid}/pix-equipe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ faixas }),
+    });
     const res = await raw.json();
-    if (res?.ok) { toast('PIX diário salvo!'); } else { toast(res?.error || 'Erro', 'error'); }
+    if (res?.ok) {
+        toast('PIX por equipe salvo!');
+        await paLoadDailyGrid();
+    } else {
+        toast(res?.error || 'Erro', 'error');
+    }
 }
 
+async function paSaveDailyGrupo() { return paSaveDailyPix(); }
 /* ═══ D) Upload Recebimentos ═══ */
 
 async function paUploadRecebimentos(input) {

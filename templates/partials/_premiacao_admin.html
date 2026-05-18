@@ -149,12 +149,13 @@
         <div id="pa-sem-grupo-warn" class="hidden mt-3 text-xs text-amber-400/80 bg-amber-500/5 border border-amber-500/15 rounded-lg px-3 py-2"></div>
     </div>
 
-    <!-- ═══ C) PIX Diário por Grupo ═══ -->
+    <!-- ═══ D) PIX Diário por Equipe ═══ -->
     <div class="glass-card p-5 border border-cyan-500/20">
-        <h3 class="text-sm font-bold text-[var(--text-primary)] dark:text-white font-display flex items-center gap-2 mb-4">
+        <h3 class="text-sm font-bold text-[var(--text-primary)] dark:text-white font-display flex items-center gap-2 mb-1">
             <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-            PIX Diário por Grupo
+            PIX Diário por Equipe
         </h3>
+        <p class="text-[10px] text-slate-500 mb-4">Por equipe (Alta Performance, Impulso, etc.): defina faixas de matrículas do dia → valor PIX. Atribua agentes em <strong>Grupos de Agentes</strong> acima.</p>
 
         <div class="flex flex-wrap items-end gap-3 mb-4">
             <div>
@@ -170,7 +171,7 @@
         </div>
 
         <div class="flex flex-wrap items-center gap-3 mt-4">
-            <button onclick="paSaveDailyGrupo()" class="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5">
+            <button onclick="paSaveDailyPix()" class="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                 Salvar PIX Diário
             </button>

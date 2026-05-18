@@ -610,18 +610,32 @@ def _get_tier_bonuses(campanha_id):
         return {}
 
 
-def _get_daily_config(campanha_id, kommo_uid):
-    """Return daily targets/bonuses for an agent via grupo membership.
+def _faixas_for_dow(pix_faixas, dow):
+    """Faixas aplicáveis: seg–sex (semana) ou sábado."""
+    if not pix_faixas:
+        return []
+    if dow == 5:
+        return pix_faixas.get("sabado") or []
+    if dow < 5:
+        return pix_faixas.get("semana") or []
+    return []
 
-    Resolution order:
-    1. Find the grupo the agent belongs to in this campaign
-    2. Fetch meta_diaria rows for that grupo_id
-    3. Fallback: legacy rows with kommo_user_id (no grupo_id)
-    """
+
+def _pix_valor_from_faixas(realizadas, faixas):
+    """Maior faixa atingida no dia (ex.: 13 mat → faixa de 12, não a de 10)."""
+    if not faixas:
+        return 0.0, 0
+    for f in sorted(faixas, key=lambda x: -x["min"]):
+        if realizadas >= f["min"]:
+            return f["valor"], f["min"]
+    return 0.0, 0
+
+
+def _get_pix_faixas_for_agent(campanha_id, kommo_uid):
+    """Faixas PIX da equipe (grupo) do agente na campanha."""
     try:
         conn = _pg()
         cur = conn.cursor()
-
         cur.execute("""
             SELECT g.id FROM premiacao_grupo g
             JOIN premiacao_grupo_membro gm ON gm.grupo_id = g.id
@@ -629,17 +643,73 @@ def _get_daily_config(campanha_id, kommo_uid):
             LIMIT 1
         """, (campanha_id, kommo_uid))
         row = cur.fetchone()
-        grupo_id = row[0] if row else None
+        if not row:
+            cur.close()
+            conn.close()
+            return None
+        grupo_id = row[0]
+        cur.execute("""
+            SELECT min_matriculas, valor, apenas_sabado
+            FROM premiacao_pix_faixa
+            WHERE campanha_id = %s AND grupo_id = %s
+            ORDER BY apenas_sabado, min_matriculas
+        """, (campanha_id, grupo_id))
+        semana, sabado = [], []
+        for mn, val, sab in cur.fetchall():
+            item = {"min": int(mn), "valor": float(val)}
+            (sabado if sab else semana).append(item)
+        cur.close()
+        conn.close()
+        if not semana and not sabado:
+            return None
+        for lst in (semana, sabado):
+            lst.sort(key=lambda x: -x["min"])
+        return {"grupo_id": grupo_id, "semana": semana, "sabado": sabado}
+    except Exception:
+        return None
+
+
+def _get_daily_config(campanha_id, kommo_uid):
+    """Metas/bônus legado por dia da semana (sem faixas por equipe)."""
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT pix_nivel FROM premiacao_pix_nivel_membro
+            WHERE campanha_id = %s AND kommo_user_id = %s
+            LIMIT 1
+        """, (campanha_id, kommo_uid))
+        row = cur.fetchone()
+        pix_nivel = row[0] if row else None
 
         result = {}
-        if grupo_id:
+        if pix_nivel:
             cur.execute("""
                 SELECT dia_semana, meta_diaria, bonus_fixo, bonus_extra
                 FROM premiacao_meta_diaria
-                WHERE campanha_id = %s AND grupo_id = %s
-            """, (campanha_id, grupo_id))
+                WHERE campanha_id = %s AND pix_nivel = %s
+            """, (campanha_id, pix_nivel))
             for r in cur.fetchall():
                 result[r[0]] = {"meta": r[1], "fixo": float(r[2]), "extra": float(r[3])}
+
+        if not result:
+            cur.execute("""
+                SELECT g.id FROM premiacao_grupo g
+                JOIN premiacao_grupo_membro gm ON gm.grupo_id = g.id
+                WHERE g.campanha_id = %s AND gm.kommo_user_id = %s
+                LIMIT 1
+            """, (campanha_id, kommo_uid))
+            row = cur.fetchone()
+            grupo_id = row[0] if row else None
+            if grupo_id:
+                cur.execute("""
+                    SELECT dia_semana, meta_diaria, bonus_fixo, bonus_extra
+                    FROM premiacao_meta_diaria
+                    WHERE campanha_id = %s AND grupo_id = %s
+                """, (campanha_id, grupo_id))
+                for r in cur.fetchall():
+                    result[r[0]] = {"meta": r[1], "fixo": float(r[2]), "extra": float(r[3])}
 
         if not result:
             cur.execute("""
@@ -657,12 +727,8 @@ def _get_daily_config(campanha_id, kommo_uid):
         return {}
 
 
-def _calc_daily_premiacao(matriculas, daily_config, dt_ini, dt_fim):
-    """Calculate daily bonus breakdown.
-
-    Returns list of {data, dia_semana, meta, realizadas, bonus_fixo, bonus_extra, total}
-    and accumulated total.
-    """
+def _calc_daily_premiacao(matriculas, daily_config, dt_ini, dt_fim, pix_faixas=None):
+    """PIX diário: faixas por equipe (matrículas do dia) ou legado meta+fixo por dia."""
     DIA_NAMES = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
 
     mat_by_date = defaultdict(int)
@@ -689,31 +755,53 @@ def _calc_daily_premiacao(matriculas, daily_config, dt_ini, dt_fim):
 
     d = d_ini
     while d <= d_fim:
-        dow = d.weekday()  # 0=Mon, 6=Sun
-        cfg = daily_config.get(dow, {})
-        meta = cfg.get("meta", 0)
-        fixo = cfg.get("fixo", 0)
-        extra = cfg.get("extra", 0)
+        dow = d.weekday()
+        realizadas = mat_by_date.get(d, 0)
 
-        if meta > 0:
+        if pix_faixas:
+            faixas_list = _faixas_for_dow(pix_faixas, dow)
+            if not faixas_list:
+                d += timedelta(days=1)
+                continue
             dias_total += 1
-            realizadas = mat_by_date.get(d, 0)
-            b_fixo = fixo if realizadas >= meta else 0.0
-            b_extra = extra * max(0, realizadas - meta) if realizadas > meta else 0.0
-            total_dia = b_fixo + b_extra
-            if realizadas >= meta:
+            valor, meta_hit = _pix_valor_from_faixas(realizadas, faixas_list)
+            if valor > 0:
                 dias_batidos += 1
-            total_bonus += total_dia
+            total_bonus += valor
             breakdown.append({
                 "data": d.isoformat(),
                 "dia_semana": dow,
                 "dia_nome": DIA_NAMES[dow],
-                "meta": meta,
+                "meta": meta_hit,
                 "realizadas": realizadas,
-                "bonus_fixo": b_fixo,
-                "bonus_extra": b_extra,
-                "total": total_dia,
+                "bonus_fixo": valor,
+                "bonus_extra": 0.0,
+                "total": valor,
+                "modo": "faixas",
             })
+        else:
+            cfg = daily_config.get(dow, {})
+            meta = cfg.get("meta", 0)
+            fixo = cfg.get("fixo", 0)
+            extra = cfg.get("extra", 0)
+            if meta > 0:
+                dias_total += 1
+                b_fixo = fixo if realizadas >= meta else 0.0
+                b_extra = extra * max(0, realizadas - meta) if realizadas > meta else 0.0
+                total_dia = b_fixo + b_extra
+                if realizadas >= meta:
+                    dias_batidos += 1
+                total_bonus += total_dia
+                breakdown.append({
+                    "data": d.isoformat(),
+                    "dia_semana": dow,
+                    "dia_nome": DIA_NAMES[dow],
+                    "meta": meta,
+                    "realizadas": realizadas,
+                    "bonus_fixo": b_fixo,
+                    "bonus_extra": b_extra,
+                    "total": total_dia,
+                })
         d += timedelta(days=1)
 
     return breakdown, total_bonus, dias_batidos, dias_total
@@ -890,9 +978,10 @@ def api_minha_premiacao():
     tier_bonus_total = tier_valor * total_mat
 
     # Daily bonus
-    daily_config = _get_daily_config(cid, kommo_uid)
+    pix_faixas = _get_pix_faixas_for_agent(cid, kommo_uid)
+    daily_config = {} if pix_faixas else _get_daily_config(cid, kommo_uid)
     breakdown, daily_bonus_total, dias_batidos, dias_total = _calc_daily_premiacao(
-        matriculas, daily_config, dt_ini, dt_fim
+        matriculas, daily_config, dt_ini, dt_fim, pix_faixas=pix_faixas
     )
 
     # Recebimentos bonus
@@ -982,9 +1071,10 @@ def api_minha_historico():
         tier_valor = tier_bonuses.get(tier, 0) if tier else 0
         tier_bonus = tier_valor * total
 
-        daily_config = _get_daily_config(c["id"], kommo_uid)
+        pix_f = _get_pix_faixas_for_agent(c["id"], kommo_uid)
+        daily_config = {} if pix_f else _get_daily_config(c["id"], kommo_uid)
         _, daily_bonus, dias_batidos, dias_total = _calc_daily_premiacao(
-            matriculas, daily_config, dt_ini, dt_fim
+            matriculas, daily_config, dt_ini, dt_fim, pix_faixas=pix_f
         )
 
         history.append({
@@ -1029,13 +1119,17 @@ def api_minha_insights():
     metas = _get_agent_metas(kommo_uid, dt_ini_str, dt_fim_str)
     tier = _determine_tier(total_mat, metas)
 
-    daily_config = _get_daily_config(cid, kommo_uid)
+    pix_faixas = _get_pix_faixas_for_agent(cid, kommo_uid)
+    daily_config = {} if pix_faixas else _get_daily_config(cid, kommo_uid)
 
     def _count_work_days(start, end):
         count = 0
         d = start
         while d <= end:
-            if daily_config.get(d.weekday(), {}).get("meta", 0) > 0:
+            if pix_faixas:
+                if _faixas_for_dow(pix_faixas, d.weekday()):
+                    count += 1
+            elif daily_config.get(d.weekday(), {}).get("meta", 0) > 0:
                 count += 1
             elif d.weekday() < 6:
                 count += 1
@@ -1064,13 +1158,6 @@ def api_minha_insights():
 
     projecao = total_mat + round(pace_atual * dias_uteis_restantes)
     projecao_tier = _determine_tier(projecao, metas)
-
-    # Today's challenge
-    dow_today = today.weekday()
-    today_cfg = daily_config.get(dow_today, {})
-    today_meta = today_cfg.get("meta", 0)
-    today_fixo = today_cfg.get("fixo", 0)
-    today_extra = today_cfg.get("extra", 0)
 
     mat_by_date = defaultdict(int)
     for m in matriculas:
@@ -1140,32 +1227,71 @@ def api_minha_insights():
     today_realizadas = today_mat + aceites_by_date.get(today, 0)
     yesterday_realizadas = yesterday_mat + aceites_by_date.get(yesterday, 0)
 
+    dow_today = today.weekday()
+    if pix_faixas:
+        fl_hoje = _faixas_for_dow(pix_faixas, dow_today)
+        today_fixo, today_meta = _pix_valor_from_faixas(today_realizadas, fl_hoje)
+        today_extra = 0
+        if not today_fixo and fl_hoje:
+            proximas = sorted([f for f in fl_hoje if f["min"] > today_realizadas], key=lambda x: x["min"])
+            if proximas:
+                today_meta = proximas[0]["min"]
+                today_fixo = proximas[0]["valor"]
+    else:
+        today_cfg = daily_config.get(dow_today, {})
+        today_meta = today_cfg.get("meta", 0)
+        today_fixo = today_cfg.get("fixo", 0)
+        today_extra = today_cfg.get("extra", 0)
+
     # Streak: consecutive days hitting daily target (mat + aceites)
     sequencia = 0
     d = effective_end
     while d >= dt_ini:
-        dcfg = daily_config.get(d.weekday(), {})
-        dmeta = dcfg.get("meta", 0)
-        if dmeta > 0:
-            day_total = mat_by_date.get(d, 0) + aceites_by_date.get(d, 0)
-            if day_total >= dmeta:
-                sequencia += 1
-            else:
-                break
+        if pix_faixas:
+            fl = _faixas_for_dow(pix_faixas, d.weekday())
+            if fl:
+                day_total = mat_by_date.get(d, 0) + aceites_by_date.get(d, 0)
+                valor, _ = _pix_valor_from_faixas(day_total, fl)
+                if valor > 0:
+                    sequencia += 1
+                else:
+                    break
+        else:
+            dcfg = daily_config.get(d.weekday(), {})
+            dmeta = dcfg.get("meta", 0)
+            if dmeta > 0:
+                day_total = mat_by_date.get(d, 0) + aceites_by_date.get(d, 0)
+                if day_total >= dmeta:
+                    sequencia += 1
+                else:
+                    break
         d -= timedelta(days=1)
 
     # Heatmap data: week-by-week daily breakdown (mat + aceites)
     heatmap = []
     d = dt_ini
     while d <= dt_fim:
-        dcfg = daily_config.get(d.weekday(), {})
+        dow_d = d.weekday()
+        fl = _faixas_for_dow(pix_faixas, dow_d) if pix_faixas else None
+        dcfg = daily_config.get(dow_d, {})
         dmeta = dcfg.get("meta", 0)
+        if fl:
+            dmeta = min(f["min"] for f in fl)
         mat_count = mat_by_date.get(d, 0) if d <= today else None
         ace_count = aceites_by_date.get(d, 0) if d <= today else 0
         realizadas = (mat_count + ace_count) if mat_count is not None else None
         status = "future"
         if d <= today:
-            if dmeta > 0 and realizadas >= dmeta:
+            if fl and realizadas is not None:
+                valor_hit, meta_hit = _pix_valor_from_faixas(realizadas, fl)
+                dmeta = meta_hit or dmeta
+                if valor_hit > 0:
+                    status = "hit"
+                elif realizadas > 0:
+                    status = "partial"
+                else:
+                    status = "miss"
+            elif dmeta > 0 and realizadas >= dmeta:
                 status = "hit"
             elif dmeta > 0 and realizadas and realizadas > 0:
                 status = "partial"
@@ -1177,7 +1303,7 @@ def api_minha_insights():
                 status = "rest"
         heatmap.append({
             "data": d.isoformat(),
-            "dia_semana": d.weekday(),
+            "dia_semana": dow_d,
             "meta": dmeta,
             "realizadas": realizadas,
             "mat": mat_count if mat_count is not None else 0,
@@ -1215,7 +1341,7 @@ def api_minha_insights():
     tier_bonus_total = tier_valor * total_mat
 
     breakdown, daily_bonus_total, dias_batidos, dias_total = _calc_daily_premiacao(
-        matriculas, daily_config, dt_ini_str, dt_fim_str
+        matriculas, daily_config, dt_ini_str, dt_fim_str, pix_faixas=pix_faixas
     )
 
     receb_bonus_total = 0.0
@@ -2059,7 +2185,162 @@ def api_campanha_metas_save(cid):
 
 
 # ---------------------------------------------------------------------------
-# API: Metas diárias por grupo (admin)
+# API: PIX diário por equipe (faixas por matrículas do dia)
+# ---------------------------------------------------------------------------
+
+@minha_performance_bp.route("/api/premiacao/campanhas/<int:cid>/pix-equipe", methods=["GET"])
+def api_pix_equipe_get(cid):
+    if not _is_admin():
+        return jsonify({"error": "Sem permissão"}), 403
+    try:
+        from db import _ensure_pix_faixa_tables
+        _ensure_pix_faixa_tables()
+        conn = _pg()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT id, nome FROM premiacao_grupo WHERE campanha_id = %s ORDER BY nome", (cid,))
+        equipes = []
+        for g in cur.fetchall():
+            g = dict(g)
+            cur.execute(
+                "SELECT kommo_user_id FROM premiacao_grupo_membro WHERE grupo_id = %s ORDER BY kommo_user_id",
+                (g["id"],),
+            )
+            g["membros"] = [r["kommo_user_id"] for r in cur.fetchall()]
+            cur.execute("""
+                SELECT min_matriculas, valor, apenas_sabado
+                FROM premiacao_pix_faixa
+                WHERE campanha_id = %s AND grupo_id = %s
+                ORDER BY apenas_sabado, min_matriculas
+            """, (cid, g["id"]))
+            g["faixas"] = [
+                {
+                    "min_matriculas": r["min_matriculas"],
+                    "valor": float(r["valor"]),
+                    "apenas_sabado": bool(r["apenas_sabado"]),
+                }
+                for r in cur.fetchall()
+            ]
+            equipes.append(g)
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True, "equipes": equipes})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@minha_performance_bp.route("/api/premiacao/campanhas/<int:cid>/pix-equipe", methods=["POST"])
+def api_pix_equipe_save(cid):
+    """Salva faixas PIX por equipe (grupo). Agentes são atribuídos na seção Grupos."""
+    if not _is_admin():
+        return jsonify({"error": "Sem permissão"}), 403
+    body = request.json or {}
+    faixas = body.get("faixas", [])
+    try:
+        from db import _ensure_pix_faixa_tables
+        _ensure_pix_faixa_tables()
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM premiacao_pix_faixa WHERE campanha_id = %s", (cid,))
+        for item in faixas:
+            gid = int(item["grupo_id"])
+            mn = int(item.get("min_matriculas", 0))
+            val = float(item.get("valor", 0))
+            sab = bool(item.get("apenas_sabado", False))
+            if mn > 0 and val > 0:
+                cur.execute("""
+                    INSERT INTO premiacao_pix_faixa (campanha_id, grupo_id, min_matriculas, valor, apenas_sabado)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (cid, gid, mn, val, sab))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# API: PIX diário por nível 1–3 (admin) — legado
+# ---------------------------------------------------------------------------
+
+@minha_performance_bp.route("/api/premiacao/campanhas/<int:cid>/pix-nivel", methods=["GET"])
+def api_pix_nivel_get(cid):
+    if not _is_admin():
+        return jsonify({"error": "Sem permissão"}), 403
+    try:
+        from db import _ensure_pix_nivel_tables
+        _ensure_pix_nivel_tables()
+        conn = _pg()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT kommo_user_id, pix_nivel
+            FROM premiacao_pix_nivel_membro
+            WHERE campanha_id = %s
+            ORDER BY pix_nivel, kommo_user_id
+        """, (cid,))
+        membros = [dict(r) for r in cur.fetchall()]
+        cur.execute("""
+            SELECT pix_nivel, dia_semana, meta_diaria, bonus_fixo, bonus_extra
+            FROM premiacao_meta_diaria
+            WHERE campanha_id = %s AND pix_nivel IS NOT NULL
+            ORDER BY pix_nivel, dia_semana
+        """, (cid,))
+        diarias = [dict(r) for r in cur.fetchall()]
+        for d in diarias:
+            d["bonus_fixo"] = float(d["bonus_fixo"])
+            d["bonus_extra"] = float(d["bonus_extra"])
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True, "membros": membros, "diarias": diarias})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@minha_performance_bp.route("/api/premiacao/campanhas/<int:cid>/pix-nivel", methods=["POST"])
+def api_pix_nivel_save(cid):
+    """Salva agentes por nível PIX (1–3) e metas/bônus diários por nível."""
+    if not _is_admin():
+        return jsonify({"error": "Sem permissão"}), 403
+    body = request.json or {}
+    membros = body.get("membros", [])
+    items = body.get("items", [])
+    try:
+        from db import _ensure_pix_nivel_tables
+        _ensure_pix_nivel_tables()
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM premiacao_pix_nivel_membro WHERE campanha_id = %s", (cid,))
+        for m in membros:
+            uid = int(m.get("kommo_user_id", 0))
+            nivel = int(m.get("pix_nivel", 0))
+            if uid and nivel in (1, 2, 3):
+                cur.execute("""
+                    INSERT INTO premiacao_pix_nivel_membro (campanha_id, kommo_user_id, pix_nivel)
+                    VALUES (%s, %s, %s)
+                """, (cid, uid, nivel))
+        cur.execute("DELETE FROM premiacao_meta_diaria WHERE campanha_id = %s AND pix_nivel IS NOT NULL", (cid,))
+        for item in items:
+            nivel = int(item["pix_nivel"])
+            dow = int(item["dia_semana"])
+            meta = int(item.get("meta_diaria", 0))
+            fixo = float(item.get("bonus_fixo", 0))
+            extra = float(item.get("bonus_extra", 0))
+            if nivel in (1, 2, 3) and (meta > 0 or fixo > 0 or extra > 0):
+                cur.execute("""
+                    INSERT INTO premiacao_meta_diaria
+                        (campanha_id, pix_nivel, kommo_user_id, dia_semana, meta_diaria, bonus_fixo, bonus_extra)
+                    VALUES (%s, %s, 0, %s, %s, %s, %s)
+                """, (cid, nivel, dow, meta, fixo, extra))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# API: Metas diárias por grupo (admin) — legado
 # ---------------------------------------------------------------------------
 
 @minha_performance_bp.route("/api/premiacao/campanhas/<int:cid>/diarias-grupo", methods=["GET"])

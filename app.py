@@ -228,6 +228,8 @@ from db import (
     _ensure_avisos_tables,
     _ensure_funnel_log_table,
     _ensure_premiacao_tables,
+    _ensure_pix_nivel_tables,
+    _ensure_pix_faixa_tables,
 )
 
 _ensure_schedules_table()
@@ -242,6 +244,8 @@ _ensure_engagement_tables()
 _ensure_avisos_tables()
 _ensure_funnel_log_table()
 _ensure_premiacao_tables()
+_ensure_pix_nivel_tables()
+_ensure_pix_faixa_tables()
 
 # ── APScheduler ───────────────────────────────────────────────────────────
 
