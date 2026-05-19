@@ -1396,6 +1396,9 @@ async function _mpLoadMinhasMatriculas() {
         const qs = uid ? `?kommo_uid=${uid}` : '';
         const res = await api(`/api/minha-performance/minhas-matriculas${qs}`);
         const d = await res.json();
+        if (!res.ok || d.ok === false) {
+            throw new Error(d.error || `HTTP ${res.status}`);
+        }
         _mpMinhasData = d.matriculas || [];
         _mpRenderMinhaLista();
     } catch(e) {
@@ -1470,12 +1473,17 @@ async function _mpSaveMinhaMatricula() {
     try {
         const method = id ? 'PUT' : 'POST';
         const url = id ? `/api/minha-performance/minhas-matriculas/${id}` : '/api/minha-performance/minhas-matriculas';
-        await api(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+        const res = await api(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.ok === false) {
+            throw new Error(data.error || `Erro ao salvar (HTTP ${res.status})`);
+        }
         document.getElementById('mp-modal-minha-mat').classList.add('hidden');
         document.getElementById('mp-modal-minha-mat').classList.remove('flex');
-        _mpLoadMinhasMatriculas();
+        if (typeof toast === 'function') toast(id ? 'Matrícula atualizada!' : 'Matrícula adicionada à sua lista!');
+        await _mpLoadMinhasMatriculas();
     } catch(e) {
-        alert('Erro ao salvar: ' + e.message);
+        alert('Erro ao salvar: ' + (e.message || e));
     }
 }
 
@@ -1571,12 +1579,17 @@ async function _mpSaveAjuste() {
         descricao: desc,
     };
     try {
-        await api('/api/minha-performance/ajustes', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        const res = await api('/api/minha-performance/ajustes', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.ok === false) {
+            throw new Error(data.error || `Erro ao enviar (HTTP ${res.status})`);
+        }
         document.getElementById('mp-modal-ajuste').classList.add('hidden');
         document.getElementById('mp-modal-ajuste').classList.remove('flex');
+        if (typeof toast === 'function') toast('Solicitação enviada! Acompanhe em Solicitações de Ajuste.');
         _mpLoadAjustes();
     } catch(e) {
-        alert('Erro ao enviar: ' + e.message);
+        alert('Erro ao enviar: ' + (e.message || e));
     }
 }
 

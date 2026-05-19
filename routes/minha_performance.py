@@ -2798,20 +2798,39 @@ def api_minhas_mat_list():
     if not user_id:
         return jsonify({"error": "Não autenticado"}), 401
     target_uid = request.args.get("kommo_uid", type=int)
+    view_user_id = user_id
     if target_uid and _is_admin():
         kommo_uid = target_uid
+        try:
+            conn_u = _pg()
+            cur_u = conn_u.cursor()
+            cur_u.execute(
+                "SELECT id FROM app_users WHERE kommo_user_id = %s LIMIT 1",
+                (kommo_uid,),
+            )
+            row_u = cur_u.fetchone()
+            cur_u.close()
+            conn_u.close()
+            if row_u:
+                view_user_id = row_u[0]
+        except Exception:
+            pass
     try:
         conn = _pg()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         if kommo_uid:
             cur.execute(
-                "SELECT * FROM agent_matriculas WHERE kommo_user_id = %s ORDER BY data_matricula DESC NULLS LAST, created_at DESC",
-                (kommo_uid,),
+                """
+                SELECT * FROM agent_matriculas
+                WHERE user_id = %s OR kommo_user_id = %s
+                ORDER BY data_matricula DESC NULLS LAST, created_at DESC
+                """,
+                (view_user_id, kommo_uid),
             )
         else:
             cur.execute(
                 "SELECT * FROM agent_matriculas WHERE user_id = %s ORDER BY data_matricula DESC NULLS LAST, created_at DESC",
-                (user_id,),
+                (view_user_id,),
             )
         rows = [dict(r) for r in cur.fetchall()]
         cur.close()
@@ -2934,15 +2953,40 @@ def api_ajustes_agent_list():
     if not user_id:
         return jsonify({"error": "Não autenticado"}), 401
     target_uid = request.args.get("kommo_uid", type=int)
+    view_user_id = user_id
     if target_uid and _is_admin():
         kommo_uid = target_uid
+        try:
+            conn_u = _pg()
+            cur_u = conn_u.cursor()
+            cur_u.execute(
+                "SELECT id FROM app_users WHERE kommo_user_id = %s LIMIT 1",
+                (kommo_uid,),
+            )
+            row_u = cur_u.fetchone()
+            cur_u.close()
+            conn_u.close()
+            if row_u:
+                view_user_id = row_u[0]
+        except Exception:
+            pass
     try:
         conn = _pg()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         if kommo_uid:
-            cur.execute("SELECT * FROM matricula_ajustes WHERE kommo_user_id = %s ORDER BY created_at DESC", (kommo_uid,))
+            cur.execute(
+                """
+                SELECT * FROM matricula_ajustes
+                WHERE user_id = %s OR kommo_user_id = %s
+                ORDER BY created_at DESC
+                """,
+                (view_user_id, kommo_uid),
+            )
         else:
-            cur.execute("SELECT * FROM matricula_ajustes WHERE user_id = %s ORDER BY created_at DESC", (user_id,))
+            cur.execute(
+                "SELECT * FROM matricula_ajustes WHERE user_id = %s ORDER BY created_at DESC",
+                (view_user_id,),
+            )
         rows = [dict(r) for r in cur.fetchall()]
         cur.close()
         conn.close()

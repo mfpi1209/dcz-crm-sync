@@ -90,6 +90,7 @@ async function loadComercialRgm() {
     _crgmBindTopbarDates();
     crgmAtualizar();
     if (typeof refreshTopbarForPage === 'function') refreshTopbarForPage('comercial_rgm');
+    _crgmRefreshSolPendingBadge();
 }
 
 let _crgmTopbarDatesBound = false;
@@ -2333,5 +2334,179 @@ async function crgmBuscarRgmAtribuicao() {
         result.innerHTML = html;
     } catch (e) {
         result.innerHTML = `<p class="text-xs text-red-400 text-center py-6">Erro: ${e.message}</p>`;
+    }
+}
+
+// ── Solicitações de Ajuste (painel no dashboard) ─────────────────────────
+let _crgmSolData = [];
+
+const _crgmSolTipoLabel = {
+    matricula_nao_computada: 'Matrícula não computada',
+    dados_incorretos: 'Dados incorretos',
+    evasao_indevida: 'Evasão indevida',
+};
+const _crgmSolStatusColor = {
+    pendente: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/20',
+    em_analise: 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/20',
+    aprovado: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
+    rejeitado: 'bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/20',
+};
+const _crgmSolStatusLabel = {
+    pendente: 'Pendente', em_analise: 'Em análise', aprovado: 'Aprovado', rejeitado: 'Rejeitado',
+};
+
+function _crgmSolFmtDate(d) {
+    if (!d) return '';
+    const p = String(d).substring(0, 10).split('-');
+    return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : d;
+}
+
+function crgmToggleSolicitacoes() {
+    const panel = document.getElementById('crgm-solicitacoes-panel');
+    const btn = document.getElementById('crgm-btn-solicitacoes');
+    if (!panel) return;
+    const isHidden = panel.classList.contains('hidden');
+    panel.classList.toggle('hidden');
+    if (btn) btn.classList.toggle('border-orange-500', isHidden);
+    if (btn) btn.classList.toggle('dark:border-orange-500', isHidden);
+    if (isHidden) crgmLoadSolicitacoes();
+}
+
+async function _crgmRefreshSolPendingBadge() {
+    const badge = document.getElementById('crgm-sol-pending-badge');
+    if (!badge) return;
+    try {
+        const res = await api('/api/ajustes-matricula?status=pendente');
+        const d = await res.json();
+        const n = (d.ajustes || []).length;
+        if (n > 0) {
+            badge.textContent = n > 99 ? '99+' : String(n);
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    } catch (_) {
+        badge.classList.add('hidden');
+    }
+}
+
+async function crgmLoadSolicitacoes() {
+    const status = document.getElementById('crgm-sol-filter-status')?.value || '';
+    const list = document.getElementById('crgm-sol-list');
+    if (list) list.innerHTML = '<p class="text-xs text-slate-600 text-center py-8">Carregando...</p>';
+
+    try {
+        const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+        const res = await api(`/api/ajustes-matricula${qs}`);
+        const d = await res.json();
+        if (!res.ok || d.ok === false) throw new Error(d.error || `HTTP ${res.status}`);
+        _crgmSolData = d.ajustes || [];
+        _crgmRenderSolStats();
+        _crgmRenderSolList();
+        _crgmRefreshSolPendingBadge();
+    } catch (e) {
+        if (list) list.innerHTML = `<p class="text-xs text-red-400 text-center py-8">Erro ao carregar: ${esc(e.message || e)}</p>`;
+    }
+}
+
+function _crgmRenderSolStats() {
+    const el = document.getElementById('crgm-sol-stats');
+    if (!el) return;
+    const counts = { pendente: 0, em_analise: 0, aprovado: 0, rejeitado: 0 };
+    _crgmSolData.forEach(a => { if (counts[a.status] !== undefined) counts[a.status]++; });
+    const items = [
+        { key: 'pendente', icon: 'schedule', color: 'text-amber-600 dark:text-amber-400', bg: 'border-amber-500/20' },
+        { key: 'em_analise', icon: 'pending', color: 'text-blue-600 dark:text-blue-400', bg: 'border-blue-500/20' },
+        { key: 'aprovado', icon: 'check_circle', color: 'text-emerald-600 dark:text-emerald-400', bg: 'border-emerald-500/20' },
+        { key: 'rejeitado', icon: 'cancel', color: 'text-red-600 dark:text-red-400', bg: 'border-red-500/20' },
+    ];
+    el.innerHTML = items.map(i => `
+        <div class="glass-card p-3 border ${i.bg}">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="material-symbols-outlined text-sm ${i.color}">${i.icon}</span>
+                <span class="text-[10px] text-slate-600 dark:text-slate-500 uppercase tracking-wider">${_crgmSolStatusLabel[i.key]}</span>
+            </div>
+            <p class="text-xl font-black text-[#00346f] dark:text-white">${counts[i.key]}</p>
+        </div>
+    `).join('');
+}
+
+function _crgmRenderSolList() {
+    const list = document.getElementById('crgm-sol-list');
+    if (!list) return;
+    if (!_crgmSolData.length) {
+        list.innerHTML = '<p class="text-xs text-slate-600 text-center py-8">Nenhuma solicitação encontrada.</p>';
+        return;
+    }
+    list.innerHTML = _crgmSolData.map(a => {
+        const sc = _crgmSolStatusColor[a.status] || _crgmSolStatusColor.pendente;
+        return `<div class="glass-card p-4 cursor-pointer hover:border-orange-500/30 border border-transparent transition-colors" onclick="crgmSolOpenDetail(${a.id})">
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border ${sc}">${_crgmSolStatusLabel[a.status] || a.status}</span>
+                <span class="text-[10px] text-slate-500">${esc(_crgmSolTipoLabel[a.tipo] || a.tipo)}</span>
+                <span class="text-[10px] text-slate-600 ml-auto">${_crgmSolFmtDate(a.created_at)}</span>
+            </div>
+            <div class="flex flex-wrap gap-x-6 gap-y-1 mb-1">
+                <p class="text-xs text-[#00346f] dark:text-white font-semibold">${esc(a.agent_name || 'Agente #' + a.user_id)}</p>
+                <p class="text-xs text-slate-600 dark:text-slate-400">Aluno: <strong>${esc(a.nome_aluno || '—')}</strong></p>
+                <p class="text-xs text-slate-600 dark:text-slate-400">RGM: <span class="font-mono">${esc(a.rgm || '—')}</span></p>
+                <p class="text-xs text-slate-600 dark:text-slate-400">Lead: <span class="font-mono">${esc(a.kommo_lead_id || '—')}</span></p>
+            </div>
+            <p class="text-[10px] text-slate-500 line-clamp-2">${esc(a.descricao || '')}</p>
+            ${a.resposta_admin ? `<p class="text-[10px] text-blue-600 dark:text-blue-400 mt-1"><strong>Resposta:</strong> ${esc(a.resposta_admin)}</p>` : ''}
+        </div>`;
+    }).join('');
+}
+
+function crgmSolOpenDetail(id) {
+    const a = _crgmSolData.find(x => x.id === id);
+    if (!a) return;
+    const modal = document.getElementById('crgm-sol-modal-detail');
+    const body = document.getElementById('crgm-sol-detail-body');
+    document.getElementById('crgm-sol-detail-id').value = id;
+    document.getElementById('crgm-sol-detail-status').value = a.status;
+    document.getElementById('crgm-sol-detail-resposta').value = a.resposta_admin || '';
+
+    if (body) body.innerHTML = `
+        <div class="grid grid-cols-2 gap-3 text-xs">
+            <div><span class="text-slate-500">Agente:</span><p class="text-[var(--text-primary)] dark:text-white font-medium">${esc(a.agent_name || 'Agente #' + a.user_id)}</p></div>
+            <div><span class="text-slate-500">Tipo:</span><p class="text-[var(--text-primary)] dark:text-white">${esc(_crgmSolTipoLabel[a.tipo] || a.tipo)}</p></div>
+            <div><span class="text-slate-500">Nome do Aluno:</span><p class="text-[var(--text-primary)] dark:text-white">${esc(a.nome_aluno || '—')}</p></div>
+            <div><span class="text-slate-500">RGM:</span><p class="text-[var(--text-primary)] dark:text-white font-mono">${esc(a.rgm || '—')}</p></div>
+            <div><span class="text-slate-500">Curso:</span><p class="text-[var(--text-primary)] dark:text-white">${esc(a.curso || '—')}</p></div>
+            <div><span class="text-slate-500">Polo:</span><p class="text-[var(--text-primary)] dark:text-white">${esc(a.polo || '—')}</p></div>
+            <div><span class="text-slate-500">Data Matrícula:</span><p class="text-[var(--text-primary)] dark:text-white">${_crgmSolFmtDate(a.data_matricula)}</p></div>
+            <div><span class="text-slate-500">Lead Kommo:</span><p class="text-[var(--text-primary)] dark:text-white font-mono">${esc(a.kommo_lead_id || '—')}</p></div>
+            <div class="col-span-2"><span class="text-slate-500">Justificativa:</span><p class="text-[var(--text-primary)] dark:text-white mt-1">${esc(a.descricao || '—')}</p></div>
+            <div class="col-span-2"><span class="text-slate-500">Enviada em:</span><p class="text-slate-400">${_crgmSolFmtDate(a.created_at)}</p></div>
+            ${a.resolved_at ? `<div class="col-span-2"><span class="text-slate-500">Resolvida em:</span><p class="text-slate-400">${_crgmSolFmtDate(a.resolved_at)}</p></div>` : ''}
+        </div>`;
+
+    modal.classList.remove('hidden');
+}
+
+async function crgmSolSaveReview() {
+    const id = document.getElementById('crgm-sol-detail-id').value;
+    const status = document.getElementById('crgm-sol-detail-status').value;
+    const resposta = document.getElementById('crgm-sol-detail-resposta').value;
+    try {
+        const res = await api(`/api/ajustes-matricula/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status, resposta_admin: resposta }),
+        });
+        const d = await res.json();
+        if (!res.ok || d.ok === false) throw new Error(d.error || `HTTP ${res.status}`);
+        document.getElementById('crgm-sol-modal-detail').classList.add('hidden');
+        await crgmLoadSolicitacoes();
+        if (status === 'aprovado' && d.conflito_aplicado) {
+            alert('Aprovado. A venda foi creditada ao consultor (mesma regra de Vendas em Conflito).');
+        } else if (status === 'aprovado' && d.aviso) {
+            alert('Aprovado.\n\n' + d.aviso);
+        } else if (typeof toast === 'function') {
+            toast('Solicitação atualizada');
+        }
+    } catch (e) {
+        alert('Erro ao salvar: ' + (e.message || e));
     }
 }
