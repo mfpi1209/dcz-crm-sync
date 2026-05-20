@@ -80,7 +80,7 @@
 <!-- Admin: Seletor de agente -->
 <div id="mp-admin-bar" class="hidden mb-4 glass-card p-3 flex flex-wrap items-center gap-3 border border-[var(--border)] max-w-7xl mx-auto px-4 lg:px-8">
     <span class="material-symbols-outlined text-base text-[var(--primary)]">supervisor_account</span>
-    <span class="text-xs text-slate-600 dark:text-slate-400 font-medium">Visualizar agente:</span>
+    <span class="text-xs text-slate-600 dark:text-slate-400 font-medium">Painel / agente:</span>
     <select id="mp-agent-select" onchange="mpAdminSelectAgent()" class="input-glass px-3 py-1.5 text-xs text-slate-900 dark:text-slate-200 min-w-[200px]">
         <option value="">Selecione um agente...</option>
     </select>
@@ -88,6 +88,92 @@
         Voltar ao meu painel
     </button>
     <span id="mp-admin-viewing" class="hidden ml-auto text-xs font-semibold text-indigo-300"></span>
+</div>
+
+<!-- ═══ Sub-abas (topo da página) ═══ -->
+<div id="mp-tabs" class="hidden max-w-7xl mx-auto mb-4 px-4 lg:px-8">
+    <div class="ds-segment w-fit max-w-full">
+        <button id="mp-tab-performance" onclick="_mpSwitchTab('performance')"
+            class="ds-segment__btn ds-segment__btn--active flex items-center gap-1 text-xs font-bold uppercase tracking-wider">
+            <span class="material-symbols-outlined text-sm align-middle">insights</span>Performance
+        </button>
+        <button id="mp-tab-matriculas" onclick="_mpSwitchTab('matriculas')"
+            class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-1 text-xs font-bold uppercase tracking-wider">
+            <span class="material-symbols-outlined text-sm align-middle">school</span>Minhas Matrículas
+        </button>
+    </div>
+</div>
+
+<!-- Campanha (logo abaixo das abas) -->
+<div id="mp-campanha-wrap" class="hidden max-w-7xl mx-auto px-4 lg:px-8 space-y-3 mb-4">
+    <div id="mp-campanha-bar" class="mp-enter flex flex-wrap items-center gap-3 px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/40">
+        <span class="material-symbols-outlined text-base text-[var(--primary)]">emoji_events</span>
+        <span class="text-[11px] uppercase tracking-[.18em] font-bold text-slate-500">Campanha</span>
+        <select id="mp-campanha-select"
+                onchange="mpSelectCampanha()"
+                class="input-glass px-3 py-1.5 text-xs text-slate-900 dark:text-slate-200 min-w-[200px] flex-1 sm:flex-none">
+            <option value="">Carregando...</option>
+        </select>
+        <span id="mp-campanha-bar-status" class="text-[10px] text-slate-500"></span>
+    </div>
+    <div id="mp-campanha-encerrada" class="hidden mp-enter rounded-xl border border-amber-400/35 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 flex items-start gap-3">
+        <span class="material-symbols-outlined text-amber-600 dark:text-amber-300 text-xl shrink-0">info</span>
+        <div class="text-xs leading-relaxed">
+            <p class="font-bold text-amber-700 dark:text-amber-200 mb-0.5">
+                Não há campanha vigente no momento
+            </p>
+            <p class="text-amber-700/85 dark:text-amber-200/85">
+                Exibindo dados da última campanha cadastrada (<span id="mp-campanha-encerrada-nome" class="font-semibold"></span>).
+                Para iniciar uma nova, vá em <span class="font-semibold">Premiação Admin</span>.
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- Painel Suporte Comercial (abaixo do seletor) -->
+<div id="mp-suporte-painel" class="hidden max-w-7xl mx-auto px-4 lg:px-8 space-y-5 mb-5">
+    <div id="mp-equipe-suporte" class="mp-enter rounded-2xl border border-violet-500/30 bg-gradient-to-br from-violet-600/20 via-indigo-900/40 to-slate-900/80 p-6 sm:p-8 relative overflow-hidden">
+        <div class="mp-shimmer absolute inset-0 pointer-events-none"></div>
+        <div class="relative z-10">
+            <div class="flex items-center gap-2 mb-4">
+                <span class="material-symbols-outlined text-violet-300">groups</span>
+                <h2 class="text-sm font-bold text-violet-200 uppercase tracking-wider">Suporte Comercial — Time</h2>
+                <span id="mp-suporte-agentes-badge" class="ml-auto text-[10px] text-slate-400"></span>
+            </div>
+            <p class="text-[10px] text-slate-500 mb-3">Gráfico e calendário pela <strong>data de matrícula</strong> (base comercial, EM CURSO). PIX diário pela fila de aceite (todos consultores).</p>
+            <div id="mp-equipe-suporte-body" class="space-y-3"></div>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mp-enter mp-d1">
+        <div class="mp-card p-5 flex items-center gap-4 border-blue-500/20" style="background:linear-gradient(135deg,rgba(30,58,138,.45),rgba(15,23,42,.9))">
+            <div class="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-2xl text-blue-400">school</span>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-blue-200/70 uppercase tracking-widest">Matrículas no Período</p>
+                <p id="mp-suporte-kpi-mat" class="text-3xl sm:text-4xl font-black text-white mp-stat-value tabular-nums">0</p>
+            </div>
+        </div>
+        <div class="mp-card p-5 flex items-center gap-4 border-cyan-500/20" style="background:linear-gradient(135deg,rgba(8,145,178,.35),rgba(15,23,42,.9))">
+            <div class="w-12 h-12 rounded-xl bg-cyan-500/20 flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-2xl text-cyan-400">speed</span>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-cyan-200/70 uppercase tracking-widest">Média de Vendas</p>
+                <p id="mp-suporte-kpi-media" class="text-3xl sm:text-4xl font-black text-white mp-stat-value tabular-nums">0</p>
+                <p class="text-[10px] text-slate-500 mt-0.5">matrículas / dia útil</p>
+            </div>
+        </div>
+    </div>
+    <div class="mp-enter mp-d2">
+        <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
+            <span class="material-symbols-outlined text-sm text-blue-400">show_chart</span>
+            Matrículas por Dia
+        </h3>
+        <div class="mp-card p-5">
+            <div id="mp-suporte-mat-chart" style="min-height:300px"></div>
+        </div>
+    </div>
 </div>
 
 <!-- Loading -->
@@ -112,51 +198,9 @@
     <p class="text-slate-500 text-sm text-center">Nenhuma campanha ativa no momento.</p>
 </div>
 
-<!-- ═══ Sub-abas ═══ -->
-<div id="mp-tabs" class="hidden max-w-7xl mx-auto mb-4 px-1">
-    <div class="ds-segment w-fit max-w-full">
-        <button id="mp-tab-performance" onclick="_mpSwitchTab('performance')"
-            class="ds-segment__btn ds-segment__btn--active flex items-center gap-1 text-xs font-bold uppercase tracking-wider">
-            <span class="material-symbols-outlined text-sm align-middle">insights</span>Performance
-        </button>
-        <button id="mp-tab-matriculas" onclick="_mpSwitchTab('matriculas')"
-            class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-1 text-xs font-bold uppercase tracking-wider">
-            <span class="material-symbols-outlined text-sm align-middle">school</span>Minhas Matrículas
-        </button>
-    </div>
-</div>
-
-<!-- ═══ Conteúdo principal ═══ -->
-<div id="mp-content" class="hidden max-w-7xl mx-auto space-y-5 pb-12">
-
-    <!-- Seletor de campanha -->
-    <div id="mp-campanha-bar" class="mp-enter flex flex-wrap items-center gap-3 px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/40">
-        <span class="material-symbols-outlined text-base text-[var(--primary)]">emoji_events</span>
-        <span class="text-[11px] uppercase tracking-[.18em] font-bold text-slate-500">Campanha</span>
-        <select id="mp-campanha-select"
-                onchange="mpSelectCampanha()"
-                class="input-glass px-3 py-1.5 text-xs text-slate-900 dark:text-slate-200 min-w-[200px] flex-1 sm:flex-none">
-            <option value="">Carregando...</option>
-        </select>
-        <span id="mp-campanha-bar-status" class="text-[10px] text-slate-500"></span>
-    </div>
-
-    <!-- Aviso de campanha encerrada -->
-    <div id="mp-campanha-encerrada" class="hidden mp-enter rounded-xl border border-amber-400/35 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 flex items-start gap-3">
-        <span class="material-symbols-outlined text-amber-600 dark:text-amber-300 text-xl shrink-0">info</span>
-        <div class="text-xs leading-relaxed">
-            <p class="font-bold text-amber-700 dark:text-amber-200 mb-0.5">
-                Não há campanha vigente no momento
-            </p>
-            <p class="text-amber-700/85 dark:text-amber-200/85">
-                Exibindo dados da última campanha cadastrada (<span id="mp-campanha-encerrada-nome" class="font-semibold"></span>).
-                Para iniciar uma nova, vá em <span class="font-semibold">Premiação Admin</span>.
-            </p>
-        </div>
-    </div>
-
-    <!-- S1: Hero -->
-    <div id="mp-hero" class="mp-tier-base rounded-2xl p-6 sm:p-8 relative overflow-hidden mp-enter">
+<!-- S1: Hero — saldo no topo da página -->
+<div id="mp-hero-wrap" class="hidden max-w-7xl mx-auto px-4 lg:px-8 mb-4">
+    <div id="mp-hero" class="mp-agent-only mp-tier-base rounded-2xl p-6 sm:p-8 relative overflow-hidden mp-enter">
         <div class="mp-shimmer absolute inset-0 pointer-events-none"></div>
         <div class="relative z-10">
             <p id="mp-hero-campanha" class="text-[10px] text-white/50 uppercase tracking-[.2em] font-semibold mb-4"></p>
@@ -188,9 +232,13 @@
             </div>
         </div>
     </div>
+</div>
 
-        <!-- Níveis de Meta (incentive tiers — visão rápida em R$) -->
-        <div class="mp-enter mp-d1" id="mp-incentive-tiers-wrap">
+<!-- ═══ Conteúdo principal ═══ -->
+<div id="mp-content" class="hidden max-w-7xl mx-auto space-y-5 pb-12 px-4 lg:px-8">
+
+            <!-- Níveis de Meta (incentive tiers — visão rápida em R$) -->
+        <div class="mp-agent-only mp-enter mp-d1" id="mp-incentive-tiers-wrap">
             <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
                 <span class="material-symbols-outlined text-sm text-amber-500 dark:text-amber-400">workspace_premium</span>
                 Níveis de Meta
@@ -224,7 +272,7 @@
         </div>
 
         <!-- Ranking + Conquistas -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mp-enter mp-d2">
+        <div class="mp-agent-only grid grid-cols-1 lg:grid-cols-2 gap-4 mp-enter mp-d2">
             <div id="mp-ranking-card" class="hidden mp-card p-5 relative overflow-hidden">
                 <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-4 flex items-center gap-2">
                     <span class="material-symbols-outlined text-sm text-amber-400">leaderboard</span>
@@ -243,7 +291,7 @@
         </div>
 
         <!-- Desbloqueie Mais -->
-        <div id="mp-desbloqueie-wrap" class="mp-enter mp-d2">
+        <div id="mp-desbloqueie-wrap" class="mp-agent-only mp-enter mp-d2">
             <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
                 <span class="material-symbols-outlined text-sm text-amber-400">lock_open</span>
                 Desbloqueie Mais
@@ -252,7 +300,7 @@
         </div>
 
         <!-- Momentum -->
-        <div class="mp-enter mp-d3">
+        <div class="mp-agent-only mp-enter mp-d3">
             <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
                 <span class="material-symbols-outlined text-sm text-cyan-400">speed</span>
                 Momentum
@@ -286,7 +334,7 @@
         </div>
 
         <!-- Sequência + Heatmap -->
-        <div class="mp-enter mp-d4">
+        <div class="mp-agent-only mp-enter mp-d4">
             <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
                 <span class="material-symbols-outlined text-sm text-orange-400">whatshot</span>
                 Sequência
@@ -320,7 +368,7 @@
         </div>
 
         <!-- Progresso por Faixa -->
-        <div class="mp-enter mp-d5">
+        <div class="mp-agent-only mp-enter mp-d5">
             <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
                 <span class="material-symbols-outlined text-sm text-blue-400">bar_chart</span>
                 Progresso por Faixa
@@ -329,7 +377,7 @@
         </div>
 
         <!-- Resumo Financeiro -->
-        <div class="mp-enter mp-d5">
+        <div class="mp-agent-only mp-enter mp-d5">
             <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
                 <span class="material-symbols-outlined text-sm text-emerald-400">payments</span>
                 Resumo Financeiro
@@ -338,7 +386,7 @@
         </div>
 
         <!-- Timeline -->
-        <div class="mp-enter mp-d6">
+        <div class="mp-agent-only mp-enter mp-d6">
             <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
                 <span class="material-symbols-outlined text-sm text-indigo-400">timeline</span>
                 Timeline Diária
@@ -349,7 +397,7 @@
         </div>
 
         <!-- Histórico -->
-        <div id="mp-historico-wrap" class="mp-enter mp-d7">
+        <div id="mp-historico-wrap" class="mp-agent-only mp-enter mp-d7">
             <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-[.15em] mb-3 flex items-center gap-2">
                 <span class="material-symbols-outlined text-sm text-violet-400">history</span>
                 Campanhas Anteriores

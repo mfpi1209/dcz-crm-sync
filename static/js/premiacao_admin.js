@@ -64,7 +64,7 @@ function _paRenderCampanhasList() {
 }
 
 function _paFillCampanhaSelects() {
-    const ids = ['pa-metas-camp', 'pa-grupo-camp', 'pa-daily-camp'];
+    const ids = ['pa-metas-camp', 'pa-grupo-camp', 'pa-daily-camp', 'pa-suporte-camp'];
     ids.forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -231,6 +231,170 @@ async function paLoadMetasAgente() {
     } catch(e) {
         console.error('paLoadMetasAgente', e);
         if (wrap) wrap.innerHTML = '<p class="text-xs text-red-400">Erro ao carregar</p>';
+    }
+}
+
+function _paFaixaTableHtmlSuporte(rows, sab, label) {
+    const key = sab ? 'sab' : 'sem';
+    return `
+        <div class="mb-3">
+            <div class="flex items-center justify-between mb-1">
+                <span class="text-[10px] font-medium text-slate-500">${label}</span>
+                <button type="button" onclick="paAddFaixaRowSuporte(${sab})" class="text-[10px] text-cyan-500 hover:text-cyan-400">+ faixa</button>
+            </div>
+            <table id="pa-faixas-suporte-${key}" class="w-full text-[10px]">
+                <thead><tr class="text-slate-500"><th class="text-center pb-1">Matrículas</th><th class="text-center pb-1">PIX R$</th><th></th></tr></thead>
+                <tbody>${_paRenderFaixaRowsSuporte(rows, sab)}</tbody>
+            </table>
+        </div>`;
+}
+
+function _paRenderFaixaRowsSuporte(rows, sab) {
+    const list = rows.length ? rows : [{ min: '', valor: '' }];
+    return list.map(r => `
+        <tr>
+            <td class="px-1 py-1"><input type="number" min="1" value="${r.min}" data-sab="${sab ? '1' : '0'}" data-field="min" class="pa-pix-suporte-input input-glass px-1.5 py-1 text-center text-xs w-full"></td>
+            <td class="px-1 py-1"><input type="number" min="0" step="0.01" value="${r.valor}" data-sab="${sab ? '1' : '0'}" data-field="valor" class="pa-pix-suporte-input input-glass px-1.5 py-1 text-center text-xs w-full"></td>
+            <td class="px-1 py-1 w-8"><button type="button" onclick="paRemoveFaixaRow(this)" class="text-red-400 hover:text-red-300 text-xs">×</button></td>
+        </tr>
+    `).join('');
+}
+
+function paAddFaixaRowSuporte(sab) {
+    const tbody = document.querySelector(`#pa-faixas-suporte-${sab ? 'sab' : 'sem'} tbody`);
+    if (!tbody) return;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td class="px-1 py-1"><input type="number" min="1" value="" data-sab="${sab ? '1' : '0'}" data-field="min" class="pa-pix-suporte-input input-glass px-1.5 py-1 text-center text-xs w-full"></td>
+        <td class="px-1 py-1"><input type="number" min="0" step="0.01" value="" data-sab="${sab ? '1' : '0'}" data-field="valor" class="pa-pix-suporte-input input-glass px-1.5 py-1 text-center text-xs w-full"></td>
+        <td class="px-1 py-1 w-8"><button type="button" onclick="paRemoveFaixaRow(this)" class="text-red-400 hover:text-red-300 text-xs">×</button></td>
+    `;
+    tbody.appendChild(tr);
+}
+
+async function _paParseApiJson(raw) {
+    let res;
+    try {
+        res = await raw.json();
+    } catch (_) {
+        if (raw.status === 404) {
+            throw new Error('Rota não encontrada — faça deploy/restart do servidor');
+        }
+        throw new Error(`Resposta inválida (HTTP ${raw.status})`);
+    }
+    if (!raw.ok || res?.ok === false) {
+        throw new Error(res?.error || `HTTP ${raw.status}`);
+    }
+    return res;
+}
+
+async function paLoadPixSuporte(cid) {
+    const wrap = document.getElementById('pa-suporte-pix-wrap');
+    const grid = document.getElementById('pa-suporte-pix-grid');
+    if (!wrap || !grid || !cid) return;
+    wrap.classList.remove('hidden');
+    grid.innerHTML = '<p class="text-xs text-slate-500">Carregando PIX...</p>';
+    const res = await _paParseApiJson(await api(`/api/premiacao/campanhas/${cid}/pix-suporte`));
+    const faixas = res.faixas || [];
+    const semana = faixas.filter(f => !f.apenas_sabado).map(f => ({ min: f.min_matriculas, valor: f.valor }));
+    const sabado = faixas.filter(f => f.apenas_sabado).map(f => ({ min: f.min_matriculas, valor: f.valor }));
+    const empty = [{ min: '', valor: '' }];
+    grid.innerHTML =
+        _paFaixaTableHtmlSuporte(semana.length ? semana : empty, false, 'Dias úteis (seg–sex)') +
+        _paFaixaTableHtmlSuporte(sabado.length ? sabado : empty, true, 'Sábado');
+}
+
+async function paSavePixSuporte() {
+    const cid = document.getElementById('pa-suporte-camp')?.value;
+    if (!cid) { toast('Selecione uma campanha', 'error'); return; }
+    const faixas = [];
+    document.querySelectorAll('#pa-suporte-pix-grid tbody tr').forEach(tr => {
+        const minInp = tr.querySelector('[data-field="min"]');
+        const valInp = tr.querySelector('[data-field="valor"]');
+        if (!minInp || !valInp) return;
+        const mn = parseInt(minInp.value || 0);
+        const val = parseFloat(valInp.value || 0);
+        if (mn > 0 && val > 0) {
+            faixas.push({
+                min_matriculas: mn,
+                valor: val,
+                apenas_sabado: minInp.dataset.sab === '1',
+            });
+        }
+    });
+    if (!faixas.length) { toast('Preencha ao menos uma faixa', 'error'); return; }
+    const raw = await api(`/api/premiacao/campanhas/${cid}/pix-suporte`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ faixas }),
+    });
+    const res = await raw.json();
+    if (res?.ok) {
+        toast('PIX do Suporte salvo!');
+        await paLoadPixSuporte(cid);
+    } else {
+        toast(res?.error || 'Erro', 'error');
+    }
+}
+
+async function paLoadMetaSuporte() {
+    const cid = document.getElementById('pa-suporte-camp')?.value;
+    const fields = document.getElementById('pa-suporte-meta-fields');
+    const btn = document.getElementById('pa-suporte-salvar');
+    const info = document.getElementById('pa-suporte-agentes-info');
+    const pixWrap = document.getElementById('pa-suporte-pix-wrap');
+    if (!cid) {
+        fields?.classList.add('hidden');
+        btn?.classList.add('hidden');
+        info?.classList.add('hidden');
+        pixWrap?.classList.add('hidden');
+        return;
+    }
+    fields?.classList.remove('hidden');
+    btn?.classList.remove('hidden');
+    try {
+        const res = await _paParseApiJson(await api(`/api/premiacao/campanhas/${cid}/meta-suporte`));
+        const metaEl = document.getElementById('pa-suporte-meta');
+        if (metaEl) metaEl.value = res.meta > 0 ? res.meta : '';
+        if (info) {
+            const n = res.agentes_count || 0;
+            info.textContent = n
+                ? `${n} agente(s) Suporte Comercial no app`
+                : 'Nenhum usuário com categoria Suporte Comercial e Kommo vinculado';
+            info.classList.remove('hidden');
+        }
+    } catch (e) {
+        console.error('paLoadMetaSuporte', e);
+        toast(e?.message || 'Erro ao carregar meta do suporte', 'error');
+        return;
+    }
+    try {
+        await paLoadPixSuporte(cid);
+    } catch (e) {
+        console.error('paLoadPixSuporte', e);
+        toast(e?.message || 'Meta OK, mas falha ao carregar PIX do suporte', 'warning');
+    }
+}
+
+async function paSaveMetaSuporte() {
+    const cid = document.getElementById('pa-suporte-camp')?.value;
+    if (!cid) { toast('Selecione uma campanha', 'error'); return; }
+    const metaVal = parseFloat(document.getElementById('pa-suporte-meta')?.value || 0);
+    if (!metaVal || metaVal <= 0) {
+        toast('Informe a meta do time', 'error');
+        return;
+    }
+    const body = { meta: metaVal };
+    const raw = await api(`/api/premiacao/campanhas/${cid}/meta-suporte`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    const res = await raw.json();
+    if (res?.ok) {
+        toast(`Meta do time salva (${res.agentes_count || 0} agentes no suporte)`);
+    } else {
+        toast(res?.error || 'Erro', 'error');
     }
 }
 

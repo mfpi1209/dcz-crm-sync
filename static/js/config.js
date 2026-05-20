@@ -448,6 +448,7 @@ const CATEGORY_PRESETS = {
     ],
     'Suporte Comercial': [
         ..._PRESET_FERRAMENTAS_BASIC,
+        'minha_performance', 'premiacao_admin',
         'search', 'avisos',
     ],
     // Geral (Dashboard, Buscar, Avisos) + Ferramentas completas + Comercial
@@ -530,7 +531,7 @@ const PAGE_GROUPS_CONFIG = [
         icon: 'trending_up',
         color: 'var(--secondary)',
         pages: [
-            'dist_consultor', 'comercial_rgm', 'dist_comercial', 'inscricao',
+            'dist_consultor', 'comercial_rgm', 'premiacao_admin', 'dist_comercial', 'inscricao',
             'recadastros', 'comercial_dashboard', 'auditoria_comercial',
             'atualizar_preco', 'leads_parados', 'minha_performance', 'repasse',
             'captacao', 'clicks', 'leads_promotores',
@@ -568,7 +569,7 @@ const PAGE_GROUPS_CONFIG = [
         color: 'var(--outline)',
         pages: [
             'config', 'schedule', 'kommo_dispatcher', 'logs',
-            'premiacao_admin', 'ajustes_matricula',
+            'ajustes_matricula',
         ],
     },
     {

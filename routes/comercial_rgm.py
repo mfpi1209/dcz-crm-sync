@@ -410,6 +410,50 @@ def _crgm_periodo_data(dt_ini=None, dt_fim=None, polo=None, nivel=None, ciclo_fi
                 pass
 
 
+def comercial_periodo_vendas_resumo(dt_ini=None, dt_fim=None, polo=None, nivel=None):
+    """
+    Mesma agregação de /api/comercial-rgm/data (KPI vendas bruto + evolução EM CURSO).
+    Usado pelo painel Suporte Comercial em Minha Performance.
+    """
+    rows = _crgm_periodo_data(dt_ini=dt_ini, dt_fim=dt_fim, polo=polo, nivel=nivel) or []
+    rgms_periodo = set()
+    rgms_bruto = set()
+    day_rgms = defaultdict(set)
+    day_rgms_bruto = defaultdict(set)
+    for row in rows:
+        n = row.get("rgm")
+        if not n:
+            continue
+        rgms_bruto.add(n)
+        dm = row.get("data_matricula")
+        dt = None
+        if dm:
+            try:
+                dt = date.fromisoformat(str(dm)[:10])
+            except (ValueError, TypeError):
+                dt = None
+        if dt:
+            day_rgms_bruto[dt].add(n)
+        if row.get("situacao") == "EM CURSO":
+            rgms_periodo.add(n)
+            if dt:
+                day_rgms[dt].add(n)
+    day_counts = {d: len(s) for d, s in day_rgms.items()}
+    dias = len(day_counts) or 1
+    vendas = len(rgms_bruto)
+    vendas_liquidas = len(rgms_periodo)
+    media_diaria = round(vendas_liquidas / dias, 1) if dias else 0
+    evolucao = [{"data": d.isoformat(), "count": c} for d, c in sorted(day_counts.items())]
+    return {
+        "vendas": vendas,
+        "vendas_liquidas": vendas_liquidas,
+        "media_diaria": media_diaria,
+        "dias": dias,
+        "evolucao": evolucao,
+        "mat_by_date": day_counts,
+    }
+
+
 def _pg_kommo():
     return psycopg2.connect(**KOMMO_DB_DSN)
 

@@ -80,6 +80,154 @@ def _is_admin():
     return session.get("role") == "admin"
 
 
+_suporte_uids_cache = None
+
+
+def _can_manage_premiacao():
+    """Admin ou permissão à página Premiação."""
+    if _is_admin():
+        return True
+    uid = session.get("user_id")
+    if uid is None:
+        return False
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT 1 FROM user_permissions WHERE user_id = %s AND page = %s",
+            (uid, "premiacao_admin"),
+        )
+        ok = cur.fetchone() is not None
+        cur.close()
+        conn.close()
+        return ok
+    except Exception:
+        return False
+
+
+def _get_suporte_kommo_uids():
+    """Kommo IDs de app_users com categoria Suporte Comercial (ou login do time)."""
+    global _suporte_uids_cache
+    if _suporte_uids_cache is not None:
+        return _suporte_uids_cache
+    try:
+        from helpers import SUPORTE_COMERCIAL_LOGINS
+
+        logins = list(SUPORTE_COMERCIAL_LOGINS)
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT DISTINCT kommo_user_id FROM app_users
+            WHERE kommo_user_id IS NOT NULL AND kommo_user_id > 0
+              AND (
+                LOWER(TRIM(COALESCE(categoria, ''))) = 'suporte comercial'
+                OR LOWER(TRIM(username)) = ANY(%s)
+              )
+        """, (logins,))
+        _suporte_uids_cache = [int(r[0]) for r in cur.fetchall()]
+        cur.close()
+        conn.close()
+    except Exception:
+        _suporte_uids_cache = []
+    return _suporte_uids_cache
+
+
+def _is_suporte_agent(kommo_uid):
+    if kommo_uid is None:
+        return False
+    try:
+        return int(kommo_uid) in _get_suporte_kommo_uids()
+    except (TypeError, ValueError):
+        return False
+
+
+def _get_suporte_team_matriculas(dt_ini, dt_fim):
+    """Legado: matrículas por agente Suporte. Preferir _aggregate_comercial_periodo_vendas."""
+    uids = _get_suporte_kommo_uids()
+    if not uids:
+        return []
+    seen = set()
+    out = []
+    for uid in uids:
+        for m in _get_agent_matriculas(uid, dt_ini, dt_fim, only_em_curso=True):
+            rgm = _normalize_rgm(m.get("rgm"))
+            if rgm and rgm not in seen:
+                seen.add(rgm)
+                out.append(m)
+    return out
+
+
+def _aggregate_comercial_periodo_vendas(dt_ini, dt_fim):
+    """KPI bruto + série EM CURSO — idêntico ao Dashboard Comercial."""
+    empty = {
+        "total": 0,
+        "total_liquido": 0,
+        "mat_by_date": {},
+        "dias_com_venda": 1,
+        "media_diaria": 0,
+        "evolucao": [],
+    }
+    try:
+        from routes.comercial_rgm import comercial_periodo_vendas_resumo
+        r = comercial_periodo_vendas_resumo(dt_ini=dt_ini, dt_fim=dt_fim)
+    except Exception as e:
+        logger.exception("comercial_periodo_vendas_resumo falhou: %s", e)
+        return empty
+    return {
+        "total": r.get("vendas", 0),
+        "total_liquido": r.get("vendas_liquidas", 0),
+        "mat_by_date": r.get("mat_by_date") or {},
+        "dias_com_venda": r.get("dias") or 1,
+        "media_diaria": r.get("media_diaria", 0),
+        "evolucao": r.get("evolucao") or [],
+    }
+
+
+def _get_meta_suporte(campanha_id):
+    try:
+        from db import _ensure_suporte_tables
+        _ensure_suporte_tables()
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT meta, meta_intermediaria, supermeta
+            FROM premiacao_meta_suporte WHERE campanha_id = %s
+        """, (campanha_id,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if not row:
+            return {"meta": 0, "intermediaria": 0, "supermeta": 0}
+        return {
+            "meta": float(row[0] or 0),
+            "intermediaria": float(row[1] or 0),
+            "supermeta": float(row[2] or 0),
+        }
+    except Exception as e:
+        logger.warning("meta suporte load: %s", e)
+        return {"meta": 0, "intermediaria": 0, "supermeta": 0}
+
+
+def _build_meta_equipe_suporte(campanha_id, dt_ini, dt_fim, viewer_kommo_uid=None, allow_empty_meta=False):
+    """Meta unificada do Suporte: apenas um alvo (matrículas do time)."""
+    sm = _get_meta_suporte(campanha_id)
+    meta_val = float(sm.get("meta", 0) or 0)
+    if meta_val <= 0 and not allow_empty_meta:
+        return None
+    vendas = _aggregate_comercial_periodo_vendas(dt_ini, dt_fim)
+    team_total = vendas["total"]
+    pct = round(team_total / meta_val * 100, 1) if meta_val > 0 else 0
+    return {
+        "meta": meta_val,
+        "total_matriculas": team_total,
+        "pct": pct,
+        "meta_batida": meta_val > 0 and team_total >= meta_val,
+        "agentes_count": len(_get_suporte_kommo_uids()),
+        "matriculas_fonte": "comercial",
+        "is_suporte": _is_suporte_agent(viewer_kommo_uid) or _suporte_equipe_requested(),
+    }
+
+
 def _get_kommo_uid():
     """Return kommo_user_id for the current session user."""
     uid = session.get("user_id", 0)
@@ -96,14 +244,35 @@ def _get_kommo_uid():
         return None
 
 
+def _suporte_equipe_requested():
+    if request.args.get("suporte_equipe") in ("1", "true", "yes"):
+        return True
+    uid = request.args.get("kommo_uid")
+    return uid is not None and str(uid).strip() == "suporte_equipe"
+
+
 def _resolve_kommo_uid(args_uid=None):
-    """Resolve which kommo_user_id to use. Admin can pass ?kommo_uid=X."""
-    if _is_admin() and args_uid:
+    """Resolve which kommo_user_id to use. Admin / Premiação can pass ?kommo_uid=X."""
+    if _suporte_equipe_requested():
+        uids = _get_suporte_kommo_uids()
+        if uids:
+            return uids[0]
+        if _is_admin() or _can_manage_premiacao():
+            return _get_kommo_uid()
+        return None
+    can_pick = _is_admin() or _can_manage_premiacao()
+    if can_pick and args_uid:
         try:
             return int(args_uid)
         except (ValueError, TypeError):
             pass
     return _get_kommo_uid()
+
+
+def _use_suporte_painel(kommo_uid):
+    if _suporte_equipe_requested():
+        return True
+    return _is_suporte_agent(kommo_uid)
 
 
 def _load_conflito_overrides() -> dict:
@@ -631,8 +800,163 @@ def _pix_valor_from_faixas(realizadas, faixas):
     return 0.0, 0
 
 
+def _matriculas_to_by_date(matriculas):
+    mat_by_date = defaultdict(int)
+    for m in matriculas:
+        dm = m.get("data_matricula")
+        if not dm:
+            continue
+        if isinstance(dm, str):
+            try:
+                dm = datetime.strptime(dm[:10], "%Y-%m-%d").date()
+            except Exception:
+                continue
+        mat_by_date[dm] += 1
+    return mat_by_date
+
+
+def _all_consultants_aceites_by_date(dt_ini_str, dt_fim_str):
+    """Aceites na fila Kommo (status Aceite) agregados de todos os consultores."""
+    aceites_by_date = defaultdict(int)
+    try:
+        ace_ids = _get_aceite_status_ids()
+        if ace_ids:
+            ace_ph = ",".join(["%s"] * len(ace_ids))
+            dt_ini = datetime.strptime(dt_ini_str, "%Y-%m-%d").date()
+            ini_ts = int(datetime.combine(dt_ini, datetime.min.time(), tzinfo=BRT).timestamp())
+            kconn = _pg_kommo()
+            kcur = kconn.cursor()
+            kcur.execute(f"""
+                SELECT DATE(to_timestamp(updated_at) AT TIME ZONE 'America/Sao_Paulo') AS dt, COUNT(*)
+                FROM leads
+                WHERE status_id IN ({ace_ph})
+                  AND NOT is_deleted
+                  AND updated_at >= %s
+                GROUP BY dt
+            """, ace_ids + [ini_ts])
+            for row in kcur.fetchall():
+                if row[0]:
+                    aceites_by_date[row[0]] = row[1]
+            kcur.close()
+            kconn.close()
+    except Exception as e:
+        logger.warning("all consultants aceites by date: %s", e)
+    return aceites_by_date
+
+
+def _epoch_range_brt(dt_ini, dt_fim):
+    """Intervalo epoch (início/fim do dia) em America/Sao_Paulo."""
+    ep_ini = int(datetime.combine(dt_ini, datetime.min.time(), tzinfo=BRT).timestamp())
+    ep_fim = int(datetime.combine(dt_fim, datetime.min.time(), tzinfo=BRT).timestamp()) + 86399
+    return ep_ini, ep_fim
+
+
+def _all_consultants_ganhos_by_date(dt_ini_str, dt_fim_str):
+    """Fechados ganhos (status 142) por dia de closed_at — todos os consultores."""
+    ganhos_by_date = defaultdict(int)
+    try:
+        dt_ini = datetime.strptime(dt_ini_str, "%Y-%m-%d").date()
+        dt_fim = datetime.strptime(dt_fim_str, "%Y-%m-%d").date()
+        ep_ini, ep_fim = _epoch_range_brt(dt_ini, dt_fim)
+        kconn = _pg_kommo()
+        kcur = kconn.cursor()
+        kcur.execute("""
+            SELECT DATE(to_timestamp(l.closed_at) AT TIME ZONE 'America/Sao_Paulo') AS dt,
+                   COUNT(*)
+            FROM leads l
+            WHERE l.status_id = 142
+              AND NOT l.is_deleted
+              AND l.closed_at IS NOT NULL
+              AND l.closed_at > 0
+              AND l.closed_at >= %s
+              AND l.closed_at <= %s
+            GROUP BY dt
+        """, [ep_ini, ep_fim])
+        for row in kcur.fetchall():
+            if row[0]:
+                ganhos_by_date[row[0]] = row[1]
+        kcur.close()
+        kconn.close()
+    except Exception as e:
+        logger.warning("all consultants ganhos by date: %s", e)
+    return ganhos_by_date
+
+
+def _all_consultants_aceites_fila():
+    """Total na fila de aceite (todos os consultores)."""
+    try:
+        ace_ids = _get_aceite_status_ids()
+        if ace_ids:
+            ace_ph = ",".join(["%s"] * len(ace_ids))
+            kconn = _pg_kommo()
+            kcur = kconn.cursor()
+            kcur.execute(f"""
+                SELECT COUNT(*) FROM leads
+                WHERE status_id IN ({ace_ph})
+                  AND NOT is_deleted
+            """, ace_ids)
+            n = kcur.fetchone()[0] or 0
+            kcur.close()
+            kconn.close()
+            return n
+    except Exception as e:
+        logger.warning("all consultants aceites fila: %s", e)
+    return 0
+
+
+def _pix_counts_mat_plus_aceites(mat_by_date, aceites_by_date):
+    """Soma matrículas + aceites por dia (mesma regra dos consultores, escopo agregado)."""
+    combined = defaultdict(int)
+    for d, v in (mat_by_date or {}).items():
+        combined[d] += v
+    for d, v in (aceites_by_date or {}).items():
+        combined[d] += v
+    return combined
+
+
+def _suporte_team_daily_counts(dt_ini_str, dt_fim_str):
+    """Matrículas por data_matricula (base comercial, EM CURSO) + aceites Kommo por dia."""
+    vendas = _aggregate_comercial_periodo_vendas(dt_ini_str, dt_fim_str)
+    mat_by_date = vendas["mat_by_date"]
+    aceites_by_date = _all_consultants_aceites_by_date(dt_ini_str, dt_fim_str)
+    return mat_by_date, aceites_by_date
+
+
+def _get_pix_faixas_for_suporte(campanha_id):
+    """Faixas PIX do time Suporte (matrículas somadas do time no dia)."""
+    try:
+        from db import _ensure_suporte_tables
+        _ensure_suporte_tables()
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT min_matriculas, valor, apenas_sabado
+            FROM premiacao_pix_suporte
+            WHERE campanha_id = %s
+            ORDER BY apenas_sabado, min_matriculas
+        """, (campanha_id,))
+        semana, sabado = [], []
+        for mn, val, sab in cur.fetchall():
+            item = {"min": int(mn), "valor": float(val)}
+            (sabado if sab else semana).append(item)
+        cur.close()
+        conn.close()
+        if not semana and not sabado:
+            return None
+        for lst in (semana, sabado):
+            lst.sort(key=lambda x: -x["min"])
+        return {"suporte_equipe": True, "semana": semana, "sabado": sabado}
+    except Exception as e:
+        logger.warning("pix suporte load: %s", e)
+        return None
+
+
 def _get_pix_faixas_for_agent(campanha_id, kommo_uid):
     """Faixas PIX da equipe (grupo) do agente na campanha."""
+    if _is_suporte_agent(kommo_uid) or _suporte_equipe_requested():
+        su = _get_pix_faixas_for_suporte(campanha_id)
+        if su:
+            return su
     try:
         conn = _pg()
         cur = conn.cursor()
@@ -807,6 +1131,77 @@ def _calc_daily_premiacao(matriculas, daily_config, dt_ini, dt_fim, pix_faixas=N
     return breakdown, total_bonus, dias_batidos, dias_total
 
 
+def _calc_daily_premiacao_from_counts(counts_by_date, daily_config, dt_ini, dt_fim, pix_faixas=None):
+    """PIX diário a partir de contagem por dia (ex.: aceites do time Suporte)."""
+    DIA_NAMES = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
+    if not isinstance(counts_by_date, dict):
+        counts_by_date = dict(counts_by_date or {})
+
+    d_ini = datetime.strptime(dt_ini, "%Y-%m-%d").date() if isinstance(dt_ini, str) else dt_ini
+    d_fim = datetime.strptime(dt_fim, "%Y-%m-%d").date() if isinstance(dt_fim, str) else dt_fim
+    today = datetime.now(BRT).date()
+    if d_fim > today:
+        d_fim = today
+
+    breakdown = []
+    total_bonus = 0.0
+    dias_batidos = 0
+    dias_total = 0
+
+    d = d_ini
+    while d <= d_fim:
+        dow = d.weekday()
+        realizadas = int(counts_by_date.get(d, 0) or 0)
+
+        if pix_faixas:
+            faixas_list = _faixas_for_dow(pix_faixas, dow)
+            if not faixas_list:
+                d += timedelta(days=1)
+                continue
+            dias_total += 1
+            valor, meta_hit = _pix_valor_from_faixas(realizadas, faixas_list)
+            if valor > 0:
+                dias_batidos += 1
+            total_bonus += valor
+            breakdown.append({
+                "data": d.isoformat(),
+                "dia_semana": dow,
+                "dia_nome": DIA_NAMES[dow],
+                "meta": meta_hit,
+                "realizadas": realizadas,
+                "bonus_fixo": valor,
+                "bonus_extra": 0.0,
+                "total": valor,
+                "modo": "faixas",
+            })
+        else:
+            cfg = daily_config.get(dow, {})
+            meta = cfg.get("meta", 0)
+            fixo = cfg.get("fixo", 0)
+            extra = cfg.get("extra", 0)
+            if meta > 0:
+                dias_total += 1
+                b_fixo = fixo if realizadas >= meta else 0.0
+                b_extra = extra * max(0, realizadas - meta) if realizadas > meta else 0.0
+                total_dia = b_fixo + b_extra
+                if realizadas >= meta:
+                    dias_batidos += 1
+                total_bonus += total_dia
+                breakdown.append({
+                    "data": d.isoformat(),
+                    "dia_semana": dow,
+                    "dia_nome": DIA_NAMES[dow],
+                    "meta": meta,
+                    "realizadas": realizadas,
+                    "bonus_fixo": b_fixo,
+                    "bonus_extra": b_extra,
+                    "total": total_dia,
+                })
+        d += timedelta(days=1)
+
+    return breakdown, total_bonus, dias_batidos, dias_total
+
+
 def _determine_tier(total_mat, metas):
     """Determine which tier the agent reached. Always returns a tier (base if none)."""
     sup = metas.get("supermeta", 0)
@@ -930,7 +1325,7 @@ def api_minha_performance():
     except Exception:
         pass
 
-    return jsonify({
+    payload = {
         "ok": True,
         "agent_name": agent_name,
         "kommo_uid": kommo_uid,
@@ -949,7 +1344,11 @@ def api_minha_performance():
         "falta_inter": max(0, metas["intermediaria"] - total) if metas["intermediaria"] > 0 else None,
         "falta_meta": max(0, metas["meta"] - total) if metas["meta"] > 0 else None,
         "falta_super": max(0, metas["supermeta"] - total) if metas["supermeta"] > 0 else None,
-    })
+    }
+    equipe = _build_meta_equipe_suporte(campanha["id"], dt_ini, dt_fim, kommo_uid)
+    if equipe:
+        payload["meta_equipe_suporte"] = equipe
+    return jsonify(payload)
 
 
 @minha_performance_bp.route("/api/minha-performance/premiacao")
@@ -980,9 +1379,16 @@ def api_minha_premiacao():
     # Daily bonus
     pix_faixas = _get_pix_faixas_for_agent(cid, kommo_uid)
     daily_config = {} if pix_faixas else _get_daily_config(cid, kommo_uid)
-    breakdown, daily_bonus_total, dias_batidos, dias_total = _calc_daily_premiacao(
-        matriculas, daily_config, dt_ini, dt_fim, pix_faixas=pix_faixas
-    )
+    suporte_pix = bool(pix_faixas and pix_faixas.get("suporte_equipe"))
+    if suporte_pix:
+        mat_by_p, _ = _suporte_team_daily_counts(dt_ini, dt_fim)
+        breakdown, daily_bonus_total, dias_batidos, dias_total = _calc_daily_premiacao_from_counts(
+            mat_by_p, daily_config, dt_ini, dt_fim, pix_faixas=pix_faixas
+        )
+    else:
+        breakdown, daily_bonus_total, dias_batidos, dias_total = _calc_daily_premiacao(
+            matriculas, daily_config, dt_ini, dt_fim, pix_faixas=pix_faixas
+        )
 
     # Recebimentos bonus
     receb_bonus_total = 0.0
@@ -1073,9 +1479,16 @@ def api_minha_historico():
 
         pix_f = _get_pix_faixas_for_agent(c["id"], kommo_uid)
         daily_config = {} if pix_f else _get_daily_config(c["id"], kommo_uid)
-        _, daily_bonus, dias_batidos, dias_total = _calc_daily_premiacao(
-            matriculas, daily_config, dt_ini, dt_fim, pix_faixas=pix_f
-        )
+        suporte_pix_h = bool(pix_f and pix_f.get("suporte_equipe"))
+        if suporte_pix_h:
+            mat_by_h, _ = _suporte_team_daily_counts(dt_ini, dt_fim)
+            _, daily_bonus, dias_batidos, dias_total = _calc_daily_premiacao_from_counts(
+                mat_by_h, daily_config, dt_ini, dt_fim, pix_faixas=pix_f
+            )
+        else:
+            _, daily_bonus, dias_batidos, dias_total = _calc_daily_premiacao(
+                matriculas, daily_config, dt_ini, dt_fim, pix_faixas=pix_f
+            )
 
         history.append({
             "campanha_id": c["id"],
@@ -1119,8 +1532,10 @@ def api_minha_insights():
     metas = _get_agent_metas(kommo_uid, dt_ini_str, dt_fim_str)
     tier = _determine_tier(total_mat, metas)
 
+    suporte_modo = _use_suporte_painel(kommo_uid)
     pix_faixas = _get_pix_faixas_for_agent(cid, kommo_uid)
     daily_config = {} if pix_faixas else _get_daily_config(cid, kommo_uid)
+    suporte_pix = bool(pix_faixas and pix_faixas.get("suporte_equipe"))
 
     def _count_work_days(start, end):
         count = 0
@@ -1159,16 +1574,11 @@ def api_minha_insights():
     projecao = total_mat + round(pace_atual * dias_uteis_restantes)
     projecao_tier = _determine_tier(projecao, metas)
 
-    mat_by_date = defaultdict(int)
-    for m in matriculas:
-        dm = m.get("data_matricula")
-        if dm:
-            if isinstance(dm, str):
-                try:
-                    dm = datetime.strptime(dm[:10], "%Y-%m-%d").date()
-                except Exception:
-                    continue
-            mat_by_date[dm] += 1
+    if suporte_modo or suporte_pix:
+        mat_by_date, aceites_by_date = _suporte_team_daily_counts(dt_ini_str, dt_fim_str)
+    else:
+        mat_by_date = _matriculas_to_by_date(matriculas)
+        aceites_by_date = defaultdict(int)
 
     today_mat = mat_by_date.get(today, 0)
     yesterday = today - timedelta(days=1)
@@ -1177,55 +1587,67 @@ def api_minha_insights():
     # Aceites na fila do Kommo (leads em qualquer stage "Aceite")
     aceites_fila = 0
     aceites_hoje = 0
-    aceites_by_date = defaultdict(int)
-    try:
-        ace_ids = _get_aceite_status_ids()
-        if ace_ids:
-            ace_ph = ",".join(["%s"] * len(ace_ids))
-            kconn_ac = _pg_kommo()
-            kcur_ac = kconn_ac.cursor()
-            kcur_ac.execute(f"""
-                SELECT COUNT(*) FROM leads
-                WHERE responsible_user_id = %s
-                  AND status_id IN ({ace_ph})
-                  AND NOT is_deleted
-            """, [kommo_uid] + ace_ids)
-            aceites_fila = kcur_ac.fetchone()[0] or 0
-            today_ts = int(datetime.combine(today, datetime.min.time(), tzinfo=BRT).timestamp())
-            kcur_ac.execute(f"""
-                SELECT COUNT(*) FROM leads
-                WHERE responsible_user_id = %s
-                  AND status_id IN ({ace_ph})
-                  AND NOT is_deleted
-                  AND updated_at >= %s
-            """, [kommo_uid] + ace_ids + [today_ts])
-            aceites_hoje = kcur_ac.fetchone()[0] or 0
+    if not suporte_pix:
+        try:
+            ace_ids = _get_aceite_status_ids()
+            if ace_ids:
+                ace_ph = ",".join(["%s"] * len(ace_ids))
+                kconn_ac = _pg_kommo()
+                kcur_ac = kconn_ac.cursor()
+                kcur_ac.execute(f"""
+                    SELECT COUNT(*) FROM leads
+                    WHERE responsible_user_id = %s
+                      AND status_id IN ({ace_ph})
+                      AND NOT is_deleted
+                """, [kommo_uid] + ace_ids)
+                aceites_fila = kcur_ac.fetchone()[0] or 0
+                today_ts = int(datetime.combine(today, datetime.min.time(), tzinfo=BRT).timestamp())
+                kcur_ac.execute(f"""
+                    SELECT COUNT(*) FROM leads
+                    WHERE responsible_user_id = %s
+                      AND status_id IN ({ace_ph})
+                      AND NOT is_deleted
+                      AND updated_at >= %s
+                """, [kommo_uid] + ace_ids + [today_ts])
+                aceites_hoje = kcur_ac.fetchone()[0] or 0
 
-            ini_ts = int(datetime.combine(dt_ini, datetime.min.time(), tzinfo=BRT).timestamp())
-            kcur_ac.execute(f"""
-                SELECT DATE(to_timestamp(updated_at)) AS dt, COUNT(*)
-                FROM leads
-                WHERE responsible_user_id = %s
-                  AND status_id IN ({ace_ph})
-                  AND NOT is_deleted
-                  AND updated_at >= %s
-                GROUP BY dt
-            """, [kommo_uid] + ace_ids + [ini_ts])
-            for row in kcur_ac.fetchall():
-                if row[0]:
-                    aceites_by_date[row[0]] = row[1]
+                ini_ts = int(datetime.combine(dt_ini, datetime.min.time(), tzinfo=BRT).timestamp())
+                kcur_ac.execute(f"""
+                    SELECT DATE(to_timestamp(updated_at) AT TIME ZONE 'America/Sao_Paulo') AS dt, COUNT(*)
+                    FROM leads
+                    WHERE responsible_user_id = %s
+                      AND status_id IN ({ace_ph})
+                      AND NOT is_deleted
+                      AND updated_at >= %s
+                    GROUP BY dt
+                """, [kommo_uid] + ace_ids + [ini_ts])
+                for row in kcur_ac.fetchall():
+                    if row[0]:
+                        aceites_by_date[row[0]] = row[1]
 
-            logger.info("Aceites uid=%s: fila=%d, hoje=%d, by_date=%d days (status_ids=%s)",
-                         kommo_uid, aceites_fila, aceites_hoje, len(aceites_by_date), ace_ids)
-            kcur_ac.close()
-            kconn_ac.close()
-        else:
-            logger.info("No aceite status IDs found, skipping aceites queries")
-    except Exception as e:
-        logger.warning("Error fetching aceites: %s", e)
+                logger.info("Aceites uid=%s: fila=%d, hoje=%d, by_date=%d days (status_ids=%s)",
+                             kommo_uid, aceites_fila, aceites_hoje, len(aceites_by_date), ace_ids)
+                kcur_ac.close()
+                kconn_ac.close()
+            else:
+                logger.info("No aceite status IDs found, skipping aceites queries")
+        except Exception as e:
+            logger.warning("Error fetching aceites: %s", e)
+    else:
+        aceites_hoje = aceites_by_date.get(today, 0)
+        aceites_fila = _all_consultants_aceites_fila()
 
-    today_realizadas = today_mat + aceites_by_date.get(today, 0)
-    yesterday_realizadas = yesterday_mat + aceites_by_date.get(yesterday, 0)
+    if suporte_pix:
+        aceites_fila = _all_consultants_aceites_fila()
+        aceites_hoje = aceites_fila
+        today_realizadas = aceites_fila
+        yesterday_realizadas = mat_by_date.get(yesterday, 0)
+    elif suporte_modo:
+        today_realizadas = mat_by_date.get(today, 0)
+        yesterday_realizadas = mat_by_date.get(yesterday, 0)
+    else:
+        today_realizadas = today_mat + aceites_by_date.get(today, 0)
+        yesterday_realizadas = yesterday_mat + aceites_by_date.get(yesterday, 0)
 
     dow_today = today.weekday()
     if pix_faixas:
@@ -1243,14 +1665,17 @@ def api_minha_insights():
         today_fixo = today_cfg.get("fixo", 0)
         today_extra = today_cfg.get("extra", 0)
 
-    # Streak: consecutive days hitting daily target (mat + aceites)
+    # Streak: dias consecutivos batendo meta PIX (aceites no Suporte; mat+aceites nos demais)
     sequencia = 0
     d = effective_end
     while d >= dt_ini:
         if pix_faixas:
             fl = _faixas_for_dow(pix_faixas, d.weekday())
             if fl:
-                day_total = mat_by_date.get(d, 0) + aceites_by_date.get(d, 0)
+                if suporte_pix or suporte_modo:
+                    day_total = mat_by_date.get(d, 0)
+                else:
+                    day_total = mat_by_date.get(d, 0) + aceites_by_date.get(d, 0)
                 valor, _ = _pix_valor_from_faixas(day_total, fl)
                 if valor > 0:
                     sequencia += 1
@@ -1277,9 +1702,16 @@ def api_minha_insights():
         dmeta = dcfg.get("meta", 0)
         if fl:
             dmeta = min(f["min"] for f in fl)
-        mat_count = mat_by_date.get(d, 0) if d <= today else None
-        ace_count = aceites_by_date.get(d, 0) if d <= today else 0
-        realizadas = (mat_count + ace_count) if mat_count is not None else None
+        if suporte_pix or suporte_modo:
+            # Mesma base do gráfico Matrículas por Dia: data_matricula, situação EM CURSO
+            vendas_dia = mat_by_date.get(d, 0) if d <= today else 0
+            mat_count = vendas_dia if d <= today else None
+            ace_count = aceites_by_date.get(d, 0) if d <= today else 0
+            realizadas = vendas_dia if d <= today else None
+        else:
+            mat_count = mat_by_date.get(d, 0) if d <= today else None
+            ace_count = aceites_by_date.get(d, 0) if d <= today else 0
+            realizadas = (mat_count + ace_count) if mat_count is not None else None
         status = "future"
         if d <= today:
             if fl and realizadas is not None:
@@ -1340,9 +1772,14 @@ def api_minha_insights():
     tier_valor = tier_bonuses.get(tier, 0)
     tier_bonus_total = tier_valor * total_mat
 
-    breakdown, daily_bonus_total, dias_batidos, dias_total = _calc_daily_premiacao(
-        matriculas, daily_config, dt_ini_str, dt_fim_str, pix_faixas=pix_faixas
-    )
+    if suporte_pix:
+        breakdown, daily_bonus_total, dias_batidos, dias_total = _calc_daily_premiacao_from_counts(
+            mat_by_date, daily_config, dt_ini_str, dt_fim_str, pix_faixas=pix_faixas
+        )
+    else:
+        breakdown, daily_bonus_total, dias_batidos, dias_total = _calc_daily_premiacao(
+            matriculas, daily_config, dt_ini_str, dt_fim_str, pix_faixas=pix_faixas
+        )
 
     receb_bonus_total = 0.0
     receb_total_valor = 0.0
@@ -1700,13 +2137,48 @@ def api_minha_insights():
     }
     if unificado:
         result["unificado"] = unificado
+    equipe = _build_meta_equipe_suporte(
+        cid, dt_ini_str, dt_fim_str, kommo_uid,
+        allow_empty_meta=suporte_modo,
+    )
+    if equipe:
+        result["meta_equipe_suporte"] = equipe
+    if suporte_pix:
+        result["pix_suporte_equipe"] = True
+        result["pix_fonte_fila"] = True
+    if suporte_modo:
+        result["painel_suporte"] = True
+        result["suporte_equipe_view"] = bool(_suporte_equipe_requested())
+        vendas_time = _aggregate_comercial_periodo_vendas(dt_ini_str, dt_fim_str)
+        team_mats = equipe.get("total_matriculas", 0) if equipe else vendas_time["total"]
+        team_pace = vendas_time.get("media_diaria", 0)
+        if not team_pace and vendas_time["dias_com_venda"]:
+            team_pace = round(
+                team_mats / vendas_time["dias_com_venda"], 1
+            )
+        result["media_vendas"] = team_pace
+        result["pace_atual"] = team_pace
+        chart_mat = [
+            {"data": p["data"], "matriculas": int(p["count"])}
+            for p in vendas_time.get("evolucao") or []
+            if date.fromisoformat(p["data"][:10]) <= min(dt_fim, today)
+        ]
+        if not chart_mat:
+            chart_mat = [
+                {"data": d.isoformat(), "matriculas": int(c)}
+                for d, c in sorted(vendas_time["mat_by_date"].items())
+                if d <= min(dt_fim, today)
+            ]
+        result["chart_matriculas_dia"] = chart_mat
+        result["total_matriculas_time"] = team_mats
+        result["vendas_liquidas_time"] = vendas_time.get("total_liquido", 0)
     return jsonify(result)
 
 
 @minha_performance_bp.route("/api/minha-performance/agentes")
 def api_mp_agentes():
-    """List agents (admin only) for the agent selector."""
-    if not _is_admin():
+    """List agents (admin / Premiação) for the agent selector."""
+    if not _can_manage_premiacao():
         return jsonify({"error": "Sem permissão"}), 403
     try:
         kconn = _pg_kommo()
@@ -1721,7 +2193,12 @@ def api_mp_agentes():
         agents = [{"kommo_uid": r[0], "name": r[1]} for r in kcur.fetchall()]
         kcur.close()
         kconn.close()
-        return jsonify({"ok": True, "agentes": agents})
+        suporte_uids = _get_suporte_kommo_uids()
+        return jsonify({
+            "ok": True,
+            "agentes": agents,
+            "suporte_uids": suporte_uids,
+        })
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -1748,7 +2225,7 @@ def _parse_metas_padrao_from_body(body):
 
 @minha_performance_bp.route("/api/premiacao/campanhas", methods=["GET"])
 def api_campanhas_list():
-    if not _is_admin():
+    if not _can_manage_premiacao():
         return jsonify({"error": "Sem permissão"}), 403
     try:
         conn = _pg()
@@ -2127,9 +2604,132 @@ def api_grupos_delete(gid):
 # API: Metas por agente na campanha (admin)
 # ---------------------------------------------------------------------------
 
+@minha_performance_bp.route("/api/premiacao/campanhas/<int:cid>/meta-suporte", methods=["GET"])
+def api_meta_suporte_get(cid):
+    if not _can_manage_premiacao():
+        return jsonify({"ok": False, "error": "Sem permissão"}), 403
+    try:
+        from db import _ensure_suporte_tables
+        _ensure_suporte_tables()
+        sm = _get_meta_suporte(cid)
+        uids = _get_suporte_kommo_uids()
+        return jsonify({
+            "ok": True,
+            "meta": sm["meta"],
+            "meta_intermediaria": sm["intermediaria"],
+            "supermeta": sm["supermeta"],
+            "agentes_count": len(uids),
+            "agentes_kommo_ids": uids,
+        })
+    except Exception as e:
+        logger.exception("meta-suporte GET campanha %s: %s", cid, e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@minha_performance_bp.route("/api/premiacao/campanhas/<int:cid>/meta-suporte", methods=["POST"])
+def api_meta_suporte_save(cid):
+    """Meta unificada do time Suporte Comercial (soma das matrículas de todos)."""
+    if not _can_manage_premiacao():
+        return jsonify({"ok": False, "error": "Sem permissão"}), 403
+    body = request.json or {}
+    meta = float(body.get("meta", 0) or 0)
+    if meta <= 0:
+        return jsonify({"error": "Informe a meta do time"}), 400
+    inter = 0.0
+    sup = 0.0
+    try:
+        from db import _ensure_suporte_tables
+        _ensure_suporte_tables()
+        global _suporte_uids_cache
+        _suporte_uids_cache = None
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO premiacao_meta_suporte
+                (campanha_id, meta, meta_intermediaria, supermeta, updated_at)
+            VALUES (%s, %s, %s, %s, NOW())
+            ON CONFLICT (campanha_id) DO UPDATE SET
+                meta = EXCLUDED.meta,
+                meta_intermediaria = EXCLUDED.meta_intermediaria,
+                supermeta = EXCLUDED.supermeta,
+                updated_at = NOW()
+        """, (cid, meta, inter, sup))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True, "saved": True, "agentes_count": len(_get_suporte_kommo_uids())})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@minha_performance_bp.route("/api/premiacao/campanhas/<int:cid>/pix-suporte", methods=["GET"])
+def api_pix_suporte_get(cid):
+    if not _can_manage_premiacao():
+        return jsonify({"ok": False, "error": "Sem permissão"}), 403
+    try:
+        from db import _ensure_suporte_tables
+        _ensure_suporte_tables()
+        fx = _get_pix_faixas_for_suporte(cid)
+        faixas = []
+        if fx:
+            for f in fx.get("semana", []):
+                faixas.append({
+                    "min_matriculas": f["min"],
+                    "valor": f["valor"],
+                    "apenas_sabado": False,
+                })
+            for f in fx.get("sabado", []):
+                faixas.append({
+                    "min_matriculas": f["min"],
+                    "valor": f["valor"],
+                    "apenas_sabado": True,
+                })
+        return jsonify({
+            "ok": True,
+            "faixas": faixas,
+            "agentes_count": len(_get_suporte_kommo_uids()),
+        })
+    except Exception as e:
+        logger.exception("pix-suporte GET campanha %s: %s", cid, e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@minha_performance_bp.route("/api/premiacao/campanhas/<int:cid>/pix-suporte", methods=["POST"])
+def api_pix_suporte_save(cid):
+    """Faixas PIX diário do time Suporte (soma de matrículas do time no dia)."""
+    if not _can_manage_premiacao():
+        return jsonify({"ok": False, "error": "Sem permissão"}), 403
+    body = request.json or {}
+    faixas = body.get("faixas", [])
+    try:
+        from db import _ensure_suporte_tables
+        _ensure_suporte_tables()
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM premiacao_pix_suporte WHERE campanha_id = %s", (cid,))
+        saved = 0
+        for item in faixas:
+            mn = int(item.get("min_matriculas", 0))
+            val = float(item.get("valor", 0))
+            sab = bool(item.get("apenas_sabado", False))
+            if mn > 0 and val > 0:
+                cur.execute("""
+                    INSERT INTO premiacao_pix_suporte
+                        (campanha_id, min_matriculas, valor, apenas_sabado)
+                    VALUES (%s, %s, %s, %s)
+                """, (cid, mn, val, sab))
+                saved += 1
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True, "saved": saved})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @minha_performance_bp.route("/api/premiacao/campanhas/<int:cid>/metas", methods=["GET"])
 def api_campanha_metas_get(cid):
-    if not _is_admin():
+    if not _can_manage_premiacao():
         return jsonify({"error": "Sem permissão"}), 403
     try:
         conn = _pg()
@@ -2154,7 +2754,7 @@ def api_campanha_metas_get(cid):
 @minha_performance_bp.route("/api/premiacao/campanhas/<int:cid>/metas", methods=["POST"])
 def api_campanha_metas_save(cid):
     """Save per-agent metas for a campaign. Replaces existing metas."""
-    if not _is_admin():
+    if not _can_manage_premiacao():
         return jsonify({"error": "Sem permissão"}), 403
     body = request.json or {}
     items = body.get("metas", [])

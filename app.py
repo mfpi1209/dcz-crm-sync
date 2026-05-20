@@ -108,28 +108,36 @@ def _nav_load_user_data():
 @app.context_processor
 def inject_nav_perms():
     role, pages, categoria = _nav_load_user_data()
+    from helpers import is_suporte_comercial_categoria, is_suporte_comercial_login
+
     is_admin = role == "admin"
-    is_comercial = (not is_admin) and ((categoria or "").strip().lower() == "comercial")
+    username = (session.get("username") or "").strip()
+    cat_lower = (categoria or "").strip().lower()
+    is_comercial = (not is_admin) and cat_lower == "comercial"
+    is_suporte_comercial = (not is_admin) and (
+        is_suporte_comercial_categoria(categoria)
+        or is_suporte_comercial_login(username)
+    )
+    perf_home = is_comercial or is_suporte_comercial
 
     def nav_can(page):
         if is_admin:
             return True
-        if is_comercial and page == "dashboard":
+        if perf_home and page == "dashboard":
             return False
         if page in _NAV_ALWAYS:
             return True
-        if (not is_comercial) and page == "dashboard":
+        if (not perf_home) and page == "dashboard":
             return True
         return page in pages
 
-    cat_lower = (categoria or "").strip().lower()
     is_academico_simples = (
         (not is_admin)
         and cat_lower in ("acadêmico", "academico")
         and ("meus_atendimentos" in pages)
     )
 
-    if is_comercial:
+    if perf_home:
         nav_initial_page = "minha_performance"
     elif is_academico_simples:
         nav_initial_page = "meus_atendimentos"
@@ -144,6 +152,7 @@ def inject_nav_perms():
         "nav_categoria": categoria,
         "nav_is_admin": is_admin,
         "nav_is_comercial": is_comercial,
+        "nav_is_suporte_comercial": is_suporte_comercial,
         "nav_can": nav_can,
         "nav_initial_page": nav_initial_page,
         "nav_allowed_pages": allowed_pages,
@@ -239,6 +248,7 @@ from db import (
     _ensure_turmas_comercial_table,
     _ensure_ciclo_atual_comercial_table,
     _ensure_users_table,
+    _ensure_suporte_comercial_users,
     _ensure_xl_snapshots_table,
     _ensure_engagement_tables,
     _ensure_avisos_tables,
@@ -246,6 +256,7 @@ from db import (
     _ensure_premiacao_tables,
     _ensure_pix_nivel_tables,
     _ensure_pix_faixa_tables,
+    _ensure_suporte_tables,
 )
 
 _ensure_schedules_table()
@@ -255,6 +266,7 @@ _ensure_ciclos_comercial_table()
 _ensure_turmas_comercial_table()
 _ensure_ciclo_atual_comercial_table()
 _ensure_users_table()
+_ensure_suporte_comercial_users()
 _ensure_xl_snapshots_table()
 _ensure_engagement_tables()
 _ensure_avisos_tables()
@@ -262,6 +274,7 @@ _ensure_funnel_log_table()
 _ensure_premiacao_tables()
 _ensure_pix_nivel_tables()
 _ensure_pix_faixa_tables()
+_ensure_suporte_tables()
 
 # ── APScheduler ───────────────────────────────────────────────────────────
 

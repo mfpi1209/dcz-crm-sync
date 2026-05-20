@@ -16,12 +16,12 @@
             {% set _show_acad = nav_can('ativacoes') or nav_can('distribuicao') or nav_can('intelligence') or nav_can('inadimplencia') or nav_can('feedback') or nav_can('macro_email') or nav_can('meus_atendimentos') %}
             {% set _show_ferramentas = nav_can('comparar_cursos') or nav_can('recomendacao_cursos') or nav_can('localizacao_polos') or nav_can('info_cursos') or nav_can('leads_inscricao') %}
             {% set _show_minha_perf_in_comercial = (not nav_is_comercial) and nav_can('minha_performance') %}
-            {% set _show_comercial = nav_can('dist_consultor') or nav_can('comercial_rgm') or nav_can('dist_comercial') or nav_can('inscricao') or nav_can('recadastros') or nav_can('comercial_dashboard') or nav_can('auditoria_comercial') or nav_can('atualizar_preco') or nav_can('leads_parados') or _show_minha_perf_in_comercial or nav_can('repasse') or nav_can('captacao') or nav_can('clicks') or nav_can('leads_promotores') %}
+            {% set _show_comercial = nav_can('dist_consultor') or nav_can('comercial_rgm') or nav_can('dist_comercial') or nav_can('inscricao') or nav_can('recadastros') or nav_can('comercial_dashboard') or nav_can('auditoria_comercial') or nav_can('atualizar_preco') or nav_can('leads_parados') or _show_minha_perf_in_comercial or nav_can('repasse') or nav_can('captacao') or nav_can('clicks') or nav_can('leads_promotores') or nav_can('premiacao_admin') %}
             {% set _show_voc = nav_can('vocacional') %}
             {% set _show_meta = nav_can('meta-campaigns') %}
-            {% set _show_sistema = nav_can('pipeline') or nav_can('update') or nav_can('sync') or nav_can('premiacao_admin') or nav_can('ajustes_matricula') or nav_can('kommo_sync') or nav_can('match_merge') or nav_can('config') or nav_can('schedule') or nav_can('kommo_dispatcher') or nav_can('logs') %}
+            {% set _show_sistema = nav_can('pipeline') or nav_can('update') or nav_can('sync') or nav_can('ajustes_matricula') or nav_can('kommo_sync') or nav_can('match_merge') or nav_can('config') or nav_can('schedule') or nav_can('kommo_dispatcher') or nav_can('logs') %}
             <div class="space-y-1">
-                {% if nav_is_comercial and nav_can('minha_performance') %}
+                {% if (nav_is_comercial or nav_is_suporte_comercial) and nav_can('minha_performance') %}
                 <a href="#minha_performance" onclick="navigate('minha_performance')" class="sidebar-link active" data-page="minha_performance">
                     <span class="material-symbols-outlined text-lg">military_tech</span>
                     Minha Performance
@@ -182,6 +182,12 @@
                         Dashboard Comercial
                     </a>
                     {% endif %}
+                    {% if nav_can('premiacao_admin') %}
+                    <a href="#premiacao_admin" onclick="navigate('premiacao_admin')" class="sidebar-link sidebar-sub" data-page="premiacao_admin">
+                        <span class="material-symbols-outlined text-base">emoji_events</span>
+                        Premiação
+                    </a>
+                    {% endif %}
                     {% if nav_can('dist_comercial') %}
                     <a href="#dist_comercial" onclick="navigate('dist_comercial')" class="sidebar-link sidebar-sub" data-page="dist_comercial">
                         <svg class="w-[16px] h-[16px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
@@ -331,7 +337,7 @@
                     <span class="material-symbols-outlined text-sm sidebar-group-chevron">expand_more</span>
                 </button>
                 <div class="sidebar-group-items">
-                    {% set _show_crm = nav_can('pipeline') or nav_can('update') or nav_can('sync') or nav_can('premiacao_admin') or nav_can('ajustes_matricula') or nav_can('kommo_sync') or nav_can('match_merge') %}
+                    {% set _show_crm = nav_can('pipeline') or nav_can('update') or nav_can('sync') or nav_can('ajustes_matricula') or nav_can('kommo_sync') or nav_can('match_merge') %}
                     {% set _show_geral = nav_can('config') or nav_can('schedule') or nav_can('kommo_dispatcher') or nav_can('logs') %}
                     {% if _show_crm %}
                     <p class="px-3 pt-3 pb-1 text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">CRM</p>
@@ -351,12 +357,6 @@
                     <a href="#sync" onclick="navigate('sync')" class="sidebar-link sidebar-sub" data-page="sync">
                         <span class="material-symbols-outlined text-base">sync</span>
                         Sync/Delta CRM Acadêmico
-                    </a>
-                    {% endif %}
-                    {% if nav_can('premiacao_admin') %}
-                    <a href="#premiacao_admin" onclick="navigate('premiacao_admin')" class="sidebar-link sidebar-sub" data-page="premiacao_admin">
-                        <span class="material-symbols-outlined text-base">emoji_events</span>
-                        Premiação
                     </a>
                     {% endif %}
                     {% if nav_can('ajustes_matricula') %}

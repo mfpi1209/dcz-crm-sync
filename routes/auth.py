@@ -170,13 +170,20 @@ def api_me():
         pages = list(ALL_PAGES)
     else:
         pages = _get_user_permissions(uid)
+
+    from helpers import is_suporte_comercial_categoria, is_suporte_comercial_login
+
+    username = session.get("username", "")
+    is_suporte = is_suporte_comercial_categoria(categoria) or is_suporte_comercial_login(username)
+
     return jsonify({
         "user_id": uid,
-        "username": session.get("username", ""),
+        "username": username,
         "role": role,
         "pages": pages,
         "kommo_user_id": kommo_user_id,
         "categoria": categoria,
+        "is_suporte_comercial": is_suporte,
     })
 
 
