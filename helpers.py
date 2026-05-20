@@ -43,6 +43,7 @@ ALL_PAGES = [
     "meta-campaigns", "dist_comercial", "atualizar_preco",
     "comparar_cursos", "recomendacao_cursos", "localizacao_polos", "info_cursos",
     "leads_inscricao", "captacao", "clicks", "leads_promotores", "meus_atendimentos",
+    "cadastro_leads",
 ]
 
 # Logins do time Suporte Comercial (mesmo painel Equipe Suporte em Minha Performance)

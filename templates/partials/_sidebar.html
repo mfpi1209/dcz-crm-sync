@@ -14,7 +14,7 @@
         <!-- Nav -->
         <nav class="flex-1 px-3 py-4 overflow-y-auto" style="min-height:0">
             {% set _show_acad = nav_can('ativacoes') or nav_can('distribuicao') or nav_can('intelligence') or nav_can('inadimplencia') or nav_can('feedback') or nav_can('macro_email') or nav_can('meus_atendimentos') %}
-            {% set _show_ferramentas = nav_can('comparar_cursos') or nav_can('recomendacao_cursos') or nav_can('localizacao_polos') or nav_can('info_cursos') or nav_can('leads_inscricao') %}
+            {% set _show_ferramentas = nav_can('comparar_cursos') or nav_can('recomendacao_cursos') or nav_can('localizacao_polos') or nav_can('info_cursos') or nav_can('leads_inscricao') or nav_can('cadastro_leads') %}
             {% set _show_minha_perf_in_comercial = (not nav_is_comercial) and nav_can('minha_performance') %}
             {% set _show_comercial = nav_can('dist_consultor') or nav_can('comercial_rgm') or nav_can('dist_comercial') or nav_can('inscricao') or nav_can('recadastros') or nav_can('comercial_dashboard') or nav_can('auditoria_comercial') or nav_can('atualizar_preco') or nav_can('leads_parados') or _show_minha_perf_in_comercial or nav_can('repasse') or nav_can('captacao') or nav_can('clicks') or nav_can('leads_promotores') or nav_can('premiacao_admin') %}
             {% set _show_voc = nav_can('vocacional') %}
@@ -153,6 +153,12 @@
                     <a href="#leads_inscricao" onclick="navigate('leads_inscricao')" class="sidebar-link sidebar-sub" data-page="leads_inscricao">
                         <span class="material-symbols-outlined text-base">how_to_reg</span>
                         Leads em Inscrição
+                    </a>
+                    {% endif %}
+                    {% if nav_can('cadastro_leads') %}
+                    <a href="#cadastro_leads" onclick="navigate('cadastro_leads')" class="sidebar-link sidebar-sub" data-page="cadastro_leads">
+                        <span class="material-symbols-outlined text-base">person_add</span>
+                        Cadastro de Leads
                     </a>
                     {% endif %}
                 </div>

@@ -404,6 +404,7 @@ const PAGE_LABELS = {
     localizacao_polos: 'Localização',
     info_cursos: 'Informações de Cursos',
     leads_inscricao: 'Leads em Inscrição Automática',
+    cadastro_leads: 'Cadastro de Leads',
     avisos: 'Avisos',
     kommo_dispatcher: 'Monitor de Conversas',
     minha_performance: 'Minha Performance',
@@ -523,7 +524,7 @@ const PAGE_GROUPS_CONFIG = [
         section: 'Operação',
         icon: 'lightbulb',
         color: 'var(--primary)',
-        pages: ['comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos', 'leads_inscricao'],
+        pages: ['comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos', 'leads_inscricao', 'cadastro_leads'],
     },
     {
         label: 'Comercial',
