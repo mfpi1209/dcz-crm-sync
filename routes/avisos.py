@@ -160,7 +160,11 @@ def criar_aviso():
     target_role = data.get("target_role", "todos")
     target_user_ids = data.get("target_user_ids") or []
     expires_at = data.get("expires_at") or None
-    created_by = session.get("user_id", 0)
+    # session["user_id"] = 0 quando o login vem do fallback do .env
+    # (APP_USER/APP_PASS) — esse id não existe em app_users e violaria a FK
+    # created_by. Trata como NULL nesse caso.
+    raw_uid = session.get("user_id")
+    created_by = raw_uid if raw_uid else None
 
     conn = _get_conn()
     with conn.cursor() as cur:

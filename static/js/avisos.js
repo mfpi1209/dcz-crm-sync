@@ -29,6 +29,26 @@ function _fmtDatetime(iso) {
          + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
+function _fmtDestinatarios(a) {
+    // Hoje os avisos são sempre enviados para usuários específicos
+    // (campo "Usuários específicos"). Avisos antigos podem ter sido criados
+    // sem target_user_ids e com target_role != 'todos' — esses casos legados
+    // entram no fallback informativo.
+    const ids = (a.target_user_ids || []).filter(Boolean);
+    if (ids.length) {
+        const names = ids.map(uid => {
+            const u = _avUsersCache.find(x => x.id === uid);
+            return u ? u.username : `#${uid}`;
+        });
+        const tooltip = names.join(', ').replace(/"/g, '&quot;');
+        return `<span title="${tooltip}" class="cursor-help underline decoration-dotted">${names.length} usuário${names.length === 1 ? '' : 's'}</span>`;
+    }
+    if (a.target_role && a.target_role !== 'todos') {
+        return `<span class="text-slate-500">${a.target_role} (legado)</span>`;
+    }
+    return '<span class="text-slate-500">Todos (legado)</span>';
+}
+
 function _avisoCard(a, showReadBtn) {
     const prio = _PRIO_BADGE[a.prioridade] || _PRIO_BADGE.normal;
     const accent = _PRIO_ACCENT[a.prioridade] || _PRIO_ACCENT.normal;
@@ -116,7 +136,10 @@ function _loadTodos() {
     });
 }
 
-function _loadAdmin() {
+async function _loadAdmin() {
+    // Garante que o cache de usuários esteja pronto antes de renderizar a
+    // tabela (para resolver target_user_ids → usernames em _fmtDestinatarios).
+    await _ensureUsersCache();
     api('/api/avisos/admin').then(r => r.json()).then(rows => {
         const tbody = document.getElementById('av-admin-tbody');
         if (!rows.length) {
@@ -126,10 +149,11 @@ function _loadAdmin() {
         tbody.innerHTML = rows.map(a => {
             const prio = _PRIO_BADGE[a.prioridade] || _PRIO_BADGE.normal;
             const status = a.active ? '<span class="text-emerald-400">Ativo</span>' : '<span class="text-red-400">Inativo</span>';
+            const dest = _fmtDestinatarios(a);
             return `<tr class="hover:bg-slate-800/30">
                 <td class="py-2 px-3 text-slate-300 max-w-[200px] truncate">${a.titulo}</td>
                 <td class="py-2 px-3"><span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${prio}">${a.prioridade}</span></td>
-                <td class="py-2 px-3 text-slate-400">${a.target_role}${a.target_user_ids && a.target_user_ids.length ? ' +' + a.target_user_ids.length : ''}</td>
+                <td class="py-2 px-3 text-slate-400">${dest}</td>
                 <td class="py-2 px-3 text-slate-500">${_fmtDate(a.created_at)}</td>
                 <td class="py-2 px-3 text-slate-500">${_fmtDate(a.expires_at)}</td>
                 <td class="py-2 px-3">${status}</td>
@@ -146,12 +170,15 @@ function _loadAdmin() {
 
 /* ── User multi-select ──────────────────────────────────────── */
 
-function _loadUsersSelect() {
-    if (_avUsersCache.length) return;
-    api('/api/avisos/usuarios').then(r => r.json()).then(users => {
-        _avUsersCache = users;
-        _renderUsersSelect();
+function _ensureUsersCache() {
+    if (_avUsersCache.length) return Promise.resolve();
+    return api('/api/avisos/usuarios').then(r => r.json()).then(users => {
+        _avUsersCache = users || [];
     });
+}
+
+function _loadUsersSelect() {
+    _ensureUsersCache().then(() => _renderUsersSelect());
 }
 
 function _renderUsersSelect() {
@@ -201,20 +228,48 @@ function avisosSalvar() {
         titulo: document.getElementById('av-titulo').value,
         corpo: document.getElementById('av-corpo').value,
         prioridade: document.getElementById('av-prioridade').value,
-        target_role: document.getElementById('av-target-role').value,
+        // Avisos são sempre enviados individualmente (lista de usuários
+        // específicos). target_role fica fixo em 'todos' apenas como flag
+        // de compatibilidade com o esquema; o que define o alcance é o
+        // array target_user_ids.
+        target_role: 'todos',
         target_user_ids: _avSelectedUsers,
         expires_at: document.getElementById('av-expires').value || null,
     };
+
+    // Validação simples no front (mesmo critério do backend)
+    if (!body.titulo.trim() || !body.corpo.trim()) {
+        toast('Preencha título e corpo do aviso', 'warning');
+        return;
+    }
+    if (!_avSelectedUsers.length) {
+        toast('Selecione pelo menos um destinatário no campo "Usuários específicos"', 'warning');
+        return;
+    }
 
     const url = id ? `/api/avisos/${id}` : '/api/avisos';
     const method = id ? 'PUT' : 'POST';
 
     api(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-        .then(r => r.json())
-        .then(data => {
-            if (data.error) { toast(data.error, 'error'); return; }
+        .then(async r => {
+            // Tenta ler JSON; se o backend devolveu HTML (ex.: 500 do Flask),
+            // mostra mensagem genérica em vez de engolir silenciosamente.
+            let data = null;
+            try { data = await r.json(); } catch (_) { /* sem JSON */ }
+            if (!r.ok) {
+                const msg = (data && data.error) || `Erro ${r.status} ao salvar aviso`;
+                toast(msg, 'error');
+                console.error('[avisos] save failed', r.status, data);
+                return;
+            }
+            if (data && data.error) { toast(data.error, 'error'); return; }
+            toast(id ? 'Aviso atualizado' : 'Aviso enviado', 'success');
             avisosCancelar();
             _loadAdmin();
+        })
+        .catch(err => {
+            console.error('[avisos] save error', err);
+            toast('Erro de rede ao salvar aviso', 'error');
         });
 }
 
@@ -223,7 +278,6 @@ function avisosCancelar() {
     document.getElementById('av-titulo').value = '';
     document.getElementById('av-corpo').value = '';
     document.getElementById('av-prioridade').value = 'normal';
-    document.getElementById('av-target-role').value = 'todos';
     document.getElementById('av-expires').value = '';
     _avSelectedUsers = [];
     _renderUserChips();
@@ -239,7 +293,6 @@ function avisosEditar(id) {
         document.getElementById('av-titulo').value = a.titulo;
         document.getElementById('av-corpo').value = a.corpo;
         document.getElementById('av-prioridade').value = a.prioridade;
-        document.getElementById('av-target-role').value = a.target_role;
         document.getElementById('av-expires').value = a.expires_at ? a.expires_at.slice(0, 10) : '';
         _avSelectedUsers = a.target_user_ids || [];
         _renderUserChips();
