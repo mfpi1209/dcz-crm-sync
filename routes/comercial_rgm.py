@@ -27,6 +27,11 @@ import psycopg2
 import psycopg2.extras
 from flask import Blueprint, request, jsonify, session
 
+from services.atividade_kommo import (
+    horas_media_por_consultor,
+    fetch_atividade_periodo,
+)
+
 logger = logging.getLogger(__name__)
 
 comercial_rgm_bp = Blueprint("comercial_rgm", __name__)
@@ -2283,11 +2288,26 @@ def _build_agent_ranking_completa_vw(
             cp,
         )
         rgm_nome = {}
+        rgm_date_map = {}      # rgm → 'YYYY-MM-DD', para matriculas_grid (EM CURSO)
+        rgm_date_map_all = {}  # rgm → 'YYYY-MM-DD', todos incl. excluídos (para bruto)
         for rgm, nome, _polo, _dm in cur.fetchall():
             n = _normalize_rgm(rgm)
-            if not n or n in rgm_nome or n in excluded_rgms:
+            if not n:
+                continue
+            # Captura data de TODOS os RGMs (incluindo excluídos) para o grid bruto
+            if _dm is not None and n not in rgm_date_map_all:
+                try:
+                    rgm_date_map_all[n] = _dm.isoformat()[:10] if hasattr(_dm, 'isoformat') else str(_dm)[:10]
+                except Exception:
+                    pass
+            if n in rgm_nome or n in excluded_rgms:
                 continue
             rgm_nome[n] = (nome or "").strip()
+            if _dm is not None:
+                try:
+                    rgm_date_map[n] = _dm.isoformat()[:10] if hasattr(_dm, 'isoformat') else str(_dm)[:10]
+                except Exception:
+                    pass
 
         # Regra de cancelados: inclui alunos que estavam EM CURSO em qualquer upload
         # feito ATÉ dt_fim, mas foram cancelados depois (cancelamento após meta = conta)
@@ -2486,14 +2506,48 @@ def _build_agent_ranking_completa_vw(
                 "is_transferencia": True,
             })
         ranking.sort(key=lambda x: x["matriculas_periodo"], reverse=True)
+
+        # Decisão: incluir transferencia/regresso (user_id=-1) em matriculas_grid para completude.
+        # RGMs suplementares (cancelados pós-meta de xl_rows) não têm data rastreada e ficam fora do grid —
+        # a diferença é marginal e não afeta a usabilidade do cross-filter.
+        # count = bruto (inclui excluídos/evasão); count_liquido = EM CURSO apenas.
+        grid_acc_bruto = defaultdict(int)
+        grid_acc_liq   = defaultdict(int)
+        # EM CURSO (não-excluídos)
+        for rgm, _nome in mat_rows:
+            dt_str = rgm_date_map.get(rgm)
+            if not dt_str:
+                continue
+            uid = rgm_to_uid.get(rgm)
+            if uid is None:
+                uid = TR
+            grid_acc_bruto[(dt_str, uid)] += 1
+            grid_acc_liq[(dt_str, uid)] += 1
+        # Excluídos (evasão) adicionados apenas ao bruto
+        for ev_rgm in (excluded_rgms or set()):
+            dt_str = rgm_date_map_all.get(ev_rgm)
+            if not dt_str:
+                continue
+            uid = rgm_to_uid.get(ev_rgm)
+            if uid is None:
+                uid = TR
+            grid_acc_bruto[(dt_str, uid)] += 1
+        all_grid_keys = sorted(set(grid_acc_bruto) | set(grid_acc_liq))
+        matriculas_grid = [
+            {"data": k[0], "user_id": k[1],
+             "count": grid_acc_bruto.get(k, 0),
+             "count_liquido": grid_acc_liq.get(k, 0)}
+            for k in all_grid_keys
+        ]
+
         return ranking, {
             "titulo": "transferencia/regresso",
             "total": tr_count,
             "itens": sorted(transferencia_itens, key=lambda x: x["rgm"]),
-        }
+        }, matriculas_grid
     except Exception as e:
         logger.warning("ranking completa/vw: %s", e)
-        return [], {"titulo": "transferencia/regresso", "total": 0, "itens": []}
+        return [], {"titulo": "transferencia/regresso", "total": 0, "itens": []}, []
 
 
 @comercial_rgm_bp.route("/api/comercial-rgm/data")
@@ -2597,6 +2651,19 @@ def crgm_data():
         vendas = len(rgms_bruto)         # KPI mostra BRUTO
         vendas_liquidas = len(rgms_periodo)
         _excluded = rgms_bruto - rgms_periodo   # conjunto excluído (para ranking)
+
+        # evasao_grid: agrega evasão por (data_matricula, tipo) para cross-filter no JS
+        evasao_grid_acc = defaultdict(int)
+        for _ev in evasao_rows:
+            _ev_dt = _ev.get("data_matricula")
+            if not _ev_dt:
+                continue
+            _ev_tipo = (_ev.get("situacao") or "OUTROS").strip()
+            evasao_grid_acc[(str(_ev_dt)[:10], _ev_tipo)] += 1
+        evasao_grid = [
+            {"data": k[0], "tipo": k[1], "count": v}
+            for k, v in sorted(evasao_grid_acc.items())
+        ]
         all_kpi_rgms = rgms_periodo
         day_counts       = {d: len(s) for d, s in day_rgms.items()}
         day_counts_bruto = {d: len(s) for d, s in day_rgms_bruto.items()}
@@ -2831,7 +2898,7 @@ def crgm_data():
         cur.close()
         conn.close()
 
-        ranking_agentes, transferencia_regresso = _build_agent_ranking_completa_vw(
+        ranking_agentes, transferencia_regresso, matriculas_grid = _build_agent_ranking_completa_vw(
             _pd_dt_ini,
             _pd_dt_fim,
             polo or None,
@@ -2842,6 +2909,105 @@ def crgm_data():
             crm_dt_ini=dt_ini or None,
             crm_dt_fim=dt_fim or None,
         )
+
+        # --- leads_grid: leads por (data, responsible_user_id) para cross-filter no JS ---
+        leads_grid = []
+        try:
+            _lg_conn = _pg_kommo()
+            _lg_cur = _lg_conn.cursor()
+            _ep_lg_ini = _date_to_epoch(dt_ini or None)
+            _ep_lg_fim = _date_to_epoch(dt_fim or None)
+            if _ep_lg_fim is not None:
+                _ep_lg_fim += 86399
+            _lg_cw = [
+                "l.responsible_user_id IS NOT NULL",
+                "NOT l.is_deleted",
+                "l.created_at IS NOT NULL",
+            ]
+            _lg_cp: list = []
+            if _ep_lg_ini is not None:
+                _lg_cw.append("l.created_at >= %s")
+                _lg_cp.append(_ep_lg_ini)
+            if _ep_lg_fim is not None:
+                _lg_cw.append("l.created_at <= %s")
+                _lg_cp.append(_ep_lg_fim)
+            _lg_where = "WHERE " + " AND ".join(_lg_cw)
+            _lg_cur.execute(
+                f"""
+                SELECT (to_timestamp(l.created_at) AT TIME ZONE 'America/Sao_Paulo')::date AS d,
+                       l.responsible_user_id,
+                       COUNT(*) AS c
+                FROM leads l
+                {_lg_where}
+                GROUP BY 1, 2
+                ORDER BY 1, 2
+                """,
+                _lg_cp,
+            )
+            leads_grid = [
+                {
+                    "data": (row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])),
+                    "user_id": int(row[1]),
+                    "count": int(row[2]),
+                }
+                for row in _lg_cur.fetchall()
+            ]
+            _lg_cur.close()
+            _lg_conn.close()
+        except Exception as _lg_e:
+            logger.warning("leads_grid: %s", _lg_e)
+            leads_grid = []
+
+        # --- daily_history: comparativos dia-a-dia (vs 6m e 1 ano) para cross-filter ---
+        daily_history: dict = {}
+        try:
+            _unique_grid_dates = list({g["data"] for g in matriculas_grid if g.get("data")})
+            if _unique_grid_dates:
+                _target_map: dict = {}  # date_str -> (d_6m_str, d_1y_str)
+                for _ds in _unique_grid_dates:
+                    try:
+                        _d = date.fromisoformat(_ds)
+                        _d_6m = _shift_months(_d, -6)
+                        _d_1y = _shift_months(_d, -12)
+                        _target_map[_ds] = (_d_6m.isoformat(), _d_1y.isoformat())
+                    except Exception:
+                        pass
+                _all_targets = list({v for vals in _target_map.values() for v in vals})
+                if _all_targets:
+                    _hist_cw = ["data_matricula::date = ANY(%s::date[])"]
+                    _hist_cp: list = [_all_targets]
+                    if polo:
+                        _hist_cw.append(f"{_POLO_SQL} = %s")
+                        _hist_cp.append(_normalize_polo(polo))
+                    if nivel:
+                        _hist_cw.append("nivel = %s")
+                        _hist_cp.append(nivel)
+                    _hist_where = "WHERE " + " AND ".join(_hist_cw)
+                    _hist_conn = _pg()
+                    _hist_cur = _hist_conn.cursor()
+                    _hist_cur.execute(
+                        f"""
+                        SELECT data_matricula::date AS d, COUNT(DISTINCT rgm) AS c
+                        FROM comercial_rgm_completa
+                        {_hist_where}
+                        GROUP BY data_matricula::date
+                        """,
+                        _hist_cp,
+                    )
+                    _hist_day_counts: dict = {}
+                    for _row in _hist_cur.fetchall():
+                        _k = _row[0].isoformat() if hasattr(_row[0], "isoformat") else str(_row[0])
+                        _hist_day_counts[_k] = int(_row[1])
+                    _hist_cur.close()
+                    _hist_conn.close()
+                    for _ds, (_d6m, _d1y) in _target_map.items():
+                        daily_history[_ds] = {
+                            "vs6m": _hist_day_counts.get(_d6m),
+                            "vs1y": _hist_day_counts.get(_d1y),
+                        }
+        except Exception as _dhe:
+            logger.warning("daily_history: %s", _dhe)
+            daily_history = {}
 
         # --- Metas por agente: premiacao_campanha_meta (primary) + comercial_metas (fallback)
         #     + pré-definição na premiacao_campanha (def_meta_*) para agentes sem linha em pcm ---
@@ -2951,6 +3117,28 @@ def crgm_data():
                 if uki is not None and uki in users:
                     ag["metas_cat"][cat] = users[uki]
 
+        # --- Atividade Kommo: horas médias por consultor ---
+        try:
+            _ativ_dt_ini = datetime.strptime(_pd_dt_ini, "%Y-%m-%d").date() if _pd_dt_ini else None
+            _ativ_dt_fim = datetime.strptime(_pd_dt_fim, "%Y-%m-%d").date() if _pd_dt_fim else None
+        except Exception:
+            _ativ_dt_ini = _ativ_dt_fim = None
+        if _ativ_dt_ini and _ativ_dt_fim:
+            try:
+                _ativ_map = horas_media_por_consultor(_ativ_dt_ini, _ativ_dt_fim)
+            except Exception as _e:
+                logger.warning("horas_media_por_consultor falhou: %s", _e)
+                _ativ_map = {}
+        else:
+            _ativ_map = {}
+        for ag in ranking_agentes:
+            uid = ag.get("user_id")
+            uki = _kommo_uid_int(uid)
+            if uki is not None and uki != -1:
+                ag["horas_media"] = _ativ_map.get(uki, {}).get("horas_media")
+            else:
+                ag["horas_media"] = None
+
         # --- Evasão: RGMs brutos que não são EM CURSO → breakdown por tipo e por agente ---
         evasao_data = {"total": 0, "por_tipo": {}, "por_agente": [], "itens": []}
         if evasao_rows:
@@ -3000,6 +3188,13 @@ def crgm_data():
                                for i in itens]}
                     for ag_nome, itens in sorted(por_agente.items(), key=lambda x: -len(x[1]))
                 ],
+                # itens flat com agente — usado pelo JS para _crgmDeriveEvasaoDia
+                "itens": [
+                    {"rgm": ev["rgm"], "nome": ev["nome"],
+                     "situacao": ev["situacao"], "data_matricula": ev["data_matricula"],
+                     "agente": ev_uid_to_nome.get(ev_rgm_to_uid.get(ev["rgm"]), "Não identificado")}
+                    for ev in evasao_rows
+                ],
             }
 
         metas_aviso = None
@@ -3048,10 +3243,41 @@ def crgm_data():
             "ranking_agentes": ranking_agentes,
             "transferencia_regresso": transferencia_regresso,
             "evasao": evasao_data,
+            "matriculas_grid": matriculas_grid,
+            "leads_grid": leads_grid,
+            "evasao_grid": evasao_grid,
+            "daily_history": daily_history,
         })
     except Exception as e:
         logger.exception("comercial_rgm data error")
         return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@comercial_rgm_bp.get("/api/comercial-rgm/atividade-kommo")
+def crgm_atividade_kommo():
+    """Retorna linhas detalhadas de atividade Kommo do Supabase para o período."""
+    try:
+        dt_ini = datetime.strptime(request.args.get("dt_ini", ""), "%Y-%m-%d").date()
+        dt_fim = datetime.strptime(request.args.get("dt_fim", ""), "%Y-%m-%d").date()
+    except Exception:
+        return jsonify({"ok": False, "error": "dt_ini/dt_fim obrigatórios (YYYY-MM-DD)"}), 400
+    user_id_raw = request.args.get("user_id")
+    user_id = int(user_id_raw) if (user_id_raw and user_id_raw.isdigit()) else None
+    incluir = True
+    linhas = fetch_atividade_periodo(dt_ini, dt_fim, user_id=user_id, incluir_intervalos=incluir)
+    user_ids = sorted({int(r["created_by"]) for r in linhas if r.get("created_by") is not None})
+    nomes = _fetch_kommo_user_names(user_ids) if user_ids else {}
+    for r in linhas:
+        uid = r.get("created_by")
+        if uid is not None:
+            r["nome"] = nomes.get(int(uid), f"User #{uid}")
+    return jsonify({
+        "ok": True,
+        "dt_ini": dt_ini.isoformat(),
+        "dt_fim": dt_fim.isoformat(),
+        "incluir_intervalos": incluir,
+        "linhas": linhas,
+    })
 
 
 @comercial_rgm_bp.route("/api/comercial-rgm/agente-detalhe")

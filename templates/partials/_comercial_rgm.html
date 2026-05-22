@@ -514,14 +514,13 @@
                         <th class="text-right px-4 py-3">Meta</th>
                         <th class="text-right px-4 py-3">Super</th>
                         <th class="text-right px-4 py-3">Nível</th>
-                        <th class="text-right px-4 py-3">Novos <span class="text-slate-500 dark:text-slate-600">(per.)</span></th>
-                        <th class="text-right px-4 py-3">Perdidos <span class="text-slate-500 dark:text-slate-600">(per.)</span></th>
-                        <th class="text-right px-4 py-3">Total</th>
+                        <th class="text-right px-4 py-3">Leads <span class="text-slate-500 dark:text-slate-600">(per.)</span></th>
+                        <th class="text-right px-4 py-3">Horas (méd.)</th>
                         <th class="text-right px-4 py-3">Conv.</th>
                     </tr>
                 </thead>
                 <tbody id="crgm-agentes-body" class="divide-y divide-slate-200 dark:divide-slate-700/10">
-                    <tr><td colspan="11" class="px-5 py-8 text-center text-slate-600">Carregando...</td></tr>
+                    <tr><td colspan="10" class="px-5 py-8 text-center text-slate-600">Carregando...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -532,9 +531,12 @@
         </div>
     </div>
 
-    <!-- Chart Agentes + Ciclos -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6 items-start">
-        <div class="lg:col-span-2 glass-card overflow-hidden">
+    <!-- Banner de filtros ativos (cross-filter) -->
+    <div id="crgm-crossfilter-banner" class="hidden mb-4"></div>
+
+    <!-- Chart Agentes + Polo (lado a lado) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 items-start">
+        <div class="glass-card overflow-hidden">
             <div class="px-5 pt-4 pb-1">
                 <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display flex items-center gap-2">
                     <svg class="w-4 h-4 text-[#00346f] dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
@@ -551,51 +553,35 @@
         <div class="glass-card overflow-hidden self-start w-full">
             <div class="px-5 py-3 border-b border-slate-200 dark:border-slate-700/20">
                 <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display flex items-center gap-2">
-                    <svg class="w-4 h-4 text-[#00346f] dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                    Matrículas por Ciclo
+                    <svg class="w-4 h-4 text-[#00346f] dark:text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    Matrículas por Polo
                 </h3>
-                <p class="text-[11px] text-slate-500 mt-1">Total do ciclo completo (sem restrição de datas).</p>
             </div>
-            <div class="overflow-x-auto max-h-72 overflow-y-auto">
+            <div class="overflow-x-auto max-h-[400px] overflow-y-auto">
                 <table class="w-full text-sm">
                     <thead class="sticky top-0 z-10">
                         <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-700/20 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur">
-                            <th class="text-left px-4 py-2.5">Ciclo</th>
-                            <th class="text-right px-4 py-2.5">Bruto</th>
-                            <th class="text-right px-4 py-2.5">EM Curso</th>
+                            <th class="text-center px-3 py-3 w-10">#</th>
+                            <th class="text-left px-4 py-3">Polo</th>
+                            <th class="text-right px-4 py-3">Total</th>
+                            <th class="text-left px-4 py-3 w-48">Proporção</th>
                         </tr>
                     </thead>
-                    <tbody id="crgm-ciclo-body" class="divide-y divide-slate-200 dark:divide-slate-700/10">
-                        <tr><td colspan="3" class="px-5 py-6 text-center text-slate-600">Carregando...</td></tr>
+                    <tbody id="crgm-polo-body" class="divide-y divide-slate-200 dark:divide-slate-700/10">
+                        <tr><td colspan="4" class="px-5 py-6 text-center text-slate-600">Carregando...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <!-- Ranking por Polo (tabela limpa no final) -->
-    <div class="glass-card overflow-hidden">
-        <div class="px-5 py-3 border-b border-slate-200 dark:border-slate-700/20">
-            <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display flex items-center gap-2">
-                <svg class="w-4 h-4 text-[#00346f] dark:text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                Matrículas por Polo
-            </h3>
+    <!-- Atividade Kommo -->
+    <div class="glass-card overflow-hidden mb-6">
+        <div class="p-4 flex items-center justify-between">
+            <h3 class="text-sm uppercase tracking-wide font-semibold text-[#00346f] dark:text-white">Atividade Kommo</h3>
+            <span class="text-xs text-slate-400" id="crgm-atividade-info"></span>
         </div>
-        <div class="overflow-x-auto max-h-[400px] overflow-y-auto">
-            <table class="w-full text-sm">
-                <thead class="sticky top-0 z-10">
-                    <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-700/20 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur">
-                        <th class="text-center px-3 py-3 w-10">#</th>
-                        <th class="text-left px-4 py-3">Polo</th>
-                        <th class="text-right px-4 py-3">Total</th>
-                        <th class="text-left px-4 py-3 w-48">Proporção</th>
-                    </tr>
-                </thead>
-                <tbody id="crgm-polo-body" class="divide-y divide-slate-200 dark:divide-slate-700/10">
-                    <tr><td colspan="4" class="px-5 py-6 text-center text-slate-600">Carregando...</td></tr>
-                </tbody>
-            </table>
-        </div>
+        <div id="crgm-atividade-body" class="px-4 pb-4 space-y-3"></div>
     </div>
 
     <!-- Aviso de Duplicatas RGM -->
