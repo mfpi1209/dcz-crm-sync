@@ -588,15 +588,64 @@ function filterUsersTable() {
     const q = (document.getElementById('cfg-users-search').value || '').toLowerCase().trim();
     const cat = document.getElementById('cfg-users-cat-filter').value;
     const rows = document.querySelectorAll('#users-tbody tr[data-user-row]');
+    let visible = 0;
     rows.forEach(row => {
         const name = (row.dataset.userName || '').toLowerCase();
+        const email = (row.dataset.userEmail || '').toLowerCase();
         const rowCat = row.dataset.userCat || '';
         let show = true;
-        if (q && !name.includes(q)) show = false;
+        if (q && !name.includes(q) && !email.includes(q)) show = false;
         if (cat === '__none__' && rowCat !== '') show = false;
         else if (cat && cat !== '__none__' && rowCat !== cat) show = false;
         row.style.display = show ? '' : 'none';
+        if (show) visible++;
     });
+    _updateUsersCountLabel(visible, rows.length);
+}
+
+function _updateUsersCountLabel(visible, total) {
+    const el = document.getElementById('users-count-label');
+    if (!el) return;
+    if (total === 0) {
+        el.textContent = 'Nenhum usuário cadastrado';
+        return;
+    }
+    el.textContent = (visible === total)
+        ? `${total} usuário${total === 1 ? '' : 's'} cadastrado${total === 1 ? '' : 's'}`
+        : `Mostrando ${visible} de ${total} usuários`;
+}
+
+function _userAvatarHtml(u) {
+    const src = (u.username || '?').trim();
+    let initial = src.replace(/[^A-Za-z0-9]/g, '').charAt(0) || '?';
+    initial = initial.toUpperCase();
+    const cls = (u.role === 'admin') ? 'avatar-admin'
+              : (u.role === 'editor') ? 'avatar-editor'
+              : 'avatar-viewer';
+    return `<span class="user-avatar ${cls}" aria-hidden="true">${initial}</span>`;
+}
+
+function _userPermsCollapsed(u) {
+    if (u.role === 'admin') {
+        return '<span class="tag-pill tag-page-all">Acesso total</span>';
+    }
+    const pages = u.pages || [];
+    if (!pages.length) {
+        return '<span class="text-xs" style="color: var(--text-muted)">Sem permissões</span>';
+    }
+    const MAX_VISIBLE = 3;
+    const labels = pages.map(p => PAGE_LABELS[p] || p);
+    const visible = labels.slice(0, MAX_VISIBLE);
+    const hidden = labels.slice(MAX_VISIBLE);
+    const visibleHtml = visible.map(l => `<span class="tag-page">${l}</span>`).join('');
+    if (!hidden.length) {
+        return `<div class="flex flex-wrap gap-1">${visibleHtml}</div>`;
+    }
+    const tooltip = hidden.join(', ').replace(/"/g, '&quot;');
+    return `<div class="flex flex-wrap gap-1 items-center">
+        ${visibleHtml}
+        <span class="perm-more-chip" title="${tooltip}">+${hidden.length} permiss${hidden.length === 1 ? 'ão' : 'ões'}</span>
+    </div>`;
 }
 
 async function loadUsers() {
@@ -612,8 +661,10 @@ async function loadUsers() {
 
 function renderUsers() {
     const tbody = document.getElementById('users-tbody');
+    if (!tbody) return;
     if (!_usersData.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="py-4 text-center text-[var(--text-muted)]">Nenhum usuário</td></tr>';
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Nenhum usuário cadastrado</td></tr>';
+        _updateUsersCountLabel(0, 0);
         return;
     }
     const _catClass = {
@@ -633,23 +684,48 @@ function renderUsers() {
         const catLabel = u.categoria
             ? `<span class="tag-pill text-[10px] ${_catClass[u.categoria] || 'tag-cat-fallback'}">${u.categoria}</span>`
             : '<span class="text-xs" style="color: var(--text-muted)">—</span>';
-        const permsHtml = u.role === 'admin'
-            ? '<span class="tag-page-all">Acesso total</span>'
-            : `<div class="flex flex-wrap gap-1">${(u.pages || []).map(p => `<span class="tag-page">${PAGE_LABELS[p] || p}</span>`).join('')}</div>`;
-        return `<tr class="border-b border-[var(--border)] align-top" data-user-row data-user-name="${(u.username||'').toLowerCase()}" data-user-cat="${u.categoria||''}">
-            <td class="py-2.5 pr-3 font-medium text-[13px] whitespace-nowrap" style="color: var(--text-primary)">${u.username}</td>
-            <td class="py-2.5 pr-3 whitespace-nowrap">${catLabel}</td>
-            <td class="py-2.5 pr-3 whitespace-nowrap">${roleLabel}</td>
-            <td class="py-2.5 pr-3" style="max-width:320px">${permsHtml}</td>
-            <td class="py-2.5 pr-3 text-xs whitespace-nowrap" style="color: var(--text-muted)">${u.created_at || ''}</td>
-            <td class="py-2.5">
-                <div class="flex gap-2 whitespace-nowrap">
-                    <button onclick="editUser(${u.id})" class="text-xs font-semibold transition-colors" style="color: var(--primary)">Editar</button>
-                    <button onclick="deleteUser(${u.id}, '${u.username}')" class="text-xs font-semibold text-red-600 hover:text-red-500 dark:text-red-400 dark:hover:text-red-300 transition-colors">Excluir</button>
+        const permsHtml = _userPermsCollapsed(u);
+        const avatarHtml = _userAvatarHtml(u);
+        const emailHtml = u.email_cruzeiro
+            ? `<span class="user-email">${u.email_cruzeiro}</span>`
+            : '';
+        const safeName = (u.username || '').replace(/'/g, "\\'");
+        return `<tr data-user-row
+            data-user-name="${(u.username||'').toLowerCase()}"
+            data-user-email="${(u.email_cruzeiro||'').toLowerCase()}"
+            data-user-cat="${u.categoria||''}">
+            <td>
+                <div class="user-cell">
+                    ${avatarHtml}
+                    <div class="min-w-0">
+                        <div class="user-name">${u.username}</div>
+                        ${emailHtml}
+                    </div>
+                </div>
+            </td>
+            <td>${catLabel}</td>
+            <td>${roleLabel}</td>
+            <td>${permsHtml}</td>
+            <td class="text-xs whitespace-nowrap" style="color: var(--text-muted)">${u.created_at || '—'}</td>
+            <td>
+                <div class="row-actions">
+                    <button onclick="editUser(${u.id})"
+                            class="row-action-btn"
+                            title="Editar usuário"
+                            aria-label="Editar ${u.username}">
+                        <span class="material-symbols-outlined">edit</span>
+                    </button>
+                    <button onclick="deleteUser(${u.id}, '${safeName}')"
+                            class="row-action-btn danger"
+                            title="Excluir usuário"
+                            aria-label="Excluir ${u.username}">
+                        <span class="material-symbols-outlined">delete</span>
+                    </button>
                 </div>
             </td>
         </tr>`;
     }).join('');
+    _updateUsersCountLabel(_usersData.length, _usersData.length);
 }
 
 // ---------------------------------------------------------------------------
@@ -761,6 +837,7 @@ function _renderPermsGrouped(cbClass, checkedPages, disabled) {
 
 function renderNewUserPermsGrid() {
     const grid = document.getElementById('user-new-perms-grid');
+    if (!grid) return; // o grid só existe enquanto o modal de Novo Usuário está aberto
     const toolbar = _renderPermsToolbar('user-new-page-cb');
     grid.innerHTML = toolbar + _renderPermsGrouped('user-new-page-cb', _allPages, false);
 }
@@ -768,12 +845,119 @@ function renderNewUserPermsGrid() {
 function toggleNewUserPerms() {
     const role = document.getElementById('user-new-role').value;
     const permsDiv = document.getElementById('user-new-perms');
-    permsDiv.style.display = role === 'admin' ? 'none' : '';
+    if (permsDiv) permsDiv.style.display = role === 'admin' ? 'none' : '';
+}
+
+function _closeUserCreateModal() {
+    const m = document.getElementById('user-create-modal');
+    if (m) m.remove();
+}
+
+function openUserCreateModal() {
+    _closeUserCreateModal();
+    const modal = document.createElement('div');
+    modal.id = 'user-create-modal';
+    modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4';
+    modal.onclick = e => { if (e.target === modal) _closeUserCreateModal(); };
+    modal.innerHTML = `
+        <div class="glass-card w-full max-w-3xl max-h-[90vh] overflow-y-auto p-0" onclick="event.stopPropagation()">
+            <div class="sticky top-0 z-10 px-6 py-4 border-b backdrop-blur flex items-center justify-between"
+                 style="border-color: var(--border); background: var(--bg-overlay);">
+                <div>
+                    <h3 class="text-lg font-bold font-display flex items-center gap-2" style="color: var(--text-primary);">
+                        <span class="material-symbols-outlined text-[20px]" style="color: var(--primary);">person_add</span>
+                        Novo Usuário
+                    </h3>
+                    <p class="text-[11px] mt-0.5" style="color: var(--text-muted);">Preencha os dados e selecione as permissões abaixo.</p>
+                </div>
+                <button onclick="_closeUserCreateModal()"
+                        class="transition-colors"
+                        style="color: var(--text-muted);"
+                        onmouseover="this.style.color='var(--text-primary)'"
+                        onmouseout="this.style.color='var(--text-muted)'"
+                        title="Fechar">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="p-6 space-y-5">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs mb-1.5 font-medium" style="color: var(--text-secondary);">Usuário (login)</label>
+                        <input type="text" id="user-new-username" placeholder="login"
+                            class="input-glass px-3 py-2 text-sm w-full" autocomplete="off">
+                    </div>
+                    <div>
+                        <label class="block text-xs mb-1.5 font-medium" style="color: var(--text-secondary);">Senha</label>
+                        <input type="password" id="user-new-password" placeholder="••••••"
+                            class="input-glass px-3 py-2 text-sm w-full" autocomplete="new-password">
+                    </div>
+                    <div>
+                        <label class="block text-xs mb-1.5 font-medium" style="color: var(--text-secondary);">Kommo User ID</label>
+                        <input type="number" id="user-new-kommo-uid" placeholder="Ex: 9876543"
+                            class="input-glass px-3 py-2 text-sm w-full" autocomplete="off">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs mb-1.5 font-medium" style="color: var(--text-secondary);">E-mail Cruzeiro</label>
+                        <input type="email" id="user-new-email-cruzeiro" placeholder="nome@cruzeirodosul.edu.br"
+                            class="input-glass px-3 py-2 text-sm w-full" autocomplete="off">
+                    </div>
+                    <div>
+                        <label class="block text-xs mb-1.5 font-medium" style="color: var(--text-secondary);">Categoria</label>
+                        <div class="flex items-stretch gap-2">
+                            <select id="user-new-categoria" class="input-glass px-3 py-2 text-sm flex-1 min-w-0">
+                                <option value="">— Nenhuma —</option>
+                                <option value="Comercial">Comercial</option>
+                                <option value="Suporte Comercial">Suporte Comercial</option>
+                                <option value="Supervisor Comercial">Supervisor Comercial</option>
+                                <option value="Acadêmico">Acadêmico</option>
+                                <option value="Supervisor Acadêmico">Supervisor Acadêmico</option>
+                            </select>
+                            <button type="button"
+                                    onclick="applyCategoryPresetFromSelect('user-new-categoria', 'user-new-page-cb')"
+                                    class="btn-secondary text-[11px] font-bold uppercase tracking-wider px-3 rounded-xl flex items-center gap-1 whitespace-nowrap"
+                                    title="Aplicar preset de permissões da categoria">
+                                <span class="material-symbols-outlined text-[14px]">auto_fix_high</span>
+                                Preset
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs mb-1.5 font-medium" style="color: var(--text-secondary);">Nível</label>
+                        <select id="user-new-role" class="input-glass px-3 py-2 text-sm w-full"
+                            onchange="toggleNewUserPerms()">
+                            <option value="viewer">Visualizador</option>
+                            <option value="editor">Editor</option>
+                            <option value="admin">Administrador</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="user-new-perms">
+                    <label class="block text-xs mb-3 font-medium" style="color: var(--text-secondary);">Permissões por página</label>
+                    <div id="user-new-perms-grid" class="perm-grid"></div>
+                </div>
+                <div class="flex gap-3 pt-4 border-t" style="border-color: var(--border);">
+                    <button onclick="createUser()" class="btn-primary text-sm px-6 py-2.5 rounded-xl font-semibold flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-[18px]">check</span>
+                        Criar Usuário
+                    </button>
+                    <button onclick="_closeUserCreateModal()" class="btn-secondary text-sm px-5 py-2.5 rounded-xl">Cancelar</button>
+                </div>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+    // Popular o grid de permissões agora que ele existe no DOM
+    renderNewUserPermsGrid();
+    // Foco inicial no campo de login
+    const u = document.getElementById('user-new-username');
+    if (u) setTimeout(() => u.focus(), 50);
 }
 
 async function createUser() {
-    const username = document.getElementById('user-new-username').value.trim();
-    const password = document.getElementById('user-new-password').value;
+    const usernameEl = document.getElementById('user-new-username');
+    const passwordEl = document.getElementById('user-new-password');
+    if (!usernameEl || !passwordEl) { toast('Abra o formulário de Novo Usuário', 'warning'); return; }
+    const username = usernameEl.value.trim();
+    const password = passwordEl.value;
     const role = document.getElementById('user-new-role').value;
     const kommoRaw = document.getElementById('user-new-kommo-uid').value.trim();
     const kommo_user_id = kommoRaw ? parseInt(kommoRaw) : null;
@@ -789,9 +973,8 @@ async function createUser() {
         });
         const d = await res.json();
         if (d.error) { toast(d.error, 'error'); return; }
-        document.getElementById('user-new-username').value = '';
-        document.getElementById('user-new-password').value = '';
-        document.getElementById('user-new-email-cruzeiro').value = '';
+        toast('Usuário criado com sucesso', 'success');
+        _closeUserCreateModal();
         loadUsers();
     } catch (e) { toast('Erro: ' + e.message, 'error'); }
 }
