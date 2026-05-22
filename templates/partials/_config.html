@@ -194,50 +194,246 @@
 
                 <!-- ── Seção: Usuários ── -->
                 <div id="cfg-section-usuarios" class="hidden">
+                    <style>
+                        /* Estilos dedicados à seção de Usuários (escopo via #cfg-section-usuarios) */
+                        #cfg-section-usuarios .users-header {
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+                            gap: 1rem;
+                            flex-wrap: wrap;
+                            margin-bottom: 1.25rem;
+                        }
+                        #cfg-section-usuarios .users-header-left {
+                            display: flex;
+                            flex-direction: column;
+                            gap: 0.15rem;
+                            min-width: 0;
+                        }
+                        #cfg-section-usuarios .users-header-title {
+                            font-size: 1rem;
+                            font-weight: 700;
+                            color: var(--text-primary);
+                            font-family: var(--font-display, inherit);
+                            line-height: 1.2;
+                        }
+                        #cfg-section-usuarios .users-header-subtitle {
+                            font-size: 0.72rem;
+                            color: var(--text-muted);
+                            letter-spacing: .04em;
+                        }
+                        #cfg-section-usuarios .users-toolbar {
+                            display: flex;
+                            align-items: center;
+                            gap: .6rem;
+                            flex-wrap: wrap;
+                        }
+                        #cfg-section-usuarios .users-table {
+                            width: 100%;
+                            border-collapse: separate;
+                            border-spacing: 0;
+                            font-size: .82rem;
+                            table-layout: fixed;
+                        }
+                        #cfg-section-usuarios .users-table thead th {
+                            font-size: 10px;
+                            font-weight: 700;
+                            color: var(--text-muted);
+                            text-transform: uppercase;
+                            letter-spacing: .08em;
+                            padding: .55rem .75rem;
+                            border-bottom: 1px solid var(--border);
+                            text-align: left;
+                            background: transparent;
+                        }
+                        #cfg-section-usuarios .users-table tbody tr {
+                            transition: background-color .15s ease;
+                        }
+                        #cfg-section-usuarios .users-table tbody tr:not(:last-child) td {
+                            border-bottom: 1px solid var(--border);
+                        }
+                        #cfg-section-usuarios .users-table tbody tr:hover td {
+                            background-color: rgba(148, 163, 184, 0.06);
+                        }
+                        .dark #cfg-section-usuarios .users-table tbody tr:hover td {
+                            background-color: rgba(148, 163, 184, 0.08);
+                        }
+                        #cfg-section-usuarios .users-table td {
+                            padding: .85rem .75rem;
+                            vertical-align: middle;
+                            color: var(--text-secondary);
+                        }
+                        #cfg-section-usuarios .user-cell {
+                            display: flex;
+                            align-items: center;
+                            gap: .65rem;
+                            min-width: 0;
+                        }
+                        #cfg-section-usuarios .user-avatar {
+                            width: 32px;
+                            height: 32px;
+                            border-radius: 50%;
+                            display: inline-flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-weight: 700;
+                            font-size: 12px;
+                            color: #fff;
+                            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+                            flex-shrink: 0;
+                            letter-spacing: -0.01em;
+                            text-transform: uppercase;
+                        }
+                        #cfg-section-usuarios .user-avatar.avatar-admin {
+                            background: linear-gradient(135deg, #f97316 0%, #c2410c 100%);
+                        }
+                        #cfg-section-usuarios .user-avatar.avatar-editor {
+                            background: linear-gradient(135deg, #6366f1 0%, #4338ca 100%);
+                        }
+                        #cfg-section-usuarios .user-avatar.avatar-viewer {
+                            background: linear-gradient(135deg, #64748b 0%, #334155 100%);
+                        }
+                        #cfg-section-usuarios .user-name {
+                            font-weight: 600;
+                            color: var(--text-primary);
+                            font-size: 13px;
+                            line-height: 1.2;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            white-space: nowrap;
+                        }
+                        #cfg-section-usuarios .user-email {
+                            font-size: 11px;
+                            color: var(--text-muted);
+                            line-height: 1.2;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            white-space: nowrap;
+                        }
+                        #cfg-section-usuarios .perm-more-chip {
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 3px;
+                            font-size: 10px;
+                            padding: 2px 8px;
+                            border-radius: 5px;
+                            background: rgba(59, 130, 246, 0.10);
+                            color: #1d4ed8;
+                            border: 1px solid rgba(59, 130, 246, 0.25);
+                            font-weight: 600;
+                            cursor: help;
+                            line-height: 1.4;
+                        }
+                        .dark #cfg-section-usuarios .perm-more-chip {
+                            background: rgba(59, 130, 246, 0.18);
+                            color: #93c5fd;
+                            border-color: rgba(59, 130, 246, 0.35);
+                        }
+                        #cfg-section-usuarios .row-actions {
+                            display: inline-flex;
+                            align-items: center;
+                            gap: .25rem;
+                            justify-content: flex-end;
+                        }
+                        #cfg-section-usuarios .row-action-btn {
+                            width: 30px;
+                            height: 30px;
+                            display: inline-flex;
+                            align-items: center;
+                            justify-content: center;
+                            border-radius: 8px;
+                            background: transparent;
+                            color: var(--text-muted);
+                            transition: all .15s ease;
+                            border: 1px solid transparent;
+                            cursor: pointer;
+                        }
+                        #cfg-section-usuarios .row-action-btn:hover {
+                            background: rgba(148, 163, 184, 0.10);
+                            color: var(--text-primary);
+                            border-color: var(--border);
+                        }
+                        #cfg-section-usuarios .row-action-btn.danger:hover {
+                            background: rgba(220, 38, 38, 0.10);
+                            color: #dc2626;
+                            border-color: rgba(220, 38, 38, 0.30);
+                        }
+                        .dark #cfg-section-usuarios .row-action-btn.danger:hover {
+                            color: #f87171;
+                            border-color: rgba(248, 113, 113, 0.35);
+                            background: rgba(248, 113, 113, 0.10);
+                        }
+                        #cfg-section-usuarios .row-action-btn .material-symbols-outlined {
+                            font-size: 17px;
+                        }
+                        #cfg-section-usuarios .empty-row td {
+                            text-align: center;
+                            color: var(--text-muted);
+                            padding: 2.5rem .75rem;
+                            font-size: .82rem;
+                        }
+                    </style>
+
                     <div class="glass-card p-6 mb-6">
-                        <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-base font-bold text-[var(--text-primary)] font-display">Usuários Cadastrados</h3>
-                            <button onclick="loadUsers()" class="btn-secondary text-sm px-4 py-2 rounded-xl">Atualizar</button>
-                        </div>
-                        <div class="flex flex-wrap items-center gap-3 mb-4">
-                            <div class="relative flex-1 min-w-[200px] max-w-xs">
-                                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-base pointer-events-none">search</span>
-                                <input type="text" id="cfg-users-search" placeholder="Buscar por nome..."
-                                    oninput="filterUsersTable()"
-                                    class="input-glass pl-9 pr-3 py-2 text-sm w-full">
+                        <!-- Header: título + contagem + busca/filtro + atualizar + Novo Usuário (destacado) -->
+                        <div class="users-header">
+                            <div class="users-header-left">
+                                <h3 class="users-header-title">Usuários</h3>
+                                <p class="users-header-subtitle" id="users-count-label">Carregando...</p>
                             </div>
-                            <select id="cfg-users-cat-filter" onchange="filterUsersTable()" class="input-glass px-3 py-2 text-sm">
-                                <option value="">Todas as categorias</option>
-                                <option value="Comercial">Comercial</option>
-                                <option value="Suporte Comercial">Suporte Comercial</option>
-                                <option value="Supervisor Comercial">Supervisor Comercial</option>
-                                <option value="Acadêmico">Acadêmico</option>
-                                <option value="Supervisor Acadêmico">Supervisor Acadêmico</option>
-                                <option value="__none__">Sem categoria</option>
-                            </select>
+                            <div class="users-toolbar">
+                                <div class="relative">
+                                    <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-[18px] pointer-events-none">search</span>
+                                    <input type="text" id="cfg-users-search" placeholder="Buscar por nome ou e-mail..."
+                                        oninput="filterUsersTable()"
+                                        class="input-glass pl-9 pr-3 py-2 text-sm"
+                                        style="width: 260px;">
+                                </div>
+                                <select id="cfg-users-cat-filter" onchange="filterUsersTable()" class="input-glass px-3 py-2 text-sm">
+                                    <option value="">Todas as categorias</option>
+                                    <option value="Comercial">Comercial</option>
+                                    <option value="Suporte Comercial">Suporte Comercial</option>
+                                    <option value="Supervisor Comercial">Supervisor Comercial</option>
+                                    <option value="Acadêmico">Acadêmico</option>
+                                    <option value="Supervisor Acadêmico">Supervisor Acadêmico</option>
+                                    <option value="__none__">Sem categoria</option>
+                                </select>
+                                <button onclick="loadUsers()"
+                                        class="btn-secondary text-sm px-3 py-2 rounded-xl flex items-center gap-1.5"
+                                        title="Recarregar lista">
+                                    <span class="material-symbols-outlined text-[17px]">refresh</span>
+                                </button>
+                                <button onclick="openUserCreateModal()"
+                                        class="btn-primary text-sm px-4 py-2 rounded-xl flex items-center gap-1.5 font-semibold">
+                                    <span class="material-symbols-outlined text-[18px]">person_add</span>
+                                    Novo Usuário
+                                </button>
+                            </div>
                         </div>
+
+                        <!-- Tabela limpa -->
                         <div class="overflow-x-auto">
-                            <table class="w-full text-left text-sm" style="table-layout:fixed">
+                            <table class="users-table">
                                 <colgroup>
-                                    <col style="width:20%">
-                                    <col style="width:12%">
+                                    <col style="width:30%">
+                                    <col style="width:16%">
+                                    <col style="width:10%">
+                                    <col style="width:26%">
+                                    <col style="width:10%">
                                     <col style="width:8%">
-                                    <col style="width:36%">
-                                    <col style="width:12%">
-                                    <col style="width:12%">
                                 </colgroup>
                                 <thead>
-                                    <tr class="text-xs text-[var(--text-muted)] border-b border-[var(--border)] uppercase tracking-wider">
-                                        <th class="pb-2 font-semibold">Usuário (login)</th>
-                                        <th class="pb-2 font-semibold">Categoria</th>
-                                        <th class="pb-2 font-semibold">Nível</th>
-                                        <th class="pb-2 font-semibold">Permissões</th>
-                                        <th class="pb-2 font-semibold">Criado</th>
-                                        <th class="pb-2 font-semibold">Ações</th>
+                                    <tr>
+                                        <th>Usuário</th>
+                                        <th>Categoria</th>
+                                        <th>Nível</th>
+                                        <th>Permissões</th>
+                                        <th>Criado em</th>
+                                        <th style="text-align:right;">Ações</th>
                                     </tr>
                                 </thead>
-                                <tbody id="users-tbody" class="text-[var(--text-secondary)]">
-                                    <tr><td colspan="6" class="py-4 text-center text-[var(--text-muted)]">Carregando...</td></tr>
+                                <tbody id="users-tbody">
+                                    <tr class="empty-row"><td colspan="6">Carregando...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -259,66 +455,6 @@
                             </button>
                             <span id="import-kommo-msg" class="text-xs text-slate-500"></span>
                         </div>
-                    </div>
-
-                    <div class="glass-card p-6">
-                        <h3 class="text-base font-bold text-[var(--text-primary)] font-display mb-4">Novo Usuário</h3>
-                        <div class="flex flex-wrap items-end gap-4 mb-5">
-                            <div>
-                                <label class="block text-xs text-[var(--text-secondary)] mb-1.5 font-medium">Usuário</label>
-                                <input type="text" id="user-new-username" placeholder="login"
-                                    class="input-glass px-3 py-2 text-sm w-40" autocomplete="off">
-                            </div>
-                            <div>
-                                <label class="block text-xs text-[var(--text-secondary)] mb-1.5 font-medium">Senha</label>
-                                <input type="password" id="user-new-password" placeholder="••••••"
-                                    class="input-glass px-3 py-2 text-sm w-40" autocomplete="new-password">
-                            </div>
-                            <div>
-                                <label class="block text-xs text-[var(--text-secondary)] mb-1.5 font-medium">Kommo User ID</label>
-                                <input type="number" id="user-new-kommo-uid" placeholder="Ex: 9876543"
-                                    class="input-glass px-3 py-2 text-sm w-36" autocomplete="off">
-                            </div>
-                            <div>
-                                <label class="block text-xs text-[var(--text-secondary)] mb-1.5 font-medium">E-mail Cruzeiro</label>
-                                <input type="email" id="user-new-email-cruzeiro" placeholder="nome@cruzeirodosul.edu.br"
-                                    class="input-glass px-3 py-2 text-sm w-56" autocomplete="off">
-                            </div>
-                            <div>
-                                <label class="block text-xs text-[var(--text-secondary)] mb-1.5 font-medium">Categoria</label>
-                                <select id="user-new-categoria" class="input-glass px-3 py-2 text-sm">
-                                    <option value="">— Nenhuma —</option>
-                                    <option value="Comercial">Comercial</option>
-                                    <option value="Suporte Comercial">Suporte Comercial</option>
-                                    <option value="Supervisor Comercial">Supervisor Comercial</option>
-                                    <option value="Acadêmico">Acadêmico</option>
-                                    <option value="Supervisor Acadêmico">Supervisor Acadêmico</option>
-                                </select>
-                            </div>
-                            <div>
-                                <button type="button"
-                                        onclick="applyCategoryPresetFromSelect('user-new-categoria', 'user-new-page-cb')"
-                                        class="btn-secondary text-[11px] font-bold uppercase tracking-wider px-4 py-2 rounded-xl flex items-center gap-1.5 whitespace-nowrap"
-                                        title="Aplicar preset de permissões da categoria selecionada">
-                                    <span class="material-symbols-outlined text-[15px]">auto_fix_high</span>
-                                    Aplicar preset
-                                </button>
-                            </div>
-                            <div>
-                                <label class="block text-xs text-[var(--text-secondary)] mb-1.5 font-medium">Nível</label>
-                                <select id="user-new-role" class="input-glass px-3 py-2 text-sm"
-                                    onchange="toggleNewUserPerms()">
-                                    <option value="viewer">Visualizador</option>
-                                    <option value="editor">Editor</option>
-                                    <option value="admin">Administrador</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div id="user-new-perms" class="mb-5">
-                            <label class="block text-xs text-[var(--text-secondary)] mb-3 font-medium">Permissões por página</label>
-                            <div id="user-new-perms-grid" class="perm-grid"></div>
-                        </div>
-                        <button onclick="createUser()" class="btn-primary text-sm px-5 py-2 rounded-xl">Criar Usuário</button>
                     </div>
                 </div>
 
