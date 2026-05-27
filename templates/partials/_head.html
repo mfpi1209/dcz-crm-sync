@@ -46,10 +46,13 @@
             will-change: transform;
             transition: transform 1.2s cubic-bezier(0.82, 0, 0.18, 1) .1s;
         }
-        #boot-splash .boot-shutter--top    { clip-path: polygon(0 0, 100% 0, 50% 50%); }
-        #boot-splash .boot-shutter--bottom { clip-path: polygon(0 100%, 100% 100%, 50% 50%); }
-        #boot-splash .boot-shutter--left   { clip-path: polygon(0 0, 0 100%, 50% 50%); }
-        #boot-splash .boot-shutter--right  { clip-path: polygon(100% 0, 100% 100%, 50% 50%); }
+        /* Triângulos se sobrepõem 1px no centro para evitar costura diagonal
+           visível (o "X" do anti-aliasing quando os clip-paths se tocam
+           exatamente em 50% 50%). */
+        #boot-splash .boot-shutter--top    { clip-path: polygon(-1px -1px, calc(100% + 1px) -1px, 50% calc(50% + 1px)); }
+        #boot-splash .boot-shutter--bottom { clip-path: polygon(-1px calc(100% + 1px), calc(100% + 1px) calc(100% + 1px), 50% calc(50% - 1px)); }
+        #boot-splash .boot-shutter--left   { clip-path: polygon(-1px -1px, -1px calc(100% + 1px), calc(50% + 1px) 50%); }
+        #boot-splash .boot-shutter--right  { clip-path: polygon(calc(100% + 1px) -1px, calc(100% + 1px) calc(100% + 1px), calc(50% - 1px) 50%); }
 
         /* Feixes diagonais em X — flashinho cyan no momento da abertura. */
         #boot-splash .boot-beams {

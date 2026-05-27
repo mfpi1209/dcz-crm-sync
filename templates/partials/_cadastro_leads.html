@@ -1,0 +1,242 @@
+<div id="page-cadastro_leads" class="hidden" style="height: calc(100vh - 56px); padding: 0; margin: 0; overflow: auto;">
+    <div id="cdl-wrap">
+        <div class="cdl-card">
+            <h2 class="cdl-title">Cadastro de Lead</h2>
+            <form id="cdl-leadForm" novalidate>
+                <div class="cdl-field">
+                    <label class="cdl-label" for="cdl-leadNome">Nome Completo do Lead</label>
+                    <input class="cdl-input" type="text" id="cdl-leadNome" placeholder="Ex: Maria Oliveira" required autocomplete="off">
+                </div>
+
+                <div class="cdl-field">
+                    <label class="cdl-label" for="cdl-leadTel">Celular</label>
+                    <input class="cdl-input" type="tel" id="cdl-leadTel" placeholder="(00) 00000-0000" required autocomplete="off">
+                </div>
+
+                <div class="cdl-field">
+                    <label class="cdl-label" for="cdl-consultorSelect">O Seu Nome</label>
+                    <select class="cdl-input" id="cdl-consultorSelect" required>
+                        <option value="">Carregando nomes...</option>
+                    </select>
+                </div>
+
+                <div class="cdl-options-group">
+                    <label class="cdl-label">Tipo de Origem:</label>
+                    <label class="cdl-option">
+                        <input type="radio" name="cdl-origem" value="Presencial/Telefone" required> Presencial / Telefone
+                    </label>
+                    <label class="cdl-option">
+                        <input type="radio" name="cdl-origem" value="Indicação"> Indicação
+                    </label>
+                </div>
+
+                <button type="submit" id="cdl-btnSubmit" class="cdl-btn">CADASTRAR LEAD</button>
+                <p id="cdl-feedback" class="cdl-feedback" role="status" aria-live="polite"></p>
+            </form>
+        </div>
+    </div>
+
+    <style>
+        #page-cadastro_leads #cdl-wrap {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            min-height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem 1rem;
+            box-sizing: border-box;
+        }
+        #page-cadastro_leads .cdl-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+        #page-cadastro_leads .cdl-title {
+            text-align: center;
+            color: #1a73e8;
+            margin: 0 0 1.5rem 0;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        #page-cadastro_leads .cdl-field { margin-bottom: 1rem; }
+        #page-cadastro_leads .cdl-label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #444;
+            font-size: 14px;
+        }
+        #page-cadastro_leads .cdl-input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 14px;
+            background: white;
+            color: #222;
+        }
+        #page-cadastro_leads .cdl-input:focus {
+            outline: none;
+            border-color: #1a73e8;
+            box-shadow: 0 0 0 3px rgba(26,115,232,0.15);
+        }
+        #page-cadastro_leads .cdl-options-group {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+        #page-cadastro_leads .cdl-option {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+            cursor: pointer;
+            font-size: 14px;
+            color: #444;
+        }
+        #page-cadastro_leads .cdl-option input { margin-right: 10px; }
+        #page-cadastro_leads .cdl-btn {
+            width: 100%;
+            padding: 14px;
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.2s;
+        }
+        #page-cadastro_leads .cdl-btn:hover:not(:disabled) { background-color: #1557b0; }
+        #page-cadastro_leads .cdl-btn:disabled { background-color: #ccc; cursor: not-allowed; }
+        #page-cadastro_leads .cdl-feedback {
+            margin: 12px 0 0;
+            font-size: 13px;
+            text-align: center;
+            min-height: 18px;
+        }
+        #page-cadastro_leads .cdl-feedback.success { color: #16a34a; font-weight: 600; }
+        #page-cadastro_leads .cdl-feedback.error { color: #dc2626; font-weight: 600; }
+    </style>
+
+    <script>
+    (function () {
+        const SUPABASE_URL = 'https://vtlbndvcgajcoajhcnnx.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0bGJuZHZjZ2FqY29hamhjbm54Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg0NTQ1NDcsImV4cCI6MjA2NDAzMDU0N30.1k35n2ZHU0NoVv0tFFum6148BBrmA_j0nVPDUwELrGg';
+        const SUPABASE_TABLE = 'distribuicao_comercial';
+        const WEBHOOK_URL = 'https://n8n-new-n8n.ca31ey.easypanel.host/webhook/e56c6bc5-0bd0-4f42-82c5-5f5741534ff4';
+
+        let consultoresLoaded = false;
+        let loading = false;
+
+        function $(id) { return document.getElementById(id); }
+
+        function setFeedback(msg, type) {
+            const el = $('cdl-feedback');
+            if (!el) return;
+            el.textContent = msg || '';
+            el.classList.remove('success', 'error');
+            if (type) el.classList.add(type);
+        }
+
+        async function loadConsultores() {
+            if (consultoresLoaded || loading) return;
+            const sel = $('cdl-consultorSelect');
+            if (!sel) return;
+            loading = true;
+            try {
+                const url = SUPABASE_URL + '/rest/v1/' + SUPABASE_TABLE + '?select=id_lead,nome&order=nome.asc';
+                const r = await fetch(url, {
+                    headers: {
+                        apikey: SUPABASE_ANON_KEY,
+                        Authorization: 'Bearer ' + SUPABASE_ANON_KEY,
+                    },
+                });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const data = await r.json();
+                sel.innerHTML = '<option value="">Selecione...</option>';
+                const seen = new Set();
+                (data || []).forEach(function (row) {
+                    if (!row || !row.nome || row.id_lead === null || row.id_lead === undefined) return;
+                    const key = String(row.id_lead);
+                    if (seen.has(key)) return;
+                    seen.add(key);
+                    const opt = document.createElement('option');
+                    opt.value = key;
+                    opt.textContent = String(row.nome);
+                    sel.appendChild(opt);
+                });
+                consultoresLoaded = true;
+            } catch (e) {
+                console.error('[cadastro_leads] erro consultores', e);
+                sel.innerHTML = '<option value="">Erro ao carregar — recarregue a página</option>';
+            } finally {
+                loading = false;
+            }
+        }
+
+        function handleSubmit(ev) {
+            ev.preventDefault();
+            const nome = ($('cdl-leadNome').value || '').trim();
+            const celular = ($('cdl-leadTel').value || '').trim();
+            const tipo = ($('cdl-consultorSelect').value || '').trim();
+            const origemEl = document.querySelector('input[name="cdl-origem"]:checked');
+            if (!nome) { setFeedback('Informe o nome completo do lead.', 'error'); return; }
+            if (!celular) { setFeedback('Informe o celular.', 'error'); return; }
+            if (!tipo) { setFeedback('Selecione o seu nome.', 'error'); return; }
+            if (!origemEl) { setFeedback('Selecione o tipo de origem.', 'error'); return; }
+
+            const btn = $('cdl-btnSubmit');
+            const oldLabel = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = 'ENVIANDO...';
+            setFeedback('');
+
+            const payload = {
+                nome: nome,
+                celular: celular,
+                radioGroup1: origemEl.value,
+                tipo: tipo,
+            };
+
+            fetch(WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            }).then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                setFeedback('Lead cadastrado com sucesso!', 'success');
+                $('cdl-leadForm').reset();
+            }).catch(function (e) {
+                console.error('[cadastro_leads] erro envio', e);
+                setFeedback('Erro ao enviar. Tente novamente.', 'error');
+            }).finally(function () {
+                btn.disabled = false;
+                btn.textContent = oldLabel;
+            });
+        }
+
+        function init() {
+            const form = $('cdl-leadForm');
+            if (form && !form.dataset.bound) {
+                form.addEventListener('submit', handleSubmit);
+                form.dataset.bound = '1';
+            }
+            loadConsultores();
+        }
+
+        window.loadCadastroLeads = init;
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    })();
+    </script>
+</div>

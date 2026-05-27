@@ -5,6 +5,14 @@
 let _crgmChartEvolucao = null;
 let _crgmChartAgentes = null;
 
+// ── Cross-filter state ───────────────────────────────────
+const _crgmCrossFilter = {
+    userId: null,   // number | null
+    date: null,     // 'YYYY-MM-DD' | null
+};
+let _crgmLastData = null;
+let _crgmLastAtividade = null;
+
 function _crgmChartTheme() {
     var dark = document.documentElement.classList.contains('dark');
     return {
@@ -90,6 +98,7 @@ async function loadComercialRgm() {
     _crgmBindTopbarDates();
     crgmAtualizar();
     if (typeof refreshTopbarForPage === 'function') refreshTopbarForPage('comercial_rgm');
+    _crgmRefreshSolPendingBadge();
 }
 
 let _crgmTopbarDatesBound = false;
@@ -168,6 +177,16 @@ async function crgmAtualizar() {
         const res = await api(`/api/comercial-rgm/data?${qs}`);
         const d = await res.json();
         if (!d.ok) { _crgmErro(d.error || 'Erro'); return; }
+        _crgmLastData = d;
+        // Validar cross-filter: se data/consultor saiu do novo range, limpar
+        if (_crgmCrossFilter.date) {
+            const datasNoPayload = new Set((d.matriculas_grid || []).map(g => g.data));
+            if (!datasNoPayload.has(_crgmCrossFilter.date)) _crgmCrossFilter.date = null;
+        }
+        if (_crgmCrossFilter.userId != null) {
+            const idsNoPayload = new Set((d.ranking_agentes || []).map(a => a.user_id));
+            if (!idsNoPayload.has(_crgmCrossFilter.userId)) _crgmCrossFilter.userId = null;
+        }
         const avisoMetas = document.getElementById('crgm-metas-aviso');
         if (avisoMetas) {
             if (d.metas_aviso) {
@@ -178,15 +197,13 @@ async function crgmAtualizar() {
                 avisoMetas.classList.add('hidden');
             }
         }
-        _crgmRenderKPIs(d.kpis);
-        _crgmRenderEvasao(d.evasao);
-        _crgmRenderEvolucao(d.evolucao, d.evolucao_prev || [], d.evolucao_bruto || []);
         _crgmRenderPoloTable(d.ranking_polo);
-        _crgmRenderCicloTable(d.ranking_ciclo);
-        _crgmRenderAgentes(d.ranking_agentes || []);
-        _crgmRenderAgentesChart(d.ranking_agentes || []);
         _crgmRenderTransferencia(d.transferencia_regresso);
         crgmAtualizarBadgeConflitos();
+        // Grupo 5.4: carrega atividade sem filtro de agente (filtro é client-side)
+        await _crgmLoadAtividade(dtIni, dtFim, null);
+        // _crgmCrossRerenderAll renderiza KPIs, evasão, evolução, ranking e atividade
+        _crgmCrossRerenderAll();
     } catch (e) { _crgmErro('Erro: ' + e.message); }
     finally {
         _crgmLoading(false);
@@ -196,7 +213,7 @@ async function crgmAtualizar() {
 
 // ── KPIs ────────────────────────────────────────────────
 function _crgmRenderKPIs(k) {
-    document.getElementById('crgm-vendas').textContent = k.vendas.toLocaleString('pt-BR');
+    document.getElementById('crgm-vendas').textContent = k.vendas != null ? k.vendas.toLocaleString('pt-BR') : '—';
     // Mostra líquido se diferente do bruto
     const liqEl = document.getElementById('crgm-vendas-liquidas');
     const liqLabel = document.getElementById('crgm-vendas-liquidas-label');
@@ -206,17 +223,26 @@ function _crgmRenderKPIs(k) {
     } else if (liqLabel) {
         liqLabel.classList.add('hidden');
     }
-    document.getElementById('crgm-ytd').textContent = k.vendas_ytd.toLocaleString('pt-BR');
-    document.getElementById('crgm-media').textContent = k.media_diaria.toLocaleString('pt-BR');
-    document.getElementById('crgm-ticket').textContent = 'R$ ' + k.ticket_medio.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
-    document.getElementById('crgm-dias').textContent = k.dias;
+    document.getElementById('crgm-ytd').textContent = k.vendas_ytd != null ? k.vendas_ytd.toLocaleString('pt-BR') : '—';
+    document.getElementById('crgm-media').textContent = k.media_diaria != null ? k.media_diaria.toLocaleString('pt-BR') : '—';
+    // Ticket médio: null no modo dia
+    const ticketEl = document.getElementById('crgm-ticket');
+    if (ticketEl) ticketEl.textContent = k.ticket_medio != null
+        ? 'R$ ' + k.ticket_medio.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})
+        : '—';
+    document.getElementById('crgm-dias').textContent = k.dias != null ? k.dias : '—';
     const mmEl = document.getElementById('crgm-mm-inscritos');
     if (mmEl) mmEl.textContent = (k.mm_inscritos || 0).toLocaleString('pt-BR');
-    document.getElementById('crgm-1a-val').textContent = k.vendas_1a.toLocaleString('pt-BR');
+    // Comparativos históricos (podem ser null no modo dia se não há dados)
+    const val1aEl = document.getElementById('crgm-1a-val');
+    if (val1aEl) val1aEl.textContent = k.vendas_1a != null ? k.vendas_1a.toLocaleString('pt-BR') : '—';
     _crgmBadge('crgm-1a-badge', k.pct_1a);
-    document.getElementById('crgm-6m-val').textContent = k.vendas_6m.toLocaleString('pt-BR');
+    const val6mEl = document.getElementById('crgm-6m-val');
+    if (val6mEl) val6mEl.textContent = k.vendas_6m != null ? k.vendas_6m.toLocaleString('pt-BR') : '—';
     _crgmBadge('crgm-6m-badge', k.pct_6m);
-    document.getElementById('crgm-ytd-prev').textContent = (k.vendas_prev_ytd||0).toLocaleString('pt-BR');
+    // YTD anterior: ocultar card quando null (modo dia)
+    const ytdPrevEl = document.getElementById('crgm-ytd-prev');
+    if (ytdPrevEl) ytdPrevEl.textContent = k.vendas_prev_ytd != null ? k.vendas_prev_ytd.toLocaleString('pt-BR') : '—';
     _crgmBadge('crgm-ytd-badge', k.pct_ytd);
 }
 
@@ -277,6 +303,8 @@ function crgmToggleEvasaoDetalhes() {
 }
 function _crgmBadge(id, pct) {
     const el = document.getElementById(id); if (!el) return;
+    if (pct == null) { el.textContent = ''; el.className = 'hidden'; return; }
+    el.classList.remove('hidden');
     el.textContent = `${pct >= 0 ? '\u2191' : '\u2193'} ${Math.abs(pct)}%`;
     el.className = pct >= 0 ? 'font-bold px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-700 dark:text-emerald-400' : 'font-bold px-1.5 py-0.5 rounded text-[10px] bg-red-500/20 text-red-600 dark:text-red-400';
 }
@@ -286,13 +314,12 @@ function _crgmRenderEvolucao(evolucao, evolucaoPrev, evolucaoBruto) {
     const ctx = document.getElementById('crgm-chart-evolucao');
     if (_crgmChartEvolucao) _crgmChartEvolucao.destroy();
 
-    // Usa datas do bruto como eixo principal (é o superset)
-    const baseData = (evolucaoBruto && evolucaoBruto.length > 0) ? evolucaoBruto : evolucao;
+    // Usa datas do bruto como eixo principal (é o superset); null quando consultor filtrado
+    const baseData = (evolucaoBruto && evolucaoBruto.length > 0) ? evolucaoBruto : (evolucao || []);
     const labels = baseData.map(e => { const d = new Date(e.data+'T00:00:00'); return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}); });
 
-    // Mapeia líquido e bruto por data para alinhar com o eixo
     const liquidoMap = {};
-    evolucao.forEach(e => { liquidoMap[e.data] = e.count; });
+    (evolucao || []).forEach(e => { liquidoMap[e.data] = e.count; });
     const brutoMap = {};
     if (evolucaoBruto) evolucaoBruto.forEach(e => { brutoMap[e.data] = e.count; });
 
@@ -301,8 +328,22 @@ function _crgmRenderEvolucao(evolucao, evolucaoPrev, evolucaoBruto) {
 
     const hasBruto = evolucaoBruto && evolucaoBruto.length > 0;
     const datasets = [];
+    const selectedDate = _crgmCrossFilter.date;
 
-    // Sombra bruto (desenhada primeiro, fica atrás)
+    // Destaque do ponto selecionado
+    const mainPointRadius = baseData.map((e, i) => {
+        if (!selectedDate) return baseData.length > 60 ? 0 : 4;
+        return e.data === selectedDate ? 7 : (baseData.length > 60 ? 0 : 3);
+    });
+    const mainPointBg = baseData.map((e) => {
+        if (!selectedDate) return '#3b82f6';
+        return e.data === selectedDate ? '#f59e0b' : 'rgba(59,130,246,0.4)';
+    });
+    const mainBorderColor = baseData.map((e) => {
+        if (!selectedDate) return '#3b82f6';
+        return e.data === selectedDate ? '#f59e0b' : 'rgba(59,130,246,0.4)';
+    });
+
     if (hasBruto) {
         datasets.push({
             label: 'Bruto (c/ evasões)',
@@ -319,22 +360,21 @@ function _crgmRenderEvolucao(evolucao, evolucaoPrev, evolucaoBruto) {
         });
     }
 
-    // Linha principal — líquido (EM CURSO)
     datasets.push({
         label: 'EM CURSO',
         data: valuesLiquido,
-        borderColor: '#3b82f6',
+        borderColor: mainBorderColor,
         backgroundColor: 'rgba(59,130,246,0.08)',
         borderWidth: 2.5,
         fill: true,
         tension: 0.3,
-        pointRadius: baseData.length > 60 ? 0 : 4,
-        pointBackgroundColor: '#3b82f6',
+        pointRadius: mainPointRadius,
+        pointBackgroundColor: mainPointBg,
+        pointBorderColor: mainPointBg,
         pointHoverRadius: 6,
         order: 1,
     });
 
-    // Ano anterior (tracejado)
     if (evolucaoPrev && evolucaoPrev.length > 0) {
         const prevMap = {};
         evolucaoPrev.forEach(e => { const d = new Date(e.data+'T00:00:00'); const k = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`; prevMap[k] = (prevMap[k]||0) + e.count; });
@@ -349,28 +389,77 @@ function _crgmRenderEvolucao(evolucao, evolucaoPrev, evolucaoBruto) {
 
     const showLegend = hasBruto || (evolucaoPrev && evolucaoPrev.length > 0);
     const th = _crgmChartTheme();
-    datasets.forEach(ds => {
-        if (ds.label === 'Ano Anterior') {
-            ds.borderColor = th.prevLine;
-        }
-    });
+    datasets.forEach(ds => { if (ds.label === 'Ano Anterior') ds.borderColor = th.prevLine; });
+
+    // Tooltip: quando consultor filtrado, mostra Data/Consultor/Matrículas/Leads/Conv/Horas.
+    const filteredUserId = _crgmCrossFilter.userId;
+    const tooltipCallbacks = {
+        label: item => {
+            if (filteredUserId != null) return null;  // substituído por afterBody
+            const label = item.dataset.label || '';
+            return ` ${label}: ${item.parsed.y}`;
+        },
+    };
+    if (filteredUserId != null) {
+        const consultorNome = (_crgmLastData?.ranking_agentes || []).find(a => a.user_id === filteredUserId)?.nome
+            || `User #${filteredUserId}`;
+        tooltipCallbacks.title = (items) => {
+            const idx = items[0]?.dataIndex;
+            if (idx == null) return '';
+            const dataIso = baseData[idx]?.data;
+            if (!dataIso) return '';
+            const [y, m, d] = dataIso.split('-');
+            return `Data: ${d}/${m}/${y}`;
+        };
+        tooltipCallbacks.afterBody = (items) => {
+            const idx = items[0]?.dataIndex;
+            if (idx == null) return [];
+            const dataIso = baseData[idx]?.data;
+            if (!dataIso) return [];
+            const lines = [`Consultor: ${consultorNome}`];
+            // Matrículas do dia para este consultor
+            const matGrid = _crgmLastData?.matriculas_grid || [];
+            const matDia = matGrid.filter(g => g.data === dataIso && g.user_id === filteredUserId)
+                .reduce((s, g) => s + (g.count || 0), 0);
+            lines.push(`Matrículas: ${matDia}`);
+            // Leads do dia para este consultor
+            const leadsGrid = _crgmLastData?.leads_grid || [];
+            const leadsDia = leadsGrid.filter(l => l.data === dataIso && l.user_id === filteredUserId)
+                .reduce((s, l) => s + (l.count || 0), 0);
+            lines.push(`Leads: ${leadsDia}`);
+            if (leadsDia > 0) {
+                const conv = Math.round(matDia / leadsDia * 1000) / 10;
+                lines.push(`Conversão: ${conv}%`);
+            } else {
+                lines.push('Conversão: —');
+            }
+            // Horas ativas do dia
+            const atRow = (_crgmLastAtividade || []).find(r =>
+                Number(r.created_by) === filteredUserId &&
+                String(r.data_referencia || '').substring(0, 10) === dataIso
+            );
+            const horas = atRow ? (parseFloat(atRow.horas_ativas) || 0) : null;
+            lines.push(`Horas ativas: ${horas != null ? _crgmFormatHoras(horas) : '—'}`);
+            return lines;
+        };
+    }
+
     _crgmChartEvolucao = new Chart(ctx, { type:'line', data:{labels, datasets}, options:{
         responsive:true, maintainAspectRatio:false,
         interaction:{mode:'index',intersect:false},
+        onClick: (evt, elements) => {
+            if (!elements.length) return;
+            const idx = elements[0].index;
+            const dataIso = baseData[idx]?.data;
+            if (dataIso) _crgmCrossSetDate(dataIso);
+        },
         plugins:{
             legend:{
                 display: showLegend,
                 position:'top', align:'end',
                 labels:{color: th.legend, font:{size:10}, boxWidth:12, padding:12}
             },
-            tooltip:{
-                callbacks:{
-                    label: ctx => {
-                        const label = ctx.dataset.label || '';
-                        return ` ${label}: ${ctx.parsed.y}`;
-                    }
-                }
-            }
+            tooltip:{ callbacks: tooltipCallbacks }
         },
         scales:{
             x:{ticks:{color: th.tick, maxTicksLimit:15, font:{size:10}}, grid:{color: th.grid}},
@@ -427,11 +516,26 @@ function _crgmTierLabel(mp, meta, intermediaria, supermeta) {
     return { label: '\u2014', cls: 'text-slate-500 dark:text-slate-600', icon: '' };
 }
 
+function _crgmFormatHoras(h) {
+    if (h == null || isNaN(h)) return '\u2014';
+    const horas = Math.floor(h);
+    const mins = Math.round((h - horas) * 60);
+    return `${horas}h${String(mins).padStart(2, '0')}`;
+}
+
+function _crgmFormatMinutos(m) {
+    if (m == null || isNaN(m)) return '\u2014';
+    if (m < 60) return `${Math.round(m)}min`;
+    const h = Math.floor(m / 60);
+    const r = Math.round(m % 60);
+    return `${h}h${String(r).padStart(2, '0')}`;
+}
+
 function _crgmRenderAgentes(agentes) {
     const tbody = document.getElementById('crgm-agentes-body');
     const countEl = document.getElementById('crgm-agentes-count');
     if (!agentes || !agentes.length) {
-        tbody.innerHTML = '<tr><td colspan="11" class="px-5 py-8 text-center text-slate-600">Nenhum agente encontrado</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="px-5 py-8 text-center text-slate-600">Nenhum agente encontrado</td></tr>';
         if (countEl) countEl.textContent = ''; return;
     }
     const agenteFilter = document.getElementById('crgm-agente').value;
@@ -440,17 +544,28 @@ function _crgmRenderAgentes(agentes) {
     filtered = filtered.filter(a => (a.matriculas_periodo||0)>0 || (a.ganhos||0)>0);
     if (countEl) countEl.textContent = `${filtered.length} agentes`;
     const medals = ['\uD83E\uDD47','\uD83E\uDD48','\uD83E\uDD49'];
+    const selectedUserId = _crgmCrossFilter.userId;
     tbody.innerHTML = filtered.map((a,i) => {
-        const mp = a.matriculas_periodo||0, pp = a.perdidos_periodo||0, np = a.novos_periodo||0;
+        const mp = a.matriculas_periodo||0;
+        const np = a.novos_periodo;
+        const npStr = np == null ? '\u2014' : np.toLocaleString('pt-BR');
         const meta = a.meta||0;
         const intermediaria = a.meta_intermediaria||0;
         const supermeta = a.supermeta||0;
         const tier = _crgmTierLabel(mp, meta, intermediaria, supermeta);
-        const taxaClass = a.taxa_conversao>=20 ? 'text-emerald-600 dark:text-emerald-400' : a.taxa_conversao>=8 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400';
+        const taxaVal = a.taxa_conversao;
+        const taxaStr = taxaVal == null ? '\u2014' : `${taxaVal}%`;
+        const taxaClass = taxaVal==null ? 'text-slate-500 dark:text-slate-400' : (taxaVal>=20 ? 'text-emerald-600 dark:text-emerald-400' : taxaVal>=8 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400');
         const rank = i<3 ? medals[i] : (i+1);
         const rowBg = a.is_transferencia ? 'bg-amber-500/[0.08] dark:bg-amber-500/[0.06]' : (i<3 ? 'bg-blue-500/[0.06] dark:bg-blue-500/[0.03]' : '');
 
-        // Tooltip with all category metas
+        // Cross-filter highlight
+        let crossCls = '';
+        if (selectedUserId != null) {
+            if (a.user_id === selectedUserId) crossCls = 'ring-2 ring-blue-500 ring-inset bg-blue-500/[0.06]';
+            else crossCls = 'opacity-40';
+        }
+
         const mc = a.metas_cat || {};
         let tooltip = Object.entries(mc).length > 0
             ? Object.entries(mc).map(([cat, v]) =>
@@ -458,13 +573,16 @@ function _crgmRenderAgentes(agentes) {
             ).join(' | ')
             : 'Sem meta definida';
 
-        return `<tr class="group hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors cursor-pointer ${rowBg}" title="${tooltip}" onclick="crgmAgenteDetalhe(${a.user_id})">
+        return `<tr class="group hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors cursor-pointer ${rowBg} ${crossCls}" title="${tooltip}" onclick="_crgmCrossSetUser(${a.user_id})">
             <td class="text-center px-3 py-2.5 font-bold text-slate-500 dark:text-slate-400">${rank}</td>
             <td class="px-4 py-2.5 font-medium ${a.nome&&a.nome.startsWith('User #')?'text-slate-500 italic':'text-slate-900 dark:text-white'}">
                 <div class="flex items-center gap-2">
                     <span>${esc(a.nome)}</span>
                     <button onclick="event.stopPropagation();navigateToPerformance(${a.user_id})" title="Ver painel de performance" class="opacity-0 group-hover:opacity-100 hover:opacity-100 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-all p-0.5 rounded hover:bg-indigo-500/10 flex-shrink-0" style="opacity:.35">
                         <span class="material-symbols-outlined text-sm">monitoring</span>
+                    </button>
+                    <button onclick="event.stopPropagation();crgmAgenteDetalhe(${a.user_id})" title="Ver detalhe do agente" class="opacity-0 group-hover:opacity-100 hover:opacity-100 text-cyan-600 dark:text-cyan-400 hover:text-cyan-800 dark:hover:text-cyan-300 transition-all p-0.5 rounded hover:bg-cyan-500/10 flex-shrink-0" style="opacity:.35">
+                        <span class="material-symbols-outlined text-sm">open_in_new</span>
                     </button>
                 </div>
             </td>
@@ -473,12 +591,265 @@ function _crgmRenderAgentes(agentes) {
             <td class="px-4 py-2.5 text-right font-mono text-blue-800 dark:text-blue-300/70">${meta>0?meta:'\u2014'}</td>
             <td class="px-4 py-2.5 text-right font-mono text-emerald-700 dark:text-emerald-300/70">${supermeta>0?supermeta:'\u2014'}</td>
             <td class="px-4 py-2.5 text-right font-mono ${tier.cls}">${tier.icon} ${tier.label}</td>
-            <td class="px-4 py-2.5 text-right font-mono text-cyan-700 dark:text-cyan-400">${np.toLocaleString('pt-BR')}</td>
-            <td class="px-4 py-2.5 text-right font-mono text-red-600 dark:text-red-400">${pp.toLocaleString('pt-BR')}</td>
-            <td class="px-4 py-2.5 text-right font-mono text-slate-700 dark:text-slate-300">${a.total.toLocaleString('pt-BR')}</td>
-            <td class="px-4 py-2.5 text-right font-mono font-bold ${taxaClass}">${a.taxa_conversao}%</td>
+            <td class="px-4 py-2.5 text-right font-mono text-cyan-700 dark:text-cyan-400">${npStr}</td>
+            <td class="px-4 py-2.5 text-right font-mono text-slate-500 dark:text-slate-400">${_crgmFormatHoras(a.horas_media)}</td>
+            <td class="px-4 py-2.5 text-right font-mono font-bold ${taxaClass}">${taxaStr}</td>
         </tr>`;
     }).join('');
+}
+
+// ── Atividade Kommo ─────────────────────────────────────────────────────
+
+/**
+ * Grupo 5 — Separação de carga e render.
+ * _crgmLoadAtividade: faz fetch e armazena em _crgmLastAtividade.
+ * _crgmRenderAtividade: lê _crgmLastAtividade + _crgmCrossFilter e renderiza.
+ */
+
+async function _crgmLoadAtividade(dtIni, dtFim, userId) {
+    const bodyEl = document.getElementById('crgm-atividade-body');
+    if (!bodyEl) return [];
+    if (!dtIni || !dtFim) {
+        bodyEl.innerHTML = '<p class="text-xs text-slate-500">Selecione um período para visualizar a atividade.</p>';
+        return [];
+    }
+    bodyEl.innerHTML = '<p class="text-xs text-slate-400 animate-pulse">Carregando atividade Kommo...</p>';
+    let url = `/api/comercial-rgm/atividade-kommo?dt_ini=${dtIni}&dt_fim=${dtFim}`;
+    if (userId) url += `&user_id=${userId}`;
+    try {
+        const res = await api(url);
+        const d = await res.json();
+        if (!d.ok) {
+            bodyEl.innerHTML = `<p class="text-xs text-red-400">${esc(d.error || 'Erro ao carregar atividade.')}</p>`;
+            return [];
+        }
+        const linhas = d.linhas || [];
+        // Sempre armazena (chamado sem userId a partir de crgmAtualizar)
+        _crgmLastAtividade = linhas;
+        return linhas;
+    } catch (e) {
+        bodyEl.innerHTML = `<p class="text-xs text-red-400">Erro: ${esc(e.message)}</p>`;
+        return [];
+    }
+}
+
+function _crgmRenderAtividade() {
+    const bodyEl = document.getElementById('crgm-atividade-body');
+    if (!bodyEl) return;
+    const linhas = _crgmLastAtividade || [];
+    if (!linhas.length) {
+        bodyEl.innerHTML = '<p class="text-xs text-slate-500">Nenhuma atividade encontrada para o período.</p>';
+        return;
+    }
+
+    const selectedDate  = _crgmCrossFilter.date;
+    const selectedUser  = _crgmCrossFilter.userId;
+    // Também respeita o dropdown de agente para filtragem de lista
+    const agenteDropVal = (document.getElementById('crgm-agente')?.value) || '';
+
+    // Filtrar por data cross-filter, se aplicável
+    const linhasFiltradas = selectedDate
+        ? linhas.filter(r => String(r.data_referencia || '').substring(0, 10) === selectedDate)
+        : linhas;
+
+    // Agregar por consultor
+    const porConsultor = new Map();
+    for (const r of linhasFiltradas) {
+        const uid = r.created_by;
+        if (uid == null) continue;
+        if (!porConsultor.has(uid)) {
+            porConsultor.set(uid, {
+                uid,
+                nome: r.nome || `User #${uid}`,
+                total_horas_ativas: 0,
+                maior_intervalo: 0,
+                ultima_data_ref: null,
+                dias: [],
+            });
+        }
+        const c = porConsultor.get(uid);
+        c.total_horas_ativas += parseFloat(r.horas_ativas || 0);
+        c.maior_intervalo = Math.max(c.maior_intervalo, parseInt(r.maior_intervalo_sem_atividade_minutos || 0));
+        const dr = String(r.data_referencia || '').substring(0, 10);
+        if (dr && (!c.ultima_data_ref || dr > c.ultima_data_ref)) c.ultima_data_ref = dr;
+        c.dias.push(r);
+    }
+
+    // Filtrar por dropdown de agente (client-side)
+    let consultores = Array.from(porConsultor.values());
+    if (agenteDropVal) {
+        consultores = consultores.filter(c => String(c.uid) === agenteDropVal);
+    }
+    if (selectedUser != null) {
+        consultores = consultores.filter(c => Number(c.uid) === selectedUser);
+    }
+
+    // Ordenação: por total_horas_ativas do período completo (decisão de critério estável).
+    // Alternativa seria ordenar pelo último dia ativo, mas o total dá melhor ranking geral.
+    consultores.sort((a, b) => b.total_horas_ativas - a.total_horas_ativas);
+
+    if (!consultores.length) {
+        bodyEl.innerHTML = '<p class="text-xs text-slate-500">Nenhuma atividade encontrada para os filtros ativos.</p>';
+        return;
+    }
+
+    function _tsHora(ts) {
+        if (!ts) return '—';
+        try { return new Date(ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }); }
+        catch { return ts; }
+    }
+    function _durCls(min) {
+        if (min >= 120) return 'text-red-700 dark:text-red-400 font-semibold';
+        if (min >= 60)  return 'text-amber-700 dark:text-amber-400 font-semibold';
+        return 'text-slate-500 dark:text-slate-400';
+    }
+    function _fmtData(iso) {
+        if (!iso) return '';
+        const s = String(iso).substring(0, 10);
+        const [y, m, day] = s.split('-');
+        if (!y || !m || !day) return s;
+        return `${day}/${m}/${y}`;
+    }
+
+    const theadChevron = '<th class="px-2 py-3 w-6"></th>';
+    let rows = '';
+
+    for (const c of consultores) {
+        const rowId = `crgm-ativ-row-${c.uid}`;
+
+        // Linha principal: dados do ÚLTIMO DIA com atividade (sem filtro de data) ou dia selecionado
+        const diasOrdenados = [...c.dias].sort((a, b) =>
+            (String(a.data_referencia || '')).localeCompare(String(b.data_referencia || ''))
+        );
+        const ultimoDia = diasOrdenados.length
+            ? diasOrdenados[diasOrdenados.length - 1]
+            : null;
+        const diaRef = ultimoDia || {};
+
+        const primAcao   = diaRef.primeira_acao || null;
+        const ultAcao    = diaRef.ultima_acao || null;
+        const horasAtiv  = parseFloat(diaRef.horas_ativas || 0);
+        const totInterv  = parseInt(diaRef.total_intervalos_sem_atividade || 0);
+        const maiorIntv  = parseInt(diaRef.maior_intervalo_sem_atividade_minutos || 0);
+
+        const gapColCls = maiorIntv >= 120
+            ? 'text-red-700 dark:text-red-400'
+            : maiorIntv >= 60 ? 'text-amber-700 dark:text-amber-400'
+            : 'text-slate-700 dark:text-slate-300';
+        const maiorStr = maiorIntv > 0
+            ? `<span class="text-[10px] font-normal text-slate-500 dark:text-slate-400"> (maior ${_crgmFormatMinutos(maiorIntv)})</span>`
+            : '';
+        const gapsCell = totInterv > 0
+            ? `<span class="font-mono ${gapColCls}">${totInterv}</span>${maiorStr}`
+            : '<span class="text-slate-400">—</span>';
+
+        const chevronId = `${rowId}-chev`;
+        const chevronCell = `<td class="px-2 py-2.5 w-6 text-center align-middle"><span id="${chevronId}" class="text-slate-400 text-[11px] leading-none select-none">\u25B8</span></td>`;
+
+        rows += `<tr class="cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors" data-crgm-ativ-target="${rowId}">
+            ${chevronCell}
+            <td class="px-4 py-2.5 align-middle">
+                <div class="font-semibold text-sm text-slate-900 dark:text-white leading-tight">${esc(c.nome)}</div>
+                <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">ID ${c.uid}</div>
+            </td>
+            <td class="px-4 py-2.5 font-mono text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap align-middle">${_tsHora(primAcao)}</td>
+            <td class="px-4 py-2.5 font-mono text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap align-middle">${_tsHora(ultAcao)}</td>
+            <td class="px-4 py-2.5 font-bold font-mono text-sm text-blue-700 dark:text-blue-400 whitespace-nowrap align-middle">${_crgmFormatHoras(horasAtiv)}</td>
+            <td class="px-4 py-2.5 text-sm align-middle">${gapsCell}</td>
+        </tr>`;
+
+        // Expansão: cada dia com cabeçalho "DD/MM/YYYY · Tempo ativo: Xh" + gaps
+        {
+            let expansaoHtml = '';
+            if (selectedDate) {
+                // Dia único: mostra apenas gaps sem cabeçalho de data
+                const diaUnico = c.dias[0];
+                if (diaUnico && Array.isArray(diaUnico.intervalos_sem_atividade) && diaUnico.intervalos_sem_atividade.length) {
+                    expansaoHtml = diaUnico.intervalos_sem_atividade.map(iv => {
+                        const dur = iv.duracao_minutos || 0;
+                        const durTxt = iv.duracao_texto || _crgmFormatMinutos(dur);
+                        return `<span class="inline-flex items-center gap-1 mr-3 mb-1 whitespace-nowrap text-[11px]">`
+                             + `<span class="text-slate-400 dark:text-slate-500">${iv.inicio_hora_sp || '?'} \u2192 ${iv.fim_hora_sp || '?'}</span>`
+                             + ` <span class="${_durCls(dur)}">${durTxt}</span>`
+                             + `</span>`;
+                    }).join('');
+                    expansaoHtml = `<div class="flex flex-wrap">${expansaoHtml}</div>`;
+                } else {
+                    expansaoHtml = '<div class="text-[11px] text-slate-500 dark:text-slate-400">Sem intervalos > 15 min neste dia.</div>';
+                }
+            } else {
+                // Múltiplos dias: agrupa por dia com cabeçalho
+                const diasComInterv = diasOrdenados.filter(r =>
+                    Array.isArray(r.intervalos_sem_atividade) && r.intervalos_sem_atividade.length > 0
+                );
+                if (diasComInterv.length) {
+                    expansaoHtml = diasComInterv.map(r => {
+                        const hDia = parseFloat(r.horas_ativas || 0);
+                        const intervalos = r.intervalos_sem_atividade.map(iv => {
+                            const dur = iv.duracao_minutos || 0;
+                            const durTxt = iv.duracao_texto || _crgmFormatMinutos(dur);
+                            return `<span class="inline-flex items-center gap-1 mr-3 mb-1 whitespace-nowrap text-[11px]">`
+                                 + `<span class="text-slate-400 dark:text-slate-500">${iv.inicio_hora_sp || '?'} \u2192 ${iv.fim_hora_sp || '?'}</span>`
+                                 + ` <span class="${_durCls(dur)}">${durTxt}</span>`
+                                 + `</span>`;
+                        }).join('');
+                        return `<div class="mb-2 last:mb-0">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold mb-1">
+                                ${_fmtData(r.data_referencia)}
+                                <span class="normal-case font-normal ml-1">Tempo ativo: ${_crgmFormatHoras(hDia)}</span>
+                            </div>
+                            <div class="flex flex-wrap">${intervalos}</div>
+                        </div>`;
+                    }).join('');
+                } else {
+                    expansaoHtml = '<div class="text-[11px] text-slate-500 dark:text-slate-400">Sem intervalos > 15 min no período.</div>';
+                }
+            }
+            rows += `<tr id="${rowId}" class="hidden bg-slate-50/50 dark:bg-slate-800/20">
+                <td class="px-2"></td>
+                <td colspan="4" class="px-4 pt-2 pb-3">
+                    <div class="text-[10px] text-slate-500 dark:text-slate-400 mb-2">Intervalos sem atividade de ${esc(c.nome)}:</div>
+                    ${expansaoHtml}
+                </td>
+            </tr>`;
+        }
+    }
+
+    bodyEl.innerHTML = `
+    <div class="overflow-x-auto -mx-4">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-700/20 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur sticky top-0">
+                    ${theadChevron}
+                    <th class="text-left px-4 py-3">Consultor</th>
+                    <th class="text-left px-4 py-3 whitespace-nowrap">1ª ação</th>
+                    <th class="text-left px-4 py-3">Última</th>
+                    <th class="text-left px-4 py-3 whitespace-nowrap">Tempo ativo</th>
+                    <th class="text-left px-4 py-3 whitespace-nowrap">Gaps &gt;15min</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 dark:divide-slate-700/10">
+                ${rows}
+            </tbody>
+        </table>
+    </div>`;
+
+    bodyEl.querySelectorAll('tr[data-crgm-ativ-target]').forEach(tr => {
+        tr.addEventListener('click', () => {
+            const targetId = tr.getAttribute('data-crgm-ativ-target');
+            const detail = document.getElementById(targetId);
+            const chev = document.getElementById(targetId + '-chev');
+            if (!detail) return;
+            detail.classList.toggle('hidden');
+            if (chev) chev.textContent = detail.classList.contains('hidden') ? '\u25B8' : '\u25BE';
+        });
+    });
+}
+
+/** Wrapper de compatibilidade — mantido para chamadas legadas durante transição. */
+async function _crgmRenderAtividadeKommo(dtIni, dtFim, agenteUserId) {
+    await _crgmLoadAtividade(dtIni, dtFim, agenteUserId || null);
+    _crgmRenderAtividade();
 }
 
 // ── Detalhe por agente ──────────────────────────────────────────────────
@@ -638,19 +1009,27 @@ function _crgmRenderAgentesChart(agentes) {
     const agenteFilter = document.getElementById('crgm-agente').value;
     let data = agenteFilter ? agentes.filter(a=>String(a.user_id)===agenteFilter) : [...agentes];
     data = data.filter(a=>(a.matriculas_periodo||0)>0||(a.meta||0)>0);
-    data.sort((a,b)=>(a.matriculas_periodo||0)-(b.matriculas_periodo||0));
-    const top = data.slice(-15);
+    const ordenados = [...data].sort((a, b) => (b.matriculas_periodo || 0) - (a.matriculas_periodo || 0));
+    const top = ordenados.slice(0, 15);
     const labels = top.map(a=>a.nome||`#${a.user_id}`);
 
-    // Cor de cada barra baseada no tier de performance (metas ficam na tabela / tooltip)
+    const selectedUserId = _crgmCrossFilter.userId;
+    // Cor de cada barra: destaque se selecionado, alpha reduzido nos demais
     const barColors = top.map(a => {
         const mp = a.matriculas_periodo||0, m = a.meta||0,
               mi = a.meta_intermediaria||0, s = a.supermeta||0;
-        if (s>0 && mp>=s) return '#34d399';
-        if (mi>0 && mp>=mi) return '#fbbf24';
-        if (m>0 && mp>=m)  return '#60a5fa';
-        if (m>0)           return '#f87171';
-        return '#3b82f6';
+        let base;
+        if (s>0 && mp>=s) base = '#34d399';
+        else if (mi>0 && mp>=mi) base = '#fbbf24';
+        else if (m>0 && mp>=m)  base = '#60a5fa';
+        else if (m>0)           base = '#f87171';
+        else base = '#3b82f6';
+        if (selectedUserId != null && a.user_id !== selectedUserId) {
+            // Aplicar alpha 0.35 convertendo hex para rgba
+            const r = parseInt(base.slice(1,3),16), g = parseInt(base.slice(3,5),16), b = parseInt(base.slice(5,7),16);
+            return `rgba(${r},${g},${b},0.35)`;
+        }
+        return base;
     });
 
     const datasets = [{
@@ -704,6 +1083,13 @@ function _crgmRenderAgentesChart(agentes) {
             indexAxis: 'y',
             responsive: true,
             maintainAspectRatio: false,
+            onClick: (evt, elements) => {
+                if (!elements.length) return;
+                const idx = elements[0].index;
+                const uid = top[idx]?.user_id;
+                if (uid == null) return;
+                _crgmCrossSetUser(uid);
+            },
             plugins: {
                 legend: { display: false },
                 tooltip: {
@@ -747,6 +1133,204 @@ function _crgmRenderAgentesChart(agentes) {
             }
         }
     });
+}
+
+// ── Cross-filter API ────────────────────────────────────
+function _crgmCrossSetUser(userId) {
+    const cur = _crgmCrossFilter.userId;
+    _crgmCrossFilter.userId = (cur === userId) ? null : userId;
+    _crgmCrossRerenderAll();
+}
+function _crgmCrossSetDate(dateStr) {
+    const cur = _crgmCrossFilter.date;
+    _crgmCrossFilter.date = (cur === dateStr) ? null : dateStr;
+    _crgmCrossRerenderAll();
+}
+function _crgmCrossClearUser() { _crgmCrossFilter.userId = null; _crgmCrossRerenderAll(); }
+function _crgmCrossClearDate() { _crgmCrossFilter.date = null; _crgmCrossRerenderAll(); }
+function _crgmCrossClearAll()  { _crgmCrossFilter.userId = null; _crgmCrossFilter.date = null; _crgmCrossRerenderAll(); }
+
+window._crgmCrossSetUser  = _crgmCrossSetUser;
+window._crgmCrossClearUser = _crgmCrossClearUser;
+window._crgmCrossClearDate = _crgmCrossClearDate;
+window._crgmCrossClearAll  = _crgmCrossClearAll;
+
+function _crgmDeriveEvolucaoPorUser(grid, userId, evolBase) {
+    const porData = new Map();
+    for (const g of grid) {
+        if (g.user_id !== userId) continue;
+        porData.set(g.data, (porData.get(g.data) || 0) + (g.count || 0));
+    }
+    return (evolBase || []).map(e => ({ data: e.data, count: porData.get(e.data) || 0 }));
+}
+
+// Grupo 2 — Derivações para o dia filtrado
+
+function _crgmDeriveKPIsDia(kpisBase, payload, date) {
+    const grid = payload.matriculas_grid || [];
+    const history = (payload.daily_history || {})[date] || {};
+    const vendasBruto = grid.filter(g => g.data === date).reduce((s, g) => s + (g.count || 0), 0);
+    const vendasLiq   = grid.filter(g => g.data === date).reduce((s, g) => s + (g.count_liquido || 0), 0);
+    const vs6m = history.vs6m != null ? history.vs6m : null;
+    const vs1y = history.vs1y != null ? history.vs1y : null;
+    return {
+        ...kpisBase,
+        vendas: vendasBruto,
+        vendas_liquidas: vendasLiq,
+        media_diaria: vendasBruto,
+        ticket_medio: null,
+        dias: 1,
+        vendas_6m: vs6m,
+        pct_6m: (vs6m != null && vs6m > 0) ? Math.round((vendasBruto - vs6m) / vs6m * 1000) / 10 : null,
+        vendas_1a: vs1y,
+        pct_1a: (vs1y != null && vs1y > 0) ? Math.round((vendasBruto - vs1y) / vs1y * 1000) / 10 : null,
+        vendas_prev_ytd: null,
+        pct_ytd: null,
+    };
+}
+
+function _crgmDeriveEvasaoDia(evasaoBase, evasaoGrid, date) {
+    const linhas = (evasaoGrid || []).filter(e => e.data === date);
+    const itens = (evasaoBase?.itens || []).filter(it => (it.data_matricula || '').substring(0, 10) === date);
+    if (!linhas.length && !itens.length) return { total: 0, por_tipo: {}, por_agente: [], itens: [] };
+    const por_tipo = {};
+    let total = 0;
+    for (const r of linhas) {
+        por_tipo[r.tipo] = (por_tipo[r.tipo] || 0) + r.count;
+        total += r.count;
+    }
+    if (total === 0 && itens.length) {
+        for (const it of itens) {
+            const t = it.situacao || 'OUTROS';
+            por_tipo[t] = (por_tipo[t] || 0) + 1;
+            total++;
+        }
+    }
+    const agMap = new Map();
+    for (const it of itens) {
+        const ag = it.agente || 'Não identificado';
+        if (!agMap.has(ag)) agMap.set(ag, { agente: ag, total: 0, itens: [] });
+        const a = agMap.get(ag);
+        a.total++;
+        a.itens.push(it);
+    }
+    return {
+        total,
+        por_tipo,
+        por_agente: [...agMap.values()].sort((a, b) => b.total - a.total),
+        itens,
+    };
+}
+
+// Grupo 3 — Ranking com leads_grid quando data filtrada
+
+function _crgmDeriveRanking(rankingBase, payload, atividade, date) {
+    if (!date) return rankingBase;
+    const grid = (payload && payload.matriculas_grid) ? payload.matriculas_grid : (Array.isArray(payload) ? payload : []);
+    const leadsGrid = (payload && payload.leads_grid) ? payload.leads_grid : [];
+    const matDia = new Map();
+    for (const g of grid) {
+        if (g.data !== date) continue;
+        matDia.set(g.user_id, (matDia.get(g.user_id) || 0) + (g.count || 0));
+    }
+    const leadsDia = new Map();
+    for (const l of leadsGrid) {
+        if (l.data !== date) continue;
+        leadsDia.set(l.user_id, (leadsDia.get(l.user_id) || 0) + (l.count || 0));
+    }
+    const horasDia = new Map();
+    for (const r of (atividade || [])) {
+        if (String(r.data_referencia || '').substring(0, 10) !== date) continue;
+        horasDia.set(Number(r.created_by), (horasDia.get(Number(r.created_by)) || 0) + (parseFloat(r.horas_ativas) || 0));
+    }
+    return rankingBase.map(a => {
+        const m = matDia.get(a.user_id) || 0;
+        const l = leadsDia.get(a.user_id) || 0;
+        return {
+            ...a,
+            matriculas_periodo: m,
+            novos_periodo: l > 0 ? l : null,
+            taxa_conversao: l > 0 ? Math.round(m / l * 1000) / 10 : null,
+            horas_media: horasDia.has(a.user_id) ? horasDia.get(a.user_id) : null,
+        };
+    });
+}
+
+function _crgmRenderCrossFilterBanner() {
+    const el = document.getElementById('crgm-crossfilter-banner');
+    if (!el) return;
+    const { userId, date } = _crgmCrossFilter;
+    if (userId == null && date == null) {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+        return;
+    }
+    el.classList.remove('hidden');
+    const pills = [];
+    if (userId != null) {
+        const ag = (_crgmLastData?.ranking_agentes || []).find(a => a.user_id === userId);
+        const nome = ag ? ag.nome : `User #${userId}`;
+        pills.push(`<span class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-300 text-xs font-medium">
+            <span class="material-symbols-outlined text-sm">person</span>
+            Consultor: ${esc(nome)}
+            <button onclick="_crgmCrossClearUser()" class="hover:text-blue-900 dark:hover:text-white" title="Limpar"><span class="material-symbols-outlined text-sm">close</span></button>
+        </span>`);
+    }
+    if (date != null) {
+        const [y, m, dd] = date.split('-');
+        const fmt = `${dd}/${m}/${y}`;
+        pills.push(`<span class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 text-xs font-medium">
+            <span class="material-symbols-outlined text-sm">event</span>
+            Data: ${fmt}
+            <button onclick="_crgmCrossClearDate()" class="hover:text-amber-900 dark:hover:text-white" title="Limpar"><span class="material-symbols-outlined text-sm">close</span></button>
+        </span>`);
+    }
+    const limparTudo = pills.length > 1
+        ? `<button onclick="_crgmCrossClearAll()" class="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-white underline ml-2">Limpar todos</button>`
+        : '';
+    el.innerHTML = `<div class="flex items-center gap-2 flex-wrap p-3 rounded-xl bg-slate-100/50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/40">
+        <span class="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold mr-1">Filtros ativos:</span>
+        ${pills.join('')}
+        ${limparTudo}
+    </div>`;
+}
+
+function _crgmCrossRerenderAll() {
+    if (!_crgmLastData) return;
+    const d = _crgmLastData;
+    const grid = d.matriculas_grid || [];
+    const atividade = _crgmLastAtividade || [];
+    const { userId, date } = _crgmCrossFilter;
+
+    _crgmRenderCrossFilterBanner();
+
+    // Grupo 6 — Cards superiores
+    const kpis = date ? _crgmDeriveKPIsDia(d.kpis, d, date) : d.kpis;
+    _crgmRenderKPIs(kpis);
+
+    // Grupo 6 — Evasão
+    const evasao = date
+        ? _crgmDeriveEvasaoDia(d.evasao, d.evasao_grid || [], date)
+        : d.evasao;
+    _crgmRenderEvasao(evasao);
+
+    // Evolução (gráfico Matrículas por Dia)
+    const evolBase = d.evolucao_bruto || d.evolucao || [];
+    const evolFiltrada = userId == null
+        ? (d.evolucao || [])
+        : _crgmDeriveEvolucaoPorUser(grid, userId, evolBase);
+    const evolBrutoArg = userId == null ? (d.evolucao_bruto || []) : null;
+    _crgmRenderEvolucao(evolFiltrada, d.evolucao_prev || [], evolBrutoArg);
+
+    // Gráfico Agentes + Ranking
+    const ranking = (userId == null && date == null)
+        ? (d.ranking_agentes || [])
+        : _crgmDeriveRanking(d.ranking_agentes || [], d, atividade, date);
+    _crgmRenderAgentesChart(ranking);
+    _crgmRenderAgentes(ranking);
+
+    // Atividade Kommo (sem refetch — usa cache)
+    _crgmRenderAtividade();
 }
 
 // ── Ciclos ──────────────────────────────────────────────
@@ -2333,5 +2917,179 @@ async function crgmBuscarRgmAtribuicao() {
         result.innerHTML = html;
     } catch (e) {
         result.innerHTML = `<p class="text-xs text-red-400 text-center py-6">Erro: ${e.message}</p>`;
+    }
+}
+
+// ── Solicitações de Ajuste (painel no dashboard) ─────────────────────────
+let _crgmSolData = [];
+
+const _crgmSolTipoLabel = {
+    matricula_nao_computada: 'Matrícula não computada',
+    dados_incorretos: 'Dados incorretos',
+    evasao_indevida: 'Evasão indevida',
+};
+const _crgmSolStatusColor = {
+    pendente: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/20',
+    em_analise: 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/20',
+    aprovado: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
+    rejeitado: 'bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/20',
+};
+const _crgmSolStatusLabel = {
+    pendente: 'Pendente', em_analise: 'Em análise', aprovado: 'Aprovado', rejeitado: 'Rejeitado',
+};
+
+function _crgmSolFmtDate(d) {
+    if (!d) return '';
+    const p = String(d).substring(0, 10).split('-');
+    return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : d;
+}
+
+function crgmToggleSolicitacoes() {
+    const panel = document.getElementById('crgm-solicitacoes-panel');
+    const btn = document.getElementById('crgm-btn-solicitacoes');
+    if (!panel) return;
+    const isHidden = panel.classList.contains('hidden');
+    panel.classList.toggle('hidden');
+    if (btn) btn.classList.toggle('border-orange-500', isHidden);
+    if (btn) btn.classList.toggle('dark:border-orange-500', isHidden);
+    if (isHidden) crgmLoadSolicitacoes();
+}
+
+async function _crgmRefreshSolPendingBadge() {
+    const badge = document.getElementById('crgm-sol-pending-badge');
+    if (!badge) return;
+    try {
+        const res = await api('/api/ajustes-matricula?status=pendente');
+        const d = await res.json();
+        const n = (d.ajustes || []).length;
+        if (n > 0) {
+            badge.textContent = n > 99 ? '99+' : String(n);
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    } catch (_) {
+        badge.classList.add('hidden');
+    }
+}
+
+async function crgmLoadSolicitacoes() {
+    const status = document.getElementById('crgm-sol-filter-status')?.value || '';
+    const list = document.getElementById('crgm-sol-list');
+    if (list) list.innerHTML = '<p class="text-xs text-slate-600 text-center py-8">Carregando...</p>';
+
+    try {
+        const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+        const res = await api(`/api/ajustes-matricula${qs}`);
+        const d = await res.json();
+        if (!res.ok || d.ok === false) throw new Error(d.error || `HTTP ${res.status}`);
+        _crgmSolData = d.ajustes || [];
+        _crgmRenderSolStats();
+        _crgmRenderSolList();
+        _crgmRefreshSolPendingBadge();
+    } catch (e) {
+        if (list) list.innerHTML = `<p class="text-xs text-red-400 text-center py-8">Erro ao carregar: ${esc(e.message || e)}</p>`;
+    }
+}
+
+function _crgmRenderSolStats() {
+    const el = document.getElementById('crgm-sol-stats');
+    if (!el) return;
+    const counts = { pendente: 0, em_analise: 0, aprovado: 0, rejeitado: 0 };
+    _crgmSolData.forEach(a => { if (counts[a.status] !== undefined) counts[a.status]++; });
+    const items = [
+        { key: 'pendente', icon: 'schedule', color: 'text-amber-600 dark:text-amber-400', bg: 'border-amber-500/20' },
+        { key: 'em_analise', icon: 'pending', color: 'text-blue-600 dark:text-blue-400', bg: 'border-blue-500/20' },
+        { key: 'aprovado', icon: 'check_circle', color: 'text-emerald-600 dark:text-emerald-400', bg: 'border-emerald-500/20' },
+        { key: 'rejeitado', icon: 'cancel', color: 'text-red-600 dark:text-red-400', bg: 'border-red-500/20' },
+    ];
+    el.innerHTML = items.map(i => `
+        <div class="glass-card p-3 border ${i.bg}">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="material-symbols-outlined text-sm ${i.color}">${i.icon}</span>
+                <span class="text-[10px] text-slate-600 dark:text-slate-500 uppercase tracking-wider">${_crgmSolStatusLabel[i.key]}</span>
+            </div>
+            <p class="text-xl font-black text-[#00346f] dark:text-white">${counts[i.key]}</p>
+        </div>
+    `).join('');
+}
+
+function _crgmRenderSolList() {
+    const list = document.getElementById('crgm-sol-list');
+    if (!list) return;
+    if (!_crgmSolData.length) {
+        list.innerHTML = '<p class="text-xs text-slate-600 text-center py-8">Nenhuma solicitação encontrada.</p>';
+        return;
+    }
+    list.innerHTML = _crgmSolData.map(a => {
+        const sc = _crgmSolStatusColor[a.status] || _crgmSolStatusColor.pendente;
+        return `<div class="glass-card p-4 cursor-pointer hover:border-orange-500/30 border border-transparent transition-colors" onclick="crgmSolOpenDetail(${a.id})">
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border ${sc}">${_crgmSolStatusLabel[a.status] || a.status}</span>
+                <span class="text-[10px] text-slate-500">${esc(_crgmSolTipoLabel[a.tipo] || a.tipo)}</span>
+                <span class="text-[10px] text-slate-600 ml-auto">${_crgmSolFmtDate(a.created_at)}</span>
+            </div>
+            <div class="flex flex-wrap gap-x-6 gap-y-1 mb-1">
+                <p class="text-xs text-[#00346f] dark:text-white font-semibold">${esc(a.agent_name || 'Agente #' + a.user_id)}</p>
+                <p class="text-xs text-slate-600 dark:text-slate-400">Aluno: <strong>${esc(a.nome_aluno || '—')}</strong></p>
+                <p class="text-xs text-slate-600 dark:text-slate-400">RGM: <span class="font-mono">${esc(a.rgm || '—')}</span></p>
+                <p class="text-xs text-slate-600 dark:text-slate-400">Lead: <span class="font-mono">${esc(a.kommo_lead_id || '—')}</span></p>
+            </div>
+            <p class="text-[10px] text-slate-500 line-clamp-2">${esc(a.descricao || '')}</p>
+            ${a.resposta_admin ? `<p class="text-[10px] text-blue-600 dark:text-blue-400 mt-1"><strong>Resposta:</strong> ${esc(a.resposta_admin)}</p>` : ''}
+        </div>`;
+    }).join('');
+}
+
+function crgmSolOpenDetail(id) {
+    const a = _crgmSolData.find(x => x.id === id);
+    if (!a) return;
+    const modal = document.getElementById('crgm-sol-modal-detail');
+    const body = document.getElementById('crgm-sol-detail-body');
+    document.getElementById('crgm-sol-detail-id').value = id;
+    document.getElementById('crgm-sol-detail-status').value = a.status;
+    document.getElementById('crgm-sol-detail-resposta').value = a.resposta_admin || '';
+
+    if (body) body.innerHTML = `
+        <div class="grid grid-cols-2 gap-3 text-xs">
+            <div><span class="text-slate-500">Agente:</span><p class="text-[var(--text-primary)] dark:text-white font-medium">${esc(a.agent_name || 'Agente #' + a.user_id)}</p></div>
+            <div><span class="text-slate-500">Tipo:</span><p class="text-[var(--text-primary)] dark:text-white">${esc(_crgmSolTipoLabel[a.tipo] || a.tipo)}</p></div>
+            <div><span class="text-slate-500">Nome do Aluno:</span><p class="text-[var(--text-primary)] dark:text-white">${esc(a.nome_aluno || '—')}</p></div>
+            <div><span class="text-slate-500">RGM:</span><p class="text-[var(--text-primary)] dark:text-white font-mono">${esc(a.rgm || '—')}</p></div>
+            <div><span class="text-slate-500">Curso:</span><p class="text-[var(--text-primary)] dark:text-white">${esc(a.curso || '—')}</p></div>
+            <div><span class="text-slate-500">Polo:</span><p class="text-[var(--text-primary)] dark:text-white">${esc(a.polo || '—')}</p></div>
+            <div><span class="text-slate-500">Data Matrícula:</span><p class="text-[var(--text-primary)] dark:text-white">${_crgmSolFmtDate(a.data_matricula)}</p></div>
+            <div><span class="text-slate-500">Lead Kommo:</span><p class="text-[var(--text-primary)] dark:text-white font-mono">${esc(a.kommo_lead_id || '—')}</p></div>
+            <div class="col-span-2"><span class="text-slate-500">Justificativa:</span><p class="text-[var(--text-primary)] dark:text-white mt-1">${esc(a.descricao || '—')}</p></div>
+            <div class="col-span-2"><span class="text-slate-500">Enviada em:</span><p class="text-slate-400">${_crgmSolFmtDate(a.created_at)}</p></div>
+            ${a.resolved_at ? `<div class="col-span-2"><span class="text-slate-500">Resolvida em:</span><p class="text-slate-400">${_crgmSolFmtDate(a.resolved_at)}</p></div>` : ''}
+        </div>`;
+
+    modal.classList.remove('hidden');
+}
+
+async function crgmSolSaveReview() {
+    const id = document.getElementById('crgm-sol-detail-id').value;
+    const status = document.getElementById('crgm-sol-detail-status').value;
+    const resposta = document.getElementById('crgm-sol-detail-resposta').value;
+    try {
+        const res = await api(`/api/ajustes-matricula/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status, resposta_admin: resposta }),
+        });
+        const d = await res.json();
+        if (!res.ok || d.ok === false) throw new Error(d.error || `HTTP ${res.status}`);
+        document.getElementById('crgm-sol-modal-detail').classList.add('hidden');
+        await crgmLoadSolicitacoes();
+        if (status === 'aprovado' && d.conflito_aplicado) {
+            alert('Aprovado. A venda foi creditada ao consultor (mesma regra de Vendas em Conflito).');
+        } else if (status === 'aprovado' && d.aviso) {
+            alert('Aprovado.\n\n' + d.aviso);
+        } else if (typeof toast === 'function') {
+            toast('Solicitação atualizada');
+        }
+    } catch (e) {
+        alert('Erro ao salvar: ' + (e.message || e));
     }
 }

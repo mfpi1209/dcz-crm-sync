@@ -43,7 +43,35 @@ ALL_PAGES = [
     "meta-campaigns", "dist_comercial", "atualizar_preco",
     "comparar_cursos", "recomendacao_cursos", "localizacao_polos", "info_cursos",
     "leads_inscricao", "captacao", "clicks", "leads_promotores", "meus_atendimentos",
+    "cadastro_leads",
 ]
+
+# Logins do time Suporte Comercial (mesmo painel Equipe Suporte em Minha Performance)
+SUPORTE_COMERCIAL_LOGINS = frozenset({
+    "felipe.nolasco@cruzeiroead.com.br",
+    "jessica.castro@eduit.com.br",
+    "suporte@eduit.com.br",
+    "thais.martins@cruzeiroead.com.br",
+})
+
+# Preset de páginas (sem dashboard acadêmico; alinhado ao config.js)
+SUPORTE_COMERCIAL_PAGES = [
+    "comparar_cursos", "recomendacao_cursos", "localizacao_polos", "info_cursos",
+    "minha_performance", "search", "avisos",
+]
+
+
+def norm_categoria(categoria):
+    return (categoria or "").strip().lower()
+
+
+def is_suporte_comercial_categoria(categoria):
+    return norm_categoria(categoria) == "suporte comercial"
+
+
+def is_suporte_comercial_login(username):
+    return (username or "").strip().lower() in SUPORTE_COMERCIAL_LOGINS
+
 
 APP_USER_FALLBACK = os.getenv("APP_USER", "admin")
 APP_PASS_FALLBACK = os.getenv("APP_PASS", "")

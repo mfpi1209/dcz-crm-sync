@@ -4,6 +4,8 @@ let _mpCharts = {};
 let _mpSelectedUid = null;
 let _mpMyUid = null;
 let _mpIsAdmin = false;
+let _mpCanManagePremiacao = false;
+let _mpSuporteEquipe = false;
 let _mpAgentsLoaded = false;
 let _mpSelectedCampanhaId = null;
 let _mpCampanhasLoaded = false;
@@ -56,7 +58,10 @@ function navigateToPerformance(kommoUid) {
 
 /* ── Entry ── */
 async function loadMinhaPerformance(params) {
-    if (params?.uid) _mpSelectedUid = Number(params.uid);
+    if (params?.uid && params.uid !== 'suporte_equipe') {
+        const n = Number(params.uid);
+        if (!Number.isNaN(n)) _mpSelectedUid = n;
+    }
 
     _mpDestroyCharts();
     _mpMatLoaded = false;
@@ -66,10 +71,12 @@ async function loadMinhaPerformance(params) {
     const noLink   = document.getElementById('mp-no-link');
     const noCamp   = document.getElementById('mp-no-campanha');
     const content  = document.getElementById('mp-content');
+    const heroWrap = document.getElementById('mp-hero-wrap');
     const adminBar = document.getElementById('mp-admin-bar');
     const matContent = document.getElementById('mp-mat-content');
     const tabs = document.getElementById('mp-tabs');
-    [loading, noLink, noCamp, content, matContent, tabs].forEach(el => { if(el) el.classList.add('hidden'); });
+    const campWrap = document.getElementById('mp-campanha-wrap');
+    [loading, noLink, noCamp, content, heroWrap, matContent, tabs, campWrap].forEach(el => { if(el) el.classList.add('hidden'); });
     if (loading) loading.classList.remove('hidden');
 
     try {
@@ -77,18 +84,35 @@ async function loadMinhaPerformance(params) {
         const me = await meRes.json();
         const kommoUid = me?.kommo_user_id;
         _mpIsAdmin = me?.role === 'admin';
+        _mpCanManagePremiacao = _mpIsAdmin || (me?.pages || []).includes('premiacao_admin');
         _mpMyUid = kommoUid;
 
-        if (_mpIsAdmin && adminBar) {
+        const isSuporteLogin = document.body?.dataset?.isSuporteComercial === '1'
+            || me?.is_suporte_comercial
+            || String(me?.categoria || '').toLowerCase() === 'suporte comercial';
+        if (isSuporteLogin && !_mpCanManagePremiacao) {
+            _mpSuporteEquipe = true;
+            _mpSelectedUid = 'suporte_equipe';
+        }
+
+        if (_mpCanManagePremiacao && adminBar) {
             adminBar.classList.remove('hidden');
-            _mpLoadAgentSelector();
+            await _mpLoadAgentSelector();
         } else if (adminBar) {
             adminBar.classList.add('hidden');
         }
 
-        const effectiveUid = (_mpIsAdmin && _mpSelectedUid) ? _mpSelectedUid : kommoUid;
+        const selAgent = document.getElementById('mp-agent-select');
+        if (selAgent?.value) {
+            _mpSelectedUid = selAgent.value === 'suporte_equipe' ? 'suporte_equipe' : Number(selAgent.value);
+        }
+        _mpSuporteEquipe = _mpSelectedUid === 'suporte_equipe';
 
-        if (!effectiveUid && !_mpIsAdmin) {
+        const effectiveUid = _mpSuporteEquipe
+            ? null
+            : ((_mpCanManagePremiacao && _mpSelectedUid) ? _mpSelectedUid : kommoUid);
+
+        if (!effectiveUid && !_mpCanManagePremiacao && !_mpSuporteEquipe) {
             if (loading) loading.classList.add('hidden');
             if (noLink) noLink.classList.remove('hidden');
             if (typeof _dismissBootSplash === 'function') _dismissBootSplash();
@@ -100,7 +124,8 @@ async function loadMinhaPerformance(params) {
         await _mpLoadCampanhasSelector();
 
         const qsParams = new URLSearchParams();
-        if (effectiveUid) qsParams.set('kommo_uid', effectiveUid);
+        if (_mpSuporteEquipe) qsParams.set('suporte_equipe', '1');
+        else if (effectiveUid) qsParams.set('kommo_uid', effectiveUid);
         if (_mpSelectedCampanhaId) qsParams.set('campanha_id', _mpSelectedCampanhaId);
         const qs = qsParams.toString() ? '?' + qsParams.toString() : '';
 
@@ -120,20 +145,28 @@ async function loadMinhaPerformance(params) {
         }
 
         if (content) content.classList.remove('hidden');
+        if (heroWrap) heroWrap.classList.remove('hidden');
         if (tabs) tabs.classList.remove('hidden');
+        if (campWrap) campWrap.classList.remove('hidden');
 
-        _mpRenderHero(insights);
-        _mpRenderIncentiveTiers(insights);
+        const isSuporteView = _mpSuporteEquipe || insights.painel_suporte || insights.suporte_equipe_view;
+        if (isSuporteView) await _mpMergeComercialVendas(insights);
+        if (isSuporteView) _mpSyncHeatmapFromChart(insights);
+        _mpApplySuporteLayout(insights);
+        if (!isSuporteView) _mpRenderHero(insights);
+        if (!isSuporteView) {
+            _mpRenderIncentiveTiers(insights);
+            _mpRenderRanking(insights);
+            _mpRenderConquistas(insights);
+            _mpRenderDesbloqueie(insights);
+            _mpRenderMomentum(insights);
+            _mpRenderStreak(insights);
+            _mpRenderTierProgress(insights);
+            _mpRenderFinanceiro(insights);
+            _mpRenderTimeline(insights);
+        }
         _mpRenderPixDia(insights);
-        _mpRenderRanking(insights);
-        _mpRenderConquistas(insights);
-        _mpRenderDesbloqueie(insights);
-        _mpRenderMomentum(insights);
-        _mpRenderStreak(insights);
         _mpRenderCalendar(insights);
-        _mpRenderTierProgress(insights);
-        _mpRenderFinanceiro(insights);
-        _mpRenderTimeline(insights);
         _mpRenderHistorico(hist?.historico || []);
 
     } catch(e) {
@@ -147,15 +180,26 @@ async function loadMinhaPerformance(params) {
 
 /* ── Admin ── */
 async function _mpLoadAgentSelector() {
-    if (_mpAgentsLoaded) return;
     const sel = document.getElementById('mp-agent-select');
     if (!sel) return;
     try {
         const res = await api('/api/minha-performance/agentes');
         const d = await res.json();
         const agents = d?.agentes || [];
-        sel.innerHTML = '<option value="">Selecione um agente...</option>' +
-            agents.map(a => `<option value="${a.kommo_uid}">${a.name}</option>`).join('');
+        const suporteSet = new Set((d?.suporte_uids || []).map(Number));
+        const suporteAgents = agents.filter(a => suporteSet.has(Number(a.kommo_uid)));
+        const outros = agents.filter(a => !suporteSet.has(Number(a.kommo_uid)));
+        let html = '<option value="suporte_equipe">★ Equipe Suporte Comercial</option>';
+        if (suporteAgents.length) {
+            html += '<option disabled>— Suporte (individual) —</option>';
+            html += suporteAgents.map(a => `<option value="${a.kommo_uid}">${a.name}</option>`).join('');
+        }
+        if (outros.length) {
+            html += '<option disabled>— Demais agentes —</option>';
+            html += outros.map(a => `<option value="${a.kommo_uid}">${a.name}</option>`).join('');
+        }
+        sel.innerHTML = html;
+        if (!_mpSelectedUid && !_mpAgentsLoaded) _mpSelectedUid = 'suporte_equipe';
         if (_mpSelectedUid) sel.value = String(_mpSelectedUid);
         _mpAgentsLoaded = true;
     } catch(e) { console.error('_mpLoadAgentSelector', e); }
@@ -165,30 +209,35 @@ function _mpUpdateAdminViewingState(effectiveUid) {
     const backBtn = document.getElementById('mp-admin-back');
     const viewing = document.getElementById('mp-admin-viewing');
     const sel = document.getElementById('mp-agent-select');
-    if (!_mpIsAdmin) return;
-    const isViewingOther = effectiveUid && effectiveUid !== _mpMyUid;
-    if (backBtn) backBtn.classList.toggle('hidden', !isViewingOther);
-    if (sel && effectiveUid) sel.value = String(effectiveUid);
-    if (viewing && isViewingOther) {
-        const opt = sel?.querySelector(`option[value="${effectiveUid}"]`);
-        viewing.textContent = opt ? `Visualizando: ${opt.textContent}` : `Visualizando: ID ${effectiveUid}`;
-        viewing.classList.remove('hidden');
-    } else if (viewing) {
-        viewing.classList.add('hidden');
+    if (!_mpCanManagePremiacao) return;
+    const isViewingAgent = effectiveUid && effectiveUid !== _mpMyUid;
+    if (backBtn) backBtn.classList.toggle('hidden', !_mpSuporteEquipe && !isViewingAgent);
+    if (sel && _mpSelectedUid) sel.value = String(_mpSelectedUid);
+    if (viewing) {
+        if (_mpSuporteEquipe) {
+            viewing.textContent = 'Painel: Equipe Suporte Comercial';
+            viewing.classList.remove('hidden');
+        } else if (isViewingAgent) {
+            const opt = sel?.querySelector(`option[value="${effectiveUid}"]`);
+            viewing.textContent = opt ? `Visualizando: ${opt.textContent}` : `Visualizando: ID ${effectiveUid}`;
+            viewing.classList.remove('hidden');
+        } else {
+            viewing.classList.add('hidden');
+        }
     }
 }
 
 function mpAdminSelectAgent() {
     const sel = document.getElementById('mp-agent-select');
-    const uid = sel?.value ? Number(sel.value) : null;
-    _mpSelectedUid = uid;
+    const val = sel?.value || '';
+    _mpSelectedUid = val === 'suporte_equipe' ? 'suporte_equipe' : (val ? Number(val) : null);
     loadMinhaPerformance();
 }
 
 function mpAdminBackToSelf() {
-    _mpSelectedUid = null;
+    _mpSelectedUid = _mpCanManagePremiacao ? 'suporte_equipe' : null;
     const sel = document.getElementById('mp-agent-select');
-    if (sel) sel.value = '';
+    if (sel) sel.value = _mpCanManagePremiacao ? 'suporte_equipe' : '';
     loadMinhaPerformance();
 }
 
@@ -234,9 +283,217 @@ function mpSelectCampanha() {
     const id = sel.value ? Number(sel.value) : null;
     if (id === _mpSelectedCampanhaId) return;
     _mpSelectedCampanhaId = id;
+    const agentSel = document.getElementById('mp-agent-select');
+    if (agentSel?.value) {
+        _mpSelectedUid = agentSel.value === 'suporte_equipe' ? 'suporte_equipe' : Number(agentSel.value);
+    }
     loadMinhaPerformance();
 }
 
+
+/* ═══ Vendas Comercial (mesmo total do Dashboard Comercial) ═══ */
+function _mpPickLatestMetaPeriod(periods) {
+    const uniq = new Map();
+    for (const p of periods) {
+        if (!p?.dt_inicio || !p?.dt_fim) continue;
+        const di = String(p.dt_inicio).trim().substring(0, 10);
+        const df = String(p.dt_fim).trim().substring(0, 10);
+        if (!di || !df) continue;
+        const k = `${di}|${df}`;
+        if (!uniq.has(k)) uniq.set(k, { dt_inicio: di, dt_fim: df });
+    }
+    const arr = Array.from(uniq.values());
+    arr.sort((a, b) => {
+        if (a.dt_inicio !== b.dt_inicio) return a.dt_inicio < b.dt_inicio ? 1 : -1;
+        return a.dt_fim < b.dt_fim ? 1 : a.dt_fim > b.dt_fim ? -1 : 0;
+    });
+    return arr[0] || null;
+}
+
+async function _mpMergeComercialVendas(d) {
+    const c = d.campanha;
+    if (!c) return;
+    let di = String(c.dt_inicio || '').slice(0, 10);
+    let df = String(c.dt_fim || '').slice(0, 10);
+    if (!di || !df) return;
+
+    const apply = (cr) => {
+        if (!cr?.ok || !cr.kpis) return false;
+        const total = cr.kpis.vendas ?? 0;
+        d.total_matriculas_time = total;
+        d.media_vendas = cr.kpis.media_diaria ?? 0;
+        d.pace_atual = d.media_vendas;
+        d.chart_matriculas_dia = (cr.evolucao || []).map(e => ({
+            data: e.data,
+            matriculas: e.count ?? 0,
+        }));
+        if (d.meta_equipe_suporte) {
+            const eq = d.meta_equipe_suporte;
+            const meta = eq.meta || 0;
+            eq.total_matriculas = total;
+            eq.pct = meta > 0 ? Math.round(total / meta * 1000) / 10 : 0;
+            eq.meta_batida = meta > 0 && total >= meta;
+            eq.matriculas_fonte = 'comercial';
+        }
+        return total > 0;
+    };
+
+    try {
+        let res = await api(`/api/comercial-rgm/data?dt_ini=${encodeURIComponent(di)}&dt_fim=${encodeURIComponent(df)}`);
+        let cr = await res.json();
+        if (apply(cr)) return;
+
+        const periods = [{ dt_inicio: di, dt_fim: df }];
+        try {
+            const rm = await api('/api/comercial-rgm/metas?categoria=matriculas');
+            const md = await rm.json();
+            if (md.ok && md.metas?.length) {
+                for (const m of md.metas) {
+                    if (m.dt_inicio && m.dt_fim) periods.push(m);
+                }
+            }
+        } catch (_) {}
+        try {
+            const rc = await api('/api/premiacao/campanhas-periodos');
+            const dc = await rc.json();
+            if (dc.ok && dc.campanhas?.length) {
+                for (const x of dc.campanhas) {
+                    if (x.dt_inicio && x.dt_fim) periods.push(x);
+                }
+            }
+        } catch (_) {}
+        const ultima = _mpPickLatestMetaPeriod(periods);
+        if (ultima && (ultima.dt_inicio !== di || ultima.dt_fim !== df)) {
+            di = ultima.dt_inicio;
+            df = ultima.dt_fim;
+            res = await api(`/api/comercial-rgm/data?dt_ini=${encodeURIComponent(di)}&dt_fim=${encodeURIComponent(df)}`);
+            cr = await res.json();
+            apply(cr);
+        }
+    } catch (e) {
+        console.warn('_mpMergeComercialVendas', e);
+    }
+}
+
+/* ═══ Layout Suporte Comercial ═══ */
+function _mpApplySuporteLayout(d) {
+    const isSuporte = !!(
+        _mpSuporteEquipe ||
+        d.painel_suporte ||
+        d.suporte_equipe_view ||
+        d.meta_equipe_suporte?.is_suporte
+    );
+    const painel = document.getElementById('mp-suporte-painel');
+    const heroWrap = document.getElementById('mp-hero-wrap');
+    document.querySelectorAll('.mp-agent-only').forEach(el => {
+        el.classList.toggle('hidden', isSuporte);
+    });
+    if (heroWrap) heroWrap.classList.toggle('hidden', isSuporte);
+    if (painel) painel.classList.toggle('hidden', !isSuporte);
+    if (isSuporte) _mpRenderSuportePainel(d);
+    else if (painel) painel.classList.add('hidden');
+}
+
+function _mpRenderSuportePainel(d) {
+    _mpRenderEquipeSuporte(d, true);
+    const eq = d.meta_equipe_suporte;
+    const badge = document.getElementById('mp-suporte-agentes-badge');
+    if (badge) {
+        badge.textContent = eq?.matriculas_fonte === 'comercial'
+            ? 'Comercial inteiro'
+            : (eq ? `${eq.agentes_count || 0} no time` : '');
+    }
+    const totalMat = d.total_matriculas_time ?? eq?.total_matriculas ?? 0;
+    const media = d.media_vendas ?? d.pace_atual ?? 0;
+    const matKpi = document.getElementById('mp-suporte-kpi-mat');
+    const mediaKpi = document.getElementById('mp-suporte-kpi-media');
+    if (matKpi) matKpi.textContent = _mpFmtN(totalMat);
+    if (mediaKpi) mediaKpi.textContent = Number(media).toFixed(1);
+    _mpRenderSuporteMatChart(d.chart_matriculas_dia || []);
+}
+
+function _mpRenderSuporteMatChart(series) {
+    const el = document.getElementById('mp-suporte-mat-chart');
+    if (!el || typeof ApexCharts === 'undefined') return;
+    if (_mpCharts.suporteMat) {
+        try { _mpCharts.suporteMat.destroy(); } catch (e) {}
+        delete _mpCharts.suporteMat;
+    }
+    if (!series.length) {
+        el.innerHTML = '<p class="text-xs text-slate-500 text-center py-12">Sem matrículas no período</p>';
+        return;
+    }
+    const labels = series.map(p => {
+        const parts = String(p.data || '').split('-');
+        return parts.length === 3 ? `${parts[2]}/${parts[1]}` : p.data;
+    });
+    const data = series.map(p => p.matriculas || 0);
+    const chart = new ApexCharts(el, {
+        chart: {
+            type: 'area',
+            height: 300,
+            background: 'transparent',
+            toolbar: { show: false },
+            animations: { enabled: true, speed: 900 },
+            fontFamily: 'Inter, sans-serif',
+        },
+        series: [{ name: 'Em curso', data }],
+        colors: ['#3b82f6'],
+        stroke: { width: 3, curve: 'smooth' },
+        fill: {
+            type: 'gradient',
+            gradient: { shadeIntensity: 1, opacityFrom: 0.5, opacityTo: 0.06 },
+        },
+        dataLabels: { enabled: false },
+        xaxis: {
+            categories: labels,
+            labels: { style: { colors: '#64748b', fontSize: '10px' }, rotate: labels.length > 8 ? -45 : 0 },
+        },
+        yaxis: { labels: { style: { colors: '#64748b', fontSize: '10px' } }, min: 0 },
+        grid: { borderColor: 'rgba(148,163,184,.08)', strokeDashArray: 4 },
+        tooltip: { theme: 'dark' },
+        legend: { show: true, labels: { colors: '#94a3b8' }, fontSize: '11px' },
+    });
+    chart.render();
+    _mpCharts.suporteMat = chart;
+}
+
+/* ═══ Meta unificada Suporte ═══ */
+function _mpRenderEquipeSuporte(d, insidePainel = false) {
+    const wrap = document.getElementById('mp-equipe-suporte');
+    const body = document.getElementById('mp-equipe-suporte-body');
+    const eq = d.meta_equipe_suporte;
+    if (!wrap || !body) return;
+    if (!eq || !(eq.meta > 0)) {
+        if (!insidePainel) wrap.classList.add('hidden');
+        const cid = d.campanha?.id || _mpSelectedCampanhaId || '';
+        body.innerHTML = `<p class="text-xs text-slate-500">Nenhuma meta do time para esta campanha.<br>Configure em <strong>Premiação</strong> → Suporte Comercial (campanha #${cid || '…'}).</p>`;
+        return;
+    }
+    if (!insidePainel) wrap.classList.remove('hidden');
+    const total = eq.total_matriculas || 0;
+    const meta = eq.meta || 0;
+    const pct = eq.pct ?? (meta > 0 ? Math.min(100, Math.round(total / meta * 100)) : 0);
+    const bateu = eq.meta_batida ?? (total >= meta);
+    body.innerHTML = `
+        <div class="flex flex-wrap items-center gap-2 mb-3">
+            <span class="px-2 py-0.5 text-[10px] font-bold rounded-full ${bateu ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-violet-500/20 text-violet-300 border border-violet-500/30'}">
+                ${bateu ? 'META BATIDA' : 'EM ANDAMENTO'}
+            </span>
+            ${eq.matriculas_fonte === 'comercial'
+                ? '<span class="text-xs text-slate-500">Comercial inteiro</span>'
+                : `<span class="text-xs text-slate-500">${eq.agentes_count || 0} no time</span>`}
+        </div>
+        <div class="flex justify-between text-[10px] text-slate-500 mb-0.5">
+            <span>Meta do time</span>
+            <span class="tabular-nums font-semibold text-blue-400">${total}/${meta} (${pct}%)</span>
+        </div>
+        <div class="h-2.5 rounded-full bg-slate-200 dark:bg-slate-700/40 overflow-hidden">
+            <div class="h-full rounded-full transition-all bg-blue-500" style="width:${pct}%"></div>
+        </div>
+        <p class="text-[10px] text-slate-500 pt-2">${eq.matriculas_fonte === 'comercial' ? 'Matrículas em curso de todo o Comercial, alinhadas ao Dashboard Comercial.' : (eq.is_suporte ? 'Soma de todo o Suporte Comercial no período.' : 'Visão do time de suporte.')}</p>
+    `;
+}
 
 /* ═══ S1: Hero + Gauge ═══ */
 function _mpRenderHero(d) {
@@ -346,9 +603,15 @@ function _mpCalcMaxPotencial(d) {
 
 /* ═══ PIX do Dia ═══ */
 function _mpRenderPixDia(d) {
+    const pixFila = !!(d.pix_suporte_equipe && d.pix_fonte_fila);
+    const teamPixNote = pixFila
+        ? '<p class="text-[10px] text-violet-400/90 mb-1.5 font-medium">PIX do time: <strong>fila de aceite</strong> agora (todos os consultores no Kommo)</p>'
+        : (d.pix_suporte_equipe
+            ? '<p class="text-[10px] text-violet-400/90 mb-1.5 font-medium">PIX do time Suporte</p>'
+            : '');
     const hoje = d.hoje || {};
     const meta = hoje.meta || 0;
-    const realizadasHoje = hoje.realizadas || 0;
+    const realizadasHoje = pixFila ? (hoje.aceites_fila ?? hoje.realizadas ?? 0) : (hoje.realizadas || 0);
     const aceitesFila = hoje.aceites_fila || 0;
     const aceitesHoje = hoje.aceites_hoje || 0;
     const fixo = hoje.bonus_fixo || 0;
@@ -417,7 +680,7 @@ function _mpRenderPixDia(d) {
             ? `Você já fez ${realizadasHoje} hoje mesmo sem meta!`
             : 'Nenhuma meta PIX configurada para hoje.';
         if (aceitesFila > 0) noMetaMsg += ` (${aceitesFila} aceite${aceitesFila > 1 ? 's' : ''} na fila total)`;
-        if (detail) detail.innerHTML = noMetaMsg + yesterdayHtml;
+        if (detail) detail.innerHTML = teamPixNote + noMetaMsg + yesterdayHtml;
         if (valor) valor.textContent = '';
         return;
     }
@@ -426,13 +689,17 @@ function _mpRenderPixDia(d) {
         const excedente = Math.max(0, realizadasHoje - meta);
         const ganho = fixo + extra * excedente;
         if (status) { status.textContent = '🎉 PIX Garantido!'; status.className = 'text-lg font-black text-emerald-400 mb-1'; }
-        let msgParts = `Hoje: ${realizadasHoje} (mat + aceites do dia)`;
+        let msgParts = pixFila
+            ? `Na fila agora: ${realizadasHoje} aceite${realizadasHoje !== 1 ? 's' : ''}`
+            : (d.pix_suporte_equipe
+                ? `Hoje: ${realizadasHoje} (matrículas do dia)`
+                : `Hoje: ${realizadasHoje} (mat + aceites do dia)`);
         if (excedente > 0) {
             msgParts += ` · +${excedente} extra × ${_mpFmt(extra)} cada`;
         } else {
             msgParts += ' — meta batida!';
         }
-        if (detail) detail.innerHTML = msgParts + yesterdayHtml;
+        if (detail) detail.innerHTML = teamPixNote + msgParts + yesterdayHtml;
 
         _mpCountUp('mp-pix-valor', ganho, { prefix: 'R$ ', decimalPlaces: 2, duration: 2.2, formattedValue: _mpFmt(ganho) });
 
@@ -444,7 +711,8 @@ function _mpRenderPixDia(d) {
     } else {
         const falta = meta - realizadasHoje;
         if (status) { status.textContent = `Faltam ${falta} para o PIX!`; status.className = 'text-lg font-black text-cyan-300 mb-1'; }
-        if (detail) detail.innerHTML = `Hoje: ${realizadasHoje}/${meta} (mat + aceites do dia)` + yesterdayHtml;
+        const hojeLbl = pixFila ? 'na fila de aceite' : (d.painel_suporte ? 'matrículas (data mat.)' : 'mat + aceites do dia');
+        if (detail) detail.innerHTML = teamPixNote + `Hoje: ${realizadasHoje}/${meta} (${hojeLbl})` + yesterdayHtml;
         if (valor) valor.textContent = `Prêmio: ${_mpFmt(fixo)}`;
     }
 }
@@ -706,6 +974,38 @@ function _mpRenderStreak(d) {
 }
 
 
+/** Alinha calendário ao gráfico Matrículas por Dia (mesma API / mesma data_matricula). */
+function _mpSyncHeatmapFromChart(d) {
+    const series = d.chart_matriculas_dia || [];
+    if (!series.length || !Array.isArray(d.heatmap)) return;
+
+    const todayStr = new Date().toLocaleDateString('sv-SE');
+    const byDate = {};
+    series.forEach(p => {
+        const key = String(p.data || '').split('T')[0];
+        if (key) byDate[key] = Number(p.matriculas) || 0;
+    });
+
+    d.heatmap = d.heatmap.map(h => {
+        const key = String(h.data || '').split('T')[0];
+        if (!key) return h;
+        if (key > todayStr) {
+            return { ...h, data: key, realizadas: null, mat: 0, aceites: 0, status: 'future' };
+        }
+        const n = byDate[key] ?? 0;
+        const meta = Number(h.meta) || 0;
+        let status = h.status;
+        if (meta > 0) {
+            if (n >= meta) status = 'hit';
+            else if (n > 0) status = 'partial';
+            else status = 'miss';
+        } else if (n > 0) {
+            status = 'partial';
+        }
+        return { ...h, data: key, realizadas: n, mat: n, aceites: 0, status };
+    });
+}
+
 /* ═══ Calendário de Resultados ═══ */
 function _mpRenderCalendar(d) {
     const wrap = document.getElementById('mp-calendar');
@@ -717,7 +1017,10 @@ function _mpRenderCalendar(d) {
     const bdMap = {};
     breakdown.forEach(b => { bdMap[b.data] = b; });
     const hmMap = {};
-    heatmap.forEach(h => { hmMap[h.data] = h; });
+    heatmap.forEach(h => {
+        const key = String(h.data || '').split('T')[0];
+        if (key) hmMap[key] = { ...h, data: key };
+    });
 
     const dtIni = d.campanha?.dt_inicio;
     const dtFim = d.campanha?.dt_fim;
@@ -768,21 +1071,29 @@ function _mpRenderCalendar(d) {
                 continue;
             }
 
-            const status = h?.status || 'future';
+            const isFutureDay = dateStr > todayStr;
+            const status = isFutureDay ? 'future' : (h?.status || 'future');
             const c = sc[status] || sc.future;
-            const realizadas = h?.realizadas;
+            const realizadas = isFutureDay ? null : h?.realizadas;
             const matCount = h?.mat ?? 0;
             const aceCount = h?.aceites ?? 0;
             const meta = h?.meta ?? 0;
             const bonus = bd ? bd.total : 0;
             const pct = (meta > 0 && realizadas != null) ? Math.min(100, Math.round((realizadas / meta) * 100)) : 0;
 
-            const tipData = JSON.stringify({ dateStr, status, matCount, aceCount, realizadas: realizadas ?? 0, meta, bonus, pct, isToday }).replace(/"/g, '&quot;');
+            const tipData = JSON.stringify({
+                dateStr, status, matCount, aceCount,
+                realizadas: realizadas ?? 0, meta, bonus, pct, isToday,
+                suporteCal: !!(d.painel_suporte || d.pix_suporte_equipe),
+            }).replace(/"/g, '&quot;');
 
             let ratioHtml = '';
             let statusIcon = '';
             if (status !== 'future' && status !== 'rest' && realizadas != null) {
-                if (meta > 0) ratioHtml = `<span class="text-[10px] font-bold opacity-80" style="color:${c.text}">${realizadas}/${meta}</span>`;
+                if (d.painel_suporte || d.pix_suporte_equipe) {
+                    if (meta > 0) ratioHtml = `<span class="text-[10px] font-bold opacity-80" style="color:${c.text}">${realizadas}/${meta}</span>`;
+                    if (matCount > 0) ratioHtml += `<span class="text-[8px] opacity-70 block" style="color:${c.text}">${matCount} em curso</span>`;
+                } else if (meta > 0) ratioHtml = `<span class="text-[10px] font-bold opacity-80" style="color:${c.text}">${realizadas}/${meta}</span>`;
                 else if (realizadas > 0) ratioHtml = `<span class="text-[10px] font-bold opacity-80" style="color:${c.text}">${realizadas}</span>`;
                 statusIcon = status === 'hit' ? '✅' : status === 'partial' ? '⚡' : status === 'miss' ? '❌' : '';
             }
@@ -880,7 +1191,7 @@ function _mpCalendarTooltips(wrap, tip) {
                 const cMuted = _isDark ? '#94a3b8' : '#475569';
                 const cAceite = _isDark ? '#c084fc' : '#7c3aed';
                 const mkRow = (label, val, color) => `<div class="flex justify-between items-center py-0.5"><span class="text-slate-500 text-[10px]">${label}</span><span class="font-bold text-[11px]" style="color:${color}">${val}</span></div>`;
-                if (data.matCount > 0 || data.aceCount > 0) rows += mkRow('📋 Matrículas', data.matCount, cTxt);
+                if (data.matCount > 0) rows += mkRow(data.suporteCal ? '📋 Matrículas (data mat.)' : '📋 Matrículas', data.matCount, cTxt);
                 if (data.aceCount > 0) rows += mkRow('🤝 Aceites', data.aceCount, cAceite);
                 if (data.meta > 0) rows += mkRow('🎯 Meta', data.meta, cMuted);
                 if (data.bonus > 0) rows += `<div class="flex justify-between items-center py-1 mt-1 border-t border-[var(--border)]"><span class="text-slate-500 text-[10px]">💰 Bônus do dia</span><span class="font-black text-xs text-emerald-600 dark:text-emerald-400">${_mpFmt(data.bonus)}</span></div>`;
@@ -1231,6 +1542,7 @@ let _mpMatLoaded = false;
 function _mpSwitchTab(tab) {
     _mpCurrentTab = tab;
     const perf = document.getElementById('mp-content');
+    const heroWrap = document.getElementById('mp-hero-wrap');
     const mat  = document.getElementById('mp-mat-content');
     const tabP = document.getElementById('mp-tab-performance');
     const tabM = document.getElementById('mp-tab-matriculas');
@@ -1240,11 +1552,16 @@ function _mpSwitchTab(tab) {
 
     if (tab === 'performance') {
         perf.classList.remove('hidden');
+        const hero = document.getElementById('mp-hero');
+        if (heroWrap && hero && !hero.classList.contains('hidden')) {
+            heroWrap.classList.remove('hidden');
+        }
         mat.classList.add('hidden');
         tabP.className = rowCls + ' ds-segment__btn--active';
         tabM.className = rowCls + ' ds-segment__btn--inactive';
     } else {
         perf.classList.add('hidden');
+        if (heroWrap) heroWrap.classList.add('hidden');
         mat.classList.remove('hidden');
         tabM.className = rowCls + ' ds-segment__btn--active';
         tabP.className = rowCls + ' ds-segment__btn--inactive';
@@ -1396,6 +1713,9 @@ async function _mpLoadMinhasMatriculas() {
         const qs = uid ? `?kommo_uid=${uid}` : '';
         const res = await api(`/api/minha-performance/minhas-matriculas${qs}`);
         const d = await res.json();
+        if (!res.ok || d.ok === false) {
+            throw new Error(d.error || `HTTP ${res.status}`);
+        }
         _mpMinhasData = d.matriculas || [];
         _mpRenderMinhaLista();
     } catch(e) {
@@ -1470,12 +1790,17 @@ async function _mpSaveMinhaMatricula() {
     try {
         const method = id ? 'PUT' : 'POST';
         const url = id ? `/api/minha-performance/minhas-matriculas/${id}` : '/api/minha-performance/minhas-matriculas';
-        await api(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+        const res = await api(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.ok === false) {
+            throw new Error(data.error || `Erro ao salvar (HTTP ${res.status})`);
+        }
         document.getElementById('mp-modal-minha-mat').classList.add('hidden');
         document.getElementById('mp-modal-minha-mat').classList.remove('flex');
-        _mpLoadMinhasMatriculas();
+        if (typeof toast === 'function') toast(id ? 'Matrícula atualizada!' : 'Matrícula adicionada à sua lista!');
+        await _mpLoadMinhasMatriculas();
     } catch(e) {
-        alert('Erro ao salvar: ' + e.message);
+        alert('Erro ao salvar: ' + (e.message || e));
     }
 }
 
@@ -1571,12 +1896,17 @@ async function _mpSaveAjuste() {
         descricao: desc,
     };
     try {
-        await api('/api/minha-performance/ajustes', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        const res = await api('/api/minha-performance/ajustes', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.ok === false) {
+            throw new Error(data.error || `Erro ao enviar (HTTP ${res.status})`);
+        }
         document.getElementById('mp-modal-ajuste').classList.add('hidden');
         document.getElementById('mp-modal-ajuste').classList.remove('flex');
+        if (typeof toast === 'function') toast('Solicitação enviada! Acompanhe em Solicitações de Ajuste.');
         _mpLoadAjustes();
     } catch(e) {
-        alert('Erro ao enviar: ' + e.message);
+        alert('Erro ao enviar: ' + (e.message || e));
     }
 }
 

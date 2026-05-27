@@ -10,7 +10,15 @@ import psycopg2
 import psycopg2.extras
 from dotenv import load_dotenv
 
-from helpers import _hash_pw, APP_USER_FALLBACK, APP_PASS_FALLBACK, ALL_PAGES, XL_TIPOS
+from helpers import (
+    _hash_pw,
+    APP_USER_FALLBACK,
+    APP_PASS_FALLBACK,
+    ALL_PAGES,
+    XL_TIPOS,
+    SUPORTE_COMERCIAL_LOGINS,
+    SUPORTE_COMERCIAL_PAGES,
+)
 
 load_dotenv(Path(__file__).parent / ".env")
 
@@ -381,6 +389,61 @@ def _ensure_users_table():
         logger.warning("Could not ensure users table: %s", e)
 
 
+def _ensure_suporte_comercial_users():
+    """Garante categoria e permissões do time Suporte Comercial (logins conhecidos)."""
+    if not SUPORTE_COMERCIAL_LOGINS:
+        return
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            logins = list(SUPORTE_COMERCIAL_LOGINS)
+            cur.execute(
+                """
+                SELECT id, username FROM app_users
+                WHERE LOWER(TRIM(username)) = ANY(%s)
+                """,
+                (logins,),
+            )
+            rows = cur.fetchall()
+            found = set()
+            for uid, username in rows:
+                found.add((username or "").strip().lower())
+                cur.execute(
+                    "UPDATE app_users SET categoria = %s WHERE id = %s",
+                    ("Suporte Comercial", uid),
+                )
+                cur.execute(
+                    "DELETE FROM user_permissions WHERE user_id = %s AND page = %s",
+                    (uid, "dashboard"),
+                )
+                for page in SUPORTE_COMERCIAL_PAGES:
+                    if page not in ALL_PAGES:
+                        continue
+                    cur.execute(
+                        """
+                        INSERT INTO user_permissions (user_id, page)
+                        VALUES (%s, %s)
+                        ON CONFLICT (user_id, page) DO NOTHING
+                        """,
+                        (uid, page),
+                    )
+                logger.info(
+                    "Suporte Comercial: %s (#%s) — categoria e permissões aplicadas",
+                    username,
+                    uid,
+                )
+            missing = SUPORTE_COMERCIAL_LOGINS - found
+            if missing:
+                logger.warning(
+                    "Suporte Comercial: logins sem cadastro em app_users: %s",
+                    ", ".join(sorted(missing)),
+                )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure suporte comercial users: %s", e)
+
+
 def _ensure_engagement_tables():
     """Create ava_engagement, comm_rules, comm_queue, comm_log tables."""
     try:
@@ -532,6 +595,118 @@ def _ensure_funnel_log_table():
         logger.warning("Could not ensure funnel_log table: %s", e)
 
 
+def _ensure_suporte_tables():
+    """Meta unificada + PIX diário do time Suporte Comercial (idempotente)."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_campanha (
+                    id          SERIAL PRIMARY KEY,
+                    nome        TEXT NOT NULL,
+                    dt_inicio   DATE NOT NULL,
+                    dt_fim      DATE NOT NULL,
+                    ativa       BOOLEAN DEFAULT TRUE,
+                    created_at  TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_meta_suporte (
+                    campanha_id         INTEGER PRIMARY KEY
+                        REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
+                    meta                NUMERIC NOT NULL DEFAULT 0,
+                    meta_intermediaria  NUMERIC NOT NULL DEFAULT 0,
+                    supermeta           NUMERIC NOT NULL DEFAULT 0,
+                    updated_at          TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_pix_suporte (
+                    id              SERIAL PRIMARY KEY,
+                    campanha_id     INTEGER NOT NULL
+                        REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
+                    min_matriculas  INTEGER NOT NULL,
+                    valor           NUMERIC NOT NULL DEFAULT 0,
+                    apenas_sabado   BOOLEAN NOT NULL DEFAULT FALSE,
+                    UNIQUE(campanha_id, min_matriculas, apenas_sabado)
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pps_camp ON premiacao_pix_suporte(campanha_id)")
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure suporte tables: %s", e)
+
+
+def _ensure_pix_faixa_tables():
+    """Faixas PIX por equipe (grupo): valor conforme matrículas do dia."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_pix_faixa (
+                    id              SERIAL PRIMARY KEY,
+                    campanha_id     INTEGER NOT NULL REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
+                    grupo_id        INTEGER NOT NULL REFERENCES premiacao_grupo(id) ON DELETE CASCADE,
+                    min_matriculas  INTEGER NOT NULL,
+                    valor           NUMERIC NOT NULL DEFAULT 0,
+                    apenas_sabado   BOOLEAN NOT NULL DEFAULT FALSE,
+                    UNIQUE(campanha_id, grupo_id, min_matriculas, apenas_sabado)
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ppf_camp ON premiacao_pix_faixa(campanha_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ppf_grupo ON premiacao_pix_faixa(grupo_id)")
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure pix faixa tables: %s", e)
+
+
+def _ensure_pix_nivel_tables():
+    """Schema PIX diário por nível 1–3 (idempotente, commit isolado)."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                ALTER TABLE premiacao_meta_diaria
+                ADD COLUMN IF NOT EXISTS pix_nivel INTEGER
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_pix_nivel_membro (
+                    id              SERIAL PRIMARY KEY,
+                    campanha_id     INTEGER NOT NULL REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
+                    kommo_user_id   INTEGER NOT NULL,
+                    pix_nivel       INTEGER NOT NULL CHECK (pix_nivel BETWEEN 1 AND 3),
+                    UNIQUE(campanha_id, kommo_user_id)
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ppnm_camp ON premiacao_pix_nivel_membro(campanha_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pmd_pix_nivel ON premiacao_meta_diaria(pix_nivel)")
+            cur.execute("""
+                ALTER TABLE premiacao_meta_diaria
+                DROP CONSTRAINT IF EXISTS premiacao_meta_diaria_campanha_id_kommo_user_id_dia_semana_key
+            """)
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_pmd_camp_user_dow
+                ON premiacao_meta_diaria (campanha_id, kommo_user_id, dia_semana)
+                WHERE grupo_id IS NULL AND pix_nivel IS NULL
+            """)
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_pmd_camp_pix_nivel_dow
+                ON premiacao_meta_diaria (campanha_id, pix_nivel, dia_semana)
+                WHERE pix_nivel IS NOT NULL
+            """)
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_pmd_camp_grupo_dow
+                ON premiacao_meta_diaria (campanha_id, grupo_id, dia_semana)
+                WHERE grupo_id IS NOT NULL AND pix_nivel IS NULL
+            """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure pix nivel tables: %s", e)
+
+
 def _ensure_premiacao_tables():
     """Create all tables for the premiação/performance system."""
     try:
@@ -651,6 +826,30 @@ def _ensure_premiacao_tables():
             cur.execute("CREATE INDEX IF NOT EXISTS idx_pcm_user ON premiacao_campanha_meta(kommo_user_id)")
 
             cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_meta_suporte (
+                    campanha_id         INTEGER PRIMARY KEY
+                        REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
+                    meta                NUMERIC NOT NULL DEFAULT 0,
+                    meta_intermediaria  NUMERIC NOT NULL DEFAULT 0,
+                    supermeta           NUMERIC NOT NULL DEFAULT 0,
+                    updated_at          TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_pix_suporte (
+                    id              SERIAL PRIMARY KEY,
+                    campanha_id     INTEGER NOT NULL
+                        REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
+                    min_matriculas  INTEGER NOT NULL,
+                    valor           NUMERIC NOT NULL DEFAULT 0,
+                    apenas_sabado   BOOLEAN NOT NULL DEFAULT FALSE,
+                    UNIQUE(campanha_id, min_matriculas, apenas_sabado)
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pps_camp ON premiacao_pix_suporte(campanha_id)")
+
+            cur.execute("""
                 CREATE TABLE IF NOT EXISTS premiacao_campanha_link (
                     id              SERIAL PRIMARY KEY,
                     campanha_a_id   INTEGER NOT NULL REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
@@ -710,6 +909,8 @@ def _ensure_premiacao_tables():
         conn.close()
     except Exception as e:
         logger.warning("Could not ensure premiacao tables: %s", e)
+    _ensure_pix_nivel_tables()
+    _ensure_pix_faixa_tables()
 
 
 def _ensure_avisos_tables():
