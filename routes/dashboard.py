@@ -4,6 +4,7 @@ from datetime import datetime
 
 import psycopg2
 import psycopg2.extras
+import requests
 from flask import Blueprint, render_template, request, jsonify, current_app
 
 from db import get_conn
@@ -611,6 +612,211 @@ def api_meta_campaigns():
             "campaigns": [],
             "status": "ERROR",
             "error": str(e)
+        })
+
+
+# ---------------------------------------------------------------------------
+# Rotas — Google Campaigns (Marketing Performance Dashboard)
+# ---------------------------------------------------------------------------
+
+SUPABASE_GOOGLE_URL = "https://vtlbndvcgajcoajhcnnx.supabase.co"
+SUPABASE_GOOGLE_KEY = "sb_publishable_sW0h7aqgrjiwqGqKpawm4g_FuMi5xU_"
+
+
+def _fetch_paginated(url_base, headers, limit=1000):
+    """Fetches all pages from url_base (must already contain select + filter params, no limit/offset)."""
+    all_rows = []
+    offset = 0
+    while True:
+        url = f"{url_base}&limit={limit}&offset={offset}"
+        resp = requests.get(url, headers=headers, timeout=30)
+        resp.raise_for_status()
+        batch = resp.json()
+        if not isinstance(batch, list) or len(batch) == 0:
+            break
+        all_rows.extend(batch)
+        if len(batch) < limit:
+            break
+        offset += limit
+    return all_rows
+
+
+@dashboard_bp.route("/api/google/campaigns")
+def api_google_campaigns():
+    """Busca dados de campanhas do Google Ads diretamente do Supabase.
+
+    Leads novos (novo_ganho_perdido IS NULL) são filtrados por data_criacao.
+    Leads ganhos/perdidos são filtrados por updated_at.
+    """
+    from_date = request.args.get("from", "")
+    to_date = request.args.get("to", "")
+
+    try:
+        headers = {
+            "apikey": SUPABASE_GOOGLE_KEY,
+            "Authorization": f"Bearer {SUPABASE_GOOGLE_KEY}",
+        }
+
+        base_select = (
+            f"{SUPABASE_GOOGLE_URL}/rest/v1/campanhas_google"
+            f"?select=utm_campaign,utm_source,utm_medium,novo_ganho_perdido"
+        )
+
+        # Request A — novos (novo_ganho_perdido IS NULL), filtrar por data_criacao
+        url_a = f"{base_select}&novo_ganho_perdido=is.null"
+        if from_date:
+            url_a += f"&data_criacao=gte.{from_date}T00:00:00"
+        if to_date:
+            url_a += f"&data_criacao=lte.{to_date}T23:59:59.999"
+
+        # Request B — ganhos/perdidos, filtrar por updated_at
+        url_b = f"{base_select}&novo_ganho_perdido=in.(ganho,perdido)"
+        if from_date:
+            url_b += f"&updated_at=gte.{from_date}T00:00:00"
+        if to_date:
+            url_b += f"&updated_at=lte.{to_date}T23:59:59.999"
+
+        rows_a = _fetch_paginated(url_a, headers)
+        rows_b = _fetch_paginated(url_b, headers)
+        all_rows = rows_a + rows_b
+
+        grouped = {}
+        for row in all_rows:
+            key = row.get("utm_campaign") or "Sem nome"
+            if key not in grouped:
+                grouped[key] = {
+                    "utm_campaign": row.get("utm_campaign"),
+                    "utm_source": None,
+                    "utm_medium": None,
+                    "novos": 0,
+                    "ganhos": 0,
+                    "perdidos": 0,
+                }
+
+            if grouped[key]["utm_source"] is None and row.get("utm_source"):
+                grouped[key]["utm_source"] = row["utm_source"]
+            if grouped[key]["utm_medium"] is None and row.get("utm_medium"):
+                grouped[key]["utm_medium"] = row["utm_medium"]
+
+            ngp = (row.get("novo_ganho_perdido") or "").strip().lower()
+            if ngp == "ganho":
+                grouped[key]["ganhos"] += 1
+            elif ngp == "perdido":
+                grouped[key]["perdidos"] += 1
+            else:
+                grouped[key]["novos"] += 1
+
+        campaigns = list(grouped.values())
+
+        return jsonify({
+            "campaigns": campaigns,
+            "status": "OK",
+            "count": len(campaigns),
+        })
+    except requests.exceptions.Timeout:
+        return jsonify({
+            "campaigns": [],
+            "status": "TIMEOUT",
+            "error": "Supabase não respondeu a tempo",
+        })
+    except requests.exceptions.RequestException as e:
+        traceback.print_exc()
+        return jsonify({
+            "campaigns": [],
+            "status": "ERROR",
+            "error": str(e),
+        })
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({
+            "campaigns": [],
+            "status": "ERROR",
+            "error": str(e),
+        })
+
+
+# ---------------------------------------------------------------------------
+# Rotas — Sem Campanha (Marketing Performance Dashboard)
+# ---------------------------------------------------------------------------
+
+@dashboard_bp.route("/api/sem-campanha/leads")
+def api_sem_campanha_leads():
+    """Busca leads sem campanha diretamente do Supabase (tabela sem_campanha).
+
+    Filtra por updated_at (que coincide com data_criacao para leads não
+    atualizados e reflete a data de mudança para ganho/perdido).
+    Retorna um único item agregado com utm_campaign='Sem Campanha'.
+    """
+    from_date = request.args.get("from", "")
+    to_date = request.args.get("to", "")
+
+    try:
+        headers = {
+            "apikey": SUPABASE_GOOGLE_KEY,
+            "Authorization": f"Bearer {SUPABASE_GOOGLE_KEY}",
+        }
+
+        url_base = (
+            f"{SUPABASE_GOOGLE_URL}/rest/v1/sem_campanha"
+            f"?select=perdido_ganho"
+        )
+        if from_date:
+            url_base += f"&updated_at=gte.{from_date}T00:00:00"
+        if to_date:
+            url_base += f"&updated_at=lte.{to_date}T23:59:59.999"
+
+        all_rows = _fetch_paginated(url_base, headers)
+
+        novos = 0
+        ganhos = 0
+        perdidos = 0
+        for row in all_rows:
+            pg = (row.get("perdido_ganho") or "").strip().lower()
+            if pg == "ganho":
+                ganhos += 1
+            elif pg == "perdido":
+                perdidos += 1
+            else:
+                novos += 1
+
+        if all_rows:
+            campaigns = [{
+                "utm_campaign": "Sem Campanha",
+                "utm_source": "sem_campanha",
+                "utm_medium": "—",
+                "novos": novos,
+                "ganhos": ganhos,
+                "perdidos": perdidos,
+            }]
+            count = 1
+        else:
+            campaigns = []
+            count = 0
+
+        return jsonify({
+            "campaigns": campaigns,
+            "status": "OK",
+            "count": count,
+        })
+    except requests.exceptions.Timeout:
+        return jsonify({
+            "campaigns": [],
+            "status": "TIMEOUT",
+            "error": "Supabase não respondeu a tempo",
+        })
+    except requests.exceptions.RequestException as e:
+        traceback.print_exc()
+        return jsonify({
+            "campaigns": [],
+            "status": "ERROR",
+            "error": str(e),
+        })
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({
+            "campaigns": [],
+            "status": "ERROR",
+            "error": str(e),
         })
 
 
