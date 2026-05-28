@@ -133,11 +133,13 @@ async function loadMetaCampaigns() {
             );
 
             metaSourceCounts = _zeroedCounts();
+            // 'total' agora considera só leads novos (em aberto) — ganhos/perdidos
+            // têm seus próprios pies e não devem ser somados ao Total.
             metaCampaigns.forEach(c => {
                 const g = parseInt(c.ganhos) || 0;
                 const p = parseInt(c.perdidos) || 0;
                 const n = parseInt(c.novos) || 0;
-                metaSourceCounts.total.meta    += n + g + p;
+                metaSourceCounts.total.meta    += n;
                 metaSourceCounts.ganhos.meta   += g;
                 metaSourceCounts.perdidos.meta += p;
             });
@@ -145,7 +147,7 @@ async function loadMetaCampaigns() {
                 const g = parseInt(c.ganhos) || 0;
                 const p = parseInt(c.perdidos) || 0;
                 const n = parseInt(c.novos) || 0;
-                metaSourceCounts.total.google    += n + g + p;
+                metaSourceCounts.total.google    += n;
                 metaSourceCounts.ganhos.google   += g;
                 metaSourceCounts.perdidos.google += p;
             });
@@ -153,7 +155,7 @@ async function loadMetaCampaigns() {
                 const g = parseInt(c.ganhos) || 0;
                 const p = parseInt(c.perdidos) || 0;
                 const n = parseInt(c.novos) || 0;
-                metaSourceCounts.total.semCampanha    += n + g + p;
+                metaSourceCounts.total.semCampanha    += n;
                 metaSourceCounts.ganhos.semCampanha   += g;
                 metaSourceCounts.perdidos.semCampanha += p;
             });
@@ -350,11 +352,14 @@ function updateMetrics(campaigns) {
     const totalNovos = campaigns.reduce((sum, c) => sum + (parseInt(c.novos) || 0), 0);
     const totalGanhos = campaigns.reduce((sum, c) => sum + (parseInt(c.ganhos) || 0), 0);
     const totalPerdidos = campaigns.reduce((sum, c) => sum + (parseInt(c.perdidos) || 0), 0);
-    const totalGeral = totalNovos + totalGanhos + totalPerdidos;
-    
-    const ganhosPct = totalGeral > 0 ? ((totalGanhos / totalGeral) * 100).toFixed(1) : '0';
-    const perdidosPct = totalGeral > 0 ? ((totalPerdidos / totalGeral) * 100).toFixed(1) : '0';
-    
+    // Total de Leads agora reflete apenas leads novos (em aberto).
+    // Ganhos e Perdidos têm seus próprios cards e não devem ser somados ao Total.
+    const totalGeral = totalNovos;
+    const baseFunil = totalNovos + totalGanhos + totalPerdidos;
+
+    const ganhosPct = baseFunil > 0 ? ((totalGanhos / baseFunil) * 100).toFixed(1) : '0';
+    const perdidosPct = baseFunil > 0 ? ((totalPerdidos / baseFunil) * 100).toFixed(1) : '0';
+
     const totalLeadsEl = document.getElementById('meta-total-leads');
     const leadsGanhosEl = document.getElementById('meta-leads-ganhos');
     const leadsPerdidosEl = document.getElementById('meta-leads-perdidos');
@@ -377,15 +382,28 @@ function renderPie(key, canvasId, legendId, counts) {
         _piesByKey[key] = null;
     }
 
-    const total = counts.meta + counts.google + counts.semCampanha;
+    // 'Sem Campanha' não compõe o pie de Total (são leads não-originados por campanha).
+    // Para os pies de Ganhos/Perdidos ele continua aparecendo.
+    const includeSemCampanha = key !== 'total';
+    const semVal = includeSemCampanha ? (counts.semCampanha || 0) : 0;
+    const total = counts.meta + counts.google + semVal;
+
+    const labels = ['Meta Ads', 'Google Ads'];
+    const data = [counts.meta, counts.google];
+    const colors = ['#3B82F6', '#F59E0B'];
+    if (includeSemCampanha) {
+        labels.push('Sem Campanha');
+        data.push(counts.semCampanha || 0);
+        colors.push('#A855F7');
+    }
 
     _piesByKey[key] = new Chart(canvas, {
         type: 'pie',
         data: {
-            labels: ['Meta Ads', 'Google Ads', 'Sem Campanha'],
+            labels,
             datasets: [{
-                data: [counts.meta, counts.google, counts.semCampanha],
-                backgroundColor: ['#3B82F6', '#F59E0B', '#A855F7'],
+                data,
+                backgroundColor: colors,
                 borderWidth: 2,
                 borderColor: 'transparent',
             }]
@@ -412,8 +430,10 @@ function renderPie(key, canvasId, legendId, counts) {
         const items = [
             { label: 'Meta Ads',     color: '#3B82F6', value: counts.meta },
             { label: 'Google Ads',   color: '#F59E0B', value: counts.google },
-            { label: 'Sem Campanha', color: '#A855F7', value: counts.semCampanha },
         ];
+        if (includeSemCampanha) {
+            items.push({ label: 'Sem Campanha', color: '#A855F7', value: counts.semCampanha || 0 });
+        }
         legendEl.innerHTML = items.map(item => {
             const pct = total > 0 ? ((item.value / total) * 100).toFixed(1) : '—';
             const display = total > 0 ? `${item.value} (${pct}%)` : `0 (—)`;
