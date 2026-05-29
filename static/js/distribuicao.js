@@ -311,7 +311,9 @@ async function handleUploadBatchInadimplentes(fileList, nivel) {
             msg.className = 'upload-msg text-xs text-amber-400 font-semibold mt-1';
         } else {
             const rowsTxt = data.snapshot_rows >= 0 ? ` (${data.snapshot_rows.toLocaleString('pt-BR')} alunos)` : '';
-            msg.innerHTML = `✓ ${data.files_count} arquivos processados!${rowsTxt} <button onclick="_triggerInadimplentesUpdate(this)" class="ml-2 px-2 py-0.5 text-[10px] rounded bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/30 transition">Atualizar CRM</button>`;
+            const fileNames = valid.map(f => f.name).join(', ');
+            const fileLine = `<div class="text-[10px] text-slate-400 dark:text-slate-500 mt-1 font-normal break-all">📄 ${fileNames}</div>`;
+            msg.innerHTML = `✓ ${data.files_count} arquivo(s) processado(s)!${rowsTxt} <button onclick="_triggerInadimplentesUpdate(this)" class="ml-2 px-2 py-0.5 text-[10px] rounded bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/30 transition">Atualizar Inadimplência</button>${fileLine}`;
             msg.className = 'upload-msg text-xs text-emerald-400 font-semibold mt-1';
         }
         loadFileInfo();

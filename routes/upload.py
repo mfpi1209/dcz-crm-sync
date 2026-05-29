@@ -925,117 +925,6 @@ def api_snapshots_crossref():
         conn.close()
 
 
-@upload_bp.route("/api/inadimplencia/historico")
-def api_inadimplencia_historico():
-    """Retorna séries temporais de inadimplentes agrupados por nivel, tipo_aluno e turma."""
-    date_from = request.args.get("date_from", "").strip()
-    date_to = request.args.get("date_to", "").strip()
-
-    conn = get_conn()
-    try:
-        date_clause = ""
-        params = []
-        if date_from:
-            date_clause += " AND s.uploaded_at >= %s::date"
-            params.append(date_from)
-        if date_to:
-            date_clause += " AND s.uploaded_at < (%s::date + interval '1 day')"
-            params.append(date_to)
-
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(f"""
-                SELECT s.id, s.uploaded_at, s.row_count, s.nivel AS snap_nivel
-                FROM xl_snapshots s
-                WHERE s.tipo = 'inadimplentes'{date_clause}
-                ORDER BY s.uploaded_at
-            """, params)
-            snapshots = cur.fetchall()
-
-            if not snapshots:
-                return jsonify({"snapshots": [], "series": [], "message": "Nenhum snapshot de inadimplentes encontrado."})
-
-            cur.execute(f"""
-                SELECT s.id AS snap_id, s.uploaded_at, s.nivel AS snap_nivel,
-                       r.data
-                FROM xl_snapshots s
-                JOIN xl_rows r ON r.snapshot_id = s.id
-                WHERE s.tipo = 'inadimplentes'{date_clause}
-                ORDER BY s.uploaded_at
-            """, params)
-            all_rows = cur.fetchall()
-
-            cur.execute("SELECT id FROM xl_snapshots WHERE tipo='matriculados' ORDER BY id DESC LIMIT 1")
-            snap_mat = cur.fetchone()
-            mat_nivel_map = {}
-            mat_tipo_map = {}
-            mat_turma_map = {}
-            if snap_mat:
-                cur.execute("SELECT data FROM xl_rows WHERE snapshot_id=%s AND data->>'rgm_digits' != ''", (snap_mat["id"],))
-                for r in cur.fetchall():
-                    d = r["data"]
-                    rgm = d.get("rgm_digits", "")
-                    if rgm:
-                        mat_nivel_map[rgm] = _classify_nivel_row(d)
-                        tipo_raw = (d.get("tipo_matricula", "") or "").strip()
-                        mat_tipo_map[rgm] = tipo_raw if tipo_raw else "N/I"
-                        turma_raw = (d.get("serie", "") or d.get("ciclo", "") or "").strip()
-                        mat_turma_map[rgm] = turma_raw if turma_raw else "N/I"
-
-        snapshot_data = {}
-        for row in all_rows:
-            sid = row["snap_id"]
-            uploaded = row["uploaded_at"]
-            snap_nivel = row.get("snap_nivel") or None
-            d = row["data"]
-            rgm = d.get("rgm_digits", "")
-            if not rgm:
-                continue
-
-            if sid not in snapshot_data:
-                snapshot_data[sid] = {
-                    "date": to_brt(uploaded),
-                    "snap_nivel": snap_nivel,
-                    "by_nivel": {},
-                    "by_tipo": {},
-                    "by_turma": {},
-                    "total": 0,
-                }
-            sd = snapshot_data[sid]
-            sd["total"] += 1
-
-            nivel = snap_nivel or mat_nivel_map.get(rgm, "Graduação")
-            sd["by_nivel"][nivel] = sd["by_nivel"].get(nivel, 0) + 1
-
-            tipo = mat_tipo_map.get(rgm, "N/I")
-            sd["by_tipo"][tipo] = sd["by_tipo"].get(tipo, 0) + 1
-
-            turma = mat_turma_map.get(rgm, "N/I")
-            sd["by_turma"][turma] = sd["by_turma"].get(turma, 0) + 1
-
-        series = []
-        for sid in sorted(snapshot_data.keys()):
-            sd = snapshot_data[sid]
-            series.append({
-                "snapshot_id": sid,
-                "date": sd["date"],
-                "snap_nivel": sd["snap_nivel"],
-                "total": sd["total"],
-                "by_nivel": sd["by_nivel"],
-                "by_tipo": sd["by_tipo"],
-                "by_turma": dict(sorted(sd["by_turma"].items(), key=lambda x: -x[1])[:20]),
-            })
-
-        return jsonify({
-            "snapshots_count": len(series),
-            "series": series,
-            "has_history": len(series) >= 2,
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    finally:
-        conn.close()
-
-
 _TIPO_NORM = "TRANSLATE(LOWER(COALESCE(m.data->>'tipo_matricula','')), 'áàãâéèêíìîóòõôúùûçñ', 'aaaaeeeiiioooouuucn')"
 
 _TIPO_SQL_CASES = {
@@ -1455,7 +1344,7 @@ def api_upload():
     try:
         if fname_lower.endswith(".zip"):
             snap_count = _handle_zip_upload(str(dest), tipo)
-        elif tipo == "inadimplentes" and fname_lower.endswith(".xlsm"):
+        elif tipo == "inadimplentes" and fname_lower.endswith((".xlsm", ".xlsx")):
             tmp_dir = UPLOAD_DIR / f"_tmp_{tipo}"
             tmp_dir.mkdir(exist_ok=True)
             shutil.copy2(str(dest), str(tmp_dir / safe_name))
