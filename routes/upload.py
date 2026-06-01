@@ -518,6 +518,130 @@ def _parse_inadimplentes_batch(folder_path):
     return entries
 
 
+def _detect_inadimplentes_format(filepath):
+    """Detecta o formato de um arquivo de inadimplentes.
+
+    Retorna 'novo' (RGM em col 0 da row 1), 'antigo' (ID_POLO em row 2 ou
+    "Relação..." no início da row 1), ou None (formato não reconhecido).
+    """
+    wb = openpyxl.load_workbook(filepath, read_only=True, data_only=True)
+    try:
+        ws = wb[wb.sheetnames[0]]
+        rows = ws.iter_rows(values_only=True, max_col=5, max_row=2)
+        r1 = next(rows, None) or ()
+        r2 = next(rows, None) or ()
+        c1 = str(r1[0] or "").strip().upper() if r1 else ""
+        c2 = str(r2[0] or "").strip().upper() if r2 else ""
+        if c1 == "RGM":
+            return "novo"
+        if c2 == "ID_POLO" or c1.startswith("RELAÇÃO") or c1.startswith("RELACAO"):
+            return "antigo"
+        return None
+    finally:
+        wb.close()
+
+
+def _parse_alunos_mensalidade_aberto(filepath, filename):
+    """Parser para planilha 'Alunos com mensalidade em aberto' (novo formato).
+
+    Sheet: primeira disponível.
+    Header em row 1. Colunas: RGM | Aluno | CPF | Celular | Whatsapp | Polo |
+    Curso | Esc. Cobrança | Tipo Título | Vencimento | Aviso | Valor
+    A coluna 'Aviso' é descartada (contém SVGs inline gigantes).
+    Retorna lista de dicts com 1 entrada por título (não agregado).
+    """
+    HEADER_MAP = {
+        "rgm": "rgm",
+        "aluno": "aluno",
+        "cpf": "cpf",
+        "celular": "celular",
+        "whatsapp": "whatsapp",
+        "polo": "polo",
+        "curso": "curso",
+        "esc. cobrança": "esc_cobranca",
+        "esc. cobranca": "esc_cobranca",
+        "esc cobrança": "esc_cobranca",
+        "esc cobranca": "esc_cobranca",
+        "tipo título": "tipo_titulo",
+        "tipo titulo": "tipo_titulo",
+        "vencimento": "vencimento",
+        "valor": "valor",
+    }
+    SKIP_COLS = {"aviso"}
+
+    wb = openpyxl.load_workbook(filepath, read_only=True, data_only=True)
+    try:
+        ws = wb[wb.sheetnames[0]]
+        rows_iter = ws.iter_rows(values_only=True)
+
+        header_row = next(rows_iter, None)
+        if not header_row or str(header_row[0] or "").strip().upper() != "RGM":
+            current_app.logger.warning(
+                "[ALUNOS-MENSALIDADE] %s: RGM não encontrado em col 0. Got: %r",
+                filename, header_row[0] if header_row else None,
+            )
+            return []
+
+        col_map = {}
+        for i, h in enumerate(header_row):
+            if h is None:
+                continue
+            h_norm = str(h).strip().lower()
+            if h_norm in SKIP_COLS:
+                continue
+            mapped = HEADER_MAP.get(h_norm)
+            if mapped:
+                col_map[mapped] = i
+
+        entries = []
+        for row in rows_iter:
+            if not row or all(v is None for v in row):
+                continue
+
+            entry = {}
+            for field, col_idx in col_map.items():
+                v = row[col_idx] if col_idx < len(row) else None
+                if v is None:
+                    entry[field] = ""
+                    continue
+
+                if field == "rgm":
+                    if isinstance(v, float):
+                        entry[field] = str(int(v))
+                    elif isinstance(v, int):
+                        entry[field] = str(v)
+                    else:
+                        s = str(v).strip()
+                        entry[field] = s[:-2] if s.endswith(".0") else s
+                elif field == "vencimento":
+                    if isinstance(v, datetime):
+                        entry[field] = v.strftime("%d/%m/%Y")
+                    else:
+                        entry[field] = str(v).strip()
+                elif field == "valor":
+                    try:
+                        entry[field] = str(round(float(v), 2))
+                    except (ValueError, TypeError):
+                        entry[field] = str(v).strip() if v is not None else ""
+                else:
+                    if isinstance(v, datetime):
+                        entry[field] = v.strftime("%d/%m/%Y")
+                    elif isinstance(v, float) and v == int(v):
+                        entry[field] = str(int(v))
+                    else:
+                        entry[field] = str(v).strip()
+
+            entry["rgm_digits"] = _normalize_digits(entry.get("rgm", ""))
+            entries.append(entry)
+
+        current_app.logger.info(
+            "[ALUNOS-MENSALIDADE] %s: %d entries parsed", filename, len(entries)
+        )
+        return entries
+    finally:
+        wb.close()
+
+
 def _parse_sem_rematricula(folder_path):
     """Lê adimplentes.xlsx e inadimplentes.xlsx, unifica com flag financeiro."""
     HEADER_NORM = {
@@ -1345,11 +1469,26 @@ def api_upload():
         if fname_lower.endswith(".zip"):
             snap_count = _handle_zip_upload(str(dest), tipo)
         elif tipo == "inadimplentes" and fname_lower.endswith((".xlsm", ".xlsx")):
-            tmp_dir = UPLOAD_DIR / f"_tmp_{tipo}"
-            tmp_dir.mkdir(exist_ok=True)
-            shutil.copy2(str(dest), str(tmp_dir / safe_name))
-            entries = _parse_inadimplentes_batch(str(tmp_dir))
-            snap_count = _persist_snapshot_entries(entries, tipo, safe_name) if entries else 0
+            fmt = _detect_inadimplentes_format(str(dest))
+            if fmt == "novo":
+                entries = _parse_alunos_mensalidade_aberto(str(dest), safe_name)
+                snap_count = _persist_snapshot_entries(entries, tipo, safe_name) if entries else 0
+            elif fmt == "antigo":
+                tmp_dir = UPLOAD_DIR / f"_tmp_{tipo}"
+                tmp_dir.mkdir(exist_ok=True)
+                shutil.copy2(str(dest), str(tmp_dir / safe_name))
+                entries = _parse_inadimplentes_batch(str(tmp_dir))
+                snap_count = _persist_snapshot_entries(entries, tipo, safe_name) if entries else 0
+            else:
+                dest.unlink(missing_ok=True)
+                return jsonify({
+                    "error": (
+                        "Formato de arquivo não reconhecido. "
+                        "Formatos aceitos: (1) Novo formato — header em row 1 com 'RGM' na col A; "
+                        "(2) Formato legado — header com 'ID_POLO' (normalmente em row 2) "
+                        "ou título 'Relação...' em row 1."
+                    )
+                }), 400
         elif tipo == "lista_alunos" and fname_lower.endswith(".xlsx"):
             entries = _parse_lista_alunos(str(dest))
             snap_count = _persist_snapshot_entries(entries, tipo, safe_name) if entries else 0
@@ -1431,8 +1570,25 @@ def api_upload_batch():
     current_app.logger.info("[UPLOAD-BATCH] %d arquivos salvos em %s: %s", len(saved), tmp_dir, saved[:5])
 
     try:
-        entries = _parse_inadimplentes_batch(str(tmp_dir))
-        snap_count = _persist_snapshot_entries(entries, tipo, f"{len(saved)} arquivos", nivel=nivel) if entries else 0
+        fmt = _detect_inadimplentes_format(str(tmp_dir / saved[0]))
+        current_app.logger.info("[UPLOAD-BATCH] formato detectado: %r (arquivo: %s)", fmt, saved[0])
+
+        if fmt == "novo":
+            entries = []
+            for fname_saved in saved:
+                entries.extend(_parse_alunos_mensalidade_aberto(str(tmp_dir / fname_saved), fname_saved))
+            snap_count = _persist_snapshot_entries(entries, tipo, f"{len(saved)} arquivos", nivel=nivel) if entries else 0
+        elif fmt == "antigo":
+            entries = _parse_inadimplentes_batch(str(tmp_dir))
+            snap_count = _persist_snapshot_entries(entries, tipo, f"{len(saved)} arquivos", nivel=nivel) if entries else 0
+        else:
+            return jsonify({
+                "error": (
+                    "Formato de arquivo não reconhecido. "
+                    "Formatos aceitos: (1) Novo formato — header em row 1 com 'RGM' na col A; "
+                    "(2) Formato legado — header com 'ID_POLO'."
+                )
+            }), 400
     except Exception as e:
         current_app.logger.warning("Erro upload-batch (%s): %s", tipo, e)
         current_app.logger.warning("Traceback: %s", traceback.format_exc())
@@ -1446,7 +1602,7 @@ def api_upload_batch():
             "tipo": tipo,
             "files_count": len(saved),
             "snapshot_rows": 0,
-            "warning": "Arquivos recebidos mas nenhum dado extraído. Verifique se os arquivos contêm a linha de cabeçalho com ID_POLO na primeira coluna.",
+            "warning": "Arquivos recebidos mas nenhum dado extraído. Verifique o formato do arquivo.",
         })
 
     return jsonify({

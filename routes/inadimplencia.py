@@ -222,18 +222,25 @@ def _get_dedupe_snapshots(conn, em_curso_total):
     with conn.cursor() as cur:
         cur.execute(f"""
             SELECT snapshot_id,
-                   COUNT(DISTINCT data->>'rgm_digits') AS inad
+                   COUNT(*) AS total_rows,
+                   COUNT(DISTINCT data->>'rgm_digits') FILTER (
+                     WHERE COALESCE(data->>'empresa','') != 'CRUZEIRO DO SUL - TECNICO EAD'
+                       AND EXISTS (
+                         SELECT 1 FROM jsonb_array_elements(data->'titulos') t
+                         WHERE UPPER(t->>'descricao') = 'MENSALIDADE'
+                       )
+                       AND COALESCE(data->>'rgm_digits','') != ''
+                   ) AS old_inad,
+                   BOOL_OR((data->'titulos') IS NOT NULL) AS is_old_format
             FROM xl_rows
             WHERE snapshot_id IN ({placeholders})
-              AND COALESCE(data->>'empresa', '') != 'CRUZEIRO DO SUL - TECNICO EAD'
-              AND EXISTS (
-                SELECT 1 FROM jsonb_array_elements(data->'titulos') t
-                WHERE UPPER(t->>'descricao') = 'MENSALIDADE'
-              )
-              AND COALESCE(data->>'rgm_digits', '') != ''
             GROUP BY snapshot_id
         """, snap_ids)
-        inad_map = {r[0]: int(r[1]) for r in cur.fetchall()}
+        inad_map = {}
+        for row in cur.fetchall():
+            snap_id, total_rows, old_inad, is_old = row
+            inad = int(old_inad or 0) if is_old else int(total_rows or 0)
+            inad_map[snap_id] = inad
 
     date_groups: dict = {}
     for s in snaps:
