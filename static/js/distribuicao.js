@@ -283,16 +283,30 @@ async function handleUploadBatchInadimplentes(fileList, nivel) {
     const bar = card.querySelector('.upload-bar');
     const msg = card.querySelector('.upload-msg');
     progress.classList.remove('hidden');
-    bar.style.width = '20%';
+    bar.style.width = '15%';
     const nivelLabel = nivel || 'geral';
-    msg.textContent = `Enviando ${valid.length} arquivo(s) [${nivelLabel}]...`;
+    msg.textContent = `Lendo ${valid.length} arquivo(s)...`;
     msg.className = 'upload-msg text-xs text-slate-400 mt-1';
 
     const form = new FormData();
-    for (const f of valid) form.append('files', f);
+    try {
+        for (let i = 0; i < valid.length; i++) {
+            const f = valid[i];
+            const buf = await f.arrayBuffer();
+            const blob = new Blob([buf], { type: f.type || 'application/octet-stream' });
+            form.append('files', blob, f.name);
+            bar.style.width = (15 + Math.round(((i + 1) / valid.length) * 35)) + '%';
+        }
+    } catch (readErr) {
+        msg.textContent = 'Erro ao ler arquivo (OneDrive?): ' + readErr.message + '. Clique com bot\u00e3o direito no arquivo > "Sempre manter neste dispositivo", ou salve-o fora do OneDrive.';
+        msg.classList.add('text-red-400');
+        setTimeout(() => { progress.classList.add('hidden'); bar.style.width = '0%'; }, 8000);
+        return;
+    }
     form.append('tipo', 'inadimplentes');
     if (nivel) form.append('nivel', nivel);
 
+    msg.textContent = `Enviando ${valid.length} arquivo(s) [${nivelLabel}]...`;
     try {
         bar.style.width = '60%';
         const res = await fetch('/api/upload-batch', { method: 'POST', body: form });
