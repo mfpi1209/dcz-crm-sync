@@ -12,6 +12,40 @@ from flask import Blueprint, request, jsonify
 from db import get_conn
 from helpers import BRT
 
+# ---------------------------------------------------------------------------
+# Helpers de competência (YYYY-MM ↔ label PT-BR)
+# ---------------------------------------------------------------------------
+
+_MESES_PT = [
+    "", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+]
+
+
+def _competencia_label(competencia: str) -> str:
+    """Converte 'YYYY-MM' em 'Mês/YYYY' em PT-BR."""
+    try:
+        ano, mes = competencia.split("-")
+        return f"{_MESES_PT[int(mes)]}/{ano}"
+    except Exception:
+        return competencia
+
+
+def _parse_vencimento_competencia(venc_str):
+    """Parseia 'DD/MM/YYYY' e retorna 'YYYY-MM', ou None."""
+    if not venc_str:
+        return None
+    try:
+        parts = venc_str.split("/")
+        if len(parts) == 3:
+            d, m, y = int(parts[0]), int(parts[1]), int(parts[2])
+            if 1 <= m <= 12 and 2000 <= y <= 2100:
+                return f"{y:04d}-{m:02d}"
+    except (ValueError, TypeError):
+        pass
+    return None
+
+
 inadimplencia_bp = Blueprint("inadimplencia", __name__)
 
 # ---------------------------------------------------------------------------
@@ -153,6 +187,42 @@ def _extract_date_from_filename(filename, uploaded_at):
     return fallback
 
 
+def _ultimas_n_competencias_de_hoje(n: int) -> list:
+    """
+    Retorna as últimas N competências (YYYY-MM) a partir do mês atual.
+    Ex: hoje=2026-06, n=3 -> ['2026-04', '2026-05', '2026-06']
+    """
+    if n is None or n <= 0:
+        return []
+    hoje = datetime.now()
+    y, m = hoje.year, hoje.month
+    out = []
+    for _ in range(n):
+        out.append(f"{y:04d}-{m:02d}")
+        m -= 1
+        if m == 0:
+            m = 12
+            y -= 1
+    return sorted(out)
+
+
+def _parse_recent_months(req_val):
+    """
+    Converte o param 'recent_months' em int ou None (None = sem filtro = tudo).
+    Default = 3. Valores válidos: 'all', inteiros positivos.
+    """
+    if req_val is None or req_val == "":
+        return 3
+    s = str(req_val).strip().lower()
+    if s in ("all", "tudo", "todos"):
+        return None
+    try:
+        v = int(s)
+        return v if v > 0 else 3
+    except (ValueError, TypeError):
+        return 3
+
+
 def _get_total_em_curso(conn):
     """
     Retorna (count_em_curso: int, uploaded_at: datetime|None) do snapshot mais
@@ -191,7 +261,7 @@ def _get_total_em_curso(conn):
     return int(count), source_date
 
 
-def _get_dedupe_snapshots(conn, em_curso_total):
+def _get_dedupe_snapshots(conn, em_curso_total, nivel=None, date_a=None, date_b=None, nivel_in=None):
     """
     Busca todos os snapshots de inadimplentes, calcula effective_date a partir
     do filename (com fallback para uploaded_at::date BRT), agrega inadimplentes
@@ -201,17 +271,38 @@ def _get_dedupe_snapshots(conn, em_curso_total):
     (após filtros empresa ≠ TECNICO + título MENSALIDADE).
     Empate de inadimplentes: mantém o de uploaded_at mais recente.
 
+    Filtros opcionais:
+      nivel    — filtra por xl_snapshots.nivel exato (string)
+      nivel_in — filtra por lista de níveis (usa ANY(%s)); ignorado se nivel passado
+      date_a/date_b — uploaded_at range
+
     Retorna lista de dicts ordenada por effective_date DESC, cada item com:
       {snapshot_id, effective_date, uploaded_at, filename, row_count,
        inadimplentes, em_curso, taxa_pct}
     """
+    where_extra = []
+    params = []
+    if nivel:
+        where_extra.append("AND nivel = %s")
+        params.append(nivel)
+    elif nivel_in is not None:
+        where_extra.append("AND nivel = ANY(%s)")
+        params.append(list(nivel_in))
+    if date_a:
+        where_extra.append("AND uploaded_at::date >= %s::date")
+        params.append(date_a)
+    if date_b:
+        where_extra.append("AND uploaded_at::date <= %s::date")
+        params.append(date_b)
+
     with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-        cur.execute("""
-            SELECT id, uploaded_at, filename, row_count
+        cur.execute(f"""
+            SELECT id, uploaded_at, filename, row_count, nivel
             FROM xl_snapshots
             WHERE tipo = 'inadimplentes'
+            {' '.join(where_extra)}
             ORDER BY uploaded_at DESC
-        """)
+        """, params)
         snaps = cur.fetchall()
 
     if not snaps:
@@ -256,17 +347,21 @@ def _get_dedupe_snapshots(conn, em_curso_total):
             "inadimplentes":  inad,
             "em_curso":       em_curso_total,
             "taxa_pct":       taxa,
+            "nivel":          s["nivel"],
         }
-        existing = date_groups.get(eff_date)
+        # Dedupe por (effective_date, nivel) — assim snapshots de competências
+        # diferentes uploadados no mesmo dia não colidem.
+        group_key = (eff_date, s["nivel"])
+        existing = date_groups.get(group_key)
         if existing is None:
-            date_groups[eff_date] = item
+            date_groups[group_key] = item
         else:
             curr_ua = _normalize_ua(item["uploaded_at"])
             prev_ua = _normalize_ua(existing["uploaded_at"])
             if inad < existing["inadimplentes"] or (
                 inad == existing["inadimplentes"] and curr_ua > prev_ua
             ):
-                date_groups[eff_date] = item
+                date_groups[group_key] = item
 
     return sorted(
         date_groups.values(),
@@ -355,23 +450,35 @@ def api_inadimplencia_list():
     Snapshots descartados pela dedupe por effective_date NÃO aparecem.
     Resultado ordenado por effective_date DESC.
     """
+    competencia = request.args.get("competencia", "").strip() or None
+    date_a = request.args.get("date_a", "").strip() or None
+    date_b = request.args.get("date_b", "").strip() or None
+    recent_months = _parse_recent_months(request.args.get("recent_months"))
     conn = get_conn()
     try:
         total_em_curso, source_date = _get_total_em_curso(conn)
-        snapshots = _get_dedupe_snapshots(conn, total_em_curso)
+        nivel_in = None
+        if not competencia and recent_months is not None:
+            nivel_in = _ultimas_n_competencias_de_hoje(recent_months)
+        snapshots = _get_dedupe_snapshots(conn, total_em_curso, nivel=competencia, date_a=date_a, date_b=date_b, nivel_in=nivel_in)
 
         result = []
         for s in snapshots:
             eff_date = s["effective_date"]
+            nivel = s.get("nivel")
+            is_comp = bool(nivel and re.match(r'^\d{4}-\d{2}$', nivel))
             result.append({
-                "id":             s["snapshot_id"],
-                "effective_date": eff_date.isoformat() if eff_date else None,
-                "uploaded_at":    _to_iso_brt(s["uploaded_at"]),
-                "filename":       s["filename"],
+                "id":              s["snapshot_id"],
+                "snapshot_id":     s["snapshot_id"],
+                "effective_date":  eff_date.isoformat() if eff_date else None,
+                "uploaded_at":     _to_iso_brt(s["uploaded_at"]),
+                "filename":        s["filename"],
                 "row_count_total": s["row_count"],
-                "inadimplentes":  s["inadimplentes"],
-                "em_curso":       s["em_curso"],
-                "taxa_pct":       s["taxa_pct"],
+                "inadimplentes":   s["inadimplentes"],
+                "em_curso":        s["em_curso"],
+                "taxa_pct":        s["taxa_pct"],
+                "nivel":           nivel,
+                "competencia_label": _competencia_label(nivel) if is_comp else None,
             })
 
         return jsonify({
@@ -397,10 +504,17 @@ def api_inadimplencia_atual():
     Se date omitido, usa o snapshot com maior effective_date.
     """
     date_str = request.args.get("date", "").strip()
+    competencia = request.args.get("competencia", "").strip() or None
+    date_a = request.args.get("date_a", "").strip() or None
+    date_b = request.args.get("date_b", "").strip() or None
+    recent_months = _parse_recent_months(request.args.get("recent_months"))
     conn = get_conn()
     try:
         total_em_curso, _ = _get_total_em_curso(conn)
-        snapshots = _get_dedupe_snapshots(conn, total_em_curso)
+        nivel_in = None
+        if not competencia and recent_months is not None:
+            nivel_in = _ultimas_n_competencias_de_hoje(recent_months)
+        snapshots = _get_dedupe_snapshots(conn, total_em_curso, nivel=competencia, date_a=date_a, date_b=date_b, nivel_in=nivel_in)
 
         if not snapshots:
             return jsonify({"error": "Nenhum snapshot de inadimplentes encontrado."}), 404
@@ -493,17 +607,27 @@ def api_inadimplencia_evolucao():
     Série temporal de inadimplência. days aceita: 7 | 30 | 90 | all (default 30).
     Retorna 1 ponto por effective_date (já deduplicado), ordenado ASC.
     Para days=N, filtra snapshots com effective_date >= hoje - N dias.
+    Quando date_a ou date_b estão presentes, o range já delimita e o corte por days não se aplica.
+    Aceita também: competencia (filtra por nivel), date_a, date_b.
     """
     days_param = request.args.get("days", "30").strip()
+    competencia = request.args.get("competencia", "").strip() or None
+    date_a = request.args.get("date_a", "").strip() or None
+    date_b = request.args.get("date_b", "").strip() or None
+    recent_months = _parse_recent_months(request.args.get("recent_months"))
     conn = get_conn()
     try:
         total_em_curso, _ = _get_total_em_curso(conn)
-        snapshots = _get_dedupe_snapshots(conn, total_em_curso)
+        nivel_in = None
+        if not competencia and recent_months is not None:
+            nivel_in = _ultimas_n_competencias_de_hoje(recent_months)
+        snapshots = _get_dedupe_snapshots(conn, total_em_curso, nivel=competencia, date_a=date_a, date_b=date_b, nivel_in=nivel_in)
 
         if not snapshots:
             return jsonify({"points": [], "em_curso_constant": total_em_curso})
 
-        if days_param != "all":
+        # Aplica corte por days apenas quando não há range explícito de datas
+        if not date_a and not date_b and days_param != "all":
             try:
                 days = int(days_param)
                 if days <= 0:
@@ -516,10 +640,18 @@ def api_inadimplencia_evolucao():
                 if s["effective_date"] and s["effective_date"] >= cutoff
             ]
 
-        snapshots_asc = sorted(
-            snapshots,
-            key=lambda x: x["effective_date"] or date_cls.min,
-        )
+        # Dedupe por effective_date — mantém a competência mais recente
+        # (nivel DESC). Evita múltiplos pontos no mesmo dia quando o usuário
+        # subiu várias competências de uma vez.
+        by_date: dict = {}
+        for s in snapshots:
+            eff = s["effective_date"]
+            if eff is None:
+                continue
+            cur = by_date.get(eff)
+            if cur is None or (s.get("nivel") or "") > (cur.get("nivel") or ""):
+                by_date[eff] = s
+        snapshots_asc = sorted(by_date.values(), key=lambda x: x["effective_date"])
 
         points = []
         for s in snapshots_asc:
@@ -536,6 +668,181 @@ def api_inadimplencia_evolucao():
 
         return jsonify({"points": points, "em_curso_constant": total_em_curso})
     except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Endpoint 5: GET /api/inadimplencia/competencias
+# ---------------------------------------------------------------------------
+
+@inadimplencia_bp.route("/api/inadimplencia/competencias")
+def api_inadimplencia_competencias():
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT DISTINCT nivel
+                FROM xl_snapshots
+                WHERE tipo = 'inadimplentes' AND nivel ~ '^[0-9]{4}-[0-9]{2}$'
+                ORDER BY nivel DESC
+            """)
+            rows = cur.fetchall()
+        competencias = [{"value": r[0], "label": _competencia_label(r[0])} for r in rows]
+        return jsonify({"competencias": competencias})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Endpoint 6: GET /api/inadimplencia/comparar-periodo
+# ---------------------------------------------------------------------------
+
+@inadimplencia_bp.route("/api/inadimplencia/comparar-periodo")
+def api_inadimplencia_comparar_periodo():
+    competencia = request.args.get("competencia", "").strip() or None
+    date_a = request.args.get("date_a", "").strip() or None
+    date_b = request.args.get("date_b", "").strip() or None
+
+    if not competencia:
+        return jsonify({"error": "Parâmetro 'competencia' é obrigatório"}), 400
+
+    conn = get_conn()
+    try:
+        em_curso, _ = _get_total_em_curso(conn)
+        snapshots = _get_dedupe_snapshots(conn, em_curso, nivel=competencia, date_a=date_a, date_b=date_b)
+
+        if len(snapshots) < 2:
+            return jsonify({"insuficiente": True, "snapshots_count": len(snapshots)})
+
+        ordered = sorted(snapshots, key=lambda s: s["uploaded_at"])
+        primeiro = ordered[0]
+        ultimo = ordered[-1]
+        variacao = round(ultimo["taxa_pct"] - primeiro["taxa_pct"], 2)
+
+        return jsonify({
+            "competencia": competencia,
+            "competencia_label": _competencia_label(competencia),
+            "snapshots_count": len(snapshots),
+            "primeiro": {
+                "uploaded_at": _to_iso_brt(primeiro["uploaded_at"]),
+                "inadimplentes": primeiro["inadimplentes"],
+                "taxa_pct": primeiro["taxa_pct"],
+            },
+            "ultimo": {
+                "uploaded_at": _to_iso_brt(ultimo["uploaded_at"]),
+                "inadimplentes": ultimo["inadimplentes"],
+                "taxa_pct": ultimo["taxa_pct"],
+            },
+            "variacao_pp": variacao,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Endpoint 7: GET /api/inadimplencia/reincidencia
+# ---------------------------------------------------------------------------
+
+@inadimplencia_bp.route("/api/inadimplencia/reincidencia")
+def api_inadimplencia_reincidencia():
+    date_a = request.args.get("date_a", "").strip() or None
+    date_b = request.args.get("date_b", "").strip() or None
+
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            sql = """
+                WITH latest_per_comp AS (
+                    SELECT DISTINCT ON (nivel) id, nivel, uploaded_at
+                    FROM xl_snapshots
+                    WHERE tipo = 'inadimplentes' AND nivel ~ '^[0-9]{4}-[0-9]{2}$'
+                      AND (%(date_a)s IS NULL OR uploaded_at::date >= %(date_a)s::date)
+                      AND (%(date_b)s IS NULL OR uploaded_at::date <= %(date_b)s::date)
+                    ORDER BY nivel, uploaded_at DESC
+                ),
+                rgm_comp AS (
+                    SELECT DISTINCT r.data->>'rgm_digits' AS rgm, l.nivel
+                    FROM xl_rows r
+                    JOIN latest_per_comp l ON l.id = r.snapshot_id
+                    WHERE COALESCE(r.data->>'rgm_digits', '') != ''
+                ),
+                counts AS (
+                    SELECT rgm, COUNT(DISTINCT nivel) AS n_comps
+                    FROM rgm_comp GROUP BY rgm
+                )
+                SELECT
+                    COUNT(*) FILTER (WHERE n_comps = 2) AS b2,
+                    COUNT(*) FILTER (WHERE n_comps = 3) AS b3,
+                    COUNT(*) FILTER (WHERE n_comps >= 4) AS b4_plus,
+                    COUNT(*) AS total
+                FROM counts
+                WHERE n_comps >= 2
+            """
+            cur.execute(sql, {"date_a": date_a, "date_b": date_b})
+            row = cur.fetchone() or {}
+
+            cur.execute("""
+                SELECT DISTINCT ON (nivel) id AS snapshot_id, nivel, uploaded_at
+                FROM xl_snapshots
+                WHERE tipo = 'inadimplentes' AND nivel ~ '^[0-9]{4}-[0-9]{2}$'
+                  AND (%(date_a)s IS NULL OR uploaded_at::date >= %(date_a)s::date)
+                  AND (%(date_b)s IS NULL OR uploaded_at::date <= %(date_b)s::date)
+                ORDER BY nivel, uploaded_at DESC
+            """, {"date_a": date_a, "date_b": date_b})
+            snaps = cur.fetchall()
+
+        snapshots_usados = [
+            {"snapshot_id": s["snapshot_id"], "nivel": s["nivel"], "uploaded_at": _to_iso_brt(s["uploaded_at"])}
+            for s in snaps
+        ]
+        competencias_usadas = sorted({s["nivel"] for s in snaps})
+
+        return jsonify({
+            "buckets": {
+                "2": int(row.get("b2") or 0),
+                "3": int(row.get("b3") or 0),
+                "4_plus": int(row.get("b4_plus") or 0),
+            },
+            "competencias_usadas": competencias_usadas,
+            "snapshots_usados": snapshots_usados,
+            "rgms_analisados": int(row.get("total") or 0),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Endpoint 8: DELETE /api/inadimplencia/snapshot/<snap_id>
+# ---------------------------------------------------------------------------
+
+@inadimplencia_bp.route("/api/inadimplencia/snapshot/<int:snap_id>", methods=["DELETE"])
+def api_inadimplencia_delete_snapshot(snap_id):
+    """Apaga um snapshot de inadimplentes (e suas xl_rows)."""
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, tipo, filename FROM xl_snapshots WHERE id = %s", (snap_id,))
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"error": "Snapshot não encontrado"}), 404
+            if row[1] != "inadimplentes":
+                return jsonify({"error": "Snapshot não é do tipo inadimplentes"}), 400
+
+            cur.execute("DELETE FROM xl_rows WHERE snapshot_id = %s", (snap_id,))
+            rows_deleted = cur.rowcount
+            cur.execute("DELETE FROM xl_snapshots WHERE id = %s", (snap_id,))
+        conn.commit()
+        return jsonify({"ok": True, "snapshot_id": snap_id, "filename": row[2], "xl_rows_deleted": rows_deleted})
+    except Exception as e:
+        conn.rollback()
         return jsonify({"error": str(e)}), 500
     finally:
         conn.close()
