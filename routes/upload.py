@@ -642,6 +642,46 @@ def _parse_alunos_mensalidade_aberto(filepath, filename):
         wb.close()
 
 
+def _compute_competencia_predominante(entries):
+    """Analisa vencimentos das entries e retorna YYYY-MM se >=90% pertencem ao mesmo mês/ano.
+
+    Raises ValueError se não houver competência predominante ou sem vencimentos parseáveis.
+    """
+    from collections import Counter
+
+    counts: Counter = Counter()
+    total_parseado = 0
+    for entry in entries:
+        venc = entry.get("vencimento", "") or ""
+        if not venc:
+            continue
+        try:
+            if "/" in venc:
+                parts = venc.split("/")
+                if len(parts) == 3:
+                    d_val, m_val, y_val = int(parts[0]), int(parts[1]), int(parts[2])
+                    if 1 <= m_val <= 12 and 2000 <= y_val <= 2100 and 1 <= d_val <= 31:
+                        counts[(y_val, m_val)] += 1
+                        total_parseado += 1
+        except (ValueError, TypeError):
+            continue
+
+    if total_parseado == 0:
+        raise ValueError(
+            "Não foi possível identificar uma competência predominante pela coluna Vencimento. "
+            "Verifique se o arquivo está correto."
+        )
+
+    (ano, mes), count_predominante = counts.most_common(1)[0]
+    if count_predominante / total_parseado < 0.90:
+        raise ValueError(
+            "Não foi possível identificar uma competência predominante pela coluna Vencimento. "
+            "Verifique se o arquivo está correto."
+        )
+
+    return f"{ano:04d}-{mes:02d}"
+
+
 def _parse_sem_rematricula(folder_path):
     """Lê adimplentes.xlsx e inadimplentes.xlsx, unifica com flag financeiro."""
     HEADER_NORM = {
@@ -1472,7 +1512,12 @@ def api_upload():
             fmt = _detect_inadimplentes_format(str(dest))
             if fmt == "novo":
                 entries = _parse_alunos_mensalidade_aberto(str(dest), safe_name)
-                snap_count = _persist_snapshot_entries(entries, tipo, safe_name) if entries else 0
+                try:
+                    competencia = _compute_competencia_predominante(entries)
+                except ValueError as e:
+                    dest.unlink(missing_ok=True)
+                    return jsonify({"error": str(e)}), 400
+                snap_count = _persist_snapshot_entries(entries, tipo, safe_name, nivel=competencia) if entries else 0
             elif fmt == "antigo":
                 tmp_dir = UPLOAD_DIR / f"_tmp_{tipo}"
                 tmp_dir.mkdir(exist_ok=True)
@@ -1577,7 +1622,11 @@ def api_upload_batch():
             entries = []
             for fname_saved in saved:
                 entries.extend(_parse_alunos_mensalidade_aberto(str(tmp_dir / fname_saved), fname_saved))
-            snap_count = _persist_snapshot_entries(entries, tipo, f"{len(saved)} arquivos", nivel=nivel) if entries else 0
+            try:
+                competencia = _compute_competencia_predominante(entries)
+            except ValueError as e:
+                return jsonify({"error": str(e)}), 400
+            snap_count = _persist_snapshot_entries(entries, tipo, f"{len(saved)} arquivos", nivel=competencia) if entries else 0
         elif fmt == "antigo":
             entries = _parse_inadimplentes_batch(str(tmp_dir))
             snap_count = _persist_snapshot_entries(entries, tipo, f"{len(saved)} arquivos", nivel=nivel) if entries else 0

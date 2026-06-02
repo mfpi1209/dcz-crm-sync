@@ -1,12 +1,37 @@
 // ===========================================================================
 // INADIMPLÊNCIA — Taxa de inadimplência e evolução temporal
-// Endpoints: /api/inadimplencia/{list,atual,comparar,evolucao}
+// Endpoints: /api/inadimplencia/{list,atual,comparar,evolucao,competencias,
+//            comparar-periodo,reincidencia}
 // ===========================================================================
 (function () {
     'use strict';
 
     let _evolChart = null;
     let _currentRange = 30;
+
+    function _currentMonthCompetencia() {
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        return `${y}-${m}`;
+    }
+
+    function _competenciaToLabelPt(comp) {
+        const meses = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                       'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+        const [y, m] = (comp || '').split('-');
+        const mi = parseInt(m, 10);
+        if (!y || !mi || mi < 1 || mi > 12) return comp;
+        return `${meses[mi]}/${y}`;
+    }
+
+    // Estado dos filtros — padrão: "" = "Recentes (linha do tempo)" (bloco contíguo via backend)
+    window._inadFilters = {
+        competencia: '',
+        date_a: null,
+        date_b: null,
+        recent_months: '3',
+    };
 
     // ── Formatação ──────────────────────────────────────────────────────────
 
@@ -23,22 +48,12 @@
     function _fmtDate(iso) {
         if (!iso) return '—';
         try {
-            // Suporta tanto YYYY-MM-DD quanto ISO completo
             const s = String(iso).slice(0, 10);
             const [y, m, d] = s.split('-');
             return `${d}/${m}/${y}`;
         } catch (_) {
             return iso;
         }
-    }
-
-    function _deltaHtml(delta, suffix) {
-        if (delta == null) return '<span class="text-slate-500 text-xs">—</span>';
-        const sign = delta > 0 ? '+' : '';
-        const color = delta < 0
-            ? 'text-emerald-500'
-            : delta > 0 ? 'text-rose-500' : 'text-slate-500';
-        return `<span class="text-xs font-semibold ${color}">${sign}${delta}${suffix} vs 7d atrás</span>`;
     }
 
     function _fallbackBadge(side) {
@@ -93,7 +108,7 @@
         }
     }
 
-    // ── Comparação ──────────────────────────────────────────────────────────
+    // ── Comparação (endpoint /comparar — formato data a/b) ──────────────────
 
     function _renderComparison(comp) {
         const el = document.getElementById('inad-comp-result');
@@ -144,6 +159,86 @@
                 ${_sideHtml(b, 'Até')}
             </div>
         `;
+    }
+
+    // ── Comparação por período (endpoint /comparar-periodo) ─────────────────
+
+    function _renderPeriodoComparison(data) {
+        const el = document.getElementById('inad-comp-result');
+        if (!el) return;
+
+        if (!data) {
+            el.innerHTML = '<p class="text-slate-500 text-sm text-center py-4">Nenhum dado disponível.</p>';
+            return;
+        }
+
+        if (data.insuficiente) {
+            const count = data.snapshots_count || 0;
+            el.innerHTML = `<p class="text-slate-500 text-sm text-center py-4 mt-4">
+                É necessário ter pelo menos dois uploads no período para comparar a evolução.
+                <span class="block text-xs mt-1">(${count} snapshot${count !== 1 ? 's' : ''} encontrado${count !== 1 ? 's' : ''} para a competência selecionada)</span>
+            </p>`;
+            return;
+        }
+
+        const { competencia_label, snapshots_count, primeiro, ultimo, variacao_pp } = data;
+
+        const varSign = variacao_pp > 0 ? '+' : '';
+        const varColor = variacao_pp < 0 ? 'text-emerald-500' : variacao_pp > 0 ? 'text-rose-500' : 'text-slate-400';
+
+        function _sideHtml(snap, label) {
+            return `<div class="glass-card border border-[var(--border)] rounded-xl p-4">
+                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">${label} — ${_fmtDate(snap.uploaded_at)}</p>
+                <p class="text-2xl font-black text-rose-500 tabular-nums mt-2">${_fmtPct(snap.taxa_pct)}</p>
+                <p class="text-xs text-slate-500 mt-1">${_fmt(snap.inadimplentes)} inadimplentes</p>
+            </div>`;
+        }
+
+        el.innerHTML = `
+            <div class="mt-3 mb-1">
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">${competencia_label}</span>
+                <span class="text-xs text-slate-400 ml-2">${snapshots_count} snapshot${snapshots_count !== 1 ? 's' : ''} no período</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
+                ${_sideHtml(primeiro, 'Primeiro upload')}
+                <div class="flex items-center justify-center">
+                    <div class="text-center py-4">
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Variação</p>
+                        <p class="text-3xl font-black ${varColor} tabular-nums">${varSign}${Number(variacao_pp).toFixed(2).replace('.', ',')} pp</p>
+                        <p class="text-xs text-slate-400 mt-1">pontos percentuais</p>
+                    </div>
+                </div>
+                ${_sideHtml(ultimo, 'Último upload')}
+            </div>
+        `;
+    }
+
+    // ── Reincidência ────────────────────────────────────────────────────────
+
+    function _renderReincidencia(data) {
+        const el2 = document.getElementById('inad-reinc-2');
+        const el3 = document.getElementById('inad-reinc-3');
+        const el4 = document.getElementById('inad-reinc-4_plus');
+        const elMeta = document.getElementById('inad-reinc-meta');
+
+        if (!data || data.error) {
+            if (el2) el2.textContent = '—';
+            if (el3) el3.textContent = '—';
+            if (el4) el4.textContent = '—';
+            if (elMeta) elMeta.textContent = data && data.error ? `Erro: ${data.error}` : '—';
+            return;
+        }
+
+        const { buckets, competencias_usadas, rgms_analisados } = data;
+        if (el2) el2.textContent = _fmt(buckets['2'] || 0);
+        if (el3) el3.textContent = _fmt(buckets['3'] || 0);
+        if (el4) el4.textContent = _fmt(buckets['4_plus'] || 0);
+
+        const nComp = (competencias_usadas || []).length;
+        const metaText = nComp > 0
+            ? `${_fmt(rgms_analisados)} RGM${rgms_analisados !== 1 ? 's' : ''} único${rgms_analisados !== 1 ? 's' : ''} analisado${rgms_analisados !== 1 ? 's' : ''} · ${nComp} competência${nComp !== 1 ? 's' : ''} considerada${nComp !== 1 ? 's' : ''}: ${competencias_usadas.join(', ')}`
+            : 'Nenhuma competência com dados disponível.';
+        if (elMeta) elMeta.textContent = metaText;
     }
 
     // ── Gráfico de Evolução ─────────────────────────────────────────────────
@@ -237,21 +332,77 @@
         if (!tbody) return;
 
         if (!snapshots || snapshots.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="py-6 text-center text-slate-500 text-sm">Nenhum snapshot de inadimplência encontrado.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-slate-500 text-sm">Nenhum snapshot de inadimplência encontrado.</td></tr>';
             return;
         }
 
         tbody.innerHTML = snapshots.map(s => {
             const dateStr = _fmtDate(s.uploaded_at);
             const fname = s.filename ? esc(s.filename) : '—';
+            const snapId = s.snapshot_id || s.id;
+            const compLabel = s.competencia_label
+                ? `<span>${esc(s.competencia_label)}</span>`
+                : `<span class="italic text-slate-400">—</span>`;
             return `<tr class="border-b border-slate-200 dark:border-slate-800/40 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                 <td class="py-2.5 px-4 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">${dateStr}</td>
                 <td class="py-2.5 px-4 text-xs text-slate-600 dark:text-slate-300 max-w-[200px] truncate" title="${fname}">${fname}</td>
+                <td class="py-2.5 px-4 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">${compLabel}</td>
                 <td class="py-2.5 px-4 text-right font-bold text-[var(--text-primary)] tabular-nums text-sm">${_fmt(s.inadimplentes)}</td>
                 <td class="py-2.5 px-4 text-right text-slate-500 tabular-nums text-xs">${_fmt(s.em_curso)}</td>
                 <td class="py-2.5 px-4 text-right font-semibold text-rose-500 tabular-nums text-sm">${_fmtPct(s.taxa_pct)}</td>
+                <td class="py-2.5 px-4 text-right">
+                    <button onclick="_inadDeleteSnapshot(${snapId}, '${esc(s.filename || '')}')"
+                            class="text-xs text-red-500 hover:text-red-400 hover:bg-red-500/10 px-2 py-1 rounded transition">
+                        Apagar
+                    </button>
+                </td>
             </tr>`;
         }).join('');
+    }
+
+    async function _inadDeleteSnapshot(snapId, filename) {
+        if (!confirm(`Apagar snapshot ${filename}?\nEsta ação não pode ser desfeita.`)) return;
+        try {
+            const res = await fetch(`/api/inadimplencia/snapshot/${snapId}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (!res.ok) {
+                alert('Erro: ' + (data.error || 'falha desconhecida'));
+                return;
+            }
+            loadInadimplencia();
+        } catch (err) {
+            alert('Erro: ' + err.message);
+        }
+    }
+
+    // ── Carregar competências no select ─────────────────────────────────────
+
+    async function loadCompetencias() {
+        const select = document.getElementById('inad-filter-competencia');
+        if (!select) return;
+
+        try {
+            const res = await api('/api/inadimplencia/competencias');
+            const data = await res.json();
+            const list = data.competencias || [];
+            const currentComp = _currentMonthCompetencia();
+            const currentLabel = _competenciaToLabelPt(currentComp);
+
+            // Sempre incluir o mês atual no topo (mesmo sem snapshot ainda)
+            const hasCurrent = list.some(c => c.value === currentComp);
+            let html = '<option value="">Recentes (linha do tempo)</option>';
+            if (!hasCurrent) {
+                html += `<option value="${currentComp}">${currentLabel} (mês atual)</option>`;
+            }
+            for (const c of list) {
+                const isCurrent = c.value === currentComp;
+                html += `<option value="${c.value}">${c.label}${isCurrent ? ' (mês atual)' : ''}</option>`;
+            }
+            select.innerHTML = html;
+            select.value = _inadFilters.competencia || '';
+        } catch (e) {
+            console.error('Erro ao carregar competências:', e);
+        }
     }
 
     // ── Botões de range ─────────────────────────────────────────────────────
@@ -274,7 +425,20 @@
 
     async function _reloadEvolucao() {
         try {
-            const res = await api(`/api/inadimplencia/evolucao?days=${_currentRange}`);
+            const f = window._inadFilters || {};
+            const qs = [];
+            // Quando há filtro de data, não aplica o range por dias
+            if (f.date_a || f.date_b) {
+                if (f.competencia) qs.push('competencia=' + encodeURIComponent(f.competencia));
+                if (f.date_a) qs.push('date_a=' + f.date_a);
+                if (f.date_b) qs.push('date_b=' + f.date_b);
+                if (!f.competencia && f.recent_months) qs.push('recent_months=' + encodeURIComponent(f.recent_months));
+            } else {
+                qs.push(`days=${_currentRange}`);
+                if (f.competencia) qs.push('competencia=' + encodeURIComponent(f.competencia));
+                if (!f.competencia && f.recent_months) qs.push('recent_months=' + encodeURIComponent(f.recent_months));
+            }
+            const res = await api('/api/inadimplencia/evolucao' + (qs.length ? '?' + qs.join('&') : ''));
             const data = await res.json();
             _renderEvolucaoChart(data);
         } catch (e) {
@@ -282,7 +446,7 @@
         }
     }
 
-    // ── Comparação manual ───────────────────────────────────────────────────
+    // ── Comparação manual (botão "Comparar" no card) ────────────────────────
 
     async function _doCompare() {
         const dateA = (document.getElementById('inad-date-a') || {}).value || '';
@@ -299,11 +463,70 @@
         }
     }
 
+    // ── Filtros: Aplicar / Limpar ────────────────────────────────────────────
+
+    function _applyFilters() {
+        const competencia = (document.getElementById('inad-filter-competencia') || {}).value || '';
+        const date_a = (document.getElementById('inad-filter-date-a') || {}).value || '';
+        const date_b = (document.getElementById('inad-filter-date-b') || {}).value || '';
+        const recent_months = (document.getElementById('inad-filter-recent-months') || {}).value || '3';
+        window._inadFilters = { competencia, date_a, date_b, recent_months };
+        loadInadimplencia();
+    }
+
+    function _clearFilters() {
+        window._inadFilters = {
+            competencia: '',
+            date_a: null,
+            date_b: null,
+            recent_months: '3',
+        };
+        const sel = document.getElementById('inad-filter-competencia');
+        if (sel) sel.value = '';
+        const da = document.getElementById('inad-filter-date-a');
+        const db = document.getElementById('inad-filter-date-b');
+        if (da) da.value = '';
+        if (db) db.value = '';
+        const rm = document.getElementById('inad-filter-recent-months');
+        if (rm) rm.value = '3';
+        loadInadimplencia();
+    }
+
+    function _wireFilterButtons() {
+        const applyBtn = document.getElementById('inad-filter-apply');
+        const clearBtn = document.getElementById('inad-filter-clear');
+        const recentSel = document.getElementById('inad-filter-recent-months');
+        if (applyBtn && !applyBtn._wired) {
+            applyBtn.addEventListener('click', _applyFilters);
+            applyBtn._wired = true;
+        }
+        if (clearBtn && !clearBtn._wired) {
+            clearBtn.addEventListener('click', _clearFilters);
+            clearBtn._wired = true;
+        }
+        // Trocar "últimos meses" recarrega na hora (sem precisar clicar Aplicar)
+        if (recentSel && !recentSel._wired) {
+            recentSel.addEventListener('change', _applyFilters);
+            recentSel._wired = true;
+        }
+    }
+
     // ── Estado vazio / conteúdo ─────────────────────────────────────────────
 
     function _showEmpty() {
         const emptyEl = document.getElementById('inad-empty-msg');
         const contentEl = document.getElementById('inad-main-content');
+        const titleEl = document.getElementById('inad-empty-title');
+        const descEl = document.getElementById('inad-empty-desc');
+        const f = window._inadFilters || {};
+        if (f.competencia) {
+            const label = _competenciaToLabelPt(f.competencia);
+            if (titleEl) titleEl.textContent = `Sem dados para ${label}`;
+            if (descEl) descEl.innerHTML = `Nenhum snapshot de inadimpl\u00eancia para esta compet\u00eancia.<br>Selecione outra compet\u00eancia acima ou suba um arquivo em <strong>Upload Acad\u00eamico \u2192 Inadimplentes</strong>.`;
+        } else {
+            if (titleEl) titleEl.textContent = 'Nenhum dado de inadimpl\u00eancia';
+            if (descEl) descEl.innerHTML = 'Nenhum snapshot de inadimpl\u00eancia foi feito ainda.<br>Suba o primeiro arquivo em <strong>Upload Acad\u00eamico \u2192 Inadimplentes</strong>.';
+        }
         if (emptyEl) emptyEl.classList.remove('hidden');
         if (contentEl) contentEl.classList.add('hidden');
     }
@@ -315,31 +538,68 @@
         if (contentEl) contentEl.classList.remove('hidden');
     }
 
+    // ── Construir query string dos filtros ativos ────────────────────────────
+
+    function _filterQs(includeCompetencia = true) {
+        const f = window._inadFilters || {};
+        const parts = [];
+        if (includeCompetencia && f.competencia) parts.push('competencia=' + encodeURIComponent(f.competencia));
+        if (f.date_a) parts.push('date_a=' + f.date_a);
+        if (f.date_b) parts.push('date_b=' + f.date_b);
+        // Só envia recent_months quando NÃO há competência específica (é o filtro do "Recentes")
+        if (!f.competencia && f.recent_months) parts.push('recent_months=' + encodeURIComponent(f.recent_months));
+        return parts.length ? '?' + parts.join('&') : '';
+    }
+
     // ── loadInadimplencia — ponto de entrada chamado por utils.js ───────────
 
     async function loadInadimplencia() {
         try {
+            _wireFilterButtons();
+            loadCompetencias();
+
+            const f = window._inadFilters || {};
             const today = new Date().toISOString().slice(0, 10);
             const sevenAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
 
-            // Preenche defaults nos inputs de comparação
+            // Preenche defaults nos inputs de comparação manual (não os de filtro)
             const dateAEl = document.getElementById('inad-date-a');
             const dateBEl = document.getElementById('inad-date-b');
             if (dateAEl && !dateAEl.value) dateAEl.value = sevenAgo;
             if (dateBEl && !dateBEl.value) dateBEl.value = today;
 
-            // Dispara todos os 4 endpoints em paralelo
-            const [listRes, atualRes, compRes, evolRes] = await Promise.all([
-                api('/api/inadimplencia/list'),
-                api('/api/inadimplencia/atual'),
-                api('/api/inadimplencia/comparar'),
-                api(`/api/inadimplencia/evolucao?days=${_currentRange}`),
+            // Monta URL da evolução
+            const evolQs = (() => {
+                const parts = [`days=${_currentRange}`];
+                if (f.competencia) parts.push('competencia=' + encodeURIComponent(f.competencia));
+                if (f.date_a) parts.push('date_a=' + f.date_a);
+                if (f.date_b) parts.push('date_b=' + f.date_b);
+                if (!f.competencia && f.recent_months) parts.push('recent_months=' + encodeURIComponent(f.recent_months));
+                return '?' + parts.join('&');
+            })();
+
+            // Monta URL de comparação
+            const compUrl = f.competencia
+                ? '/api/inadimplencia/comparar-periodo' + _filterQs()
+                : '/api/inadimplencia/comparar';
+
+            // Monta URL de reincidência (nunca usa competencia, só datas)
+            const reincQs = _filterQs(false);
+
+            // Dispara todos os endpoints em paralelo
+            const [listRes, atualRes, compRes, evolRes, reincRes] = await Promise.all([
+                api('/api/inadimplencia/list' + _filterQs()),
+                api('/api/inadimplencia/atual' + _filterQs()),
+                api(compUrl),
+                api('/api/inadimplencia/evolucao' + evolQs),
+                api('/api/inadimplencia/reincidencia' + reincQs),
             ]);
 
             const listData = await listRes.json();
             const atualData = atualRes.ok ? await atualRes.json() : null;
             const compData = await compRes.json();
             const evolData = await evolRes.json();
+            const reincData = reincRes.ok ? await reincRes.json() : null;
 
             if (!listData.snapshots || listData.snapshots.length === 0) {
                 _showEmpty();
@@ -347,10 +607,17 @@
             }
 
             _hideEmpty();
-            _renderKPIs(atualData, compData);
-            _renderComparison(compData);
+            _renderKPIs(atualData, f.competencia ? null : compData);
+
+            if (f.competencia) {
+                _renderPeriodoComparison(compData);
+            } else {
+                _renderComparison(compData);
+            }
+
             _renderEvolucaoChart(evolData);
             _renderHistoryTable(listData.snapshots);
+            _renderReincidencia(reincData);
             _setActiveRange(_currentRange);
 
         } catch (e) {
@@ -362,5 +629,6 @@
     window.loadInadimplencia = loadInadimplencia;
     window._inadDoCompare = _doCompare;
     window._inadSetRange = _setActiveRange;
+    window._inadDeleteSnapshot = _inadDeleteSnapshot;
 
 })();
