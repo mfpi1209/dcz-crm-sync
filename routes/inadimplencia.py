@@ -674,6 +674,60 @@ def api_inadimplencia_evolucao():
 
 
 # ---------------------------------------------------------------------------
+# Endpoint 4b: GET /api/inadimplencia/evolucao-por-mes
+# ---------------------------------------------------------------------------
+
+@inadimplencia_bp.route("/api/inadimplencia/evolucao-por-mes")
+def api_inadimplencia_evolucao_por_mes():
+    """
+    Retorna uma serie por competencia (mes/ano) com pontos { day, taxa_pct, ... }.
+    Eixo X no front = dia do mes (1..31). Ignora filtros de competencia e
+    "recent_months"; respeita apenas date_a / date_b (intervalo de uploaded_at).
+    """
+    date_a = request.args.get("date_a", "").strip() or None
+    date_b = request.args.get("date_b", "").strip() or None
+    conn = get_conn()
+    try:
+        total_em_curso, _ = _get_total_em_curso(conn)
+        snapshots = _get_dedupe_snapshots(conn, total_em_curso, date_a=date_a, date_b=date_b)
+
+        # Agrupa por nivel; dentro de cada nivel, mantem 1 ponto por dia do mes
+        # (o snapshot com effective_date mais recente naquele dia)
+        grupos: dict = {}
+        for s in snapshots:
+            nivel = s.get("nivel")
+            eff = s.get("effective_date")
+            if not nivel or not eff:
+                continue
+            g = grupos.setdefault(nivel, {})
+            dia = eff.day
+            cur = g.get(dia)
+            if cur is None or eff > cur["effective_date"]:
+                g[dia] = s
+
+        competencias = []
+        for nivel in sorted(grupos.keys()):
+            pontos = sorted(grupos[nivel].values(), key=lambda x: x["effective_date"])
+            competencias.append({
+                "nivel": nivel,
+                "label": _competencia_label(nivel),
+                "points": [{
+                    "day":           p["effective_date"].day,
+                    "date":          p["effective_date"].isoformat(),
+                    "taxa_pct":      p["taxa_pct"],
+                    "inadimplentes": p["inadimplentes"],
+                    "em_curso":      p["em_curso"],
+                } for p in pontos],
+            })
+
+        return jsonify({"competencias": competencias, "em_curso_constant": total_em_curso})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
 # Endpoint 5: GET /api/inadimplencia/competencias
 # ---------------------------------------------------------------------------
 
