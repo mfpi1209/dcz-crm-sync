@@ -7,6 +7,9 @@
     'use strict';
 
     let _evolChart = null;
+    let _chartMeses = null;
+    let _chartMesesData = null;
+    let _chartMesesDate = null;
     let _currentRange = 30;
 
     function _currentMonthCompetencia() {
@@ -325,6 +328,166 @@
         });
     }
 
+    // ── Gráfico Comparativo por Competência ─────────────────────────────────
+
+    const _CHART_MESES_PALETTE = [
+        '#f43f5e', '#6366f1', '#10b981', '#f59e0b',
+        '#06b6d4', '#a855f7', '#ec4899', '#84cc16',
+        '#0ea5e9', '#f97316',
+    ];
+
+    function _hexToRgba(hex, alpha) {
+        const h = hex.replace('#', '');
+        const r = parseInt(h.substring(0, 2), 16);
+        const g = parseInt(h.substring(2, 4), 16);
+        const b = parseInt(h.substring(4, 6), 16);
+        return `rgba(${r},${g},${b},${alpha})`;
+    }
+
+    function _collectDates(data) {
+        const set = new Set();
+        const comps = (data && data.competencias) ? data.competencias : [];
+        comps.forEach(c => (c.points || []).forEach(p => { if (p.date) set.add(p.date); }));
+        return Array.from(set).sort();
+    }
+
+    function _syncDateInput(data) {
+        const input = document.getElementById('inad-meses-data');
+        if (!input) return;
+        const dates = _collectDates(data);
+        if (dates.length === 0) {
+            input.value = '';
+            input.removeAttribute('min');
+            input.removeAttribute('max');
+            return;
+        }
+        input.min = dates[0];
+        input.max = dates[dates.length - 1];
+        if (!_chartMesesDate || !dates.includes(_chartMesesDate)) {
+            _chartMesesDate = dates[dates.length - 1];
+        }
+        input.value = _chartMesesDate;
+    }
+
+    function _renderChartMeses(data) {
+        const canvas = document.getElementById('inad-chart-meses');
+        const emptyEl = document.getElementById('inad-chart-meses-empty');
+        if (!canvas) return;
+
+        if (_chartMeses) { _chartMeses.destroy(); _chartMeses = null; }
+
+        const comps = (data && data.competencias) ? data.competencias : [];
+        const items = comps
+            .map(c => {
+                const pts = c.points || [];
+                const match = _chartMesesDate
+                    ? pts.find(p => p.date === _chartMesesDate)
+                    : pts[pts.length - 1];
+                return match ? { label: c.label || c.nivel, nivel: c.nivel, last: match } : null;
+            })
+            .filter(Boolean)
+            .sort((a, b) => a.nivel.localeCompare(b.nivel));
+
+        if (items.length === 0) {
+            canvas.style.display = 'none';
+            if (emptyEl) {
+                emptyEl.textContent = _chartMesesDate
+                    ? `Nenhuma competência com snapshot em ${_chartMesesDate.split('-').reverse().join('/')}.`
+                    : 'Sem snapshots para comparar entre competências.';
+                emptyEl.classList.remove('hidden');
+            }
+            return;
+        }
+        canvas.style.display = 'block';
+        if (emptyEl) emptyEl.classList.add('hidden');
+
+        const labels = items.map(i => i.label);
+        const values = items.map(i => i.last.taxa_pct);
+        const colors = items.map((_, idx) =>
+            _CHART_MESES_PALETTE[idx % _CHART_MESES_PALETTE.length]);
+
+        _chartMeses = new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    label: '% Inadimplência',
+                    data: values,
+                    backgroundColor: colors.map(c => _hexToRgba(c, 0.7)),
+                    borderColor: colors,
+                    borderWidth: 1.5,
+                    borderRadius: 6,
+                    _items: items,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title: ctx => ctx[0].label,
+                            label: ctx => ` Taxa: ${ctx.parsed.y.toFixed(2).replace('.', ',')}%`,
+                            afterBody: ctx => {
+                                const it = ctx[0].dataset._items[ctx[0].dataIndex].last;
+                                const dataFmt = it.date ? it.date.split('-').reverse().join('/') : '—';
+                                return [
+                                    ` Atualizado em: ${dataFmt}`,
+                                    ` Inadimplentes: ${_fmt(it.inadimplentes)}`,
+                                    ` Em curso: ${_fmt(it.em_curso)}`,
+                                ];
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#64748b', font: { size: 11 } },
+                        grid: { display: false }
+                    },
+                    y: {
+                        ticks: {
+                            color: '#64748b',
+                            callback: v => v.toFixed(1).replace('.', ',') + '%',
+                            font: { size: 11 }
+                        },
+                        grid: { color: 'rgba(100,116,139,0.15)' },
+                        beginAtZero: true,
+                    }
+                }
+            }
+        });
+    }
+
+    async function _reloadChartMeses() {
+        try {
+            const f = window._inadFilters || {};
+            const parts = [];
+            if (f.date_a) parts.push('date_a=' + f.date_a);
+            if (f.date_b) parts.push('date_b=' + f.date_b);
+            const qs = parts.length ? '?' + parts.join('&') : '';
+            const res = await api('/api/inadimplencia/evolucao-por-mes' + qs);
+            const data = await res.json();
+            _chartMesesData = data;
+            _syncDateInput(data);
+            _wireChartMesesDateInput();
+            _renderChartMeses(data);
+        } catch (e) {
+            console.error('Erro ao carregar comparativo por competência:', e);
+        }
+    }
+
+    function _wireChartMesesDateInput() {
+        const input = document.getElementById('inad-meses-data');
+        if (!input || input._wired) return;
+        input.addEventListener('change', () => {
+            _chartMesesDate = input.value || null;
+            if (_chartMesesData) _renderChartMeses(_chartMesesData);
+        });
+        input._wired = true;
+    }
+
     // ── Tabela de Histórico ─────────────────────────────────────────────────
 
     function _renderHistoryTable(snapshots) {
@@ -619,6 +782,7 @@
             _renderHistoryTable(listData.snapshots);
             _renderReincidencia(reincData);
             _setActiveRange(_currentRange);
+            _reloadChartMeses();
 
         } catch (e) {
             console.error('Erro ao carregar inadimplência:', e);
