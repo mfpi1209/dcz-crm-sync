@@ -223,42 +223,63 @@ def _parse_recent_months(req_val):
         return 3
 
 
-def _get_total_em_curso(conn):
+def _get_total_em_curso(conn, target_date=None, _cache=None):
     """
-    Retorna (count_em_curso: int, uploaded_at: datetime|None) do snapshot mais
-    recente de matriculados. Conta apenas linhas com situacao = 'EM CURSO' E
-    nível Graduação (a tabela de inadimplência só contempla graduação, então
-    o denominador da taxa precisa ser consistente).
+    Retorna (count_em_curso: int, uploaded_at: datetime|None) do snapshot de
+    matriculados vigente na `target_date` (uploaded_at::date <= target_date,
+    mais recente). Se nao houver snapshot anterior, faz fallback para o mais
+    antigo disponivel. target_date None => hoje.
 
-    Classificação de nível espelha a usada em routes/dashboard.py:
-    Pós-Graduação quando nivel/negocio/curso indicam pós; Graduação caso contrário.
+    Conta apenas linhas com situacao = 'EM CURSO' E nivel Graduacao (a tabela
+    de inadimplencia so contempla graduacao). Classificacao de nivel espelha
+    a usada em routes/dashboard.py.
+
+    _cache: dict opcional para memoizar resultados por chave (target_date).
     """
+    key = target_date or date_cls.today()
+    if _cache is not None and key in _cache:
+        return _cache[key]
+
     with conn.cursor() as cur:
+        # Tenta snapshot anterior ou igual a target_date
         cur.execute("""
             SELECT id, uploaded_at FROM xl_snapshots
             WHERE tipo = 'matriculados'
+              AND (%s::date IS NULL OR uploaded_at::date <= %s::date)
             ORDER BY uploaded_at DESC LIMIT 1
-        """)
+        """, (target_date, target_date))
         snap = cur.fetchone()
         if not snap:
-            return 0, None
-        snap_id, source_date = snap
-        cur.execute("""
-            SELECT COUNT(*) FROM xl_rows
-            WHERE snapshot_id = %s
-              AND data->>'situacao' = 'EM CURSO'
-              AND NOT (
-                    (COALESCE(data->>'nivel','') != ''
-                       AND data->>'nivel' ~* 'p[oó]s')
-                 OR (COALESCE(data->>'nivel','') = ''
-                       AND data->>'negocio' ~* 'p[oó]s')
-                 OR (COALESCE(data->>'nivel','') = ''
-                       AND COALESCE(data->>'negocio','') !~* 'p[oó]s'
-                       AND data->>'curso' ~* '(mba|especializa[cç][aã]o|p[oó]s.gradua|lato.sensu|stricto)')
-              )
-        """, (snap_id,))
-        count = cur.fetchone()[0]
-    return int(count), source_date
+            # Fallback: nenhum snapshot anterior, pega o mais antigo
+            cur.execute("""
+                SELECT id, uploaded_at FROM xl_snapshots
+                WHERE tipo = 'matriculados'
+                ORDER BY uploaded_at ASC LIMIT 1
+            """)
+            snap = cur.fetchone()
+        if not snap:
+            result = (0, None)
+        else:
+            snap_id, source_date = snap
+            cur.execute("""
+                SELECT COUNT(*) FROM xl_rows
+                WHERE snapshot_id = %s
+                  AND data->>'situacao' = 'EM CURSO'
+                  AND NOT (
+                        (COALESCE(data->>'nivel','') != ''
+                           AND data->>'nivel' ~* 'p[oó]s')
+                     OR (COALESCE(data->>'nivel','') = ''
+                           AND data->>'negocio' ~* 'p[oó]s')
+                     OR (COALESCE(data->>'nivel','') = ''
+                           AND COALESCE(data->>'negocio','') !~* 'p[oó]s'
+                           AND data->>'curso' ~* '(mba|especializa[cç][aã]o|p[oó]s.gradua|lato.sensu|stricto)')
+                  )
+            """, (snap_id,))
+            result = (int(cur.fetchone()[0]), source_date)
+
+    if _cache is not None:
+        _cache[key] = result
+    return result
 
 
 def _get_dedupe_snapshots(conn, em_curso_total, nivel=None, date_a=None, date_b=None, nivel_in=None):
@@ -333,11 +354,19 @@ def _get_dedupe_snapshots(conn, em_curso_total, nivel=None, date_a=None, date_b=
             inad = int(old_inad or 0) if is_old else int(total_rows or 0)
             inad_map[snap_id] = inad
 
+    # Cache de em_curso por data — evita repetir lookup do snapshot de
+    # matriculados quando varios snapshots de inadimplencia caem no mesmo dia.
+    em_curso_cache: dict = {}
+
     date_groups: dict = {}
     for s in snaps:
         inad = inad_map.get(s["id"], 0)
-        taxa = round(inad / em_curso_total * 100, 2) if em_curso_total > 0 else 0.0
         eff_date = _extract_date_from_filename(s["filename"], s["uploaded_at"])
+        # Base vigente na data do snapshot (fallback para em_curso_total se 0)
+        em_curso_dia, _ = _get_total_em_curso(conn, eff_date, em_curso_cache)
+        if em_curso_dia <= 0:
+            em_curso_dia = em_curso_total
+        taxa = round(inad / em_curso_dia * 100, 2) if em_curso_dia > 0 else 0.0
         item = {
             "snapshot_id":    s["id"],
             "effective_date": eff_date,
@@ -345,7 +374,7 @@ def _get_dedupe_snapshots(conn, em_curso_total, nivel=None, date_a=None, date_b=
             "filename":       s["filename"],
             "row_count":      s["row_count"],
             "inadimplentes":  inad,
-            "em_curso":       em_curso_total,
+            "em_curso":       em_curso_dia,
             "taxa_pct":       taxa,
             "nivel":          s["nivel"],
         }
@@ -818,6 +847,7 @@ def api_inadimplencia_reincidencia():
                     WHERE tipo = 'inadimplentes' AND nivel ~ '^[0-9]{4}-[0-9]{2}$'
                       AND (%(date_a)s IS NULL OR uploaded_at::date >= %(date_a)s::date)
                       AND (%(date_b)s IS NULL OR uploaded_at::date <= %(date_b)s::date)
+                      AND uploaded_at::date > (nivel || '-25')::date
                     ORDER BY nivel, uploaded_at DESC
                 ),
                 rgm_comp AS (
@@ -831,12 +861,13 @@ def api_inadimplencia_reincidencia():
                     FROM rgm_comp GROUP BY rgm
                 )
                 SELECT
+                    COUNT(*) FILTER (WHERE n_comps = 1) AS b1,
                     COUNT(*) FILTER (WHERE n_comps = 2) AS b2,
                     COUNT(*) FILTER (WHERE n_comps = 3) AS b3,
                     COUNT(*) FILTER (WHERE n_comps >= 4) AS b4_plus,
                     COUNT(*) AS total
                 FROM counts
-                WHERE n_comps >= 2
+                WHERE n_comps >= 1
             """
             cur.execute(sql, {"date_a": date_a, "date_b": date_b})
             row = cur.fetchone() or {}
@@ -847,6 +878,7 @@ def api_inadimplencia_reincidencia():
                 WHERE tipo = 'inadimplentes' AND nivel ~ '^[0-9]{4}-[0-9]{2}$'
                   AND (%(date_a)s IS NULL OR uploaded_at::date >= %(date_a)s::date)
                   AND (%(date_b)s IS NULL OR uploaded_at::date <= %(date_b)s::date)
+                  AND uploaded_at::date > (nivel || '-25')::date
                 ORDER BY nivel, uploaded_at DESC
             """, {"date_a": date_a, "date_b": date_b})
             snaps = cur.fetchall()
@@ -859,6 +891,7 @@ def api_inadimplencia_reincidencia():
 
         return jsonify({
             "buckets": {
+                "1": int(row.get("b1") or 0),
                 "2": int(row.get("b2") or 0),
                 "3": int(row.get("b3") or 0),
                 "4_plus": int(row.get("b4_plus") or 0),

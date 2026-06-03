@@ -219,12 +219,14 @@
     // ── Reincidência ────────────────────────────────────────────────────────
 
     function _renderReincidencia(data) {
+        const el1 = document.getElementById('inad-reinc-1');
         const el2 = document.getElementById('inad-reinc-2');
         const el3 = document.getElementById('inad-reinc-3');
         const el4 = document.getElementById('inad-reinc-4_plus');
         const elMeta = document.getElementById('inad-reinc-meta');
 
         if (!data || data.error) {
+            if (el1) el1.textContent = '—';
             if (el2) el2.textContent = '—';
             if (el3) el3.textContent = '—';
             if (el4) el4.textContent = '—';
@@ -233,6 +235,7 @@
         }
 
         const { buckets, competencias_usadas, rgms_analisados } = data;
+        if (el1) el1.textContent = _fmt(buckets['1'] || 0);
         if (el2) el2.textContent = _fmt(buckets['2'] || 0);
         if (el3) el3.textContent = _fmt(buckets['3'] || 0);
         if (el4) el4.textContent = _fmt(buckets['4_plus'] || 0);
