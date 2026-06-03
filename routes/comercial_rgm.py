@@ -1606,7 +1606,7 @@ _KNOWN_USERS = {
     14464488: "Tamires",
     14482884: "Eduardo",
     14546744: "Suporte",
-    14546760: "Jessica C",
+    14546760: "Jessyca",
     14932700: "Beatriz",
 }
 
