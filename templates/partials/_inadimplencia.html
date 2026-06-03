@@ -123,17 +123,11 @@
                                 <h3 class="text-base font-bold text-[var(--text-primary)] dark:text-white">Comparar 2 datas</h3>
                             </div>
 
-                            <div class="flex flex-wrap items-end gap-4">
-                                <div>
-                                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">De</label>
-                                    <input type="date" id="inad-date-a"
-                                        class="input-glass px-3 py-2.5 rounded-lg text-sm text-slate-900 dark:text-white w-[145px]">
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">Até</label>
-                                    <input type="date" id="inad-date-b"
-                                        class="input-glass px-3 py-2.5 rounded-lg text-sm text-slate-900 dark:text-white w-[145px]">
-                                </div>
+                            <div class="flex flex-wrap items-center gap-3">
+                                <input type="date" id="inad-date-a"
+                                    class="input-glass px-3 py-2.5 rounded-lg text-sm text-slate-900 dark:text-white w-[145px]">
+                                <input type="date" id="inad-date-b"
+                                    class="input-glass px-3 py-2.5 rounded-lg text-sm text-slate-900 dark:text-white w-[145px]">
                                 <button onclick="_inadDoCompare()"
                                     class="px-5 py-2.5 bg-[var(--primary)] hover:opacity-90 text-white font-semibold rounded-lg transition-all text-sm whitespace-nowrap">
                                     Comparar
@@ -151,7 +145,12 @@
                                 </svg>
                                 <h3 class="text-base font-bold text-[var(--text-primary)] dark:text-white">Reincidência de Inadimplência <span class="font-normal text-slate-500">(RGMs em múltiplas competências)</span></h3>
                             </div>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div class="glass-card border border-[var(--border)] rounded-xl p-5 text-center">
+                                    <p class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold mb-2">1 competência</p>
+                                    <p class="text-3xl font-black text-[var(--text-primary)] dark:text-white tabular-nums" id="inad-reinc-1">—</p>
+                                    <p class="text-xs text-slate-500 mt-1">alunos</p>
+                                </div>
                                 <div class="glass-card border border-[var(--border)] rounded-xl p-5 text-center">
                                     <p class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold mb-2">2 competências</p>
                                     <p class="text-3xl font-black text-[var(--text-primary)] dark:text-white tabular-nums" id="inad-reinc-2">—</p>
