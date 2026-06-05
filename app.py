@@ -146,6 +146,11 @@ def _nav_load_user_data():
         conn.close()
     except Exception:
         pages = set()
+    # Promove sub-permissoes "disparador_whatsapp_*" pra master "disparador_whatsapp"
+    # — o sidebar/nav_can testa a master pra decidir se mostra o link no menu
+    # do Acadêmico. Ter qualquer sub equivale a ter acesso ao modulo.
+    if any(p.startswith("disparador_whatsapp_") for p in pages):
+        pages.add("disparador_whatsapp")
     return role, pages, categoria
 
 
