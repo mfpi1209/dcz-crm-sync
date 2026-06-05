@@ -94,6 +94,22 @@ def inject_consultores_academicos_admin():
 
 
 @app.context_processor
+def inject_abas_disparador_permitidas():
+    """Lista de slugs curtos das abas do Disparador WhatsApp que o usuario
+    logado pode ver. None = sem filtro (admin ou compat de quem nao tem
+    sub-permissoes setadas). Consumida pelo _disparador_whatsapp.html pra
+    anexar ?abas_permitidas= na URL do iframe."""
+    try:
+        from helpers import compute_abas_disparador_permitidas
+        role, pages, _ = _nav_load_user_data()
+        return {
+            "abas_disparador_permitidas": compute_abas_disparador_permitidas(role, pages),
+        }
+    except Exception:
+        return {"abas_disparador_permitidas": None}
+
+
+@app.context_processor
 def inject_static_version():
     return {"_v": app.config.get("CACHE_BUST", "1")}
 

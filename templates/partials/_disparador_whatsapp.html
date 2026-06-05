@@ -22,6 +22,13 @@
   {%- set _consultores_str = consultores_academicos_admin | map(attribute='nome') | join('|') -%}
   {%- set _iframe_url = _iframe_url ~ '&consultores=' ~ (_consultores_str | urlencode) -%}
 {%- endif -%}
+{# Filtragem de abas: quando o usuario nao-admin tem sub-permissoes
+   disparador_whatsapp_<aba> setadas, passamos a lista (separados por '|')
+   pro tool esconder as demais. None = sem filtro = ve tudo. #}
+{%- if abas_disparador_permitidas is not none and abas_disparador_permitidas -%}
+  {%- set _abas_str = abas_disparador_permitidas | join('|') -%}
+  {%- set _iframe_url = _iframe_url ~ '&abas_permitidas=' ~ (_abas_str | urlencode) -%}
+{%- endif -%}
 <div id="page-disparador_whatsapp" class="hidden">
     <div class="px-4 md:px-6 pt-2 pb-1 flex items-center justify-between gap-3">
         <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--primary)] flex items-center gap-1.5">

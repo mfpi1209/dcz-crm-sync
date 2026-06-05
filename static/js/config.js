@@ -426,6 +426,15 @@ const PAGE_LABELS = {
     clicks: 'QR Codes',
     leads_promotores: 'Leads · Promotores',
     meus_atendimentos: 'Meus Atendimentos',
+    disparador_whatsapp: 'Disparador WhatsApp (acesso geral)',
+    disparador_whatsapp_disparador: 'Disparador WhatsApp · Disparador',
+    disparador_whatsapp_alunos: 'Disparador WhatsApp · Alunos',
+    disparador_whatsapp_calendario: 'Disparador WhatsApp · Calendário',
+    disparador_whatsapp_bases: 'Disparador WhatsApp · Bases',
+    disparador_whatsapp_relatorios: 'Disparador WhatsApp · Relatórios',
+    disparador_whatsapp_conversao: 'Disparador WhatsApp · Conversão',
+    disparador_whatsapp_meu_painel: 'Disparador WhatsApp · Meu Painel',
+    disparador_whatsapp_regras: 'Disparador WhatsApp · Regras',
 };
 
 // ---------------------------------------------------------------------------
@@ -516,7 +525,11 @@ const PAGE_GROUPS_CONFIG = [
         color: 'var(--primary)',
         pages: [
             'meus_atendimentos', 'ativacoes', 'distribuicao', 'intelligence',
-            'inadimplencia', 'feedback', 'macro_email',
+            'inadimplencia', 'feedback', 'macro_email', 'disparador_whatsapp',
+            'disparador_whatsapp_disparador', 'disparador_whatsapp_alunos',
+            'disparador_whatsapp_calendario', 'disparador_whatsapp_bases',
+            'disparador_whatsapp_relatorios', 'disparador_whatsapp_conversao',
+            'disparador_whatsapp_meu_painel', 'disparador_whatsapp_regras',
         ],
     },
     {
