@@ -23,11 +23,25 @@ def _hash_pw(password):
 
 def _db_auth(username, password):
     """Authenticate against app_users table. Returns dict or None."""
+    login = (username or "").strip()
+    if not login:
+        return None
     try:
-        conn = psycopg2.connect(**DB_DSN)
+        conn = get_conn()
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute("SELECT id, username, pw_hash, role FROM app_users WHERE username = %s",
-                        (username,))
+            cur.execute(
+                """
+                SELECT id, username, pw_hash, role FROM app_users
+                WHERE LOWER(TRIM(username)) = LOWER(%s)
+                   OR (
+                        email_cruzeiro IS NOT NULL
+                        AND TRIM(email_cruzeiro) <> ''
+                        AND LOWER(TRIM(email_cruzeiro)) = LOWER(%s)
+                   )
+                LIMIT 1
+                """,
+                (login, login),
+            )
             row = cur.fetchone()
         conn.close()
         if row and row["pw_hash"] == _hash_pw(password):
@@ -238,6 +252,8 @@ def api_users_create():
     email_cruzeiro = (body.get("email_cruzeiro") or "").strip() or None
     categoria = (body.get("categoria") or "").strip() or None
     datacrazy_user_id = (body.get("datacrazy_user_id") or "").strip() or None
+    if not username and email_cruzeiro:
+        username = email_cruzeiro
     if not username or not password:
         return jsonify({"error": "Usuário e senha são obrigatórios"}), 400
     if role not in ("admin", "editor", "viewer"):
@@ -281,8 +297,24 @@ def api_users_update(uid):
     pages = body.get("pages")
     password = body.get("password")
     kommo_user_id = body.get("kommo_user_id")
+    new_username = (body.get("username") or "").strip() if "username" in body else None
     conn = get_conn()
     with conn.cursor() as cur:
+        if new_username is not None:
+            if not new_username:
+                conn.close()
+                return jsonify({"error": "Login não pode ficar vazio"}), 400
+            cur.execute(
+                "SELECT id FROM app_users WHERE LOWER(TRIM(username)) = LOWER(%s) AND id <> %s",
+                (new_username, uid),
+            )
+            if cur.fetchone():
+                conn.close()
+                return jsonify({"error": "Já existe outro usuário com este login"}), 409
+            cur.execute(
+                "UPDATE app_users SET username = %s WHERE id = %s",
+                (new_username, uid),
+            )
         if password:
             cur.execute("UPDATE app_users SET pw_hash = %s WHERE id = %s",
                         (_hash_pw(password), uid))
