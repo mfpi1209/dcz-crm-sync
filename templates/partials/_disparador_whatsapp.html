@@ -40,4 +40,35 @@
                 allow="clipboard-read; clipboard-write; downloads"
                 loading="lazy"></iframe>
     </div>
+
+    {# Lista de consultores acad\u00eamico renderizada server-side via Jinja e enviada
+       pro iframe via postMessage. O tool usa isso pra popular o autocomplete do
+       modal 'Atribuir consultor'. Vai como JSON, escapado pelo |tojson do Jinja. #}
+    <script>
+        (function () {
+            var CONSULTORES_ACADEMICO = {{ consultores_academico_json | safe }};
+            var TARGET_ORIGIN = "{{ whatsapp_tool_base }}";
+            var iframe = document.getElementById('dw-iframe');
+            if (!iframe) return;
+            function sendList() {
+                try {
+                    if (!iframe.contentWindow) return;
+                    iframe.contentWindow.postMessage({
+                        type: 'dw:consultores_academico',
+                        data: CONSULTORES_ACADEMICO,
+                    }, TARGET_ORIGIN);
+                } catch (e) { /* iframe cross-origin nao deve quebrar a pag */ }
+            }
+            // Envia ao carregar e tambem em re-carregas manuais (Recarregar).
+            iframe.addEventListener('load', sendList);
+            // Re-envia periodicamente nos primeiros segundos pra cobrir race
+            // condition (iframe pode receber antes do listener montar no React).
+            var attempts = 0;
+            var iv = setInterval(function () {
+                attempts += 1;
+                sendList();
+                if (attempts >= 6) clearInterval(iv);
+            }, 800);
+        })();
+    </script>
 </div>

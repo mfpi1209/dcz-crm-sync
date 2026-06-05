@@ -65,6 +65,67 @@ def inject_kommo_web_base():
     return {"kommo_web_base": kommo_web_base_url()}
 
 
+def whatsapp_tool_base_url() -> str:
+    """URL base do app externo Disparador WhatsApp (sem barra final)."""
+    u = os.getenv(
+        "WHATSAPP_TOOL_BASE_URL",
+        "https://banco-disparador-whatsapp.6tqx2r.easypanel.host",
+    ).strip().rstrip("/")
+    return u
+
+
+@app.context_processor
+def inject_whatsapp_tool_base():
+    return {"whatsapp_tool_base": whatsapp_tool_base_url()}
+
+
+def _consultores_academico_list():
+    """Lista usuarios da categoria 'academico' (com tolerancia a variacao de grafia).
+    Retorna [{username, nome, role}] com o nome ja derivado (split @ + title-case),
+    usado pelo Disparador WhatsApp pra popular o autocomplete de atribuicao manual.
+    """
+    try:
+        from db import get_conn
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT username, role
+                  FROM app_users
+                 WHERE LOWER(COALESCE(categoria, '')) LIKE '%academ%'
+                   AND username IS NOT NULL
+                   AND TRIM(username) <> ''
+                 ORDER BY username
+                """
+            )
+            rows = cur.fetchall()
+        conn.close()
+    except Exception:
+        return []
+
+    result = []
+    seen_nomes = set()
+    for username, role in rows:
+        u = (username or "").strip()
+        if not u:
+            continue
+        u_local = u.split("@")[0]
+        nome = (
+            u_local.replace(".", " ").replace("_", " ").replace("-", " ").title()
+        ).strip()
+        if not nome or nome in seen_nomes:
+            continue
+        seen_nomes.add(nome)
+        result.append({"username": u, "nome": nome, "role": role or ""})
+    return result
+
+
+@app.context_processor
+def inject_consultores_academico():
+    import json as _json
+    return {"consultores_academico_json": _json.dumps(_consultores_academico_list())}
+
+
 @app.context_processor
 def inject_static_version():
     return {"_v": app.config.get("CACHE_BUST", "1")}
@@ -197,6 +258,7 @@ from routes.repasse import repasse_bp
 from routes.supervisor_dashboard import supervisor_dashboard_bp
 from routes.meus_atendimentos import meus_atendimentos_bp
 from routes.inadimplencia import inadimplencia_bp
+from routes.disparador_whatsapp import disparador_whatsapp_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(dashboard_bp)
@@ -218,6 +280,7 @@ app.register_blueprint(repasse_bp)
 app.register_blueprint(supervisor_dashboard_bp)
 app.register_blueprint(meus_atendimentos_bp)
 app.register_blueprint(inadimplencia_bp)
+app.register_blueprint(disparador_whatsapp_bp)
 
 # ── Atualizar Preço — rotas do webapp standalone integrado ────────────────
 try:
