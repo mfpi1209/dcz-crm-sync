@@ -44,7 +44,49 @@ ALL_PAGES = [
     "comparar_cursos", "recomendacao_cursos", "localizacao_polos", "info_cursos",
     "leads_inscricao", "captacao", "clicks", "leads_promotores", "meus_atendimentos",
     "cadastro_leads",
+    "disparador_whatsapp",
+    # Sub-permissoes do Disparador WhatsApp (uma por aba do iframe do
+    # tool_whatsapp_alunos). Quem tem 'disparador_whatsapp' mas nenhuma
+    # sub abaixo => ve TUDO (compat). Quem tem 1+ sub => ve so as marcadas.
+    "disparador_whatsapp_disparador",
+    "disparador_whatsapp_alunos",
+    "disparador_whatsapp_calendario",
+    "disparador_whatsapp_bases",
+    "disparador_whatsapp_relatorios",
+    "disparador_whatsapp_conversao",
+    "disparador_whatsapp_meu_painel",
+    "disparador_whatsapp_regras",
 ]
+
+# Mapping slug curto -> rota no app tool_whatsapp_alunos. Usado pelo
+# context_processor de abas permitidas.
+DISPARADOR_WHATSAPP_ABA_SLUGS = [
+    "disparador",
+    "alunos",
+    "calendario",
+    "bases",
+    "relatorios",
+    "conversao",
+    "meu_painel",
+    "regras",
+]
+
+
+def compute_abas_disparador_permitidas(role, user_pages):
+    """Calcula a lista de abas que o usuario pode ver no iframe do Disparador.
+    - Admin: retorna None (= sem filtro = ve tudo).
+    - Sem nenhuma sub-permissao 'disparador_whatsapp_*': None (compat).
+    - Com pelo menos 1 sub: retorna lista de slugs curtos das permitidas.
+    """
+    if (role or "").strip().lower() == "admin":
+        return None
+    pages_set = set(user_pages or [])
+    prefix = "disparador_whatsapp_"
+    subs = [p[len(prefix):] for p in pages_set if p.startswith(prefix)]
+    subs_validos = [s for s in subs if s in DISPARADOR_WHATSAPP_ABA_SLUGS]
+    if not subs_validos:
+        return None
+    return subs_validos
 
 # Logins do time Suporte Comercial (mesmo painel Equipe Suporte em Minha Performance)
 SUPORTE_COMERCIAL_LOGINS = frozenset({
@@ -71,6 +113,91 @@ def is_suporte_comercial_categoria(categoria):
 
 def is_suporte_comercial_login(username):
     return (username or "").strip().lower() in SUPORTE_COMERCIAL_LOGINS
+
+
+# ---------------------------------------------------------------------------
+# Consultores acadêmicos — listagem para o iframe do Disparador WhatsApp.
+# Usado pelo modal "Atribuir consultor" do Meu Painel (no tool externo) pra
+# admin escolher entre TODOS os consultores acadêmicos, e nao so os ja
+# gravados em activation_responses.
+# ---------------------------------------------------------------------------
+
+def _derive_nome_from_username(username):
+    """Strip @dominio e converte separadores em espacos + title-case.
+    Espelha a logica de _disparador_whatsapp.html. Usado pra produzir o nome
+    que sera comparado com activation_responses.consultor_responsavel_nome.
+    """
+    local = (username or "").split("@")[0]
+    return local.replace(".", " ").replace("_", " ").replace("-", " ").title().strip()
+
+
+def list_consultores_academicos():
+    """Retorna lista de dicts {username, nome} de usuarios com categoria
+    contendo 'acad' (Academico, Acadêmico, ACADÊMICO, etc).
+    Falha silenciosa em []. Cache em memoria de 5 min via _CONSULTORES_CACHE."""
+    cached = _consultores_cache_get()
+    if cached is not None:
+        return cached
+    try:
+        from db import get_conn  # import local pra evitar ciclo
+    except Exception:
+        return []
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT username
+                FROM app_users
+                WHERE categoria ILIKE %s
+                  AND username IS NOT NULL
+                  AND TRIM(username) <> ''
+                ORDER BY username
+                """,
+                ("%acad%",),
+            )
+            rows = cur.fetchall()
+        conn.close()
+    except Exception:
+        return []
+    out = []
+    seen_nomes = set()
+    for r in rows:
+        username = (r[0] or "").strip()
+        if not username:
+            continue
+        nome = _derive_nome_from_username(username)
+        if not nome or nome in seen_nomes:
+            continue
+        seen_nomes.add(nome)
+        out.append({"username": username, "nome": nome})
+    _consultores_cache_set(out)
+    return out
+
+
+_CONSULTORES_CACHE = {"data": None, "ts": 0.0}
+_CONSULTORES_CACHE_TTL_S = 300  # 5 min
+
+
+def _consultores_cache_get():
+    import time
+    if _CONSULTORES_CACHE["data"] is None:
+        return None
+    if (time.time() - _CONSULTORES_CACHE["ts"]) > _CONSULTORES_CACHE_TTL_S:
+        return None
+    return _CONSULTORES_CACHE["data"]
+
+
+def _consultores_cache_set(data):
+    import time
+    _CONSULTORES_CACHE["data"] = list(data)
+    _CONSULTORES_CACHE["ts"] = time.time()
+
+
+def invalidate_consultores_cache():
+    """Chamada quando admin altera app_users (criar/editar/deletar usuario)."""
+    _CONSULTORES_CACHE["data"] = None
+    _CONSULTORES_CACHE["ts"] = 0.0
 
 
 APP_USER_FALLBACK = os.getenv("APP_USER", "admin")
