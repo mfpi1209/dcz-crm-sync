@@ -79,51 +79,18 @@ def inject_whatsapp_tool_base():
     return {"whatsapp_tool_base": whatsapp_tool_base_url()}
 
 
-def _consultores_academico_list():
-    """Lista usuarios da categoria 'academico' (com tolerancia a variacao de grafia).
-    Retorna [{username, nome, role}] com o nome ja derivado (split @ + title-case),
-    usado pelo Disparador WhatsApp pra popular o autocomplete de atribuicao manual.
-    """
-    try:
-        from db import get_conn
-        conn = get_conn()
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT username, role
-                  FROM app_users
-                 WHERE LOWER(COALESCE(categoria, '')) LIKE '%academ%'
-                   AND username IS NOT NULL
-                   AND TRIM(username) <> ''
-                 ORDER BY username
-                """
-            )
-            rows = cur.fetchall()
-        conn.close()
-    except Exception:
-        return []
-
-    result = []
-    seen_nomes = set()
-    for username, role in rows:
-        u = (username or "").strip()
-        if not u:
-            continue
-        u_local = u.split("@")[0]
-        nome = (
-            u_local.replace(".", " ").replace("_", " ").replace("-", " ").title()
-        ).strip()
-        if not nome or nome in seen_nomes:
-            continue
-        seen_nomes.add(nome)
-        result.append({"username": u, "nome": nome, "role": role or ""})
-    return result
-
-
 @app.context_processor
-def inject_consultores_academico():
-    import json as _json
-    return {"consultores_academico_json": _json.dumps(_consultores_academico_list())}
+def inject_consultores_academicos_admin():
+    """Injeta a lista de consultores academicos APENAS quando o usuario logado
+    e admin. Consumida pelo _disparador_whatsapp.html pra anexar ?consultores=
+    na URL do iframe (modal de atribuicao manual no Meu Painel)."""
+    try:
+        if session.get("role") != "admin":
+            return {"consultores_academicos_admin": []}
+        from helpers import list_consultores_academicos
+        return {"consultores_academicos_admin": list_consultores_academicos()}
+    except Exception:
+        return {"consultores_academicos_admin": []}
 
 
 @app.context_processor
