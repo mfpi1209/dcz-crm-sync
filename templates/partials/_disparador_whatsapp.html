@@ -1,0 +1,43 @@
+{# Disparador WhatsApp — embeda o app externo tool_whatsapp_alunos via iframe.
+   A página só é acessível para usuários com permissão 'disparador_whatsapp'
+   (controle feito por nav_can() na sidebar e pelo proxy em routes/disparador_whatsapp.py).
+   A URL base vem do context_processor `whatsapp_tool_base` (app.py).
+
+   Identidade passada via query param pro app externo:
+     - theme=dark           → ativa dark mode (auto-detect tambem em iframe)
+     - consultor=<username> → username cru (ex: wesley.guerreiro@cruzeirodosul.edu.br)
+     - consultor_nome=<...> → nome derivado p/ match com consultor_responsavel_nome.
+                              Strip de "@dominio" antes (usernames importados de
+                              Kommo/DataCrazy vem como email completo), depois
+                              split "."/"_" → title-case (ex: "Wesley Guerreiro").
+     - role=<admin|editor|viewer> → role do dcz; admin libera ver todos no painel.
+#}
+{%- set _u = session.get('username', '') -%}
+{%- set _role = session.get('role', '') -%}
+{%- set _u_local = _u.split('@')[0] -%}
+{%- set _nome = _u_local.replace('.', ' ').replace('_', ' ').replace('-', ' ').title() -%}
+{%- set _iframe_url = whatsapp_tool_base ~ '/?theme=dark&consultor=' ~ (_u | urlencode) ~ '&consultor_nome=' ~ (_nome | urlencode) ~ '&role=' ~ (_role | urlencode) -%}
+<div id="page-disparador_whatsapp" class="hidden">
+    <div class="px-4 md:px-6 pt-2 pb-1 flex items-center justify-between gap-3">
+        <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--primary)] flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[12px]">school</span>
+            Acadêmico · Disparador WhatsApp
+        </p>
+        <button type="button" onclick="dwReloadIframe()"
+                class="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors p-1 rounded-md shrink-0"
+                title="Recarregar"
+                aria-label="Recarregar">
+            <span class="material-symbols-outlined text-[18px]">refresh</span>
+        </button>
+    </div>
+
+    <div style="height: calc(100vh - 60px); min-height: 600px;">
+        <iframe id="dw-iframe"
+                title="Disparador WhatsApp"
+                src="{{ _iframe_url }}"
+                style="width: 100%; height: 100%; border: 0; display: block; background: #0b1623;"
+                referrerpolicy="no-referrer-when-downgrade"
+                allow="clipboard-read; clipboard-write; downloads"
+                loading="lazy"></iframe>
+    </div>
+</div>

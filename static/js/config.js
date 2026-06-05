@@ -956,12 +956,13 @@ async function createUser() {
     const usernameEl = document.getElementById('user-new-username');
     const passwordEl = document.getElementById('user-new-password');
     if (!usernameEl || !passwordEl) { toast('Abra o formulário de Novo Usuário', 'warning'); return; }
-    const username = usernameEl.value.trim();
+    let username = usernameEl.value.trim();
     const password = passwordEl.value;
     const role = document.getElementById('user-new-role').value;
     const kommoRaw = document.getElementById('user-new-kommo-uid').value.trim();
     const kommo_user_id = kommoRaw ? parseInt(kommoRaw) : null;
     const email_cruzeiro = (document.getElementById('user-new-email-cruzeiro').value || '').trim() || null;
+    if (!username && email_cruzeiro) username = email_cruzeiro;
     const categoria = document.getElementById('user-new-categoria').value || null;
     if (!username || !password) { toast('Usuário e senha são obrigatórios', 'warning'); return; }
     const cbs = document.querySelectorAll('.user-new-page-cb:checked');
@@ -1016,6 +1017,10 @@ async function editUser(uid) {
             </div>
             <div class="p-6 space-y-5">
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs mb-1.5 font-medium" style="color: var(--text-secondary);">Login (usuário no acesso)</label>
+                        <input type="text" id="edit-user-username" value="${u.username||''}" class="input-glass px-3 py-2 text-sm w-full" autocomplete="off" placeholder="ex: email@gmail.com">
+                    </div>
                     <div>
                         <label class="block text-xs mb-1.5 font-medium" style="color: var(--text-secondary);">Nova Senha</label>
                         <input type="password" id="edit-user-pw" class="input-glass px-3 py-2 text-sm w-full" autocomplete="new-password" placeholder="Vazio = manter">
@@ -1074,13 +1079,14 @@ async function editUser(uid) {
 
 async function saveUserEdit(uid) {
     const pw = document.getElementById('edit-user-pw').value;
+    const username = (document.getElementById('edit-user-username').value || '').trim();
     const role = document.getElementById('edit-user-role').value;
     const kommoRaw = document.getElementById('edit-user-kommo-uid').value.trim();
     const emailCruzeiro = (document.getElementById('edit-user-email-cruzeiro').value || '').trim();
     const categoria = document.getElementById('edit-user-categoria').value || null;
     const cbs = document.querySelectorAll('.edit-perm-cb:checked');
     const pages = Array.from(cbs).map(cb => cb.value);
-    const body = { role, pages, kommo_user_id: kommoRaw ? parseInt(kommoRaw) : null, email_cruzeiro: emailCruzeiro || null, categoria };
+    const body = { username, role, pages, kommo_user_id: kommoRaw ? parseInt(kommoRaw) : null, email_cruzeiro: emailCruzeiro || null, categoria };
     if (pw) body.password = pw;
     try {
         const res = await api('/api/users/' + uid, {
