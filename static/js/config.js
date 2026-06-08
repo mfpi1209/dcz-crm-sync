@@ -426,6 +426,15 @@ const PAGE_LABELS = {
     clicks: 'QR Codes',
     leads_promotores: 'Leads · Promotores',
     meus_atendimentos: 'Meus Atendimentos',
+    disparador_whatsapp: 'Disparador WhatsApp (acesso geral)',
+    disparador_whatsapp_disparador: 'Disparador WhatsApp · Disparador',
+    disparador_whatsapp_alunos: 'Disparador WhatsApp · Alunos',
+    disparador_whatsapp_calendario: 'Disparador WhatsApp · Calendário',
+    disparador_whatsapp_bases: 'Disparador WhatsApp · Bases',
+    disparador_whatsapp_relatorios: 'Disparador WhatsApp · Relatórios',
+    disparador_whatsapp_conversao: 'Disparador WhatsApp · Conversão',
+    disparador_whatsapp_meu_painel: 'Disparador WhatsApp · Meu Painel',
+    disparador_whatsapp_regras: 'Disparador WhatsApp · Regras',
 };
 
 // ---------------------------------------------------------------------------
@@ -516,7 +525,11 @@ const PAGE_GROUPS_CONFIG = [
         color: 'var(--primary)',
         pages: [
             'meus_atendimentos', 'ativacoes', 'distribuicao', 'intelligence',
-            'inadimplencia', 'feedback', 'macro_email',
+            'inadimplencia', 'feedback', 'macro_email', 'disparador_whatsapp',
+            'disparador_whatsapp_disparador', 'disparador_whatsapp_alunos',
+            'disparador_whatsapp_calendario', 'disparador_whatsapp_bases',
+            'disparador_whatsapp_relatorios', 'disparador_whatsapp_conversao',
+            'disparador_whatsapp_meu_painel', 'disparador_whatsapp_regras',
         ],
     },
     {
@@ -760,6 +773,65 @@ function _renderPermsToolbar(cbClass) {
     </div>`;
 }
 
+// Master + filhos agrupados visualmente (carrossel retratil) — usado pra
+// disparador_whatsapp e suas 8 sub-permissoes (disparador_whatsapp_<aba>).
+const DISPARADOR_WHATSAPP_CHILDREN = [
+    'disparador_whatsapp_disparador',
+    'disparador_whatsapp_alunos',
+    'disparador_whatsapp_calendario',
+    'disparador_whatsapp_bases',
+    'disparador_whatsapp_relatorios',
+    'disparador_whatsapp_conversao',
+    'disparador_whatsapp_meu_painel',
+    'disparador_whatsapp_regras',
+];
+function _isDisparadorWhatsappChild(slug) {
+    return DISPARADOR_WHATSAPP_CHILDREN.includes(slug);
+}
+function _shortPageLabel(slug) {
+    const lbl = PAGE_LABELS[slug] || slug;
+    return lbl.replace(/^Disparador WhatsApp\s*·\s*/, '').replace(/^Disparador WhatsApp\s+/, '');
+}
+function _toggleDwChildren(containerId, btn) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    const willOpen = el.hidden;
+    el.hidden = !willOpen;
+    const icon = btn && btn.querySelector('.material-symbols-outlined');
+    if (icon) icon.textContent = willOpen ? 'expand_less' : 'expand_more';
+}
+function _renderDisparadorMasterAndChildren(checkedPages, disabled, groupSlug, cbClass) {
+    const masterSlug = 'disparador_whatsapp';
+    const masterCk = checkedPages.includes(masterSlug) ? 'checked' : '';
+    const dis = disabled ? 'disabled' : '';
+    const containerId = `dw-children-${groupSlug}-${cbClass}`;
+    const childrenSlugs = DISPARADOR_WHATSAPP_CHILDREN.filter(c => _allPages.includes(c));
+    const anyChildChecked = childrenSlugs.some(c => checkedPages.includes(c));
+    const startOpen = anyChildChecked; // se ja tem child marcada, abre por default
+    const toggleBtn = `<button type="button"
+            onclick="event.preventDefault(); event.stopPropagation(); _toggleDwChildren('${containerId}', this)"
+            class="perm-dw-expand"
+            title="Mostrar/ocultar abas individuais"
+            aria-label="Mostrar/ocultar abas individuais"
+            style="margin-left:auto; padding:2px; border-radius:4px; background:transparent; border:none; cursor:pointer; color:var(--text-secondary, #94a3b8); display:inline-flex; align-items:center;">
+        <span class="material-symbols-outlined text-[16px]">${startOpen ? 'expand_less' : 'expand_more'}</span>
+    </button>`;
+    const masterHtml = `<label class="perm-item flex items-center gap-2.5 py-1 px-2 rounded-lg cursor-pointer transition-colors text-[13px] select-none">
+        <input type="checkbox" value="${masterSlug}" data-perm-group="${groupSlug}" class="${cbClass} accent-indigo-500 w-3.5 h-3.5 rounded flex-shrink-0" ${masterCk} ${dis}>
+        <span class="truncate flex-1">${PAGE_LABELS[masterSlug] || masterSlug}</span>
+        ${toggleBtn}
+    </label>`;
+    const childrenHtml = childrenSlugs.map(c => {
+        const ck = checkedPages.includes(c) ? 'checked' : '';
+        return `<label class="perm-item flex items-center gap-2.5 py-0.5 px-2 rounded-lg cursor-pointer transition-colors text-[12.5px] select-none" style="opacity:0.92;">
+            <input type="checkbox" value="${c}" data-perm-group="${groupSlug}" class="${cbClass} accent-indigo-500 w-3.5 h-3.5 rounded flex-shrink-0" ${ck} ${dis}>
+            <span class="truncate">${_shortPageLabel(c)}</span>
+        </label>`;
+    }).join('');
+    const childrenContainer = `<div id="${containerId}" ${startOpen ? '' : 'hidden'} style="margin:2px 0 4px 16px; padding-left:8px; border-left:1px solid var(--border, rgba(148,163,184,0.25)); display:flex; flex-direction:column; gap:1px;">${childrenHtml}</div>`;
+    return masterHtml + childrenContainer;
+}
+
 function _renderPermsGrouped(cbClass, checkedPages, disabled) {
     const slugify = (s) => String(s)
         .toLowerCase()
@@ -770,6 +842,12 @@ function _renderPermsGrouped(cbClass, checkedPages, disabled) {
         if (!groupPages.length) return '';
         const groupSlug = slugify(g.label);
         const items = groupPages.map(p => {
+            // Master: renderiza master + children juntos (carrossel retratil).
+            if (p === 'disparador_whatsapp') {
+                return _renderDisparadorMasterAndChildren(checkedPages, disabled, groupSlug, cbClass);
+            }
+            // Children: pulam aqui (foram renderizados junto com o master).
+            if (_isDisparadorWhatsappChild(p)) return '';
             const ck = checkedPages.includes(p) ? 'checked' : '';
             const dis = disabled ? 'disabled' : '';
             return `<label class="perm-item flex items-center gap-2.5 py-1 px-2 rounded-lg cursor-pointer transition-colors text-[13px] select-none">
@@ -956,12 +1034,13 @@ async function createUser() {
     const usernameEl = document.getElementById('user-new-username');
     const passwordEl = document.getElementById('user-new-password');
     if (!usernameEl || !passwordEl) { toast('Abra o formulário de Novo Usuário', 'warning'); return; }
-    const username = usernameEl.value.trim();
+    let username = usernameEl.value.trim();
     const password = passwordEl.value;
     const role = document.getElementById('user-new-role').value;
     const kommoRaw = document.getElementById('user-new-kommo-uid').value.trim();
     const kommo_user_id = kommoRaw ? parseInt(kommoRaw) : null;
     const email_cruzeiro = (document.getElementById('user-new-email-cruzeiro').value || '').trim() || null;
+    if (!username && email_cruzeiro) username = email_cruzeiro;
     const categoria = document.getElementById('user-new-categoria').value || null;
     if (!username || !password) { toast('Usuário e senha são obrigatórios', 'warning'); return; }
     const cbs = document.querySelectorAll('.user-new-page-cb:checked');
@@ -1016,6 +1095,10 @@ async function editUser(uid) {
             </div>
             <div class="p-6 space-y-5">
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs mb-1.5 font-medium" style="color: var(--text-secondary);">Login (usuário no acesso)</label>
+                        <input type="text" id="edit-user-username" value="${u.username||''}" class="input-glass px-3 py-2 text-sm w-full" autocomplete="off" placeholder="ex: email@gmail.com">
+                    </div>
                     <div>
                         <label class="block text-xs mb-1.5 font-medium" style="color: var(--text-secondary);">Nova Senha</label>
                         <input type="password" id="edit-user-pw" class="input-glass px-3 py-2 text-sm w-full" autocomplete="new-password" placeholder="Vazio = manter">
@@ -1074,13 +1157,14 @@ async function editUser(uid) {
 
 async function saveUserEdit(uid) {
     const pw = document.getElementById('edit-user-pw').value;
+    const username = (document.getElementById('edit-user-username').value || '').trim();
     const role = document.getElementById('edit-user-role').value;
     const kommoRaw = document.getElementById('edit-user-kommo-uid').value.trim();
     const emailCruzeiro = (document.getElementById('edit-user-email-cruzeiro').value || '').trim();
     const categoria = document.getElementById('edit-user-categoria').value || null;
     const cbs = document.querySelectorAll('.edit-perm-cb:checked');
     const pages = Array.from(cbs).map(cb => cb.value);
-    const body = { role, pages, kommo_user_id: kommoRaw ? parseInt(kommoRaw) : null, email_cruzeiro: emailCruzeiro || null, categoria };
+    const body = { username, role, pages, kommo_user_id: kommoRaw ? parseInt(kommoRaw) : null, email_cruzeiro: emailCruzeiro || null, categoria };
     if (pw) body.password = pw;
     try {
         const res = await api('/api/users/' + uid, {
