@@ -223,25 +223,23 @@ def _parse_recent_months(req_val):
         return 3
 
 
-def _get_total_em_curso(conn, target_date=None, _cache=None):
+def _get_total_em_curso(conn, target_date=None, _cache=None, ciclo=None):
     """
     Retorna (count_em_curso: int, uploaded_at: datetime|None) do snapshot de
     matriculados vigente na `target_date` (uploaded_at::date <= target_date,
     mais recente). Se nao houver snapshot anterior, faz fallback para o mais
     antigo disponivel. target_date None => hoje.
 
-    Conta apenas linhas com situacao = 'EM CURSO' E nivel Graduacao (a tabela
-    de inadimplencia so contempla graduacao). Classificacao de nivel espelha
-    a usada em routes/dashboard.py.
+    Conta apenas linhas com situacao = 'EM CURSO' E nivel Graduacao. Quando
+    `ciclo` e informado, restringe tambem ao ciclo correspondente (ex.: '2026/1').
 
-    _cache: dict opcional para memoizar resultados por chave (target_date).
+    _cache: dict opcional para memoizar resultados por chave (target_date, ciclo).
     """
-    key = target_date or date_cls.today()
+    key = (target_date or date_cls.today(), ciclo)
     if _cache is not None and key in _cache:
         return _cache[key]
 
     with conn.cursor() as cur:
-        # Tenta snapshot anterior ou igual a target_date
         cur.execute("""
             SELECT id, uploaded_at FROM xl_snapshots
             WHERE tipo = 'matriculados'
@@ -250,7 +248,6 @@ def _get_total_em_curso(conn, target_date=None, _cache=None):
         """, (target_date, target_date))
         snap = cur.fetchone()
         if not snap:
-            # Fallback: nenhum snapshot anterior, pega o mais antigo
             cur.execute("""
                 SELECT id, uploaded_at FROM xl_snapshots
                 WHERE tipo = 'matriculados'
@@ -261,7 +258,11 @@ def _get_total_em_curso(conn, target_date=None, _cache=None):
             result = (0, None)
         else:
             snap_id, source_date = snap
-            cur.execute("""
+            ciclo_clause = "AND data->>'ciclo' = %s" if ciclo else ""
+            params = [snap_id]
+            if ciclo:
+                params.append(ciclo)
+            cur.execute(f"""
                 SELECT COUNT(*) FROM xl_rows
                 WHERE snapshot_id = %s
                   AND data->>'situacao' = 'EM CURSO'
@@ -274,12 +275,57 @@ def _get_total_em_curso(conn, target_date=None, _cache=None):
                            AND COALESCE(data->>'negocio','') !~* 'p[oó]s'
                            AND data->>'curso' ~* '(mba|especializa[cç][aã]o|p[oó]s.gradua|lato.sensu|stricto)')
                   )
-            """, (snap_id,))
+                  {ciclo_clause}
+            """, params)
             result = (int(cur.fetchone()[0]), source_date)
 
     if _cache is not None:
         _cache[key] = result
     return result
+
+
+def _get_ciclo_da_competencia(conn, nivel, _cache=None):
+    """
+    Retorna o ciclo predominante (ex.: '2026/1') de uma competencia de
+    inadimplencia, inferido cruzando os RGMs do snapshot mais recente dessa
+    competencia com a coluna 'ciclo' da matriculados mais recente. Retorna
+    None quando nao for possivel determinar (sem RGMs cruzaveis).
+    """
+    if not nivel:
+        return None
+    if _cache is not None and nivel in _cache:
+        return _cache[nivel]
+    with conn.cursor() as cur:
+        cur.execute("""
+            WITH inad_snap AS (
+                SELECT id FROM xl_snapshots
+                WHERE tipo='inadimplentes' AND nivel=%s
+                ORDER BY uploaded_at DESC LIMIT 1
+            ),
+            matric_snap AS (
+                SELECT id FROM xl_snapshots
+                WHERE tipo='matriculados'
+                ORDER BY uploaded_at DESC LIMIT 1
+            ),
+            inad_rgms AS (
+                SELECT DISTINCT r.data->>'rgm_digits' AS rgm
+                FROM xl_rows r, inad_snap s
+                WHERE r.snapshot_id = s.id
+                  AND COALESCE(r.data->>'rgm_digits','') <> ''
+            )
+            SELECT m.data->>'ciclo' AS ciclo, COUNT(*) AS n
+            FROM xl_rows m, matric_snap ms
+            WHERE m.snapshot_id = ms.id
+              AND m.data->>'rgm_digits' IN (SELECT rgm FROM inad_rgms)
+              AND COALESCE(m.data->>'ciclo','') <> ''
+            GROUP BY ciclo
+            ORDER BY n DESC LIMIT 1
+        """, (nivel,))
+        row = cur.fetchone()
+    ciclo = row[0] if row else None
+    if _cache is not None:
+        _cache[nivel] = ciclo
+    return ciclo
 
 
 def _get_dedupe_snapshots(conn, em_curso_total, nivel=None, date_a=None, date_b=None, nivel_in=None):
@@ -354,16 +400,19 @@ def _get_dedupe_snapshots(conn, em_curso_total, nivel=None, date_a=None, date_b=
             inad = int(old_inad or 0) if is_old else int(total_rows or 0)
             inad_map[snap_id] = inad
 
-    # Cache de em_curso por data — evita repetir lookup do snapshot de
-    # matriculados quando varios snapshots de inadimplencia caem no mesmo dia.
+    # Caches por request: evitam recomputar a base/ciclo de uma mesma
+    # combinacao (data, ciclo) ou competencia.
     em_curso_cache: dict = {}
+    ciclo_cache: dict = {}
 
     date_groups: dict = {}
     for s in snaps:
         inad = inad_map.get(s["id"], 0)
         eff_date = _extract_date_from_filename(s["filename"], s["uploaded_at"])
-        # Base vigente na data do snapshot (fallback para em_curso_total se 0)
-        em_curso_dia, _ = _get_total_em_curso(conn, eff_date, em_curso_cache)
+        # Ciclo correspondente a competencia desse snapshot (ex.: '2026/1')
+        ciclo = _get_ciclo_da_competencia(conn, s["nivel"], ciclo_cache)
+        # Base vigente na data do snapshot, filtrada pelo ciclo (fallback total)
+        em_curso_dia, _ = _get_total_em_curso(conn, eff_date, em_curso_cache, ciclo=ciclo)
         if em_curso_dia <= 0:
             em_curso_dia = em_curso_total
         taxa = round(inad / em_curso_dia * 100, 2) if em_curso_dia > 0 else 0.0
@@ -733,6 +782,26 @@ def api_inadimplencia_evolucao_por_mes():
             cur = g.get(dia)
             if cur is None or eff > cur["effective_date"]:
                 g[dia] = s
+
+        # Recalcula em_curso/taxa de cada ponto usando a base de matriculados
+        # vigente no DIA 10 do mes da competencia, filtrada pelo ciclo
+        # correspondente (regra desse grafico).
+        em_curso_cache: dict = {}
+        ciclo_cache: dict = {}
+        for nivel, g in grupos.items():
+            try:
+                y, m = nivel.split('-')
+                ref = date_cls(int(y), int(m), 10)
+            except (ValueError, TypeError):
+                ref = None
+            ciclo = _get_ciclo_da_competencia(conn, nivel, ciclo_cache)
+            em_curso_ref, _ = _get_total_em_curso(conn, ref, em_curso_cache, ciclo=ciclo)
+            if not em_curso_ref or em_curso_ref <= 0:
+                continue
+            for snap in g.values():
+                inad = snap.get("inadimplentes") or 0
+                snap["em_curso"] = em_curso_ref
+                snap["taxa_pct"] = round(inad / em_curso_ref * 100, 2)
 
         competencias = []
         for nivel in sorted(grupos.keys()):
