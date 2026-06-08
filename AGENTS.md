@@ -4,6 +4,17 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-06-08 — Onda 2: cache persistente Postgres cpf→datacrazy_lead_id (tool_whatsapp_alunos)
+- **Modelo usado:** Opus 4.7 (principal) decidiu/escreveu a spec; Executor (Sonnet 4.6) implementou. Opus revisou diff antes do commit.
+- **Decisão:** Adicionar migration `029_datacrazy_lead_cache.sql` no `tool_whatsapp_alunos` com tabela `datacrazy_lead_cache(cpf PK, datacrazy_lead_id, email_norm, phone_norm, nome, raw_lead, source, last_synced_at, last_seen_at)` + `datacrazy_lead_cache_sync_log` pra auditoria. Cache populado por cron noturno (`startDatacrazyCacheSyncCron`, default 03:00 UTC) + hits oportunistas dentro do próprio `buildLeadsLookupIndex`. Endpoints novos `POST /api/maintenance/sync-datacrazy-cache` e `POST /api/maintenance/invalidate-datacrazy-cache` (ambos protegidos por `requireApiKey`).
+- **Integração com `buildLeadsLookupIndex`**: FASE 0 (lookup no cache antes de bater na API) + FASE 2 (upsert oportunista fire-and-forget de leads resolvidos via API). Retorno ganhou `cache_hits` e `cache_stale_skipped`.
+- **Callers** (`runDatacrazyActivationBatch` e `previewDatacrazyMatches` em `activationService.js`): `contacts` passa a incluir `cpf: item.cpf` (já existia no roster, sem mudança de schema).
+- **Env vars novas no `.env.example`:** `DATACRAZY_CACHE_ENABLED=1`, `DATACRAZY_CACHE_SYNC_HOUR_UTC=3`, `DATACRAZY_CACHE_SYNC_MAX_PAGES=2000`, `DATACRAZY_CACHE_TTL_DAYS=7`.
+- **Impacto:** 10k leads cai de ~17min (Onda 1) pra ~3–5s com cache quente; cold start mantém Onda 1 sem regressão.
+- **Aplicação:** migration aplicada manualmente pelo usuário via `npm run migrate` apontando pra produção; Easypanel rebuilda no push pro `main`.
+- **Detalhe completo:** `tool_whatsapp_alunos/AGENTS.md` (entrada 08/06/2026 — Onda 2).
+- **Alternativas descartadas (Redis, cache só em memória, sync sob demanda, webhook do DataCrazy):** detalhe completo no AGENTS.md do tool.
+
 ### 2026-06-08 — Preflight do disparador escalável: dedupe por pessoa + métrica de threshold corrigida (tool_whatsapp_alunos)
 - **Modelo usado:** Opus 4.7 (principal) decidiu e implementou diretamente.
 - **Decisão:** Refatorar `buildLeadsLookupIndex` em `tool_whatsapp_alunos/server/services/datacrazyClient.js` pra (a) aceitar API nova `{contacts: [{email, phone}]}` com vínculo por pessoa, (b) trocar a métrica do threshold de soma (`emails + phones`) por `Math.max(emails, phones)` ou `personList.length`, (c) subir defaults pra `THRESHOLD=250` e `CONCURRENCY=10`, (d) executar 2 passadas no atalho — 1ª por telefone (1 chamada por pessoa), 2ª por email só pra quem ficou faltando. Callers `runDatacrazyActivationBatch` e `previewDatacrazyMatches` atualizados pra passar `contacts`. Retrocompat com formato antigo `{emails, phones}` preservada.
