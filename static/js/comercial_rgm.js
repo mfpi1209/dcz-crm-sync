@@ -167,7 +167,6 @@ async function crgmAtualizar() {
     const cicloSel = document.getElementById('crgm-ciclo');
     const cicloId = cicloSel ? cicloSel.value : '';
     const ciclo = _crgmCiclosData.find(c => c.id === parseInt(cicloId));
-    _crgmLoading(true); _crgmErro('');
     const qs = new URLSearchParams();
     if (polo) qs.set('polo', polo);
     if (nivel) qs.set('nivel', nivel);
@@ -178,44 +177,148 @@ async function crgmAtualizar() {
     const turmaId = turmaSelEl ? turmaSelEl.value : '';
     const turmaObj = _crgmTurmasData.find(t => t.id === parseInt(turmaId));
     if (turmaObj) qs.set('turma', turmaObj.nome);
-    try {
-        const res = await api(`/api/comercial-rgm/data?${qs}`);
-        const d = await res.json();
-        if (!d.ok) { _crgmErro(d.error || 'Erro'); return; }
-        _crgmLastData = d;
-        // Validar cross-filter: se data/consultor saiu do novo range, limpar
-        if (_crgmCrossFilter.date) {
-            const datasNoPayload = new Set((d.matriculas_grid || []).map(g => g.data));
-            if (!datasNoPayload.has(_crgmCrossFilter.date)) _crgmCrossFilter.date = null;
-        }
-        if (_crgmCrossFilter.userId != null) {
-            const idsNoPayload = new Set((d.ranking_agentes || []).map(a => a.user_id));
-            if (!idsNoPayload.has(_crgmCrossFilter.userId)) _crgmCrossFilter.userId = null;
-        }
-        const avisoMetas = document.getElementById('crgm-metas-aviso');
-        if (avisoMetas) {
-            if (d.metas_aviso) {
-                avisoMetas.textContent = d.metas_aviso;
-                avisoMetas.classList.remove('hidden');
-            } else {
-                avisoMetas.textContent = '';
-                avisoMetas.classList.add('hidden');
+
+    _crgmLoading(true);
+    _crgmErro('');
+    _crgmLastData = _crgmLastData || {};
+    _crgmShowSkeleton('kpis');
+    _crgmShowSkeleton('agentes');
+    _crgmShowSkeleton('grids');
+    crgmAtualizarBadgeConflitos();
+
+    // 3 fetches em paralelo — cada um renderiza ao chegar, sem esperar os outros
+    const pKpis = fetch(`/api/comercial-rgm/data/kpis?${qs}`)
+        .then(r => r.json())
+        .then(d => {
+            if (!d || !d.ok) { throw new Error(d?.error || 'erro KPIs'); }
+            Object.assign(_crgmLastData, {
+                kpis:          d.kpis,
+                evolucao:      d.evolucao,
+                evolucao_bruto: d.evolucao_bruto,
+                evolucao_prev: d.evolucao_prev,
+                ranking_polo:  d.ranking_polo,
+                ranking_ciclo: d.ranking_ciclo,
+                evasao_grid:   d.evasao_grid,
+            });
+            _crgmHideSkeleton('kpis');
+            _crgmRenderPoloTable(d.ranking_polo);
+            _crgmCrossRerenderAll();
+        })
+        .catch(err => _crgmShowBlockError('kpis', err));
+
+    const pAgentes = fetch(`/api/comercial-rgm/data/agentes?${qs}`)
+        .then(r => r.json())
+        .then(d => {
+            if (!d || !d.ok) { throw new Error(d?.error || 'erro agentes'); }
+            Object.assign(_crgmLastData, {
+                ranking_agentes:       d.ranking_agentes,
+                transferencia_regresso: d.transferencia_regresso,
+                matriculas_grid:       d.matriculas_grid,
+                metas_aviso:           d.metas_aviso,
+                daily_history:         d.daily_history,
+            });
+            // Validar cross-filter: se data/consultor saiu do novo range, limpar
+            if (_crgmCrossFilter.date) {
+                const datasNoPayload = new Set((d.matriculas_grid || []).map(g => g.data));
+                if (!datasNoPayload.has(_crgmCrossFilter.date)) _crgmCrossFilter.date = null;
+            }
+            if (_crgmCrossFilter.userId != null) {
+                const idsNoPayload = new Set((d.ranking_agentes || []).map(a => a.user_id));
+                if (!idsNoPayload.has(_crgmCrossFilter.userId)) _crgmCrossFilter.userId = null;
+            }
+            const avisoMetas = document.getElementById('crgm-metas-aviso');
+            if (avisoMetas) {
+                if (d.metas_aviso) {
+                    avisoMetas.textContent = d.metas_aviso;
+                    avisoMetas.classList.remove('hidden');
+                } else {
+                    avisoMetas.textContent = '';
+                    avisoMetas.classList.add('hidden');
+                }
+            }
+            _crgmHideSkeleton('agentes');
+            _crgmRenderTransferencia(d.transferencia_regresso);
+            _crgmCrossRerenderAll();
+        })
+        .catch(err => _crgmShowBlockError('agentes', err));
+
+    const pGrids = fetch(`/api/comercial-rgm/data/grids?${qs}`)
+        .then(r => r.json())
+        .then(d => {
+            if (!d || !d.ok) { throw new Error(d?.error || 'erro grids'); }
+            Object.assign(_crgmLastData, {
+                leads_grid: d.leads_grid,
+                evasao:     d.evasao,
+            });
+            _crgmHideSkeleton('grids');
+            _crgmCrossRerenderAll();
+        })
+        .catch(err => _crgmShowBlockError('grids', err));
+
+    // Atividade Kommo continua paralela (desacoplada desde a Fase 1)
+    _crgmLoadAtividade(dtIni, dtFim, null)
+        .then(() => _crgmRenderAtividade())
+        .catch(err => console.error('Erro ao carregar atividade Kommo:', err));
+
+    // Quando TODOS terminarem: render consolidado final + limpar loading
+    Promise.allSettled([pKpis, pAgentes, pGrids]).then(() => {
+        _crgmLoading(false);
+        _crgmCrossRerenderAll();
+        if (typeof refreshTopbarForPage === 'function') refreshTopbarForPage('comercial_rgm');
+    });
+}
+
+// ── Fase 4: helpers de skeleton/spinner por bloco ───────────────────────────
+
+(function _crgmInjectPhase4Styles() {
+    if (document.getElementById('crgm-phase4-styles')) return;
+    const s = document.createElement('style');
+    s.id = 'crgm-phase4-styles';
+    s.textContent = [
+        '.crgm-loading { opacity: .55; pointer-events: none; position: relative; }',
+        '.crgm-loading::after {',
+        '  content: ""; position: absolute; top: 8px; right: 8px;',
+        '  width: 14px; height: 14px;',
+        '  border: 2px solid #ccc; border-top-color: #4a90e2;',
+        '  border-radius: 50%; animation: crgmSpin .8s linear infinite;',
+        '}',
+        '@keyframes crgmSpin { to { transform: rotate(360deg); } }',
+    ].join('\n');
+    document.head.appendChild(s);
+})();
+
+const _CRGM_SKELETON_IDS = {
+    kpis:    ['crgm-section-hero', 'crgm-section-kpi-cards', 'crgm-section-evolucao', 'crgm-section-polo'],
+    agentes: ['crgm-section-agentes', 'crgm-section-chart-agentes'],
+    grids:   ['crgm-evasao-panel'],
+};
+
+function _crgmShowSkeleton(bloco) {
+    (_CRGM_SKELETON_IDS[bloco] || []).forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.dataset.crgmLoading = '1'; el.classList.add('crgm-loading'); }
+    });
+}
+
+function _crgmHideSkeleton(bloco) {
+    (_CRGM_SKELETON_IDS[bloco] || []).forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { delete el.dataset.crgmLoading; el.classList.remove('crgm-loading'); }
+    });
+}
+
+function _crgmShowBlockError(bloco, err) {
+    console.error('[crgm fase4]', bloco, err);
+    (_CRGM_SKELETON_IDS[bloco] || []).forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            delete el.dataset.crgmLoading;
+            el.classList.remove('crgm-loading');
+            if (!el.textContent.trim()) {
+                el.innerHTML = `<div style="padding:12px;color:#b00;font-size:12px">Falha ao carregar (${(err?.message || String(err)).slice(0, 80)})</div>`;
             }
         }
-        _crgmRenderPoloTable(d.ranking_polo);
-        _crgmRenderTransferencia(d.transferencia_regresso);
-        crgmAtualizarBadgeConflitos();
-        // _crgmCrossRerenderAll renderiza KPIs, evasão, evolução, ranking e atividade
-        // Atividade Kommo é desacoplada: carrega em paralelo sem bloquear o render principal
-        _crgmCrossRerenderAll();
-        _crgmLoadAtividade(dtIni, dtFim, null)
-            .then(() => _crgmRenderAtividade())
-            .catch(err => console.error('Erro ao carregar atividade Kommo:', err));
-    } catch (e) { _crgmErro('Erro: ' + e.message); }
-    finally {
-        _crgmLoading(false);
-        if (typeof refreshTopbarForPage === 'function') refreshTopbarForPage('comercial_rgm');
-    }
+    });
 }
 
 // ── KPIs ────────────────────────────────────────────────
