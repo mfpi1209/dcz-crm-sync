@@ -518,6 +518,170 @@ def _parse_inadimplentes_batch(folder_path):
     return entries
 
 
+def _detect_inadimplentes_format(filepath):
+    """Detecta o formato de um arquivo de inadimplentes.
+
+    Retorna 'novo' (RGM em col 0 da row 1), 'antigo' (ID_POLO em row 2 ou
+    "Relação..." no início da row 1), ou None (formato não reconhecido).
+    """
+    wb = openpyxl.load_workbook(filepath, read_only=True, data_only=True)
+    try:
+        ws = wb[wb.sheetnames[0]]
+        rows = ws.iter_rows(values_only=True, max_col=5, max_row=2)
+        r1 = next(rows, None) or ()
+        r2 = next(rows, None) or ()
+        c1 = str(r1[0] or "").strip().upper() if r1 else ""
+        c2 = str(r2[0] or "").strip().upper() if r2 else ""
+        if c1 == "RGM":
+            return "novo"
+        if c2 == "ID_POLO" or c1.startswith("RELAÇÃO") or c1.startswith("RELACAO"):
+            return "antigo"
+        return None
+    finally:
+        wb.close()
+
+
+def _parse_alunos_mensalidade_aberto(filepath, filename):
+    """Parser para planilha 'Alunos com mensalidade em aberto' (novo formato).
+
+    Sheet: primeira disponível.
+    Header em row 1. Colunas: RGM | Aluno | CPF | Celular | Whatsapp | Polo |
+    Curso | Esc. Cobrança | Tipo Título | Vencimento | Aviso | Valor
+    A coluna 'Aviso' é descartada (contém SVGs inline gigantes).
+    Retorna lista de dicts com 1 entrada por título (não agregado).
+    """
+    HEADER_MAP = {
+        "rgm": "rgm",
+        "aluno": "aluno",
+        "cpf": "cpf",
+        "celular": "celular",
+        "whatsapp": "whatsapp",
+        "polo": "polo",
+        "curso": "curso",
+        "esc. cobrança": "esc_cobranca",
+        "esc. cobranca": "esc_cobranca",
+        "esc cobrança": "esc_cobranca",
+        "esc cobranca": "esc_cobranca",
+        "tipo título": "tipo_titulo",
+        "tipo titulo": "tipo_titulo",
+        "vencimento": "vencimento",
+        "valor": "valor",
+    }
+    SKIP_COLS = {"aviso"}
+
+    wb = openpyxl.load_workbook(filepath, read_only=True, data_only=True)
+    try:
+        ws = wb[wb.sheetnames[0]]
+        rows_iter = ws.iter_rows(values_only=True)
+
+        header_row = next(rows_iter, None)
+        if not header_row or str(header_row[0] or "").strip().upper() != "RGM":
+            current_app.logger.warning(
+                "[ALUNOS-MENSALIDADE] %s: RGM não encontrado em col 0. Got: %r",
+                filename, header_row[0] if header_row else None,
+            )
+            return []
+
+        col_map = {}
+        for i, h in enumerate(header_row):
+            if h is None:
+                continue
+            h_norm = str(h).strip().lower()
+            if h_norm in SKIP_COLS:
+                continue
+            mapped = HEADER_MAP.get(h_norm)
+            if mapped:
+                col_map[mapped] = i
+
+        entries = []
+        for row in rows_iter:
+            if not row or all(v is None for v in row):
+                continue
+
+            entry = {}
+            for field, col_idx in col_map.items():
+                v = row[col_idx] if col_idx < len(row) else None
+                if v is None:
+                    entry[field] = ""
+                    continue
+
+                if field == "rgm":
+                    if isinstance(v, float):
+                        entry[field] = str(int(v))
+                    elif isinstance(v, int):
+                        entry[field] = str(v)
+                    else:
+                        s = str(v).strip()
+                        entry[field] = s[:-2] if s.endswith(".0") else s
+                elif field == "vencimento":
+                    if isinstance(v, datetime):
+                        entry[field] = v.strftime("%d/%m/%Y")
+                    else:
+                        entry[field] = str(v).strip()
+                elif field == "valor":
+                    try:
+                        entry[field] = str(round(float(v), 2))
+                    except (ValueError, TypeError):
+                        entry[field] = str(v).strip() if v is not None else ""
+                else:
+                    if isinstance(v, datetime):
+                        entry[field] = v.strftime("%d/%m/%Y")
+                    elif isinstance(v, float) and v == int(v):
+                        entry[field] = str(int(v))
+                    else:
+                        entry[field] = str(v).strip()
+
+            entry["rgm_digits"] = _normalize_digits(entry.get("rgm", ""))
+            entries.append(entry)
+
+        current_app.logger.info(
+            "[ALUNOS-MENSALIDADE] %s: %d entries parsed", filename, len(entries)
+        )
+        return entries
+    finally:
+        wb.close()
+
+
+def _compute_competencia_predominante(entries):
+    """Analisa vencimentos das entries e retorna YYYY-MM se >=90% pertencem ao mesmo mês/ano.
+
+    Raises ValueError se não houver competência predominante ou sem vencimentos parseáveis.
+    """
+    from collections import Counter
+
+    counts: Counter = Counter()
+    total_parseado = 0
+    for entry in entries:
+        venc = entry.get("vencimento", "") or ""
+        if not venc:
+            continue
+        try:
+            if "/" in venc:
+                parts = venc.split("/")
+                if len(parts) == 3:
+                    d_val, m_val, y_val = int(parts[0]), int(parts[1]), int(parts[2])
+                    if 1 <= m_val <= 12 and 2000 <= y_val <= 2100 and 1 <= d_val <= 31:
+                        counts[(y_val, m_val)] += 1
+                        total_parseado += 1
+        except (ValueError, TypeError):
+            continue
+
+    if total_parseado == 0:
+        raise ValueError(
+            "Não foi possível identificar uma competência predominante pela coluna Vencimento. "
+            "Verifique se o arquivo está correto."
+        )
+
+    (ano, mes), count_predominante = counts.most_common(1)[0]
+    if count_predominante / total_parseado < 0.90:
+        raise ValueError(
+            "Não foi possível identificar uma competência predominante pela coluna Vencimento. "
+            "Verifique se o arquivo está correto."
+        )
+
+    return f"{ano:04d}-{mes:02d}"
+
+
 def _parse_sem_rematricula(folder_path):
     """Lê adimplentes.xlsx e inadimplentes.xlsx, unifica com flag financeiro."""
     HEADER_NORM = {
@@ -918,117 +1082,6 @@ def api_snapshots_crossref():
             "apenas_b": len(rgms_b - rgms_a),
             "snap_a": sid_a, "snap_b": sid_b,
             "nivel": nivel or "Consolidado",
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    finally:
-        conn.close()
-
-
-@upload_bp.route("/api/inadimplencia/historico")
-def api_inadimplencia_historico():
-    """Retorna séries temporais de inadimplentes agrupados por nivel, tipo_aluno e turma."""
-    date_from = request.args.get("date_from", "").strip()
-    date_to = request.args.get("date_to", "").strip()
-
-    conn = get_conn()
-    try:
-        date_clause = ""
-        params = []
-        if date_from:
-            date_clause += " AND s.uploaded_at >= %s::date"
-            params.append(date_from)
-        if date_to:
-            date_clause += " AND s.uploaded_at < (%s::date + interval '1 day')"
-            params.append(date_to)
-
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(f"""
-                SELECT s.id, s.uploaded_at, s.row_count, s.nivel AS snap_nivel
-                FROM xl_snapshots s
-                WHERE s.tipo = 'inadimplentes'{date_clause}
-                ORDER BY s.uploaded_at
-            """, params)
-            snapshots = cur.fetchall()
-
-            if not snapshots:
-                return jsonify({"snapshots": [], "series": [], "message": "Nenhum snapshot de inadimplentes encontrado."})
-
-            cur.execute(f"""
-                SELECT s.id AS snap_id, s.uploaded_at, s.nivel AS snap_nivel,
-                       r.data
-                FROM xl_snapshots s
-                JOIN xl_rows r ON r.snapshot_id = s.id
-                WHERE s.tipo = 'inadimplentes'{date_clause}
-                ORDER BY s.uploaded_at
-            """, params)
-            all_rows = cur.fetchall()
-
-            cur.execute("SELECT id FROM xl_snapshots WHERE tipo='matriculados' ORDER BY id DESC LIMIT 1")
-            snap_mat = cur.fetchone()
-            mat_nivel_map = {}
-            mat_tipo_map = {}
-            mat_turma_map = {}
-            if snap_mat:
-                cur.execute("SELECT data FROM xl_rows WHERE snapshot_id=%s AND data->>'rgm_digits' != ''", (snap_mat["id"],))
-                for r in cur.fetchall():
-                    d = r["data"]
-                    rgm = d.get("rgm_digits", "")
-                    if rgm:
-                        mat_nivel_map[rgm] = _classify_nivel_row(d)
-                        tipo_raw = (d.get("tipo_matricula", "") or "").strip()
-                        mat_tipo_map[rgm] = tipo_raw if tipo_raw else "N/I"
-                        turma_raw = (d.get("serie", "") or d.get("ciclo", "") or "").strip()
-                        mat_turma_map[rgm] = turma_raw if turma_raw else "N/I"
-
-        snapshot_data = {}
-        for row in all_rows:
-            sid = row["snap_id"]
-            uploaded = row["uploaded_at"]
-            snap_nivel = row.get("snap_nivel") or None
-            d = row["data"]
-            rgm = d.get("rgm_digits", "")
-            if not rgm:
-                continue
-
-            if sid not in snapshot_data:
-                snapshot_data[sid] = {
-                    "date": to_brt(uploaded),
-                    "snap_nivel": snap_nivel,
-                    "by_nivel": {},
-                    "by_tipo": {},
-                    "by_turma": {},
-                    "total": 0,
-                }
-            sd = snapshot_data[sid]
-            sd["total"] += 1
-
-            nivel = snap_nivel or mat_nivel_map.get(rgm, "Graduação")
-            sd["by_nivel"][nivel] = sd["by_nivel"].get(nivel, 0) + 1
-
-            tipo = mat_tipo_map.get(rgm, "N/I")
-            sd["by_tipo"][tipo] = sd["by_tipo"].get(tipo, 0) + 1
-
-            turma = mat_turma_map.get(rgm, "N/I")
-            sd["by_turma"][turma] = sd["by_turma"].get(turma, 0) + 1
-
-        series = []
-        for sid in sorted(snapshot_data.keys()):
-            sd = snapshot_data[sid]
-            series.append({
-                "snapshot_id": sid,
-                "date": sd["date"],
-                "snap_nivel": sd["snap_nivel"],
-                "total": sd["total"],
-                "by_nivel": sd["by_nivel"],
-                "by_tipo": sd["by_tipo"],
-                "by_turma": dict(sorted(sd["by_turma"].items(), key=lambda x: -x[1])[:20]),
-            })
-
-        return jsonify({
-            "snapshots_count": len(series),
-            "series": series,
-            "has_history": len(series) >= 2,
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1455,12 +1508,32 @@ def api_upload():
     try:
         if fname_lower.endswith(".zip"):
             snap_count = _handle_zip_upload(str(dest), tipo)
-        elif tipo == "inadimplentes" and fname_lower.endswith(".xlsm"):
-            tmp_dir = UPLOAD_DIR / f"_tmp_{tipo}"
-            tmp_dir.mkdir(exist_ok=True)
-            shutil.copy2(str(dest), str(tmp_dir / safe_name))
-            entries = _parse_inadimplentes_batch(str(tmp_dir))
-            snap_count = _persist_snapshot_entries(entries, tipo, safe_name) if entries else 0
+        elif tipo == "inadimplentes" and fname_lower.endswith((".xlsm", ".xlsx")):
+            fmt = _detect_inadimplentes_format(str(dest))
+            if fmt == "novo":
+                entries = _parse_alunos_mensalidade_aberto(str(dest), safe_name)
+                try:
+                    competencia = _compute_competencia_predominante(entries)
+                except ValueError as e:
+                    dest.unlink(missing_ok=True)
+                    return jsonify({"error": str(e)}), 400
+                snap_count = _persist_snapshot_entries(entries, tipo, safe_name, nivel=competencia) if entries else 0
+            elif fmt == "antigo":
+                tmp_dir = UPLOAD_DIR / f"_tmp_{tipo}"
+                tmp_dir.mkdir(exist_ok=True)
+                shutil.copy2(str(dest), str(tmp_dir / safe_name))
+                entries = _parse_inadimplentes_batch(str(tmp_dir))
+                snap_count = _persist_snapshot_entries(entries, tipo, safe_name) if entries else 0
+            else:
+                dest.unlink(missing_ok=True)
+                return jsonify({
+                    "error": (
+                        "Formato de arquivo não reconhecido. "
+                        "Formatos aceitos: (1) Novo formato — header em row 1 com 'RGM' na col A; "
+                        "(2) Formato legado — header com 'ID_POLO' (normalmente em row 2) "
+                        "ou título 'Relação...' em row 1."
+                    )
+                }), 400
         elif tipo == "lista_alunos" and fname_lower.endswith(".xlsx"):
             entries = _parse_lista_alunos(str(dest))
             snap_count = _persist_snapshot_entries(entries, tipo, safe_name) if entries else 0
@@ -1542,8 +1615,29 @@ def api_upload_batch():
     current_app.logger.info("[UPLOAD-BATCH] %d arquivos salvos em %s: %s", len(saved), tmp_dir, saved[:5])
 
     try:
-        entries = _parse_inadimplentes_batch(str(tmp_dir))
-        snap_count = _persist_snapshot_entries(entries, tipo, f"{len(saved)} arquivos", nivel=nivel) if entries else 0
+        fmt = _detect_inadimplentes_format(str(tmp_dir / saved[0]))
+        current_app.logger.info("[UPLOAD-BATCH] formato detectado: %r (arquivo: %s)", fmt, saved[0])
+
+        if fmt == "novo":
+            entries = []
+            for fname_saved in saved:
+                entries.extend(_parse_alunos_mensalidade_aberto(str(tmp_dir / fname_saved), fname_saved))
+            try:
+                competencia = _compute_competencia_predominante(entries)
+            except ValueError as e:
+                return jsonify({"error": str(e)}), 400
+            snap_count = _persist_snapshot_entries(entries, tipo, f"{len(saved)} arquivos", nivel=competencia) if entries else 0
+        elif fmt == "antigo":
+            entries = _parse_inadimplentes_batch(str(tmp_dir))
+            snap_count = _persist_snapshot_entries(entries, tipo, f"{len(saved)} arquivos", nivel=nivel) if entries else 0
+        else:
+            return jsonify({
+                "error": (
+                    "Formato de arquivo não reconhecido. "
+                    "Formatos aceitos: (1) Novo formato — header em row 1 com 'RGM' na col A; "
+                    "(2) Formato legado — header com 'ID_POLO'."
+                )
+            }), 400
     except Exception as e:
         current_app.logger.warning("Erro upload-batch (%s): %s", tipo, e)
         current_app.logger.warning("Traceback: %s", traceback.format_exc())
@@ -1557,7 +1651,7 @@ def api_upload_batch():
             "tipo": tipo,
             "files_count": len(saved),
             "snapshot_rows": 0,
-            "warning": "Arquivos recebidos mas nenhum dado extraído. Verifique se os arquivos contêm a linha de cabeçalho com ID_POLO na primeira coluna.",
+            "warning": "Arquivos recebidos mas nenhum dado extraído. Verifique o formato do arquivo.",
         })
 
     return jsonify({

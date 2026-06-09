@@ -43,13 +43,23 @@ function _crgmPickLatestMetaPeriod(periods) {
 }
 
 async function loadComercialRgm() {
-    await _crgmLoadCiclos();
-    await _crgmLoadTurmas();
-    const filtersData = await _crgmLoadFilters();
-    await _crgmLoadSnapshotInfo();
+    // Ondas A + B disparadas em paralelo
+    // A: dados estruturais — B: metas/campanhas para calcular período + prefetch histórico
+    const [, , filtersData, , d, dc] = await Promise.all([
+        _crgmLoadCiclos(),
+        _crgmLoadTurmas(),
+        _crgmLoadFilters(),
+        _crgmLoadSnapshotInfo(),
+        api('/api/comercial-rgm/metas?categoria=matriculas').then(r => r.json()),
+        api('/api/premiacao/campanhas-periodos').then(r => r.json()),
+        _crgmPrefetchHistoricoMetas(),
+    ]);
+
+    // _crgmAutoSyncUsers depende de filtersData (vem da Onda A)
     if (filtersData && (!filtersData.agentes || filtersData.agentes.length === 0)) {
         await _crgmAutoSyncUsers();
     }
+
     const elIni = document.getElementById('crgm-dt-ini');
     const elFim = document.getElementById('crgm-dt-fim');
     // Sempre calcula o período mais recente (comercial_metas + Premiação). Antes só aplicávamos se DE ou ATÉ
@@ -57,15 +67,11 @@ async function loadComercialRgm() {
     // a metas antigas mesmo existindo campanha/meta mais nova.
     try {
         const periods = [];
-        const res = await api('/api/comercial-rgm/metas?categoria=matriculas');
-        const d = await res.json();
         if (d.ok && d.metas?.length) {
             for (const m of d.metas) {
                 if (m.dt_inicio && m.dt_fim) periods.push({ dt_inicio: m.dt_inicio, dt_fim: m.dt_fim });
             }
         }
-        const resC = await api('/api/premiacao/campanhas-periodos');
-        const dc = await resC.json();
         if (dc.ok && dc.campanhas?.length) {
             for (const c of dc.campanhas) {
                 if (c.dt_inicio && c.dt_fim) periods.push({ dt_inicio: c.dt_inicio, dt_fim: c.dt_fim });
@@ -94,7 +100,6 @@ async function loadComercialRgm() {
         if (!elIni.value) elIni.value = ini.toISOString().substring(0, 10);
         if (!elFim.value) elFim.value = hoje.toISOString().substring(0, 10);
     }
-    await _crgmPrefetchHistoricoMetas();
     _crgmBindTopbarDates();
     crgmAtualizar();
     if (typeof refreshTopbarForPage === 'function') refreshTopbarForPage('comercial_rgm');
@@ -162,7 +167,6 @@ async function crgmAtualizar() {
     const cicloSel = document.getElementById('crgm-ciclo');
     const cicloId = cicloSel ? cicloSel.value : '';
     const ciclo = _crgmCiclosData.find(c => c.id === parseInt(cicloId));
-    _crgmLoading(true); _crgmErro('');
     const qs = new URLSearchParams();
     if (polo) qs.set('polo', polo);
     if (nivel) qs.set('nivel', nivel);
@@ -173,42 +177,148 @@ async function crgmAtualizar() {
     const turmaId = turmaSelEl ? turmaSelEl.value : '';
     const turmaObj = _crgmTurmasData.find(t => t.id === parseInt(turmaId));
     if (turmaObj) qs.set('turma', turmaObj.nome);
-    try {
-        const res = await api(`/api/comercial-rgm/data?${qs}`);
-        const d = await res.json();
-        if (!d.ok) { _crgmErro(d.error || 'Erro'); return; }
-        _crgmLastData = d;
-        // Validar cross-filter: se data/consultor saiu do novo range, limpar
-        if (_crgmCrossFilter.date) {
-            const datasNoPayload = new Set((d.matriculas_grid || []).map(g => g.data));
-            if (!datasNoPayload.has(_crgmCrossFilter.date)) _crgmCrossFilter.date = null;
-        }
-        if (_crgmCrossFilter.userId != null) {
-            const idsNoPayload = new Set((d.ranking_agentes || []).map(a => a.user_id));
-            if (!idsNoPayload.has(_crgmCrossFilter.userId)) _crgmCrossFilter.userId = null;
-        }
-        const avisoMetas = document.getElementById('crgm-metas-aviso');
-        if (avisoMetas) {
-            if (d.metas_aviso) {
-                avisoMetas.textContent = d.metas_aviso;
-                avisoMetas.classList.remove('hidden');
-            } else {
-                avisoMetas.textContent = '';
-                avisoMetas.classList.add('hidden');
+
+    _crgmLoading(true);
+    _crgmErro('');
+    _crgmLastData = _crgmLastData || {};
+    _crgmShowSkeleton('kpis');
+    _crgmShowSkeleton('agentes');
+    _crgmShowSkeleton('grids');
+    crgmAtualizarBadgeConflitos();
+
+    // 3 fetches em paralelo — cada um renderiza ao chegar, sem esperar os outros
+    const pKpis = fetch(`/api/comercial-rgm/data/kpis?${qs}`)
+        .then(r => r.json())
+        .then(d => {
+            if (!d || !d.ok) { throw new Error(d?.error || 'erro KPIs'); }
+            Object.assign(_crgmLastData, {
+                kpis:          d.kpis,
+                evolucao:      d.evolucao,
+                evolucao_bruto: d.evolucao_bruto,
+                evolucao_prev: d.evolucao_prev,
+                ranking_polo:  d.ranking_polo,
+                ranking_ciclo: d.ranking_ciclo,
+                evasao_grid:   d.evasao_grid,
+            });
+            _crgmHideSkeleton('kpis');
+            _crgmRenderPoloTable(d.ranking_polo);
+            _crgmCrossRerenderAll();
+        })
+        .catch(err => _crgmShowBlockError('kpis', err));
+
+    const pAgentes = fetch(`/api/comercial-rgm/data/agentes?${qs}`)
+        .then(r => r.json())
+        .then(d => {
+            if (!d || !d.ok) { throw new Error(d?.error || 'erro agentes'); }
+            Object.assign(_crgmLastData, {
+                ranking_agentes:       d.ranking_agentes,
+                transferencia_regresso: d.transferencia_regresso,
+                matriculas_grid:       d.matriculas_grid,
+                metas_aviso:           d.metas_aviso,
+                daily_history:         d.daily_history,
+            });
+            // Validar cross-filter: se data/consultor saiu do novo range, limpar
+            if (_crgmCrossFilter.date) {
+                const datasNoPayload = new Set((d.matriculas_grid || []).map(g => g.data));
+                if (!datasNoPayload.has(_crgmCrossFilter.date)) _crgmCrossFilter.date = null;
+            }
+            if (_crgmCrossFilter.userId != null) {
+                const idsNoPayload = new Set((d.ranking_agentes || []).map(a => a.user_id));
+                if (!idsNoPayload.has(_crgmCrossFilter.userId)) _crgmCrossFilter.userId = null;
+            }
+            const avisoMetas = document.getElementById('crgm-metas-aviso');
+            if (avisoMetas) {
+                if (d.metas_aviso) {
+                    avisoMetas.textContent = d.metas_aviso;
+                    avisoMetas.classList.remove('hidden');
+                } else {
+                    avisoMetas.textContent = '';
+                    avisoMetas.classList.add('hidden');
+                }
+            }
+            _crgmHideSkeleton('agentes');
+            _crgmRenderTransferencia(d.transferencia_regresso);
+            _crgmCrossRerenderAll();
+        })
+        .catch(err => _crgmShowBlockError('agentes', err));
+
+    const pGrids = fetch(`/api/comercial-rgm/data/grids?${qs}`)
+        .then(r => r.json())
+        .then(d => {
+            if (!d || !d.ok) { throw new Error(d?.error || 'erro grids'); }
+            Object.assign(_crgmLastData, {
+                leads_grid: d.leads_grid,
+                evasao:     d.evasao,
+            });
+            _crgmHideSkeleton('grids');
+            _crgmCrossRerenderAll();
+        })
+        .catch(err => _crgmShowBlockError('grids', err));
+
+    // Atividade Kommo continua paralela (desacoplada desde a Fase 1)
+    _crgmLoadAtividade(dtIni, dtFim, null)
+        .then(() => _crgmRenderAtividade())
+        .catch(err => console.error('Erro ao carregar atividade Kommo:', err));
+
+    // Quando TODOS terminarem: render consolidado final + limpar loading
+    Promise.allSettled([pKpis, pAgentes, pGrids]).then(() => {
+        _crgmLoading(false);
+        _crgmCrossRerenderAll();
+        if (typeof refreshTopbarForPage === 'function') refreshTopbarForPage('comercial_rgm');
+    });
+}
+
+// ── Fase 4: helpers de skeleton/spinner por bloco ───────────────────────────
+
+(function _crgmInjectPhase4Styles() {
+    if (document.getElementById('crgm-phase4-styles')) return;
+    const s = document.createElement('style');
+    s.id = 'crgm-phase4-styles';
+    s.textContent = [
+        '.crgm-loading { opacity: .55; pointer-events: none; position: relative; }',
+        '.crgm-loading::after {',
+        '  content: ""; position: absolute; top: 8px; right: 8px;',
+        '  width: 14px; height: 14px;',
+        '  border: 2px solid #ccc; border-top-color: #4a90e2;',
+        '  border-radius: 50%; animation: crgmSpin .8s linear infinite;',
+        '}',
+        '@keyframes crgmSpin { to { transform: rotate(360deg); } }',
+    ].join('\n');
+    document.head.appendChild(s);
+})();
+
+const _CRGM_SKELETON_IDS = {
+    kpis:    ['crgm-section-hero', 'crgm-section-kpi-cards', 'crgm-section-evolucao', 'crgm-section-polo'],
+    agentes: ['crgm-section-agentes', 'crgm-section-chart-agentes'],
+    grids:   ['crgm-evasao-panel'],
+};
+
+function _crgmShowSkeleton(bloco) {
+    (_CRGM_SKELETON_IDS[bloco] || []).forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.dataset.crgmLoading = '1'; el.classList.add('crgm-loading'); }
+    });
+}
+
+function _crgmHideSkeleton(bloco) {
+    (_CRGM_SKELETON_IDS[bloco] || []).forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { delete el.dataset.crgmLoading; el.classList.remove('crgm-loading'); }
+    });
+}
+
+function _crgmShowBlockError(bloco, err) {
+    console.error('[crgm fase4]', bloco, err);
+    (_CRGM_SKELETON_IDS[bloco] || []).forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            delete el.dataset.crgmLoading;
+            el.classList.remove('crgm-loading');
+            if (!el.textContent.trim()) {
+                el.innerHTML = `<div style="padding:12px;color:#b00;font-size:12px">Falha ao carregar (${(err?.message || String(err)).slice(0, 80)})</div>`;
             }
         }
-        _crgmRenderPoloTable(d.ranking_polo);
-        _crgmRenderTransferencia(d.transferencia_regresso);
-        crgmAtualizarBadgeConflitos();
-        // Grupo 5.4: carrega atividade sem filtro de agente (filtro é client-side)
-        await _crgmLoadAtividade(dtIni, dtFim, null);
-        // _crgmCrossRerenderAll renderiza KPIs, evasão, evolução, ranking e atividade
-        _crgmCrossRerenderAll();
-    } catch (e) { _crgmErro('Erro: ' + e.message); }
-    finally {
-        _crgmLoading(false);
-        if (typeof refreshTopbarForPage === 'function') refreshTopbarForPage('comercial_rgm');
-    }
+    });
 }
 
 // ── KPIs ────────────────────────────────────────────────
@@ -614,7 +724,9 @@ async function _crgmLoadAtividade(dtIni, dtFim, userId) {
         return [];
     }
     bodyEl.innerHTML = '<p class="text-xs text-slate-400 animate-pulse">Carregando atividade Kommo...</p>';
-    let url = `/api/comercial-rgm/atividade-kommo?dt_ini=${dtIni}&dt_fim=${dtFim}`;
+    // detalhado=1 mantém intervalos_sem_atividade para o painel de expansão client-side;
+    // trocar para detalhado=0 na Fase 2 quando a expansão fizer fetch sob demanda
+    let url = `/api/comercial-rgm/atividade-kommo?dt_ini=${dtIni}&dt_fim=${dtFim}&detalhado=1`;
     if (userId) url += `&user_id=${userId}`;
     try {
         const res = await api(url);
@@ -636,7 +748,9 @@ async function _crgmLoadAtividade(dtIni, dtFim, userId) {
 function _crgmRenderAtividade() {
     const bodyEl = document.getElementById('crgm-atividade-body');
     if (!bodyEl) return;
-    const linhas = _crgmLastAtividade || [];
+    // null = ainda não carregado (spinner já está no bodyEl via _crgmLoadAtividade); não sobrescrever
+    if (_crgmLastAtividade === null) return;
+    const linhas = _crgmLastAtividade;
     if (!linhas.length) {
         bodyEl.innerHTML = '<p class="text-xs text-slate-500">Nenhuma atividade encontrada para o período.</p>';
         return;

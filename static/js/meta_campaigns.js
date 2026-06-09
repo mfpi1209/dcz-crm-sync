@@ -4,6 +4,12 @@
  */
 
 let metaCampaignsData = [];
+let metaSourceCounts = {
+    total:    { meta: 0, google: 0, semCampanha: 0 },
+    ganhos:   { meta: 0, google: 0, semCampanha: 0 },
+    perdidos: { meta: 0, google: 0, semCampanha: 0 },
+};
+let _piesByKey = { total: null, ganhos: null, perdidos: null };
 
 function consolidateCampaigns(campaigns) {
     const grouped = {};
@@ -40,53 +46,171 @@ async function loadMetaCampaigns() {
     const emptyState = document.getElementById('meta-campaigns-empty');
     const loadingState = document.getElementById('meta-loading');
     const statusEl = document.getElementById('meta-status');
-    
+
+    const origem = document.getElementById('meta-filter-origem')?.value || 'ambos';
+
     try {
         if (btn) {
             btn.innerHTML = '<svg class="w-4 h-4 animate-spin inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>Carregando...';
             btn.disabled = true;
         }
-        
+
         if (tableContainer) tableContainer.classList.add('hidden');
         if (emptyState) emptyState.classList.add('hidden');
         if (loadingState) loadingState.classList.remove('hidden');
-        
+
         const fromInput = document.getElementById('meta-filter-from');
         const toInput = document.getElementById('meta-filter-to');
-        
+
         const today = new Date().toISOString().split('T')[0];
         if (fromInput && !fromInput.value) fromInput.value = today;
         if (toInput && !toInput.value) toInput.value = today;
-        
+
         const fromDate = fromInput?.value || today;
         const toDate = toInput?.value || today;
-        
-        let url = '/api/meta/campaigns';
-        const params = new URLSearchParams();
-        params.append('from', fromDate);
-        params.append('to', toDate);
-        url += '?' + params.toString();
-        
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('Erro ao carregar campanhas');
-        const data = await res.json();
-        
-        const rawCampaigns = data.campaigns || [];
-        metaCampaignsData = consolidateCampaigns(rawCampaigns);
-        
-        console.log('Campanhas brutas:', rawCampaigns.length, '-> Consolidadas:', metaCampaignsData.length);
-        
-        if (statusEl) {
-            statusEl.textContent = data.status || 'OK';
-            statusEl.className = data.status === 'OK' ? 'text-green-400 font-semibold' : 'text-amber-400 font-semibold';
+
+        const dateParams = new URLSearchParams({ from: fromDate, to: toDate }).toString();
+
+        let rawCampaigns = [];
+        let statusText = 'OK';
+        let statusClass = 'text-green-400 font-semibold';
+
+        const _zeroedCounts = () => ({
+            total:    { meta: 0, google: 0, semCampanha: 0 },
+            ganhos:   { meta: 0, google: 0, semCampanha: 0 },
+            perdidos: { meta: 0, google: 0, semCampanha: 0 },
+        });
+
+        if (origem === 'meta') {
+            metaSourceCounts = _zeroedCounts();
+            const res = await fetch(`/api/meta/campaigns?${dateParams}`);
+            if (!res.ok) throw new Error('Erro ao carregar campanhas Meta');
+            const data = await res.json();
+            rawCampaigns = data.campaigns || [];
+            console.log('Meta Ads:', rawCampaigns.length, 'registros brutos');
+            statusText = data.status || 'OK';
+            if (statusText !== 'OK') statusClass = 'text-amber-400 font-semibold';
+
+        } else if (origem === 'google') {
+            metaSourceCounts = _zeroedCounts();
+            const res = await fetch(`/api/google/campaigns?${dateParams}`);
+            if (!res.ok) throw new Error('Erro ao carregar campanhas Google');
+            const data = await res.json();
+            rawCampaigns = data.campaigns || [];
+            console.log('Google Ads:', rawCampaigns.length, 'registros brutos');
+            statusText = data.status || 'OK';
+            if (statusText !== 'OK') statusClass = 'text-amber-400 font-semibold';
+
+        } else if (origem === 'sem-campanha') {
+            metaSourceCounts = _zeroedCounts();
+            const res = await fetch(`/api/sem-campanha/leads?${dateParams}`);
+            if (!res.ok) throw new Error('Erro ao carregar leads sem campanha');
+            const data = await res.json();
+            rawCampaigns = data.campaigns || [];
+            console.log('Sem Campanha:', rawCampaigns.length, 'registros brutos');
+            statusText = data.status || 'OK';
+            if (statusText !== 'OK') statusClass = 'text-amber-400 font-semibold';
+
+        } else {
+            const [resMeta, resGoogle, resSem] = await Promise.all([
+                fetch(`/api/meta/campaigns?${dateParams}`),
+                fetch(`/api/google/campaigns?${dateParams}`),
+                fetch(`/api/sem-campanha/leads?${dateParams}`),
+            ]);
+
+            const dataMeta = resMeta.ok ? await resMeta.json() : { campaigns: [], status: 'ERROR' };
+            const dataGoogle = resGoogle.ok ? await resGoogle.json() : { campaigns: [], status: 'ERROR' };
+            const dataSem = resSem.ok ? await resSem.json() : { campaigns: [], status: 'ERROR' };
+
+            const metaCampaigns = dataMeta.campaigns || [];
+            const googleCampaigns = dataGoogle.campaigns || [];
+            const semCampaigns = dataSem.campaigns || [];
+
+            console.log(
+                'Meta Ads:', metaCampaigns.length,
+                'registros brutos; Google Ads:', googleCampaigns.length,
+                'registros brutos; Sem Campanha:', semCampaigns.length, 'registros brutos'
+            );
+
+            metaSourceCounts = _zeroedCounts();
+            // 'total' agora considera só leads novos (em aberto) — ganhos/perdidos
+            // têm seus próprios pies e não devem ser somados ao Total.
+            metaCampaigns.forEach(c => {
+                const g = parseInt(c.ganhos) || 0;
+                const p = parseInt(c.perdidos) || 0;
+                const n = parseInt(c.novos) || 0;
+                metaSourceCounts.total.meta    += n;
+                metaSourceCounts.ganhos.meta   += g;
+                metaSourceCounts.perdidos.meta += p;
+            });
+            googleCampaigns.forEach(c => {
+                const g = parseInt(c.ganhos) || 0;
+                const p = parseInt(c.perdidos) || 0;
+                const n = parseInt(c.novos) || 0;
+                metaSourceCounts.total.google    += n;
+                metaSourceCounts.ganhos.google   += g;
+                metaSourceCounts.perdidos.google += p;
+            });
+            semCampaigns.forEach(c => {
+                const g = parseInt(c.ganhos) || 0;
+                const p = parseInt(c.perdidos) || 0;
+                const n = parseInt(c.novos) || 0;
+                metaSourceCounts.total.semCampanha    += n;
+                metaSourceCounts.ganhos.semCampanha   += g;
+                metaSourceCounts.perdidos.semCampanha += p;
+            });
+
+            rawCampaigns = [...metaCampaigns, ...googleCampaigns, ...semCampaigns];
+
+            const metaStatus = dataMeta.status || 'OK';
+            const googleStatus = dataGoogle.status || 'OK';
+            const semStatus = dataSem.status || 'OK';
+            const allOk = metaStatus === 'OK' && googleStatus === 'OK' && semStatus === 'OK';
+            const allFail = metaStatus !== 'OK' && googleStatus !== 'OK' && semStatus !== 'OK';
+
+            if (allOk) {
+                statusText = 'OK';
+            } else if (allFail) {
+                statusText = 'ERRO';
+                statusClass = 'text-red-400 font-semibold';
+            } else {
+                const metaCount = metaSourceCounts.total.meta;
+                const googleCount = metaSourceCounts.total.google;
+                const semCount = metaSourceCounts.total.semCampanha;
+                statusText = `PARCIAL (meta: ${metaCount}, google: ${googleCount}, sem-campanha: ${semCount})`;
+                statusClass = 'text-amber-400 font-semibold';
+            }
         }
-        
+
+        metaCampaignsData = consolidateCampaigns(rawCampaigns);
+
+        console.log('Campanhas brutas:', rawCampaigns.length, '-> Consolidadas:', metaCampaignsData.length);
+
+        if (statusEl) {
+            statusEl.textContent = statusText;
+            statusEl.className = statusClass;
+        }
+
         populateFilters();
         filterMetaCampaigns();
-        
-        console.log('Meta Campaigns carregadas:', metaCampaignsData.length, 'registros');
+
+        // Mostrar/esconder pie charts de distribuição por origem
+        const chartCard = document.getElementById('meta-source-chart-card');
+        const totalAll = metaSourceCounts.total.meta + metaSourceCounts.total.google + metaSourceCounts.total.semCampanha
+            + metaSourceCounts.ganhos.meta + metaSourceCounts.ganhos.google + metaSourceCounts.ganhos.semCampanha
+            + metaSourceCounts.perdidos.meta + metaSourceCounts.perdidos.google + metaSourceCounts.perdidos.semCampanha;
+        if (origem === 'ambos' && totalAll > 0) {
+            if (chartCard) chartCard.classList.remove('hidden');
+            renderPie('total',    'meta-pie-total',    'meta-legend-total',    metaSourceCounts.total);
+            renderPie('ganhos',   'meta-pie-ganhos',   'meta-legend-ganhos',   metaSourceCounts.ganhos);
+            renderPie('perdidos', 'meta-pie-perdidos', 'meta-legend-perdidos', metaSourceCounts.perdidos);
+        } else {
+            if (chartCard) chartCard.classList.add('hidden');
+        }
+
+        console.log('Campanhas carregadas (origem=' + origem + '):', metaCampaignsData.length, 'registros');
     } catch (err) {
-        console.error('Erro ao carregar campanhas Meta:', err);
+        console.error('Erro ao carregar campanhas:', err);
         metaCampaignsData = [];
         if (statusEl) {
             statusEl.textContent = 'ERRO';
@@ -189,7 +313,7 @@ function renderCampaignsTable(campaigns) {
                         </div>
                         <div>
                             <p class="text-sm font-semibold text-[var(--text-primary)] dark:text-white">${c.utm_campaign || 'Sem nome'}</p>
-                            <p class="text-xs text-slate-500">${c.utm_source || 'Meta'} • ${c.utm_medium || ''}</p>
+                            <p class="text-xs text-slate-500">${getSourceLabel(c.utm_source)} • ${c.utm_medium || ''}</p>
                         </div>
                     </div>
                 </td>
@@ -228,11 +352,14 @@ function updateMetrics(campaigns) {
     const totalNovos = campaigns.reduce((sum, c) => sum + (parseInt(c.novos) || 0), 0);
     const totalGanhos = campaigns.reduce((sum, c) => sum + (parseInt(c.ganhos) || 0), 0);
     const totalPerdidos = campaigns.reduce((sum, c) => sum + (parseInt(c.perdidos) || 0), 0);
-    const totalGeral = totalNovos + totalGanhos + totalPerdidos;
-    
-    const ganhosPct = totalGeral > 0 ? ((totalGanhos / totalGeral) * 100).toFixed(1) : '0';
-    const perdidosPct = totalGeral > 0 ? ((totalPerdidos / totalGeral) * 100).toFixed(1) : '0';
-    
+    // Total de Leads agora reflete apenas leads novos (em aberto).
+    // Ganhos e Perdidos têm seus próprios cards e não devem ser somados ao Total.
+    const totalGeral = totalNovos;
+    const baseFunil = totalNovos + totalGanhos + totalPerdidos;
+
+    const ganhosPct = baseFunil > 0 ? ((totalGanhos / baseFunil) * 100).toFixed(1) : '0';
+    const perdidosPct = baseFunil > 0 ? ((totalPerdidos / baseFunil) * 100).toFixed(1) : '0';
+
     const totalLeadsEl = document.getElementById('meta-total-leads');
     const leadsGanhosEl = document.getElementById('meta-leads-ganhos');
     const leadsPerdidosEl = document.getElementById('meta-leads-perdidos');
@@ -244,6 +371,90 @@ function updateMetrics(campaigns) {
     if (leadsPerdidosEl) leadsPerdidosEl.textContent = totalPerdidos;
     if (ganhosPctEl) ganhosPctEl.textContent = `(${ganhosPct}%)`;
     if (perdidosPctEl) perdidosPctEl.textContent = `(${perdidosPct}%)`;
+}
+
+function renderPie(key, canvasId, legendId, counts) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+
+    if (_piesByKey[key]) {
+        _piesByKey[key].destroy();
+        _piesByKey[key] = null;
+    }
+
+    // 'Sem Campanha' não compõe o pie de Total (são leads não-originados por campanha).
+    // Para os pies de Ganhos/Perdidos ele continua aparecendo.
+    const includeSemCampanha = key !== 'total';
+    const semVal = includeSemCampanha ? (counts.semCampanha || 0) : 0;
+    const total = counts.meta + counts.google + semVal;
+
+    const labels = ['Meta Ads', 'Google Ads'];
+    const data = [counts.meta, counts.google];
+    const colors = ['#3B82F6', '#F59E0B'];
+    if (includeSemCampanha) {
+        labels.push('Sem Campanha');
+        data.push(counts.semCampanha || 0);
+        colors.push('#A855F7');
+    }
+
+    _piesByKey[key] = new Chart(canvas, {
+        type: 'pie',
+        data: {
+            labels,
+            datasets: [{
+                data,
+                backgroundColor: colors,
+                borderWidth: 2,
+                borderColor: 'transparent',
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const val = context.parsed;
+                            const pct = total > 0 ? ((val / total) * 100).toFixed(1) : '0';
+                            return ` ${val} leads (${pct}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    const legendEl = document.getElementById(legendId);
+    if (legendEl) {
+        const items = [
+            { label: 'Meta Ads',     color: '#3B82F6', value: counts.meta },
+            { label: 'Google Ads',   color: '#F59E0B', value: counts.google },
+        ];
+        if (includeSemCampanha) {
+            items.push({ label: 'Sem Campanha', color: '#A855F7', value: counts.semCampanha || 0 });
+        }
+        legendEl.innerHTML = items.map(item => {
+            const pct = total > 0 ? ((item.value / total) * 100).toFixed(1) : '—';
+            const display = total > 0 ? `${item.value} (${pct}%)` : `0 (—)`;
+            return `
+                <div class="flex items-center gap-2">
+                    <div class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background-color: ${item.color};"></div>
+                    <span class="text-xs text-[var(--text-primary)] dark:text-white font-medium">${item.label}</span>
+                    <span class="text-xs text-slate-500 ml-auto">${display}</span>
+                </div>
+            `;
+        }).join('');
+    }
+}
+
+function getSourceLabel(utmSource) {
+    if (!utmSource) return 'Meta Ads';
+    const s = utmSource.toLowerCase();
+    if (s === 'sem_campanha') return 'Sem Campanha';
+    if (s.includes('google')) return 'Google Ads';
+    if (s.includes('facebook') || s.includes('meta') || s.includes('instagram') || s.includes('fb')) return 'Meta Ads';
+    return utmSource;
 }
 
 function getCampaignType(campaignName) {

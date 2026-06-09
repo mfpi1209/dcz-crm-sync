@@ -283,16 +283,30 @@ async function handleUploadBatchInadimplentes(fileList, nivel) {
     const bar = card.querySelector('.upload-bar');
     const msg = card.querySelector('.upload-msg');
     progress.classList.remove('hidden');
-    bar.style.width = '20%';
+    bar.style.width = '15%';
     const nivelLabel = nivel || 'geral';
-    msg.textContent = `Enviando ${valid.length} arquivo(s) [${nivelLabel}]...`;
+    msg.textContent = `Lendo ${valid.length} arquivo(s)...`;
     msg.className = 'upload-msg text-xs text-slate-400 mt-1';
 
     const form = new FormData();
-    for (const f of valid) form.append('files', f);
+    try {
+        for (let i = 0; i < valid.length; i++) {
+            const f = valid[i];
+            const buf = await f.arrayBuffer();
+            const blob = new Blob([buf], { type: f.type || 'application/octet-stream' });
+            form.append('files', blob, f.name);
+            bar.style.width = (15 + Math.round(((i + 1) / valid.length) * 35)) + '%';
+        }
+    } catch (readErr) {
+        msg.textContent = 'Erro ao ler arquivo (OneDrive?): ' + readErr.message + '. Clique com bot\u00e3o direito no arquivo > "Sempre manter neste dispositivo", ou salve-o fora do OneDrive.';
+        msg.classList.add('text-red-400');
+        setTimeout(() => { progress.classList.add('hidden'); bar.style.width = '0%'; }, 8000);
+        return;
+    }
     form.append('tipo', 'inadimplentes');
     if (nivel) form.append('nivel', nivel);
 
+    msg.textContent = `Enviando ${valid.length} arquivo(s) [${nivelLabel}]...`;
     try {
         bar.style.width = '60%';
         const res = await fetch('/api/upload-batch', { method: 'POST', body: form });
@@ -311,7 +325,9 @@ async function handleUploadBatchInadimplentes(fileList, nivel) {
             msg.className = 'upload-msg text-xs text-amber-400 font-semibold mt-1';
         } else {
             const rowsTxt = data.snapshot_rows >= 0 ? ` (${data.snapshot_rows.toLocaleString('pt-BR')} alunos)` : '';
-            msg.innerHTML = `✓ ${data.files_count} arquivos processados!${rowsTxt} <button onclick="_triggerInadimplentesUpdate(this)" class="ml-2 px-2 py-0.5 text-[10px] rounded bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/30 transition">Atualizar CRM</button>`;
+            const fileNames = valid.map(f => f.name).join(', ');
+            const fileLine = `<div class="text-[10px] text-slate-400 dark:text-slate-500 mt-1 font-normal break-all">📄 ${fileNames}</div>`;
+            msg.innerHTML = `✓ ${data.files_count} arquivo(s) processado(s)!${rowsTxt} <button onclick="_triggerInadimplentesUpdate(this)" class="ml-2 px-2 py-0.5 text-[10px] rounded bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/30 transition">Atualizar Inadimplência</button>${fileLine}`;
             msg.className = 'upload-msg text-xs text-emerald-400 font-semibold mt-1';
         }
         loadFileInfo();

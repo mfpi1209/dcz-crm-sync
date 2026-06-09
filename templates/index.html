@@ -49,6 +49,7 @@
             {% include 'partials/_ferramentas.html' %}
             {% include 'partials/_cadastro_leads.html' %}
             {% include 'partials/_leads_inscricao.html' %}
+            {% include 'partials/_disparador_whatsapp.html' %}
             {% include 'partials/_avisos.html' %}
             {% include 'partials/_kommo_dispatcher.html' %}
             {% include 'partials/_meta_campaigns.html' %}
@@ -297,43 +298,44 @@
 </div>
 
 {% set _v = range(100000) | random %}
-<script src="{{ url_for('static', filename='js/utils.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/dashboard.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/dashboard_supervisor.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/dashboard_supervisor_academico.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/search.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/sync.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/update.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/pipeline.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/ativacoes.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/distribuicao.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/intelligence.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/inadimplencia.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/kommo_sync.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/match_merge.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/comercial_rgm.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/dist_comercial.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/feedback.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/inscricao.js') }}"></script>
-<script src="{{ url_for('static', filename='js/ferramentas.js') }}"></script>
-<script src="{{ url_for('static', filename='js/leads_inscricao.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/avisos.js') }}"></script>
-<script src="{{ url_for('static', filename='js/kommo_dispatcher.js') }}"></script>
-<script src="{{ url_for('static', filename='js/config.js') }}"></script>
-<script src="{{ url_for('static', filename='js/meta_campaigns.js') }}"></script>
-<script src="{{ url_for('static', filename='js/recadastros.js') }}"></script>
-<script src="{{ url_for('static', filename='js/leads_parados.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/dist_consultor.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/minha_performance.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/meus_atendimentos.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/premiacao_admin.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/ajustes_matricula.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/macro_email.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/repasse.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/captacao.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/clicks.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/leads_promotores.js') }}?v={{_v}}"></script>
-<script src="{{ url_for('static', filename='js/profile.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/utils.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/dashboard.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/dashboard_supervisor.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/dashboard_supervisor_academico.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/search.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/sync.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/update.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/pipeline.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/ativacoes.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/distribuicao.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/intelligence.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/inadimplencia.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/kommo_sync.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/match_merge.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/comercial_rgm.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/dist_comercial.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/feedback.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/inscricao.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/ferramentas.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/leads_inscricao.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/disparador_whatsapp.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/avisos.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/kommo_dispatcher.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/config.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/meta_campaigns.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/recadastros.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/leads_parados.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/dist_consultor.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/minha_performance.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/meus_atendimentos.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/premiacao_admin.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/ajustes_matricula.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/macro_email.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/repasse.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/captacao.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/clicks.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/leads_promotores.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/profile.js') }}?v={{_v}}"></script>
 
 </body>
 </html>

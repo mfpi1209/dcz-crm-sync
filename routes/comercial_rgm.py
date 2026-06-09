@@ -194,6 +194,82 @@ def _pg():
     return psycopg2.connect(**DB_DSN)
 
 
+# =============================================================================
+# Cache backend in-memory para /api/comercial-rgm/data (Fase 3)
+# -----------------------------------------------------------------------------
+# Memoiza a resposta por combinacao de filtros com TTL curto. Invalidado por:
+#   - novos uploads (xl_snapshots de matriculados/inadimplentes etc)
+#   - sync Kommo
+#   - CRUD de metas (comercial_metas / premiacao_*)
+# Quem precisar invalidar manualmente chama clear_crgm_data_cache().
+# =============================================================================
+import threading as _crgm_threading
+
+_CRGM_DATA_CACHE: dict = {}
+_CRGM_DATA_CACHE_TTL_S = 120  # segundos
+_CRGM_DATA_CACHE_LOCK = _crgm_threading.Lock()
+
+
+def _crgm_cache_key_from_args() -> tuple:
+    return (
+        request.args.get("polo", ""),
+        request.args.get("nivel", ""),
+        request.args.get("dt_ini", ""),
+        request.args.get("dt_fim", ""),
+        request.args.get("ciclo", ""),
+        request.args.get("turma", ""),
+    )
+
+
+def _crgm_cache_get(key: tuple):
+    import time as _t
+    now = _t.time()
+    with _CRGM_DATA_CACHE_LOCK:
+        entry = _CRGM_DATA_CACHE.get(key)
+        if entry and (now - entry[0]) <= _CRGM_DATA_CACHE_TTL_S:
+            return entry[1]
+        if entry:
+            _CRGM_DATA_CACHE.pop(key, None)
+    return None
+
+
+def _crgm_cache_set(key: tuple, payload):
+    import time as _t
+    with _CRGM_DATA_CACHE_LOCK:
+        _CRGM_DATA_CACHE[key] = (_t.time(), payload)
+
+
+def _crgm_cache_key_prefixed(prefix: str) -> tuple:
+    """Chave de cache prefixada para os sub-endpoints (/data/kpis, /data/agentes, /data/grids)."""
+    return (prefix,) + _crgm_cache_key_from_args()
+
+
+def clear_crgm_data_cache(reason: str = ""):
+    """API publica para invalidar o cache do dashboard comercial."""
+    with _CRGM_DATA_CACHE_LOCK:
+        n = len(_CRGM_DATA_CACHE)
+        _CRGM_DATA_CACHE.clear()
+    if n:
+        logger.info("CRGM /data cache LIMPO (%d entradas) motivo=%s", n, reason or "manual")
+
+
+@comercial_rgm_bp.after_request
+def _crgm_auto_invalidate_cache(response):
+    """Invalida automaticamente o cache do /data quando qualquer endpoint do
+    blueprint comercial_rgm faz mutacao (POST/PUT/DELETE) com sucesso (2xx).
+    Excecoes: o proprio /data e /cache/clear nao acionam invalidacao."""
+    try:
+        if request.method in ("POST", "PUT", "DELETE", "PATCH") and 200 <= response.status_code < 300:
+            path = (request.path or "").rstrip("/")
+            if path.endswith("/api/comercial-rgm/data") or path.endswith("/api/comercial-rgm/cache/clear"):
+                return response
+            if "/api/comercial-rgm/" in path or "/api/dist-consultor/" in path:
+                clear_crgm_data_cache(reason=f"{request.method} {path}")
+    except Exception:
+        pass
+    return response
+
+
 def _crgm_excluded_rgms(_unused=None) -> set:
     """Retorna conjunto de RGMs normalizados cujo registro mais recente (maior id)
     no snapshot atual NÃƒO é EM CURSO. Usa conexão própria para não contaminar
@@ -289,15 +365,19 @@ def _crgm_dashboard_rgm_list(dt_ini: str, dt_fim: str,
         return []
 
 
-def _crgm_periodo_data(dt_ini=None, dt_fim=None, polo=None, nivel=None, ciclo_filter=None, turma=None):
+def _crgm_periodo_data(dt_ini=None, dt_fim=None, polo=None, nivel=None, ciclo_filter=None, turma=None, conn=None):
     """
     Retorna TODOS os RGMs únicos do período (registro mais recente por id),
     aplicando filtros de tipo_matricula, empresa e ciclo, mas SEM filtro de situação.
     Retorna lista de dicts: {rgm, nome, situacao, data_matricula, polo, nivel, ciclo}
+
+    Quando `conn` é fornecida, reutiliza a conexão (não abre/fecha). Caso contrário,
+    abre uma conexão própria via _pg() e fecha ao final.
     """
     _conn = None
+    _own_conn = conn is None
     try:
-        _conn = _pg()
+        _conn = conn if conn is not None else _pg()
         cur = _conn.cursor()
 
         # Filtros extras aplicados na camada deduplicated
@@ -408,7 +488,7 @@ def _crgm_periodo_data(dt_ini=None, dt_fim=None, polo=None, nivel=None, ciclo_fi
         logger.warning("_crgm_periodo_data: %s", e)
         return []
     finally:
-        if _conn:
+        if _conn and _own_conn:
             try:
                 _conn.close()
             except Exception:
@@ -1606,7 +1686,7 @@ _KNOWN_USERS = {
     14464488: "Tamires",
     14482884: "Eduardo",
     14546744: "Suporte",
-    14546760: "Jessica C",
+    14546760: "Jessyca",
     14932700: "Beatriz",
 }
 
@@ -2254,12 +2334,16 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None, polo=None):
 
 def _build_agent_ranking_completa_vw(
     dt_ini=None, dt_fim=None, polo=None, nivel=None, ciclo=None, turma=None,
-    excluded_rgms: set = None, crm_dt_ini=None, crm_dt_fim=None,
+    excluded_rgms: set = None, crm_dt_ini=None, crm_dt_fim=None, conn=None,
 ):
-    """Matrículas em comercial_rgm_completa Ã— responsável em vw_leads_rgm. Sem match → transferencia/regresso."""
+    """Matrículas em comercial_rgm_completa Ã— responsável em vw_leads_rgm. Sem match → transferencia/regresso.
+
+    Quando `conn` é fornecida, reutiliza a conexão Postgres principal (não abre/fecha).
+    """
     TR = -1
+    _own_conn = conn is None
     try:
-        conn = _pg()
+        conn = conn if conn is not None else _pg()
         if excluded_rgms is None:
             excluded_rgms = _crgm_excluded_rgms(conn)
         cur = conn.cursor()
@@ -2389,17 +2473,23 @@ def _build_agent_ranking_completa_vw(
 
         mat_rows = list(rgm_nome.items())
         cur.close()
-        conn.close()
+        if _own_conn:
+            conn.close()
 
+        # Otimização: filtrar mapa RGM→consultor apenas pelos RGMs realmente usados
+        # neste request (mat_rows + excluded_rgms), em vez de varrer toda a vw_leads_rgm.
+        _rgms_para_lookup = sorted({n for n, _ in mat_rows} | set(excluded_rgms or ()))
         kconn = _pg_kommo()
         kcur = kconn.cursor()
-        kcur.execute("""
-            SELECT DISTINCT ON (v.rgm) v.rgm, l.responsible_user_id
-            FROM vw_leads_rgm v
-            JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
-            WHERE l.responsible_user_id IS NOT NULL
-            ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC
-        """)
+        if _rgms_para_lookup:
+            kcur.execute("""
+                SELECT DISTINCT ON (v.rgm) v.rgm, l.responsible_user_id
+                FROM vw_leads_rgm v
+                JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
+                WHERE l.responsible_user_id IS NOT NULL
+                  AND v.rgm = ANY(%s)
+                ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC
+            """, (_rgms_para_lookup,))
         rgm_to_uid = {}
         for row in kcur.fetchall():
             nk = _normalize_rgm(row[0])
@@ -2429,7 +2519,29 @@ def _build_agent_ranking_completa_vw(
         # CRM no ranking: período DE/ATÉ em leads.created_at / closed_at (epoch).
         # total / novos = criados no período; ganhos / perdidos = fechados no período (Kommo).
         # Conv.% = matrículas no período (CSV×Kommo) / total de leads criados no período — não usa ganhos 142.
-        kcur.execute("""
+        #
+        # Otimização (Fase 3): pre-filtra leads que tem AO MENOS uma janela relevante
+        # (created_at OU closed_at dentro do periodo). Linhas totalmente fora ja saem
+        # 0 em todos os SUMs — descarta-las antes economiza ~70% das linhas agregadas.
+        _rk_extra_where = ""
+        _rk_params = {"ep_ini": ep_ini, "ep_fim": ep_fim}
+        if ep_ini is not None and ep_fim is not None:
+            _rk_extra_where = (
+                " AND ((l.created_at IS NOT NULL AND l.created_at BETWEEN %(ep_ini)s AND %(ep_fim)s)"
+                "   OR (l.closed_at  IS NOT NULL AND l.closed_at  BETWEEN %(ep_ini)s AND %(ep_fim)s))"
+            )
+        elif ep_ini is not None:
+            _rk_extra_where = (
+                " AND ((l.created_at IS NOT NULL AND l.created_at >= %(ep_ini)s)"
+                "   OR (l.closed_at  IS NOT NULL AND l.closed_at  >= %(ep_ini)s))"
+            )
+        elif ep_fim is not None:
+            _rk_extra_where = (
+                " AND ((l.created_at IS NOT NULL AND l.created_at <= %(ep_fim)s)"
+                "   OR (l.closed_at  IS NOT NULL AND l.closed_at  <= %(ep_fim)s))"
+            )
+
+        kcur.execute(f"""
             SELECT l.responsible_user_id,
                    SUM(CASE WHEN l.created_at IS NOT NULL
                             AND (%(ep_ini)s IS NULL OR l.created_at >= %(ep_ini)s)
@@ -2445,8 +2557,9 @@ def _build_agent_ranking_completa_vw(
                        THEN 1 ELSE 0 END) AS perdidos_periodo
             FROM leads l
             WHERE l.responsible_user_id IS NOT NULL AND NOT l.is_deleted
+              {_rk_extra_where}
             GROUP BY l.responsible_user_id
-        """, {"ep_ini": ep_ini, "ep_fim": ep_fim})
+        """, _rk_params)
         crm_stats = {}
         for r in kcur.fetchall():
             tot_p = int(r[1] or 0)
@@ -2550,18 +2663,81 @@ def _build_agent_ranking_completa_vw(
         return [], {"titulo": "transferencia/regresso", "total": 0, "itens": []}, []
 
 
+@comercial_rgm_bp.route("/api/comercial-rgm/cache/clear", methods=["POST"])
+def crgm_cache_clear():
+    """Invalida manualmente o cache em memoria do /data."""
+    clear_crgm_data_cache(reason="endpoint manual")
+    return jsonify({"ok": True})
+
+
 @comercial_rgm_bp.route("/api/comercial-rgm/data")
 def crgm_data():
-    polo = request.args.get("polo", "")
-    nivel = request.args.get("nivel", "")
-    dt_ini = request.args.get("dt_ini", "")
-    dt_fim = request.args.get("dt_fim", "")
+    polo       = request.args.get("polo", "")
+    nivel      = request.args.get("nivel", "")
+    dt_ini     = request.args.get("dt_ini", "")
+    dt_fim     = request.args.get("dt_fim", "")
     ciclo_nome = request.args.get("ciclo", "")
     turma_nome = request.args.get("turma", "")
 
-    # Quando um ciclo do dropdown é selecionado, buscamos suas datas reais
-    # em ciclos_comercial. Usamos as datas do ciclo para delimitar matrículas
-    # (o nome pode não coincidir com o campo 'ciclo' do CSV).
+    # ---- Cache (Fase 3): atende com TTL curto sem recalcular ----
+    _cache_key = _crgm_cache_key_from_args()
+    _no_cache  = request.args.get("no_cache") == "1"
+    if not _no_cache:
+        _cached = _crgm_cache_get(_cache_key)
+        if _cached is not None:
+            logger.info("CRGM /data CACHE HIT key=%s", _cache_key)
+            return jsonify(_cached)
+
+    # ---- Fase 4: wrapper composto — 3 funções em paralelo via ThreadPool ----
+    import time as _time_mod
+    _crgm_t_start = _time_mod.perf_counter()
+    _CRGM_WRAPPER_SENTINEL_ = True  # marca que entramos no bloco de computo
+    try:
+        from concurrent.futures import ThreadPoolExecutor as _CRGM_TPE
+        with _CRGM_TPE(max_workers=3) as _pool:
+            _fut_kpis    = _pool.submit(_crgm_compute_kpis,    polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome)
+            _fut_agentes = _pool.submit(_crgm_compute_agentes, polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome)
+            _fut_grids   = _pool.submit(_crgm_compute_grids,   polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome)
+
+            result_kpis    = _fut_kpis.result()
+            result_agentes = _fut_agentes.result()
+            result_grids   = _fut_grids.result()
+
+        _payload = {
+            "ok": True,
+            "metas_aviso": result_agentes["metas_aviso"],
+            "kpis": result_kpis["kpis"],
+            "evolucao": result_kpis["evolucao"],
+            "evolucao_bruto": result_kpis["evolucao_bruto"],
+            "evolucao_prev": result_kpis["evolucao_prev"],
+            "ranking_polo": result_kpis["ranking_polo"],
+            "ranking_ciclo": result_kpis["ranking_ciclo"],
+            "ranking_agentes": result_agentes["ranking_agentes"],
+            "transferencia_regresso": result_agentes["transferencia_regresso"],
+            "evasao": result_grids["evasao"],
+            "matriculas_grid": result_agentes["matriculas_grid"],
+            "leads_grid": result_grids["leads_grid"],
+            "evasao_grid": result_kpis["evasao_grid"],
+            "daily_history": result_agentes["daily_history"],
+        }
+        _crgm_cache_set(_cache_key, _payload)
+        return jsonify(_payload)
+    except Exception as e:
+        logger.exception("comercial_rgm data error")
+        return jsonify({"ok": False, "error": str(e)}), 500
+    finally:
+        try:
+            logger.info("CRGM /data TOTAL %.2fs", _time_mod.perf_counter() - _crgm_t_start)
+        except Exception:
+            pass
+
+
+# ===========================================================================
+# Fase 4 — helpers de computo independentes + 3 sub-endpoints paralelos
+# ===========================================================================
+
+def _crgm_resolve_ciclo_pd_dates(ciclo_nome, turma_nome, dt_ini, dt_fim):
+    """Resolve ciclo_dt_ini/fim e _pd_dt_ini/_pd_dt_fim (lógica compartilhada pelos 3 helpers)."""
     ciclo_dt_ini = None
     ciclo_dt_fim = None
     if ciclo_nome:
@@ -2576,345 +2752,675 @@ def crgm_data():
             if _cc_row:
                 ciclo_dt_ini = _cc_row[0].isoformat() if hasattr(_cc_row[0], 'isoformat') else str(_cc_row[0])[:10]
                 ciclo_dt_fim = _cc_row[1].isoformat() if hasattr(_cc_row[1], 'isoformat') else str(_cc_row[1])[:10]
-            _cc_cur.close(); _cc.close()
+            _cc_cur.close()
+            _cc.close()
         except Exception as _ce:
             logger.warning("ciclo dates lookup: %s", _ce)
 
-    # Datas para filtrar matrículas (CSV): quando há ciclo+turma, usa as datas
-    # completas do ciclo (turma é só meta mensal, não restringe matrículas).
     if ciclo_nome and turma_nome and ciclo_dt_ini and ciclo_dt_fim:
         _pd_dt_ini = ciclo_dt_ini
         _pd_dt_fim = ciclo_dt_fim
     else:
         _pd_dt_ini = dt_ini or None
         _pd_dt_fim = dt_fim or None
+    return _pd_dt_ini, _pd_dt_fim
 
-    where = []
-    params = []
 
+def _crgm_build_periodo_sets(ciclo_all, _pd_dt_ini, _pd_dt_fim):
+    """Deriva _periodo_rows e os conjuntos rgms_bruto / rgms_periodo / evasao_rows."""
+    if _pd_dt_ini or _pd_dt_fim:
+        _periodo_rows = []
+        for row in ciclo_all:
+            dm_str = row.get("data_matricula")
+            if not dm_str:
+                continue
+            dm_key = str(dm_str)[:10]
+            if _pd_dt_ini and dm_key < _pd_dt_ini:
+                continue
+            if _pd_dt_fim and dm_key > _pd_dt_fim:
+                continue
+            _periodo_rows.append(row)
+    else:
+        _periodo_rows = list(ciclo_all)
+
+    rgms_periodo = set()
+    rgms_bruto   = set()
+    evasao_rows  = []
+    day_rgms       = defaultdict(set)
+    day_rgms_bruto = defaultdict(set)
+    polo_rgms      = defaultdict(set)
+
+    for row in _periodo_rows:
+        n = row["rgm"]
+        if not n:
+            continue
+        rgms_bruto.add(n)
+        try:
+            dt = date.fromisoformat(row["data_matricula"][:10]) if row["data_matricula"] else None
+        except (ValueError, TypeError):
+            dt = None
+        if dt:
+            day_rgms_bruto[dt].add(n)
+        if row["situacao"] == "EM CURSO":
+            rgms_periodo.add(n)
+            if dt:
+                day_rgms[dt].add(n)
+            if row["polo"]:
+                polo_rgms[_normalize_polo(row["polo"])].add(n)
+        else:
+            evasao_rows.append(row)
+
+    return _periodo_rows, rgms_periodo, rgms_bruto, evasao_rows, day_rgms, day_rgms_bruto, polo_rgms
+
+
+def _crgm_compute_kpis(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -> dict:
+    """Calcula KPIs, evolucao, ranking_polo/ciclo e evasao_grid."""
+    import time as _time_mod
+    _t_start = _time_mod.perf_counter()
+    _t_lap   = _t_start
+
+    def _lap(label):
+        nonlocal _t_lap
+        _now = _time_mod.perf_counter()
+        logger.info("CRGM kpis/[%s] %.2fs", label, _now - _t_lap)
+        _t_lap = _now
+
+    _pd_dt_ini, _pd_dt_fim = _crgm_resolve_ciclo_pd_dates(ciclo_nome, turma_nome, dt_ini, dt_fim)
+
+    conn = _pg()
+    cur  = conn.cursor()
+
+    ciclo_all = _crgm_periodo_data(polo=polo or None, nivel=nivel or None, conn=conn)
+    _lap("ciclo_all_xl_rows")
+
+    (
+        _periodo_rows, rgms_periodo, rgms_bruto, evasao_rows,
+        day_rgms, day_rgms_bruto, polo_rgms,
+    ) = _crgm_build_periodo_sets(ciclo_all, _pd_dt_ini, _pd_dt_fim)
+    _lap("derive_periodo_inmem")
+
+    vendas          = len(rgms_bruto)
+    vendas_liquidas = len(rgms_periodo)
+    _excluded       = rgms_bruto - rgms_periodo
+
+    evasao_grid_acc = defaultdict(int)
+    for _ev in evasao_rows:
+        _ev_dt = _ev.get("data_matricula")
+        if not _ev_dt:
+            continue
+        _ev_tipo = (_ev.get("situacao") or "OUTROS").strip()
+        evasao_grid_acc[(str(_ev_dt)[:10], _ev_tipo)] += 1
+    evasao_grid = [
+        {"data": k[0], "tipo": k[1], "count": v}
+        for k, v in sorted(evasao_grid_acc.items())
+    ]
+
+    all_kpi_rgms     = rgms_periodo
+    day_counts       = {d: len(s) for d, s in day_rgms.items()}
+    day_counts_bruto = {d: len(s) for d, s in day_rgms_bruto.items()}
+    polo_counts      = {p: len(s) for p, s in polo_rgms.items()}
+    dias             = len(day_counts) or 1
+    media_diaria     = round(vendas_liquidas / dias, 1) if dias else 0
+
+    # --- Ticket médio via Kommo lead price ---
+    ticket_medio = 0.0
+    try:
+        kconn = _pg_kommo()
+        kcur  = kconn.cursor()
+        kcur.execute("""
+            SELECT rgm_val, price FROM (
+                SELECT regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g') AS rgm_val,
+                       l.price
+                FROM lead_custom_field_values lcf
+                JOIN leads l ON l.id = lcf.lead_id AND l.status_id = 142 AND l.is_deleted = FALSE
+                WHERE LOWER(lcf.field_name) = 'rgm'
+                  AND lcf.values_json->0->>'value' IS NOT NULL
+                  AND lcf.values_json->0->>'value' != ''
+                  AND l.price IS NOT NULL AND l.price > 0
+                UNION ALL
+                SELECT regexp_replace(cf_elem->'values'->0->>'value', '[^0-9]', '', 'g'),
+                       l.price
+                FROM leads l,
+                     jsonb_array_elements(COALESCE(l.custom_fields_json, '[]'::jsonb)) cf_elem
+                WHERE l.status_id = 142 AND l.is_deleted = FALSE
+                  AND LOWER(cf_elem->>'field_name') = 'rgm'
+                  AND cf_elem->'values'->0->>'value' IS NOT NULL
+                  AND cf_elem->'values'->0->>'value' != ''
+                  AND l.price IS NOT NULL AND l.price > 0
+            ) sub WHERE rgm_val IS NOT NULL AND rgm_val != ''
+        """)
+        rgm_price = {}
+        for r in kcur.fetchall():
+            n = _normalize_rgm(r[0])
+            if n and n not in rgm_price:
+                rgm_price[n] = r[1]
+        kcur.close()
+        kconn.close()
+        prices = [rgm_price[rgm] for rgm in all_kpi_rgms if rgm in rgm_price and rgm_price[rgm] > 0]
+        if prices:
+            ticket_medio = round((sum(prices) / len(prices)) * 0.30, 2)
+    except Exception as e:
+        logger.warning("kpis ticket_medio_kommo: %s", e)
+    _lap("ticket_medio_kommo")
+
+    # --- MM Inscritos no período ---
+    mm_insc_count    = 0
+    insc_where_hist  = []
+    insc_params_hist = []
+    if dt_ini:
+        insc_where_hist.append("data_inscr >= %s")
+        insc_params_hist.append(dt_ini)
+    if dt_fim:
+        insc_where_hist.append("data_inscr <= %s")
+        insc_params_hist.append(dt_fim)
     if polo:
-        where.append(f"{_POLO_SQL} = %s")
-        params.append(_normalize_polo(polo))
-    if nivel:
-        where.append("nivel = %s")
-        params.append(nivel)
-    if _pd_dt_ini:
-        where.append("data_matricula >= %s")
-        params.append(_pd_dt_ini)
-    if _pd_dt_fim:
-        where.append("data_matricula <= %s")
-        params.append(_pd_dt_fim)
+        insc_where_hist.append("polo_normalizado = %s")
+        insc_params_hist.append(polo)
+    insc_w_hist = ("WHERE " + " AND ".join(insc_where_hist)) if insc_where_hist else ""
 
-    # comercial_rgm_atual já aplica todos os filtros de negócio (ciclo atual, em curso, empresa 7/12, tipos)
-    w = ("WHERE " + " AND ".join(where)) if where else ""
+    insc_where_cur  = []
+    insc_params_cur = []
+    if dt_ini:
+        insc_where_cur.append("data_inscr >= %s")
+        insc_params_cur.append(dt_ini)
+    if dt_fim:
+        insc_where_cur.append("data_inscr <= %s")
+        insc_params_cur.append(dt_fim)
+    if polo:
+        insc_where_cur.append("polo_normalizado = %s")
+        insc_params_cur.append(polo)
+    insc_w_cur = ("WHERE " + " AND ".join(insc_where_cur)) if insc_where_cur else ""
 
     try:
-        conn = _pg()
-        cur = conn.cursor()
-
-        _periodo_rows = _crgm_periodo_data(
-            dt_ini=_pd_dt_ini,
-            dt_fim=_pd_dt_fim,
-            polo=polo or None,
-            nivel=nivel or None,
-            ciclo_filter=None,
-            turma=None,
-        )
-
-        rgms_periodo   = set()          # EM CURSO (líquido)
-        rgms_bruto     = set()          # todos (bruto)
-        evasao_rows    = []             # não EM CURSO
-        day_rgms       = defaultdict(set)   # líquido por dia
-        day_rgms_bruto = defaultdict(set)   # bruto por dia (sombra)
-        polo_rgms      = defaultdict(set)
-
-        for row in _periodo_rows:
-            n = row["rgm"]
-            if not n:
-                continue
-            rgms_bruto.add(n)
-            try:
-                dt = date.fromisoformat(row["data_matricula"][:10]) if row["data_matricula"] else None
-            except (ValueError, TypeError):
-                dt = None
-            if dt:
-                day_rgms_bruto[dt].add(n)
-            if row["situacao"] == "EM CURSO":
-                rgms_periodo.add(n)
-                if dt:
-                    day_rgms[dt].add(n)
-                if row["polo"]:
-                    polo_rgms[_normalize_polo(row["polo"])].add(n)
-            else:
-                evasao_rows.append(row)
-
-        vendas = len(rgms_bruto)         # KPI mostra BRUTO
-        vendas_liquidas = len(rgms_periodo)
-        _excluded = rgms_bruto - rgms_periodo   # conjunto excluído (para ranking)
-
-        # evasao_grid: agrega evasão por (data_matricula, tipo) para cross-filter no JS
-        evasao_grid_acc = defaultdict(int)
-        for _ev in evasao_rows:
-            _ev_dt = _ev.get("data_matricula")
-            if not _ev_dt:
-                continue
-            _ev_tipo = (_ev.get("situacao") or "OUTROS").strip()
-            evasao_grid_acc[(str(_ev_dt)[:10], _ev_tipo)] += 1
-        evasao_grid = [
-            {"data": k[0], "tipo": k[1], "count": v}
-            for k, v in sorted(evasao_grid_acc.items())
-        ]
-        all_kpi_rgms = rgms_periodo
-        day_counts       = {d: len(s) for d, s in day_rgms.items()}
-        day_counts_bruto = {d: len(s) for d, s in day_rgms_bruto.items()}
-        polo_counts = {p: len(s) for p, s in polo_rgms.items()}
-        dias = len(day_counts) or 1
-        media_diaria = round(vendas_liquidas / dias, 1) if dias else 0
-
-        # --- Ticket médio via Kommo lead price (cruzado por RGM) ---
-        ticket_medio = 0.0
+        cur.execute(f"""
+            SELECT COUNT(DISTINCT cpf) FROM (
+                SELECT cpf FROM mm_inscritos_hist {insc_w_hist}
+                UNION
+                SELECT cpf FROM mm_inscritos {insc_w_cur}
+            ) sub WHERE cpf IS NOT NULL
+        """, insc_params_hist + insc_params_cur)
+        mm_insc_count = cur.fetchone()[0] or 0
+    except Exception:
         try:
-            kconn = _pg_kommo()
-            kcur = kconn.cursor()
-            kcur.execute("""
-                SELECT rgm_val, price FROM (
-                    SELECT regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g') AS rgm_val,
-                           l.price
-                    FROM lead_custom_field_values lcf
-                    JOIN leads l ON l.id = lcf.lead_id AND l.status_id = 142 AND l.is_deleted = FALSE
-                    WHERE LOWER(lcf.field_name) = 'rgm'
-                      AND lcf.values_json->0->>'value' IS NOT NULL
-                      AND lcf.values_json->0->>'value' != ''
-                      AND l.price IS NOT NULL AND l.price > 0
-                    UNION ALL
-                    SELECT regexp_replace(cf_elem->'values'->0->>'value', '[^0-9]', '', 'g'),
-                           l.price
-                    FROM leads l,
-                         jsonb_array_elements(COALESCE(l.custom_fields_json, '[]'::jsonb)) cf_elem
-                    WHERE l.status_id = 142 AND l.is_deleted = FALSE
-                      AND LOWER(cf_elem->>'field_name') = 'rgm'
-                      AND cf_elem->'values'->0->>'value' IS NOT NULL
-                      AND cf_elem->'values'->0->>'value' != ''
-                      AND l.price IS NOT NULL AND l.price > 0
-                ) sub WHERE rgm_val IS NOT NULL AND rgm_val != ''
-            """)
-            rgm_price = {}
-            for r in kcur.fetchall():
-                n = _normalize_rgm(r[0])
-                if n and n not in rgm_price:
-                    rgm_price[n] = r[1]
-            kcur.close()
-            kconn.close()
-
-            prices = [rgm_price[rgm] for rgm in all_kpi_rgms if rgm in rgm_price and rgm_price[rgm] > 0]
-            if prices:
-                ticket_medio = round((sum(prices) / len(prices)) * 0.30, 2)
-        except Exception as e:
-            logger.warning("ticket medio kommo: %s", e)
-
-        # --- MM Inscritos no período (hist + atual) ---
-        mm_insc_count = 0
-
-        insc_where_hist = []
-        insc_params_hist = []
-        if dt_ini:
-            insc_where_hist.append("data_inscr >= %s")
-            insc_params_hist.append(dt_ini)
-        if dt_fim:
-            insc_where_hist.append("data_inscr <= %s")
-            insc_params_hist.append(dt_fim)
-        if polo:
-            insc_where_hist.append("polo_normalizado = %s")
-            insc_params_hist.append(polo)
-        insc_w_hist = ("WHERE " + " AND ".join(insc_where_hist)) if insc_where_hist else ""
-
-        insc_where_cur = []
-        insc_params_cur = []
-        if dt_ini:
-            insc_where_cur.append("data_inscr >= %s")
-            insc_params_cur.append(dt_ini)
-        if dt_fim:
-            insc_where_cur.append("data_inscr <= %s")
-            insc_params_cur.append(dt_fim)
-        if polo:
-            insc_where_cur.append("polo_normalizado = %s")
-            insc_params_cur.append(polo)
-        insc_w_cur = ("WHERE " + " AND ".join(insc_where_cur)) if insc_where_cur else ""
-
-        try:
-            cur.execute(f"""
-                SELECT COUNT(DISTINCT cpf) FROM (
-                    SELECT cpf FROM mm_inscritos_hist {insc_w_hist}
-                    UNION
-                    SELECT cpf FROM mm_inscritos {insc_w_cur}
-                ) sub WHERE cpf IS NOT NULL
-            """, insc_params_hist + insc_params_cur)
+            cur.execute(f"SELECT COUNT(*) FROM mm_inscritos_hist {insc_w_hist}", insc_params_hist)
             mm_insc_count = cur.fetchone()[0] or 0
         except Exception:
-            try:
-                cur.execute(f"SELECT COUNT(*) FROM mm_inscritos_hist {insc_w_hist}", insc_params_hist)
-                mm_insc_count = cur.fetchone()[0] or 0
-            except Exception:
-                mm_insc_count = 0
+            mm_insc_count = 0
+    _lap("mm_inscritos")
 
-        # --- Comparações: 6M / 1 ano / YTD ---
-        vendas_6m = 0
-        vendas_1a = 0
-        vendas_ytd = 0
-        vendas_prev_ytd = 0
+    # --- Comparações: 6M / 1 ano / YTD ---
+    vendas_6m = 0
+    vendas_1a = 0
+    vendas_ytd = 0
+    vendas_prev_ytd = 0
 
-        def _count_period(cur_, d_start, d_end, polo_=polo, nivel_=nivel):
-            cw = ["data_matricula >= %s", "data_matricula <= %s"]
-            cp = [d_start.isoformat(), d_end.isoformat()]
-            if polo_:
-                cw.append(f"{_POLO_SQL} = %s"); cp.append(_normalize_polo(polo_))
-            if nivel_:
-                cw.append("nivel = %s"); cp.append(nivel_)
-            cur_.execute(
-                f"SELECT rgm FROM comercial_rgm_atual WHERE {' AND '.join(cw)}",
-                cp,
-            )
-            return len({_normalize_rgm(r[0]) for r in cur_.fetchall()
-                        if _normalize_rgm(r[0]) and _normalize_rgm(r[0]) not in _excluded})
-
-        def _count_hist(cur_, d_start, d_end, polo_=polo, nivel_=nivel):
-            """Contagem histórica via comercial_rgm_completa (sem restrição de ciclo)."""
-            cw = ["data_matricula >= %s", "data_matricula <= %s"]
-            cp = [d_start.isoformat(), d_end.isoformat()]
-            if polo_:
-                cw.append(f"{_POLO_SQL} = %s"); cp.append(_normalize_polo(polo_))
-            if nivel_:
-                cw.append("nivel = %s"); cp.append(nivel_)
-            cur_.execute(
-                f"SELECT rgm FROM comercial_rgm_completa WHERE {' AND '.join(cw)}",
-                cp,
-            )
-            return len({_normalize_rgm(r[0]) for r in cur_.fetchall() if _normalize_rgm(r[0])})
-
-        if dt_ini and dt_fim:
-            try:
-                d_ini = date.fromisoformat(dt_ini)
-                d_fim = date.fromisoformat(dt_fim)
-
-                vendas_6m = _count_hist(
-                    cur, _shift_months(d_ini, -6), _shift_months(d_fim, -6)
-                )
-                vendas_1a = _count_hist(
-                    cur, _shift_months(d_ini, -12), _shift_months(d_fim, -12)
-                )
-                vendas_ytd = _count_period(
-                    cur, date(d_fim.year, 1, 1), d_fim
-                )
-                prev_year = d_fim.year - 1
-                vendas_prev_ytd = _count_hist(
-                    cur,
-                    date(prev_year, 1, 1),
-                    _safe_date(prev_year, d_fim.month, d_fim.day),
-                )
-            except Exception as exc:
-                logger.warning("Erro no cálculo comparativos: %s", exc)
-
-        pct_6m = round((vendas / vendas_6m - 1) * 100, 1) if vendas_6m > 0 else 0
-        pct_1a = round((vendas / vendas_1a - 1) * 100, 1) if vendas_1a > 0 else 0
-        pct_ytd = round((vendas_ytd / vendas_prev_ytd - 1) * 100, 1) if vendas_prev_ytd > 0 else 0
-
-        evolucao = [{"data": d.isoformat(), "count": c} for d, c in sorted(day_counts.items())]
-        # bruto: union das datas de bruto + liquido para alinhar os dois datasets
-        all_dates_bruto = sorted(set(day_counts_bruto.keys()) | set(day_counts.keys()))
-        evolucao_bruto = [{"data": d.isoformat(), "count": day_counts_bruto.get(d, 0)} for d in all_dates_bruto]
-
-        # --- Evolução ano anterior (por linha / data_matricula) ---
-        evolucao_prev = []
-        if dt_ini and dt_fim:
-            try:
-                d_ini = date.fromisoformat(dt_ini)
-                d_fim_d = date.fromisoformat(dt_fim)
-                prev_ini = _shift_months(d_ini, -12)
-                prev_fim = _shift_months(d_fim_d, -12)
-
-                prev_csv_w = ["data_matricula >= %s", "data_matricula <= %s"]
-                prev_csv_p = [prev_ini.isoformat(), prev_fim.isoformat()]
-                if polo:
-                    prev_csv_w.append(f"{_POLO_SQL} = %s")
-                    prev_csv_p.append(_normalize_polo(polo))
-                if nivel:
-                    prev_csv_w.append("nivel = %s")
-                    prev_csv_p.append(nivel)
-                if ciclo_nome:
-                    prev_csv_w.append("ciclo = %s")
-                    prev_csv_p.append(ciclo_nome)
-                if turma_nome:
-                    prev_csv_w.append("turma = %s")
-                    prev_csv_p.append(turma_nome)
-                pcw = "WHERE " + " AND ".join(prev_csv_w)
-
-                cur.execute(
-                    f"SELECT rgm, data_matricula FROM comercial_rgm_atual {pcw}",
-                    prev_csv_p,
-                )
-                prev_day_rgms = defaultdict(set)
-                for rgm, dm in cur.fetchall():
-                    n = _normalize_rgm(rgm)
-                    if not n:
-                        continue
-                    try:
-                        dt_val = (
-                            dm
-                            if hasattr(dm, "isoformat")
-                            else date.fromisoformat(str(dm)[:10])
-                        )
-                    except (ValueError, TypeError, AttributeError):
-                        dt_val = None
-                    if dt_val:
-                        prev_day_rgms[dt_val].add(n)
-                prev_day_counts = {d: len(s) for d, s in prev_day_rgms.items()}
-                evolucao_prev = [{"data": d.isoformat(), "count": c}
-                                 for d, c in sorted(prev_day_counts.items())]
-            except Exception as exc:
-                logger.warning("evolucao prev year: %s", exc)
-
-        ranking_polo = [{"nome": p, "total": c}
-                        for p, c in sorted(polo_counts.items(), key=lambda x: -x[1])]
-
-        # Total do ciclo: bruto + EM CURSO, sem filtro de data.
-        ciclo_all = _crgm_periodo_data(
-            polo=polo or None, nivel=nivel or None,
+    def _count_period(cur_, d_start, d_end, polo_=polo, nivel_=nivel):
+        cw = ["data_matricula >= %s", "data_matricula <= %s"]
+        cp = [d_start.isoformat(), d_end.isoformat()]
+        if polo_:
+            cw.append(f"{_POLO_SQL} = %s")
+            cp.append(_normalize_polo(polo_))
+        if nivel_:
+            cw.append("nivel = %s")
+            cp.append(nivel_)
+        cur_.execute(
+            f"SELECT rgm FROM comercial_rgm_atual WHERE {' AND '.join(cw)}",
+            cp,
         )
-        ciclo_bruto = defaultdict(set)
-        ciclo_em_curso = defaultdict(set)
+        return len({_normalize_rgm(r[0]) for r in cur_.fetchall()
+                    if _normalize_rgm(r[0]) and _normalize_rgm(r[0]) not in _excluded})
+
+    def _count_hist(cur_, d_start, d_end, polo_=polo, nivel_=nivel):
+        cw = ["data_matricula >= %s", "data_matricula <= %s"]
+        cp = [d_start.isoformat(), d_end.isoformat()]
+        if polo_:
+            cw.append(f"{_POLO_SQL} = %s")
+            cp.append(_normalize_polo(polo_))
+        if nivel_:
+            cw.append("nivel = %s")
+            cp.append(nivel_)
+        cur_.execute(
+            f"SELECT rgm FROM comercial_rgm_completa WHERE {' AND '.join(cw)}",
+            cp,
+        )
+        return len({_normalize_rgm(r[0]) for r in cur_.fetchall() if _normalize_rgm(r[0])})
+
+    if dt_ini and dt_fim:
+        try:
+            d_ini = date.fromisoformat(dt_ini)
+            d_fim = date.fromisoformat(dt_fim)
+            vendas_6m = _count_hist(cur, _shift_months(d_ini, -6), _shift_months(d_fim, -6))
+            vendas_1a = _count_hist(cur, _shift_months(d_ini, -12), _shift_months(d_fim, -12))
+            vendas_ytd = _count_period(cur, date(d_fim.year, 1, 1), d_fim)
+            prev_year = d_fim.year - 1
+            vendas_prev_ytd = _count_hist(
+                cur,
+                date(prev_year, 1, 1),
+                _safe_date(prev_year, d_fim.month, d_fim.day),
+            )
+        except Exception as exc:
+            logger.warning("kpis comparativos: %s", exc)
+
+    pct_6m  = round((vendas / vendas_6m  - 1) * 100, 1) if vendas_6m  > 0 else 0
+    pct_1a  = round((vendas / vendas_1a  - 1) * 100, 1) if vendas_1a  > 0 else 0
+    pct_ytd = round((vendas_ytd / vendas_prev_ytd - 1) * 100, 1) if vendas_prev_ytd > 0 else 0
+    _lap("comparativos_6m_1a_ytd")
+
+    evolucao = [{"data": d.isoformat(), "count": c} for d, c in sorted(day_counts.items())]
+    all_dates_bruto = sorted(set(day_counts_bruto.keys()) | set(day_counts.keys()))
+    evolucao_bruto  = [{"data": d.isoformat(), "count": day_counts_bruto.get(d, 0)} for d in all_dates_bruto]
+
+    evolucao_prev = []
+    if dt_ini and dt_fim:
+        try:
+            d_ini   = date.fromisoformat(dt_ini)
+            d_fim_d = date.fromisoformat(dt_fim)
+            prev_ini = _shift_months(d_ini,   -12)
+            prev_fim = _shift_months(d_fim_d, -12)
+
+            prev_csv_w = ["data_matricula >= %s", "data_matricula <= %s"]
+            prev_csv_p = [prev_ini.isoformat(), prev_fim.isoformat()]
+            if polo:
+                prev_csv_w.append(f"{_POLO_SQL} = %s")
+                prev_csv_p.append(_normalize_polo(polo))
+            if nivel:
+                prev_csv_w.append("nivel = %s")
+                prev_csv_p.append(nivel)
+            if ciclo_nome:
+                prev_csv_w.append("ciclo = %s")
+                prev_csv_p.append(ciclo_nome)
+            if turma_nome:
+                prev_csv_w.append("turma = %s")
+                prev_csv_p.append(turma_nome)
+            pcw = "WHERE " + " AND ".join(prev_csv_w)
+
+            cur.execute(
+                f"SELECT rgm, data_matricula FROM comercial_rgm_atual {pcw}",
+                prev_csv_p,
+            )
+            prev_day_rgms = defaultdict(set)
+            for rgm, dm in cur.fetchall():
+                n = _normalize_rgm(rgm)
+                if not n:
+                    continue
+                try:
+                    dt_val = (
+                        dm
+                        if hasattr(dm, "isoformat")
+                        else date.fromisoformat(str(dm)[:10])
+                    )
+                except (ValueError, TypeError, AttributeError):
+                    dt_val = None
+                if dt_val:
+                    prev_day_rgms[dt_val].add(n)
+            prev_day_counts = {d: len(s) for d, s in prev_day_rgms.items()}
+            evolucao_prev = [{"data": d.isoformat(), "count": c}
+                             for d, c in sorted(prev_day_counts.items())]
+        except Exception as exc:
+            logger.warning("kpis evolucao_prev: %s", exc)
+    _lap("evolucao_prev")
+
+    ranking_polo = [{"nome": p, "total": c}
+                    for p, c in sorted(polo_counts.items(), key=lambda x: -x[1])]
+
+    ciclo_bruto    = defaultdict(set)
+    ciclo_em_curso = defaultdict(set)
+    for row in ciclo_all:
+        n = _normalize_rgm(row.get("rgm") or "")
+        if not n:
+            continue
+        c = (row.get("ciclo") or "").strip() or "(sem ciclo)"
+        ciclo_bruto[c].add(n)
+        if row.get("situacao") == "EM CURSO":
+            ciclo_em_curso[c].add(n)
+    ranking_ciclo = [
+        {"nome": c, "bruto": len(ciclo_bruto[c]), "total": len(ciclo_em_curso.get(c, set()))}
+        for c in sorted(ciclo_bruto, key=lambda k: -len(ciclo_bruto[k]))
+    ]
+
+    cur.close()
+    conn.close()
+    _lap("ranking_ciclo")
+
+    logger.info("CRGM kpis TOTAL %.2fs", _time_mod.perf_counter() - _t_start)
+    return {
+        "kpis": {
+            "vendas": vendas,
+            "vendas_liquidas": vendas_liquidas,
+            "vendas_6m": vendas_6m,
+            "pct_6m": pct_6m,
+            "vendas_1a": vendas_1a,
+            "pct_1a": pct_1a,
+            "vendas_ytd": vendas_ytd,
+            "vendas_prev_ytd": vendas_prev_ytd,
+            "pct_ytd": pct_ytd,
+            "ticket_medio": ticket_medio,
+            "media_diaria": media_diaria,
+            "dias": dias,
+            "mm_inscritos": mm_insc_count,
+        },
+        "evolucao": evolucao,
+        "evolucao_bruto": evolucao_bruto,
+        "evolucao_prev": evolucao_prev,
+        "ranking_polo": ranking_polo,
+        "ranking_ciclo": ranking_ciclo,
+        "evasao_grid": evasao_grid,
+    }
+
+
+def _crgm_compute_agentes(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -> dict:
+    """Calcula ranking_agentes, transferencia_regresso, matriculas_grid, metas_aviso, daily_history."""
+    import time as _time_mod
+    _t_start = _time_mod.perf_counter()
+    _t_lap   = _t_start
+
+    def _lap(label):
+        nonlocal _t_lap
+        _now = _time_mod.perf_counter()
+        logger.info("CRGM agentes/[%s] %.2fs", label, _now - _t_lap)
+        _t_lap = _now
+
+    _pd_dt_ini, _pd_dt_fim = _crgm_resolve_ciclo_pd_dates(ciclo_nome, turma_nome, dt_ini, dt_fim)
+
+    # Minimal setup: só precisa de _excluded para passar ao ranking
+    conn = _pg()
+    ciclo_all = _crgm_periodo_data(polo=polo or None, nivel=nivel or None, conn=conn)
+    _lap("ciclo_all_xl_rows")
+
+    _periodo_rows = []
+    if _pd_dt_ini or _pd_dt_fim:
         for row in ciclo_all:
-            n = _normalize_rgm(row.get("rgm") or "")
-            if not n:
+            dm_str = row.get("data_matricula")
+            if not dm_str:
                 continue
-            c = (row.get("ciclo") or "").strip() or "(sem ciclo)"
-            ciclo_bruto[c].add(n)
-            if row.get("situacao") == "EM CURSO":
-                ciclo_em_curso[c].add(n)
-        ranking_ciclo = [
-            {"nome": c, "bruto": len(ciclo_bruto[c]), "total": len(ciclo_em_curso.get(c, set()))}
-            for c in sorted(ciclo_bruto, key=lambda k: -len(ciclo_bruto[k]))
-        ]
+            dm_key = str(dm_str)[:10]
+            if _pd_dt_ini and dm_key < _pd_dt_ini:
+                continue
+            if _pd_dt_fim and dm_key > _pd_dt_fim:
+                continue
+            _periodo_rows.append(row)
+    else:
+        _periodo_rows = list(ciclo_all)
+    _lap("derive_periodo_inmem")
 
-        cur.close()
-        conn.close()
+    rgms_periodo = set()
+    rgms_bruto   = set()
+    for row in _periodo_rows:
+        n = row["rgm"]
+        if not n:
+            continue
+        rgms_bruto.add(n)
+        if row["situacao"] == "EM CURSO":
+            rgms_periodo.add(n)
+    _excluded = rgms_bruto - rgms_periodo
+    conn.close()
 
-        ranking_agentes, transferencia_regresso, matriculas_grid = _build_agent_ranking_completa_vw(
-            _pd_dt_ini,
-            _pd_dt_fim,
-            polo or None,
-            nivel or None,
-            None,
-            None,
-            excluded_rgms=_excluded,
-            crm_dt_ini=dt_ini or None,
-            crm_dt_fim=dt_fim or None,
+    # --- Ranking agentes ---
+    ranking_agentes, transferencia_regresso, matriculas_grid = _build_agent_ranking_completa_vw(
+        _pd_dt_ini, _pd_dt_fim, polo or None, nivel or None, None, None,
+        excluded_rgms=_excluded,
+        crm_dt_ini=dt_ini or None,
+        crm_dt_fim=dt_fim or None,
+    )
+    _lap("ranking_vw")
+
+    # --- Metas por agente ---
+    metas_by_cat       = {}
+    campanha_meta_uids = set()
+    metas_load_error   = None
+    has_camp_overlap   = False
+    camp_defs          = None
+    try:
+        conn2 = _pg()
+        cur2  = conn2.cursor()
+
+        cur2.execute("""
+            SELECT pcm.kommo_user_id, pcm.meta, pcm.meta_intermediaria, pcm.supermeta
+            FROM premiacao_campanha_meta pcm
+            JOIN premiacao_campanha pc ON pc.id = pcm.campanha_id
+            WHERE COALESCE(pc.ativa, TRUE)
+              AND pc.dt_inicio <= %s AND pc.dt_fim >= %s
+        """, (dt_fim or '9999-12-31', dt_ini or '1900-01-01'))
+        for r in cur2.fetchall():
+            uid = _kommo_uid_int(r[0])
+            if uid is None:
+                continue
+            campanha_meta_uids.add(uid)
+            metas_by_cat.setdefault("matriculas", {})
+            metas_by_cat["matriculas"][uid] = {
+                "meta": float(r[1]),
+                "intermediaria": float(r[2]),
+                "supermeta": float(r[3]),
+            }
+
+        cur2.execute("""
+            SELECT user_id, meta, COALESCE(meta_intermediaria,0),
+                   COALESCE(supermeta,0), categoria
+            FROM comercial_metas
+            WHERE dt_inicio <= %s AND dt_fim >= %s
+        """, (dt_fim or '9999-12-31', dt_ini or '1900-01-01'))
+        for r in cur2.fetchall():
+            uid = _kommo_uid_int(r[0])
+            if uid is None:
+                continue
+            cat = r[4] or "matriculas"
+            if cat == "matriculas" and uid in campanha_meta_uids:
+                continue
+            metas_by_cat.setdefault(cat, {})
+            prev = metas_by_cat[cat].get(uid, {"meta": 0, "intermediaria": 0, "supermeta": 0})
+            prev["meta"]          += float(r[1])
+            prev["intermediaria"] += float(r[2])
+            prev["supermeta"]     += float(r[3])
+            metas_by_cat[cat][uid] = prev
+
+        if dt_ini and dt_fim:
+            cur2.execute("""
+                SELECT def_meta_intermediaria, def_meta, def_supermeta
+                FROM premiacao_campanha
+                WHERE COALESCE(ativa, TRUE)
+                  AND dt_inicio <= %s::date AND dt_fim >= %s::date
+                ORDER BY dt_inicio DESC
+                LIMIT 1
+            """, (dt_fim, dt_ini))
+            row_c = cur2.fetchone()
+            if row_c:
+                has_camp_overlap = True
+                camp_defs = row_c
+
+        cur2.close()
+        conn2.close()
+    except Exception as e:
+        logger.warning("agentes metas por periodo: %s", e)
+        metas_load_error = str(e)
+    _lap("metas_por_periodo")
+
+    mat_metas = metas_by_cat.get("matriculas", {})
+    if camp_defs:
+        d_i = float(camp_defs[0] or 0)
+        d_m = float(camp_defs[1] or 0)
+        d_s = float(camp_defs[2] or 0)
+        if d_i > 0 or d_m > 0 or d_s > 0:
+            for ag in ranking_agentes:
+                uid = ag.get("user_id")
+                if uid == -1:
+                    continue
+                uki = _kommo_uid_int(uid)
+                if uki is None:
+                    continue
+                if uki not in mat_metas:
+                    mat_metas[uki] = {
+                        "meta": d_m,
+                        "intermediaria": d_i,
+                        "supermeta": d_s,
+                    }
+    for ag in ranking_agentes:
+        uid = ag["user_id"]
+        if uid == -1:
+            ag["meta"]             = 0
+            ag["meta_intermediaria"] = 0
+            ag["supermeta"]        = 0
+            ag["metas_cat"]        = {}
+            continue
+        uki = _kommo_uid_int(uid)
+        m   = mat_metas.get(uki, {}) if uki is not None else {}
+        ag["meta"]             = m.get("meta", 0)
+        ag["meta_intermediaria"] = m.get("intermediaria", 0)
+        ag["supermeta"]        = m.get("supermeta", 0)
+        ag["metas_cat"]        = {}
+        for cat, users in metas_by_cat.items():
+            if uki is not None and uki in users:
+                ag["metas_cat"][cat] = users[uki]
+
+    # --- Atividade Kommo: horas médias por consultor ---
+    try:
+        _ativ_dt_ini = datetime.strptime(_pd_dt_ini, "%Y-%m-%d").date() if _pd_dt_ini else None
+        _ativ_dt_fim = datetime.strptime(_pd_dt_fim, "%Y-%m-%d").date() if _pd_dt_fim else None
+    except Exception:
+        _ativ_dt_ini = _ativ_dt_fim = None
+    if _ativ_dt_ini and _ativ_dt_fim:
+        try:
+            _ativ_map = horas_media_por_consultor(_ativ_dt_ini, _ativ_dt_fim)
+        except Exception as _e:
+            logger.warning("agentes horas_media_por_consultor falhou: %s", _e)
+            _ativ_map = {}
+    else:
+        _ativ_map = {}
+    for ag in ranking_agentes:
+        uid = ag.get("user_id")
+        uki = _kommo_uid_int(uid)
+        if uki is not None and uki != -1:
+            ag["horas_media"] = _ativ_map.get(uki, {}).get("horas_media")
+        else:
+            ag["horas_media"] = None
+    _lap("horas_media_kommo")
+
+    # --- daily_history: comparativos dia-a-dia (vs 6m e 1 ano) ---
+    daily_history: dict = {}
+    try:
+        _unique_grid_dates = list({g["data"] for g in matriculas_grid if g.get("data")})
+        if _unique_grid_dates:
+            _target_map: dict = {}
+            for _ds in _unique_grid_dates:
+                try:
+                    _d    = date.fromisoformat(_ds)
+                    _d_6m = _shift_months(_d, -6)
+                    _d_1y = _shift_months(_d, -12)
+                    _target_map[_ds] = (_d_6m.isoformat(), _d_1y.isoformat())
+                except Exception:
+                    pass
+            _all_targets = list({v for vals in _target_map.values() for v in vals})
+            if _all_targets:
+                _hist_cw = ["data_matricula::date = ANY(%s::date[])"]
+                _hist_cp: list = [_all_targets]
+                if polo:
+                    _hist_cw.append(f"{_POLO_SQL} = %s")
+                    _hist_cp.append(_normalize_polo(polo))
+                if nivel:
+                    _hist_cw.append("nivel = %s")
+                    _hist_cp.append(nivel)
+                _hist_where = "WHERE " + " AND ".join(_hist_cw)
+                _hist_conn = _pg()
+                _hist_cur  = _hist_conn.cursor()
+                _hist_cur.execute(
+                    f"""
+                    SELECT data_matricula::date AS d, COUNT(DISTINCT rgm) AS c
+                    FROM comercial_rgm_completa
+                    {_hist_where}
+                    GROUP BY data_matricula::date
+                    """,
+                    _hist_cp,
+                )
+                _hist_day_counts: dict = {}
+                for _row in _hist_cur.fetchall():
+                    _k = _row[0].isoformat() if hasattr(_row[0], "isoformat") else str(_row[0])
+                    _hist_day_counts[_k] = int(_row[1])
+                _hist_cur.close()
+                _hist_conn.close()
+                for _ds, (_d6m, _d1y) in _target_map.items():
+                    daily_history[_ds] = {
+                        "vs6m": _hist_day_counts.get(_d6m),
+                        "vs1y": _hist_day_counts.get(_d1y),
+                    }
+    except Exception as _dhe:
+        logger.warning("agentes daily_history: %s", _dhe)
+        daily_history = {}
+    _lap("daily_history")
+
+    metas_aviso = None
+    if metas_load_error:
+        metas_aviso = (
+            "Não foi possível carregar as metas deste período. "
+            "Verifique o log do servidor ou a conexão com o banco."
+        )
+    elif (
+        not mat_metas
+        and not has_camp_overlap
+        and any(
+            (a.get("matriculas_periodo") or 0) > 0 and a.get("user_id") != -1
+            for a in ranking_agentes
+        )
+    ):
+        metas_aviso = (
+            "Nenhuma meta de matrículas cadastrada para o intervalo de datas dos filtros "
+            "(ou campanha sem sobreposição). Cadastre na Premiação (metas por agente ou pré-definição) "
+            "ou ajuste dt início/fim."
         )
 
-        # --- leads_grid: leads por (data, responsible_user_id) para cross-filter no JS ---
-        leads_grid = []
+    logger.info("CRGM agentes TOTAL %.2fs", _time_mod.perf_counter() - _t_start)
+    return {
+        "ranking_agentes": ranking_agentes,
+        "transferencia_regresso": transferencia_regresso,
+        "matriculas_grid": matriculas_grid,
+        "metas_aviso": metas_aviso,
+        "daily_history": daily_history,
+    }
+
+
+def _crgm_compute_grids(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -> dict:
+    """Calcula leads_grid e evasao (objeto completo: total/por_tipo/por_agente/itens)."""
+    import time as _time_mod
+    from concurrent.futures import ThreadPoolExecutor as _CRGM_TPE
+    _t_start = _time_mod.perf_counter()
+    _t_lap   = _t_start
+
+    def _lap(label):
+        nonlocal _t_lap
+        _now = _time_mod.perf_counter()
+        logger.info("CRGM grids/[%s] %.2fs", label, _now - _t_lap)
+        _t_lap = _now
+
+    _pd_dt_ini, _pd_dt_fim = _crgm_resolve_ciclo_pd_dates(ciclo_nome, turma_nome, dt_ini, dt_fim)
+
+    conn      = _pg()
+    ciclo_all = _crgm_periodo_data(polo=polo or None, nivel=nivel or None, conn=conn)
+    _lap("ciclo_all_xl_rows")
+
+    _periodo_rows = []
+    if _pd_dt_ini or _pd_dt_fim:
+        for row in ciclo_all:
+            dm_str = row.get("data_matricula")
+            if not dm_str:
+                continue
+            dm_key = str(dm_str)[:10]
+            if _pd_dt_ini and dm_key < _pd_dt_ini:
+                continue
+            if _pd_dt_fim and dm_key > _pd_dt_fim:
+                continue
+            _periodo_rows.append(row)
+    else:
+        _periodo_rows = list(ciclo_all)
+    _lap("derive_periodo_inmem")
+
+    evasao_rows = []
+    for row in _periodo_rows:
+        if row["rgm"] and row["situacao"] != "EM CURSO":
+            evasao_rows.append(row)
+    conn.close()
+
+    def _task_leads_grid():
         try:
             _lg_conn = _pg_kommo()
-            _lg_cur = _lg_conn.cursor()
+            _lg_cur  = _lg_conn.cursor()
             _ep_lg_ini = _date_to_epoch(dt_ini or None)
             _ep_lg_fim = _date_to_epoch(dt_fim or None)
             if _ep_lg_fim is not None:
@@ -2944,7 +3450,7 @@ def crgm_data():
                 """,
                 _lg_cp,
             )
-            leads_grid = [
+            _out = [
                 {
                     "data": (row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])),
                     "user_id": int(row[1]),
@@ -2954,200 +3460,21 @@ def crgm_data():
             ]
             _lg_cur.close()
             _lg_conn.close()
+            return _out
         except Exception as _lg_e:
-            logger.warning("leads_grid: %s", _lg_e)
-            leads_grid = []
+            logger.warning("grids leads_grid: %s", _lg_e)
+            return []
 
-        # --- daily_history: comparativos dia-a-dia (vs 6m e 1 ano) para cross-filter ---
-        daily_history: dict = {}
+    def _task_evasao_kommo_lookup():
+        if not evasao_rows:
+            return {}, {}
+        ev_rgm_to_uid_l = {}
+        ev_uid_to_nome_l = {}
         try:
-            _unique_grid_dates = list({g["data"] for g in matriculas_grid if g.get("data")})
-            if _unique_grid_dates:
-                _target_map: dict = {}  # date_str -> (d_6m_str, d_1y_str)
-                for _ds in _unique_grid_dates:
-                    try:
-                        _d = date.fromisoformat(_ds)
-                        _d_6m = _shift_months(_d, -6)
-                        _d_1y = _shift_months(_d, -12)
-                        _target_map[_ds] = (_d_6m.isoformat(), _d_1y.isoformat())
-                    except Exception:
-                        pass
-                _all_targets = list({v for vals in _target_map.values() for v in vals})
-                if _all_targets:
-                    _hist_cw = ["data_matricula::date = ANY(%s::date[])"]
-                    _hist_cp: list = [_all_targets]
-                    if polo:
-                        _hist_cw.append(f"{_POLO_SQL} = %s")
-                        _hist_cp.append(_normalize_polo(polo))
-                    if nivel:
-                        _hist_cw.append("nivel = %s")
-                        _hist_cp.append(nivel)
-                    _hist_where = "WHERE " + " AND ".join(_hist_cw)
-                    _hist_conn = _pg()
-                    _hist_cur = _hist_conn.cursor()
-                    _hist_cur.execute(
-                        f"""
-                        SELECT data_matricula::date AS d, COUNT(DISTINCT rgm) AS c
-                        FROM comercial_rgm_completa
-                        {_hist_where}
-                        GROUP BY data_matricula::date
-                        """,
-                        _hist_cp,
-                    )
-                    _hist_day_counts: dict = {}
-                    for _row in _hist_cur.fetchall():
-                        _k = _row[0].isoformat() if hasattr(_row[0], "isoformat") else str(_row[0])
-                        _hist_day_counts[_k] = int(_row[1])
-                    _hist_cur.close()
-                    _hist_conn.close()
-                    for _ds, (_d6m, _d1y) in _target_map.items():
-                        daily_history[_ds] = {
-                            "vs6m": _hist_day_counts.get(_d6m),
-                            "vs1y": _hist_day_counts.get(_d1y),
-                        }
-        except Exception as _dhe:
-            logger.warning("daily_history: %s", _dhe)
-            daily_history = {}
-
-        # --- Metas por agente: premiacao_campanha_meta (primary) + comercial_metas (fallback)
-        #     + pré-definição na premiacao_campanha (def_meta_*) para agentes sem linha em pcm ---
-        # Structure: {cat: {uid_int: {meta, intermediaria, supermeta}}}
-        metas_by_cat = {}
-        campanha_meta_uids = set()
-        metas_load_error = None
-        has_camp_overlap = False
-        camp_defs = None  # (def_inter, def_meta, def_super) from campanha ativa no período
-        try:
-            conn2 = _pg()
-            cur2 = conn2.cursor()
-
-            cur2.execute("""
-                SELECT pcm.kommo_user_id, pcm.meta, pcm.meta_intermediaria, pcm.supermeta
-                FROM premiacao_campanha_meta pcm
-                JOIN premiacao_campanha pc ON pc.id = pcm.campanha_id
-                WHERE COALESCE(pc.ativa, TRUE)
-                  AND pc.dt_inicio <= %s AND pc.dt_fim >= %s
-            """, (dt_fim or '9999-12-31', dt_ini or '1900-01-01'))
-            for r in cur2.fetchall():
-                uid = _kommo_uid_int(r[0])
-                if uid is None:
-                    continue
-                campanha_meta_uids.add(uid)
-                metas_by_cat.setdefault("matriculas", {})
-                metas_by_cat["matriculas"][uid] = {
-                    "meta": float(r[1]),
-                    "intermediaria": float(r[2]),
-                    "supermeta": float(r[3]),
-                }
-
-            cur2.execute("""
-                SELECT user_id, meta, COALESCE(meta_intermediaria,0),
-                       COALESCE(supermeta,0), categoria
-                FROM comercial_metas
-                WHERE dt_inicio <= %s AND dt_fim >= %s
-            """, (dt_fim or '9999-12-31', dt_ini or '1900-01-01'))
-            for r in cur2.fetchall():
-                uid = _kommo_uid_int(r[0])
-                if uid is None:
-                    continue
-                cat = r[4] or "matriculas"
-                if cat == "matriculas" and uid in campanha_meta_uids:
-                    continue
-                metas_by_cat.setdefault(cat, {})
-                prev = metas_by_cat[cat].get(uid, {"meta": 0, "intermediaria": 0, "supermeta": 0})
-                prev["meta"] += float(r[1])
-                prev["intermediaria"] += float(r[2])
-                prev["supermeta"] += float(r[3])
-                metas_by_cat[cat][uid] = prev
-
-            if dt_ini and dt_fim:
-                cur2.execute("""
-                    SELECT def_meta_intermediaria, def_meta, def_supermeta
-                    FROM premiacao_campanha
-                    WHERE COALESCE(ativa, TRUE)
-                      AND dt_inicio <= %s::date AND dt_fim >= %s::date
-                    ORDER BY dt_inicio DESC
-                    LIMIT 1
-                """, (dt_fim, dt_ini))
-                row_c = cur2.fetchone()
-                if row_c:
-                    has_camp_overlap = True
-                    camp_defs = row_c
-
-            cur2.close()
-            conn2.close()
-        except Exception as e:
-            logger.warning("metas por periodo: %s", e)
-            metas_load_error = str(e)
-
-        mat_metas = metas_by_cat.get("matriculas", {})
-        if camp_defs:
-            d_i = float(camp_defs[0] or 0)
-            d_m = float(camp_defs[1] or 0)
-            d_s = float(camp_defs[2] or 0)
-            if d_i > 0 or d_m > 0 or d_s > 0:
-                for ag in ranking_agentes:
-                    uid = ag.get("user_id")
-                    if uid == -1:
-                        continue
-                    uki = _kommo_uid_int(uid)
-                    if uki is None:
-                        continue
-                    if uki not in mat_metas:
-                        mat_metas[uki] = {
-                            "meta": d_m,
-                            "intermediaria": d_i,
-                            "supermeta": d_s,
-                        }
-        for ag in ranking_agentes:
-            uid = ag["user_id"]
-            if uid == -1:
-                ag["meta"] = 0
-                ag["meta_intermediaria"] = 0
-                ag["supermeta"] = 0
-                ag["metas_cat"] = {}
-                continue
-            uki = _kommo_uid_int(uid)
-            m = mat_metas.get(uki, {}) if uki is not None else {}
-            ag["meta"] = m.get("meta", 0)
-            ag["meta_intermediaria"] = m.get("intermediaria", 0)
-            ag["supermeta"] = m.get("supermeta", 0)
-            ag["metas_cat"] = {}
-            for cat, users in metas_by_cat.items():
-                if uki is not None and uki in users:
-                    ag["metas_cat"][cat] = users[uki]
-
-        # --- Atividade Kommo: horas médias por consultor ---
-        try:
-            _ativ_dt_ini = datetime.strptime(_pd_dt_ini, "%Y-%m-%d").date() if _pd_dt_ini else None
-            _ativ_dt_fim = datetime.strptime(_pd_dt_fim, "%Y-%m-%d").date() if _pd_dt_fim else None
-        except Exception:
-            _ativ_dt_ini = _ativ_dt_fim = None
-        if _ativ_dt_ini and _ativ_dt_fim:
-            try:
-                _ativ_map = horas_media_por_consultor(_ativ_dt_ini, _ativ_dt_fim)
-            except Exception as _e:
-                logger.warning("horas_media_por_consultor falhou: %s", _e)
-                _ativ_map = {}
-        else:
-            _ativ_map = {}
-        for ag in ranking_agentes:
-            uid = ag.get("user_id")
-            uki = _kommo_uid_int(uid)
-            if uki is not None and uki != -1:
-                ag["horas_media"] = _ativ_map.get(uki, {}).get("horas_media")
-            else:
-                ag["horas_media"] = None
-
-        # --- Evasão: RGMs brutos que não são EM CURSO → breakdown por tipo e por agente ---
-        evasao_data = {"total": 0, "por_tipo": {}, "por_agente": [], "itens": []}
-        if evasao_rows:
-            # Mapa RGM → responsible_user_id via Kommo (reutiliza a query do ranking)
-            ev_rgm_to_uid = {}
-            ev_uid_to_nome = {}
-            try:
-                ek_conn = _pg_kommo()
-                ek_cur = ek_conn.cursor()
+            _ev_rgms_lookup = sorted({ev["rgm"] for ev in evasao_rows if ev.get("rgm")})
+            ek_conn = _pg_kommo()
+            ek_cur  = ek_conn.cursor()
+            if _ev_rgms_lookup:
                 ek_cur.execute("""
                     SELECT DISTINCT ON (v.rgm) v.rgm, l.responsible_user_id,
                            u.name AS user_name
@@ -3155,101 +3482,143 @@ def crgm_data():
                     JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
                     LEFT JOIN users u ON u.id = l.responsible_user_id
                     WHERE l.responsible_user_id IS NOT NULL
+                      AND v.rgm = ANY(%s)
                     ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC
-                """)
-                for row_k in ek_cur.fetchall():
-                    nk = _normalize_rgm(row_k[0])
-                    if nk:
-                        ev_rgm_to_uid[nk] = row_k[1]
-                        if row_k[1] and row_k[2]:
-                            ev_uid_to_nome[row_k[1]] = row_k[2]
-                ek_cur.close()
-                ek_conn.close()
-            except Exception as ek_e:
-                logger.warning("evasao kommo lookup: %s", ek_e)
+                """, (_ev_rgms_lookup,))
+            for row_k in ek_cur.fetchall():
+                nk = _normalize_rgm(row_k[0])
+                if nk:
+                    ev_rgm_to_uid_l[nk] = row_k[1]
+                    if row_k[1] and row_k[2]:
+                        ev_uid_to_nome_l[row_k[1]] = row_k[2]
+            ek_cur.close()
+            ek_conn.close()
+        except Exception as ek_e:
+            logger.warning("grids evasao_kommo_lookup: %s", ek_e)
+        return ev_rgm_to_uid_l, ev_uid_to_nome_l
 
-            por_tipo = defaultdict(int)
-            por_agente = defaultdict(list)
+    with _CRGM_TPE(max_workers=2) as _pool:
+        _fut_leads  = _pool.submit(_task_leads_grid)
+        _fut_evasao = _pool.submit(_task_evasao_kommo_lookup)
+        leads_grid  = _fut_leads.result()
+        ev_rgm_to_uid, ev_uid_to_nome = _fut_evasao.result()
+    _lap("parallel_leads_evasao")
 
-            for ev in evasao_rows:
-                sit = ev["situacao"] or "OUTROS"
-                por_tipo[sit] += 1
-                uid_ev = ev_rgm_to_uid.get(ev["rgm"])
-                nome_ev = ev_uid_to_nome.get(uid_ev, "Não identificado") if uid_ev else "Não identificado"
-                por_agente[nome_ev].append(ev)
+    evasao_data = {"total": 0, "por_tipo": {}, "por_agente": [], "itens": []}
+    if evasao_rows:
+        por_tipo   = defaultdict(int)
+        por_agente = defaultdict(list)
+        for ev in evasao_rows:
+            sit      = ev["situacao"] or "OUTROS"
+            por_tipo[sit] += 1
+            uid_ev   = ev_rgm_to_uid.get(ev["rgm"])
+            nome_ev  = ev_uid_to_nome.get(uid_ev, "Não identificado") if uid_ev else "Não identificado"
+            por_agente[nome_ev].append(ev)
 
-            evasao_data = {
-                "total": len(evasao_rows),
-                "por_tipo": dict(por_tipo),
-                "por_agente": [
-                    {"agente": ag_nome, "total": len(itens),
-                     "itens": [{"rgm": i["rgm"], "nome": i["nome"],
-                                "situacao": i["situacao"], "data_matricula": i["data_matricula"]}
-                               for i in itens]}
-                    for ag_nome, itens in sorted(por_agente.items(), key=lambda x: -len(x[1]))
-                ],
-                # itens flat com agente — usado pelo JS para _crgmDeriveEvasaoDia
-                "itens": [
-                    {"rgm": ev["rgm"], "nome": ev["nome"],
-                     "situacao": ev["situacao"], "data_matricula": ev["data_matricula"],
-                     "agente": ev_uid_to_nome.get(ev_rgm_to_uid.get(ev["rgm"]), "Não identificado")}
-                    for ev in evasao_rows
-                ],
-            }
+        evasao_data = {
+            "total": len(evasao_rows),
+            "por_tipo": dict(por_tipo),
+            "por_agente": [
+                {"agente": ag_nome, "total": len(itens),
+                 "itens": [{"rgm": i["rgm"], "nome": i["nome"],
+                            "situacao": i["situacao"], "data_matricula": i["data_matricula"]}
+                           for i in itens]}
+                for ag_nome, itens in sorted(por_agente.items(), key=lambda x: -len(x[1]))
+            ],
+            "itens": [
+                {"rgm": ev["rgm"], "nome": ev["nome"],
+                 "situacao": ev["situacao"], "data_matricula": ev["data_matricula"],
+                 "agente": ev_uid_to_nome.get(ev_rgm_to_uid.get(ev["rgm"]), "Não identificado")}
+                for ev in evasao_rows
+            ],
+        }
+    _lap("evasao_kommo_lookup")
 
-        metas_aviso = None
-        if metas_load_error:
-            metas_aviso = (
-                "Não foi possível carregar as metas deste período. "
-                "Verifique o log do servidor ou a conexão com o banco."
-            )
-        elif (
-            not mat_metas
-            and not has_camp_overlap
-            and any(
-                (a.get("matriculas_periodo") or 0) > 0 and a.get("user_id") != -1
-                for a in ranking_agentes
-            )
-        ):
-            metas_aviso = (
-                "Nenhuma meta de matrículas cadastrada para o intervalo de datas dos filtros "
-                "(ou campanha sem sobreposição). Cadastre na Premiação (metas por agente ou pré-definição) "
-                "ou ajuste dt início/fim."
-            )
+    logger.info("CRGM grids TOTAL %.2fs", _time_mod.perf_counter() - _t_start)
+    return {
+        "leads_grid": leads_grid,
+        "evasao": evasao_data,
+    }
 
-        return jsonify({
-            "ok": True,
-            "metas_aviso": metas_aviso,
-            "kpis": {
-                "vendas": vendas,
-                "vendas_liquidas": vendas_liquidas,
-                "vendas_6m": vendas_6m,
-                "pct_6m": pct_6m,
-                "vendas_1a": vendas_1a,
-                "pct_1a": pct_1a,
-                "vendas_ytd": vendas_ytd,
-                "vendas_prev_ytd": vendas_prev_ytd,
-                "pct_ytd": pct_ytd,
-                "ticket_medio": ticket_medio,
-                "media_diaria": media_diaria,
-                "dias": dias,
-                "mm_inscritos": mm_insc_count,
-            },
-            "evolucao": evolucao,
-            "evolucao_bruto": evolucao_bruto,
-            "evolucao_prev": evolucao_prev,
-            "ranking_polo": ranking_polo,
-            "ranking_ciclo": ranking_ciclo,
-            "ranking_agentes": ranking_agentes,
-            "transferencia_regresso": transferencia_regresso,
-            "evasao": evasao_data,
-            "matriculas_grid": matriculas_grid,
-            "leads_grid": leads_grid,
-            "evasao_grid": evasao_grid,
-            "daily_history": daily_history,
-        })
+
+@comercial_rgm_bp.route("/api/comercial-rgm/data/kpis")
+def crgm_data_kpis():
+    polo       = request.args.get("polo", "")
+    nivel      = request.args.get("nivel", "")
+    dt_ini     = request.args.get("dt_ini", "")
+    dt_fim     = request.args.get("dt_fim", "")
+    ciclo_nome = request.args.get("ciclo", "")
+    turma_nome = request.args.get("turma", "")
+
+    _cache_key = _crgm_cache_key_prefixed("kpis")
+    _no_cache  = request.args.get("no_cache") == "1"
+    if not _no_cache:
+        _cached = _crgm_cache_get(_cache_key)
+        if _cached is not None:
+            logger.info("CRGM /data/kpis CACHE HIT key=%s", _cache_key)
+            return jsonify(_cached)
+
+    try:
+        result  = _crgm_compute_kpis(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome)
+        payload = {"ok": True, **result}
+        _crgm_cache_set(_cache_key, payload)
+        return jsonify(payload)
     except Exception as e:
-        logger.exception("comercial_rgm data error")
+        logger.exception("comercial_rgm data/kpis error")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@comercial_rgm_bp.route("/api/comercial-rgm/data/agentes")
+def crgm_data_agentes():
+    polo       = request.args.get("polo", "")
+    nivel      = request.args.get("nivel", "")
+    dt_ini     = request.args.get("dt_ini", "")
+    dt_fim     = request.args.get("dt_fim", "")
+    ciclo_nome = request.args.get("ciclo", "")
+    turma_nome = request.args.get("turma", "")
+
+    _cache_key = _crgm_cache_key_prefixed("agentes")
+    _no_cache  = request.args.get("no_cache") == "1"
+    if not _no_cache:
+        _cached = _crgm_cache_get(_cache_key)
+        if _cached is not None:
+            logger.info("CRGM /data/agentes CACHE HIT key=%s", _cache_key)
+            return jsonify(_cached)
+
+    try:
+        result  = _crgm_compute_agentes(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome)
+        payload = {"ok": True, **result}
+        _crgm_cache_set(_cache_key, payload)
+        return jsonify(payload)
+    except Exception as e:
+        logger.exception("comercial_rgm data/agentes error")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@comercial_rgm_bp.route("/api/comercial-rgm/data/grids")
+def crgm_data_grids():
+    polo       = request.args.get("polo", "")
+    nivel      = request.args.get("nivel", "")
+    dt_ini     = request.args.get("dt_ini", "")
+    dt_fim     = request.args.get("dt_fim", "")
+    ciclo_nome = request.args.get("ciclo", "")
+    turma_nome = request.args.get("turma", "")
+
+    _cache_key = _crgm_cache_key_prefixed("grids")
+    _no_cache  = request.args.get("no_cache") == "1"
+    if not _no_cache:
+        _cached = _crgm_cache_get(_cache_key)
+        if _cached is not None:
+            logger.info("CRGM /data/grids CACHE HIT key=%s", _cache_key)
+            return jsonify(_cached)
+
+    try:
+        result  = _crgm_compute_grids(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome)
+        payload = {"ok": True, **result}
+        _crgm_cache_set(_cache_key, payload)
+        return jsonify(payload)
+    except Exception as e:
+        logger.exception("comercial_rgm data/grids error")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -3263,8 +3632,8 @@ def crgm_atividade_kommo():
         return jsonify({"ok": False, "error": "dt_ini/dt_fim obrigatórios (YYYY-MM-DD)"}), 400
     user_id_raw = request.args.get("user_id")
     user_id = int(user_id_raw) if (user_id_raw and user_id_raw.isdigit()) else None
-    incluir = True
-    linhas = fetch_atividade_periodo(dt_ini, dt_fim, user_id=user_id, incluir_intervalos=incluir)
+    detalhado = request.args.get("detalhado") == "1"
+    linhas = fetch_atividade_periodo(dt_ini, dt_fim, user_id=user_id, incluir_intervalos=detalhado)
     user_ids = sorted({int(r["created_by"]) for r in linhas if r.get("created_by") is not None})
     nomes = _fetch_kommo_user_names(user_ids) if user_ids else {}
     for r in linhas:
@@ -3275,7 +3644,7 @@ def crgm_atividade_kommo():
         "ok": True,
         "dt_ini": dt_ini.isoformat(),
         "dt_fim": dt_fim.isoformat(),
-        "incluir_intervalos": incluir,
+        "incluir_intervalos": detalhado,
         "linhas": linhas,
     })
 

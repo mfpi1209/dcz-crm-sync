@@ -65,6 +65,50 @@ def inject_kommo_web_base():
     return {"kommo_web_base": kommo_web_base_url()}
 
 
+def whatsapp_tool_base_url() -> str:
+    """URL base do app externo Disparador WhatsApp (sem barra final)."""
+    u = os.getenv(
+        "WHATSAPP_TOOL_BASE_URL",
+        "https://banco-disparador-whatsapp.6tqx2r.easypanel.host",
+    ).strip().rstrip("/")
+    return u
+
+
+@app.context_processor
+def inject_whatsapp_tool_base():
+    return {"whatsapp_tool_base": whatsapp_tool_base_url()}
+
+
+@app.context_processor
+def inject_consultores_academicos_admin():
+    """Injeta a lista de consultores academicos APENAS quando o usuario logado
+    e admin. Consumida pelo _disparador_whatsapp.html pra anexar ?consultores=
+    na URL do iframe (modal de atribuicao manual no Meu Painel)."""
+    try:
+        if session.get("role") != "admin":
+            return {"consultores_academicos_admin": []}
+        from helpers import list_consultores_academicos
+        return {"consultores_academicos_admin": list_consultores_academicos()}
+    except Exception:
+        return {"consultores_academicos_admin": []}
+
+
+@app.context_processor
+def inject_abas_disparador_permitidas():
+    """Lista de slugs curtos das abas do Disparador WhatsApp que o usuario
+    logado pode ver. None = sem filtro (admin ou compat de quem nao tem
+    sub-permissoes setadas). Consumida pelo _disparador_whatsapp.html pra
+    anexar ?abas_permitidas= na URL do iframe."""
+    try:
+        from helpers import compute_abas_disparador_permitidas
+        role, pages, _ = _nav_load_user_data()
+        return {
+            "abas_disparador_permitidas": compute_abas_disparador_permitidas(role, pages),
+        }
+    except Exception:
+        return {"abas_disparador_permitidas": None}
+
+
 @app.context_processor
 def inject_static_version():
     return {"_v": app.config.get("CACHE_BUST", "1")}
@@ -102,6 +146,11 @@ def _nav_load_user_data():
         conn.close()
     except Exception:
         pages = set()
+    # Promove sub-permissoes "disparador_whatsapp_*" pra master "disparador_whatsapp"
+    # — o sidebar/nav_can testa a master pra decidir se mostra o link no menu
+    # do Acadêmico. Ter qualquer sub equivale a ter acesso ao modulo.
+    if any(p.startswith("disparador_whatsapp_") for p in pages):
+        pages.add("disparador_whatsapp")
     return role, pages, categoria
 
 
@@ -196,6 +245,8 @@ from routes.minha_performance import minha_performance_bp
 from routes.repasse import repasse_bp
 from routes.supervisor_dashboard import supervisor_dashboard_bp
 from routes.meus_atendimentos import meus_atendimentos_bp
+from routes.inadimplencia import inadimplencia_bp
+from routes.disparador_whatsapp import disparador_whatsapp_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(dashboard_bp)
@@ -216,6 +267,8 @@ app.register_blueprint(minha_performance_bp)
 app.register_blueprint(repasse_bp)
 app.register_blueprint(supervisor_dashboard_bp)
 app.register_blueprint(meus_atendimentos_bp)
+app.register_blueprint(inadimplencia_bp)
+app.register_blueprint(disparador_whatsapp_bp)
 
 # ── Atualizar Preço — rotas do webapp standalone integrado ────────────────
 try:
