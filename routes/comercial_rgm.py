@@ -194,6 +194,77 @@ def _pg():
     return psycopg2.connect(**DB_DSN)
 
 
+# =============================================================================
+# Cache backend in-memory para /api/comercial-rgm/data (Fase 3)
+# -----------------------------------------------------------------------------
+# Memoiza a resposta por combinacao de filtros com TTL curto. Invalidado por:
+#   - novos uploads (xl_snapshots de matriculados/inadimplentes etc)
+#   - sync Kommo
+#   - CRUD de metas (comercial_metas / premiacao_*)
+# Quem precisar invalidar manualmente chama clear_crgm_data_cache().
+# =============================================================================
+import threading as _crgm_threading
+
+_CRGM_DATA_CACHE: dict = {}
+_CRGM_DATA_CACHE_TTL_S = 120  # segundos
+_CRGM_DATA_CACHE_LOCK = _crgm_threading.Lock()
+
+
+def _crgm_cache_key_from_args() -> tuple:
+    return (
+        request.args.get("polo", ""),
+        request.args.get("nivel", ""),
+        request.args.get("dt_ini", ""),
+        request.args.get("dt_fim", ""),
+        request.args.get("ciclo", ""),
+        request.args.get("turma", ""),
+    )
+
+
+def _crgm_cache_get(key: tuple):
+    import time as _t
+    now = _t.time()
+    with _CRGM_DATA_CACHE_LOCK:
+        entry = _CRGM_DATA_CACHE.get(key)
+        if entry and (now - entry[0]) <= _CRGM_DATA_CACHE_TTL_S:
+            return entry[1]
+        if entry:
+            _CRGM_DATA_CACHE.pop(key, None)
+    return None
+
+
+def _crgm_cache_set(key: tuple, payload):
+    import time as _t
+    with _CRGM_DATA_CACHE_LOCK:
+        _CRGM_DATA_CACHE[key] = (_t.time(), payload)
+
+
+def clear_crgm_data_cache(reason: str = ""):
+    """API publica para invalidar o cache do dashboard comercial."""
+    with _CRGM_DATA_CACHE_LOCK:
+        n = len(_CRGM_DATA_CACHE)
+        _CRGM_DATA_CACHE.clear()
+    if n:
+        logger.info("CRGM /data cache LIMPO (%d entradas) motivo=%s", n, reason or "manual")
+
+
+@comercial_rgm_bp.after_request
+def _crgm_auto_invalidate_cache(response):
+    """Invalida automaticamente o cache do /data quando qualquer endpoint do
+    blueprint comercial_rgm faz mutacao (POST/PUT/DELETE) com sucesso (2xx).
+    Excecoes: o proprio /data e /cache/clear nao acionam invalidacao."""
+    try:
+        if request.method in ("POST", "PUT", "DELETE", "PATCH") and 200 <= response.status_code < 300:
+            path = (request.path or "").rstrip("/")
+            if path.endswith("/api/comercial-rgm/data") or path.endswith("/api/comercial-rgm/cache/clear"):
+                return response
+            if "/api/comercial-rgm/" in path or "/api/dist-consultor/" in path:
+                clear_crgm_data_cache(reason=f"{request.method} {path}")
+    except Exception:
+        pass
+    return response
+
+
 def _crgm_excluded_rgms(_unused=None) -> set:
     """Retorna conjunto de RGMs normalizados cujo registro mais recente (maior id)
     no snapshot atual NÃƒO é EM CURSO. Usa conexão própria para não contaminar
@@ -289,15 +360,19 @@ def _crgm_dashboard_rgm_list(dt_ini: str, dt_fim: str,
         return []
 
 
-def _crgm_periodo_data(dt_ini=None, dt_fim=None, polo=None, nivel=None, ciclo_filter=None, turma=None):
+def _crgm_periodo_data(dt_ini=None, dt_fim=None, polo=None, nivel=None, ciclo_filter=None, turma=None, conn=None):
     """
     Retorna TODOS os RGMs únicos do período (registro mais recente por id),
     aplicando filtros de tipo_matricula, empresa e ciclo, mas SEM filtro de situação.
     Retorna lista de dicts: {rgm, nome, situacao, data_matricula, polo, nivel, ciclo}
+
+    Quando `conn` é fornecida, reutiliza a conexão (não abre/fecha). Caso contrário,
+    abre uma conexão própria via _pg() e fecha ao final.
     """
     _conn = None
+    _own_conn = conn is None
     try:
-        _conn = _pg()
+        _conn = conn if conn is not None else _pg()
         cur = _conn.cursor()
 
         # Filtros extras aplicados na camada deduplicated
@@ -408,7 +483,7 @@ def _crgm_periodo_data(dt_ini=None, dt_fim=None, polo=None, nivel=None, ciclo_fi
         logger.warning("_crgm_periodo_data: %s", e)
         return []
     finally:
-        if _conn:
+        if _conn and _own_conn:
             try:
                 _conn.close()
             except Exception:
@@ -2254,12 +2329,16 @@ def _build_agent_ranking(dt_ini=None, dt_fim=None, polo=None):
 
 def _build_agent_ranking_completa_vw(
     dt_ini=None, dt_fim=None, polo=None, nivel=None, ciclo=None, turma=None,
-    excluded_rgms: set = None, crm_dt_ini=None, crm_dt_fim=None,
+    excluded_rgms: set = None, crm_dt_ini=None, crm_dt_fim=None, conn=None,
 ):
-    """Matrículas em comercial_rgm_completa Ã— responsável em vw_leads_rgm. Sem match → transferencia/regresso."""
+    """Matrículas em comercial_rgm_completa Ã— responsável em vw_leads_rgm. Sem match → transferencia/regresso.
+
+    Quando `conn` é fornecida, reutiliza a conexão Postgres principal (não abre/fecha).
+    """
     TR = -1
+    _own_conn = conn is None
     try:
-        conn = _pg()
+        conn = conn if conn is not None else _pg()
         if excluded_rgms is None:
             excluded_rgms = _crgm_excluded_rgms(conn)
         cur = conn.cursor()
@@ -2389,17 +2468,23 @@ def _build_agent_ranking_completa_vw(
 
         mat_rows = list(rgm_nome.items())
         cur.close()
-        conn.close()
+        if _own_conn:
+            conn.close()
 
+        # Otimização: filtrar mapa RGM→consultor apenas pelos RGMs realmente usados
+        # neste request (mat_rows + excluded_rgms), em vez de varrer toda a vw_leads_rgm.
+        _rgms_para_lookup = sorted({n for n, _ in mat_rows} | set(excluded_rgms or ()))
         kconn = _pg_kommo()
         kcur = kconn.cursor()
-        kcur.execute("""
-            SELECT DISTINCT ON (v.rgm) v.rgm, l.responsible_user_id
-            FROM vw_leads_rgm v
-            JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
-            WHERE l.responsible_user_id IS NOT NULL
-            ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC
-        """)
+        if _rgms_para_lookup:
+            kcur.execute("""
+                SELECT DISTINCT ON (v.rgm) v.rgm, l.responsible_user_id
+                FROM vw_leads_rgm v
+                JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
+                WHERE l.responsible_user_id IS NOT NULL
+                  AND v.rgm = ANY(%s)
+                ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC
+            """, (_rgms_para_lookup,))
         rgm_to_uid = {}
         for row in kcur.fetchall():
             nk = _normalize_rgm(row[0])
@@ -2429,7 +2514,29 @@ def _build_agent_ranking_completa_vw(
         # CRM no ranking: período DE/ATÉ em leads.created_at / closed_at (epoch).
         # total / novos = criados no período; ganhos / perdidos = fechados no período (Kommo).
         # Conv.% = matrículas no período (CSV×Kommo) / total de leads criados no período — não usa ganhos 142.
-        kcur.execute("""
+        #
+        # Otimização (Fase 3): pre-filtra leads que tem AO MENOS uma janela relevante
+        # (created_at OU closed_at dentro do periodo). Linhas totalmente fora ja saem
+        # 0 em todos os SUMs — descarta-las antes economiza ~70% das linhas agregadas.
+        _rk_extra_where = ""
+        _rk_params = {"ep_ini": ep_ini, "ep_fim": ep_fim}
+        if ep_ini is not None and ep_fim is not None:
+            _rk_extra_where = (
+                " AND ((l.created_at IS NOT NULL AND l.created_at BETWEEN %(ep_ini)s AND %(ep_fim)s)"
+                "   OR (l.closed_at  IS NOT NULL AND l.closed_at  BETWEEN %(ep_ini)s AND %(ep_fim)s))"
+            )
+        elif ep_ini is not None:
+            _rk_extra_where = (
+                " AND ((l.created_at IS NOT NULL AND l.created_at >= %(ep_ini)s)"
+                "   OR (l.closed_at  IS NOT NULL AND l.closed_at  >= %(ep_ini)s))"
+            )
+        elif ep_fim is not None:
+            _rk_extra_where = (
+                " AND ((l.created_at IS NOT NULL AND l.created_at <= %(ep_fim)s)"
+                "   OR (l.closed_at  IS NOT NULL AND l.closed_at  <= %(ep_fim)s))"
+            )
+
+        kcur.execute(f"""
             SELECT l.responsible_user_id,
                    SUM(CASE WHEN l.created_at IS NOT NULL
                             AND (%(ep_ini)s IS NULL OR l.created_at >= %(ep_ini)s)
@@ -2445,8 +2552,9 @@ def _build_agent_ranking_completa_vw(
                        THEN 1 ELSE 0 END) AS perdidos_periodo
             FROM leads l
             WHERE l.responsible_user_id IS NOT NULL AND NOT l.is_deleted
+              {_rk_extra_where}
             GROUP BY l.responsible_user_id
-        """, {"ep_ini": ep_ini, "ep_fim": ep_fim})
+        """, _rk_params)
         crm_stats = {}
         for r in kcur.fetchall():
             tot_p = int(r[1] or 0)
@@ -2550,6 +2658,13 @@ def _build_agent_ranking_completa_vw(
         return [], {"titulo": "transferencia/regresso", "total": 0, "itens": []}, []
 
 
+@comercial_rgm_bp.route("/api/comercial-rgm/cache/clear", methods=["POST"])
+def crgm_cache_clear():
+    """Invalida manualmente o cache em memoria do /data."""
+    clear_crgm_data_cache(reason="endpoint manual")
+    return jsonify({"ok": True})
+
+
 @comercial_rgm_bp.route("/api/comercial-rgm/data")
 def crgm_data():
     polo = request.args.get("polo", "")
@@ -2558,6 +2673,15 @@ def crgm_data():
     dt_fim = request.args.get("dt_fim", "")
     ciclo_nome = request.args.get("ciclo", "")
     turma_nome = request.args.get("turma", "")
+
+    # ---- Cache (Fase 3): atende com TTL curto sem recalcular ----
+    _cache_key = _crgm_cache_key_from_args()
+    _no_cache = request.args.get("no_cache") == "1"
+    if not _no_cache:
+        _cached = _crgm_cache_get(_cache_key)
+        if _cached is not None:
+            logger.info("CRGM /data CACHE HIT key=%s", _cache_key)
+            return jsonify(_cached)
 
     # Quando um ciclo do dropdown é selecionado, buscamos suas datas reais
     # em ciclos_comercial. Usamos as datas do ciclo para delimitar matrículas
@@ -2609,17 +2733,43 @@ def crgm_data():
     w = ("WHERE " + " AND ".join(where)) if where else ""
 
     try:
+        import time as _time_mod
+        _crgm_t_start = _time_mod.perf_counter()
+        _crgm_t_lap = _crgm_t_start
+
+        def _lap(label):
+            nonlocal _crgm_t_lap
+            _now = _time_mod.perf_counter()
+            logger.info("CRGM /data [%s] %.2fs", label, _now - _crgm_t_lap)
+            _crgm_t_lap = _now
+
         conn = _pg()
         cur = conn.cursor()
 
-        _periodo_rows = _crgm_periodo_data(
-            dt_ini=_pd_dt_ini,
-            dt_fim=_pd_dt_fim,
+        # Otimização (Fase 2): consulta única em xl_rows (sem filtro de data) e derivação
+        # in-memory dos rows do período. Elimina a 2ª chamada idêntica que existia antes.
+        ciclo_all = _crgm_periodo_data(
             polo=polo or None,
             nivel=nivel or None,
-            ciclo_filter=None,
-            turma=None,
+            conn=conn,
         )
+        _lap("ciclo_all_xl_rows")
+
+        if _pd_dt_ini or _pd_dt_fim:
+            _periodo_rows = []
+            for row in ciclo_all:
+                dm_str = row.get("data_matricula")
+                if not dm_str:
+                    continue
+                dm_key = str(dm_str)[:10]
+                if _pd_dt_ini and dm_key < _pd_dt_ini:
+                    continue
+                if _pd_dt_fim and dm_key > _pd_dt_fim:
+                    continue
+                _periodo_rows.append(row)
+        else:
+            _periodo_rows = list(ciclo_all)
+        _lap("derive_periodo_inmem")
 
         rgms_periodo   = set()          # EM CURSO (líquido)
         rgms_bruto     = set()          # todos (bruto)
@@ -2711,6 +2861,7 @@ def crgm_data():
                 ticket_medio = round((sum(prices) / len(prices)) * 0.30, 2)
         except Exception as e:
             logger.warning("ticket medio kommo: %s", e)
+        _lap("ticket_medio_kommo")
 
         # --- MM Inscritos no período (hist + atual) ---
         mm_insc_count = 0
@@ -2756,6 +2907,7 @@ def crgm_data():
                 mm_insc_count = cur.fetchone()[0] or 0
             except Exception:
                 mm_insc_count = 0
+        _lap("mm_inscritos")
 
         # --- Comparações: 6M / 1 ano / YTD ---
         vendas_6m = 0
@@ -2817,6 +2969,7 @@ def crgm_data():
         pct_6m = round((vendas / vendas_6m - 1) * 100, 1) if vendas_6m > 0 else 0
         pct_1a = round((vendas / vendas_1a - 1) * 100, 1) if vendas_1a > 0 else 0
         pct_ytd = round((vendas_ytd / vendas_prev_ytd - 1) * 100, 1) if vendas_prev_ytd > 0 else 0
+        _lap("comparativos_6m_1a_ytd")
 
         evolucao = [{"data": d.isoformat(), "count": c} for d, c in sorted(day_counts.items())]
         # bruto: union das datas de bruto + liquido para alinhar os dois datasets
@@ -2872,14 +3025,13 @@ def crgm_data():
                                  for d, c in sorted(prev_day_counts.items())]
             except Exception as exc:
                 logger.warning("evolucao prev year: %s", exc)
+        _lap("evolucao_prev")
 
         ranking_polo = [{"nome": p, "total": c}
                         for p, c in sorted(polo_counts.items(), key=lambda x: -x[1])]
 
         # Total do ciclo: bruto + EM CURSO, sem filtro de data.
-        ciclo_all = _crgm_periodo_data(
-            polo=polo or None, nivel=nivel or None,
-        )
+        # Otimização (Fase 2): reutiliza `ciclo_all` já carregado no início (mesma query).
         ciclo_bruto = defaultdict(set)
         ciclo_em_curso = defaultdict(set)
         for row in ciclo_all:
@@ -2897,66 +3049,111 @@ def crgm_data():
 
         cur.close()
         conn.close()
+        _lap("ranking_ciclo")
 
-        ranking_agentes, transferencia_regresso, matriculas_grid = _build_agent_ranking_completa_vw(
-            _pd_dt_ini,
-            _pd_dt_fim,
-            polo or None,
-            nivel or None,
-            None,
-            None,
-            excluded_rgms=_excluded,
-            crm_dt_ini=dt_ini or None,
-            crm_dt_fim=dt_fim or None,
-        )
+        # =====================================================================
+        # ONDA PARALELA 1 (Fase 3): 4 blocos pesados independentes rodam ao
+        # mesmo tempo. Cada thread abre/fecha a propria conexao psycopg2.
+        # =====================================================================
+        from concurrent.futures import ThreadPoolExecutor as _CRGM_TPE
 
-        # --- leads_grid: leads por (data, responsible_user_id) para cross-filter no JS ---
-        leads_grid = []
-        try:
-            _lg_conn = _pg_kommo()
-            _lg_cur = _lg_conn.cursor()
-            _ep_lg_ini = _date_to_epoch(dt_ini or None)
-            _ep_lg_fim = _date_to_epoch(dt_fim or None)
-            if _ep_lg_fim is not None:
-                _ep_lg_fim += 86399
-            _lg_cw = [
-                "l.responsible_user_id IS NOT NULL",
-                "NOT l.is_deleted",
-                "l.created_at IS NOT NULL",
-            ]
-            _lg_cp: list = []
-            if _ep_lg_ini is not None:
-                _lg_cw.append("l.created_at >= %s")
-                _lg_cp.append(_ep_lg_ini)
-            if _ep_lg_fim is not None:
-                _lg_cw.append("l.created_at <= %s")
-                _lg_cp.append(_ep_lg_fim)
-            _lg_where = "WHERE " + " AND ".join(_lg_cw)
-            _lg_cur.execute(
-                f"""
-                SELECT (to_timestamp(l.created_at) AT TIME ZONE 'America/Sao_Paulo')::date AS d,
-                       l.responsible_user_id,
-                       COUNT(*) AS c
-                FROM leads l
-                {_lg_where}
-                GROUP BY 1, 2
-                ORDER BY 1, 2
-                """,
-                _lg_cp,
+        def _task_ranking_vw():
+            return _build_agent_ranking_completa_vw(
+                _pd_dt_ini, _pd_dt_fim, polo or None, nivel or None, None, None,
+                excluded_rgms=_excluded,
+                crm_dt_ini=dt_ini or None,
+                crm_dt_fim=dt_fim or None,
             )
-            leads_grid = [
-                {
-                    "data": (row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])),
-                    "user_id": int(row[1]),
-                    "count": int(row[2]),
-                }
-                for row in _lg_cur.fetchall()
-            ]
-            _lg_cur.close()
-            _lg_conn.close()
-        except Exception as _lg_e:
-            logger.warning("leads_grid: %s", _lg_e)
-            leads_grid = []
+
+        def _task_leads_grid():
+            try:
+                _lg_conn = _pg_kommo()
+                _lg_cur = _lg_conn.cursor()
+                _ep_lg_ini = _date_to_epoch(dt_ini or None)
+                _ep_lg_fim = _date_to_epoch(dt_fim or None)
+                if _ep_lg_fim is not None:
+                    _ep_lg_fim += 86399
+                _lg_cw = [
+                    "l.responsible_user_id IS NOT NULL",
+                    "NOT l.is_deleted",
+                    "l.created_at IS NOT NULL",
+                ]
+                _lg_cp: list = []
+                if _ep_lg_ini is not None:
+                    _lg_cw.append("l.created_at >= %s")
+                    _lg_cp.append(_ep_lg_ini)
+                if _ep_lg_fim is not None:
+                    _lg_cw.append("l.created_at <= %s")
+                    _lg_cp.append(_ep_lg_fim)
+                _lg_where = "WHERE " + " AND ".join(_lg_cw)
+                _lg_cur.execute(
+                    f"""
+                    SELECT (to_timestamp(l.created_at) AT TIME ZONE 'America/Sao_Paulo')::date AS d,
+                           l.responsible_user_id,
+                           COUNT(*) AS c
+                    FROM leads l
+                    {_lg_where}
+                    GROUP BY 1, 2
+                    ORDER BY 1, 2
+                    """,
+                    _lg_cp,
+                )
+                _out = [
+                    {
+                        "data": (row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])),
+                        "user_id": int(row[1]),
+                        "count": int(row[2]),
+                    }
+                    for row in _lg_cur.fetchall()
+                ]
+                _lg_cur.close()
+                _lg_conn.close()
+                return _out
+            except Exception as _lg_e:
+                logger.warning("leads_grid: %s", _lg_e)
+                return []
+
+        def _task_evasao_kommo_lookup():
+            if not evasao_rows:
+                return {}, {}
+            ev_rgm_to_uid_l = {}
+            ev_uid_to_nome_l = {}
+            try:
+                _ev_rgms_lookup = sorted({ev["rgm"] for ev in evasao_rows if ev.get("rgm")})
+                ek_conn = _pg_kommo()
+                ek_cur = ek_conn.cursor()
+                if _ev_rgms_lookup:
+                    ek_cur.execute("""
+                        SELECT DISTINCT ON (v.rgm) v.rgm, l.responsible_user_id,
+                               u.name AS user_name
+                        FROM vw_leads_rgm v
+                        JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
+                        LEFT JOIN users u ON u.id = l.responsible_user_id
+                        WHERE l.responsible_user_id IS NOT NULL
+                          AND v.rgm = ANY(%s)
+                        ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC
+                    """, (_ev_rgms_lookup,))
+                for row_k in ek_cur.fetchall():
+                    nk = _normalize_rgm(row_k[0])
+                    if nk:
+                        ev_rgm_to_uid_l[nk] = row_k[1]
+                        if row_k[1] and row_k[2]:
+                            ev_uid_to_nome_l[row_k[1]] = row_k[2]
+                ek_cur.close()
+                ek_conn.close()
+            except Exception as ek_e:
+                logger.warning("evasao kommo lookup: %s", ek_e)
+            return ev_rgm_to_uid_l, ev_uid_to_nome_l
+
+        with _CRGM_TPE(max_workers=4) as _pool:
+            _fut_ranking = _pool.submit(_task_ranking_vw)
+            _fut_leads = _pool.submit(_task_leads_grid)
+            _fut_evasao = _pool.submit(_task_evasao_kommo_lookup)
+
+            ranking_agentes, transferencia_regresso, matriculas_grid = _fut_ranking.result()
+            leads_grid = _fut_leads.result()
+            _ev_rgm_to_uid_par, _ev_uid_to_nome_par = _fut_evasao.result()
+        _lap("parallel_wave_1")
 
         # --- daily_history: comparativos dia-a-dia (vs 6m e 1 ano) para cross-filter ---
         daily_history: dict = {}
@@ -3008,6 +3205,7 @@ def crgm_data():
         except Exception as _dhe:
             logger.warning("daily_history: %s", _dhe)
             daily_history = {}
+        _lap("daily_history")
 
         # --- Metas por agente: premiacao_campanha_meta (primary) + comercial_metas (fallback)
         #     + pré-definição na premiacao_campanha (def_meta_*) para agentes sem linha em pcm ---
@@ -3079,6 +3277,7 @@ def crgm_data():
         except Exception as e:
             logger.warning("metas por periodo: %s", e)
             metas_load_error = str(e)
+        _lap("metas_por_periodo")
 
         mat_metas = metas_by_cat.get("matriculas", {})
         if camp_defs:
@@ -3138,35 +3337,14 @@ def crgm_data():
                 ag["horas_media"] = _ativ_map.get(uki, {}).get("horas_media")
             else:
                 ag["horas_media"] = None
+        _lap("horas_media_kommo")
 
         # --- Evasão: RGMs brutos que não são EM CURSO → breakdown por tipo e por agente ---
         evasao_data = {"total": 0, "por_tipo": {}, "por_agente": [], "itens": []}
         if evasao_rows:
-            # Mapa RGM → responsible_user_id via Kommo (reutiliza a query do ranking)
-            ev_rgm_to_uid = {}
-            ev_uid_to_nome = {}
-            try:
-                ek_conn = _pg_kommo()
-                ek_cur = ek_conn.cursor()
-                ek_cur.execute("""
-                    SELECT DISTINCT ON (v.rgm) v.rgm, l.responsible_user_id,
-                           u.name AS user_name
-                    FROM vw_leads_rgm v
-                    JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
-                    LEFT JOIN users u ON u.id = l.responsible_user_id
-                    WHERE l.responsible_user_id IS NOT NULL
-                    ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC
-                """)
-                for row_k in ek_cur.fetchall():
-                    nk = _normalize_rgm(row_k[0])
-                    if nk:
-                        ev_rgm_to_uid[nk] = row_k[1]
-                        if row_k[1] and row_k[2]:
-                            ev_uid_to_nome[row_k[1]] = row_k[2]
-                ek_cur.close()
-                ek_conn.close()
-            except Exception as ek_e:
-                logger.warning("evasao kommo lookup: %s", ek_e)
+            # Reaproveita o lookup ja feito em paralelo na Onda 1 (Fase 3).
+            ev_rgm_to_uid = _ev_rgm_to_uid_par
+            ev_uid_to_nome = _ev_uid_to_nome_par
 
             por_tipo = defaultdict(int)
             por_agente = defaultdict(list)
@@ -3196,6 +3374,7 @@ def crgm_data():
                     for ev in evasao_rows
                 ],
             }
+        _lap("evasao_kommo_lookup")
 
         metas_aviso = None
         if metas_load_error:
@@ -3217,7 +3396,7 @@ def crgm_data():
                 "ou ajuste dt início/fim."
             )
 
-        return jsonify({
+        _payload = {
             "ok": True,
             "metas_aviso": metas_aviso,
             "kpis": {
@@ -3247,10 +3426,17 @@ def crgm_data():
             "leads_grid": leads_grid,
             "evasao_grid": evasao_grid,
             "daily_history": daily_history,
-        })
+        }
+        _crgm_cache_set(_cache_key, _payload)
+        return jsonify(_payload)
     except Exception as e:
         logger.exception("comercial_rgm data error")
         return jsonify({"ok": False, "error": str(e)}), 500
+    finally:
+        try:
+            logger.info("CRGM /data TOTAL %.2fs", _time_mod.perf_counter() - _crgm_t_start)
+        except Exception:
+            pass
 
 
 @comercial_rgm_bp.get("/api/comercial-rgm/atividade-kommo")
@@ -3263,8 +3449,8 @@ def crgm_atividade_kommo():
         return jsonify({"ok": False, "error": "dt_ini/dt_fim obrigatórios (YYYY-MM-DD)"}), 400
     user_id_raw = request.args.get("user_id")
     user_id = int(user_id_raw) if (user_id_raw and user_id_raw.isdigit()) else None
-    incluir = True
-    linhas = fetch_atividade_periodo(dt_ini, dt_fim, user_id=user_id, incluir_intervalos=incluir)
+    detalhado = request.args.get("detalhado") == "1"
+    linhas = fetch_atividade_periodo(dt_ini, dt_fim, user_id=user_id, incluir_intervalos=detalhado)
     user_ids = sorted({int(r["created_by"]) for r in linhas if r.get("created_by") is not None})
     nomes = _fetch_kommo_user_names(user_ids) if user_ids else {}
     for r in linhas:
@@ -3275,7 +3461,7 @@ def crgm_atividade_kommo():
         "ok": True,
         "dt_ini": dt_ini.isoformat(),
         "dt_fim": dt_fim.isoformat(),
-        "incluir_intervalos": incluir,
+        "incluir_intervalos": detalhado,
         "linhas": linhas,
     })
 
