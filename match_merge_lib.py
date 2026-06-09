@@ -2237,6 +2237,22 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
     dias_semana = ["seg", "ter", "qua", "qui", "sex", "sab", "dom"]
     log.info("Data de corte: %s (hoje=%s, %s)", data_corte, hoje, dias_semana[hoje.weekday()])
 
+    import os as _os_novo
+    _override_novo = _os_novo.environ.get("DATA_CORTE_NOVO_OVERRIDE", "").strip()
+    data_corte_novo = data_corte
+    if _override_novo:
+        try:
+            from datetime import date as _date_novo
+            _dc_novo = _date_novo.fromisoformat(_override_novo)
+            if _dc_novo < data_corte:
+                data_corte_novo = _dc_novo
+                log.info("DATA_CORTE_NOVO_OVERRIDE ativo: NOVO janela estendida para >= %s (data_corte global mantida em %s)",
+                         _dc_novo, data_corte)
+            else:
+                log.info("DATA_CORTE_NOVO_OVERRIDE %s ignorado (mais recente que data_corte %s)", _dc_novo, data_corte)
+        except ValueError:
+            log.warning("DATA_CORTE_NOVO_OVERRIDE invalido: %r", _override_novo)
+
     acoes = []
     _perdido_unificar = {}
     cpfs_recentes = set()
@@ -2283,6 +2299,47 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
         pass
     log.info("CPFs com RGM (já matriculados): %d", len(cpfs_com_rgm))
 
+    # Lookup CPF -> dados de mm_matriculados (enriquece NOVO de inscrito Matriculado).
+    # Janela 60d para cobrir matrículas antigas que ainda não viraram lead.
+    # Usado pela Opção A da decisão 2026-06-09: inscrito com siaa_situacao=Matriculado
+    # ignora janela de data e cria NOVO direto em Venda ganha.
+    cpf_to_mat_data: dict[str, dict] = {}
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT cpf, rgm, email_ad, fone_cel, polo_aulas, polo_captador,
+                       data_matricula::text, tipo_matricula, curso_limpo
+                FROM mm_matriculados
+                WHERE data_matricula::date >= (CURRENT_DATE - INTERVAL '60 days')
+                  AND UPPER(COALESCE(situacao,'')) = 'MATRICULADO'
+                  AND polo_captador IN (
+                      '18 - UNICID - GRADUAÇÃO EAD',
+                      '16 - CRUZEIRO DO SUL - GRADUAÇÃO EAD',
+                      '41 - CRUZEIRO DO SUL - PÓS-EAD'
+                  )
+                  AND UPPER(COALESCE(tipo_matricula,'')) IN ('NOVA MATRICULA','RECOMPRA','RETORNO')
+                  AND cpf IS NOT NULL AND cpf != ''
+                ORDER BY data_matricula DESC
+            """)
+            for r in cur.fetchall():
+                _cpf = r[0]
+                if _cpf not in cpf_to_mat_data:
+                    cpf_to_mat_data[_cpf] = {
+                        "rgm": r[1] or "",
+                        "email_ad": (r[2] or "").strip().lower(),
+                        "fone_cel": r[3] or "",
+                        "polo_aulas": r[4] or "",
+                        "polo_captador": r[5] or "",
+                        "data_matricula": r[6] or "",
+                        "tipo_matricula": r[7] or "",
+                        "curso_limpo": r[8] or "",
+                    }
+        conn.close()
+    except Exception as exc:
+        log.warning("Falha ao carregar cpf_to_mat_data: %s", exc)
+    log.info("Lookup mm_matriculados (60d, polos UNICID/CSED): %d CPFs", len(cpf_to_mat_data))
+
     n_ja_existe = 0
     n_mover_perdido = 0
     n_restaurar = 0
@@ -2314,6 +2371,7 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
 
         dt_inscr_parsed = limpar_data_flex(row.get("data_inscr"))
         is_recente = dt_inscr_parsed is None or dt_inscr_parsed >= data_corte
+        is_recente_novo = dt_inscr_parsed is None or dt_inscr_parsed >= data_corte_novo
 
         if is_recente:
             cpfs_recentes.add(row.get("cpf", ""))
@@ -2444,10 +2502,28 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                     else:
                         acoes.append({**base, "acao": "ATUALIZAR", "lead_id": lead_id})
         else:
-            if not is_recente:
+            # Opção A (decisão 2026-06-09): inscrito com SIAA situação "Matriculado"
+            # e sem lead Kommo ignora a janela data_corte_novo e cria NOVO direto
+            # em Venda ganha (novo_matriculado=True). Cobre o caso "inscreveu antes
+            # de D-2 e matriculou depois — ficaria órfão pelo filtro de data".
+            _siaa_sit_upper = (siaa_sit or "").strip().upper()
+            _is_matriculado_inscrito = _siaa_sit_upper == "MATRICULADO"
+
+            if not _is_matriculado_inscrito and not is_recente_novo:
                 n_data_filtrada += 1
                 continue
-            acoes.append({**base, "acao": "NOVO", "lead_id": None})
+
+            _novo_acao = {**base, "acao": "NOVO", "lead_id": None}
+            if _is_matriculado_inscrito:
+                _mat_data = cpf_to_mat_data.get(base["cpf"])
+                if _mat_data:
+                    _novo_acao["novo_matriculado"] = True
+                    _novo_acao["rgm"] = _mat_data.get("rgm", "")
+                    _novo_acao["data_matricula"] = _mat_data.get("data_matricula", "")
+                    if _mat_data.get("email_ad"):
+                        _novo_acao["email_ad"] = _mat_data["email_ad"]
+                    _novo_acao["situacao_siaa"] = "Matriculado"
+            acoes.append(_novo_acao)
 
     # --- VENDA GANHA: leads já em Fechado Ganho → contar como JÁ EXISTE ---
     if ganho_para_verificar:
@@ -2811,6 +2887,173 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
 
     _n_mat_pre_dedup = sum(1 for a in acoes if a["acao"] == "MATRICULADO")
     log.info("MATRICULADO ANTES do dedup: %d (D-1=%d)", _n_mat_pre_dedup, n_mat_d1)
+
+    # ── NOVO MATRICULADO ÓRFÃO (Opção B - decisão 2026-06-09) ──────────
+    # Para matriculados na janela 60d que NÃO têm NENHUM lead no Kommo
+    # (nem por CPF, email, telefone ou RGM), gera NOVO direto em Venda ganha
+    # (novo_matriculado=True). Cobre o caso de matrícula direta no SIAA sem
+    # inscrição prévia online (e também os que não foram pegos pela Opção A
+    # porque não estavam em mm_inscritos).
+    # O guard search_lead_by_cpf em executar_acoes funciona como anti-duplicata
+    # final, garantindo que nada é criado em duplicidade contra o Kommo real.
+    n_orf_novo = 0
+    try:
+        # Carrega índices (idx_cpf/email/tel/rgm) próprios para esse bloco —
+        # isola do try/except do MATRICULADO D-1.
+        kconn_orf = get_kommo_conn()
+        idx_cpf_orf: dict[str, set[int]] = {}
+        idx_email_orf: dict[str, set[int]] = {}
+        idx_tel_orf: dict[str, set[int]] = {}
+        idx_rgm_orf: dict[str, set[int]] = {}
+        with kconn_orf.cursor() as kcur_orf:
+            kcur_orf.execute("""
+                SELECT lead_id, field_name,
+                       LOWER(TRIM(values_json->0->>'value')) AS val
+                FROM lead_custom_field_values
+                WHERE field_name IN (
+                    'CPF','E-mail','Email Acadêmico',
+                    'Telefone Comercial','Telefone Inscricao','RGM'
+                ) AND values_json->0->>'value' IS NOT NULL
+                  AND TRIM(values_json->0->>'value') != ''
+            """)
+            for lid, fname, val in kcur_orf.fetchall():
+                if fname == "CPF":
+                    idx_cpf_orf.setdefault(re.sub(r"[^0-9]", "", val).zfill(11), set()).add(lid)
+                elif fname in ("E-mail", "Email Acadêmico"):
+                    idx_email_orf.setdefault(val.strip(), set()).add(lid)
+                elif fname in ("Telefone Comercial", "Telefone Inscricao"):
+                    tc = re.sub(r"[^0-9]", "", val)
+                    if len(tc) >= 10:
+                        idx_tel_orf.setdefault(tc[-11:], set()).add(lid)
+                        idx_tel_orf.setdefault(tc[-10:], set()).add(lid)
+                elif fname == "RGM":
+                    idx_rgm_orf.setdefault(val.strip(), set()).add(lid)
+        kconn_orf.close()
+
+        dconn_orf = get_conn()
+        with dconn_orf.cursor() as dcur_orf:
+            dcur_orf.execute("""
+                SELECT cpf, rgm, email, email_ad, fone_cel, nome,
+                       data_matricula::text, tipo_matricula,
+                       polo_captador, polo_aulas, curso_limpo, rg
+                FROM mm_matriculados
+                WHERE data_matricula::date >= (CURRENT_DATE - INTERVAL '60 days')
+                  AND UPPER(COALESCE(tipo_matricula,'')) IN ('NOVA MATRICULA','RECOMPRA','RETORNO')
+                  AND UPPER(COALESCE(situacao,'')) = 'MATRICULADO'
+                  AND polo_captador IN (
+                      '18 - UNICID - GRADUAÇÃO EAD',
+                      '16 - CRUZEIRO DO SUL - GRADUAÇÃO EAD',
+                      '41 - CRUZEIRO DO SUL - PÓS-EAD'
+                  )
+                  AND cpf IS NOT NULL AND cpf != ''
+            """)
+            mat_full = dcur_orf.fetchall()
+        dconn_orf.close()
+
+        acoes_cpfs_atuais = {a.get("cpf") for a in acoes if a.get("cpf")}
+
+        for row_orf in mat_full:
+            (cpf_o, rgm_o, email_o, email_ad_o, fone_o, nome_o,
+             dt_mat_o, tipo_mat_o, polo_capt_o, polo_aulas_o,
+             curso_o, rg_o) = row_orf
+            cpf_clean_o = re.sub(r"[^0-9]", "", str(cpf_o or "")).zfill(11)
+            if cpf_clean_o == "0" * 11 or not _cpf_valido(cpf_clean_o):
+                continue
+            if cpf_clean_o in acoes_cpfs_atuais:
+                continue  # já tem ação para essa pessoa (NOVO/ATUALIZAR/MATRICULADO)
+
+            # Verifica match em qualquer índice do Kommo
+            has_match = bool(idx_cpf_orf.get(cpf_clean_o))
+            rgm_norm_o = (str(rgm_o or "")).strip().lower()
+            if not has_match and rgm_norm_o and idx_rgm_orf.get(rgm_norm_o):
+                has_match = True
+            email_o_l = (email_o or "").strip().lower()
+            if not has_match and email_o_l and idx_email_orf.get(email_o_l):
+                has_match = True
+            email_ad_o_l = (email_ad_o or "").strip().lower()
+            if not has_match and email_ad_o_l and idx_email_orf.get(email_ad_o_l):
+                has_match = True
+            if not has_match and fone_o:
+                tc_o = re.sub(r"[^0-9]", "", str(fone_o))
+                if len(tc_o) >= 10 and (idx_tel_orf.get(tc_o[-11:]) or idx_tel_orf.get(tc_o[-10:])):
+                    has_match = True
+            if has_match:
+                continue
+
+            # Sem match em lugar nenhum → enriquece com mm_inscritos quando disponível
+            d_insc_o = polo_norm_o = marca_o = modalidade_o = grau_o = ""
+            inscricao_o = cep_o = chave_o = preco_o = sem_o = turma_o = ""
+            try:
+                dconn_orf2 = get_conn()
+                with dconn_orf2.cursor() as cur_orf2:
+                    cur_orf2.execute("""
+                        SELECT data_inscr::text, polo_normalizado, marca_instituicao,
+                               modalidade, grau_curso, inscricao, cep, chave_preco,
+                               preco_balcao, semestres, trimestre_ingresso
+                        FROM mm_inscritos
+                        WHERE cpf = %s ORDER BY data_inscr DESC LIMIT 1
+                    """, (cpf_o,))
+                    row_insc_o = cur_orf2.fetchone()
+                    if row_insc_o:
+                        d_insc_o = row_insc_o[0] or ""
+                        polo_norm_o = row_insc_o[1] or ""
+                        marca_o = row_insc_o[2] or ""
+                        modalidade_o = row_insc_o[3] or ""
+                        grau_o = row_insc_o[4] or ""
+                        inscricao_o = row_insc_o[5] or ""
+                        cep_o = row_insc_o[6] or ""
+                        chave_o = row_insc_o[7] or ""
+                        preco_o = row_insc_o[8] or ""
+                        sem_o = row_insc_o[9] or ""
+                        turma_o = row_insc_o[10] or ""
+                dconn_orf2.close()
+            except Exception:
+                pass
+
+            polo_lead_o = polo_norm_o or ""
+            marca_lead_o = marca_o or polo_capt_o or ""
+            modalidade_lead_o = modalidade_o or ("EAD" if "EAD" in (polo_capt_o or "").upper() else "")
+            d_insc_iso_o = f"{d_insc_o}T00:00:00-03:00" if d_insc_o and len(d_insc_o) == 10 else ""
+            d_mat_iso_o = f"{dt_mat_o}T00:00:00-03:00" if dt_mat_o and len(dt_mat_o) == 10 else ""
+
+            acoes.append({
+                "acao": "NOVO",
+                "lead_id": None,
+                "novo_matriculado": True,
+                "nome": nome_o,
+                "cpf": cpf_clean_o,
+                "rgm": str(rgm_o or ""),
+                "rg": rg_o or "",
+                "curso_siaa": curso_o or "",
+                "curso_generico": curso_o or "",
+                "polo": polo_lead_o,
+                "marca": marca_lead_o,
+                "telefone": str(fone_o or "").strip(),
+                "email": (email_o or "").strip(),
+                "email_pessoal": email_o_l,
+                "email_ad": email_ad_o_l,
+                "modalidade": modalidade_lead_o,
+                "grau": grau_o,
+                "situacao_siaa": "Matriculado",
+                "situacao_kommo": "",
+                "match_tipo": "orfao_matriculado",
+                "chave_siaa": chave_o,
+                "preco_siaa": str(preco_o or ""),
+                "duracao_siaa": str(sem_o or ""),
+                "nro_inscricao": str(inscricao_o or ""),
+                "turma_ingresso": turma_o,
+                "cep": cep_o,
+                "origem": "SIAA",
+                "data_inscr": d_insc_o,
+                "data_inscr_kommo": d_insc_iso_o,
+                "data_matricula": d_mat_iso_o,
+                "tipo_matricula": tipo_mat_o or "",
+            })
+            acoes_cpfs_atuais.add(cpf_clean_o)
+            n_orf_novo += 1
+        log.info("NOVO matriculado órfão (sem nenhum lead Kommo, janela 60d): %d", n_orf_novo)
+    except Exception as exc:
+        log.warning("Erro na geração de NOVO matriculado órfão: %s", exc, exc_info=True)
 
     # ── ENRIQUECER MATRICULADO com dados dos inscritos ─────────────────────
     # Busca dados do inscrito por CPF para preencher campos adicionais.

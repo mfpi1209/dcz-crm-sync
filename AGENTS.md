@@ -132,6 +132,36 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 - **Decisão:** No painel **Equipe Suporte Comercial** (Minha Performance), KPI **Matrículas no Período** e barra de meta usam **`vendas` bruto** (mesmo card do Dashboard Comercial); gráfico diário usa **`evolucao` EM CURSO**. Função compartilhada `comercial_periodo_vendas_resumo()` em `comercial_rgm.py`; o front também chama `GET /api/comercial-rgm/data` ao abrir o painel (fallback se período da campanha divergir do filtro do Comercial). **PIX diário** continua por **aceites** do time Suporte.
 - **Alternativas descartadas:** somar só os 4 usuários Suporte; contar só EM CURSO no KPI (card Comercial é bruto); confiar só em import interno sem bater com a API do Comercial.
 
+### 2026-06-01 — Reconcile aceites: GET individual em leads "stale" (fim do false-deleted)
+- **Modelo usado:** Opus 4.7 (principal)
+- **Problema:** `reconcile_aceite_leads()` em `routes/kommo_sync.py` (rodando a cada 10 min via scheduler) marcava como `is_deleted=TRUE` qualquer lead que estivesse em "Aceite" no DB local mas **não retornasse no filtro de Aceite** da API do Kommo. Não distinguia "lead deletado de fato" de "lead que mudou de etapa naturalmente" (Ganho, Em Atendimento, etc). Sintoma: matriculados movidos pra "Venda ganha" no Kommo eram marcados como deletados no DB local, sumindo do dashboard e impedindo o pipeline de match_merge de gerar ações `MATRICULADO`.
+- **Escala do impacto:** 197 leads acumulados em `Aceite + is_deleted=TRUE` em 01/06 (49 marcados no próprio dia, 98 em 29/05); destes, 163 estavam vivos no Kommo (a maioria já em "Venda ganha") e 34 realmente deletados.
+- **Decisão:** No bloco `stale_ids = db_aceite_ids - api_lead_ids`, em vez de UPDATE em lote para `is_deleted=TRUE`, fazer **GET individual** `/api/v4/leads/{id}` em cada stale:
+  - HTTP 200 → atualiza `status_id`, `pipeline_id`, `responsible_user_id`, `updated_at` reais e mantém `is_deleted=FALSE`.
+  - HTTP 404/204 → marca `is_deleted=TRUE` (deletado de fato).
+  - Outros erros → conta em `stale_check_errors`, não muda o lead.
+- **Salvaguardas:** sleep 0.05s entre requests; limite `STALE_BATCH_LIMIT=500` por execução (acima disso, pula stale check e loga warning — anomalia provável).
+- **Custo:** +1 request por lead "stale" por ciclo (típico ~5–50). Em condições normais, ciclo de 10 min absorve sem rate-limit.
+- **Fix imediato aplicado:** script `_resync_falso_deletados.py` rodado em 01/06 11:31 → 163 revividos, 34 confirmados deletados.
+- **Alternativas descartadas:**
+  - *Aumentar `KOMMO_DELTA_LOOKBACK_DAYS` (1→7):* não resolve, o bug é do reconcile, não do delta.
+  - *Desligar reconcile:* perde detecção de novos leads em Aceite.
+  - *Marcar deletado só após N ciclos seguidos sem retorno:* atrasa o detect real e mantém o bug.
+  - *Bulk GET (`filter[id][]`):* mais eficiente porém adiciona complexidade; mantém GET único por simplicidade enquanto o volume é baixo.
+
+### 2026-06-09 — Match/Merge: criar lead para matriculado órfão (fim do filtro silencioso)
+- **Modelo usado:** Opus 4.7 (principal)
+- **Problema:** No `match_merge_lib.gerar_acoes()`, a regra de geração de `NOVO` filtrava por `data_inscr >= data_corte_novo` (D-2 default). Quando a pessoa se inscreveu antes de D-2 e matriculou depois, o pipeline a descartava silenciosamente (contado em `n_data_filtrada`). O bloco `MATRICULADO D-1` só atua sobre leads existentes — não cria. Resultado: matrículas ficavam sem lead correspondente no Kommo, somem do dashboard e do funil. Em janela de 30 dias foram identificados **16 órfãos** (15 corrigidos via script manual em 09/06; 1 era falso positivo por sync delay).
+- **Decisão (Opção C: A + B combinadas):**
+  - **A — Inscrito Matriculado ignora a janela:** No loop principal de `inscritos_match["detalhes"]`, quando `lead_id is None` e `siaa_situacao == "MATRICULADO"`, força a criação de `NOVO` com `novo_matriculado=True` (já cria direto em Venda ganha) independente de `data_inscr`. Enriquece com RGM/data_matricula/email_ad lookup em `mm_matriculados` por CPF.
+  - **B — Matriculado órfão cria NOVO direto a partir de `mm_matriculados`:** Após o bloco MATRICULADO D-1, varre `mm_matriculados` (janela 60d, polos UNICID/CSED, tipos NOVA MATRICULA/RECOMPRA/RETORNO). Para cada matriculado **sem nenhum match no Kommo** (CPF/email/email_ad/tel/RGM nos índices já carregados) e que ainda não está em outra ação, gera `NOVO` com `novo_matriculado=True`. Captura o caso de matrícula direta no SIAA sem inscrição prévia online.
+- **Não altera:** filtro `is_recente_novo` para inscritos NÃO matriculados — preserva o comportamento de não trazer histórico antigo de inscrições que nunca viraram nada. Guard `search_lead_by_cpf` em `executar_acoes` (linhas 3573-3588) continua atuando como anti-duplicata final em ambos os caminhos.
+- **Cobertura prevista:** 100% dos matriculados de polos UNICID/CSED com NOVA MATRICULA/RECOMPRA/RETORNO terão lead no Kommo automaticamente (com data_inscr antiga, sem inscrição online ou inscritos com status terminal "Matriculado").
+- **Alternativas descartadas:**
+  - *Opção D (remover janela `is_recente_novo` de vez):* trazia milhares de inscritos antigos do histórico SIAA sem matrícula como leads novos — bagunça funil, sobrecarrega consultores.
+  - *Estender `data_corte_novo` para 60d global:* mesmo efeito da D, só que diferido.
+  - *Tratar manualmente sempre:* já provamos que não escala (16 casos em 30d, tendência crescente).
+
 ### Convenções derivadas
 
 - Toda decisão estrutural tomada por Opus deve ser registrada neste arquivo na seção "Decisões técnicas" antes de delegar a implementação.

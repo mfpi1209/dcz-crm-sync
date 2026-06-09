@@ -1,3 +1,5 @@
+import re
+
 import psycopg2
 import psycopg2.extras
 from flask import Blueprint, request, jsonify, session
@@ -14,6 +16,21 @@ def _require_admin():
     if session.get("role") != "admin":
         return jsonify({"error": "Acesso negado"}), 403
     return None
+
+
+# O <input type="date"> envia "YYYY-MM-DD". Sem horário, o Postgres interpreta
+# como meia-noite UTC, o que faz "expira em 25/05" valer só até 24/05 21:00 BRT.
+# Trata como fim do dia em horário de Brasília para que o aviso valha o dia
+# inteiro escolhido pelo admin.
+def _normalize_expires_at(value):
+    if not value:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
+        return f"{s} 23:59:59-03:00"
+    return s
 
 
 _VISIBLE_WHERE = """
@@ -159,7 +176,7 @@ def criar_aviso():
     prioridade = data.get("prioridade", "normal")
     target_role = data.get("target_role", "todos")
     target_user_ids = data.get("target_user_ids") or []
-    expires_at = data.get("expires_at") or None
+    expires_at = _normalize_expires_at(data.get("expires_at"))
     # session["user_id"] = 0 quando o login vem do fallback do .env
     # (APP_USER/APP_PASS) — esse id não existe em app_users e violaria a FK
     # created_by. Trata como NULL nesse caso.
@@ -204,7 +221,7 @@ def editar_aviso(aviso_id):
             data.get("prioridade", "normal"),
             data.get("target_role", "todos"),
             data.get("target_user_ids") or [],
-            data.get("expires_at") or None,
+            _normalize_expires_at(data.get("expires_at")),
             aviso_id,
         ))
     conn.commit()

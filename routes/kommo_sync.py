@@ -167,28 +167,37 @@ def api_kommo_recent_changes():
         conn = _pg()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-        cur.execute("""
+        _lead_synced_since = (
+            "NULLIF(trim(l.synced_at), '')::timestamptz >= NOW() - (%s * INTERVAL '1 hour')"
+        )
+        _synced_since = (
+            "NULLIF(trim(synced_at), '')::timestamptz >= NOW() - (%s * INTERVAL '1 hour')"
+        )
+        cur.execute(f"""
             SELECT p.name AS pipeline_name, ps.name AS stage_name, COUNT(*) AS total
             FROM leads l
             JOIN pipeline_statuses ps ON ps.id = l.status_id
             JOIN pipelines p ON p.id = l.pipeline_id
-            WHERE l.synced_at >= (NOW() - INTERVAL '%s hours')::text
+            WHERE {_lead_synced_since}
             GROUP BY p.name, ps.name, ps.sort, p.sort
             ORDER BY p.sort, ps.sort
         """, (hours,))
         by_stage = [dict(r) for r in cur.fetchall()]
 
-        cur.execute("SELECT COUNT(*) AS t FROM leads WHERE synced_at >= (NOW() - INTERVAL '%s hours')::text", (hours,))
+        cur.execute(f"SELECT COUNT(*) AS t FROM leads WHERE {_synced_since}", (hours,))
         leads_upd = cur.fetchone()["t"]
 
-        cur.execute("SELECT COUNT(*) AS t FROM contacts WHERE synced_at >= (NOW() - INTERVAL '%s hours')::text", (hours,))
+        cur.execute(f"SELECT COUNT(*) AS t FROM contacts WHERE {_synced_since}", (hours,))
         contacts_upd = cur.fetchone()["t"]
 
         since_ts = int(_time.time()) - (hours * 3600)
         cur.execute("SELECT COUNT(*) AS t FROM leads WHERE created_at >= %s AND is_deleted = false", (since_ts,))
         new_leads = cur.fetchone()["t"]
 
-        cur.execute("SELECT COUNT(*) AS t FROM leads WHERE status_id = 142 AND synced_at >= (NOW() - INTERVAL '%s hours')::text", (hours,))
+        cur.execute(
+            f"SELECT COUNT(*) AS t FROM leads WHERE status_id = 142 AND {_synced_since}",
+            (hours,),
+        )
         won = cur.fetchone()["t"]
 
         conn.close()
@@ -729,20 +738,70 @@ def reconcile_aceite_leads():
                 )
                 inserted += 1
 
+        # "Stale": leads que estavam em Aceite no DB mas nao retornaram no filtro de Aceite da API.
+        # NAO marcar como deletado cegamente — o lead pode ter mudado de etapa (Ganho, Em Atendimento, etc).
+        # Faz GET individual: se vivo, atualiza status real e mantem is_deleted=FALSE; se 404/204, marca deletado.
         stale_ids = db_aceite_ids - api_lead_ids
         stale_deleted = 0
+        stale_status_changed = 0
+        stale_check_errors = 0
+        STALE_BATCH_LIMIT = 500  # protecao: se passar disso, algo absurdo aconteceu, aborta o stale check
+
         if stale_ids:
-            stale_ph = ",".join(["%s"] * len(stale_ids))
-            cur.execute(
-                f"UPDATE leads SET is_deleted = true WHERE id IN ({stale_ph})",
-                list(stale_ids),
-            )
-            stale_deleted = cur.rowcount
-            logger.info("Reconcile aceites: marked %d stale leads as deleted", stale_deleted)
+            if len(stale_ids) > STALE_BATCH_LIMIT:
+                logger.warning(
+                    "Reconcile aceites: %d stale leads ultrapassam limite de %d — pulando stale check (anomalia)",
+                    len(stale_ids), STALE_BATCH_LIMIT,
+                )
+            else:
+                logger.info("Reconcile aceites: verificando %d leads stale individualmente", len(stale_ids))
+                for lid in stale_ids:
+                    try:
+                        r = _kommo_get(f"/leads/{lid}")
+                    except Exception as e:
+                        stale_check_errors += 1
+                        logger.warning("Reconcile aceites: erro GET lead %s: %s", lid, e)
+                        continue
+
+                    if r.status_code in (204, 404):
+                        cur.execute(
+                            "UPDATE leads SET is_deleted = true WHERE id = %s",
+                            (lid,),
+                        )
+                        stale_deleted += 1
+                    elif r.status_code == 200:
+                        try:
+                            ld = r.json() or {}
+                        except Exception:
+                            stale_check_errors += 1
+                            continue
+                        cur.execute(
+                            "UPDATE leads SET status_id = %s, pipeline_id = %s, "
+                            "responsible_user_id = %s, updated_at = %s, is_deleted = false "
+                            "WHERE id = %s",
+                            (
+                                ld.get("status_id"),
+                                ld.get("pipeline_id"),
+                                ld.get("responsible_user_id"),
+                                ld.get("updated_at"),
+                                lid,
+                            ),
+                        )
+                        stale_status_changed += 1
+                    else:
+                        stale_check_errors += 1
+                        logger.warning("Reconcile aceites: lead %s status %d", lid, r.status_code)
+
+                    _time.sleep(0.05)
+
+                logger.info(
+                    "Reconcile aceites stale: %d com status atualizado, %d marcados deletados, %d erros",
+                    stale_status_changed, stale_deleted, stale_check_errors,
+                )
 
         conn.commit()
-        logger.info("Reconcile aceites: api=%d, upserted=%d, inserted=%d, stale=%d",
-                     len(api_lead_ids), upserted, inserted, stale_deleted)
+        logger.info("Reconcile aceites: api=%d, upserted=%d, inserted=%d, stale_changed=%d, stale_deleted=%d",
+                     len(api_lead_ids), upserted, inserted, stale_status_changed, stale_deleted)
 
         cur.close()
         conn.close()
@@ -751,7 +810,9 @@ def reconcile_aceite_leads():
             "api_aceites": len(api_lead_ids),
             "status_updated": upserted,
             "new_inserted": inserted,
+            "stale_status_changed": stale_status_changed,
             "stale_marked_deleted": stale_deleted,
+            "stale_check_errors": stale_check_errors,
         }
     except Exception as e:
         logger.error("Reconcile aceites error: %s", e)
