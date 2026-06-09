@@ -43,13 +43,23 @@ function _crgmPickLatestMetaPeriod(periods) {
 }
 
 async function loadComercialRgm() {
-    await _crgmLoadCiclos();
-    await _crgmLoadTurmas();
-    const filtersData = await _crgmLoadFilters();
-    await _crgmLoadSnapshotInfo();
+    // Ondas A + B disparadas em paralelo
+    // A: dados estruturais — B: metas/campanhas para calcular período + prefetch histórico
+    const [, , filtersData, , d, dc] = await Promise.all([
+        _crgmLoadCiclos(),
+        _crgmLoadTurmas(),
+        _crgmLoadFilters(),
+        _crgmLoadSnapshotInfo(),
+        api('/api/comercial-rgm/metas?categoria=matriculas').then(r => r.json()),
+        api('/api/premiacao/campanhas-periodos').then(r => r.json()),
+        _crgmPrefetchHistoricoMetas(),
+    ]);
+
+    // _crgmAutoSyncUsers depende de filtersData (vem da Onda A)
     if (filtersData && (!filtersData.agentes || filtersData.agentes.length === 0)) {
         await _crgmAutoSyncUsers();
     }
+
     const elIni = document.getElementById('crgm-dt-ini');
     const elFim = document.getElementById('crgm-dt-fim');
     // Sempre calcula o período mais recente (comercial_metas + Premiação). Antes só aplicávamos se DE ou ATÉ
@@ -57,15 +67,11 @@ async function loadComercialRgm() {
     // a metas antigas mesmo existindo campanha/meta mais nova.
     try {
         const periods = [];
-        const res = await api('/api/comercial-rgm/metas?categoria=matriculas');
-        const d = await res.json();
         if (d.ok && d.metas?.length) {
             for (const m of d.metas) {
                 if (m.dt_inicio && m.dt_fim) periods.push({ dt_inicio: m.dt_inicio, dt_fim: m.dt_fim });
             }
         }
-        const resC = await api('/api/premiacao/campanhas-periodos');
-        const dc = await resC.json();
         if (dc.ok && dc.campanhas?.length) {
             for (const c of dc.campanhas) {
                 if (c.dt_inicio && c.dt_fim) periods.push({ dt_inicio: c.dt_inicio, dt_fim: c.dt_fim });
@@ -94,7 +100,6 @@ async function loadComercialRgm() {
         if (!elIni.value) elIni.value = ini.toISOString().substring(0, 10);
         if (!elFim.value) elFim.value = hoje.toISOString().substring(0, 10);
     }
-    await _crgmPrefetchHistoricoMetas();
     _crgmBindTopbarDates();
     crgmAtualizar();
     if (typeof refreshTopbarForPage === 'function') refreshTopbarForPage('comercial_rgm');
@@ -200,10 +205,12 @@ async function crgmAtualizar() {
         _crgmRenderPoloTable(d.ranking_polo);
         _crgmRenderTransferencia(d.transferencia_regresso);
         crgmAtualizarBadgeConflitos();
-        // Grupo 5.4: carrega atividade sem filtro de agente (filtro é client-side)
-        await _crgmLoadAtividade(dtIni, dtFim, null);
         // _crgmCrossRerenderAll renderiza KPIs, evasão, evolução, ranking e atividade
+        // Atividade Kommo é desacoplada: carrega em paralelo sem bloquear o render principal
         _crgmCrossRerenderAll();
+        _crgmLoadAtividade(dtIni, dtFim, null)
+            .then(() => _crgmRenderAtividade())
+            .catch(err => console.error('Erro ao carregar atividade Kommo:', err));
     } catch (e) { _crgmErro('Erro: ' + e.message); }
     finally {
         _crgmLoading(false);
@@ -614,7 +621,9 @@ async function _crgmLoadAtividade(dtIni, dtFim, userId) {
         return [];
     }
     bodyEl.innerHTML = '<p class="text-xs text-slate-400 animate-pulse">Carregando atividade Kommo...</p>';
-    let url = `/api/comercial-rgm/atividade-kommo?dt_ini=${dtIni}&dt_fim=${dtFim}`;
+    // detalhado=1 mantém intervalos_sem_atividade para o painel de expansão client-side;
+    // trocar para detalhado=0 na Fase 2 quando a expansão fizer fetch sob demanda
+    let url = `/api/comercial-rgm/atividade-kommo?dt_ini=${dtIni}&dt_fim=${dtFim}&detalhado=1`;
     if (userId) url += `&user_id=${userId}`;
     try {
         const res = await api(url);
@@ -636,7 +645,9 @@ async function _crgmLoadAtividade(dtIni, dtFim, userId) {
 function _crgmRenderAtividade() {
     const bodyEl = document.getElementById('crgm-atividade-body');
     if (!bodyEl) return;
-    const linhas = _crgmLastAtividade || [];
+    // null = ainda não carregado (spinner já está no bodyEl via _crgmLoadAtividade); não sobrescrever
+    if (_crgmLastAtividade === null) return;
+    const linhas = _crgmLastAtividade;
     if (!linhas.length) {
         bodyEl.innerHTML = '<p class="text-xs text-slate-500">Nenhuma atividade encontrada para o período.</p>';
         return;
