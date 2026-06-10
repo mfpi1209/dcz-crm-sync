@@ -1,38 +1,4 @@
 {
-  "2026-05-04": {
-    "incoming": 0,
-    "contato_inicial": 2,
-    "sem_resposta": 495,
-    "em_atendimento": 181,
-    "aguardando_resposta": 2683,
-    "aguardando_inscricao": 111,
-    "inscricao": 7,
-    "processo_seletivo": 39,
-    "em_processo": 27,
-    "aprovado_reprovado": 25,
-    "boleto_enviado": 3,
-    "aceite": 44,
-    "qualificacao": 3,
-    "pagamento_confirmado": 9,
-    "_total": 3629
-  },
-  "2026-05-05": {
-    "incoming": 0,
-    "contato_inicial": 1,
-    "sem_resposta": 645,
-    "em_atendimento": 125,
-    "aguardando_resposta": 2946,
-    "aguardando_inscricao": 128,
-    "inscricao": 2,
-    "processo_seletivo": 48,
-    "em_processo": 30,
-    "aprovado_reprovado": 37,
-    "boleto_enviado": 7,
-    "aceite": 14,
-    "qualificacao": 2,
-    "pagamento_confirmado": 9,
-    "_total": 3994
-  },
   "2026-05-12": {
     "incoming": 0,
     "contato_inicial": 0,
@@ -134,5 +100,39 @@
     "qualificacao": 2,
     "pagamento_confirmado": 8,
     "_total": 3694
+  },
+  "2026-06-08": {
+    "incoming": 1,
+    "contato_inicial": 0,
+    "sem_resposta": 167,
+    "em_atendimento": 195,
+    "aguardando_resposta": 715,
+    "aguardando_inscricao": 68,
+    "inscricao": 8,
+    "processo_seletivo": 25,
+    "em_processo": 43,
+    "aprovado_reprovado": 28,
+    "boleto_enviado": 3,
+    "aceite": 40,
+    "qualificacao": 3,
+    "pagamento_confirmado": 13,
+    "_total": 1309
+  },
+  "2026-06-10": {
+    "incoming": 1,
+    "contato_inicial": 2,
+    "sem_resposta": 372,
+    "em_atendimento": 48,
+    "aguardando_resposta": 1286,
+    "aguardando_inscricao": 99,
+    "inscricao": 3,
+    "processo_seletivo": 45,
+    "em_processo": 46,
+    "aprovado_reprovado": 75,
+    "boleto_enviado": 7,
+    "aceite": 25,
+    "qualificacao": 2,
+    "pagamento_confirmado": 12,
+    "_total": 2023
   }
 }
