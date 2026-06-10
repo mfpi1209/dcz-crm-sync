@@ -70,7 +70,7 @@
       <div style="background: #f0f9ff; border-left: 4px solid #169DBB; padding: 16px 20px; border-radius: 8px; margin-bottom: 24px;">
         <p style="color: #0369a1; margin: 0; line-height: 1.6;">${e(o.mensagem)}</p>
       </div>
-    `);let i=[];return o.cursos&&Array.isArray(o.cursos)?i=o.cursos:(o.nome||o.curso_nome)&&(i=[o]),i.length>0&&(console.log("Processando cursos:",i),i.forEach((t,a)=>{console.log(`Processando curso ${a+1}:`,t);const n=t.nome||t.curso_nome||t.name||"Curso não especificado",r=t.tipo||t.type||"";let l=t.modalidade||t.modality||"";(o.tipo_curso_principal==="pos-graduacao"||r.toLowerCase().includes("pós")||r.toLowerCase().includes("pos"))&&(l==="nao_informado"||l===""||!l)&&(console.log(`Pós-graduação detectado! Alterando modalidade de "${l}" para "EAD"`),l="EAD");const d=t.duracao||t.duration||"Não informado",p=t.preco_referencia||t.preco||t.price||"Não informado",u=t.resumo||t.descricao||t.description||"",m=t.areas_atuacao||t.areas||[];s+=`
+    `);let i=[];return o.cursos&&Array.isArray(o.cursos)?i=o.cursos:(o.nome||o.curso_nome)&&(i=[o]),i.length>0&&(console.log("Processando cursos:",i),i.forEach((t,a)=>{console.log(`Processando curso ${a+1}:`,t);const n=t.nome||t.curso_nome||t.name||"Curso não especificado",r=t.tipo||t.type||"";let l=t.modalidade||t.modality||"";(o.tipo_curso_principal==="pos-graduacao"||r.toLowerCase().includes("pós")||r.toLowerCase().includes("pos"))&&(l==="nao_informado"||l===""||!l)&&(console.log(`Pós-graduação detectado! Alterando modalidade de "${l}" para "EAD"`),l="EAD");const d=t.duracao||t.duration||"Não informado",p=t.preco_referencia||t.preco||t.price||"Não informado",pc=t.preco_corporativo||t.precoCorporativo||"Não informado",u=t.resumo||t.descricao||t.description||"",m=t.areas_atuacao||t.areas||[];s+=`
         <div style="background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
           <!-- Cabeçalho do Curso -->
           <div style="border-bottom: 2px solid #e5e7eb; padding-bottom: 16px; margin-bottom: 20px;">
@@ -102,6 +102,24 @@
                   ${e(d)}
                 </div>
               </div>
+              ${r==="graduacao"?`
+              <div style="background: #f9fafb; padding: 16px; border-radius: 10px; border: 1px solid #e5e7eb;">
+                <div style="color: #6b7280; font-size: 0.85em; font-weight: 600; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">
+                  💰 Mar Aberto
+                </div>
+                <div style="color: #1f2937; font-size: 1em; font-weight: 600;">
+                  ${e(p==="nao_informado"||p==="Não informado"?"Consultar":p)}
+                </div>
+              </div>
+              <div style="background: #f9fafb; padding: 16px; border-radius: 10px; border: 1px solid #e5e7eb;">
+                <div style="color: #6b7280; font-size: 0.85em; font-weight: 600; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">
+                  🏢 Corporativo
+                </div>
+                <div style="color: #1f2937; font-size: 1em; font-weight: 600;">
+                  ${e(pc==="nao_informado"||pc==="Não informado"?"Consultar":pc)}
+                </div>
+              </div>
+              `:`
               <div style="background: #f9fafb; padding: 16px; border-radius: 10px; border: 1px solid #e5e7eb;">
                 <div style="color: #6b7280; font-size: 0.85em; font-weight: 600; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">
                   💰 Preço
@@ -110,6 +128,7 @@
                   ${e(p==="nao_informado"||p==="Não informado"?"Consultar":p)}
                 </div>
               </div>
+              `}
             </div>
           </div>
 
