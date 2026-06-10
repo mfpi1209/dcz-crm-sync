@@ -467,39 +467,35 @@ function renderCicloMaster(data) {
     }
 }
 
-let _ciclosConfig = [];
+const _DASH_CICLO_KEY = 'dash_ciclo_v1';
 
 async function populateCicloFilter() {
     try {
-        const res = await api('/api/ciclos');
+        // Lê do snapshot (mais confiável que a tabela `ciclos`, que pode estar
+        // desatualizada — ex.: 2026/2 não cadastrado mas existente nos dados).
+        const res = await api('/api/dashboard/ciclos-distinct');
         const list = await res.json();
-        _ciclosConfig = list || [];
+        const arr = Array.isArray(list) ? list : [];
         const sel = document.getElementById('students-ciclo');
         if (!sel) return;
-        const names = [...new Set(list.map(c => c.nome))].sort().reverse();
+        const names = arr.map(c => c.nome);
         sel.innerHTML = '<option value="">Todos os ciclos</option>' +
             names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
-        if (names.length > 0) {
+        const saved = localStorage.getItem(_DASH_CICLO_KEY);
+        if (saved && names.includes(saved)) {
+            sel.value = saved;
+        } else if (names.length > 0) {
             sel.value = names[0];
-            applyCicloFilter();
         }
+        applyCicloFilter();
     } catch(e) { console.error('Erro ao carregar ciclos:', e); }
 }
 
 function applyCicloFilter() {
-    const ciclo = document.getElementById('students-ciclo').value;
-    if (ciclo) {
-        const matching = _ciclosConfig.filter(c => c.nome === ciclo);
-        if (matching.length) {
-            const starts = matching.map(c => c.dt_inicio).sort();
-            const ends = matching.map(c => c.dt_fim).sort().reverse();
-            document.getElementById('students-from').value = starts[0];
-            document.getElementById('students-to').value = ends[0];
-        }
-    } else {
-        document.getElementById('students-from').value = '';
-        document.getElementById('students-to').value = '';
-    }
+    // O filtro `ciclo` agora vai direto pra `m.ciclo` no backend, lido do snapshot.
+    // Não mexe mais em students-from/students-to — período fica independente do ciclo.
+    const sel = document.getElementById('students-ciclo');
+    if (sel) localStorage.setItem(_DASH_CICLO_KEY, sel.value || '');
     loadStudentMetrics();
 }
 

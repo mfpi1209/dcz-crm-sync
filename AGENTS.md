@@ -4,6 +4,151 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-06-10 — Dashboard Acadêmico lê `ciclo` direto do snapshot + filtro de ciclo independente de período
+- **Modelo usado:** Opus 4.7 (principal).
+- **Decisão:** No `routes/dashboard.py`, refatorar `_MAT_CTE` para incluir uma coluna `ciclo` lida diretamente de `r.data->>'ciclo'` (validada por regex `^\d{4}/\d$` para descartar lixo de cabeçalho/rodapé do XLSX). `_STUDENT_METRICS_QUERY` agora filtra por `m.ciclo = %(f_ciclo)s` em vez de converter ciclo para intervalo `dt_inicio/dt_fim` via tabela `ciclos`. Nova rota `GET /api/dashboard/ciclos-distinct` retorna ciclos distintos presentes no snapshot (com contagem). Front (`static/js/dashboard.js` `populateCicloFilter`/`applyCicloFilter` + `static/js/dashboard_supervisor_academico.js` `loadDashboardSupervisorAcademico`) passa a usar essa rota e persiste a escolha em `localStorage` (`dash_ciclo_v1` / `dsa_ciclo_v1`). Template `_dashboard_supervisor_academico.html` ganha `<select id="dsa-ciclo">` ao lado do `dsa-nivel`. O `applyCicloFilter` deixa de mexer em `students-from`/`students-to` — ciclo e período passam a ser filtros independentes.
+- **Problema corrigido:** o snapshot de matriculados (`xl_rows`) já trazia a coluna `ciclo` preenchida ("2026/1", "2026/2", etc.), mas o `_MAT_CTE` ignorava esse campo e inferia o ciclo via `LEFT JOIN LATERAL ciclos` usando `data_matricula BETWEEN dt_inicio AND dt_fim`. A tabela `ciclos` (acadêmica, separada de `ciclos_comercial`) só tinha 2026.1 cadastrado, então **1.810 matrículas de 2026/2 caíam como "(sem ciclo)"** na quebra `by_ciclo`. Os KPIs totais (EM CURSO 26.869, etc.) estavam corretos — o bug atingia só a quebra por ciclo e o filtro de ciclo, que dependiam do JOIN.
+- **Validação local:** rodando `_STUDENT_METRICS_QUERY` com `f_ciclo=NULL` obtém o mesmo total de 30.580 e o mesmo `by_situacao` (EM CURSO 26.869, etc.) que o painel já mostrava. Filtro por `2026/2` retorna 1.810 (1.774 EM CURSO + 36 CANCELADO). Filtro por `2026/1` retorna 28.768. Lixo do XLSX ("Filtros aplicados…" e "Total", 2 linhas) é descartado pelo regex.
+- **Não tocado:** `_CICLO_COMPARE_QUERY` (Master Panel "Ciclos") continua usando JOIN com `ciclos` — é tela diferente, fora do escopo desta correção. `/api/ciclos` (config) também segue lendo da tabela `ciclos` — usado pela tela de Config de Ciclos, não pelo dropdown do Dashboard.
+- **Alternativas descartadas:**
+ - **Cadastrar 2026/2 na tabela `ciclos` acadêmica via Config** — funcionaria pra esta virada, mas continua frágil (toda virada de ciclo exige cadastro manual; cadastro errado de data — como aconteceu em `ciclos_comercial` id=5 com `dt_inicio=2026-05-14` e `dt_fim=2025-12-15` — quebra a inferência sem aviso).
+ - **Migrar Dashboard Acadêmico para usar `ciclos_comercial`** — unifica fonte (bom), mas acopla o Dashboard Acadêmico ao schema do Comercial. Ler a coluna direto do snapshot é auto-suficiente e simétrico ao que o Comercial já faz internamente.
+- **Bug lateral identificado, não corrigido aqui:** `ciclos_comercial` id=5 tem `dt_inicio=2026-05-14`, `dt_fim=2025-12-15` (fim ANTES do início). Afeta o Dashboard Comercial. Anotar pra corrigir em UI separada.
+
+### 2026-06-10 — Conversão: RESPONDIDOS atribuídos ao dia do disparo, não ao dia da resposta (tool_whatsapp_alunos)
+- **Modelo usado:** Opus 4.7 (principal). Implementação direta.
+- **Decisão:** Na aba Conversão (`activationConversionService.js`), o KPI **RESPONDIDOS** (e derivados: clickers, messages, opt_outs, TAXA, top buttons, recent rows, kpis_by_ciclo) passam a ser atribuídos ao **dia do disparo correspondente** (`d.created_at`), não ao dia da resposta (`r.received_at`). REVERTIDOS continuam atribuídos pela data de marcação manual (`occurred_at`).
+- **Problema:** "Financeiro: 16 respondidos hoje" estava contando respostas recebidas hoje referentes a disparos de **ontem**. A TAXA do dia ficava inflada artificialmente (numerador de hoje, denominador de dias anteriores) e não refletia performance real do disparo.
+- **Regra de correlação resposta↔disparo:** já existia via `buildValidResponseExists` ("dispatch sent na mesma master_key/category, antes da resposta, dentro de `staleHours` (default 72h)"). A mudança é apenas adicionar `AND d.created_at >= $sinceIso [AND d.created_at < $untilIso]` no EXISTS — corta respostas cujos dispatches estão fora do período pedido.
+- **Implementação:**
+  - `buildValidResponseExists(rAlias, staleIdx, dispSinceIdx?, dispUntilIdx?)`: ganha 2 params opcionais de índice de `sinceIso`/`untilIso` no array de params. Quando passados, adiciona o filtro no EXISTS.
+  - Em cada chamada (KPIs, byCategory, topButtons, recentRows, total_recent, kpis_by_ciclo), passar os índices de `$sinceIso` e (quando houver) `$untilIso`.
+  - **Manter** filtros `r.received_at >= $sinceIso` (lower bound — resposta nasce DEPOIS do dispatch, então respeitar lower bound mantém perf sem cortar nada válido).
+  - **Relaxar** upper bound do `r.received_at`: filtros `< untilIso` viram `< untilIso + (staleHours * interval '1 hour')` pra cobrir respostas tardias dentro da janela.
+- **Trade-off conhecido:** TAXA do dia atual fica **incompleta até janela `staleHours` (72h) fechar**. Hoje 12h o dia mostra 5%, amanhã pode subir pra 15% conforme respostas tardias chegam. Operacionalmente correto — TAXA reflete performance do disparo, não atividade do dia.
+- **Não toca:** REVERTIDOS (`activation_manual_outcomes` continua agregando por `occurred_at`); aba Meu Painel (continua mostrando respostas pela `received_at` — semântica diferente, é registro do que chegou, não conversão de disparo).
+- **Alternativas descartadas:**
+  - **JOIN explícito** em vez de EXISTS: query mais limpa mas pode duplicar contagens quando mesma resposta tem 2 dispatches válidos. EXISTS + DISTINCT mantém semântica unique.
+  - **Atribuir revertido ao dia do disparo** (consistência total): user preferiu manter no dia da marcação ("é mais intuitivo pro consultor: o que marquei hoje aparece em hoje").
+
+### 2026-06-10 — Meu Painel: Supervisor Acadêmico vê tudo igual admin (tool_whatsapp_alunos + dcz-crm-sync)
+- **Modelo usado:** Opus 4.7 (principal). Implementação direta (escopo pequeno, 5 arquivos em 2 repos).
+- **Decisão:** Ampliar o "ver tudo" do Meu Painel no `tool_whatsapp_alunos` pra incluir usuários com `categoria = 'Supervisor Acadêmico'` no dcz, com **a mesma capacidade plena** que `role=admin` (ver todos os leads + reatribuir consultor manualmente). Padrão espelha o de `routes/meus_atendimentos.py` no dcz, que já tem helper `_ma_is_admin_or_supervisor_academico()`.
+- **Granularidade:** só "Supervisor Acadêmico". Outros perfis de supervisão (Supervisor Comercial, etc.) NÃO ganham acesso pleno ao Meu Painel — domínios diferentes. Reabrir se surgir necessidade.
+- **Mecânica:**
+  - **dcz** (`templates/partials/_disparador_whatsapp.html`): URL do iframe ganha `&categoria=<session.categoria | urlencode>` (já manda `role`; agora manda também `categoria`).
+  - **tool backend** (`server/routes/activation.js`): `resolveConsultor` passa a aceitar `categoria` normalizada (lowercase, sem acento) ∈ `{'supervisor acadêmico', 'supervisor academico'}` como equivalente a `role=admin`. `assign-consultor` espelha (libera reatribuição pra supervisor acadêmico). Mantém compat: ausência de categoria continua válido (admin via role só).
+  - **tool frontend** (`src/services/meuPainelApi.ts`): `Identity` ganha campo `categoria`. `readConsultorIdentity()` lê de `?categoria=` (e persiste em `localStorage`).
+  - **tool frontend** (`src/pages/MeuPainelPage.tsx`): `isAdmin` vira `isAdminOrSupervisor`. UI (label "modo admin" / "Ver todos (admin)") mantém texto "admin" pra não confundir o supervisor — operacional é igual.
+- **Alternativas descartadas:**
+  - **Forçar `role=admin` no dcz quando categoria é Supervisor Acadêmico** (sem mudar o tool): mais rápido mas confunde semântica de role no tool (admin no tool deixa de bater com role real no dcz). Recusada.
+  - **Whitelist de categorias no .env do tool**: mais flexível, mas overkill pra 1 categoria. Reabrir se virar 3+.
+- **Compat:** sessões abertas (que ainda não recarregaram o iframe) continuam funcionando — quando sem `categoria` na URL, comportamento volta ao anterior (só admin via role tem o poder).
+
+### 2026-06-09 — Congelar ciclos: arquivar 2026/1 das operações (tool_whatsapp_alunos)
+- **Modelo usado:** Opus 4.7 (principal) decidiu; Executor (Sonnet 4.6) implementará.
+- **Decisão:** Adicionar capacidade de **arquivar um ciclo inteiro** (ex: "2026/1") em vez de congelar snapshot por snapshot. Tabela nova `frozen_cycles(ciclo PK, frozen_at, frozen_by, reason)`. Quando um ciclo é congelado, o disparador, relatórios (Conversão, CAA Daily/Funil), comparações e dropdowns de ciclo no UI **excluem 100%** os leads desse ciclo. Histórico em `activation_dispatch_events` continua intacto pra auditoria.
+- **Problema:** Na virada de ciclo (ex: 2026/1 → 2026/2), o operador precisa de um gesto explícito pra "fechar" o ciclo antigo: parar de disparar pra leads de 2026/1, parar de incluí-los em relatórios. Hoje o sistema usa só o "snapshot mais recente"; quando sobe a base nova, o ciclo antigo some das queries mas continua misturado se o snapshot de matriculados ainda tiver alunos de ambos os ciclos (cenário típico da janela de transição).
+- **Granularidade escolhida:** **por ciclo, não por base/snapshot**. Faz mais sentido conceitualmente porque o ciclo é a unidade real ("2026/1 acabou pra TODAS as bases ao mesmo tempo"). Se algum dia precisar congelar uma base específica de um ciclo (ex: só financeiro de 2026/1), a gente reabre essa decisão.
+- **Sem escape hatch `?include_frozen=1`** — decisão explícita do usuário. Ciclo arquivado some 100% de qualquer view operacional. Histórico só via consultas SQL diretas em `activation_dispatch_events`/`activation_responses` (que continuam intactas — flag de freeze não as toca).
+- **Reativação:** botão "Reativar ciclo" disponível, deleta a linha de `frozen_cycles` e tudo volta a aparecer. Útil se congelar por engano ou se decidir rodar uma campanha tardia.
+- **UI:** novo card "Ciclos" no topo da página Bases, lista ciclos disponíveis (deriva via `getAvailableCiclos`) com status (ativo / arquivado em DD/MM/AAAA por USER). Botão "🔒 Congelar ciclo X" → modal com motivo opcional → confirma. Snapshots em si continuam visíveis na lista de baixo, sem mudança no comportamento de upload/delete deles.
+- **Motivo opcional ao congelar** — usuário escolheu. Não bloqueia o gesto.
+- **Componentes tocados:**
+  - Migration nova `030_frozen_cycles.sql` (tabela única).
+  - `server/repositories/frozenCyclesRepository.js` (novo): `listFrozen`, `freezeCycle`, `unfreezeCycle`, `getFrozenSet`.
+  - `server/services/cicloResolverService.js`: nova `getActiveCiclos()` (filtra os frozen).
+  - `server/services/activationService.js`: roster filtra OUT leads de ciclos frozen (via `cicloMap` + `frozenSet`).
+  - `server/services/activationConversionService.js`, `caaFunnelService.js`, `caaProtocolsService.js` (se usa ciclo), `repositories/reportRepository.js`: filtram out ciclos frozen dos `kpis_by_ciclo` / `counts_by_ciclo`.
+  - `server/routes/cycles.js` (novo) ou subrota em `reports.js`: `GET /api/cycles` (lista todos com status), `POST /api/cycles/:ciclo/freeze` (body: `{ reason? }`), `DELETE /api/cycles/:ciclo/freeze`.
+  - `src/services/cyclesApi.ts` (novo): client.
+  - `src/pages/BasesPage.tsx`: card novo "Ciclos" no topo + modal de freeze.
+- **Alternativas descartadas:**
+  - **Flag por snapshot (nível A original)**: só protegeria contra apagar; não muda comportamento operacional, que era exatamente o que o usuário queria.
+  - **Flag por base+ciclo (granularidade dupla)**: complexidade extra sem caso de uso real. Reabrir quando surgir.
+  - **Refactor ciclo-aware no nível de snapshot (nível C, ~2 dias)**: matar mosca com canhão — o `cicloResolverService` já abstrai isso. Adicionar flag por ciclo aproveita 100% da infra existente.
+- **Trabalho estimado:** ~4-5h (Executor).
+
+### 2026-06-09 — Seleção multi-página no Disparador via dropdown combo (tool_whatsapp_alunos)
+- **Modelo usado:** Opus 4.7 (principal) decidiu UX; Executor (Sonnet 4.6) implementou.
+- **Decisão:** Adicionar dropdown "Mais ▾" ao lado do checkbox do header em `ActivationRosterTable` (tool_whatsapp_alunos), com 4 opções: "Página atual (100)", "Próximas 5 páginas (~500)", "Próximas 10 páginas (~1.000)", "Todos filtrados (N)". Página atual e próximas N **adicionam** à seleção; "Todos filtrados" **substitui** a seleção. Linha de status acima da tabela mostra contagem + botão "Desmarcar todos" + estado de loading durante operações bulk.
+- **Backend novo:** `GET /api/activation/:category/roster/keys` — mesmos query params do `/roster` (stage, ciclo, bb_subgrupo, responseFilter), retorna apenas `master_keys[]` (payload pequeno, ~80kB pra 2k chaves vs ~600kB do roster cheio). Service novo `getActivationRosterKeys` reusa cache `buildRosterRowsCached`.
+- **Problema:** Disparos manuais de 2k+ leads exigiam avançar dezenas de páginas marcando 100 por vez. Inviável operacionalmente.
+- **Alternativas descartadas:**
+  - **Só "Todos filtrados" (sem dropdown)**: simples mas tudo-ou-nada; usuário às vezes quer só 200/500.
+  - **Só "Próximas N páginas"**: cobre parcial mas pra "tudo" exigiria N requests sequenciais (40 pra 4k leads).
+  - **Aumentar `PAGE_SIZE` temporariamente** (ex: "mostrar 500/página"): tabela fica gigante, UX ruim.
+- **Onde:** `tool_whatsapp_alunos` — `server/services/activationService.js` (função `getActivationRosterKeys`), `server/routes/activation.js` (rota nova ANTES de `/roster`), `src/services/activationApi.ts` (método `rosterKeys` + tipo), `src/components/ActivationPanel.tsx` (callbacks `addSelectionMany`/`replaceSelection`), `src/components/ActivationRosterTable.tsx` (dropdown + handler + linha de status).
+- **Commit:** `7b042bb` em `Mikyxx1234/tool_whatsapp_alunos`. Easypanel auto-deploya.
+- **Detalhe completo:** `tool_whatsapp_alunos/AGENTS.md` (entrada 09/06/2026).
+
+### 2026-06-08 — Onda 2: cache persistente Postgres cpf→datacrazy_lead_id (tool_whatsapp_alunos)
+- **Modelo usado:** Opus 4.7 (principal) decidiu/escreveu a spec; Executor (Sonnet 4.6) implementou. Opus revisou diff antes do commit.
+- **Decisão:** Adicionar migration `029_datacrazy_lead_cache.sql` no `tool_whatsapp_alunos` com tabela `datacrazy_lead_cache(cpf PK, datacrazy_lead_id, email_norm, phone_norm, nome, raw_lead, source, last_synced_at, last_seen_at)` + `datacrazy_lead_cache_sync_log` pra auditoria. Cache populado por cron noturno (`startDatacrazyCacheSyncCron`, default 03:00 UTC) + hits oportunistas dentro do próprio `buildLeadsLookupIndex`. Endpoints novos `POST /api/maintenance/sync-datacrazy-cache` e `POST /api/maintenance/invalidate-datacrazy-cache` (ambos protegidos por `requireApiKey`).
+- **Integração com `buildLeadsLookupIndex`**: FASE 0 (lookup no cache antes de bater na API) + FASE 2 (upsert oportunista fire-and-forget de leads resolvidos via API). Retorno ganhou `cache_hits` e `cache_stale_skipped`.
+- **Callers** (`runDatacrazyActivationBatch` e `previewDatacrazyMatches` em `activationService.js`): `contacts` passa a incluir `cpf: item.cpf` (já existia no roster, sem mudança de schema).
+- **Env vars novas no `.env.example`:** `DATACRAZY_CACHE_ENABLED=1`, `DATACRAZY_CACHE_SYNC_HOUR_UTC=3`, `DATACRAZY_CACHE_SYNC_MAX_PAGES=2000`, `DATACRAZY_CACHE_TTL_DAYS=7`.
+- **Impacto:** 10k leads cai de ~17min (Onda 1) pra ~3–5s com cache quente; cold start mantém Onda 1 sem regressão.
+- **Aplicação:** migration aplicada manualmente pelo usuário via `npm run migrate` apontando pra produção; Easypanel rebuilda no push pro `main`.
+- **Detalhe completo:** `tool_whatsapp_alunos/AGENTS.md` (entrada 08/06/2026 — Onda 2).
+- **Alternativas descartadas (Redis, cache só em memória, sync sob demanda, webhook do DataCrazy):** detalhe completo no AGENTS.md do tool.
+
+### 2026-06-08 — Preflight do disparador escalável: dedupe por pessoa + métrica de threshold corrigida (tool_whatsapp_alunos)
+- **Modelo usado:** Opus 4.7 (principal) decidiu e implementou diretamente.
+- **Decisão:** Refatorar `buildLeadsLookupIndex` em `tool_whatsapp_alunos/server/services/datacrazyClient.js` pra (a) aceitar API nova `{contacts: [{email, phone}]}` com vínculo por pessoa, (b) trocar a métrica do threshold de soma (`emails + phones`) por `Math.max(emails, phones)` ou `personList.length`, (c) subir defaults pra `THRESHOLD=250` e `CONCURRENCY=10`, (d) executar 2 passadas no atalho — 1ª por telefone (1 chamada por pessoa), 2ª por email só pra quem ficou faltando. Callers `runDatacrazyActivationBatch` e `previewDatacrazyMatches` atualizados pra passar `contacts`. Retrocompat com formato antigo `{emails, phones}` preservada.
+- **Problema corrigido:** disparos de 100 leads travavam minutos em "Buscando alunos no DataCrazy" porque o threshold default `100` era comparado a `200` (cada pessoa = email + telefone = 2 termos). Caía no loop de paginação completa (500 páginas × 400ms). Em escala (4k–10k) ficaria ingerenciável.
+- **Quick fix sem rebuild** (env vars no Easypanel): `DATACRAZY_DIRECT_SEARCH_THRESHOLD=300` + `DATACRAZY_DIRECT_SEARCH_CONCURRENCY=15`.
+- **Impacto:** 100 leads passa de minutos pra ~5–10s; 250 leads ~15–25s via atalho; >250 cai no caminho de paginação (~40s pra base de 50k com early_stop).
+- **Onda 2 — pendente:** cache persistente `cpf → datacrazy_lead_id` em tabela própria, populado por cron noturno varrendo a base do CRM. Pra 10k leads cairia de ~11min pra ~100ms quando todos em cache. Spec a escrever quando houver demanda concreta recorrente >300 leads.
+- **Alternativas descartadas:**
+  - **Só env vars (sem commit):** destravaria o lote atual mas mantém 2× chamadas/pessoa, não escala pra 4k+.
+  - **Cache persistente agora:** escopo maior (migration + repo + cron + invalidação), Onda 1 sozinha resolve o caso atual.
+  - **Dedupe no caller mantendo formato antigo:** quebra extensibilidade, qualquer caller futuro reescreveria a lógica.
+- **Detalhe completo da decisão:** `tool_whatsapp_alunos/AGENTS.md` (entrada 08/06/2026 do mesmo dia).
+
+### 2026-06-08 — UNIQUE de activation_responses passa a incluir o dia (corrige 027)
+- **Modelo usado:** Opus 4.7 (principal).
+- **Decisão:** Migration `028_activation_responses_unique_per_day.sql` em `tool_whatsapp_alunos` (commit `26e4d69`). Relaxa o UNIQUE de `(external_id, category)` para `(external_id, category, (received_at at time zone 'UTC')::date)`. Aplicada em produção.
+- **Problema corrigido:** o `external_id` do DataCrazy/WhatsApp identifica a **conversa persistente** entre o número da escola e o número do aluno, não a mensagem individual (mesma conversa reaparece em campanhas futuras com o mesmo id). O UNIQUE da 027 bloqueava a 2ª resposta legítima quando a mesma pessoa, dois meses depois, recebia novo disparo da mesma categoria e respondia.
+- **Cast usado:** `(received_at at time zone 'UTC')::date`. `date_trunc('day', ...)` e cast direto `timestamptz::date` são STABLE, não IMMUTABLE, e o Postgres recusa em índice. Forçar UTC primeiro torna a expressão IMMUTABLE.
+- **N8n correspondente** (FORA deste repo): o `NOT EXISTS` da query INSERT também precisa de filtro temporal `AND ar.received_at >= now() - interval '24 hours'`, senão a query continua pulando o INSERT por achar resposta antiga.
+- **Alternativas descartadas:**
+  - **Granularidade por hora** — granular demais, webhooks atrasados poderiam quebrar idempotência.
+  - **Granularidade por mês/semana** — não cobre cenário de pessoa que recebe campanha 2 semanas depois e responde.
+  - **Adicionar `dispatch_id` em `activation_responses` e usar como dimensão do UNIQUE** — mais correto semanticamente, mas exige migração maior + alteração no n8n pra resolver o id do disparo + backfill. Trade-off não justifica.
+- **Trade-off conhecido:** se a mesma pessoa responder 2x em dias diferentes pra disparos do mesmo dia, ainda contabiliza só a 1ª (idempotência por dia continua valendo). Operacionalmente OK — não é cenário que distorce métrica.
+
+### 2026-06-08 — Resposta única do WhatsApp pode contabilizar em N categorias (UNIQUE por (external_id, category))
+- **Modelo usado:** Opus 4.7 (principal).
+- **Decisão:** Relaxar o constraint `UNIQUE (external_id) WHERE external_id IS NOT NULL` em `activation_responses` para `UNIQUE (external_id, category) WHERE external_id IS NOT NULL`. Migration `027_activation_responses_unique_per_category.sql` em `tool_whatsapp_alunos` (commit `7280b0f`). Aplicada no DB de produção (`31.97.91.47/disparos`) via `npm run migrate` local apontando pro mesmo host.
+- **Problema corrigido:** quando uma pessoa tinha 2+ disparos pendentes (ex: CAA + DOC) e respondia uma única vez, o UNIQUE em `external_id` bloqueava a 2ª inserção. A resposta caía só na 1ª categoria retornada pelo SELECT do n8n, e o painel de Conversão da outra categoria mostrava 0 respostas.
+- **Outras mudanças necessárias** (no n8n, FORA deste repo): a query INSERT precisa de 2 ajustes:
+  1. Adicionar `AND d.created_at >= now() - interval '72 hours'` na cláusula do `activation_dispatch_events` (mesma janela `staleHours` que `findRespondedMasterKeys` usa pra correlacionar resposta↔disparo).
+  2. Mudar `NOT EXISTS (... ar.external_id = $1)` pra `NOT EXISTS (... ar.external_id = $1 AND ar.category = COALESCE(d.category, 'financeiro'))`.
+- **Alternativas descartadas:**
+  - **Manter UNIQUE em `external_id` e atribuir resposta só ao disparo mais recente:** funcionaria pra contar a resposta em UMA categoria correta, mas perde o sinal nas outras (consultor não vê que a pessoa "está engajada" em DOC quando ela respondeu ao CAA). O time precisa do sinal em **todas** as categorias com disparo pendente.
+  - **Inferência por janela temporal com atribuição única:** complexidade alta no n8n + queries do tool. Trade-off não justifica vs duplicar respostas por categoria.
+- **Trade-off conhecido:** o KPI "Responderam" pode inflar quando o mesmo lead tem N disparos pendentes (1 pessoa = N respostas, uma por categoria). Operacionalmente correto, métrica que precisa ser lida como "respostas por categoria" não "pessoas únicas globais".
+- **Backfill:** NÃO foi feito. Respostas antigas continuam atribuídas só à 1ª categoria. Efeito vale só pra disparos/respostas a partir do deploy. Se um dia precisar retroagir, escrever script que, pra cada `(external_id, category)` faltante, duplique a resposta existente com a categoria do dispatch_event correspondente.
+
+### 2026-06-08 — Progresso real % no overlay da ativação via job em memória + polling
+- **Modelo usado:** Opus 4.7 (principal) — decisão; implementação delegada ao Executor (Sonnet 4.6) em `tool_whatsapp_alunos` commit `ed44afc`.
+- **Decisão:** Implementar barra de progresso real (com %) no `LoadingOverlay` da ação "Buscar e ativar" usando **job em memória + polling do frontend a cada 2s**. Backend cria `jobId`, processa em background com `runDatacrazyActivationBatch(category, opts, callbacks)` chamando `onProgress` a cada chunk. Frontend usa `setInterval` no `ActivationListActions.tsx` pra atualizar a UI; após 3 erros de rede consecutivos, mostra "Conexão perdida…" e para o polling.
+- **Endpoints novos** (em `tool_whatsapp_alunos/server/routes/activation.js`):
+  - `POST /api/activation/:category/run-datacrazy-batch?async=1` — retorna `202 { jobId, status: 'running' }` e dispara processamento em background (fire-and-forget envolto em try/catch).
+  - `GET /api/activation/jobs/:jobId/progress` — devolve o estado atual do job.
+  - Modo síncrono (sem `?async`) continua funcionando idêntico (retrocompat total).
+- **Registry**: `server/services/activationJobsRegistry.js` (novo) — singleton `Map<jobId, entry>` com cleanup automático a cada 5 min (jobs finalizados há >1h ou iniciados há >6h são removidos). `setInterval.unref()` pra não bloquear shutdown do node.
+- **Alternativas descartadas:**
+  - **SSE (Server-Sent Events)** — push em tempo real, mas exige adaptar Express pra streaming e o proxy do Easypanel pode cortar conexão longa. Polling 2s é suficiente pra UX (latência aceitável).
+  - **Persistir em tabela `activation_jobs`** — sobreviveria a restart e funcionaria com múltiplas instâncias, mas overkill pra 1 instância no Easypanel e disparos curtos (1–3 min). Migration nova + escrita constante no DB sem ganho prático.
+- **Limites conhecidos:** se o servidor reiniciar durante um disparo, o frontend perde o ponteiro do job (mas o disparo em si pode ter completado). Não suporta cancelamento (escopo: só mostrar progresso). Multi-instância não funciona (jobs ficam na memória de um worker só).
+- **UX:**
+  - Enquanto `total === 0` (backend ainda fazendo preflight/buildLeadsLookupIndex), barra mostra estado indeterminado com `animate-pulse`.
+  - Conforme `processed` avança, barra anima até 100% com transition suave.
+  - Linha embaixo: `X% · processed de total`; linha pequena de stats: `N enviados · M não encontrados · K falhas`.
+  - Minimizar continua funcionando; polling segue rodando por trás.
+
 ### 2026-06-03 — "Meu Painel" no tool_whatsapp_alunos: marcação manual por consultor + KPIs
 - **Modelo usado:** Opus 4.7 (principal) — implementação direta (usuário pediu "não delegue, faça tudo você").
 - **Decisão:** Criar uma nova **aba "Meu Painel" dentro do `tool_whatsapp_alunos`** (não no dcz). A aba mostra os leads do consultor logado (atribuídos via webhook do n8n em `activation_responses.consultor_responsavel_nome`) cruzados com `caa_protocols` e `activation_manual_outcomes`, e permite marcar o desfecho manualmente (revertido | confirmado | sem_contato | outro).
