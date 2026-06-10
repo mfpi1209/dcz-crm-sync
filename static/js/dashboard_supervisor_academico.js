@@ -26,11 +26,41 @@ function dsaSetGran(gran) {
     _dsaLoadTimeline();
 }
 
+let _dsaCiclosPopulated = false;
+const _DSA_CICLO_KEY = 'dsa_ciclo_v1';
+
+async function _dsaPopulateCiclos() {
+    if (_dsaCiclosPopulated) return;
+    const sel = document.getElementById('dsa-ciclo');
+    if (!sel) return;
+    try {
+        const res = await api('/api/dashboard/ciclos-distinct');
+        const list = await res.json();
+        const arr = Array.isArray(list) ? list : [];
+        sel.innerHTML = '<option value="">Todos os Ciclos</option>' +
+            arr.map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
+        const saved = localStorage.getItem(_DSA_CICLO_KEY);
+        if (saved && arr.some(c => c.nome === saved)) sel.value = saved;
+        sel.addEventListener('change', () => {
+            localStorage.setItem(_DSA_CICLO_KEY, sel.value || '');
+            loadDashboardSupervisorAcademico();
+        });
+        _dsaCiclosPopulated = true;
+    } catch (e) {
+        console.error('Erro ao popular ciclos do supervisor:', e);
+    }
+}
+
 async function loadDashboardSupervisorAcademico() {
+    await _dsaPopulateCiclos();
+
     const nivelEl = document.getElementById('dsa-nivel');
+    const cicloEl = document.getElementById('dsa-ciclo');
     const nivel = nivelEl ? nivelEl.value : '';
+    const ciclo = cicloEl ? cicloEl.value : '';
     const params = new URLSearchParams();
     if (nivel) params.set('nivel', nivel);
+    if (ciclo) params.set('ciclo', ciclo);
 
     await Promise.all([
         _dsaLoadStudents(params.toString()),

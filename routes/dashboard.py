@@ -64,7 +64,17 @@ WITH mat AS (
           ELSE 'Graduação'
         END AS nivel,
         TRIM(REGEXP_REPLACE(COALESCE(r.data->>'polo',''), '^\\d+\\s*[-–]\\s*', '')) AS polo,
-        r.data->>'curso' AS turma
+        r.data->>'curso' AS turma,
+        -- Ciclo lido direto da coluna do snapshot. Valida formato 'YYYY/N'
+        -- para descartar lixo (linhas de cabeçalho/rodapé do XLSX tipo
+        -- 'Filtros aplicados:' ou 'Total'). Snapshot já traz o ciclo correto;
+        -- antes inferia por data via JOIN com tabela `ciclos`, o que perdia
+        -- matrículas de ciclos não cadastrados (ex.: 2026/2).
+        CASE
+          WHEN TRIM(COALESCE(r.data->>'ciclo','')) ~ '^\\d{4}/\\d$'
+            THEN TRIM(r.data->>'ciclo')
+          ELSE NULL
+        END AS ciclo
     FROM xl_rows r
     WHERE r.snapshot_id = (
         SELECT id FROM xl_snapshots
@@ -137,21 +147,15 @@ SELECT
     m.nivel,
     m.polo,
     m.turma,
-    c.nome AS ciclo,
+    m.ciclo AS ciclo,
     COUNT(*) AS total
 FROM mat m
-LEFT JOIN LATERAL (
-    SELECT ci.nome FROM ciclos ci
-    WHERE ci.nivel = m.nivel
-      AND m.data_matricula IS NOT NULL
-      AND m.data_matricula BETWEEN ci.dt_inicio AND ci.dt_fim
-    LIMIT 1
-) c ON TRUE
 WHERE (%(dt_from)s IS NULL OR m.data_matricula >= %(dt_from)s::date)
   AND (%(dt_to)s   IS NULL OR m.data_matricula <= %(dt_to)s::date)
   AND (%(f_nivel)s IS NULL OR m.nivel = %(f_nivel)s)
   AND (%(f_sit)s   IS NULL OR m.situacao = %(f_sit)s)
-GROUP BY m.tipo_aluno, m.situacao, m.nivel, m.polo, m.turma, c.nome
+  AND (%(f_ciclo)s IS NULL OR m.ciclo = %(f_ciclo)s)
+GROUP BY m.tipo_aluno, m.situacao, m.nivel, m.polo, m.turma, m.ciclo
 ORDER BY total DESC
 """
 
@@ -166,23 +170,16 @@ def api_dashboard_students():
     f_tipo = request.args.get("tipo", "")
     conn = get_conn()
     try:
-        if f_ciclo:
-            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute(
-                    "SELECT MIN(dt_inicio) AS dt_start, MAX(dt_fim) AS dt_end "
-                    "FROM ciclos WHERE nome = %s", (f_ciclo,)
-                )
-                crow = cur.fetchone()
-                if crow and crow["dt_start"]:
-                    dt_from = str(crow["dt_start"])
-                    dt_to = str(crow["dt_end"])
-
+        # f_ciclo agora vai direto pra query (m.ciclo lido do snapshot).
+        # Antes virava intervalo dt_inicio/dt_fim via tabela `ciclos`,
+        # o que falhava p/ ciclos não cadastrados (ex.: 2026/2).
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(_STUDENT_METRICS_QUERY, {
                 "dt_from": dt_from or None,
                 "dt_to": dt_to or None,
                 "f_nivel": f_nivel or None,
                 "f_sit": f_sit or None,
+                "f_ciclo": f_ciclo or None,
             })
             rows = cur.fetchall()
 
@@ -251,6 +248,36 @@ def api_dashboard_students():
             "filter": {"from": dt_from, "to": dt_to},
             "active_tipo": f_tipo,
         })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@dashboard_bp.route("/api/dashboard/ciclos-distinct")
+def api_dashboard_ciclos_distinct():
+    """Retorna ciclos distintos presentes no snapshot atual de matriculados,
+    com contagem por ciclo. Usado para popular o dropdown de filtro de ciclo
+    no Dashboard Acadêmico (mais confiável que /api/ciclos da tabela `ciclos`,
+    que pode estar desatualizada — ex.: 2026/2 não cadastrado)."""
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT
+                  TRIM(r.data->>'ciclo') AS ciclo,
+                  COUNT(*) AS total
+                FROM xl_rows r
+                WHERE r.snapshot_id = (
+                    SELECT id FROM xl_snapshots
+                    WHERE tipo = 'matriculados' ORDER BY id DESC LIMIT 1
+                )
+                  AND TRIM(COALESCE(r.data->>'ciclo','')) ~ '^\\d{4}/\\d$'
+                GROUP BY 1
+                ORDER BY 1 DESC
+            """)
+            rows = cur.fetchall()
+        return jsonify([{"nome": r["ciclo"], "total": r["total"]} for r in rows])
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     finally:
