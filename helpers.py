@@ -45,6 +45,7 @@ ALL_PAGES = [
     "leads_inscricao", "captacao", "clicks", "leads_promotores", "meus_atendimentos",
     "cadastro_leads",
     "disparador_whatsapp",
+    "ia_comercial",
     # Sub-permissoes do Disparador WhatsApp (uma por aba do iframe do
     # tool_whatsapp_alunos). Quem tem 'disparador_whatsapp' mas nenhuma
     # sub abaixo => ve TUDO (compat). Quem tem 1+ sub => ve so as marcadas.
