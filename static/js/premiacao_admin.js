@@ -147,6 +147,90 @@ function paEditCampanha(id) {
     document.getElementById('pa-edit-def-meta').value = mp.meta != null ? mp.meta : '';
     document.getElementById('pa-edit-def-super').value = mp.supermeta != null ? mp.supermeta : '';
     document.getElementById('pa-edit-modal').classList.remove('hidden');
+    paLoadGruposMetas(id);
+}
+
+async function paLoadGruposMetas(campId) {
+    const wrap = document.getElementById('pa-edit-grupos-metas');
+    if (!wrap) return;
+    wrap.innerHTML = '<p class="text-xs text-slate-600 italic">Carregando equipes...</p>';
+    try {
+        const raw = await api(`/api/premiacao/campanhas/${campId}/metas-grupo`);
+        if (!raw.ok) {
+            const txt = await raw.text().catch(() => '');
+            console.error('paLoadGruposMetas HTTP', raw.status, txt);
+            wrap.innerHTML = `<p class="text-xs text-red-400">Erro ao carregar equipes (HTTP ${raw.status}). Detalhes no console (F12).</p>`;
+            return;
+        }
+        const res = await raw.json();
+        if (!res?.ok) {
+            console.error('paLoadGruposMetas backend error:', res);
+            wrap.innerHTML = `<p class="text-xs text-red-400">Erro ao carregar equipes: ${res?.error || 'sem detalhe'}.</p>`;
+            return;
+        }
+        const grupos = res.grupos || [];
+        if (!grupos.length) {
+            wrap.innerHTML = '<p class="text-xs text-amber-500">Crie equipes em \'Grupos de Agentes\' abaixo para definir metas por equipe.</p>';
+            return;
+        }
+        const fv = (v) => (v != null && v !== '') ? v : '';
+        wrap.innerHTML = grupos.map(g => `
+            <div class="rounded-lg border border-emerald-500/20 p-3" data-grupo-id="${g.grupo_id}">
+                <p class="text-[10px] text-emerald-400 uppercase tracking-wider font-semibold mb-2">${g.grupo_nome}</p>
+                <p class="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Metas (matrículas)</p>
+                <div class="grid grid-cols-3 gap-2 mb-2">
+                    <div>
+                        <label class="block text-[9px] text-slate-500 mb-0.5">Intermediária</label>
+                        <input type="number" min="0" step="1" data-campo="meta_intermediaria"
+                               class="input-glass px-2 py-1 text-xs text-slate-900 dark:text-slate-300 w-full"
+                               value="${fv(g.meta_intermediaria)}">
+                    </div>
+                    <div>
+                        <label class="block text-[9px] text-slate-500 mb-0.5">Meta</label>
+                        <input type="number" min="0" step="1" data-campo="meta"
+                               class="input-glass px-2 py-1 text-xs text-slate-900 dark:text-slate-300 w-full"
+                               value="${fv(g.meta)}">
+                    </div>
+                    <div>
+                        <label class="block text-[9px] text-slate-500 mb-0.5">Supermeta</label>
+                        <input type="number" min="0" step="1" data-campo="supermeta"
+                               class="input-glass px-2 py-1 text-xs text-slate-900 dark:text-slate-300 w-full"
+                               value="${fv(g.supermeta)}">
+                    </div>
+                </div>
+                <p class="text-[9px] text-slate-500 uppercase tracking-wider mb-1">R$/matrícula por faixa</p>
+                <div class="grid grid-cols-4 gap-2">
+                    <div>
+                        <label class="block text-[9px] text-slate-500 mb-0.5">Base</label>
+                        <input type="number" step="0.01" data-campo="valor_base"
+                               class="input-glass px-2 py-1 text-xs text-slate-900 dark:text-slate-300 w-full"
+                               value="${fv(g.valor_base)}">
+                    </div>
+                    <div>
+                        <label class="block text-[9px] text-slate-500 mb-0.5">Intermediária</label>
+                        <input type="number" step="0.01" data-campo="valor_intermediaria"
+                               class="input-glass px-2 py-1 text-xs text-slate-900 dark:text-slate-300 w-full"
+                               value="${fv(g.valor_intermediaria)}">
+                    </div>
+                    <div>
+                        <label class="block text-[9px] text-slate-500 mb-0.5">Meta</label>
+                        <input type="number" step="0.01" data-campo="valor_meta"
+                               class="input-glass px-2 py-1 text-xs text-slate-900 dark:text-slate-300 w-full"
+                               value="${fv(g.valor_meta)}">
+                    </div>
+                    <div>
+                        <label class="block text-[9px] text-slate-500 mb-0.5">Supermeta</label>
+                        <input type="number" step="0.01" data-campo="valor_supermeta"
+                               class="input-glass px-2 py-1 text-xs text-slate-900 dark:text-slate-300 w-full"
+                               value="${fv(g.valor_supermeta)}">
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        console.error('paLoadGruposMetas exception:', e);
+        wrap.innerHTML = `<p class="text-xs text-red-400">Erro ao carregar equipes: ${e?.message || e}.</p>`;
+    }
 }
 
 async function paSaveEditCampanha() {
@@ -179,11 +263,47 @@ async function paSaveEditCampanha() {
     if (eds !== '' && eds != null && !Number.isNaN(parseFloat(eds))) body.metas_padrao.supermeta = parseFloat(eds);
     const raw = await api(`/api/premiacao/campanhas/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
     const res = await raw.json();
-    if (res?.ok) {
-        toast('Campanha atualizada!');
-        document.getElementById('pa-edit-modal').classList.add('hidden');
-        await _paLoadCampanhas();
-    } else { toast(res?.error || 'Erro', 'error'); }
+    if (!res?.ok) { toast(res?.error || 'Erro', 'error'); return; }
+
+    // Salvar metas por equipe (erro aqui não cancela o save da campanha)
+    const wrap = document.getElementById('pa-edit-grupos-metas');
+    const grupoBlocks = wrap ? wrap.querySelectorAll('[data-grupo-id]') : [];
+    if (grupoBlocks.length > 0) {
+        const gruposPayload = Array.from(grupoBlocks).map(block => {
+            const grupoId = parseInt(block.dataset.grupoId);
+            const get = (campo) => {
+                const el = block.querySelector(`[data-campo="${campo}"]`);
+                if (!el || el.value === '') return null;
+                const v = parseFloat(el.value);
+                return isNaN(v) ? null : v;
+            };
+            return {
+                grupo_id:          grupoId,
+                meta_intermediaria: get('meta_intermediaria'),
+                meta:               get('meta'),
+                supermeta:          get('supermeta'),
+                valor_base:         get('valor_base'),
+                valor_intermediaria: get('valor_intermediaria'),
+                valor_meta:         get('valor_meta'),
+                valor_supermeta:    get('valor_supermeta'),
+            };
+        });
+        try {
+            const gmRaw = await api(`/api/premiacao/campanhas/${id}/metas-grupo`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ grupos: gruposPayload }),
+            });
+            const gmRes = await gmRaw.json();
+            if (!gmRes?.ok) toast('Campanha salva, mas erro ao salvar metas por equipe: ' + (gmRes?.error || ''), 'error');
+        } catch (e) {
+            toast('Campanha salva, mas erro ao salvar metas por equipe.', 'error');
+        }
+    }
+
+    toast('Campanha atualizada!');
+    document.getElementById('pa-edit-modal').classList.add('hidden');
+    await _paLoadCampanhas();
 }
 
 /* ═══ B) Metas por Agente ═══ */
