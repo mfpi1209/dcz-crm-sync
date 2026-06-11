@@ -4,6 +4,64 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-06-11 — Premiação: metas + R$/matrícula por equipe (Alta Performance vs Impulso)
+- **Modelo usado:** Opus 4.7 (principal) decidiu; Executor (Sonnet 4.6) implementará.
+- **Problema:** a campanha tem alvos únicos (`def_meta_intermediaria/def_meta/def_supermeta`) e R$ por faixa únicos (`premiacao_tier_bonus`) que valem para todos. O time precisa diferenciar Alta Performance (alvo maior, R$/mat possivelmente maior) de Impulso (alvo menor) na MESMA campanha.
+- **Decisão:** criar tabela `premiacao_grupo_meta(campanha_id, grupo_id, meta_intermediaria, meta, supermeta, valor_base, valor_intermediaria, valor_meta, valor_supermeta)` com PK composta `(campanha_id, grupo_id)`. Todos os campos NULLABLE — quando `NULL` cai no fallback. UI no MESMO modal "Editar Campanha" lista as equipes da campanha e mostra inputs por equipe.
+- **Precedência (para 1 agente):**
+  1. **Meta individual** em `premiacao_campanha_meta` (já existe — override por agente)
+  2. **Meta da equipe** em `premiacao_grupo_meta` (NOVO — via `premiacao_grupo_membro.kommo_user_id`)
+  3. **Default da campanha** (`def_meta_*` em `premiacao_campanha`)
+  4. Fallback final: `comercial_metas` (já existe)
+- **Mesma precedência para R$/matrícula:** equipe (NOVO via `premiacao_grupo_meta.valor_*`) → campanha (`premiacao_tier_bonus`).
+- **Schema delta** (adicionar em `db.py` no bloco de migrations):
+  ```sql
+  CREATE TABLE IF NOT EXISTS premiacao_grupo_meta (
+    campanha_id INTEGER NOT NULL REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
+    grupo_id INTEGER NOT NULL REFERENCES premiacao_grupo(id) ON DELETE CASCADE,
+    meta_intermediaria NUMERIC,
+    meta NUMERIC,
+    supermeta NUMERIC,
+    valor_base NUMERIC,
+    valor_intermediaria NUMERIC,
+    valor_meta NUMERIC,
+    valor_supermeta NUMERIC,
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (campanha_id, grupo_id)
+  );
+  ```
+- **Endpoints novos** (em `routes/minha_performance.py`, padrão dos existentes — `_is_admin()` gate):
+  - `GET /api/premiacao/campanhas/<cid>/metas-grupo` → `{ ok: true, grupos: [{ grupo_id, grupo_nome, meta_intermediaria, meta, supermeta, valor_base, valor_intermediaria, valor_meta, valor_supermeta }] }` listando TODAS as equipes da campanha (left join: equipe sem linha em `premiacao_grupo_meta` vem com `null` em todos os campos numéricos).
+  - `POST /api/premiacao/campanhas/<cid>/metas-grupo` → `body: { grupos: [{ grupo_id, meta_intermediaria, meta, supermeta, valor_base, valor_intermediaria, valor_meta, valor_supermeta }] }`. UPSERT por `(campanha_id, grupo_id)`. Campos numéricos vazios/`null` viram `NULL` no DB (= "usar fallback").
+- **Helper backend a CRIAR** (em `routes/minha_performance.py`):
+  - `_get_agent_grupo_id(kommo_uid, campanha_id) -> Optional[int]` — lookup em `premiacao_grupo_membro JOIN premiacao_grupo`. Pode aproveitar a função similar que já existe no PIX por equipe.
+  - `_get_grupo_meta_e_bonuses(campanha_id, grupo_id) -> dict | None` — retorna `{ meta_intermediaria, meta, supermeta, tiers: { base, intermediaria, meta, supermeta } }` ou None.
+- **Pontos a alterar (com cuidado para não regredir):**
+  - `_get_agent_metas(kommo_uid, dt_ini, dt_fim)` → adicionar passo 2 (lookup equipe via campanha ativa no período). Compatibilidade: se equipe não tiver `meta_*` definidos, segue pro fallback atual.
+  - `_get_tier_bonuses(campanha_id)` → criar variante `_get_tier_bonuses_for_agent(campanha_id, kommo_uid)` que primeiro tenta `premiacao_grupo_meta.valor_*` da equipe do agente, fallback pra `premiacao_tier_bonus` da campanha. Trocar chamadas no fluxo de Minha Performance pelo novo helper (chamadas existentes que NÃO têm `kommo_uid` no escopo continuam usando `_get_tier_bonuses` puro — relevante pra dashboards agregados que não são por agente).
+- **UI** (`templates/partials/_premiacao_admin.html` no modal `pa-edit-modal`):
+  - Adicionar nova seção após "R$ por matrícula por faixa" e antes de "Recebimentos":
+    ```
+    Por equipe (sobrescreve o padrão acima)
+    ┌─ Alta Performance ─────────────────┐
+    │ Metas (mat): [Inter] [Meta] [Super]│
+    │ R$/mat:      [Base] [Inter] [Meta] [Super]│
+    └────────────────────────────────────┘
+    ┌─ Impulso ──────────────────────────┐
+    │ ...                                │
+    └────────────────────────────────────┘
+    ```
+  - Quando a campanha não tem equipes, mostrar mensagem: "Crie equipes em 'Grupos de Agentes' abaixo para definir metas por equipe."
+  - Render dinâmico — JS busca equipes via `/api/premiacao/campanhas/<cid>/grupos` (já existe) ao abrir o modal.
+  - Salvar: `paSaveEditCampanha()` envia tudo do modal (campanha + tiers + recebimento) e DEPOIS chama `POST /api/premiacao/campanhas/<cid>/metas-grupo` se houver equipes editadas.
+- **Alternativas descartadas:**
+  - **Reaproveitar "Metas por Agente"** (preencher em lote todos do grupo): funcionaria pra metas, mas não cobre R$/mat por equipe (tabela `premiacao_tier_bonus` não tem dimensão de agente). Mais arrastado pro admin (precisa preencher N linhas em vez de 1 por equipe). E não diferencia "agente sem override individual mas com override de equipe" de "agente totalmente default".
+  - **Colunas extras `*_alta`/`*_impulso` em `premiacao_campanha`:** quebra com qualquer 3ª equipe futura; viola schema normalizado.
+  - **JSON `metas_por_equipe` em `premiacao_campanha`:** flexível mas perde tipagem, validação no DB e índices; obriga app-layer a fazer normalização.
+- **Compatibilidade:** campanhas existentes sem nenhum override em `premiacao_grupo_meta` se comportam idêntico ao hoje (tudo cai no fallback `def_meta_*`/`premiacao_tier_bonus`). Nenhum agente fica órfão (passos 3-4 do fallback continuam intactos).
+- **Correção lateral:** ANTES desta implementação, `_get_agent_metas` em `routes/minha_performance.py` ignorava `def_meta_*` da campanha — pulava direto do override individual (`premiacao_campanha_meta`) para `comercial_metas`. Isso fazia Minha Performance divergir do Dashboard Comercial (que SEMPRE leu `def_meta_*` como fallback — ver `routes/comercial_rgm.py` linhas ~3216-3255). Agora `_get_agent_metas` aplica `def_meta_*` como passo 3 — Minha Performance fica alinhado com Dashboard Comercial. **Impacto:** agentes sem linha em `comercial_metas` mas com campanha ativa preenchida (cenário comum) ANTES viam meta=0 em Minha Performance, AGORA verão os alvos `def_meta_*` da campanha. Tratamos como correção, não regressão.
+- **Não inclui (escopo futuro):** sobrescrita por equipe das **regras de recebimento** (`premiacao_recebimento_regra`) e do **PIX diário** (`premiacao_pix_faixa` JÁ é por equipe, separado). Se virar requisito, ampliar a tabela `premiacao_grupo_meta` ou criar tabelas paralelas.
+
 ### 2026-06-10 — Dashboard Acadêmico lê `ciclo` direto do snapshot + filtro de ciclo independente de período
 - **Modelo usado:** Opus 4.7 (principal).
 - **Decisão:** No `routes/dashboard.py`, refatorar `_MAT_CTE` para incluir uma coluna `ciclo` lida diretamente de `r.data->>'ciclo'` (validada por regex `^\d{4}/\d$` para descartar lixo de cabeçalho/rodapé do XLSX). `_STUDENT_METRICS_QUERY` agora filtra por `m.ciclo = %(f_ciclo)s` em vez de converter ciclo para intervalo `dt_inicio/dt_fim` via tabela `ciclos`. Nova rota `GET /api/dashboard/ciclos-distinct` retorna ciclos distintos presentes no snapshot (com contagem). Front (`static/js/dashboard.js` `populateCicloFilter`/`applyCicloFilter` + `static/js/dashboard_supervisor_academico.js` `loadDashboardSupervisorAcademico`) passa a usar essa rota e persiste a escolha em `localStorage` (`dash_ciclo_v1` / `dsa_ciclo_v1`). Template `_dashboard_supervisor_academico.html` ganha `<select id="dsa-ciclo">` ao lado do `dsa-nivel`. O `applyCicloFilter` deixa de mexer em `students-from`/`students-to` — ciclo e período passam a ser filtros independentes.
