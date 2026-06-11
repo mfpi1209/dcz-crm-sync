@@ -18,7 +18,9 @@
 #}
 {%- set _u = session.get('username', '') -%}
 {%- set _role = session.get('role', '') -%}
-{%- set _categoria = session.get('categoria', '') -%}
+{# session.get('categoria') NUNCA foi setado no login — vem do context_processor
+   inject_nav_perms() (app.py) que lê app_users.categoria a cada render. #}
+{%- set _categoria = nav_categoria | default('', true) -%}
 {%- set _u_local = _u.split('@')[0] -%}
 {%- set _nome = _u_local.replace('.', ' ').replace('_', ' ').replace('-', ' ').title() -%}
 {%- set _iframe_url = whatsapp_tool_base ~ '/?theme=dark&consultor=' ~ (_u | urlencode) ~ '&consultor_nome=' ~ (_nome | urlencode) ~ '&role=' ~ (_role | urlencode) ~ '&categoria=' ~ (_categoria | urlencode) -%}
