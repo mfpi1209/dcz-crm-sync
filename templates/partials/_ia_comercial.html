@@ -1,0 +1,159 @@
+<div id="page-ia_comercial" class="hidden flex-1 flex flex-col min-w-0">
+
+    <!-- Header -->
+    <header class="glass-card border border-[var(--border)] rounded-2xl px-4 lg:px-8 py-6 mx-4 lg:mx-8 mt-4 mb-6">
+        <div class="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+                <h2 class="text-2xl font-black text-[var(--text-primary)] dark:text-white">IA Comercial</h2>
+                <p class="text-xs text-slate-600 dark:text-slate-500 mt-1 uppercase tracking-widest">Acompanhe o desempenho do agente em tempo real</p>
+            </div>
+            <button id="iac-refresh-btn" type="button"
+                class="px-4 py-2 bg-[var(--primary)] hover:opacity-90 text-white font-semibold rounded-lg transition-all text-sm flex items-center gap-2">
+                <span class="material-symbols-outlined text-base">refresh</span>
+                Atualizar
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 p-4 lg:p-8 space-y-6">
+
+        <!-- Filtros -->
+        <div class="glass-card border border-[var(--border)] rounded-2xl p-5">
+            <div class="flex flex-wrap gap-3 items-end">
+                <div class="flex items-center gap-1.5 p-1 rounded-lg" style="background: var(--bg-elevated);" id="iac-presets">
+                    <button type="button" data-preset="0" class="iac-preset-btn px-3 py-1.5 rounded-md text-xs font-semibold transition-colors">Hoje</button>
+                    <button type="button" data-preset="7" class="iac-preset-btn px-3 py-1.5 rounded-md text-xs font-semibold transition-colors">7 dias</button>
+                    <button type="button" data-preset="15" class="iac-preset-btn px-3 py-1.5 rounded-md text-xs font-semibold transition-colors">15 dias</button>
+                    <button type="button" data-preset="30" class="iac-preset-btn px-3 py-1.5 rounded-md text-xs font-semibold transition-colors">30 dias</button>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">Data inicial</label>
+                    <input type="date" id="iac-dt-ini" class="input-glass px-3 py-2.5 rounded-lg text-sm text-slate-900 dark:text-white w-[150px]">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">Data final</label>
+                    <input type="date" id="iac-dt-fim" class="input-glass px-3 py-2.5 rounded-lg text-sm text-slate-900 dark:text-white w-[150px]">
+                </div>
+                <div class="ml-auto text-right">
+                    <p class="text-[11px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold" id="iac-range-label">—</p>
+                    <p class="text-sm font-bold text-[var(--text-primary)] dark:text-white" id="iac-total-label">0 mensagens</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Banner de erros (condicional) -->
+        <div id="iac-banner-erros" class="hidden cursor-pointer rounded-2xl border px-5 py-4 transition-all hover:opacity-90"
+             style="background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.30); color: #ef4444;"
+             onclick="iacScrollToErros()">
+            <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined">error</span>
+                <p class="text-sm font-semibold" id="iac-banner-text">—</p>
+            </div>
+        </div>
+
+        <!-- KPIs (5 cards) -->
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4" id="iac-kpis"></div>
+
+        <!-- Custo por componente -->
+        <div class="glass-card border border-[var(--border)] rounded-2xl p-6">
+            <div class="flex items-center justify-between gap-2 mb-5">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-emerald-400">attach_money</span>
+                    <h3 class="text-base font-bold text-[var(--text-primary)] dark:text-white">Custo por componente</h3>
+                </div>
+                <span class="text-xs text-slate-500 dark:text-slate-400" id="iac-custo-total-label">R$ 0,00 no total</span>
+            </div>
+            <div id="iac-custo-componente" class="space-y-4"></div>
+        </div>
+
+        <!-- Painel de erros -->
+        <div id="erros-painel" class="glass-card border border-[var(--border)] rounded-2xl p-6">
+            <div class="flex items-center justify-between gap-2 mb-5">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-rose-400">report</span>
+                    <h3 class="text-base font-bold text-[var(--text-primary)] dark:text-white">Últimos erros</h3>
+                </div>
+                <span class="text-xs text-slate-500 dark:text-slate-400" id="iac-erros-count">0 no período</span>
+            </div>
+            <div id="iac-erros-grupos"></div>
+            <div class="mt-5" id="iac-erros-toggle-wrap"></div>
+            <div id="iac-erros-todos" class="hidden mt-4 space-y-3"></div>
+        </div>
+
+        <!-- Grid: mensagens/dia + tópicos -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="glass-card border border-[var(--border)] rounded-2xl p-6">
+                <div class="flex items-center gap-2 mb-5">
+                    <span class="material-symbols-outlined text-blue-400">trending_up</span>
+                    <h3 class="text-base font-bold text-[var(--text-primary)] dark:text-white">Mensagens por dia</h3>
+                </div>
+                <div style="height: 260px;"><canvas id="iac-chart-msgs"></canvas></div>
+            </div>
+            <div class="glass-card border border-[var(--border)] rounded-2xl p-6">
+                <div class="flex items-center gap-2 mb-5">
+                    <span class="material-symbols-outlined text-amber-400">sell</span>
+                    <h3 class="text-base font-bold text-[var(--text-primary)] dark:text-white">Tópicos mais pedidos</h3>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                    <div class="relative" style="height: 220px;">
+                        <canvas id="iac-chart-topicos"></canvas>
+                        <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                            <p class="text-2xl font-black text-[var(--text-primary)] dark:text-white tabular-nums" id="iac-topicos-total">0</p>
+                            <p class="text-[10px] uppercase tracking-widest text-slate-500">tópicos</p>
+                        </div>
+                    </div>
+                    <div id="iac-topicos-legenda" class="space-y-2 text-sm"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tools mais usadas -->
+        <div class="glass-card border border-[var(--border)] rounded-2xl p-6">
+            <div class="flex items-center justify-between gap-2 mb-5">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-violet-400">build</span>
+                    <h3 class="text-base font-bold text-[var(--text-primary)] dark:text-white">Tools mais usadas</h3>
+                </div>
+                <span class="text-xs text-slate-500 dark:text-slate-400" id="iac-tools-total-label">0 chamadas</span>
+            </div>
+            <div id="iac-tools-ranking" class="space-y-3"></div>
+        </div>
+
+    </main>
+</div>
+
+<!-- Modal "Ver execução" -->
+<div id="iac-exec-modal" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onclick="iacCloseExecModal(event)">
+    <div class="glass-card w-full max-w-3xl max-h-[85vh] flex flex-col rounded-2xl shadow-2xl border border-[var(--border)]" onclick="event.stopPropagation()">
+        <div class="flex items-center justify-between p-5 border-b border-[var(--border)]">
+            <div>
+                <h3 class="text-base font-bold text-[var(--text-primary)] dark:text-white" id="iac-exec-modal-title">Execução</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5" id="iac-exec-modal-sub">—</p>
+            </div>
+            <button onclick="iacCloseExecModal()" class="text-slate-500 hover:text-[var(--text-primary)] text-2xl leading-none">&times;</button>
+        </div>
+        <div class="overflow-auto p-5 flex-1">
+            <pre id="iac-exec-modal-body" class="text-xs whitespace-pre-wrap break-words rounded-lg p-4" style="background: var(--bg-elevated); color: var(--text-primary); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;"></pre>
+        </div>
+    </div>
+</div>
+
+<style>
+    .iac-preset-btn { color: var(--text-secondary); }
+    .iac-preset-btn.is-active { background: var(--bg-card); color: var(--text-primary); box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+    .iac-bar-track { background: var(--bg-elevated); border-radius: 9999px; overflow: hidden; height: 6px; }
+    .iac-bar-fill { height: 100%; border-radius: 9999px; transition: width .35s ease; }
+    .iac-error-pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 240px;
+        overflow: auto;
+        background: var(--bg-elevated);
+        color: var(--text-primary);
+        border-radius: 8px;
+        padding: 12px 14px;
+        font-size: 11.5px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        line-height: 1.55;
+    }
+</style>

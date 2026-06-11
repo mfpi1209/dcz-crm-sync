@@ -70,6 +70,7 @@
             {% include 'partials/_leads_promotores.html' %}
             {% include 'partials/_profile.html' %}
             {% include 'partials/_meus_atendimentos.html' %}
+            {% include 'partials/_ia_comercial.html' %}
         </main>
     </div>
 </div>
@@ -336,6 +337,8 @@
 <script defer src="{{ url_for('static', filename='js/clicks.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/leads_promotores.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/profile.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/openai_pricing.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/ia_comercial.js') }}?v={{_v}}"></script>
 
 </body>
 </html>
