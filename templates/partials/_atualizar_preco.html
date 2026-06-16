@@ -409,15 +409,6 @@
           </div>
         </div>
 
-        <!-- Canal select (Corporativa) -->
-        <div id="supa-canal-wrap-corp" class="mb-4 hidden">
-          <label class="block text-xs text-slate-500 mb-1">Canal</label>
-          <select id="supa-canal-select-corp" onchange="supaOnCanalChange('corp')"
-            class="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-sm px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]">
-            <option value="">— Selecione um canal —</option>
-          </select>
-        </div>
-
         <!-- Mapeamento N×N -->
         <div id="corp-mapping-wrap" class="hidden mb-4">
           <div class="flex items-center justify-between mb-2">
@@ -1631,11 +1622,11 @@
         if (data.error) { console.error('listar_canais', data.error); return; }
         canalData[tipo].canais   = data.canais  || [];
         canalData[tipo].temSiaa  = !!data.tem_siaa;
-        supaRenderCanalSelect(tipo, canalData[tipo].canais, canalData[tipo].temSiaa);
-        // For corp, also render mapping UI
         if (tipo === 'corp') {
           document.getElementById('corp-mapping-wrap').classList.remove('hidden');
           corpRenderMappingRows();
+        } else {
+          supaRenderCanalSelect(tipo, canalData[tipo].canais, canalData[tipo].temSiaa);
         }
       } catch(e) {
         console.error('supaLoadCanais', e);
@@ -1662,9 +1653,7 @@
     }
 
     function supaOnCanalChange(tipo) {
-      const sel = document.getElementById(`supa-canal-select-${tipo}`);
-      const hasCanal = sel && sel.value !== '';
-      let canEnable = hasCanal;
+      let canEnable = false;
       if (tipo === 'corp') {
         const rows = document.querySelectorAll('#corp-mapping-rows .corp-map-row');
         const valid = [...rows].filter(r => {
@@ -1672,6 +1661,9 @@
           return s[0].value !== '' && s[1].value !== '';
         });
         canEnable = valid.length > 0;
+      } else {
+        const sel = document.getElementById(`supa-canal-select-${tipo}`);
+        canEnable = !!(sel && sel.value !== '');
       }
       document.getElementById(`supa-btn-preview-${tipo}`).disabled = !canEnable;
       document.getElementById(`supa-btn-atualizar-${tipo}`).disabled = true;
@@ -1690,7 +1682,6 @@
     }
 
     function corpAddMapping() {
-      const sel  = document.getElementById('supa-canal-select-corp');
       const canais = canalData.corp.canais;
       const temSiaa = canalData.corp.temSiaa;
       const container = document.getElementById('corp-mapping-rows');
@@ -2167,24 +2158,101 @@
       document.getElementById('sbpos-results').classList.remove('hidden');
     }
 
+    let sbposActiveFilter = null;
+    function sbposToggleFilter(cat) {
+      const el = document.getElementById('sbpos-results');
+      const tbody = document.getElementById('sbpos-tbody');
+      if (!tbody) return;
+      sbposActiveFilter = sbposActiveFilter === cat ? null : cat;
+      const active = sbposActiveFilter;
+      el.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.style.opacity = (!active || btn.dataset.filter === active) ? '1' : '0.4';
+      });
+      tbody.querySelectorAll('tr[data-cat]').forEach(row => {
+        row.style.display = (!active || row.dataset.cat === active) ? '' : 'none';
+      });
+    }
+
     function sbposRenderResults(data) {
       const el = document.getElementById('sbpos-results');
-      const att = data.total_atualizar || 0;
-      const sem = data.total_sem_mudanca || 0;
-      const nao = data.total_nao_enc || 0;
-      el.innerHTML = `<div class="text-sm text-slate-400 mb-3">
-        <span class="text-amber-400 font-semibold">${att}</span> para atualizar·
-        <span class="text-slate-400">${sem}</span> sem mudança·
-        <span class="text-red-400">${nao}</span> não encontrado
-      </div>`;
       el.classList.remove('hidden');
+
+      const canal = (document.getElementById('sb-canal-select-pos') || {}).value || '';
+      const canalLabel = canal === '__SIAA__' ? 'Preço SIAA' : (canal || '');
+
+      let rows = '';
+      sortByName(data.matches || [], 'curso').forEach(m => {
+        (m.slots || []).forEach(s => {
+          const st = s.needs_update ? 'atualizar' : 'sem_mudanca';
+          rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="${st}">
+            <td class="py-3 px-4">${sbBadge(st)}</td>
+            <td class="py-3 px-4 text-sm text-[var(--text-primary)] whitespace-nowrap">${escHtml(m.curso || '')}</td>
+            <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(s.duracao || '')}</td>
+            <td class="py-3 px-4 text-right text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap tabular-nums">${s.valor_atual != null ? 'R$&nbsp;'+s.valor_atual : '<span class="text-slate-400 dark:text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-right text-sm text-teal-300 font-medium whitespace-nowrap">${s.novo_valor != null ? 'R$&nbsp;'+s.novo_valor : '<span class="text-slate-700">—</span>'}</td>
+          </tr>`;
+        });
+      });
+      sortByName(data.nao_encontrado || [], 'curso').forEach(n => {
+        const name = typeof n === 'string' ? n : (n.curso || n.nome || '');
+        rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
+          <td class="py-3 px-4">${sbBadge('nao_encontrado')}</td>
+          <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(name)}</td>
+          <td></td><td></td><td></td>
+        </tr>`;
+      });
+
+      el.innerHTML = `
+        <div class="grid grid-cols-3 gap-3 mb-5">
+          <div class="bg-emerald-900/30 rounded-xl p-4 border border-emerald-800/50 cursor-pointer filter-btn" data-filter="atualizar" onclick="sbposToggleFilter('atualizar')">
+            <p class="text-xs text-emerald-500 mb-1">Serão atualizados</p>
+            <p class="text-2xl font-bold text-emerald-400">${data.total_atualizar || 0}</p>
+          </div>
+          <div class="bg-slate-100 dark:bg-slate-800 rounded-xl p-4 border border-[var(--border)] cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="sbposToggleFilter('sem_mudanca')">
+            <p class="text-xs text-slate-500 mb-1">Sem mudança</p>
+            <p class="text-2xl font-bold text-[var(--text-primary)] tabular-nums">${data.total_sem_mudanca || 0}</p>
+          </div>
+          <div class="bg-red-900/20 rounded-xl p-4 border border-red-900/40 cursor-pointer filter-btn" data-filter="nao_encontrado" onclick="sbposToggleFilter('nao_encontrado')">
+            <p class="text-xs text-red-500 mb-1">Não encontrado</p>
+            <p class="text-2xl font-bold text-red-400">${data.total_nao_enc || 0}</p>
+          </div>
+        </div>
+        <div class="rounded-xl border border-slate-800 overflow-hidden">
+          <div class="overflow-auto max-h-[480px]">
+            <table class="w-full text-xs">
+              <thead class="sticky top-0 bg-[var(--bg-card)] z-20">
+                <tr class="border-b border-[var(--border)]">
+                  <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Status</th>
+                  <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Curso</th>
+                  <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Duração</th>
+                  <th class="py-2.5 px-4 text-right text-slate-600 dark:text-slate-400 font-medium">Atual</th>
+                  <th class="py-2.5 px-4 text-right text-teal-400 font-semibold">Novo${canalLabel ? ' ('+escHtml(canalLabel)+')' : ''}</th>
+                </tr>
+              </thead>
+              <tbody id="sbpos-tbody">${rows}</tbody>
+            </table>
+          </div>
+        </div>`;
     }
 
     function sbposRenderSuccess(data) {
       const el = document.getElementById('sbpos-results');
-      el.innerHTML = `<div class="p-4 rounded-xl bg-emerald-900/20 text-emerald-400 text-sm">
-        ✓ ${data.atualizados} registros atualizados${data.erros ? ` · ${data.erros} erros` : ''}</div>`;
       el.classList.remove('hidden');
+      el.innerHTML = `
+        <div class="rounded-xl bg-emerald-900/20 border border-emerald-800/40 p-5 flex items-start gap-4">
+          <div class="w-10 h-10 rounded-full bg-emerald-800/50 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+          </div>
+          <div>
+            <p class="text-emerald-400 font-semibold text-sm mb-1">Atualização concluída!</p>
+            <p class="text-slate-400 text-sm">
+              <span class="text-[var(--text-primary)] font-semibold">${data.atualizados}</span> salesbots atualizados.
+              ${(data.erros || 0) > 0 ? '<span class="text-red-400"> '+data.erros+' com erro.</span>' : ''}
+            </p>
+          </div>
+        </div>`;
     }
 
     async function sbPreview() {
@@ -3471,9 +3539,12 @@
       let rows = '';
       Object.values(grouped).forEach(g => {
         const n = g.campos.length;
+        // Use one tr per campo, but tag all rows of same curso with the worst status
+        // (atualizar wins). This keeps filter behavior intuitive on grouped rows.
+        const groupSt = g.campos.some(c => c.needs_update) ? 'atualizar' : 'sem_mudanca';
         g.campos.forEach((c, ci) => {
           const st  = c.needs_update ? 'atualizar' : 'sem_mudanca';
-          rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30">
+          rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30" data-cat="${groupSt}">
             ${ci === 0 ? `<td class="py-3 px-4 text-sm text-[var(--text-primary)] whitespace-nowrap align-top" rowspan="${n}">${escHtml(g.curso)}</td>
               <td class="py-3 px-4 text-xs text-slate-500 whitespace-nowrap align-top" rowspan="${n}">${escHtml(g.duracao)}</td>` : ''}
             <td class="py-3 px-4 text-xs text-indigo-300 whitespace-nowrap">${escHtml(c.campo)}</td>
@@ -3484,7 +3555,7 @@
         });
       });
       naoEnc.forEach(n => {
-        rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60">
+        rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60" data-cat="nao_encontrado">
           <td class="py-3 px-4 text-sm text-slate-400">${escHtml(n.curso || String(n))}</td>
           <td class="py-3 px-4 text-xs text-slate-500">${escHtml(n.duracao || '')}</td>
           <td colspan="4" class="py-3 px-4">${wixBadge('nao_encontrado')}</td>
@@ -3494,15 +3565,15 @@
       el.innerHTML = `
         ${chipHtml ? `<div class="flex flex-wrap gap-1.5 mb-4">${chipHtml}</div>` : ''}
         <div class="grid grid-cols-3 gap-3 mb-5">
-          <div class="bg-emerald-900/30 rounded-xl p-4 border border-emerald-800/50">
+          <div class="bg-emerald-900/30 rounded-xl p-4 border border-emerald-800/50 cursor-pointer filter-btn" data-filter="atualizar" onclick="wixPosToggleFilter('${site}','atualizar')">
             <p class="text-xs text-emerald-500 mb-1">Serão atualizados</p>
             <p class="text-2xl font-bold text-emerald-400">${data.total_atualizar || 0}</p>
           </div>
-          <div class="bg-slate-100 dark:bg-slate-800 rounded-xl p-4 border border-[var(--border)]">
+          <div class="bg-slate-100 dark:bg-slate-800 rounded-xl p-4 border border-[var(--border)] cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="wixPosToggleFilter('${site}','sem_mudanca')">
             <p class="text-xs text-slate-500 mb-1">Sem mudança</p>
             <p class="text-2xl font-bold text-[var(--text-primary)] tabular-nums">${data.total_sem_mudanca || 0}</p>
           </div>
-          <div class="bg-red-900/20 rounded-xl p-4 border border-red-900/40">
+          <div class="bg-red-900/20 rounded-xl p-4 border border-red-900/40 cursor-pointer filter-btn" data-filter="nao_encontrado" onclick="wixPosToggleFilter('${site}','nao_encontrado')">
             <p class="text-xs text-red-500 mb-1">Não encontrado</p>
             <p class="text-2xl font-bold text-red-400">${data.total_nao_enc || 0}</p>
           </div>
@@ -3520,10 +3591,28 @@
                   <th class="py-2.5 px-4 text-right text-amber-400 font-semibold">Novo</th>
                 </tr>
               </thead>
-              <tbody>${rows}</tbody>
+              <tbody id="${site}-pos-tbody">${rows}</tbody>
             </table>
           </div>
         </div>`;
+    }
+
+    const wixPosFilterSt = { wix: null, wix2: null, wix3: null };
+    function wixPosToggleFilter(site, cat) {
+      const root = document.getElementById(`${site}-results-pos`);
+      if (!root) return;
+      const cur = wixPosFilterSt[site];
+      const next = cur === cat ? null : cat;
+      wixPosFilterSt[site] = next;
+      root.querySelectorAll('.filter-btn').forEach(b => {
+        b.classList.toggle('ring-2', b.dataset.filter === next);
+        b.classList.toggle('ring-indigo-400', b.dataset.filter === next);
+      });
+      const tbody = document.getElementById(`${site}-pos-tbody`);
+      if (!tbody) return;
+      tbody.querySelectorAll('tr').forEach(tr => {
+        tr.style.display = (!next || tr.dataset.cat === next) ? '' : 'none';
+      });
     }
 
   </script>
