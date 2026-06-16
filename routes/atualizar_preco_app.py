@@ -524,6 +524,20 @@ def _fmt_valor(val):
         return str(val)
 
 
+def _fmt_valor_int(val):
+    """Format price rounded to nearest integer, BRL-style '348,00'."""
+    if val is None:
+        return None
+    try:
+        if isinstance(val, str):
+            v = float(val.strip().replace(',', '.').replace('R$', '').replace(' ', ''))
+        else:
+            v = float(val)
+        return f'{int(round(v))},00'
+    except (ValueError, TypeError):
+        return str(val)
+
+
 def _parse_dur_meses(val):
     """Parse duration string to integer months."""
     if val is None:
@@ -604,9 +618,10 @@ def _build_grad_index_canal(rows, headers, canal, canal_col, siaa_col):
     Build index: {(_norm(curso), _norm(grau), _norm(modalidade)): preco}
     from xlsx rows filtered by canal.
     """
-    curso_col    = _find_col(headers, 'CURSO', 'NOME DO CURSO', 'NOME_CURSO')
+    curso_col    = _find_col(headers, 'CURSO', 'CURSOS', 'NOME DO CURSO', 'NOME_CURSO')
     grau_col     = _find_col(headers, 'GRAU', 'TIPO', 'GRAU DO CURSO')
-    modal_col    = _find_col(headers, 'MODALIDADE', 'TIPO MODALIDADE')
+    modal_col    = _find_col(headers, 'SUBMODALIDADE', 'SUB MODALIDADE',
+                              'MODALIDADE', 'TIPO MODALIDADE')
     valor_col    = _find_col(headers, 'VALOR COM DESCONTO', 'VALOR_COM_DESCONTO', 'VALOR')
     if not curso_col:
         return {}
@@ -627,7 +642,8 @@ def _build_grad_index_canal(rows, headers, canal, canal_col, siaa_col):
             price = r.get(valor_col) if valor_col else None
         if price is None:
             continue
-        key = (_norm(str(curso)), _norm(str(grau)), _norm(str(modal)))
+        key = (_norm(str(curso)), _norm(str(grau)),
+               _norm(_norm_modalidade(str(modal))))
         index[key] = price
     return index
 
@@ -655,13 +671,14 @@ def preview_grad_canal():
             curso = inner.get('curso') or ''
             grau  = inner.get('grau')  or ''
             modal = inner.get('modalidade') or ''
-            key   = (_norm(curso), _norm(grau), _norm(modal))
+            key   = (_norm(curso), _norm(grau),
+                     _norm(_norm_modalidade(modal)))
             if key not in idx:
                 nao_enc.append({'curso': curso, 'grau': grau, 'modalidade': modal})
                 continue
             novo_raw   = idx[key]
-            novo_fmt   = _fmt_valor(novo_raw)
-            atual_fmt  = _fmt_valor(inner.get('valor'))
+            novo_fmt   = _fmt_valor_int(novo_raw)
+            atual_fmt  = _fmt_valor_int(inner.get('valor'))
             needs_upd  = (novo_fmt is not None and novo_fmt != atual_fmt)
             matches.append({
                 'id': doc['id'], 'curso': curso, 'grau': grau, 'modalidade': modal,
@@ -703,11 +720,12 @@ def atualizar_grad_canal():
             curso = inner.get('curso') or ''
             grau  = inner.get('grau')  or ''
             modal = inner.get('modalidade') or ''
-            key   = (_norm(curso), _norm(grau), _norm(modal))
+            key   = (_norm(curso), _norm(grau),
+                     _norm(_norm_modalidade(modal)))
             if key not in idx:
                 continue
-            novo_fmt  = _fmt_valor(idx[key])
-            atual_fmt = _fmt_valor(inner.get('valor'))
+            novo_fmt  = _fmt_valor_int(idx[key])
+            atual_fmt = _fmt_valor_int(inner.get('valor'))
             if novo_fmt is None or novo_fmt == atual_fmt:
                 continue
             updated_inner = dict(inner)
@@ -757,7 +775,7 @@ def listar_canais_pos():
 
 def _build_pos_index_canal(rows, headers, canal, canal_col, siaa_col):
     """Index: {(_norm(curso), dur_meses): preco}"""
-    curso_col = _find_col(headers, 'CURSO', 'NOME DO CURSO', 'NOME_CURSO')
+    curso_col = _find_col(headers, 'CURSO', 'CURSOS', 'NOME DO CURSO', 'NOME_CURSO')
     dur_col   = _find_col(headers, 'DURAÇÃO', 'DURACAO', 'TEMPO', 'MESES', 'DURAÇÃO (MESES)')
     valor_col = _find_col(headers, 'VALOR COM DESCONTO', 'VALOR_COM_DESCONTO', 'VALOR')
     if not curso_col:
@@ -796,8 +814,9 @@ def preview_pos_canal():
         if not canal_col:
             return jsonify({'error': 'Coluna CANAL não encontrada'}), 400
         if cert_col:
+            _cert_prefix = _norm('Cruzeiro do Sul')
             rows = [r for r in rows
-                    if _norm(str(r.get(cert_col) or '')) == _norm('Cruzeiro do Sul - Pós EAD')]
+                    if _norm(str(r.get(cert_col) or '')).startswith(_cert_prefix)]
         idx = _build_pos_index_canal(rows, headers, canal, canal_col, siaa_col)
         docs = _supa_fetch_all('documents_precos')
         matches, nao_enc = [], []
@@ -807,13 +826,19 @@ def preview_pos_canal():
             if 'pos' not in tipo and 'p\xf3s' not in tipo:
                 continue
             curso  = inner.get('curso') or ''
-            dur_m  = _parse_dur_meses(inner.get('tempo'))
+            dur_raw = inner.get('tempo')
+            dur_m  = _parse_dur_meses(dur_raw)
             key    = (_norm(curso), dur_m)
             if key not in idx:
-                nao_enc.append({'curso': curso, 'duracao': inner.get('tempo')})
+                nao_enc.append({
+                    'curso': curso, 'duracao': dur_raw,
+                    '_dbg_norm': _norm(curso), '_dbg_dur': dur_m,
+                    '_dbg_dur_raw': str(dur_raw or ''),
+                    '_dbg_inner_keys': list(inner.keys())[:8],
+                })
                 continue
-            novo_fmt  = _fmt_valor(idx[key])
-            atual_fmt = _fmt_valor(inner.get('valor'))
+            novo_fmt  = _fmt_valor_int(idx[key])
+            atual_fmt = _fmt_valor_int(inner.get('valor'))
             needs_upd = (novo_fmt is not None and novo_fmt != atual_fmt)
             matches.append({
                 'id': doc['id'], 'curso': curso,
@@ -822,12 +847,17 @@ def preview_pos_canal():
                 'needs_update': needs_upd,
             })
         att = sum(1 for m in matches if m['needs_update'])
+        _dbg_keys = []
+        for k in list(idx.keys())[:5]:
+            _dbg_keys.append({'curso': k[0], 'dur_meses': k[1]})
         return jsonify({
             'matches': matches,
             'nao_encontrado': nao_enc,
             'total_atualizar': att,
             'total_sem_mudanca': len(matches) - att,
             'total_nao_enc': len(nao_enc),
+            '_dbg_index_size': len(idx),
+            '_dbg_index_sample': _dbg_keys,
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -847,8 +877,9 @@ def atualizar_pos_canal():
         if not canal_col:
             return jsonify({'error': 'Coluna CANAL não encontrada'}), 400
         if cert_col:
+            _cert_prefix = _norm('Cruzeiro do Sul')
             rows = [r for r in rows
-                    if _norm(str(r.get(cert_col) or '')) == _norm('Cruzeiro do Sul - Pós EAD')]
+                    if _norm(str(r.get(cert_col) or '')).startswith(_cert_prefix)]
         idx = _build_pos_index_canal(rows, headers, canal, canal_col, siaa_col)
         docs = _supa_fetch_all('documents_precos')
         atualizados, erros, ultimo_erro = 0, 0, ''
@@ -862,8 +893,8 @@ def atualizar_pos_canal():
             key   = (_norm(curso), dur_m)
             if key not in idx:
                 continue
-            novo_fmt  = _fmt_valor(idx[key])
-            atual_fmt = _fmt_valor(inner.get('valor'))
+            novo_fmt  = _fmt_valor_int(idx[key])
+            atual_fmt = _fmt_valor_int(inner.get('valor'))
             if novo_fmt is None or novo_fmt == atual_fmt:
                 continue
             updated_inner = dict(inner)
@@ -924,7 +955,7 @@ def _build_corp_index(rows, headers, mapping, canal_col, siaa_col):
         {campo_id: preco}}
     mapping: list of {campo, canal}
     """
-    curso_col = _find_col(headers, 'CURSO', 'NOME DO CURSO')
+    curso_col = _find_col(headers, 'CURSO', 'CURSOS', 'NOME DO CURSO')
     grau_col  = _find_col(headers, 'GRAU', 'TIPO')
     modal_col = _find_col(headers, 'MODALIDADE', 'SUBMODALIDADE', 'TIPO MODALIDADE')
     dur_col   = _find_col(headers, 'DURAÇÃO', 'DURACAO', 'TEMPO', 'SEMESTRES')
@@ -956,7 +987,8 @@ def _build_corp_index(rows, headers, mapping, canal_col, siaa_col):
             price = r.get(price_col) if price_col else None
             if price is None:
                 continue
-            key = (_norm(str(curso)), _norm(str(grau)), _norm(str(modal)), dur_m)
+            key = (_norm(str(curso)), _norm(str(grau)),
+                   _norm(_norm_modalidade(str(modal))), dur_m)
             if key not in result:
                 result[key] = {}
             result[key][campo] = price
@@ -985,7 +1017,8 @@ def preview_corporativa_canais():
             grau  = inner.get('grau')  or ''
             modal = inner.get('modalidade') or ''
             dur_m = _parse_dur_meses(inner.get('tempo'))
-            key   = (_norm(curso), _norm(grau), _norm(modal), dur_m)
+            key   = (_norm(curso), _norm(grau),
+                     _norm(_norm_modalidade(modal)), dur_m)
             if key not in idx:
                 nao_enc.append({'curso': curso, 'grau': grau, 'modalidade': modal})
                 continue
@@ -993,8 +1026,8 @@ def preview_corporativa_canais():
             needs_upd = False
             diff = {}
             for campo, novo_raw in campo_updates.items():
-                novo_fmt  = _fmt_valor(novo_raw)
-                atual_fmt = _fmt_valor(inner.get(campo))
+                novo_fmt  = _fmt_valor_int(novo_raw)
+                atual_fmt = _fmt_valor_int(inner.get(campo))
                 diff[campo] = {'atual': atual_fmt, 'novo': novo_fmt}
                 if novo_fmt is not None and novo_fmt != atual_fmt:
                     needs_upd = True
@@ -1036,15 +1069,16 @@ def atualizar_corporativa_canais():
             grau  = inner.get('grau')  or ''
             modal = inner.get('modalidade') or ''
             dur_m = _parse_dur_meses(inner.get('tempo'))
-            key   = (_norm(curso), _norm(grau), _norm(modal), dur_m)
+            key   = (_norm(curso), _norm(grau),
+                     _norm(_norm_modalidade(modal)), dur_m)
             if key not in idx:
                 continue
             campo_updates = idx[key]
             updated_inner = dict(inner)
             changed = False
             for campo, novo_raw in campo_updates.items():
-                novo_fmt  = _fmt_valor(novo_raw)
-                atual_fmt = _fmt_valor(inner.get(campo))
+                novo_fmt  = _fmt_valor_int(novo_raw)
+                atual_fmt = _fmt_valor_int(inner.get(campo))
                 if novo_fmt is not None and novo_fmt != atual_fmt:
                     updated_inner[campo] = novo_fmt
                     changed = True
@@ -1081,7 +1115,7 @@ def preview_salesbot_canal():
         canal_col = _find_col(headers, 'CANAL')
         siaa_col  = _find_col(headers, 'PREÇO SIAA', 'PRECO SIAA', 'PRECO_SIAA')
         valor_col = _find_col(headers, 'VALOR COM DESCONTO', 'VALOR_COM_DESCONTO', 'VALOR', 'MAR ABERTO')
-        curso_col = _find_col(headers, 'CURSO', 'NOME DO CURSO', 'NOME_CURSO')
+        curso_col = _find_col(headers, 'CURSO', 'CURSOS', 'NOME DO CURSO', 'NOME_CURSO')
         if not canal_col or not curso_col:
             return jsonify({'error': 'Colunas CANAL e CURSO são obrigatórias'}), 400
         # Build price index by normalized curso name
@@ -1110,8 +1144,8 @@ def preview_salesbot_canal():
             if key_curso not in price_index:
                 nao_enc.append({'curso': curso_sb, 'sinonimo': sinonimo})
                 continue
-            novo_fmt  = _fmt_valor(price_index[key_curso])
-            atual_fmt = _fmt_valor(atual1)
+            novo_fmt  = _fmt_valor_int(price_index[key_curso])
+            atual_fmt = _fmt_valor_int(atual1)
             needs_upd = (novo_fmt is not None and novo_fmt != atual_fmt)
             matches.append({
                 'curso': curso_sb, 'sinonimo': sinonimo, 'chave1': chave1,
@@ -1141,7 +1175,7 @@ def atualizar_salesbot_canal():
         canal_col = _find_col(headers, 'CANAL')
         siaa_col  = _find_col(headers, 'PREÇO SIAA', 'PRECO SIAA', 'PRECO_SIAA')
         valor_col = _find_col(headers, 'VALOR COM DESCONTO', 'VALOR_COM_DESCONTO', 'VALOR', 'MAR ABERTO')
-        curso_col = _find_col(headers, 'CURSO', 'NOME DO CURSO', 'NOME_CURSO')
+        curso_col = _find_col(headers, 'CURSO', 'CURSOS', 'NOME DO CURSO', 'NOME_CURSO')
         if not canal_col or not curso_col:
             return jsonify({'error': 'Colunas CANAL e CURSO são obrigatórias'}), 400
         price_index = {}
@@ -1167,8 +1201,8 @@ def atualizar_salesbot_canal():
             key_curso = _norm(curso_sb) or _norm(sinonimo)
             if key_curso not in price_index:
                 continue
-            novo_fmt  = _fmt_valor(price_index[key_curso])
-            atual_fmt = _fmt_valor(atual1)
+            novo_fmt  = _fmt_valor_int(price_index[key_curso])
+            atual_fmt = _fmt_valor_int(atual1)
             if novo_fmt is None or novo_fmt == atual_fmt:
                 continue
             try:
@@ -1200,15 +1234,16 @@ def preview_salesbot_pos_canal():
         canal_col = _find_col(headers, 'CANAL')
         siaa_col  = _find_col(headers, 'PREÇO SIAA', 'PRECO SIAA', 'PRECO_SIAA')
         valor_col = _find_col(headers, 'VALOR COM DESCONTO', 'VALOR_COM_DESCONTO', 'VALOR')
-        curso_col = _find_col(headers, 'CURSO', 'NOME DO CURSO', 'NOME_CURSO')
+        curso_col = _find_col(headers, 'CURSO', 'CURSOS', 'NOME DO CURSO', 'NOME_CURSO')
         dur_col   = _find_col(headers, 'DURAÇÃO', 'DURACAO', 'TEMPO', 'MESES')
         cert_col  = _find_col(headers, 'CERTIFICADORA', 'CERT')
         if not canal_col or not curso_col:
             return jsonify({'error': 'Colunas CANAL e CURSO são obrigatórias'}), 400
-        # Filter by CERTIFICADORA
+        # Filter by CERTIFICADORA (prefix match — aceita "Cruzeiro do Sul - ...")
         if cert_col:
+            _cert_prefix = _norm('Cruzeiro do Sul')
             rows = [r for r in rows
-                    if _norm(str(r.get(cert_col) or '')) == _norm('Cruzeiro do Sul - Pós EAD')]
+                    if _norm(str(r.get(cert_col) or '')).startswith(_cert_prefix)]
         # Build index: {(_norm(curso), dur_meses): preco}
         price_index = {}
         for r in rows:
@@ -1246,8 +1281,8 @@ def preview_salesbot_pos_canal():
                 if key not in price_index:
                     continue
                 found_any = True
-                novo_fmt  = _fmt_valor(price_index[key])
-                atual_fmt = _fmt_valor(meta.get(f'preco_{i}'))
+                novo_fmt  = _fmt_valor_int(price_index[key])
+                atual_fmt = _fmt_valor_int(meta.get(f'preco_{i}'))
                 entry_matches.append({
                     'slot': i, 'duracao': dur_str,
                     'valor_atual': atual_fmt, 'novo_valor': novo_fmt,
@@ -1284,14 +1319,15 @@ def atualizar_salesbot_pos_canal():
         canal_col = _find_col(headers, 'CANAL')
         siaa_col  = _find_col(headers, 'PREÇO SIAA', 'PRECO SIAA', 'PRECO_SIAA')
         valor_col = _find_col(headers, 'VALOR COM DESCONTO', 'VALOR_COM_DESCONTO', 'VALOR')
-        curso_col = _find_col(headers, 'CURSO', 'NOME DO CURSO', 'NOME_CURSO')
+        curso_col = _find_col(headers, 'CURSO', 'CURSOS', 'NOME DO CURSO', 'NOME_CURSO')
         dur_col   = _find_col(headers, 'DURAÇÃO', 'DURACAO', 'TEMPO', 'MESES')
         cert_col  = _find_col(headers, 'CERTIFICADORA', 'CERT')
         if not canal_col or not curso_col:
             return jsonify({'error': 'Colunas CANAL e CURSO são obrigatórias'}), 400
         if cert_col:
+            _cert_prefix = _norm('Cruzeiro do Sul')
             rows = [r for r in rows
-                    if _norm(str(r.get(cert_col) or '')) == _norm('Cruzeiro do Sul - Pós EAD')]
+                    if _norm(str(r.get(cert_col) or '')).startswith(_cert_prefix)]
         price_index = {}
         for r in rows:
             rc = str(r.get(canal_col) or '').strip()
@@ -1327,8 +1363,8 @@ def atualizar_salesbot_pos_canal():
                 key     = (nc, dur_m)
                 if key not in price_index:
                     continue
-                novo_fmt  = _fmt_valor(price_index[key])
-                atual_fmt = _fmt_valor(meta.get(f'preco_{i}'))
+                novo_fmt  = _fmt_valor_int(price_index[key])
+                atual_fmt = _fmt_valor_int(meta.get(f'preco_{i}'))
                 if novo_fmt is not None and novo_fmt != atual_fmt:
                     updated[f'preco_{i}'] = novo_fmt
                     changed = True
@@ -1351,37 +1387,127 @@ def atualizar_salesbot_pos_canal():
 # Wix Graduação — canal único (6 endpoints)
 # ═══════════════════════════════════════════════════════════════════
 
+_SUBMOD_MAP_WIX = {
+    'digital': 'EAD',
+    'ead': 'EAD',
+    'semipresencial': 'Semipresencial',
+    'semi presencial': 'Semipresencial',
+    'semi-presencial': 'Semipresencial',
+}
+
+
+def _normalize_submod_wix(raw):
+    """Map raw submodalidade -> Wix grauSite values ('EAD'|'Semipresencial')
+    or None when there's no equivalent (e.g. 'Ao Vivo')."""
+    if not raw:
+        return None
+    key = _strip_acc(str(raw))
+    return _SUBMOD_MAP_WIX.get(key)
+
+
+def _expand_grau_wix(grau_raw):
+    """Return list of (nome_suffix, grau_value) variants for Wix lookup.
+    Generic 'Graduação' / 'Graduação 2.0' expands to all 3 tipo variants.
+    'Bach/Licen' expands to Bacharelado + Licenciatura.
+    'Abi' expands to Bacharelado/Licenciatura with '(Área Básica De Ingresso)'
+        suffix in the course name (Wix convention).
+    Whenever a '2.0' marker is present, both suffix=' 2.0' AND suffix=''
+    variants are emitted, since the Wix item may or may not carry the
+    '2.0' tag in its name."""
+    if not grau_raw:
+        return [('', '')]
+    g = _strip_acc(str(grau_raw)).lower()
+    is_20  = '2.0' in str(grau_raw) or '2 0' in g
+    g_clean = g.replace('2.0', '').replace('2 0', '').strip()
+    suffixes = [' 2.0', ''] if is_20 else ['']
+
+    if g_clean in ('graduacao',):
+        tipos = ['Bacharelado', 'Licenciatura', 'Tecnólogo']
+    elif g_clean in ('bach/licen', 'bach licen', 'bach.licen', 'bacharelado/licenciatura'):
+        # Wix may store it expanded ('Bacharelado'/'Licenciatura') or literal.
+        tipos = ['Bacharelado', 'Licenciatura', 'Bach/Licen']
+    elif g_clean == 'abi':
+        # Área Básica de Ingresso → Wix usa nome com sufixo "(Área Básica De Ingresso)";
+        # tipo pode ser 'Bacharelado', 'Licenciatura' ou 'Bach/Licen' (literal).
+        out = []
+        for tipo in ('Bacharelado', 'Licenciatura', 'Bach/Licen'):
+            out.append((' (Área Básica De Ingresso)', tipo))
+        return out
+    else:
+        title = str(grau_raw).strip()
+        if is_20:
+            title = title.replace(' 2.0', '').replace('2.0', '').strip()
+        tipos = [title]
+
+    return [(s, t) for t in tipos for s in suffixes]
+
+
 def _build_canal_xlsx(file_bytes, canal):
-    """Synthetic xlsx: filter rows by canal, set MAR ABERTO to chosen price."""
+    """
+    Build a synthetic xlsx in the exact layout ler_grad expects:
+      A: NOME / B: SUBMODALIDADE / C: GRAU / D: MAR ABERTO /
+      E: BALCÃO NEG / F: % / G: BALCÃO ESTR / H: % /
+      I: SEGUNDA GRAD / J: TRANSFERÊNCIA
+    - Filters by canal (or all when SIAA_SENTINEL).
+    - Maps submodalidade -> EAD/Semipresencial (skips 'Ao Vivo' / unmapped).
+    - Expands generic 'Graduação(2.0)' into Bacharelado / Licenciatura / Tecnólogo.
+    - Suffix ' 2.0' is moved from GRAU into NOME when applicable.
+    """
     headers, rows = _read_xlsx_rows(file_bytes)
     canal_col = _find_col(headers, 'CANAL')
     siaa_col  = _find_col(headers, 'PREÇO SIAA', 'PRECO SIAA', 'PRECO_SIAA')
     valor_col = _find_col(headers, 'VALOR COM DESCONTO', 'VALOR_COM_DESCONTO', 'VALOR')
-    mar_col   = _find_col(headers, 'MAR ABERTO', 'MAR_ABERTO')
+    curso_col = _find_col(headers, 'CURSO', 'CURSOS', 'NOME DO CURSO', 'NOME_CURSO')
+    grau_col  = _find_col(headers, 'GRAU', 'GRAU DO CURSO')
+    submod_col = _find_col(headers, 'SUBMODALIDADE', 'SUB MODALIDADE',
+                            'MODALIDADE', 'TIPO MODALIDADE')
 
-    out_headers = list(headers)
-    if not mar_col:
-        mar_col = 'MAR ABERTO'
-        out_headers.append(mar_col)
-
-    filtered = []
-    for r in rows:
-        rc = str(r.get(canal_col) or '').strip()
-        if canal != SIAA_SENTINEL and rc != canal:
-            continue
-        if canal == SIAA_SENTINEL:
-            price = r.get(siaa_col) if siaa_col else None
-        else:
-            price = r.get(valor_col) if valor_col else None
-        nr = dict(r)
-        nr[mar_col] = price
-        filtered.append(nr)
+    out_headers = ['NOME', 'GRAU', 'SUBMODALIDADE',
+                   'MAR ABERTO', 'BALCÃO NEGOCIAÇÃO', '%',
+                   'BALCÃO ESTRATÉGICO', '%',
+                   'SEGUNDA GRADUAÇÃO', 'TRANSFERÊNCIA']
 
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.append(out_headers)
-    for r in filtered:
-        ws.append([r.get(h) for h in out_headers])
+
+    for r in rows:
+        if canal != SIAA_SENTINEL:
+            rc = str(r.get(canal_col) or '').strip()
+            if rc != canal:
+                continue
+        curso = r.get(curso_col) if curso_col else None
+        if not curso:
+            continue
+        submod_raw = r.get(submod_col) if submod_col else ''
+        submod = _normalize_submod_wix(submod_raw)
+        if not submod:
+            continue
+        grau_raw = r.get(grau_col) if grau_col else ''
+        if canal == SIAA_SENTINEL:
+            price = r.get(siaa_col) if siaa_col else None
+        else:
+            price = r.get(valor_col) if valor_col else None
+        if price is None:
+            continue
+        curso_str = str(curso).strip()
+        if curso_str.endswith(' 2.0'):
+            curso_base = curso_str
+        else:
+            curso_base = curso_str
+        for nome_suffix, grau_value in _expand_grau_wix(grau_raw):
+            nome = curso_base
+            if nome_suffix and not nome.endswith(nome_suffix):
+                nome = nome + nome_suffix
+            # Wix uses "Cst Em " prefix for Tecnólogo
+            if grau_value == 'Tecnólogo' and not nome.lower().startswith('cst em '):
+                nome = 'Cst Em ' + nome
+            # ler_grad (compiled) maps col E (BALCÃO NEGOCIAÇÃO) -> 'preco_cruzeiro',
+            # which cruzar_wix uses to compute the 'novo' price. We replicate the
+            # channel price in both D and E so the legacy pipeline sees it.
+            ws.append([nome, grau_value, submod, price,
+                       price, None, None, None, None, None])
+
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
@@ -1398,6 +1524,147 @@ def _relay_wix_route(orig_route, file_bytes):
     return app.response_class(rv.get_data(), status=rv.status_code, mimetype='application/json')
 
 
+def _wix_grad_price_index(canal_xlsx_bytes):
+    """Build {chave: int_price} from the synthetic xlsx via ler_grad.
+    Each Tecnólogo entry is indexed under both 'Cst Em <X>' and '<X>'
+    variants since different Wix sites (Wix1/2 vs Wix3) use different
+    conventions for the same course."""
+    try:
+        dados = mod.ler_grad(canal_xlsx_bytes)
+    except Exception:
+        return {}
+    out = {}
+    for chave, info in (dados or {}).items():
+        if not isinstance(info, dict):
+            continue
+        v = info.get('preco_cruzeiro') or info.get('mar_aberto') or info.get('balcao')
+        if v is None:
+            continue
+        try:
+            price = int(round(float(v)))
+        except (ValueError, TypeError):
+            continue
+        chave = str(chave).strip()
+        out[chave] = price
+        # Alias: Cst Em ↔ no prefix (Wix3 doesn't add 'Cst Em ' for tecnólogos).
+        if chave.startswith('Cst Em '):
+            out[chave[len('Cst Em '):]] = price
+    return out
+
+
+def _wix_postprocess_matches(container, price_idx):
+    """Inject 'novo' from price_idx into each match and recompute totals
+    for a single result-container dict (with 'matches' / totals)."""
+    atualizar = 0
+    sem_mud   = 0
+    for m in container.get('matches') or []:
+        # Different Wix sites/collections store the key under different names:
+        #  - Wix1/Wix2 graduação      → 'chave'
+        #  - Wix3 precogradua/PrecoPos → 'chave1' or 'chave_1'
+        # Some entries have trailing whitespace that the legacy code carries
+        # over from the spreadsheet/Wix payload — strip it before lookup.
+        chave_raw = m.get('chave') or m.get('chave1') or m.get('chave_1') or ''
+        chave = str(chave_raw).strip()
+        novo  = price_idx.get(chave) if chave else None
+        # Wix3 tecnólogos may not carry the 'Cst Em ' prefix that Wix1/Wix2
+        # use — try the variant without that prefix as a fallback.
+        if novo is None and chave:
+            alt = chave
+            if alt.startswith('Cst Em '):
+                alt = alt[len('Cst Em '):]
+            else:
+                alt = 'Cst Em ' + alt
+            novo = price_idx.get(alt)
+        if novo is not None:
+            m['novo'] = novo
+        try:
+            atual_int = int(round(float(m.get('atual')))) if m.get('atual') is not None else None
+        except (ValueError, TypeError):
+            atual_int = None
+        m['needs_update'] = bool(novo is not None and atual_int != novo)
+        if m['needs_update']:
+            atualizar += 1
+        else:
+            sem_mud += 1
+    container['total_atualizar']   = atualizar
+    container['total_sem_mudanca'] = sem_mud
+
+
+def _relay_wix_grad_preview(orig_route, canal_xlsx_bytes):
+    """
+    Preview wrapper: the compiled cruzar_wix family returns matches with
+    'novo: None' (it reads from a column we cannot populate). We inject the
+    'novo' price via a side index built from ler_grad and recompute totals.
+
+    Handles both flat responses ({matches, totals, ...}) and nested ones
+    (e.g. Wix2 returns {gradead: {...}, precos: {...}, tipo: ...}).
+    """
+    with app.test_client() as c:
+        rv = c.post(
+            orig_route,
+            data={'file': (io.BytesIO(canal_xlsx_bytes), 'data.xlsx')},
+            content_type='multipart/form-data',
+        )
+    if rv.status_code != 200:
+        return app.response_class(rv.get_data(), status=rv.status_code, mimetype='application/json')
+    try:
+        data = rv.get_json() or {}
+    except Exception:
+        return app.response_class(rv.get_data(), status=rv.status_code, mimetype='application/json')
+
+    price_idx = _wix_grad_price_index(canal_xlsx_bytes)
+
+    if 'matches' in data:
+        _wix_postprocess_matches(data, price_idx)
+    else:
+        # Nested layout: post-process every sub-object that looks like a
+        # result container, then roll its totals up to the root for the UI.
+        total_atu, total_sm = 0, 0
+        for k, sub in list(data.items()):
+            if isinstance(sub, dict) and 'matches' in sub:
+                _wix_postprocess_matches(sub, price_idx)
+                total_atu += sub.get('total_atualizar') or 0
+                total_sm  += sub.get('total_sem_mudanca') or 0
+        data['total_atualizar']   = total_atu
+        data['total_sem_mudanca'] = total_sm
+    return jsonify(data)
+
+
+def _relay_wix_grad_update(canal_xlsx_bytes, get_items_fn, put_fn, price_field='balcao'):
+    """
+    Update wrapper: build price_idx via ler_grad, fetch items via get_items_fn,
+    and for each item whose 'chave' is in the index with a differing price,
+    update the price_field and PUT the full item via put_fn(id, full_data).
+    """
+    price_idx = _wix_grad_price_index(canal_xlsx_bytes)
+    items     = get_items_fn()
+    atualizados, erros, ultimo_erro = 0, 0, ''
+    for it in items:
+        d     = it.get('data', it) if isinstance(it, dict) else it
+        chave = d.get('chave')
+        novo  = price_idx.get(chave) if chave else None
+        if novo is None:
+            continue
+        try:
+            atual_int = int(round(float(d.get(price_field)))) if d.get(price_field) is not None else None
+        except (ValueError, TypeError):
+            atual_int = None
+        if atual_int == novo:
+            continue
+        iid = d.get('_id') or d.get('id')
+        if not iid:
+            continue
+        full = dict(d)
+        full[price_field] = novo
+        try:
+            put_fn(iid, _clean_data(full))
+            atualizados += 1
+        except Exception as e:
+            erros += 1
+            ultimo_erro = str(e)
+    return jsonify({'atualizados': atualizados, 'erros': erros, 'ultimo_erro': ultimo_erro})
+
+
 @app.route('/api/preview_wix_canal', methods=['POST'])
 def preview_wix_canal():
     f     = request.files.get('file')
@@ -1405,7 +1672,7 @@ def preview_wix_canal():
     if not f or not canal:
         return jsonify({'error': 'Arquivo e canal são obrigatórios'}), 400
     try:
-        return _relay_wix_route('/api/preview_wix', _build_canal_xlsx(f.read(), canal))
+        return _relay_wix_grad_preview('/api/preview_wix', _build_canal_xlsx(f.read(), canal))
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1417,7 +1684,12 @@ def atualizar_wix_canal():
     if not f or not canal:
         return jsonify({'error': 'Arquivo e canal são obrigatórios'}), 400
     try:
-        return _relay_wix_route('/api/atualizar_wix', _build_canal_xlsx(f.read(), canal))
+        return _relay_wix_grad_update(
+            _build_canal_xlsx(f.read(), canal),
+            lambda: mod.wix_get_all_items(mod.WIX_COLLECTION),
+            lambda iid, data: mod.wix_put_item(iid, data),
+            price_field='balcao',
+        )
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1429,7 +1701,7 @@ def preview_wix2_canal():
     if not f or not canal:
         return jsonify({'error': 'Arquivo e canal são obrigatórios'}), 400
     try:
-        return _relay_wix_route('/api/preview_wix2', _build_canal_xlsx(f.read(), canal))
+        return _relay_wix_grad_preview('/api/preview_wix2', _build_canal_xlsx(f.read(), canal))
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1441,7 +1713,12 @@ def atualizar_wix2_canal():
     if not f or not canal:
         return jsonify({'error': 'Arquivo e canal são obrigatórios'}), 400
     try:
-        return _relay_wix_route('/api/atualizar_wix2', _build_canal_xlsx(f.read(), canal))
+        return _relay_wix_grad_update(
+            _build_canal_xlsx(f.read(), canal),
+            lambda: mod.wix2_get_all_items(mod.WIX_SITE2_COL_GRADEAD),
+            lambda iid, data: mod.wix2_put_item(iid, data),
+            price_field='balcao',
+        )
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1453,7 +1730,7 @@ def preview_wix3_canal():
     if not f or not canal:
         return jsonify({'error': 'Arquivo e canal são obrigatórios'}), 400
     try:
-        return _relay_wix_route('/api/preview_wix3', _build_canal_xlsx(f.read(), canal))
+        return _relay_wix_grad_preview('/api/preview_wix3', _build_canal_xlsx(f.read(), canal))
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1465,7 +1742,12 @@ def atualizar_wix3_canal():
     if not f or not canal:
         return jsonify({'error': 'Arquivo e canal são obrigatórios'}), 400
     try:
-        return _relay_wix_route('/api/atualizar_wix3', _build_canal_xlsx(f.read(), canal))
+        return _relay_wix_grad_update(
+            _build_canal_xlsx(f.read(), canal),
+            lambda: mod.wix3_get_all_items(mod.WIX_SITE3_COL_GRAD),
+            lambda iid, data: wix3_put_item(mod.WIX_SITE3_COL_GRAD, iid, data),
+            price_field='balcao',
+        )
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1498,17 +1780,29 @@ def _fmt_val_wix3_pos(val):
 
 def _build_wix_pos_canal_index(rows, headers, canal, canal_col, siaa_col):
     """Build {(_norm(curso), dur_m): price} filtered by canal + CERTIFICADORA."""
-    curso_col = _find_col(headers, 'CURSO', 'NOME DO CURSO', 'NOME_CURSO')
+    curso_col = _find_col(headers, 'CURSO', 'CURSOS', 'NOME DO CURSO', 'NOME_CURSO')
     dur_col   = _find_col(headers, 'DURAÇÃO', 'DURACAO', 'TEMPO', 'MESES', 'DURAÇÃO (MESES)')
     valor_col = _find_col(headers, 'VALOR COM DESCONTO', 'VALOR_COM_DESCONTO', 'VALOR')
     cert_col  = _find_col(headers, 'CERTIFICADORA', 'CERT')
 
     filtered_rows = rows
     if cert_col:
-        filtered_rows = [r for r in rows
-                         if _norm(str(r.get(cert_col) or '')) == _norm('Cruzeiro do Sul - Pós EAD')]
+        cert_prefix = _norm('Cruzeiro do Sul')
+        candidates = [r for r in rows
+                      if _norm(str(r.get(cert_col) or '')).startswith(cert_prefix)]
+        # Fallback: if the strict prefix matches nothing, accept any value
+        # that contains 'cruz' (e.g. 'CRUZSUL', 'Cruz. do Sul').
+        if not candidates:
+            candidates = [r for r in rows
+                          if 'cruz' in _norm(str(r.get(cert_col) or ''))]
+        # Last-resort: if still empty, use all rows so the user at least
+        # sees matches instead of silently filtering everything out.
+        filtered_rows = candidates or rows
 
     index = {}
+    # Fuzzy bucket: {dur_m: [(tokens_set, price, original_norm), ...]}
+    # Used as fallback when no key matches exactly.
+    index['_fuzzy'] = {}
     for r in filtered_rows:
         rc = str(r.get(canal_col) or '').strip()
         if canal != SIAA_SENTINEL and rc != canal:
@@ -1523,9 +1817,50 @@ def _build_wix_pos_canal_index(rows, headers, canal, canal_col, siaa_col):
             price = r.get(valor_col) if valor_col else None
         if price is None:
             continue
-        key = (_norm(str(curso)), dur_m)
-        index[key] = price
+        norm_curso  = _norm(str(curso))
+        strip_curso = _strip_prefix_suffix(norm_curso)
+        stop_curso  = _stopless(_strip_prefix_suffix(norm_curso))
+        # Three exact-key variants:
+        index[(norm_curso, dur_m)] = price
+        if strip_curso and strip_curso != norm_curso:
+            index[(strip_curso, dur_m)] = price
+        if stop_curso and stop_curso not in (norm_curso, strip_curso):
+            index[(stop_curso, dur_m)] = price
+        # Fuzzy bucket entry
+        toks = _wix_pos_tokens(strip_curso or norm_curso)
+        if toks:
+            index['_fuzzy'].setdefault(dur_m, []).append((toks, price, norm_curso))
     return index
+
+
+def _wix_pos_fuzzy_lookup(idx, curso_str, dur_m):
+    """
+    Fallback matcher: returns the price of the spreadsheet row whose token set
+    is a superset (or near-superset) of the Wix course tokens, with same dur.
+    Picks the candidate with highest Jaccard similarity; minimum 0.5.
+    """
+    bucket = (idx.get('_fuzzy') or {}).get(dur_m)
+    if not bucket:
+        return None
+    wix_toks = _wix_pos_tokens(_strip_prefix_suffix(_norm(curso_str or '')))
+    if not wix_toks:
+        return None
+    best, best_score = None, 0.0
+    for sheet_toks, price, _ in bucket:
+        inter = wix_toks & sheet_toks
+        if not inter:
+            continue
+        # Strong condition: Wix tokens are (almost) all contained in sheet tokens.
+        coverage = len(inter) / len(wix_toks)
+        jaccard  = len(inter) / len(wix_toks | sheet_toks)
+        score = max(coverage, jaccard)
+        # Require both decent coverage AND non-trivial overlap to avoid
+        # matching very common single tokens (e.g. "gestao").
+        if coverage < 0.8 or jaccard < 0.25:
+            continue
+        if score > best_score:
+            best, best_score = price, score
+    return best
 
 
 def _preview_pos_canais_core(mapping, headers, rows, canal_col, siaa_col,
@@ -1561,12 +1896,21 @@ def _preview_pos_canais_core(mapping, headers, rows, canal_col, siaa_col,
                     dur_field = cfg.get('dur_field', 'duracao')
                     break
             dur_raw = (d.get(dur_field) or d.get('duracao') or d.get('durao') or '').strip()
-            key     = (_norm(curso), _parse_dur_meses(dur_raw))
-
-            if key not in idx:
+            dur_m   = _parse_dur_meses(dur_raw)
+            curso_norm  = _norm(curso)
+            curso_strip = _strip_prefix_suffix(curso_norm)
+            curso_stop  = _stopless(curso_strip)
+            price = None
+            for k in ((curso_norm, dur_m), (curso_strip, dur_m), (curso_stop, dur_m)):
+                if k in idx:
+                    price = idx[k]
+                    break
+            if price is None:
+                price = _wix_pos_fuzzy_lookup(idx, curso, dur_m)
+            if price is None:
                 continue
             found_any = True
-            novo  = fmt_fn(idx[key])
+            novo  = fmt_fn(price)
             atual = str(d.get(campo) or '')
             campo_diffs.append({
                 'id': iid, 'curso': curso, 'duracao_origem': dur_raw,
@@ -1622,11 +1966,21 @@ def _atualizar_pos_canais_core(mapping, headers, rows, canal_col, siaa_col,
                     dur_field = cfg.get('dur_field', 'duracao')
                     break
             dur_raw = (d.get(dur_field) or d.get('duracao') or d.get('durao') or '').strip()
-            key = (_norm(d.get('curso') or d.get('title') or ''), _parse_dur_meses(dur_raw))
-
-            if key not in idx:
+            dur_m   = _parse_dur_meses(dur_raw)
+            curso_str = d.get('curso') or d.get('title') or ''
+            curso_norm  = _norm(curso_str)
+            curso_strip = _strip_prefix_suffix(curso_norm)
+            curso_stop  = _stopless(curso_strip)
+            price = None
+            for k in ((curso_norm, dur_m), (curso_strip, dur_m), (curso_stop, dur_m)):
+                if k in idx:
+                    price = idx[k]
+                    break
+            if price is None:
+                price = _wix_pos_fuzzy_lookup(idx, curso_str, dur_m)
+            if price is None:
                 continue
-            novo = fmt_fn(idx[key])
+            novo = fmt_fn(price)
             if novo and str(novo) != str(d.get(campo) or ''):
                 full[campo] = novo
                 changed = True
@@ -1903,6 +2257,10 @@ _PREFIX_STRIP = [
     'tecnologia em', 'tecnologo em',
     'bacharelado em', 'licenciatura em',
     'gestao em', 'graduacao em', 'engenharia em',
+    'mba em', 'mba',
+    'pos graduacao em', 'pos graduacao',
+    'pos em', 'pos',
+    'especializacao em', 'especializacao',
 ]
 
 _SUFFIX_STRIP = [
@@ -1915,6 +2273,51 @@ _GRAU_EXPAND = {
     'graduacao': ['bacharelado', 'licenciatura', 'tecnologo'],
     'graduacao 2 0': ['bacharelado 2 0', 'licenciatura 2 0', 'tecnologo 2 0'],
 }
+
+
+_STOPWORDS_PT = {'em', 'de', 'da', 'do', 'das', 'dos', 'a', 'o', 'e', 'na', 'no',
+                 'com', 'para', 'por', 'pelo', 'pela', 'as', 'os'}
+
+
+def _stopless(norm_str):
+    """Drop common PT stopwords; useful for fuzzy course-name matching."""
+    if not norm_str:
+        return ''
+    return ' '.join(t for t in norm_str.split() if t not in _STOPWORDS_PT)
+
+
+# Common Portuguese abbreviations found in spreadsheets.
+_ABBREV_MAP = {
+    'prod':  'produto',
+    'prods': 'produto',
+    'serv':  'servico',
+    'servs': 'servico',
+    'inst':  'instituicao',
+    'insts': 'instituicao',
+    'adm':   'administracao',
+    'admin': 'administracao',
+    'fin':   'financa',
+    'tec':   'tecnologia',
+    'tecn':  'tecnologia',
+    'eng':   'engenharia',
+    'pratica':  'pratica',
+    'praticas': 'pratica',
+}
+
+
+def _wix_pos_tokens(norm_str):
+    """Tokenize for fuzzy matching: drop stopwords, trim plural 's',
+    expand common abbreviations."""
+    out = set()
+    for w in (norm_str or '').split():
+        if w in _STOPWORDS_PT or not w:
+            continue
+        if w in _ABBREV_MAP:
+            w = _ABBREV_MAP[w]
+        elif len(w) > 3 and w.endswith('s'):
+            w = w[:-1]
+        out.add(w)
+    return out
 
 
 def _strip_prefix_suffix(norm_str):
@@ -1946,9 +2349,10 @@ def _parse_grad_planilha(file_bytes):
     headers, rows = _read_xlsx_rows(file_bytes)
     cod_col   = _find_col(headers, 'CÓDIGO', 'CODIGO', 'TIPO')
     canal_col = _find_col(headers, 'CANAL')
-    curso_col = _find_col(headers, 'CURSO', 'NOME DO CURSO', 'NOME_CURSO')
+    curso_col = _find_col(headers, 'CURSO', 'CURSOS', 'NOME DO CURSO', 'NOME_CURSO')
     grau_col  = _find_col(headers, 'GRAU', 'GRAU DO CURSO')
-    modal_col = _find_col(headers, 'MODALIDADE', 'TIPO MODALIDADE')
+    modal_col = _find_col(headers, 'SUBMODALIDADE', 'SUB MODALIDADE',
+                          'MODALIDADE', 'TIPO MODALIDADE')
     valor_col = _find_col(headers, 'VALOR COM DESCONTO', 'VALOR_COM_DESCONTO')
     desc_col  = _find_col(headers, 'DESCONTO', 'DESCONTO_PCT')
     siaa_col  = _find_col(headers, 'PREÇO SIAA', 'PRECO SIAA', 'PRECO_SIAA')
@@ -1997,15 +2401,16 @@ def _parse_pos_planilha(file_bytes):
     headers, rows = _read_xlsx_rows(file_bytes)
     cert_col  = _find_col(headers, 'CERTIFICADORA', 'CERT')
     canal_col = _find_col(headers, 'CANAL')
-    curso_col = _find_col(headers, 'CURSO', 'NOME DO CURSO', 'NOME_CURSO')
+    curso_col = _find_col(headers, 'CURSO', 'CURSOS', 'NOME DO CURSO', 'NOME_CURSO')
     dur_col   = _find_col(headers, 'DURAÇÃO', 'DURACAO', 'TEMPO', 'MESES', 'DURAÇÃO (MESES)')
     valor_col = _find_col(headers, 'VALOR COM DESCONTO', 'VALOR_COM_DESCONTO')
     desc_col  = _find_col(headers, 'DESCONTO', 'DESCONTO_PCT')
     siaa_col  = _find_col(headers, 'PREÇO SIAA', 'PRECO SIAA', 'PRECO_SIAA')
 
     if cert_col:
+        _cert_prefix = _norm('Cruzeiro do Sul')
         rows = [r for r in rows
-                if _norm(str(r.get(cert_col) or '')) == _norm('Cruzeiro do Sul - Pós EAD')]
+                if _norm(str(r.get(cert_col) or '')).startswith(_cert_prefix)]
 
     agg = {}
     for r in rows:
@@ -2096,13 +2501,18 @@ def _get_kommo_field_val(product, field_id):
 
 
 def _is_pos_product(product):
+    grau = _get_kommo_field_val(product, FIELD_KOMMO_GRAD_META['grau'])
+    if grau and 'pos' in _norm_corp(str(grau)):
+        return True
     filtro = _get_kommo_field_val(product, FIELD_KOMMO_GRAD_META['filtro'])
-    if filtro is None:
-        return False
-    try:
-        return int(filtro) == ENUM_POS_GRADUACAO
-    except (ValueError, TypeError):
-        return str(filtro) == str(ENUM_POS_GRADUACAO)
+    if filtro is not None:
+        try:
+            if int(filtro) == ENUM_POS_GRADUACAO:
+                return True
+        except (ValueError, TypeError):
+            if str(filtro) == str(ENUM_POS_GRADUACAO):
+                return True
+    return False
 
 
 def _is_grad_product(product):
@@ -2115,13 +2525,12 @@ def _is_grad_product(product):
 
 def _match_grad_product(product, idx_full, idx_strip, idx_namemod):
     name_full  = str(product.get('name') or '').strip()
-    name_clean = re.sub(r'\s*\([^)]*\)\s*$', '', name_full).strip()
 
     grau_raw  = _get_kommo_field_val(product, FIELD_KOMMO_GRAD_META['grau'])
     modal_raw = _get_kommo_field_val(product, FIELD_KOMMO_GRAD_META['modalidade'])
     grau_norm  = _norm_corp(str(grau_raw  or ''))
     modal_norm = _norm_modalidade(str(modal_raw or ''))
-    name_norm  = _norm_corp(name_clean)
+    name_norm  = _norm_corp(name_full)
     name_strip = _strip_prefix_suffix(name_norm)
 
     hit = idx_full.get((name_norm, grau_norm, modal_norm))
@@ -2135,8 +2544,7 @@ def _match_grad_product(product, idx_full, idx_strip, idx_namemod):
 
 def _match_pos_product(product, idx_full, idx_strip):
     name_full  = str(product.get('name') or '').strip()
-    name_clean = re.sub(r'\s*\([^)]*\)\s*$', '', name_full).strip()
-    name_norm  = _norm_corp(name_clean)
+    name_norm  = _norm_corp(name_full)
     name_strip = _strip_prefix_suffix(name_norm)
 
     dur_raw = _get_kommo_field_val(product, FIELD_KOMMO_POS_META['duracao'])
