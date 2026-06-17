@@ -1843,6 +1843,7 @@
     }
 
     function supaRenderResults(tipo, data) {
+      if (tipo === 'corp') { return supaCorpRenderResults(data); }
       const el = document.getElementById(`supa-results-${tipo}`);
       el.classList.remove('hidden');
       const isPos = tipo === 'pos';
@@ -1938,6 +1939,97 @@
                 <tr class="border-b border-[var(--border)]">${posHeaders}</tr>
               </thead>
               <tbody id="supa-tbody-${tipo}">${rows}</tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+
+    function supaCorpRenderResults(data) {
+      const tipo = 'corp';
+      const el   = document.getElementById('supa-results-corp');
+      el.classList.remove('hidden');
+      const campos = data.campos || [];
+
+      const mappingChips = Object.entries(data.mapping || {}).map(([k, v]) => {
+        const campo = campos.find(c => c.id === k);
+        const lbl   = campo ? campo.label : k;
+        const cLbl  = (v === '__SIAA__') ? 'PREÇO SIAA' : v;
+        return `<span class="inline-flex items-center gap-1 text-[10px] bg-indigo-900/40 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-800/60">${escHtml(lbl)} ← ${escHtml(cLbl)}</span>`;
+      }).join('');
+
+      const cmpVal = (a, n) => {
+        if (n == null || n === '') return '<span class="text-slate-600">—</span>';
+        if (String(a) === String(n)) return `<span class="text-slate-400">R$&nbsp;${escHtml(String(n))}</span>`;
+        return `<span class="text-slate-500 line-through text-[10px]">${escHtml(a != null && a !== '' ? 'R$ '+a : '—')}</span><br><span class="text-emerald-400 font-medium">R$&nbsp;${escHtml(String(n))}</span>`;
+      };
+
+      const thCols = campos.map(c =>
+        `<th class="py-2.5 px-3 text-right text-[10px] text-slate-500 font-medium whitespace-nowrap">${escHtml(c.label)}<br><span class="text-[9px] text-slate-600">atual→novo</span></th>`
+      ).join('');
+
+      const badgeUp = `<span class="inline-flex items-center text-[10px] font-medium bg-emerald-900/40 text-emerald-400 px-2 py-0.5 rounded-full">Atualizar</span>`;
+      const badgeEq = `<span class="inline-flex items-center text-[10px] font-medium bg-slate-700/60 text-slate-400 px-2 py-0.5 rounded-full">Sem mudança</span>`;
+
+      const matchRows = sortByName(data.matches || [], 'curso').map(m => {
+        const cat   = m.needs_update ? 'atualizar' : 'sem_mudanca';
+        const diff  = m.diff || {};
+        const valCols = campos.map(c => {
+          const d = diff[c.id];
+          if (!d) return '<td class="py-2 px-3 text-right text-[11px] text-slate-600">—</td>';
+          return `<td class="py-2 px-3 text-right text-[11px] whitespace-nowrap">${cmpVal(d.atual, d.novo)}</td>`;
+        }).join('');
+        return `<tr class="border-b border-slate-800/60 hover:bg-slate-800/20 transition-colors" data-cat="${cat}">
+          <td class="py-2 px-3 sticky left-0 bg-[var(--bg-card)] z-10">${m.needs_update ? badgeUp : badgeEq}</td>
+          <td class="py-2 px-3 text-[11px] text-[var(--text-primary)] whitespace-nowrap max-w-[260px] truncate">${escHtml(m.curso || '')}</td>
+          <td class="py-2 px-3 text-[11px] text-slate-400 whitespace-nowrap">${escHtml(m.grau || '')}</td>
+          <td class="py-2 px-3 text-[11px] text-slate-400 whitespace-nowrap">${escHtml(m.modalidade || '')}</td>
+          ${valCols}
+        </tr>`;
+      }).join('');
+
+      const emptyCols = campos.map(() => '<td></td>').join('');
+      const naoEncRows = sortByName(data.nao_encontrado || [], 'curso').map(n => `
+        <tr class="border-b border-slate-800/60 hover:bg-slate-800/20 transition-colors" data-cat="nao_encontrado">
+          <td class="py-2 px-3 sticky left-0 bg-[var(--bg-card)] z-10"><span class="inline-flex items-center text-[10px] font-medium bg-red-900/30 text-red-400 px-2 py-0.5 rounded-full">Não encontrado</span></td>
+          <td class="py-2 px-3 text-[11px] text-red-400/70 whitespace-nowrap">${escHtml(n.curso || '')}</td>
+          <td class="py-2 px-3 text-[11px] text-slate-500">${escHtml(n.grau || '')}</td>
+          <td class="py-2 px-3 text-[11px] text-slate-500">${escHtml(n.modalidade || '')}</td>
+          ${emptyCols}
+        </tr>`).join('');
+
+      el.innerHTML = `
+        ${mappingChips ? `<div class="flex flex-wrap gap-1.5 mb-4">${mappingChips}</div>` : ''}
+        <div class="grid grid-cols-4 gap-3 mb-5">
+          <div class="bg-emerald-900/30 rounded-xl p-4 border border-emerald-800/50 cursor-pointer filter-btn" data-filter="atualizar" onclick="supaToggleFilter('${tipo}','atualizar')">
+            <p class="text-xs text-emerald-500 mb-1">Serão atualizados</p>
+            <p class="text-2xl font-bold text-emerald-400 tabular-nums">${data.total_atualizar || 0}</p>
+          </div>
+          <div class="bg-slate-100 dark:bg-slate-800 rounded-xl p-4 border border-[var(--border)] cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="supaToggleFilter('${tipo}','sem_mudanca')">
+            <p class="text-xs text-slate-500 mb-1">Sem mudança</p>
+            <p class="text-2xl font-bold text-[var(--text-primary)] tabular-nums">${data.total_sem_mudanca || 0}</p>
+          </div>
+          <div class="bg-red-900/20 rounded-xl p-4 border border-red-900/40 cursor-pointer filter-btn" data-filter="nao_encontrado" onclick="supaToggleFilter('${tipo}','nao_encontrado')">
+            <p class="text-xs text-red-500 mb-1">Não encontrado</p>
+            <p class="text-2xl font-bold text-red-400 tabular-nums">${data.total_nao_enc || 0}</p>
+          </div>
+          <div class="bg-amber-900/20 rounded-xl p-4 border border-amber-900/40 cursor-pointer filter-btn" data-filter="so_planilha" onclick="supaToggleFilter('${tipo}','so_planilha')">
+            <p class="text-xs text-amber-500 mb-1">Só na planilha</p>
+            <p class="text-2xl font-bold text-amber-400 tabular-nums">${data.total_so_plan || 0}</p>
+          </div>
+        </div>
+        <div class="rounded-xl border border-slate-800 overflow-hidden">
+          <div class="overflow-auto max-h-[480px]">
+            <table class="w-full text-xs">
+              <thead class="sticky top-0 bg-[var(--bg-card)] z-20">
+                <tr class="border-b border-[var(--border)]">
+                  <th class="py-2.5 px-3 text-left text-[10px] text-slate-500 font-medium sticky left-0 bg-[var(--bg-card)] z-20 whitespace-nowrap">Status</th>
+                  <th class="py-2.5 px-3 text-left text-[10px] text-slate-500 font-medium whitespace-nowrap">Curso</th>
+                  <th class="py-2.5 px-3 text-left text-[10px] text-slate-500 font-medium whitespace-nowrap">Grau</th>
+                  <th class="py-2.5 px-3 text-left text-[10px] text-slate-500 font-medium whitespace-nowrap">Modalidade</th>
+                  ${thCols}
+                </tr>
+              </thead>
+              <tbody id="supa-tbody-${tipo}">${matchRows}${naoEncRows}</tbody>
             </table>
           </div>
         </div>`;

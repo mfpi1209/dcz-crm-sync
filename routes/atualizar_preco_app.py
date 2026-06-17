@@ -1036,12 +1036,17 @@ def preview_corporativa_canais():
                 'diff': diff, 'needs_update': needs_upd,
             })
         att = sum(1 for m in matches if m['needs_update'])
+        mapping_used = {mp['campo']: mp['canal']
+                        for mp in mapping if mp.get('campo') and mp.get('canal')}
         return jsonify({
             'matches': matches,
             'nao_encontrado': nao_enc,
             'total_atualizar': att,
             'total_sem_mudanca': len(matches) - att,
             'total_nao_enc': len(nao_enc),
+            'total_so_plan': 0,
+            'campos': _CORP_CAMPOS,
+            'mapping': mapping_used,
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
