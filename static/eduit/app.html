@@ -466,5 +466,129 @@
       });
     })();
   </script>
+
+  <style>
+    .ac-wrap { position: relative; z-index: 9999; }
+    .ac-list {
+      position: absolute; top: 100%; left: 0; right: 0;
+      background: #0f1e2c; border: 1px solid #1e3a5f; border-radius: 8px;
+      margin-top: 4px; max-height: 260px; overflow-y: auto;
+      z-index: 9999; box-shadow: 0 6px 20px rgba(0,0,0,.4);
+      display: none;
+    }
+    .form-card:has(.ac-list.open) { z-index: 9999; position: relative; }
+    .ac-list.open { display: block; }
+    .ac-item {
+      padding: 10px 14px; color: #cbd5e1; cursor: pointer;
+      font-size: .9em; border-bottom: 1px solid #1e3a5f;
+    }
+    .ac-item:last-child { border-bottom: none; }
+    .ac-item:hover, .ac-item.active { background: #1e3a5f; color: #38bdf8; }
+    .ac-item mark { background: transparent; color: #38bdf8; font-weight: 600; }
+    .ac-empty { padding: 12px 14px; color: #64748b; font-size: .85em; font-style: italic; }
+  </style>
+
+  <script>
+    (function(){
+      const SB_URL = 'https://fcwuhwedretyomtrbgzb.supabase.co';
+      const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjd3Vod2VkcmV0eW9tdHJiZ3piIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA3OTI0NTAsImV4cCI6MjA2NjM2ODQ1MH0.IbDvSLmrg_ihyCZMhpDDeA6-solYN-2RhcY8PCHzc6I';
+      const cache = { grad: null, pos: null };
+
+      async function fetchTabela(tabela){
+        try{
+          const res = await fetch(`${SB_URL}/rest/v1/${tabela}?select=content&order=content.asc`, {
+            headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` }
+          });
+          if(!res.ok) return [];
+          const data = await res.json();
+          return [...new Set((data||[]).map(r => r.content).filter(Boolean))].sort();
+        }catch(e){ console.error('[eduit ac]', tabela, e); return []; }
+      }
+
+      async function getLista(tipo){
+        const key = tipo === 'pos' ? 'pos' : 'grad';
+        if(!cache[key]){
+          cache[key] = await fetchTabela(key === 'pos' ? 'cursos_salesbot_pos_nome' : 'cursos_salesbot_nome');
+        }
+        return cache[key];
+      }
+
+      function escapeRegex(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+      function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+      function highlight(text, q){
+        if(!q) return escapeHtml(text);
+        const re = new RegExp('('+escapeRegex(q)+')', 'gi');
+        return escapeHtml(text).replace(re, '<mark>$1</mark>');
+      }
+      function filtrar(lista, q){
+        if(!q || !q.trim()) return lista.slice(0, 12);
+        const norm = q.toLowerCase().trim();
+        return lista.filter(c => c.toLowerCase().includes(norm)).slice(0, 12);
+      }
+
+      function montarAC(inputId, tipo){
+        const input = document.getElementById(inputId);
+        if(!input) return;
+        const wrap = document.createElement('div');
+        wrap.className = 'ac-wrap';
+        input.parentNode.insertBefore(wrap, input);
+        wrap.appendChild(input);
+        const list = document.createElement('div');
+        list.className = 'ac-list';
+        wrap.appendChild(list);
+
+        let active = -1;
+        let items = [];
+
+        function render(){
+          const q = input.value;
+          const html = items.length === 0
+            ? '<div class="ac-empty">Nenhum curso encontrado.</div>'
+            : items.map((c, i) => `<div class="ac-item${i===active?' active':''}" data-i="${i}">${highlight(c, q)}</div>`).join('');
+          list.innerHTML = html;
+        }
+        async function open(){
+          const lista = await getLista(tipo);
+          items = filtrar(lista, input.value);
+          active = -1;
+          render();
+          list.classList.add('open');
+        }
+        function close(){ list.classList.remove('open'); }
+
+        input.addEventListener('focus', open);
+        input.addEventListener('input', async () => {
+          const lista = await getLista(tipo);
+          items = filtrar(lista, input.value);
+          active = -1;
+          render();
+          list.classList.add('open');
+        });
+        input.addEventListener('keydown', e => {
+          if(!list.classList.contains('open')) return;
+          if(e.key === 'ArrowDown'){ e.preventDefault(); active = Math.min(items.length-1, active+1); render(); }
+          else if(e.key === 'ArrowUp'){ e.preventDefault(); active = Math.max(0, active-1); render(); }
+          else if(e.key === 'Enter' && active >= 0){ e.preventDefault(); input.value = items[active]; close(); }
+          else if(e.key === 'Escape'){ close(); }
+        });
+        list.addEventListener('mousedown', e => {
+          const it = e.target.closest('.ac-item');
+          if(!it) return;
+          e.preventDefault();
+          input.value = items[parseInt(it.dataset.i, 10)];
+          close();
+          input.focus();
+        });
+        document.addEventListener('click', e => {
+          if(!wrap.contains(e.target)) close();
+        });
+      }
+
+      document.addEventListener('DOMContentLoaded', () => {
+        montarAC('curso-graduacao', 'grad');
+        montarAC('curso-pos-graduacao', 'pos');
+      });
+    })();
+  </script>
 </body>
 </html>

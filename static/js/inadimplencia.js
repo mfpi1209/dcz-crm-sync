@@ -383,10 +383,16 @@
         const items = comps
             .map(c => {
                 const pts = c.points || [];
-                const match = _chartMesesDate
-                    ? pts.find(p => p.date === _chartMesesDate)
-                    : pts[pts.length - 1];
-                return match ? { label: c.label || c.nivel, nivel: c.nivel, last: match } : null;
+                if (pts.length === 0) return null;
+                const exact = _chartMesesDate ? pts.find(p => p.date === _chartMesesDate) : null;
+                const last = pts[pts.length - 1];
+                const chosen = exact || last;
+                return {
+                    label: c.label || c.nivel,
+                    nivel: c.nivel,
+                    last: chosen,
+                    isExact: !!exact,
+                };
             })
             .filter(Boolean)
             .sort((a, b) => a.nivel.localeCompare(b.nivel));
@@ -394,9 +400,7 @@
         if (items.length === 0) {
             canvas.style.display = 'none';
             if (emptyEl) {
-                emptyEl.textContent = _chartMesesDate
-                    ? `Nenhuma competência com snapshot em ${_chartMesesDate.split('-').reverse().join('/')}.`
-                    : 'Sem snapshots para comparar entre competências.';
+                emptyEl.textContent = 'Sem snapshots para comparar entre competências.';
                 emptyEl.classList.remove('hidden');
             }
             return;
@@ -416,10 +420,12 @@
                 datasets: [{
                     label: '% Inadimplência',
                     data: values,
-                    backgroundColor: colors.map(c => _hexToRgba(c, 0.7)),
+                    backgroundColor: items.map((it, idx) =>
+                        _hexToRgba(_CHART_MESES_PALETTE[idx % _CHART_MESES_PALETTE.length], it.isExact ? 0.7 : 0.35)),
                     borderColor: colors,
                     borderWidth: 1.5,
                     borderRadius: 6,
+                    borderDash: items.map(it => it.isExact ? [] : [4, 4]),
                     _items: items,
                 }]
             },
@@ -433,20 +439,39 @@
                             title: ctx => ctx[0].label,
                             label: ctx => ` Taxa: ${ctx.parsed.y.toFixed(2).replace('.', ',')}%`,
                             afterBody: ctx => {
-                                const it = ctx[0].dataset._items[ctx[0].dataIndex].last;
+                                const item = ctx[0].dataset._items[ctx[0].dataIndex];
+                                const it = item.last;
                                 const dataFmt = it.date ? it.date.split('-').reverse().join('/') : '—';
-                                return [
+                                const lines = [
                                     ` Atualizado em: ${dataFmt}`,
                                     ` Inadimplentes: ${_fmt(it.inadimplentes)}`,
                                     ` Em curso: ${_fmt(it.em_curso)}`,
                                 ];
+                                if (!item.isExact && _chartMesesDate) {
+                                    lines.unshift(` Sem snapshot em ${_chartMesesDate.split('-').reverse().join('/')} — exibindo último disponível`);
+                                }
+                                return lines;
                             }
                         }
                     }
                 },
                 scales: {
                     x: {
-                        ticks: { color: '#64748b', font: { size: 11 } },
+                        ticks: {
+                            color: ctx => {
+                                const it = items[ctx.index];
+                                return it && !it.isExact ? '#94a3b8' : '#64748b';
+                            },
+                            font: { size: 11 },
+                            callback: function (val, idx) {
+                                const it = items[idx];
+                                const label = this.getLabelForValue(val);
+                                if (!it || !it.last || !it.last.date) return label;
+                                const d = it.last.date.split('-').reverse().slice(0, 2).join('/');
+                                const suffix = it.isExact ? d : `${d} (últ.)`;
+                                return [label, suffix];
+                            }
+                        },
                         grid: { display: false }
                     },
                     y: {

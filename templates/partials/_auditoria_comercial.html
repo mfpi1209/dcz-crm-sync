@@ -1157,13 +1157,18 @@
 
   // ── CONSULTORES DROPDOWN ──────────────────────────────────
   async function acLoadConsultores() {
-    const db = acGetDb();
-    const { data, error } = await db.from('comercial_feedback')
-      .select('consultor')
-      .not('consultor', 'is', null)
-      .order('consultor');
-    if (error || !data) return;
-    const unique = [...new Set(data.map(r => r.consultor).filter(Boolean))].sort();
+    // Pagina todas as linhas (Supabase REST limita a 1000 por request).
+    // Sem isso, o dedupe pegava só nomes do início alfabético.
+    const rows = await acFetchAllPages(db =>
+      db.from('comercial_feedback')
+        .select('consultor')
+        .not('consultor', 'is', null)
+        .order('consultor')
+    );
+    if (!rows) return;
+    const unique = [...new Set(rows.map(r => r.consultor).filter(Boolean))].sort((a, b) =>
+      a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })
+    );
     const sel = document.getElementById('ac-f-consultor');
     sel.innerHTML = '<option value="">Todos</option>' + unique.map(c => `<option value="${acEscHtml(c)}">${acEscHtml(c)}</option>`).join('');
   }

@@ -866,6 +866,23 @@ def _ensure_premiacao_tables():
             cur.execute("ALTER TABLE premiacao_campanha ADD COLUMN IF NOT EXISTS def_meta NUMERIC")
             cur.execute("ALTER TABLE premiacao_campanha ADD COLUMN IF NOT EXISTS def_supermeta NUMERIC")
 
+            # Metas + R$/matrícula por equipe (override da campanha, com fallback transparente)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_grupo_meta (
+                    campanha_id       INTEGER NOT NULL REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
+                    grupo_id          INTEGER NOT NULL REFERENCES premiacao_grupo(id) ON DELETE CASCADE,
+                    meta_intermediaria NUMERIC,
+                    meta              NUMERIC,
+                    supermeta         NUMERIC,
+                    valor_base        NUMERIC,
+                    valor_intermediaria NUMERIC,
+                    valor_meta        NUMERIC,
+                    valor_supermeta   NUMERIC,
+                    updated_at        TIMESTAMP NOT NULL DEFAULT NOW(),
+                    PRIMARY KEY (campanha_id, grupo_id)
+                )
+            """)
+
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS agent_matriculas (
                     id              SERIAL PRIMARY KEY,

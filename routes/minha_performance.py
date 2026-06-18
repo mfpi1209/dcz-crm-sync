@@ -485,29 +485,38 @@ def _get_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=Fal
 
 
 def _get_agent_metas(kommo_uid, dt_ini=None, dt_fim=None):
-    """Get metas for an agent. Tries premiacao_campanha_meta first, falls back to comercial_metas."""
+    """Retorna metas do agente com cadeia de fallback de 4 passos:
+    1. premiacao_campanha_meta (override individual — retorna imediatamente se encontrado)
+    2. premiacao_grupo_meta (override por equipe — campo-a-campo)
+    3. def_meta_* em premiacao_campanha (padrão da campanha)
+    4. comercial_metas (fallback final)
+    """
     try:
         conn = _pg()
         cur = conn.cursor()
+        dt_fim_q = dt_fim or '9999-12-31'
+        dt_ini_q = dt_ini or '1900-01-01'
 
+        # PASSO 1: override individual por agente
         cur.execute("""
             SELECT pcm.meta, pcm.meta_intermediaria, pcm.supermeta
             FROM premiacao_campanha_meta pcm
             JOIN premiacao_campanha pc ON pc.id = pcm.campanha_id
             WHERE pcm.kommo_user_id = %s AND pc.dt_inicio <= %s AND pc.dt_fim >= %s
             LIMIT 1
-        """, (kommo_uid, dt_fim or '9999-12-31', dt_ini or '1900-01-01'))
+        """, (kommo_uid, dt_fim_q, dt_ini_q))
         row = cur.fetchone()
         if row:
             cur.close()
             conn.close()
             return {"meta": float(row[0]), "intermediaria": float(row[1]), "supermeta": float(row[2])}
 
+        # PASSO 4 (base): comercial_metas — usado como base para sobrescrição pelos passos 2-3
         cur.execute("""
             SELECT meta, COALESCE(meta_intermediaria,0), COALESCE(supermeta,0), categoria
             FROM comercial_metas
             WHERE user_id = %s AND dt_inicio <= %s AND dt_fim >= %s
-        """, (kommo_uid, dt_fim or '9999-12-31', dt_ini or '1900-01-01'))
+        """, (kommo_uid, dt_fim_q, dt_ini_q))
         result = {"meta": 0, "intermediaria": 0, "supermeta": 0}
         for r in cur.fetchall():
             cat = r[3] or "matriculas"
@@ -515,8 +524,42 @@ def _get_agent_metas(kommo_uid, dt_ini=None, dt_fim=None):
                 result["meta"] += float(r[0])
                 result["intermediaria"] += float(r[1])
                 result["supermeta"] += float(r[2])
+
+        # PASSO 3: def_meta_* da campanha ativa no período (sobrescreve campos não-None)
+        cur.execute("""
+            SELECT id, def_meta_intermediaria, def_meta, def_supermeta
+            FROM premiacao_campanha
+            WHERE dt_inicio <= %s AND dt_fim >= %s
+            ORDER BY ativa DESC
+            LIMIT 1
+        """, (dt_fim_q, dt_ini_q))
+        camp_row = cur.fetchone()
+        campanha_id = None
+        if camp_row:
+            campanha_id = camp_row[0]
+            if camp_row[1] is not None:
+                result["intermediaria"] = float(camp_row[1])
+            if camp_row[2] is not None:
+                result["meta"] = float(camp_row[2])
+            if camp_row[3] is not None:
+                result["supermeta"] = float(camp_row[3])
+
         cur.close()
         conn.close()
+
+        # PASSO 2: override por equipe — campo-a-campo, tem precedência sobre passo 3
+        if campanha_id:
+            grupo_id = _get_agent_grupo_id(kommo_uid, campanha_id)
+            if grupo_id:
+                gm = _get_grupo_meta_overrides(campanha_id, grupo_id)
+                if gm:
+                    if gm.get("meta") is not None:
+                        result["meta"] = gm["meta"]
+                    if gm.get("meta_intermediaria") is not None:
+                        result["intermediaria"] = gm["meta_intermediaria"]
+                    if gm.get("supermeta") is not None:
+                        result["supermeta"] = gm["supermeta"]
+
         return result
     except Exception as e:
         logger.warning("Error fetching agent metas: %s", e)
@@ -779,6 +822,29 @@ def _get_tier_bonuses(campanha_id):
         return {}
 
 
+def _get_tier_bonuses_for_agent(campanha_id, kommo_uid):
+    """Retorna tier bonuses para o agente, sobrescrevendo com os valores da equipe quando definidos.
+    Mantém os valores da campanha para faixas sem override de equipe (fallback transparente)."""
+    bonuses = _get_tier_bonuses(campanha_id)
+    grupo_id = _get_agent_grupo_id(kommo_uid, campanha_id)
+    if not grupo_id:
+        return bonuses
+    gm = _get_grupo_meta_overrides(campanha_id, grupo_id)
+    if not gm:
+        return bonuses
+    # Mapeamento faixa → campo em premiacao_grupo_meta
+    tier_field_map = {
+        "base":         "valor_base",
+        "intermediaria": "valor_intermediaria",
+        "meta":         "valor_meta",
+        "supermeta":    "valor_supermeta",
+    }
+    for tier, field in tier_field_map.items():
+        if gm.get(field) is not None:
+            bonuses[tier] = gm[field]
+    return bonuses
+
+
 def _faixas_for_dow(pix_faixas, dow):
     """Faixas aplicáveis: seg–sex (semana) ou sábado."""
     if not pix_faixas:
@@ -989,6 +1055,55 @@ def _get_pix_faixas_for_agent(campanha_id, kommo_uid):
         for lst in (semana, sabado):
             lst.sort(key=lambda x: -x["min"])
         return {"grupo_id": grupo_id, "semana": semana, "sabado": sabado}
+    except Exception:
+        return None
+
+
+def _get_agent_grupo_id(kommo_uid, campanha_id):
+    """Retorna o grupo_id do agente na campanha, ou None se não estiver em nenhum grupo.
+    Segue o mesmo padrão de _get_pix_faixas_for_agent."""
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT g.id FROM premiacao_grupo g
+            JOIN premiacao_grupo_membro gm ON gm.grupo_id = g.id
+            WHERE g.campanha_id = %s AND gm.kommo_user_id = %s
+            LIMIT 1
+        """, (campanha_id, kommo_uid))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        return row[0] if row else None
+    except Exception:
+        return None
+
+
+def _get_grupo_meta_overrides(campanha_id, grupo_id):
+    """Retorna dict com os campos de premiacao_grupo_meta (podem ser None) ou None se não existir linha."""
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT meta_intermediaria, meta, supermeta,
+                   valor_base, valor_intermediaria, valor_meta, valor_supermeta
+            FROM premiacao_grupo_meta
+            WHERE campanha_id = %s AND grupo_id = %s
+        """, (campanha_id, grupo_id))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if not row:
+            return None
+        return {
+            "meta_intermediaria": float(row[0]) if row[0] is not None else None,
+            "meta":               float(row[1]) if row[1] is not None else None,
+            "supermeta":          float(row[2]) if row[2] is not None else None,
+            "valor_base":         float(row[3]) if row[3] is not None else None,
+            "valor_intermediaria": float(row[4]) if row[4] is not None else None,
+            "valor_meta":         float(row[5]) if row[5] is not None else None,
+            "valor_supermeta":    float(row[6]) if row[6] is not None else None,
+        }
     except Exception:
         return None
 
@@ -1371,8 +1486,8 @@ def api_minha_premiacao():
     metas = _get_agent_metas(kommo_uid, dt_ini, dt_fim)
     tier = _determine_tier(total_mat, metas)
 
-    # Tier bonus
-    tier_bonuses = _get_tier_bonuses(cid)
+    # Tier bonus — usa override por equipe quando disponível (cálculo por agente)
+    tier_bonuses = _get_tier_bonuses_for_agent(cid, kommo_uid)
     tier_valor = tier_bonuses.get(tier, 0)
     tier_bonus_total = tier_valor * total_mat
 
@@ -1473,7 +1588,8 @@ def api_minha_historico():
         metas = _get_agent_metas(kommo_uid, dt_ini, dt_fim)
         tier = _determine_tier(total, metas)
 
-        tier_bonuses = _get_tier_bonuses(c["id"])
+        # usa override por equipe quando disponível (cálculo por agente no histórico)
+        tier_bonuses = _get_tier_bonuses_for_agent(c["id"], kommo_uid)
         tier_valor = tier_bonuses.get(tier, 0) if tier else 0
         tier_bonus = tier_valor * total
 
@@ -1767,8 +1883,8 @@ def api_minha_insights():
     except Exception:
         pass
 
-    # Tier bonus + daily bonus + receb
-    tier_bonuses = _get_tier_bonuses(cid)
+    # Tier bonus + daily bonus + receb — usa override por equipe quando disponível (Minha Performance)
+    tier_bonuses = _get_tier_bonuses_for_agent(cid, kommo_uid)
     tier_valor = tier_bonuses.get(tier, 0)
     tier_bonus_total = tier_valor * total_mat
 
@@ -2851,6 +2967,101 @@ def api_pix_equipe_save(cid):
                     INSERT INTO premiacao_pix_faixa (campanha_id, grupo_id, min_matriculas, valor, apenas_sabado)
                     VALUES (%s, %s, %s, %s, %s)
                 """, (cid, gid, mn, val, sab))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# API: Metas + R$/mat por equipe (admin)
+# ---------------------------------------------------------------------------
+
+@minha_performance_bp.route("/api/premiacao/campanhas/<int:cid>/metas-grupo", methods=["GET"])
+def api_metas_grupo_get(cid):
+    """Lista todas as equipes da campanha com seus overrides de meta (null = usar padrão da campanha)."""
+    if not _is_admin():
+        return jsonify({"error": "Sem permissão"}), 403
+    try:
+        conn = _pg()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT gv.id AS grupo_id, gv.nome AS grupo_nome,
+                   pgm.meta_intermediaria, pgm.meta, pgm.supermeta,
+                   pgm.valor_base, pgm.valor_intermediaria, pgm.valor_meta, pgm.valor_supermeta
+            FROM premiacao_grupo gv
+            LEFT JOIN premiacao_grupo_meta pgm
+                   ON pgm.grupo_id = gv.id AND pgm.campanha_id = gv.campanha_id
+            WHERE gv.campanha_id = %s
+            ORDER BY gv.nome
+        """, (cid,))
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        grupos = []
+        for r in rows:
+            grupos.append({
+                "grupo_id":         r["grupo_id"],
+                "grupo_nome":       r["grupo_nome"],
+                "meta_intermediaria": float(r["meta_intermediaria"]) if r["meta_intermediaria"] is not None else None,
+                "meta":             float(r["meta"]) if r["meta"] is not None else None,
+                "supermeta":        float(r["supermeta"]) if r["supermeta"] is not None else None,
+                "valor_base":       float(r["valor_base"]) if r["valor_base"] is not None else None,
+                "valor_intermediaria": float(r["valor_intermediaria"]) if r["valor_intermediaria"] is not None else None,
+                "valor_meta":       float(r["valor_meta"]) if r["valor_meta"] is not None else None,
+                "valor_supermeta":  float(r["valor_supermeta"]) if r["valor_supermeta"] is not None else None,
+            })
+        return jsonify({"ok": True, "grupos": grupos})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@minha_performance_bp.route("/api/premiacao/campanhas/<int:cid>/metas-grupo", methods=["POST"])
+def api_metas_grupo_save(cid):
+    """UPSERT de metas e R$/mat por equipe. Campos null/ausentes gravam NULL (= usar fallback da campanha)."""
+    if not _is_admin():
+        return jsonify({"error": "Sem permissão"}), 403
+    body = request.json or {}
+    grupos = body.get("grupos", [])
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+
+        def _to_numeric(val):
+            if val is None or val == "":
+                return None
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                return None
+
+        for item in grupos:
+            gid = int(item["grupo_id"])
+            mi  = _to_numeric(item.get("meta_intermediaria"))
+            m   = _to_numeric(item.get("meta"))
+            sm  = _to_numeric(item.get("supermeta"))
+            vb  = _to_numeric(item.get("valor_base"))
+            vi  = _to_numeric(item.get("valor_intermediaria"))
+            vm  = _to_numeric(item.get("valor_meta"))
+            vs  = _to_numeric(item.get("valor_supermeta"))
+            cur.execute("""
+                INSERT INTO premiacao_grupo_meta
+                    (campanha_id, grupo_id, meta_intermediaria, meta, supermeta,
+                     valor_base, valor_intermediaria, valor_meta, valor_supermeta, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                ON CONFLICT (campanha_id, grupo_id) DO UPDATE SET
+                    meta_intermediaria  = EXCLUDED.meta_intermediaria,
+                    meta                = EXCLUDED.meta,
+                    supermeta           = EXCLUDED.supermeta,
+                    valor_base          = EXCLUDED.valor_base,
+                    valor_intermediaria = EXCLUDED.valor_intermediaria,
+                    valor_meta          = EXCLUDED.valor_meta,
+                    valor_supermeta     = EXCLUDED.valor_supermeta,
+                    updated_at          = NOW()
+            """, (cid, gid, mi, m, sm, vb, vi, vm, vs))
+
         conn.commit()
         cur.close()
         conn.close()
