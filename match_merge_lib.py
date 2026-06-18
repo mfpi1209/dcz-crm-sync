@@ -2340,12 +2340,46 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
         log.warning("Falha ao carregar cpf_to_mat_data: %s", exc)
     log.info("Lookup mm_matriculados (60d, polos UNICID/CSED): %d CPFs", len(cpf_to_mat_data))
 
+    # RGM por lead + quais RGMs já estão em Venda ganha (anti-duplicidade).
+    lead_rgm_idx: dict[int, str] = {}
+    rgm_to_ganho_lids: dict[str, set[int]] = {}
+    try:
+        kconn_rgm = get_kommo_conn()
+        with kconn_rgm.cursor() as kcur_rgm:
+            kcur_rgm.execute("""
+                SELECT lcf.lead_id, TRIM(lcf.values_json->0->>'value') AS rgm
+                FROM lead_custom_field_values lcf
+                JOIN leads l ON l.id = lcf.lead_id AND NOT COALESCE(l.is_deleted, FALSE)
+                WHERE lcf.field_name = 'RGM'
+                  AND TRIM(lcf.values_json->0->>'value') IS NOT NULL
+                  AND TRIM(lcf.values_json->0->>'value') != ''
+            """)
+            for lid, rgm in kcur_rgm.fetchall():
+                if lid and rgm:
+                    lead_rgm_idx[int(lid)] = str(rgm).strip()
+            kcur_rgm.execute("""
+                SELECT l.id, TRIM(lcf.values_json->0->>'value') AS rgm
+                FROM leads l
+                JOIN lead_custom_field_values lcf
+                  ON lcf.lead_id = l.id AND lcf.field_name = 'RGM'
+                WHERE l.status_id = 142 AND NOT COALESCE(l.is_deleted, FALSE)
+                  AND TRIM(lcf.values_json->0->>'value') != ''
+            """)
+            for lid, rgm in kcur_rgm.fetchall():
+                if lid and rgm:
+                    rgm_to_ganho_lids.setdefault(str(rgm).strip().lower(), set()).add(int(lid))
+        kconn_rgm.close()
+    except Exception as exc:
+        log.warning("Falha ao carregar idx RGM leads: %s", exc)
+    log.info("Idx RGM leads: %d | RGMs em Ganho: %d", len(lead_rgm_idx), len(rgm_to_ganho_lids))
+
     n_ja_existe = 0
     n_mover_perdido = 0
     n_restaurar = 0
     n_cpf_invalido = 0
     n_data_filtrada = 0
     n_matriculado_via_cpf = 0
+    n_matriculado_inscrito_aceite = 0
     n_skip_sit_kommo = 0
     n_skip_sit_igual = 0
     n_skip_regressao = 0
@@ -2492,7 +2526,36 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                     _siaa_s = (siaa_sit or "").strip()
 
                     if _siaa_s.upper() == "MATRICULADO":
-                        n_skip_sit_kommo += 1
+                        # Fallback: inscrito Matriculado no SIAA, lead em Aceite com RGM
+                        # preenchido no Kommo, mas ainda sem linha em mm_matriculados.
+                        _lid = int(lead_id)
+                        _lead_rgm = lead_rgm_idx.get(_lid, "").strip()
+                        if lead_status_id == ACEITE_STATUS_ID and _lead_rgm:
+                            _ganho_rgm = rgm_to_ganho_lids.get(_lead_rgm.lower(), set())
+                            if _ganho_rgm:
+                                n_skip_sit_kommo += 1
+                            else:
+                                _mat_extra = cpf_to_mat_data.get(cpf_val) or {}
+                                acoes.append({
+                                    "acao": "MATRICULADO",
+                                    "lead_id": _lid,
+                                    "nome": base["nome"],
+                                    "cpf": cpf_val,
+                                    "rgm": _lead_rgm,
+                                    "curso_siaa": base.get("curso_siaa") or _mat_extra.get("curso_limpo") or "",
+                                    "polo": base.get("polo") or _mat_extra.get("polo_aulas") or "",
+                                    "situacao_siaa": "Matriculado",
+                                    "situacao_kommo": kommo_sit or "",
+                                    "match_tipo": "inscrito_aceite_rgm",
+                                    "data_matricula": _mat_extra.get("data_matricula") or data_inscr,
+                                    "tipo_matricula": _mat_extra.get("tipo_matricula") or "",
+                                    "email_ad": _mat_extra.get("email_ad") or "",
+                                    "email_pessoal": base.get("email_pessoal") or "",
+                                    "telefone": base.get("telefone") or "",
+                                })
+                                n_matriculado_inscrito_aceite += 1
+                        else:
+                            n_skip_sit_kommo += 1
                     elif _kommo_s.upper() in ("MATRICULADO", "CANCELADO"):
                         n_skip_sit_kommo += 1
                     elif _kommo_s.upper() == _siaa_s.upper() and _kommo_s:
@@ -2536,6 +2599,8 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
     log.info("ATUALIZAR skip: Kommo=Matriculado/Cancelado=%d, Situação igual=%d, Regressão=%d",
              n_skip_sit_kommo, n_skip_sit_igual, n_skip_regressao)
     log.info("MATRICULADO via CPF (lead ativo + RGM no SIAA): %d", n_matriculado_via_cpf)
+    log.info("MATRICULADO inscrito Aceite c/ RGM (sem mm_matriculados): %d",
+             n_matriculado_inscrito_aceite)
 
     # --- UNIFICAR: 1 acao por CPF com leads duplicados no Kommo ---
     # Detecção por CPF + Telefone + RG (dados sensíveis, sem usar nome)
@@ -3689,9 +3754,12 @@ def executar_acoes(acoes, limit=None, log_callback=None):
         "Nome": "nome",
         "CEP": "cep",
         "RG": "rg",
-        "Origem": "origem",
         "Inscrição": "data_inscr_kommo",
     }
+    # Origem (SIAA) só deve ser preenchida em leads NOVO. ATUALIZAR / MATRICULADO /
+    # RESTAURAR nunca tocam na origem, para preservar a origem original do lead
+    # (e manter vazia quando já estava vazia).
+    novo_fields_map = {**update_fields_map, "Origem": "origem"}
 
     for i, acao in enumerate(to_process):
         tipo = acao["acao"]
@@ -3821,7 +3889,7 @@ def executar_acoes(acoes, limit=None, log_callback=None):
                 _dt_inscr = str(acao.get("data_inscr", "") or "").strip()
                 if _dt_inscr and len(_dt_inscr) == 10:
                     acao["data_inscr_kommo"] = f"{_dt_inscr}T00:00:00-03:00"
-                _novo_mat_map = dict(update_fields_map)
+                _novo_mat_map = dict(novo_fields_map)
                 _novo_mat_map.update({
                     "RGM": "rgm",
                     "Matrícula": "data_matricula",
@@ -3829,7 +3897,7 @@ def executar_acoes(acoes, limit=None, log_callback=None):
                 })
                 cf = _build_custom_fields(field_ids, acao, _novo_mat_map)
             else:
-                cf = _build_custom_fields(field_ids, acao, update_fields_map)
+                cf = _build_custom_fields(field_ids, acao, novo_fields_map)
 
             nome = acao.get("nome") or "Lead SIAA"
             _sit_novo = (acao.get("situacao_siaa") or "").strip().lower()

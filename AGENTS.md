@@ -4,6 +4,13 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-06-18 — Match/Merge: campo Origem só é preenchido em leads NOVO
+- **Modelo usado:** Opus 4.8 (principal). Implementação direta (bugfix pontual).
+- **Problema:** no `executar_acoes` (`match_merge_lib.py`), o `update_fields_map` incluía `"Origem": "origem"` e todo lead montado no pipeline carrega `origem="SIAA"` fixo no `base`. Como o `_build_custom_fields` envia qualquer campo com valor, **toda ação `ATUALIZAR` (e `RESTAURAR`) sobrescrevia a origem original do lead (Indicação, Site, Tronco, etc.) com "SIAA"** no PATCH. `MATRICULADO` já não tocava (o `_mat_map` não tem Origem).
+- **Decisão:** remover `"Origem": "origem"` do `update_fields_map` (usado por ATUALIZAR/RESTAURAR) e criar `novo_fields_map = {**update_fields_map, "Origem": "origem"}`, usado **apenas** nos blocos NOVO (NOVO normal e `novo_matriculado`). Regra final: **Origem=SIAA só nos NOVO**; ATUALIZAR/MATRICULADO/RESTAURAR não tocam na origem (preservam o valor original; vazio continua vazio, pois `_build_custom_fields` só envia campos com valor).
+- **Correção de dados (retroativa):** restaurados **56 leads** cuja Origem real foi sobrescrita para "SIAA" entre 14/05/2026 e 18/06/2026, usando o `value_before` do histórico de eventos do Kommo (`custom_field_31764_value_changed`) — valor exato anterior, 100% fiel. Só entraram leads com valor anterior real (não-vazio, ≠ SIAA) e que ainda estavam como "SIAA". Leads com origem anteriormente vazia NÃO foram tocados (não dá pra distinguir overwrite indevido de NOVO legítimo). Plano/auditoria em `origem_restore_plan.csv`.
+- **Alternativas descartadas:** limpar em massa todos os `vazio→SIAA` (erra os NOVO legítimos, onde SIAA é correto); manter Origem no `update_fields_map` e tratar caso a caso (não escala, continua sobrescrevendo).
+
 ### 2026-06-11 — Premiação: metas + R$/matrícula por equipe (Alta Performance vs Impulso)
 - **Modelo usado:** Opus 4.7 (principal) decidiu; Executor (Sonnet 4.6) implementará.
 - **Problema:** a campanha tem alvos únicos (`def_meta_intermediaria/def_meta/def_supermeta`) e R$ por faixa únicos (`premiacao_tier_bonus`) que valem para todos. O time precisa diferenciar Alta Performance (alvo maior, R$/mat possivelmente maior) de Impulso (alvo menor) na MESMA campanha.
@@ -364,6 +371,13 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
   - *Opção D (remover janela `is_recente_novo` de vez):* trazia milhares de inscritos antigos do histórico SIAA sem matrícula como leads novos — bagunça funil, sobrecarrega consultores.
   - *Estender `data_corte_novo` para 60d global:* mesmo efeito da D, só que diferido.
   - *Tratar manualmente sempre:* já provamos que não escala (16 casos em 30d, tendência crescente).
+
+### 2026-06-10 — Match/Merge: MATRICULADO fallback inscrito Aceite + RGM (sem mm_matriculados)
+- **Modelo usado:** Opus 4.7 (principal)
+- **Problema:** Inscrito com `siaa_situacao=Matriculado` no relatório de candidatos, lead existente em Aceite com RGM preenchido no Kommo (consultor preencheu na matrícula), mas **sem linha** em `mm_matriculados`. Pipeline pulava ATUALIZAR (SIAA=Matriculado) e não gerava MATRICULADO (só lê matriculados). Caso Camila Estevam (L21315921, RGM 49212028).
+- **Decisão:** No loop principal de `inscritos_match`, quando `lead_id` existe, SIAA=Matriculado, `lead_status_id == ACEITE (48566207)` e RGM preenchido no lead (`lead_custom_field_values`), gerar `MATRICULADO` com `match_tipo=inscrito_aceite_rgm`. Enriquece com `cpf_to_mat_data` se disponível. Anti-duplicidade: se já existe lead em Ganho (142) com o **mesmo RGM**, pula (mesma regra do bloco D-1).
+- **Não altera:** duplicatas (Daniela 2 Aceite + 1 Ganho) — anti-dup continua bloqueando os Aceite quando Ganho já tem o RGM. UNIFICAR continua manual para Aceite vs Aceite.
+- **Alternativas descartadas:** remover skip de ATUALIZAR para Matriculado (moveria para Aprovado em vez de Ganho); estender janela mm_matriculados global (não resolve RGM só no Kommo).
 
 ### Convenções derivadas
 
