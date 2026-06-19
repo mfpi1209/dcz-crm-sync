@@ -82,12 +82,13 @@
                             Use <strong class="text-slate-700 dark:text-slate-300">Sync Incremental</strong> no trabalho diário.
                             <strong class="text-amber-700 dark:text-amber-400/90">Full Sync</strong> só quando precisar repopular tudo (fim de semana / noite).
                         </p>
-                        <select id="kommo-hours" class="input-glass px-3 py-2 text-sm text-slate-900 dark:text-slate-200 w-36 rounded-lg border border-[var(--border)]" onchange="loadKommoSync()">
+                        <select id="kommo-hours" class="input-glass px-3 py-2 text-sm text-slate-900 dark:text-slate-200 w-36 rounded-lg border border-[var(--border)]" onchange="loadKommoSync()" title="Só afeta os KPIs e o gráfico de atividade abaixo — não altera o sync nem o funil live">
                             <option value="6">Últimas 6h</option>
                             <option value="24" selected>Últimas 24h</option>
                             <option value="48">Últimas 48h</option>
                             <option value="168">Última semana</option>
                         </select>
+                        <span class="text-[10px] text-slate-500 max-w-xs leading-snug">Filtro só para KPIs/gráfico de sync abaixo. Funil live e Sync Incremental não usam este período.</span>
                     </div>
                     <!-- Progress bar (hidden by default) -->
                     <div id="kommo-progress-wrap" class="mt-4 hidden">

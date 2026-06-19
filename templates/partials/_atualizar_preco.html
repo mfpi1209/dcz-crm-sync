@@ -110,6 +110,18 @@
           </div>
         </div>
 
+        <!-- Mapeamento Kommo ↔ Canal (grad) -->
+        <div id="mapping-wrap-grad" class="hidden mb-6 bg-slate-800/30 rounded-xl p-4 border border-slate-700/50">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Mapeamento Campo Kommo ↔ Canal</span>
+            <button onclick="addMappingRow('grad')" type="button"
+              class="text-xs text-[var(--primary)] hover:opacity-80 font-medium flex items-center gap-1">
+              + Adicionar mapeamento
+            </button>
+          </div>
+          <div id="mapping-rows-grad" class="flex flex-col gap-2"></div>
+        </div>
+
         <!-- Botão Verificar -->
         <div class="flex gap-3 mb-6">
           <button id="btn-preview-grad" onclick="preview('grad')"
@@ -176,6 +188,19 @@
           </div>
         </div>
 
+        <!-- Mapeamento Kommo ↔ Canal (pós) -->
+        <div id="mapping-wrap-pos" class="hidden mb-6 bg-slate-800/30 rounded-xl p-4 border border-slate-700/50">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Mapeamento Campo Kommo ↔ Canal</span>
+            <span class="text-[10px] text-slate-500 italic">Filtro: CERTIFICADORA = Cruzeiro do Sul - Pós EAD</span>
+            <button onclick="addMappingRow('pos')" type="button"
+              class="text-xs text-[var(--primary)] hover:opacity-80 font-medium flex items-center gap-1">
+              + Adicionar mapeamento
+            </button>
+          </div>
+          <div id="mapping-rows-pos" class="flex flex-col gap-2"></div>
+        </div>
+
         <!-- Botões pos -->
         <div class="flex gap-3 mb-6">
           <button id="btn-preview-pos" onclick="preview('pos')"
@@ -236,6 +261,10 @@
           class="ds-segment__btn ds-segment__btn--inactive">
           Pós-Graduação
         </button>
+        <button id="supa-tab-corp" onclick="supaTab('corp')"
+          class="ds-segment__btn ds-segment__btn--inactive">
+          Educação Corporativa
+        </button>
         </div>
       </div>
 
@@ -269,6 +298,13 @@
             <p id="supa-drop-grad-filename" class="text-emerald-400 text-sm font-medium"></p>
             <p class="text-slate-500 text-xs">Clique para trocar o arquivo</p>
           </div>
+        </div>
+        <div id="supa-canal-wrap-grad" class="mb-4 hidden">
+          <label class="block text-xs text-slate-500 mb-1">Canal</label>
+          <select id="supa-canal-select-grad" onchange="supaOnCanalChange('grad')"
+            class="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-sm px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]">
+            <option value="">— Selecione um canal —</option>
+          </select>
         </div>
         <div class="flex gap-3 mb-6">
           <button id="supa-btn-preview-grad" onclick="supaPreview('grad')"
@@ -318,6 +354,13 @@
             <p class="text-slate-500 text-xs">Clique para trocar o arquivo</p>
           </div>
         </div>
+        <div id="supa-canal-wrap-pos" class="mb-4 hidden">
+          <label class="block text-xs text-slate-500 mb-1">Canal</label>
+          <select id="supa-canal-select-pos" onchange="supaOnCanalChange('pos')"
+            class="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-sm px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]">
+            <option value="">— Selecione um canal —</option>
+          </select>
+        </div>
         <div class="flex gap-3 mb-6">
           <button id="supa-btn-preview-pos" onclick="supaPreview('pos')"
             class="flex-1 bg-[var(--primary)] hover:opacity-90 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
@@ -335,6 +378,63 @@
         <div id="supa-results-pos" class="hidden"></div>
       </div>
 
+      <!-- Panel Educação Corporativa -->
+      <div id="supa-panel-corp" class="p-6 hidden">
+        <div id="supa-drop-corp"
+          class="drop-zone rounded-xl p-10 text-center cursor-pointer mb-6 select-none"
+          onclick="document.getElementById('supa-file-corp').click()"
+          ondragover="supaDragOver(event,'corp')"
+          ondragleave="supaDragLeave(event,'corp')"
+          ondrop="supaHandleDrop(event,'corp')">
+          <input type="file" id="supa-file-corp" accept=".xlsx" class="hidden"
+            onchange="supaHandleFileSelect(event,'corp')" />
+          <div id="supa-drop-corp-icon" class="flex flex-col items-center gap-3 pointer-events-none">
+            <div class="w-14 h-14 rounded-full bg-slate-200/90 dark:bg-slate-800 flex items-center justify-center">
+              <svg class="w-7 h-7 text-slate-500 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586 a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+            <p class="text-slate-600 dark:text-slate-400 text-sm">Arraste o arquivo <span class="font-semibold text-slate-700 dark:text-slate-300">.xlsx</span></p>
+            <p class="text-slate-500 text-xs">ou clique para selecionar</p>
+          </div>
+          <div id="supa-drop-corp-file" class="hidden flex-col items-center gap-2 pointer-events-none">
+            <div class="w-14 h-14 rounded-full bg-emerald-900/40 flex items-center justify-center">
+              <svg class="w-7 h-7 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+              </svg>
+            </div>
+            <p id="supa-drop-corp-filename" class="text-emerald-400 text-sm font-medium"></p>
+            <p class="text-slate-500 text-xs">Clique para trocar o arquivo</p>
+          </div>
+        </div>
+
+        <!-- Mapeamento N×N -->
+        <div id="corp-mapping-wrap" class="hidden mb-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Mapeamento Campo ↔ Canal</span>
+            <button onclick="corpAddMapping()" class="text-xs bg-[var(--primary)] hover:opacity-90 text-white px-3 py-1 rounded-lg transition-all">+ Adicionar mapeamento</button>
+          </div>
+          <div id="corp-mapping-rows" class="flex flex-col gap-2"></div>
+        </div>
+
+        <div class="flex gap-3 mb-6">
+          <button id="supa-btn-preview-corp" onclick="supaPreview('corp')"
+            class="flex-1 bg-[var(--primary)] hover:opacity-90 disabled:bg-slate-200 dark:disabled:bg-slate-700
+                   disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
+                   transition-all flex items-center justify-center gap-2" disabled>
+            Verificar IA Corp
+          </button>
+          <button id="supa-btn-atualizar-corp" onclick="supaAtualizar('corp')"
+            class="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-200 dark:disabled:bg-slate-700
+                   disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
+                   transition-all flex items-center justify-center gap-2" disabled>
+            Atualizar IA Corp
+          </button>
+        </div>
+        <div id="supa-results-corp" class="hidden"></div>
+      </div>
+
     </div>
 
     <!-- ═══ Seção Salesbot ═══ -->
@@ -347,10 +447,33 @@
             d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3v-3z"/>
         </svg>
         <h2 class="text-sm font-semibold text-[var(--text-primary)]">Salesbot</h2>
-        <span class="ml-1 text-xs text-slate-500">Graduação — Preço: Mar Aberto</span>
+        <span class="ml-1 text-xs text-slate-500">Grad / Pós</span>
       </div>
 
-      <div class="p-6">
+      <!-- Sub-tabs Salesbot -->
+      <div class="px-6 pt-4">
+        <div class="ds-segment">
+        <button id="sb-tab-grad" onclick="switchSbTab('grad')"
+          class="ds-segment__btn ds-segment__btn--active">
+          Graduação
+        </button>
+        <button id="sb-tab-pos" onclick="switchSbTab('pos')"
+          class="ds-segment__btn ds-segment__btn--inactive">
+          Pós-Graduação
+        </button>
+        </div>
+      </div>
+
+      <!-- Panel Salesbot Grad -->
+      <div id="sb-panel-grad" class="p-6">
+        <!-- Canal select -->
+        <div id="sb-canal-wrap-grad" class="mb-4 hidden">
+          <label class="block text-xs text-slate-500 mb-1">Canal</label>
+          <select id="sb-canal-select-grad" onchange="sbOnCanalChange('grad')"
+            class="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-sm px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]">
+            <option value="">— Selecione um canal —</option>
+          </select>
+        </div>
         <!-- Drop zone -->
         <div id="sb-drop"
           class="drop-zone rounded-xl p-10 text-center cursor-pointer mb-6 select-none"
@@ -400,6 +523,63 @@
 
         <!-- Resultados -->
         <div id="sb-results" class="hidden"></div>
+      </div>
+
+      <!-- Panel Salesbot Pós -->
+      <div id="sb-panel-pos" class="p-6 hidden">
+        <!-- Canal select -->
+        <div id="sb-canal-wrap-pos" class="mb-4 hidden">
+          <label class="block text-xs text-slate-500 mb-1">Canal</label>
+          <select id="sb-canal-select-pos" onchange="sbOnCanalChange('pos')"
+            class="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-sm px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]">
+            <option value="">— Selecione um canal —</option>
+          </select>
+        </div>
+        <!-- Drop zone Pós -->
+        <div id="sbpos-drop"
+          class="drop-zone rounded-xl p-10 text-center cursor-pointer mb-6 select-none"
+          onclick="document.getElementById('sbpos-file').click()"
+          ondragover="sbposDragOver(event)"
+          ondragleave="sbposDragLeave(event)"
+          ondrop="sbposHandleDrop(event)">
+          <input type="file" id="sbpos-file" accept=".xlsx" class="hidden"
+            onchange="sbposHandleFileSelect(event)" />
+          <div id="sbpos-drop-icon" class="flex flex-col items-center gap-3 pointer-events-none">
+            <div class="w-14 h-14 rounded-full bg-slate-200/90 dark:bg-slate-800 flex items-center justify-center">
+              <svg class="w-7 h-7 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+            <p class="text-slate-600 dark:text-slate-400 text-sm">Arraste o arquivo de <span class="text-teal-700 dark:text-teal-400 font-semibold">Pós-Graduação</span></p>
+            <p class="text-slate-500 text-xs">ou clique para selecionar</p>
+          </div>
+          <div id="sbpos-drop-file" class="hidden items-center gap-3 pointer-events-none justify-center">
+            <svg class="w-8 h-8 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <div class="text-left">
+              <p class="text-sm text-teal-300 font-medium" id="sbpos-drop-filename"></p>
+              <p class="text-xs text-slate-500">Pronto para verificar</p>
+            </div>
+          </div>
+        </div>
+        <!-- Botões Pós -->
+        <div class="flex gap-3 mb-6">
+          <button id="sbpos-btn-preview" onclick="sbposPreview()" disabled
+            class="flex-1 py-3 rounded-xl font-semibold text-sm transition-all
+                   bg-teal-600 hover:bg-teal-500 text-white disabled:opacity-40 disabled:cursor-not-allowed">
+            Verificar Salesbot Pós
+          </button>
+          <button id="sbpos-btn-atualizar" onclick="sbposAtualizar()" disabled
+            class="flex-1 py-3 rounded-xl font-semibold text-sm transition-all
+                   bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 disabled:cursor-not-allowed">
+            Atualizar Salesbot Pós
+          </button>
+        </div>
+        <!-- Resultados Pós -->
+        <div id="sbpos-results" class="hidden"></div>
       </div>
 
     </div>
@@ -460,14 +640,23 @@
             <p class="text-slate-500 text-xs">Clique para trocar o arquivo</p>
           </div>
         </div>
+        <!-- Canal block Grad Wix1 -->
+        <div id="wix-canal-grad-block" class="hidden mb-4 p-4 rounded-xl bg-slate-100/70 dark:bg-slate-800/50 border border-[var(--border)]">
+          <label class="block text-xs text-slate-500 font-semibold uppercase tracking-wider mb-2">Canal usado para atualizar</label>
+          <select id="wix-canal-grad-sel" onchange="wixCanalGradChange('wix')"
+            class="w-full bg-white dark:bg-slate-900 border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-[var(--primary)]">
+            <option value="">— Escolher canal —</option>
+          </select>
+          <p id="wix-canal-grad-hint" class="text-xs text-slate-500 mt-1.5 hidden"></p>
+        </div>
         <div class="flex gap-3 mb-6">
-          <button id="wix-btn-preview-grad" onclick="wixPreview('grad')"
+          <button id="wix-btn-preview-grad" onclick="wixGradPreview('wix')"
             class="flex-1 bg-[var(--primary)] hover:opacity-90 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
                    disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
                    transition-all flex items-center justify-center gap-2" disabled>
             Verificar Site
           </button>
-          <button id="wix-btn-atualizar-grad" onclick="wixAtualizar('grad')"
+          <button id="wix-btn-atualizar-grad" onclick="wixGradAtualizar('wix')"
             class="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
                    disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
                    transition-all flex items-center justify-center gap-2" disabled>
@@ -508,14 +697,31 @@
             <p class="text-slate-500 text-xs">Clique para trocar o arquivo</p>
           </div>
         </div>
+        <!-- Cert hint + Mapping block Pos Wix1 -->
+        <div id="wix-pos-cert-hint" class="hidden mb-3 px-3 py-2 rounded-lg bg-indigo-950/40 border border-indigo-800/30 text-xs text-indigo-300">
+          Filtro: CERTIFICADORA = <span class="font-medium">Cruzeiro do Sul - Pós EAD</span>
+        </div>
+        <div id="wix-mapping-pos-block" class="hidden mb-4 p-4 rounded-xl bg-slate-100/70 dark:bg-slate-800/50 border border-[var(--border)]">
+          <div class="flex items-center justify-between mb-3">
+            <label class="text-xs text-slate-500 font-semibold uppercase tracking-wider">Mapeamento Coluna Site ↔ Canal</label>
+            <button type="button" onclick="wixAddMappingRow('wix')"
+              class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+              </svg>
+              Adicionar mapeamento
+            </button>
+          </div>
+          <div id="wix-mapping-pos-rows" class="space-y-2"></div>
+        </div>
         <div class="flex gap-3 mb-6">
-          <button id="wix-btn-preview-pos" onclick="wixPreview('pos')"
+          <button id="wix-btn-preview-pos" onclick="wixPosPreview('wix')"
             class="flex-1 bg-[var(--primary)] hover:opacity-90 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
                    disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
                    transition-all flex items-center justify-center gap-2" disabled>
             Verificar Site
           </button>
-          <button id="wix-btn-atualizar-pos" onclick="wixAtualizar('pos')"
+          <button id="wix-btn-atualizar-pos" onclick="wixPosAtualizar('wix')"
             class="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
                    disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
                    transition-all flex items-center justify-center gap-2" disabled>
@@ -583,14 +789,23 @@
             <p class="text-slate-500 text-xs">Clique para trocar o arquivo</p>
           </div>
         </div>
+        <!-- Canal block Grad Wix2 -->
+        <div id="wix2-canal-grad-block" class="hidden mb-4 p-4 rounded-xl bg-slate-100/70 dark:bg-slate-800/50 border border-[var(--border)]">
+          <label class="block text-xs text-slate-500 font-semibold uppercase tracking-wider mb-2">Canal usado para atualizar</label>
+          <select id="wix2-canal-grad-sel" onchange="wixCanalGradChange('wix2')"
+            class="w-full bg-white dark:bg-slate-900 border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-[var(--primary)]">
+            <option value="">— Escolher canal —</option>
+          </select>
+          <p id="wix2-canal-grad-hint" class="text-xs text-slate-500 mt-1.5 hidden"></p>
+        </div>
         <div class="flex gap-3 mb-6">
-          <button id="wix2-btn-preview-grad" onclick="wix2Preview('grad')"
+          <button id="wix2-btn-preview-grad" onclick="wixGradPreview('wix2')"
             class="flex-1 bg-[var(--primary)] hover:opacity-90 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
                    disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
                    transition-all flex items-center justify-center gap-2" disabled>
             Verificar Site
           </button>
-          <button id="wix2-btn-atualizar-grad" onclick="wix2Atualizar('grad')"
+          <button id="wix2-btn-atualizar-grad" onclick="wixGradAtualizar('wix2')"
             class="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
                    disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
                    transition-all flex items-center justify-center gap-2" disabled>
@@ -631,14 +846,31 @@
             <p class="text-slate-500 text-xs">Clique para trocar o arquivo</p>
           </div>
         </div>
+        <!-- Cert hint + Mapping block Pos Wix2 -->
+        <div id="wix2-pos-cert-hint" class="hidden mb-3 px-3 py-2 rounded-lg bg-indigo-950/40 border border-indigo-800/30 text-xs text-indigo-300">
+          Filtro: CERTIFICADORA = <span class="font-medium">Cruzeiro do Sul - Pós EAD</span>
+        </div>
+        <div id="wix2-mapping-pos-block" class="hidden mb-4 p-4 rounded-xl bg-slate-100/70 dark:bg-slate-800/50 border border-[var(--border)]">
+          <div class="flex items-center justify-between mb-3">
+            <label class="text-xs text-slate-500 font-semibold uppercase tracking-wider">Mapeamento Coluna Site ↔ Canal</label>
+            <button type="button" onclick="wixAddMappingRow('wix2')"
+              class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+              </svg>
+              Adicionar mapeamento
+            </button>
+          </div>
+          <div id="wix2-mapping-pos-rows" class="space-y-2"></div>
+        </div>
         <div class="flex gap-3 mb-6">
-          <button id="wix2-btn-preview-pos" onclick="wix2Preview('pos')"
+          <button id="wix2-btn-preview-pos" onclick="wixPosPreview('wix2')"
             class="flex-1 bg-[var(--primary)] hover:opacity-90 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
                    disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
                    transition-all flex items-center justify-center gap-2" disabled>
             Verificar Site
           </button>
-          <button id="wix2-btn-atualizar-pos" onclick="wix2Atualizar('pos')"
+          <button id="wix2-btn-atualizar-pos" onclick="wixPosAtualizar('wix2')"
             class="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500
                    disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-xl
                    transition-all flex items-center justify-center gap-2" disabled>
@@ -713,13 +945,22 @@
           </div>
         </div>
 
+        <!-- Canal block Grad Wix3 -->
+        <div id="wix3-canal-grad-block" class="hidden mb-4 p-4 rounded-xl bg-slate-100/70 dark:bg-slate-800/50 border border-[var(--border)]">
+          <label class="block text-xs text-slate-500 font-semibold uppercase tracking-wider mb-2">Canal usado para atualizar</label>
+          <select id="wix3-canal-grad-sel" onchange="wixCanalGradChange('wix3')"
+            class="w-full bg-white dark:bg-slate-900 border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-amber-500">
+            <option value="">— Escolher canal —</option>
+          </select>
+          <p id="wix3-canal-grad-hint" class="text-xs text-slate-500 mt-1.5 hidden"></p>
+        </div>
         <div class="flex gap-3 mb-6">
-          <button id="wix3-btn-preview-grad" onclick="wix3Preview('grad')" disabled
+          <button id="wix3-btn-preview-grad" onclick="wixGradPreview('wix3')" disabled
             class="flex-1 py-3 rounded-xl font-semibold text-sm transition-all
                    bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-40 disabled:cursor-not-allowed">
             Verificar Site
           </button>
-          <button id="wix3-btn-atualizar-grad" onclick="wix3Atualizar('grad')" disabled
+          <button id="wix3-btn-atualizar-grad" onclick="wixGradAtualizar('wix3')" disabled
             class="flex-1 py-3 rounded-xl font-semibold text-sm transition-all
                    bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 disabled:cursor-not-allowed">
             Atualizar Site
@@ -763,13 +1004,30 @@
           </div>
         </div>
 
+        <!-- Cert hint + Mapping block Pos Wix3 -->
+        <div id="wix3-pos-cert-hint" class="hidden mb-3 px-3 py-2 rounded-lg bg-indigo-950/40 border border-indigo-800/30 text-xs text-indigo-300">
+          Filtro: CERTIFICADORA = <span class="font-medium">Cruzeiro do Sul - Pós EAD</span>
+        </div>
+        <div id="wix3-mapping-pos-block" class="hidden mb-4 p-4 rounded-xl bg-slate-100/70 dark:bg-slate-800/50 border border-[var(--border)]">
+          <div class="flex items-center justify-between mb-3">
+            <label class="text-xs text-slate-500 font-semibold uppercase tracking-wider">Mapeamento Coluna Site ↔ Canal</label>
+            <button type="button" onclick="wixAddMappingRow('wix3')"
+              class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+              </svg>
+              Adicionar mapeamento
+            </button>
+          </div>
+          <div id="wix3-mapping-pos-rows" class="space-y-2"></div>
+        </div>
         <div class="flex gap-3 mb-6">
-          <button id="wix3-btn-preview-pos" onclick="wix3Preview('pos')" disabled
+          <button id="wix3-btn-preview-pos" onclick="wixPosPreview('wix3')" disabled
             class="flex-1 py-3 rounded-xl font-semibold text-sm transition-all
                    bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-40 disabled:cursor-not-allowed">
             Verificar Site
           </button>
-          <button id="wix3-btn-atualizar-pos" onclick="wix3Atualizar('pos')" disabled
+          <button id="wix3-btn-atualizar-pos" onclick="wixPosAtualizar('wix3')" disabled
             class="flex-1 py-3 rounded-xl font-semibold text-sm transition-all
                    bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 disabled:cursor-not-allowed">
             Atualizar Site
@@ -784,7 +1042,10 @@
   </main>
 
     <script>
-    const state = { grad: { file: null }, pos: { file: null } };
+    const state = {
+      grad: { file: null, mapping: [], campos: [], canais: [] },
+      pos:  { file: null, mapping: [], campos: [], canais: [] },
+    };
 
     // ── Tabs ──
     function switchTab(tipo) {
@@ -805,18 +1066,18 @@
     function handleDragLeave(e, tipo) {
       document.getElementById(`drop-${tipo}`).classList.remove('dragover');
     }
-    function handleDrop(e, tipo) {
+    async function handleDrop(e, tipo) {
       e.preventDefault();
       document.getElementById(`drop-${tipo}`).classList.remove('dragover');
       const file = e.dataTransfer.files[0];
-      if (file) setFile(tipo, file);
+      if (file) await setFile(tipo, await materializeFile(file));
     }
-    function handleFileSelect(e, tipo) {
+    async function handleFileSelect(e, tipo) {
       const file = e.target.files[0];
-      if (file) setFile(tipo, file);
+      if (file) await setFile(tipo, await materializeFile(file));
     }
 
-    function setFile(tipo, file) {
+    async function setFile(tipo, file) {
       state[tipo].file = file;
       const icon = document.getElementById(`drop-${tipo}-icon`);
       const info = document.getElementById(`drop-${tipo}-file`);
@@ -825,24 +1086,124 @@
       info.classList.remove('hidden'); info.classList.add('flex');
       name.textContent = file.name;
       document.getElementById(`drop-${tipo}`).classList.add('has-file');
-      document.getElementById(`btn-preview-${tipo}`).disabled = false;
       document.getElementById(`results-${tipo}`).classList.add('hidden');
       document.getElementById(`btn-atualizar-${tipo}`).disabled = true;
+      // Reset mapping state
+      state[tipo].mapping = [];
+      state[tipo].campos  = [];
+      state[tipo].canais  = [];
+      document.getElementById(`mapping-rows-${tipo}`).innerHTML = '';
+      document.getElementById(`mapping-wrap-${tipo}`).classList.remove('hidden');
+      _updateKommoButtons(tipo);
+      // Load campos + canais in parallel
+      await _loadKommoCamposCanais(tipo, file);
+    }
+
+    async function _loadKommoCamposCanais(tipo, file) {
+      try {
+        const [camposRes, canaisRes] = await Promise.all([
+          fetch(`/api/listar_campos_kommo_${tipo}`),
+          (async () => {
+            const fd = new FormData();
+            fd.append('file', file);
+            return fetch(
+              tipo === 'grad' ? '/api/listar_canais_grad' : '/api/listar_canais_pos',
+              { method: 'POST', body: fd }
+            );
+          })(),
+        ]);
+        const camposData = await camposRes.json();
+        const canaisData = await canaisRes.json();
+        state[tipo].campos = camposData.campos || [];
+        state[tipo].canais = canaisData.canais || [];
+      } catch(e) {
+        console.warn('_loadKommoCamposCanais:', e);
+      }
+    }
+
+    function _updateKommoButtons(tipo) {
+      const valid = !!(state[tipo].file &&
+        state[tipo].mapping.some(m => m.kommo && m.canal));
+      document.getElementById(`btn-preview-${tipo}`).disabled = !valid;
+      document.getElementById(`btn-atualizar-${tipo}`).disabled = true;
+    }
+
+    function _renderMappingRows(tipo) {
+      const mapping = state[tipo].mapping;
+      const campos  = state[tipo].campos  || [];
+      const canais  = state[tipo].canais  || [];
+      const container = document.getElementById(`mapping-rows-${tipo}`);
+      container.innerHTML = '';
+      const usedKommo = mapping.map(m => m.kommo).filter(Boolean);
+
+      mapping.forEach((m, idx) => {
+        const kommoOpts = campos.map(c =>
+          `<option value="${c.key}"${c.key === m.kommo ? ' selected' : ''}${
+            usedKommo.includes(c.key) && c.key !== m.kommo ? ' disabled' : ''
+          }>${escHtml(c.label)}</option>`
+        ).join('');
+        const siaaOpt = `<option value="__SIAA__"${m.canal === '__SIAA__' ? ' selected' : ''}>PREÇO SIAA</option>`;
+        const canalOpts = canais.map(c =>
+          `<option value="${escHtml(c)}"${c === m.canal ? ' selected' : ''}>${escHtml(c)}</option>`
+        ).join('');
+
+        const row = document.createElement('div');
+        row.className = 'flex gap-2 items-center';
+        row.innerHTML = `
+          <select class="flex-1 text-xs bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-[var(--text-primary)]"
+            onchange="onMappingKommoChange('${tipo}',${idx},this.value)">
+            <option value="">-- Campo Kommo --</option>
+            ${kommoOpts}
+          </select>
+          <select class="flex-1 text-xs bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-[var(--text-primary)]"
+            onchange="onMappingCanalChange('${tipo}',${idx},this.value)">
+            ${siaaOpt}
+            ${canalOpts}
+          </select>
+          <button onclick="removeMappingRow('${tipo}',${idx})" type="button"
+            class="text-red-400 hover:text-red-300 text-sm px-1 shrink-0">✕</button>`;
+        container.appendChild(row);
+      });
+    }
+
+    function addMappingRow(tipo) {
+      const canais = state[tipo].canais || [];
+      state[tipo].mapping.push({ kommo: '', canal: canais[0] || '__SIAA__' });
+      _renderMappingRows(tipo);
+      _updateKommoButtons(tipo);
+    }
+
+    function removeMappingRow(tipo, idx) {
+      state[tipo].mapping.splice(idx, 1);
+      _renderMappingRows(tipo);
+      _updateKommoButtons(tipo);
+    }
+
+    function onMappingKommoChange(tipo, idx, val) {
+      state[tipo].mapping[idx].kommo = val;
+      _renderMappingRows(tipo);
+      _updateKommoButtons(tipo);
+    }
+
+    function onMappingCanalChange(tipo, idx, val) {
+      state[tipo].mapping[idx].canal = val;
+      _updateKommoButtons(tipo);
     }
 
     // ── Preview ──
     async function preview(tipo) {
-      const file = state[tipo].file;
-      if (!file) return;
+      const file    = state[tipo].file;
+      const mapping = state[tipo].mapping.filter(m => m.kommo && m.canal);
+      if (!file || !mapping.length) return;
       setBtnLoading(`btn-preview-${tipo}`, true, 'Verificando...');
       document.getElementById(`results-${tipo}`).classList.add('hidden');
 
       const fd = new FormData();
-      fd.append('tipo', tipo);
       fd.append('file', file);
+      fd.append('mapping', JSON.stringify(mapping));
 
       try {
-        const res  = await fetch('/api/preview', { method: 'POST', body: fd });
+        const res  = await fetch(`/api/preview_kommo_${tipo}_canais`, { method: 'POST', body: fd });
         const data = await res.json();
         if (data.error) { showError(tipo, data.error); return; }
         _apRenderResults(tipo, data, false);
@@ -856,18 +1217,20 @@
 
     // ── Atualizar ──
     async function atualizar(tipo) {
-      const file = state[tipo].file;
-      if (!file) return;
-      if (!confirm(`Confirma a atualização de preços de TODOS os produtos de ${tipo === 'grad' ? 'Graduação' : 'Pós-Graduação'} no Kommo?`)) return;
+      const file    = state[tipo].file;
+      const mapping = state[tipo].mapping.filter(m => m.kommo && m.canal);
+      if (!file || !mapping.length) return;
+      const label = tipo === 'grad' ? 'Graduação' : 'Pós-Graduação';
+      if (!confirm(`Confirma a atualização de preços de ${label} no Kommo com o mapeamento definido?`)) return;
 
       setBtnLoading(`btn-atualizar-${tipo}`, true, 'Atualizando...');
 
       const fd = new FormData();
-      fd.append('tipo', tipo);
       fd.append('file', file);
+      fd.append('mapping', JSON.stringify(mapping));
 
       try {
-        const res  = await fetch('/api/atualizar', { method: 'POST', body: fd });
+        const res  = await fetch(`/api/atualizar_kommo_${tipo}_canais`, { method: 'POST', body: fd });
         const data = await res.json();
         if (data.error) { showError(tipo, data.error); return; }
         renderSuccess(tipo, data);
@@ -883,142 +1246,129 @@
     function _apRenderResults(tipo, data, applied) {
       const el = document.getElementById(`results-${tipo}`);
       el.classList.remove('hidden');
+      const isPos = tipo === 'pos';
+      const campos = data.campos || [];
+      const kommoKey = isPos ? 'total_kommo_pos' : 'total_kommo_grad';
 
-      const totalKommo = data.total_match + data.total_nao_kommo;
-      const pct = data.total_planilha
-        ? Math.round(data.total_match / data.total_planilha * 100) : 0;
+      // Mapping chips
+      const mappingChips = Object.entries(data.mapping || {}).map(([k, v]) => {
+        const campo = campos.find(c => c.key === k);
+        const lbl = campo ? campo.label : k;
+        const cLbl = v === '__SIAA__' ? 'PREÇO SIAA' : v;
+        return `<span class="inline-flex items-center gap-1 text-[10px] bg-indigo-900/40 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-800/60">${escHtml(lbl)} ← ${escHtml(cLbl)}</span>`;
+      }).join('');
 
-      const badgeAtualizar = `<span class="inline-flex items-center gap-1.5 text-xs font-medium badge-match px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Será atualizado</span>`;
-      const badgeSemMud   = `<span class="inline-flex items-center gap-1.5 text-xs font-medium bg-slate-200 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Sem mudança</span>`;
-      const badgeKommo    = `<span class="inline-flex items-center gap-1.5 text-xs font-medium badge-nomatch px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-red-400"></span> Não na planilha</span>`;
-      const badgePlan     = `<span class="inline-flex items-center gap-1.5 text-xs font-medium bg-amber-900/30 text-amber-400 px-2 py-0.5 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Só na planilha</span>`;
-
-      const fmt = v => v != null ? `R$&nbsp;${v}` : '<span class="text-slate-700">—</span>';
-      const fmtPct = v => v != null ? `<span class="text-slate-400 text-xs">${v}</span>` : '<span class="text-slate-700">—</span>';
-
-      const cmp = (old, nw) => {
-        if (old == null && nw == null) return '<span class="text-slate-700">—</span>';
-        if (old == nw) return `<span class="text-slate-400">R$&nbsp;${old}</span>`;
-        return `<span class="text-slate-500 dark:text-slate-500 line-through text-[10px]">R$&nbsp;${old ?? '—'}</span><br><span class="text-emerald-600 dark:text-emerald-400 font-medium">R$&nbsp;${nw ?? '—'}</span>`;
-      };
-      const cmpPct = (old, nw) => {
-        if (old == null && nw == null) return '<span class="text-slate-700">—</span>';
-        if (old == nw) return `<span class="text-slate-400 text-xs">${old}</span>`;
-        return `<span class="text-slate-500 dark:text-slate-500 line-through text-[10px]">${old ?? '—'}</span><br><span class="text-emerald-600 dark:text-emerald-400 text-xs">${nw ?? '—'}</span>`;
+      const cmpVal = (a, n) => {
+        if (!n) return '<span class="text-slate-600">—</span>';
+        if (a === n) return `<span class="text-slate-400">${escHtml(String(n))}</span>`;
+        return `<span class="text-slate-500 line-through text-[10px]">${escHtml(String(a || '—'))}</span><br><span class="text-emerald-400 font-medium">${escHtml(String(n))}</span>`;
       };
 
-      let matchRows = sortByName(data.matches, 'nome').map(m => {
-        const d = m.dados;
-        const a = m.atual || {};
-        const mNome = m.nome || m.chave || (d && d.nome) || '';
-        const cat = m.needs_update ? 'atualizar' : 'sem_mudanca';
-        const badge = m.needs_update ? badgeAtualizar : badgeSemMud;
-        return `
-        <tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="${cat}">
-          <td class="py-3 px-4 sticky left-0 bg-[var(--bg-card)] z-10">${badge}</td>
-          <td class="py-3 px-4 text-sm text-[var(--text-primary)] whitespace-nowrap">${escHtml(mNome)}</td>
-          <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${cmp(a.preco_cruzeiro, d.preco_cruzeiro)}</td>
-          <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${cmp(a.balcao, d.balcao)}</td>
-          <td class="py-3 px-4 text-center whitespace-nowrap">${cmpPct(a.balcao_pct, d.balcao_pct)}</td>
-          <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${cmp(a.estrategico, d.estrategico)}</td>
-          <td class="py-3 px-4 text-center whitespace-nowrap">${cmpPct(a.pct_estrategico, d.pct_estrategico)}</td>
-          <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${cmp(a.mar_aberto, d.mar_aberto)}</td>
-          <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${cmp(a.dois_grad, d.dois_grad)}</td>
-          <td class="py-3 px-4 text-right text-sm whitespace-nowrap">${cmp(a.transferencia, d.transferencia)}</td>
+      const thExtra = isPos
+        ? `<th class="py-2.5 px-3 text-left text-[10px] text-slate-500 font-medium whitespace-nowrap">Duração</th>`
+        : `<th class="py-2.5 px-3 text-left text-[10px] text-slate-500 font-medium whitespace-nowrap">Grau</th>
+           <th class="py-2.5 px-3 text-left text-[10px] text-slate-500 font-medium whitespace-nowrap">Modalidade</th>`;
+      const thCols = campos.map(c =>
+        `<th class="py-2.5 px-3 text-right text-[10px] text-slate-500 font-medium whitespace-nowrap">${escHtml(c.label)}<br><span class="text-[9px] text-slate-600">atual→novo</span></th>`
+      ).join('');
+
+      const matchRows = (data.matches || []).map(m => {
+        const cat   = m.needs_update ? 'atualizar' : 'sem_mudanca';
+        const badge = m.needs_update
+          ? `<span class="inline-flex items-center text-[10px] font-medium bg-emerald-900/40 text-emerald-400 px-2 py-0.5 rounded-full">Atualizar</span>`
+          : `<span class="inline-flex items-center text-[10px] font-medium bg-slate-700/60 text-slate-400 px-2 py-0.5 rounded-full">Sem mudança</span>`;
+        const extra = isPos
+          ? `<td class="py-2 px-3 text-[11px] text-slate-400 whitespace-nowrap">${escHtml(m.duracao || '')}</td>`
+          : `<td class="py-2 px-3 text-[11px] text-slate-400 whitespace-nowrap">${escHtml(m.grau || '')}</td>
+             <td class="py-2 px-3 text-[11px] text-slate-400 whitespace-nowrap">${escHtml(m.modalidade || '')}</td>`;
+        const diffMap = {};
+        (m.diffs || []).forEach(d => { diffMap[d.campo] = d; });
+        const valCols = campos.map(c => {
+          const d = diffMap[c.key];
+          if (!d) return '<td class="py-2 px-3 text-right text-[11px] text-slate-600">—</td>';
+          return `<td class="py-2 px-3 text-right text-[11px] whitespace-nowrap">${cmpVal(d.atual, d.novo)}</td>`;
+        }).join('');
+        return `<tr class="border-b border-slate-800/60 hover:bg-slate-800/20 transition-colors" data-cat="${cat}">
+          <td class="py-2 px-3 sticky left-0 bg-[var(--bg-card)] z-10">${badge}</td>
+          <td class="py-2 px-3 text-[11px] text-[var(--text-primary)] whitespace-nowrap max-w-[180px] truncate">${escHtml(m.curso || '')}</td>
+          ${extra}${valCols}
         </tr>`;
       }).join('');
 
-      const emptyPriceCells = `<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>`;
+      const emptyExtra = isPos ? '<td></td>' : '<td></td><td></td>';
+      const emptyCols  = campos.map(() => '<td></td>').join('');
 
-      let naoKommoRows = sortByName(data.nao_no_kommo || [], 'nome').map(n => `
-        <tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="nao_kommo">
-          <td class="py-3 px-4 sticky left-0 bg-[var(--bg-card)] z-10">${badgeKommo}</td>
-          <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(n.nome || n.chave || '')}</td>
-          ${emptyPriceCells}
-        </tr>`).join('');
+      const soKommoRows = (data.so_kommo || []).map(m => {
+        const extra = isPos
+          ? `<td class="py-2 px-3 text-[11px] text-slate-500">${escHtml(m.duracao || '')}</td>`
+          : `<td class="py-2 px-3 text-[11px] text-slate-500">${escHtml(m.grau || '')}</td>
+             <td class="py-2 px-3 text-[11px] text-slate-500">${escHtml(m.modalidade || '')}</td>`;
+        return `<tr class="border-b border-slate-800/60 hover:bg-slate-800/20 transition-colors" data-cat="so_kommo">
+          <td class="py-2 px-3 sticky left-0 bg-[var(--bg-card)] z-10"><span class="inline-flex items-center text-[10px] font-medium bg-red-900/30 text-red-400 px-2 py-0.5 rounded-full">Só Kommo</span></td>
+          <td class="py-2 px-3 text-[11px] text-red-400/70 whitespace-nowrap">${escHtml(m.curso || '')}</td>
+          ${extra}${emptyCols}
+        </tr>`;
+      }).join('');
 
-      let soloPlanRows = sortByName(data.so_na_planilha || [], 'nome').map(n => `
-        <tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="so_planilha">
-          <td class="py-3 px-4 sticky left-0 bg-[var(--bg-card)] z-10">${badgePlan}</td>
-          <td class="py-3 px-4 text-sm text-amber-300/80 whitespace-nowrap">${escHtml(n.nome || n.chave || '')}</td>
-          ${emptyPriceCells}
-        </tr>`).join('');
-
+      const soPlanRows = (data.so_planilha || []).map(m => {
+        const extra = isPos
+          ? `<td class="py-2 px-3 text-[11px] text-slate-500">${escHtml(m.duracao || '')}</td>`
+          : `<td class="py-2 px-3 text-[11px] text-slate-500">${escHtml(m.grau || '')}</td>
+             <td class="py-2 px-3 text-[11px] text-slate-500">${escHtml(m.modalidade || '')}</td>`;
+        return `<tr class="border-b border-slate-800/60 hover:bg-slate-800/20 transition-colors" data-cat="so_planilha">
+          <td class="py-2 px-3 sticky left-0 bg-[var(--bg-card)] z-10"><span class="inline-flex items-center text-[10px] font-medium bg-amber-900/30 text-amber-400 px-2 py-0.5 rounded-full">Só Planilha</span></td>
+          <td class="py-2 px-3 text-[11px] text-amber-400/70 whitespace-nowrap">${escHtml(m.curso || '')}</td>
+          ${extra}${emptyCols}
+        </tr>`;
+      }).join('');
 
       el.innerHTML = `
-        <!-- Stats -->
-        <div class="grid grid-cols-5 gap-3 mb-5">
-          <div class="bg-slate-100 dark:bg-slate-800 rounded-xl p-4 border border-[var(--border)] cursor-pointer filter-btn" data-filter="all" onclick="toggleFilter('${tipo}','all')">
-            <p class="text-xs text-slate-500 mb-1">Na planilha</p>
-            <p class="text-2xl font-bold text-[var(--text-primary)] tabular-nums">${data.total_planilha}</p>
-          </div>
+        ${mappingChips ? `<div class="flex flex-wrap gap-1.5 mb-4">${mappingChips}</div>` : ''}
+        <div class="grid grid-cols-4 gap-3 mb-5">
           <div class="bg-emerald-900/30 rounded-xl p-4 border border-emerald-800/50 cursor-pointer filter-btn" data-filter="atualizar" onclick="toggleFilter('${tipo}','atualizar')">
             <p class="text-xs text-emerald-500 mb-1">Serão atualizados</p>
-            <p class="text-2xl font-bold text-emerald-400">${data.total_atualizar || 0}</p>
+            <p class="text-2xl font-bold text-emerald-400 tabular-nums">${data.total_atualizar || 0}</p>
           </div>
           <div class="bg-slate-100 dark:bg-slate-800 rounded-xl p-4 border border-[var(--border)] cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="toggleFilter('${tipo}','sem_mudanca')">
             <p class="text-xs text-slate-500 mb-1">Sem mudança</p>
             <p class="text-2xl font-bold text-[var(--text-primary)] tabular-nums">${data.total_sem_mudanca || 0}</p>
           </div>
-          <div class="bg-red-900/20 rounded-xl p-4 border border-red-900/40 cursor-pointer filter-btn" data-filter="nao_kommo" onclick="toggleFilter('${tipo}','nao_kommo')">
-            <p class="text-xs text-red-500 mb-1">Não na planilha</p>
-            <p class="text-2xl font-bold text-red-400">${data.total_nao_kommo}</p>
+          <div class="bg-red-900/20 rounded-xl p-4 border border-red-900/40 cursor-pointer filter-btn" data-filter="so_kommo" onclick="toggleFilter('${tipo}','so_kommo')">
+            <p class="text-xs text-red-500 mb-1">Só no Kommo</p>
+            <p class="text-2xl font-bold text-red-400 tabular-nums">${data.total_so_kommo || 0}</p>
           </div>
           <div class="bg-amber-900/20 rounded-xl p-4 border border-amber-900/40 cursor-pointer filter-btn" data-filter="so_planilha" onclick="toggleFilter('${tipo}','so_planilha')">
             <p class="text-xs text-amber-500 mb-1">Só na planilha</p>
-            <p class="text-2xl font-bold text-amber-400">${data.total_so_plan}</p>
+            <p class="text-2xl font-bold text-amber-400 tabular-nums">${data.total_so_planilha || 0}</p>
           </div>
         </div>
-
-        <!-- Barra de progresso -->
-        <div class="mb-5">
-          <div class="flex justify-between text-xs text-slate-500 mb-1.5">
-            <span>Taxa de correspondência</span>
-            <span class="text-slate-700 dark:text-slate-300 font-medium">${pct}%</span>
-          </div>
-          <div class="h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
-            <div class="h-full bg-gradient-to-r from-indigo-500 to-emerald-500 rounded-full transition-all"
-              style="width:${pct}%"></div>
-          </div>
-        </div>
-
-        <!-- Tabela -->
         <div class="rounded-xl border border-slate-800 overflow-hidden">
-          <div class="flex items-center gap-3 px-4 py-3 bg-slate-50 dark:bg-slate-800/60 border-b border-[var(--border)]">
-            <span class="text-xs text-slate-600 dark:text-slate-400 font-medium uppercase tracking-wider">Cursos</span>
-            <span class="text-xs text-slate-600">${totalKommo} no Kommo · ${data.total_planilha} na planilha</span>
+          <div class="flex items-center gap-3 px-4 py-3 bg-slate-800/60 border-b border-[var(--border)]">
+            <span class="text-xs text-slate-400 font-medium uppercase tracking-wider">Cursos</span>
+            <span class="text-xs text-slate-500">${data[kommoKey] || 0} no Kommo · ${data.total_planilha || 0} na planilha</span>
           </div>
           <div class="overflow-auto max-h-[480px]">
             <table class="w-full text-xs">
               <thead class="sticky top-0 bg-[var(--bg-card)] z-20">
                 <tr class="border-b border-[var(--border)]">
-                  <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium sticky left-0 bg-[var(--bg-card)] z-20 whitespace-nowrap">Status</th>
-                  <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium whitespace-nowrap">Nome</th>
-                  <th class="py-2.5 px-4 text-right whitespace-nowrap"><span class="text-[var(--primary)] font-semibold">Preço Base</span><br><span class="text-[10px] text-slate-600">atual → novo</span></th>
-                  <th class="py-2.5 px-4 text-right whitespace-nowrap"><span class="text-slate-600 dark:text-slate-400 font-medium">Balcão R$</span><br><span class="text-[10px] text-slate-600">atual → novo</span></th>
-                  <th class="py-2.5 px-4 text-center text-slate-600 dark:text-slate-400 font-medium whitespace-nowrap">Balcão %</th>
-                  <th class="py-2.5 px-4 text-right whitespace-nowrap"><span class="text-slate-600 dark:text-slate-400 font-medium">Estratégico</span><br><span class="text-[10px] text-slate-600">atual → novo</span></th>
-                  <th class="py-2.5 px-4 text-center text-slate-600 dark:text-slate-400 font-medium whitespace-nowrap">Estratégico %</th>
-                  <th class="py-2.5 px-4 text-right whitespace-nowrap"><span class="text-slate-600 dark:text-slate-400 font-medium">Mar Aberto</span><br><span class="text-[10px] text-slate-600">atual → novo</span></th>
-                  <th class="py-2.5 px-4 text-right whitespace-nowrap"><span class="text-slate-600 dark:text-slate-400 font-medium">2ª Grad</span><br><span class="text-[10px] text-slate-600">atual → novo</span></th>
-                  <th class="py-2.5 px-4 text-right whitespace-nowrap"><span class="text-slate-600 dark:text-slate-400 font-medium">Transferência</span><br><span class="text-[10px] text-slate-600">atual → novo</span></th>
+                  <th class="py-2.5 px-3 text-left text-[10px] text-slate-500 font-medium sticky left-0 bg-[var(--bg-card)] z-20 whitespace-nowrap">Status</th>
+                  <th class="py-2.5 px-3 text-left text-[10px] text-slate-500 font-medium whitespace-nowrap">Curso</th>
+                  ${thExtra}${thCols}
                 </tr>
               </thead>
               <tbody id="tbody-${tipo}">
-                ${matchRows}
-                ${naoKommoRows}
-                ${soloPlanRows}
+                ${matchRows}${soKommoRows}${soPlanRows}
               </tbody>
             </table>
           </div>
-
         </div>`;
-
     }
 
     function renderSuccess(tipo, data) {
       const el = document.getElementById(`results-${tipo}`);
       el.classList.remove('hidden');
+      const erroHtml = (data.erros > 0 && data.ultimo_erro)
+        ? `<p class="text-red-400 text-xs mt-1">Último erro: ${escHtml(data.ultimo_erro)}</p>` : '';
       el.innerHTML = `
         <div class="rounded-xl bg-emerald-900/20 border border-emerald-800/40 p-5 flex items-start gap-4">
           <div class="w-10 h-10 rounded-full bg-emerald-800/50 flex items-center justify-center shrink-0">
@@ -1030,12 +1380,10 @@
             <p class="text-emerald-400 font-semibold text-sm mb-1">Atualização concluída!</p>
             <p class="text-slate-400 text-sm">
               <span class="text-[var(--text-primary)] font-semibold">${data.atualizados}</span> produtos atualizados no Kommo.
-              ${data.nao_no_kommo > 0 ? `<span class="text-red-400"> ${data.nao_no_kommo} sem match no Kommo.</span>` : ''}
-              ${data.so_na_planilha > 0 ? `<span class="text-amber-400"> ${data.so_na_planilha} só na planilha.</span>` : ''}
               ${data.erros > 0 ? `<span class="text-red-400"> ${data.erros} com erro.</span>` : ''}
             </p>
+            ${erroHtml}
           </div>
-
         </div>`;
     }
 
@@ -1191,10 +1539,30 @@
     // ═══════════════════════════════════════════════
     // Supabase IA
     // ═══════════════════════════════════════════════
-    const supaFiles = { grad: null, pos: null };
+    async function materializeFile(file) {
+      if (!file) return file;
+      try {
+        const buf = await file.arrayBuffer();
+        return new File([buf], file.name, { type: file.type, lastModified: file.lastModified });
+      } catch (e) {
+        console.warn('materializeFile falhou, usando file original:', e);
+        return file;
+      }
+    }
+
+    const supaFiles = { grad: null, pos: null, corp: null };
+    const sbFiles   = { grad: null, pos: null };
+    const canalData = {
+      grad:   { canais: [], temSiaa: false },
+      pos:    { canais: [], temSiaa: false },
+      corp:   { canais: [], temSiaa: false },
+      sbGrad: { canais: [], temSiaa: false },
+      sbPos:  { canais: [], temSiaa: false },
+    };
+    let corpCampos = []; // [{id, label}, ...]
 
     function supaTab(tipo) {
-      ['grad','pos'].forEach(t => {
+      ['grad','pos','corp'].forEach(t => {
         document.getElementById(`supa-tab-${t}`).className =
           t === tipo
             ? dsSegActive()
@@ -1221,8 +1589,8 @@
       if (file) supaSetFile(tipo, file);
     }
 
-    function supaSetFile(tipo, file) {
-      supaFiles[tipo] = file;
+    async function supaSetFile(tipo, file) {
+      supaFiles[tipo] = await materializeFile(file);
       const icon = document.getElementById(`supa-drop-${tipo}-icon`);
       const info = document.getElementById(`supa-drop-${tipo}-file`);
       const name = document.getElementById(`supa-drop-${tipo}-filename`);
@@ -1230,9 +1598,158 @@
       info.classList.remove('hidden'); info.classList.add('flex');
       name.textContent = file.name;
       document.getElementById(`supa-drop-${tipo}`).classList.add('has-file');
-      document.getElementById(`supa-btn-preview-${tipo}`).disabled = false;
+      document.getElementById(`supa-btn-preview-${tipo}`).disabled = true;
       document.getElementById(`supa-results-${tipo}`).classList.add('hidden');
       document.getElementById(`supa-btn-atualizar-${tipo}`).disabled = true;
+      // Load canal list
+      await supaLoadCanais(tipo);
+      if (tipo === 'corp') {
+        await corpLoadCampos();
+      }
+    }
+
+    async function supaLoadCanais(tipo) {
+      const endpointMap = { grad: 'listar_canais_grad', pos: 'listar_canais_pos', corp: 'listar_canais_corporativa' };
+      const ep = endpointMap[tipo];
+      if (!ep) return;
+      const file = supaFiles[tipo];
+      if (!file) return;
+      try {
+        const fd = new FormData();
+        fd.append('file', file);
+        const res  = await fetch(`/api/${ep}`, { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.error) { console.error('listar_canais', data.error); return; }
+        canalData[tipo].canais   = data.canais  || [];
+        canalData[tipo].temSiaa  = !!data.tem_siaa;
+        if (tipo === 'corp') {
+          document.getElementById('corp-mapping-wrap').classList.remove('hidden');
+          corpRenderMappingRows();
+        } else {
+          supaRenderCanalSelect(tipo, canalData[tipo].canais, canalData[tipo].temSiaa);
+        }
+      } catch(e) {
+        console.error('supaLoadCanais', e);
+      }
+    }
+
+    function supaRenderCanalSelect(tipo, canais, temSiaa) {
+      const wrap = document.getElementById(`supa-canal-wrap-${tipo}`);
+      const sel  = document.getElementById(`supa-canal-select-${tipo}`);
+      if (!wrap || !sel) return;
+      sel.innerHTML = '<option value="">— Selecione um canal —</option>';
+      if (temSiaa) {
+        const opt = document.createElement('option');
+        opt.value = '__SIAA__';
+        opt.textContent = 'PREÇO SIAA';
+        sel.appendChild(opt);
+      }
+      canais.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c; opt.textContent = c;
+        sel.appendChild(opt);
+      });
+      wrap.classList.remove('hidden');
+    }
+
+    function supaOnCanalChange(tipo) {
+      let canEnable = false;
+      if (tipo === 'corp') {
+        const rows = document.querySelectorAll('#corp-mapping-rows .corp-map-row');
+        const valid = [...rows].filter(r => {
+          const s = r.querySelectorAll('select');
+          return s[0].value !== '' && s[1].value !== '';
+        });
+        canEnable = valid.length > 0;
+      } else {
+        const sel = document.getElementById(`supa-canal-select-${tipo}`);
+        canEnable = !!(sel && sel.value !== '');
+      }
+      document.getElementById(`supa-btn-preview-${tipo}`).disabled = !canEnable;
+      document.getElementById(`supa-btn-atualizar-${tipo}`).disabled = true;
+    }
+
+    // ── Corp: campos + N×N mapping ──
+    async function corpLoadCampos() {
+      try {
+        const res  = await fetch('/api/listar_campos_corporativa');
+        const data = await res.json();
+        corpCampos = Array.isArray(data) ? data : [];
+        corpRenderMappingRows();
+      } catch(e) {
+        console.error('corpLoadCampos', e);
+      }
+    }
+
+    function corpAddMapping() {
+      const canais = canalData.corp.canais;
+      const temSiaa = canalData.corp.temSiaa;
+      const container = document.getElementById('corp-mapping-rows');
+      const row = document.createElement('div');
+      row.className = 'corp-map-row flex gap-2 items-center';
+
+      const usedFields = getCorpUsedFields();
+
+      // Campo select
+      const campoSel = document.createElement('select');
+      campoSel.className = 'flex-1 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-sm px-3 py-2 text-[var(--text-primary)] focus:outline-none';
+      campoSel.innerHTML = '<option value="">— Campo —</option>';
+      corpCampos.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id; opt.textContent = c.label;
+        if (usedFields.includes(c.id)) opt.disabled = true;
+        campoSel.appendChild(opt);
+      });
+      campoSel.onchange = () => { corpRenderMappingRows(); supaOnCanalChange('corp'); };
+
+      // Canal select
+      const canalSel = document.createElement('select');
+      canalSel.className = 'flex-1 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-sm px-3 py-2 text-[var(--text-primary)] focus:outline-none';
+      canalSel.innerHTML = '<option value="">— Canal —</option>';
+      if (temSiaa) {
+        const opt = document.createElement('option');
+        opt.value = '__SIAA__'; opt.textContent = 'PREÇO SIAA';
+        canalSel.appendChild(opt);
+      }
+      canalData.corp.canais.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c; opt.textContent = c;
+        canalSel.appendChild(opt);
+      });
+      canalSel.onchange = () => supaOnCanalChange('corp');
+
+      // Remove button
+      const rmBtn = document.createElement('button');
+      rmBtn.innerHTML = '&#x2715;';
+      rmBtn.className = 'text-slate-400 hover:text-red-400 text-lg leading-none px-1';
+      rmBtn.onclick = () => { row.remove(); corpRenderMappingRows(); supaOnCanalChange('corp'); };
+
+      row.appendChild(campoSel);
+      row.appendChild(canalSel);
+      row.appendChild(rmBtn);
+      container.appendChild(row);
+    }
+
+    function getCorpUsedFields() {
+      const rows = document.querySelectorAll('#corp-mapping-rows .corp-map-row');
+      return [...rows].map(r => r.querySelector('select').value).filter(v => v !== '');
+    }
+
+    function corpRenderMappingRows() {
+      // Re-enable/disable campo options based on what's already used
+      const usedFields = getCorpUsedFields();
+      document.querySelectorAll('#corp-mapping-rows .corp-map-row select:first-child option').forEach(opt => {
+        opt.disabled = (opt.value !== '' && usedFields.includes(opt.value) &&
+                        opt !== opt.closest('select').selectedOptions[0]);
+      });
+    }
+
+    function corpGetMapping() {
+      const rows = document.querySelectorAll('#corp-mapping-rows .corp-map-row');
+      return [...rows].map(r => {
+        const sels = r.querySelectorAll('select');
+        return { campo: sels[0].value, canal: sels[1].value };
+      }).filter(m => m.campo && m.canal);
     }
 
     async function supaPreview(tipo) {
@@ -1241,12 +1758,20 @@
       setBtnLoading(`supa-btn-preview-${tipo}`, true, 'Verificando...');
       document.getElementById(`supa-results-${tipo}`).classList.add('hidden');
 
+      const epMap = { grad: 'preview_grad_canal', pos: 'preview_pos_canal', corp: 'preview_corporativa_canais' };
+      const ep = epMap[tipo] || 'preview_supabase';
       const fd = new FormData();
       fd.append('tipo', tipo);
       fd.append('file', file);
+      if (tipo !== 'corp') {
+        const sel = document.getElementById(`supa-canal-select-${tipo}`);
+        if (sel) fd.append('canal', sel.value);
+      } else {
+        fd.append('mapping', JSON.stringify(corpGetMapping()));
+      }
 
       try {
-        const res  = await fetch('/api/preview_supabase', { method: 'POST', body: fd });
+        const res  = await fetch(`/api/${ep}`, { method: 'POST', body: fd });
         const data = await res.json();
         if (data.error) { supaShowError(tipo, data.error); return; }
         supaRenderResults(tipo, data);
@@ -1261,16 +1786,25 @@
     async function supaAtualizar(tipo) {
       const file = supaFiles[tipo];
       if (!file) return;
-      if (!confirm(`Confirma a atualização da IA (Supabase) para ${tipo === 'grad' ? 'Graduação' : 'Pós-Graduação'}?`)) return;
+      const label = tipo === 'grad' ? 'Graduação' : tipo === 'pos' ? 'Pós-Graduação' : 'Educação Corporativa';
+      if (!confirm(`Confirma a atualização da IA (Supabase) para ${label}?`)) return;
 
       setBtnLoading(`supa-btn-atualizar-${tipo}`, true, 'Atualizando...');
 
+      const epMap = { grad: 'atualizar_grad_canal', pos: 'atualizar_pos_canal', corp: 'atualizar_corporativa_canais' };
+      const ep = epMap[tipo] || 'atualizar_supabase';
       const fd = new FormData();
       fd.append('tipo', tipo);
       fd.append('file', file);
+      if (tipo !== 'corp') {
+        const sel = document.getElementById(`supa-canal-select-${tipo}`);
+        if (sel) fd.append('canal', sel.value);
+      } else {
+        fd.append('mapping', JSON.stringify(corpGetMapping()));
+      }
 
       try {
-        const res  = await fetch('/api/atualizar_supabase', { method: 'POST', body: fd });
+        const res  = await fetch(`/api/${ep}`, { method: 'POST', body: fd });
         const data = await res.json();
         if (data.error) { supaShowError(tipo, data.error); return; }
         supaRenderSuccess(tipo, data);
@@ -1309,6 +1843,7 @@
     }
 
     function supaRenderResults(tipo, data) {
+      if (tipo === 'corp') { return supaCorpRenderResults(data); }
       const el = document.getElementById(`supa-results-${tipo}`);
       el.classList.remove('hidden');
       const isPos = tipo === 'pos';
@@ -1409,6 +1944,97 @@
         </div>`;
     }
 
+    function supaCorpRenderResults(data) {
+      const tipo = 'corp';
+      const el   = document.getElementById('supa-results-corp');
+      el.classList.remove('hidden');
+      const campos = data.campos || [];
+
+      const mappingChips = Object.entries(data.mapping || {}).map(([k, v]) => {
+        const campo = campos.find(c => c.id === k);
+        const lbl   = campo ? campo.label : k;
+        const cLbl  = (v === '__SIAA__') ? 'PREÇO SIAA' : v;
+        return `<span class="inline-flex items-center gap-1 text-[10px] bg-indigo-900/40 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-800/60">${escHtml(lbl)} ← ${escHtml(cLbl)}</span>`;
+      }).join('');
+
+      const cmpVal = (a, n) => {
+        if (n == null || n === '') return '<span class="text-slate-600">—</span>';
+        if (String(a) === String(n)) return `<span class="text-slate-400">R$&nbsp;${escHtml(String(n))}</span>`;
+        return `<span class="text-slate-500 line-through text-[10px]">${escHtml(a != null && a !== '' ? 'R$ '+a : '—')}</span><br><span class="text-emerald-400 font-medium">R$&nbsp;${escHtml(String(n))}</span>`;
+      };
+
+      const thCols = campos.map(c =>
+        `<th class="py-2.5 px-3 text-right text-[10px] text-slate-500 font-medium whitespace-nowrap">${escHtml(c.label)}<br><span class="text-[9px] text-slate-600">atual→novo</span></th>`
+      ).join('');
+
+      const badgeUp = `<span class="inline-flex items-center text-[10px] font-medium bg-emerald-900/40 text-emerald-400 px-2 py-0.5 rounded-full">Atualizar</span>`;
+      const badgeEq = `<span class="inline-flex items-center text-[10px] font-medium bg-slate-700/60 text-slate-400 px-2 py-0.5 rounded-full">Sem mudança</span>`;
+
+      const matchRows = sortByName(data.matches || [], 'curso').map(m => {
+        const cat   = m.needs_update ? 'atualizar' : 'sem_mudanca';
+        const diff  = m.diff || {};
+        const valCols = campos.map(c => {
+          const d = diff[c.id];
+          if (!d) return '<td class="py-2 px-3 text-right text-[11px] text-slate-600">—</td>';
+          return `<td class="py-2 px-3 text-right text-[11px] whitespace-nowrap">${cmpVal(d.atual, d.novo)}</td>`;
+        }).join('');
+        return `<tr class="border-b border-slate-800/60 hover:bg-slate-800/20 transition-colors" data-cat="${cat}">
+          <td class="py-2 px-3 sticky left-0 bg-[var(--bg-card)] z-10">${m.needs_update ? badgeUp : badgeEq}</td>
+          <td class="py-2 px-3 text-[11px] text-[var(--text-primary)] whitespace-nowrap max-w-[260px] truncate">${escHtml(m.curso || '')}</td>
+          <td class="py-2 px-3 text-[11px] text-slate-400 whitespace-nowrap">${escHtml(m.grau || '')}</td>
+          <td class="py-2 px-3 text-[11px] text-slate-400 whitespace-nowrap">${escHtml(m.modalidade || '')}</td>
+          ${valCols}
+        </tr>`;
+      }).join('');
+
+      const emptyCols = campos.map(() => '<td></td>').join('');
+      const naoEncRows = sortByName(data.nao_encontrado || [], 'curso').map(n => `
+        <tr class="border-b border-slate-800/60 hover:bg-slate-800/20 transition-colors" data-cat="nao_encontrado">
+          <td class="py-2 px-3 sticky left-0 bg-[var(--bg-card)] z-10"><span class="inline-flex items-center text-[10px] font-medium bg-red-900/30 text-red-400 px-2 py-0.5 rounded-full">Não encontrado</span></td>
+          <td class="py-2 px-3 text-[11px] text-red-400/70 whitespace-nowrap">${escHtml(n.curso || '')}</td>
+          <td class="py-2 px-3 text-[11px] text-slate-500">${escHtml(n.grau || '')}</td>
+          <td class="py-2 px-3 text-[11px] text-slate-500">${escHtml(n.modalidade || '')}</td>
+          ${emptyCols}
+        </tr>`).join('');
+
+      el.innerHTML = `
+        ${mappingChips ? `<div class="flex flex-wrap gap-1.5 mb-4">${mappingChips}</div>` : ''}
+        <div class="grid grid-cols-4 gap-3 mb-5">
+          <div class="bg-emerald-900/30 rounded-xl p-4 border border-emerald-800/50 cursor-pointer filter-btn" data-filter="atualizar" onclick="supaToggleFilter('${tipo}','atualizar')">
+            <p class="text-xs text-emerald-500 mb-1">Serão atualizados</p>
+            <p class="text-2xl font-bold text-emerald-400 tabular-nums">${data.total_atualizar || 0}</p>
+          </div>
+          <div class="bg-slate-100 dark:bg-slate-800 rounded-xl p-4 border border-[var(--border)] cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="supaToggleFilter('${tipo}','sem_mudanca')">
+            <p class="text-xs text-slate-500 mb-1">Sem mudança</p>
+            <p class="text-2xl font-bold text-[var(--text-primary)] tabular-nums">${data.total_sem_mudanca || 0}</p>
+          </div>
+          <div class="bg-red-900/20 rounded-xl p-4 border border-red-900/40 cursor-pointer filter-btn" data-filter="nao_encontrado" onclick="supaToggleFilter('${tipo}','nao_encontrado')">
+            <p class="text-xs text-red-500 mb-1">Não encontrado</p>
+            <p class="text-2xl font-bold text-red-400 tabular-nums">${data.total_nao_enc || 0}</p>
+          </div>
+          <div class="bg-amber-900/20 rounded-xl p-4 border border-amber-900/40 cursor-pointer filter-btn" data-filter="so_planilha" onclick="supaToggleFilter('${tipo}','so_planilha')">
+            <p class="text-xs text-amber-500 mb-1">Só na planilha</p>
+            <p class="text-2xl font-bold text-amber-400 tabular-nums">${data.total_so_plan || 0}</p>
+          </div>
+        </div>
+        <div class="rounded-xl border border-slate-800 overflow-hidden">
+          <div class="overflow-auto max-h-[480px]">
+            <table class="w-full text-xs">
+              <thead class="sticky top-0 bg-[var(--bg-card)] z-20">
+                <tr class="border-b border-[var(--border)]">
+                  <th class="py-2.5 px-3 text-left text-[10px] text-slate-500 font-medium sticky left-0 bg-[var(--bg-card)] z-20 whitespace-nowrap">Status</th>
+                  <th class="py-2.5 px-3 text-left text-[10px] text-slate-500 font-medium whitespace-nowrap">Curso</th>
+                  <th class="py-2.5 px-3 text-left text-[10px] text-slate-500 font-medium whitespace-nowrap">Grau</th>
+                  <th class="py-2.5 px-3 text-left text-[10px] text-slate-500 font-medium whitespace-nowrap">Modalidade</th>
+                  ${thCols}
+                </tr>
+              </thead>
+              <tbody id="supa-tbody-${tipo}">${matchRows}${naoEncRows}</tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+
     function supaRenderSuccess(tipo, data) {
       const el = document.getElementById(`supa-results-${tipo}`);
       el.classList.remove('hidden');
@@ -1448,7 +2074,7 @@
     // ═══════════════════════════════════════════════
     // Salesbot
     // ═══════════════════════════════════════════════
-    let sbFile = null;
+    // sbFile replaced by sbFiles.grad (see sbFiles declaration above)
 
     function sbDragOver(e) {
       e.preventDefault();
@@ -1468,8 +2094,8 @@
       if (file) sbSetFile(file);
     }
 
-    function sbSetFile(file) {
-      sbFile = file;
+    async function sbSetFile(file) {
+      sbFiles.grad = await materializeFile(file);
       const icon = document.getElementById('sb-drop-icon');
       const info = document.getElementById('sb-drop-file');
       const name = document.getElementById('sb-drop-filename');
@@ -1477,21 +2103,263 @@
       info.classList.remove('hidden'); info.classList.add('flex');
       name.textContent = file.name;
       document.getElementById('sb-drop').classList.add('has-file');
-      document.getElementById('sb-btn-preview').disabled = false;
+      document.getElementById('sb-btn-preview').disabled = true;
       document.getElementById('sb-results').classList.add('hidden');
       document.getElementById('sb-btn-atualizar').disabled = true;
+      // Load canais for salesbot grad (reuses listar_canais_grad)
+      await sbLoadCanais('grad');
+    }
+
+    // ── Salesbot: sub-tab switching ──
+    function switchSbTab(tipo) {
+      ['grad','pos'].forEach(t => {
+        const tabBtn = document.getElementById(`sb-tab-${t}`);
+        const panel  = document.getElementById(`sb-panel-${t}`);
+        if (tabBtn) tabBtn.className = t === tipo ? dsSegActive() : dsSegInactive();
+        if (panel)  panel.classList.toggle('hidden', t !== tipo);
+      });
+    }
+
+    // ── Salesbot: canal loading ──
+    async function sbLoadCanais(tipo) {
+      const endpointMap = { grad: 'listar_canais_grad', pos: 'listar_canais_pos' };
+      const ep = endpointMap[tipo];
+      const file = sbFiles[tipo];
+      if (!ep || !file) return;
+      try {
+        const fd = new FormData();
+        fd.append('file', file);
+        const res  = await fetch(`/api/${ep}`, { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.error) { console.error('sbLoadCanais', data.error); return; }
+        canalData[`sb${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`].canais   = data.canais  || [];
+        canalData[`sb${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`].temSiaa  = !!data.tem_siaa;
+        sbRenderCanalSelect(tipo, data.canais || [], !!data.tem_siaa);
+      } catch(e) {
+        console.error('sbLoadCanais', e);
+      }
+    }
+
+    function sbRenderCanalSelect(tipo, canais, temSiaa) {
+      const wrap = document.getElementById(`sb-canal-wrap-${tipo}`);
+      const sel  = document.getElementById(`sb-canal-select-${tipo}`);
+      if (!wrap || !sel) return;
+      sel.innerHTML = '<option value="">— Selecione um canal —</option>';
+      if (temSiaa) {
+        const opt = document.createElement('option');
+        opt.value = '__SIAA__'; opt.textContent = 'PREÇO SIAA';
+        sel.appendChild(opt);
+      }
+      canais.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c; opt.textContent = c;
+        sel.appendChild(opt);
+      });
+      wrap.classList.remove('hidden');
+    }
+
+    function sbOnCanalChange(tipo) {
+      const sel = document.getElementById(`sb-canal-select-${tipo}`);
+      const hasCanal = sel && sel.value !== '';
+      if (tipo === 'grad') {
+        document.getElementById('sb-btn-preview').disabled    = !hasCanal;
+        document.getElementById('sb-btn-atualizar').disabled  = true;
+      } else {
+        document.getElementById('sbpos-btn-preview').disabled   = !hasCanal;
+        document.getElementById('sbpos-btn-atualizar').disabled = true;
+      }
+    }
+
+    // ── Salesbot Pós: file handlers ──
+    function sbposDragOver(e)  { e.preventDefault(); document.getElementById('sbpos-drop').classList.add('dragover'); }
+    function sbposDragLeave(e) { document.getElementById('sbpos-drop').classList.remove('dragover'); }
+    function sbposHandleDrop(e) {
+      e.preventDefault();
+      document.getElementById('sbpos-drop').classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file) sbposSetFile(file);
+    }
+    function sbposHandleFileSelect(e) {
+      const file = e.target.files[0];
+      if (file) sbposSetFile(file);
+    }
+
+    async function sbposSetFile(file) {
+      sbFiles.pos = await materializeFile(file);
+      const icon = document.getElementById('sbpos-drop-icon');
+      const info = document.getElementById('sbpos-drop-file');
+      const name = document.getElementById('sbpos-drop-filename');
+      icon.classList.add('hidden'); icon.classList.remove('flex');
+      info.classList.remove('hidden'); info.classList.add('flex');
+      name.textContent = file.name;
+      document.getElementById('sbpos-drop').classList.add('has-file');
+      document.getElementById('sbpos-btn-preview').disabled   = true;
+      document.getElementById('sbpos-results').classList.add('hidden');
+      document.getElementById('sbpos-btn-atualizar').disabled = true;
+      await sbLoadCanais('pos');
+    }
+
+    // ── Salesbot Pós: preview / atualizar ──
+    async function sbposPreview() {
+      const file = sbFiles.pos;
+      if (!file) return;
+      setBtnLoading('sbpos-btn-preview', true, 'Verificando...');
+      document.getElementById('sbpos-results').classList.add('hidden');
+      const sel = document.getElementById('sb-canal-select-pos');
+      const fd = new FormData();
+      fd.append('file', file);
+      if (sel) fd.append('canal', sel.value);
+      try {
+        const res  = await fetch('/api/preview_salesbot_pos_canal', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.error) { sbposShowError(data.error); return; }
+        sbposRenderResults(data);
+        document.getElementById('sbpos-btn-atualizar').disabled = false;
+      } catch(e) {
+        sbposShowError(e.message);
+      } finally {
+        setBtnLoading('sbpos-btn-preview', false, 'Verificar Salesbot Pós');
+      }
+    }
+
+    async function sbposAtualizar() {
+      const file = sbFiles.pos;
+      if (!file) return;
+      if (!confirm('Confirma a atualização do Salesbot Pós?')) return;
+      setBtnLoading('sbpos-btn-atualizar', true, 'Atualizando...');
+      const sel = document.getElementById('sb-canal-select-pos');
+      const fd = new FormData();
+      fd.append('file', file);
+      if (sel) fd.append('canal', sel.value);
+      try {
+        const res  = await fetch('/api/atualizar_salesbot_pos_canal', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.error) { sbposShowError(data.error); return; }
+        sbposRenderSuccess(data);
+        document.getElementById('sbpos-btn-atualizar').disabled = true;
+      } catch(e) {
+        sbposShowError(e.message);
+      } finally {
+        setBtnLoading('sbpos-btn-atualizar', false, 'Atualizar Salesbot Pós');
+      }
+    }
+
+    function sbposShowError(msg) {
+      document.getElementById('sbpos-results').innerHTML =
+        `<div class="p-4 rounded-xl bg-red-900/20 text-red-400 text-sm">${msg}</div>`;
+      document.getElementById('sbpos-results').classList.remove('hidden');
+    }
+
+    let sbposActiveFilter = null;
+    function sbposToggleFilter(cat) {
+      const el = document.getElementById('sbpos-results');
+      const tbody = document.getElementById('sbpos-tbody');
+      if (!tbody) return;
+      sbposActiveFilter = sbposActiveFilter === cat ? null : cat;
+      const active = sbposActiveFilter;
+      el.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.style.opacity = (!active || btn.dataset.filter === active) ? '1' : '0.4';
+      });
+      tbody.querySelectorAll('tr[data-cat]').forEach(row => {
+        row.style.display = (!active || row.dataset.cat === active) ? '' : 'none';
+      });
+    }
+
+    function sbposRenderResults(data) {
+      const el = document.getElementById('sbpos-results');
+      el.classList.remove('hidden');
+
+      const canal = (document.getElementById('sb-canal-select-pos') || {}).value || '';
+      const canalLabel = canal === '__SIAA__' ? 'Preço SIAA' : (canal || '');
+
+      let rows = '';
+      sortByName(data.matches || [], 'curso').forEach(m => {
+        (m.slots || []).forEach(s => {
+          const st = s.needs_update ? 'atualizar' : 'sem_mudanca';
+          rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="${st}">
+            <td class="py-3 px-4">${sbBadge(st)}</td>
+            <td class="py-3 px-4 text-sm text-[var(--text-primary)] whitespace-nowrap">${escHtml(m.curso || '')}</td>
+            <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(s.duracao || '')}</td>
+            <td class="py-3 px-4 text-right text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap tabular-nums">${s.valor_atual != null ? 'R$&nbsp;'+s.valor_atual : '<span class="text-slate-400 dark:text-slate-700">—</span>'}</td>
+            <td class="py-3 px-4 text-right text-sm text-teal-300 font-medium whitespace-nowrap">${s.novo_valor != null ? 'R$&nbsp;'+s.novo_valor : '<span class="text-slate-700">—</span>'}</td>
+          </tr>`;
+        });
+      });
+      sortByName(data.nao_encontrado || [], 'curso').forEach(n => {
+        const name = typeof n === 'string' ? n : (n.curso || n.nome || '');
+        rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" data-cat="nao_encontrado">
+          <td class="py-3 px-4">${sbBadge('nao_encontrado')}</td>
+          <td class="py-3 px-4 text-sm text-slate-400 whitespace-nowrap">${escHtml(name)}</td>
+          <td></td><td></td><td></td>
+        </tr>`;
+      });
+
+      el.innerHTML = `
+        <div class="grid grid-cols-3 gap-3 mb-5">
+          <div class="bg-emerald-900/30 rounded-xl p-4 border border-emerald-800/50 cursor-pointer filter-btn" data-filter="atualizar" onclick="sbposToggleFilter('atualizar')">
+            <p class="text-xs text-emerald-500 mb-1">Serão atualizados</p>
+            <p class="text-2xl font-bold text-emerald-400">${data.total_atualizar || 0}</p>
+          </div>
+          <div class="bg-slate-100 dark:bg-slate-800 rounded-xl p-4 border border-[var(--border)] cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="sbposToggleFilter('sem_mudanca')">
+            <p class="text-xs text-slate-500 mb-1">Sem mudança</p>
+            <p class="text-2xl font-bold text-[var(--text-primary)] tabular-nums">${data.total_sem_mudanca || 0}</p>
+          </div>
+          <div class="bg-red-900/20 rounded-xl p-4 border border-red-900/40 cursor-pointer filter-btn" data-filter="nao_encontrado" onclick="sbposToggleFilter('nao_encontrado')">
+            <p class="text-xs text-red-500 mb-1">Não encontrado</p>
+            <p class="text-2xl font-bold text-red-400">${data.total_nao_enc || 0}</p>
+          </div>
+        </div>
+        <div class="rounded-xl border border-slate-800 overflow-hidden">
+          <div class="overflow-auto max-h-[480px]">
+            <table class="w-full text-xs">
+              <thead class="sticky top-0 bg-[var(--bg-card)] z-20">
+                <tr class="border-b border-[var(--border)]">
+                  <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Status</th>
+                  <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Curso</th>
+                  <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Duração</th>
+                  <th class="py-2.5 px-4 text-right text-slate-600 dark:text-slate-400 font-medium">Atual</th>
+                  <th class="py-2.5 px-4 text-right text-teal-400 font-semibold">Novo${canalLabel ? ' ('+escHtml(canalLabel)+')' : ''}</th>
+                </tr>
+              </thead>
+              <tbody id="sbpos-tbody">${rows}</tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+
+    function sbposRenderSuccess(data) {
+      const el = document.getElementById('sbpos-results');
+      el.classList.remove('hidden');
+      el.innerHTML = `
+        <div class="rounded-xl bg-emerald-900/20 border border-emerald-800/40 p-5 flex items-start gap-4">
+          <div class="w-10 h-10 rounded-full bg-emerald-800/50 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+          </div>
+          <div>
+            <p class="text-emerald-400 font-semibold text-sm mb-1">Atualização concluída!</p>
+            <p class="text-slate-400 text-sm">
+              <span class="text-[var(--text-primary)] font-semibold">${data.atualizados}</span> salesbots atualizados.
+              ${(data.erros || 0) > 0 ? '<span class="text-red-400"> '+data.erros+' com erro.</span>' : ''}
+            </p>
+          </div>
+        </div>`;
     }
 
     async function sbPreview() {
-      if (!sbFile) return;
+      const file = sbFiles.grad;
+      if (!file) return;
       setBtnLoading('sb-btn-preview', true, 'Verificando...');
       document.getElementById('sb-results').classList.add('hidden');
 
+      const sel = document.getElementById('sb-canal-select-grad');
       const fd = new FormData();
-      fd.append('file', sbFile);
+      fd.append('file', file);
+      if (sel) fd.append('canal', sel.value);
 
       try {
-        const res  = await fetch('/api/preview_salesbot', { method: 'POST', body: fd });
+        const res  = await fetch('/api/preview_salesbot_canal', { method: 'POST', body: fd });
         const data = await res.json();
         if (data.error) { sbShowError(data.error); return; }
         sbRenderResults(data);
@@ -1504,16 +2372,19 @@
     }
 
     async function sbAtualizar() {
-      if (!sbFile) return;
-      if (!confirm('Confirma a atualização do Salesbot?')) return;
+      const file = sbFiles.grad;
+      if (!file) return;
+      if (!confirm('Confirma a atualização do Salesbot Graduação?')) return;
 
       setBtnLoading('sb-btn-atualizar', true, 'Atualizando...');
 
+      const sel = document.getElementById('sb-canal-select-grad');
       const fd = new FormData();
-      fd.append('file', sbFile);
+      fd.append('file', file);
+      if (sel) fd.append('canal', sel.value);
 
       try {
-        const res  = await fetch('/api/atualizar_salesbot', { method: 'POST', body: fd });
+        const res  = await fetch('/api/atualizar_salesbot_canal', { method: 'POST', body: fd });
         const data = await res.json();
         if (data.error) { sbShowError(data.error); return; }
         sbRenderSuccess(data);
@@ -1673,18 +2544,23 @@
       if (file) wixSetFile(tipo, file);
     }
 
-    function wixSetFile(tipo, file) {
-      wixFiles[tipo] = file;
+    async function wixSetFile(tipo, file) {
+      wixFiles[tipo] = await materializeFile(file);
       const icon = document.getElementById(`wix-drop-${tipo}-icon`);
       const info = document.getElementById(`wix-drop-${tipo}-file`);
       const name = document.getElementById(`wix-drop-${tipo}-filename`);
       icon.classList.add('hidden'); icon.classList.remove('flex');
       info.classList.remove('hidden'); info.classList.add('flex');
-      name.textContent = file.name;
+      name.textContent = wixFiles[tipo].name;
       document.getElementById(`wix-drop-${tipo}`).classList.add('has-file');
-      document.getElementById(`wix-btn-preview-${tipo}`).disabled = false;
+      document.getElementById(`wix-btn-preview-${tipo}`).disabled = true;
       document.getElementById(`wix-results-${tipo}`).classList.add('hidden');
       document.getElementById(`wix-btn-atualizar-${tipo}`).disabled = true;
+      if (tipo === 'grad') {
+        await wixGradLoadCanals('wix', wixFiles.grad);
+      } else {
+        await wixPosLoadData('wix', wixFiles.pos);
+      }
     }
 
     async function wixPreview(tipo) {
@@ -1916,18 +2792,23 @@
       if (file) wix2SetFile(tipo, file);
     }
 
-    function wix2SetFile(tipo, file) {
-      wix2Files[tipo] = file;
+    async function wix2SetFile(tipo, file) {
+      wix2Files[tipo] = await materializeFile(file);
       const icon = document.getElementById(`wix2-drop-${tipo}-icon`);
       const info = document.getElementById(`wix2-drop-${tipo}-file`);
       const name = document.getElementById(`wix2-drop-${tipo}-filename`);
       icon.classList.add('hidden'); icon.classList.remove('flex');
       info.classList.remove('hidden'); info.classList.add('flex');
-      name.textContent = file.name;
+      name.textContent = wix2Files[tipo].name;
       document.getElementById(`wix2-drop-${tipo}`).classList.add('has-file');
-      document.getElementById(`wix2-btn-preview-${tipo}`).disabled = false;
+      document.getElementById(`wix2-btn-preview-${tipo}`).disabled = true;
       document.getElementById(`wix2-results-${tipo}`).classList.add('hidden');
       document.getElementById(`wix2-btn-atualizar-${tipo}`).disabled = true;
+      if (tipo === 'grad') {
+        await wixGradLoadCanals('wix2', wix2Files.grad);
+      } else {
+        await wixPosLoadData('wix2', wix2Files.pos);
+      }
     }
 
     async function wix2Preview(tipo) {
@@ -2181,18 +3062,23 @@
       if (file) wix3SetFile(file, tipo);
     }
 
-    function wix3SetFile(file, tipo) {
-      wix3Files[tipo] = file;
+    async function wix3SetFile(file, tipo) {
+      wix3Files[tipo] = await materializeFile(file);
       const icon = document.getElementById(`wix3-drop-${tipo}-icon`);
       const info = document.getElementById(`wix3-drop-${tipo}-file`);
       const name = document.getElementById(`wix3-drop-${tipo}-filename`);
       icon.classList.add('hidden'); icon.classList.remove('flex');
       info.classList.remove('hidden'); info.classList.add('flex');
-      name.textContent = file.name;
+      name.textContent = wix3Files[tipo].name;
       document.getElementById(`wix3-drop-${tipo}`).classList.add('has-file');
-      document.getElementById(`wix3-btn-preview-${tipo}`).disabled = false;
+      document.getElementById(`wix3-btn-preview-${tipo}`).disabled = true;
       document.getElementById(`wix3-results-${tipo}`).classList.add('hidden');
       document.getElementById(`wix3-btn-atualizar-${tipo}`).disabled = true;
+      if (tipo === 'grad') {
+        await wixGradLoadCanals('wix3', wix3Files.grad);
+      } else {
+        await wixPosLoadData('wix3', wix3Files.pos);
+      }
     }
 
     async function wix3Preview(tipo) {
@@ -2462,6 +3348,363 @@
           </svg>
           <p class="text-red-300 text-sm">${escHtml(msg)}</p>
         </div>`;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Canal Grad + Pos Mapping — state, helpers, render
+    // ═══════════════════════════════════════════════════════════════
+
+    const wixCanalGradSt = {
+      wix:  { canais: [], temSiaa: false, total: 0, selected: '' },
+      wix2: { canais: [], temSiaa: false, total: 0, selected: '' },
+      wix3: { canais: [], temSiaa: false, total: 0, selected: '' },
+    };
+
+    const wixPosMappingSt = {
+      wix:  { canais: [], temSiaa: false, campos: [], rows: [] },
+      wix2: { canais: [], temSiaa: false, campos: [], rows: [] },
+      wix3: { canais: [], temSiaa: false, campos: [], rows: [] },
+    };
+
+    // ─── Grad Canal helpers ───
+
+    async function wixGradLoadCanals(site, file) {
+      const blockEl = document.getElementById(`${site}-canal-grad-block`);
+      const selEl   = document.getElementById(`${site}-canal-grad-sel`);
+      const hintEl  = document.getElementById(`${site}-canal-grad-hint`);
+      if (!blockEl) return;
+      const st = wixCanalGradSt[site];
+      st.selected = '';
+      try {
+        const fd = new FormData();
+        fd.append('file', file);
+        const res  = await fetch('/api/listar_canais_grad', { method: 'POST', body: fd });
+        const data = await res.json();
+        st.canais  = data.canais || [];
+        st.temSiaa = !!data.tem_siaa;
+        st.total   = data.total_cursos || 0;
+        let opts = '<option value="">— Escolher canal —</option>';
+        st.canais.forEach(c => { opts += `<option value="${escHtml(c)}">${escHtml(c)}</option>`; });
+        if (st.temSiaa) opts += `<option value="__SIAA__">SIAA (preço especial)</option>`;
+        selEl.innerHTML = opts;
+        if (hintEl && st.total) {
+          hintEl.textContent = `${st.canais.length} canal(is) disponíveis · ${st.total} cursos`;
+          hintEl.classList.remove('hidden');
+        }
+      } catch(e) {
+        if (selEl) selEl.innerHTML = '<option value="">Erro ao carregar canais</option>';
+      }
+      blockEl.classList.remove('hidden');
+      document.getElementById(`${site}-btn-preview-grad`).disabled = true;
+    }
+
+    function wixCanalGradChange(site) {
+      const selEl = document.getElementById(`${site}-canal-grad-sel`);
+      wixCanalGradSt[site].selected = selEl ? selEl.value : '';
+      document.getElementById(`${site}-btn-preview-grad`).disabled = !wixCanalGradSt[site].selected;
+      document.getElementById(`${site}-btn-atualizar-grad`).disabled = true;
+    }
+
+    async function wixGradPreview(site) {
+      const files = site === 'wix' ? wixFiles : (site === 'wix2' ? wix2Files : wix3Files);
+      const file  = files.grad;
+      if (!file) return;
+      const canal = wixCanalGradSt[site].selected;
+      if (!canal) return;
+      const urlMap = { wix: '/api/preview_wix_canal', wix2: '/api/preview_wix2_canal', wix3: '/api/preview_wix3_canal' };
+      setBtnLoading(`${site}-btn-preview-grad`, true, 'Verificando...');
+      document.getElementById(`${site}-results-grad`).classList.add('hidden');
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('canal', canal);
+      try {
+        const res  = await fetch(urlMap[site], { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.error) { wixShowErrorGeneric(site, 'grad', data.error); return; }
+        if (site === 'wix')       wixRenderResults('grad', data);
+        else if (site === 'wix2') wix2RenderResults('grad', data);
+        else                      wix3GradRenderResults(data);
+        document.getElementById(`${site}-btn-atualizar-grad`).disabled = false;
+      } catch(e) {
+        wixShowErrorGeneric(site, 'grad', e.message);
+      } finally {
+        setBtnLoading(`${site}-btn-preview-grad`, false, 'Verificar Site');
+      }
+    }
+
+    async function wixGradAtualizar(site) {
+      const files = site === 'wix' ? wixFiles : (site === 'wix2' ? wix2Files : wix3Files);
+      const file  = files.grad;
+      if (!file) return;
+      const canal = wixCanalGradSt[site].selected;
+      if (!canal) return;
+      const labels = { wix: 'Site Cruzeiro', wix2: 'Eduit-ead', wix3: 'Eduit New' };
+      if (!confirm(`Confirma a atualização de ${labels[site]} (Graduação — Canal: ${canal})?`)) return;
+      const urlMap = { wix: '/api/atualizar_wix_canal', wix2: '/api/atualizar_wix2_canal', wix3: '/api/atualizar_wix3_canal' };
+      setBtnLoading(`${site}-btn-atualizar-grad`, true, 'Atualizando...');
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('canal', canal);
+      try {
+        const res  = await fetch(urlMap[site], { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.error) { wixShowErrorGeneric(site, 'grad', data.error); return; }
+        if (site === 'wix')       wixRenderSuccess('grad', data);
+        else if (site === 'wix2') wix2RenderSuccess('grad', data);
+        else                      wix3RenderSuccess('grad', data);
+        document.getElementById(`${site}-btn-atualizar-grad`).disabled = true;
+      } catch(e) {
+        wixShowErrorGeneric(site, 'grad', e.message);
+      } finally {
+        setBtnLoading(`${site}-btn-atualizar-grad`, false, 'Atualizar Site');
+      }
+    }
+
+    // ─── Pos Mapping helpers ───
+
+    async function wixPosLoadData(site, file) {
+      const st = wixPosMappingSt[site];
+      st.rows = [];
+      try {
+        const fd = new FormData();
+        fd.append('file', file);
+        const res  = await fetch('/api/listar_canais_pos', { method: 'POST', body: fd });
+        const data = await res.json();
+        st.canais  = data.canais || [];
+        st.temSiaa = !!data.tem_siaa;
+      } catch(e) { st.canais = []; }
+
+      const camposUrls = { wix: '/api/listar_campos_wix_pos', wix2: '/api/listar_campos_wix2_pos', wix3: '/api/listar_campos_wix3_pos' };
+      try {
+        const res  = await fetch(camposUrls[site]);
+        const data = await res.json();
+        st.campos  = Array.isArray(data) ? data : [];
+      } catch(e) { st.campos = []; }
+
+      const certEl  = document.getElementById(`${site}-pos-cert-hint`);
+      const blockEl = document.getElementById(`${site}-mapping-pos-block`);
+      if (certEl)  certEl.classList.remove('hidden');
+      if (blockEl) blockEl.classList.remove('hidden');
+      wixRenderMappingRows(site);
+    }
+
+    function wixAddMappingRow(site) {
+      wixPosMappingSt[site].rows.push({ campo: '', canal: '' });
+      wixRenderMappingRows(site);
+    }
+
+    function wixRemoveMappingRow(site, idx) {
+      wixPosMappingSt[site].rows.splice(idx, 1);
+      wixRenderMappingRows(site);
+    }
+
+    function wixUpdateMappingRow(site, idx, key, val) {
+      if (wixPosMappingSt[site].rows[idx]) wixPosMappingSt[site].rows[idx][key] = val;
+      wixRenderMappingRows(site);
+    }
+
+    function wixRenderMappingRows(site) {
+      const st     = wixPosMappingSt[site];
+      const rowsEl = document.getElementById(`${site}-mapping-pos-rows`);
+      if (!rowsEl) return;
+      const usedCampos = st.rows.map(r => r.campo).filter(Boolean);
+      let html = '';
+      st.rows.forEach((row, i) => {
+        const campoOpts = st.campos.map(c => {
+          const disabled = usedCampos.includes(c.key) && c.key !== row.campo ? 'disabled' : '';
+          const sel = row.campo === c.key ? 'selected' : '';
+          return `<option value="${escHtml(c.key)}" ${sel} ${disabled}>${escHtml(c.label)}</option>`;
+        }).join('');
+        const canalOpts = st.canais.map(c => {
+          const sel = row.canal === c ? 'selected' : '';
+          return `<option value="${escHtml(c)}" ${sel}>${escHtml(c)}</option>`;
+        }).join('');
+        const siaaOpt = `<option value="__SIAA__" ${row.canal === '__SIAA__' ? 'selected' : ''}>SIAA (preço especial)</option>`;
+        html += `<div class="flex items-center gap-2">
+          <select onchange="wixUpdateMappingRow('${site}', ${i}, 'campo', this.value)"
+            class="flex-1 bg-white dark:bg-slate-900 border border-[var(--border)] rounded-lg px-2 py-1.5 text-xs text-[var(--text-primary)] outline-none">
+            <option value="">— Campo do site —</option>${campoOpts}
+          </select>
+          <select onchange="wixUpdateMappingRow('${site}', ${i}, 'canal', this.value)"
+            class="flex-1 bg-white dark:bg-slate-900 border border-[var(--border)] rounded-lg px-2 py-1.5 text-xs text-[var(--text-primary)] outline-none">
+            <option value="">— Canal —</option>${canalOpts}${st.temSiaa ? siaaOpt : ''}
+          </select>
+          <button type="button" onclick="wixRemoveMappingRow('${site}', ${i})"
+            class="text-red-400 hover:text-red-300 text-xl leading-none px-1 shrink-0" title="Remover">×</button>
+        </div>`;
+      });
+      rowsEl.innerHTML = html;
+      const valid = st.rows.some(r => r.campo && r.canal);
+      document.getElementById(`${site}-btn-preview-pos`).disabled = !valid;
+      document.getElementById(`${site}-btn-atualizar-pos`).disabled = true;
+    }
+
+    async function wixPosPreview(site) {
+      const files = site === 'wix' ? wixFiles : (site === 'wix2' ? wix2Files : wix3Files);
+      const file  = files.pos;
+      if (!file) return;
+      const mapping = wixPosMappingSt[site].rows.filter(r => r.campo && r.canal);
+      if (!mapping.length) return;
+      const urlMap = { wix: '/api/preview_wix_pos_canais', wix2: '/api/preview_wix2_pos_canais', wix3: '/api/preview_wix3_pos_canais' };
+      setBtnLoading(`${site}-btn-preview-pos`, true, 'Verificando...');
+      document.getElementById(`${site}-results-pos`).classList.add('hidden');
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('mapping', JSON.stringify(mapping));
+      try {
+        const res  = await fetch(urlMap[site], { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.error) { wixShowErrorGeneric(site, 'pos', data.error); return; }
+        wixPosMappingRenderResults(site, data);
+        document.getElementById(`${site}-btn-atualizar-pos`).disabled = false;
+      } catch(e) {
+        wixShowErrorGeneric(site, 'pos', e.message);
+      } finally {
+        setBtnLoading(`${site}-btn-preview-pos`, false, 'Verificar Site');
+      }
+    }
+
+    async function wixPosAtualizar(site) {
+      const files = site === 'wix' ? wixFiles : (site === 'wix2' ? wix2Files : wix3Files);
+      const file  = files.pos;
+      if (!file) return;
+      const mapping = wixPosMappingSt[site].rows.filter(r => r.campo && r.canal);
+      if (!mapping.length) return;
+      const labels = { wix: 'Site Cruzeiro', wix2: 'Eduit-ead', wix3: 'Eduit New' };
+      if (!confirm(`Confirma a atualização de ${labels[site]} (Pós-Grad — ${mapping.length} mapeamento(s))?`)) return;
+      const urlMap = { wix: '/api/atualizar_wix_pos_canais', wix2: '/api/atualizar_wix2_pos_canais', wix3: '/api/atualizar_wix3_pos_canais' };
+      setBtnLoading(`${site}-btn-atualizar-pos`, true, 'Atualizando...');
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('mapping', JSON.stringify(mapping));
+      try {
+        const res  = await fetch(urlMap[site], { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.error) { wixShowErrorGeneric(site, 'pos', data.error); return; }
+        if (site === 'wix')       wixRenderSuccess('pos', data);
+        else if (site === 'wix2') wix2RenderSuccess('pos', data);
+        else                      wix3RenderSuccess('pos', data);
+        document.getElementById(`${site}-btn-atualizar-pos`).disabled = true;
+      } catch(e) {
+        wixShowErrorGeneric(site, 'pos', e.message);
+      } finally {
+        setBtnLoading(`${site}-btn-atualizar-pos`, false, 'Atualizar Site');
+      }
+    }
+
+    function wixShowErrorGeneric(prefix, tipo, msg) {
+      const el = document.getElementById(`${prefix}-results-${tipo}`);
+      if (!el) return;
+      el.classList.remove('hidden');
+      el.innerHTML = `
+        <div class="rounded-xl bg-red-900/20 border border-red-800/40 p-4 flex gap-3">
+          <svg class="w-5 h-5 text-red-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <p class="text-red-300 text-sm">${escHtml(msg)}</p>
+        </div>`;
+    }
+
+    function wixPosMappingRenderResults(site, data) {
+      const el = document.getElementById(`${site}-results-pos`);
+      el.classList.remove('hidden');
+      const matches = data.matches || [];
+      const naoEnc  = data.nao_encontrado || [];
+      const mapping = data.mapping_aplicado || [];
+
+      const chipHtml = mapping.map(m =>
+        `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-900/40 border border-indigo-700/40 text-xs text-indigo-300">
+          <span class="text-indigo-200 font-medium">${escHtml(m.campo)}</span>
+          <span class="text-indigo-500">←</span>
+          <span>${escHtml(m.canal)}</span>
+        </span>`
+      ).join(' ');
+
+      const grouped = {};
+      matches.forEach(m => {
+        const key = m.id || m.curso;
+        if (!grouped[key]) grouped[key] = { curso: m.curso, duracao: m.duracao_origem, campos: [] };
+        grouped[key].campos.push(m);
+      });
+
+      let rows = '';
+      Object.values(grouped).forEach(g => {
+        const n = g.campos.length;
+        // Use one tr per campo, but tag all rows of same curso with the worst status
+        // (atualizar wins). This keeps filter behavior intuitive on grouped rows.
+        const groupSt = g.campos.some(c => c.needs_update) ? 'atualizar' : 'sem_mudanca';
+        g.campos.forEach((c, ci) => {
+          const st  = c.needs_update ? 'atualizar' : 'sem_mudanca';
+          rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30" data-cat="${groupSt}">
+            ${ci === 0 ? `<td class="py-3 px-4 text-sm text-[var(--text-primary)] whitespace-nowrap align-top" rowspan="${n}">${escHtml(g.curso)}</td>
+              <td class="py-3 px-4 text-xs text-slate-500 whitespace-nowrap align-top" rowspan="${n}">${escHtml(g.duracao)}</td>` : ''}
+            <td class="py-3 px-4 text-xs text-indigo-300 whitespace-nowrap">${escHtml(c.campo)}</td>
+            <td class="py-3 px-4">${wixBadge(st)}</td>
+            <td class="py-3 px-4 text-right text-xs text-slate-500 whitespace-nowrap tabular-nums">${escHtml(c.valor_atual || '—')}</td>
+            <td class="py-3 px-4 text-right text-xs text-amber-300 font-medium whitespace-nowrap tabular-nums">${escHtml(c.novo_valor || '—')}</td>
+          </tr>`;
+        });
+      });
+      naoEnc.forEach(n => {
+        rows += `<tr class="border-b border-slate-200 dark:border-slate-800/60" data-cat="nao_encontrado">
+          <td class="py-3 px-4 text-sm text-slate-400">${escHtml(n.curso || String(n))}</td>
+          <td class="py-3 px-4 text-xs text-slate-500">${escHtml(n.duracao || '')}</td>
+          <td colspan="4" class="py-3 px-4">${wixBadge('nao_encontrado')}</td>
+        </tr>`;
+      });
+
+      el.innerHTML = `
+        ${chipHtml ? `<div class="flex flex-wrap gap-1.5 mb-4">${chipHtml}</div>` : ''}
+        <div class="grid grid-cols-3 gap-3 mb-5">
+          <div class="bg-emerald-900/30 rounded-xl p-4 border border-emerald-800/50 cursor-pointer filter-btn" data-filter="atualizar" onclick="wixPosToggleFilter('${site}','atualizar')">
+            <p class="text-xs text-emerald-500 mb-1">Serão atualizados</p>
+            <p class="text-2xl font-bold text-emerald-400">${data.total_atualizar || 0}</p>
+          </div>
+          <div class="bg-slate-100 dark:bg-slate-800 rounded-xl p-4 border border-[var(--border)] cursor-pointer filter-btn" data-filter="sem_mudanca" onclick="wixPosToggleFilter('${site}','sem_mudanca')">
+            <p class="text-xs text-slate-500 mb-1">Sem mudança</p>
+            <p class="text-2xl font-bold text-[var(--text-primary)] tabular-nums">${data.total_sem_mudanca || 0}</p>
+          </div>
+          <div class="bg-red-900/20 rounded-xl p-4 border border-red-900/40 cursor-pointer filter-btn" data-filter="nao_encontrado" onclick="wixPosToggleFilter('${site}','nao_encontrado')">
+            <p class="text-xs text-red-500 mb-1">Não encontrado</p>
+            <p class="text-2xl font-bold text-red-400">${data.total_nao_enc || 0}</p>
+          </div>
+        </div>
+        <div class="rounded-xl border border-slate-800 overflow-hidden">
+          <div class="overflow-auto max-h-[480px]">
+            <table class="w-full text-xs">
+              <thead class="sticky top-0 bg-[var(--bg-card)] z-20">
+                <tr class="border-b border-[var(--border)]">
+                  <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Curso</th>
+                  <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Duração</th>
+                  <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Campo</th>
+                  <th class="py-2.5 px-4 text-left text-slate-600 dark:text-slate-500 font-medium">Status</th>
+                  <th class="py-2.5 px-4 text-right text-slate-600 dark:text-slate-400 font-medium">Atual</th>
+                  <th class="py-2.5 px-4 text-right text-amber-400 font-semibold">Novo</th>
+                </tr>
+              </thead>
+              <tbody id="${site}-pos-tbody">${rows}</tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+
+    const wixPosFilterSt = { wix: null, wix2: null, wix3: null };
+    function wixPosToggleFilter(site, cat) {
+      const root = document.getElementById(`${site}-results-pos`);
+      if (!root) return;
+      const cur = wixPosFilterSt[site];
+      const next = cur === cat ? null : cat;
+      wixPosFilterSt[site] = next;
+      root.querySelectorAll('.filter-btn').forEach(b => {
+        b.classList.toggle('ring-2', b.dataset.filter === next);
+        b.classList.toggle('ring-indigo-400', b.dataset.filter === next);
+      });
+      const tbody = document.getElementById(`${site}-pos-tbody`);
+      if (!tbody) return;
+      tbody.querySelectorAll('tr').forEach(tr => {
+        tr.style.display = (!next || tr.dataset.cat === next) ? '' : 'none';
+      });
     }
 
   </script>
