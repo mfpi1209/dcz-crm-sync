@@ -301,6 +301,7 @@
 
 {% set _v = range(100000) | random %}
 <script defer src="{{ url_for('static', filename='js/utils.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/kommo_sync.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/dashboard.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/dashboard_supervisor.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/dashboard_supervisor_academico.js') }}?v={{_v}}"></script>
@@ -312,7 +313,6 @@
 <script defer src="{{ url_for('static', filename='js/distribuicao.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/intelligence.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/inadimplencia.js') }}?v={{_v}}"></script>
-<script defer src="{{ url_for('static', filename='js/kommo_sync.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/match_merge.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/comercial_rgm.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/dist_comercial.js') }}?v={{_v}}"></script>

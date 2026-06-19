@@ -63,9 +63,11 @@ function _renderFunnelVisual(data, prefix) {
 
     const lost = byKey.sem_resposta;
 
-    // Heights: each stage height proportional to count vs the largest in the funnel chain
+    // Heights: proporcional ao maior estágio do funil (teto 100% — evita coluna
+    // "Perdidos" estourar quando sem_resposta >> max dos demais estágios).
     const maxCount = Math.max(...ordered.map(s => s.count || 0), 1);
-    const minPctHeight = 14; // each bar at least 14% so labels don't overlap
+    const minPctHeight = 14;
+    const barPct = (count) => Math.min(100, Math.max(minPctHeight, Math.round(((count || 0) / maxCount) * 100)));
     const aceiteCount = (byKey.aceite && byKey.aceite.count) || 0;
     const novosHoje = data.new_today || 0;
     const conversaoGlobal = novosHoje > 0 ? ((aceiteCount / novosHoje) * 100).toFixed(1) : '0.0';
@@ -84,18 +86,18 @@ function _renderFunnelVisual(data, prefix) {
 
     const stageBars = ordered.map((s, i) => {
         const g = _FUNNEL_GRADIENTS[s.key] || { from: '#64748b', to: '#475569' };
-        const pctHeight = Math.max(minPctHeight, Math.round(((s.count || 0) / maxCount) * 100));
+        const pctHeight = barPct(s.count);
         const isActive = s.key === 'aceite';
         const valueLabel = _fmtKCount(s.count || 0);
-        const ringCls = isActive ? `ring-2 ring-offset-2 ring-offset-[var(--bg-card)] ring-emerald-500` : '';
+        const activeCls = isActive ? 'border-2 border-emerald-400/80' : '';
 
         return `
-        <div class="flex-1 min-w-0 flex flex-col group cursor-default">
-            <div class="text-center mb-2 min-h-[28px]">
+        <div class="flex-1 min-w-[2.5rem] flex flex-col group cursor-default">
+            <div class="text-center mb-2 min-h-[28px] px-0.5">
                 <p class="text-[9px] font-bold uppercase tracking-wider leading-tight ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}">${visualLabels[s.key] || s.label}</p>
             </div>
-            <div class="flex-1 flex items-end">
-                <div class="rounded-t-xl w-full flex flex-col items-center justify-center transition-all duration-500 group-hover:brightness-110 ${ringCls}"
+            <div class="flex-1 flex items-end min-h-0">
+                <div class="rounded-t-xl w-full flex flex-col items-center justify-center transition-all duration-500 group-hover:brightness-110 ${activeCls}"
                      style="height:${pctHeight}%; background: linear-gradient(180deg, ${g.from}, ${g.to}); box-shadow: 0 -4px 18px ${g.from}30;">
                     <span class="text-white font-extrabold text-lg sm:text-xl leading-none">${valueLabel}</span>
                     ${s.pct != null ? `<span class="text-white/75 text-[10px] mt-1 font-semibold">${s.pct}%</span>` : ''}
@@ -112,16 +114,16 @@ function _renderFunnelVisual(data, prefix) {
 
     let lostHtml = '';
     if (lost) {
-        const lostPctHeight = Math.max(minPctHeight, Math.round(((lost.count || 0) / maxCount) * 100));
+        const lostPctHeight = barPct(lost.count);
         lostHtml = `
-        <div class="hidden md:flex w-px self-stretch mx-2 bg-slate-200 dark:bg-slate-700"></div>
-        <div class="w-24 sm:w-28 flex flex-col">
+        <div class="hidden md:block w-px self-stretch shrink-0 mx-1 bg-slate-200 dark:bg-slate-700"></div>
+        <div class="w-20 sm:w-24 shrink-0 flex flex-col min-h-0">
             <div class="text-center mb-2 min-h-[28px]">
                 <p class="text-[9px] font-bold uppercase tracking-wider leading-tight text-rose-500 dark:text-rose-400">Perdidos</p>
             </div>
-            <div class="flex-1 flex items-end">
+            <div class="flex-1 flex items-end min-h-0">
                 <div class="rounded-t-xl w-full flex flex-col items-center justify-center bg-slate-200 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-700"
-                     style="height:${lostPctHeight}%;">
+                     style="height:${lostPctHeight}%; max-height:100%;">
                     <span class="material-symbols-outlined text-rose-500 dark:text-rose-400 text-base">close</span>
                     <span class="text-slate-700 dark:text-slate-300 font-extrabold text-base leading-none">${_fmtKCount(lost.count || 0)}</span>
                     ${lost.pct != null ? `<span class="text-slate-500 dark:text-slate-500 text-[10px] mt-1 font-semibold">${lost.pct}%</span>` : ''}
@@ -138,9 +140,11 @@ function _renderFunnelVisual(data, prefix) {
             <span class="text-sm font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums">${conversaoGlobal}%</span>
         </div>
     </div>
-    <div class="flex items-stretch gap-1 h-44 sm:h-52">
+    <div class="overflow-x-auto overflow-y-hidden -mx-1 px-1">
+    <div class="flex items-stretch gap-1 h-44 sm:h-52 min-w-max">
         ${stageBars}
         ${lostHtml}
+    </div>
     </div>`;
 }
 

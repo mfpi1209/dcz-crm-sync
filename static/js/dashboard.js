@@ -196,6 +196,18 @@ async function _dashRefreshFunnel(force) {
     const btn = document.getElementById('dash-funnel-refresh-btn');
     if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
     const q = force ? '?force=1' : '';
+    const slowTimer = setTimeout(() => {
+        const container = document.getElementById('dash-funnel-cards');
+        if (!container) return;
+        const stillLoading = container.textContent.includes('Buscando dados do Kommo');
+        if (stillLoading) {
+            container.innerHTML = `
+                <div class="col-span-full text-center py-8 text-slate-500 text-sm flex flex-col items-center gap-3">
+                    <svg class="animate-spin h-6 w-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    Buscando dados do Kommo… (pode levar até 40s)
+                </div>`;
+        }
+    }, 8000);
     try {
         const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
         const timer = ctrl ? setTimeout(() => ctrl.abort(), 120000) : null;
@@ -207,9 +219,12 @@ async function _dashRefreshFunnel(force) {
             if (d.data?.yesterday_summary && typeof _renderYesterdaySummary === 'function') {
                 _renderYesterdaySummary(d.data.yesterday_summary, 'dash-funnel');
             }
+        } else if (d?.ok && typeof _renderFunnelCards !== 'function') {
+            console.error('dash funnel-live: _renderFunnelCards ausente — recarregue a página');
+            _dashShowFunnelError('Erro de carregamento do JS. Recarregue a página (Ctrl+Shift+R).');
         } else {
             console.error('dash funnel-live error:', d?.error || res?.status);
-            _dashShowFunnelError('Não foi possível carregar o funil. Verifique se o servidor foi reiniciado.');
+            _dashShowFunnelError(d?.error || 'Não foi possível carregar o funil. Verifique se o servidor foi reiniciado.');
         }
     } catch (e) {
         console.error('dash funnel-live error:', e);
@@ -217,6 +232,7 @@ async function _dashRefreshFunnel(force) {
             ? 'Tempo esgotado ao buscar o funil. Clique em Tentar novamente.'
             : 'Erro de rede ao carregar o funil.');
     } finally {
+        clearTimeout(slowTimer);
         if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
     }
     _dashLoadYesterdayKpi(force);

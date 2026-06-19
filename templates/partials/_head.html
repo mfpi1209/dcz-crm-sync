@@ -13,6 +13,9 @@
             display: block !important;
         }
 
+        /* Fallback se Tailwind CDN demorar — SPA depende de .hidden */
+        .hidden { display: none !important; }
+
         /* Splash de boot — cobre a tela até o JS aplicar a navegação inicial.
            Garante que NUNCA seja exibida outra página (ex.: dashboard global)
            durante o carregamento.
