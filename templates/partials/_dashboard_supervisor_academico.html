@@ -157,9 +157,25 @@
         <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm p-5">
             <h3 class="text-base font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                 <span class="material-symbols-outlined text-base text-primary">location_on</span>
-                Distribuição por Polo
+                Matrículas por Polo
             </h3>
-            <div id="dsa-by-polo" class="space-y-3 text-sm">—</div>
+            <div class="rounded-xl border border-slate-200 dark:border-slate-700/30 overflow-hidden">
+                <div class="overflow-x-auto max-h-[360px] overflow-y-auto">
+                    <table class="w-full text-sm">
+                        <thead class="sticky top-0 z-10">
+                            <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-700/20 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur">
+                                <th class="text-center px-3 py-2 w-10">#</th>
+                                <th class="text-left px-3 py-2">Polo</th>
+                                <th class="text-right px-3 py-2">Total</th>
+                                <th class="text-left px-3 py-2 w-40">Proporção</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dsa-by-polo" class="divide-y divide-slate-200 dark:divide-slate-700/10">
+                            <tr><td colspan="4" class="px-4 py-5 text-center text-xs text-slate-500">—</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
         <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm p-5">
             <h3 class="text-base font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">

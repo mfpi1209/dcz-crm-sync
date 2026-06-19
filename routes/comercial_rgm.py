@@ -27,6 +27,8 @@ import psycopg2
 import psycopg2.extras
 from flask import Blueprint, request, jsonify, session
 
+from helpers import normalize_polo_display
+
 from services.atividade_kommo import (
     horas_media_por_consultor,
     fetch_atividade_periodo,
@@ -206,12 +208,14 @@ def _pg():
 import threading as _crgm_threading
 
 _CRGM_DATA_CACHE: dict = {}
+_CRGM_DATA_CACHE_VER = 4  # bump quando a lógica de contagem mudar (ex.: outliers)
 _CRGM_DATA_CACHE_TTL_S = 120  # segundos
 _CRGM_DATA_CACHE_LOCK = _crgm_threading.Lock()
 
 
 def _crgm_cache_key_from_args() -> tuple:
     return (
+        _CRGM_DATA_CACHE_VER,
         request.args.get("polo", ""),
         request.args.get("nivel", ""),
         request.args.get("dt_ini", ""),
@@ -242,6 +246,40 @@ def _crgm_cache_set(key: tuple, payload):
 def _crgm_cache_key_prefixed(prefix: str) -> tuple:
     """Chave de cache prefixada para os sub-endpoints (/data/kpis, /data/agentes, /data/grids)."""
     return (prefix,) + _crgm_cache_key_from_args()
+
+
+def _crgm_parse_date(val):
+    if not val:
+        return None
+    if isinstance(val, date):
+        return val
+    s = str(val).strip()[:10]
+    try:
+        return datetime.strptime(s, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def _crgm_normalize_period(dt_ini, dt_fim):
+    """Garante dt_ini <= dt_fim (troca se cadastro em ciclos_comercial estiver invertido)."""
+    d0 = _crgm_parse_date(dt_ini)
+    d1 = _crgm_parse_date(dt_fim)
+    if not d0 or not d1:
+        return dt_ini, dt_fim
+    if d0 > d1:
+        logger.warning("_crgm_normalize_period: intervalo invertido %s > %s — trocando", d0, d1)
+        d0, d1 = d1, d0
+    return d0.isoformat(), d1.isoformat()
+
+
+def _crgm_validate_period(dt_inicio, dt_fim):
+    d0 = _crgm_parse_date(dt_inicio)
+    d1 = _crgm_parse_date(dt_fim)
+    if not d0 or not d1:
+        return "Datas inválidas (use AAAA-MM-DD)"
+    if d0 > d1:
+        return "dt_fim deve ser igual ou posterior a dt_inicio"
+    return None
 
 
 def clear_crgm_data_cache(reason: str = ""):
@@ -328,27 +366,27 @@ def _crgm_dashboard_rgm_list(dt_ini: str, dt_fim: str,
     """Retorna lista de RGMs únicos para o período, usando EXATAMENTE a mesma
     fonte do Dashboard Comercial (comercial_rgm_atual + excluded_rgms +
     conflict_resolucao). Garantia: total bate com 'Matrículas no Período' do Dash."""
+    dt_ini, dt_fim = _crgm_normalize_period(dt_ini, dt_fim)
     try:
         conn = _pg()
         excluded = _crgm_excluded_rgms(conn)
         cur = conn.cursor()
         extra = ""
         params: list = [dt_ini, dt_fim]
-        if polo:
-            extra += f" AND {_POLO_SQL} = %s"
-            params.append(_normalize_polo(polo))
         if nivel:
             extra += " AND nivel = %s"
             params.append(nivel)
         cur.execute(
-            f"SELECT rgm FROM comercial_rgm_atual "
+            f"SELECT rgm, polo FROM comercial_rgm_atual "
             f"WHERE data_matricula BETWEEN %s AND %s{extra} "
             "ORDER BY data_matricula DESC NULLS LAST",
             params,
         )
         seen: set[str] = set()
         rgm_list: list[str] = []
-        for (raw,) in cur.fetchall():
+        for raw, polo_v in cur.fetchall():
+            if polo and normalize_polo_display(polo_v or "") != polo:
+                continue
             n = _normalize_rgm(raw)
             if n and n not in seen and n not in excluded:
                 seen.add(n)
@@ -374,6 +412,7 @@ def _crgm_periodo_data(dt_ini=None, dt_fim=None, polo=None, nivel=None, ciclo_fi
     Quando `conn` é fornecida, reutiliza a conexão (não abre/fecha). Caso contrário,
     abre uma conexão própria via _pg() e fecha ao final.
     """
+    dt_ini, dt_fim = _crgm_normalize_period(dt_ini, dt_fim)
     _conn = None
     _own_conn = conn is None
     try:
@@ -391,8 +430,7 @@ def _crgm_periodo_data(dt_ini=None, dt_fim=None, polo=None, nivel=None, ciclo_fi
             outer_conds.append("data_matricula <= %s")
             params.append(dt_fim)
         if polo:
-            outer_conds.append(f"{_POLO_SQL} = %s")
-            params.append(_normalize_polo(polo))
+            pass  # filtro por nome canônico após fetch
         if nivel:
             outer_conds.append("nivel = %s")
             params.append(nivel)
@@ -482,6 +520,8 @@ def _crgm_periodo_data(dt_ini=None, dt_fim=None, polo=None, nivel=None, ciclo_fi
                 "nivel": nivel_v or "",
                 "ciclo": ciclo_v or "",
             })
+        if polo:
+            result = [r for r in result if normalize_polo_display(r.get("polo") or "") == polo]
         return result
 
     except Exception as e:
@@ -523,10 +563,18 @@ def comercial_periodo_vendas_resumo(dt_ini=None, dt_fim=None, polo=None, nivel=N
             rgms_periodo.add(n)
             if dt:
                 day_rgms[dt].add(n)
-    day_counts = {d: len(s) for d, s in day_rgms.items()}
+
+    # Filtrar outliers das contagens (mesmo critério do Dashboard Comercial)
+    _vr_dom_pfx   = _compute_dominant_rgm_prefix(list(rgms_periodo) or list(rgms_bruto))
+    _vr_overrides = _load_outlier_contagem_overrides()
+    _rgms_contando = {r for r in rgms_periodo if _rgm_conta_para_venda(r, _vr_dom_pfx, _vr_overrides)}
+    day_rgms_contando = {d: s & _rgms_contando for d, s in day_rgms.items()}
+    day_rgms_contando = {d: s for d, s in day_rgms_contando.items() if s}
+
+    day_counts = {d: len(s) for d, s in day_rgms_contando.items()}
     dias = len(day_counts) or 1
     vendas = len(rgms_bruto)
-    vendas_liquidas = len(rgms_periodo)
+    vendas_liquidas = len(_rgms_contando)
     media_diaria = round(vendas_liquidas / dias, 1) if dias else 0
     evolucao = [{"data": d.isoformat(), "count": c} for d, c in sorted(day_counts.items())]
     return {
@@ -699,6 +747,16 @@ def _ensure_table():
         """)
         conn.commit()
 
+        # Tabela de override: RGMs outlier (prefixo abaixo do dominante) marcados manualmente
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS comercial_rgm_outlier_contagem (
+                rgm         TEXT PRIMARY KEY,
+                counted_at  TIMESTAMPTZ DEFAULT NOW(),
+                counted_by  TEXT
+            )
+        """)
+        conn.commit()
+
         # Ensure unique constraint for batch upsert
         cur.execute("""
             SELECT 1 FROM pg_constraint
@@ -774,6 +832,80 @@ def _normalize_rgm(val):
         return str(int(digits))
     except ValueError:
         return digits
+
+
+def _compute_dominant_rgm_prefix(rgms):
+    """Retorna o prefixo de 2 dígitos mais frequente entre os RGMs fornecidos (como int), ou None."""
+    from collections import Counter
+    c = Counter()
+    for rgm in rgms:
+        n = _normalize_rgm(rgm) if not isinstance(rgm, str) or not rgm.isdigit() else rgm
+        if n and len(n) >= 2 and n[:2].isdigit():
+            c[n[:2]] += 1
+    if not c:
+        return None
+    return int(c.most_common(1)[0][0])
+
+
+def _is_rgm_prefix_outlier(rgm, dominant_prefix):
+    """Retorna True se o prefixo do RGM for MENOR que o prefixo dominante."""
+    if dominant_prefix is None:
+        return False
+    n = _normalize_rgm(rgm)
+    if not n or len(n) < 2 or not n[:2].isdigit():
+        return False
+    return int(n[:2]) < dominant_prefix
+
+
+def _load_outlier_contagem_overrides(conn=None):
+    """Retorna set de RGMs normalizados que foram marcados pelo admin como 'contar para venda'."""
+    out = set()
+    _own = conn is None
+    try:
+        _c = conn if conn is not None else _pg()
+        with _c.cursor() as cur:
+            cur.execute("SELECT rgm FROM comercial_rgm_outlier_contagem")
+            for (r,) in cur.fetchall():
+                n = _normalize_rgm(r)
+                if n:
+                    out.add(n)
+        if _own:
+            _c.close()
+    except Exception as e:
+        logger.warning("outlier_contagem_overrides load: %s", e)
+    return out
+
+
+def _rgm_conta_para_venda(rgm, dominant_prefix, overrides):
+    """Retorna True se o RGM deve contar para o total de vendas.
+    Outliers (prefixo < dominante) só contam se estiverem em overrides (admin 'Contar venda').
+    """
+    n = _normalize_rgm(rgm)
+    if not n:
+        return False
+    if not _is_rgm_prefix_outlier(n, dominant_prefix):
+        return True
+    return n in overrides
+
+
+def crgm_outlier_context(dt_ini=None, dt_fim=None, polo=None, nivel=None, excluded_rgms=None, conn=None):
+    """Retorna (dominant_prefix, overrides) usando os RGMs EM CURSO do período.
+    dominant_prefix: int ou None
+    overrides: set de RGMs normalizados marcados como 'contar venda'
+    """
+    try:
+        rows = _crgm_periodo_data(dt_ini=dt_ini, dt_fim=dt_fim, polo=polo, nivel=nivel, conn=conn)
+        em_curso_rgms = [r["rgm"] for r in rows if r.get("situacao") == "EM CURSO"]
+        if not em_curso_rgms:
+            em_curso_rgms = [r["rgm"] for r in rows]
+        dominant_prefix = _compute_dominant_rgm_prefix(em_curso_rgms)
+    except Exception as e:
+        logger.warning("crgm_outlier_context: %s", e)
+        dominant_prefix = None
+
+    _own_conn = conn is None
+    overrides = _load_outlier_contagem_overrides(conn=None if _own_conn else conn)
+    return dominant_prefix, overrides
 
 
 def _parse_date_br(s):
@@ -1161,15 +1293,15 @@ def crgm_ciclos_list():
         """)
         rows = cur.fetchall()
         cur.close()
-        return jsonify({
-            "ok": True,
-            "ciclos": [
-                {"id": r[0], "nome": r[1], "ano": r[2], "semestre": r[3],
-                 "dt_inicio": r[4].isoformat(), "dt_fim": r[5].isoformat(),
-                 "ativo": r[6], "descricao": r[7]}
-                for r in rows
-            ],
-        })
+        ciclos = []
+        for r in rows:
+            di, df = _crgm_normalize_period(r[4].isoformat(), r[5].isoformat())
+            ciclos.append({
+                "id": r[0], "nome": r[1], "ano": r[2], "semestre": r[3],
+                "dt_inicio": di, "dt_fim": df,
+                "ativo": r[6], "descricao": r[7],
+            })
+        return jsonify({"ok": True, "ciclos": ciclos})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     finally:
@@ -1192,6 +1324,10 @@ def crgm_ciclos_create():
 
     if not nome or not dt_inicio or not dt_fim:
         return jsonify({"error": "nome, dt_inicio e dt_fim são obrigatórios"}), 400
+
+    period_err = _crgm_validate_period(dt_inicio, dt_fim)
+    if period_err:
+        return jsonify({"error": period_err}), 400
 
     ano, semestre, descricao = None, None, nome
     parts = nome.replace("/", ".").split(".")
@@ -1262,6 +1398,19 @@ def crgm_ciclos_update(ciclo_id):
 
         if not fields:
             return jsonify({"error": "Nenhum campo para atualizar"}), 400
+
+        cur.execute(
+            "SELECT dt_inicio, dt_fim FROM ciclos_comercial WHERE id = %s",
+            (ciclo_id,),
+        )
+        current = cur.fetchone()
+        if not current:
+            return jsonify({"error": "Ciclo não encontrado"}), 404
+        new_ini = body.get("dt_inicio", current[0].isoformat())
+        new_fim = body.get("dt_fim", current[1].isoformat())
+        period_err = _crgm_validate_period(new_ini, new_fim)
+        if period_err:
+            return jsonify({"error": period_err}), 400
 
         vals.append(ciclo_id)
         cur.execute(
@@ -1646,7 +1795,7 @@ def crgm_filters():
         """)
         _polo_set = {}
         for (p,) in cur.fetchall():
-            n = _normalize_polo(p)
+            n = normalize_polo_display(p)
             if n and n not in _polo_set:
                 _polo_set[n] = True
         polos = sorted(_polo_set.keys())
@@ -2575,14 +2724,22 @@ def _build_agent_ranking_completa_vw(
         kcur.close()
         kconn.close()
 
+        # Calcular prefixo dominante e overrides para filtrar outliers nas contagens
+        _ranking_all_rgms = [n for n, _ in mat_rows]
+        _ranking_dom_pfx = _compute_dominant_rgm_prefix(_ranking_all_rgms) or 99
+        _ranking_overrides = _load_outlier_contagem_overrides()
+
         mat_per_agent = {}
         transferencia_itens = []
         for rgm, nome in mat_rows:
             uid = rgm_to_uid.get(rgm)
+            _conta = _rgm_conta_para_venda(rgm, _ranking_dom_pfx, _ranking_overrides)
             if uid:
-                mat_per_agent[uid] = mat_per_agent.get(uid, 0) + 1
+                if _conta:
+                    mat_per_agent[uid] = mat_per_agent.get(uid, 0) + 1
             else:
-                transferencia_itens.append({"rgm": rgm, "nome": nome})
+                if _conta:
+                    transferencia_itens.append({"rgm": rgm, "nome": nome})
         tr_count = len(transferencia_itens)
         if tr_count:
             mat_per_agent[TR] = tr_count
@@ -2626,7 +2783,7 @@ def _build_agent_ranking_completa_vw(
         # count = bruto (inclui excluídos/evasão); count_liquido = EM CURSO apenas.
         grid_acc_bruto = defaultdict(int)
         grid_acc_liq   = defaultdict(int)
-        # EM CURSO (não-excluídos)
+        # EM CURSO (não-excluídos); count_liquido exclui outliers sem override
         for rgm, _nome in mat_rows:
             dt_str = rgm_date_map.get(rgm)
             if not dt_str:
@@ -2635,7 +2792,8 @@ def _build_agent_ranking_completa_vw(
             if uid is None:
                 uid = TR
             grid_acc_bruto[(dt_str, uid)] += 1
-            grid_acc_liq[(dt_str, uid)] += 1
+            if _rgm_conta_para_venda(rgm, _ranking_dom_pfx, _ranking_overrides):
+                grid_acc_liq[(dt_str, uid)] += 1
         # Excluídos (evasão) adicionados apenas ao bruto
         for ev_rgm in (excluded_rgms or set()):
             dt_str = rgm_date_map_all.get(ev_rgm)
@@ -2676,6 +2834,7 @@ def crgm_data():
     nivel      = request.args.get("nivel", "")
     dt_ini     = request.args.get("dt_ini", "")
     dt_fim     = request.args.get("dt_fim", "")
+    dt_ini, dt_fim = _crgm_normalize_period(dt_ini, dt_fim)
     ciclo_nome = request.args.get("ciclo", "")
     turma_nome = request.args.get("turma", "")
 
@@ -2763,7 +2922,7 @@ def _crgm_resolve_ciclo_pd_dates(ciclo_nome, turma_nome, dt_ini, dt_fim):
     else:
         _pd_dt_ini = dt_ini or None
         _pd_dt_fim = dt_fim or None
-    return _pd_dt_ini, _pd_dt_fim
+    return _crgm_normalize_period(_pd_dt_ini, _pd_dt_fim)
 
 
 def _crgm_build_periodo_sets(ciclo_all, _pd_dt_ini, _pd_dt_fim):
@@ -2806,7 +2965,9 @@ def _crgm_build_periodo_sets(ciclo_all, _pd_dt_ini, _pd_dt_fim):
             if dt:
                 day_rgms[dt].add(n)
             if row["polo"]:
-                polo_rgms[_normalize_polo(row["polo"])].add(n)
+                canon = normalize_polo_display(row["polo"])
+                if canon:
+                    polo_rgms[canon].add(n)
         else:
             evasao_rows.append(row)
 
@@ -2839,8 +3000,17 @@ def _crgm_compute_kpis(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -> d
     ) = _crgm_build_periodo_sets(ciclo_all, _pd_dt_ini, _pd_dt_fim)
     _lap("derive_periodo_inmem")
 
+    # Filtrar outliers (prefixo abaixo do dominante sem override manual) das contagens
+    _kpi_dom_pfx  = _compute_dominant_rgm_prefix(list(rgms_periodo) or list(rgms_bruto))
+    _kpi_overrides = _load_outlier_contagem_overrides()
+    _rgms_contando = {r for r in rgms_periodo if _rgm_conta_para_venda(r, _kpi_dom_pfx, _kpi_overrides)}
+    day_rgms_contando   = {d: s & _rgms_contando for d, s in day_rgms.items()}
+    day_rgms_contando   = {d: s for d, s in day_rgms_contando.items() if s}
+    polo_rgms_contando  = {p: s & _rgms_contando for p, s in polo_rgms.items()}
+    polo_rgms_contando  = {p: s for p, s in polo_rgms_contando.items() if s}
+
     vendas          = len(rgms_bruto)
-    vendas_liquidas = len(rgms_periodo)
+    vendas_liquidas = len(_rgms_contando)
     _excluded       = rgms_bruto - rgms_periodo
 
     evasao_grid_acc = defaultdict(int)
@@ -2855,10 +3025,10 @@ def _crgm_compute_kpis(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -> d
         for k, v in sorted(evasao_grid_acc.items())
     ]
 
-    all_kpi_rgms     = rgms_periodo
-    day_counts       = {d: len(s) for d, s in day_rgms.items()}
+    all_kpi_rgms     = _rgms_contando
+    day_counts       = {d: len(s) for d, s in day_rgms_contando.items()}
     day_counts_bruto = {d: len(s) for d, s in day_rgms_bruto.items()}
-    polo_counts      = {p: len(s) for p, s in polo_rgms.items()}
+    polo_counts      = {p: len(s) for p, s in polo_rgms_contando.items()}
     dias             = len(day_counts) or 1
     media_diaria     = round(vendas_liquidas / dias, 1) if dias else 0
 
@@ -3671,7 +3841,6 @@ def crgm_agente_detalhe():
 
         # 1. Buscar todos os RGMs do período (mesma lógica do ranking)
         where, params = [], []
-        if polo:    where.append(f"{_POLO_SQL} = %s");           params.append(_normalize_polo(polo))
         if nivel:   where.append("nivel = %s");          params.append(nivel)
         if dt_ini:  where.append("data_matricula >= %s"); params.append(dt_ini)
         if dt_fim:  where.append("data_matricula <= %s"); params.append(dt_fim)
@@ -3740,14 +3909,24 @@ def crgm_agente_detalhe():
             logger.warning("agente-detalhe kommo: %s", e)
             rgm_to_uid = {}
 
-        # 3. Calcular prefixo dominante apenas para exibição visual (não afeta contagem)
-        from collections import Counter as _Counter
-        _pfx_c = _Counter()
-        for row in rows:
-            n = _normalize_rgm(row[0])
-            if n and len(n) >= 2 and n[:2].isdigit():
-                _pfx_c[n[:2]] += 1
-        dominant_prefix = int(_pfx_c.most_common(1)[0][0]) if _pfx_c else 99
+        # Aplicar overrides de conflito de atribuição (mesma lógica do ranking)
+        try:
+            _oc = _pg()
+            _oc_cur = _oc.cursor()
+            _oc_cur.execute("SELECT rgm, user_id FROM comercial_rgm_conflito_resolucao")
+            for _rgm_raw, _uid in _oc_cur.fetchall():
+                _nk = _normalize_rgm(_rgm_raw)
+                if _nk:
+                    rgm_to_uid[_nk] = _uid
+            _oc_cur.close()
+            _oc.close()
+        except Exception as _oe:
+            logger.warning("agente-detalhe conflito_resolucao: %s", _oe)
+
+        # 3. Calcular prefixo dominante e overrides de contagem de outliers
+        all_rgms = [_normalize_rgm(row[0]) for row in rows if row[0]]
+        dominant_prefix = _compute_dominant_rgm_prefix(all_rgms) or 99
+        _outlier_overrides = _load_outlier_contagem_overrides()
 
         # 4. Filtrar linhas do agente solicitado
         seen = set()
@@ -3756,6 +3935,8 @@ def crgm_agente_detalhe():
             rgm_raw, nome, p_polo, p_nivel, dm, ciclo_v, turma_v, tipo_mat = row
             n = _normalize_rgm(rgm_raw)
             if not n or n in seen or n in _det_excluded:
+                continue
+            if polo and normalize_polo_display(p_polo or "") != polo:
                 continue
             seen.add(n)
             assigned_uid = rgm_to_uid.get(n)
@@ -3769,9 +3950,9 @@ def crgm_agente_detalhe():
                 data_str = dm.isoformat() if hasattr(dm, "isoformat") else str(dm)[:10]
             except Exception:
                 data_str = ""
-            # Flag outlier: qualquer RGM cujo prefixo seja inferior ao dominante do ciclo
-            rgm_prefix = int(n[:2]) if len(n) >= 2 and n[:2].isdigit() else dominant_prefix
-            outlier = rgm_prefix < dominant_prefix
+            outlier = _is_rgm_prefix_outlier(n, dominant_prefix)
+            conta_venda = n in _outlier_overrides
+            conta_para_meta = _rgm_conta_para_venda(n, dominant_prefix, _outlier_overrides)
             extra = rgm_extra.get(n, {})
             resultado.append({
                 "rgm": rgm_raw or "",
@@ -3785,17 +3966,24 @@ def crgm_agente_detalhe():
                 "turma": turma_v or "",
                 "tipo_matricula": tipo_mat or "",
                 "outlier": outlier,
+                "conta_venda": conta_venda,
+                "conta_para_meta": conta_para_meta,
             })
+
+        total_contando = sum(1 for r in resultado if r["conta_para_meta"])
 
         if fmt == "csv":
             buf = io.StringIO()
             writer = csv.writer(buf, delimiter=";")
-            writer.writerow(["RGM", "Nome", "CPF", "Telefone", "Polo", "Nível", "Data Matrícula", "Ciclo", "Turma", "Tipo Matrícula", "Outlier RGM"])
+            writer.writerow(["RGM", "Nome", "CPF", "Telefone", "Polo", "Nível", "Data Matrícula", "Ciclo", "Turma", "Tipo Matrícula", "Outlier RGM", "Conta Venda", "Conta Meta"])
             for r in resultado:
                 writer.writerow([r["rgm"], r["nome"], r["cpf"], r["telefone"],
                                  r["polo"], r["nivel"],
                                  r["data_matricula"], r["ciclo"], r["turma"],
-                                 r["tipo_matricula"], "SIM" if r["outlier"] else ""])
+                                 r["tipo_matricula"],
+                                 "SIM" if r["outlier"] else "",
+                                 "SIM" if r["conta_venda"] else "",
+                                 "SIM" if r["conta_para_meta"] else "NÃO"])
             safe_uid = str(uid).replace("-", "neg")
             return _FlaskResponse(
                 buf.getvalue(),
@@ -3803,10 +3991,52 @@ def crgm_agente_detalhe():
                 headers={"Content-Disposition": f"attachment; filename=matriculas_agente_{safe_uid}.csv"},
             )
 
-        return jsonify({"ok": True, "total": len(resultado), "itens": resultado})
+        return jsonify({
+            "ok": True,
+            "total": len(resultado),
+            "total_contando": total_contando,
+            "total_contavel": total_contando,  # alias p/ front legado
+            "dominant_prefix": dominant_prefix,
+            "itens": resultado,
+        })
 
     except Exception as e:
         logger.exception("agente-detalhe erro inesperado: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@comercial_rgm_bp.route("/api/comercial-rgm/outlier/contar-venda", methods=["POST", "DELETE"])
+def crgm_outlier_contar_venda():
+    """Admin: marcar (POST) ou desmarcar (DELETE) um RGM outlier para contar nas vendas."""
+    if session.get("role") != "admin":
+        return jsonify({"ok": False, "error": "Apenas administradores podem executar esta ação"}), 403
+    try:
+        body = request.get_json(force=True) or {}
+        rgm_raw = body.get("rgm", "")
+        rgm = _normalize_rgm(rgm_raw)
+        if not rgm:
+            return jsonify({"ok": False, "error": "RGM inválido"}), 400
+        conn = _pg()
+        cur = conn.cursor()
+        if request.method == "POST":
+            counted_by = session.get("username") or session.get("user", "admin")
+            cur.execute("""
+                INSERT INTO comercial_rgm_outlier_contagem (rgm, counted_at, counted_by)
+                VALUES (%s, NOW(), %s)
+                ON CONFLICT (rgm) DO UPDATE SET counted_at = NOW(), counted_by = EXCLUDED.counted_by
+            """, (rgm, counted_by))
+            conn.commit()
+            cur.close(); conn.close()
+            clear_crgm_data_cache(reason=f"outlier contar-venda POST rgm={rgm}")
+            return jsonify({"ok": True, "rgm": rgm, "acao": "contando"})
+        else:  # DELETE
+            cur.execute("DELETE FROM comercial_rgm_outlier_contagem WHERE rgm = %s", (rgm,))
+            conn.commit()
+            cur.close(); conn.close()
+            clear_crgm_data_cache(reason=f"outlier contar-venda DELETE rgm={rgm}")
+            return jsonify({"ok": True, "rgm": rgm, "acao": "removido"})
+    except Exception as e:
+        logger.exception("outlier/contar-venda erro: %s", e)
         return jsonify({"ok": False, "error": str(e)}), 500
 
 

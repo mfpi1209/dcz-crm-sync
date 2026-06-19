@@ -426,6 +426,7 @@ const PAGE_LABELS = {
     clicks: 'QR Codes',
     leads_promotores: 'Leads · Promotores',
     meus_atendimentos: 'Meus Atendimentos',
+    rematricula: 'Rematrícula',
     disparador_whatsapp: 'Disparador WhatsApp (acesso geral)',
     disparador_whatsapp_disparador: 'Disparador WhatsApp · Disparador',
     disparador_whatsapp_alunos: 'Disparador WhatsApp · Alunos',
@@ -475,7 +476,7 @@ const CATEGORY_PRESETS = {
     'Supervisor Acadêmico': [
         'dashboard', 'search', 'avisos',
         'ativacoes', 'distribuicao', 'intelligence', 'inadimplencia',
-        'feedback', 'macro_email', 'meus_atendimentos',
+        'feedback', 'macro_email', 'meus_atendimentos', 'rematricula',
         ..._PRESET_FERRAMENTAS_BASIC,
     ],
 };
@@ -525,7 +526,7 @@ const PAGE_GROUPS_CONFIG = [
         color: 'var(--primary)',
         pages: [
             'meus_atendimentos', 'ativacoes', 'distribuicao', 'intelligence',
-            'inadimplencia', 'feedback', 'macro_email', 'disparador_whatsapp',
+            'inadimplencia', 'feedback', 'macro_email', 'rematricula', 'disparador_whatsapp',
             'disparador_whatsapp_disparador', 'disparador_whatsapp_alunos',
             'disparador_whatsapp_calendario', 'disparador_whatsapp_bases',
             'disparador_whatsapp_relatorios', 'disparador_whatsapp_conversao',

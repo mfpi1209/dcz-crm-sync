@@ -177,6 +177,17 @@ def _ensure_ciclos_comercial_table():
                   AND (ano IS NULL OR semestre IS NULL OR descricao IS NULL)
             """)
 
+            # Corrige dt_fim com ano errado (ex.: 2026/2 com fim 2025-12-15 < início 2026-05-14)
+            cur.execute("""
+                UPDATE ciclos_comercial
+                SET dt_fim = make_date(
+                    EXTRACT(YEAR FROM dt_inicio)::int,
+                    EXTRACT(MONTH FROM dt_fim)::int,
+                    EXTRACT(DAY FROM dt_fim)::int
+                )
+                WHERE dt_fim < dt_inicio
+            """)
+
             cur.execute("SELECT COUNT(*) FROM ciclos_comercial")
             if cur.fetchone()[0] == 0:
                 cur.execute("""

@@ -4,6 +4,12 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-06-17 — Polos: nomes canônicos + ranking estilo Comercial no Dashboard Acadêmico
+- **Modelo usado:** Opus 4.7 (principal).
+- **Decisão:** `helpers.normalize_polo_display()` centraliza mapeamento de variantes (`POLO SP_*`, `CEB POLO`, parênteses, `_JD CRISTINA`, etc.) para 13 nomes canônicos em Title Case (ex.: `Barra Funda`, `Taboão da Serra_Centro`). Usado na agregação `by_polo` do Dashboard Acadêmico (`routes/dashboard.py`) e no ranking/filtro do Comercial (`routes/comercial_rgm.py`). Filtro por polo no Comercial compara nome canônico pós-fetch (não mais igualdade SQL no raw). UI Acadêmico/Supervisor Acadêmico passa a tabela ranked com barra gradiente cyan→blue (mesmo padrão de `Matrículas por Polo` no Comercial).
+- **Merge explícito:** variantes CEB + POLO de Taboão Centro somam em `Taboão da Serra_Centro`; Campinas ignora sufixo `_JD CRISTINA`.
+- **Alternativas descartadas:** whitelist SQL com ILIKE por polo (frágil); manter `_normalize_polo` antigo só strip CEB (não unifica SP_/parênteses); dropdown com nomes raw (UX inconsistente entre telas).
+
 ### 2026-06-11 — Premiação: metas + R$/matrícula por equipe (Alta Performance vs Impulso)
 - **Modelo usado:** Opus 4.7 (principal) decidiu; Executor (Sonnet 4.6) implementará.
 - **Problema:** a campanha tem alvos únicos (`def_meta_intermediaria/def_meta/def_supermeta`) e R$ por faixa únicos (`premiacao_tier_bonus`) que valem para todos. O time precisa diferenciar Alta Performance (alvo maior, R$/mat possivelmente maior) de Impulso (alvo menor) na MESMA campanha.

@@ -50,6 +50,7 @@
             {% include 'partials/_cadastro_leads.html' %}
             {% include 'partials/_leads_inscricao.html' %}
             {% include 'partials/_disparador_whatsapp.html' %}
+            {% include 'partials/_rematricula.html' %}
             {% include 'partials/_avisos.html' %}
             {% include 'partials/_kommo_dispatcher.html' %}
             {% include 'partials/_meta_campaigns.html' %}
@@ -319,6 +320,7 @@
 <script defer src="{{ url_for('static', filename='js/ferramentas.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/leads_inscricao.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/disparador_whatsapp.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/rematricula.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/avisos.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/kommo_dispatcher.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/config.js') }}"></script>

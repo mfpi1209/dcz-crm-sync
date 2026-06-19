@@ -8,7 +8,7 @@ import requests
 from flask import Blueprint, render_template, request, jsonify, current_app
 
 from db import get_conn
-from helpers import BRT, to_brt
+from helpers import BRT, to_brt, normalize_polo_display
 
 dashboard_bp = Blueprint("dashboard", __name__)
 
@@ -80,6 +80,8 @@ WITH mat AS (
         SELECT id FROM xl_snapshots
         WHERE tipo = 'matriculados' ORDER BY id DESC LIMIT 1
     )
+      -- Mesmo recorte de empresa do Dashboard Comercial (códigos 12 e 7).
+      AND TRIM(COALESCE(r.data->>'empresa','')) ~ '^(12|7) -'
 )
 """
 
@@ -214,7 +216,7 @@ def api_dashboard_students():
 
             sit = r["situacao"] or "N/I"
             niv = r["nivel"] or "N/I"
-            polo = r["polo"] or "N/I"
+            polo = normalize_polo_display(r["polo"] or "") or "N/I"
             turma = r["turma"] or "N/I"
             ciclo = r["ciclo"] or "N/I"
 
@@ -254,6 +256,28 @@ def api_dashboard_students():
         conn.close()
 
 
+@dashboard_bp.route("/api/dashboard/funnel-yesterday")
+def api_dashboard_funnel_yesterday():
+    """KPI Fechado Ganho Ontem + leads ontem (desacoplado do cache do funil live)."""
+    force = request.args.get("force", "0") == "1"
+    try:
+        from datetime import date as _date
+        from routes.kommo_sync import _get_yesterday_summary_cached
+        from routes.comercial_rgm import comercial_periodo_vendas_resumo
+
+        data = _get_yesterday_summary_cached(force=force)
+        if not data.get("vendas"):
+            y = _date.fromisoformat(data["date"])
+            y_str = y.isoformat()
+            resumo = comercial_periodo_vendas_resumo(dt_ini=y_str, dt_fim=y_str)
+            by_day = resumo.get("mat_by_date") or {}
+            data["vendas"] = int(by_day.get(y) or resumo.get("vendas_liquidas") or 0)
+        return jsonify({"ok": True, "data": data})
+    except Exception as e:
+        current_app.logger.exception("funnel-yesterday: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @dashboard_bp.route("/api/dashboard/ciclos-distinct")
 def api_dashboard_ciclos_distinct():
     """Retorna ciclos distintos presentes no snapshot atual de matriculados,
@@ -274,7 +298,9 @@ def api_dashboard_ciclos_distinct():
                 )
                   AND TRIM(COALESCE(r.data->>'ciclo','')) ~ '^\\d{4}/\\d$'
                 GROUP BY 1
-                ORDER BY 1 DESC
+                ORDER BY
+                  (substring(TRIM(r.data->>'ciclo') from '^([0-9]{4})'))::int DESC,
+                  (substring(TRIM(r.data->>'ciclo') from '/([0-9])$'))::int DESC
             """)
             rows = cur.fetchall()
         return jsonify([{"nome": r["ciclo"], "total": r["total"]} for r in rows])
@@ -288,6 +314,14 @@ def api_dashboard_ciclos_distinct():
 # Rotas — Dashboard Timeline (gráficos de linha com drill-down)
 # ---------------------------------------------------------------------------
 
+_TIMELINE_RANGE_QUERY = _MAT_CTE + """
+SELECT MIN(m.data_matricula) AS dmin, MAX(m.data_matricula) AS dmax
+FROM mat m
+WHERE m.data_matricula IS NOT NULL
+  AND (%(f_nivel)s IS NULL OR m.nivel = %(f_nivel)s)
+  AND (%(f_ciclo)s IS NULL OR m.ciclo = %(f_ciclo)s)
+"""
+
 _TIMELINE_QUERY = _MAT_CTE + """
 SELECT
     CASE WHEN %(granularity)s = 'month'
@@ -300,6 +334,7 @@ FROM mat m
 WHERE m.data_matricula IS NOT NULL
   AND m.data_matricula BETWEEN %(range_start)s AND %(range_end)s
   AND (%(f_nivel)s IS NULL OR m.nivel = %(f_nivel)s)
+  AND (%(f_ciclo)s IS NULL OR m.ciclo = %(f_ciclo)s)
 GROUP BY period, m.tipo_aluno
 ORDER BY period, total DESC
 """
@@ -312,6 +347,7 @@ def api_dashboard_timeline():
 
     granularity = request.args.get("granularity", "month")
     f_nivel = request.args.get("nivel") or None
+    f_ciclo = request.args.get("ciclo") or None
     dt_from = request.args.get("from", "")
     dt_to = request.args.get("to", "")
 
@@ -330,11 +366,22 @@ def api_dashboard_timeline():
     conn = get_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            if f_ciclo and not dt_from and not dt_to:
+                cur.execute(_TIMELINE_RANGE_QUERY, {
+                    "f_nivel": f_nivel,
+                    "f_ciclo": f_ciclo,
+                })
+                bounds = cur.fetchone()
+                if bounds and bounds.get("dmin"):
+                    range_start = bounds["dmin"]
+                    range_end = bounds["dmax"] or today
+
             cur.execute(_TIMELINE_QUERY, {
                 "granularity": granularity,
                 "range_start": range_start,
                 "range_end": range_end,
                 "f_nivel": f_nivel,
+                "f_ciclo": f_ciclo,
             })
             rows = cur.fetchall()
 
@@ -355,6 +402,7 @@ def api_dashboard_timeline():
             "series": {},
             "granularity": granularity,
             "range": {"from": str(range_start), "to": str(range_end)},
+            "meta": {"ciclo": f_ciclo, "nivel": f_nivel},
         }
         for cat in ["novos", "rematricula", "regresso", "recompra"]:
             if cat in series:
@@ -415,7 +463,7 @@ def _aggregate_rows(rows):
         result["grand_total"] += r["total"]
         sit = r["situacao"] or "N/I"
         result["by_situacao"][sit] = result["by_situacao"].get(sit, 0) + r["total"]
-        polo = r["polo"] or "N/I"
+        polo = normalize_polo_display(r["polo"] or "") or "N/I"
         result["by_polo"][polo] = result["by_polo"].get(polo, 0) + r["total"]
     result["by_situacao"] = dict(sorted(result["by_situacao"].items(), key=lambda x: -x[1]))
     result["by_polo"] = dict(sorted(result["by_polo"].items(), key=lambda x: -x[1]))
@@ -504,7 +552,7 @@ def api_dashboard_ciclos():
             c["grand_total"] += r["total"]
             sit = r["situacao"] or "N/I"
             c["by_situacao"][sit] = c["by_situacao"].get(sit, 0) + r["total"]
-            polo = r["polo"] or "N/I"
+            polo = normalize_polo_display(r["polo"] or "") or "N/I"
             c["by_polo"][polo] = c["by_polo"].get(polo, 0) + r["total"]
         for cn in ciclos:
             ciclos[cn]["by_situacao"] = dict(sorted(ciclos[cn]["by_situacao"].items(), key=lambda x: -x[1]))

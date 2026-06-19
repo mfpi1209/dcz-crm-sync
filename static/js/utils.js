@@ -23,8 +23,8 @@ async function api(url, opts = {}) {
 // ---------------------------------------------------------------------------
 // SPA Navigation
 // ---------------------------------------------------------------------------
-const PAGES = ['dashboard', 'search', 'sync', 'kommo_sync', 'update', 'pipeline', 'match_merge', 'comercial_rgm', 'dist_comercial', 'distribuicao', 'ativacoes', 'intelligence', 'inadimplencia', 'feedback', 'comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos', 'leads_inscricao', 'cadastro_leads', 'logs', 'config', 'schedule', 'inscricao', 'avisos', 'kommo_dispatcher', 'meta-campaigns', 'recadastros', 'comercial_dashboard', 'auditoria_comercial', 'atualizar_preco', 'vocacional', 'leads_parados', 'minha_performance', 'premiacao_admin', 'macro_email', 'ajustes_matricula', 'repasse', 'dist_consultor', 'captacao', 'clicks', 'leads_promotores', 'profile', 'meus_atendimentos', 'disparador_whatsapp'];
-const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', kommo_sync: 'Sync Comercial', update: 'Upload Acadêmico', pipeline: 'Saneamento / Pipeline', match_merge: 'Match & Merge', comercial_rgm: 'Dashboard Comercial', dist_comercial: 'Distribuição Comercial', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas', intelligence: 'Análises', inadimplencia: 'Inadimplência', feedback: 'Feedback', comparar_cursos: 'Comparar Cursos', recomendacao_cursos: 'Recomendação', localizacao_polos: 'Localização', info_cursos: 'Informações de Cursos', leads_inscricao: 'Leads em Inscrição Automática', cadastro_leads: 'Cadastro de Leads', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento', inscricao: 'Inscrições', avisos: 'Avisos', kommo_dispatcher: 'Kommo Dispatcher', 'meta-campaigns': 'Campaign Performance', recadastros: 'Recadastros', comercial_dashboard: 'Dashboard Atendimentos', auditoria_comercial: 'Feedback Comercial', atualizar_preco: 'Atualizar Preço', vocacional: 'Dashboard Vocacional', leads_parados: 'Parados', minha_performance: 'Minha Performance', premiacao_admin: 'Premiação', macro_email: 'Macro Email', ajustes_matricula: 'Ajustes de Matrícula', repasse: 'Repasse', dist_consultor: 'Distribuição Consultor', captacao: 'Captação Externa', clicks: 'QR Codes', leads_promotores: 'Leads · Promotores', profile: 'Meu Perfil', meus_atendimentos: 'Meus Atendimentos', disparador_whatsapp: 'Disparador WhatsApp' };
+const PAGES = ['dashboard', 'search', 'sync', 'kommo_sync', 'update', 'pipeline', 'match_merge', 'comercial_rgm', 'dist_comercial', 'distribuicao', 'ativacoes', 'intelligence', 'inadimplencia', 'feedback', 'comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos', 'leads_inscricao', 'cadastro_leads', 'logs', 'config', 'schedule', 'inscricao', 'avisos', 'kommo_dispatcher', 'meta-campaigns', 'recadastros', 'comercial_dashboard', 'auditoria_comercial', 'atualizar_preco', 'vocacional', 'leads_parados', 'minha_performance', 'premiacao_admin', 'macro_email', 'ajustes_matricula', 'repasse', 'dist_consultor', 'captacao', 'clicks', 'leads_promotores', 'profile', 'meus_atendimentos', 'rematricula', 'disparador_whatsapp'];
+const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', kommo_sync: 'Sync Comercial', update: 'Upload Acadêmico', pipeline: 'Saneamento / Pipeline', match_merge: 'Match & Merge', comercial_rgm: 'Dashboard Comercial', dist_comercial: 'Distribuição Comercial', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas', intelligence: 'Análises', inadimplencia: 'Inadimplência', feedback: 'Feedback', comparar_cursos: 'Comparar Cursos', recomendacao_cursos: 'Recomendação', localizacao_polos: 'Localização', info_cursos: 'Informações de Cursos', leads_inscricao: 'Leads em Inscrição Automática', cadastro_leads: 'Cadastro de Leads', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento', inscricao: 'Inscrições', avisos: 'Avisos', kommo_dispatcher: 'Kommo Dispatcher', 'meta-campaigns': 'Campaign Performance', recadastros: 'Recadastros', comercial_dashboard: 'Dashboard Atendimentos', auditoria_comercial: 'Feedback Comercial', atualizar_preco: 'Atualizar Preço', vocacional: 'Dashboard Vocacional', leads_parados: 'Parados', minha_performance: 'Minha Performance', premiacao_admin: 'Premiação', macro_email: 'Macro Email', ajustes_matricula: 'Ajustes de Matrícula', repasse: 'Repasse', dist_consultor: 'Distribuição Consultor', captacao: 'Captação Externa', clicks: 'QR Codes', leads_promotores: 'Leads · Promotores', profile: 'Meu Perfil', meus_atendimentos: 'Meus Atendimentos', rematricula: 'Rematrícula', disparador_whatsapp: 'Disparador WhatsApp' };
 
 // Páginas permitidas vêm do servidor (data-allowed-pages no <body>) — evita
 // flash de UI carregando conteúdo proibido antes de o JS esconder.
@@ -150,6 +150,7 @@ function navigate(page, params) {
     if (page === 'profile') loadProfile();
     if (page === 'meus_atendimentos' && typeof loadMeusAtendimentos === 'function') loadMeusAtendimentos();
     if (page === 'disparador_whatsapp' && typeof loadDisparadorWhatsapp === 'function') loadDisparadorWhatsapp();
+    if (page === 'rematricula' && typeof loadRematricula === 'function') loadRematricula();
 
     history.replaceState(null, '', '#' + page);
     refreshTopbarForPage(page);
@@ -753,6 +754,56 @@ function _initScrollToTop() {
     if (main) main.addEventListener('scroll', update, { passive: true });
     window.addEventListener('scroll', update, { passive: true });
     update();
+}
+
+// ---------------------------------------------------------------------------
+// Polos — nomes canônicos (espelha helpers.normalize_polo_display)
+// ---------------------------------------------------------------------------
+function _poloRawKey(polo) {
+    if (!polo) return '';
+    let p = String(polo).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    p = p.replace(/^\d+\s*[-–]\s*/, '');
+    p = p.replace(/^ceb\s+/, '');
+    p = p.replace(/^polo\s+sp_/, '');
+    p = p.replace(/^polo\s+/, '');
+    p = p.replace(/\([^)]*\)/g, '');
+    p = p.replace(/\s+/g, ' ').trim();
+    return p;
+}
+
+function normalizePoloDisplay(polo) {
+    if (!polo || !String(polo).trim()) return '';
+    const k = _poloRawKey(polo);
+    if (k.includes('taboao') || k.includes('taboa')) {
+        if (k.includes('mituzi') || k.includes('jardim')) return 'Taboão da Serra_Jardim Mituzi';
+        return 'Taboão da Serra_Centro';
+    }
+    if (k.includes('barra funda')) return 'Barra Funda';
+    if (k.includes('sapopemba')) return 'Sapopemba';
+    if (k.includes('vila prudente')) return 'Vila Prudente';
+    if (k.includes('santana')) return 'Santana 2';
+    if (k.includes('ibirapuera')) return 'Ibirapuera';
+    if (k.includes('morumbi')) return 'Morumbi';
+    if (k.includes('campinas')) return 'Campinas';
+    if (k.includes('capivari')) return 'Capivari';
+    if (k.includes('itapira')) return 'Itapira';
+    if (k.includes('freguesia')) return 'Freguesia do Ó';
+    if (k.includes('vila mariana')) return 'Vila Mariana';
+    const cleaned = _poloRawKey(polo).replace(/_/g, ' ');
+    if (!cleaned) return String(polo).trim();
+    return cleaned.split(' ').map((w, i) => {
+        if (['da', 'de', 'do', 'dos', 'das', 'e'].includes(w) && i > 0) return w;
+        return w.charAt(0).toUpperCase() + w.slice(1);
+    }).join(' ');
+}
+
+function mergePoloBreakdown(byPolo) {
+    const out = {};
+    for (const [raw, cnt] of Object.entries(byPolo || {})) {
+        const name = normalizePoloDisplay(raw) || raw;
+        out[name] = (out[name] || 0) + (cnt || 0);
+    }
+    return Object.fromEntries(Object.entries(out).sort((a, b) => b[1] - a[1]));
 }
 
 // ---------------------------------------------------------------------------

@@ -365,35 +365,41 @@ def _upsert_conflito_resolucao(cur, rgm, kommo_user_id, user_name: str | None = 
     return True
 
 
+def _get_agent_credited_rgms(kommo_uid) -> set:
+    """RGMs cujo crédito vai para este consultor (mesma regra do Consultar RGM / ranking)."""
+    rgm_to_uid: dict[str, int] = {}
+    try:
+        kconn = _pg_kommo()
+        kcur = kconn.cursor()
+        kcur.execute("""
+            SELECT DISTINCT ON (v.rgm) v.rgm, l.responsible_user_id
+            FROM vw_leads_rgm v
+            JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
+            WHERE l.responsible_user_id IS NOT NULL
+            ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC
+        """)
+        for rgm_raw, uid in kcur.fetchall():
+            n = _normalize_rgm(rgm_raw)
+            if n and uid:
+                rgm_to_uid[n] = int(uid)
+        kcur.close()
+        kconn.close()
+    except Exception as e:
+        logger.warning("_get_agent_credited_rgms kommo: %s", e)
+        return set()
+
+    for rgm, owner_uid in _load_conflito_overrides().items():
+        rgm_to_uid[rgm] = owner_uid
+
+    return {rgm for rgm, uid in rgm_to_uid.items() if uid == kommo_uid}
+
+
 def _get_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=False):
     """Get matriculas for a specific agent from xl_rows.
     only_em_curso=True filters to situacao='EM CURSO' only (para contagens oficiais).
     only_em_curso=False retorna todas incluindo cancelados (para listagem informativa).
     """
-    try:
-        kconn = _pg_kommo()
-        kcur = kconn.cursor()
-        kcur.execute("""
-            SELECT DISTINCT v.rgm
-            FROM vw_leads_rgm v
-            JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
-            WHERE l.responsible_user_id = %s
-        """, (kommo_uid,))
-        agent_rgms = set()
-        for row in kcur.fetchall():
-            n = _normalize_rgm(row[0])
-            if n:
-                agent_rgms.add(n)
-        kcur.close()
-        kconn.close()
-    except Exception as e:
-        logger.warning("Error fetching agent RGMs from Kommo: %s", e)
-        return []
-
-    # Aplica overrides manuais de "Vendas em Conflito" — mesma lógica do
-    # Dashboard Comercial. Sem isso, RGMs com lead em mais de um consultor
-    # apareciam para todos eles.
-    _apply_conflito_overrides_to_agent_rgms(agent_rgms, kommo_uid)
+    agent_rgms = _get_agent_credited_rgms(kommo_uid)
 
     if not agent_rgms:
         return []
@@ -439,21 +445,19 @@ def _get_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=Fal
                     UPPER(TRIM(COALESCE(r.data->>'tipo_matricula','')))             AS tipo_matricula
                 FROM xl_rows r
                 JOIN xl_snapshots s ON s.id = r.snapshot_id
-                WHERE s.id = (SELECT id FROM xl_snapshots WHERE tipo = 'matriculados' ORDER BY id DESC LIMIT 1)
+                WHERE s.tipo = 'matriculados'
                   AND COALESCE(r.data->>'rgm','') ~ '[0-9]'
                   AND UPPER(TRIM(COALESCE(r.data->>'tipo_matricula','')))
                       = ANY(ARRAY['NOVA MATRICULA','RECOMPRA','RETORNO'])
                   AND TRIM(COALESCE(r.data->>'empresa','')) ~ '^(12|7) -'
                 ORDER BY
                     regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g'),
-                    -- Em transferências internas o aluno aparece 2x: prioriza
-                    -- a linha que ainda está EM CURSO sobre TRANSFERIDO/CANCELADO.
+                    s.id DESC,
                     CASE
                         WHEN UPPER(TRIM(COALESCE(r.data->>'situacao',''))) = 'EM CURSO' THEN 0
                         WHEN UPPER(TRIM(COALESCE(r.data->>'situacao',''))) IN ('TRANCADO','SEM EVOLUCAO','SEM EVOLUÇÃO') THEN 1
                         ELSE 2
                     END,
-                    -- Desempate: matrícula mais recente.
                     CASE
                         WHEN (r.data->>'data_mat') ~ '^[0-9]{{2}}/[0-9]{{2}}/[0-9]{{4}}$'
                             THEN to_date(r.data->>'data_mat','DD/MM/YYYY')
@@ -478,10 +482,37 @@ def _get_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=Fal
                 results.append(d)
         cur.close()
         conn.close()
+
+        # Enriquecer com flags outlier/conta_venda/conta_para_meta (usando contexto do período)
+        try:
+            from routes.comercial_rgm import (
+                crgm_outlier_context,
+                _is_rgm_prefix_outlier,
+                _rgm_conta_para_venda,
+            )
+            _dominant, _overrides = crgm_outlier_context(dt_ini=dt_ini, dt_fim=dt_fim)
+            for d in results:
+                n = _normalize_rgm(d.get("rgm"))
+                d["outlier"] = _is_rgm_prefix_outlier(n, _dominant)
+                d["conta_venda"] = n in _overrides          # override manual existe
+                d["conta_para_meta"] = _rgm_conta_para_venda(n, _dominant, _overrides)  # conta para meta
+        except Exception as _oe:
+            logger.warning("enrich outlier/conta_venda: %s", _oe)
+            for d in results:
+                d.setdefault("outlier", False)
+                d.setdefault("conta_venda", False)
+                d.setdefault("conta_para_meta", True)
+
         return results
     except Exception as e:
         logger.warning("Error fetching agent matriculas: %s", e)
         return []
+
+
+def _count_agent_matriculas_oficiais(kommo_uid, dt_ini=None, dt_fim=None):
+    """Conta apenas matrículas EM CURSO que contam para meta (excluindo outliers sem override)."""
+    mats = _get_agent_matriculas(kommo_uid, dt_ini, dt_fim, only_em_curso=True)
+    return sum(1 for m in mats if m.get("conta_para_meta", True))
 
 
 def _get_agent_metas(kommo_uid, dt_ini=None, dt_fim=None):
@@ -637,7 +668,14 @@ def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
     kcur.close()
     kconn.close()
 
-    # 2. DCZ: get all matrículas in the period
+    # 2. DCZ: get all matrículas in the period, applying outlier filter
+    try:
+        from routes.comercial_rgm import crgm_outlier_context, _rgm_conta_para_venda
+        _rk_dominant, _rk_overrides = crgm_outlier_context(dt_ini=dt_ini, dt_fim=dt_fim)
+    except Exception as _oe:
+        logger.warning("_calc_ranking_batch outlier context: %s", _oe)
+        _rk_dominant, _rk_overrides = None, set()
+
     conn = _pg()
     cur = conn.cursor()
     cw, cp = [], []
@@ -651,7 +689,8 @@ def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
     for row in cur.fetchall():
         n = _normalize_rgm(row[0])
         if n and n in rgm_to_uid:
-            mat_per_agent[rgm_to_uid[n]] += 1
+            if _rgm_conta_para_venda(n, _rk_dominant, _rk_overrides):
+                mat_per_agent[rgm_to_uid[n]] += 1
     cur.close()
     conn.close()
 
@@ -869,6 +908,8 @@ def _pix_valor_from_faixas(realizadas, faixas):
 def _matriculas_to_by_date(matriculas):
     mat_by_date = defaultdict(int)
     for m in matriculas:
+        if not m.get("conta_para_meta", True):
+            continue
         dm = m.get("data_matricula")
         if not dm:
             continue
@@ -1417,7 +1458,7 @@ def api_minha_performance():
     dt_fim = str(campanha["dt_fim"])
 
     matriculas = _get_agent_matriculas(kommo_uid, dt_ini, dt_fim, only_em_curso=True)
-    total = len(matriculas)
+    total = sum(1 for m in matriculas if m.get("conta_para_meta", True))
     metas = _get_agent_metas(kommo_uid, dt_ini, dt_fim)
     tier = _determine_tier(total, metas)
     meta_val = metas.get("meta", 0)
@@ -1482,7 +1523,7 @@ def api_minha_premiacao():
     dt_fim = str(campanha["dt_fim"])
 
     matriculas = _get_agent_matriculas(kommo_uid, dt_ini, dt_fim, only_em_curso=True)
-    total_mat = len(matriculas)
+    total_mat = sum(1 for m in matriculas if m.get("conta_para_meta", True))
     metas = _get_agent_metas(kommo_uid, dt_ini, dt_fim)
     tier = _determine_tier(total_mat, metas)
 
@@ -1584,7 +1625,7 @@ def api_minha_historico():
         dt_ini = str(c["dt_inicio"])
         dt_fim = str(c["dt_fim"])
         matriculas = _get_agent_matriculas(kommo_uid, dt_ini, dt_fim, only_em_curso=True)
-        total = len(matriculas)
+        total = sum(1 for m in matriculas if m.get("conta_para_meta", True))
         metas = _get_agent_metas(kommo_uid, dt_ini, dt_fim)
         tier = _determine_tier(total, metas)
 
@@ -1644,7 +1685,7 @@ def api_minha_insights():
     today = datetime.now(BRT).date()
 
     matriculas = _get_agent_matriculas(kommo_uid, dt_ini_str, dt_fim_str, only_em_curso=True)
-    total_mat = len(matriculas)
+    total_mat = sum(1 for m in matriculas if m.get("conta_para_meta", True))
     metas = _get_agent_metas(kommo_uid, dt_ini_str, dt_fim_str)
     tier = _determine_tier(total_mat, metas)
 
@@ -1875,11 +1916,12 @@ def api_minha_insights():
         best_total = 0
         for pc in past:
             pmat = _get_agent_matriculas(kommo_uid, str(pc["dt_inicio"]), str(pc["dt_fim"]), only_em_curso=True)
+            pmat_count = sum(1 for m in pmat if m.get("conta_para_meta", True))
             pmetas = _get_agent_metas(kommo_uid, str(pc["dt_inicio"]), str(pc["dt_fim"]))
-            ptier = _determine_tier(len(pmat), pmetas)
-            if len(pmat) > best_total:
-                best_total = len(pmat)
-                melhor_campanha = {"nome": pc["nome"], "total": len(pmat), "tier": ptier}
+            ptier = _determine_tier(pmat_count, pmetas)
+            if pmat_count > best_total:
+                best_total = pmat_count
+                melhor_campanha = {"nome": pc["nome"], "total": pmat_count, "tier": ptier}
     except Exception:
         pass
 
@@ -2138,7 +2180,7 @@ def api_minha_insights():
             uni_dt_ini = min(str(c["dt_inicio"]) for c in linked_camps)
             uni_dt_fim = max(str(c["dt_fim"]) for c in linked_camps)
             uni_matriculas = _get_agent_matriculas(kommo_uid, uni_dt_ini, uni_dt_fim, only_em_curso=True)
-            uni_total = len(uni_matriculas)
+            uni_total = sum(1 for m in uni_matriculas if m.get("conta_para_meta", True))
 
             uni_metas_sum = {"meta": 0, "intermediaria": 0, "supermeta": 0}
             for lc in linked_camps:
@@ -3578,7 +3620,14 @@ def api_minha_matriculas():
     for m in mats:
         if m.get("data_matricula"):
             m["data_matricula"] = str(m["data_matricula"])
-    return jsonify({"ok": True, "matriculas": mats, "total": len(mats)})
+    total_contando = sum(1 for m in mats if m.get("conta_para_meta", True) and (m.get("situacao") or "").upper() == "EM CURSO")
+    return jsonify({
+        "ok": True,
+        "matriculas": mats,
+        "total": len(mats),
+        "total_contando": total_contando,
+        "total_contavel": total_contando,
+    })
 
 
 # ══════════════════════════════════════════════════════════════════════════

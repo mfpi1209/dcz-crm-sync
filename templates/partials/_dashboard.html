@@ -72,38 +72,60 @@
                 <div id="dash-academic" class="p-4 lg:p-8 max-w-7xl mx-auto">
 
                 <!-- ═══ HEADER ═══ -->
-                <header class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div class="flex flex-col gap-1">
-                        <h2 class="text-2xl font-bold text-slate-900 dark:text-white font-display">Dashboard Acadêmico</h2>
-                        <p class="text-slate-500 text-sm">Visão geral da performance e crescimento institucional.</p>
+                <div class="mb-6">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-[#00346f] dark:bg-gradient-to-br dark:from-indigo-500 dark:to-violet-600 flex items-center justify-center shadow-md shadow-slate-900/10">
+                                <span class="material-symbols-outlined text-white text-xl">school</span>
+                            </div>
+                            <div>
+                                <h2 class="text-2xl md:text-3xl font-bold text-[#00346f] dark:text-white font-display">Dashboard Acadêmico</h2>
+                                <p class="text-slate-600 dark:text-slate-500 text-sm">Visão geral da performance e crescimento institucional.</p>
+                            </div>
+                        </div>
                     </div>
-                </header>
+                </div>
 
                 <!-- ═══ FUNIL DE VENDAS — LIVE ═══ -->
-                <section class="mb-8">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-lg font-bold text-slate-900 dark:text-white font-display flex items-center gap-2">
-                            <span class="material-symbols-outlined text-primary">filter_alt</span>
+                <div class="glass-card overflow-hidden mb-6 p-5 sm:p-6">
+                    <div class="flex items-center justify-between mb-5">
+                        <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display flex items-center gap-2">
+                            <span class="material-symbols-outlined text-base text-indigo-500 dark:text-indigo-400">filter_alt</span>
                             Funil de Vendas
                         </h3>
                         <div class="flex items-center gap-3">
                             <span id="dash-funnel-ts" class="text-[10px] text-slate-500 font-mono"></span>
                             <button onclick="_dashRefreshFunnel(true)" id="dash-funnel-refresh-btn"
-                                    class="text-xs text-slate-500 dark:text-slate-400 hover:text-primary border border-slate-200 dark:border-slate-700 hover:border-primary px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 bg-white dark:bg-slate-800/50">
+                                    class="text-xs text-slate-600 dark:text-slate-400 hover:text-[#00346f] dark:hover:text-white border border-slate-200 dark:border-slate-700 hover:border-indigo-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
                                 <span class="material-symbols-outlined text-sm">refresh</span>
                                 Atualizar
                             </button>
                         </div>
                     </div>
 
-                    <!-- KPI Row (Arquiteto Executivo style) -->
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" id="dash-funnel-kpis">
-                        <!-- preenchido por _dashRenderFunnelKpis (pode ser substituído via JS) -->
+                    <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mb-6" id="dash-funnel-kpis">
                         <div class="kpi-card is-primary">
                             <div class="kpi-head"><span class="kpi-title">Novos Leads Hoje</span></div>
                             <div class="kpi-value-row">
                                 <span class="kpi-value" id="dash-funnel-new">—</span>
                                 <span class="kpi-subtitle">leads</span>
+                            </div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-head"><span class="kpi-title">Fechado — Ganho Ontem</span></div>
+                            <div class="kpi-value-row items-end gap-3">
+                                <div class="flex flex-col min-w-0">
+                                    <span class="kpi-value" id="dash-funnel-won-yesterday">—</span>
+                                    <span class="kpi-subtitle">vendas</span>
+                                </div>
+                                <div class="ml-auto text-right shrink-0 leading-tight">
+                                    <span class="block text-[9px] uppercase tracking-wide text-slate-500">Leads ontem</span>
+                                    <span class="block text-sm font-bold text-slate-300" id="dash-funnel-leads-yesterday">—</span>
+                                    <span class="kpi-trend up text-[10px] mt-0.5 inline-flex" id="dash-funnel-leads-yesterday-trend" style="display:none">
+                                        <span class="material-symbols-outlined ms-icon text-[12px]">trending_up</span>
+                                        <span id="dash-funnel-leads-yesterday-pct"></span>
+                                    </span>
+                                </div>
                             </div>
                         </div>
                         <div class="kpi-card">
@@ -135,53 +157,67 @@
                         </div>
                     </div>
 
-                    <!-- Funnel Grid -->
-                    <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 lg:gap-4" id="dash-funnel-cards">
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 lg:gap-4 mb-6" id="dash-funnel-cards">
                         <div class="col-span-full text-center py-8 text-slate-500 text-sm flex flex-col items-center gap-3">
                             <svg class="animate-spin h-6 w-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                             Buscando dados do Kommo...
                         </div>
                     </div>
 
-                    <!-- Funnel Visual (vertical bars) -->
-                    <div class="mt-6 bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm p-5 sm:p-6"
+                    <div class="rounded-xl p-5 bg-slate-50 dark:bg-slate-800/20 border border-slate-200 dark:border-slate-700/20"
                          id="dash-funnel-visual">
-                        <!-- preenchido por _renderFunnelVisual -->
                     </div>
-                </section>
+                </div>
 
-                <!-- ═══ MATRÍCULAS POR TIPO DE ALUNO ═══ -->
-                <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm overflow-hidden mb-8">
-                    <div class="p-6">
-                        <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
-                            <h3 class="text-lg font-bold text-slate-900 dark:text-white font-display flex items-center gap-2">
-                                <span class="material-symbols-outlined text-violet-500 dark:text-violet-400">groups</span>
-                                Matrículas por Tipo de Aluno
-                            </h3>
-                            <div class="flex flex-wrap items-center gap-2">
-                                <div id="stu-filter-badge" class="text-[10px] text-primary bg-primary/10 px-2.5 py-1 rounded-full border border-primary/20 hidden"></div>
-                                <select id="students-ciclo" onchange="applyCicloFilter()" class="input-glass px-3 py-1.5 text-xs rounded-lg">
-                                    <option value="">Todos os ciclos</option>
-                                </select>
-                                <select id="students-nivel" onchange="loadStudentMetrics(); _loadInadimplenciaCard()" class="input-glass px-3 py-1.5 text-xs rounded-lg">
-                                    <option value="">Todos os Níveis</option>
-                                    <option value="Graduação">Graduação</option>
-                                    <option value="Pós-Graduação">Pós-Graduação</option>
-                                </select>
-                                <button onclick="clearStudentFilter()" class="text-[10px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700/30 hover:border-slate-300 dark:hover:border-slate-600/50 transition-colors">Limpar</button>
-                                <button onclick="document.getElementById('stu-filters-extra').classList.toggle('hidden')" class="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 hover:border-slate-300 dark:hover:border-slate-600 transition-colors">
-                                    <span class="material-symbols-outlined text-sm">tune</span>
-                                    Filtros
-                                </button>
+                <!-- ═══ FONTE DE DADOS ═══ -->
+                <div class="glass-card overflow-hidden mb-6 p-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-[#00346f]/10 dark:bg-cyan-500/15 flex items-center justify-center">
+                                <span class="material-symbols-outlined text-base text-[#00346f] dark:text-cyan-400">database</span>
+                            </div>
+                            <div>
+                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider leading-none">Fonte de dados</p>
+                                <p class="text-xs font-medium text-slate-900 dark:text-white mt-1" id="dash-snap-info">Carregando...</p>
                             </div>
                         </div>
+                        <div id="dash-process-status" class="flex items-center gap-2 text-xs text-slate-500">
+                            <span class="green-dot"></span> Conectado
+                        </div>
+                    </div>
+                </div>
 
-                        <!-- Filtros extras -->
-                        <div id="stu-filters-extra" class="hidden mb-6 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/20 flex flex-wrap items-center gap-4">
+                <!-- ═══ FILTROS + KPIs TIPO ═══ -->
+                <div class="glass-card overflow-hidden mb-6">
+                    <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-700/20 flex flex-wrap items-center justify-between gap-4">
+                        <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display flex items-center gap-2">
+                            <span class="material-symbols-outlined text-base text-violet-500 dark:text-violet-400">groups</span>
+                            Matrículas por Tipo de Aluno
+                        </h3>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <div id="stu-filter-badge" class="text-[10px] text-primary bg-primary/10 px-2.5 py-1 rounded-full border border-primary/20 hidden"></div>
+                            <select id="students-ciclo" onchange="applyDashboardFilters()" class="input-glass px-3 py-1.5 text-xs rounded-lg">
+                                <option value="">Todos os ciclos</option>
+                            </select>
+                            <select id="students-nivel" onchange="applyDashboardFilters()" class="input-glass px-3 py-1.5 text-xs rounded-lg">
+                                <option value="">Todos os Níveis</option>
+                                <option value="Graduação">Graduação</option>
+                                <option value="Pós-Graduação">Pós-Graduação</option>
+                            </select>
+                            <button onclick="clearStudentFilter()" class="text-[10px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700/30 hover:border-slate-300 dark:hover:border-slate-600/50 transition-colors">Limpar</button>
+                            <button onclick="document.getElementById('stu-filters-extra').classList.toggle('hidden')" class="text-xs text-slate-600 dark:text-slate-400 hover:text-[#00346f] dark:hover:text-white border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1">
+                                <span class="material-symbols-outlined text-sm">tune</span>
+                                Filtros
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="p-5">
+                        <div id="stu-filters-extra" class="hidden mb-5 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/20 flex flex-wrap items-center gap-4">
                             <div id="stu-filters" class="contents">
                                 <div class="flex flex-col gap-1">
                                     <label class="text-[10px] text-slate-400 font-bold uppercase">Situação</label>
-                                    <select id="students-situacao" onchange="loadStudentMetrics()" class="input-glass px-2.5 py-1 text-xs rounded-lg">
+                                    <select id="students-situacao" onchange="applyDashboardFilters()" class="input-glass px-2.5 py-1 text-xs rounded-lg">
                                         <option value="">Todas</option>
                                         <option value="Em Curso">Em Curso</option>
                                         <option value="Cancelado">Cancelado</option>
@@ -197,59 +233,93 @@
                                     <label class="text-[10px] text-slate-400 font-bold uppercase">Até</label>
                                     <input type="date" id="students-to" class="input-glass px-2.5 py-1 text-xs rounded-lg">
                                 </div>
-                                <button type="button" onclick="loadStudentMetrics()" class="btn-primary px-4 py-2 mt-auto text-xs rounded-lg">Aplicar</button>
+                                <button type="button" onclick="applyDashboardFilters()" class="btn-primary px-4 py-2 mt-auto text-xs rounded-lg">Aplicar</button>
                             </div>
                         </div>
 
-                        <!-- Filtro ativo -->
                         <div id="stu-active-filter-bar" class="hidden mb-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
                             <span class="material-symbols-outlined text-sm text-primary">filter_alt</span>
                             <span id="stu-active-filter-text" class="text-xs text-primary font-medium"></span>
                             <button onclick="_stuClearTipoSitFilter()" class="ml-auto text-[10px] text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700/30 hover:border-primary px-2 py-0.5 rounded transition-all">Limpar</button>
                         </div>
 
-                        <!-- Big numbers (JS) -->
-                        <div id="stu-tipo-cards" class="mb-6"></div>
+                        <div id="stu-tipo-cards" class="mb-2"></div>
+                    </div>
+                </div>
 
-                        <!-- Situação cards (JS) -->
-                        <div class="mb-6">
-                            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                <span class="material-symbols-outlined text-sm text-slate-400">check_circle</span>
-                                Matrículas por Situação
-                            </h4>
-                            <div id="stu-by-situacao" class="grid grid-cols-2 lg:grid-cols-4 gap-4 text-[13px]">—</div>
+                <!-- ═══ SITUAÇÃO ═══ -->
+                <div class="glass-card overflow-hidden mb-6">
+                    <div class="px-5 py-3 border-b border-slate-200 dark:border-slate-700/20">
+                        <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display flex items-center gap-2">
+                            <span class="material-symbols-outlined text-base text-emerald-500 dark:text-emerald-400">check_circle</span>
+                            Matrículas por Situação
+                        </h3>
+                    </div>
+                    <div class="p-5">
+                        <div id="stu-by-situacao" class="grid grid-cols-2 lg:grid-cols-4 gap-4 text-[13px]">—</div>
+                    </div>
+                </div>
+
+                <!-- ═══ SAÚDE FINANCEIRA ═══ -->
+                <div id="dash-inadimplencia-card" class="glass-card overflow-hidden mb-6 hidden">
+                    <div class="px-5 py-3 border-b border-slate-200 dark:border-slate-700/20 flex items-center gap-2">
+                        <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display flex items-center gap-2">
+                            <span class="material-symbols-outlined text-base text-teal-500 dark:text-teal-400">account_balance_wallet</span>
+                            Saúde Financeira
+                        </h3>
+                        <span id="dash-inad-date" class="text-[10px] text-slate-500 font-mono ml-auto"></span>
+                    </div>
+                    <div class="p-5">
+                        <div id="dash-inad-cards" class="grid grid-cols-2 lg:grid-cols-4 gap-4"></div>
+                    </div>
+                </div>
+
+                <!-- ═══ POLO + NÍVEL (lado a lado, estilo Comercial) ═══ -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 items-start">
+                    <div class="glass-card overflow-hidden self-start w-full">
+                        <div class="px-5 py-3 border-b border-slate-200 dark:border-slate-700/20">
+                            <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display flex items-center gap-2">
+                                <span class="material-symbols-outlined text-base text-cyan-500 dark:text-cyan-400">location_on</span>
+                                Matrículas por Polo
+                            </h3>
                         </div>
-
-                        <!-- Saúde Financeira (JS) -->
-                        <div id="dash-inadimplencia-card" class="hidden mb-6">
-                            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                <span class="material-symbols-outlined text-sm text-teal-500 dark:text-teal-400">account_balance_wallet</span>
-                                Saúde Financeira
-                                <span id="dash-inad-date" class="text-[10px] text-slate-500 font-mono font-normal ml-auto"></span>
-                            </h4>
-                            <div id="dash-inad-cards" class="grid grid-cols-2 lg:grid-cols-4 gap-4"></div>
-                        </div>
-
-                        <!-- Breakdowns -->
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <div>
-                                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Distribuição por Polo</h4>
-                                <div id="stu-by-polo" class="space-y-3">—</div>
-                            </div>
-                            <div>
-                                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Por Nível</h4>
-                                <div id="stu-by-nivel" class="space-y-2">—</div>
-                            </div>
+                        <div class="overflow-x-auto max-h-[400px] overflow-y-auto">
+                            <table class="w-full text-sm">
+                                <thead class="sticky top-0 z-10">
+                                    <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-700/20 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur">
+                                        <th class="text-center px-3 py-3 w-10">#</th>
+                                        <th class="text-left px-4 py-3">Polo</th>
+                                        <th class="text-right px-4 py-3">Total</th>
+                                        <th class="text-left px-4 py-3 w-48">Proporção</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="stu-by-polo" class="divide-y divide-slate-200 dark:divide-slate-700/10">
+                                    <tr><td colspan="4" class="px-5 py-6 text-center text-slate-500">—</td></tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
+                    <div class="glass-card overflow-hidden self-start w-full">
+                        <div class="px-5 py-3 border-b border-slate-200 dark:border-slate-700/20">
+                            <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display flex items-center gap-2">
+                                <span class="material-symbols-outlined text-base text-indigo-500 dark:text-indigo-400">school</span>
+                                Por Nível
+                            </h3>
+                        </div>
+                        <div id="stu-by-nivel" class="divide-y divide-slate-200 dark:divide-slate-700/10">
+                            <p class="px-4 py-6 text-center text-slate-500 text-xs">—</p>
+                        </div>
+                    </div>
+                </div>
 
-                    <!-- Detalhamento -->
+                <!-- ═══ DETALHES (Turma / Ciclo) ═══ -->
+                <div class="glass-card overflow-hidden mb-6">
                     <button onclick="document.getElementById('stu-detail').classList.toggle('hidden');this.querySelector('.chevron-icon').classList.toggle('rotate-180')"
-                            class="w-full py-4 bg-slate-50 dark:bg-slate-800/20 hover:bg-slate-100 dark:hover:bg-slate-800/40 transition-all border-t border-slate-200 dark:border-slate-700/50 text-xs font-bold text-slate-500 flex items-center justify-center gap-2">
+                            class="w-full px-5 py-4 hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-all text-xs font-bold text-slate-500 flex items-center justify-center gap-2">
                         Mais detalhes (Turma, Ciclo)
                         <span class="material-symbols-outlined text-sm transition-transform chevron-icon">expand_more</span>
                     </button>
-                    <div id="stu-detail" class="hidden p-6 border-t border-slate-200 dark:border-slate-700/50">
+                    <div id="stu-detail" class="hidden border-t border-slate-200 dark:border-slate-700/20 p-5">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div class="rounded-xl p-4 bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/20">
                                 <h5 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Por Turma</h5>
@@ -263,107 +333,91 @@
                     </div>
                 </div>
 
-                <!-- ═══ SNAPSHOT INFO ═══ -->
-                <div class="bg-white dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm p-4 mb-6">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                                <span class="material-symbols-outlined text-base text-primary">database</span>
-                            </div>
-                            <div>
-                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider leading-none">Fonte de dados</p>
-                                <p class="text-xs font-medium text-slate-900 dark:text-white mt-1" id="dash-snap-info">Carregando...</p>
-                            </div>
-                        </div>
-                        <div id="dash-process-status" class="flex items-center gap-2 text-xs text-slate-500">
-                            <span class="green-dot"></span> Conectado
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ═══ EVOLUÇÃO DE MATRÍCULAS (Timeline) ═══ -->
-                <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm overflow-hidden mb-8">
-                    <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-700/50 flex flex-wrap items-center justify-between gap-4">
-                        <h3 class="text-lg font-bold text-slate-900 dark:text-white font-display flex items-center gap-2">
-                            <span class="material-symbols-outlined text-primary">show_chart</span>
+                <!-- ═══ EVOLUÇÃO DE MATRÍCULAS ═══ -->
+                <div class="glass-card overflow-hidden mb-6">
+                    <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-700/20 flex flex-wrap items-center justify-between gap-4">
+                        <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display flex items-center gap-2">
+                            <span class="material-symbols-outlined text-base text-primary">show_chart</span>
                             Evolução de Matrículas
                         </h3>
                         <div class="flex items-center gap-2">
-                            <button id="tl-drillup" onclick="timelineDrillUp()" class="hidden text-[10px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 flex items-center gap-1 transition-colors px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700/30 hover:border-slate-300 dark:hover:border-slate-600/50">
+                            <button id="tl-drillup" onclick="timelineDrillUp()" class="hidden text-[10px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 flex items-center gap-1 transition-colors px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700/30">
                                 <span class="material-symbols-outlined text-sm">arrow_back</span> Voltar
                             </button>
-                            <select id="tl-nivel" onchange="loadTimeline()" class="input-glass px-3 py-1.5 text-xs rounded-lg">
+                            <div id="tl-filter-badge" class="text-[10px] text-primary bg-primary/10 px-2.5 py-1 rounded-full border border-primary/20 hidden"></div>
+                            <select id="tl-nivel" class="hidden" aria-hidden="true" tabindex="-1">
                                 <option value="">Todos os Níveis</option>
                                 <option value="Graduação">Graduação</option>
                                 <option value="Pós-Graduação">Pós-Graduação</option>
                             </select>
-                            <button id="tl-mode-btn" onclick="toggleTlMode()" class="bg-slate-50 dark:bg-slate-800/40 text-slate-600 dark:text-slate-400 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/40 transition-all">
+                            <button id="tl-mode-btn" onclick="toggleTlMode()" class="text-xs text-slate-600 dark:text-slate-400 hover:text-[#00346f] dark:hover:text-white border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg transition-all">
                                 Ver Detalhado
                             </button>
                             <span id="tl-period-label" class="text-[10px] text-slate-500 font-mono"></span>
                         </div>
                     </div>
-                    <div class="p-6">
+                    <div class="p-5">
                         <div class="flex flex-wrap items-center gap-6 mb-6" id="tl-legend">
                             <div class="flex items-center gap-2">
                                 <span class="w-3 h-3 rounded-full bg-indigo-500"></span>
                                 <span class="text-xs font-medium text-slate-500 dark:text-slate-400" id="tl-novos-label">Calouros</span>
-                                <span class="text-sm font-bold text-slate-900 dark:text-white font-mono" id="tl-novos-total">—</span>
+                                <span class="text-sm font-bold text-[#00346f] dark:text-white font-mono" id="tl-novos-total">—</span>
                             </div>
                             <div class="flex items-center gap-2">
                                 <span class="w-3 h-3 rounded-full bg-emerald-400"></span>
                                 <span class="text-xs font-medium text-slate-500 dark:text-slate-400" id="tl-remat-label">Rematrículas</span>
-                                <span class="text-sm font-bold text-slate-900 dark:text-white font-mono" id="tl-remat-total">—</span>
+                                <span class="text-sm font-bold text-[#00346f] dark:text-white font-mono" id="tl-remat-total">—</span>
                             </div>
                             <div id="tl-leg-regresso" class="flex items-center gap-2">
                                 <span class="w-3 h-3 rounded-full bg-amber-400"></span>
                                 <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Regresso</span>
-                                <span class="text-sm font-bold text-slate-900 dark:text-white font-mono" id="tl-regresso-total">—</span>
+                                <span class="text-sm font-bold text-[#00346f] dark:text-white font-mono" id="tl-regresso-total">—</span>
                             </div>
                             <div id="tl-leg-recompra" class="flex items-center gap-2">
                                 <span class="w-3 h-3 rounded-full bg-cyan-400"></span>
                                 <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Recompra</span>
-                                <span class="text-sm font-bold text-slate-900 dark:text-white font-mono" id="tl-recompra-total">—</span>
+                                <span class="text-sm font-bold text-[#00346f] dark:text-white font-mono" id="tl-recompra-total">—</span>
                             </div>
                             <div class="flex items-center gap-2">
                                 <span class="w-3 h-3 rounded-full bg-violet-400"></span>
                                 <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Total</span>
-                                <span class="text-sm font-bold text-slate-900 dark:text-white font-mono" id="tl-total-total">—</span>
+                                <span class="text-sm font-bold text-[#00346f] dark:text-white font-mono" id="tl-total-total">—</span>
                             </div>
                         </div>
-                        <div class="h-[300px] w-full bg-slate-50 dark:bg-slate-800/20 rounded-xl p-2">
+                        <div class="rounded-xl p-3 bg-slate-100 border border-slate-200 dark:bg-slate-800/20 dark:border-slate-700/20 h-[300px]">
                             <canvas id="chart-geral"></canvas>
                         </div>
                     </div>
                 </div>
 
                 <!-- ═══ COMPARAÇÃO DE CICLOS ═══ -->
-                <div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm p-6 mb-8" id="ciclo-master-panel">
-                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
-                        <h3 class="text-lg font-bold text-slate-900 dark:text-white font-display flex items-center gap-2">
-                            <span class="material-symbols-outlined text-cyan-500 dark:text-cyan-400">compare_arrows</span>
+                <div class="glass-card overflow-hidden mb-6" id="ciclo-master-panel">
+                    <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-700/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display flex items-center gap-2">
+                            <span class="material-symbols-outlined text-base text-cyan-500 dark:text-cyan-400">compare_arrows</span>
                             Comparação de Ciclos
                         </h3>
-                        <select id="ciclo-filter-nivel" onchange="loadCicloMaster()" class="input-glass px-3 py-1.5 text-xs rounded-lg">
+                        <select id="ciclo-filter-nivel" onchange="document.getElementById('students-nivel').value=this.value; applyDashboardFilters()" class="input-glass px-3 py-1.5 text-xs rounded-lg hidden" aria-hidden="true" tabindex="-1">
                             <option value="">Todos os Níveis</option>
                             <option value="Graduação">Graduação</option>
                             <option value="Pós-Graduação">Pós-Graduação</option>
                         </select>
                     </div>
-
-                    <div id="ciclo-master-loading" class="text-sm text-slate-400 dark:text-slate-500 py-12 text-center">
-                        <div class="animate-pulse flex flex-col items-center gap-2">
-                            <span class="material-symbols-outlined text-4xl">sync</span>
-                            Carregando dados comparativos...
+                    <div class="p-5">
+                        <div id="ciclo-master-loading" class="text-sm text-slate-400 dark:text-slate-500 py-12 text-center">
+                            <div class="animate-pulse flex flex-col items-center gap-2">
+                                <span class="material-symbols-outlined text-4xl">sync</span>
+                                Carregando dados comparativos...
+                            </div>
                         </div>
-                    </div>
-                    <div id="ciclo-master-empty" class="hidden text-sm text-slate-500 py-4 text-center">
-                        Nenhum ciclo configurado. <a href="#config" onclick="navigate('config')" class="text-primary hover:underline">Configure ciclos</a>.
-                    </div>
-                    <div id="ciclo-master-content" class="hidden">
-                        <div id="ciclo-temporal-cards" class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6"></div>
-                        <div id="ciclo-cards" class="space-y-4"></div>
-                        <div id="ciclo-diag" class="mt-2 text-[10px] text-slate-500"></div>
+                        <div id="ciclo-master-empty" class="hidden text-sm text-slate-500 py-4 text-center">
+                            Nenhum ciclo configurado. <a href="#config" onclick="navigate('config')" class="text-primary hover:underline">Configure ciclos</a>.
+                        </div>
+                        <div id="ciclo-master-content" class="hidden">
+                            <div id="ciclo-temporal-cards" class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6"></div>
+                            <div id="ciclo-cards" class="space-y-4"></div>
+                            <div id="ciclo-diag" class="mt-2 text-[10px] text-slate-500"></div>
+                        </div>
                     </div>
                 </div>
 

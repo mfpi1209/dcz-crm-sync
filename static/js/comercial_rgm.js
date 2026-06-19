@@ -177,6 +177,11 @@ async function crgmAtualizar() {
     const turmaId = turmaSelEl ? turmaSelEl.value : '';
     const turmaObj = _crgmTurmasData.find(t => t.id === parseInt(turmaId));
     if (turmaObj) qs.set('turma', turmaObj.nome);
+    qs.set('no_cache', '1');
+
+    // Limpar cross-filter de data/consultor ao atualizar — evita ranking preso em count bruto do dia
+    _crgmCrossFilter.userId = null;
+    _crgmCrossFilter.date = null;
 
     _crgmLoading(true);
     _crgmErro('');
@@ -362,17 +367,46 @@ const _EVASAO_COLORS = {
     'TRANCADO':    'bg-amber-100 dark:bg-amber-500/20 text-amber-900 dark:text-amber-300',
     'TRANSFERIDO': 'bg-violet-100 dark:bg-purple-500/20 text-violet-900 dark:text-purple-300',
 };
-function _crgmRenderEvasao(evasao) {
+
+/** Resumo a partir de evasao_grid (vem em /data/kpis, mais rápido que /data/grids). */
+function _crgmEvasaoFromGrid(grid) {
+    if (!grid?.length) return null;
+    const por_tipo = {};
+    let total = 0;
+    for (const r of grid) {
+        const t = r.tipo || 'OUTROS';
+        por_tipo[t] = (por_tipo[t] || 0) + (r.count || 0);
+        total += r.count || 0;
+    }
+    if (!total) return null;
+    return { total, por_tipo, por_agente: [], itens: [] };
+}
+
+/** Preferência: evasão completa (grids) → resumo do KPI → null. */
+function _crgmResolveEvasao(payload, date) {
+    if (date) {
+        return _crgmDeriveEvasaoDia(payload.evasao, payload.evasao_grid || [], date);
+    }
+    if (payload.evasao?.total) return payload.evasao;
+    return _crgmEvasaoFromGrid(payload.evasao_grid);
+}
+
+function _crgmRenderEvasao(evasao, opts = {}) {
     const panel = document.getElementById('crgm-evasao-panel');
     if (!panel) return;
-    if (!evasao || evasao.total === 0) { panel.classList.add('hidden'); return; }
+    const gridsLoading = panel.dataset.crgmLoading === '1';
+    if (!evasao || evasao.total === 0) {
+        if (gridsLoading) return;
+        panel.classList.add('hidden');
+        return;
+    }
     panel.classList.remove('hidden');
     document.getElementById('crgm-evasao-total').textContent = evasao.total.toLocaleString('pt-BR');
 
     // Tags por tipo
     const tiposEl = document.getElementById('crgm-evasao-tipos');
     tiposEl.innerHTML = '';
-    for (const [tipo, qtd] of Object.entries(evasao.por_tipo)) {
+    for (const [tipo, qtd] of Object.entries(evasao.por_tipo || {})) {
         const cls = _EVASAO_COLORS[tipo] || 'bg-slate-500/20 text-slate-700 dark:text-slate-300';
         tiposEl.insertAdjacentHTML('beforeend',
             `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${cls}">${tipo.charAt(0)+tipo.slice(1).toLowerCase()}: ${qtd}</span>`);
@@ -381,6 +415,15 @@ function _crgmRenderEvasao(evasao) {
     // Lista por agente
     const agEl = document.getElementById('crgm-evasao-agentes');
     agEl.innerHTML = '';
+    const pendingAgents = opts.pendingAgents || (!evasao.por_agente?.length && gridsLoading);
+    if (pendingAgents) {
+        agEl.innerHTML = '<div class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">Carregando lista por agente…</div>';
+        return;
+    }
+    if (!(evasao.por_agente || []).length) {
+        agEl.innerHTML = '<div class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">Detalhes por agente indisponíveis.</div>';
+        return;
+    }
     (evasao.por_agente || []).forEach(ag => {
         agEl.insertAdjacentHTML('beforeend', `
             <details class="group">
@@ -530,7 +573,7 @@ function _crgmRenderEvolucao(evolucao, evolucaoPrev, evolucaoBruto) {
             // Matrículas do dia para este consultor
             const matGrid = _crgmLastData?.matriculas_grid || [];
             const matDia = matGrid.filter(g => g.data === dataIso && g.user_id === filteredUserId)
-                .reduce((s, g) => s + (g.count || 0), 0);
+                .reduce((s, g) => s + _crgmGridCountLiquido(g), 0);
             lines.push(`Matrículas: ${matDia}`);
             // Leads do dia para este consultor
             const leadsGrid = _crgmLastData?.leads_grid || [];
@@ -582,13 +625,17 @@ function _crgmRenderEvolucao(evolucao, evolucaoPrev, evolucaoBruto) {
 function _crgmRenderPoloTable(ranking) {
     const tbody = document.getElementById('crgm-polo-body');
     if (!ranking || !ranking.length) { tbody.innerHTML = '<tr><td colspan="4" class="px-5 py-6 text-center text-slate-600">Sem dados</td></tr>'; return; }
-    const max = Math.max(...ranking.map(r => r.total));
-    tbody.innerHTML = ranking.map((r, i) =>
+    const merged = (typeof mergePoloBreakdown === 'function')
+        ? Object.entries(mergePoloBreakdown(Object.fromEntries(ranking.map(r => [r.nome, r.total]))))
+        : ranking.map(r => [r.nome, r.total]);
+    const sorted = merged.sort((a, b) => b[1] - a[1]);
+    const max = Math.max(...sorted.map(([, t]) => t));
+    tbody.innerHTML = sorted.map(([nome, total], i) =>
         `<tr class="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors">
             <td class="text-center px-3 py-2 text-slate-500 font-medium text-xs">${i+1}</td>
-            <td class="px-4 py-2 text-slate-700 dark:text-slate-300 text-xs truncate max-w-[200px]">${esc(r.nome)}</td>
-            <td class="px-4 py-2 text-right font-mono text-[#00346f] dark:text-white font-semibold text-xs">${r.total.toLocaleString('pt-BR')}</td>
-            <td class="px-4 py-2"><div class="h-3 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-500" style="width:${Math.round(r.total/max*100)}%"></div></div></td>
+            <td class="px-4 py-2 text-slate-700 dark:text-slate-300 text-xs truncate max-w-[200px]">${esc(nome)}</td>
+            <td class="px-4 py-2 text-right font-mono text-[#00346f] dark:text-white font-semibold text-xs">${total.toLocaleString('pt-BR')}</td>
+            <td class="px-4 py-2"><div class="h-3 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-500" style="width:${Math.round(total/max*100)}%"></div></div></td>
         </tr>`
     ).join('');
 }
@@ -1005,7 +1052,12 @@ function _crgmDetalheOpen(userId, dtIni, dtFim, qs, data, err) {
         modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4';
         document.body.appendChild(modal);
     }
-    const titulo = data ? `${data.total} matrícula(s)` : (err ? 'Erro' : 'Carregando...');
+    const _crgmTotalContando = data ? (data.total_contando ?? data.total_contavel ?? data.total) : 0;
+    const titulo = data
+        ? (_crgmTotalContando < data.total
+            ? `${_crgmTotalContando} venda(s) · ${data.total} matrícula(s)`
+            : `${data.total} matrícula(s)`)
+        : (err ? 'Erro' : 'Carregando...');
     const csvUrl = `/api/comercial-rgm/agente-detalhe?${qs}&fmt=csv`;
 
     function tipoBadge(tipo) {
@@ -1017,6 +1069,8 @@ function _crgmDetalheOpen(userId, dtIni, dtFim, qs, data, err) {
         return `<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-600/40 text-slate-400">${esc(tipo)}</span>`;
     }
 
+    const _crgmIsAdmin = document.body?.dataset?.role === 'admin';
+
     let corpo = '';
     if (err) {
         corpo = `<p class="text-red-400 text-sm">${esc(err)}</p>`;
@@ -1024,16 +1078,20 @@ function _crgmDetalheOpen(userId, dtIni, dtFim, qs, data, err) {
         corpo = `<p class="text-slate-400 text-sm animate-pulse">Buscando...</p>`;
     } else {
         // Resumo: total vs outliers (por prefixo de RGM)
-        let outliers = 0;
-        (data.itens || []).forEach(r => { if (r.outlier) outliers++; });
+        let outliers = 0, naoContando = 0;
+        (data.itens || []).forEach(r => { if (r.outlier) { outliers++; if (r.conta_para_meta === false) naoContando++; } });
+        const totalContavel = data.total_contando ?? data.total_contavel ?? data.total;
         const outlierBadge = outliers > 0
-            ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-500/20 text-orange-300 border border-orange-500/30" title="RGMs com prefixo abaixo do padrão do ciclo atual">⚠ ${outliers} RGM${outliers>1?'s':''} fora do padrão</span>`
+            ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-500/20 text-orange-300 border border-orange-500/30" title="RGMs com prefixo abaixo do padrão do ciclo atual">⚠ ${outliers} RGM${outliers>1?'s':''} fora do padrão${naoContando ? ` (${naoContando} não conta${naoContando>1?'m':''})` : ''}</span>`
             : `<span class="text-[10px] text-slate-500">Todos os RGMs dentro do padrão do ciclo</span>`;
+        const totalLabel = (totalContavel !== data.total)
+            ? `<span class="text-emerald-600 dark:text-emerald-400 font-bold">${totalContavel} vendas</span> <span class="text-slate-500">· ${data.total} matrículas listadas</span>`
+            : `<span class="text-[var(--text-primary)] font-semibold">${data.total}</span>`;
 
         corpo = `
         <div class="mb-3 flex items-center justify-between gap-3 flex-wrap">
             <div class="flex items-center gap-2 flex-wrap text-xs">
-                <span class="text-slate-600 dark:text-slate-400">Total: <span class="text-[var(--text-primary)] font-semibold">${data.total}</span></span>
+                <span class="text-slate-600 dark:text-slate-400">Total: ${totalLabel}</span>
                 <span class="text-slate-400 dark:text-slate-600">·</span>
                 ${outlierBadge}
             </div>
@@ -1054,6 +1112,7 @@ function _crgmDetalheOpen(userId, dtIni, dtFim, qs, data, err) {
                     <th class="px-3 py-2 text-left">Nível</th>
                     <th class="px-3 py-2 text-left">Data Matrícula</th>
                     <th class="px-3 py-2 text-left">Curso</th>
+                    <th class="px-3 py-2 text-left">Contagem</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-200 dark:divide-slate-700/30">
@@ -1062,6 +1121,16 @@ function _crgmDetalheOpen(userId, dtIni, dtFim, qs, data, err) {
                     const rgmTag = r.outlier
                         ? `<span class="font-mono text-orange-700 dark:text-orange-300" title="RGM fora do padrão do ciclo">${esc(r.rgm)} ⚠</span>`
                         : `<span class="font-mono text-slate-700 dark:text-slate-300">${esc(r.rgm)}</span>`;
+                    let contagemCell = '';
+                    if (!r.outlier) {
+                        contagemCell = '<span class="text-slate-400">—</span>';
+                    } else if (!r.conta_para_meta) {
+                        contagemCell = _crgmIsAdmin
+                            ? `<button onclick="_crgmOutlierContarVenda(${JSON.stringify(r.rgm)}, true, ${JSON.stringify(qs)})" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-orange-500/20 text-orange-300 border border-orange-500/40 hover:bg-orange-500/40 transition-colors cursor-pointer">Contar venda</button>`
+                            : `<span class="text-[10px] text-orange-400/70">Não conta</span>`;
+                    } else {
+                        contagemCell = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">✓ Contando</span>${_crgmIsAdmin ? ` <button onclick="_crgmOutlierContarVenda(${JSON.stringify(r.rgm)}, false, ${JSON.stringify(qs)})" class="ml-1 text-[10px] text-slate-500 hover:text-red-400 underline cursor-pointer">Desfazer</button>` : ''}`;
+                    }
                     return `
                     <tr class="${rowCls}">
                         <td class="px-3 py-2">${rgmTag}</td>
@@ -1073,6 +1142,7 @@ function _crgmDetalheOpen(userId, dtIni, dtFim, qs, data, err) {
                         <td class="px-3 py-2 text-slate-600 dark:text-slate-400">${esc(r.nivel)}</td>
                         <td class="px-3 py-2 font-mono text-blue-700 dark:text-blue-300">${esc(r.data_matricula)}</td>
                         <td class="px-3 py-2 text-slate-700 dark:text-slate-300 max-w-[200px] truncate" title="${esc(r.turma)}">${esc(r.turma)}</td>
+                        <td class="px-3 py-2">${contagemCell}</td>
                     </tr>`;
                 }).join('')}
             </tbody>
@@ -1095,6 +1165,44 @@ function _crgmDetalheOpen(userId, dtIni, dtFim, qs, data, err) {
         </div>
         <div class="p-5 overflow-auto flex-1">${corpo}</div>
     </div>`;
+}
+
+async function _crgmOutlierContarVenda(rgm, contar, qs) {
+    try {
+        const method = contar ? 'POST' : 'DELETE';
+        const res = await api('/api/comercial-rgm/outlier/contar-venda', {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rgm }),
+        });
+        const d = await res.json();
+        if (!d.ok) { alert(d.error || 'Erro ao atualizar contagem'); return; }
+        // Recarregar detalhe
+        const modal = document.getElementById('crgm-detalhe-modal');
+        if (modal) modal.remove();
+        const params = Object.fromEntries(new URLSearchParams(qs));
+        const userId = parseInt(params.user_id) || -1;
+        const dtIni = params.dt_ini || '';
+        const dtFim = params.dt_fim || '';
+        // Re-fetch and re-open
+        const newQs = new URLSearchParams(params).toString();
+        _crgmDetalheOpen(userId, dtIni, dtFim, newQs, null);
+        try {
+            const r2 = await api(`/api/comercial-rgm/agente-detalhe?${newQs}`);
+            const d2 = await r2.json();
+            if (d2.ok) {
+                _crgmDetalheOpen(userId, dtIni, dtFim, newQs, d2);
+            } else {
+                _crgmDetalheOpen(userId, dtIni, dtFim, newQs, null, d2.error);
+            }
+        } catch(e2) {
+            _crgmDetalheOpen(userId, dtIni, dtFim, newQs, null, e2.message);
+        }
+        // Atualizar dados gerais do dashboard se possível
+        if (typeof loadComercialRgm === 'function') loadComercialRgm();
+    } catch(e) {
+        alert('Erro de rede ao atualizar contagem');
+    }
 }
 
 function _crgmRenderTransferencia(tr) {
@@ -1269,11 +1377,15 @@ window._crgmCrossClearUser = _crgmCrossClearUser;
 window._crgmCrossClearDate = _crgmCrossClearDate;
 window._crgmCrossClearAll  = _crgmCrossClearAll;
 
+function _crgmGridCountLiquido(g) {
+    return (g && g.count_liquido != null ? g.count_liquido : g?.count) || 0;
+}
+
 function _crgmDeriveEvolucaoPorUser(grid, userId, evolBase) {
     const porData = new Map();
     for (const g of grid) {
         if (g.user_id !== userId) continue;
-        porData.set(g.data, (porData.get(g.data) || 0) + (g.count || 0));
+        porData.set(g.data, (porData.get(g.data) || 0) + _crgmGridCountLiquido(g));
     }
     return (evolBase || []).map(e => ({ data: e.data, count: porData.get(e.data) || 0 }));
 }
@@ -1345,7 +1457,8 @@ function _crgmDeriveRanking(rankingBase, payload, atividade, date) {
     const matDia = new Map();
     for (const g of grid) {
         if (g.data !== date) continue;
-        matDia.set(g.user_id, (matDia.get(g.user_id) || 0) + (g.count || 0));
+        const n = _crgmGridCountLiquido(g);
+        matDia.set(g.user_id, (matDia.get(g.user_id) || 0) + n);
     }
     const leadsDia = new Map();
     for (const l of leadsGrid) {
@@ -1422,11 +1535,13 @@ function _crgmCrossRerenderAll() {
     const kpis = date ? _crgmDeriveKPIsDia(d.kpis, d, date) : d.kpis;
     _crgmRenderKPIs(kpis);
 
-    // Grupo 6 — Evasão
-    const evasao = date
-        ? _crgmDeriveEvasaoDia(d.evasao, d.evasao_grid || [], date)
-        : d.evasao;
-    _crgmRenderEvasao(evasao);
+    // Grupo 6 — Evasão (KPIs traz evasao_grid cedo; grids traz lista por agente)
+    const evasao = _crgmResolveEvasao(d, date);
+    const panel = document.getElementById('crgm-evasao-panel');
+    const gridsLoading = panel?.dataset.crgmLoading === '1';
+    _crgmRenderEvasao(evasao, {
+        pendingAgents: gridsLoading && evasao?.total && !(d.evasao?.por_agente?.length),
+    });
 
     // Evolução (gráfico Matrículas por Dia)
     const evolBase = d.evolucao_bruto || d.evolucao || [];
@@ -1468,13 +1583,20 @@ async function _crgmLoadCiclos() {
     } catch (e) { console.error('load ciclos', e); }
 }
 
+function _crgmNormalizePeriodInputs(dtIni, dtFim) {
+    if (!dtIni || !dtFim || dtIni <= dtFim) return { dtIni, dtFim };
+    console.warn('[CRGM] intervalo invertido no ciclo — trocando DE/ATÉ:', dtIni, dtFim);
+    return { dtIni: dtFim, dtFim: dtIni };
+}
+
 function crgmCicloChanged() {
     const sel = document.getElementById('crgm-ciclo');
     const id = parseInt(sel.value);
     const ciclo = _crgmCiclosData.find(c => c.id === id);
     if (ciclo) {
-        document.getElementById('crgm-dt-ini').value = ciclo.dt_inicio;
-        document.getElementById('crgm-dt-fim').value = ciclo.dt_fim;
+        const norm = _crgmNormalizePeriodInputs(ciclo.dt_inicio, ciclo.dt_fim);
+        document.getElementById('crgm-dt-ini').value = norm.dtIni;
+        document.getElementById('crgm-dt-fim').value = norm.dtFim;
     }
     _crgmLoadTurmas(id || null);
     crgmAtualizar();
