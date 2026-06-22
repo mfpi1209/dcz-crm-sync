@@ -941,6 +941,30 @@ def _ensure_premiacao_tables():
     _ensure_pix_faixa_tables()
 
 
+def _ensure_page_views_table():
+    """Tracking de navegação no dashboard."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS page_views (
+                    id        BIGSERIAL PRIMARY KEY,
+                    user_id   INTEGER REFERENCES app_users(id) ON DELETE SET NULL,
+                    username  TEXT,
+                    role      TEXT,
+                    page      TEXT NOT NULL,
+                    ts        TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_page_views_ts   ON page_views (ts)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_page_views_page ON page_views (page)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_page_views_user ON page_views (user_id)")
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure page_views table: %s", e)
+
+
 def _ensure_avisos_tables():
     """Create avisos + aviso_lido tables."""
     try:

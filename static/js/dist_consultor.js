@@ -518,7 +518,24 @@
         }
         document.getElementById("dc-m-consultores").textContent = fmtNumber(s.consultores);
         document.getElementById("dc-m-origens").textContent = fmtNumber(s.origens);
-        document.getElementById("dc-m-media").textContent = s.hasDias ? fmtNumber(s.mediaPorDia.toFixed(1)) : "—";
+        // Media por dia: usa total real do Kommo dividido pelo nro de dias do periodo
+        var mediaTxt = "—";
+        if (noFilters && _totalKommo && typeof _totalKommo.total === 'number') {
+            var ds = (document.getElementById('dc-date-start')?.value || '').trim();
+            var de = (document.getElementById('dc-date-end')?.value   || '').trim();
+            var nDias = 0;
+            if (ds && de) {
+                var d1 = new Date(ds + 'T00:00:00');
+                var d2 = new Date(de + 'T00:00:00');
+                if (!isNaN(d1) && !isNaN(d2) && d2 >= d1) {
+                    nDias = Math.round((d2 - d1) / 86400000) + 1;
+                }
+            }
+            if (nDias > 0) mediaTxt = fmtNumber((_totalKommo.total / nDias).toFixed(1));
+        } else if (s.hasDias) {
+            mediaTxt = fmtNumber(s.mediaPorDia.toFixed(1));
+        }
+        document.getElementById("dc-m-media").textContent = mediaTxt;
 
         // Total matrículas respeita filtros de consultor e origem ativos
         var cf  = document.getElementById("dc-consultor-filter")?.value || "";

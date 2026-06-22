@@ -19,7 +19,7 @@
             {% set _show_comercial = nav_can('dist_consultor') or nav_can('comercial_rgm') or nav_can('dist_comercial') or nav_can('inscricao') or nav_can('recadastros') or nav_can('comercial_dashboard') or nav_can('auditoria_comercial') or nav_can('atualizar_preco') or nav_can('leads_parados') or _show_minha_perf_in_comercial or nav_can('repasse') or nav_can('captacao') or nav_can('clicks') or nav_can('leads_promotores') or nav_can('premiacao_admin') %}
             {% set _show_voc = nav_can('vocacional') %}
             {% set _show_meta = nav_can('meta-campaigns') %}
-            {% set _show_ti = nav_can('ia_comercial') %}
+            {% set _show_ti = is_admin and (nav_can('ia_comercial') or nav_can('page_views')) %}
             {% set _show_sistema = nav_can('pipeline') or nav_can('update') or nav_can('sync') or nav_can('ajustes_matricula') or nav_can('kommo_sync') or nav_can('match_merge') or nav_can('config') or nav_can('schedule') or nav_can('kommo_dispatcher') or nav_can('logs') %}
             <div class="space-y-1">
                 {% if (nav_is_comercial or nav_is_suporte_comercial) and nav_can('minha_performance') %}
@@ -360,6 +360,12 @@
                     <a href="#ia_comercial" onclick="navigate('ia_comercial')" class="sidebar-link sidebar-sub" data-page="ia_comercial">
                         <span class="material-symbols-outlined text-base">smart_toy</span>
                         IA Comercial
+                    </a>
+                    {% endif %}
+                    {% if nav_can('page_views') %}
+                    <a href="#page_views" onclick="navigate('page_views')" class="sidebar-link sidebar-sub" data-page="page_views">
+                        <span class="material-symbols-outlined text-base">insights</span>
+                        Uso do Dashboard
                     </a>
                     {% endif %}
                 </div>

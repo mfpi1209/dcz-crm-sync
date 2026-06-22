@@ -1,0 +1,102 @@
+<div id="page-page_views" class="hidden flex-1 flex flex-col min-w-0">
+
+    <header class="glass-card border border-[var(--border)] rounded-2xl px-4 lg:px-8 py-6 mx-4 lg:mx-8 mt-4 mb-6">
+        <div class="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+                <h2 class="text-2xl font-black text-[var(--text-primary)] dark:text-white">Uso do Dashboard</h2>
+                <p class="text-xs text-slate-600 dark:text-slate-500 mt-1 uppercase tracking-widest">Páginas acessadas no período · admin only</p>
+            </div>
+            <button id="pv-refresh-btn" type="button" onclick="pvLoad()"
+                class="px-4 py-2 bg-[var(--primary)] hover:opacity-90 text-white font-semibold rounded-lg transition-all text-sm flex items-center gap-2">
+                <span class="material-symbols-outlined text-base">refresh</span>
+                Atualizar
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 p-4 lg:p-8 space-y-6">
+
+        <div class="glass-card border border-[var(--border)] rounded-2xl p-5">
+            <div class="flex flex-wrap gap-3 items-end">
+                <div class="flex items-center gap-1.5 p-1 rounded-lg" style="background: var(--bg-elevated);" id="pv-presets">
+                    <button type="button" onclick="pvPreset(0)"  class="pv-preset-btn px-3 py-1.5 rounded-md text-xs font-semibold transition-colors">Hoje</button>
+                    <button type="button" onclick="pvPreset(6)"  class="pv-preset-btn px-3 py-1.5 rounded-md text-xs font-semibold transition-colors">7 dias</button>
+                    <button type="button" onclick="pvPreset(14)" class="pv-preset-btn px-3 py-1.5 rounded-md text-xs font-semibold transition-colors">15 dias</button>
+                    <button type="button" onclick="pvPreset(29)" class="pv-preset-btn px-3 py-1.5 rounded-md text-xs font-semibold transition-colors active">30 dias</button>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">De</label>
+                    <input type="date" id="pv-dt-ini" class="input-glass px-3 py-2.5 rounded-lg text-sm text-slate-900 dark:text-white w-[150px]">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">Até</label>
+                    <input type="date" id="pv-dt-fim" class="input-glass px-3 py-2.5 rounded-lg text-sm text-slate-900 dark:text-white w-[150px]">
+                </div>
+                <button onclick="pvLoad()" class="px-4 py-2.5 bg-[var(--primary)] hover:opacity-90 text-white font-semibold rounded-lg text-sm">Aplicar</button>
+            </div>
+        </div>
+
+        <!-- KPIs simples -->
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div class="glass-card border border-[var(--border)] rounded-2xl p-5">
+                <p class="text-[11px] text-slate-500 uppercase tracking-wider mb-1">Total de acessos</p>
+                <p class="text-3xl font-black text-[var(--text-primary)] dark:text-white" id="pv-k-total">—</p>
+            </div>
+            <div class="glass-card border border-[var(--border)] rounded-2xl p-5">
+                <p class="text-[11px] text-slate-500 uppercase tracking-wider mb-1">Páginas com acesso</p>
+                <p class="text-3xl font-black text-emerald-400" id="pv-k-acessadas">—</p>
+            </div>
+            <div class="glass-card border border-[var(--border)] rounded-2xl p-5">
+                <p class="text-[11px] text-slate-500 uppercase tracking-wider mb-1">Páginas sem acesso</p>
+                <p class="text-3xl font-black text-amber-400" id="pv-k-zeradas">—</p>
+            </div>
+        </div>
+
+        <!-- Páginas acessadas -->
+        <div class="glass-card border border-[var(--border)] rounded-2xl p-5">
+            <h3 class="text-sm font-bold text-[var(--text-primary)] dark:text-white mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-base text-emerald-400">check_circle</span>
+                Páginas acessadas
+            </h3>
+            <div class="overflow-auto max-h-[480px] rounded-lg border border-[var(--border)]">
+                <table class="w-full text-xs">
+                    <thead class="sticky top-0 bg-[var(--bg-card)] z-10">
+                        <tr class="border-b border-[var(--border)]">
+                            <th class="text-left px-3 py-2 text-slate-500 font-semibold">Página</th>
+                            <th class="text-right px-3 py-2 text-slate-500 font-semibold">Acessos</th>
+                            <th class="text-right px-3 py-2 text-slate-500 font-semibold">Usuários únicos</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pv-tbody-acessadas"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Páginas NÃO acessadas -->
+        <div class="glass-card border border-[var(--border)] rounded-2xl p-5">
+            <h3 class="text-sm font-bold text-[var(--text-primary)] dark:text-white mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-base text-amber-400">warning</span>
+                Páginas sem nenhum acesso no período
+            </h3>
+            <p class="text-[11px] text-slate-500 mb-3">A coluna "Quem tem acesso" lista os usuários que poderiam estar usando a página mas não usaram.</p>
+            <div class="overflow-auto max-h-[640px] rounded-lg border border-[var(--border)]">
+                <table class="w-full text-xs">
+                    <thead class="sticky top-0 bg-[var(--bg-card)] z-10">
+                        <tr class="border-b border-[var(--border)]">
+                            <th class="text-left px-3 py-2 text-slate-500 font-semibold">Página</th>
+                            <th class="text-left px-3 py-2 text-slate-500 font-semibold">Quem tem acesso</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pv-tbody-zeradas"></tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<style>
+    #page-page_views .pv-preset-btn { color: var(--text-secondary); }
+    #page-page_views .pv-preset-btn:hover { color: var(--text-primary); }
+    #page-page_views .pv-preset-btn.active { background: var(--primary); color: white; }
+</style>
