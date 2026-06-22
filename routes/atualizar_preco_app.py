@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 Aplicativo completo de atualizaÃ§Ã£o de preÃ§os - arquivo Ãºnico.
 Uso: python app_completo.py
