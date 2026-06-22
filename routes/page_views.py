@@ -120,7 +120,10 @@ def page_views_stats():
             admins = []
             page_to_users: dict = defaultdict(list)
             seen_admins = set()
-            for username, role, page in cur.fetchall():
+            for row in cur.fetchall():
+                username = row["username"]
+                role = row["role"]
+                page = row["page"]
                 if role == "admin":
                     if username not in seen_admins:
                         admins.append({"username": username, "role": role})

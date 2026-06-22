@@ -45,9 +45,9 @@
     window.pvLoad = async function () {
         const start = document.getElementById('pv-dt-ini').value;
         const end   = document.getElementById('pv-dt-fim').value;
-        const qs = 'start_date=' + encodeURIComponent(start) + '&end_date=' + encodeURIComponent(end);
+        const qs = 'start_date=' + encodeURIComponent(start) + '&end_date=' + encodeURIComponent(end) + '&_=' + Date.now();
         try {
-            const resp = await fetch('/api/page-views/stats?' + qs);
+            const resp = await fetch('/api/page-views/stats?' + qs, { cache: 'no-store' });
             if (resp.status === 403) {
                 document.querySelector('#page-page_views main').innerHTML =
                     '<div class="glass-card border border-[var(--border)] rounded-2xl p-8 text-center text-slate-500">Acesso negado. Apenas administrador.</div>';
