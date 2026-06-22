@@ -350,30 +350,38 @@ function _crgmRenderKPIs(k) {
     if (mmEl) mmEl.textContent = (k.mm_inscritos || 0).toLocaleString('pt-BR');
     // Comparativos históricos (podem ser null no modo dia se não há dados)
     const val1aEl = document.getElementById('crgm-1a-val');
-    if (val1aEl) val1aEl.textContent = k.vendas_1a != null ? k.vendas_1a.toLocaleString('pt-BR') : '—';
+    if (val1aEl) {
+        val1aEl.textContent = (k.vendas_1a != null && k.vendas_1a > 0)
+            ? k.vendas_1a.toLocaleString('pt-BR')
+            : '—';
+    }
     _crgmBadge('crgm-1a-badge', k.pct_1a);
     const sub1aEl = document.getElementById('crgm-1a-sub');
     if (sub1aEl) {
-        const delta = k.delta_1a;
-        const period = k.compare_1a_period || 'mesmo período';
-        const deltaTxt = delta != null
-            ? `${delta >= 0 ? '+' : ''}${delta.toLocaleString('pt-BR')} matrículas`
-            : 'mesmo período';
-        sub1aEl.textContent = deltaTxt;
-        sub1aEl.title = period;
+        const period = k.compare_1a_period || '';
+        if (k.vendas_1a != null && k.vendas_1a > 0 && k.delta_1a != null) {
+            sub1aEl.textContent = `${k.delta_1a >= 0 ? '+' : ''}${k.delta_1a.toLocaleString('pt-BR')} matrículas`;
+        } else {
+            sub1aEl.textContent = 'sem histórico no período';
+        }
+        sub1aEl.title = period || 'Período de referência';
     }
     const val6mEl = document.getElementById('crgm-6m-val');
-    if (val6mEl) val6mEl.textContent = k.vendas_6m != null ? k.vendas_6m.toLocaleString('pt-BR') : '—';
+    if (val6mEl) {
+        val6mEl.textContent = (k.vendas_6m != null && k.vendas_6m > 0)
+            ? k.vendas_6m.toLocaleString('pt-BR')
+            : '—';
+    }
     _crgmBadge('crgm-6m-badge', k.pct_6m);
     const sub6mEl = document.getElementById('crgm-6m-sub');
     if (sub6mEl) {
-        const delta = k.delta_6m;
-        const period = k.compare_6m_period || 'mesmo período';
-        const deltaTxt = delta != null
-            ? `${delta >= 0 ? '+' : ''}${delta.toLocaleString('pt-BR')} matrículas`
-            : 'mesmo período';
-        sub6mEl.textContent = deltaTxt;
-        sub6mEl.title = period;
+        const period = k.compare_6m_period || '';
+        if (k.vendas_6m != null && k.vendas_6m > 0 && k.delta_6m != null) {
+            sub6mEl.textContent = `${k.delta_6m >= 0 ? '+' : ''}${k.delta_6m.toLocaleString('pt-BR')} matrículas`;
+        } else {
+            sub6mEl.textContent = 'sem histórico no período';
+        }
+        sub6mEl.title = period || 'Período de referência';
     }
     // YTD anterior: ocultar card quando null (modo dia)
     const ytdPrevEl = document.getElementById('crgm-ytd-prev');
