@@ -208,7 +208,7 @@ def _pg():
 import threading as _crgm_threading
 
 _CRGM_DATA_CACHE: dict = {}
-_CRGM_DATA_CACHE_VER = 4  # bump quando a lógica de contagem mudar (ex.: outliers)
+_CRGM_DATA_CACHE_VER = 5  # bump quando a lógica de contagem mudar (ex.: outliers)
 _CRGM_DATA_CACHE_TTL_S = 120  # segundos
 _CRGM_DATA_CACHE_LOCK = _crgm_threading.Lock()
 
@@ -440,7 +440,9 @@ def _crgm_periodo_data(dt_ini=None, dt_fim=None, polo=None, nivel=None, ciclo_fi
         if ciclo_filter:
             outer_conds.append("ciclo = %s")
             params.append(ciclo_filter)
-        else:
+        elif not dt_ini and not dt_fim:
+            # Sem intervalo explícito: escopo = ciclo(s) comercial(is) atuais.
+            # Com dt_ini/dt_fim (ex.: comparativo 6m/1a), o recorte é só pela data.
             outer_conds.append(
                 "ciclo IN (SELECT ciclo FROM ciclo_atual_comercial)"
             )
@@ -2974,6 +2976,130 @@ def _crgm_build_periodo_sets(ciclo_all, _pd_dt_ini, _pd_dt_fim):
     return _periodo_rows, rgms_periodo, rgms_bruto, evasao_rows, day_rgms, day_rgms_bruto, polo_rgms
 
 
+def _crgm_compare_table_filters(period_ini, period_fim, polo=None, nivel=None, turma=None):
+    cw = ["data_matricula >= %s", "data_matricula <= %s"]
+    cp = [period_ini, period_fim]
+    if polo:
+        cw.append(f"{_POLO_SQL} = %s")
+        cp.append(_normalize_polo(polo))
+    if nivel:
+        cw.append("nivel = %s")
+        cp.append(nivel)
+    if turma:
+        cw.append("turma = %s")
+        cp.append(turma)
+    return cw, cp
+
+
+def _crgm_count_bruto_from_table(conn, period_ini, period_fim, polo=None, nivel=None, turma=None):
+    """Fallback histórico via comercial_rgm quando o snapshot não cobre o período."""
+    cw, cp = _crgm_compare_table_filters(period_ini, period_fim, polo, nivel, turma)
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            f"SELECT rgm FROM comercial_rgm WHERE {' AND '.join(cw)}",
+            cp,
+        )
+        return len({_normalize_rgm(r[0]) for r in cur.fetchall() if _normalize_rgm(r[0])})
+    finally:
+        cur.close()
+
+
+def _crgm_day_bruto_counts_from_table(conn, iso_dates, polo=None, nivel=None, turma=None):
+    cw = ["data_matricula::date = ANY(%s::date[])"]
+    cp: list = [iso_dates]
+    if polo:
+        cw.append(f"{_POLO_SQL} = %s")
+        cp.append(_normalize_polo(polo))
+    if nivel:
+        cw.append("nivel = %s")
+        cp.append(nivel)
+    if turma:
+        cw.append("turma = %s")
+        cp.append(turma)
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            f"""
+            SELECT data_matricula::date AS d, COUNT(DISTINCT rgm) AS c
+            FROM comercial_rgm
+            WHERE {' AND '.join(cw)}
+            GROUP BY 1
+            """,
+            cp,
+        )
+        out = {}
+        for row in cur.fetchall():
+            k = row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])[:10]
+            out[k] = int(row[1])
+        return out
+    finally:
+        cur.close()
+
+
+def _crgm_count_bruto_compare(conn, period_ini, period_fim, polo=None, nivel=None, turma=None):
+    """Matrículas bruto no intervalo — xl_rows (KPI) com fallback em comercial_rgm."""
+    rows = _crgm_periodo_data(
+        dt_ini=period_ini,
+        dt_fim=period_fim,
+        polo=polo,
+        nivel=nivel,
+        turma=turma,
+        conn=conn,
+    )
+    _, _, rgms_bruto, *_ = _crgm_build_periodo_sets(rows, period_ini, period_fim)
+    count_xl = len(rgms_bruto)
+    if count_xl > 0:
+        return count_xl
+    return _crgm_count_bruto_from_table(
+        conn, period_ini, period_fim, polo, nivel, turma
+    )
+
+
+def _crgm_day_bruto_counts(target_dates, polo=None, nivel=None, turma=None, conn=None):
+    """Contagem bruta por dia — xl_rows com fallback em comercial_rgm por data."""
+    if not target_dates:
+        return {}
+    iso_dates = sorted({str(d)[:10] for d in target_dates if d})
+    if not iso_dates:
+        return {}
+    own_conn = conn is None
+    db = conn if conn is not None else _pg()
+    try:
+        rows = _crgm_periodo_data(
+            dt_ini=iso_dates[0],
+            dt_fim=iso_dates[-1],
+            polo=polo,
+            nivel=nivel,
+            turma=turma,
+            conn=db,
+        )
+        _, _, _, _, _, day_rgms_bruto, _ = _crgm_build_periodo_sets(
+            rows, iso_dates[0], iso_dates[-1]
+        )
+        out = {}
+        for d in iso_dates:
+            try:
+                dt_key = date.fromisoformat(d)
+            except (ValueError, TypeError):
+                out[d] = 0
+                continue
+            out[d] = len(day_rgms_bruto.get(dt_key, set()))
+
+        missing = [d for d in iso_dates if out.get(d, 0) == 0]
+        if missing:
+            table_counts = _crgm_day_bruto_counts_from_table(
+                db, missing, polo, nivel, turma
+            )
+            for d in missing:
+                if table_counts.get(d, 0) > 0:
+                    out[d] = table_counts[d]
+        return out
+    finally:
+        if own_conn:
+            db.close()
+
+
 def _crgm_compute_kpis(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -> dict:
     """Calcula KPIs, evolucao, ranking_polo/ciclo e evasao_grid."""
     import time as _time_mod
@@ -3118,62 +3244,64 @@ def _crgm_compute_kpis(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -> d
             mm_insc_count = 0
     _lap("mm_inscritos")
 
-    # --- Comparações: 6M / 1 ano / YTD ---
-    vendas_6m = 0
-    vendas_1a = 0
-    vendas_ytd = 0
-    vendas_prev_ytd = 0
+    # --- Comparações: mesmo intervalo filtrado deslocado 6m / 12m (+ YTD) ---
+    # Mesma fonte xl_rows do KPI principal (_crgm_periodo_data), só com datas deslocadas.
+    vendas_6m = None
+    vendas_1a = None
+    vendas_ytd = None
+    vendas_prev_ytd = None
+    compare_6m_period = None
+    compare_1a_period = None
 
-    def _count_period(cur_, d_start, d_end, polo_=polo, nivel_=nivel):
-        cw = ["data_matricula >= %s", "data_matricula <= %s"]
-        cp = [d_start.isoformat(), d_end.isoformat()]
-        if polo_:
-            cw.append(f"{_POLO_SQL} = %s")
-            cp.append(_normalize_polo(polo_))
-        if nivel_:
-            cw.append("nivel = %s")
-            cp.append(nivel_)
-        cur_.execute(
-            f"SELECT rgm FROM comercial_rgm_atual WHERE {' AND '.join(cw)}",
-            cp,
-        )
-        return len({_normalize_rgm(r[0]) for r in cur_.fetchall()
-                    if _normalize_rgm(r[0]) and _normalize_rgm(r[0]) not in _excluded})
-
-    def _count_hist(cur_, d_start, d_end, polo_=polo, nivel_=nivel):
-        cw = ["data_matricula >= %s", "data_matricula <= %s"]
-        cp = [d_start.isoformat(), d_end.isoformat()]
-        if polo_:
-            cw.append(f"{_POLO_SQL} = %s")
-            cp.append(_normalize_polo(polo_))
-        if nivel_:
-            cw.append("nivel = %s")
-            cp.append(nivel_)
-        cur_.execute(
-            f"SELECT rgm FROM comercial_rgm_completa WHERE {' AND '.join(cw)}",
-            cp,
-        )
-        return len({_normalize_rgm(r[0]) for r in cur_.fetchall() if _normalize_rgm(r[0])})
-
-    if dt_ini and dt_fim:
+    if _pd_dt_ini and _pd_dt_fim:
         try:
-            d_ini = date.fromisoformat(dt_ini)
-            d_fim = date.fromisoformat(dt_fim)
-            vendas_6m = _count_hist(cur, _shift_months(d_ini, -6), _shift_months(d_fim, -6))
-            vendas_1a = _count_hist(cur, _shift_months(d_ini, -12), _shift_months(d_fim, -12))
-            vendas_ytd = _count_period(cur, date(d_fim.year, 1, 1), d_fim)
+            d_ini = date.fromisoformat(_pd_dt_ini)
+            d_fim = date.fromisoformat(_pd_dt_fim)
+            d_ini_6m = _shift_months(d_ini, -6)
+            d_fim_6m = _shift_months(d_fim, -6)
+            d_ini_1a = _shift_months(d_ini, -12)
+            d_fim_1a = _shift_months(d_fim, -12)
+            compare_6m_period = f"{d_ini_6m.isoformat()} → {d_fim_6m.isoformat()}"
+            compare_1a_period = f"{d_ini_1a.isoformat()} → {d_fim_1a.isoformat()}"
+            _polo = polo or None
+            _nivel = nivel or None
+            _turma = turma_nome or None
+            vendas_6m = _crgm_count_bruto_compare(
+                conn, d_ini_6m.isoformat(), d_fim_6m.isoformat(), _polo, _nivel, _turma
+            )
+            vendas_1a = _crgm_count_bruto_compare(
+                conn, d_ini_1a.isoformat(), d_fim_1a.isoformat(), _polo, _nivel, _turma
+            )
+            vendas_ytd = _crgm_count_bruto_compare(
+                conn, date(d_fim.year, 1, 1).isoformat(), d_fim.isoformat(), _polo, _nivel, _turma
+            )
             prev_year = d_fim.year - 1
-            vendas_prev_ytd = _count_hist(
-                cur,
-                date(prev_year, 1, 1),
-                _safe_date(prev_year, d_fim.month, d_fim.day),
+            vendas_prev_ytd = _crgm_count_bruto_compare(
+                conn,
+                date(prev_year, 1, 1).isoformat(),
+                _safe_date(prev_year, d_fim.month, d_fim.day).isoformat(),
+                _polo,
+                _nivel,
+                _turma,
             )
         except Exception as exc:
             logger.warning("kpis comparativos: %s", exc)
 
-    pct_6m  = round((vendas / vendas_6m  - 1) * 100, 1) if vendas_6m  > 0 else 0
-    pct_1a  = round((vendas / vendas_1a  - 1) * 100, 1) if vendas_1a  > 0 else 0
-    pct_ytd = round((vendas_ytd / vendas_prev_ytd - 1) * 100, 1) if vendas_prev_ytd > 0 else 0
+    pct_6m = (
+        round((vendas / vendas_6m - 1) * 100, 1)
+        if vendas_6m is not None and vendas_6m > 0
+        else None
+    )
+    pct_1a = (
+        round((vendas / vendas_1a - 1) * 100, 1)
+        if vendas_1a is not None and vendas_1a > 0
+        else None
+    )
+    pct_ytd = (
+        round((vendas_ytd / vendas_prev_ytd - 1) * 100, 1)
+        if vendas_ytd is not None and vendas_prev_ytd and vendas_prev_ytd > 0
+        else None
+    )
     _lap("comparativos_6m_1a_ytd")
 
     evolucao = [{"data": d.isoformat(), "count": c} for d, c in sorted(day_counts.items())]
@@ -3181,49 +3309,25 @@ def _crgm_compute_kpis(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -> d
     evolucao_bruto  = [{"data": d.isoformat(), "count": day_counts_bruto.get(d, 0)} for d in all_dates_bruto]
 
     evolucao_prev = []
-    if dt_ini and dt_fim:
+    if _pd_dt_ini and _pd_dt_fim:
         try:
-            d_ini   = date.fromisoformat(dt_ini)
-            d_fim_d = date.fromisoformat(dt_fim)
+            d_ini   = date.fromisoformat(_pd_dt_ini)
+            d_fim_d = date.fromisoformat(_pd_dt_fim)
             prev_ini = _shift_months(d_ini,   -12)
             prev_fim = _shift_months(d_fim_d, -12)
 
-            prev_csv_w = ["data_matricula >= %s", "data_matricula <= %s"]
-            prev_csv_p = [prev_ini.isoformat(), prev_fim.isoformat()]
-            if polo:
-                prev_csv_w.append(f"{_POLO_SQL} = %s")
-                prev_csv_p.append(_normalize_polo(polo))
-            if nivel:
-                prev_csv_w.append("nivel = %s")
-                prev_csv_p.append(nivel)
-            if ciclo_nome:
-                prev_csv_w.append("ciclo = %s")
-                prev_csv_p.append(ciclo_nome)
-            if turma_nome:
-                prev_csv_w.append("turma = %s")
-                prev_csv_p.append(turma_nome)
-            pcw = "WHERE " + " AND ".join(prev_csv_w)
-
-            cur.execute(
-                f"SELECT rgm, data_matricula FROM comercial_rgm_atual {pcw}",
-                prev_csv_p,
+            prev_rows = _crgm_periodo_data(
+                dt_ini=prev_ini.isoformat(),
+                dt_fim=prev_fim.isoformat(),
+                polo=polo or None,
+                nivel=nivel or None,
+                turma=turma_nome or None,
+                conn=conn,
             )
-            prev_day_rgms = defaultdict(set)
-            for rgm, dm in cur.fetchall():
-                n = _normalize_rgm(rgm)
-                if not n:
-                    continue
-                try:
-                    dt_val = (
-                        dm
-                        if hasattr(dm, "isoformat")
-                        else date.fromisoformat(str(dm)[:10])
-                    )
-                except (ValueError, TypeError, AttributeError):
-                    dt_val = None
-                if dt_val:
-                    prev_day_rgms[dt_val].add(n)
-            prev_day_counts = {d: len(s) for d, s in prev_day_rgms.items()}
+            _, _, _, _, _, prev_day_rgms_bruto, _ = _crgm_build_periodo_sets(
+                prev_rows, prev_ini.isoformat(), prev_fim.isoformat()
+            )
+            prev_day_counts = {d: len(s) for d, s in prev_day_rgms_bruto.items()}
             evolucao_prev = [{"data": d.isoformat(), "count": c}
                              for d, c in sorted(prev_day_counts.items())]
         except Exception as exc:
@@ -3264,6 +3368,10 @@ def _crgm_compute_kpis(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -> d
             "vendas_ytd": vendas_ytd,
             "vendas_prev_ytd": vendas_prev_ytd,
             "pct_ytd": pct_ytd,
+            "delta_6m": (vendas - vendas_6m) if vendas_6m is not None else None,
+            "delta_1a": (vendas - vendas_1a) if vendas_1a is not None else None,
+            "compare_6m_period": compare_6m_period,
+            "compare_1a_period": compare_1a_period,
             "ticket_medio": ticket_medio,
             "media_diaria": media_diaria,
             "dias": dias,
@@ -3470,42 +3578,24 @@ def _crgm_compute_agentes(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -
         _unique_grid_dates = list({g["data"] for g in matriculas_grid if g.get("data")})
         if _unique_grid_dates:
             _target_map: dict = {}
+            _all_targets: set = set()
             for _ds in _unique_grid_dates:
                 try:
                     _d    = date.fromisoformat(_ds)
                     _d_6m = _shift_months(_d, -6)
                     _d_1y = _shift_months(_d, -12)
                     _target_map[_ds] = (_d_6m.isoformat(), _d_1y.isoformat())
+                    _all_targets.add(_d_6m.isoformat())
+                    _all_targets.add(_d_1y.isoformat())
                 except Exception:
                     pass
-            _all_targets = list({v for vals in _target_map.values() for v in vals})
             if _all_targets:
-                _hist_cw = ["data_matricula::date = ANY(%s::date[])"]
-                _hist_cp: list = [_all_targets]
-                if polo:
-                    _hist_cw.append(f"{_POLO_SQL} = %s")
-                    _hist_cp.append(_normalize_polo(polo))
-                if nivel:
-                    _hist_cw.append("nivel = %s")
-                    _hist_cp.append(nivel)
-                _hist_where = "WHERE " + " AND ".join(_hist_cw)
-                _hist_conn = _pg()
-                _hist_cur  = _hist_conn.cursor()
-                _hist_cur.execute(
-                    f"""
-                    SELECT data_matricula::date AS d, COUNT(DISTINCT rgm) AS c
-                    FROM comercial_rgm_completa
-                    {_hist_where}
-                    GROUP BY data_matricula::date
-                    """,
-                    _hist_cp,
+                _hist_day_counts = _crgm_day_bruto_counts(
+                    sorted(_all_targets),
+                    polo=polo or None,
+                    nivel=nivel or None,
+                    turma=turma_nome or None,
                 )
-                _hist_day_counts: dict = {}
-                for _row in _hist_cur.fetchall():
-                    _k = _row[0].isoformat() if hasattr(_row[0], "isoformat") else str(_row[0])
-                    _hist_day_counts[_k] = int(_row[1])
-                _hist_cur.close()
-                _hist_conn.close()
                 for _ds, (_d6m, _d1y) in _target_map.items():
                     daily_history[_ds] = {
                         "vs6m": _hist_day_counts.get(_d6m),

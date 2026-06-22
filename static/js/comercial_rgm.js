@@ -350,11 +350,39 @@ function _crgmRenderKPIs(k) {
     if (mmEl) mmEl.textContent = (k.mm_inscritos || 0).toLocaleString('pt-BR');
     // Comparativos históricos (podem ser null no modo dia se não há dados)
     const val1aEl = document.getElementById('crgm-1a-val');
-    if (val1aEl) val1aEl.textContent = k.vendas_1a != null ? k.vendas_1a.toLocaleString('pt-BR') : '—';
+    if (val1aEl) {
+        val1aEl.textContent = (k.vendas_1a != null && k.vendas_1a > 0)
+            ? k.vendas_1a.toLocaleString('pt-BR')
+            : '—';
+    }
     _crgmBadge('crgm-1a-badge', k.pct_1a);
+    const sub1aEl = document.getElementById('crgm-1a-sub');
+    if (sub1aEl) {
+        const period = k.compare_1a_period || '';
+        if (k.vendas_1a != null && k.vendas_1a > 0 && k.delta_1a != null) {
+            sub1aEl.textContent = `${k.delta_1a >= 0 ? '+' : ''}${k.delta_1a.toLocaleString('pt-BR')} matrículas`;
+        } else {
+            sub1aEl.textContent = 'sem histórico no período';
+        }
+        sub1aEl.title = period || 'Período de referência';
+    }
     const val6mEl = document.getElementById('crgm-6m-val');
-    if (val6mEl) val6mEl.textContent = k.vendas_6m != null ? k.vendas_6m.toLocaleString('pt-BR') : '—';
+    if (val6mEl) {
+        val6mEl.textContent = (k.vendas_6m != null && k.vendas_6m > 0)
+            ? k.vendas_6m.toLocaleString('pt-BR')
+            : '—';
+    }
     _crgmBadge('crgm-6m-badge', k.pct_6m);
+    const sub6mEl = document.getElementById('crgm-6m-sub');
+    if (sub6mEl) {
+        const period = k.compare_6m_period || '';
+        if (k.vendas_6m != null && k.vendas_6m > 0 && k.delta_6m != null) {
+            sub6mEl.textContent = `${k.delta_6m >= 0 ? '+' : ''}${k.delta_6m.toLocaleString('pt-BR')} matrículas`;
+        } else {
+            sub6mEl.textContent = 'sem histórico no período';
+        }
+        sub6mEl.title = period || 'Período de referência';
+    }
     // YTD anterior: ocultar card quando null (modo dia)
     const ytdPrevEl = document.getElementById('crgm-ytd-prev');
     if (ytdPrevEl) ytdPrevEl.textContent = k.vendas_prev_ytd != null ? k.vendas_prev_ytd.toLocaleString('pt-BR') : '—';
@@ -1408,8 +1436,10 @@ function _crgmDeriveKPIsDia(kpisBase, payload, date) {
         dias: 1,
         vendas_6m: vs6m,
         pct_6m: (vs6m != null && vs6m > 0) ? Math.round((vendasBruto - vs6m) / vs6m * 1000) / 10 : null,
+        delta_6m: vs6m != null ? vendasBruto - vs6m : null,
         vendas_1a: vs1y,
         pct_1a: (vs1y != null && vs1y > 0) ? Math.round((vendasBruto - vs1y) / vs1y * 1000) / 10 : null,
+        delta_1a: vs1y != null ? vendasBruto - vs1y : null,
         vendas_prev_ytd: null,
         pct_ytd: null,
     };
