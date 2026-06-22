@@ -5966,3 +5966,84 @@ def dist_consultor_detalhe():
     except Exception as e:
         logger.exception("dist-consultor-detalhe")
         return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ── Distribuição por Consultor — total real de leads no Kommo + gap ───────────
+@comercial_rgm_bp.route("/api/dist-consultor/total-kommo")
+def dist_consultor_total_kommo():
+    """Conta leads do Kommo no período (uniao com distribuicao_por_consultor)
+    e devolve a lista de leads que estao no Kommo mas NAO foram distribuidos
+    pelo n8n. Uma unica query.
+    """
+    start_date = (request.args.get("start_date") or "").strip()
+    end_date   = (request.args.get("end_date")   or "").strip()
+    if not start_date or not end_date:
+        return jsonify({"ok": False, "error": "start_date e end_date obrigatórios"}), 400
+    try:
+        import datetime as _dt
+        _dt.date.fromisoformat(start_date)
+        _dt.date.fromisoformat(end_date)
+    except ValueError:
+        return jsonify({"ok": False, "error": "Datas inválidas. Use YYYY-MM-DD"}), 400
+
+    try:
+        kconn = _pg_kommo()
+        kcur  = kconn.cursor()
+        kcur.execute(
+            """
+            WITH dist AS (
+                SELECT DISTINCT id_lead AS id
+                FROM distribuicao_por_consultor
+                WHERE (timestamp AT TIME ZONE 'America/Sao_Paulo')::date
+                      BETWEEN %s::date AND %s::date
+            ),
+            kommo AS (
+                SELECT id, name, pipeline_id, status_id, created_at
+                FROM leads
+                WHERE (to_timestamp(created_at) AT TIME ZONE 'America/Sao_Paulo')::date
+                      BETWEEN %s::date AND %s::date
+            ),
+            so_kommo AS (
+                SELECT k.id, k.name, k.pipeline_id, k.status_id, k.created_at
+                FROM kommo k
+                WHERE NOT EXISTS (SELECT 1 FROM dist d WHERE d.id = k.id)
+            )
+            SELECT
+                (SELECT COUNT(*) FROM dist)  AS total_distribuidos,
+                (SELECT COUNT(*) FROM kommo) AS total_kommo,
+                (SELECT COUNT(*) FROM (SELECT id FROM dist UNION SELECT id FROM kommo) u) AS total_uniao,
+                COALESCE(
+                    json_agg(
+                        json_build_object(
+                            'id',           sk.id,
+                            'name',         sk.name,
+                            'pipeline_id',  sk.pipeline_id,
+                            'status_id',    sk.status_id,
+                            'created_at',   to_char(
+                                to_timestamp(sk.created_at) AT TIME ZONE 'America/Sao_Paulo',
+                                'YYYY-MM-DD"T"HH24:MI:SS'
+                            )
+                        )
+                        ORDER BY sk.created_at DESC
+                    ) FILTER (WHERE sk.id IS NOT NULL),
+                    '[]'::json
+                ) AS so_kommo_leads
+            FROM so_kommo sk
+            """,
+            (start_date, end_date, start_date, end_date),
+        )
+        row = kcur.fetchone()
+        kcur.close()
+        kconn.close()
+
+        total_distribuidos, total_kommo, total_uniao, so_kommo_leads = row
+        return jsonify({
+            "ok": True,
+            "total_distribuidos": int(total_distribuidos or 0),
+            "total_kommo":        int(total_kommo or 0),
+            "total":              int(total_uniao or 0),
+            "so_kommo":           so_kommo_leads or [],
+        })
+    except Exception as e:
+        logger.exception("dist-consultor-total-kommo")
+        return jsonify({"ok": False, "error": str(e)}), 500

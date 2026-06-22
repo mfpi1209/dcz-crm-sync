@@ -19,6 +19,7 @@
     let _matriculasPorOrigemConsultor = {}; // consultor -> [{origem, do_periodo, fora_periodo, total}]
     let _matriculasPorOrigemConsultorLoading = {};
     let _matriculasPorOrigemConsultorError = {};
+    let _totalKommo = null; // {total, total_distribuidos, total_kommo, so_kommo:[...]}
     let _chartConsultores = null;
     let _chartOrigens = null;
     let _chartDiaOrigem = null;
@@ -293,11 +294,19 @@
             || null;
     }
 
+    function isRollupRow(item) {
+        // O webhook do n8n devolve, além das linhas (consultor, origem, dia),
+        // linhas de rollup por (consultor, origem) com `dia` vazio/null que
+        // contém o subtotal do período. Somar essas linhas duplica os leads.
+        return !item || !item.dia || String(item.dia).trim() === "";
+    }
+
     function computeRawTotals(rawItems) {
         var totalVendas = 0, totalLeads = 0;
         var aclName = dcAclConsultor();
         rawItems.forEach(function(item) {
             if (!item || typeof item !== "object" || Array.isArray(item)) return;
+            if (isRollupRow(item)) return;
             if (aclName) {
                 var c = String(item.consultor || "").trim();
                 if (!c || !consultorMatches(c, aclName)) return;
@@ -311,7 +320,7 @@
     function mapRows(rawItems) {
         var aclName = dcAclConsultor();   // se não-admin: força filtro pelo próprio consultor
         return rawItems.filter(function(item) {
-            return item && typeof item === "object" && !Array.isArray(item);
+            return item && typeof item === "object" && !Array.isArray(item) && !isRollupRow(item);
         }).map(function(item) {
             var origemStr = String(item.origem || "").trim();
             if (!origemStr) return null;
@@ -486,7 +495,27 @@
         var chartFiltered = getFiltered(true);
         var s = computeSummary(allFiltered, chartFiltered);
 
-        document.getElementById("dc-m-leads").textContent = fmtNumber(s.totalLeads);
+        var leadsEl = document.getElementById("dc-m-leads");
+        var cf2  = (document.getElementById("dc-consultor-filter")?.value || "").trim();
+        var of2  = (document.getElementById("dc-origem-filter")?.value    || "").trim();
+        var noFilters = !cf2 && !of2;
+        // Usa contagem real do Kommo quando filtros nao restringem; senao mantem a soma do webhook
+        var displayLeads = (noFilters && _totalKommo && typeof _totalKommo.total === 'number')
+            ? _totalKommo.total
+            : s.totalLeads;
+        leadsEl.textContent = fmtNumber(displayLeads);
+        var leadsCard = leadsEl.closest('.dc-metric-card') || leadsEl.parentElement;
+        if (leadsCard) {
+            if (noFilters && _totalKommo) {
+                leadsCard.style.cursor = 'pointer';
+                leadsCard.title = 'Clique para ver detalhes (distribuídos × só Kommo)';
+                leadsCard.onclick = openTotalKommoModal;
+            } else {
+                leadsCard.style.cursor = '';
+                leadsCard.title = '';
+                leadsCard.onclick = null;
+            }
+        }
         document.getElementById("dc-m-consultores").textContent = fmtNumber(s.consultores);
         document.getElementById("dc-m-origens").textContent = fmtNumber(s.origens);
         document.getElementById("dc-m-media").textContent = s.hasDias ? fmtNumber(s.mediaPorDia.toFixed(1)) : "—";
@@ -1116,11 +1145,17 @@
             _matriculasPorOrigemConsultor = {};
             _matriculasPorOrigemConsultorLoading = {};
             var qs = 'start_date=' + encodeURIComponent(startDate) + '&end_date=' + encodeURIComponent(endDate);
+            _totalKommo = null;
             try {
-                var [fechResp, matOrigResp] = await Promise.all([
+                var [fechResp, matOrigResp, totKommoResp] = await Promise.all([
                     fetch('/api/dist-consultor/fechadas-periodo?' + qs),
-                    fetch('/api/dist-consultor/matriculas-por-origem?' + qs)
+                    fetch('/api/dist-consultor/matriculas-por-origem?' + qs),
+                    fetch('/api/dist-consultor/total-kommo?' + qs)
                 ]);
+                if (totKommoResp.ok) {
+                    var tkJson = await totKommoResp.json();
+                    if (tkJson.ok) _totalKommo = tkJson;
+                }
                 if (fechResp.ok) {
                     var fechJson = await fechResp.json();
                     if (fechJson.ok && Array.isArray(fechJson.data)) {
@@ -1336,6 +1371,61 @@
     }
 
     window.dcAbrirDetalhe = dcAbrirDetalheInterno;
+
+    // ── Modal "Total de Leads" (Kommo × n8n) ──────────────────────────────
+    function openTotalKommoModal() {
+        var overlay = document.getElementById('dc-modal-overlay');
+        var body    = document.getElementById('dc-modal-body');
+        var title   = document.getElementById('dc-modal-title');
+        if (!overlay || !_totalKommo) return;
+        if (overlay.parentNode !== document.body) document.body.appendChild(overlay);
+
+        title.textContent = 'Total de Leads — Kommo vs. n8n';
+        var t = _totalKommo;
+        var lista = Array.isArray(t.so_kommo) ? t.so_kommo : [];
+        var rowsHtml = lista.map(function (l) {
+            var nome = (l.name || ('Lead #' + l.id) || '—');
+            var dt = '—';
+            if (l.created_at) {
+                var d = new Date(l.created_at);
+                if (!isNaN(d.getTime())) {
+                    dt = d.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+                }
+            }
+            var url = 'https://eduitbr.kommo.com/leads/detail/' + encodeURIComponent(l.id);
+            return '<tr>'
+                 +   '<td>' + dt + '</td>'
+                 +   '<td><a href="' + url + '" target="_blank" rel="noopener" style="color:var(--blue,#3b82f6);text-decoration:none">' + nome + '</a></td>'
+                 +   '<td style="text-align:right;color:var(--text-2);font-size:11px">' + (l.pipeline_id || '') + '</td>'
+                 + '</tr>';
+        }).join('');
+
+        body.innerHTML =
+            '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">'
+          +   '<div class="dc-modal-stat"><div class="dc-modal-stat-label">Total (Kommo + n8n)</div><div class="dc-modal-stat-value" style="color:var(--blue,#3b82f6)">' + fmtNumber(t.total) + '</div></div>'
+          +   '<div class="dc-modal-stat"><div class="dc-modal-stat-label">Distribuídos (n8n)</div><div class="dc-modal-stat-value" style="color:var(--green,#22c55e)">' + fmtNumber(t.total_distribuidos) + '</div></div>'
+          +   '<div class="dc-modal-stat"><div class="dc-modal-stat-label">Só no Kommo</div><div class="dc-modal-stat-value" style="color:var(--amber,#f59e0b)">' + fmtNumber(lista.length) + '</div></div>'
+          + '</div>'
+          + '<div style="font-size:12px;color:var(--text-2);margin-bottom:8px">'
+          +   'Leads que aparecem no Kommo mas <b>não foram distribuídos</b> pelo n8n no período (pendentes, sem origem ou em pipeline fora do escopo).'
+          + '</div>'
+          + (lista.length
+                ? '<div style="max-height:50vh;overflow:auto;border:1px solid var(--border,#e2e8f0);border-radius:8px">'
+                +   '<table style="width:100%;border-collapse:collapse;font-size:13px">'
+                +     '<thead style="position:sticky;top:0;background:var(--bg-soft,#f8fafc)"><tr>'
+                +       '<th style="text-align:left;padding:8px;border-bottom:1px solid var(--border,#e2e8f0)">Criado em</th>'
+                +       '<th style="text-align:left;padding:8px;border-bottom:1px solid var(--border,#e2e8f0)">Lead</th>'
+                +       '<th style="text-align:right;padding:8px;border-bottom:1px solid var(--border,#e2e8f0);font-weight:600">Pipeline</th>'
+                +     '</tr></thead>'
+                +     '<tbody>' + rowsHtml + '</tbody>'
+                +   '</table>'
+                + '</div>'
+                : '<div style="text-align:center;padding:24px;color:var(--text-2)">Nenhum lead pendente — está tudo distribuído!</div>'
+            );
+        overlay.classList.add('open');
+    }
+
+    window.dcAbrirTotalKommo = openTotalKommoModal;
 
     // ── Modal "Sem Origem" ────────────────────────────────────────────────
 
