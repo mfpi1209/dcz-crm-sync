@@ -918,7 +918,14 @@ const VOC_STATUS_LABELS = { ganho: 'Ganho', perdido: 'Perdido', novo: 'Novo', se
    DATA STORE
    ═══════════════════════════════════════════ */
 let VOC_RAW = { sessions: [], events: [], leads: [], campanhas: [] };
-let VOC_PICKER_STATE = { start: null, end: null, preset: 'all', incluirHoje: true, label: 'Tudo' };
+function _vocInitialPickerState() {
+    const now = new Date();
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    start.setDate(start.getDate() - 14);
+    return { start, end, preset: '15d', incluirHoje: true, label: 'Últimos 15 dias, até hoje' };
+}
+let VOC_PICKER_STATE = _vocInitialPickerState();
 let vocTimelineChartInstance = null;
 let vocSourceBarChartInstance = null;
 let vocTrafficTimelineInstance = null;
@@ -926,12 +933,12 @@ let vocTrafficTimelineInstance = null;
 /* ═══════════════════════════════════════════
    SUPABASE FETCH
    ═══════════════════════════════════════════ */
-async function supaFetch(table, select = '*') {
+async function supaFetch(table, select = '*', extraFilters = '') {
     const pageSize = 1000;
     let all = [], offset = 0;
     while (true) {
         const res = await fetch(
-            `${VOC_SUPABASE_URL}/rest/v1/${table}?select=${encodeURIComponent(select)}&limit=${pageSize}&offset=${offset}&order=created_at.asc`,
+            `${VOC_SUPABASE_URL}/rest/v1/${table}?select=${encodeURIComponent(select)}${extraFilters}&limit=${pageSize}&offset=${offset}&order=created_at.asc`,
             { headers: { 'apikey': VOC_SUPABASE_KEY, 'Authorization': `Bearer ${VOC_SUPABASE_KEY}` } }
         );
         if (!res.ok) throw new Error(`Erro ao buscar ${table}: ${res.status}`);
@@ -960,14 +967,29 @@ async function supaFetch2(table, select = '*') {
     return all;
 }
 
+let VOC_LOADED_SINCE = null;
 async function loadData() {
+    const since = VOC_PICKER_STATE.start || null;
+    const sinceIso = since ? since.toISOString() : null;
+    const dateFilter = sinceIso ? `&created_at=gte.${encodeURIComponent(sinceIso)}` : '';
     const [sessions, events, leads, campanhas] = await Promise.all([
-        supaFetch('vocacional_sessions'),
-        supaFetch('vocacional_events'),
-        supaFetch('vocacional_leads'),
+        supaFetch('vocacional_sessions', '*', dateFilter),
+        supaFetch('vocacional_events',   '*', dateFilter),
+        supaFetch('vocacional_leads',    '*', dateFilter),
         supaFetch2('campanhas_meta'),
     ]);
     VOC_RAW = { sessions, events, leads, campanhas };
+    VOC_LOADED_SINCE = since;
+}
+
+async function ensureLoadedFor(start) {
+    const needReload = (start === null && VOC_LOADED_SINCE !== null) ||
+                       (start !== null && VOC_LOADED_SINCE !== null && start < VOC_LOADED_SINCE);
+    if (!needReload) return;
+    const prev = VOC_PICKER_STATE.start;
+    VOC_PICKER_STATE = { ...VOC_PICKER_STATE, start };
+    try { await loadData(); }
+    finally { VOC_PICKER_STATE.start = prev; }
 }
 
 /* ═══════════════════════════════════════════
@@ -2739,6 +2761,7 @@ function setupFilters() {
    ═══════════════════════════════════════════ */
 async function vocLoadPage() {
     try {
+        document.querySelectorAll('#page-vocacional .voc-dp-trigger-label').forEach(el => el.textContent = VOC_PICKER_STATE.label);
         await loadData();
         populateFilters();
         renderFunilPage();
@@ -2768,6 +2791,7 @@ const VOC_DP_PRESETS = [
     { id: 'today',     label: 'Hoje' },
     { id: 'yesterday', label: 'Ontem' },
     { id: '7d',        label: 'Últimos 7 dias' },
+    { id: '15d',       label: 'Últimos 15 dias' },
     { id: '30d',       label: 'Últimos 30 dias' },
     { id: 'thismonth', label: 'Este mês' },
     { id: 'lastmonth', label: 'Mês passado' },
@@ -2775,7 +2799,7 @@ const VOC_DP_PRESETS = [
 ];
 
 let VOC_DP = {
-    preset: 'all', customStart: null, customEnd: null,
+    preset: '15d', customStart: null, customEnd: null,
     startYear: new Date().getFullYear(), startMonth: new Date().getMonth(),
     endYear: new Date().getFullYear(),   endMonth: new Date().getMonth(),
     selecting: 'start', incluirHoje: true,
@@ -2793,6 +2817,7 @@ function vocDpPresetRange(id, incluirHoje) {
         case 'today':     return { start: todayStart, end: todayEnd };
         case 'yesterday': return { start: yestStart, end: yestEnd };
         case '7d':  { const s = new Date(todayStart); s.setDate(s.getDate()-6);  return { start: s, end: rangeEnd }; }
+        case '15d': { const s = new Date(todayStart); s.setDate(s.getDate()-14); return { start: s, end: rangeEnd }; }
         case '30d': { const s = new Date(todayStart); s.setDate(s.getDate()-29); return { start: s, end: rangeEnd }; }
         case 'thismonth': return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: rangeEnd };
         case 'lastmonth': return {
@@ -2813,7 +2838,7 @@ function vocDpLabel(preset, customStart, customEnd, incluirHoje) {
         return 'Personalizado';
     }
     if (!p) return 'Tudo';
-    const suffix = (preset === '7d' || preset === '30d' || preset === 'thismonth') ? (incluirHoje ? ', até hoje' : ', sem hoje') : '';
+    const suffix = (preset === '7d' || preset === '15d' || preset === '30d' || preset === 'thismonth') ? (incluirHoje ? ', até hoje' : ', sem hoje') : '';
     return p.label + suffix;
 }
 
@@ -2892,7 +2917,7 @@ function vocDpRender() {
             </label>
             <div class="voc-dp-presets-wrap">
                 <button class="voc-dp-preset-label" onclick="vocDpTogglePresets(event)">
-                    <span>${curPreset.label}${(VOC_DP.preset==='7d'||VOC_DP.preset==='30d'||VOC_DP.preset==='thismonth') ? (VOC_DP.incluirHoje?', até hoje':', sem hoje') : ''}</span>
+                    <span>${curPreset.label}${(VOC_DP.preset==='7d'||VOC_DP.preset==='15d'||VOC_DP.preset==='30d'||VOC_DP.preset==='thismonth') ? (VOC_DP.incluirHoje?', até hoje':', sem hoje') : ''}</span>
                     <span class="material-icons-round" style="font-size:18px">expand_more</span>
                 </button>
                 <div class="voc-dp-presets" id="vocDpPresets">
@@ -3007,7 +3032,7 @@ function vocDpTogglePresets(e) {
     document.getElementById('vocDpPresets')?.classList.toggle('open');
 }
 
-function vocDpApply() {
+async function vocDpApply() {
     let start, end;
     if (VOC_DP.preset === 'custom') {
         start = VOC_DP.customStart;
@@ -3022,6 +3047,11 @@ function vocDpApply() {
     document.querySelectorAll('#page-vocacional .voc-dp-trigger-label').forEach(el => el.textContent = VOC_PICKER_STATE.label);
 
     vocCloseDatePicker();
+    try {
+        await ensureLoadedFor(start);
+    } catch (e) {
+        console.error('voc reload error', e);
+    }
     VOC_PAGE_RENDERERS[vocCurrentPage]?.();
 }
 
