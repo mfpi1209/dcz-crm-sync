@@ -247,6 +247,7 @@ from routes.supervisor_dashboard import supervisor_dashboard_bp
 from routes.meus_atendimentos import meus_atendimentos_bp
 from routes.inadimplencia import inadimplencia_bp
 from routes.disparador_whatsapp import disparador_whatsapp_bp
+from routes.page_views import page_views_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(dashboard_bp)
@@ -269,6 +270,7 @@ app.register_blueprint(supervisor_dashboard_bp)
 app.register_blueprint(meus_atendimentos_bp)
 app.register_blueprint(inadimplencia_bp)
 app.register_blueprint(disparador_whatsapp_bp)
+app.register_blueprint(page_views_bp)
 
 # ── Atualizar Preço — rotas do webapp standalone integrado ────────────────
 try:
@@ -305,6 +307,7 @@ from db import (
     _ensure_xl_snapshots_table,
     _ensure_engagement_tables,
     _ensure_avisos_tables,
+    _ensure_page_views_table,
     _ensure_funnel_log_table,
     _ensure_premiacao_tables,
     _ensure_pix_nivel_tables,
@@ -323,6 +326,7 @@ _ensure_suporte_comercial_users()
 _ensure_xl_snapshots_table()
 _ensure_engagement_tables()
 _ensure_avisos_tables()
+_ensure_page_views_table()
 _ensure_funnel_log_table()
 _ensure_premiacao_tables()
 _ensure_pix_nivel_tables()
