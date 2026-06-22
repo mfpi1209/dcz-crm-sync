@@ -436,6 +436,7 @@ const PAGE_LABELS = {
     disparador_whatsapp_conversao: 'Disparador WhatsApp · Conversão',
     disparador_whatsapp_meu_painel: 'Disparador WhatsApp · Meu Painel',
     disparador_whatsapp_regras: 'Disparador WhatsApp · Regras',
+    solicitacoes_ti: 'Solicitações TI (formulário)',
 };
 
 // ---------------------------------------------------------------------------
@@ -576,6 +577,13 @@ const PAGE_GROUPS_CONFIG = [
         icon: 'pie_chart',
         color: 'var(--primary)',
         pages: ['meta-campaigns'],
+    },
+    {
+        label: 'TI',
+        section: 'Operação',
+        icon: 'developer_board',
+        color: 'var(--primary)',
+        pages: ['solicitacoes_ti'],
     },
     {
         label: 'Sistema',
