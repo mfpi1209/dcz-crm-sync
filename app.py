@@ -250,6 +250,7 @@ from routes.inadimplencia import inadimplencia_bp
 from routes.disparador_whatsapp import disparador_whatsapp_bp
 from routes.page_views import page_views_bp
 from routes.solicitacoes_ti import solicitacoes_ti_bp
+from routes.captacao import captacao_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(dashboard_bp)
@@ -274,6 +275,7 @@ app.register_blueprint(inadimplencia_bp)
 app.register_blueprint(disparador_whatsapp_bp)
 app.register_blueprint(page_views_bp)
 app.register_blueprint(solicitacoes_ti_bp)
+app.register_blueprint(captacao_bp)
 
 # ── Atualizar Preço — rotas do webapp standalone integrado ────────────────
 try:

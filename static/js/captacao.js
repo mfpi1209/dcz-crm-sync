@@ -13,7 +13,9 @@ const capState = {
     cursoValue: '',
     leads: [],
     initialized: false,
-    modo: 'promotor'
+    modo: 'promotor',
+    ensinoMedio: null,
+    anoEM: ''
 };
 
 async function capCarregarCursos() {
@@ -74,7 +76,7 @@ function capSelectNivel(btn) {
     capState.modalidadeSelecionada = '';
     capState.cursoValue = '';
 
-    document.querySelectorAll('#page-captacao .cap-nivel-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#page-captacao .cap-nivel-btn[data-nivel]').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
 
     document.getElementById('cap-curso-input').value = '';
@@ -113,6 +115,23 @@ function capSelectMod(btn) {
     capState.modalidadeSelecionada = btn.dataset.mod;
     document.querySelectorAll('#page-captacao .cap-mod-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
+}
+
+function capSelectEM(btn) {
+    const em = btn.dataset.em;
+    capState.ensinoMedio = em;
+    document.querySelectorAll('#page-captacao .cap-em-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    const wrap = document.getElementById('cap-em-ano-wrap');
+    const sel = document.getElementById('cap-em-ano');
+    if (em === 'sim') {
+        wrap.style.display = '';
+    } else {
+        wrap.style.display = 'none';
+        if (sel) sel.value = '';
+        capState.anoEM = '';
+    }
 }
 
 function capRenderAutocomplete(val) {
@@ -183,12 +202,17 @@ function capReset() {
     capState.nivelSelecionado = '';
     capState.modalidadeSelecionada = '';
     capState.cursoValue = '';
+    capState.ensinoMedio = null;
+    capState.anoEM = '';
 
     document.querySelectorAll('#page-captacao .cap-nivel-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('#page-captacao .cap-mod-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('cap-ac-list').classList.remove('open');
     document.getElementById('cap-grau-wrap').style.display = '';
     document.getElementById('cap-ingresso-wrap').style.display = '';
+    document.getElementById('cap-em-ano-wrap').style.display = 'none';
+    const emAno = document.getElementById('cap-em-ano');
+    if (emAno) emAno.value = '';
     document.getElementById('cap-curso-input').placeholder = 'Digite para buscar o curso...';
 
     const modGrid = document.getElementById('cap-mod-grid');
@@ -200,6 +224,17 @@ function capReset() {
 
 async function capSubmit(e) {
     e.preventDefault();
+
+    if (capState.ensinoMedio === null) {
+        alert('Selecione se a pessoa está no ensino médio.');
+        return;
+    }
+    const anoEMValue = (document.getElementById('cap-em-ano').value || '').trim();
+    if (capState.ensinoMedio === 'sim' && !anoEMValue) {
+        alert('Selecione em qual ano do ensino médio a pessoa está.');
+        return;
+    }
+
     const btn = document.getElementById('cap-btn-submit');
     const modo = capState.modo || 'promotor';
     const labelEnviando = modo === 'candidato' ? 'ENVIANDO...' : 'ENVIANDO...';
@@ -222,17 +257,35 @@ async function capSubmit(e) {
         tipo: modo,
         usuario_logado: usuarioLogado,
         promotor: modo === 'promotor' ? usuarioLogado : '---',
+        ensino_medio: capState.ensinoMedio === 'sim',
+        ano_em: capState.ensinoMedio === 'sim' ? Number(anoEMValue) : null,
         hora: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
     };
 
-    try {
-        await fetch(CAP_WEBHOOK_URL, {
+    const [flaskRes, n8nRes] = await Promise.allSettled([
+        fetch('/api/captacao/lead', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(leadData)
-        });
-    } catch (err) {
-        console.error('Erro webhook:', err);
+        }),
+        fetch(CAP_WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(leadData)
+        })
+    ]);
+
+    const okFlask = flaskRes.status === 'fulfilled' && flaskRes.value.ok;
+    const okN8n = n8nRes.status === 'fulfilled' && (n8nRes.value.ok || n8nRes.value.status === 0);
+
+    if (!okFlask) console.warn('[Captação] Supabase (Flask) falhou:', flaskRes);
+    if (!okN8n) console.warn('[Captação] webhook n8n falhou:', n8nRes);
+
+    if (!okFlask && !okN8n) {
+        alert('Não foi possível salvar o cadastro. Tente novamente.');
+        btn.disabled = false;
+        capAplicarCopyModo();
+        return;
     }
 
     capState.leads.push(leadData);
