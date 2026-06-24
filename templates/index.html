@@ -50,6 +50,7 @@
             {% include 'partials/_cadastro_leads.html' %}
             {% include 'partials/_leads_inscricao.html' %}
             {% include 'partials/_disparador_whatsapp.html' %}
+            {% include 'partials/_rematricula.html' %}
             {% include 'partials/_avisos.html' %}
             {% include 'partials/_kommo_dispatcher.html' %}
             {% include 'partials/_meta_campaigns.html' %}
@@ -72,6 +73,7 @@
             {% include 'partials/_meus_atendimentos.html' %}
             {% include 'partials/_ia_comercial.html' %}
             {% include 'partials/_page_views.html' %}
+            {% include 'partials/_solicitacoes_ti.html' %}
         </main>
     </div>
 </div>
@@ -301,6 +303,7 @@
 
 {% set _v = range(100000) | random %}
 <script defer src="{{ url_for('static', filename='js/utils.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/kommo_sync.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/dashboard.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/dashboard_supervisor.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/dashboard_supervisor_academico.js') }}?v={{_v}}"></script>
@@ -312,7 +315,6 @@
 <script defer src="{{ url_for('static', filename='js/distribuicao.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/intelligence.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/inadimplencia.js') }}?v={{_v}}"></script>
-<script defer src="{{ url_for('static', filename='js/kommo_sync.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/match_merge.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/comercial_rgm.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/dist_comercial.js') }}?v={{_v}}"></script>
@@ -321,6 +323,7 @@
 <script defer src="{{ url_for('static', filename='js/ferramentas.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/leads_inscricao.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/disparador_whatsapp.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/rematricula.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/avisos.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/kommo_dispatcher.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/config.js') }}"></script>
@@ -341,6 +344,7 @@
 <script defer src="{{ url_for('static', filename='js/openai_pricing.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/ia_comercial.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/page_views.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/solicitacoes_ti.js') }}?v={{_v}}"></script>
 
 </body>
 </html>

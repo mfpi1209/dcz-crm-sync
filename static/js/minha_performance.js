@@ -1604,7 +1604,7 @@ async function _mpLoadMatriculas() {
     if (!uid) return;
     const tbody = document.getElementById('mp-mat-oficial-tbody');
     const countEl = document.getElementById('mp-mat-oficial-count');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-slate-600 text-xs">Carregando...</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-slate-600 text-xs">Carregando...</td></tr>';
     try {
         let qs = `kommo_uid=${uid}`;
         const dtIni = document.getElementById('mp-mat-dt-ini')?.value;
@@ -1615,24 +1615,37 @@ async function _mpLoadMatriculas() {
         const d = await res.json();
         _mpOficialData = d.matriculas || [];
 
-        const counts = { all: _mpOficialData.length, ativo: 0, evadido: 0, outros: 0 };
-        _mpOficialData.forEach(m => { counts[_mpClassifySituacao(m.situacao)]++; });
+        const _mpContaMeta = m => m.conta_para_meta !== false;
+        const counts = { all: _mpOficialData.length, ativo: 0, ativo_contando: 0, evadido: 0, outros: 0, fora_padrao: 0 };
+        _mpOficialData.forEach(m => {
+            const cat = _mpClassifySituacao(m.situacao);
+            counts[cat]++;
+            if (cat === 'ativo') {
+                if (_mpContaMeta(m)) counts.ativo_contando++;
+                else if (m.outlier) counts.fora_padrao++;
+            }
+        });
 
-        let summary = `${counts.all} total`;
-        if (counts.ativo)   summary += ` · <span class="text-emerald-600 dark:text-emerald-400">${counts.ativo} em curso</span>`;
-        if (counts.evadido) summary += ` · <span class="text-rose-600 dark:text-red-400">${counts.evadido} evadido${counts.evadido > 1 ? 's' : ''}</span>`;
-        if (counts.outros)  summary += ` · <span class="text-amber-600 dark:text-amber-400">${counts.outros} outro${counts.outros > 1 ? 's' : ''}</span>`;
+        const totalContando = d.total_contando ?? d.total_contavel ?? counts.ativo_contando;
+        let summary = `<span class="text-emerald-600 dark:text-emerald-400 font-semibold">${totalContando} em curso</span>`;
+        if (counts.fora_padrao) {
+            summary += ` · <span class="text-amber-600 dark:text-amber-400">${counts.fora_padrao} fora do padrão</span>`;
+        }
         if (countEl) countEl.innerHTML = summary;
 
         document.querySelectorAll('#mp-mat-oficial-pills .mp-status-pill').forEach(btn => {
             const c = btn.querySelector('.mp-pill-count');
-            if (c) c.textContent = counts[btn.dataset.status] || 0;
+            if (!c) return;
+            const st = btn.dataset.status;
+            if (st === 'ativo') c.textContent = totalContando;
+            else if (st === 'all') c.textContent = counts.all;
+            else c.textContent = counts[st] || 0;
         });
 
         _mpRenderOficialTable(_mpOficialData);
         _mpFilterOficial();
     } catch(e) {
-        if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-red-400 text-xs">Erro ao carregar</td></tr>';
+        if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-red-400 text-xs">Erro ao carregar</td></tr>';
     }
 }
 
@@ -1640,7 +1653,7 @@ function _mpRenderOficialTable(mats) {
     const tbody = document.getElementById('mp-mat-oficial-tbody');
     if (!tbody) return;
     if (!mats.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-slate-600 text-xs">Nenhuma matrícula encontrada</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-slate-600 text-xs">Nenhuma matrícula encontrada</td></tr>';
         return;
     }
     tbody.innerHTML = mats.map(m => {
@@ -1653,17 +1666,53 @@ function _mpRenderOficialTable(mats) {
                     ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">${sit}</span>`
                     : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/20">${sit}</span>`)
             : '<span class="text-slate-600">—</span>';
-        return `<tr class="border-b border-slate-200 dark:border-slate-800/50 mp-oficial-row hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors"
+
+        const isOutlier = !!m.outlier;
+        const rowBg = isOutlier ? 'bg-orange-50 dark:bg-orange-500/5' : '';
+        const rgmDisplay = isOutlier
+            ? `<span class="font-mono text-orange-700 dark:text-orange-300" title="RGM fora do padrão do ciclo">${m.rgm||'—'} ⚠</span>`
+            : (m.rgm||'—');
+
+        let contagemCell = '';
+        if (isOutlier) {
+            if (!m.conta_para_meta) {
+                contagemCell = _mpIsAdmin
+                    ? `<button onclick="_mpOutlierContarVenda(${JSON.stringify(m.rgm)}, true)" class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-500/20 text-orange-300 border border-orange-500/40 hover:bg-orange-500/40 transition-colors">Contar venda</button>`
+                    : `<span class="text-[10px] text-orange-400/70">Não conta</span>`;
+            } else {
+                contagemCell = `<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-300">✓ Contando</span>` +
+                    (_mpIsAdmin ? ` <button onclick="_mpOutlierContarVenda(${JSON.stringify(m.rgm)}, false)" class="text-[10px] text-slate-500 hover:text-red-400 underline">Desfazer</button>` : '');
+            }
+        }
+
+        return `<tr class="border-b border-slate-200 dark:border-slate-800/50 mp-oficial-row ${rowBg} hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors"
                     data-search="${(m.nome||'').toLowerCase()} ${(m.rgm||'').toLowerCase()} ${(m.curso||'').toLowerCase()}"
                     data-status="${cat}">
             <td class="py-1.5 px-2 text-slate-700 dark:text-slate-300">${m.nome||'—'}</td>
-            <td class="py-1.5 px-2 text-slate-500 dark:text-slate-400 font-mono">${m.rgm||'—'}</td>
+            <td class="py-1.5 px-2 text-slate-500 dark:text-slate-400 font-mono">${rgmDisplay}</td>
             <td class="py-1.5 px-2 text-slate-500 dark:text-slate-400">${m.curso || m.nivel || '—'}</td>
             <td class="py-1.5 px-2 text-slate-500 dark:text-slate-400">${m.polo||'—'}</td>
             <td class="py-1.5 px-2 text-slate-500 dark:text-slate-400">${_mpFmtDate(m.data_matricula)}</td>
             <td class="py-1.5 px-2">${badge}</td>
+            <td class="py-1.5 px-2">${contagemCell}</td>
         </tr>`;
     }).join('');
+}
+
+async function _mpOutlierContarVenda(rgm, contar) {
+    try {
+        const method = contar ? 'POST' : 'DELETE';
+        const res = await api('/api/comercial-rgm/outlier/contar-venda', {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rgm }),
+        });
+        const d = await res.json();
+        if (!d.ok) { alert(d.error || 'Erro ao atualizar contagem'); return; }
+        await _mpLoadMatriculas();
+    } catch(e) {
+        alert('Erro de rede ao atualizar contagem');
+    }
 }
 
 function _mpSetStatusFilter(status) {
@@ -1690,7 +1739,7 @@ function _mpFilterOficial() {
         if (!empty) {
             empty = document.createElement('tr');
             empty.id = 'mp-mat-oficial-empty';
-            empty.innerHTML = '<td colspan="6" class="py-6 text-center text-slate-500 dark:text-slate-600 text-xs">Nenhuma matrícula corresponde aos filtros.</td>';
+            empty.innerHTML = '<td colspan="7" class="py-6 text-center text-slate-500 dark:text-slate-600 text-xs">Nenhuma matrícula corresponde aos filtros.</td>';
             tbody.appendChild(empty);
         } else {
             empty.style.display = '';

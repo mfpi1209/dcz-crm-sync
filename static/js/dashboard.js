@@ -1,6 +1,17 @@
 // ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
+(function _localhostDashboardCachePurge() {
+    const h = location.hostname;
+    if (h !== 'localhost' && h !== '127.0.0.1') return;
+    const marker = 'dcz_localhost_purge_v4';
+    if (localStorage.getItem(marker)) return;
+    ['dash_ciclo_v1', 'dash_ciclo_v2', 'dsa_ciclo_v1', 'dsa_ciclo_v2'].forEach((k) => {
+        localStorage.removeItem(k);
+    });
+    localStorage.setItem(marker, String(Date.now()));
+})();
+
 async function loadDashboard() {
     try {
         if (window._sidebarPermsReady && window._sidebarPermsReady.then) {
@@ -61,8 +72,6 @@ async function loadDashboard() {
     _hideAll();
     if (_dashAcad) _dashAcad.classList.remove('hidden');
 
-    _dashRefreshFunnel(false);
-
     try {
         const res = await api('/api/dashboard');
         const d = await res.json();
@@ -94,32 +103,139 @@ async function loadDashboard() {
     } catch (err) {
         console.error('Dashboard load error:', err);
     }
-    populateCicloFilter();
-    loadStudentMetrics();
-    loadTimeline();
-    loadCicloMaster();
-    _loadInadimplenciaCard();
+    _dashRefreshFunnel(false);
+    await populateCicloFilter();
+    await applyDashboardFilters();
     if (typeof _dismissBootSplash === 'function') _dismissBootSplash();
+}
+
+function _dashBrtDateIso(daysAgo) {
+    const brt = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+    brt.setDate(brt.getDate() - (daysAgo || 0));
+    const y = brt.getFullYear();
+    const m = String(brt.getMonth() + 1).padStart(2, '0');
+    const d = String(brt.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
+async function _apiJsonSafe(res) {
+    if (!res || !res.ok) return null;
+    const ct = (res.headers.get('content-type') || '').toLowerCase();
+    if (!ct.includes('json')) return null;
+    try {
+        return await res.json();
+    } catch {
+        return null;
+    }
+}
+
+function _dashShowFunnelError(msg) {
+    const container = document.getElementById('dash-funnel-cards');
+    if (!container) return;
+    container.innerHTML = `
+        <div class="col-span-full text-center py-8 text-slate-500 text-sm flex flex-col items-center gap-3">
+            <span>${msg || 'Erro ao carregar funil.'}</span>
+            <button type="button" onclick="_dashRefreshFunnel(true)"
+                class="text-xs text-cyan-400 hover:text-cyan-300 border border-slate-600 px-3 py-1.5 rounded-lg">
+                Tentar novamente
+            </button>
+        </div>`;
+}
+
+async function _dashFallbackYesterdayCommercial(yStr) {
+    try {
+        const res = await api(`/api/comercial-rgm/data/kpis?dt_ini=${encodeURIComponent(yStr)}&dt_fim=${encodeURIComponent(yStr)}`);
+        const d = await _apiJsonSafe(res);
+        if (!d || !d.ok) return null;
+        const row = (d.evolucao || []).find(e => e.data === yStr);
+        return row ? row.count : (d.vendas_liquidas || 0);
+    } catch (e) {
+        console.warn('fallback yesterday vendas:', e);
+        return null;
+    }
+}
+
+async function _dashLoadYesterdayKpi(force) {
+    const q = force ? '?force=1' : '';
+    const yStr = _dashBrtDateIso(1);
+
+    for (const path of ['/api/kommo/yesterday-summary', '/api/dashboard/funnel-yesterday']) {
+        try {
+            const res = await api(path + q);
+            const y = await _apiJsonSafe(res);
+            if (y?.ok && y.data) {
+                let ys = y.data;
+                if (!ys.vendas) {
+                    const vendas = await _dashFallbackYesterdayCommercial(ys.date || yStr);
+                    if (vendas != null) ys = { ...ys, vendas };
+                }
+                if (typeof _renderYesterdaySummary === 'function') {
+                    _renderYesterdaySummary(ys, 'dash-funnel');
+                }
+                return;
+            }
+        } catch (e) {
+            console.warn('yesterday endpoint', path, e);
+        }
+    }
+
+    const vendas = await _dashFallbackYesterdayCommercial(yStr);
+
+    if (typeof _renderYesterdaySummary === 'function') {
+        _renderYesterdaySummary({
+            date: yStr,
+            vendas: vendas || 0,
+            leads: 0,
+            leads_prev: 0,
+            leads_delta_pct: 0,
+        }, 'dash-funnel');
+    }
 }
 
 async function _dashRefreshFunnel(force) {
     const btn = document.getElementById('dash-funnel-refresh-btn');
     if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
-
+    const q = force ? '?force=1' : '';
+    const slowTimer = setTimeout(() => {
+        const container = document.getElementById('dash-funnel-cards');
+        if (!container) return;
+        const stillLoading = container.textContent.includes('Buscando dados do Kommo');
+        if (stillLoading) {
+            container.innerHTML = `
+                <div class="col-span-full text-center py-8 text-slate-500 text-sm flex flex-col items-center gap-3">
+                    <svg class="animate-spin h-6 w-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    Buscando dados do Kommo… (pode levar até 40s)
+                </div>`;
+        }
+    }, 8000);
     try {
-        const url = '/api/kommo/funnel-live' + (force ? '?force=1' : '');
-        const res = await api(url);
-        const d = await res.json();
-        if (d.ok) {
+        const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const timer = ctrl ? setTimeout(() => ctrl.abort(), 120000) : null;
+        const res = await api('/api/kommo/funnel-live' + q, ctrl ? { signal: ctrl.signal } : {});
+        if (timer) clearTimeout(timer);
+        const d = await _apiJsonSafe(res);
+        if (d?.ok && typeof _renderFunnelCards === 'function') {
             _renderFunnelCards(d.data, 'dash-funnel');
+            if (d.data?.yesterday_summary && typeof _renderYesterdaySummary === 'function') {
+                _renderYesterdaySummary(d.data.yesterday_summary, 'dash-funnel');
+            }
+        } else if (d?.ok && typeof _renderFunnelCards !== 'function') {
+            console.error('dash funnel-live: _renderFunnelCards ausente — recarregue a página');
+            _dashShowFunnelError('Erro de carregamento do JS. Recarregue a página (Ctrl+Shift+R).');
         } else {
-            console.error('dash funnel-live error:', d.error);
+            console.error('dash funnel-live error:', d?.error || res?.status);
+            _dashShowFunnelError(d?.error || 'Não foi possível carregar o funil. Verifique se o servidor foi reiniciado.');
         }
     } catch (e) {
-        console.error('dash funnel-live fetch error:', e);
+        console.error('dash funnel-live error:', e);
+        _dashShowFunnelError(e.name === 'AbortError'
+            ? 'Tempo esgotado ao buscar o funil. Clique em Tentar novamente.'
+            : 'Erro de rede ao carregar o funil.');
     } finally {
+        clearTimeout(slowTimer);
         if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
     }
+    _dashLoadYesterdayKpi(force);
 }
 
 // ---------------------------------------------------------------------------
@@ -139,6 +255,19 @@ const _tlColors = {
 };
 let _tlMode = 'agregado';
 let _tlLastSeries = {};
+let _tlFetchGen = 0;
+let _dashGrandTotal = null;
+/** Filtros globais da página — fonte única para timeline e demais blocos. */
+let _dashActiveFilters = { ciclo: '', nivel: '', dtFrom: '', dtTo: '' };
+
+function _readDashboardFilters() {
+    return {
+        ciclo: document.getElementById('students-ciclo')?.value || '',
+        nivel: document.getElementById('students-nivel')?.value || '',
+        dtFrom: document.getElementById('students-from')?.value || '',
+        dtTo: document.getElementById('students-to')?.value || '',
+    };
+}
 
 function toggleTlMode() {
     _tlMode = _tlMode === 'agregado' ? 'detalhado' : 'agregado';
@@ -219,24 +348,39 @@ function _formatLabel(period, gran) {
     return parseInt(d) + '/' + parseInt(m);
 }
 
-async function loadTimeline(from, to) {
-    const nivel = document.getElementById('tl-nivel').value;
+async function loadTimeline(from, to, opts = {}) {
+    const gen = ++_tlFetchGen;
+    const f = {
+        ciclo: opts.ciclo ?? _dashActiveFilters.ciclo ?? '',
+        nivel: opts.nivel ?? _dashActiveFilters.nivel ?? '',
+        dtFrom: opts.dtFrom ?? _dashActiveFilters.dtFrom ?? '',
+        dtTo: opts.dtTo ?? _dashActiveFilters.dtTo ?? '',
+    };
     const params = new URLSearchParams({ granularity: _tlGranularity });
-    if (nivel) params.set('nivel', nivel);
+    if (f.nivel) params.set('nivel', f.nivel);
+    if (f.ciclo) params.set('ciclo', f.ciclo);
     if (from) params.set('from', from);
+    else if (f.dtFrom) params.set('from', f.dtFrom);
     if (to) params.set('to', to);
+    else if (f.dtTo) params.set('to', f.dtTo);
+
+    const url = '/api/dashboard/timeline?' + params.toString();
 
     try {
-        const res = await api('/api/dashboard/timeline?' + params);
+        const res = await api(url);
         const d = await res.json();
-        if (d.error) return;
+        if (gen !== _tlFetchGen) return;
+        if (d.error) {
+            console.warn('[Timeline] API error:', d.error, url);
+            return;
+        }
 
         const labels = (d.periods || []).map(p => _formatLabel(p, _tlGranularity));
         const rawPeriods = d.periods || [];
         const s = d.series || {};
         const fmt = n => (n||0).toLocaleString('pt-BR');
 
-        const isPosOnly = nivel === 'Pós-Graduação';
+        const isPosOnly = f.nivel === 'Pós-Graduação';
         const rematLbl = document.getElementById('tl-remat-label');
         if (rematLbl) rematLbl.textContent = isPosOnly ? 'Veteranos' : 'Rematrículas';
 
@@ -267,12 +411,30 @@ async function loadTimeline(from, to) {
 
         _renderGeralChart();
 
+        const rangeTxt = d.range ? d.range.from + ' → ' + d.range.to : '';
+        const cicloTxt = f.ciclo ? 'Ciclo ' + f.ciclo : '';
         document.getElementById('tl-period-label').textContent =
-            _tlGranularity === 'day' && _tlDrillMonth ? _tlDrillMonth : (d.range ? d.range.from + ' → ' + d.range.to : '');
+            _tlGranularity === 'day' && _tlDrillMonth
+                ? _tlDrillMonth
+                : [cicloTxt, rangeTxt].filter(Boolean).join(' · ');
 
         document.getElementById('tl-drillup').classList.toggle('hidden', _tlGranularity !== 'day');
 
         window._tlRawPeriods = rawPeriods;
+
+        const tlTotal = (s.total || []).reduce((a, b) => a + (Number(b) || 0), 0);
+        const metaCiclo = d.meta?.ciclo || null;
+        if (f.ciclo && metaCiclo !== f.ciclo) {
+            console.warn('[Timeline] ciclo não aplicado no servidor — reinicie o backend. pedido=', f.ciclo, 'resposta=', metaCiclo, url);
+        } else if (
+            f.ciclo &&
+            _dashGrandTotal != null &&
+            !_stuActiveTipo &&
+            !_stuActiveSituacao &&
+            Math.abs(tlTotal - _dashGrandTotal) > 1
+        ) {
+            console.warn('[Timeline] total diverge dos KPIs:', tlTotal, 'vs', _dashGrandTotal, url);
+        }
     } catch (e) { console.error('Timeline error:', e); }
 }
 
@@ -303,13 +465,16 @@ async function loadCicloMaster() {
     const loading = document.getElementById('ciclo-master-loading');
     const empty = document.getElementById('ciclo-master-empty');
     const content = document.getElementById('ciclo-master-content');
+    if (!loading) return;
     loading.classList.remove('hidden');
     empty.classList.add('hidden');
     content.classList.add('hidden');
 
     try {
-        const _nivelParam = document.getElementById('ciclo-filter-nivel').value;
-        const res = await api('/api/dashboard/ciclos' + (_nivelParam ? '?nivel=' + encodeURIComponent(_nivelParam) : ''));
+        const _nivelParam = document.getElementById('students-nivel')?.value || '';
+        const qs = new URLSearchParams();
+        if (_nivelParam) qs.set('nivel', _nivelParam);
+        const res = await api('/api/dashboard/ciclos' + (qs.toString() ? '?' + qs : ''));
         const d = await res.json();
         if (d.error) { loading.textContent = 'Erro: ' + d.error; return; }
 
@@ -357,7 +522,7 @@ function renderCicloMaster(data) {
         const prevTotal = prev.grand_total || 0;
         const ch = pct(total, prevTotal);
         const t = cur.totals || {};
-        return `<div class="bg-white dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-700/50 shadow-sm">
+        return `<div class="glass-card p-4">
             <div class="flex items-center justify-between mb-1">
                 <span class="text-[10px] font-bold text-${accent} dark:text-${accent} uppercase tracking-wider">${label}</span>
                 <span class="text-[10px] font-bold ${ch.cls} bg-slate-50 dark:bg-slate-800/40 px-1.5 py-0.5 rounded-full">${ch.txt}</span>
@@ -394,13 +559,13 @@ function renderCicloMaster(data) {
         const id = 'ciclo-expand-' + i;
         const t = c.totals || {};
         const sits = Object.entries(c.by_situacao || {}).slice(0, 6);
-        const polos = Object.entries(c.by_polo || {}).slice(0, 8);
+        const polos = Object.entries(typeof mergePoloBreakdown === 'function' ? mergePoloBreakdown(c.by_polo || {}) : (c.by_polo || {})).slice(0, 8);
 
         const cardIsPos = (c.nivel || '').includes('Pós');
         const cardRematShort = cardIsPos ? 'Veteranos' : 'Rematr.';
         const cardRematFull  = cardIsPos ? 'Veteranos' : 'Rematrículas';
 
-        return `<div class="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm overflow-hidden">
+        return `<div class="glass-card overflow-hidden">
             <button onclick="document.getElementById('${id}').classList.toggle('hidden')" class="w-full px-5 py-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-all">
                 <div class="flex items-center gap-4 min-w-0">
                     <div class="flex items-center gap-2">
@@ -467,40 +632,79 @@ function renderCicloMaster(data) {
     }
 }
 
-let _ciclosConfig = [];
+const _DASH_CICLO_KEY = 'dash_ciclo_v2';
 
-async function populateCicloFilter() {
-    try {
-        const res = await api('/api/ciclos');
-        const list = await res.json();
-        _ciclosConfig = list || [];
-        const sel = document.getElementById('students-ciclo');
-        if (!sel) return;
-        const names = [...new Set(list.map(c => c.nome))].sort().reverse();
-        sel.innerHTML = '<option value="">Todos os ciclos</option>' +
-            names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
-        if (names.length > 0) {
-            sel.value = names[0];
-            applyCicloFilter();
+function _syncDashboardFilterUi() {
+    const ciclo = document.getElementById('students-ciclo')?.value || '';
+    const nivel = document.getElementById('students-nivel')?.value || '';
+    const tlBadge = document.getElementById('tl-filter-badge');
+    if (tlBadge) {
+        const parts = [];
+        if (ciclo) parts.push('Ciclo ' + ciclo);
+        if (nivel) parts.push(nivel);
+        if (parts.length) {
+            tlBadge.textContent = parts.join(' · ');
+            tlBadge.classList.remove('hidden');
+        } else {
+            tlBadge.classList.add('hidden');
         }
-    } catch(e) { console.error('Erro ao carregar ciclos:', e); }
+    }
+    const cmNivel = document.getElementById('ciclo-filter-nivel');
+    if (cmNivel) cmNivel.value = nivel;
+}
+
+/** Recarrega todas as seções do Dashboard Acadêmico com os filtros do topo. */
+async function applyDashboardFilters() {
+    const cicloSel = document.getElementById('students-ciclo');
+    if (cicloSel) {
+        if (cicloSel.value) localStorage.setItem(_DASH_CICLO_KEY, cicloSel.value);
+        else localStorage.removeItem(_DASH_CICLO_KEY);
+    }
+    _dashActiveFilters = _readDashboardFilters();
+    _tlGranularity = 'month';
+    _tlDrillMonth = null;
+    document.getElementById('tl-drillup')?.classList.add('hidden');
+    _syncDashboardFilterUi();
+    await loadStudentMetrics();
+    await loadTimeline(undefined, undefined, _dashActiveFilters);
+    await Promise.all([_loadInadimplenciaCard(), loadCicloMaster()]);
 }
 
 function applyCicloFilter() {
-    const ciclo = document.getElementById('students-ciclo').value;
-    if (ciclo) {
-        const matching = _ciclosConfig.filter(c => c.nome === ciclo);
-        if (matching.length) {
-            const starts = matching.map(c => c.dt_inicio).sort();
-            const ends = matching.map(c => c.dt_fim).sort().reverse();
-            document.getElementById('students-from').value = starts[0];
-            document.getElementById('students-to').value = ends[0];
+    applyDashboardFilters();
+}
+
+async function populateCicloFilter() {
+    try {
+        if (localStorage.getItem(_DASH_CICLO_KEY) === '') {
+            localStorage.removeItem(_DASH_CICLO_KEY);
         }
-    } else {
-        document.getElementById('students-from').value = '';
-        document.getElementById('students-to').value = '';
+        const res = await api('/api/dashboard/ciclos-distinct');
+        const list = await res.json();
+        const arr = Array.isArray(list) ? list : [];
+        const sel = document.getElementById('students-ciclo');
+        if (!sel) return;
+        sel.innerHTML =
+            '<option value="">Todos os ciclos</option>' +
+            arr
+                .map((c) => {
+                    const n = c.nome;
+                    const tot =
+                        c.total != null ? ` (${Number(c.total).toLocaleString('pt-BR')})` : '';
+                    return `<option value="${esc(n)}">${esc(n)}${tot}</option>`;
+                })
+                .join('');
+        const names = arr.map((c) => c.nome);
+        const mostRecent = arr[0]?.nome || '';
+        const saved = localStorage.getItem(_DASH_CICLO_KEY);
+        if (saved && names.includes(saved)) {
+            sel.value = saved;
+        } else {
+            sel.value = mostRecent;
+        }
+    } catch (e) {
+        console.error('Erro ao carregar ciclos:', e);
     }
-    loadStudentMetrics();
 }
 
 // ---------------------------------------------------------------------------
@@ -591,6 +795,7 @@ async function loadStudentMetrics() {
         const fmt = n => (n || 0).toLocaleString('pt-BR');
         const t = d.totals || {};
         const gt = d.grand_total || 0;
+        _dashGrandTotal = gt;
 
         const stuIsPosOnly = nivel === 'Pós-Graduação';
         const stuRematLabel = stuIsPosOnly ? 'Veteranos' : 'Rematrículas';
@@ -619,7 +824,7 @@ async function loadStudentMetrics() {
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                 <!-- Big Number: Novos -->
-                <div class="bg-white dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm relative overflow-hidden cursor-pointer transition-all hover:shadow-md ${isNovosAgg ? ringActive + ' ring-blue-500' : ''}"
+                <div class="glass-card p-6 relative overflow-hidden cursor-pointer transition-all hover:shadow-md ${isNovosAgg ? ringActive + ' ring-blue-500' : ''}"
                      onclick="_stuToggleTipo('novos_agg')">
                     <div class="flex items-center justify-between mb-4">
                         <div class="w-12 h-12 bg-blue-50 dark:bg-blue-500/10 rounded-xl flex items-center justify-center">
@@ -649,7 +854,7 @@ async function loadStudentMetrics() {
                     </div>
                 </div>
                 <!-- Big Number: Rematrículas -->
-                <div class="bg-white dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/50 shadow-sm relative overflow-hidden cursor-pointer transition-all hover:shadow-md ${isRemat ? ringActive + ' ring-emerald-500' : ''}"
+                <div class="glass-card p-6 relative overflow-hidden cursor-pointer transition-all hover:shadow-md ${isRemat ? ringActive + ' ring-emerald-500' : ''}"
                      onclick="_stuToggleTipo('rematricula')">
                     <div class="flex items-center justify-between mb-4">
                         <div class="w-12 h-12 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl flex items-center justify-center">
@@ -665,8 +870,8 @@ async function loadStudentMetrics() {
 
         countUpAll(stuContainer);
         _renderSituacaoCardsClickable('stu-by-situacao', d.by_situacao);
-        renderBreakdownBars('stu-by-nivel', d.by_nivel);
-        renderBreakdownBars('stu-by-polo', d.by_polo);
+        renderProportionBars('stu-by-nivel', d.by_nivel);
+        renderPoloRankingTable('stu-by-polo', mergePoloBreakdown(d.by_polo));
         renderBreakdown('stu-by-turma', d.by_turma);
         renderBreakdown('stu-by-ciclo', d.by_ciclo);
 
@@ -770,7 +975,7 @@ function _renderSituacaoCardsClickable(elId, data) {
         const isActive = _stuActiveSituacao === k;
         const activeRing = isActive ? `${ringActive} ring-${c.text}-500` : '';
 
-        return `<div class="bg-white dark:bg-slate-800/50 p-5 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm relative overflow-hidden cursor-pointer transition-all hover:shadow-md ${activeRing}"
+        return `<div class="glass-card p-5 relative overflow-hidden cursor-pointer transition-all hover:shadow-md ${activeRing}"
                      onclick="_stuToggleSituacao('${esc(k)}')">
             <div class="flex items-center justify-between mb-3">
                 <div class="w-10 h-10 bg-${c.bg}-50 dark:bg-${c.bg}-500/10 rounded-xl flex items-center justify-center">
@@ -786,6 +991,50 @@ function _renderSituacaoCardsClickable(elId, data) {
         </div>`;
     }).join('');
     countUpAll(el);
+}
+
+function renderPoloRankingTable(elId, byPolo) {
+    const tbody = document.getElementById(elId);
+    if (!tbody) return;
+    const merged = typeof mergePoloBreakdown === 'function' ? mergePoloBreakdown(byPolo) : (byPolo || {});
+    const ranking = Object.entries(merged).sort((a, b) => b[1] - a[1]);
+    if (!ranking.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="px-5 py-6 text-center text-slate-500">Sem dados</td></tr>';
+        return;
+    }
+    const max = Math.max(...ranking.map(([, v]) => v), 1);
+    tbody.innerHTML = ranking.map(([nome, total], i) =>
+        `<tr class="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors">
+            <td class="text-center px-3 py-2.5 text-slate-500 font-medium text-xs">${i + 1}</td>
+            <td class="px-4 py-2.5 text-slate-700 dark:text-slate-300 text-xs font-medium">${esc(nome)}</td>
+            <td class="px-4 py-2.5 text-right font-mono text-[#00346f] dark:text-white font-semibold text-xs tabular-nums">${total.toLocaleString('pt-BR')}</td>
+            <td class="px-4 py-2.5"><div class="h-3 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-500" style="width:${Math.round(total / max * 100)}%"></div></div></td>
+        </tr>`
+    ).join('');
+}
+
+function renderProportionBars(elId, data) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    if (!data || !Object.keys(data).length) {
+        el.innerHTML = '<p class="px-4 py-6 text-center text-slate-500 text-xs">Sem dados</p>';
+        return;
+    }
+    const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
+    const max = Math.max(...entries.map(([, v]) => v), 1);
+    const total = entries.reduce((s, [, v]) => s + v, 0);
+    el.innerHTML = entries.map(([k, v]) => {
+        const pct = total ? Math.round(v / total * 100) : 0;
+        return `<div class="px-4 py-3 border-b border-slate-200 dark:border-slate-700/10 last:border-0 hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors">
+            <div class="flex items-center justify-between gap-3 mb-2">
+                <span class="text-xs font-medium text-slate-700 dark:text-slate-300">${esc(k)}</span>
+                <span class="text-xs font-mono font-semibold text-[#00346f] dark:text-white tabular-nums">${v.toLocaleString('pt-BR')} <span class="text-slate-400 font-normal">(${pct}%)</span></span>
+            </div>
+            <div class="h-3 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                <div class="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-500" style="width:${Math.round(v / max * 100)}%"></div>
+            </div>
+        </div>`;
+    }).join('');
 }
 
 function renderBreakdownBars(elId, data) {
@@ -807,7 +1056,12 @@ function renderBreakdownBars(elId, data) {
 }
 
 function clearStudentFilter() {
-    document.getElementById('students-ciclo').value = '';
+    const cicloSel = document.getElementById('students-ciclo');
+    if (cicloSel) {
+        const recent = Array.from(cicloSel.options).find((o) => o.value);
+        cicloSel.value = recent ? recent.value : '';
+        localStorage.setItem(_DASH_CICLO_KEY, cicloSel.value || '');
+    }
     document.getElementById('students-from').value = '';
     document.getElementById('students-to').value = '';
     document.getElementById('students-nivel').value = '';
@@ -815,8 +1069,7 @@ function clearStudentFilter() {
     document.getElementById('stu-filter-badge').classList.add('hidden');
     _stuActiveTipo = null;
     _stuActiveSituacao = null;
-    loadStudentMetrics();
-    _loadInadimplenciaCard();
+    applyDashboardFilters();
 }
 
 // ---------------------------------------------------------------------------
@@ -837,7 +1090,7 @@ function _inadRenderCards() {
     const pctAdim = d.total_alunos ? ((d.adimplentes / d.total_alunos) * 100).toFixed(1) : '0';
 
     container.innerHTML = `
-        <div class="bg-white dark:bg-slate-800/50 p-5 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer transition-all hover:shadow-md"
+        <div class="glass-card p-5 cursor-pointer transition-all hover:shadow-md"
              onclick="_inadToggleCard('total')">
             <div class="flex items-center justify-between mb-3">
                 <div class="w-10 h-10 bg-teal-50 dark:bg-teal-500/10 rounded-xl flex items-center justify-center">
@@ -847,7 +1100,7 @@ function _inadRenderCards() {
             <p class="text-slate-500 text-sm font-medium">Total Alunos</p>
             <p class="text-2xl font-black text-slate-900 dark:text-white mt-1" data-count="${d.total_alunos || 0}">0</p>
         </div>
-        <div class="bg-white dark:bg-slate-800/50 p-5 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer transition-all hover:shadow-md"
+        <div class="glass-card p-5 cursor-pointer transition-all hover:shadow-md"
              onclick="_inadToggleCard('adim')">
             <div class="flex items-center justify-between mb-3">
                 <div class="w-10 h-10 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl flex items-center justify-center">
@@ -858,7 +1111,7 @@ function _inadRenderCards() {
             <p class="text-slate-500 text-sm font-medium">Adimplentes</p>
             <p class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1" data-count="${d.adimplentes || 0}">0</p>
         </div>
-        <div class="bg-white dark:bg-slate-800/50 p-5 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer transition-all hover:shadow-md"
+        <div class="glass-card p-5 cursor-pointer transition-all hover:shadow-md"
              onclick="_inadToggleCard('inadim')">
             <div class="flex items-center justify-between mb-3">
                 <div class="w-10 h-10 bg-amber-50 dark:bg-amber-500/10 rounded-xl flex items-center justify-center">
@@ -869,7 +1122,7 @@ function _inadRenderCards() {
             <p class="text-slate-500 text-sm font-medium">Inadimplentes</p>
             <p class="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1" data-count="${d.inadimplentes || 0}">0</p>
         </div>
-        <div class="bg-white dark:bg-slate-800/50 p-5 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer transition-all hover:shadow-md"
+        <div class="glass-card p-5 cursor-pointer transition-all hover:shadow-md"
              onclick="_inadToggleCard('pct')">
             <div class="flex items-center justify-between mb-3">
                 <div class="w-10 h-10 bg-rose-50 dark:bg-rose-500/10 rounded-xl flex items-center justify-center">
@@ -899,12 +1152,15 @@ async function _loadInadimplenciaCard() {
     const situacao = _stuActiveSituacao;
     const nivelEl = document.getElementById('students-nivel');
     const nivel = nivelEl ? nivelEl.value : '';
+    const cicloEl = document.getElementById('students-ciclo');
+    const ciclo = cicloEl ? cicloEl.value : '';
 
     try {
         const p = new URLSearchParams();
         if (tipo) p.set('tipo', tipo);
         if (situacao) p.set('situacao', situacao);
         if (nivel) p.set('nivel', nivel);
+        if (ciclo) p.set('ciclo', ciclo);
         const qs = p.toString();
         const url = '/api/lista-alunos/latest' + (qs ? '?' + qs : '');
 

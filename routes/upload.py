@@ -1109,7 +1109,8 @@ def api_lista_alunos_latest():
     f_tipo = request.args.get("tipo", "").strip().lower()
     f_situacao = request.args.get("situacao", "").strip()
     f_nivel = request.args.get("nivel", "").strip()
-    current_app.logger.info("[SAUDE-FIN] latest called: tipo=%r, situacao=%r, nivel=%r", f_tipo, f_situacao, f_nivel)
+    f_ciclo = request.args.get("ciclo", "").strip()
+    current_app.logger.info("[SAUDE-FIN] latest called: tipo=%r, situacao=%r, nivel=%r, ciclo=%r", f_tipo, f_situacao, f_nivel, f_ciclo)
     conn = get_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -1123,8 +1124,8 @@ def api_lista_alunos_latest():
                 return jsonify({"ok": True, "has_data": False})
 
             snap_id = snap["id"]
-            has_filter = (f_tipo and f_tipo in _TIPO_SQL_CASES) or f_situacao or f_nivel
-            current_app.logger.info("[SAUDE-FIN] has_filter=%s, f_tipo_in_cases=%s, f_nivel=%r", has_filter, f_tipo in _TIPO_SQL_CASES if f_tipo else 'N/A', f_nivel)
+            has_filter = (f_tipo and f_tipo in _TIPO_SQL_CASES) or f_situacao or f_nivel or f_ciclo
+            current_app.logger.info("[SAUDE-FIN] has_filter=%s, f_tipo_in_cases=%s, f_nivel=%r, f_ciclo=%r", has_filter, f_tipo in _TIPO_SQL_CASES if f_tipo else 'N/A', f_nivel, f_ciclo)
 
             if has_filter:
                 cur.execute("""
@@ -1164,6 +1165,12 @@ def api_lista_alunos_latest():
                     ) = %s"""
                     mat_conditions.append(nivel_case)
                     params.append(f_nivel)
+
+                if f_ciclo:
+                    mat_conditions.append(
+                        "TRIM(COALESCE(m.data->>'ciclo','')) = %s"
+                    )
+                    params.append(f_ciclo)
 
                 where_extra = (" AND " + " AND ".join(mat_conditions)) if mat_conditions else ""
                 params.append(snap_id)

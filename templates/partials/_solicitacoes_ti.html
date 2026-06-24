@@ -1,0 +1,301 @@
+{# Solicitações TI — formulário que grava chamados no Google Sheets via Apps Script
+   (proxy em routes/solicitacoes_ti.py). Layout inspirado no zip enviado pelo
+   usuário (Central de Solicitações TI), adaptado às variáveis CSS do dashboard
+   (glass-card, var(--bg-card), --border, --text-primary, etc) para herdar dark/
+   light mode automaticamente. #}
+<div id="page-solicitacoes_ti" class="hidden flex-1 flex flex-col min-w-0">
+
+    <header class="glass-card border border-[var(--border)] rounded-2xl px-4 lg:px-8 py-6 mx-4 lg:mx-8 mt-4 mb-6">
+        <div class="flex items-center justify-between gap-4 flex-wrap">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0"
+                     style="background: var(--primary)">TI</div>
+                <div class="min-w-0">
+                    <h2 class="text-2xl font-black text-[var(--text-primary)] dark:text-white truncate">Central de Solicitações TI</h2>
+                    <p class="text-xs text-slate-600 dark:text-slate-400 mt-1 uppercase tracking-widest">Abra um chamado e grave automaticamente na planilha do time de TI</p>
+                </div>
+            </div>
+            <div id="sti-config-pill" class="hidden items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.15em] px-3 py-1.5 rounded-full"
+                 style="background: var(--bg-elevated); color: var(--text-secondary);">
+                <span class="material-symbols-outlined text-[14px]" style="color: var(--primary)">database</span>
+                <span id="sti-config-pill-text">—</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 p-4 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Coluna esquerda: formulário -->
+        <section class="lg:col-span-8 flex flex-col gap-6">
+
+            <!-- Aviso quando webhook não configurado -->
+            <div id="sti-no-webhook" class="hidden glass-card border border-amber-400/40 rounded-2xl p-5 flex items-start gap-3"
+                 style="background: rgba(245,158,11,0.08);">
+                <span class="material-symbols-outlined text-amber-500 text-2xl shrink-0 mt-0.5">warning</span>
+                <div class="text-xs leading-relaxed">
+                    <p class="font-bold text-amber-700 dark:text-amber-300 mb-1">Webhook do Google Apps Script não configurado.</p>
+                    <p class="text-slate-700 dark:text-slate-300">
+                        Defina <code class="font-mono bg-[var(--bg-elevated)] px-1.5 py-0.5 rounded">TI_APPS_SCRIPT_URL</code>
+                        no <code class="font-mono bg-[var(--bg-elevated)] px-1.5 py-0.5 rounded">.env</code> com a URL gerada em
+                        <strong>Implantar → App da Web</strong> (termina em <code class="font-mono">/exec</code>) e reinicie o servidor.
+                        Sem essa URL os chamados não são gravados na planilha.
+                    </p>
+                </div>
+            </div>
+
+            <div id="sti-form-card" class="glass-card border border-[var(--border)] rounded-2xl p-6 md:p-8">
+
+                <header class="mb-6 flex items-start justify-between gap-3 flex-wrap">
+                    <div>
+                        <h3 class="text-xl font-bold text-[var(--text-primary)] dark:text-white">Abertura de Chamado</h3>
+                        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                            Preencha os dados abaixo para enviar sua solicitação diretamente para o setor de TI.
+                        </p>
+                    </div>
+                    <span class="text-[10px] font-bold uppercase tracking-[0.15em] px-2.5 py-1 rounded-full shrink-0"
+                          style="background: rgba(0,52,111,0.10); color: var(--primary);">
+                        Aba: <span id="sti-aba-label">Solicitações</span>
+                    </span>
+                </header>
+
+                <!-- Mensagem de erro -->
+                <div id="sti-error" class="hidden mb-5 p-4 rounded-xl flex items-start gap-3 text-sm"
+                     style="background: rgba(239,68,68,0.10); border: 1px solid rgba(239,68,68,0.30); color: #b91c1c;">
+                    <span class="material-symbols-outlined text-[20px] mt-0.5 shrink-0">error</span>
+                    <div><span class="font-bold">Atenção:</span> <span id="sti-error-text"></span></div>
+                </div>
+
+                <!-- Estado de sucesso -->
+                <div id="sti-success" class="hidden my-6 py-8 text-center max-w-lg mx-auto space-y-4">
+                    <div class="w-14 h-14 mx-auto rounded-full flex items-center justify-center"
+                         style="background: rgba(16,185,129,0.12); color: #059669; border: 1px solid rgba(16,185,129,0.30);">
+                        <span class="material-symbols-outlined text-[32px]">check_circle</span>
+                    </div>
+                    <div>
+                        <h4 class="text-lg font-bold text-[var(--text-primary)] dark:text-white">Chamado Enviado com Sucesso!</h4>
+                        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1.5">
+                            Sua solicitação foi registrada na aba
+                            <code class="bg-[var(--bg-elevated)] px-1.5 py-0.5 rounded font-mono text-xs" id="sti-success-aba">Solicitações</code>
+                            do Google Sheets.
+                        </p>
+                        <p id="sti-success-id" class="text-xs text-slate-500 dark:text-slate-400 mt-2 font-mono"></p>
+                    </div>
+                    <button type="button" onclick="stiResetForm()"
+                            class="px-6 py-2.5 rounded-lg text-white text-xs font-bold tracking-wide transition-all hover:opacity-90 active:scale-95"
+                            style="background: var(--primary)">
+                        Abrir Novo Chamado
+                    </button>
+                </div>
+
+                <!-- Estado de loading -->
+                <div id="sti-loading" class="hidden my-12 py-12 text-center space-y-3">
+                    <div class="animate-spin rounded-full h-10 w-10 border-2 mx-auto"
+                         style="border-color: var(--primary); border-top-color: transparent;"></div>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 font-mono">Conectando e preenchendo planilha…</p>
+                </div>
+
+                <!-- Formulário -->
+                <form id="sti-form" class="grid grid-cols-1 md:grid-cols-2 gap-5" onsubmit="event.preventDefault(); stiSubmit();">
+
+                    <div class="flex flex-col gap-2">
+                        <label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Nome Completo <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">person</span>
+                            <input type="text" id="sti-solicitante" required maxlength="120"
+                                   placeholder="Ex: João Silva"
+                                   class="input-glass h-11 pl-10 pr-4 rounded-lg w-full text-sm font-medium">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        <label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Setor Solicitante <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">domain</span>
+                            <select id="sti-setor" required
+                                    class="input-glass h-11 pl-10 pr-4 rounded-lg w-full text-sm font-medium cursor-pointer">
+                                <option value="">Selecione o setor…</option>
+                                <option value="Marketing">Marketing</option>
+                                <option value="Comercial">Comercial</option>
+                                <option value="Acadêmico">Acadêmico</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        <label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Tipo de Requisição <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">build</span>
+                            <select id="sti-categoria" required
+                                    class="input-glass h-11 pl-10 pr-4 rounded-lg w-full text-sm font-medium cursor-pointer">
+                                <option value="">Selecione a categoria técnica…</option>
+                                <option value="Erros/Bugs">🐛 Erros/Bugs</option>
+                                <option value="Processos Novos">⚙️ Processos Novos</option>
+                                <option value="Ideias Novas">💡 Ideias Novas</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        <label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Prioridade Estimada <span class="text-red-500">*</span>
+                        </label>
+                        <div id="sti-urgencia-group" class="flex gap-2" data-value="Média">
+                            <button type="button" data-urgencia="Baixa"
+                                    class="sti-urg-btn flex-1 h-11 text-xs rounded-lg border font-medium transition-all">Baixa</button>
+                            <button type="button" data-urgencia="Média"
+                                    class="sti-urg-btn flex-1 h-11 text-xs rounded-lg border font-medium transition-all">Média</button>
+                            <button type="button" data-urgencia="Alta"
+                                    class="sti-urg-btn flex-1 h-11 text-xs rounded-lg border font-medium transition-all">Alta</button>
+                            <button type="button" data-urgencia="Crítica"
+                                    class="sti-urg-btn flex-1 h-11 text-xs rounded-lg border font-medium transition-all">Crítica</button>
+                        </div>
+                    </div>
+
+                    <div class="md:col-span-2 flex flex-col gap-2">
+                        <label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Título Resumido / Assunto <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" id="sti-titulo" required maxlength="200"
+                               placeholder="Ex: Não consigo conectar na VPN corporativa"
+                               class="input-glass h-11 px-4 rounded-lg w-full text-sm font-medium">
+                    </div>
+
+                    <div class="md:col-span-2 flex flex-col gap-2">
+                        <label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Descrição Detalhada <span class="text-red-500">*</span>
+                        </label>
+                        <textarea id="sti-descricao" required rows="5" maxlength="4000"
+                                  placeholder="Descreva detalhadamente sua solicitação…"
+                                  class="input-glass p-4 rounded-lg w-full text-sm font-medium resize-none"></textarea>
+                    </div>
+
+                    <div class="md:col-span-2 flex flex-col gap-2">
+                        <label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Observações Extras / Patrimônio (opcional)
+                        </label>
+                        <input type="text" id="sti-observacoes" maxlength="300"
+                               placeholder="Ex: Patrimônio nº 8574-A ou RAMAL 415"
+                               class="input-glass h-11 px-4 rounded-lg w-full text-sm font-medium">
+                    </div>
+
+                    <div class="md:col-span-2 flex flex-col sm:flex-row items-center justify-between gap-3 mt-2 pt-5 border-t border-[var(--border)]">
+                        <div class="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 italic">
+                            <span class="material-symbols-outlined text-[16px]" style="color: var(--primary)">check_circle</span>
+                            <span>Registrará automaticamente na planilha corporativa.</span>
+                        </div>
+                        <button type="submit" id="sti-submit-btn"
+                                class="w-full sm:w-auto px-8 h-12 rounded-xl text-white text-xs font-bold tracking-wider transition-all hover:opacity-90 active:scale-95 shadow-lg"
+                                style="background: var(--primary); box-shadow: 0 10px 25px -5px rgba(0,52,111,0.35);">
+                            Enviar Chamado de TI
+                        </button>
+                    </div>
+
+                </form>
+            </div>
+        </section>
+
+        <!-- Coluna direita: histórico local -->
+        <aside class="lg:col-span-4 flex flex-col gap-6">
+            <div class="glass-card border border-[var(--border)] rounded-2xl p-5 space-y-4">
+                <div class="flex justify-between items-center pb-3 border-b border-[var(--border)]">
+                    <div class="flex items-center gap-1.5 text-[var(--text-primary)] dark:text-white font-bold text-xs uppercase tracking-wider">
+                        <span class="material-symbols-outlined text-[18px]" style="color: var(--primary)">history</span>
+                        <span>Chamados Recentes</span>
+                    </div>
+                    <span id="sti-local-count" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full"
+                          style="background: rgba(0,52,111,0.10); color: var(--primary);">0</span>
+                </div>
+
+                <div id="sti-local-empty" class="text-center py-8 space-y-2 text-slate-400 dark:text-slate-500">
+                    <span class="material-symbols-outlined text-[28px]">work</span>
+                    <p class="text-xs leading-relaxed">Nenhum chamado enviado desta máquina ainda.</p>
+                    <p class="text-[10px] text-slate-400 dark:text-slate-600 leading-normal">
+                        Os chamados enviados pelo formulário aparecerão aqui (somente neste navegador).
+                    </p>
+                </div>
+
+                <div id="sti-local-list" class="hidden space-y-2.5 max-h-96 overflow-y-auto pr-1"></div>
+
+                <button type="button" id="sti-clear-local" onclick="stiClearLocal()"
+                        class="hidden w-full text-center text-[10px] font-bold flex items-center justify-center gap-1 py-2 rounded-lg transition-all"
+                        style="color: #dc2626;">
+                    <span class="material-symbols-outlined text-[14px]">delete</span>
+                    <span>Limpar histórico local</span>
+                </button>
+            </div>
+
+            <div class="glass-card border border-[var(--border)] rounded-2xl p-5 space-y-3 text-xs text-slate-600 dark:text-slate-400">
+                <div class="flex items-center gap-1.5 text-[var(--text-primary)] dark:text-white font-bold text-xs uppercase tracking-wider mb-1">
+                    <span class="material-symbols-outlined text-[18px]" style="color: var(--primary)">help</span>
+                    <span>Como funciona</span>
+                </div>
+                <ul class="space-y-2 leading-relaxed list-disc pl-5">
+                    <li>O formulário envia o chamado pra uma planilha do Google Sheets do time de TI.</li>
+                    <li>Cada envio gera um código único (ex: <code class="font-mono bg-[var(--bg-elevated)] px-1 rounded">CH-1234</code>).</li>
+                    <li>Use prioridade <strong>Crítica</strong> só quando algo está bloqueando seu trabalho.</li>
+                </ul>
+            </div>
+        </aside>
+
+    </main>
+</div>
+
+<style>
+    /* Botões de urgência: estado padrão e selecionado.
+       Cores absolutas pra preservar identidade visual em ambos os temas. */
+    #page-solicitacoes_ti .sti-urg-btn {
+        background: var(--bg-elevated);
+        border-color: var(--border);
+        color: var(--text-secondary);
+    }
+    #page-solicitacoes_ti .sti-urg-btn:hover {
+        background: var(--bg-card);
+        color: var(--text-primary);
+    }
+    #page-solicitacoes_ti .sti-urg-btn.is-active[data-urgencia="Baixa"]    { background: rgba(100,116,139,0.15); border-color: #94a3b8; color: #475569; font-weight: 700; }
+    #page-solicitacoes_ti .sti-urg-btn.is-active[data-urgencia="Média"]    { background: rgba(59,130,246,0.15);  border-color: #3b82f6; color: #1d4ed8; font-weight: 700; }
+    #page-solicitacoes_ti .sti-urg-btn.is-active[data-urgencia="Alta"]     { background: rgba(245,158,11,0.15);  border-color: #f59e0b; color: #b45309; font-weight: 700; }
+    #page-solicitacoes_ti .sti-urg-btn.is-active[data-urgencia="Crítica"]  { background: rgba(239,68,68,0.15);   border-color: #ef4444; color: #b91c1c; font-weight: 700; animation: stiPulse 2s ease-in-out infinite; }
+
+    html.dark #page-solicitacoes_ti .sti-urg-btn.is-active[data-urgencia="Baixa"]   { color: #cbd5e1; }
+    html.dark #page-solicitacoes_ti .sti-urg-btn.is-active[data-urgencia="Média"]   { color: #93c5fd; }
+    html.dark #page-solicitacoes_ti .sti-urg-btn.is-active[data-urgencia="Alta"]    { color: #fcd34d; }
+    html.dark #page-solicitacoes_ti .sti-urg-btn.is-active[data-urgencia="Crítica"] { color: #fca5a5; }
+
+    @keyframes stiPulse {
+        0%, 100% { opacity: 1; }
+        50%      { opacity: 0.72; }
+    }
+
+    /* Cards de histórico local */
+    #page-solicitacoes_ti .sti-local-card {
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        transition: all 0.15s ease;
+        background: var(--bg-card);
+    }
+    #page-solicitacoes_ti .sti-local-card:hover {
+        background: var(--bg-elevated);
+        border-color: var(--primary);
+    }
+    #page-solicitacoes_ti .sti-badge {
+        font-size: 10px; font-weight: 700;
+        padding: 2px 8px; border-radius: 9999px;
+        border: 1px solid var(--border);
+    }
+    #page-solicitacoes_ti .sti-badge-Baixa    { background: rgba(100,116,139,0.10); color: #475569; border-color: rgba(100,116,139,0.30); }
+    #page-solicitacoes_ti .sti-badge-Média    { background: rgba(59,130,246,0.12);  color: #1d4ed8; border-color: rgba(59,130,246,0.30); }
+    #page-solicitacoes_ti .sti-badge-Alta     { background: rgba(245,158,11,0.12);  color: #b45309; border-color: rgba(245,158,11,0.30); }
+    #page-solicitacoes_ti .sti-badge-Crítica  { background: rgba(239,68,68,0.12);   color: #b91c1c; border-color: rgba(239,68,68,0.30); font-weight: 800; }
+    html.dark #page-solicitacoes_ti .sti-badge-Baixa    { color: #cbd5e1; }
+    html.dark #page-solicitacoes_ti .sti-badge-Média    { color: #93c5fd; }
+    html.dark #page-solicitacoes_ti .sti-badge-Alta     { color: #fcd34d; }
+    html.dark #page-solicitacoes_ti .sti-badge-Crítica  { color: #fca5a5; }
+</style>

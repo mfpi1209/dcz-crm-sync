@@ -167,28 +167,37 @@ def api_kommo_recent_changes():
         conn = _pg()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-        cur.execute("""
+        _lead_synced_since = (
+            "NULLIF(trim(l.synced_at), '')::timestamptz >= NOW() - (%s * INTERVAL '1 hour')"
+        )
+        _synced_since = (
+            "NULLIF(trim(synced_at), '')::timestamptz >= NOW() - (%s * INTERVAL '1 hour')"
+        )
+        cur.execute(f"""
             SELECT p.name AS pipeline_name, ps.name AS stage_name, COUNT(*) AS total
             FROM leads l
             JOIN pipeline_statuses ps ON ps.id = l.status_id
             JOIN pipelines p ON p.id = l.pipeline_id
-            WHERE l.synced_at >= (NOW() - INTERVAL '%s hours')::text
+            WHERE {_lead_synced_since}
             GROUP BY p.name, ps.name, ps.sort, p.sort
             ORDER BY p.sort, ps.sort
         """, (hours,))
         by_stage = [dict(r) for r in cur.fetchall()]
 
-        cur.execute("SELECT COUNT(*) AS t FROM leads WHERE synced_at >= (NOW() - INTERVAL '%s hours')::text", (hours,))
+        cur.execute(f"SELECT COUNT(*) AS t FROM leads WHERE {_synced_since}", (hours,))
         leads_upd = cur.fetchone()["t"]
 
-        cur.execute("SELECT COUNT(*) AS t FROM contacts WHERE synced_at >= (NOW() - INTERVAL '%s hours')::text", (hours,))
+        cur.execute(f"SELECT COUNT(*) AS t FROM contacts WHERE {_synced_since}", (hours,))
         contacts_upd = cur.fetchone()["t"]
 
         since_ts = int(_time.time()) - (hours * 3600)
         cur.execute("SELECT COUNT(*) AS t FROM leads WHERE created_at >= %s AND is_deleted = false", (since_ts,))
         new_leads = cur.fetchone()["t"]
 
-        cur.execute("SELECT COUNT(*) AS t FROM leads WHERE status_id = 142 AND synced_at >= (NOW() - INTERVAL '%s hours')::text", (hours,))
+        cur.execute(
+            f"SELECT COUNT(*) AS t FROM leads WHERE status_id = 142 AND {_synced_since}",
+            (hours,),
+        )
         won = cur.fetchone()["t"]
 
         conn.close()
@@ -441,6 +450,7 @@ FUNNEL_STAGES_DEF = [
 ]
 
 FUNNEL_HIGHLIGHT = [
+    "em_atendimento",
     "aguardando_inscricao", "inscricao", "processo_seletivo",
     "em_processo", "aprovado_reprovado", "aceite",
 ]
@@ -461,21 +471,32 @@ def _kommo_get(path, params=None):
     return _requests.get(url, headers=headers, params=params, timeout=30)
 
 
-def _count_new_leads_today():
-    """Count ALL leads created today across every pipeline (matches Kommo dashboard)."""
-    BRT = timezone(timedelta(hours=-3))
-    today_start = int(datetime.now(BRT).replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
+_BRT = timezone(timedelta(hours=-3))
 
+
+def _day_bounds_brt(d: date):
+    """Unix timestamps [início, fim] do dia civil em BRT."""
+    start = datetime(d.year, d.month, d.day, 0, 0, 0, tzinfo=_BRT)
+    end = datetime(d.year, d.month, d.day, 23, 59, 59, tzinfo=_BRT)
+    return int(start.timestamp()), int(end.timestamp())
+
+
+def _count_new_leads_between(from_ts: int, to_ts: int | None = None, pipeline_id: int | None = None):
+    """Count leads created in [from_ts, to_ts]. pipeline_id=None = todos; default funil = widget Kommo."""
     count = 0
     seen = set()
     page = 1
+    params_base = {"filter[created_at][from]": from_ts, "limit": 250}
+    if to_ts is not None:
+        params_base["filter[created_at][to]"] = to_ts
+    if pipeline_id is not None:
+        params_base["filter[pipeline_id]"] = pipeline_id
+
     while True:
         try:
-            r = _kommo_get("/leads", {
-                "filter[created_at][from]": today_start,
-                "limit": 250,
-                "page": page,
-            })
+            params = dict(params_base)
+            params["page"] = page
+            r = _kommo_get("/leads", params)
         except Exception as e:
             logger.error("count_new_leads API error: %s", e)
             break
@@ -500,8 +521,179 @@ def _count_new_leads_today():
         page += 1
         _time.sleep(0.05)
 
-    logger.info("count_new_leads_today: %d leads (pages=%d)", count, page)
     return count
+
+
+def _count_new_leads_today():
+    """Leads criados hoje no funil principal (mesmo recorte do widget +NOVO do Kommo)."""
+    today = datetime.now(_BRT).date()
+    from_ts, to_ts = _day_bounds_brt(today)
+    count = _count_new_leads_between(from_ts, to_ts, pipeline_id=FUNNEL_PIPELINE)
+    logger.info("count_new_leads_today: %d leads (pipeline=%s)", count, FUNNEL_PIPELINE)
+    return count
+
+
+def _count_leads_day_pg(d: date) -> int:
+    """Leads criados no dia (Postgres kommo_sync — mesmo espelho do sync)."""
+    ep_ini, ep_fim = _day_bounds_brt(d)
+    conn = None
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT COUNT(*) FROM leads
+            WHERE created_at >= %s AND created_at <= %s AND NOT is_deleted
+            """,
+            (ep_ini, ep_fim),
+        )
+        return int(cur.fetchone()[0] or 0)
+    except Exception as e:
+        logger.warning("count_leads_day_pg %s: %s", d, e)
+        return 0
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def _vendas_comercial_dia(d: date) -> int:
+    """Matrículas EM CURSO no dia — mesma fonte do gráfico do Dash Comercial."""
+    try:
+        from routes.comercial_rgm import comercial_periodo_vendas_resumo
+        d_str = d.isoformat()
+        resumo = comercial_periodo_vendas_resumo(dt_ini=d_str, dt_fim=d_str)
+        by_day = resumo.get("mat_by_date") or {}
+        n = by_day.get(d)
+        if n is None:
+            n = resumo.get("vendas_liquidas", 0)
+        return int(n or 0)
+    except Exception as e:
+        logger.warning("vendas_comercial_dia %s: %s", d, e)
+        return 0
+
+
+def _ganhos_kommo_dia(d: date) -> int:
+    """Fechados ganhos (status 142) por closed_at — fallback se comercial vier vazio."""
+    ep_ini, ep_fim = _day_bounds_brt(d)
+    conn = None
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT COUNT(*) FROM leads
+            WHERE status_id = 142 AND NOT is_deleted
+              AND closed_at IS NOT NULL AND closed_at > 0
+              AND closed_at >= %s AND closed_at <= %s
+            """,
+            (ep_ini, ep_fim),
+        )
+        return int(cur.fetchone()[0] or 0)
+    except Exception as e:
+        logger.warning("ganhos_kommo_dia %s: %s", d, e)
+        return 0
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def _count_leads_day_kommo(d: date, pipeline_id: int | None = FUNNEL_PIPELINE) -> int:
+    """Leads criados no dia via API Kommo. Default: funil principal. PG só fallback sem filtro."""
+    ep_ini, ep_fim = _day_bounds_brt(d)
+    try:
+        n = _count_new_leads_between(ep_ini, ep_fim, pipeline_id=pipeline_id)
+        if n > 0:
+            return n
+    except Exception as e:
+        logger.warning("count_leads_day_kommo %s: %s", d, e)
+    if pipeline_id is None:
+        return _count_leads_day_pg(d)
+    return 0
+
+
+def _build_yesterday_summary():
+    """
+    Vendas (EM CURSO) de ontem via comercial_rgm — mesma fonte do gráfico do Dash Comercial.
+    Leads criados ontem vs anteontem (API Kommo) para tendência de captação.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    today = datetime.now(_BRT).date()
+    yesterday = today - timedelta(days=1)
+    day_before = today - timedelta(days=2)
+    y_str = yesterday.isoformat()
+
+    vendas = _vendas_comercial_dia(yesterday)
+    if vendas <= 0:
+        vendas = _ganhos_kommo_dia(yesterday)
+
+    y_from, y_to = _day_bounds_brt(yesterday)
+    p_from, p_to = _day_bounds_brt(day_before)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        fut_y = pool.submit(_count_new_leads_between, y_from, y_to, FUNNEL_PIPELINE)
+        fut_p = pool.submit(_count_new_leads_between, p_from, p_to, FUNNEL_PIPELINE)
+        leads = fut_y.result()
+        leads_prev = fut_p.result()
+
+    if leads <= 0:
+        leads = _count_leads_day_kommo(yesterday)
+    if leads_prev <= 0:
+        leads_prev = _count_leads_day_kommo(day_before)
+
+    if leads_prev > 0:
+        leads_delta_pct = round((leads - leads_prev) / leads_prev * 100, 1)
+    elif leads > 0:
+        leads_delta_pct = 100.0
+    else:
+        leads_delta_pct = 0.0
+
+    summary = {
+        "date": y_str,
+        "vendas": vendas,
+        "leads": leads,
+        "leads_prev": leads_prev,
+        "leads_delta_pct": leads_delta_pct,
+    }
+    logger.info("yesterday_summary: %s", summary)
+    return summary
+
+
+_yesterday_cache = {"data": None, "ts": 0, "version": 0}
+_YESTERDAY_CACHE_TTL = 600  # 10 min — independente do cache do funil
+_YESTERDAY_CACHE_VERSION = 2  # v2 = leads só funil principal (644, não 659)
+
+
+def _yesterday_summary_has_signal(data: dict) -> bool:
+    return bool(data.get("vendas") or data.get("leads") or data.get("leads_prev"))
+
+
+def _get_yesterday_summary_cached(force=False):
+    """Cache próprio: respostas cacheadas do funil antigas não traziam yesterday_summary."""
+    now = _time.time()
+    expected_date = (datetime.now(_BRT).date() - timedelta(days=1)).isoformat()
+    cached = _yesterday_cache.get("data")
+    if (
+        not force
+        and cached
+        and cached.get("date") == expected_date
+        and cached.get("_cache_v") == _YESTERDAY_CACHE_VERSION
+        and _yesterday_summary_has_signal(cached)
+        and (now - _yesterday_cache["ts"]) < _YESTERDAY_CACHE_TTL
+    ):
+        return cached
+    data = _build_yesterday_summary()
+    data["_cache_v"] = _YESTERDAY_CACHE_VERSION
+    if _yesterday_summary_has_signal(data):
+        _yesterday_cache["data"] = data
+        _yesterday_cache["ts"] = now
+        _yesterday_cache["version"] = _YESTERDAY_CACHE_VERSION
+    return data
 
 
 def _fetch_funnel_live():
@@ -729,20 +921,70 @@ def reconcile_aceite_leads():
                 )
                 inserted += 1
 
+        # "Stale": leads que estavam em Aceite no DB mas nao retornaram no filtro de Aceite da API.
+        # NAO marcar como deletado cegamente — o lead pode ter mudado de etapa (Ganho, Em Atendimento, etc).
+        # Faz GET individual: se vivo, atualiza status real e mantem is_deleted=FALSE; se 404/204, marca deletado.
         stale_ids = db_aceite_ids - api_lead_ids
         stale_deleted = 0
+        stale_status_changed = 0
+        stale_check_errors = 0
+        STALE_BATCH_LIMIT = 500  # protecao: se passar disso, algo absurdo aconteceu, aborta o stale check
+
         if stale_ids:
-            stale_ph = ",".join(["%s"] * len(stale_ids))
-            cur.execute(
-                f"UPDATE leads SET is_deleted = true WHERE id IN ({stale_ph})",
-                list(stale_ids),
-            )
-            stale_deleted = cur.rowcount
-            logger.info("Reconcile aceites: marked %d stale leads as deleted", stale_deleted)
+            if len(stale_ids) > STALE_BATCH_LIMIT:
+                logger.warning(
+                    "Reconcile aceites: %d stale leads ultrapassam limite de %d — pulando stale check (anomalia)",
+                    len(stale_ids), STALE_BATCH_LIMIT,
+                )
+            else:
+                logger.info("Reconcile aceites: verificando %d leads stale individualmente", len(stale_ids))
+                for lid in stale_ids:
+                    try:
+                        r = _kommo_get(f"/leads/{lid}")
+                    except Exception as e:
+                        stale_check_errors += 1
+                        logger.warning("Reconcile aceites: erro GET lead %s: %s", lid, e)
+                        continue
+
+                    if r.status_code in (204, 404):
+                        cur.execute(
+                            "UPDATE leads SET is_deleted = true WHERE id = %s",
+                            (lid,),
+                        )
+                        stale_deleted += 1
+                    elif r.status_code == 200:
+                        try:
+                            ld = r.json() or {}
+                        except Exception:
+                            stale_check_errors += 1
+                            continue
+                        cur.execute(
+                            "UPDATE leads SET status_id = %s, pipeline_id = %s, "
+                            "responsible_user_id = %s, updated_at = %s, is_deleted = false "
+                            "WHERE id = %s",
+                            (
+                                ld.get("status_id"),
+                                ld.get("pipeline_id"),
+                                ld.get("responsible_user_id"),
+                                ld.get("updated_at"),
+                                lid,
+                            ),
+                        )
+                        stale_status_changed += 1
+                    else:
+                        stale_check_errors += 1
+                        logger.warning("Reconcile aceites: lead %s status %d", lid, r.status_code)
+
+                    _time.sleep(0.05)
+
+                logger.info(
+                    "Reconcile aceites stale: %d com status atualizado, %d marcados deletados, %d erros",
+                    stale_status_changed, stale_deleted, stale_check_errors,
+                )
 
         conn.commit()
-        logger.info("Reconcile aceites: api=%d, upserted=%d, inserted=%d, stale=%d",
-                     len(api_lead_ids), upserted, inserted, stale_deleted)
+        logger.info("Reconcile aceites: api=%d, upserted=%d, inserted=%d, stale_changed=%d, stale_deleted=%d",
+                     len(api_lead_ids), upserted, inserted, stale_status_changed, stale_deleted)
 
         cur.close()
         conn.close()
@@ -751,7 +993,9 @@ def reconcile_aceite_leads():
             "api_aceites": len(api_lead_ids),
             "status_updated": upserted,
             "new_inserted": inserted,
+            "stale_status_changed": stale_status_changed,
             "stale_marked_deleted": stale_deleted,
+            "stale_check_errors": stale_check_errors,
         }
     except Exception as e:
         logger.error("Reconcile aceites error: %s", e)
@@ -766,6 +1010,18 @@ def api_kommo_reconcile_aceites():
     return jsonify({"ok": True, "data": result})
 
 
+@kommo_bp.route("/api/kommo/yesterday-summary")
+def api_kommo_yesterday_summary():
+    """Resumo de ontem (vendas + leads) — endpoint leve, sem buscar funil inteiro."""
+    force = request.args.get("force", "0") == "1"
+    try:
+        data = _get_yesterday_summary_cached(force=force)
+        return jsonify({"ok": True, "data": data})
+    except Exception as e:
+        logger.exception("yesterday-summary: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @kommo_bp.route("/api/kommo/funnel-live")
 def api_kommo_funnel_live():
     """Fetch real-time funnel data from Kommo API v4."""
@@ -773,7 +1029,13 @@ def api_kommo_funnel_live():
     now = _time.time()
 
     if not force and _funnel_cache["data"] and (now - _funnel_cache["ts"]) < _FUNNEL_CACHE_TTL:
-        return jsonify({"ok": True, "data": _funnel_cache["data"], "cached": True})
+        data = dict(_funnel_cache["data"])
+        try:
+            data["yesterday_summary"] = _get_yesterday_summary_cached(force=force)
+        except Exception as e:
+            logger.exception("yesterday_summary cache attach: %s", e)
+            data["yesterday_summary"] = _build_yesterday_summary()
+        return jsonify({"ok": True, "data": data, "cached": True})
 
     if not KOMMO_TOKEN:
         return jsonify({"ok": False, "error": "KOMMO_TOKEN não configurado"}), 500
@@ -790,6 +1052,11 @@ def api_kommo_funnel_live():
         except Exception as e:
             logger.error("count_new_leads_today failed: %s", e)
             result["new_today"] = 0
+        try:
+            result["yesterday_summary"] = _get_yesterday_summary_cached(force=force)
+        except Exception as e:
+            logger.exception("yesterday_summary failed: %s", e)
+            result["yesterday_summary"] = _build_yesterday_summary()
 
         d0, yesterday = _get_snapshot_d0(result["stages"])
 

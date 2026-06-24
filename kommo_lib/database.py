@@ -3,8 +3,7 @@ Módulo de banco de dados SQLite + PostgreSQL.
 Gerencia schema, conexões e operações CRUD para sincronização Kommo.
 
 Estratégia: UPSERT incremental
-- Não faz DROP TABLE; upsert via INSERT ON CONFLICT nas tabelas com FKs
-  (INSERT OR REPLACE apagava a linha antes e quebrava FK com filhos)
+- Não faz DROP TABLE; usa INSERT OR REPLACE
 - Mantém dados disponíveis durante o sync
 - sync_metadata fica no PostgreSQL (persiste entre deploys)
 - Dados de staging (leads, contacts, etc.) ficam no SQLite
@@ -353,18 +352,9 @@ def upsert_pipeline(pipeline: dict):
     now = datetime.utcnow().isoformat()
     with get_db() as conn:
         conn.execute("""
-            INSERT INTO pipelines
+            INSERT OR REPLACE INTO pipelines 
             (id, name, sort, is_main, is_unsorted_on, is_archive, account_id, raw_json, synced_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-                name = excluded.name,
-                sort = excluded.sort,
-                is_main = excluded.is_main,
-                is_unsorted_on = excluded.is_unsorted_on,
-                is_archive = excluded.is_archive,
-                account_id = excluded.account_id,
-                raw_json = excluded.raw_json,
-                synced_at = excluded.synced_at
         """, (
             pipeline.get("id"),
             pipeline.get("name"),
@@ -383,19 +373,9 @@ def upsert_pipeline_status(status: dict, pipeline_id: int):
     now = datetime.utcnow().isoformat()
     with get_db() as conn:
         conn.execute("""
-            INSERT INTO pipeline_statuses
+            INSERT OR REPLACE INTO pipeline_statuses 
             (id, pipeline_id, name, sort, is_editable, color, type, account_id, raw_json, synced_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-                pipeline_id = excluded.pipeline_id,
-                name = excluded.name,
-                sort = excluded.sort,
-                is_editable = excluded.is_editable,
-                color = excluded.color,
-                type = excluded.type,
-                account_id = excluded.account_id,
-                raw_json = excluded.raw_json,
-                synced_at = excluded.synced_at
         """, (
             status.get("id"),
             pipeline_id,
@@ -449,37 +429,12 @@ def _lead_row(lead: dict, now: str) -> tuple:
 
 
 _LEAD_INSERT_SQL = """
-INSERT INTO leads
+INSERT OR REPLACE INTO leads 
 (id, name, price, responsible_user_id, group_id, status_id, pipeline_id,
  loss_reason_id, source_id, created_by, updated_by, closed_at, created_at,
  updated_at, closest_task_at, is_deleted, score, account_id, labor_cost,
  is_price_modified, custom_fields_json, tags_json, contacts_json, raw_json, synced_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT(id) DO UPDATE SET
-    name = excluded.name,
-    price = excluded.price,
-    responsible_user_id = excluded.responsible_user_id,
-    group_id = excluded.group_id,
-    status_id = excluded.status_id,
-    pipeline_id = excluded.pipeline_id,
-    loss_reason_id = excluded.loss_reason_id,
-    source_id = excluded.source_id,
-    created_by = excluded.created_by,
-    updated_by = excluded.updated_by,
-    closed_at = excluded.closed_at,
-    created_at = excluded.created_at,
-    updated_at = excluded.updated_at,
-    closest_task_at = excluded.closest_task_at,
-    is_deleted = excluded.is_deleted,
-    score = excluded.score,
-    account_id = excluded.account_id,
-    labor_cost = excluded.labor_cost,
-    is_price_modified = excluded.is_price_modified,
-    custom_fields_json = excluded.custom_fields_json,
-    tags_json = excluded.tags_json,
-    contacts_json = excluded.contacts_json,
-    raw_json = excluded.raw_json,
-    synced_at = excluded.synced_at
 """
 
 _LEAD_CF_INSERT_SQL = """
@@ -739,28 +694,11 @@ def upsert_lead_postgres(lead: dict) -> None:
 # ============================
 
 _CONTACT_INSERT_SQL = """
-INSERT INTO contacts
+INSERT OR REPLACE INTO contacts 
 (id, name, first_name, last_name, responsible_user_id, group_id,
  created_by, updated_by, created_at, updated_at, closest_task_at,
  is_deleted, account_id, custom_fields_json, tags_json, raw_json, synced_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT(id) DO UPDATE SET
-    name = excluded.name,
-    first_name = excluded.first_name,
-    last_name = excluded.last_name,
-    responsible_user_id = excluded.responsible_user_id,
-    group_id = excluded.group_id,
-    created_by = excluded.created_by,
-    updated_by = excluded.updated_by,
-    created_at = excluded.created_at,
-    updated_at = excluded.updated_at,
-    closest_task_at = excluded.closest_task_at,
-    is_deleted = excluded.is_deleted,
-    account_id = excluded.account_id,
-    custom_fields_json = excluded.custom_fields_json,
-    tags_json = excluded.tags_json,
-    raw_json = excluded.raw_json,
-    synced_at = excluded.synced_at
 """
 
 _CONTACT_CF_INSERT_SQL = """

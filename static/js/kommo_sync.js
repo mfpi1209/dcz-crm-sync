@@ -21,6 +21,7 @@ function escHtml(s) {
 }
 
 const _FUNNEL_GRADIENTS = {
+    em_atendimento:       { from: '#14b8a6', to: '#0d9488', border: 'border-teal-500/30',   shadow: 'shadow-teal-500/20' },
     aguardando_inscricao: { from: '#3b82f6', to: '#6366f1', border: 'border-blue-500/30',   shadow: 'shadow-blue-500/20' },
     inscricao:            { from: '#6366f1', to: '#8b5cf6', border: 'border-indigo-500/30', shadow: 'shadow-indigo-500/20' },
     processo_seletivo:    { from: '#8b5cf6', to: '#a855f7', border: 'border-violet-500/30', shadow: 'shadow-violet-500/20' },
@@ -31,6 +32,7 @@ const _FUNNEL_GRADIENTS = {
 };
 
 const _FUNNEL_VISUAL_ORDER = [
+    'em_atendimento',
     'aguardando_inscricao', 'inscricao', 'processo_seletivo',
     'em_processo', 'aprovado_reprovado', 'aceite', 'pagamento_confirmado',
 ];
@@ -61,26 +63,17 @@ function _renderFunnelVisual(data, prefix) {
 
     const lost = byKey.sem_resposta;
 
-    // Para o gráfico considera o maior valor entre TODOS os estágios,
-    // inclusive Perdidos, pra ele nunca explodir e quebrar a escala.
-    const maxCount = Math.max(
-        ...ordered.map(s => s.count || 0),
-        lost ? (lost.count || 0) : 0,
-        1,
-    );
-    // Escala suavizada (raiz quadrada): comprime a diferença entre o maior
-    // e o menor estágio, evitando barras minúsculas com texto cortado.
-    const heightFor = (count) => {
-        const ratio = (count || 0) / maxCount;
-        const pct = Math.sqrt(Math.max(0, ratio)) * 100;
-        return Math.max(28, Math.min(100, Math.round(pct)));
-    };
-
+    // Heights: proporcional ao maior estágio do funil (teto 100% — evita coluna
+    // "Perdidos" estourar quando sem_resposta >> max dos demais estágios).
+    const maxCount = Math.max(...ordered.map(s => s.count || 0), 1);
+    const minPctHeight = 14;
+    const barPct = (count) => Math.min(100, Math.max(minPctHeight, Math.round(((count || 0) / maxCount) * 100)));
     const aceiteCount = (byKey.aceite && byKey.aceite.count) || 0;
-    const startCount = ordered[0]?.count || 0;
-    const conversaoGlobal = startCount > 0 ? ((aceiteCount / startCount) * 100).toFixed(1) : '0.0';
+    const novosHoje = data.new_today || 0;
+    const conversaoGlobal = novosHoje > 0 ? ((aceiteCount / novosHoje) * 100).toFixed(1) : '0.0';
 
     const visualLabels = {
+        em_atendimento: 'Em Atendimento',
         aguardando_inscricao: 'Aguardando Inscrição',
         inscricao: 'Inscrição',
         processo_seletivo: 'Seletivo',
@@ -93,50 +86,47 @@ function _renderFunnelVisual(data, prefix) {
 
     const stageBars = ordered.map((s, i) => {
         const g = _FUNNEL_GRADIENTS[s.key] || { from: '#64748b', to: '#475569' };
-        const pctHeight = heightFor(s.count);
+        const pctHeight = barPct(s.count);
         const isActive = s.key === 'aceite';
         const valueLabel = _fmtKCount(s.count || 0);
-        const ringCls = isActive ? `ring-2 ring-offset-2 ring-offset-[var(--bg-card)] ring-emerald-500` : '';
+        const activeCls = isActive ? 'border-2 border-emerald-400/80' : '';
 
         return `
-        <div class="flex-1 min-w-0 min-h-0 flex flex-col group cursor-default">
+        <div class="flex-1 min-w-[2.5rem] flex flex-col group cursor-default">
             <div class="text-center mb-2 min-h-[28px] px-0.5">
                 <p class="text-[9px] font-bold uppercase tracking-wider leading-tight ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}">${visualLabels[s.key] || s.label}</p>
             </div>
             <div class="flex-1 flex items-end min-h-0">
-                <div class="rounded-t-xl w-full flex flex-col items-center justify-center px-1 transition-all duration-500 group-hover:brightness-110 ${ringCls}"
+                <div class="rounded-t-xl w-full flex flex-col items-center justify-center transition-all duration-500 group-hover:brightness-110 ${activeCls}"
                      style="height:${pctHeight}%; background: linear-gradient(180deg, ${g.from}, ${g.to}); box-shadow: 0 -4px 18px ${g.from}30;">
-                    <span class="text-white font-extrabold text-base sm:text-lg leading-none">${valueLabel}</span>
-                    ${s.pct != null ? `<span class="text-white/80 text-[10px] mt-1 font-semibold">${s.pct}%</span>` : ''}
+                    <span class="text-white font-extrabold text-lg sm:text-xl leading-none">${valueLabel}</span>
+                    ${s.pct != null ? `<span class="text-white/75 text-[10px] mt-1 font-semibold">${s.pct}%</span>` : ''}
                 </div>
             </div>
         </div>`;
     }).map((bar, i) => {
         if (i === ordered.length - 1) return bar;
         return bar + `
-        <div class="w-4 sm:w-5 flex items-end pb-3 shrink-0">
-            <span class="material-symbols-outlined text-slate-400 dark:text-slate-600 text-base">chevron_right</span>
+        <div class="w-5 sm:w-6 flex items-end pb-3 shrink-0">
+            <span class="material-symbols-outlined text-slate-400 dark:text-slate-600 text-lg">chevron_right</span>
         </div>`;
     }).join('');
 
     let lostHtml = '';
     if (lost) {
-        const lostPctHeight = heightFor(lost.count);
+        const lostPctHeight = barPct(lost.count);
         lostHtml = `
-        <div class="hidden md:flex w-px self-stretch mx-2 bg-slate-200 dark:bg-slate-700"></div>
-        <div class="w-20 sm:w-24 flex flex-col min-h-0">
-            <div class="text-center mb-2 min-h-[28px] px-0.5">
+        <div class="hidden md:block w-px self-stretch shrink-0 mx-1 bg-slate-200 dark:bg-slate-700"></div>
+        <div class="w-20 sm:w-24 shrink-0 flex flex-col min-h-0">
+            <div class="text-center mb-2 min-h-[28px]">
                 <p class="text-[9px] font-bold uppercase tracking-wider leading-tight text-rose-500 dark:text-rose-400">Perdidos</p>
             </div>
             <div class="flex-1 flex items-end min-h-0">
-                <div class="rounded-t-xl w-full flex flex-col items-center justify-center px-1 border"
-                     style="height:${lostPctHeight}%;
-                            background: linear-gradient(180deg, #fb7185, #e11d48);
-                            border-color: rgba(225, 29, 72, 0.45);
-                            box-shadow: 0 -4px 18px rgba(225, 29, 72, 0.20);">
-                    <span class="material-symbols-outlined text-white text-sm">close</span>
-                    <span class="text-white font-extrabold text-base leading-none">${_fmtKCount(lost.count || 0)}</span>
-                    ${lost.pct != null ? `<span class="text-white/80 text-[10px] mt-1 font-semibold">${lost.pct}%</span>` : ''}
+                <div class="rounded-t-xl w-full flex flex-col items-center justify-center bg-slate-200 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-700"
+                     style="height:${lostPctHeight}%; max-height:100%;">
+                    <span class="material-symbols-outlined text-rose-500 dark:text-rose-400 text-base">close</span>
+                    <span class="text-slate-700 dark:text-slate-300 font-extrabold text-base leading-none">${_fmtKCount(lost.count || 0)}</span>
+                    ${lost.pct != null ? `<span class="text-slate-500 dark:text-slate-500 text-[10px] mt-1 font-semibold">${lost.pct}%</span>` : ''}
                 </div>
             </div>
         </div>`;
@@ -150,9 +140,11 @@ function _renderFunnelVisual(data, prefix) {
             <span class="text-sm font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums">${conversaoGlobal}%</span>
         </div>
     </div>
-    <div class="flex items-stretch gap-1 h-52 sm:h-60 overflow-hidden">
+    <div class="overflow-x-auto overflow-y-hidden -mx-1 px-1">
+    <div class="flex items-stretch gap-1 h-44 sm:h-52 min-w-max">
         ${stageBars}
         ${lostHtml}
+    </div>
     </div>`;
 }
 
@@ -199,6 +191,54 @@ async function _kommoRefreshFunnel(force) {
     }
 }
 
+function _dashBrtDateIso(daysAgo) {
+    const brt = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+    brt.setDate(brt.getDate() - (daysAgo || 0));
+    const y = brt.getFullYear();
+    const m = String(brt.getMonth() + 1).padStart(2, '0');
+    const d = String(brt.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
+function _renderYesterdaySummary(ys, prefix) {
+    if (!ys) return;
+    const wonYEl = document.getElementById(prefix + '-won-yesterday');
+    const leadsYEl = document.getElementById(prefix + '-leads-yesterday');
+    const leadsTrendEl = document.getElementById(prefix + '-leads-yesterday-trend');
+    const leadsPctEl = document.getElementById(prefix + '-leads-yesterday-pct');
+    if (wonYEl) {
+        wonYEl.textContent = Number(ys.vendas || 0).toLocaleString('pt-BR');
+    }
+    if (leadsYEl) {
+        leadsYEl.textContent = Number(ys.leads || 0).toLocaleString('pt-BR');
+    }
+    if (leadsTrendEl && leadsPctEl && (ys.leads_prev > 0 || ys.leads > 0)) {
+        const delta = ys.leads_delta_pct || 0;
+        const positive = delta >= 0;
+        leadsTrendEl.classList.remove('up', 'down');
+        leadsTrendEl.classList.add(positive ? 'up' : 'down');
+        leadsTrendEl.style.display = '';
+        const icon = leadsTrendEl.querySelector('.ms-icon');
+        if (icon) icon.textContent = positive ? 'trending_up' : 'trending_down';
+        leadsPctEl.textContent = (positive ? '+' : '') + Number(delta).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%';
+    } else if (leadsTrendEl) {
+        leadsTrendEl.style.display = 'none';
+    }
+}
+
+async function _dashFallbackYesterdayCommercial(yStr) {
+    try {
+        const res = await api(`/api/comercial-rgm/data/kpis?dt_ini=${encodeURIComponent(yStr)}&dt_fim=${encodeURIComponent(yStr)}`);
+        const d = await res.json();
+        if (!d.ok) return null;
+        const row = (d.evolucao || []).find(e => e.data === yStr);
+        return row ? row.count : (d.vendas_liquidas || 0);
+    } catch (e) {
+        console.warn('fallback yesterday vendas:', e);
+        return null;
+    }
+}
+
 function _renderFunnelCards(data, prefix) {
     const newEl = document.getElementById(prefix + '-new');
     const totalEl = document.getElementById(prefix + '-total');
@@ -236,10 +276,14 @@ function _renderFunnelCards(data, prefix) {
     }
     const convEl = document.getElementById(prefix + '-conversao');
     if (convEl) {
-        const start = byKey.aguardando_inscricao?.count || 0;
+        const novosHoje = data.new_today || 0;
         const aceite = byKey.aceite?.count || 0;
-        const pct = start > 0 ? ((aceite / start) * 100).toFixed(1) : '0.0';
+        const pct = novosHoje > 0 ? ((aceite / novosHoje) * 100).toFixed(1) : '0.0';
         convEl.textContent = pct + '%';
+    }
+
+    if (data.yesterday_summary) {
+        _renderYesterdaySummary(data.yesterday_summary, prefix);
     }
 
     _renderFunnelVisual(data, prefix);
@@ -276,19 +320,18 @@ function _renderFunnelCards(data, prefix) {
 
         return `
         <div class="bg-white dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm
-                    hover:shadow-md transition-all duration-300 cursor-default overflow-hidden min-w-0">
+                    hover:shadow-md transition-all duration-300 cursor-default overflow-hidden">
             <div class="h-1 rounded-t-xl" style="background:linear-gradient(90deg, ${g.from}, ${g.to})"></div>
-            <div class="p-4 lg:p-5">
-                <p class="text-[10px] font-bold uppercase tracking-wider leading-tight mb-3 break-words"
-                   style="color:${g.from}">${s.label}</p>
-                <p class="text-3xl font-black text-slate-900 dark:text-white font-display leading-none mb-3">${s.count.toLocaleString('pt-BR')}</p>
-                <div class="flex items-center justify-between gap-2 flex-wrap">
-                    <div class="flex items-center gap-1.5 min-w-0">
-                        <span class="text-[10px] text-slate-400 dark:text-slate-500 shrink-0">D0:</span>
-                        ${deltaHtml}
-                        ${deltaPctHtml}
-                    </div>
-                    <span class="text-[10px] text-slate-400 dark:text-slate-500 font-mono shrink-0">${s.pct || 0}%</span>
+            <div class="p-5">
+                <div class="flex items-start justify-between mb-3">
+                    <p class="text-[10px] font-bold uppercase tracking-widest" style="color:${g.from}">${s.label}</p>
+                    <span class="text-[10px] text-slate-400 dark:text-slate-500 font-mono">${s.pct || 0}%</span>
+                </div>
+                <p class="text-3xl font-black text-slate-900 dark:text-white font-display mb-2">${s.count.toLocaleString('pt-BR')}</p>
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] text-slate-400 dark:text-slate-500">D0:</span>
+                    ${deltaHtml}
+                    ${deltaPctHtml}
                 </div>
             </div>
         </div>`;

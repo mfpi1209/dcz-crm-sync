@@ -26,11 +26,55 @@ function dsaSetGran(gran) {
     _dsaLoadTimeline();
 }
 
+let _dsaCiclosPopulated = false;
+const _DSA_CICLO_KEY = 'dsa_ciclo_v2';
+
+async function _dsaPopulateCiclos() {
+    if (_dsaCiclosPopulated) return;
+    const sel = document.getElementById('dsa-ciclo');
+    if (!sel) return;
+    try {
+        const res = await api('/api/dashboard/ciclos-distinct');
+        const list = await res.json();
+        const arr = Array.isArray(list) ? list : [];
+        sel.innerHTML =
+            '<option value="">Todos os Ciclos</option>' +
+            arr
+                .map(
+                    (c) =>
+                        `<option value="${c.nome}">${c.nome}${
+                            c.total != null
+                                ? ' (' + Number(c.total).toLocaleString('pt-BR') + ')'
+                                : ''
+                        }</option>`
+                )
+                .join('');
+        const names = arr.map((c) => c.nome);
+        const mostRecent = arr[0]?.nome || '';
+        const saved = localStorage.getItem(_DSA_CICLO_KEY);
+        if (saved && names.includes(saved)) sel.value = saved;
+        else sel.value = mostRecent;
+        sel.addEventListener('change', () => {
+            if (sel.value) localStorage.setItem(_DSA_CICLO_KEY, sel.value);
+            else localStorage.removeItem(_DSA_CICLO_KEY);
+            loadDashboardSupervisorAcademico();
+        });
+        _dsaCiclosPopulated = true;
+    } catch (e) {
+        console.error('Erro ao popular ciclos do supervisor:', e);
+    }
+}
+
 async function loadDashboardSupervisorAcademico() {
+    await _dsaPopulateCiclos();
+
     const nivelEl = document.getElementById('dsa-nivel');
+    const cicloEl = document.getElementById('dsa-ciclo');
     const nivel = nivelEl ? nivelEl.value : '';
+    const ciclo = cicloEl ? cicloEl.value : '';
     const params = new URLSearchParams();
     if (nivel) params.set('nivel', nivel);
+    if (ciclo) params.set('ciclo', ciclo);
 
     await Promise.all([
         _dsaLoadStudents(params.toString()),
@@ -62,22 +106,8 @@ async function _dsaLoadStudents(qs) {
 
         const poloBox = document.getElementById('dsa-by-polo');
         if (poloBox) {
-            const polos = d.by_polo || {};
-            const entries = Object.entries(polos).sort((a, b) => b[1] - a[1]).slice(0, 8);
-            if (!entries.length) {
-                poloBox.innerHTML = '<p class="text-xs text-slate-500">Sem dados</p>';
-            } else {
-                const max = Math.max(...entries.map(e => e[1]), 1);
-                poloBox.innerHTML = entries.map(([nome, qtd]) => `
-                    <div>
-                        <div class="flex items-center justify-between text-xs mb-1">
-                            <span class="text-slate-700 dark:text-slate-300 truncate">${nome}</span>
-                            <span class="font-bold text-slate-900 dark:text-white tabular-nums">${_dsaFmtN(qtd)}</span>
-                        </div>
-                        <div class="h-1.5 bg-slate-100 dark:bg-slate-800/60 rounded-full overflow-hidden">
-                            <div class="h-full bg-primary" style="width:${(qtd / max * 100).toFixed(1)}%"></div>
-                        </div>
-                    </div>`).join('');
+            if (typeof renderPoloRankingTable === 'function') {
+                renderPoloRankingTable('dsa-by-polo', typeof mergePoloBreakdown === 'function' ? mergePoloBreakdown(d.by_polo || {}) : (d.by_polo || {}));
             }
         }
 
@@ -186,9 +216,11 @@ function _dsaFormatPeriodLabel(p, gran) {
 async function _dsaLoadTimeline() {
     try {
         const nivel = document.getElementById('dsa-nivel')?.value || '';
+        const ciclo = document.getElementById('dsa-ciclo')?.value || '';
         const params = new URLSearchParams();
         params.set('granularity', _dsaGran);
         if (nivel) params.set('nivel', nivel);
+        if (ciclo) params.set('ciclo', ciclo);
 
         const res = await api('/api/dashboard/timeline?' + params.toString());
         const d = await res.json();

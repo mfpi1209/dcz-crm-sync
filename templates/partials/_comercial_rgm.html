@@ -373,12 +373,13 @@
             </div>
             <div>
                 <p class="text-[10px] font-bold text-blue-100/90 uppercase tracking-widest">Matrículas no Período</p>
-                <div class="flex items-baseline gap-3">
+                <div class="flex items-baseline gap-3 flex-wrap">
                     <p class="text-4xl font-black text-white font-display" id="crgm-vendas">—</p>
                     <p class="text-sm text-blue-200/80 hidden" id="crgm-vendas-liquidas-label">
                         <span class="text-emerald-300 font-bold" id="crgm-vendas-liquidas">—</span> em curso
                     </p>
                 </div>
+                <button type="button" id="crgm-fora-padrao-hint" class="hidden mt-1.5 text-left text-xs text-orange-200 hover:text-orange-100 underline decoration-orange-300/50" onclick="crgmScrollToForaPadrao()"></button>
             </div>
             <div class="ml-auto flex items-center gap-6">
                 <div class="text-right">
@@ -421,6 +422,33 @@
         </div>
     </div>
 
+    <!-- Painel Fora do Padrão RGM — em curso mas não contam para meta -->
+    <div id="crgm-fora-padrao-panel" class="hidden mb-6">
+        <div class="rounded-2xl border border-slate-200 dark:border-orange-500/25 bg-[var(--bg-card)] dark:bg-orange-500/5 shadow-sm dark:shadow-none overflow-hidden border-l-[3px] border-l-orange-500/80 dark:border-l-orange-500/50">
+            <button onclick="crgmToggleForaPadraoDetalhes()" class="w-full flex items-center gap-3 p-4 text-left hover:bg-slate-50 dark:hover:bg-orange-500/10 transition-colors">
+                <div class="flex-shrink-0 w-9 h-9 rounded-lg bg-orange-100 dark:bg-orange-500/20 flex items-center justify-center">
+                    <svg class="w-4.5 h-4.5 text-orange-800 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:18px;height:18px">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                    </svg>
+                </div>
+                <div class="flex-1">
+                    <p class="text-[10px] font-bold text-slate-600 dark:text-orange-400/80 uppercase tracking-widest">Fora do Padrão RGM</p>
+                    <p class="text-[10px] text-slate-500 dark:text-orange-300/60 mt-0.5" id="crgm-fora-padrao-sub">Em curso, mas não entram no total que conta para meta</p>
+                    <div class="flex items-center gap-3 flex-wrap mt-0.5">
+                        <span class="text-xl font-black text-slate-900 dark:text-orange-300 font-display" id="crgm-fora-padrao-total">—</span>
+                        <div id="crgm-fora-padrao-prefixos" class="flex gap-2 flex-wrap"></div>
+                    </div>
+                </div>
+                <svg id="crgm-fora-padrao-chevron" class="w-4 h-4 text-slate-500 dark:text-slate-400 transition-transform duration-200 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
+            <div id="crgm-fora-padrao-detalhes" class="hidden border-t border-slate-200 dark:border-orange-500/20">
+                <div id="crgm-fora-padrao-agentes" class="divide-y divide-slate-100 dark:divide-orange-500/10 max-h-80 overflow-y-auto"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- KPI Cards Row -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6" id="crgm-section-kpi-cards">
         <div class="glass-card p-4 border-slate-100 dark:border-[var(--border)]">
@@ -448,7 +476,7 @@
                 <span id="crgm-6m-badge" class="font-bold px-1.5 py-0.5 rounded text-[10px]">—</span>
             </div>
             <p class="text-2xl font-black text-[#00346f] dark:text-white" id="crgm-6m-val">—</p>
-            <p class="text-[10px] text-slate-500 mt-1">mesmo período</p>
+            <p class="text-[10px] text-slate-500 mt-1" id="crgm-6m-sub" title="Período de referência">mesmo período</p>
         </div>
         <div class="glass-card p-4 border-slate-100 dark:border-[var(--border)]">
             <div class="flex items-center justify-between mb-2">
@@ -456,6 +484,7 @@
                 <span id="crgm-1a-badge" class="font-bold px-1.5 py-0.5 rounded text-[10px]">—</span>
             </div>
             <p class="text-2xl font-black text-[#00346f] dark:text-white" id="crgm-1a-val">—</p>
+            <p class="text-[10px] text-slate-500 mt-1" id="crgm-1a-sub" title="Período de referência">mesmo período</p>
             <div class="flex items-center gap-2 mt-1 text-[10px]">
                 <span class="text-slate-500">YTD ant: <span id="crgm-ytd-prev" class="text-slate-600 dark:text-slate-400 font-medium">—</span></span>
                 <span id="crgm-ytd-badge" class="font-bold px-1.5 py-0.5 rounded">—</span>

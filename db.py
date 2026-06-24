@@ -177,6 +177,17 @@ def _ensure_ciclos_comercial_table():
                   AND (ano IS NULL OR semestre IS NULL OR descricao IS NULL)
             """)
 
+            # Corrige dt_fim com ano errado (ex.: 2026/2 com fim 2025-12-15 < início 2026-05-14)
+            cur.execute("""
+                UPDATE ciclos_comercial
+                SET dt_fim = make_date(
+                    EXTRACT(YEAR FROM dt_inicio)::int,
+                    EXTRACT(MONTH FROM dt_fim)::int,
+                    EXTRACT(DAY FROM dt_fim)::int
+                )
+                WHERE dt_fim < dt_inicio
+            """)
+
             cur.execute("SELECT COUNT(*) FROM ciclos_comercial")
             if cur.fetchone()[0] == 0:
                 cur.execute("""
@@ -865,6 +876,23 @@ def _ensure_premiacao_tables():
             )
             cur.execute("ALTER TABLE premiacao_campanha ADD COLUMN IF NOT EXISTS def_meta NUMERIC")
             cur.execute("ALTER TABLE premiacao_campanha ADD COLUMN IF NOT EXISTS def_supermeta NUMERIC")
+
+            # Metas + R$/matrícula por equipe (override da campanha, com fallback transparente)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_grupo_meta (
+                    campanha_id       INTEGER NOT NULL REFERENCES premiacao_campanha(id) ON DELETE CASCADE,
+                    grupo_id          INTEGER NOT NULL REFERENCES premiacao_grupo(id) ON DELETE CASCADE,
+                    meta_intermediaria NUMERIC,
+                    meta              NUMERIC,
+                    supermeta         NUMERIC,
+                    valor_base        NUMERIC,
+                    valor_intermediaria NUMERIC,
+                    valor_meta        NUMERIC,
+                    valor_supermeta   NUMERIC,
+                    updated_at        TIMESTAMP NOT NULL DEFAULT NOW(),
+                    PRIMARY KEY (campanha_id, grupo_id)
+                )
+            """)
 
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS agent_matriculas (

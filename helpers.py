@@ -5,6 +5,7 @@ eduit. — Constantes e utilitários compartilhados.
 import os
 import re
 import hashlib
+import unicodedata
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
@@ -47,6 +48,7 @@ ALL_PAGES = [
     "disparador_whatsapp",
     "ia_comercial",
     "page_views",
+    "solicitacoes_ti",
     # Sub-permissoes do Disparador WhatsApp (uma por aba do iframe do
     # tool_whatsapp_alunos). Quem tem 'disparador_whatsapp' mas nenhuma
     # sub abaixo => ve TUDO (compat). Quem tem 1+ sub => ve so as marcadas.
@@ -58,6 +60,7 @@ ALL_PAGES = [
     "disparador_whatsapp_conversao",
     "disparador_whatsapp_meu_painel",
     "disparador_whatsapp_regras",
+    "rematricula",
 ]
 
 # Mapping slug curto -> rota no app tool_whatsapp_alunos. Usado pelo
@@ -354,3 +357,66 @@ def _normalize_digits(s):
 # ---------------------------------------------------------------------------
 
 XL_TIPOS = ["matriculados", "inadimplentes", "concluintes", "acesso_ava", "sem_rematricula", "lista_alunos"]
+
+
+# ---------------------------------------------------------------------------
+# Polos — nomes canônicos (Dashboard Acadêmico + Comercial)
+# ---------------------------------------------------------------------------
+
+def _polo_raw_key(polo: str) -> str:
+    """Chave de matching: strip prefixos CEB/POLO/código numérico e parênteses."""
+    p = unicodedata.normalize("NFKD", (polo or "")).encode("ascii", "ignore").decode().lower()
+    p = re.sub(r"^\d+\s*[-—]\s*", "", p.strip())
+    p = re.sub(r"^ceb\s+", "", p)
+    p = re.sub(r"^polo\s+sp_", "", p)
+    p = re.sub(r"^polo\s+", "", p)
+    p = re.sub(r"\([^)]*\)", "", p)
+    p = re.sub(r"\s+", " ", p).strip()
+    return p
+
+
+def normalize_polo_display(polo: str) -> str:
+    """Nome canônico para exibição (Title Case, polos Cruzeiro SP + interior)."""
+    if not polo or not str(polo).strip():
+        return ""
+    k = _polo_raw_key(polo)
+
+    if "taboao" in k or "taboa" in k:
+        if "mituzi" in k or "jardim" in k:
+            return "Taboão da Serra_Jardim Mituzi"
+        return "Taboão da Serra_Centro"
+    if "barra funda" in k:
+        return "Barra Funda"
+    if "sapopemba" in k:
+        return "Sapopemba"
+    if "vila prudente" in k:
+        return "Vila Prudente"
+    if "santana" in k:
+        return "Santana 2"
+    if "ibirapuera" in k:
+        return "Ibirapuera"
+    if "morumbi" in k:
+        return "Morumbi"
+    if "campinas" in k:
+        return "Campinas"
+    if "capivari" in k:
+        return "Capivari"
+    if "itapira" in k:
+        return "Itapira"
+    if "freguesia" in k:
+        return "Freguesia do Ó"
+    if "vila mariana" in k:
+        return "Vila Mariana"
+
+    # Fallback: limpa prefixos e aplica title case simples
+    cleaned = _polo_raw_key(polo).replace("_", " ")
+    if not cleaned:
+        return str(polo).strip()
+    parts = cleaned.split()
+    titled = []
+    for i, w in enumerate(parts):
+        if w in ("da", "de", "do", "dos", "das", "e") and i > 0:
+            titled.append(w)
+        else:
+            titled.append(w[:1].upper() + w[1:] if w else w)
+    return " ".join(titled)
