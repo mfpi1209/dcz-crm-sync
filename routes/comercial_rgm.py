@@ -208,7 +208,7 @@ def _pg():
 import threading as _crgm_threading
 
 _CRGM_DATA_CACHE: dict = {}
-_CRGM_DATA_CACHE_VER = 5  # bump quando a lógica de contagem mudar (ex.: outliers)
+_CRGM_DATA_CACHE_VER = 6  # bump quando a lógica de contagem mudar (ex.: outliers / fora_padrao)
 _CRGM_DATA_CACHE_TTL_S = 120  # segundos
 _CRGM_DATA_CACHE_LOCK = _crgm_threading.Lock()
 
@@ -888,6 +888,112 @@ def _rgm_conta_para_venda(rgm, dominant_prefix, overrides):
     if not _is_rgm_prefix_outlier(n, dominant_prefix):
         return True
     return n in overrides
+
+
+def _crgm_fora_padrao_rows(_periodo_rows, dominant_prefix, overrides, apenas_nao_conta=True):
+    """EM CURSO com prefixo RGM abaixo do dominante (fora do padrão do ciclo)."""
+    out = []
+    for row in _periodo_rows:
+        if row.get("situacao") != "EM CURSO":
+            continue
+        rgm = row.get("rgm")
+        if not rgm or not _is_rgm_prefix_outlier(rgm, dominant_prefix):
+            continue
+        conta = _rgm_conta_para_venda(rgm, dominant_prefix, overrides)
+        if apenas_nao_conta and conta:
+            continue
+        n = _normalize_rgm(rgm)
+        prefix = n[:2] if n and len(n) >= 2 and n[:2].isdigit() else ""
+        out.append({
+            "rgm": rgm,
+            "nome": row.get("nome") or "",
+            "polo": row.get("polo") or "",
+            "data_matricula": row.get("data_matricula"),
+            "prefixo": prefix,
+            "conta_para_meta": conta,
+            "situacao": row.get("situacao") or "",
+        })
+    return out
+
+
+def _crgm_kommo_lookup_rgms(rgms):
+    """Mapa rgm normalizado → (user_id, user_name) via Kommo."""
+    rgm_to_uid = {}
+    uid_to_nome = {}
+    lookup = sorted({_normalize_rgm(r) for r in rgms if _normalize_rgm(r)})
+    if not lookup:
+        return rgm_to_uid, uid_to_nome
+    try:
+        ek_conn = _pg_kommo()
+        ek_cur = ek_conn.cursor()
+        ek_cur.execute("""
+            SELECT DISTINCT ON (v.rgm) v.rgm, l.responsible_user_id,
+                   u.name AS user_name
+            FROM vw_leads_rgm v
+            JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
+            LEFT JOIN users u ON u.id = l.responsible_user_id
+            WHERE l.responsible_user_id IS NOT NULL
+              AND v.rgm = ANY(%s)
+            ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC
+        """, (lookup,))
+        for row_k in ek_cur.fetchall():
+            nk = _normalize_rgm(row_k[0])
+            if nk:
+                rgm_to_uid[nk] = row_k[1]
+                if row_k[1] and row_k[2]:
+                    uid_to_nome[row_k[1]] = row_k[2]
+        ek_cur.close()
+        ek_conn.close()
+    except Exception as ek_e:
+        logger.warning("_crgm_kommo_lookup_rgms: %s", ek_e)
+    return rgm_to_uid, uid_to_nome
+
+
+def _crgm_build_fora_padrao_data(rows, dominant_prefix, rgm_to_uid, uid_to_nome):
+    """Pacote fora_padrao no mesmo formato de evasao (total/por_agente/itens)."""
+    empty = {
+        "total": 0,
+        "dominant_prefix": dominant_prefix,
+        "por_prefixo": {},
+        "por_agente": [],
+        "itens": [],
+    }
+    if not rows:
+        return empty
+    por_prefixo = defaultdict(int)
+    por_agente = defaultdict(list)
+    itens = []
+    for row in rows:
+        px = row.get("prefixo") or "?"
+        por_prefixo[px] += 1
+        uid = rgm_to_uid.get(_normalize_rgm(row.get("rgm")))
+        agente = uid_to_nome.get(uid, "Não identificado") if uid else "Não identificado"
+        por_agente[agente].append(row)
+        itens.append({**row, "agente": agente})
+    return {
+        "total": len(rows),
+        "dominant_prefix": dominant_prefix,
+        "por_prefixo": dict(por_prefixo),
+        "por_agente": [
+            {
+                "agente": ag_nome,
+                "total": len(ag_itens),
+                "itens": [
+                    {
+                        "rgm": i["rgm"],
+                        "nome": i["nome"],
+                        "polo": i.get("polo") or "",
+                        "prefixo": i.get("prefixo") or "",
+                        "data_matricula": i.get("data_matricula"),
+                        "conta_para_meta": i.get("conta_para_meta", False),
+                    }
+                    for i in ag_itens
+                ],
+            }
+            for ag_nome, ag_itens in sorted(por_agente.items(), key=lambda x: -len(x[1]))
+        ],
+        "itens": itens,
+    }
 
 
 def crgm_outlier_context(dt_ini=None, dt_fim=None, polo=None, nivel=None, excluded_rgms=None, conn=None):
@@ -2876,9 +2982,11 @@ def crgm_data():
             "ranking_agentes": result_agentes["ranking_agentes"],
             "transferencia_regresso": result_agentes["transferencia_regresso"],
             "evasao": result_grids["evasao"],
+            "fora_padrao": result_grids["fora_padrao"],
             "matriculas_grid": result_agentes["matriculas_grid"],
             "leads_grid": result_grids["leads_grid"],
             "evasao_grid": result_kpis["evasao_grid"],
+            "fora_padrao_grid": result_kpis["fora_padrao_grid"],
             "daily_history": result_agentes["daily_history"],
         }
         _crgm_cache_set(_cache_key, _payload)
@@ -3151,6 +3259,20 @@ def _crgm_compute_kpis(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -> d
         for k, v in sorted(evasao_grid_acc.items())
     ]
 
+    fora_padrao_rows = _crgm_fora_padrao_rows(
+        _periodo_rows, _kpi_dom_pfx, _kpi_overrides, apenas_nao_conta=True,
+    )
+    fora_padrao_grid_acc = defaultdict(int)
+    for _fp in fora_padrao_rows:
+        _fp_dt = _fp.get("data_matricula")
+        if not _fp_dt:
+            continue
+        fora_padrao_grid_acc[(str(_fp_dt)[:10], _fp.get("prefixo") or "?")] += 1
+    fora_padrao_grid = [
+        {"data": k[0], "prefixo": k[1], "count": v}
+        for k, v in sorted(fora_padrao_grid_acc.items())
+    ]
+
     all_kpi_rgms     = _rgms_contando
     day_counts       = {d: len(s) for d, s in day_rgms_contando.items()}
     day_counts_bruto = {d: len(s) for d, s in day_rgms_bruto.items()}
@@ -3376,6 +3498,8 @@ def _crgm_compute_kpis(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -> d
             "media_diaria": media_diaria,
             "dias": dias,
             "mm_inscritos": mm_insc_count,
+            "dominant_prefix": _kpi_dom_pfx,
+            "fora_padrao_total": len(fora_padrao_rows),
         },
         "evolucao": evolucao,
         "evolucao_bruto": evolucao_bruto,
@@ -3383,6 +3507,7 @@ def _crgm_compute_kpis(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -> d
         "ranking_polo": ranking_polo,
         "ranking_ciclo": ranking_ciclo,
         "evasao_grid": evasao_grid,
+        "fora_padrao_grid": fora_padrao_grid,
     }
 
 
@@ -3675,6 +3800,15 @@ def _crgm_compute_grids(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -> 
     for row in _periodo_rows:
         if row["rgm"] and row["situacao"] != "EM CURSO":
             evasao_rows.append(row)
+
+    _fp_dom_pfx = _compute_dominant_rgm_prefix(
+        [r["rgm"] for r in _periodo_rows if r.get("situacao") == "EM CURSO"]
+        or [r["rgm"] for r in _periodo_rows if r.get("rgm")]
+    )
+    _fp_overrides = _load_outlier_contagem_overrides()
+    fora_padrao_rows = _crgm_fora_padrao_rows(
+        _periodo_rows, _fp_dom_pfx, _fp_overrides, apenas_nao_conta=True,
+    )
     conn.close()
 
     def _task_leads_grid():
@@ -3725,44 +3859,17 @@ def _crgm_compute_grids(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -> 
             logger.warning("grids leads_grid: %s", _lg_e)
             return []
 
-    def _task_evasao_kommo_lookup():
-        if not evasao_rows:
-            return {}, {}
-        ev_rgm_to_uid_l = {}
-        ev_uid_to_nome_l = {}
-        try:
-            _ev_rgms_lookup = sorted({ev["rgm"] for ev in evasao_rows if ev.get("rgm")})
-            ek_conn = _pg_kommo()
-            ek_cur  = ek_conn.cursor()
-            if _ev_rgms_lookup:
-                ek_cur.execute("""
-                    SELECT DISTINCT ON (v.rgm) v.rgm, l.responsible_user_id,
-                           u.name AS user_name
-                    FROM vw_leads_rgm v
-                    JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
-                    LEFT JOIN users u ON u.id = l.responsible_user_id
-                    WHERE l.responsible_user_id IS NOT NULL
-                      AND v.rgm = ANY(%s)
-                    ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC
-                """, (_ev_rgms_lookup,))
-            for row_k in ek_cur.fetchall():
-                nk = _normalize_rgm(row_k[0])
-                if nk:
-                    ev_rgm_to_uid_l[nk] = row_k[1]
-                    if row_k[1] and row_k[2]:
-                        ev_uid_to_nome_l[row_k[1]] = row_k[2]
-            ek_cur.close()
-            ek_conn.close()
-        except Exception as ek_e:
-            logger.warning("grids evasao_kommo_lookup: %s", ek_e)
-        return ev_rgm_to_uid_l, ev_uid_to_nome_l
+    def _task_rgm_kommo_lookup():
+        rgms = {ev["rgm"] for ev in evasao_rows if ev.get("rgm")}
+        rgms |= {fp["rgm"] for fp in fora_padrao_rows if fp.get("rgm")}
+        return _crgm_kommo_lookup_rgms(rgms)
 
     with _CRGM_TPE(max_workers=2) as _pool:
         _fut_leads  = _pool.submit(_task_leads_grid)
-        _fut_evasao = _pool.submit(_task_evasao_kommo_lookup)
+        _fut_rgm    = _pool.submit(_task_rgm_kommo_lookup)
         leads_grid  = _fut_leads.result()
-        ev_rgm_to_uid, ev_uid_to_nome = _fut_evasao.result()
-    _lap("parallel_leads_evasao")
+        ev_rgm_to_uid, ev_uid_to_nome = _fut_rgm.result()
+    _lap("parallel_leads_rgm_lookup")
 
     evasao_data = {"total": 0, "por_tipo": {}, "por_agente": [], "itens": []}
     if evasao_rows:
@@ -3794,10 +3901,16 @@ def _crgm_compute_grids(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -> 
         }
     _lap("evasao_kommo_lookup")
 
+    fora_padrao_data = _crgm_build_fora_padrao_data(
+        fora_padrao_rows, _fp_dom_pfx, ev_rgm_to_uid, ev_uid_to_nome,
+    )
+    _lap("fora_padrao_build")
+
     logger.info("CRGM grids TOTAL %.2fs", _time_mod.perf_counter() - _t_start)
     return {
         "leads_grid": leads_grid,
         "evasao": evasao_data,
+        "fora_padrao": fora_padrao_data,
     }
 
 

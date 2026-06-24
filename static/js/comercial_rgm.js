@@ -204,9 +204,11 @@ async function crgmAtualizar() {
                 ranking_polo:  d.ranking_polo,
                 ranking_ciclo: d.ranking_ciclo,
                 evasao_grid:   d.evasao_grid,
+                fora_padrao_grid: d.fora_padrao_grid,
             });
             _crgmHideSkeleton('kpis');
             _crgmRenderPoloTable(d.ranking_polo);
+            _crgmRenderForaPadrao(_crgmResolveForaPadrao({ ..._crgmLastData, fora_padrao_grid: d.fora_padrao_grid, kpis: d.kpis }, _crgmCrossFilter.date));
             _crgmCrossRerenderAll();
         })
         .catch(err => _crgmShowBlockError('kpis', err));
@@ -254,6 +256,7 @@ async function crgmAtualizar() {
             Object.assign(_crgmLastData, {
                 leads_grid: d.leads_grid,
                 evasao:     d.evasao,
+                fora_padrao: d.fora_padrao,
             });
             _crgmHideSkeleton('grids');
             _crgmCrossRerenderAll();
@@ -293,9 +296,9 @@ async function crgmAtualizar() {
 })();
 
 const _CRGM_SKELETON_IDS = {
-    kpis:    ['crgm-section-hero', 'crgm-section-kpi-cards', 'crgm-section-evolucao', 'crgm-section-polo'],
+    kpis:    ['crgm-section-hero', 'crgm-section-kpi-cards', 'crgm-section-evolucao', 'crgm-section-polo', 'crgm-evasao-panel', 'crgm-fora-padrao-panel'],
     agentes: ['crgm-section-agentes', 'crgm-section-chart-agentes'],
-    grids:   ['crgm-evasao-panel'],
+    grids:   [],
 };
 
 function _crgmShowSkeleton(bloco) {
@@ -337,6 +340,16 @@ function _crgmRenderKPIs(k) {
         liqLabel.classList.remove('hidden');
     } else if (liqLabel) {
         liqLabel.classList.add('hidden');
+    }
+    const fpHint = document.getElementById('crgm-fora-padrao-hint');
+    const fpTotal = k.fora_padrao_total || 0;
+    if (fpHint) {
+        if (fpTotal > 0) {
+            fpHint.textContent = `+ ${fpTotal.toLocaleString('pt-BR')} fora do padrão RGM (ver detalhes)`;
+            fpHint.classList.remove('hidden');
+        } else {
+            fpHint.classList.add('hidden');
+        }
     }
     document.getElementById('crgm-ytd').textContent = k.vendas_ytd != null ? k.vendas_ytd.toLocaleString('pt-BR') : '—';
     document.getElementById('crgm-media').textContent = k.media_diaria != null ? k.media_diaria.toLocaleString('pt-BR') : '—';
@@ -482,6 +495,125 @@ function crgmToggleEvasaoDetalhes() {
     el.classList.toggle('hidden');
     if (ch) ch.style.transform = el.classList.contains('hidden') ? '' : 'rotate(180deg)';
 }
+
+// ── Fora do padrão RGM ──────────────────────────────────
+function _crgmForaPadraoFromGrid(grid, dominantPrefix) {
+    if (!grid?.length) return null;
+    const por_prefixo = {};
+    let total = 0;
+    for (const r of grid) {
+        const p = r.prefixo || '?';
+        por_prefixo[p] = (por_prefixo[p] || 0) + (r.count || 0);
+        total += r.count || 0;
+    }
+    if (!total) return null;
+    return { total, dominant_prefix: dominantPrefix, por_prefixo, por_agente: [], itens: [] };
+}
+
+function _crgmResolveForaPadrao(payload, date) {
+    if (date) {
+        return _crgmDeriveForaPadraoDia(payload.fora_padrao, payload.fora_padrao_grid || [], date, payload.kpis?.dominant_prefix);
+    }
+    if (payload.fora_padrao?.total) return payload.fora_padrao;
+    return _crgmForaPadraoFromGrid(payload.fora_padrao_grid, payload.kpis?.dominant_prefix);
+}
+
+function _crgmRenderForaPadrao(fp, opts = {}) {
+    const panel = document.getElementById('crgm-fora-padrao-panel');
+    if (!panel) return;
+    const gridsLoading = panel.dataset.crgmLoading === '1';
+    if (!fp || fp.total === 0) {
+        if (gridsLoading) return;
+        panel.classList.add('hidden');
+        return;
+    }
+    panel.classList.remove('hidden');
+    document.getElementById('crgm-fora-padrao-total').textContent = fp.total.toLocaleString('pt-BR');
+
+    const subEl = document.getElementById('crgm-fora-padrao-sub');
+    if (subEl) {
+        const dom = fp.dominant_prefix != null ? `Padrão do período: prefixo ${fp.dominant_prefix}` : '';
+        subEl.textContent = dom
+            ? `${dom} · em curso, mas não entram no total que conta para meta`
+            : 'Em curso, mas não entram no total que conta para meta';
+    }
+
+    const pxEl = document.getElementById('crgm-fora-padrao-prefixos');
+    pxEl.innerHTML = '';
+    for (const [prefixo, qtd] of Object.entries(fp.por_prefixo || {})) {
+        pxEl.insertAdjacentHTML('beforeend',
+            `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-500/20 text-orange-900 dark:text-orange-300">Prefixo ${prefixo}: ${qtd}</span>`);
+    }
+
+    const agEl = document.getElementById('crgm-fora-padrao-agentes');
+    agEl.innerHTML = '';
+    const pendingAgents = opts.pendingAgents || (!fp.por_agente?.length && gridsLoading);
+    const isAdmin = document.body?.dataset?.role === 'admin';
+    if (pendingAgents) {
+        agEl.innerHTML = '<div class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">Carregando lista por agente…</div>';
+        return;
+    }
+    if (!(fp.por_agente || []).length) {
+        agEl.innerHTML = '<div class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">Detalhes por agente indisponíveis.</div>';
+        return;
+    }
+    (fp.por_agente || []).forEach(ag => {
+        agEl.insertAdjacentHTML('beforeend', `
+            <details class="group">
+                <summary class="flex items-center justify-between px-4 py-2.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-orange-500/5 list-none">
+                    <span class="text-sm text-slate-800 dark:text-slate-300 font-medium">${esc(ag.agente)}</span>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold text-orange-700 dark:text-orange-300">${ag.total}</span>
+                        <svg class="w-3.5 h-3.5 text-slate-500 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </div>
+                </summary>
+                <div class="px-4 pb-3 space-y-1">
+                    ${(ag.itens || []).map(it => `
+                        <div class="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 flex-wrap">
+                            <span class="font-mono text-orange-700 dark:text-orange-300" title="RGM fora do padrão">${esc(it.rgm)}</span>
+                            <span class="flex-1 truncate min-w-[8rem]">${esc(it.nome)}</span>
+                            <span class="text-[10px] px-1.5 py-0.5 rounded font-bold bg-orange-100 dark:bg-orange-500/20 text-orange-800 dark:text-orange-300">p.${esc(it.prefixo || '?')}</span>
+                            <span class="text-slate-500 truncate max-w-[10rem]" title="${esc(it.polo || '')}">${esc(it.polo || '')}</span>
+                            <span class="text-slate-600">${esc(it.data_matricula || '')}</span>
+                            ${isAdmin ? `<button onclick="_crgmOutlierContarVendaPanel(${JSON.stringify(it.rgm)}, true)" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30 cursor-pointer shrink-0">Contar venda</button>` : ''}
+                        </div>`).join('')}
+                </div>
+            </details>`);
+    });
+}
+
+function crgmToggleForaPadraoDetalhes() {
+    const el = document.getElementById('crgm-fora-padrao-detalhes');
+    const ch = document.getElementById('crgm-fora-padrao-chevron');
+    if (!el) return;
+    el.classList.toggle('hidden');
+    if (ch) ch.style.transform = el.classList.contains('hidden') ? '' : 'rotate(180deg)';
+}
+
+function crgmScrollToForaPadrao() {
+    const panel = document.getElementById('crgm-fora-padrao-panel');
+    if (!panel) return;
+    panel.classList.remove('hidden');
+    const det = document.getElementById('crgm-fora-padrao-detalhes');
+    if (det && det.classList.contains('hidden')) crgmToggleForaPadraoDetalhes();
+    panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+async function _crgmOutlierContarVendaPanel(rgm, contar) {
+    try {
+        const res = await api('/api/comercial-rgm/outlier/contar-venda', {
+            method: contar ? 'POST' : 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rgm }),
+        });
+        const d = await res.json();
+        if (!d.ok) { alert(d.error || 'Erro ao atualizar contagem'); return; }
+        if (typeof crgmAtualizar === 'function') crgmAtualizar();
+    } catch (e) {
+        alert('Erro de rede ao atualizar contagem');
+    }
+}
+
 function _crgmBadge(id, pct) {
     const el = document.getElementById(id); if (!el) return;
     if (pct == null) { el.textContent = ''; el.className = 'hidden'; return; }
@@ -1478,6 +1610,43 @@ function _crgmDeriveEvasaoDia(evasaoBase, evasaoGrid, date) {
     };
 }
 
+function _crgmDeriveForaPadraoDia(fpBase, fpGrid, date, dominantPrefix) {
+    const linhas = (fpGrid || []).filter(e => e.data === date);
+    const itens = (fpBase?.itens || []).filter(it => (it.data_matricula || '').substring(0, 10) === date);
+    if (!linhas.length && !itens.length) {
+        return { total: 0, dominant_prefix: dominantPrefix, por_prefixo: {}, por_agente: [], itens: [] };
+    }
+    const por_prefixo = {};
+    let total = 0;
+    for (const r of linhas) {
+        const p = r.prefixo || '?';
+        por_prefixo[p] = (por_prefixo[p] || 0) + r.count;
+        total += r.count;
+    }
+    if (total === 0 && itens.length) {
+        for (const it of itens) {
+            const p = it.prefixo || '?';
+            por_prefixo[p] = (por_prefixo[p] || 0) + 1;
+            total++;
+        }
+    }
+    const agMap = new Map();
+    for (const it of itens) {
+        const ag = it.agente || 'Não identificado';
+        if (!agMap.has(ag)) agMap.set(ag, { agente: ag, total: 0, itens: [] });
+        const a = agMap.get(ag);
+        a.total++;
+        a.itens.push(it);
+    }
+    return {
+        total,
+        dominant_prefix: fpBase?.dominant_prefix ?? dominantPrefix,
+        por_prefixo,
+        por_agente: [...agMap.values()].sort((a, b) => b.total - a.total),
+        itens,
+    };
+}
+
 // Grupo 3 — Ranking com leads_grid quando data filtrada
 
 function _crgmDeriveRanking(rankingBase, payload, atividade, date) {
@@ -1571,6 +1740,14 @@ function _crgmCrossRerenderAll() {
     const gridsLoading = panel?.dataset.crgmLoading === '1';
     _crgmRenderEvasao(evasao, {
         pendingAgents: gridsLoading && evasao?.total && !(d.evasao?.por_agente?.length),
+    });
+
+    // Fora do padrão RGM (em curso, não contam para meta)
+    const foraPadrao = _crgmResolveForaPadrao(d, date);
+    const fpPanel = document.getElementById('crgm-fora-padrao-panel');
+    const fpGridsLoading = fpPanel?.dataset.crgmLoading === '1';
+    _crgmRenderForaPadrao(foraPadrao, {
+        pendingAgents: fpGridsLoading && foraPadrao?.total && !(d.fora_padrao?.por_agente?.length),
     });
 
     // Evolução (gráfico Matrículas por Dia)
