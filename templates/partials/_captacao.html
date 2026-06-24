@@ -228,6 +228,34 @@
                                 <div class="cap-section">
                                     <div class="cap-step-header">
                                         <span class="cap-step-badge">2</span>
+                                        <span class="cap-step-title">Está no ensino médio?</span>
+                                    </div>
+                                    <div class="cap-field-grid">
+                                        <div class="cap-full">
+                                            <div class="cap-nivel-grid">
+                                                <button type="button" class="cap-nivel-btn cap-em-btn" data-em="nao" onclick="capSelectEM(this)">
+                                                    <span class="material-symbols-outlined text-base">close</span> Não
+                                                </button>
+                                                <button type="button" class="cap-nivel-btn cap-em-btn" data-em="sim" onclick="capSelectEM(this)">
+                                                    <span class="material-symbols-outlined text-base">check</span> Sim
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="cap-full" id="cap-em-ano-wrap" style="display:none">
+                                            <label class="cap-label cap-label-req">Ano do ensino médio</label>
+                                            <select id="cap-em-ano" class="cap-input">
+                                                <option value="">Selecione o ano</option>
+                                                <option value="1">1º ano</option>
+                                                <option value="2">2º ano</option>
+                                                <option value="3">3º ano</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="cap-section">
+                                    <div class="cap-step-header">
+                                        <span class="cap-step-badge">3</span>
                                         <span class="cap-step-title">Interesse Acadêmico</span>
                                     </div>
                                     <div class="cap-field-grid">
