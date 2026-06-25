@@ -33,7 +33,7 @@ BRT = _tz(timedelta(hours=-3))
 
 import psycopg2
 import psycopg2.extras
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, request, jsonify, session, g, has_request_context
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +74,38 @@ def _normalize_rgm(val):
         return str(int(digits))
     except Exception:
         return None
+
+
+def _parse_matricula_date(value):
+    """Normaliza data de matrícula; corrige typo comum 62026-XX-XX → 2026."""
+    if not value:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    m = re.match(r"^(\d{4,6})-(\d{2})-(\d{2})$", s)
+    if m:
+        y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        if y > 9999:
+            ys = str(y)
+            if ys.startswith("6202") and len(ys) >= 5:
+                y = int("20" + ys[3:])
+            elif len(ys) > 4:
+                y = int(ys[-4:])
+        try:
+            if 2000 <= y <= 2099:
+                return date(y, mo, d)
+        except ValueError:
+            return None
+    m = re.match(r"^(\d{2})/(\d{2})/(\d{4})$", s)
+    if m:
+        d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        try:
+            if 2000 <= y <= 2099:
+                return date(y, mo, d)
+        except ValueError:
+            return None
+    return None
 
 
 def _is_admin():
@@ -282,6 +314,8 @@ def _load_conflito_overrides() -> dict:
     contabilizado para mais de um consultor (ex.: lead Hugo + lead Bruno
     com a venda atribuída ao Bruno via conflito_resolucao).
     """
+    if has_request_context() and hasattr(g, "_mp_conflito_overrides"):
+        return g._mp_conflito_overrides
     out: dict[str, int] = {}
     try:
         conn = _pg()
@@ -294,6 +328,75 @@ def _load_conflito_overrides() -> dict:
         conn.close()
     except Exception as e:
         logger.warning("conflito_resolucao override load: %s", e)
+    if has_request_context():
+        g._mp_conflito_overrides = out
+    return out
+
+
+def _get_rgm_to_uid_map() -> dict[str, int]:
+    """Mapa RGM → kommo_user_id (1 scan por request; reutilizado em ranking/matriculas)."""
+    if has_request_context() and hasattr(g, "_mp_rgm_to_uid"):
+        return g._mp_rgm_to_uid
+    rgm_to_uid: dict[str, int] = {}
+    try:
+        kconn = _pg_kommo()
+        kcur = kconn.cursor()
+        kcur.execute("""
+            SELECT DISTINCT ON (v.rgm) v.rgm, l.responsible_user_id
+            FROM vw_leads_rgm v
+            JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
+            WHERE l.responsible_user_id IS NOT NULL
+            ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC
+        """)
+        for rgm_raw, uid in kcur.fetchall():
+            n = _normalize_rgm(rgm_raw)
+            if n and uid:
+                rgm_to_uid[n] = int(uid)
+        kcur.close()
+        kconn.close()
+    except Exception as e:
+        logger.warning("_get_rgm_to_uid_map kommo: %s", e)
+    for rgm, owner_uid in _load_conflito_overrides().items():
+        rgm_to_uid[rgm] = owner_uid
+    if has_request_context():
+        g._mp_rgm_to_uid = rgm_to_uid
+    return rgm_to_uid
+
+
+def _mat_date_in_range(data_mat, dt_ini=None, dt_fim=None) -> bool:
+    if not data_mat:
+        return False
+    if isinstance(data_mat, date):
+        d = data_mat
+    else:
+        try:
+            d = date.fromisoformat(str(data_mat)[:10])
+        except ValueError:
+            return False
+    if dt_ini:
+        try:
+            if d < date.fromisoformat(str(dt_ini)[:10]):
+                return False
+        except ValueError:
+            pass
+    if dt_fim:
+        try:
+            if d > date.fromisoformat(str(dt_fim)[:10]):
+                return False
+        except ValueError:
+            pass
+    return True
+
+
+def _filter_matriculas_by_period(matriculas, dt_ini=None, dt_fim=None, only_em_curso=False):
+    out = []
+    for m in matriculas:
+        if only_em_curso and (m.get("situacao") or "").upper() != "EM CURSO":
+            continue
+        if dt_ini or dt_fim:
+            if not _mat_date_in_range(m.get("data_matricula"), dt_ini, dt_fim):
+                continue
+        out.append(m)
     return out
 
 
@@ -367,34 +470,30 @@ def _upsert_conflito_resolucao(cur, rgm, kommo_user_id, user_name: str | None = 
 
 def _get_agent_credited_rgms(kommo_uid) -> set:
     """RGMs cujo crédito vai para este consultor (mesma regra do Consultar RGM / ranking)."""
-    rgm_to_uid: dict[str, int] = {}
     try:
-        kconn = _pg_kommo()
-        kcur = kconn.cursor()
-        kcur.execute("""
-            SELECT DISTINCT ON (v.rgm) v.rgm, l.responsible_user_id
-            FROM vw_leads_rgm v
-            JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
-            WHERE l.responsible_user_id IS NOT NULL
-            ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC
-        """)
-        for rgm_raw, uid in kcur.fetchall():
-            n = _normalize_rgm(rgm_raw)
-            if n and uid:
-                rgm_to_uid[n] = int(uid)
-        kcur.close()
-        kconn.close()
-    except Exception as e:
-        logger.warning("_get_agent_credited_rgms kommo: %s", e)
+        kommo_uid = int(kommo_uid)
+    except (TypeError, ValueError):
         return set()
-
-    for rgm, owner_uid in _load_conflito_overrides().items():
-        rgm_to_uid[rgm] = owner_uid
-
-    return {rgm for rgm, uid in rgm_to_uid.items() if uid == kommo_uid}
+    return {rgm for rgm, uid in _get_rgm_to_uid_map().items() if uid == kommo_uid}
 
 
 def _get_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=False):
+    """Get matriculas for a specific agent from xl_rows (cache por request)."""
+    cache_key = (kommo_uid, dt_ini, dt_fim, only_em_curso)
+    if has_request_context():
+        cache = getattr(g, "_mp_mat_cache", None)
+        if cache is None:
+            g._mp_mat_cache = {}
+            cache = g._mp_mat_cache
+        if cache_key in cache:
+            return cache[cache_key]
+    result = _fetch_agent_matriculas(kommo_uid, dt_ini, dt_fim, only_em_curso)
+    if has_request_context():
+        g._mp_mat_cache[cache_key] = result
+    return result
+
+
+def _fetch_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=False):
     """Get matriculas for a specific agent from xl_rows.
     only_em_curso=True filters to situacao='EM CURSO' only (para contagens oficiais).
     only_em_curso=False retorna todas incluindo cancelados (para listagem informativa).
@@ -407,15 +506,23 @@ def _get_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=Fal
     try:
         conn = _pg()
         cur = conn.cursor()
-        outer_conds, params = [], []
+        inner_conds = [
+            "s.tipo = 'matriculados'",
+            "COALESCE(r.data->>'rgm','') ~ '[0-9]'",
+            "UPPER(TRIM(COALESCE(r.data->>'tipo_matricula',''))) = ANY(ARRAY['NOVA MATRICULA','RECOMPRA','RETORNO'])",
+            "TRIM(COALESCE(r.data->>'empresa','')) ~ '^(12|7) -'",
+            "regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g') = ANY(%s)",
+        ]
+        inner_params = [list(agent_rgms)]
+        outer_conds, outer_params = [], []
         if only_em_curso:
             outer_conds.append("situacao = 'EM CURSO'")
         if dt_ini:
             outer_conds.append("data_matricula >= %s")
-            params.append(dt_ini)
+            outer_params.append(dt_ini)
         if dt_fim:
             outer_conds.append("data_matricula <= %s")
-            params.append(dt_fim)
+            outer_params.append(dt_fim)
         outer_where = ("WHERE " + " AND ".join(outer_conds)) if outer_conds else ""
 
         cur.execute(f"""
@@ -445,11 +552,7 @@ def _get_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=Fal
                     UPPER(TRIM(COALESCE(r.data->>'tipo_matricula','')))             AS tipo_matricula
                 FROM xl_rows r
                 JOIN xl_snapshots s ON s.id = r.snapshot_id
-                WHERE s.tipo = 'matriculados'
-                  AND COALESCE(r.data->>'rgm','') ~ '[0-9]'
-                  AND UPPER(TRIM(COALESCE(r.data->>'tipo_matricula','')))
-                      = ANY(ARRAY['NOVA MATRICULA','RECOMPRA','RETORNO'])
-                  AND TRIM(COALESCE(r.data->>'empresa','')) ~ '^(12|7) -'
+                WHERE {' AND '.join(inner_conds)}
                 ORDER BY
                     regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g'),
                     s.id DESC,
@@ -469,7 +572,7 @@ def _get_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=Fal
             ) deduped
             {outer_where}
             ORDER BY data_matricula DESC NULLS LAST
-        """, params)
+        """, inner_params + outer_params)
 
         cols = [d[0] for d in cur.description]
         results = []
@@ -629,33 +732,15 @@ def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
     """Calculate ranking using same logic as the RGM dashboard (DISTINCT ON rgm).
     Also counts aceites in Kommo pipeline as +1 each."""
 
-    # 1. Kommo: map each RGM to exactly ONE agent (same as dashboard)
-    kconn = _pg_kommo()
-    kcur = kconn.cursor()
-    kcur.execute("""
-        SELECT DISTINCT ON (v.rgm) v.rgm, l.responsible_user_id
-        FROM vw_leads_rgm v
-        JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
-        WHERE l.responsible_user_id IS NOT NULL
-        ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC
-    """)
-    rgm_to_uid = {}
-    for rgm_raw, uid in kcur.fetchall():
-        n = _normalize_rgm(rgm_raw)
-        if n and uid:
-            rgm_to_uid[n] = uid
-
-    # Aplica overrides manuais de conflito (mesma lógica do Dashboard Comercial)
-    overrides_rgm = _load_conflito_overrides()
-    if overrides_rgm:
-        for r, uid in overrides_rgm.items():
-            rgm_to_uid[r] = uid
+    rgm_to_uid = _get_rgm_to_uid_map()
 
     # Count aceites per agent (leads in ANY Aceite stage)
     ace_ids = _get_aceite_status_ids()
     aceites_per_agent = {}
     if ace_ids:
         ace_ph = ",".join(["%s"] * len(ace_ids))
+        kconn = _pg_kommo()
+        kcur = kconn.cursor()
         kcur.execute(f"""
             SELECT responsible_user_id, COUNT(*)
             FROM leads
@@ -665,8 +750,8 @@ def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
             GROUP BY responsible_user_id
         """, ace_ids)
         aceites_per_agent = {r[0]: r[1] for r in kcur.fetchall()}
-    kcur.close()
-    kconn.close()
+        kcur.close()
+        kconn.close()
 
     # 2. DCZ: get all matrículas in the period, applying outlier filter
     try:
@@ -1621,10 +1706,11 @@ def api_minha_historico():
         campanhas = []
 
     history = []
+    all_mats_em = _get_agent_matriculas(kommo_uid, only_em_curso=True)
     for c in campanhas:
         dt_ini = str(c["dt_inicio"])
         dt_fim = str(c["dt_fim"])
-        matriculas = _get_agent_matriculas(kommo_uid, dt_ini, dt_fim, only_em_curso=True)
+        matriculas = _filter_matriculas_by_period(all_mats_em, dt_ini, dt_fim)
         total = sum(1 for m in matriculas if m.get("conta_para_meta", True))
         metas = _get_agent_metas(kommo_uid, dt_ini, dt_fim)
         tier = _determine_tier(total, metas)
@@ -1913,9 +1999,12 @@ def api_minha_insights():
         past = [dict(r) for r in cur.fetchall()]
         cur.close()
         conn.close()
+        all_mats_em = _get_agent_matriculas(kommo_uid, only_em_curso=True)
         best_total = 0
         for pc in past:
-            pmat = _get_agent_matriculas(kommo_uid, str(pc["dt_inicio"]), str(pc["dt_fim"]), only_em_curso=True)
+            pmat = _filter_matriculas_by_period(
+                all_mats_em, str(pc["dt_inicio"]), str(pc["dt_fim"])
+            )
             pmat_count = sum(1 for m in pmat if m.get("conta_para_meta", True))
             pmetas = _get_agent_metas(kommo_uid, str(pc["dt_inicio"]), str(pc["dt_fim"]))
             ptier = _determine_tier(pmat_count, pmetas)
@@ -3636,7 +3725,7 @@ def api_minha_matriculas():
 
 def _get_agent_user_id():
     uid = session.get("user_id")
-    if not uid:
+    if uid is None:
         return None, None
     try:
         conn = _pg()
@@ -3652,36 +3741,56 @@ def _get_agent_user_id():
     return uid, None
 
 
-@minha_performance_bp.route("/api/minha-performance/minhas-matriculas", methods=["GET"])
-def api_minhas_mat_list():
+def _resolve_agent_view_context(target_uid=None):
+    """Contexto (app_user_id, kommo_uid) para listagens pessoais do agente."""
     user_id, kommo_uid = _get_agent_user_id()
     if not user_id:
-        return jsonify({"error": "Não autenticado"}), 401
-    target_uid = request.args.get("kommo_uid", type=int)
+        return None, None
     view_user_id = user_id
-    if target_uid and _is_admin():
-        kommo_uid = target_uid
+    can_view_other = _is_admin() or _can_manage_premiacao()
+    if target_uid and can_view_other:
         try:
-            conn_u = _pg()
-            cur_u = conn_u.cursor()
-            cur_u.execute(
-                "SELECT id FROM app_users WHERE kommo_user_id = %s LIMIT 1",
-                (kommo_uid,),
-            )
-            row_u = cur_u.fetchone()
-            cur_u.close()
-            conn_u.close()
-            if row_u:
-                view_user_id = row_u[0]
-        except Exception:
-            pass
+            target_uid = int(target_uid)
+        except (TypeError, ValueError):
+            target_uid = None
+        if target_uid:
+            kommo_uid = target_uid
+            try:
+                conn_u = _pg()
+                cur_u = conn_u.cursor()
+                cur_u.execute(
+                    "SELECT id FROM app_users WHERE kommo_user_id = %s LIMIT 1",
+                    (kommo_uid,),
+                )
+                row_u = cur_u.fetchone()
+                cur_u.close()
+                conn_u.close()
+                if row_u:
+                    view_user_id = row_u[0]
+            except Exception:
+                pass
+    return view_user_id, kommo_uid
+
+
+@minha_performance_bp.route("/api/minha-performance/minhas-matriculas", methods=["GET"])
+def api_minhas_mat_list():
+    view_user_id, kommo_uid = _resolve_agent_view_context(request.args.get("kommo_uid", type=int))
+    if not view_user_id:
+        return jsonify({"ok": False, "error": "Não autenticado"}), 401
     try:
         conn = _pg()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cols = """
+            id, user_id, kommo_user_id, rgm, nome, curso, polo,
+            data_matricula::text AS data_matricula,
+            ciclo, nivel, kommo_lead_id, observacao,
+            created_at::text AS created_at, updated_at::text AS updated_at
+        """
         if kommo_uid:
             cur.execute(
-                """
-                SELECT * FROM agent_matriculas
+                f"""
+                SELECT {cols}
+                FROM agent_matriculas
                 WHERE user_id = %s OR kommo_user_id = %s
                 ORDER BY data_matricula DESC NULLS LAST, created_at DESC
                 """,
@@ -3689,18 +3798,20 @@ def api_minhas_mat_list():
             )
         else:
             cur.execute(
-                "SELECT * FROM agent_matriculas WHERE user_id = %s ORDER BY data_matricula DESC NULLS LAST, created_at DESC",
+                f"""
+                SELECT {cols}
+                FROM agent_matriculas
+                WHERE user_id = %s
+                ORDER BY data_matricula DESC NULLS LAST, created_at DESC
+                """,
                 (view_user_id,),
             )
         rows = [dict(r) for r in cur.fetchall()]
         cur.close()
         conn.close()
-        for r in rows:
-            for k in ("data_matricula", "created_at", "updated_at"):
-                if r.get(k):
-                    r[k] = str(r[k])
         return jsonify({"ok": True, "matriculas": rows})
     except Exception as e:
+        logger.error("minhas-matriculas list: %s", e)
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -3722,7 +3833,7 @@ def api_minhas_mat_create():
             (b.get("nome") or "").strip(),
             (b.get("curso") or "").strip(),
             (b.get("polo") or "").strip(),
-            b.get("data_matricula") or None,
+            _parse_matricula_date(b.get("data_matricula")),
             (b.get("ciclo") or "").strip(),
             (b.get("nivel") or "").strip(),
             (b.get("kommo_lead_id") or "").strip(),
@@ -3763,7 +3874,7 @@ def api_minhas_mat_update(mid):
             (b.get("nome") or "").strip(),
             (b.get("curso") or "").strip(),
             (b.get("polo") or "").strip(),
-            b.get("data_matricula") or None,
+            _parse_matricula_date(b.get("data_matricula")),
             (b.get("ciclo") or "").strip(),
             (b.get("nivel") or "").strip(),
             (b.get("kommo_lead_id") or "").strip(),
@@ -3809,27 +3920,9 @@ def api_minhas_mat_delete(mid):
 
 @minha_performance_bp.route("/api/minha-performance/ajustes", methods=["GET"])
 def api_ajustes_agent_list():
-    user_id, kommo_uid = _get_agent_user_id()
-    if not user_id:
-        return jsonify({"error": "Não autenticado"}), 401
-    target_uid = request.args.get("kommo_uid", type=int)
-    view_user_id = user_id
-    if target_uid and _is_admin():
-        kommo_uid = target_uid
-        try:
-            conn_u = _pg()
-            cur_u = conn_u.cursor()
-            cur_u.execute(
-                "SELECT id FROM app_users WHERE kommo_user_id = %s LIMIT 1",
-                (kommo_uid,),
-            )
-            row_u = cur_u.fetchone()
-            cur_u.close()
-            conn_u.close()
-            if row_u:
-                view_user_id = row_u[0]
-        except Exception:
-            pass
+    view_user_id, kommo_uid = _resolve_agent_view_context(request.args.get("kommo_uid", type=int))
+    if not view_user_id:
+        return jsonify({"ok": False, "error": "Não autenticado"}), 401
     try:
         conn = _pg()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -3878,7 +3971,7 @@ def api_ajustes_agent_create():
             (b.get("nome_aluno") or "").strip(),
             (b.get("curso") or "").strip(),
             (b.get("polo") or "").strip(),
-            b.get("data_matricula") or None,
+            _parse_matricula_date(b.get("data_matricula")),
             (b.get("kommo_lead_id") or "").strip(),
             (b.get("descricao") or "").strip(),
         ))

@@ -370,9 +370,9 @@ async function checkAvisosNaoLidos() {
         }
         renderNotifPanel(window._avisosCache);
 
-        if (count > 0 && !sessionStorage.getItem('avisos_popup_shown')) {
+        if (count > 0 && !sessionStorage.getItem('avisos_popup_shown_v2')) {
             _showAvisosPopup(data.avisos);
-            sessionStorage.setItem('avisos_popup_shown', '1');
+            sessionStorage.setItem('avisos_popup_shown_v2', '1');
         }
     } catch (e) { console.error('checkAvisosNaoLidos', e); }
 }
