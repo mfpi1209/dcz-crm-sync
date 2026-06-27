@@ -1,6 +1,7 @@
+import re
 import traceback
 import unicodedata
-from datetime import datetime
+from datetime import date, datetime
 
 import psycopg2
 import psycopg2.extras
@@ -38,18 +39,21 @@ def _get_process_state():
     return _sync_running, _update_running
 
 
-# ---------------------------------------------------------------------------
-# SQL fragments — snapshot-based queries (xl_rows)
-# ---------------------------------------------------------------------------
+def _is_rematricula_empresa(empresa):
+    """Rematrícula conta só Graduação EAD (código 12). Pós (7) e UCS-CL (79) ficam fora."""
+    return bool(re.match(r'^12 -', (empresa or '').strip()))
 
-_MAT_CTE = """
+
+def _mat_cte_sql(empresa_re=r'^(12|7) -'):
+    return f"""
 WITH mat AS (
     SELECT
         r.data->>'tipo_matricula' AS tipo_aluno,
+        r.data->>'empresa' AS empresa,
         CASE
-          WHEN r.data->>'data_mat' ~ '^\\d{2}/\\d{2}/\\d{4}' THEN
+          WHEN r.data->>'data_mat' ~ '^\\d{{2}}/\\d{{2}}/\\d{{4}}' THEN
             TO_DATE(SUBSTRING(r.data->>'data_mat' FROM 1 FOR 10), 'DD/MM/YYYY')
-          WHEN r.data->>'data_mat' ~ '^\\d{4}-\\d{2}-\\d{2}' THEN
+          WHEN r.data->>'data_mat' ~ '^\\d{{4}}-\\d{{2}}-\\d{{2}}' THEN
             (SUBSTRING(r.data->>'data_mat' FROM 1 FOR 10))::date
           ELSE NULL
         END AS data_matricula,
@@ -64,14 +68,10 @@ WITH mat AS (
           ELSE 'Graduação'
         END AS nivel,
         TRIM(REGEXP_REPLACE(COALESCE(r.data->>'polo',''), '^\\d+\\s*[-–]\\s*', '')) AS polo,
+        NULLIF(regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g'), '') AS rgm,
         r.data->>'curso' AS turma,
-        -- Ciclo lido direto da coluna do snapshot. Valida formato 'YYYY/N'
-        -- para descartar lixo (linhas de cabeçalho/rodapé do XLSX tipo
-        -- 'Filtros aplicados:' ou 'Total'). Snapshot já traz o ciclo correto;
-        -- antes inferia por data via JOIN com tabela `ciclos`, o que perdia
-        -- matrículas de ciclos não cadastrados (ex.: 2026/2).
         CASE
-          WHEN TRIM(COALESCE(r.data->>'ciclo','')) ~ '^\\d{4}/\\d$'
+          WHEN TRIM(COALESCE(r.data->>'ciclo','')) ~ '^\\d{{4}}/\\d$'
             THEN TRIM(r.data->>'ciclo')
           ELSE NULL
         END AS ciclo
@@ -80,10 +80,89 @@ WITH mat AS (
         SELECT id FROM xl_snapshots
         WHERE tipo = 'matriculados' ORDER BY id DESC LIMIT 1
     )
-      -- Mesmo recorte de empresa do Dashboard Comercial (códigos 12 e 7).
-      AND TRIM(COALESCE(r.data->>'empresa','')) ~ '^(12|7) -'
+      AND TRIM(COALESCE(r.data->>'empresa','')) ~ '{empresa_re}'
 )
 """
+
+
+# Dashboard geral: Graduação (12) + Pós UCS (7).
+_MAT_CTE = _mat_cte_sql(r'^(12|7) -')
+# Rematrícula: só Graduação EAD (12) — Pós não rematricula; UCS-CL (79) fora do escopo.
+_MAT_CTE_REMAT = _mat_cte_sql(r'^12 -')
+
+# Data em que o SIAA liberou rematrícula por ciclo destino (antes disso não há conversão).
+_REMAT_LIBERACAO_POR_CICLO = {
+    "2026/2": date(2026, 6, 14),
+}
+
+_REMAT_TIPO_SQL = """
+  AND LOWER(COALESCE(m.tipo_aluno, '')) ~ '(remat|renovacao|veterano)'
+"""
+
+
+def _remat_liberacao_min(ciclo):
+    if not ciclo:
+        return None
+    return _REMAT_LIBERACAO_POR_CICLO.get(str(ciclo).strip())
+
+
+def _clamp_remat_range_start(range_start, ciclo):
+    lib = _remat_liberacao_min(ciclo)
+    if lib and range_start < lib:
+        return lib
+    return range_start
+
+
+def _situacao_norm_sql(col):
+    """Comparação de situação sem acento/caixa (ex.: EM CURSO = Em Curso)."""
+    return (
+        f"TRANSLATE(LOWER(TRIM(COALESCE({col},''))), "
+        f"'áàãâéèêíìîóòõôúùûçñ', 'aaaaeeeiiioooouuucn')"
+    )
+
+
+def _norm_situacao_param(s):
+    if not s or not str(s).strip():
+        return None
+    return _strip_accents_lower(str(s).strip())
+
+
+def _tipo_matches_filter(cat, f_tipo):
+    if not f_tipo:
+        return True
+    _NOVOS_AGG = {"novos", "regresso", "recompra"}
+    if f_tipo == "novos_agg":
+        return cat in _NOVOS_AGG
+    return cat == f_tipo
+
+
+def _is_em_curso_sit(sit_norm):
+    return sit_norm == "em curso"
+
+
+def _rgm_fora_padrao_nao_conta(rgm, dom_pfx, overrides):
+    from routes.comercial_rgm import (
+        _is_rgm_prefix_outlier,
+        _rgm_conta_para_venda,
+    )
+
+    if not rgm or dom_pfx is None:
+        return False
+    return _is_rgm_prefix_outlier(rgm, dom_pfx) and not _rgm_conta_para_venda(
+        rgm, dom_pfx, overrides
+    )
+
+
+def _matches_rgm_padrao_filter(rgm, sit_norm, mode, dom_pfx, overrides):
+    """mode: todos | padrao | fora_padrao — mesma regra do Dashboard Comercial."""
+    mode = (mode or "todos").strip().lower()
+    if mode in ("", "todos"):
+        return True
+    if not _is_em_curso_sit(sit_norm):
+        return mode != "fora_padrao"
+    if _rgm_fora_padrao_nao_conta(rgm, dom_pfx, overrides):
+        return mode == "fora_padrao"
+    return mode != "fora_padrao"
 
 
 # ---------------------------------------------------------------------------
@@ -145,19 +224,21 @@ def api_dashboard():
 _STUDENT_METRICS_QUERY = _MAT_CTE + """
 SELECT
     COALESCE(m.tipo_aluno, 'Não informado') AS tipo,
+    m.empresa,
     m.situacao,
     m.nivel,
     m.polo,
     m.turma,
     m.ciclo AS ciclo,
+    m.rgm,
     COUNT(*) AS total
 FROM mat m
 WHERE (%(dt_from)s IS NULL OR m.data_matricula >= %(dt_from)s::date)
   AND (%(dt_to)s   IS NULL OR m.data_matricula <= %(dt_to)s::date)
   AND (%(f_nivel)s IS NULL OR m.nivel = %(f_nivel)s)
-  AND (%(f_sit)s   IS NULL OR m.situacao = %(f_sit)s)
   AND (%(f_ciclo)s IS NULL OR m.ciclo = %(f_ciclo)s)
-GROUP BY m.tipo_aluno, m.situacao, m.nivel, m.polo, m.turma, m.ciclo
+GROUP BY m.tipo_aluno, m.situacao, m.nivel, m.polo, m.turma, m.ciclo, m.empresa, m.rgm
+""".format(_SIT_NORM=_situacao_norm_sql("m.situacao")) + """
 ORDER BY total DESC
 """
 
@@ -170,30 +251,42 @@ def api_dashboard_students():
     f_sit = request.args.get("situacao", "")
     f_ciclo = request.args.get("ciclo", "")
     f_tipo = request.args.get("tipo", "")
+    f_polo = request.args.get("polo", "")
+    f_rgm_padrao = (request.args.get("rgm_padrao", "") or "todos").strip().lower()
+    if f_rgm_padrao not in ("todos", "padrao", "fora_padrao"):
+        f_rgm_padrao = "todos"
+    f_sit_norm = _norm_situacao_param(f_sit)
     conn = get_conn()
     try:
-        # f_ciclo agora vai direto pra query (m.ciclo lido do snapshot).
-        # Antes virava intervalo dt_inicio/dt_fim via tabela `ciclos`,
-        # o que falhava p/ ciclos não cadastrados (ex.: 2026/2).
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(_STUDENT_METRICS_QUERY, {
                 "dt_from": dt_from or None,
                 "dt_to": dt_to or None,
                 "f_nivel": f_nivel or None,
-                "f_sit": f_sit or None,
+                "f_sit_norm": f_sit_norm,
                 "f_ciclo": f_ciclo or None,
             })
             rows = cur.fetchall()
 
-        # novos_agg = novos + regresso + recompra
-        _NOVOS_AGG = {"novos", "regresso", "recompra"}
+        from routes.comercial_rgm import (
+            _compute_dominant_rgm_prefix,
+            _load_outlier_contagem_overrides,
+        )
 
-        def _tipo_matches(cat):
-            if not f_tipo:
-                return True
-            if f_tipo == "novos_agg":
-                return cat in _NOVOS_AGG
-            return cat == f_tipo
+        em_curso_rgms = []
+        for r in rows:
+            sn = _norm_situacao_param(r.get("situacao") or "")
+            if _is_em_curso_sit(sn) and r.get("rgm"):
+                em_curso_rgms.append(r["rgm"])
+        dom_pfx = _compute_dominant_rgm_prefix(em_curso_rgms)
+        overrides = _load_outlier_contagem_overrides(conn)
+        fora_padrao_total = 0
+        for r in rows:
+            sn = _norm_situacao_param(r.get("situacao") or "")
+            if _is_em_curso_sit(sn) and _rgm_fora_padrao_nao_conta(
+                r.get("rgm"), dom_pfx, overrides
+            ):
+                fora_padrao_total += r["total"]
 
         totals = {"novos": 0, "regresso": 0, "recompra": 0, "rematricula": 0, "outros": 0}
         by_situacao = {}
@@ -207,6 +300,31 @@ def api_dashboard_students():
         for r in rows:
             tipo = r["tipo"] or "Não informado"
             cat = _classify_tipo(tipo)
+            if cat == "rematricula" and not _is_rematricula_empresa(r.get("empresa")):
+                continue
+
+            sit = r["situacao"] or "N/I"
+            sit_norm = _norm_situacao_param(sit) or ""
+            niv = r["nivel"] or "N/I"
+            polo = normalize_polo_display(r["polo"] or "") or "N/I"
+            turma = r["turma"] or "N/I"
+            ciclo = r["ciclo"] or "N/I"
+
+            if f_polo and polo != f_polo:
+                continue
+
+            if not _matches_rgm_padrao_filter(
+                r.get("rgm"), sit_norm, f_rgm_padrao, dom_pfx, overrides
+            ):
+                continue
+
+            # Cards de situação: sempre mostram todas as situações (respeitam ciclo/período/tipo/polo).
+            if not f_tipo or _tipo_matches_filter(cat, f_tipo):
+                by_situacao[sit] = by_situacao.get(sit, 0) + r["total"]
+
+            if f_sit_norm and sit_norm != f_sit_norm:
+                continue
+
             totals[cat] += r["total"]
             raw_tipos[tipo] = raw_tipos.get(tipo, 0) + r["total"]
 
@@ -214,18 +332,11 @@ def api_dashboard_students():
                 by_tipo_detail[cat] = {"by_situacao": {}, "by_nivel": {}, "by_polo": {}}
             td = by_tipo_detail[cat]
 
-            sit = r["situacao"] or "N/I"
-            niv = r["nivel"] or "N/I"
-            polo = normalize_polo_display(r["polo"] or "") or "N/I"
-            turma = r["turma"] or "N/I"
-            ciclo = r["ciclo"] or "N/I"
-
             td["by_situacao"][sit] = td["by_situacao"].get(sit, 0) + r["total"]
             td["by_nivel"][niv] = td["by_nivel"].get(niv, 0) + r["total"]
             td["by_polo"][polo] = td["by_polo"].get(polo, 0) + r["total"]
 
-            if _tipo_matches(cat):
-                by_situacao[sit] = by_situacao.get(sit, 0) + r["total"]
+            if _tipo_matches_filter(cat, f_tipo):
                 by_nivel[niv] = by_nivel.get(niv, 0) + r["total"]
                 by_polo[polo] = by_polo.get(polo, 0) + r["total"]
                 by_turma[turma] = by_turma.get(turma, 0) + r["total"]
@@ -237,18 +348,35 @@ def api_dashboard_students():
             td["by_nivel"] = dict(sorted(td["by_nivel"].items(), key=lambda x: -x[1]))
             td["by_polo"] = dict(sorted(td["by_polo"].items(), key=lambda x: -x[1])[:8])
 
+        filtered_total = sum(totals.values())
+        display_totals = dict(totals)
+        if f_tipo:
+            display_totals = {
+                k: (totals[k] if _tipo_matches_filter(k, f_tipo) else 0)
+                for k in totals
+            }
+            filtered_total = sum(display_totals.values())
+
         return jsonify({
-            "totals": totals,
+            "totals": display_totals,
             "by_tipo_detail": by_tipo_detail,
             "by_situacao": dict(sorted(by_situacao.items(), key=lambda x: -x[1])),
             "by_nivel": dict(sorted(by_nivel.items(), key=lambda x: -x[1])),
             "by_polo": dict(sorted(by_polo.items(), key=lambda x: -x[1])),
             "by_turma": dict(sorted(by_turma.items(), key=lambda x: -x[1])),
             "by_ciclo": dict(sorted(by_ciclo.items(), key=lambda x: -x[1])),
-            "grand_total": sum(totals.values()),
+            "grand_total": filtered_total,
             "raw_tipos": dict(sorted(raw_tipos.items(), key=lambda x: -x[1])),
             "filter": {"from": dt_from, "to": dt_to},
             "active_tipo": f_tipo,
+            "active_situacao": f_sit or None,
+            "active_polo": f_polo or None,
+            "active_rgm_padrao": f_rgm_padrao,
+            "rgm_padrao": {
+                "filter": f_rgm_padrao,
+                "dominant_prefix": dom_pfx,
+                "fora_padrao_total": fora_padrao_total,
+            },
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -283,27 +411,48 @@ def api_dashboard_ciclos_distinct():
     """Retorna ciclos distintos presentes no snapshot atual de matriculados,
     com contagem por ciclo. Usado para popular o dropdown de filtro de ciclo
     no Dashboard Acadêmico (mais confiável que /api/ciclos da tabela `ciclos`,
-    que pode estar desatualizada — ex.: 2026/2 não cadastrado)."""
+    que pode estar desatualizada — ex.: 2026/2 não cadastrado).
+
+    Query params:
+      tipo=rematricula — inclui apenas contagem de rematrículas no campo total
+                         (retrocompat: rematricula.js usa isso no dropdown).
+    """
+    count_remat_only = request.args.get("tipo", "").strip().lower() == "rematricula"
     conn = get_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute("""
                 SELECT
                   TRIM(r.data->>'ciclo') AS ciclo,
-                  COUNT(*) AS total
+                  COUNT(*) AS total,
+                  COUNT(*) FILTER (
+                    WHERE LOWER(COALESCE(r.data->>'tipo_matricula', '')) ~ '(remat|renovacao|veterano)'
+                      AND TRIM(COALESCE(r.data->>'empresa','')) ~ '^12 -'
+                  ) AS rematricula
                 FROM xl_rows r
                 WHERE r.snapshot_id = (
                     SELECT id FROM xl_snapshots
                     WHERE tipo = 'matriculados' ORDER BY id DESC LIMIT 1
                 )
                   AND TRIM(COALESCE(r.data->>'ciclo','')) ~ '^\\d{4}/\\d$'
+                  AND TRIM(COALESCE(r.data->>'empresa','')) ~ '^(12|7) -'
                 GROUP BY 1
                 ORDER BY
                   (substring(TRIM(r.data->>'ciclo') from '^([0-9]{4})'))::int DESC,
                   (substring(TRIM(r.data->>'ciclo') from '/([0-9])$'))::int DESC
             """)
             rows = cur.fetchall()
-        return jsonify([{"nome": r["ciclo"], "total": r["total"]} for r in rows])
+        result = []
+        for r in rows:
+            remat = int(r["rematricula"] or 0)
+            total = int(r["total"] or 0)
+            result.append({
+                "nome": r["ciclo"],
+                "total": remat if count_remat_only else total,
+                "matriculados": total,
+                "rematricula": remat,
+            })
+        return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     finally:
@@ -320,7 +469,8 @@ FROM mat m
 WHERE m.data_matricula IS NOT NULL
   AND (%(f_nivel)s IS NULL OR m.nivel = %(f_nivel)s)
   AND (%(f_ciclo)s IS NULL OR m.ciclo = %(f_ciclo)s)
-"""
+  AND (%(f_sit_norm)s IS NULL OR {sit} = %(f_sit_norm)s)
+""".format(sit=_situacao_norm_sql("m.situacao"))
 
 _TIMELINE_QUERY = _MAT_CTE + """
 SELECT
@@ -329,15 +479,51 @@ SELECT
          ELSE TO_CHAR(m.data_matricula, 'YYYY-MM-DD')
     END AS period,
     COALESCE(m.tipo_aluno, 'Não informado') AS tipo,
+    m.situacao,
+    TRIM(REGEXP_REPLACE(COALESCE(m.polo,''), '^\\d+\\s*[-–]\\s*', '')) AS polo,
+    m.empresa,
     COUNT(*) AS total
 FROM mat m
 WHERE m.data_matricula IS NOT NULL
   AND m.data_matricula BETWEEN %(range_start)s AND %(range_end)s
   AND (%(f_nivel)s IS NULL OR m.nivel = %(f_nivel)s)
   AND (%(f_ciclo)s IS NULL OR m.ciclo = %(f_ciclo)s)
-GROUP BY period, m.tipo_aluno
+  AND (%(f_sit_norm)s IS NULL OR {sit} = %(f_sit_norm)s)
+GROUP BY period, m.tipo_aluno, m.situacao, m.polo, m.empresa
 ORDER BY period, total DESC
-"""
+""".format(sit=_situacao_norm_sql("m.situacao"))
+
+_TIMELINE_RANGE_QUERY_REMAT = _MAT_CTE_REMAT + """
+SELECT MIN(m.data_matricula) AS dmin, MAX(m.data_matricula) AS dmax
+FROM mat m
+WHERE m.data_matricula IS NOT NULL
+""" + _REMAT_TIPO_SQL + """
+  AND (%(f_nivel)s IS NULL OR m.nivel = %(f_nivel)s)
+  AND (%(f_ciclo)s IS NULL OR m.ciclo = %(f_ciclo)s)
+  AND (%(f_sit_norm)s IS NULL OR {sit} = %(f_sit_norm)s)
+""".format(sit=_situacao_norm_sql("m.situacao"))
+
+_TIMELINE_QUERY_REMAT = _MAT_CTE_REMAT + """
+SELECT
+    CASE WHEN %(granularity)s = 'month'
+         THEN TO_CHAR(m.data_matricula, 'YYYY-MM')
+         ELSE TO_CHAR(m.data_matricula, 'YYYY-MM-DD')
+    END AS period,
+    COALESCE(m.tipo_aluno, 'Não informado') AS tipo,
+    m.situacao,
+    m.polo,
+    m.empresa,
+    COUNT(*) AS total
+FROM mat m
+WHERE m.data_matricula IS NOT NULL
+""" + _REMAT_TIPO_SQL + """
+  AND m.data_matricula BETWEEN %(range_start)s AND %(range_end)s
+  AND (%(f_nivel)s IS NULL OR m.nivel = %(f_nivel)s)
+  AND (%(f_ciclo)s IS NULL OR m.ciclo = %(f_ciclo)s)
+  AND (%(f_sit_norm)s IS NULL OR {sit} = %(f_sit_norm)s)
+GROUP BY period, m.tipo_aluno, m.situacao, m.polo, m.empresa
+ORDER BY period, total DESC
+""".format(sit=_situacao_norm_sql("m.situacao"))
 
 
 @dashboard_bp.route("/api/dashboard/timeline")
@@ -348,8 +534,15 @@ def api_dashboard_timeline():
     granularity = request.args.get("granularity", "month")
     f_nivel = request.args.get("nivel") or None
     f_ciclo = request.args.get("ciclo") or None
+    f_sit = request.args.get("situacao", "")
+    f_tipo = request.args.get("tipo", "")
+    f_polo = request.args.get("polo", "")
+    f_sit_norm = _norm_situacao_param(f_sit)
     dt_from = request.args.get("from", "")
     dt_to = request.args.get("to", "")
+    remat_scope = request.args.get("scope", "").strip().lower() == "rematricula"
+    range_q = _TIMELINE_RANGE_QUERY_REMAT if remat_scope else _TIMELINE_RANGE_QUERY
+    timeline_q = _TIMELINE_QUERY_REMAT if remat_scope else _TIMELINE_QUERY
 
     today = datetime.now().date()
 
@@ -363,34 +556,46 @@ def api_dashboard_timeline():
     else:
         range_end = today
 
+    tl_params = {
+        "f_nivel": f_nivel,
+        "f_ciclo": f_ciclo,
+        "f_sit_norm": f_sit_norm,
+    }
+
     conn = get_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             if f_ciclo and not dt_from and not dt_to:
-                cur.execute(_TIMELINE_RANGE_QUERY, {
-                    "f_nivel": f_nivel,
-                    "f_ciclo": f_ciclo,
-                })
+                cur.execute(range_q, tl_params)
                 bounds = cur.fetchone()
                 if bounds and bounds.get("dmin"):
                     range_start = bounds["dmin"]
                     range_end = bounds["dmax"] or today
 
-            cur.execute(_TIMELINE_QUERY, {
+            if remat_scope:
+                range_start = _clamp_remat_range_start(range_start, f_ciclo)
+
+            cur.execute(timeline_q, {
+                **tl_params,
                 "granularity": granularity,
                 "range_start": range_start,
                 "range_end": range_end,
-                "f_nivel": f_nivel,
-                "f_ciclo": f_ciclo,
             })
             rows = cur.fetchall()
 
         series = {}
         all_periods = set()
         for r in rows:
+            cat = _classify_tipo(r["tipo"] or "")
+            if cat == "rematricula" and not _is_rematricula_empresa(r.get("empresa")):
+                continue
+            if not _tipo_matches_filter(cat, f_tipo):
+                continue
+            polo_canon = normalize_polo_display(r.get("polo") or "") or "N/I"
+            if f_polo and polo_canon != f_polo:
+                continue
             p = r["period"]
             all_periods.add(p)
-            cat = _classify_tipo(r["tipo"] or "")
             if cat not in series:
                 series[cat] = {}
             series[cat][p] = series[cat].get(p, 0) + r["total"]
@@ -402,7 +607,13 @@ def api_dashboard_timeline():
             "series": {},
             "granularity": granularity,
             "range": {"from": str(range_start), "to": str(range_end)},
-            "meta": {"ciclo": f_ciclo, "nivel": f_nivel},
+            "meta": {
+                "ciclo": f_ciclo,
+                "nivel": f_nivel,
+                "remat_liberacao": (
+                    str(_remat_liberacao_min(f_ciclo)) if remat_scope and _remat_liberacao_min(f_ciclo) else None
+                ),
+            },
         }
         for cat in ["novos", "rematricula", "regresso", "recompra"]:
             if cat in series:
