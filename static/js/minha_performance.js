@@ -129,12 +129,10 @@ async function loadMinhaPerformance(params) {
         if (_mpSelectedCampanhaId) qsParams.set('campanha_id', _mpSelectedCampanhaId);
         const qs = qsParams.toString() ? '?' + qsParams.toString() : '';
 
-        const [insightsRes, histRes] = await Promise.all([
+        const [insightsRes] = await Promise.all([
             api(`/api/minha-performance/insights${qs}`),
-            api(`/api/minha-performance/historico${qs}`),
         ]);
         const insights = await insightsRes.json();
-        const hist = await histRes.json();
 
         if (loading) loading.classList.add('hidden');
 
@@ -167,7 +165,12 @@ async function loadMinhaPerformance(params) {
         }
         _mpRenderPixDia(insights);
         _mpRenderCalendar(insights);
-        _mpRenderHistorico(hist?.historico || []);
+        _mpRenderHistorico([]);
+
+        api(`/api/minha-performance/historico${qs}`)
+            .then(r => r.json())
+            .then(hist => _mpRenderHistorico(hist?.historico || []))
+            .catch(e => console.warn('historico MP', e));
 
     } catch(e) {
         console.error('loadMinhaPerformance', e);
@@ -1539,6 +1542,14 @@ function _mpRenderHistorico(hist) {
 let _mpCurrentTab = 'performance';
 let _mpMatLoaded = false;
 
+function _mpEffectiveMatUid() {
+    const raw = (_mpCanManagePremiacao && _mpSelectedUid && _mpSelectedUid !== 'suporte_equipe')
+        ? _mpSelectedUid
+        : _mpMyUid;
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 function _mpSwitchTab(tab) {
     _mpCurrentTab = tab;
     const perf = document.getElementById('mp-content');
@@ -1600,7 +1611,7 @@ function _mpClassifySituacao(sit) {
 }
 
 async function _mpLoadMatriculas() {
-    const uid = (_mpIsAdmin && _mpSelectedUid) ? _mpSelectedUid : _mpMyUid;
+    const uid = _mpEffectiveMatUid();
     if (!uid) return;
     const tbody = document.getElementById('mp-mat-oficial-tbody');
     const countEl = document.getElementById('mp-mat-oficial-count');
@@ -1755,7 +1766,7 @@ function _mpFilterOficial() {
 let _mpMinhasData = [];
 
 async function _mpLoadMinhasMatriculas() {
-    const uid = (_mpIsAdmin && _mpSelectedUid) ? _mpSelectedUid : _mpMyUid;
+    const uid = _mpEffectiveMatUid();
     const tbody = document.getElementById('mp-minha-lista-tbody');
     if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-slate-600 text-xs">Carregando...</td></tr>';
     try {
@@ -1768,7 +1779,9 @@ async function _mpLoadMinhasMatriculas() {
         _mpMinhasData = d.matriculas || [];
         _mpRenderMinhaLista();
     } catch(e) {
-        if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-red-400 text-xs">Erro ao carregar</td></tr>';
+        console.error('_mpLoadMinhasMatriculas', e);
+        const msg = e.message === 'Sessão expirada' ? 'Sessão expirada' : (e.message || 'Erro ao carregar');
+        if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-red-400 text-xs">${msg}</td></tr>`;
     }
 }
 
@@ -1869,16 +1882,20 @@ async function _mpDeleteMinhaMatricula(id) {
 let _mpAjustesData = [];
 
 async function _mpLoadAjustes() {
-    const uid = (_mpIsAdmin && _mpSelectedUid) ? _mpSelectedUid : _mpMyUid;
+    const uid = _mpEffectiveMatUid();
     const list = document.getElementById('mp-ajustes-list');
     if (list) list.innerHTML = '<p class="text-xs text-slate-600 py-4 text-center">Carregando...</p>';
     try {
         const qs = uid ? `?kommo_uid=${uid}` : '';
         const res = await api(`/api/minha-performance/ajustes${qs}`);
         const d = await res.json();
+        if (!res.ok || d.ok === false) {
+            throw new Error(d.error || `HTTP ${res.status}`);
+        }
         _mpAjustesData = d.ajustes || [];
         _mpRenderAjustesList();
     } catch(e) {
+        console.error('_mpLoadAjustes', e);
         if (list) list.innerHTML = '<p class="text-xs text-red-400 py-4 text-center">Erro ao carregar</p>';
     }
 }

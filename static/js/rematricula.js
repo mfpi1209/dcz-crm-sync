@@ -12,7 +12,26 @@ let _rematFetchGen = 0;
 let _rematDailyFetchGen = 0;
 
 function loadRematricula() {
+    _rematEnsureIframeLoaded();
     populateRematCicloFilter().then(() => loadRematCharts());
+}
+
+function _rematIframeUrl() {
+    const iframe = document.getElementById('remat-iframe');
+    if (!iframe) return '';
+    return iframe.dataset.src || iframe.getAttribute('data-src') || iframe.src || '';
+}
+
+/** Só carrega o embed quando a aba fica visível (evita lazy + parent hidden). */
+function _rematEnsureIframeLoaded() {
+    const iframe = document.getElementById('remat-iframe');
+    if (!iframe) return;
+    const url = _rematIframeUrl();
+    if (!url || url === 'about:blank') return;
+    const cur = iframe.getAttribute('src') || '';
+    if (!cur || cur === 'about:blank' || cur !== url) {
+        iframe.setAttribute('src', url);
+    }
 }
 
 function loadRematCharts() {
@@ -35,7 +54,7 @@ async function populateRematCicloFilter() {
     const sel = document.getElementById('remat-ciclo');
     if (!sel) return;
     try {
-        const res = await api('/api/dashboard/ciclos-distinct');
+        const res = await api('/api/dashboard/ciclos-distinct?tipo=rematricula');
         const list = await res.json();
         const arr = Array.isArray(list) ? list : [];
         sel.innerHTML =
@@ -43,7 +62,11 @@ async function populateRematCicloFilter() {
             arr
                 .map((c) => {
                     const n = c.nome;
-                    const tot = c.total != null ? ` (${Number(c.total).toLocaleString('pt-BR')})` : '';
+                    const remat = c.rematricula ?? c.total;
+                    const tot =
+                        remat != null
+                            ? ` (${Number(remat).toLocaleString('pt-BR')} rematr.)`
+                            : '';
                     return `<option value="${esc(n)}">${esc(n)}${tot}</option>`;
                 })
                 .join('');
@@ -101,7 +124,7 @@ function _rematUpdateHero(remat, ciclo, range) {
         const parts = [];
         if (ciclo) parts.push('ciclo ' + ciclo);
         if (range?.from && range?.to) parts.push(range.from + ' → ' + range.to);
-        sub.textContent = parts.length ? parts.join(' · ') : 'tipo rematrícula no relatório de matriculados';
+        sub.textContent = parts.length ? parts.join(' · ') : 'rematrículas no ciclo · data de matrícula';
     }
 }
 
@@ -179,7 +202,7 @@ function _rematRenderLineChart(canvasId, chartRef, labels, data, labelText, opts
 
 function _rematTimelineParams(extraFrom, extraTo) {
     const { ciclo, nivel, from, to, labelText } = _rematFilters();
-    const params = new URLSearchParams({ granularity: _rematGranularity });
+    const params = new URLSearchParams({ granularity: _rematGranularity, scope: 'rematricula' });
     if (nivel) params.set('nivel', nivel);
     if (ciclo) params.set('ciclo', ciclo);
     const df = extraFrom || from;
@@ -256,7 +279,7 @@ async function loadRematDailyTimeline() {
     if (loading) loading.classList.remove('hidden');
 
     const { ciclo, nivel, from, to, labelText } = _rematFilters();
-    const params = new URLSearchParams({ granularity: 'day' });
+    const params = new URLSearchParams({ granularity: 'day', scope: 'rematricula' });
     if (nivel) params.set('nivel', nivel);
     if (ciclo) params.set('ciclo', ciclo);
     if (from) params.set('from', from);
@@ -319,7 +342,8 @@ function rematTimelineDrillUp() {
 function rematReloadIframe() {
     const iframe = document.getElementById('remat-iframe');
     if (!iframe) return;
-    const url = iframe.getAttribute('src');
+    const url = _rematIframeUrl();
+    if (!url || url === 'about:blank') return;
     iframe.setAttribute('src', 'about:blank');
     setTimeout(() => iframe.setAttribute('src', url), 30);
 }

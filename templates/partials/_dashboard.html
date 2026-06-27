@@ -227,20 +227,29 @@
                                 </div>
                                 <div class="flex flex-col gap-1">
                                     <label class="text-[10px] text-slate-400 font-bold uppercase">Período De</label>
-                                    <input type="date" id="students-from" class="input-glass px-2.5 py-1 text-xs rounded-lg">
+                                    <input type="date" id="students-from" onchange="applyDashboardFilters()" class="input-glass px-2.5 py-1 text-xs rounded-lg">
                                 </div>
                                 <div class="flex flex-col gap-1">
                                     <label class="text-[10px] text-slate-400 font-bold uppercase">Até</label>
-                                    <input type="date" id="students-to" class="input-glass px-2.5 py-1 text-xs rounded-lg">
+                                    <input type="date" id="students-to" onchange="applyDashboardFilters()" class="input-glass px-2.5 py-1 text-xs rounded-lg">
+                                </div>
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-[10px] text-slate-400 font-bold uppercase">RGM</label>
+                                    <select id="students-rgm-padrao" onchange="applyDashboardFilters()" class="input-glass px-2.5 py-1 text-xs rounded-lg min-w-[180px]" title="Mesma regra do Dashboard Comercial: prefixo abaixo do dominante do período">
+                                        <option value="todos">Todos os RGMs</option>
+                                        <option value="padrao">Excluir fora do padrão</option>
+                                        <option value="fora_padrao">Somente fora do padrão</option>
+                                    </select>
                                 </div>
                                 <button type="button" onclick="applyDashboardFilters()" class="btn-primary px-4 py-2 mt-auto text-xs rounded-lg">Aplicar</button>
                             </div>
+                            <p id="stu-rgm-padrao-hint" class="hidden w-full text-[10px] text-amber-600 dark:text-amber-400/90 mt-1"></p>
                         </div>
 
                         <div id="stu-active-filter-bar" class="hidden mb-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
                             <span class="material-symbols-outlined text-sm text-primary">filter_alt</span>
                             <span id="stu-active-filter-text" class="text-xs text-primary font-medium"></span>
-                            <button onclick="_stuClearTipoSitFilter()" class="ml-auto text-[10px] text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700/30 hover:border-primary px-2 py-0.5 rounded transition-all">Limpar</button>
+                            <button onclick="_stuClearCrossFilters()" class="ml-auto text-[10px] text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700/30 hover:border-primary px-2 py-0.5 rounded transition-all">Limpar</button>
                         </div>
 
                         <div id="stu-tipo-cards" class="mb-2"></div>
@@ -249,11 +258,12 @@
 
                 <!-- ═══ SITUAÇÃO ═══ -->
                 <div class="glass-card overflow-hidden mb-6">
-                    <div class="px-5 py-3 border-b border-slate-200 dark:border-slate-700/20">
+                    <div class="px-5 py-3 border-b border-slate-200 dark:border-slate-700/20 flex items-center justify-between gap-2">
                         <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display flex items-center gap-2">
                             <span class="material-symbols-outlined text-base text-emerald-500 dark:text-emerald-400">check_circle</span>
                             Matrículas por Situação
                         </h3>
+                        <span class="text-[10px] text-slate-400">Clique para filtrar</span>
                     </div>
                     <div class="p-5">
                         <div id="stu-by-situacao" class="grid grid-cols-2 lg:grid-cols-4 gap-4 text-[13px]">—</div>

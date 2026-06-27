@@ -105,6 +105,8 @@ async function loadDashboard() {
     }
     _dashRefreshFunnel(false);
     await populateCicloFilter();
+    _restoreRgmPadraoFilter();
+    _stuBindInteractiveCards();
     await applyDashboardFilters();
     if (typeof _dismissBootSplash === 'function') _dismissBootSplash();
 }
@@ -258,15 +260,52 @@ let _tlLastSeries = {};
 let _tlFetchGen = 0;
 let _dashGrandTotal = null;
 /** Filtros globais da página — fonte única para timeline e demais blocos. */
-let _dashActiveFilters = { ciclo: '', nivel: '', dtFrom: '', dtTo: '' };
+const _DASH_RGM_PADRAO_KEY = 'dash_rgm_padrao_v1';
+const _RGM_PADRAO_LABELS = {
+    todos: 'Todos os RGMs',
+    padrao: 'Excluir fora do padrão',
+    fora_padrao: 'Somente fora do padrão',
+};
+let _dashActiveFilters = { ciclo: '', nivel: '', dtFrom: '', dtTo: '', situacao: '', tipo: '', polo: '', rgmPadrao: 'todos' };
+
+function _restoreRgmPadraoFilter() {
+    const rgmSel = document.getElementById('students-rgm-padrao');
+    if (!rgmSel) return;
+    const saved = localStorage.getItem(_DASH_RGM_PADRAO_KEY);
+    if (saved && rgmSel.querySelector(`option[value="${saved}"]`)) {
+        rgmSel.value = saved;
+    }
+}
 
 function _readDashboardFilters() {
+    const rgmSel = document.getElementById('students-rgm-padrao');
+    const rgmPadrao = rgmSel?.value || 'todos';
     return {
         ciclo: document.getElementById('students-ciclo')?.value || '',
         nivel: document.getElementById('students-nivel')?.value || '',
         dtFrom: document.getElementById('students-from')?.value || '',
         dtTo: document.getElementById('students-to')?.value || '',
+        situacao: _stuActiveSituacao || '',
+        tipo: _stuActiveTipo || '',
+        polo: _stuActivePolo || '',
+        rgmPadrao: rgmPadrao === 'padrao' || rgmPadrao === 'fora_padrao' ? rgmPadrao : 'todos',
     };
+}
+
+function _appendStudentFilterParams(params) {
+    const f = _readDashboardFilters();
+    if (f.ciclo) params.set('ciclo', f.ciclo);
+    if (f.dtFrom) params.set('from', f.dtFrom);
+    if (f.dtTo) params.set('to', f.dtTo);
+    if (f.nivel) params.set('nivel', f.nivel);
+    if (f.situacao) params.set('situacao', f.situacao);
+    if (f.tipo) params.set('tipo', f.tipo);
+    if (f.polo) params.set('polo', f.polo);
+    if (f.rgmPadrao !== 'todos') params.set('rgm_padrao', f.rgmPadrao);
+    if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+        console.debug('[Dashboard] GET /api/dashboard/students?' + params.toString());
+    }
+    return f;
 }
 
 function toggleTlMode() {
@@ -355,10 +394,16 @@ async function loadTimeline(from, to, opts = {}) {
         nivel: opts.nivel ?? _dashActiveFilters.nivel ?? '',
         dtFrom: opts.dtFrom ?? _dashActiveFilters.dtFrom ?? '',
         dtTo: opts.dtTo ?? _dashActiveFilters.dtTo ?? '',
+        situacao: opts.situacao ?? _dashActiveFilters.situacao ?? '',
+        tipo: opts.tipo ?? _dashActiveFilters.tipo ?? '',
+        polo: opts.polo ?? _dashActiveFilters.polo ?? '',
     };
     const params = new URLSearchParams({ granularity: _tlGranularity });
     if (f.nivel) params.set('nivel', f.nivel);
     if (f.ciclo) params.set('ciclo', f.ciclo);
+    if (f.situacao) params.set('situacao', f.situacao);
+    if (f.tipo) params.set('tipo', f.tipo);
+    if (f.polo) params.set('polo', f.polo);
     if (from) params.set('from', from);
     else if (f.dtFrom) params.set('from', f.dtFrom);
     if (to) params.set('to', to);
@@ -412,11 +457,16 @@ async function loadTimeline(from, to, opts = {}) {
         _renderGeralChart();
 
         const rangeTxt = d.range ? d.range.from + ' → ' + d.range.to : '';
-        const cicloTxt = f.ciclo ? 'Ciclo ' + f.ciclo : '';
+        const filterParts = [];
+        if (f.ciclo) filterParts.push('Ciclo ' + f.ciclo);
+        if (f.situacao) filterParts.push(f.situacao);
+        if (f.tipo) filterParts.push(_TIPO_LABELS[f.tipo] || f.tipo);
+        if (f.polo) filterParts.push(f.polo);
+        if (f.nivel) filterParts.push(f.nivel);
         document.getElementById('tl-period-label').textContent =
             _tlGranularity === 'day' && _tlDrillMonth
                 ? _tlDrillMonth
-                : [cicloTxt, rangeTxt].filter(Boolean).join(' · ');
+                : [filterParts.join(' · '), rangeTxt].filter(Boolean).join(' · ');
 
         document.getElementById('tl-drillup').classList.toggle('hidden', _tlGranularity !== 'day');
 
@@ -429,8 +479,9 @@ async function loadTimeline(from, to, opts = {}) {
         } else if (
             f.ciclo &&
             _dashGrandTotal != null &&
-            !_stuActiveTipo &&
-            !_stuActiveSituacao &&
+            !f.tipo &&
+            !f.situacao &&
+            !f.polo &&
             Math.abs(tlTotal - _dashGrandTotal) > 1
         ) {
             console.warn('[Timeline] total diverge dos KPIs:', tlTotal, 'vs', _dashGrandTotal, url);
@@ -635,13 +686,18 @@ function renderCicloMaster(data) {
 const _DASH_CICLO_KEY = 'dash_ciclo_v2';
 
 function _syncDashboardFilterUi() {
-    const ciclo = document.getElementById('students-ciclo')?.value || '';
-    const nivel = document.getElementById('students-nivel')?.value || '';
+    const f = _readDashboardFilters();
     const tlBadge = document.getElementById('tl-filter-badge');
     if (tlBadge) {
         const parts = [];
-        if (ciclo) parts.push('Ciclo ' + ciclo);
-        if (nivel) parts.push(nivel);
+        if (f.ciclo) parts.push('Ciclo ' + f.ciclo);
+        if (f.situacao) parts.push(f.situacao);
+        if (f.tipo) parts.push(_TIPO_LABELS[f.tipo] || f.tipo);
+        if (f.polo) parts.push(f.polo);
+        if (f.nivel) parts.push(f.nivel);
+        if (f.rgmPadrao && f.rgmPadrao !== 'todos') {
+            parts.push(_RGM_PADRAO_LABELS[f.rgmPadrao] || f.rgmPadrao);
+        }
         if (parts.length) {
             tlBadge.textContent = parts.join(' · ');
             tlBadge.classList.remove('hidden');
@@ -650,7 +706,7 @@ function _syncDashboardFilterUi() {
         }
     }
     const cmNivel = document.getElementById('ciclo-filter-nivel');
-    if (cmNivel) cmNivel.value = nivel;
+    if (cmNivel) cmNivel.value = f.nivel;
 }
 
 /** Recarrega todas as seções do Dashboard Acadêmico com os filtros do topo. */
@@ -660,14 +716,20 @@ async function applyDashboardFilters() {
         if (cicloSel.value) localStorage.setItem(_DASH_CICLO_KEY, cicloSel.value);
         else localStorage.removeItem(_DASH_CICLO_KEY);
     }
+    const sitSel = document.getElementById('students-situacao');
+    if (sitSel) _stuActiveSituacao = sitSel.value || null;
+    if (_stuActiveSituacao) _syncSitSelectFromActive();
+    const rgmSel = document.getElementById('students-rgm-padrao');
+    if (rgmSel) {
+        localStorage.setItem(_DASH_RGM_PADRAO_KEY, rgmSel.value || 'todos');
+    }
     _dashActiveFilters = _readDashboardFilters();
     _tlGranularity = 'month';
     _tlDrillMonth = null;
     document.getElementById('tl-drillup')?.classList.add('hidden');
     _syncDashboardFilterUi();
-    await loadStudentMetrics();
-    await loadTimeline(undefined, undefined, _dashActiveFilters);
-    await Promise.all([_loadInadimplenciaCard(), loadCicloMaster()]);
+    await _stuRefreshFiltered();
+    await loadCicloMaster();
 }
 
 function applyCicloFilter() {
@@ -708,10 +770,11 @@ async function populateCicloFilter() {
 }
 
 // ---------------------------------------------------------------------------
-// Filtro ativo por tipo / situação (cards clicáveis)
+// Filtro ativo por tipo / situação / polo (cards clicáveis)
 // ---------------------------------------------------------------------------
 let _stuActiveTipo = null;
 let _stuActiveSituacao = null;
+let _stuActivePolo = null;
 
 const _TIPO_LABELS = {
     novos_agg: 'Novos (Calouros+Regresso+Recompra)',
@@ -721,30 +784,83 @@ const _TIPO_LABELS = {
     recompra: 'Recompra',
 };
 
+function _normSitKey(s) {
+    return String(s || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase();
+}
+
+function _syncSitSelectFromActive() {
+    const sitSel = document.getElementById('students-situacao');
+    if (!sitSel) return;
+    if (!_stuActiveSituacao) {
+        sitSel.value = '';
+        return;
+    }
+    const want = _normSitKey(_stuActiveSituacao);
+    for (const opt of sitSel.options) {
+        if (_normSitKey(opt.value) === want) {
+            sitSel.value = opt.value;
+            return;
+        }
+    }
+    sitSel.value = _stuActiveSituacao;
+}
+
+function _stuBindInteractiveCards() {
+    const sitEl = document.getElementById('stu-by-situacao');
+    if (sitEl && !sitEl.dataset.boundClick) {
+        sitEl.dataset.boundClick = '1';
+        sitEl.addEventListener('click', (ev) => {
+            const card = ev.target.closest('[data-situacao]');
+            if (!card) return;
+            _stuToggleSituacao(card.getAttribute('data-situacao'));
+        });
+    }
+}
+
+async function _stuRefreshFiltered() {
+    _dashActiveFilters = _readDashboardFilters();
+    _syncDashboardFilterUi();
+    await loadStudentMetrics();
+    await loadTimeline(undefined, undefined, _dashActiveFilters);
+    await _loadInadimplenciaCard();
+}
+
 function _stuToggleTipo(tipo) {
     _stuActiveTipo = _stuActiveTipo === tipo ? null : tipo;
-    loadStudentMetrics();
-    _loadInadimplenciaCard();
+    _stuRefreshFiltered();
 }
 
 function _stuToggleSituacao(sit) {
-    if (_stuActiveSituacao === sit) {
-        _stuActiveSituacao = null;
-        document.getElementById('students-situacao').value = '';
-    } else {
-        _stuActiveSituacao = sit;
-        document.getElementById('students-situacao').value = sit;
-    }
-    loadStudentMetrics();
-    _loadInadimplenciaCard();
+    const next = _normSitKey(_stuActiveSituacao) === _normSitKey(sit) ? null : sit;
+    _stuActiveSituacao = next;
+    _syncSitSelectFromActive();
+    _stuRefreshFiltered();
 }
 
-function _stuClearTipoSitFilter() {
+function _stuTogglePolo(polo) {
+    _stuActivePolo = _stuActivePolo === polo ? null : polo;
+    _stuRefreshFiltered();
+}
+
+function _stuToggleNivel(nivel) {
+    const nivelSel = document.getElementById('students-nivel');
+    if (!nivelSel) return;
+    const next = nivelSel.value === nivel ? '' : nivel;
+    nivelSel.value = next;
+    _stuRefreshFiltered();
+}
+
+function _stuClearCrossFilters() {
     _stuActiveTipo = null;
     _stuActiveSituacao = null;
-    document.getElementById('students-situacao').value = '';
-    loadStudentMetrics();
-    _loadInadimplenciaCard();
+    _stuActivePolo = null;
+    const sitSel = document.getElementById('students-situacao');
+    if (sitSel) sitSel.value = '';
+    _stuRefreshFiltered();
 }
 
 function _stuUpdateActiveFilterBar() {
@@ -754,6 +870,16 @@ function _stuUpdateActiveFilterBar() {
     const parts = [];
     if (_stuActiveTipo) parts.push('Tipo: ' + (_TIPO_LABELS[_stuActiveTipo] || _stuActiveTipo));
     if (_stuActiveSituacao) parts.push('Situação: ' + _stuActiveSituacao);
+    if (_stuActivePolo) parts.push('Polo: ' + _stuActivePolo);
+    const rgmPadrao = document.getElementById('students-rgm-padrao')?.value || 'todos';
+    if (rgmPadrao && rgmPadrao !== 'todos') {
+        parts.push(_RGM_PADRAO_LABELS[rgmPadrao] || rgmPadrao);
+    }
+    const dtFrom = document.getElementById('students-from')?.value;
+    const dtTo = document.getElementById('students-to')?.value;
+    if (dtFrom || dtTo) parts.push(`Período: ${dtFrom || '…'} → ${dtTo || '…'}`);
+    const nivel = document.getElementById('students-nivel')?.value;
+    if (nivel) parts.push('Nível: ' + nivel);
     if (parts.length) {
         text.textContent = 'Filtrando por: ' + parts.join(' · ');
         bar.classList.remove('hidden');
@@ -763,18 +889,10 @@ function _stuUpdateActiveFilterBar() {
 }
 
 async function loadStudentMetrics() {
-    const dtFrom = document.getElementById('students-from').value;
-    const dtTo = document.getElementById('students-to').value;
-    const nivel = document.getElementById('students-nivel').value;
-    const situacao = document.getElementById('students-situacao').value;
-    const ciclo = document.getElementById('students-ciclo').value;
+    _dashActiveFilters = _readDashboardFilters();
+    const f = _dashActiveFilters;
     const params = new URLSearchParams();
-    if (ciclo) params.set('ciclo', ciclo);
-    if (dtFrom) params.set('from', dtFrom);
-    if (dtTo) params.set('to', dtTo);
-    if (nivel) params.set('nivel', nivel);
-    if (situacao) params.set('situacao', situacao);
-    if (_stuActiveTipo) params.set('tipo', _stuActiveTipo);
+    _appendStudentFilterParams(params);
 
     const stuContainer = document.getElementById('stu-tipo-cards');
     if (stuContainer) stuContainer.innerHTML = `
@@ -786,22 +904,47 @@ async function loadStudentMetrics() {
     try {
         const res = await api('/api/dashboard/students?' + params);
         const d = await res.json();
-        if (d.error) {
-            console.warn('Student metrics error:', d.error);
-            if (stuContainer) stuContainer.innerHTML = '<div class="text-center py-4 text-rose-400 text-sm">Erro ao carregar: ' + esc(d.error) + '</div>';
+        if (!res.ok || d.error) {
+            console.warn('Student metrics error:', d.error || res.status);
+            if (stuContainer) {
+                stuContainer.innerHTML = '<div class="text-center py-4 text-rose-400 text-sm">Erro ao carregar: ' + esc(d.error || ('HTTP ' + res.status)) + '</div>';
+            }
             return;
+        }
+
+        const serverRgmFilter = d.active_rgm_padrao ?? d.rgm_padrao?.filter ?? null;
+        const rpHint = document.getElementById('stu-rgm-padrao-hint');
+        if (f.rgmPadrao !== 'todos' && serverRgmFilter !== f.rgmPadrao) {
+            console.warn(
+                '[Dashboard] Filtro RGM ignorado pelo servidor. Enviado:',
+                f.rgmPadrao,
+                '| Resposta:',
+                serverRgmFilter,
+                '| Reinicie o Flask (scripts/restart-flask.ps1)'
+            );
+            if (rpHint) {
+                rpHint.textContent =
+                    'Filtro RGM selecionado, mas o servidor ainda não aplicou. Feche Flask antigos, rode scripts/restart-flask.ps1 e recarregue (Ctrl+F5).';
+                rpHint.classList.remove('hidden');
+            }
         }
 
         const fmt = n => (n || 0).toLocaleString('pt-BR');
         const t = d.totals || {};
-        const gt = d.grand_total || 0;
-        _dashGrandTotal = gt;
-
-        const stuIsPosOnly = nivel === 'Pós-Graduação';
-        const stuRematLabel = stuIsPosOnly ? 'Veteranos' : 'Rematrículas';
-
         const novosAgg = (t.novos || 0) + (t.regresso || 0) + (t.recompra || 0);
         const remat = t.rematricula || 0;
+
+        let gt;
+        if (_stuActiveTipo === 'novos_agg') gt = novosAgg;
+        else if (_stuActiveTipo === 'rematricula') gt = remat;
+        else if (_stuActiveTipo === 'novos') gt = t.novos || 0;
+        else if (_stuActiveTipo === 'regresso') gt = t.regresso || 0;
+        else if (_stuActiveTipo === 'recompra') gt = t.recompra || 0;
+        else gt = d.grand_total ?? Object.values(t).reduce((a, v) => a + (v || 0), 0);
+        _dashGrandTotal = gt;
+
+        const stuIsPosOnly = f.nivel === 'Pós-Graduação';
+        const stuRematLabel = stuIsPosOnly ? 'Veteranos' : 'Rematrículas';
 
         const isNovosAgg = _stuActiveTipo === 'novos_agg';
         const isRemat = _stuActiveTipo === 'rematricula';
@@ -879,14 +1022,39 @@ async function loadStudentMetrics() {
 
         const badge = document.getElementById('stu-filter-badge');
         const parts = [];
-        if (ciclo) parts.push(`Ciclo ${ciclo}`);
-        if (nivel) parts.push(nivel);
-        if (dtFrom || dtTo) parts.push(`${dtFrom || '…'} → ${dtTo || '…'}`);
+        if (f.ciclo) parts.push(`Ciclo ${f.ciclo}`);
+        if (f.nivel) parts.push(f.nivel);
+        if (f.dtFrom || f.dtTo) parts.push(`${f.dtFrom || '…'} → ${f.dtTo || '…'}`);
+        if (f.situacao) parts.push(f.situacao);
+        if (f.tipo) parts.push(_TIPO_LABELS[f.tipo] || f.tipo);
+        if (f.polo) parts.push(f.polo);
+        if (f.rgmPadrao && f.rgmPadrao !== 'todos') {
+            parts.push(_RGM_PADRAO_LABELS[f.rgmPadrao] || f.rgmPadrao);
+        }
         if (parts.length) {
             badge.textContent = parts.join(' · ');
             badge.classList.remove('hidden');
         } else {
             badge.classList.add('hidden');
+        }
+
+        const rp = d.rgm_padrao || {};
+        if (rpHint && !(f.rgmPadrao !== 'todos' && (d.active_rgm_padrao || 'todos') !== f.rgmPadrao)) {
+            if ((rp.fora_padrao_total || 0) > 0 && f.rgmPadrao === 'todos') {
+                const pfx = rp.dominant_prefix != null ? ` (padrão: prefixo ${rp.dominant_prefix})` : '';
+                rpHint.textContent =
+                    `${(rp.fora_padrao_total || 0).toLocaleString('pt-BR')} matrícula(s) EM CURSO fora do padrão RGM${pfx} — ` +
+                    'use o filtro RGM para excluir ou ver só estes.';
+                rpHint.classList.remove('hidden');
+            } else if (f.rgmPadrao === 'padrao' && rp.dominant_prefix != null) {
+                rpHint.textContent = `Exibindo só RGMs no padrão (prefixo ${rp.dominant_prefix}+) — alinhado ao Comercial.`;
+                rpHint.classList.remove('hidden');
+            } else if (f.rgmPadrao === 'fora_padrao') {
+                rpHint.textContent = 'Exibindo somente matrículas EM CURSO fora do padrão RGM do período.';
+                rpHint.classList.remove('hidden');
+            } else {
+                rpHint.classList.add('hidden');
+            }
         }
     } catch (err) {
         console.error('Student metrics error:', err);
@@ -972,11 +1140,11 @@ function _renderSituacaoCardsClickable(elId, data) {
         const pct = total ? Math.round(v / total * 100) : 0;
         const c = _sitLookup(k);
         const icon = _sitIcons[k.toLowerCase()] || _sitIcons['_default'];
-        const isActive = _stuActiveSituacao === k;
+        const isActive = _normSitKey(_stuActiveSituacao) === _normSitKey(k);
         const activeRing = isActive ? `${ringActive} ring-${c.text}-500` : '';
 
         return `<div class="glass-card p-5 relative overflow-hidden cursor-pointer transition-all hover:shadow-md ${activeRing}"
-                     onclick="_stuToggleSituacao('${esc(k)}')">
+                     data-situacao="${esc(k)}" role="button" tabindex="0">
             <div class="flex items-center justify-between mb-3">
                 <div class="w-10 h-10 bg-${c.bg}-50 dark:bg-${c.bg}-500/10 rounded-xl flex items-center justify-center">
                     <span class="material-symbols-outlined text-${c.text}-600 dark:text-${c.text}-400">${icon}</span>
@@ -1003,14 +1171,17 @@ function renderPoloRankingTable(elId, byPolo) {
         return;
     }
     const max = Math.max(...ranking.map(([, v]) => v), 1);
-    tbody.innerHTML = ranking.map(([nome, total], i) =>
-        `<tr class="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors">
+    const ringActive = 'ring-2 ring-inset ring-cyan-500/60 bg-cyan-50/50 dark:bg-cyan-500/10';
+    tbody.innerHTML = ranking.map(([nome, total], i) => {
+        const isActive = _stuActivePolo === nome;
+        return `<tr class="cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors ${isActive ? ringActive : ''}"
+                    onclick="_stuTogglePolo(${JSON.stringify(nome)})">
             <td class="text-center px-3 py-2.5 text-slate-500 font-medium text-xs">${i + 1}</td>
             <td class="px-4 py-2.5 text-slate-700 dark:text-slate-300 text-xs font-medium">${esc(nome)}</td>
             <td class="px-4 py-2.5 text-right font-mono text-[#00346f] dark:text-white font-semibold text-xs tabular-nums">${total.toLocaleString('pt-BR')}</td>
             <td class="px-4 py-2.5"><div class="h-3 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden"><div class="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-500" style="width:${Math.round(total / max * 100)}%"></div></div></td>
-        </tr>`
-    ).join('');
+        </tr>`;
+    }).join('');
 }
 
 function renderProportionBars(elId, data) {
@@ -1023,9 +1194,17 @@ function renderProportionBars(elId, data) {
     const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
     const max = Math.max(...entries.map(([, v]) => v), 1);
     const total = entries.reduce((s, [, v]) => s + v, 0);
+    const nivelSel = document.getElementById('students-nivel')?.value || '';
+    const ringActive = 'ring-2 ring-inset ring-indigo-500/60 bg-indigo-50/50 dark:bg-indigo-500/10';
     el.innerHTML = entries.map(([k, v]) => {
         const pct = total ? Math.round(v / total * 100) : 0;
-        return `<div class="px-4 py-3 border-b border-slate-200 dark:border-slate-700/10 last:border-0 hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors">
+        const isNivelFilter = k === 'Graduação' || k === 'Pós-Graduação';
+        const isActive = isNivelFilter && nivelSel === k;
+        const clickAttr = isNivelFilter
+            ? `onclick="_stuToggleNivel(${JSON.stringify(k)})" role="button" tabindex="0"`
+            : '';
+        return `<div class="px-4 py-3 border-b border-slate-200 dark:border-slate-700/10 last:border-0 transition-colors ${isNivelFilter ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.02]' : ''} ${isActive ? ringActive : ''}"
+                 ${clickAttr}>
             <div class="flex items-center justify-between gap-3 mb-2">
                 <span class="text-xs font-medium text-slate-700 dark:text-slate-300">${esc(k)}</span>
                 <span class="text-xs font-mono font-semibold text-[#00346f] dark:text-white tabular-nums">${v.toLocaleString('pt-BR')} <span class="text-slate-400 font-normal">(${pct}%)</span></span>
@@ -1066,9 +1245,15 @@ function clearStudentFilter() {
     document.getElementById('students-to').value = '';
     document.getElementById('students-nivel').value = '';
     document.getElementById('students-situacao').value = '';
+    const rgmSel = document.getElementById('students-rgm-padrao');
+    if (rgmSel) {
+        rgmSel.value = 'todos';
+        localStorage.setItem(_DASH_RGM_PADRAO_KEY, 'todos');
+    }
     document.getElementById('stu-filter-badge').classList.add('hidden');
     _stuActiveTipo = null;
     _stuActiveSituacao = null;
+    _stuActivePolo = null;
     applyDashboardFilters();
 }
 
@@ -1150,6 +1335,7 @@ async function _loadInadimplenciaCard() {
 
     const tipo = _stuActiveTipo;
     const situacao = _stuActiveSituacao;
+    const polo = _stuActivePolo;
     const nivelEl = document.getElementById('students-nivel');
     const nivel = nivelEl ? nivelEl.value : '';
     const cicloEl = document.getElementById('students-ciclo');
@@ -1159,6 +1345,7 @@ async function _loadInadimplenciaCard() {
         const p = new URLSearchParams();
         if (tipo) p.set('tipo', tipo);
         if (situacao) p.set('situacao', situacao);
+        if (polo) p.set('polo', polo);
         if (nivel) p.set('nivel', nivel);
         if (ciclo) p.set('ciclo', ciclo);
         const qs = p.toString();
@@ -1199,3 +1386,10 @@ async function _loadInadimplenciaCard() {
         if (cardsEl) cardsEl.style.opacity = '1';
     }
 }
+
+// onclick nos cards / botão limpar — expor no escopo global
+window._stuToggleSituacao = _stuToggleSituacao;
+window._stuToggleTipo = _stuToggleTipo;
+window._stuTogglePolo = _stuTogglePolo;
+window._stuToggleNivel = _stuToggleNivel;
+window._stuClearCrossFilters = _stuClearCrossFilters;

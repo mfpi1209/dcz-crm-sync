@@ -23,7 +23,8 @@
                     Rematrículas concluídas (novo ciclo)
                 </h3>
                 <p class="text-[10px] text-slate-500 mt-1 max-w-3xl">
-                    Alunos que <strong class="text-slate-600 dark:text-slate-300">efetivaram rematrícula</strong> no ciclo selecionado,
+                    Alunos que <strong class="text-slate-600 dark:text-slate-300">efetivaram rematrícula</strong> no ciclo selecionado
+                    (<strong>Graduação EAD · empresa 12</strong>),
                     pela <strong>data de matrícula</strong> no relatório de matriculados (Upload Acadêmico).
                     Inadimplência e fila de campanha ficam em seções separadas abaixo.
                 </p>
@@ -34,7 +35,8 @@
                     <div>
                         <label class="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">Ciclo destino</label>
                         <select id="remat-ciclo" onchange="loadRematCharts()"
-                                class="input-glass px-3 py-2 text-xs rounded-lg min-w-[10rem]">
+                                class="input-glass px-3 py-2 text-xs rounded-lg min-w-[10rem]"
+                                title="Contagem entre parênteses = rematrículas Graduação EAD (empresa 12)">
                             <option value="">Carregando…</option>
                         </select>
                     </div>
@@ -66,9 +68,9 @@
 
             <div class="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4 border-b border-slate-200 dark:border-slate-700/20">
                 <div class="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
-                    <p class="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Total no período</p>
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Rematrículas no ciclo</p>
                     <p id="remat-hero-total" class="text-3xl font-bold text-[#00346f] dark:text-white font-mono mt-1">—</p>
-                    <p id="remat-hero-sub" class="text-[10px] text-slate-500 mt-1">rematrículas efetivadas</p>
+                    <p id="remat-hero-sub" class="text-[10px] text-slate-500 mt-1">tipo rematrícula · data de matrícula no relatório</p>
                 </div>
                 <div class="rounded-xl border border-slate-200 dark:border-slate-700/30 bg-slate-50/50 dark:bg-slate-900/30 p-4">
                     <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Média / dia</p>
@@ -134,7 +136,8 @@
                     <p class="text-[10px] text-slate-500 mt-1 max-w-2xl">
                         Quem ainda está <strong>EM CURSO</strong> no ciclo anterior e entra no disparador.
                         Não mede conversão — use a seção acima para rematrículas efetivadas.
-                        Upload em Bases → Rematrícula (Disparador).
+                        O card <strong>Rematrículas</strong> abaixo lê a base de matriculados do Disparador
+                        (Bases → Matriculados); deve ser o mesmo arquivo do Upload Acadêmico para bater com o painel de cima.
                     </p>
                 </div>
                 <button type="button" onclick="rematReloadIframe()"
@@ -145,11 +148,11 @@
             <div style="height: min(560px, 55vh); min-height: 400px;">
                 <iframe id="remat-iframe"
                         title="Fila Rematrícula SIAA"
-                        src="{{ _iframe_url }}"
+                        data-src="{{ _iframe_url }}"
+                        src="about:blank"
                         style="width: 100%; height: 100%; border: 0; display: block; background: #0b1623;"
                         referrerpolicy="no-referrer-when-downgrade"
-                        allow="clipboard-read; clipboard-write; downloads"
-                        loading="lazy"></iframe>
+                        allow="clipboard-read; clipboard-write; downloads"></iframe>
             </div>
         </div>
     </div>

@@ -388,3 +388,4 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 ### Convenções derivadas
 
 - Toda decisão estrutural tomada por Opus deve ser registrada neste arquivo na seção "Decisões técnicas" antes de delegar a implementação.
+- **Git (Raphael):** desenvolvimento e commits do Raphael Castro vão **sempre na branch `raphael`**, nunca direto na `master`. Fluxo: `git checkout raphael` → trabalhar/commitar → `git push origin raphael` → merge para `master` só quando o usuário pedir (ou via PR). A `master` recebe integração; não é branch de trabalho diária.

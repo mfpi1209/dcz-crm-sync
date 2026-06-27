@@ -7,18 +7,33 @@
  * relatórios, conversão, regras) roda no app externo.
  */
 
-function loadDisparadorWhatsapp() {
+function _dwIframeUrl() {
+    const iframe = document.getElementById('dw-iframe');
+    if (!iframe) return '';
+    return iframe.dataset.src || iframe.getAttribute('data-src') || iframe.src || '';
+}
+
+/** Só carrega o embed quando a aba fica visível (evita lazy + parent hidden). */
+function _dwEnsureIframeLoaded() {
     const iframe = document.getElementById('dw-iframe');
     if (!iframe) return;
-    if (!iframe.dataset.dwLoaded) {
-        iframe.dataset.dwLoaded = '1';
+    const url = _dwIframeUrl();
+    if (!url || url === 'about:blank') return;
+    const cur = iframe.getAttribute('src') || '';
+    if (!cur || cur === 'about:blank' || cur !== url) {
+        iframe.setAttribute('src', url);
     }
+}
+
+function loadDisparadorWhatsapp() {
+    _dwEnsureIframeLoaded();
 }
 
 function dwReloadIframe() {
     const iframe = document.getElementById('dw-iframe');
     if (!iframe) return;
-    const url = iframe.getAttribute('src');
+    const url = _dwIframeUrl();
+    if (!url || url === 'about:blank') return;
     iframe.setAttribute('src', 'about:blank');
     setTimeout(() => iframe.setAttribute('src', url), 30);
 }

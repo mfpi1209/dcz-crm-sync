@@ -913,6 +913,18 @@ def _ensure_premiacao_tables():
                 )
             """)
 
+            # Corrige datas com ano typo (62026 → 2026) que quebram psycopg2/Python
+            cur.execute("""
+                UPDATE agent_matriculas
+                SET data_matricula = make_date(
+                    2000 + (EXTRACT(YEAR FROM data_matricula)::int % 100),
+                    EXTRACT(MONTH FROM data_matricula)::int,
+                    EXTRACT(DAY FROM data_matricula)::int
+                )
+                WHERE data_matricula IS NOT NULL
+                  AND EXTRACT(YEAR FROM data_matricula) > 9999
+            """)
+
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS matricula_ajustes (
                     id              SERIAL PRIMARY KEY,
