@@ -93,6 +93,66 @@ def api_kommo_connection_test():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@kommo_bp.route("/api/_diag/kommo")
+def api_diag_kommo():
+    """Diagnostico de conectividade Kommo a partir do container.
+
+    Retorna num JSON unico:
+      - file_mtime: timestamp da ultima modificacao deste arquivo (proxy de versao do deploy)
+      - has_default_headers: True se _KOMMO_DEFAULT_HEADERS existe (codigo novo)
+      - env: snapshot das envs relevantes
+      - egress_ip: IP publico de saida do container
+      - request: headers que o Flask manda
+      - response: status, headers, primeiros 500 chars do body
+    """
+    diag = {"ok": True}
+
+    try:
+        diag["file_mtime"] = datetime.fromtimestamp(
+            Path(__file__).stat().st_mtime, _BRT
+        ).isoformat()
+    except Exception as e:
+        diag["file_mtime_error"] = str(e)
+
+    diag["has_default_headers"] = "_KOMMO_DEFAULT_HEADERS" in globals()
+
+    diag["env"] = {
+        "KOMMO_BASE_URL": os.getenv("KOMMO_BASE_URL", "<unset>"),
+        "KOMMO_TOKEN_length": len(os.getenv("KOMMO_TOKEN", "") or ""),
+        "KOMMO_TOKEN_prefix": (os.getenv("KOMMO_TOKEN", "") or "")[:20],
+    }
+
+    try:
+        ip_r = _requests.get("https://api.ipify.org?format=json", timeout=8)
+        diag["egress_ip"] = ip_r.json().get("ip") if ip_r.status_code == 200 else f"http {ip_r.status_code}"
+    except Exception as e:
+        diag["egress_ip"] = f"err: {e}"
+
+    token = os.getenv("KOMMO_TOKEN", "") or ""
+    base = os.getenv("KOMMO_BASE_URL", "https://admamoeduitcombr.kommo.com").strip().rstrip("/")
+    url = base if base.endswith("/api/v4") else f"{base}/api/v4/account"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                       "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+        "Authorization": f"Bearer {token}",
+    }
+    diag["request"] = {"url": url, "headers_sent": {k: v for k, v in headers.items() if k != "Authorization"}}
+
+    try:
+        r = _requests.get(url, headers=headers, timeout=15)
+        diag["response"] = {
+            "status": r.status_code,
+            "headers": dict(r.headers),
+            "body_preview": (r.text or "")[:500],
+        }
+    except Exception as e:
+        diag["response"] = {"error": str(e)}
+
+    return jsonify(diag)
+
+
 @kommo_bp.route("/api/kommo/status")
 def api_kommo_status():
     try:
