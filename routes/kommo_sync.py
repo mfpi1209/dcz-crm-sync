@@ -153,6 +153,74 @@ def api_diag_kommo():
     return jsonify(diag)
 
 
+@kommo_bp.route("/api/_diag/kommo/probe")
+def api_diag_kommo_probe():
+    """Tenta varias combinacoes de headers em sequencia, retorna qual passa.
+
+    Util pra descobrir o que o WAF da Kommo exige quando bloqueia IPs de
+    datacenter (alem de User-Agent realista, pode exigir Sec-Fetch-*,
+    Sec-Ch-Ua-*, Origin, Referer, ou nenhum desses).
+    """
+    token = os.getenv("KOMMO_TOKEN", "") or ""
+    base = os.getenv("KOMMO_BASE_URL", "https://admamoeduitcombr.kommo.com").strip().rstrip("/")
+    url = base if base.endswith("/api/v4") else f"{base}/api/v4/account"
+
+    UA_CHROME = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+    UA_CURL = "curl/8.4.0"
+    UA_PYTHON = "python-requests/2.32.0"
+
+    common = {"Authorization": f"Bearer {token}"}
+
+    variants = [
+        ("01_only_auth", {**common}),
+        ("02_ua_curl", {**common, "User-Agent": UA_CURL, "Accept": "*/*"}),
+        ("03_ua_python", {**common, "User-Agent": UA_PYTHON, "Accept": "*/*"}),
+        ("04_ua_chrome_basic", {**common, "User-Agent": UA_CHROME, "Accept": "application/json"}),
+        ("05_ua_chrome_full", {
+            **common,
+            "User-Agent": UA_CHROME,
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+            "Sec-Ch-Ua-Mobile": "?0",
+            "Sec-Ch-Ua-Platform": '"Windows"',
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "same-origin",
+        }),
+        ("06_ua_chrome_with_origin_referer", {
+            **common,
+            "User-Agent": UA_CHROME,
+            "Accept": "application/json, text/plain, */*",
+            "Origin": base,
+            "Referer": f"{base}/",
+        }),
+    ]
+
+    results = []
+    for name, headers in variants:
+        try:
+            r = _requests.get(url, headers=headers, timeout=12)
+            results.append({
+                "variant": name,
+                "status": r.status_code,
+                "server_header": r.headers.get("Server"),
+                "x_error": r.headers.get("X-Error"),
+                "body_first_120": (r.text or "")[:120],
+            })
+        except Exception as e:
+            results.append({"variant": name, "error": str(e)})
+
+    return jsonify({
+        "ok": True,
+        "url": url,
+        "egress_hint": "veja /api/_diag/kommo p/ ver IP de saida",
+        "results": results,
+    })
+
+
 @kommo_bp.route("/api/kommo/status")
 def api_kommo_status():
     try:
