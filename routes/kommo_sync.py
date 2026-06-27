@@ -65,7 +65,15 @@ def api_kommo_connection_test():
     try:
         r = _requests.get(
             url,
-            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+            headers={
+                **{
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                                   "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                    "Accept": "application/json, text/plain, */*",
+                    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+                },
+                "Authorization": f"Bearer {token}",
+            },
             timeout=15,
         )
         if r.status_code == 200:
@@ -461,13 +469,25 @@ _FUNNEL_CACHE_TTL = 300
 SNAPSHOT_FILE = Path(__file__).resolve().parent.parent / "data" / "funnel_snapshot.json"
 
 
+# Headers padrao para chamadas Kommo. User-Agent realista evita bloqueio
+# por WAF/nginx em datacenters (o default 'python-requests/X.Y' costuma
+# cair em blacklist de bots, retornando 403 nginx em produ��o).
+_KOMMO_DEFAULT_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                   "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+}
+
+
 def _kommo_get(path, params=None):
     base = KOMMO_API_BASE.rstrip("/")
     if "/api/v4" not in base:
         url = f"{base}/api/v4{path}"
     else:
         url = f"{base}{path}"
-    headers = {"Authorization": f"Bearer {KOMMO_TOKEN}"}
+    headers = dict(_KOMMO_DEFAULT_HEADERS)
+    headers["Authorization"] = f"Bearer {KOMMO_TOKEN}"
     return _requests.get(url, headers=headers, params=params, timeout=30)
 
 
