@@ -686,20 +686,30 @@ def _count_new_leads_today():
     return count
 
 
-def _count_leads_day_pg(d: date) -> int:
+def _count_leads_day_pg(d: date, pipeline_id: int | None = None) -> int:
     """Leads criados no dia (Postgres kommo_sync — mesmo espelho do sync)."""
     ep_ini, ep_fim = _day_bounds_brt(d)
     conn = None
     try:
         conn = _pg()
         cur = conn.cursor()
-        cur.execute(
-            """
-            SELECT COUNT(*) FROM leads
-            WHERE created_at >= %s AND created_at <= %s AND NOT is_deleted
-            """,
-            (ep_ini, ep_fim),
-        )
+        if pipeline_id is not None:
+            cur.execute(
+                """
+                SELECT COUNT(*) FROM leads
+                WHERE created_at >= %s AND created_at <= %s AND NOT is_deleted
+                  AND pipeline_id = %s
+                """,
+                (ep_ini, ep_fim, pipeline_id),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT COUNT(*) FROM leads
+                WHERE created_at >= %s AND created_at <= %s AND NOT is_deleted
+                """,
+                (ep_ini, ep_fim),
+            )
         return int(cur.fetchone()[0] or 0)
     except Exception as e:
         logger.warning("count_leads_day_pg %s: %s", d, e)
@@ -710,6 +720,16 @@ def _count_leads_day_pg(d: date) -> int:
                 conn.close()
             except Exception:
                 pass
+
+
+def _count_new_leads_today_best():
+    """Captação do dia: API Kommo (intraday, ~1s); espelho Postgres só se API falhar."""
+    if _kommo_token():
+        try:
+            return _count_new_leads_today()
+        except Exception as e:
+            logger.warning("new_today kommo: %s", e)
+    return _count_leads_day_pg(datetime.now(_BRT).date(), pipeline_id=FUNNEL_PIPELINE)
 
 
 def _vendas_comercial_dia(d: date) -> int:
@@ -1280,6 +1300,10 @@ def api_kommo_funnel_live():
     if not force and _funnel_cache["data"] and (now - _funnel_cache["ts"]) < _FUNNEL_CACHE_TTL:
         data = dict(_funnel_cache["data"])
         try:
+            data["new_today"] = _count_new_leads_today_best()
+        except Exception as e:
+            logger.warning("new_today cache refresh: %s", e)
+        try:
             data["yesterday_summary"] = _get_yesterday_summary_cached(force=force)
         except Exception as e:
             logger.exception("yesterday_summary cache attach: %s", e)
@@ -1288,9 +1312,9 @@ def api_kommo_funnel_live():
 
     def _finalize(result, live_error=None):
         try:
-            new_today = _count_leads_day_pg(datetime.now(_BRT).date())
+            new_today = _count_new_leads_today_best()
         except Exception as e:
-            logger.warning("new_today db: %s", e)
+            logger.warning("new_today: %s", e)
             new_today = 0
         try:
             ys = _get_yesterday_summary_cached(force=force)
@@ -1337,11 +1361,6 @@ def api_kommo_funnel_live():
                 return jsonify({"ok": False, "error": err}), 502
 
         result["source"] = "live"
-        try:
-            result["new_today"] = _count_new_leads_today()
-        except Exception as e:
-            logger.error("count_new_leads_today failed: %s", e)
-            result["new_today"] = 0
         return _finalize(result)
     except Exception as e:
         logger.error("funnel-live error: %s", e)
