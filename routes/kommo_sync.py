@@ -923,6 +923,96 @@ def _fetch_funnel_live():
     return out
 
 
+def _fetch_funnel_from_db():
+    """Contagem por etapa a partir do espelho Postgres (kommo_sync) — rápido, sem timeout."""
+    stage_ids = [s["id"] for s in FUNNEL_STAGES_DEF]
+    conn = _pg()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT status_id, COUNT(*) AS total
+                FROM leads
+                WHERE pipeline_id = %s AND NOT is_deleted
+                  AND status_id = ANY(%s)
+                GROUP BY status_id
+                """,
+                (FUNNEL_PIPELINE, stage_ids),
+            )
+            counts = {int(r["status_id"]): int(r["total"]) for r in cur.fetchall()}
+            cur.execute(
+                """
+                SELECT MAX(NULLIF(trim(synced_at), '')::timestamptz) AS last_sync
+                FROM leads
+                WHERE pipeline_id = %s AND NOT is_deleted
+                """,
+                (FUNNEL_PIPELINE,),
+            )
+            last_sync = cur.fetchone().get("last_sync")
+    finally:
+        conn.close()
+
+    stages = []
+    total = 0
+    for sdef in FUNNEL_STAGES_DEF:
+        c = counts.get(sdef["id"], 0)
+        total += c
+        stages.append({
+            "key": sdef["key"],
+            "id": sdef["id"],
+            "label": sdef["label"],
+            "count": c,
+            "highlight": sdef["key"] in FUNNEL_HIGHLIGHT,
+        })
+
+    for s in stages:
+        s["pct"] = round(s["count"] / total * 100, 1) if total > 0 else 0
+
+    out = {
+        "stages": stages,
+        "total": total,
+        "leads_fetched": total,
+        "pages": 0,
+        "source": "db",
+    }
+    if last_sync:
+        if hasattr(last_sync, "astimezone"):
+            last_sync = last_sync.astimezone(_BRT)
+        out["synced_at"] = last_sync.strftime("%d/%m %H:%M")
+    return out
+
+
+def _enrich_funnel_result(result, new_today=None, yesterday_summary=None, live_error=None):
+    """Aplica D0, yesterday deltas e metadados comuns ao payload do funil."""
+    if new_today is not None:
+        result["new_today"] = new_today
+    if yesterday_summary is not None:
+        result["yesterday_summary"] = yesterday_summary
+    if live_error:
+        result["live_error"] = live_error
+
+    d0, yesterday = _get_snapshot_d0(result["stages"])
+    for s in result["stages"]:
+        d0_val = d0.get(s["key"], s["count"])
+        s["d0"] = d0_val
+        delta = s["count"] - d0_val
+        s["delta"] = delta
+        s["delta_pct"] = round(delta / d0_val * 100, 1) if d0_val > 0 else 0
+        if yesterday:
+            yd = yesterday.get(s["key"], 0)
+            s["yesterday"] = yd
+            s["delta_yesterday"] = s["count"] - yd
+        else:
+            s["yesterday"] = None
+            s["delta_yesterday"] = None
+
+    now_brt = datetime.now(_BRT)
+    result["d0_date"] = now_brt.date().isoformat()
+    if result.get("source") != "db":
+        result["fetched_at"] = now_brt.strftime("%H:%M:%S")
+    return result
+
+
 def _load_snapshot():
     try:
         if SNAPSHOT_FILE.exists():
@@ -1183,7 +1273,7 @@ def api_kommo_yesterday_summary():
 
 @kommo_bp.route("/api/kommo/funnel-live")
 def api_kommo_funnel_live():
-    """Fetch real-time funnel data from Kommo API v4."""
+    """Fetch funnel data — default: espelho Postgres (rápido); force=1: API Kommo ao vivo."""
     force = request.args.get("force", "0") == "1"
     now = _time.time()
 
@@ -1196,62 +1286,69 @@ def api_kommo_funnel_live():
             data["yesterday_summary"] = _build_yesterday_summary()
         return jsonify({"ok": True, "data": data, "cached": True})
 
+    def _finalize(result, live_error=None):
+        try:
+            new_today = _count_leads_day_pg(datetime.now(_BRT).date())
+        except Exception as e:
+            logger.warning("new_today db: %s", e)
+            new_today = 0
+        try:
+            ys = _get_yesterday_summary_cached(force=force)
+        except Exception as e:
+            logger.exception("yesterday_summary failed: %s", e)
+            ys = _build_yesterday_summary()
+        result = _enrich_funnel_result(result, new_today=new_today, yesterday_summary=ys, live_error=live_error)
+        _funnel_cache["data"] = result
+        _funnel_cache["ts"] = now
+        return jsonify({"ok": True, "data": result})
+
+    if not force:
+        try:
+            return _finalize(_fetch_funnel_from_db())
+        except Exception as e:
+            logger.exception("funnel db: %s", e)
+            if not _kommo_token():
+                return jsonify({"ok": False, "error": f"Base local indisponível: {e}"}), 500
+
     if not _kommo_token():
-        return jsonify({"ok": False, "error": "KOMMO_TOKEN não configurado"}), 500
+        try:
+            return _finalize(_fetch_funnel_from_db())
+        except Exception as e:
+            return jsonify({"ok": False, "error": "KOMMO_TOKEN não configurado"}), 500
 
     try:
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            fut_funnel = pool.submit(_fetch_funnel_live)
-            fut_count = pool.submit(_count_new_leads_today)
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            result = pool.submit(_fetch_funnel_live).result(timeout=90)
 
-        result = fut_funnel.result()
         if result.get("api_error"):
             _funnel_cache["data"] = None
             _funnel_cache["ts"] = 0
             err = result["api_error"]
             if "401" in err:
-                err = "Token Kommo inválido ou expirado (401). Atualize KOMMO_TOKEN no servidor e reinicie o app."
-            return jsonify({"ok": False, "error": err}), 502
+                err = "Token Kommo inválido ou expirado (401)."
+            elif "403" in err:
+                err = "Kommo bloqueou a requisição (403 WAF)."
+            logger.warning("funnel live failed, using db: %s", err)
+            try:
+                db_result = _fetch_funnel_from_db()
+                return _finalize(db_result, live_error=err)
+            except Exception as db_e:
+                return jsonify({"ok": False, "error": err}), 502
+
+        result["source"] = "live"
         try:
-            result["new_today"] = fut_count.result()
+            result["new_today"] = _count_new_leads_today()
         except Exception as e:
             logger.error("count_new_leads_today failed: %s", e)
             result["new_today"] = 0
-        try:
-            result["yesterday_summary"] = _get_yesterday_summary_cached(force=force)
-        except Exception as e:
-            logger.exception("yesterday_summary failed: %s", e)
-            result["yesterday_summary"] = _build_yesterday_summary()
-
-        d0, yesterday = _get_snapshot_d0(result["stages"])
-
-        for s in result["stages"]:
-            d0_val = d0.get(s["key"], s["count"])
-            s["d0"] = d0_val
-            delta = s["count"] - d0_val
-            s["delta"] = delta
-            s["delta_pct"] = round(delta / d0_val * 100, 1) if d0_val > 0 else 0
-
-            if yesterday:
-                yd = yesterday.get(s["key"], 0)
-                s["yesterday"] = yd
-                s["delta_yesterday"] = s["count"] - yd
-            else:
-                s["yesterday"] = None
-                s["delta_yesterday"] = None
-
-        BRT = timezone(timedelta(hours=-3))
-        result["d0_date"] = datetime.now(BRT).date().isoformat()
-        result["fetched_at"] = datetime.now(BRT).strftime("%H:%M:%S")
-
-        _funnel_cache["data"] = result
-        _funnel_cache["ts"] = now
-
-        return jsonify({"ok": True, "data": result})
+        return _finalize(result)
     except Exception as e:
         logger.error("funnel-live error: %s", e)
-        return jsonify({"ok": False, "error": str(e)}), 500
+        try:
+            return _finalize(_fetch_funnel_from_db(), live_error=str(e))
+        except Exception:
+            return jsonify({"ok": False, "error": str(e)}), 500
 
 
 # ---------------------------------------------------------------------------

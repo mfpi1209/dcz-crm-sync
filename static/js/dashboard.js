@@ -225,8 +225,11 @@ async function _dashRefreshFunnel(force) {
             console.error('dash funnel-live: _renderFunnelCards ausente — recarregue a página');
             _dashShowFunnelError('Erro de carregamento do JS. Recarregue a página (Ctrl+Shift+R).');
         } else {
-            console.error('dash funnel-live error:', d?.error || res?.status);
-            _dashShowFunnelError(d?.error || 'Não foi possível carregar o funil. Verifique se o servidor foi reiniciado.');
+            const errMsg = d?.error
+                || (res && !res.ok ? `HTTP ${res.status}` : null)
+                || 'Não foi possível carregar o funil.';
+            console.error('dash funnel-live error:', errMsg, d);
+            _dashShowFunnelError(errMsg);
         }
     } catch (e) {
         console.error('dash funnel-live error:', e);

@@ -247,7 +247,15 @@ function _renderFunnelCards(data, prefix) {
 
     const tsEl = document.getElementById(prefix + '-ts');
     if (tsEl) {
-        const label = data.fetched_at ? `Live ${data.fetched_at}` : '';
+        let label = '';
+        if (data.source === 'db' && data.synced_at) {
+            label = 'Sync ' + data.synced_at;
+        } else if (data.fetched_at) {
+            label = 'Live ' + data.fetched_at;
+        }
+        if (data.live_error) {
+            label += (label ? ' · ' : '') + 'live indisponível';
+        }
         tsEl.textContent = label;
     }
 
