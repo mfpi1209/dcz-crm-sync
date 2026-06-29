@@ -41,8 +41,8 @@ PG_KOMMO = {
     "host": os.getenv("KOMMO_PG_HOST", "31.97.91.47"),
     "port": int(os.getenv("KOMMO_PG_PORT", "5432")),
     "dbname": os.getenv("KOMMO_PG_DB", "kommo_sync"),
-    "user": os.getenv("KOMMO_PG_USER", "adm_eduit"),
-    "password": os.getenv("KOMMO_PG_PASS", "IaDm24Sx3HxrYoqT"),
+    "user": os.getenv("KOMMO_PG_USER", os.getenv("DB_USER", "adm_eduit")),
+    "password": os.getenv("KOMMO_PG_PASS", os.getenv("DB_PASS", "IaDm24Sx3HxrYoqT")),
 }
 
 _tasks = {}
@@ -920,6 +920,26 @@ def _get_yesterday_summary_cached(force=False):
     return data
 
 
+def _get_yesterday_summary_light():
+    """Resumo de ontem sem bater na API Kommo — evita estourar timeout do proxy no funil."""
+    expected_date = (datetime.now(_BRT).date() - timedelta(days=1)).isoformat()
+    cached = _yesterday_cache.get("data")
+    if (
+        cached
+        and cached.get("date") == expected_date
+        and _yesterday_summary_has_signal(cached)
+    ):
+        return cached
+    yesterday = datetime.now(_BRT).date() - timedelta(days=1)
+    return {
+        "date": yesterday.isoformat(),
+        "vendas": _vendas_comercial_dia(yesterday),
+        "leads": 0,
+        "leads_prev": 0,
+        "leads_delta_pct": 0,
+    }
+
+
 def _count_leads_in_stage(status_id: int) -> tuple[int, str | None]:
     """Conta leads em uma etapa do funil (API Kommo, paginação por status)."""
     count = 0
@@ -1091,15 +1111,19 @@ def _fetch_funnel_from_db():
                 (FUNNEL_PIPELINE, stage_ids),
             )
             counts = {int(r["status_id"]): int(r["total"]) for r in cur.fetchall()}
-            cur.execute(
-                """
-                SELECT MAX(NULLIF(trim(synced_at), '')::timestamptz) AS last_sync
-                FROM leads
-                WHERE pipeline_id = %s AND NOT is_deleted
-                """,
-                (FUNNEL_PIPELINE,),
-            )
-            last_sync = cur.fetchone().get("last_sync")
+            last_sync = None
+            try:
+                cur.execute(
+                    """
+                    SELECT MAX(NULLIF(trim(synced_at), '')::timestamptz) AS last_sync
+                    FROM leads
+                    WHERE pipeline_id = %s AND NOT is_deleted
+                    """,
+                    (FUNNEL_PIPELINE,),
+                )
+                last_sync = cur.fetchone().get("last_sync")
+            except Exception as e:
+                logger.warning("funnel db last_sync: %s", e)
     finally:
         conn.close()
 
@@ -1436,7 +1460,7 @@ def api_kommo_yesterday_summary():
 
 @kommo_bp.route("/api/kommo/funnel-live")
 def api_kommo_funnel_live():
-    """Funil: tenta Kommo ao vivo (timeout curto); espelho PG em paralelo como fallback rápido."""
+    """Funil: carga normal via espelho PG (rápido); live Kommo só com ?force=1."""
     force = request.args.get("force", "0") == "1"
     now = _time.time()
 
@@ -1453,14 +1477,16 @@ def api_kommo_funnel_live():
             data["new_today_source"] = nt.get("source")
         except Exception as e:
             logger.warning("new_today cache refresh: %s", e)
-        try:
-            data["yesterday_summary"] = _get_yesterday_summary_cached(force=force)
-        except Exception as e:
-            logger.exception("yesterday_summary cache attach: %s", e)
-            data["yesterday_summary"] = _build_yesterday_summary()
+        data["yesterday_summary"] = _get_yesterday_summary_light()
         return jsonify({"ok": True, "data": data, "cached": True})
 
-    def _finalize(result, live_error=None, new_today=None):
+    def _finalize(
+        result,
+        live_error=None,
+        new_today=None,
+        yesterday_summary=None,
+        heavy_yesterday=False,
+    ):
         if new_today is None:
             try:
                 nt = _get_new_leads_today_payload(force=force)
@@ -1469,12 +1495,21 @@ def api_kommo_funnel_live():
             except Exception as e:
                 logger.warning("new_today: %s", e)
                 new_today = 0
-        try:
-            ys = _get_yesterday_summary_cached(force=force)
-        except Exception as e:
-            logger.exception("yesterday_summary failed: %s", e)
-            ys = _build_yesterday_summary()
-        result = _enrich_funnel_result(result, new_today=new_today, yesterday_summary=ys, live_error=live_error)
+        if yesterday_summary is None:
+            if heavy_yesterday:
+                try:
+                    yesterday_summary = _get_yesterday_summary_cached(force=force)
+                except Exception as e:
+                    logger.exception("yesterday_summary failed: %s", e)
+                    yesterday_summary = _get_yesterday_summary_light()
+            else:
+                yesterday_summary = _get_yesterday_summary_light()
+        result = _enrich_funnel_result(
+            result,
+            new_today=new_today,
+            yesterday_summary=yesterday_summary,
+            live_error=live_error,
+        )
         _funnel_cache["data"] = result
         _funnel_cache["ts"] = now
         return jsonify({"ok": True, "data": result})
@@ -1487,13 +1522,18 @@ def api_kommo_funnel_live():
             return "Kommo bloqueou a requisição (403 WAF)."
         return err
 
-    def _db_fallback(live_error: str, db_result=None):
+    def _db_fallback(live_error: str, db_result=None, new_today=None):
         logger.warning("funnel live failed, using db: %s", live_error)
         err = _normalize_live_error(live_error)
         try:
             if db_result is None:
                 db_result = _fetch_funnel_from_db()
-            return _finalize(db_result, live_error=err or None)
+            return _finalize(
+                db_result,
+                live_error=err or None,
+                new_today=new_today,
+                heavy_yesterday=force,
+            )
         except Exception as db_exc:
             logger.exception("funnel db fallback failed: %s", db_exc)
             return jsonify({
@@ -1501,13 +1541,60 @@ def api_kommo_funnel_live():
                 "error": err or str(db_exc),
             }), 502
 
+    def _fast_db_path():
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            fut_db = pool.submit(_fetch_funnel_from_db)
+            fut_new = pool.submit(_get_new_leads_today_payload, force)
+            db_result = fut_db.result(timeout=12)
+            new_today_pre = None
+            try:
+                nt = fut_new.result(timeout=12)
+                new_today_pre = nt["count"]
+            except Exception as e:
+                logger.warning("new_today fast path: %s", e)
+        return _finalize(
+            db_result,
+            new_today=new_today_pre,
+            heavy_yesterday=False,
+        )
+
+    def _fast_live_path(new_today_pre=None):
+        from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutTimeout
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            fut = pool.submit(_fetch_funnel_live_parallel)
+            try:
+                result = fut.result(timeout=20)
+            except FutTimeout as e:
+                raise RuntimeError("Kommo ao vivo excedeu 20s") from e
+        if result.get("api_error"):
+            raise RuntimeError(result["api_error"])
+        return _finalize(
+            result,
+            new_today=new_today_pre,
+            heavy_yesterday=False,
+        )
+
+    if not force:
+        try:
+            return _fast_db_path()
+        except Exception as e:
+            logger.warning("funnel db fast path failed: %s", e)
+            if _kommo_token():
+                try:
+                    return _fast_live_path()
+                except Exception as live_e:
+                    logger.exception("funnel live fast path: %s", live_e)
+                    return jsonify({"ok": False, "error": str(live_e)}), 502
+            return jsonify({"ok": False, "error": str(e)}), 502
+
     if not _kommo_token():
         try:
-            return _finalize(_fetch_funnel_from_db())
+            return _fast_db_path()
         except Exception as e:
             return jsonify({"ok": False, "error": "KOMMO_TOKEN não configurado"}), 500
 
-    live_timeout = _FUNNEL_LIVE_FORCE_TIMEOUT_S if force else _FUNNEL_LIVE_TIMEOUT_S
+    live_timeout = _FUNNEL_LIVE_FORCE_TIMEOUT_S
     try:
         from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutTimeout
         with ThreadPoolExecutor(max_workers=3) as pool:
@@ -1517,7 +1604,7 @@ def api_kommo_funnel_live():
 
             new_today_pre = None
             try:
-                nt = fut_new.result(timeout=30)
+                nt = fut_new.result(timeout=15)
                 new_today_pre = nt["count"]
             except Exception as e:
                 logger.warning("new_today parallel: %s", e)
@@ -1528,7 +1615,11 @@ def api_kommo_funnel_live():
                 if result.get("api_error"):
                     live_error = result["api_error"]
                 else:
-                    return _finalize(result, new_today=new_today_pre)
+                    return _finalize(
+                        result,
+                        new_today=new_today_pre,
+                        heavy_yesterday=True,
+                    )
             except FutTimeout:
                 live_error = f"Kommo ao vivo excedeu {live_timeout}s"
                 logger.warning("funnel live timeout after %ss", live_timeout)
@@ -1537,12 +1628,16 @@ def api_kommo_funnel_live():
                 logger.error("funnel-live error: %s", e)
 
             try:
-                db_result = fut_db.result(timeout=20)
+                db_result = fut_db.result(timeout=12)
             except Exception as e:
                 logger.exception("funnel db parallel: %s", e)
                 return jsonify({"ok": False, "error": str(e)}), 502
 
-            return _db_fallback(live_error or "live indisponível", db_result=db_result)
+            return _db_fallback(
+                live_error or "live indisponível",
+                db_result=db_result,
+                new_today=new_today_pre,
+            )
     except Exception as e:
         logger.error("funnel-live error: %s", e)
         return _db_fallback(str(e))
