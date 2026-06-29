@@ -586,12 +586,13 @@ FUNNEL_STAGES_DEF = [
     {"key": "aprovado_reprovado",    "id": 48566201, "label": "Aprovados/Reprovados"},
     {"key": "boleto_enviado",        "id": 48566204, "label": "Boleto Enviado"},
     {"key": "aceite",                "id": 48566207, "label": "Aceite"},
-    {"key": "qualificacao",          "id": 53917599, "label": "Qualificação"},
+    {"key": "qualificacao",          "id": 53917599, "label": "ROBÔ"},
     {"key": "pagamento_confirmado",  "id": 77728584, "label": "Pagamento Confirmado"},
 ]
 
 FUNNEL_HIGHLIGHT = [
     "em_atendimento",
+    "aguardando_resposta",
     "aguardando_inscricao", "inscricao", "processo_seletivo",
     "em_processo", "aprovado_reprovado", "aceite",
 ]
@@ -941,41 +942,10 @@ def _get_yesterday_summary_light():
 
 
 def _count_leads_in_stage(status_id: int) -> tuple[int, str | None]:
-    """Conta leads em uma fila — 1 request por etapa via _total_items da API Kommo."""
-    try:
-        r = _kommo_get("/leads", {
-            "limit": 1,
-            "page": 1,
-            "filter[statuses][0][pipeline_id]": FUNNEL_PIPELINE,
-            "filter[statuses][0][status_id]": status_id,
-        })
-    except Exception as e:
-        return 0, str(e)
-    if r.status_code == 204:
-        return 0, None
-    if r.status_code == 429:
-        _time.sleep(0.3)
-        try:
-            r = _kommo_get("/leads", {
-                "limit": 1,
-                "page": 1,
-                "filter[statuses][0][pipeline_id]": FUNNEL_PIPELINE,
-                "filter[statuses][0][status_id]": status_id,
-            })
-        except Exception as e:
-            return 0, str(e)
-    if r.status_code != 200:
-        return 0, f"Kommo API {r.status_code}: {r.text[:200]}"
-    data = r.json()
-    total = data.get("_total_items")
-    if total is not None:
-        return int(total), None
-
-    # Fallback: paginar se a API nao expuser _total_items
-    count = len(data.get("_embedded", {}).get("leads", []))
+    """Conta leads em uma fila — paginação limit=250 (API Kommo não expõe _total_items em /leads)."""
+    count = 0
     page = 1
-    while "next" in data.get("_links", {}):
-        page += 1
+    while True:
         try:
             r = _kommo_get("/leads", {
                 "limit": 250,
@@ -984,11 +954,25 @@ def _count_leads_in_stage(status_id: int) -> tuple[int, str | None]:
                 "filter[statuses][0][status_id]": status_id,
             })
         except Exception as e:
-            return count, str(e)
+            return (count, str(e)) if page > 1 else (0, str(e))
+        if r.status_code == 204:
+            break
+        if r.status_code == 429:
+            _time.sleep(0.4)
+            continue
         if r.status_code != 200:
-            return count, f"Kommo API {r.status_code}: {r.text[:200]}"
+            return (count, f"Kommo API {r.status_code}: {r.text[:200]}") if page > 1 else (
+                0, f"Kommo API {r.status_code}: {r.text[:200]}"
+            )
         data = r.json()
-        count += len(data.get("_embedded", {}).get("leads", []))
+        leads = data.get("_embedded", {}).get("leads", [])
+        if not leads:
+            break
+        count += len(leads)
+        if "next" not in data.get("_links", {}):
+            break
+        page += 1
+        _time.sleep(0.05)
     return count, None
 
 
@@ -1038,6 +1022,7 @@ def _fetch_funnel_live_parallel():
         "leads_fetched": total,
         "pages": 0,
         "source": "live",
+        "funnel_api_version": 3,
     }
     if api_error:
         out["api_error"] = api_error
@@ -1579,9 +1564,9 @@ def api_kommo_funnel_live():
             except Exception as e:
                 logger.warning("new_today parallel: %s", e)
             try:
-                result = fut_funnel.result(timeout=35)
+                result = fut_funnel.result(timeout=55)
             except FutTimeout as e:
-                raise RuntimeError("Kommo excedeu 35s ao contar filas") from e
+                raise RuntimeError("Kommo excedeu 55s ao contar filas") from e
         if result.get("api_error"):
             raise RuntimeError(result["api_error"])
         return _finalize(
