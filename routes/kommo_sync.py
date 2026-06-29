@@ -569,8 +569,15 @@ KOMMO_TOKEN = os.getenv("KOMMO_TOKEN", "")
 
 
 def _kommo_token():
-    """Lê token no momento da chamada (permite atualizar .env sem reiniciar)."""
-    return (os.getenv("KOMMO_TOKEN", "") or KOMMO_TOKEN or "").strip()
+    """Lê token no momento da chamada (.env ou app_config do painel Config)."""
+    t = (os.getenv("KOMMO_TOKEN", "") or KOMMO_TOKEN or "").strip()
+    if t:
+        return t
+    try:
+        from kommo_lib.config import KOMMO_TOKEN as _cfg_tok
+        return (_cfg_tok or "").strip()
+    except Exception:
+        return ""
 
 FUNNEL_PIPELINE = 5481944
 FUNNEL_STAGES_DEF = [
@@ -945,6 +952,7 @@ def _count_leads_in_stage(status_id: int) -> tuple[int, str | None]:
     """Conta leads em uma fila — paginação limit=250 (API Kommo não expõe _total_items em /leads)."""
     count = 0
     page = 1
+    rate_retries = 0
     while True:
         try:
             r = _kommo_get("/leads", {
@@ -958,8 +966,12 @@ def _count_leads_in_stage(status_id: int) -> tuple[int, str | None]:
         if r.status_code == 204:
             break
         if r.status_code == 429:
-            _time.sleep(0.4)
+            rate_retries += 1
+            if rate_retries > 8:
+                return count, "Kommo API 429: rate limit"
+            _time.sleep(0.5 * rate_retries)
             continue
+        rate_retries = 0
         if r.status_code != 200:
             return (count, f"Kommo API {r.status_code}: {r.text[:200]}") if page > 1 else (
                 0, f"Kommo API {r.status_code}: {r.text[:200]}"
@@ -972,7 +984,7 @@ def _count_leads_in_stage(status_id: int) -> tuple[int, str | None]:
         if "next" not in data.get("_links", {}):
             break
         page += 1
-        _time.sleep(0.05)
+        _time.sleep(0.08)
     return count, None
 
 
@@ -983,7 +995,8 @@ def _fetch_funnel_live_parallel():
     counts = {}
     api_error = None
     n_stages = len(FUNNEL_STAGES_DEF)
-    with ThreadPoolExecutor(max_workers=min(7, n_stages)) as pool:
+    # IP de datacenter (Easypanel) leva mais 429 que localhost — menos workers.
+    with ThreadPoolExecutor(max_workers=min(3, n_stages)) as pool:
         futs = {
             pool.submit(_count_leads_in_stage, sdef["id"]): sdef
             for sdef in FUNNEL_STAGES_DEF
@@ -1022,7 +1035,7 @@ def _fetch_funnel_live_parallel():
         "leads_fetched": total,
         "pages": 0,
         "source": "live",
-        "funnel_api_version": 3,
+        "funnel_api_version": 4,
     }
     if api_error:
         out["api_error"] = api_error
@@ -1564,9 +1577,9 @@ def api_kommo_funnel_live():
             except Exception as e:
                 logger.warning("new_today parallel: %s", e)
             try:
-                result = fut_funnel.result(timeout=55)
+                result = fut_funnel.result(timeout=90)
             except FutTimeout as e:
-                raise RuntimeError("Kommo excedeu 55s ao contar filas") from e
+                raise RuntimeError("Kommo excedeu 90s ao contar filas") from e
         if result.get("api_error"):
             raise RuntimeError(result["api_error"])
         return _finalize(
