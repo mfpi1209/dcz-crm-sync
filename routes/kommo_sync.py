@@ -869,6 +869,86 @@ def _get_yesterday_summary_cached(force=False):
     return data
 
 
+def _count_leads_in_stage(status_id: int) -> tuple[int, str | None]:
+    """Conta leads em uma etapa do funil (API Kommo, paginação por status)."""
+    count = 0
+    page = 1
+    while True:
+        try:
+            r = _kommo_get("/leads", {
+                "limit": 250,
+                "page": page,
+                "filter[statuses][0][pipeline_id]": FUNNEL_PIPELINE,
+                "filter[statuses][0][status_id]": status_id,
+            })
+        except Exception as e:
+            return 0, str(e)
+        if r.status_code == 204:
+            break
+        if r.status_code != 200:
+            return 0, f"Kommo API {r.status_code}: {r.text[:200]}"
+        data = r.json()
+        leads = data.get("_embedded", {}).get("leads", [])
+        if not leads:
+            break
+        count += len(leads)
+        if "next" not in data.get("_links", {}):
+            break
+        page += 1
+    return count, None
+
+
+def _fetch_funnel_live_parallel():
+    """Contagem ao vivo por etapa em paralelo (~20s) — alinhado ao Kommo 'Leads ativos'."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    counts = {}
+    api_error = None
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        futs = {
+            pool.submit(_count_leads_in_stage, sdef["id"]): sdef
+            for sdef in FUNNEL_STAGES_DEF
+        }
+        for fut in as_completed(futs):
+            sdef = futs[fut]
+            try:
+                n, err = fut.result()
+            except Exception as e:
+                api_error = str(e)
+                break
+            if err:
+                api_error = err
+                break
+            counts[sdef["id"]] = n
+
+    stages = []
+    total = 0
+    for sdef in FUNNEL_STAGES_DEF:
+        c = counts.get(sdef["id"], 0)
+        total += c
+        stages.append({
+            "key": sdef["key"],
+            "id": sdef["id"],
+            "label": sdef["label"],
+            "count": c,
+            "highlight": sdef["key"] in FUNNEL_HIGHLIGHT,
+        })
+
+    for s in stages:
+        s["pct"] = round(s["count"] / total * 100, 1) if total > 0 else 0
+
+    out = {
+        "stages": stages,
+        "total": total,
+        "leads_fetched": total,
+        "pages": 0,
+        "source": "live",
+    }
+    if api_error:
+        out["api_error"] = api_error
+    return out
+
+
 def _fetch_funnel_live():
     """Fetch all leads in the funnel pipeline from Kommo API v4, count by status."""
     stage_ids = [s["id"] for s in FUNNEL_STAGES_DEF]
@@ -1293,12 +1373,18 @@ def api_kommo_yesterday_summary():
 
 @kommo_bp.route("/api/kommo/funnel-live")
 def api_kommo_funnel_live():
-    """Fetch funnel data — default: espelho Postgres (rápido); force=1: API Kommo ao vivo."""
+    """Funil: API Kommo ao vivo (paralelo por etapa); espelho PG só se API falhar."""
     force = request.args.get("force", "0") == "1"
     now = _time.time()
 
-    if not force and _funnel_cache["data"] and (now - _funnel_cache["ts"]) < _FUNNEL_CACHE_TTL:
-        data = dict(_funnel_cache["data"])
+    cached = _funnel_cache.get("data")
+    if (
+        not force
+        and cached
+        and cached.get("source") == "live"
+        and (now - _funnel_cache["ts"]) < _FUNNEL_CACHE_TTL
+    ):
+        data = dict(cached)
         try:
             data["new_today"] = _count_new_leads_today_best()
         except Exception as e:
@@ -1326,13 +1412,20 @@ def api_kommo_funnel_live():
         _funnel_cache["ts"] = now
         return jsonify({"ok": True, "data": result})
 
-    if not force:
+    def _db_fallback(live_error: str):
+        logger.warning("funnel live failed, using db: %s", live_error)
+        _funnel_cache["data"] = None
+        _funnel_cache["ts"] = 0
+        err = live_error
+        if "401" in err:
+            err = "Token Kommo inválido ou expirado (401)."
+        elif "403" in err:
+            err = "Kommo bloqueou a requisição (403 WAF)."
         try:
-            return _finalize(_fetch_funnel_from_db())
-        except Exception as e:
-            logger.exception("funnel db: %s", e)
-            if not _kommo_token():
-                return jsonify({"ok": False, "error": f"Base local indisponível: {e}"}), 500
+            db_result = _fetch_funnel_from_db()
+            return _finalize(db_result, live_error=err)
+        except Exception:
+            return jsonify({"ok": False, "error": err}), 502
 
     if not _kommo_token():
         try:
@@ -1343,31 +1436,15 @@ def api_kommo_funnel_live():
     try:
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=1) as pool:
-            result = pool.submit(_fetch_funnel_live).result(timeout=90)
+            result = pool.submit(_fetch_funnel_live_parallel).result(timeout=75)
 
         if result.get("api_error"):
-            _funnel_cache["data"] = None
-            _funnel_cache["ts"] = 0
-            err = result["api_error"]
-            if "401" in err:
-                err = "Token Kommo inválido ou expirado (401)."
-            elif "403" in err:
-                err = "Kommo bloqueou a requisição (403 WAF)."
-            logger.warning("funnel live failed, using db: %s", err)
-            try:
-                db_result = _fetch_funnel_from_db()
-                return _finalize(db_result, live_error=err)
-            except Exception as db_e:
-                return jsonify({"ok": False, "error": err}), 502
+            return _db_fallback(result["api_error"])
 
-        result["source"] = "live"
         return _finalize(result)
     except Exception as e:
         logger.error("funnel-live error: %s", e)
-        try:
-            return _finalize(_fetch_funnel_from_db(), live_error=str(e))
-        except Exception:
-            return jsonify({"ok": False, "error": str(e)}), 500
+        return _db_fallback(str(e))
 
 
 # ---------------------------------------------------------------------------

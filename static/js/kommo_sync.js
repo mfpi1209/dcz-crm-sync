@@ -250,10 +250,13 @@ function _renderFunnelCards(data, prefix) {
         let label = '';
         if (data.source === 'db' && data.synced_at) {
             label = 'Sync ' + data.synced_at;
+            if (data.live_error) {
+                label += ' · desatualizado';
+            }
         } else if (data.fetched_at) {
             label = 'Live ' + data.fetched_at;
         }
-        if (data.live_error) {
+        if (data.live_error && data.source !== 'db') {
             label += (label ? ' · ' : '') + 'live indisponível';
         }
         tsEl.textContent = label;
