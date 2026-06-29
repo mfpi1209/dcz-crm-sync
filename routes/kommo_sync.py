@@ -567,6 +567,11 @@ def api_kommo_task(task_id):
 KOMMO_API_BASE = os.getenv("KOMMO_BASE_URL", "https://admamoeduitcombr.kommo.com")
 KOMMO_TOKEN = os.getenv("KOMMO_TOKEN", "")
 
+
+def _kommo_token():
+    """Lê token no momento da chamada (permite atualizar .env sem reiniciar)."""
+    return (os.getenv("KOMMO_TOKEN", "") or KOMMO_TOKEN or "").strip()
+
 FUNNEL_PIPELINE = 5481944
 FUNNEL_STAGES_DEF = [
     {"key": "incoming",              "id": 48539237, "label": "Incoming"},
@@ -615,7 +620,7 @@ def _kommo_get(path, params=None):
     else:
         url = f"{base}{path}"
     headers = dict(_KOMMO_DEFAULT_HEADERS)
-    headers["Authorization"] = f"Bearer {KOMMO_TOKEN}"
+    headers["Authorization"] = f"Bearer {_kommo_token()}"
     return _requests.get(url, headers=headers, params=params, timeout=30)
 
 
@@ -850,6 +855,7 @@ def _fetch_funnel_live():
     all_leads = []
     seen_ids = set()
     page = 1
+    api_error = None
 
     while True:
         params = {"limit": 250, "page": page}
@@ -861,10 +867,12 @@ def _fetch_funnel_live():
             r = _kommo_get("/leads", params)
         except Exception as e:
             logger.error("Kommo API error: %s", e)
+            api_error = str(e)
             break
 
         if r.status_code != 200:
-            logger.warning("Kommo API %d: %s", r.status_code, r.text[:200])
+            api_error = f"Kommo API {r.status_code}: {r.text[:200]}"
+            logger.warning("Kommo funnel %s", api_error)
             break
 
         data = r.json()
@@ -904,12 +912,15 @@ def _fetch_funnel_live():
     for s in stages:
         s["pct"] = round(s["count"] / total * 100, 1) if total > 0 else 0
 
-    return {
+    out = {
         "stages": stages,
         "total": total,
         "leads_fetched": len(all_leads),
         "pages": page,
     }
+    if api_error:
+        out["api_error"] = api_error
+    return out
 
 
 def _load_snapshot():
@@ -1185,7 +1196,7 @@ def api_kommo_funnel_live():
             data["yesterday_summary"] = _build_yesterday_summary()
         return jsonify({"ok": True, "data": data, "cached": True})
 
-    if not KOMMO_TOKEN:
+    if not _kommo_token():
         return jsonify({"ok": False, "error": "KOMMO_TOKEN não configurado"}), 500
 
     try:
@@ -1195,6 +1206,13 @@ def api_kommo_funnel_live():
             fut_count = pool.submit(_count_new_leads_today)
 
         result = fut_funnel.result()
+        if result.get("api_error"):
+            _funnel_cache["data"] = None
+            _funnel_cache["ts"] = 0
+            err = result["api_error"]
+            if "401" in err:
+                err = "Token Kommo inválido ou expirado (401). Atualize KOMMO_TOKEN no servidor e reinicie o app."
+            return jsonify({"ok": False, "error": err}), 502
         try:
             result["new_today"] = fut_count.result()
         except Exception as e:

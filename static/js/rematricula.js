@@ -12,7 +12,13 @@ let _rematFetchGen = 0;
 let _rematDailyFetchGen = 0;
 
 function loadRematricula() {
-    _rematEnsureIframeLoaded();
+    const iframeSection = document.getElementById('remat-iframe-section');
+    if (iframeSection && !iframeSection.classList.contains('hidden')) {
+        _rematEnsureIframeLoaded();
+    }
+    if (document.getElementById('remat-conversao-section')?.classList.contains('hidden')) return;
+    // Gráficos não dependem do dropdown estar pronto — usa ciclo salvo no localStorage.
+    loadRematCharts();
     populateRematCicloFilter().then(() => loadRematCharts());
 }
 
@@ -54,7 +60,17 @@ async function populateRematCicloFilter() {
     const sel = document.getElementById('remat-ciclo');
     if (!sel) return;
     try {
-        const res = await api('/api/dashboard/ciclos-distinct?tipo=rematricula');
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 45000);
+        let res;
+        try {
+            res = await api('/api/dashboard/ciclos-distinct?tipo=rematricula', { signal: ctrl.signal });
+        } finally {
+            clearTimeout(timer);
+        }
+        if (!res.ok) {
+            throw new Error('HTTP ' + res.status);
+        }
         const list = await res.json();
         const arr = Array.isArray(list) ? list : [];
         sel.innerHTML =
@@ -84,7 +100,11 @@ async function populateRematCicloFilter() {
 }
 
 function _rematFilters() {
-    const ciclo = document.getElementById('remat-ciclo')?.value || '';
+    const sel = document.getElementById('remat-ciclo');
+    let ciclo = sel?.value || '';
+    if (!ciclo && sel?.options.length === 1 && /carregando/i.test(sel.options[0].textContent || '')) {
+        ciclo = localStorage.getItem(_REMAT_CICLO_KEY) || '';
+    }
     const nivel = document.getElementById('remat-nivel')?.value || '';
     const from = document.getElementById('remat-from')?.value || '';
     const to = document.getElementById('remat-to')?.value || '';
@@ -347,3 +367,9 @@ function rematReloadIframe() {
     iframe.setAttribute('src', 'about:blank');
     setTimeout(() => iframe.setAttribute('src', url), 30);
 }
+
+window.loadRematricula = loadRematricula;
+window.loadRematCharts = loadRematCharts;
+window.rematClearDates = rematClearDates;
+window.rematTimelineDrillUp = rematTimelineDrillUp;
+window.rematReloadIframe = rematReloadIframe;
