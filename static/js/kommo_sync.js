@@ -242,7 +242,9 @@ async function _dashFallbackYesterdayCommercial(yStr) {
 function _renderFunnelCards(data, prefix) {
     const newEl = document.getElementById(prefix + '-new');
     const totalEl = document.getElementById(prefix + '-total');
-    if (newEl) newEl.textContent = (data.new_today || 0).toLocaleString('pt-BR');
+    if (newEl && data && Object.prototype.hasOwnProperty.call(data, 'new_today')) {
+        newEl.textContent = Number(data.new_today || 0).toLocaleString('pt-BR');
+    }
     if (totalEl) totalEl.textContent = (data.total || 0).toLocaleString('pt-BR');
 
     const tsEl = document.getElementById(prefix + '-ts');

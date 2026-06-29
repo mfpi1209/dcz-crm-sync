@@ -103,6 +103,7 @@ async function loadDashboard() {
     } catch (err) {
         console.error('Dashboard load error:', err);
     }
+    _dashLoadNewLeadsToday(false);
     _dashRefreshFunnel(false);
     await populateCicloFilter();
     _restoreRgmPadraoFilter();
@@ -157,6 +158,27 @@ async function _dashFallbackYesterdayCommercial(yStr) {
     }
 }
 
+async function _dashLoadNewLeadsToday(force) {
+    const el = document.getElementById('dash-funnel-new');
+    if (!el) return;
+    const q = force ? '?force=1' : '';
+    try {
+        const res = await api('/api/kommo/new-leads-today' + q);
+        const d = await _apiJsonSafe(res);
+        if (!d?.ok || d.count == null) return;
+        el.textContent = Number(d.count).toLocaleString('pt-BR');
+        const convEl = document.getElementById('dash-funnel-conversao');
+        const aceiteEl = document.getElementById('dash-funnel-aceite');
+        if (convEl && aceiteEl) {
+            const aceite = parseInt(String(aceiteEl.textContent).replace(/\./g, ''), 10) || 0;
+            const pct = d.count > 0 ? ((aceite / d.count) * 100).toFixed(1) : '0.0';
+            convEl.textContent = pct + '%';
+        }
+    } catch (e) {
+        console.warn('new-leads-today:', e);
+    }
+}
+
 async function _dashLoadYesterdayKpi(force) {
     const q = force ? '?force=1' : '';
     const yStr = _dashBrtDateIso(1);
@@ -198,6 +220,7 @@ async function _dashRefreshFunnel(force) {
     const btn = document.getElementById('dash-funnel-refresh-btn');
     if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
     const q = force ? '?force=1' : '';
+    _dashLoadNewLeadsToday(force);
     const slowTimer = setTimeout(() => {
         const container = document.getElementById('dash-funnel-cards');
         if (!container) return;

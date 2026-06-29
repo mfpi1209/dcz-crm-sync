@@ -652,10 +652,14 @@ def _count_new_leads_between(from_ts: int, to_ts: int | None = None, pipeline_id
             r = _kommo_get("/leads", params)
         except Exception as e:
             logger.error("count_new_leads API error: %s", e)
+            if page == 1:
+                raise
             break
 
         if r.status_code != 200:
             logger.warning("count_new_leads API %d: %s", r.status_code, r.text[:200])
+            if page == 1:
+                raise RuntimeError(f"Kommo API {r.status_code}")
             break
 
         data = r.json()
@@ -724,12 +728,56 @@ def _count_leads_day_pg(d: date, pipeline_id: int | None = None) -> int:
 
 def _count_new_leads_today_best():
     """Captação do dia: API Kommo (intraday, ~1s); espelho Postgres só se API falhar."""
+    today = datetime.now(_BRT).date()
     if _kommo_token():
         try:
             return _count_new_leads_today()
         except Exception as e:
             logger.warning("new_today kommo: %s", e)
-    return _count_leads_day_pg(datetime.now(_BRT).date(), pipeline_id=FUNNEL_PIPELINE)
+    pg_n = _count_leads_day_pg(today, pipeline_id=FUNNEL_PIPELINE)
+    logger.info("new_today pg fallback: %d (pipeline=%s)", pg_n, FUNNEL_PIPELINE)
+    return pg_n
+
+
+_new_today_cache = {"count": None, "ts": 0, "source": None}
+_NEW_TODAY_CACHE_TTL = 60
+
+
+def _get_new_leads_today_payload(force=False):
+    """KPI leve de novos leads hoje — usado pelo dashboard sem esperar o funil inteiro."""
+    now = _time.time()
+    if (
+        not force
+        and _new_today_cache["count"] is not None
+        and (now - _new_today_cache["ts"]) < _NEW_TODAY_CACHE_TTL
+    ):
+        return {
+            "count": _new_today_cache["count"],
+            "source": _new_today_cache["source"],
+            "cached": True,
+        }
+
+    source = "kommo"
+    try:
+        if not _kommo_token():
+            source = "db"
+            count = _count_leads_day_pg(datetime.now(_BRT).date(), pipeline_id=FUNNEL_PIPELINE)
+        else:
+            count = _count_new_leads_today_best()
+            if count <= 0:
+                pg_n = _count_leads_day_pg(datetime.now(_BRT).date(), pipeline_id=FUNNEL_PIPELINE)
+                if pg_n > count:
+                    count = pg_n
+                    source = "db"
+    except Exception as e:
+        logger.warning("new_leads_today payload: %s", e)
+        source = "db"
+        count = _count_leads_day_pg(datetime.now(_BRT).date(), pipeline_id=FUNNEL_PIPELINE)
+
+    _new_today_cache["count"] = count
+    _new_today_cache["source"] = source
+    _new_today_cache["ts"] = now
+    return {"count": count, "source": source, "cached": False}
 
 
 def _vendas_comercial_dia(d: date) -> int:
@@ -1359,6 +1407,18 @@ def api_kommo_reconcile_aceites():
     return jsonify({"ok": True, "data": result})
 
 
+@kommo_bp.route("/api/kommo/new-leads-today")
+def api_kommo_new_leads_today():
+    """KPI intraday de novos leads — endpoint leve (~1s), independente do funil."""
+    force = request.args.get("force", "0") == "1"
+    try:
+        data = _get_new_leads_today_payload(force=force)
+        return jsonify({"ok": True, **data})
+    except Exception as e:
+        logger.exception("new-leads-today: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @kommo_bp.route("/api/kommo/yesterday-summary")
 def api_kommo_yesterday_summary():
     """Resumo de ontem (vendas + leads) — endpoint leve, sem buscar funil inteiro."""
@@ -1386,7 +1446,9 @@ def api_kommo_funnel_live():
     ):
         data = dict(cached)
         try:
-            data["new_today"] = _count_new_leads_today_best()
+            nt = _get_new_leads_today_payload(force=force)
+            data["new_today"] = nt["count"]
+            data["new_today_source"] = nt.get("source")
         except Exception as e:
             logger.warning("new_today cache refresh: %s", e)
         try:
@@ -1396,12 +1458,15 @@ def api_kommo_funnel_live():
             data["yesterday_summary"] = _build_yesterday_summary()
         return jsonify({"ok": True, "data": data, "cached": True})
 
-    def _finalize(result, live_error=None):
-        try:
-            new_today = _count_new_leads_today_best()
-        except Exception as e:
-            logger.warning("new_today: %s", e)
-            new_today = 0
+    def _finalize(result, live_error=None, new_today=None):
+        if new_today is None:
+            try:
+                nt = _get_new_leads_today_payload(force=force)
+                new_today = nt["count"]
+                result["new_today_source"] = nt.get("source")
+            except Exception as e:
+                logger.warning("new_today: %s", e)
+                new_today = 0
         try:
             ys = _get_yesterday_summary_cached(force=force)
         except Exception as e:
@@ -1435,13 +1500,21 @@ def api_kommo_funnel_live():
 
     try:
         from concurrent.futures import ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=1) as pool:
-            result = pool.submit(_fetch_funnel_live_parallel).result(timeout=75)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            fut_funnel = pool.submit(_fetch_funnel_live_parallel)
+            fut_new = pool.submit(_get_new_leads_today_payload, force)
+            result = fut_funnel.result(timeout=75)
+            try:
+                nt = fut_new.result(timeout=60)
+                new_today_pre = nt["count"]
+            except Exception as e:
+                logger.warning("new_today parallel: %s", e)
+                new_today_pre = None
 
         if result.get("api_error"):
             return _db_fallback(result["api_error"])
 
-        return _finalize(result)
+        return _finalize(result, new_today=new_today_pre)
     except Exception as e:
         logger.error("funnel-live error: %s", e)
         return _db_fallback(str(e))
