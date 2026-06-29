@@ -132,6 +132,17 @@ async function _apiJsonSafe(res) {
     }
 }
 
+async function _apiJsonBody(res) {
+    if (!res) return null;
+    const ct = (res.headers.get('content-type') || '').toLowerCase();
+    if (!ct.includes('json')) return null;
+    try {
+        return await res.json();
+    } catch {
+        return null;
+    }
+}
+
 function _dashShowFunnelError(msg) {
     const container = document.getElementById('dash-funnel-cards');
     if (!container) return;
@@ -238,7 +249,7 @@ async function _dashRefreshFunnel(force) {
         const timer = ctrl ? setTimeout(() => ctrl.abort(), 120000) : null;
         const res = await api('/api/kommo/funnel-live' + q, ctrl ? { signal: ctrl.signal } : {});
         if (timer) clearTimeout(timer);
-        const d = await _apiJsonSafe(res);
+        const d = await _apiJsonBody(res);
         if (d?.ok && typeof _renderFunnelCards === 'function') {
             _renderFunnelCards(d.data, 'dash-funnel');
             if (d.data?.yesterday_summary && typeof _renderYesterdaySummary === 'function') {

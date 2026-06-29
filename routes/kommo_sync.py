@@ -598,6 +598,9 @@ FUNNEL_HIGHLIGHT = [
 
 _funnel_cache = {"data": None, "ts": 0}
 _FUNNEL_CACHE_TTL = 300
+# Easypanel/nginx costuma cortar em ~60s; live Kommo pode levar 40s+.
+_FUNNEL_LIVE_TIMEOUT_S = int(os.getenv("FUNNEL_LIVE_TIMEOUT_S", "25"))
+_FUNNEL_LIVE_FORCE_TIMEOUT_S = int(os.getenv("FUNNEL_LIVE_FORCE_TIMEOUT_S", "45"))
 
 SNAPSHOT_FILE = Path(__file__).resolve().parent.parent / "data" / "funnel_snapshot.json"
 
@@ -1433,7 +1436,7 @@ def api_kommo_yesterday_summary():
 
 @kommo_bp.route("/api/kommo/funnel-live")
 def api_kommo_funnel_live():
-    """Funil: API Kommo ao vivo (paralelo por etapa); espelho PG só se API falhar."""
+    """Funil: tenta Kommo ao vivo (timeout curto); espelho PG em paralelo como fallback rápido."""
     force = request.args.get("force", "0") == "1"
     now = _time.time()
 
@@ -1441,7 +1444,6 @@ def api_kommo_funnel_live():
     if (
         not force
         and cached
-        and cached.get("source") == "live"
         and (now - _funnel_cache["ts"]) < _FUNNEL_CACHE_TTL
     ):
         data = dict(cached)
@@ -1477,20 +1479,27 @@ def api_kommo_funnel_live():
         _funnel_cache["ts"] = now
         return jsonify({"ok": True, "data": result})
 
-    def _db_fallback(live_error: str):
-        logger.warning("funnel live failed, using db: %s", live_error)
-        _funnel_cache["data"] = None
-        _funnel_cache["ts"] = 0
-        err = live_error
+    def _normalize_live_error(live_error: str) -> str:
+        err = live_error or ""
         if "401" in err:
-            err = "Token Kommo inválido ou expirado (401)."
-        elif "403" in err:
-            err = "Kommo bloqueou a requisição (403 WAF)."
+            return "Token Kommo inválido ou expirado (401)."
+        if "403" in err:
+            return "Kommo bloqueou a requisição (403 WAF)."
+        return err
+
+    def _db_fallback(live_error: str, db_result=None):
+        logger.warning("funnel live failed, using db: %s", live_error)
+        err = _normalize_live_error(live_error)
         try:
-            db_result = _fetch_funnel_from_db()
-            return _finalize(db_result, live_error=err)
-        except Exception:
-            return jsonify({"ok": False, "error": err}), 502
+            if db_result is None:
+                db_result = _fetch_funnel_from_db()
+            return _finalize(db_result, live_error=err or None)
+        except Exception as db_exc:
+            logger.exception("funnel db fallback failed: %s", db_exc)
+            return jsonify({
+                "ok": False,
+                "error": err or str(db_exc),
+            }), 502
 
     if not _kommo_token():
         try:
@@ -1498,23 +1507,42 @@ def api_kommo_funnel_live():
         except Exception as e:
             return jsonify({"ok": False, "error": "KOMMO_TOKEN não configurado"}), 500
 
+    live_timeout = _FUNNEL_LIVE_FORCE_TIMEOUT_S if force else _FUNNEL_LIVE_TIMEOUT_S
     try:
-        from concurrent.futures import ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=2) as pool:
+        from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutTimeout
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            fut_db = pool.submit(_fetch_funnel_from_db)
             fut_funnel = pool.submit(_fetch_funnel_live_parallel)
             fut_new = pool.submit(_get_new_leads_today_payload, force)
-            result = fut_funnel.result(timeout=75)
+
+            new_today_pre = None
             try:
-                nt = fut_new.result(timeout=60)
+                nt = fut_new.result(timeout=30)
                 new_today_pre = nt["count"]
             except Exception as e:
                 logger.warning("new_today parallel: %s", e)
-                new_today_pre = None
 
-        if result.get("api_error"):
-            return _db_fallback(result["api_error"])
+            live_error = None
+            try:
+                result = fut_funnel.result(timeout=live_timeout)
+                if result.get("api_error"):
+                    live_error = result["api_error"]
+                else:
+                    return _finalize(result, new_today=new_today_pre)
+            except FutTimeout:
+                live_error = f"Kommo ao vivo excedeu {live_timeout}s"
+                logger.warning("funnel live timeout after %ss", live_timeout)
+            except Exception as e:
+                live_error = str(e)
+                logger.error("funnel-live error: %s", e)
 
-        return _finalize(result, new_today=new_today_pre)
+            try:
+                db_result = fut_db.result(timeout=20)
+            except Exception as e:
+                logger.exception("funnel db parallel: %s", e)
+                return jsonify({"ok": False, "error": str(e)}), 502
+
+            return _db_fallback(live_error or "live indisponível", db_result=db_result)
     except Exception as e:
         logger.error("funnel-live error: %s", e)
         return _db_fallback(str(e))
