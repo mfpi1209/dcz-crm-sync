@@ -603,8 +603,17 @@ FUNNEL_HIGHLIGHT = [
     "em_processo", "aprovado_reprovado", "aceite",
 ]
 
+# Filas contadas na API (sem Aguardando Resposta — não exibida no painel).
+FUNNEL_DASHBOARD_COUNT_KEYS = set(FUNNEL_HIGHLIGHT) | {
+    "pagamento_confirmado",
+    "sem_resposta",
+}
+
 _funnel_cache = {"data": None, "ts": 0}
+_funnel_cache_lock = threading.Lock()
+_funnel_warming = False
 _FUNNEL_CACHE_TTL = 300
+_FUNNEL_API_VERSION = 6
 # Easypanel/nginx costuma cortar em ~60s; live Kommo pode levar 40s+.
 _FUNNEL_LIVE_TIMEOUT_S = int(os.getenv("FUNNEL_LIVE_TIMEOUT_S", "25"))
 _FUNNEL_LIVE_FORCE_TIMEOUT_S = int(os.getenv("FUNNEL_LIVE_FORCE_TIMEOUT_S", "45"))
@@ -987,20 +996,25 @@ def _count_leads_in_stage(status_id: int) -> tuple[int, str | None]:
     return count, None
 
 
-def _fetch_funnel_live_counts():
-    """Contagem ao vivo por fila — sequencial (evita 429 no Easypanel)."""
+def _fetch_funnel_live_counts(*, dashboard_only: bool = True):
+    """Contagem ao vivo por fila — sequencial; dashboard_only pula filas fora do painel."""
+    count_keys = FUNNEL_DASHBOARD_COUNT_KEYS if dashboard_only else {
+        s["key"] for s in FUNNEL_STAGES_DEF
+    }
     counts = {}
     for sdef in FUNNEL_STAGES_DEF:
+        if sdef["key"] not in count_keys:
+            continue
         n, err = _count_leads_in_stage(sdef["id"])
         if err:
             return None, err
         counts[sdef["id"]] = n
-        _time.sleep(0.12)
+        _time.sleep(0.1)
 
     stages = []
     total = 0
     for sdef in FUNNEL_STAGES_DEF:
-        c = counts.get(sdef["id"], 0)
+        c = counts.get(sdef["id"], 0) if sdef["key"] in count_keys else 0
         total += c
         stages.append({
             "key": sdef["key"],
@@ -1019,9 +1033,73 @@ def _fetch_funnel_live_counts():
         "leads_fetched": total,
         "pages": 0,
         "source": "live",
-        "funnel_api_version": 5,
+        "funnel_api_version": _FUNNEL_API_VERSION,
+        "dashboard_only": dashboard_only,
     }
     return out, None
+
+
+def _warm_funnel_cache_sync():
+    """Atualiza cache do funil em background (cron / stale-while-revalidate)."""
+    global _funnel_warming
+    if not _kommo_token():
+        return
+    with _funnel_cache_lock:
+        if _funnel_warming:
+            return
+        _funnel_warming = True
+    try:
+        result, err = _fetch_funnel_live_counts(dashboard_only=True)
+        if err or not result:
+            logger.warning("funnel cache warm failed: %s", err)
+            return
+        try:
+            nt = _get_new_leads_today_payload(force=False)
+            new_today = nt["count"]
+            result["new_today_source"] = nt.get("source")
+        except Exception as e:
+            logger.warning("funnel warm new_today: %s", e)
+            new_today = 0
+        enriched = _enrich_funnel_result(
+            result,
+            new_today=new_today,
+            yesterday_summary=_get_yesterday_summary_light(),
+        )
+        with _funnel_cache_lock:
+            _funnel_cache["data"] = enriched
+            _funnel_cache["ts"] = _time.time()
+        logger.info("funnel cache warmed total=%s", enriched.get("total"))
+    except Exception as e:
+        logger.exception("funnel cache warm: %s", e)
+    finally:
+        with _funnel_cache_lock:
+            _funnel_warming = False
+
+
+def _start_funnel_cache_warm_async():
+    t = threading.Thread(target=_warm_funnel_cache_sync, daemon=True, name="funnel-cache-warm")
+    t.start()
+
+
+def register_funnel_cache_job(sched):
+    """Cron: mantém cache do funil quente (evita 502 no proxy em produção)."""
+    from datetime import timedelta as _td
+    sched.add_job(
+        _warm_funnel_cache_sync,
+        "interval",
+        minutes=5,
+        id="funnel_cache_warm",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    sched.add_job(
+        _warm_funnel_cache_sync,
+        "date",
+        run_date=datetime.now(_BRT) + _td(seconds=20),
+        id="funnel_cache_warm_boot",
+        replace_existing=True,
+    )
 
 
 def _fetch_funnel_live_parallel():
@@ -1472,26 +1550,36 @@ def api_kommo_yesterday_summary():
 
 @kommo_bp.route("/api/kommo/funnel-live")
 def api_kommo_funnel_live():
-    """Funil: conta leads por fila na API Kommo (somente ao vivo, sem espelho PG)."""
+    """Funil Kommo ao vivo — cache quente + stale-while-revalidate (sem espelho PG)."""
     force = request.args.get("force", "0") == "1"
     now = _time.time()
 
-    cached = _funnel_cache.get("data")
-    if (
-        not force
-        and cached
-        and cached.get("source") == "live"
-        and cached.get("funnel_api_version", 0) >= 5
-        and (now - _funnel_cache["ts"]) < _FUNNEL_CACHE_TTL
-    ):
-        data = dict(cached)
+    def _attach_intraday(data):
+        out = dict(data)
         try:
             nt = _get_new_leads_today_payload(force=force)
-            data["new_today"] = nt["count"]
-            data["new_today_source"] = nt.get("source")
+            out["new_today"] = nt["count"]
+            out["new_today_source"] = nt.get("source")
         except Exception as e:
             logger.warning("new_today cache refresh: %s", e)
-        data["yesterday_summary"] = _get_yesterday_summary_light()
+        out["yesterday_summary"] = _get_yesterday_summary_light()
+        return out
+
+    with _funnel_cache_lock:
+        cached = _funnel_cache.get("data")
+        cache_ts = _funnel_cache.get("ts", 0)
+    cache_age = now - cache_ts
+    cache_ok = (
+        cached
+        and cached.get("source") == "live"
+        and cached.get("funnel_api_version", 0) >= _FUNNEL_API_VERSION
+    )
+
+    if cache_ok and not force:
+        data = _attach_intraday(cached)
+        data["stale"] = cache_age >= _FUNNEL_CACHE_TTL
+        if data["stale"]:
+            _start_funnel_cache_warm_async()
         return jsonify({"ok": True, "data": data, "cached": True})
 
     def _finalize(
@@ -1525,8 +1613,9 @@ def api_kommo_funnel_live():
             live_error=live_error,
         )
         if result.get("source") == "live":
-            _funnel_cache["data"] = result
-            _funnel_cache["ts"] = now
+            with _funnel_cache_lock:
+                _funnel_cache["data"] = result
+                _funnel_cache["ts"] = now
         return jsonify({"ok": True, "data": result})
 
     def _normalize_live_error(live_error: str) -> str:
@@ -1539,10 +1628,10 @@ def api_kommo_funnel_live():
             return "Kommo limitou requisições (429). Tente Atualizar em 1 min."
         return err or "Falha ao buscar funil no Kommo."
 
-    def _live_path():
+    def _live_path(timeout_s=50):
         from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutTimeout
         with ThreadPoolExecutor(max_workers=2) as pool:
-            fut_funnel = pool.submit(_fetch_funnel_live_counts)
+            fut_funnel = pool.submit(_fetch_funnel_live_counts, dashboard_only=True)
             fut_new = pool.submit(_get_new_leads_today_payload, force)
             new_today_pre = None
             try:
@@ -1551,9 +1640,9 @@ def api_kommo_funnel_live():
             except Exception as e:
                 logger.warning("new_today parallel: %s", e)
             try:
-                result, err = fut_funnel.result(timeout=120)
+                result, err = fut_funnel.result(timeout=timeout_s)
             except FutTimeout as e:
-                raise RuntimeError("Kommo excedeu 120s ao contar filas") from e
+                raise RuntimeError(f"Kommo excedeu {timeout_s}s ao contar filas") from e
         if err:
             raise RuntimeError(err)
         return _finalize(
@@ -1565,11 +1654,23 @@ def api_kommo_funnel_live():
     if not _kommo_token():
         return jsonify({"ok": False, "error": "KOMMO_TOKEN não configurado no servidor."}), 500
 
+    if not cache_ok:
+        _start_funnel_cache_warm_async()
+
     try:
-        return _live_path()
+        return _live_path(timeout_s=50 if not force else 90)
     except Exception as e:
         logger.warning("funnel live failed: %s", e)
-        return jsonify({"ok": False, "error": _normalize_live_error(str(e))}), 502
+        if cache_ok:
+            data = _attach_intraday(cached)
+            data["stale"] = True
+            data["live_error"] = _normalize_live_error(str(e))
+            return jsonify({"ok": True, "data": data, "cached": True})
+        return jsonify({
+            "ok": False,
+            "error": "Funil carregando (primeira carga). Aguarde ~30s e clique Atualizar.",
+            "warming": True,
+        }), 200
 
 
 # ---------------------------------------------------------------------------

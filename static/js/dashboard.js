@@ -264,6 +264,7 @@ async function _dashRefreshFunnel(force) {
             _dashShowFunnelError('Erro de carregamento do JS. Recarregue a página (Ctrl+Shift+R).');
         } else {
             const errMsg = d?.error
+                || (d?.warming ? 'Funil carregando… aguarde ~30s e clique Atualizar.' : null)
                 || (res && !res.ok && !d ? `HTTP ${res.status} — resposta inválida do servidor` : null)
                 || (res && !res.ok ? `HTTP ${res.status}` : null)
                 || 'Não foi possível carregar o funil.';

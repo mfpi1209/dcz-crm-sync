@@ -234,7 +234,7 @@ from routes.upload import upload_bp
 from routes.engagement import engagement_bp, register_engagement_job
 from routes.config import config_bp, init_scheduler, _load_schedules_from_db, register_delta_interval, register_aceite_reconcile, register_responsible_history_job
 from routes.logs import logs_bp
-from routes.kommo_sync import kommo_bp
+from routes.kommo_sync import kommo_bp, register_funnel_cache_job
 from routes.match_merge import match_merge_bp
 from routes.comercial_rgm import comercial_rgm_bp
 from routes.ativacoes import ativacoes_bp
@@ -350,6 +350,7 @@ register_engagement_job(scheduler)
 register_delta_interval(scheduler)
 register_aceite_reconcile(scheduler)
 register_responsible_history_job(scheduler)
+register_funnel_cache_job(scheduler)
 
 # ── Entrypoint ────────────────────────────────────────────────────────────
 

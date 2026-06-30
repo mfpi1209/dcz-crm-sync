@@ -255,6 +255,7 @@ function _renderFunnelCards(data, prefix) {
             if (data.synced_at) label += ' (' + data.synced_at + ')';
         } else if (data.fetched_at) {
             label = 'Kommo ' + data.fetched_at;
+            if (data.stale) label += ' · atualizando…';
         }
         if (data.live_error) {
             label += (label ? ' · ' : '') + data.live_error;
