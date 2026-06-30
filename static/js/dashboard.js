@@ -240,7 +240,7 @@ async function _dashRefreshFunnel(force) {
             container.innerHTML = `
                 <div class="col-span-full text-center py-8 text-slate-500 text-sm flex flex-col items-center gap-3">
                     <svg class="animate-spin h-6 w-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                    Buscando dados do Kommo… (pode levar até 40s)
+                    Buscando dados do Kommo… (pode levar até 90s)
                 </div>`;
         }
     }, 8000);
@@ -250,6 +250,10 @@ async function _dashRefreshFunnel(force) {
         const res = await api('/api/kommo/funnel-live' + q, ctrl ? { signal: ctrl.signal } : {});
         if (timer) clearTimeout(timer);
         const d = await _apiJsonBody(res);
+        if (d?.ok && d.data?.source === 'db') {
+            _dashShowFunnelError('Dados do espelho PG (desatualizado). Clique em Atualizar.');
+            return;
+        }
         if (d?.ok && typeof _renderFunnelCards === 'function') {
             _renderFunnelCards(d.data, 'dash-funnel');
             if (d.data?.yesterday_summary && typeof _renderYesterdaySummary === 'function') {

@@ -599,7 +599,6 @@ FUNNEL_STAGES_DEF = [
 
 FUNNEL_HIGHLIGHT = [
     "em_atendimento",
-    "aguardando_resposta",
     "aguardando_inscricao", "inscricao", "processo_seletivo",
     "em_processo", "aprovado_reprovado", "aceite",
 ]
@@ -988,30 +987,15 @@ def _count_leads_in_stage(status_id: int) -> tuple[int, str | None]:
     return count, None
 
 
-def _fetch_funnel_live_parallel():
-    """Contagem ao vivo por fila — 1 request/etapa (_total_items), alinhado ao Kommo."""
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-
+def _fetch_funnel_live_counts():
+    """Contagem ao vivo por fila — sequencial (evita 429 no Easypanel)."""
     counts = {}
-    api_error = None
-    n_stages = len(FUNNEL_STAGES_DEF)
-    # IP de datacenter (Easypanel) leva mais 429 que localhost — menos workers.
-    with ThreadPoolExecutor(max_workers=min(3, n_stages)) as pool:
-        futs = {
-            pool.submit(_count_leads_in_stage, sdef["id"]): sdef
-            for sdef in FUNNEL_STAGES_DEF
-        }
-        for fut in as_completed(futs):
-            sdef = futs[fut]
-            try:
-                n, err = fut.result()
-            except Exception as e:
-                api_error = str(e)
-                break
-            if err:
-                api_error = err
-                break
-            counts[sdef["id"]] = n
+    for sdef in FUNNEL_STAGES_DEF:
+        n, err = _count_leads_in_stage(sdef["id"])
+        if err:
+            return None, err
+        counts[sdef["id"]] = n
+        _time.sleep(0.12)
 
     stages = []
     total = 0
@@ -1035,11 +1019,17 @@ def _fetch_funnel_live_parallel():
         "leads_fetched": total,
         "pages": 0,
         "source": "live",
-        "funnel_api_version": 4,
+        "funnel_api_version": 5,
     }
-    if api_error:
-        out["api_error"] = api_error
-    return out
+    return out, None
+
+
+def _fetch_funnel_live_parallel():
+    """Alias — mantido para compat interna; usa contagem sequencial."""
+    result, err = _fetch_funnel_live_counts()
+    if err:
+        return {"stages": [], "total": 0, "source": "live", "api_error": err}
+    return result
 
 
 def _fetch_funnel_live():
@@ -1482,7 +1472,7 @@ def api_kommo_yesterday_summary():
 
 @kommo_bp.route("/api/kommo/funnel-live")
 def api_kommo_funnel_live():
-    """Funil: conta leads por fila via API Kommo (1 req/etapa, _total_items)."""
+    """Funil: conta leads por fila na API Kommo (somente ao vivo, sem espelho PG)."""
     force = request.args.get("force", "0") == "1"
     now = _time.time()
 
@@ -1491,6 +1481,7 @@ def api_kommo_funnel_live():
         not force
         and cached
         and cached.get("source") == "live"
+        and cached.get("funnel_api_version", 0) >= 5
         and (now - _funnel_cache["ts"]) < _FUNNEL_CACHE_TTL
     ):
         data = dict(cached)
@@ -1544,31 +1535,14 @@ def api_kommo_funnel_live():
             return "Token Kommo inválido ou expirado (401)."
         if "403" in err:
             return "Kommo bloqueou a requisição (403 WAF)."
-        return err
-
-    def _db_fallback(live_error: str, db_result=None, new_today=None):
-        logger.warning("funnel live failed, using db: %s", live_error)
-        err = _normalize_live_error(live_error)
-        try:
-            if db_result is None:
-                db_result = _fetch_funnel_from_db()
-            return _finalize(
-                db_result,
-                live_error=err or None,
-                new_today=new_today,
-                heavy_yesterday=force,
-            )
-        except Exception as db_exc:
-            logger.exception("funnel db fallback failed: %s", db_exc)
-            return jsonify({
-                "ok": False,
-                "error": err or str(db_exc),
-            }), 502
+        if "429" in err:
+            return "Kommo limitou requisições (429). Tente Atualizar em 1 min."
+        return err or "Falha ao buscar funil no Kommo."
 
     def _live_path():
         from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutTimeout
         with ThreadPoolExecutor(max_workers=2) as pool:
-            fut_funnel = pool.submit(_fetch_funnel_live_parallel)
+            fut_funnel = pool.submit(_fetch_funnel_live_counts)
             fut_new = pool.submit(_get_new_leads_today_payload, force)
             new_today_pre = None
             try:
@@ -1577,11 +1551,11 @@ def api_kommo_funnel_live():
             except Exception as e:
                 logger.warning("new_today parallel: %s", e)
             try:
-                result = fut_funnel.result(timeout=90)
+                result, err = fut_funnel.result(timeout=120)
             except FutTimeout as e:
-                raise RuntimeError("Kommo excedeu 90s ao contar filas") from e
-        if result.get("api_error"):
-            raise RuntimeError(result["api_error"])
+                raise RuntimeError("Kommo excedeu 120s ao contar filas") from e
+        if err:
+            raise RuntimeError(err)
         return _finalize(
             result,
             new_today=new_today_pre,
@@ -1589,17 +1563,13 @@ def api_kommo_funnel_live():
         )
 
     if not _kommo_token():
-        try:
-            db_result = _fetch_funnel_from_db()
-            return _finalize(db_result, live_error="KOMMO_TOKEN não configurado", heavy_yesterday=force)
-        except Exception as e:
-            return jsonify({"ok": False, "error": "KOMMO_TOKEN não configurado"}), 500
+        return jsonify({"ok": False, "error": "KOMMO_TOKEN não configurado no servidor."}), 500
 
     try:
         return _live_path()
     except Exception as e:
         logger.warning("funnel live failed: %s", e)
-        return _db_fallback(str(e))
+        return jsonify({"ok": False, "error": _normalize_live_error(str(e))}), 502
 
 
 # ---------------------------------------------------------------------------

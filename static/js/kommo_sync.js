@@ -22,7 +22,6 @@ function escHtml(s) {
 
 const _FUNNEL_GRADIENTS = {
     em_atendimento:       { from: '#14b8a6', to: '#0d9488', border: 'border-teal-500/30',   shadow: 'shadow-teal-500/20' },
-    aguardando_resposta:  { from: '#6366f1', to: '#4f46e5', border: 'border-indigo-500/30', shadow: 'shadow-indigo-500/20' },
     aguardando_inscricao: { from: '#3b82f6', to: '#6366f1', border: 'border-blue-500/30',   shadow: 'shadow-blue-500/20' },
     inscricao:            { from: '#6366f1', to: '#8b5cf6', border: 'border-indigo-500/30', shadow: 'shadow-indigo-500/20' },
     processo_seletivo:    { from: '#8b5cf6', to: '#a855f7', border: 'border-violet-500/30', shadow: 'shadow-violet-500/20' },
@@ -34,7 +33,6 @@ const _FUNNEL_GRADIENTS = {
 
 const _FUNNEL_VISUAL_ORDER = [
     'em_atendimento',
-    'aguardando_resposta',
     'aguardando_inscricao', 'inscricao', 'processo_seletivo',
     'em_processo', 'aprovado_reprovado', 'aceite', 'pagamento_confirmado',
 ];
@@ -76,7 +74,6 @@ function _renderFunnelVisual(data, prefix) {
 
     const visualLabels = {
         em_atendimento: 'Em Atendimento',
-        aguardando_resposta: 'Aguardando Resposta',
         aguardando_inscricao: 'Aguardando Inscrição',
         inscricao: 'Inscrição',
         processo_seletivo: 'Seletivo',
@@ -253,19 +250,14 @@ function _renderFunnelCards(data, prefix) {
     const tsEl = document.getElementById(prefix + '-ts');
     if (tsEl) {
         let label = '';
-        if (data.source === 'db' && data.synced_at) {
-            label = 'Sync ' + data.synced_at;
-            if (data.live_error) {
-                label += ' · desatualizado';
-            }
+        if (data.source === 'db') {
+            label = 'Espelho PG desatualizado';
+            if (data.synced_at) label += ' (' + data.synced_at + ')';
         } else if (data.fetched_at) {
-            label = 'Live ' + data.fetched_at;
+            label = 'Kommo ' + data.fetched_at;
         }
-        if (data.live_error && data.source !== 'db') {
-            label += (label ? ' · ' : '') + 'live indisponível';
-        }
-        if (data.funnel_api_version) {
-            label += (label ? ' · ' : '') + 'v' + data.funnel_api_version;
+        if (data.live_error) {
+            label += (label ? ' · ' : '') + data.live_error;
         }
         tsEl.textContent = label;
     }
