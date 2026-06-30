@@ -634,14 +634,50 @@ _KOMMO_DEFAULT_HEADERS = {
 }
 
 
+def _kommo_http_error(status_code: int) -> str:
+    if status_code == 403:
+        return "Kommo bloqueou o servidor (403 WAF)."
+    if status_code == 401:
+        return "Token Kommo inválido ou expirado (401)."
+    if status_code == 429:
+        return "Kommo limitou requisições (429)."
+    return f"Kommo API HTTP {status_code}"
+
+
+def _sanitize_kommo_error(err: str | None) -> str | None:
+    if not err:
+        return None
+    e = err.strip()
+    low = e.lower()
+    if "<html" in low or "<!doctype" in low:
+        if "403" in e or "forbidden" in low:
+            return "Kommo bloqueou o servidor (403 WAF)."
+        return "Resposta inválida do Kommo."
+    if "403" in e or "forbidden" in low:
+        return "Kommo bloqueou o servidor (403 WAF)."
+    if len(e) > 160:
+        return e[:160] + "…"
+    return e
+
+
+def _kommo_err_blocked(err: str | None) -> bool:
+    if not err:
+        return False
+    low = err.lower()
+    return "403" in err or "forbidden" in low or "401" in err
+
+
 def _kommo_get(path, params=None):
     base = KOMMO_API_BASE.rstrip("/")
+    web_base = base.replace("/api/v4", "").rstrip("/")
     if "/api/v4" not in base:
         url = f"{base}/api/v4{path}"
     else:
         url = f"{base}{path}"
     headers = dict(_KOMMO_DEFAULT_HEADERS)
     headers["Authorization"] = f"Bearer {_kommo_token()}"
+    headers["Origin"] = web_base
+    headers["Referer"] = f"{web_base}/"
     return _requests.get(url, headers=headers, params=params, timeout=30)
 
 
@@ -680,7 +716,7 @@ def _count_new_leads_between(from_ts: int, to_ts: int | None = None, pipeline_id
         if r.status_code != 200:
             logger.warning("count_new_leads API %d: %s", r.status_code, r.text[:200])
             if page == 1:
-                raise RuntimeError(f"Kommo API {r.status_code}")
+                raise RuntimeError(_kommo_http_error(r.status_code))
             break
 
         data = r.json()
@@ -983,9 +1019,8 @@ def _count_leads_in_stage(status_id: int) -> tuple[int, str | None]:
             continue
         rate_retries = 0
         if r.status_code != 200:
-            return (count, f"Kommo API {r.status_code}: {r.text[:200]}") if page > 1 else (
-                0, f"Kommo API {r.status_code}: {r.text[:200]}"
-            )
+            err = _kommo_http_error(r.status_code)
+            return (count, err) if page > 1 else (0, err)
         data = r.json()
         leads = data.get("_embedded", {}).get("leads", [])
         if not leads:
@@ -1041,6 +1076,21 @@ def _fetch_funnel_live_counts(*, dashboard_only: bool = True):
     return out, None
 
 
+def _fetch_funnel_best_effort(*, dashboard_only: bool = True):
+    """API Kommo ao vivo; se bloqueada (403 WAF), cai no espelho Postgres."""
+    result, err = _fetch_funnel_live_counts(dashboard_only=dashboard_only)
+    if result:
+        return result, None, "live"
+    err_s = _sanitize_kommo_error(err)
+    if _kommo_err_blocked(err):
+        try:
+            db = _fetch_funnel_from_db()
+            return db, err_s, "db"
+        except Exception as e:
+            logger.warning("funnel db fallback: %s", e)
+    return None, err_s, None
+
+
 def _load_funnel_disk_cache():
     try:
         if not _FUNNEL_CACHE_FILE.exists():
@@ -1087,11 +1137,11 @@ def _warm_funnel_cache_sync():
             return
         _funnel_warming = True
     try:
-        result, err = _fetch_funnel_live_counts(dashboard_only=True)
-        if err or not result:
-            _funnel_meta["last_error"] = err or "contagem vazia"
+        result, live_err, _src = _fetch_funnel_best_effort(dashboard_only=True)
+        if not result:
+            _funnel_meta["last_error"] = live_err or "contagem vazia"
             _funnel_meta["last_warm_ok"] = False
-            logger.warning("funnel cache warm failed: %s", err)
+            logger.warning("funnel cache warm failed: %s", live_err)
             return
         try:
             nt = _get_new_leads_today_payload(force=False)
@@ -1104,12 +1154,13 @@ def _warm_funnel_cache_sync():
             result,
             new_today=new_today,
             yesterday_summary=_get_yesterday_summary_light(),
+            live_error=live_err if result.get("source") == "db" else None,
         )
         with _funnel_cache_lock:
             _funnel_cache["data"] = enriched
             _funnel_cache["ts"] = _time.time()
         _save_funnel_disk_cache()
-        _funnel_meta["last_error"] = None
+        _funnel_meta["last_error"] = live_err if result.get("source") == "db" else None
         _funnel_meta["last_warm_at"] = datetime.now(_BRT).isoformat()
         _funnel_meta["last_warm_ok"] = True
         logger.info("funnel cache warmed total=%s", enriched.get("total"))
@@ -1267,7 +1318,7 @@ def _fetch_funnel_from_db():
     stages = []
     total = 0
     for sdef in FUNNEL_STAGES_DEF:
-        c = counts.get(sdef["id"], 0)
+        c = counts.get(sdef["id"], 0) if sdef["key"] in FUNNEL_DASHBOARD_COUNT_KEYS else 0
         total += c
         stages.append({
             "key": sdef["key"],
@@ -1286,6 +1337,8 @@ def _fetch_funnel_from_db():
         "leads_fetched": total,
         "pages": 0,
         "source": "db",
+        "funnel_api_version": _FUNNEL_API_VERSION,
+        "dashboard_only": True,
     }
     if last_sync:
         if hasattr(last_sync, "astimezone"):
@@ -1612,13 +1665,16 @@ def api_kommo_funnel_status():
         "cache_age_s": int(_time.time() - cache_ts) if cache_ts else None,
         "cache_total": cached.get("total") if cached else None,
         "warming": _funnel_warming,
-        "meta": dict(_funnel_meta),
+        "meta": {
+            **dict(_funnel_meta),
+            "last_error": _sanitize_kommo_error(_funnel_meta.get("last_error")),
+        },
     })
 
 
 @kommo_bp.route("/api/kommo/funnel-live")
 def api_kommo_funnel_live():
-    """Funil Kommo ao vivo — cache quente + stale-while-revalidate (sem espelho PG)."""
+    """Funil Kommo — cache + stale-while-revalidate; PG se API bloqueada (403 WAF)."""
     force = request.args.get("force", "0") == "1"
     now = _time.time()
 
@@ -1639,107 +1695,40 @@ def api_kommo_funnel_live():
     cache_age = now - cache_ts
     cache_ok = (
         cached
-        and cached.get("source") == "live"
+        and cached.get("source") in ("live", "db")
         and cached.get("funnel_api_version", 0) >= _FUNNEL_API_VERSION
     )
-
-    if cache_ok and not force:
-        data = _attach_intraday(cached)
-        data["stale"] = cache_age >= _FUNNEL_CACHE_TTL
-        if data["stale"]:
-            _start_funnel_cache_warm_async()
-        return jsonify({"ok": True, "data": data, "cached": True})
-
-    def _finalize(
-        result,
-        live_error=None,
-        new_today=None,
-        yesterday_summary=None,
-        heavy_yesterday=False,
-    ):
-        if new_today is None:
-            try:
-                nt = _get_new_leads_today_payload(force=force)
-                new_today = nt["count"]
-                result["new_today_source"] = nt.get("source")
-            except Exception as e:
-                logger.warning("new_today: %s", e)
-                new_today = 0
-        if yesterday_summary is None:
-            if heavy_yesterday:
-                try:
-                    yesterday_summary = _get_yesterday_summary_cached(force=force)
-                except Exception as e:
-                    logger.exception("yesterday_summary failed: %s", e)
-                    yesterday_summary = _get_yesterday_summary_light()
-            else:
-                yesterday_summary = _get_yesterday_summary_light()
-        result = _enrich_funnel_result(
-            result,
-            new_today=new_today,
-            yesterday_summary=yesterday_summary,
-            live_error=live_error,
-        )
-        if result.get("source") == "live":
-            with _funnel_cache_lock:
-                _funnel_cache["data"] = result
-                _funnel_cache["ts"] = now
-        return jsonify({"ok": True, "data": result})
-
-    def _normalize_live_error(live_error: str) -> str:
-        err = live_error or ""
-        if "401" in err:
-            return "Token Kommo inválido ou expirado (401)."
-        if "403" in err:
-            return "Kommo bloqueou a requisição (403 WAF)."
-        if "429" in err:
-            return "Kommo limitou requisições (429). Tente Atualizar em 1 min."
-        return err or "Falha ao buscar funil no Kommo."
-
-    def _live_path(timeout_s=50):
-        from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutTimeout
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            fut_funnel = pool.submit(_fetch_funnel_live_counts, dashboard_only=True)
-            fut_new = pool.submit(_get_new_leads_today_payload, force)
-            new_today_pre = None
-            try:
-                nt = fut_new.result(timeout=15)
-                new_today_pre = nt["count"]
-            except Exception as e:
-                logger.warning("new_today parallel: %s", e)
-            try:
-                result, err = fut_funnel.result(timeout=timeout_s)
-            except FutTimeout as e:
-                raise RuntimeError(f"Kommo excedeu {timeout_s}s ao contar filas") from e
-        if err:
-            raise RuntimeError(err)
-        return _finalize(
-            result,
-            new_today=new_today_pre,
-            heavy_yesterday=force,
-        )
 
     if not _kommo_token():
         return jsonify({"ok": False, "error": "KOMMO_TOKEN não configurado no servidor."}), 500
 
-    if not cache_ok:
-        _start_funnel_cache_warm_async()
+    # Nunca bloquear o worker HTTP na contagem Kommo (30–120s → 502 no proxy Easypanel).
+    # Cache quente: responde na hora; stale-while-revalidate em background.
+    if cache_ok:
+        data = _attach_intraday(cached)
+        data["stale"] = force or cache_age >= _FUNNEL_CACHE_TTL
+        if data["stale"]:
+            _start_funnel_cache_warm_async()
+        return jsonify({"ok": True, "data": data, "cached": True})
 
+    _start_funnel_cache_warm_async()
     try:
-        return _live_path(timeout_s=50 if not force else 90)
+        db = _fetch_funnel_from_db()
+        data = _attach_intraday(db)
+        data["stale"] = True
+        data["live_error"] = (
+            _sanitize_kommo_error(_funnel_meta.get("last_error"))
+            or "Kommo indisponível — espelho Sync."
+        )
+        return jsonify({"ok": True, "data": data, "cached": False, "fallback": "db"})
     except Exception as e:
-        logger.warning("funnel live failed: %s", e)
-        if cache_ok:
-            data = _attach_intraday(cached)
-            data["stale"] = True
-            data["live_error"] = _normalize_live_error(str(e))
-            return jsonify({"ok": True, "data": data, "cached": True})
-        return jsonify({
-            "ok": False,
-            "error": "Funil carregando (primeira carga). Aguarde ~30s e clique Atualizar.",
-            "warming": True,
-            "detail": _funnel_meta.get("last_error"),
-        }), 200
+        logger.warning("funnel pg immediate: %s", e)
+    return jsonify({
+        "ok": False,
+        "error": "Funil carregando (primeira carga). Aguarde ~30s.",
+        "warming": True,
+        "detail": _sanitize_kommo_error(_funnel_meta.get("last_error")),
+    }), 200
 
 
 # ---------------------------------------------------------------------------

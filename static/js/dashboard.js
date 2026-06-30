@@ -143,17 +143,76 @@ async function _apiJsonBody(res) {
     }
 }
 
+let _dashFunnelPollTimer = null;
+
+function _dashCancelFunnelPoll() {
+    if (_dashFunnelPollTimer) {
+        clearTimeout(_dashFunnelPollTimer);
+        _dashFunnelPollTimer = null;
+    }
+}
+
+function _dashFmtKommoErr(msg) {
+    if (!msg) return '';
+    const s = String(msg);
+    if (/<html|<!doctype/i.test(s)) {
+        return /403|forbidden/i.test(s)
+            ? 'Kommo bloqueou o servidor (403 WAF).'
+            : 'Resposta inválida do Kommo.';
+    }
+    return s.length > 160 ? s.slice(0, 160) + '…' : s;
+}
+
 function _dashShowFunnelError(msg) {
     const container = document.getElementById('dash-funnel-cards');
     if (!container) return;
     container.innerHTML = `
         <div class="col-span-full text-center py-8 text-slate-500 text-sm flex flex-col items-center gap-3">
-            <span>${msg || 'Erro ao carregar funil.'}</span>
+            <span>${_dashFmtKommoErr(msg) || 'Erro ao carregar funil.'}</span>
             <button type="button" onclick="_dashRefreshFunnel(true)"
                 class="text-xs text-cyan-400 hover:text-cyan-300 border border-slate-600 px-3 py-1.5 rounded-lg">
                 Tentar novamente
             </button>
         </div>`;
+}
+
+function _dashShowFunnelWarming(msg) {
+    const container = document.getElementById('dash-funnel-cards');
+    if (!container) return;
+    container.innerHTML = `
+        <div class="col-span-full text-center py-8 text-slate-500 text-sm flex flex-col items-center gap-3">
+            <svg class="animate-spin h-6 w-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            <span>${msg || 'Funil carregando (primeira carga)…'}</span>
+            <span class="text-xs text-slate-600">Contagem no Kommo pode levar até 2 min</span>
+        </div>`;
+}
+
+function _dashPollFunnelWarm(attempt) {
+    if (attempt >= 30) {
+        _dashShowFunnelError('Funil ainda carregando. Clique em Tentar novamente.');
+        return;
+    }
+    const delayMs = attempt === 0 ? 4000 : 5000;
+    _dashFunnelPollTimer = setTimeout(async () => {
+        _dashFunnelPollTimer = null;
+        try {
+            const res = await api('/api/kommo/funnel-live');
+            const d = await _apiJsonBody(res);
+            if (d?.ok && d.data && typeof _renderFunnelCards === 'function') {
+                _renderFunnelCards(d.data, 'dash-funnel');
+                if (d.data?.yesterday_summary && typeof _renderYesterdaySummary === 'function') {
+                    _renderYesterdaySummary(d.data.yesterday_summary, 'dash-funnel');
+                }
+                return;
+            }
+            if (d?.warming || !d?.ok) {
+                _dashPollFunnelWarm(attempt + 1);
+            }
+        } catch (e) {
+            console.warn('funnel warm poll:', e);
+            _dashPollFunnelWarm(attempt + 1);
+        }
+    }, delayMs);
 }
 
 async function _dashFallbackYesterdayCommercial(yStr) {
@@ -228,6 +287,7 @@ async function _dashLoadYesterdayKpi(force) {
 }
 
 async function _dashRefreshFunnel(force) {
+    _dashCancelFunnelPoll();
     const btn = document.getElementById('dash-funnel-refresh-btn');
     if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
     const q = force ? '?force=1' : '';
@@ -250,8 +310,9 @@ async function _dashRefreshFunnel(force) {
         const res = await api('/api/kommo/funnel-live' + q, ctrl ? { signal: ctrl.signal } : {});
         if (timer) clearTimeout(timer);
         const d = await _apiJsonBody(res);
-        if (d?.ok && d.data?.source === 'db') {
-            _dashShowFunnelError('Dados do espelho PG (desatualizado). Clique em Atualizar.');
+        if (d?.warming) {
+            _dashShowFunnelWarming(d.error);
+            _dashPollFunnelWarm(0);
             return;
         }
         if (d?.ok && typeof _renderFunnelCards === 'function') {
@@ -263,7 +324,7 @@ async function _dashRefreshFunnel(force) {
             console.error('dash funnel-live: _renderFunnelCards ausente — recarregue a página');
             _dashShowFunnelError('Erro de carregamento do JS. Recarregue a página (Ctrl+Shift+R).');
         } else {
-            const errMsg = d?.detail
+            const errMsg = _dashFmtKommoErr(d?.detail)
                 || d?.error
                 || (d?.warming ? 'Funil carregando… aguarde ~30s e clique Atualizar.' : null)
                 || (res && !res.ok && !d ? `HTTP ${res.status} — resposta inválida do servidor` : null)
