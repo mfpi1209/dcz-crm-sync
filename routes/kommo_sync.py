@@ -612,8 +612,10 @@ FUNNEL_DASHBOARD_COUNT_KEYS = set(FUNNEL_HIGHLIGHT) | {
 _funnel_cache = {"data": None, "ts": 0}
 _funnel_cache_lock = threading.Lock()
 _funnel_warming = False
+_funnel_meta = {"last_error": None, "last_warm_at": None, "last_warm_ok": None}
 _FUNNEL_CACHE_TTL = 300
 _FUNNEL_API_VERSION = 6
+_FUNNEL_CACHE_FILE = Path(__file__).resolve().parent.parent / "data" / "funnel_live_cache.json"
 # Easypanel/nginx costuma cortar em ~60s; live Kommo pode levar 40s+.
 _FUNNEL_LIVE_TIMEOUT_S = int(os.getenv("FUNNEL_LIVE_TIMEOUT_S", "25"))
 _FUNNEL_LIVE_FORCE_TIMEOUT_S = int(os.getenv("FUNNEL_LIVE_FORCE_TIMEOUT_S", "45"))
@@ -1039,10 +1041,46 @@ def _fetch_funnel_live_counts(*, dashboard_only: bool = True):
     return out, None
 
 
+def _load_funnel_disk_cache():
+    try:
+        if not _FUNNEL_CACHE_FILE.exists():
+            return
+        with open(_FUNNEL_CACHE_FILE, encoding="utf-8") as f:
+            blob = json.load(f)
+        data = blob.get("data")
+        if not data or data.get("funnel_api_version", 0) < _FUNNEL_API_VERSION:
+            return
+        with _funnel_cache_lock:
+            _funnel_cache["data"] = data
+            _funnel_cache["ts"] = float(blob.get("ts") or 0)
+        logger.info("funnel disk cache loaded total=%s", data.get("total"))
+    except Exception as e:
+        logger.warning("funnel disk cache load: %s", e)
+
+
+def _save_funnel_disk_cache():
+    try:
+        with _funnel_cache_lock:
+            if not _funnel_cache.get("data"):
+                return
+            blob = {"ts": _funnel_cache["ts"], "data": _funnel_cache["data"]}
+        _FUNNEL_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(_FUNNEL_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(blob, f, ensure_ascii=False)
+    except Exception as e:
+        logger.warning("funnel disk cache save: %s", e)
+
+
+_load_funnel_disk_cache()
+
+
 def _warm_funnel_cache_sync():
     """Atualiza cache do funil em background (cron / stale-while-revalidate)."""
     global _funnel_warming
     if not _kommo_token():
+        _funnel_meta["last_error"] = "KOMMO_TOKEN não configurado"
+        _funnel_meta["last_warm_at"] = datetime.now(_BRT).isoformat()
+        _funnel_meta["last_warm_ok"] = False
         return
     with _funnel_cache_lock:
         if _funnel_warming:
@@ -1051,6 +1089,8 @@ def _warm_funnel_cache_sync():
     try:
         result, err = _fetch_funnel_live_counts(dashboard_only=True)
         if err or not result:
+            _funnel_meta["last_error"] = err or "contagem vazia"
+            _funnel_meta["last_warm_ok"] = False
             logger.warning("funnel cache warm failed: %s", err)
             return
         try:
@@ -1068,10 +1108,17 @@ def _warm_funnel_cache_sync():
         with _funnel_cache_lock:
             _funnel_cache["data"] = enriched
             _funnel_cache["ts"] = _time.time()
+        _save_funnel_disk_cache()
+        _funnel_meta["last_error"] = None
+        _funnel_meta["last_warm_at"] = datetime.now(_BRT).isoformat()
+        _funnel_meta["last_warm_ok"] = True
         logger.info("funnel cache warmed total=%s", enriched.get("total"))
     except Exception as e:
+        _funnel_meta["last_error"] = str(e)
+        _funnel_meta["last_warm_ok"] = False
         logger.exception("funnel cache warm: %s", e)
     finally:
+        _funnel_meta["last_warm_at"] = datetime.now(_BRT).isoformat()
         with _funnel_cache_lock:
             _funnel_warming = False
 
@@ -1548,6 +1595,27 @@ def api_kommo_yesterday_summary():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@kommo_bp.route("/api/kommo/funnel-status")
+def api_kommo_funnel_status():
+    """Diagnóstico do funil (token, cache, último warm) — use logado no painel."""
+    with _funnel_cache_lock:
+        cached = _funnel_cache.get("data")
+        cache_ts = _funnel_cache.get("ts", 0)
+    tok = _kommo_token()
+    return jsonify({
+        "ok": True,
+        "code_version": _FUNNEL_API_VERSION,
+        "token_configured": bool(tok),
+        "token_length": len(tok),
+        "kommo_base_url": (os.getenv("KOMMO_BASE_URL") or "")[:120],
+        "cache_has_data": bool(cached),
+        "cache_age_s": int(_time.time() - cache_ts) if cache_ts else None,
+        "cache_total": cached.get("total") if cached else None,
+        "warming": _funnel_warming,
+        "meta": dict(_funnel_meta),
+    })
+
+
 @kommo_bp.route("/api/kommo/funnel-live")
 def api_kommo_funnel_live():
     """Funil Kommo ao vivo — cache quente + stale-while-revalidate (sem espelho PG)."""
@@ -1670,6 +1738,7 @@ def api_kommo_funnel_live():
             "ok": False,
             "error": "Funil carregando (primeira carga). Aguarde ~30s e clique Atualizar.",
             "warming": True,
+            "detail": _funnel_meta.get("last_error"),
         }), 200
 
 

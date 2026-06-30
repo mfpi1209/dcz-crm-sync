@@ -263,7 +263,8 @@ async function _dashRefreshFunnel(force) {
             console.error('dash funnel-live: _renderFunnelCards ausente — recarregue a página');
             _dashShowFunnelError('Erro de carregamento do JS. Recarregue a página (Ctrl+Shift+R).');
         } else {
-            const errMsg = d?.error
+            const errMsg = d?.detail
+                || d?.error
                 || (d?.warming ? 'Funil carregando… aguarde ~30s e clique Atualizar.' : null)
                 || (res && !res.ok && !d ? `HTTP ${res.status} — resposta inválida do servidor` : null)
                 || (res && !res.ok ? `HTTP ${res.status}` : null)
