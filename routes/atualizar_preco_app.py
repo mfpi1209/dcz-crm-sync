@@ -74,6 +74,33 @@ def _patched_ler_grad(file_bytes):
 
 mod.ler_grad = _patched_ler_grad
 
+# Monkey-patch api_patch: o .pyc compilado nao prefixa BASE_URL em URLs
+# relativas (api_get prefixa, api_patch nao). Sem isto, atualizar preco
+# de produtos Kommo falha com "unknown url type: '/api/v4/...'".
+import json as _json_std
+import urllib.request as _urlreq_std
+
+
+def _patched_api_patch(url, body):
+    if isinstance(url, str) and url.startswith('/'):
+        url = mod.BASE_URL.rstrip('/') + url
+    data = _json_std.dumps(body).encode('utf-8')
+    req = _urlreq_std.Request(
+        url,
+        data=data,
+        headers={
+            'Authorization': f'Bearer {mod.TOKEN}',
+            'Content-Type': 'application/json',
+        },
+        method='PATCH',
+    )
+    ctx = getattr(mod, 'CTX', None)
+    with _urlreq_std.urlopen(req, context=ctx) as r:
+        return _json_std.loads(r.read().decode('utf-8'))
+
+
+mod.api_patch = _patched_api_patch
+
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # Imports from compiled module
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
