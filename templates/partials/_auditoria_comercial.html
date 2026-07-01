@@ -493,6 +493,86 @@
 .dark #page-auditoria_comercial .tempo-badge.slow   { color: #f87171; }
 .dark #page-auditoria_comercial .modal-meta-chip { background: var(--bg); color: var(--text-muted); }
 .dark #page-auditoria_comercial .btn-ver-mais { background: #1e293b; color: #94a3b8; }
+
+/* FASE CHIP */
+#page-auditoria_comercial .ac-chip-fase {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 20px;
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+}
+/* SEVERIDADE BADGE */
+#page-auditoria_comercial .ac-sev-badge {
+  display: inline-flex; align-items: center;
+  padding: 1px 6px; border-radius: 10px;
+  font-size: 10px; font-weight: 800; white-space: nowrap;
+}
+#page-auditoria_comercial .ac-sev-badge.sev-alta  { background: #dc2626; color: #fff; }
+#page-auditoria_comercial .ac-sev-badge.sev-media { background: #f59e0b; color: #fff; }
+#page-auditoria_comercial .ac-sev-badge.sev-baixa { background: #facc15; color: #78350f; }
+/* CITATION HIGHLIGHTS */
+#page-auditoria_comercial .ac-neg-hit {
+  background: #fee2e2; color: #7f1d1d;
+  padding: 1px 3px; border-radius: 3px; cursor: help;
+}
+#page-auditoria_comercial .ac-msg-neg { border-left: 3px solid #dc2626 !important; }
+/* MSG PRONTA BADGE */
+#page-auditoria_comercial .ac-msg-template-badge {
+  display: inline-block; background: #0284c7; color: #fff;
+  font-size: 10px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .04em; padding: 1px 6px; border-radius: 4px;
+  margin-bottom: 4px;
+}
+/* WHATSAPP BUBBLES - dark theme */
+#page-auditoria_comercial .msg-bubble-wrap {
+  background: #0b141a; padding: 14px; border-radius: 12px;
+  background-image:
+    radial-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+    radial-gradient(rgba(255,255,255,0.015) 1px, transparent 1px);
+  background-size: 24px 24px, 40px 40px;
+  background-position: 0 0, 12px 12px;
+}
+#page-auditoria_comercial .ac-wa-row { display: flex; margin-bottom: 8px; }
+#page-auditoria_comercial .ac-wa-row.wa-dir-in  { justify-content: flex-start; }
+#page-auditoria_comercial .ac-wa-row.wa-dir-out { justify-content: flex-end; }
+#page-auditoria_comercial .ac-wa-bubble {
+  max-width: 72%; border-radius: 8px;
+  padding: 6px 10px 6px 10px; font-size: 13.5px; line-height: 1.45;
+  word-break: break-word; box-shadow: 0 1px 1px rgba(0,0,0,0.25);
+  position: relative;
+}
+#page-auditoria_comercial .ac-wa-bubble.wa-in  {
+  background: #202c33; color: #e9edef;
+  border-top-left-radius: 2px;
+}
+#page-auditoria_comercial .ac-wa-bubble.wa-out {
+  background: #005c4b; color: #e9edef;
+  border-top-right-radius: 2px;
+}
+#page-auditoria_comercial .ac-wa-bubble.wa-out-tpl {
+  background: #044a5c; color: #e9edef;
+  border-top-right-radius: 2px;
+  border-left: 3px solid #38bdf8;
+}
+#page-auditoria_comercial .ac-wa-sender {
+  font-size: 12px; font-weight: 700; margin-bottom: 2px;
+  letter-spacing: 0.01em;
+}
+#page-auditoria_comercial .ac-wa-bubble.wa-in .ac-wa-sender { color: #53bdeb; }
+#page-auditoria_comercial .ac-wa-bubble.wa-out .ac-wa-sender { color: #7ee2c4; }
+#page-auditoria_comercial .ac-wa-bubble.wa-out-tpl .ac-wa-sender { color: #7dd3fc; }
+#page-auditoria_comercial .ac-wa-time {
+  font-size: 10.5px; color: rgba(233,237,239,0.55);
+  margin-top: 3px; text-align: right;
+}
+/* POINT CHIPS in tables */
+#page-auditoria_comercial .ac-point-chip {
+  display: inline-flex; align-items: center;
+  padding: 2px 7px; border-radius: 20px;
+  font-size: 11px; font-weight: 600; white-space: nowrap; margin: 1px 2px;
+}
+#page-auditoria_comercial .ac-point-chip.pos  { background: #dcfce7; color: #16a34a; }
+#page-auditoria_comercial .ac-point-chip.neg  { background: #fee2e2; color: #dc2626; }
+#page-auditoria_comercial .ac-point-chip.more { background: #f1f5f9; color: #64748b; }
 </style>
 
 <!-- TOPBAR -->
@@ -1077,13 +1157,149 @@
     });
   }
 
+  // ── POINT CHIPS (tables) ──────────────────────────────────
+  function acRenderPointChips(arrNew, fallbackStr, type) {
+    const arr = Array.isArray(arrNew) ? arrNew
+      : (typeof arrNew === 'string' ? (() => { try { const p = JSON.parse(arrNew); return Array.isArray(p) ? p : null; } catch { return null; } })() : null);
+    if (arr && arr.length) {
+      const shown = arr.slice(0, 2);
+      const more  = arr.length - shown.length;
+      let html = shown.map(item => {
+        const lbl = (item.titulo || item.title || '').substring(0, 22);
+        return `<span class="ac-point-chip ${type}" title="${acEscHtml(item.titulo || item.title || '')}">${acEscHtml(lbl)}</span>`;
+      }).join('');
+      if (more > 0) html += `<span class="ac-point-chip more">+${more}</span>`;
+      return html || '<span class="td-muted">—</span>';
+    }
+    if (fallbackStr) {
+      return `<span class="ac-point-chip ${type}" title="${acEscHtml(fallbackStr)}">${acEscHtml(fallbackStr.substring(0, 25))}</span>`;
+    }
+    return '<span class="td-muted">—</span>';
+  }
+
+  // ── FASE CHIP ─────────────────────────────────────────────
+  function acRenderFaseChip(nome, cat, leadPerdido) {
+    if (!nome) return '';
+    const palettes = {
+      ganho:        { bg: '#16a34a22', color: '#16a34a' },
+      perdido:      { bg: '#dc262622', color: '#dc2626' },
+      em_andamento: { bg: '#2563eb22', color: '#2563eb' },
+    };
+    const p = palettes[cat] || { bg: '#f1f5f922', color: '#64748b' };
+    let html = `<span class="ac-chip-fase" style="background:${p.bg};color:${p.color}">Fase: ${acEscHtml(nome)}</span>`;
+    if (leadPerdido) {
+      html += ` <span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:800;background:#dc2626;color:#fff;white-space:nowrap">PERDIDO</span>`;
+    }
+    return html;
+  }
+
+  // ── POINTS CARDS (modal) ──────────────────────────────────
+  function acRenderPointsCards(r) {
+    const parseFast = v => {
+      if (!v) return null;
+      if (Array.isArray(v)) return v.length ? v : null;
+      if (typeof v === 'string') { try { const p = JSON.parse(v); return Array.isArray(p) && p.length ? p : null; } catch { return null; } }
+      return null;
+    };
+    const pos = parseFast(r.pontos_positivos);
+    const neg = parseFast(r.pontos_negativos);
+
+    if (pos || neg) {
+      let html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
+      if (pos) {
+        const items = pos.map(item => {
+          const titulo = acEscHtml(item.titulo || '');
+          const cat = item.categoria ? `<span style="display:inline-flex;align-items:center;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(22,163,74,.12);color:#16a34a;margin-left:5px">${acEscHtml(item.categoria)}</span>` : '';
+          return `<div style="display:flex;align-items:flex-start;flex-wrap:wrap;gap:4px;padding:5px 0;border-bottom:1px solid rgba(22,163,74,.12);font-size:12.5px"><strong style="color:var(--success)">${titulo}</strong>${cat}</div>`;
+        }).join('');
+        html += `<div style="background:var(--success-light);border-radius:8px;padding:12px 14px">
+          <div style="font-size:10px;font-weight:700;color:var(--success);margin-bottom:8px">✓ PONTOS POSITIVOS (${pos.length})</div>
+          ${items}
+        </div>`;
+      } else if (r.ponto_positivo) {
+        html += `<div style="background:var(--success-light);border-radius:8px;padding:10px 12px">
+          <div style="font-size:10px;font-weight:700;color:var(--success);margin-bottom:3px">✓ PONTO POSITIVO</div>
+          <div style="font-size:12.5px;color:var(--success)">${acEscHtml(r.ponto_positivo)}</div>
+        </div>`;
+      }
+      const sevClass = sev => ({ alta:'sev-alta', media:'sev-media', baixa:'sev-baixa' }[sev] || '');
+      if (neg) {
+        const items = neg.map(item => {
+          const titulo = acEscHtml(item.titulo || '');
+          const cat = item.categoria ? `<span style="display:inline-flex;align-items:center;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(220,38,38,.12);color:#dc2626;margin-left:5px">${acEscHtml(item.categoria)}</span>` : '';
+          const sev = item.severidade ? `<span class="ac-sev-badge ${sevClass(item.severidade)}" style="margin-left:5px">${acEscHtml(item.severidade)}</span>` : '';
+          return `<div style="display:flex;align-items:flex-start;flex-wrap:wrap;gap:4px;padding:5px 0;border-bottom:1px solid rgba(220,38,38,.12);font-size:12.5px"><strong style="color:var(--danger)">${titulo}</strong>${cat}${sev}</div>`;
+        }).join('');
+        html += `<div style="background:var(--danger-light);border-radius:8px;padding:12px 14px">
+          <div style="font-size:10px;font-weight:700;color:var(--danger);margin-bottom:8px">✗ PONTOS NEGATIVOS (${neg.length})</div>
+          ${items}
+        </div>`;
+      } else if (r.ponto_negativo) {
+        html += `<div style="background:var(--danger-light);border-radius:8px;padding:10px 12px">
+          <div style="font-size:10px;font-weight:700;color:var(--danger);margin-bottom:3px">✗ PONTO NEGATIVO</div>
+          <div style="font-size:12.5px;color:var(--danger)">${acEscHtml(r.ponto_negativo)}</div>
+        </div>`;
+      }
+      html += '</div>';
+      return html;
+    }
+
+    // Fallback: legacy text fields
+    if (!r.ponto_positivo && !r.ponto_negativo) return '';
+    return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      ${r.ponto_positivo ? `<div style="background:var(--success-light);border-radius:8px;padding:10px 12px">
+        <div style="font-size:10px;font-weight:700;color:var(--success);margin-bottom:3px">✓ PONTO POSITIVO</div>
+        <div style="font-size:12.5px;color:var(--success)">${acEscHtml(r.ponto_positivo)}</div>
+      </div>` : ''}
+      ${r.ponto_negativo ? `<div style="background:var(--danger-light);border-radius:8px;padding:10px 12px">
+        <div style="font-size:10px;font-weight:700;color:var(--danger);margin-bottom:3px">✗ PONTO NEGATIVO</div>
+        <div style="font-size:12.5px;color:var(--danger)">${acEscHtml(r.ponto_negativo)}</div>
+      </div>` : ''}
+    </div>`;
+  }
+
+  // ── CITATION HIGHLIGHTS ───────────────────────────────────
+  function acHighlightCitations(pontosNegativos) {
+    const negArr = Array.isArray(pontosNegativos) ? pontosNegativos
+      : (typeof pontosNegativos === 'string' ? (() => { try { return JSON.parse(pontosNegativos); } catch { return []; } })() : []);
+    if (!negArr || !negArr.length) return;
+    const wrap = document.getElementById('ac-wa-conv-wrap');
+    if (!wrap) return;
+    const normStr = s => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const allBubbles = Array.from(wrap.querySelectorAll('.ac-wa-bubble'));
+    negArr.forEach(n => {
+      if (!n.citacao || !n.citacao.trim()) return;
+      const normCit = normStr(n.citacao);
+      let found = false;
+      allBubbles.forEach(bubble => {
+        const contentEl = bubble.querySelector('.ac-wa-content');
+        if (!contentEl) return;
+        const text = contentEl.textContent || '';
+        const normText = normStr(text);
+        const pos = normText.indexOf(normCit);
+        if (pos === -1) return;
+        found = true;
+        const before = text.substring(0, pos);
+        const match  = text.substring(pos, pos + n.citacao.length);
+        const after  = text.substring(pos + n.citacao.length);
+        const lbl = [n.titulo, n.severidade, n.categoria].filter(Boolean).join(' \u2022 ');
+        contentEl.innerHTML = acEscHtml(before)
+          + `<mark class="ac-neg-hit" title="${acEscHtml(lbl)}" data-titulo="${acEscHtml(n.titulo || '')}" data-severidade="${acEscHtml(n.severidade || '')}" data-categoria="${acEscHtml(n.categoria || '')}">${acEscHtml(match)}</mark>`
+          + acEscHtml(after);
+      });
+      if (!found) {
+        allBubbles.forEach(bubble => bubble.classList.add('ac-msg-neg'));
+      }
+    });
+  }
+
   // ── TABLE ─────────────────────────────────────────────────
   async function acLoadTable(page = 1) {
     const db = acGetDb();
     const from = (page - 1) * AC_PAGE_SIZE;
     const to = from + AC_PAGE_SIZE - 1;
     let query = db.from('comercial_feedback')
-      .select('id, contact_id, lead_id, consultor, avaliacao, nota_avaliacao, ponto_positivo, ponto_negativo, tempo_medio_de_resposta, created_at', { count: 'exact' })
+      .select('id, contact_id, lead_id, consultor, avaliacao, nota_avaliacao, ponto_positivo, ponto_negativo, pontos_positivos, pontos_negativos, fase_lead_nome, fase_lead_categoria, lead_perdido, tempo_medio_de_resposta, created_at', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(from, to);
     query = acBuildFilters(query);
@@ -1115,12 +1331,8 @@
             ? `<span class="badge ${acNotaClass(r.nota_avaliacao)}">${r.nota_avaliacao}</span>`
             : '<span class="td-muted">—</span>'}
         </td>
-        <td class="td-truncate" title="${acEscHtml(r.ponto_positivo)}" style="max-width:160px;color:#16a34a;font-size:12px">
-          ${acEscHtml(r.ponto_positivo || '—')}
-        </td>
-        <td class="td-truncate" title="${acEscHtml(r.ponto_negativo)}" style="max-width:160px;color:#dc2626;font-size:12px">
-          ${acEscHtml(r.ponto_negativo || '—')}
-        </td>
+        <td style="max-width:180px">${acRenderPointChips(r.pontos_positivos, r.ponto_positivo, 'pos')}</td>
+        <td style="max-width:180px">${acRenderPointChips(r.pontos_negativos, r.ponto_negativo, 'neg')}</td>
         <td>
           <span class="tempo-badge ${acTempoClass(r.tempo_medio_de_resposta)}">
             ${acSecsToHuman(r.tempo_medio_de_resposta)}
@@ -1196,12 +1408,15 @@
       ${r.contact_id ? `<span class="modal-meta-chip">Contact: ${acEscHtml(r.contact_id)}</span>` : ''}
       ${r.lead_id ? `<span class="modal-meta-chip">Lead: ${acEscHtml(r.lead_id)}</span>` : ''}
       <span class="modal-meta-chip">${acFormatDate(r.created_at)}</span>
+      ${acRenderFaseChip(r.fase_lead_nome, r.fase_lead_categoria, r.lead_perdido)}
     `;
 
     const conv = acParseConversa(r.conversa_completa);
     const metricas = conv?.metricas_tempo_resposta || null;
     const messages = conv?.messages || [];
     const convText = conv?.conversation_text || null;
+    const consultorName = r.consultor || 'Atendente';
+    const leadName = conv?.lead_nome || (messages.find(m => m.sender_type === 'contact' && m.sender_name)?.sender_name) || 'Cliente';
     const notaColor2 = acNotaColor(r.nota_avaliacao);
 
     const body = `
@@ -1218,16 +1433,7 @@
               <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px">AVALIAÇÃO</div>
               <div style="font-size:13px;line-height:1.6;color:var(--text)">${acEscHtml(r.avaliacao)}</div>
             </div>` : ''}
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-              ${r.ponto_positivo ? `<div style="background:var(--success-light);border-radius:8px;padding:10px 12px">
-                <div style="font-size:10px;font-weight:700;color:var(--success);margin-bottom:3px">✓ PONTO POSITIVO</div>
-                <div style="font-size:12.5px;color:var(--success)">${acEscHtml(r.ponto_positivo)}</div>
-              </div>` : ''}
-              ${r.ponto_negativo ? `<div style="background:var(--danger-light);border-radius:8px;padding:10px 12px">
-                <div style="font-size:10px;font-weight:700;color:var(--danger);margin-bottom:3px">✗ PONTO NEGATIVO</div>
-                <div style="font-size:12.5px;color:var(--danger)">${acEscHtml(r.ponto_negativo)}</div>
-              </div>` : ''}
-            </div>
+            ${acRenderPointsCards(r)}
           </div>
         </div>
       </div>
@@ -1266,29 +1472,54 @@
 
       <div>
         <div class="modal-section-title">Conversa Completa</div>
-        ${acRenderConversation(convText, messages)}
+        ${acRenderConversation(convText, messages, consultorName, leadName)}
       </div>
     `;
     document.getElementById('ac-modal-body').innerHTML = body;
+    acHighlightCitations(r.pontos_negativos);
   }
 
-  function acRenderConversation(convText, messages) {
-    if (convText && convText.trim()) {
-      return `<div class="conversation-box">${acEscHtml(convText)}</div>`;
-    }
+  function acRenderConversation(convText, messages, consultorName, leadName) {
+    consultorName = consultorName || 'Atendente';
+    leadName      = leadName || 'Cliente';
     if (messages && messages.length) {
       const bubbles = messages.map(m => {
-        const dir = (m.direction === 'outbound') ? 'outbound' : 'inbound';
-        const sender = m.sender_name || m.consultor_responsavel || (dir === 'inbound' ? m.lead_nome : 'Consultor') || '—';
-        const content = m.content || m.message_text || '';
-        const time = m.sent_at ? new Date(m.sent_at).toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'}) : '';
-        return `<div class="msg-bubble ${dir}">
-          <div class="msg-sender">${acEscHtml(sender)}</div>
-          ${acEscHtml(content)}
-          ${time ? `<div class="msg-meta">${time}</div>` : ''}
-        </div>`;
+        const senderType = m.sender_type || null;
+        const isTemplate = !!m.is_template;
+        let dir, bubbleClass, senderLabel;
+        if (senderType === 'contact') {
+          dir = 'in'; bubbleClass = 'wa-in';
+          senderLabel = m.sender_name || leadName;
+        } else if (senderType === 'user') {
+          dir = 'out';
+          bubbleClass = isTemplate ? 'wa-out-tpl' : 'wa-out';
+          senderLabel = m.sender_name || consultorName;
+        } else {
+          const legacyOut = m.direction === 'outbound';
+          dir = legacyOut ? 'out' : 'in';
+          bubbleClass = legacyOut ? 'wa-out' : 'wa-in';
+          senderLabel = m.sender_name || (legacyOut ? consultorName : leadName);
+        }
+        const content  = m.content || m.message_text || '';
+        const time     = m.sent_at_sp || '';
+        const msgType  = m.message_type || 'text';
+        const mediaUrl = m.media_url || '';
+        let mediaHtml = '';
+        if (msgType === 'voice') {
+          mediaHtml = `<div style="font-size:12px;margin-bottom:4px;opacity:.85">🎧 [áudio]${mediaUrl ? ` <a href="${acEscHtml(mediaUrl)}" target="_blank" rel="noopener" style="color:#53bdeb">ouvir</a>` : ''}</div>`;
+        } else if (mediaUrl && msgType !== 'text') {
+          mediaHtml = `<div style="font-size:12px;margin-bottom:4px;opacity:.85">📎 [mídia] <a href="${acEscHtml(mediaUrl)}" target="_blank" rel="noopener" style="color:#53bdeb">abrir</a></div>`;
+        }
+        const templateBadge = isTemplate ? `<div class="ac-msg-template-badge">MSG PRONTA</div>` : '';
+        const senderHtml    = `<div class="ac-wa-sender">${acEscHtml(senderLabel)}</div>`;
+        const contentHtml   = content ? `<span class="ac-wa-content">${acEscHtml(content)}</span>` : '';
+        const timeHtml      = time ? `<div class="ac-wa-time">${acEscHtml(time)}</div>` : '';
+        return `<div class="ac-wa-row wa-dir-${dir}"><div class="ac-wa-bubble ${bubbleClass}">${templateBadge}${senderHtml}${mediaHtml}${contentHtml}${timeHtml}</div></div>`;
       }).join('');
-      return `<div class="msg-bubble-wrap">${bubbles}</div>`;
+      return `<div class="msg-bubble-wrap" id="ac-wa-conv-wrap">${bubbles}</div>`;
+    }
+    if (convText && convText.trim()) {
+      return `<div class="conversation-box">${acEscHtml(convText)}</div>`;
     }
     return '<div style="color:var(--text-muted);font-size:13px;padding:12px 0">Conteúdo da conversa não disponível para este registro.</div>';
   }
@@ -1348,7 +1579,7 @@
 
     const result = await acFetchAllPages(db => {
       let q = db.from('comercial_feedback')
-        .select('id, nota_avaliacao, ponto_positivo, ponto_negativo, tempo_medio_de_resposta, avaliacao, created_at, updated_at, contact_id, lead_id')
+        .select('id, nota_avaliacao, ponto_positivo, ponto_negativo, pontos_positivos, pontos_negativos, fase_lead_nome, fase_lead_categoria, lead_perdido, tempo_medio_de_resposta, avaliacao, created_at, updated_at, contact_id, lead_id')
         .eq('consultor', name)
         .order('updated_at', { ascending: false });
       if (dateStart) q = q.gte('updated_at', dateStart);
@@ -1455,10 +1686,8 @@
         <td>${r.nota_avaliacao != null
           ? `<span class="badge ${acNotaClass(r.nota_avaliacao)}">${r.nota_avaliacao}</span>`
           : '<span class="td-muted">—</span>'}</td>
-        <td class="td-truncate" title="${acEscHtml(r.ponto_positivo)}" style="max-width:160px;color:#16a34a;font-size:12px">
-          ${acEscHtml(r.ponto_positivo || '—')}</td>
-        <td class="td-truncate" title="${acEscHtml(r.ponto_negativo)}" style="max-width:160px;color:#dc2626;font-size:12px">
-          ${acEscHtml(r.ponto_negativo || '—')}</td>
+        <td style="max-width:180px">${acRenderPointChips(r.pontos_positivos, r.ponto_positivo, 'pos')}</td>
+        <td style="max-width:180px">${acRenderPointChips(r.pontos_negativos, r.ponto_negativo, 'neg')}</td>
         <td><span class="tempo-badge ${acTempoClass(r.tempo_medio_de_resposta)}">${acSecsToHuman(r.tempo_medio_de_resposta)}</span></td>
         <td>
           <button class="btn-detail" onclick="acOpenDetail(${r.id})">
