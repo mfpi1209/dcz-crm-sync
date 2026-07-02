@@ -426,6 +426,8 @@ const PAGE_LABELS = {
     clicks: 'QR Codes',
     leads_promotores: 'Leads · Promotores',
     meus_atendimentos: 'Meus Atendimentos',
+    premiacoes_internas: 'Premiações (Gestores)',
+    aprovacao_premiacoes: 'Central de Aprovação de Premiações',
     rematricula: 'Rematrícula',
     disparador_whatsapp: 'Disparador WhatsApp (acesso geral)',
     disparador_whatsapp_disparador: 'Disparador WhatsApp · Disparador',
@@ -584,6 +586,13 @@ const PAGE_GROUPS_CONFIG = [
         icon: 'developer_board',
         color: 'var(--primary)',
         pages: ['solicitacoes_ti'],
+    },
+    {
+        label: 'Premiações Internas',
+        section: 'Operação',
+        icon: 'workspace_premium',
+        color: 'var(--primary)',
+        pages: ['premiacoes_internas', 'aprovacao_premiacoes'],
     },
     {
         label: 'Sistema',

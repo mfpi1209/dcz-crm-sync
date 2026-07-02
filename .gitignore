@@ -12,3 +12,4 @@ venv/
 kommo_lib/kommo_sync.db
 kommo_lib/kommo_sync.log
 app_output.log
+flask_*.log

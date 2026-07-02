@@ -1008,3 +1008,95 @@ def _ensure_avisos_tables():
         conn.close()
     except Exception as e:
         logger.warning("Could not ensure avisos tables: %s", e)
+
+
+def _ensure_premiacao_interna_tables():
+    """Create Premiacoes Internas workflow tables (lote, colaborador, evento).
+
+    Kept in a dedicated ensure to avoid mixing with `premiacao_*` (campanhas
+    comerciais) — see AGENTS.md 2026-07-02 for the naming rationale.
+    """
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_interna_lote (
+                    id                       SERIAL PRIMARY KEY,
+                    mes_referencia           TEXT NOT NULL,
+                    setor                    TEXT NOT NULL,
+                    gestor_user_id           INTEGER NOT NULL REFERENCES app_users(id),
+                    gestor_nome              TEXT NOT NULL,
+                    observacoes_gerais       TEXT,
+                    status                   TEXT NOT NULL DEFAULT 'rascunho',
+                    valor_total              NUMERIC(14,2) NOT NULL DEFAULT 0,
+                    enviado_em               TIMESTAMPTZ,
+                    decidido_em              TIMESTAMPTZ,
+                    aprovador_user_id        INTEGER REFERENCES app_users(id),
+                    aprovador_nome           TEXT,
+                    aprovador_justificativa  TEXT,
+                    created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pil_status ON premiacao_interna_lote(status)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pil_gestor ON premiacao_interna_lote(gestor_user_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pil_mes    ON premiacao_interna_lote(mes_referencia)")
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_interna_colaborador (
+                    id                  SERIAL PRIMARY KEY,
+                    lote_id             INTEGER NOT NULL REFERENCES premiacao_interna_lote(id) ON DELETE CASCADE,
+                    nome                TEXT NOT NULL,
+                    cargo               TEXT NOT NULL,
+                    setor               TEXT NOT NULL,
+                    valor               NUMERIC(14,2) NOT NULL,
+                    justificativa       TEXT NOT NULL,
+                    observacoes         TEXT,
+                    is_auto_premiacao   BOOLEAN NOT NULL DEFAULT FALSE,
+                    ordem               INTEGER NOT NULL DEFAULT 0,
+                    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pic_lote ON premiacao_interna_colaborador(lote_id)")
+
+            cur.execute("""
+                ALTER TABLE premiacao_interna_colaborador
+                ADD COLUMN IF NOT EXISTS app_user_id INTEGER
+                    REFERENCES app_users(id) ON DELETE SET NULL
+            """)
+            cur.execute("""
+                ALTER TABLE premiacao_interna_colaborador
+                ADD COLUMN IF NOT EXISTS email TEXT
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pic_user ON premiacao_interna_colaborador(app_user_id)")
+
+            cur.execute("""
+                ALTER TABLE premiacao_interna_lote
+                ALTER COLUMN gestor_user_id DROP NOT NULL
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_interna_evento (
+                    id               SERIAL PRIMARY KEY,
+                    lote_id          INTEGER NOT NULL REFERENCES premiacao_interna_lote(id) ON DELETE CASCADE,
+                    tipo             TEXT NOT NULL,
+                    status_anterior  TEXT,
+                    status_novo      TEXT,
+                    autor_user_id    INTEGER NOT NULL REFERENCES app_users(id),
+                    autor_nome       TEXT NOT NULL,
+                    justificativa    TEXT,
+                    payload_diff     JSONB,
+                    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pie_lote    ON premiacao_interna_evento(lote_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pie_created ON premiacao_interna_evento(created_at)")
+
+            cur.execute("""
+                ALTER TABLE premiacao_interna_evento
+                ALTER COLUMN autor_user_id DROP NOT NULL
+            """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure premiacao_interna tables: %s", e)

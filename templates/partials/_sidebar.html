@@ -379,6 +379,34 @@
             </div>
             {% endif %}
 
+            {% set _show_premiacoes_internas = nav_can('premiacoes_internas') or nav_can('aprovacao_premiacoes') %}
+            {% if _show_premiacoes_internas %}
+            <!-- PREMIAÇÕES INTERNAS -->
+            <div class="sidebar-group" data-group="premiacoes_internas">
+                <button class="sidebar-group-toggle" onclick="toggleSidebarGroup('premiacoes_internas')">
+                    <span class="flex items-center gap-2.5">
+                        <span class="material-symbols-outlined text-base" style="color: var(--primary)">workspace_premium</span>
+                        Premiações Internas
+                    </span>
+                    <span class="material-symbols-outlined text-sm sidebar-group-chevron">expand_more</span>
+                </button>
+                <div class="sidebar-group-items">
+                    {% if nav_can('premiacoes_internas') %}
+                    <a href="#premiacoes_internas" onclick="navigate('premiacoes_internas')" class="sidebar-link sidebar-sub" data-page="premiacoes_internas">
+                        <span class="material-symbols-outlined text-base">card_giftcard</span>
+                        Premiações (Gestores)
+                    </a>
+                    {% endif %}
+                    {% if nav_can('aprovacao_premiacoes') %}
+                    <a href="#aprovacao_premiacoes" onclick="navigate('aprovacao_premiacoes')" class="sidebar-link sidebar-sub" data-page="aprovacao_premiacoes">
+                        <span class="material-symbols-outlined text-base">verified</span>
+                        Central de Aprovação
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
             {% if _show_sistema %}
             <!-- SISTEMA -->
             <div class="sidebar-group mt-5" data-group="sistema">

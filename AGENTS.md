@@ -4,6 +4,64 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-07-02 — Premiações Internas: colaboradores vinculados a `app_users` (Opção A — `categoria` como cargo sugerido)
+- **Modelo usado:** Opus 4.7 (principal). Implementação direta após aprovação da Opção A pelo usuário.
+- **Problema:** o campo "Nome" do colaborador era texto livre — o gestor precisava digitar manualmente, sem garantir que fosse um usuário real do sistema, e sem forma de distinguir homônimos.
+- **Decisão:** trocar por combobox HTML nativo (`<input list="...">` + `<datalist>`) ligado a `app_users`. Ao selecionar um usuário:
+  - Nome ← `username`.
+  - Email ← `email_cruzeiro` (exibido abaixo do nome no card; serve pra distinguir homônimos).
+  - Cargo ← pré-preenche com `categoria` do user; **campo continua editável** para o gestor refinar (ex: "Comercial" → "Consultor Sênior").
+  - Setor ← herda do lote (padrão já existente).
+- **Schema (migration idempotente em `_ensure_premiacao_interna_tables`):**
+  - `premiacao_interna_colaborador.app_user_id INTEGER REFERENCES app_users(id) ON DELETE SET NULL` — FK nullable pra rastreabilidade em relatórios/folha, `SET NULL` preserva o lote quando o user é deletado.
+  - `premiacao_interna_colaborador.email TEXT` — snapshot do email no momento da premiação (idem: sobrevive à exclusão do user).
+  - `CREATE INDEX idx_pic_user` para lookups reversos "premiações de fulano".
+- **Novo endpoint:** `GET /api/premiacoes-internas/usuarios-disponiveis` — retorna `[{id, username, email, categoria}]` ordenado alfabeticamente. Gate `_has_any_permission([PAGE_GESTOR, PAGE_APROVADOR])` (aprovador também precisa ler pra futuros filtros por consultor).
+- **Validação server-side:** payload aceita `app_user_id` opcional; se vier, valida FK no `app_users` (retorna 400 se não existir) e usa dados do banco como fonte canônica pra nome/email (evita divergência do que a UI mandou vs realidade do banco).
+- **Escolha da Opção A vs B/C:**
+  - **A (usar `categoria` como cargo, editável):** ✅ escolhida — zero migração de dados; `categoria` já está preenchida em 90%+ dos users; cargo permanece editável então quando "Comercial" é vago demais, o gestor refina.
+  - **B (nova coluna `cargo` em `app_users` + UI na Config):** descartada — exige preencher retroativamente todos os users e adicionar UI de edição na tela Config; overhead grande pra valor marginal (o cargo do colaborador na premiação vale como snapshot pontual, não como registro canônico da vida do funcionário).
+  - **C (cargo 100% manual):** descartada — o pedido explícito foi "puxar o cargo automático quando possível".
+- **Escolha combobox `<datalist>` vs autocomplete lib (Select2/Choices.js):** `<datalist>` nativo é suficiente pra até ~500 usuários e é zero-dependency; se o número explodir e a UX ficar ruim, migrar pra lib depois.
+- **Trade-off conhecido:** Firefox não renderiza o atributo `label` do `<option>` no dropdown (só Chrome/Edge). Compensado exibindo o email logo abaixo do input assim que o gestor seleciona um usuário — visível em todos os browsers.
+- **Compatibilidade:** aditivo — colunas novas são nullable, lotes antigos continuam válidos com `app_user_id=NULL`. Não requer backfill.
+
+### 2026-07-02 — Módulo Premiações Internas: workflow de aprovação via helper de aviso por permissão
+- **Modelo usado:** Opus 4.7 (principal). Implementação direta.
+- **Escopo:** módulo novo com **duas páginas independentes**:
+  - `premiacoes_internas` — Gestor cria/edita/envia lotes de premiação com N colaboradores (nome, cargo, setor, valor, justificativa).
+  - `aprovacao_premiacoes` — Aprovador (CEO/diretor) analisa e decide (aprovar, reprovar, solicitar ajuste) com justificativa obrigatória em reprovar/ajustar.
+- **Naming:** `premiacao_interna_*` (tabelas) + slugs `premiacoes_internas` / `aprovacao_premiacoes`. Coexiste sem colidir com `premiacao_*` (campanhas comerciais já existentes: `premiacao_campanha`, `premiacao_grupo`, `premiacao_tier_bonus`, etc.).
+- **Persistência:** 3 tabelas novas em `db.py` via `_ensure_premiacao_interna_tables()` (idempotente, roda no boot):
+  - `premiacao_interna_lote` — cabeçalho (mes_referencia, setor, gestor_user_id, status, valor_total cache, aprovador_*).
+  - `premiacao_interna_colaborador` — N linhas por lote (nome/cargo/setor/valor/justificativa/observacoes/is_auto_premiacao/ordem).
+  - `premiacao_interna_evento` — histórico imutável (tipo, status_anterior→status_novo, autor, justificativa, payload_diff JSONB).
+- **FKs relaxadas:** `gestor_user_id` e `autor_user_id` viram `NULL` permitidos — pra aceitar admin logado pelo fallback `APP_USER/APP_PASS` (uid=0 não existe em `app_users`). Snapshot em `*_nome` preserva a auditoria mesmo sem FK.
+- **Estados:** `rascunho` → `aguardando_aprovacao` → (`aprovado` | `reprovado` | `ajuste_solicitado`); `ajuste_solicitado` → `aguardando_aprovacao` (loop até decisão terminal). Editável só em `rascunho` e `ajuste_solicitado`. Delete só em `rascunho`.
+- **Notificação — nova abordagem sem alterar schema de `avisos`:**
+  - Dois helpers programáticos em `helpers.py`:
+    - `criar_aviso_para_usuarios(user_ids, titulo, corpo, ...)` — insere direto em `avisos` com `target_user_ids=[...]`.
+    - `criar_aviso_por_permissao(page, ...)` — resolve `user_ids` via `SELECT DISTINCT u.id FROM app_users u LEFT JOIN user_permissions p ON p.user_id=u.id AND p.page=%s WHERE u.role='admin' OR p.user_id IS NOT NULL` e delega ao anterior. Suporta `extra_user_ids` e `excluir_user_ids`.
+  - Envio para aprovação: `criar_aviso_por_permissao("aprovacao_premiacoes", ..., excluir_user_ids=[gestor_id])`.
+  - Decisão do aprovador: `criar_aviso_para_usuarios([gestor_id], ...)`.
+  - **Zero mudança em `avisos`/`aviso_lido`.** Reaproveita 100% o sininho de notificações existente.
+- **Regra "primeira ação decide"** (aprovação simples, sem consenso multi-aprovador). Se surgir demanda de multi-aprovador ou consenso, reabrir.
+- **Backend:** `routes/premiacoes_internas.py` com blueprint `premiacoes_internas_bp` + 9 rotas:
+  - 6 do gestor: `GET /api/premiacoes-internas/lotes` (lista com filtros mês/setor/status/busca — filtra por `gestor_user_id == session.user_id` **exceto para admins**), `GET .../<id>` (detalhe), `POST .../` (criar), `PUT .../<id>` (editar), `DELETE .../<id>` (deletar rascunho), `POST .../<id>/enviar`.
+  - 3 do aprovador: `GET .../aprovacao/pendentes` (lista + KPIs), `GET .../aprovacao/lotes/<id>` (detalhe read-only), `POST .../aprovacao/lotes/<id>/decidir` (aprovar/reprovar/ajustar + justificativa condicional).
+  - Gate server-side inline `_has_permission(page)`; restrições: `gestor_user_id == session.user_id` bloqueia auto-decisão (403); estado inválido → 409; justificativa faltando em reprovar/ajustar → 400.
+- **Frontend:** 2 partials Jinja + 2 JS vanilla; wire em `templates/index.html` (2 includes + 2 scripts), `static/js/utils.js` (2 slugs em `PAGES` + `PAGE_TITLES` + hooks em `navigate()`), `static/js/config.js` (2 labels + grupo "Premiações Internas" em `PAGE_GROUPS_CONFIG`), `templates/partials/_sidebar.html` (grupo colapsável novo com 2 links protegidos por `nav_can()`).
+- **Setor fixo:** dropdown com 4 opções (`Acadêmico | Comercial | TI | Marketing`) validado server-side.
+- **Autofill "Auto-premiação":** quando o gestor marca o checkbox, JS busca `GET /api/me` e pré-preenche nome/email/cargo do próprio gestor.
+- **Fix UI:** modais reparent'am pra `document.body` ao abrir + `align-items:flex-start` + `max-height:calc(100dvh - 4rem)` — evita corte de topo em containers com stacking context.
+- **Permissões:** `ALL_PAGES` ganhou os 2 slugs — checkboxes de permissão aparecem automaticamente na tela Config. Admin ganha acesso automático.
+- **Compatibilidade:** módulo é **aditivo** — nenhum código existente é tocado, nenhuma tabela é migrada. Se o módulo for removido, basta desregistrar blueprint + remover 2 partials + `DROP TABLE premiacao_interna_*`.
+- **Alternativas descartadas:**
+  - **Reaproveitar `matricula_ajustes`** — workflow parecido mas modelo é ajuste unitário, não lote com N colaboradores.
+  - **Alterar schema de `avisos` para suportar target por permissão** — mais limpo semanticamente, mas exige refactor no back/front do sininho. Helper agregando `user_ids` no app-layer entrega mesmo resultado sem alterar tabelas.
+  - **Vincular colaboradores a tabela de funcionários** — nenhuma tabela canônica existe hoje; texto livre + FK opcional a `app_users` é mais flexível.
+- **Fora de escopo (reabrir se pedir):** upload de anexos; exportação CSV/PDF; notificação por e-mail/whatsapp; aprovação multi-nível; integração com folha de pagamento.
+
 ### 2026-06-18 — Match/Merge: campo Origem só é preenchido em leads NOVO
 - **Modelo usado:** Opus 4.8 (principal). Implementação direta (bugfix pontual).
 - **Problema:** no `executar_acoes` (`match_merge_lib.py`), o `update_fields_map` incluía `"Origem": "origem"` e todo lead montado no pipeline carrega `origem="SIAA"` fixo no `base`. Como o `_build_custom_fields` envia qualquer campo com valor, **toda ação `ATUALIZAR` (e `RESTAURAR`) sobrescrevia a origem original do lead (Indicação, Site, Tronco, etc.) com "SIAA"** no PATCH. `MATRICULADO` já não tocava (o `_mat_map` não tem Origem).
