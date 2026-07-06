@@ -821,9 +821,11 @@ async function applyDashboardFilters() {
         if (cicloSel.value) localStorage.setItem(_DASH_CICLO_KEY, cicloSel.value);
         else localStorage.removeItem(_DASH_CICLO_KEY);
     }
+    const sitHdr = document.getElementById('students-situacao-header');
     const sitSel = document.getElementById('students-situacao');
-    if (sitSel) _stuActiveSituacao = sitSel.value || null;
-    if (_stuActiveSituacao) _syncSitSelectFromActive();
+    const sitVal = (sitHdr?.value || sitSel?.value || '').trim();
+    _stuActiveSituacao = sitVal || null;
+    _syncSitSelectFromActive();
     const rgmSel = document.getElementById('students-rgm-padrao');
     if (rgmSel) {
         localStorage.setItem(_DASH_RGM_PADRAO_KEY, rgmSel.value || 'todos');
@@ -898,20 +900,51 @@ function _normSitKey(s) {
 }
 
 function _syncSitSelectFromActive() {
-    const sitSel = document.getElementById('students-situacao');
-    if (!sitSel) return;
-    if (!_stuActiveSituacao) {
-        sitSel.value = '';
-        return;
+    const selects = [
+        document.getElementById('students-situacao'),
+        document.getElementById('students-situacao-header'),
+    ].filter(Boolean);
+    if (!selects.length) return;
+    let value = '';
+    if (_stuActiveSituacao) {
+        const want = _normSitKey(_stuActiveSituacao);
+        for (const sitSel of selects) {
+            for (const opt of sitSel.options) {
+                if (_normSitKey(opt.value) === want) {
+                    value = opt.value;
+                    break;
+                }
+            }
+            if (value) break;
+        }
+        if (!value) value = _stuActiveSituacao;
     }
-    const want = _normSitKey(_stuActiveSituacao);
-    for (const opt of sitSel.options) {
-        if (_normSitKey(opt.value) === want) {
-            sitSel.value = opt.value;
-            return;
+    for (const sitSel of selects) sitSel.value = value;
+    const badge = document.getElementById('stu-situacao-filter-badge');
+    const clearBtn = document.getElementById('stu-situacao-clear');
+    if (badge) {
+        if (_stuActiveSituacao) {
+            badge.textContent = 'Filtro: ' + (_stuActiveSituacao || value);
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
         }
     }
-    sitSel.value = _stuActiveSituacao;
+    if (clearBtn) clearBtn.classList.toggle('hidden', !_stuActiveSituacao);
+}
+
+function _stuApplySituacaoHeaderFilter() {
+    const hdr = document.getElementById('students-situacao-header');
+    const val = (hdr?.value || '').trim();
+    _stuActiveSituacao = val || null;
+    _syncSitSelectFromActive();
+    _stuRefreshFiltered();
+}
+
+function _stuClearSituacaoFilter() {
+    _stuActiveSituacao = null;
+    _syncSitSelectFromActive();
+    _stuRefreshFiltered();
 }
 
 function _stuBindInteractiveCards() {
@@ -921,6 +954,13 @@ function _stuBindInteractiveCards() {
         sitEl.addEventListener('click', (ev) => {
             const card = ev.target.closest('[data-situacao]');
             if (!card) return;
+            _stuToggleSituacao(card.getAttribute('data-situacao'));
+        });
+        sitEl.addEventListener('keydown', (ev) => {
+            if (ev.key !== 'Enter' && ev.key !== ' ') return;
+            const card = ev.target.closest('[data-situacao]');
+            if (!card) return;
+            ev.preventDefault();
             _stuToggleSituacao(card.getAttribute('data-situacao'));
         });
     }
@@ -965,6 +1005,7 @@ function _stuClearCrossFilters() {
     _stuActivePolo = null;
     const sitSel = document.getElementById('students-situacao');
     if (sitSel) sitSel.value = '';
+    _syncSitSelectFromActive();
     _stuRefreshFiltered();
 }
 
@@ -1124,6 +1165,7 @@ async function loadStudentMetrics() {
         renderBreakdown('stu-by-ciclo', d.by_ciclo);
 
         _stuUpdateActiveFilterBar();
+        _syncSitSelectFromActive();
 
         const badge = document.getElementById('stu-filter-badge');
         const parts = [];

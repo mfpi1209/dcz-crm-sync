@@ -429,6 +429,8 @@ const PAGE_LABELS = {
     rematricula: 'Rematrícula',
     disparador_whatsapp: 'Disparador WhatsApp (acesso geral)',
     disparador_whatsapp_disparador: 'Disparador WhatsApp · Disparador',
+    disparador_whatsapp_painel: 'Disparador WhatsApp · Painel',
+    disparador_whatsapp_metas: 'Disparador WhatsApp · Metas',
     disparador_whatsapp_alunos: 'Disparador WhatsApp · Alunos',
     disparador_whatsapp_calendario: 'Disparador WhatsApp · Calendário',
     disparador_whatsapp_bases: 'Disparador WhatsApp · Bases',
@@ -528,6 +530,7 @@ const PAGE_GROUPS_CONFIG = [
         pages: [
             'meus_atendimentos', 'ativacoes', 'distribuicao', 'intelligence',
             'inadimplencia', 'feedback', 'macro_email', 'rematricula', 'disparador_whatsapp',
+            'disparador_whatsapp_painel', 'disparador_whatsapp_metas',
             'disparador_whatsapp_disparador', 'disparador_whatsapp_alunos',
             'disparador_whatsapp_calendario', 'disparador_whatsapp_bases',
             'disparador_whatsapp_relatorios', 'disparador_whatsapp_conversao',
@@ -785,6 +788,8 @@ function _renderPermsToolbar(cbClass) {
 // Master + filhos agrupados visualmente (carrossel retratil) — usado pra
 // disparador_whatsapp e suas 8 sub-permissoes (disparador_whatsapp_<aba>).
 const DISPARADOR_WHATSAPP_CHILDREN = [
+    'disparador_whatsapp_painel',
+    'disparador_whatsapp_metas',
     'disparador_whatsapp_disparador',
     'disparador_whatsapp_alunos',
     'disparador_whatsapp_calendario',

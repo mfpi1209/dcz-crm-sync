@@ -53,6 +53,8 @@ ALL_PAGES = [
     # tool_whatsapp_alunos). Quem tem 'disparador_whatsapp' mas nenhuma
     # sub abaixo => ve TUDO (compat). Quem tem 1+ sub => ve so as marcadas.
     "disparador_whatsapp_disparador",
+    "disparador_whatsapp_painel",
+    "disparador_whatsapp_metas",
     "disparador_whatsapp_alunos",
     "disparador_whatsapp_calendario",
     "disparador_whatsapp_bases",
@@ -66,6 +68,8 @@ ALL_PAGES = [
 # Mapping slug curto -> rota no app tool_whatsapp_alunos. Usado pelo
 # context_processor de abas permitidas.
 DISPARADOR_WHATSAPP_ABA_SLUGS = [
+    "painel",
+    "metas",
     "disparador",
     "alunos",
     "calendario",
@@ -118,6 +122,18 @@ def is_suporte_comercial_categoria(categoria):
 
 def is_suporte_comercial_login(username):
     return (username or "").strip().lower() in SUPORTE_COMERCIAL_LOGINS
+
+
+def is_supervisor_academico_categoria(categoria):
+    n = unicodedata.normalize("NFD", (categoria or "")).encode("ascii", "ignore").decode("ascii")
+    return n.strip().lower() == "supervisor academico"
+
+
+def user_has_disparador_full_access(role, categoria):
+    """Admin ou Supervisor Acadêmico — painel/metas/meu painel ver tudo."""
+    if (role or "").strip().lower() == "admin":
+        return True
+    return is_supervisor_academico_categoria(categoria)
 
 
 # ---------------------------------------------------------------------------

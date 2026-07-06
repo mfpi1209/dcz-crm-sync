@@ -81,13 +81,12 @@ def inject_whatsapp_tool_base():
 
 @app.context_processor
 def inject_consultores_academicos_admin():
-    """Injeta a lista de consultores academicos APENAS quando o usuario logado
-    e admin. Consumida pelo _disparador_whatsapp.html pra anexar ?consultores=
-    na URL do iframe (modal de atribuicao manual no Meu Painel)."""
+    """Lista de consultores acadêmicos (app_users) para admin e Supervisor Acadêmico."""
     try:
-        if session.get("role") != "admin":
+        role, _, categoria = _nav_load_user_data()
+        from helpers import list_consultores_academicos, user_has_disparador_full_access
+        if not user_has_disparador_full_access(role, categoria):
             return {"consultores_academicos_admin": []}
-        from helpers import list_consultores_academicos
         return {"consultores_academicos_admin": list_consultores_academicos()}
     except Exception:
         return {"consultores_academicos_admin": []}

@@ -139,6 +139,96 @@
                         background: #15803d;
                     }
 
+                    #page-dist_comercial .dist-btn-outline {
+                        background: transparent;
+                        color: var(--dist-primary);
+                        border: 1px solid var(--dist-primary);
+                    }
+
+                    #page-dist_comercial .dist-btn-outline:hover {
+                        background: rgba(37, 99, 235, 0.08);
+                    }
+
+                    #page-dist_comercial .dist-modal-overlay {
+                        display: none;
+                        position: fixed;
+                        inset: 0;
+                        background: rgba(15, 23, 42, 0.6);
+                        z-index: 10000;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 16px;
+                    }
+
+                    #page-dist_comercial .dist-modal-overlay.is-open {
+                        display: flex;
+                    }
+
+                    #page-dist_comercial .dist-modal {
+                        background: var(--dist-bg-card);
+                        border: 1px solid var(--dist-border);
+                        border-radius: 16px;
+                        width: 100%;
+                        max-width: 480px;
+                        padding: 24px;
+                        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+                    }
+
+                    #page-dist_comercial .dist-modal-title {
+                        font-size: 18px;
+                        font-weight: 700;
+                        margin: 0 0 8px;
+                        color: var(--dist-text-primary);
+                    }
+
+                    #page-dist_comercial .dist-modal-sub {
+                        font-size: 13px;
+                        color: var(--dist-text-muted);
+                        margin: 0 0 20px;
+                        line-height: 1.5;
+                    }
+
+                    #page-dist_comercial .dist-form-field {
+                        margin-bottom: 16px;
+                    }
+
+                    #page-dist_comercial .dist-form-field label {
+                        display: block;
+                        font-size: 13px;
+                        font-weight: 600;
+                        color: var(--dist-text-secondary);
+                        margin-bottom: 6px;
+                    }
+
+                    #page-dist_comercial .dist-form-field .dist-hint {
+                        font-size: 11px;
+                        color: var(--dist-text-muted);
+                        margin-top: 4px;
+                    }
+
+                    #page-dist_comercial .dist-form-row {
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 12px;
+                    }
+
+                    #page-dist_comercial .dist-modal-actions {
+                        display: flex;
+                        justify-content: flex-end;
+                        gap: 8px;
+                        margin-top: 24px;
+                    }
+
+                    #page-dist_comercial .dist-btn-ghost {
+                        background: transparent;
+                        color: var(--dist-text-secondary);
+                        border: 1px solid var(--dist-border);
+                    }
+
+                    #page-dist_comercial .dist-btn-ghost:hover {
+                        background: var(--dist-bg-hover);
+                    }
+
                     #page-dist_comercial .dist-btn:disabled {
                         opacity: 0.5;
                         cursor: not-allowed;
@@ -364,6 +454,12 @@
                                 <span class="dist-badge" id="dist-count">0 registros</span>
                             </h1>
                             <div class="dist-actions">
+                                <button class="dist-btn dist-btn-outline" id="dist-btn-add" onclick="dcAbrirModalAdicionar()">
+                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                    </svg>
+                                    ADICIONAR
+                                </button>
                                 <button class="dist-btn dist-btn-primary" id="dist-btn-refresh" onclick="dcCarregarDados()">
                                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
@@ -399,6 +495,48 @@
                                 <p class="dist-loading-text">Carregando dados...</p>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <div class="dist-modal-overlay" id="dist-modal-add" onclick="dcFecharModalAdicionar(event)">
+                    <div class="dist-modal" onclick="event.stopPropagation()">
+                        <h2 class="dist-modal-title">Adicionar consultor</h2>
+                        <p class="dist-modal-sub">
+                            Cadastra em <strong>distribuicao_comercial</strong> e cria os tickets em
+                            <strong>distrib_comercial</strong> (quantidade = tickets na fila).
+                        </p>
+                        <form id="dist-form-add" onsubmit="dcSubmitAdicionar(event)">
+                            <div class="dist-form-field">
+                                <label for="dist-add-nome">Nome</label>
+                                <input type="text" id="dist-add-nome" class="dist-input" placeholder="Ex: Gabriel Messias" required autocomplete="off">
+                            </div>
+                            <div class="dist-form-field">
+                                <label for="dist-add-id-lead">ID Kommo (responsible_user_id)</label>
+                                <input type="number" id="dist-add-id-lead" class="dist-input" placeholder="Ex: 15352496" required min="1" step="1" autocomplete="off">
+                                <p class="dist-hint">Número do usuário no Kommo — mesmo valor usado na distribuição.</p>
+                            </div>
+                            <div class="dist-form-row">
+                                <div class="dist-form-field">
+                                    <label for="dist-add-status">Status</label>
+                                    <select id="dist-add-status" class="dist-select" style="width:100%;">
+                                        <option value="ATIVO">Ativo</option>
+                                        <option value="INATIVO">Inativo</option>
+                                    </select>
+                                </div>
+                                <div class="dist-form-field">
+                                    <label for="dist-add-qtd">Quantidade leads</label>
+                                    <input type="number" id="dist-add-qtd" class="dist-input dist-input-number" value="1" min="1" max="5" required style="width:100%;">
+                                </div>
+                            </div>
+                            <div class="dist-form-field">
+                                <label for="dist-add-obs">Observação</label>
+                                <input type="text" id="dist-add-obs" class="dist-input" placeholder="Opcional">
+                            </div>
+                            <div class="dist-modal-actions">
+                                <button type="button" class="dist-btn dist-btn-ghost" onclick="dcFecharModalAdicionar()">Cancelar</button>
+                                <button type="submit" class="dist-btn dist-btn-success" id="dist-btn-add-submit">Cadastrar</button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             </div>

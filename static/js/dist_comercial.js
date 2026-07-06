@@ -4,6 +4,7 @@
 
 const DIST_API_LOAD = 'https://n8n-new-n8n.ca31ey.easypanel.host/webhook/distribuicaocomercial';
 const DIST_API_SAVE = 'https://n8n-new-n8n.ca31ey.easypanel.host/webhook/edicao_distrib';
+const DIST_API_CREATE = 'https://n8n-new-n8n.ca31ey.easypanel.host/webhook/criar_consultor';
 
 const dcState = {
     data: [],
@@ -11,6 +12,95 @@ const dcState = {
     loading: false,
     initialized: false
 };
+
+function dcEscapeHtml(str) {
+    return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function dcAbrirModalAdicionar() {
+    const modal = document.getElementById('dist-modal-add');
+    const form = document.getElementById('dist-form-add');
+    if (form) form.reset();
+    const qtd = document.getElementById('dist-add-qtd');
+    if (qtd) qtd.value = '1';
+    const status = document.getElementById('dist-add-status');
+    if (status) status.value = 'ATIVO';
+    if (modal) modal.classList.add('is-open');
+    const nome = document.getElementById('dist-add-nome');
+    if (nome) setTimeout(() => nome.focus(), 50);
+}
+
+function dcFecharModalAdicionar(event) {
+    if (event && event.target !== event.currentTarget) return;
+    const modal = document.getElementById('dist-modal-add');
+    if (modal) modal.classList.remove('is-open');
+}
+
+function dcIdLeadJaExiste(idLead) {
+    const id = Number(idLead);
+    return dcState.data.some(p => Number(p.id_lead) === id);
+}
+
+async function dcSubmitAdicionar(event) {
+    event.preventDefault();
+
+    const nome = (document.getElementById('dist-add-nome')?.value || '').trim();
+    const idLeadRaw = document.getElementById('dist-add-id-lead')?.value || '';
+    const idLead = parseInt(idLeadRaw, 10);
+    const status = document.getElementById('dist-add-status')?.value || 'ATIVO';
+    let qtd = parseInt(document.getElementById('dist-add-qtd')?.value, 10) || 1;
+    qtd = Math.min(5, Math.max(1, qtd));
+    const observacao = (document.getElementById('dist-add-obs')?.value || '').trim();
+
+    if (!nome) {
+        dcShowNotification('Informe o nome do consultor', 'error');
+        return;
+    }
+    if (!Number.isFinite(idLead) || idLead <= 0) {
+        dcShowNotification('ID Kommo inválido', 'error');
+        return;
+    }
+    if (dcIdLeadJaExiste(idLead)) {
+        dcShowNotification('Este ID Kommo já está cadastrado no painel', 'error');
+        return;
+    }
+
+    const btn = document.getElementById('dist-btn-add-submit');
+    if (btn) btn.disabled = true;
+
+    try {
+        const response = await fetch(DIST_API_CREATE, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                nome,
+                id_lead: idLead,
+                status,
+                quantidade_leads: qtd,
+                observacao,
+                timestamp: new Date().toISOString()
+            })
+        });
+
+        if (!response.ok) {
+            const errText = await response.text().catch(() => '');
+            throw new Error(errText || 'Erro ao cadastrar');
+        }
+
+        dcFecharModalAdicionar();
+        dcShowNotification(`${nome} cadastrado com sucesso!`, 'success');
+        await dcCarregarDados();
+    } catch (error) {
+        console.error('Erro ao adicionar consultor:', error);
+        dcShowNotification('Erro ao cadastrar. Verifique o webhook criar_consultor no n8n.', 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
 
 async function dcCarregarDados() {
     const btnRefresh = document.getElementById('dist-btn-refresh');
@@ -77,7 +167,7 @@ function dcRenderTable() {
         <tr data-id="${pessoa.id}">
             <td>
                 <div class="dist-nome-cell">
-                    <span class="dist-nome">${pessoa.nome || '—'}</span>
+                    <span class="dist-nome">${dcEscapeHtml(pessoa.nome) || '—'}</span>
                     <span class="dist-status-badge ${pessoa.status === 'ATIVO' ? 'ativo' : 'inativo'}">
                         ${pessoa.status === 'ATIVO' ? 'Ativo' : 'Inativo'}
                     </span>
@@ -100,7 +190,7 @@ function dcRenderTable() {
             <td>
                 <input type="text" 
                        class="dist-input dist-input-obs" 
-                       value="${pessoa.observacao || ''}" 
+                       value="${dcEscapeHtml(pessoa.observacao)}" 
                        placeholder="Digite uma observação..."
                        onchange="dcUpdatePessoa(${pessoa.id}, 'observacao', this.value)">
             </td>

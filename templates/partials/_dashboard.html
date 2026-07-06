@@ -258,12 +258,23 @@
 
                 <!-- ═══ SITUAÇÃO ═══ -->
                 <div class="glass-card overflow-hidden mb-6">
-                    <div class="px-5 py-3 border-b border-slate-200 dark:border-slate-700/20 flex items-center justify-between gap-2">
+                    <div class="px-5 py-3 border-b border-slate-200 dark:border-slate-700/20 flex flex-wrap items-center justify-between gap-2">
                         <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display flex items-center gap-2">
                             <span class="material-symbols-outlined text-base text-emerald-500 dark:text-emerald-400">check_circle</span>
                             Matrículas por Situação
                         </h3>
-                        <span class="text-[10px] text-slate-400">Clique para filtrar</span>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span id="stu-situacao-filter-badge" class="hidden text-[10px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-500/30 font-medium"></span>
+                            <select id="students-situacao-header" onchange="_stuApplySituacaoHeaderFilter()" class="input-glass px-2.5 py-1 text-xs rounded-lg min-w-[150px]" title="Filtrar todo o painel por situação">
+                                <option value="">Todas as situações</option>
+                                <option value="Em Curso">Em Curso</option>
+                                <option value="Cancelado">Cancelado</option>
+                                <option value="Trancado">Trancado</option>
+                                <option value="Transferido">Transferido</option>
+                            </select>
+                            <button type="button" id="stu-situacao-clear" onclick="_stuClearSituacaoFilter()" class="hidden text-[10px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700/30 hover:border-slate-300 dark:hover:border-slate-600/50 transition-colors">Limpar</button>
+                            <span class="text-[10px] text-slate-400 hidden sm:inline">ou clique no card</span>
+                        </div>
                     </div>
                     <div class="p-5">
                         <div id="stu-by-situacao" class="grid grid-cols-2 lg:grid-cols-4 gap-4 text-[13px]">—</div>
