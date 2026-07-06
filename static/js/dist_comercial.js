@@ -29,7 +29,11 @@ function dcAbrirModalAdicionar() {
     if (qtd) qtd.value = '1';
     const status = document.getElementById('dist-add-status');
     if (status) status.value = 'ATIVO';
-    if (modal) modal.classList.add('is-open');
+    if (modal) {
+        if (typeof dczPortalToBody === 'function') dczPortalToBody(modal);
+        modal.classList.add('is-open');
+        if (typeof dczLockBodyScroll === 'function') dczLockBodyScroll(true);
+    }
     const nome = document.getElementById('dist-add-nome');
     if (nome) setTimeout(() => nome.focus(), 50);
 }
@@ -38,6 +42,7 @@ function dcFecharModalAdicionar(event) {
     if (event && event.target !== event.currentTarget) return;
     const modal = document.getElementById('dist-modal-add');
     if (modal) modal.classList.remove('is-open');
+    if (typeof dczLockBodyScroll === 'function') dczLockBodyScroll(false);
 }
 
 function dcIdLeadJaExiste(idLead) {

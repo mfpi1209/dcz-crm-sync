@@ -831,12 +831,57 @@ function mergePoloBreakdown(byPolo) {
 }
 
 // ---------------------------------------------------------------------------
+// Modais — portar para <body> (position:fixed relativo à viewport)
+// ---------------------------------------------------------------------------
+const DCZ_MODAL_ROOT_IDS = [
+    'dist-modal-add',
+    'ac-modal-overlay',
+    'fb-modal-overlay',
+    'rule-modal-overlay',
+    'me-modal-overlay',
+    'dc-modal-overlay',
+    'ap-modal',
+    'pi-modal',
+    'iac-exec-modal',
+    'mp-modal-minha-mat',
+    'mp-modal-ajuste',
+    'pa-grupo-modal',
+    'pa-edit-modal',
+    'crgm-edit-meta-modal',
+];
+
+function dczPortalToBody(el) {
+    if (!el || el.parentElement === document.body) {
+        if (el) el.classList.add('dcz-modal-portal');
+        return el;
+    }
+    document.body.appendChild(el);
+    el.classList.add('dcz-modal-portal');
+    return el;
+}
+
+function dczRelocateModalsToBody() {
+    const main = document.querySelector('main');
+    if (!main) return;
+    DCZ_MODAL_ROOT_IDS.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el && main.contains(el)) dczPortalToBody(el);
+    });
+    main.querySelectorAll('[data-dcz-modal-root]').forEach((el) => dczPortalToBody(el));
+}
+
+function dczLockBodyScroll(lock) {
+    document.body.classList.toggle('dcz-modal-open', !!lock);
+}
+
+// ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
 const currentTheme = localStorage.getItem('eduit-theme') || 'dark';
 updateThemeUI(currentTheme);
 
 document.addEventListener('DOMContentLoaded', () => {
+    dczRelocateModalsToBody();
     initTopbarUser();
     _initScrollToTop();
     _initNotifPanel();
