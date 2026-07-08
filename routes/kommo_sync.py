@@ -620,6 +620,17 @@ _FUNNEL_CACHE_FILE = Path(__file__).resolve().parent.parent / "data" / "funnel_l
 _FUNNEL_LIVE_TIMEOUT_S = int(os.getenv("FUNNEL_LIVE_TIMEOUT_S", "25"))
 _FUNNEL_LIVE_FORCE_TIMEOUT_S = int(os.getenv("FUNNEL_LIVE_FORCE_TIMEOUT_S", "45"))
 
+# Rate limit: Kommo bloqueia contas que passam de 7 req/s (bloqueio real em
+# 27/06/2026 03:00). Aplicamos 0.20s de espera entre chamadas em CADA loop
+# que usa _kommo_get sem passar pelo RateLimiter do kommo_lib. Combinado com
+# o _kommo_api_bg_lock (garante 1 job background por vez), o teto real fica
+# em ~5 rps.
+_KOMMO_BG_PAGE_SLEEP = float(os.getenv("KOMMO_BG_PAGE_SLEEP", "0.20"))
+# Mutex global: impede que _warm_funnel_cache_sync, reconcile_aceite_leads e
+# _sync_responsible_history rodem simultaneamente. Sync via kommo_lib/main.py
+# tem seu proprio rate limiter (1.8 rps) e nao entra neste lock.
+_kommo_api_bg_lock = threading.Lock()
+
 SNAPSHOT_FILE = Path(__file__).resolve().parent.parent / "data" / "funnel_snapshot.json"
 
 
@@ -733,7 +744,7 @@ def _count_new_leads_between(from_ts: int, to_ts: int | None = None, pipeline_id
         if "next" not in data.get("_links", {}):
             break
         page += 1
-        _time.sleep(0.05)
+        _time.sleep(_KOMMO_BG_PAGE_SLEEP)
 
     return count
 
@@ -1029,7 +1040,7 @@ def _count_leads_in_stage(status_id: int) -> tuple[int, str | None]:
         if "next" not in data.get("_links", {}):
             break
         page += 1
-        _time.sleep(0.08)
+        _time.sleep(_KOMMO_BG_PAGE_SLEEP)
     return count, None
 
 
@@ -1046,7 +1057,7 @@ def _fetch_funnel_live_counts(*, dashboard_only: bool = True):
         if err:
             return None, err
         counts[sdef["id"]] = n
-        _time.sleep(0.1)
+        _time.sleep(_KOMMO_BG_PAGE_SLEEP)
 
     stages = []
     total = 0
@@ -1125,7 +1136,12 @@ _load_funnel_disk_cache()
 
 
 def _warm_funnel_cache_sync():
-    """Atualiza cache do funil em background (cron / stale-while-revalidate)."""
+    """Atualiza cache do funil em background (cron / stale-while-revalidate).
+
+    Adquire _kommo_api_bg_lock para nao rodar em paralelo com outros jobs
+    de background que batem no Kommo (aceite_reconcile, responsible_history).
+    Se o lock estiver tomado, espera ate 300s (5 min) — apos isso desiste
+    silenciosamente pra nao acumular threads."""
     global _funnel_warming
     if not _kommo_token():
         _funnel_meta["last_error"] = "KOMMO_TOKEN não configurado"
@@ -1136,6 +1152,12 @@ def _warm_funnel_cache_sync():
         if _funnel_warming:
             return
         _funnel_warming = True
+    got_bg_lock = _kommo_api_bg_lock.acquire(timeout=300)
+    if not got_bg_lock:
+        logger.warning("funnel warm: nao conseguiu _kommo_api_bg_lock em 5min, pulando")
+        with _funnel_cache_lock:
+            _funnel_warming = False
+        return
     try:
         result, live_err, _src = _fetch_funnel_best_effort(dashboard_only=True)
         if not result:
@@ -1172,6 +1194,7 @@ def _warm_funnel_cache_sync():
         _funnel_meta["last_warm_at"] = datetime.now(_BRT).isoformat()
         with _funnel_cache_lock:
             _funnel_warming = False
+        _kommo_api_bg_lock.release()
 
 
 def _start_funnel_cache_warm_async():
@@ -1180,12 +1203,17 @@ def _start_funnel_cache_warm_async():
 
 
 def register_funnel_cache_job(sched):
-    """Cron: mantém cache do funil quente (evita 502 no proxy em produção)."""
+    """Cron: mantém cache do funil quente (evita 502 no proxy em produção).
+
+    Escalonado nos minutos 2,7,12,... (offset +2 do sync_delta_interval que
+    roda em :00,:05,:10) pra evitar colisao de rps com o Kommo. Combinado com
+    _kommo_api_bg_lock, garante que warm nunca soma com aceite_reconcile
+    (:03,:13,:23) e responsible_history_daily (04:30)."""
+    from apscheduler.triggers.cron import CronTrigger as _CronTrigger
     from datetime import timedelta as _td
     sched.add_job(
         _warm_funnel_cache_sync,
-        "interval",
-        minutes=5,
+        _CronTrigger(minute="2,7,12,17,22,27,32,37,42,47,52,57", timezone="America/Sao_Paulo"),
         id="funnel_cache_warm",
         max_instances=1,
         coalesce=True,
@@ -1248,7 +1276,7 @@ def _fetch_funnel_live():
         if "_links" not in data or "next" not in data["_links"]:
             break
         page += 1
-        _time.sleep(0.05)
+        _time.sleep(_KOMMO_BG_PAGE_SLEEP)
 
     counts = {}
     for lead in all_leads:
@@ -1436,13 +1464,22 @@ def reconcile_aceite_leads():
     """Sync aceite leads between Kommo API and our DB.
     - Upserts leads currently in aceite (updates status_id for existing, inserts missing)
     - Marks stale leads (no longer in aceite on Kommo) as is_deleted=True
-    Safety: aborts without changes if API returns errors with zero leads."""
+    Safety: aborts without changes if API returns errors with zero leads.
+
+    Adquire _kommo_api_bg_lock (compartilhado com funnel_warm e responsible_history)
+    para evitar somar rps com outros jobs de background quando disparam no mesmo
+    minuto (03:00 BRT em especial). Timeout 300s para nao segurar o scheduler."""
     global _last_reconcile_ts
     now = _time.time()
     if now - _last_reconcile_ts < RECONCILE_COOLDOWN:
         return {"skipped": True, "reason": "cooldown"}
     if not _reconcile_lock.acquire(blocking=False):
         return {"skipped": True, "reason": "already running"}
+    got_bg_lock = _kommo_api_bg_lock.acquire(timeout=300)
+    if not got_bg_lock:
+        _reconcile_lock.release()
+        logger.warning("reconcile aceites: nao conseguiu _kommo_api_bg_lock em 5min, pulando")
+        return {"skipped": True, "reason": "kommo_api_bg_lock timeout"}
     try:
         _last_reconcile_ts = now
         if not KOMMO_TOKEN:
@@ -1500,7 +1537,7 @@ def reconcile_aceite_leads():
                 if "next" not in data.get("_links", {}):
                     break
                 page += 1
-                _time.sleep(0.05)
+                _time.sleep(_KOMMO_BG_PAGE_SLEEP)
 
         if api_error and not api_lead_ids:
             logger.warning("Reconcile aceites: API returned errors and zero leads — aborting to prevent data loss")
@@ -1589,7 +1626,7 @@ def reconcile_aceite_leads():
                         stale_check_errors += 1
                         logger.warning("Reconcile aceites: lead %s status %d", lid, r.status_code)
 
-                    _time.sleep(0.05)
+                    _time.sleep(_KOMMO_BG_PAGE_SLEEP)
 
                 logger.info(
                     "Reconcile aceites stale: %d com status atualizado, %d marcados deletados, %d erros",
@@ -1615,6 +1652,7 @@ def reconcile_aceite_leads():
         logger.error("Reconcile aceites error: %s", e)
         return {"error": str(e)}
     finally:
+        _kommo_api_bg_lock.release()
         _reconcile_lock.release()
 
 
@@ -1746,6 +1784,10 @@ def _sync_responsible_history(days_back: int = 1) -> dict:
     """Busca eventos 'lead_responsible_changed' da API Kommo e persiste em
     lead_responsible_history.
 
+    Adquire _kommo_api_bg_lock (compartilhado com funnel_warm e aceite_reconcile)
+    pra nao somar rps com outros jobs de background quando disparam no mesmo
+    minuto. Timeout 600s (10 min) — backfills longos aceitam esperar.
+
     Args:
         days_back: quantos dias para trás buscar (1 = incremental, 90 = backfill).
 
@@ -1755,6 +1797,19 @@ def _sync_responsible_history(days_back: int = 1) -> dict:
     if not KOMMO_TOKEN:
         return {"error": "KOMMO_TOKEN not set"}
 
+    got_bg_lock = _kommo_api_bg_lock.acquire(timeout=600)
+    if not got_bg_lock:
+        logger.warning("responsible_history: nao conseguiu _kommo_api_bg_lock em 10min, pulando")
+        return {"skipped": True, "reason": "kommo_api_bg_lock timeout"}
+
+    try:
+        return _sync_responsible_history_impl(days_back)
+    finally:
+        _kommo_api_bg_lock.release()
+
+
+def _sync_responsible_history_impl(days_back: int = 1) -> dict:
+    """Corpo do sync (sem lock). NAO chame diretamente — use _sync_responsible_history."""
     BRT = timezone(timedelta(hours=-3))
     from_ts = int((datetime.now(BRT) - timedelta(days=days_back)).timestamp())
 
@@ -1850,6 +1905,7 @@ def _sync_responsible_history(days_back: int = 1) -> dict:
         if not links.get("next"):
             break
         page += 1
+        _time.sleep(_KOMMO_BG_PAGE_SLEEP)
 
     # Atualiza metadado de última sync
     try:

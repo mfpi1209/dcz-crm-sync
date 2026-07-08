@@ -251,6 +251,10 @@ from routes.disparador_whatsapp import disparador_whatsapp_bp
 from routes.page_views import page_views_bp
 from routes.solicitacoes_ti import solicitacoes_ti_bp
 from routes.captacao import captacao_bp
+from routes.dist_comercial_schedule import (
+    dist_comercial_schedule_bp,
+    register_dist_comercial_schedule_job,
+)
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(dashboard_bp)
@@ -277,6 +281,7 @@ app.register_blueprint(disparador_whatsapp_bp)
 app.register_blueprint(page_views_bp)
 app.register_blueprint(solicitacoes_ti_bp)
 app.register_blueprint(captacao_bp)
+app.register_blueprint(dist_comercial_schedule_bp)
 
 # ── Atualizar Preço — rotas do webapp standalone integrado ────────────────
 try:
@@ -320,6 +325,7 @@ from db import (
     _ensure_pix_nivel_tables,
     _ensure_pix_faixa_tables,
     _ensure_suporte_tables,
+    _ensure_dist_comercial_schedule_tables,
 )
 
 _ensure_schedules_table()
@@ -340,6 +346,7 @@ _ensure_premiacao_interna_tables()
 _ensure_pix_nivel_tables()
 _ensure_pix_faixa_tables()
 _ensure_suporte_tables()
+_ensure_dist_comercial_schedule_tables()
 
 # ── APScheduler ───────────────────────────────────────────────────────────
 
@@ -354,6 +361,7 @@ register_delta_interval(scheduler)
 register_aceite_reconcile(scheduler)
 register_responsible_history_job(scheduler)
 register_funnel_cache_job(scheduler)
+register_dist_comercial_schedule_job(scheduler)
 
 # ── Entrypoint ────────────────────────────────────────────────────────────
 

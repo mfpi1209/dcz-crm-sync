@@ -4,6 +4,107 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-07-07 — Dist. Comercial: regras de turno vira modelo de JANELA (revisa entrada abaixo)
+- **Modelo usado:** Opus 4.7 (principal). Implementação direta após aprovação (usuário escolheu "modelo de janela").
+- **Contexto:** A entrada abaixo (mesmo dia, mais cedo) implementou regras como `{hora, turno_alvo}` — cada regra dispara UMA vez ao chegar naquele horário. Pra ter "noite ativa das 17:00 às 22:00 + dia o resto", o gestor precisava criar DUAS regras separadas (17:00→NOITE e 22:00→DIA) e mentalmente entender que uma "cancela" a outra. UX confusa e pouco explícita sobre o efeito operacional.
+- **Decisão:** Trocar o modelo pra **janela horária**. Cada regra descreve uma janela inteira `{hora_inicio, hora_fim, turno_alvo}`. Semântica: `NOITE das 17:00 às 22:00` significa "aplica Modo NOITE às 17:00; aplica Modo DIA (turno oposto) às 22:00". UMA regra = DOIS gatilhos por dia.
+- **Schema (migration idempotente em `_ensure_dist_comercial_schedule_tables`):**
+  - `dist_comercial_schedule.hora` → **removido**; substituído por `hora_inicio TIME NOT NULL` + `hora_fim TIME NOT NULL`.
+  - `dist_comercial_schedule.last_run_date` → **removido**; substituído por `last_run_inicio_date DATE` + `last_run_fim_date DATE` (dedup independente por gatilho).
+  - Bloco `DO $$ ... $$` no CREATE detecta versão anterior (col `hora` existe) e migra: renomeia `hora`→`hora_inicio`, deriva `hora_fim = hora + 5h` como valor padrão de migração, dropa colunas antigas. Idempotente.
+  - Tabela tinha 0 regras no momento da migração — nenhuma perda de dados. Se em produção houver regras existentes, o fallback `+5h` é seguro (o gestor pode ajustar depois).
+- **Job APScheduler `_run_scheduled_apply` refatorado:**
+  - A cada minuto varre regras `enabled = TRUE`.
+  - Pra cada regra monta lista de gatilhos pendentes:
+    - Se `now >= hora_inicio` AND `last_run_inicio_date != today` → `(rule_id, 'inicio', turno_alvo)`.
+    - Se `now >= hora_fim` AND `last_run_fim_date != today` → `(rule_id, 'fim', oposto)` onde `oposto = 'noite' se turno_alvo=='dia' else 'dia'`.
+  - Executa cada gatilho pelo `_apply_turno` normal e marca a coluna correspondente. Concorrência protegida pelo mesmo `_apply_lock` (sem mudança).
+  - Grace: se o servidor estava parado no minuto exato, o gatilho ainda dispara no próximo tick (dedup só impede repetir no mesmo dia).
+- **UI redesenhada (`dist_comercial.js` + CSS em `_dist_comercial.html`):**
+  - Regra vira **card** com badge do turno (NOITE=azul #4c6ef5, DIA=laranja #f59e0b), inputs `hora_inicio`/`hora_fim`, select de turno, toggle enabled, botão remover.
+  - **Timeline visual 24h** por regra: barra colorida mostrando o segmento da janela alvo vs oposto; marcadores 00h/06h/12h/18h/24h; indicador vermelho na hora atual. Cobre cross-midnight (ex: 22:00 às 06:00 pinta 2 segmentos).
+  - Texto explicativo abaixo da timeline: "Das X às Y: aplica Modo NOITE (DIA inativo, NOITE conforme snapshot). Às Y: volta pro Modo DIA (NOITE inativo, DIA conforme snapshot)".
+  - `dcAdicionarRegra` pede turno → hora_inicio → hora_fim (com defaults inteligentes: NOITE = 17:00-22:00, DIA = 07:00-17:00).
+- **Endpoints:** `POST /rules` e `PATCH /rules/<id>` aceitam `hora_inicio` + `hora_fim` (era `hora`). Validação: `hora_inicio != hora_fim`, ambas HH:MM válidas 00:00-23:59. `GET /rules` retorna o novo formato.
+- **Compatibilidade:** front antigo (usando `hora` no body) quebraria — não é problema porque só o próprio `dist_comercial.js` chamava e foi atualizado junto. Backend não aceita mais o campo `hora`.
+- **Alternativas descartadas:**
+  - **Manter modelo antigo (2 regras) + melhorar preview visual:** simples de fazer mas continua com a fricção do gestor precisar criar 2 regras e pensar no "complemento". Descartado porque o usuário disse explicitamente "precisa estar claro visualmente".
+  - **UMA regra com N janelas (array de intervalos):** flexível pra futuros casos como "manhã + noite, tarde livre", mas overkill agora — se surgir, criar múltiplas regras cobre o mesmo caso.
+  - **Suportar `hora` legado no backend + auto-derivar `hora_fim`:** compat mais robusta, mas o front foi migrado junto e não há callers externos. Custo sem valor.
+- **Trade-off conhecido:** múltiplas regras podem definir janelas conflitantes (ex: NOITE 17-22 + DIA 15-20 se sobrepõem). O último gatilho a disparar ganha (comportamento consistente: aplica o Modo X, que sobrescreve o anterior). Aceitável — é responsabilidade do gestor não configurar janelas conflitantes; a timeline visual ajuda a evitar isso.
+
+### 2026-07-07 — Dist. Comercial: regras automáticas de troca de turno (Dia/Noite) com snapshot
+- **Modelo usado:** Opus 4.7 (principal). Implementação direta após aprovação das decisões críticas (execução no backend, escopo global, snapshot no clique manual, múltiplas regras).
+- **Problema:** Operação alterna entre turnos (dia/noite) todo dia. Ativar/inativar consultores manualmente 2x ao dia é operacional e sujeito a esquecimento. Regra automática precisa **respeitar quem estava ativo da última vez** — não pode ativar todos do noturno, porque nem todos trabalham todo dia (folga, férias, etc.).
+- **Decisão:** Módulo aditivo com 4 tabelas novas + blueprint Flask + job APScheduler:
+  - **`dist_comercial_schedule(id, hora, turno_alvo, enabled, last_run_date, last_run_at, last_run_result)`** — regras `{HH:MM, dia|noite}`. Múltiplas permitidas (ex: 07:00→DIA e 20:00→NOITE). `last_run_date` faz dedupe (não dispara 2x no mesmo dia).
+  - **`dist_comercial_turno_map(id_lead PK, turno)`** — mapa global promovido do localStorage anterior. Todos os gestores compartilham a mesma divisão. Frontend faz PUT do mapa completo a cada toggle.
+  - **`dist_comercial_snapshot(turno PK, payload JSONB, taken_at, taken_by)`** — payload `{id_lead: 'ATIVO'|'INATIVO'}` dos consultores do turno alvo, capturado no clique manual dos botões TURNO DIA/NOITE + SALVAR. É o "quem estava ativo da última vez".
+  - **`dist_comercial_apply_log`** — histórico imutável de disparos (manual/auto) pra auditoria.
+- **Algoritmo `_apply_turno(turno_alvo)`:**
+  1. Se `snapshot[turno_alvo]` não existe → **aborta** com erro claro. Isso protege contra ativar/inativar tudo por acidente na primeira execução.
+  2. Consultores com `turno_map == outro_turno` → força **INATIVO** (independente do status atual).
+  3. Consultores com `turno_map == turno_alvo` → aplica **status do snapshot** (preserva ATIVO/INATIVO da última aplicação).
+  4. Consultores fora do `turno_map` → **não toca** (segurança: quem não foi categorizado não é modificado).
+  5. Chama `POST /webhook/edicao_distrib` (n8n) — mesma rota que o botão SALVAR usa. Único ponto de contato com o CRM.
+- **Execução:** APScheduler roda `_run_scheduled_apply` a cada 1 min, busca regras `enabled AND hora <= now.time AND (last_run_date IS NULL OR last_run_date < today)`. Concorrência protegida por `_apply_lock` (threading.Lock) — impossível 2 disparos paralelos.
+- **UI:** botão novo **⚙ REGRAS** no header abre modal com:
+  - Cards de snapshot (dia/noite): mostra timestamp, contagem ATIVO/INATIVO, quem tirou, botão limpar. **Estado vazio destacado em vermelho** — deixa óbvio que a regra não vai rodar sem snapshot.
+  - Lista de regras editável inline (horário + turno + enable/disable + delete).
+  - Histórico das últimas 20 execuções em `<details>` colapsável.
+- **Endpoints (todos com gate `dist_comercial` server-side, admin passa direto):**
+  - `GET/POST/PATCH/DELETE /api/dist-comercial/rules[/<id>]`
+  - `GET/PUT /api/dist-comercial/turno-map`
+  - `GET/POST/DELETE /api/dist-comercial/snapshot[/<turno>]`
+  - `POST /api/dist-comercial/apply/<turno>` (dispara manualmente; útil pra debug)
+  - `GET /api/dist-comercial/apply-log?limit=N`
+- **Alternativas descartadas:**
+  - **Frontend com setInterval + localStorage:** só roda com aba aberta. Basta o gestor fechar o navegador antes do horário pra operação inteira ir pro turno errado a noite toda. Descartado pelo requisito "cautela e atenção nos detalhes".
+  - **Snapshot no primeiro disparo automático (auto-capture):** menos controle explícito, mais mágico. O usuário escolheu "no clique manual" — o gesto de aplicar TURNO NOITE + SALVAR já é a intenção clara de "este é o padrão do turno".
+  - **Snapshot = estado atual do CRM lido no momento do disparo:** eliminaria a necessidade da tabela snapshot, mas perderia a semântica "última aplicação manual" (o estado atual pode ter sido tocado durante o dia por outros motivos).
+  - **Uma regra global por turno (Dia/Noite) em vez de N regras:** limitaria futuros casos como "domingo aplica turno diferente". Múltiplas regras cobre com o mesmo custo.
+  - **Escopo por usuário:** fragmentaria a operação. Global é a fonte única.
+- **Compatibilidade:** aditivo puro. Se o módulo for removido, basta desregistrar o blueprint + o job + `DROP TABLE dist_comercial_*`. Painel principal continua funcionando 100% (webhooks n8n de load/save/create não mudaram).
+- **Trade-off conhecido:** o `turno_map` global significa que se dois gestores discordarem sobre quem é dia/noite, o último a mover ganha. Aceitável — é uma escala operacional, deveria ter consenso.
+- **Migração transparente do localStorage:** ao abrir a página pela primeira vez após deploy, o `loadDistComercial` chama `GET /turno-map`, que vem vazio → todos aparecem no Dia. Se o gestor tinha divisão salva no localStorage antigo (`dist_comercial_turno_noite_v1`), essa chave fica órfã (não é lida). Se ele quiser recuperar, precisa remover manualmente da UI (mover pra noite novamente). Custo aceitável — divisão nova é global e a antiga era per-browser.
+
+### 2026-07-07 — Rate limit Kommo: throttle + mutex + escalonamento (root cause do bloqueio 27/06 03:00)
+- **Modelo usado:** Opus 4.7 (principal). Implementação direta após aprovação.
+- **Problema:** Kommo bloqueou a conta em 27/06/2026 03:00 AM por passar de 7 req/s. Auditoria revelou 4 fontes de request paralelas disparando simultaneamente no minuto :00 de cada hora — no 03:00 é pior porque `responsible_history_daily` (03:00) coincide com `sync_delta_interval` (:00,:05,...), `funnel_cache_warm` (:00,:05,...) e `aceite_reconcile` (:00,:10,...). Sem mutex compartilhado nem throttle uniforme, o pico agregado chegava a 15–30 rps.
+- **Hotspots identificados (rps sem freio antes da correção):**
+  - `_count_leads_in_stage` (funnel warm): `sleep(0.08)` = ~12 rps máx.
+  - `_count_new_leads_between` (novos/dia): `sleep(0.05)` = ~20 rps máx.
+  - `reconcile_aceite_leads` paginação: `sleep(0.05)` = ~20 rps máx.
+  - `reconcile_aceite_leads` GET individual stale: `sleep(0.05)` = ~20 rps máx.
+  - `_sync_responsible_history` paginação `/events`: **zero sleep** — 5–10 rps sustentado.
+  - `_fetch_leads_em_atendimento` (leads_parados): `sleep(0.05)`.
+  - `_fetch_funnel_live` (fallback): `sleep(0.05)`.
+  - `kommo_lib/api_client.py` (subprocess sync): **já tinha** `RateLimiter(120, 60)` = ~1,8 rps. Único que estava OK, isolado.
+- **Decisão em 3 camadas (aditivas, sem mudança de schema):**
+  1. **Camada 1 — throttle uniforme:** todos os loops que usam `_kommo_get` (routes/kommo_sync.py) passam a esperar `_KOMMO_BG_PAGE_SLEEP = 0.20s` entre páginas (env var `KOMMO_BG_PAGE_SLEEP` sobrescreve). Cap teórico por loop: ~5 rps. `_sync_responsible_history` ganha o sleep que **não tinha antes**.
+  2. **Camada 2 — mutex global background:** novo `_kommo_api_bg_lock = threading.Lock()` em `routes/kommo_sync.py`. Adquirido em `_warm_funnel_cache_sync` (timeout 300s), `reconcile_aceite_leads` (timeout 300s), `_sync_responsible_history` (timeout 600s). Se timeout, pula silenciosamente. **Sync via `kommo_lib/main.py` fica FORA do lock** — tem seu próprio rate limiter (1,8 rps) e é o único caminho oficial de sync massivo; misturar no lock atrasaria demais o delta a cada 5min. Endpoints admin (`/api/kommo/reconcile-aceites`, `/api/kommo/sync-responsible-history`) também passam pelo lock (bloqueiam o worker HTTP até a vez, aceitável em admin trigger).
+  3. **Camada 3 — escalonar cron:**
+     - `sync_delta_interval`: mantido em `:00, :05, :10, ...` (5 min).
+     - `funnel_cache_warm`: mudou de `IntervalTrigger(minutes=5)` (que pegava :00, :05, :10) para `CronTrigger(minute="2,7,12,17,22,27,32,37,42,47,52,57")` — offset +2 min.
+     - `aceite_reconcile`: quando `ACEITE_RECONCILE_INTERVAL=10` (default), passa a usar `CronTrigger(minute="3,13,23,33,43,53")` — offset +3 min. Env var custom volta pro IntervalTrigger antigo (compat).
+     - `responsible_history_daily`: movido de **03:00 → 04:30 BRT** (fora do horário nobre de sync/warm/reconcile).
+- **Cap teórico pós-fix:**
+  - 1 job background × 5 rps (throttle 0,2s) + sync kommo_lib 1,8 rps + endpoints ad-hoc = **~7 rps de teto real, exatamente no limite** do que Kommo tolera. Bursts virtualmente impossíveis (mutex garante 1 background por vez; escalonamento espalha os minutos).
+- **Compatibilidade:**
+  - **Latência aceitável:** aceite reconcile ~30s → pode ir a ~2 min no pior caso (500 stale × 0,2s + paginação). Roda a cada 10 min, sem impacto operacional. Funnel warm em background continua não afetando UX (endpoint sempre responde do cache 5 min TTL).
+  - **Reversível:** git revert. Nenhum schema mudou, nenhum endpoint quebrou. Env var `KOMMO_BG_PAGE_SLEEP=0.05` volta o comportamento antigo se algum dia precisar.
+  - **Sync manual do painel** (`/api/kommo/sync`) e **match/merge pipeline** (`match_merge_lib.KommoAPI(rate_per_sec=5)`) já tinham throttle próprio, não foram alterados.
+- **Alternativas descartadas:**
+  - **Rate limiter global em `_kommo_get`** (token bucket compartilhado): arquiteturalmente mais limpo, mas exige refatorar 6+ chamadores diferentes. Trade-off ruim vs sleep uniforme, que resolve o problema imediato com risco mínimo. Reabrir se voltar a saturar.
+  - **Cancelar `responsible_history_daily`:** perde histórico usado em auditoria/dashboard. Não vale.
+  - **Só serializar via `max_instances=1`:** já estava setado em cada job, mas não evita colisão entre jobs *diferentes*. Precisava do mutex compartilhado.
+  - **`kommo_lib` sync entrar no mutex:** atrasaria o delta a cada 5min, e ele já tem rate limiter próprio (1,8 rps). Não vale.
+- **Env vars novas:** `KOMMO_BG_PAGE_SLEEP` (default 0.20, segundos entre páginas em background). `ACEITE_RECONCILE_INTERVAL` continua respeitado; `10` ativa o cron escalonado, qualquer outro valor volta ao IntervalTrigger.
+- **Arquivos alterados:**
+  - `routes/kommo_sync.py` — throttle uniforme + `_kommo_api_bg_lock` + wrap `_sync_responsible_history` → `_sync_responsible_history_impl` + cron escalonado no `register_funnel_cache_job`.
+  - `routes/config.py` — `register_aceite_reconcile` com CronTrigger escalonado quando intervalo=10 + `register_responsible_history_job` movido 03:00 → 04:30.
+  - `routes/leads_parados.py` — sleep entre páginas 0,05 → 0,20.
+
 ### 2026-07-02 — Premiações Internas: colaboradores vinculados a `app_users` (Opção A — `categoria` como cargo sugerido)
 - **Modelo usado:** Opus 4.7 (principal). Implementação direta após aprovação da Opção A pelo usuário.
 - **Problema:** o campo "Nome" do colaborador era texto livre — o gestor precisava digitar manualmente, sem garantir que fosse um usuário real do sistema, e sem forma de distinguir homônimos.
