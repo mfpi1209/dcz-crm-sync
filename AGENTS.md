@@ -4,6 +4,20 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-07-07 — Dist. Comercial: botão TURNO DIA/NOITE respeita snapshot anterior (comportamento esperto)
+- **Modelo usado:** Opus 4.7 (principal). Implementação direta após aprovação da opção "esperto".
+- **Contexto:** O botão `TURNO NOITE/DIA` na UI forçava **TODOS** os consultores do turno alvo pra `ATIVO`, ignorando quem estava `INATIVO` por folga/férias. O gestor precisava lembrar de ajustar manualmente antes de SALVAR — se esquecesse, ativava alguém de férias.
+- **Decisão:** `dcAplicarTurno(turnoAlvo)` no `static/js/dist_comercial.js` passa a buscar o snapshot do turno alvo (`GET /api/dist-comercial/snapshot`) **antes** de calcular o preview. Comportamento:
+  - **Se snapshot existe:** turno alvo recebe status do snapshot (ATIVO/INATIVO). Turno oposto → INATIVO. Consultores no turno alvo mas fora do snapshot (novos) → ATIVO por default.
+  - **Se snapshot não existe (primeira aplicação):** comportamento bruto anterior — todos do turno alvo ficam ATIVO.
+- **UX:** modal de confirmação mostra explicitamente qual dos dois caminhos vai executar ("respeitando snapshot anterior" vs "primeira aplicação").
+- **Backend inalterado:** endpoint `/apply/<turno>` do job automático continua com a lógica original (`_compute_target_statuses`) que já respeitava o snapshot desde o início. Essa mudança alinha a UI manual à mesma semântica que a regra automática já usava.
+- **Trade-off:** um round-trip HTTP a cada clique de TURNO DIA/NOITE (~200ms). Aceitável — é gesto manual, não critical path.
+- **Alternativas descartadas:**
+  - **Botão só inativa o turno oposto, não toca no alvo:** UX confusa ("por que clicar em TURNO DIA se ele não ativa ninguém?").
+  - **Manter bruto e treinar gestor:** o requisito explícito foi "não ativar todos" — vale mais gastar o round-trip que apostar em disciplina operacional.
+  - **Cachear snapshot no `dcState` e evitar o fetch:** cache fica stale (outro gestor pode ter clicado limpar snapshot em outra aba). Fetch on-demand é mais seguro.
+
 ### 2026-07-07 — Dist. Comercial: regras de turno vira modelo de JANELA (revisa entrada abaixo)
 - **Modelo usado:** Opus 4.7 (principal). Implementação direta após aprovação (usuário escolheu "modelo de janela").
 - **Contexto:** A entrada abaixo (mesmo dia, mais cedo) implementou regras como `{hora, turno_alvo}` — cada regra dispara UMA vez ao chegar naquele horário. Pra ter "noite ativa das 17:00 às 22:00 + dia o resto", o gestor precisava criar DUAS regras separadas (17:00→NOITE e 22:00→DIA) e mentalmente entender que uma "cancela" a outra. UX confusa e pouco explícita sobre o efeito operacional.

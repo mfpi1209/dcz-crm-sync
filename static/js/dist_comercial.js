@@ -252,7 +252,7 @@ async function dcTurnoMapPersistCompleto() {
 // - turnoAlvo = 'noite' -> Dia=INATIVO, Noite=ATIVO
 // So altera dcState.data em memoria; o usuario ainda precisa clicar em
 // SALVAR pra persistir via webhook (mesmo padrao dos outros campos).
-window.dcAplicarTurno = function (turnoAlvo) {
+window.dcAplicarTurno = async function (turnoAlvo) {
     if (turnoAlvo !== 'dia' && turnoAlvo !== 'noite') return;
 
     if (!Array.isArray(dcState.data) || dcState.data.length === 0) {
@@ -260,19 +260,51 @@ window.dcAplicarTurno = function (turnoAlvo) {
         return;
     }
 
+    // Busca snapshot do turno alvo (se existir). Comportamento esperto:
+    //  - Se snapshot existe: turno alvo recebe status do snapshot (preserva
+    //    quem estava INATIVO por folga/ferias). Novos consultores no turno
+    //    alvo mas fora do snapshot entram como ATIVO por default.
+    //  - Se snapshot NAO existe (primeira aplicacao): comportamento bruto,
+    //    todos do turno alvo ficam ATIVO.
+    // Turno OPOSTO sempre vira INATIVO (comportamento constante).
+    let snapPayload = null;
+    try {
+        const r = await fetch('/api/dist-comercial/snapshot');
+        if (r.ok) {
+            const d = await r.json();
+            const snap = (d && d.snapshots && d.snapshots[turnoAlvo]) || null;
+            if (snap && snap.payload && Object.keys(snap.payload).length > 0) {
+                snapPayload = snap.payload;
+                dcState.snapshots = d.snapshots || dcState.snapshots;
+            }
+        }
+    } catch (e) {
+        console.warn('Falha ao buscar snapshot pra aplicar turno (segue sem):', e);
+    }
+
     const noiteMap = dcState.turnoMap || {};
     let ativados = 0;
     let inativados = 0;
     let semMudanca = 0;
 
-    // Pre-calcula o diff pra mostrar na confirmacao antes de aplicar
     const previewChanges = [];
     dcState.data.forEach(p => {
         const k = dcTurnoKey(p);
         const isNoite = (k && noiteMap[k] === 'noite');
-        const novoStatus = turnoAlvo === 'noite'
-            ? (isNoite ? 'ATIVO' : 'INATIVO')
-            : (isNoite ? 'INATIVO' : 'ATIVO');
+        const pertenceAoAlvo = (turnoAlvo === 'noite') ? isNoite : !isNoite;
+
+        let novoStatus;
+        if (pertenceAoAlvo) {
+            if (snapPayload && k && (k in snapPayload)) {
+                const v = String(snapPayload[k] || '').toUpperCase();
+                novoStatus = (v === 'INATIVO') ? 'INATIVO' : 'ATIVO';
+            } else {
+                novoStatus = 'ATIVO';
+            }
+        } else {
+            novoStatus = 'INATIVO';
+        }
+
         if ((p.status || '').toUpperCase() !== novoStatus) {
             previewChanges.push({ pessoa: p, novoStatus });
             if (novoStatus === 'ATIVO') ativados++; else inativados++;
@@ -287,22 +319,25 @@ window.dcAplicarTurno = function (turnoAlvo) {
     }
 
     const nomeModo = turnoAlvo === 'noite' ? 'NOITE' : 'DIA';
+    const modoTxt = snapPayload
+        ? '(respeitando snapshot anterior — quem estava INATIVO permanece INATIVO)'
+        : '(primeira aplicacao — todos do turno alvo ficam ATIVO)';
     const msg =
-        'Aplicar Modo ' + nomeModo + '?\n\n' +
+        'Aplicar Modo ' + nomeModo + '\n' + modoTxt + '\n\n' +
         '  ATIVAR:    ' + ativados + ' consultor(es)\n' +
         '  INATIVAR:  ' + inativados + ' consultor(es)\n' +
         '  Sem mudanca: ' + semMudanca + '\n\n' +
-        'As mudancas ficam pendentes ate voce clicar em SALVAR.';
+        'As mudancas ficam pendentes ate voce clicar em SALVAR.\n' +
+        'Ao SALVAR, o snapshot ' + nomeModo + ' sera atualizado com o estado final.';
     if (!window.confirm(msg)) return;
 
-    // Aplica em dcState.data (mesma referencia usada por dcDetectarAlteracoes)
     previewChanges.forEach(({ pessoa, novoStatus }) => {
         pessoa.status = novoStatus;
     });
 
     // Marca que o proximo SALVAR deve tirar snapshot deste turno. O backend
-    // usa esse snapshot como "quem estava ativo da ultima vez" nas regras
-    // automaticas.
+    // usa esse snapshot como "quem estava ativo/inativo na ultima vez" nas
+    // regras automaticas E na proxima aplicacao manual (via este mesmo path).
     dcState.pendingSnapshot = turnoAlvo;
 
     dcRenderTable();
