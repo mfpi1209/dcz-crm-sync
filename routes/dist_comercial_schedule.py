@@ -35,7 +35,7 @@ import os
 import json
 import logging
 import threading
-from datetime import datetime, date, time as dtime
+from datetime import datetime, date, time as dtime, timezone, timedelta
 
 import psycopg2
 import psycopg2.extras
@@ -58,6 +58,11 @@ PAGE_DIST = "dist_comercial"
 
 # Evita disparos concorrentes (job cron + POST manual chegando ao mesmo tempo)
 _apply_lock = threading.Lock()
+
+# Timezone BRT (UTC-3 fixo — Brasil nao observa DST desde 2019). Alinhado com
+# routes/kommo_sync.py:_BRT. Usado no _run_scheduled_apply pra comparar wall
+# clock BRT contra os TIMEs naive gravados no Postgres pelo usuario.
+_BRT = timezone(timedelta(hours=-3))
 
 
 # ---------------------------------------------------------------------------
@@ -725,9 +730,14 @@ def _run_scheduled_apply() -> None:
     cobre casos onde o servidor estava parado no minuto exato (misfire).
     """
     try:
-        now = datetime.now()
+        # BRT explicito: o usuario digita horarios pensando em Sao Paulo. Se o
+        # server rodar em UTC (Easypanel default), datetime.now() naive traria
+        # UTC e disparaia 3h cedo demais. .time() de um aware retorna naive
+        # (wall clock BRT), que compara corretamente contra o TIME naive gravado
+        # pelo usuario em hora_inicio/hora_fim.
+        now = datetime.now(_BRT)
         today = now.date()
-        current_t = now.time()
+        current_t = now.time().replace(tzinfo=None)
 
         conn = get_conn()
         try:
