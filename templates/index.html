@@ -71,6 +71,8 @@
             {% include 'partials/_leads_promotores.html' %}
             {% include 'partials/_profile.html' %}
             {% include 'partials/_meus_atendimentos.html' %}
+            {% include 'partials/_premiacoes_internas.html' %}
+            {% include 'partials/_aprovacao_premiacoes.html' %}
             {% include 'partials/_ia_comercial.html' %}
             {% include 'partials/_page_views.html' %}
             {% include 'partials/_solicitacoes_ti.html' %}
@@ -376,6 +378,8 @@
 <script defer src="{{ url_for('static', filename='js/minha_performance.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/meus_atendimentos.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/premiacao_admin.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/premiacoes_internas.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/aprovacao_premiacoes.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/ajustes_matricula.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/macro_email.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/repasse.js') }}?v={{_v}}"></script>

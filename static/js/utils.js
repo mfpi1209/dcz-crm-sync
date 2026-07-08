@@ -23,8 +23,8 @@ async function api(url, opts = {}) {
 // ---------------------------------------------------------------------------
 // SPA Navigation
 // ---------------------------------------------------------------------------
-const PAGES = ['dashboard', 'search', 'sync', 'kommo_sync', 'update', 'pipeline', 'match_merge', 'comercial_rgm', 'dist_comercial', 'distribuicao', 'ativacoes', 'intelligence', 'inadimplencia', 'feedback', 'comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos', 'leads_inscricao', 'cadastro_leads', 'logs', 'config', 'schedule', 'inscricao', 'avisos', 'kommo_dispatcher', 'meta-campaigns', 'recadastros', 'comercial_dashboard', 'auditoria_comercial', 'atualizar_preco', 'vocacional', 'leads_parados', 'minha_performance', 'premiacao_admin', 'macro_email', 'ajustes_matricula', 'repasse', 'dist_consultor', 'captacao', 'clicks', 'leads_promotores', 'profile', 'meus_atendimentos', 'rematricula', 'disparador_whatsapp', 'ia_comercial', 'page_views', 'solicitacoes_ti'];
-const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', kommo_sync: 'Sync Comercial', update: 'Upload Acadêmico', pipeline: 'Saneamento / Pipeline', match_merge: 'Match & Merge', comercial_rgm: 'Dashboard Comercial', dist_comercial: 'Distribuição Comercial', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas', intelligence: 'Análises', inadimplencia: 'Inadimplência', feedback: 'Feedback', comparar_cursos: 'Comparar Cursos', recomendacao_cursos: 'Recomendação', localizacao_polos: 'Localização', info_cursos: 'Informações de Cursos', leads_inscricao: 'Leads em Inscrição Automática', cadastro_leads: 'Cadastro de Leads', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento', inscricao: 'Inscrições', avisos: 'Avisos', kommo_dispatcher: 'Kommo Dispatcher', 'meta-campaigns': 'Campaign Performance', recadastros: 'Recadastros', comercial_dashboard: 'Dashboard Atendimentos', auditoria_comercial: 'Feedback Comercial', atualizar_preco: 'Atualizar Preço', vocacional: 'Dashboard Vocacional', leads_parados: 'Parados', minha_performance: 'Minha Performance', premiacao_admin: 'Premiação', macro_email: 'Macro Email', ajustes_matricula: 'Ajustes de Matrícula', repasse: 'Repasse', dist_consultor: 'Distribuição Consultor', captacao: 'Captação Externa', clicks: 'QR Codes', leads_promotores: 'Leads · Promotores', profile: 'Meu Perfil', meus_atendimentos: 'Meus Atendimentos', rematricula: 'Rematrícula', disparador_whatsapp: 'Disparador WhatsApp', ia_comercial: 'IA Comercial', page_views: 'Uso do Dashboard', solicitacoes_ti: 'Solicitações TI' };
+const PAGES = ['dashboard', 'search', 'sync', 'kommo_sync', 'update', 'pipeline', 'match_merge', 'comercial_rgm', 'dist_comercial', 'distribuicao', 'ativacoes', 'intelligence', 'inadimplencia', 'feedback', 'comparar_cursos', 'recomendacao_cursos', 'localizacao_polos', 'info_cursos', 'leads_inscricao', 'cadastro_leads', 'logs', 'config', 'schedule', 'inscricao', 'avisos', 'kommo_dispatcher', 'meta-campaigns', 'recadastros', 'comercial_dashboard', 'auditoria_comercial', 'atualizar_preco', 'vocacional', 'leads_parados', 'minha_performance', 'premiacao_admin', 'macro_email', 'ajustes_matricula', 'repasse', 'dist_consultor', 'captacao', 'clicks', 'leads_promotores', 'profile', 'meus_atendimentos', 'premiacoes_internas', 'aprovacao_premiacoes', 'rematricula', 'disparador_whatsapp', 'ia_comercial', 'page_views', 'solicitacoes_ti'];
+const PAGE_TITLES = { dashboard: 'Dashboard', search: 'Buscar', sync: 'Sincronização', kommo_sync: 'Sync Comercial', update: 'Upload Acadêmico', pipeline: 'Saneamento / Pipeline', match_merge: 'Match & Merge', comercial_rgm: 'Dashboard Comercial', dist_comercial: 'Distribuição Comercial', distribuicao: 'Distribuição', ativacoes: 'Ativações Acadêmicas', intelligence: 'Análises', inadimplencia: 'Inadimplência', feedback: 'Feedback', comparar_cursos: 'Comparar Cursos', recomendacao_cursos: 'Recomendação', localizacao_polos: 'Localização', info_cursos: 'Informações de Cursos', leads_inscricao: 'Leads em Inscrição Automática', cadastro_leads: 'Cadastro de Leads', logs: 'Logs / Relatórios', config: 'Configurações', schedule: 'Agendamento', inscricao: 'Inscrições', avisos: 'Avisos', kommo_dispatcher: 'Kommo Dispatcher', 'meta-campaigns': 'Campaign Performance', recadastros: 'Recadastros', comercial_dashboard: 'Dashboard Atendimentos', auditoria_comercial: 'Feedback Comercial', atualizar_preco: 'Atualizar Preço', vocacional: 'Dashboard Vocacional', leads_parados: 'Parados', minha_performance: 'Minha Performance', premiacao_admin: 'Premiação', macro_email: 'Macro Email', ajustes_matricula: 'Ajustes de Matrícula', repasse: 'Repasse', dist_consultor: 'Distribuição Consultor', captacao: 'Captação Externa', clicks: 'QR Codes', leads_promotores: 'Leads · Promotores', profile: 'Meu Perfil', meus_atendimentos: 'Meus Atendimentos', premiacoes_internas: 'Premiações Internas', aprovacao_premiacoes: 'Aprovação de Premiações', rematricula: 'Rematrícula', disparador_whatsapp: 'Disparador WhatsApp', ia_comercial: 'IA Comercial', page_views: 'Uso do Dashboard', solicitacoes_ti: 'Solicitações TI' };
 
 // Páginas permitidas vêm do servidor (data-allowed-pages no <body>) — evita
 // flash de UI carregando conteúdo proibido antes de o JS esconder.
@@ -149,6 +149,8 @@ function navigate(page, params) {
     if (page === 'leads_promotores') loadLeadsPromotores();
     if (page === 'profile') loadProfile();
     if (page === 'meus_atendimentos' && typeof loadMeusAtendimentos === 'function') loadMeusAtendimentos();
+    if (page === 'premiacoes_internas' && typeof loadPremiacoesInternas === 'function') loadPremiacoesInternas();
+    if (page === 'aprovacao_premiacoes' && typeof loadAprovacaoPremiacoes === 'function') loadAprovacaoPremiacoes();
     if (page === 'disparador_whatsapp' && typeof loadDisparadorWhatsapp === 'function') loadDisparadorWhatsapp();
     if (page === 'rematricula' && typeof loadRematricula === 'function') loadRematricula();
     if (page === 'ia_comercial' && typeof loadIaComercial === 'function') loadIaComercial();
@@ -829,12 +831,57 @@ function mergePoloBreakdown(byPolo) {
 }
 
 // ---------------------------------------------------------------------------
+// Modais — portar para <body> (position:fixed relativo à viewport)
+// ---------------------------------------------------------------------------
+const DCZ_MODAL_ROOT_IDS = [
+    'dist-modal-add',
+    'ac-modal-overlay',
+    'fb-modal-overlay',
+    'rule-modal-overlay',
+    'me-modal-overlay',
+    'dc-modal-overlay',
+    'ap-modal',
+    'pi-modal',
+    'iac-exec-modal',
+    'mp-modal-minha-mat',
+    'mp-modal-ajuste',
+    'pa-grupo-modal',
+    'pa-edit-modal',
+    'crgm-edit-meta-modal',
+];
+
+function dczPortalToBody(el) {
+    if (!el || el.parentElement === document.body) {
+        if (el) el.classList.add('dcz-modal-portal');
+        return el;
+    }
+    document.body.appendChild(el);
+    el.classList.add('dcz-modal-portal');
+    return el;
+}
+
+function dczRelocateModalsToBody() {
+    const main = document.querySelector('main');
+    if (!main) return;
+    DCZ_MODAL_ROOT_IDS.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el && main.contains(el)) dczPortalToBody(el);
+    });
+    main.querySelectorAll('[data-dcz-modal-root]').forEach((el) => dczPortalToBody(el));
+}
+
+function dczLockBodyScroll(lock) {
+    document.body.classList.toggle('dcz-modal-open', !!lock);
+}
+
+// ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
 const currentTheme = localStorage.getItem('eduit-theme') || 'dark';
 updateThemeUI(currentTheme);
 
 document.addEventListener('DOMContentLoaded', () => {
+    dczRelocateModalsToBody();
     initTopbarUser();
     _initScrollToTop();
     _initNotifPanel();

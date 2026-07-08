@@ -41,8 +41,8 @@ PG_KOMMO = {
     "host": os.getenv("KOMMO_PG_HOST", "31.97.91.47"),
     "port": int(os.getenv("KOMMO_PG_PORT", "5432")),
     "dbname": os.getenv("KOMMO_PG_DB", "kommo_sync"),
-    "user": os.getenv("KOMMO_PG_USER", "adm_eduit"),
-    "password": os.getenv("KOMMO_PG_PASS", "IaDm24Sx3HxrYoqT"),
+    "user": os.getenv("KOMMO_PG_USER", os.getenv("DB_USER", "adm_eduit")),
+    "password": os.getenv("KOMMO_PG_PASS", os.getenv("DB_PASS", "IaDm24Sx3HxrYoqT")),
 }
 
 _tasks = {}
@@ -65,7 +65,15 @@ def api_kommo_connection_test():
     try:
         r = _requests.get(
             url,
-            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+            headers={
+                **{
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                                   "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                    "Accept": "application/json, text/plain, */*",
+                    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+                },
+                "Authorization": f"Bearer {token}",
+            },
             timeout=15,
         )
         if r.status_code == 200:
@@ -83,6 +91,134 @@ def api_kommo_connection_test():
         }), 502
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@kommo_bp.route("/api/_diag/kommo")
+def api_diag_kommo():
+    """Diagnostico de conectividade Kommo a partir do container.
+
+    Retorna num JSON unico:
+      - file_mtime: timestamp da ultima modificacao deste arquivo (proxy de versao do deploy)
+      - has_default_headers: True se _KOMMO_DEFAULT_HEADERS existe (codigo novo)
+      - env: snapshot das envs relevantes
+      - egress_ip: IP publico de saida do container
+      - request: headers que o Flask manda
+      - response: status, headers, primeiros 500 chars do body
+    """
+    diag = {"ok": True}
+
+    try:
+        diag["file_mtime"] = datetime.fromtimestamp(
+            Path(__file__).stat().st_mtime, _BRT
+        ).isoformat()
+    except Exception as e:
+        diag["file_mtime_error"] = str(e)
+
+    diag["has_default_headers"] = "_KOMMO_DEFAULT_HEADERS" in globals()
+
+    diag["env"] = {
+        "KOMMO_BASE_URL": os.getenv("KOMMO_BASE_URL", "<unset>"),
+        "KOMMO_TOKEN_length": len(os.getenv("KOMMO_TOKEN", "") or ""),
+        "KOMMO_TOKEN_prefix": (os.getenv("KOMMO_TOKEN", "") or "")[:20],
+    }
+
+    try:
+        ip_r = _requests.get("https://api.ipify.org?format=json", timeout=8)
+        diag["egress_ip"] = ip_r.json().get("ip") if ip_r.status_code == 200 else f"http {ip_r.status_code}"
+    except Exception as e:
+        diag["egress_ip"] = f"err: {e}"
+
+    token = os.getenv("KOMMO_TOKEN", "") or ""
+    base = os.getenv("KOMMO_BASE_URL", "https://admamoeduitcombr.kommo.com").strip().rstrip("/")
+    url = base if base.endswith("/api/v4") else f"{base}/api/v4/account"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                       "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+        "Authorization": f"Bearer {token}",
+    }
+    diag["request"] = {"url": url, "headers_sent": {k: v for k, v in headers.items() if k != "Authorization"}}
+
+    try:
+        r = _requests.get(url, headers=headers, timeout=15)
+        diag["response"] = {
+            "status": r.status_code,
+            "headers": dict(r.headers),
+            "body_preview": (r.text or "")[:500],
+        }
+    except Exception as e:
+        diag["response"] = {"error": str(e)}
+
+    return jsonify(diag)
+
+
+@kommo_bp.route("/api/_diag/kommo/probe")
+def api_diag_kommo_probe():
+    """Tenta varias combinacoes de headers em sequencia, retorna qual passa.
+
+    Util pra descobrir o que o WAF da Kommo exige quando bloqueia IPs de
+    datacenter (alem de User-Agent realista, pode exigir Sec-Fetch-*,
+    Sec-Ch-Ua-*, Origin, Referer, ou nenhum desses).
+    """
+    token = os.getenv("KOMMO_TOKEN", "") or ""
+    base = os.getenv("KOMMO_BASE_URL", "https://admamoeduitcombr.kommo.com").strip().rstrip("/")
+    url = base if base.endswith("/api/v4") else f"{base}/api/v4/account"
+
+    UA_CHROME = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+    UA_CURL = "curl/8.4.0"
+    UA_PYTHON = "python-requests/2.32.0"
+
+    common = {"Authorization": f"Bearer {token}"}
+
+    variants = [
+        ("01_only_auth", {**common}),
+        ("02_ua_curl", {**common, "User-Agent": UA_CURL, "Accept": "*/*"}),
+        ("03_ua_python", {**common, "User-Agent": UA_PYTHON, "Accept": "*/*"}),
+        ("04_ua_chrome_basic", {**common, "User-Agent": UA_CHROME, "Accept": "application/json"}),
+        ("05_ua_chrome_full", {
+            **common,
+            "User-Agent": UA_CHROME,
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+            "Sec-Ch-Ua-Mobile": "?0",
+            "Sec-Ch-Ua-Platform": '"Windows"',
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "same-origin",
+        }),
+        ("06_ua_chrome_with_origin_referer", {
+            **common,
+            "User-Agent": UA_CHROME,
+            "Accept": "application/json, text/plain, */*",
+            "Origin": base,
+            "Referer": f"{base}/",
+        }),
+    ]
+
+    results = []
+    for name, headers in variants:
+        try:
+            r = _requests.get(url, headers=headers, timeout=12)
+            results.append({
+                "variant": name,
+                "status": r.status_code,
+                "server_header": r.headers.get("Server"),
+                "x_error": r.headers.get("X-Error"),
+                "body_first_120": (r.text or "")[:120],
+            })
+        except Exception as e:
+            results.append({"variant": name, "error": str(e)})
+
+    return jsonify({
+        "ok": True,
+        "url": url,
+        "egress_hint": "veja /api/_diag/kommo p/ ver IP de saida",
+        "results": results,
+    })
 
 
 @kommo_bp.route("/api/kommo/status")
@@ -431,6 +567,18 @@ def api_kommo_task(task_id):
 KOMMO_API_BASE = os.getenv("KOMMO_BASE_URL", "https://admamoeduitcombr.kommo.com")
 KOMMO_TOKEN = os.getenv("KOMMO_TOKEN", "")
 
+
+def _kommo_token():
+    """Lê token no momento da chamada (.env ou app_config do painel Config)."""
+    t = (os.getenv("KOMMO_TOKEN", "") or KOMMO_TOKEN or "").strip()
+    if t:
+        return t
+    try:
+        from kommo_lib.config import KOMMO_TOKEN as _cfg_tok
+        return (_cfg_tok or "").strip()
+    except Exception:
+        return ""
+
 FUNNEL_PIPELINE = 5481944
 FUNNEL_STAGES_DEF = [
     {"key": "incoming",              "id": 48539237, "label": "Incoming"},
@@ -445,7 +593,7 @@ FUNNEL_STAGES_DEF = [
     {"key": "aprovado_reprovado",    "id": 48566201, "label": "Aprovados/Reprovados"},
     {"key": "boleto_enviado",        "id": 48566204, "label": "Boleto Enviado"},
     {"key": "aceite",                "id": 48566207, "label": "Aceite"},
-    {"key": "qualificacao",          "id": 53917599, "label": "Qualificação"},
+    {"key": "qualificacao",          "id": 53917599, "label": "ROBÔ"},
     {"key": "pagamento_confirmado",  "id": 77728584, "label": "Pagamento Confirmado"},
 ]
 
@@ -455,19 +603,92 @@ FUNNEL_HIGHLIGHT = [
     "em_processo", "aprovado_reprovado", "aceite",
 ]
 
+# Filas contadas na API (sem Aguardando Resposta — não exibida no painel).
+FUNNEL_DASHBOARD_COUNT_KEYS = set(FUNNEL_HIGHLIGHT) | {
+    "pagamento_confirmado",
+    "sem_resposta",
+}
+
 _funnel_cache = {"data": None, "ts": 0}
+_funnel_cache_lock = threading.Lock()
+_funnel_warming = False
+_funnel_meta = {"last_error": None, "last_warm_at": None, "last_warm_ok": None}
 _FUNNEL_CACHE_TTL = 300
+_FUNNEL_API_VERSION = 6
+_FUNNEL_CACHE_FILE = Path(__file__).resolve().parent.parent / "data" / "funnel_live_cache.json"
+# Easypanel/nginx costuma cortar em ~60s; live Kommo pode levar 40s+.
+_FUNNEL_LIVE_TIMEOUT_S = int(os.getenv("FUNNEL_LIVE_TIMEOUT_S", "25"))
+_FUNNEL_LIVE_FORCE_TIMEOUT_S = int(os.getenv("FUNNEL_LIVE_FORCE_TIMEOUT_S", "45"))
+
+# Rate limit: Kommo bloqueia contas que passam de 7 req/s (bloqueio real em
+# 27/06/2026 03:00). Aplicamos 0.20s de espera entre chamadas em CADA loop
+# que usa _kommo_get sem passar pelo RateLimiter do kommo_lib. Combinado com
+# o _kommo_api_bg_lock (garante 1 job background por vez), o teto real fica
+# em ~5 rps.
+_KOMMO_BG_PAGE_SLEEP = float(os.getenv("KOMMO_BG_PAGE_SLEEP", "0.20"))
+# Mutex global: impede que _warm_funnel_cache_sync, reconcile_aceite_leads e
+# _sync_responsible_history rodem simultaneamente. Sync via kommo_lib/main.py
+# tem seu proprio rate limiter (1.8 rps) e nao entra neste lock.
+_kommo_api_bg_lock = threading.Lock()
 
 SNAPSHOT_FILE = Path(__file__).resolve().parent.parent / "data" / "funnel_snapshot.json"
 
 
+# Headers padrao para chamadas Kommo. User-Agent realista evita bloqueio
+# por WAF/nginx em datacenters (o default 'python-requests/X.Y' costuma
+# cair em blacklist de bots, retornando 403 nginx em produ��o).
+_KOMMO_DEFAULT_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                   "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+}
+
+
+def _kommo_http_error(status_code: int) -> str:
+    if status_code == 403:
+        return "Kommo bloqueou o servidor (403 WAF)."
+    if status_code == 401:
+        return "Token Kommo inválido ou expirado (401)."
+    if status_code == 429:
+        return "Kommo limitou requisições (429)."
+    return f"Kommo API HTTP {status_code}"
+
+
+def _sanitize_kommo_error(err: str | None) -> str | None:
+    if not err:
+        return None
+    e = err.strip()
+    low = e.lower()
+    if "<html" in low or "<!doctype" in low:
+        if "403" in e or "forbidden" in low:
+            return "Kommo bloqueou o servidor (403 WAF)."
+        return "Resposta inválida do Kommo."
+    if "403" in e or "forbidden" in low:
+        return "Kommo bloqueou o servidor (403 WAF)."
+    if len(e) > 160:
+        return e[:160] + "…"
+    return e
+
+
+def _kommo_err_blocked(err: str | None) -> bool:
+    if not err:
+        return False
+    low = err.lower()
+    return "403" in err or "forbidden" in low or "401" in err
+
+
 def _kommo_get(path, params=None):
     base = KOMMO_API_BASE.rstrip("/")
+    web_base = base.replace("/api/v4", "").rstrip("/")
     if "/api/v4" not in base:
         url = f"{base}/api/v4{path}"
     else:
         url = f"{base}{path}"
-    headers = {"Authorization": f"Bearer {KOMMO_TOKEN}"}
+    headers = dict(_KOMMO_DEFAULT_HEADERS)
+    headers["Authorization"] = f"Bearer {_kommo_token()}"
+    headers["Origin"] = web_base
+    headers["Referer"] = f"{web_base}/"
     return _requests.get(url, headers=headers, params=params, timeout=30)
 
 
@@ -499,10 +720,14 @@ def _count_new_leads_between(from_ts: int, to_ts: int | None = None, pipeline_id
             r = _kommo_get("/leads", params)
         except Exception as e:
             logger.error("count_new_leads API error: %s", e)
+            if page == 1:
+                raise
             break
 
         if r.status_code != 200:
             logger.warning("count_new_leads API %d: %s", r.status_code, r.text[:200])
+            if page == 1:
+                raise RuntimeError(_kommo_http_error(r.status_code))
             break
 
         data = r.json()
@@ -519,7 +744,7 @@ def _count_new_leads_between(from_ts: int, to_ts: int | None = None, pipeline_id
         if "next" not in data.get("_links", {}):
             break
         page += 1
-        _time.sleep(0.05)
+        _time.sleep(_KOMMO_BG_PAGE_SLEEP)
 
     return count
 
@@ -533,20 +758,30 @@ def _count_new_leads_today():
     return count
 
 
-def _count_leads_day_pg(d: date) -> int:
+def _count_leads_day_pg(d: date, pipeline_id: int | None = None) -> int:
     """Leads criados no dia (Postgres kommo_sync — mesmo espelho do sync)."""
     ep_ini, ep_fim = _day_bounds_brt(d)
     conn = None
     try:
         conn = _pg()
         cur = conn.cursor()
-        cur.execute(
-            """
-            SELECT COUNT(*) FROM leads
-            WHERE created_at >= %s AND created_at <= %s AND NOT is_deleted
-            """,
-            (ep_ini, ep_fim),
-        )
+        if pipeline_id is not None:
+            cur.execute(
+                """
+                SELECT COUNT(*) FROM leads
+                WHERE created_at >= %s AND created_at <= %s AND NOT is_deleted
+                  AND pipeline_id = %s
+                """,
+                (ep_ini, ep_fim, pipeline_id),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT COUNT(*) FROM leads
+                WHERE created_at >= %s AND created_at <= %s AND NOT is_deleted
+                """,
+                (ep_ini, ep_fim),
+            )
         return int(cur.fetchone()[0] or 0)
     except Exception as e:
         logger.warning("count_leads_day_pg %s: %s", d, e)
@@ -557,6 +792,60 @@ def _count_leads_day_pg(d: date) -> int:
                 conn.close()
             except Exception:
                 pass
+
+
+def _count_new_leads_today_best():
+    """Captação do dia: API Kommo (intraday, ~1s); espelho Postgres só se API falhar."""
+    today = datetime.now(_BRT).date()
+    if _kommo_token():
+        try:
+            return _count_new_leads_today()
+        except Exception as e:
+            logger.warning("new_today kommo: %s", e)
+    pg_n = _count_leads_day_pg(today, pipeline_id=FUNNEL_PIPELINE)
+    logger.info("new_today pg fallback: %d (pipeline=%s)", pg_n, FUNNEL_PIPELINE)
+    return pg_n
+
+
+_new_today_cache = {"count": None, "ts": 0, "source": None}
+_NEW_TODAY_CACHE_TTL = 60
+
+
+def _get_new_leads_today_payload(force=False):
+    """KPI leve de novos leads hoje — usado pelo dashboard sem esperar o funil inteiro."""
+    now = _time.time()
+    if (
+        not force
+        and _new_today_cache["count"] is not None
+        and (now - _new_today_cache["ts"]) < _NEW_TODAY_CACHE_TTL
+    ):
+        return {
+            "count": _new_today_cache["count"],
+            "source": _new_today_cache["source"],
+            "cached": True,
+        }
+
+    source = "kommo"
+    try:
+        if not _kommo_token():
+            source = "db"
+            count = _count_leads_day_pg(datetime.now(_BRT).date(), pipeline_id=FUNNEL_PIPELINE)
+        else:
+            count = _count_new_leads_today_best()
+            if count <= 0:
+                pg_n = _count_leads_day_pg(datetime.now(_BRT).date(), pipeline_id=FUNNEL_PIPELINE)
+                if pg_n > count:
+                    count = pg_n
+                    source = "db"
+    except Exception as e:
+        logger.warning("new_leads_today payload: %s", e)
+        source = "db"
+        count = _count_leads_day_pg(datetime.now(_BRT).date(), pipeline_id=FUNNEL_PIPELINE)
+
+    _new_today_cache["count"] = count
+    _new_today_cache["source"] = source
+    _new_today_cache["ts"] = now
+    return {"count": count, "source": source, "cached": False}
 
 
 def _vendas_comercial_dia(d: date) -> int:
@@ -696,12 +985,264 @@ def _get_yesterday_summary_cached(force=False):
     return data
 
 
+def _get_yesterday_summary_light():
+    """Resumo de ontem sem bater na API Kommo — evita estourar timeout do proxy no funil."""
+    expected_date = (datetime.now(_BRT).date() - timedelta(days=1)).isoformat()
+    cached = _yesterday_cache.get("data")
+    if (
+        cached
+        and cached.get("date") == expected_date
+        and _yesterday_summary_has_signal(cached)
+    ):
+        return cached
+    yesterday = datetime.now(_BRT).date() - timedelta(days=1)
+    return {
+        "date": yesterday.isoformat(),
+        "vendas": _vendas_comercial_dia(yesterday),
+        "leads": 0,
+        "leads_prev": 0,
+        "leads_delta_pct": 0,
+    }
+
+
+def _count_leads_in_stage(status_id: int) -> tuple[int, str | None]:
+    """Conta leads em uma fila — paginação limit=250 (API Kommo não expõe _total_items em /leads)."""
+    count = 0
+    page = 1
+    rate_retries = 0
+    while True:
+        try:
+            r = _kommo_get("/leads", {
+                "limit": 250,
+                "page": page,
+                "filter[statuses][0][pipeline_id]": FUNNEL_PIPELINE,
+                "filter[statuses][0][status_id]": status_id,
+            })
+        except Exception as e:
+            return (count, str(e)) if page > 1 else (0, str(e))
+        if r.status_code == 204:
+            break
+        if r.status_code == 429:
+            rate_retries += 1
+            if rate_retries > 8:
+                return count, "Kommo API 429: rate limit"
+            _time.sleep(0.5 * rate_retries)
+            continue
+        rate_retries = 0
+        if r.status_code != 200:
+            err = _kommo_http_error(r.status_code)
+            return (count, err) if page > 1 else (0, err)
+        data = r.json()
+        leads = data.get("_embedded", {}).get("leads", [])
+        if not leads:
+            break
+        count += len(leads)
+        if "next" not in data.get("_links", {}):
+            break
+        page += 1
+        _time.sleep(_KOMMO_BG_PAGE_SLEEP)
+    return count, None
+
+
+def _fetch_funnel_live_counts(*, dashboard_only: bool = True):
+    """Contagem ao vivo por fila — sequencial; dashboard_only pula filas fora do painel."""
+    count_keys = FUNNEL_DASHBOARD_COUNT_KEYS if dashboard_only else {
+        s["key"] for s in FUNNEL_STAGES_DEF
+    }
+    counts = {}
+    for sdef in FUNNEL_STAGES_DEF:
+        if sdef["key"] not in count_keys:
+            continue
+        n, err = _count_leads_in_stage(sdef["id"])
+        if err:
+            return None, err
+        counts[sdef["id"]] = n
+        _time.sleep(_KOMMO_BG_PAGE_SLEEP)
+
+    stages = []
+    total = 0
+    for sdef in FUNNEL_STAGES_DEF:
+        c = counts.get(sdef["id"], 0) if sdef["key"] in count_keys else 0
+        total += c
+        stages.append({
+            "key": sdef["key"],
+            "id": sdef["id"],
+            "label": sdef["label"],
+            "count": c,
+            "highlight": sdef["key"] in FUNNEL_HIGHLIGHT,
+        })
+
+    for s in stages:
+        s["pct"] = round(s["count"] / total * 100, 1) if total > 0 else 0
+
+    out = {
+        "stages": stages,
+        "total": total,
+        "leads_fetched": total,
+        "pages": 0,
+        "source": "live",
+        "funnel_api_version": _FUNNEL_API_VERSION,
+        "dashboard_only": dashboard_only,
+    }
+    return out, None
+
+
+def _fetch_funnel_best_effort(*, dashboard_only: bool = True):
+    """API Kommo ao vivo; se bloqueada (403 WAF), cai no espelho Postgres."""
+    result, err = _fetch_funnel_live_counts(dashboard_only=dashboard_only)
+    if result:
+        return result, None, "live"
+    err_s = _sanitize_kommo_error(err)
+    if _kommo_err_blocked(err):
+        try:
+            db = _fetch_funnel_from_db()
+            return db, err_s, "db"
+        except Exception as e:
+            logger.warning("funnel db fallback: %s", e)
+    return None, err_s, None
+
+
+def _load_funnel_disk_cache():
+    try:
+        if not _FUNNEL_CACHE_FILE.exists():
+            return
+        with open(_FUNNEL_CACHE_FILE, encoding="utf-8") as f:
+            blob = json.load(f)
+        data = blob.get("data")
+        if not data or data.get("funnel_api_version", 0) < _FUNNEL_API_VERSION:
+            return
+        with _funnel_cache_lock:
+            _funnel_cache["data"] = data
+            _funnel_cache["ts"] = float(blob.get("ts") or 0)
+        logger.info("funnel disk cache loaded total=%s", data.get("total"))
+    except Exception as e:
+        logger.warning("funnel disk cache load: %s", e)
+
+
+def _save_funnel_disk_cache():
+    try:
+        with _funnel_cache_lock:
+            if not _funnel_cache.get("data"):
+                return
+            blob = {"ts": _funnel_cache["ts"], "data": _funnel_cache["data"]}
+        _FUNNEL_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(_FUNNEL_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(blob, f, ensure_ascii=False)
+    except Exception as e:
+        logger.warning("funnel disk cache save: %s", e)
+
+
+_load_funnel_disk_cache()
+
+
+def _warm_funnel_cache_sync():
+    """Atualiza cache do funil em background (cron / stale-while-revalidate).
+
+    Adquire _kommo_api_bg_lock para nao rodar em paralelo com outros jobs
+    de background que batem no Kommo (aceite_reconcile, responsible_history).
+    Se o lock estiver tomado, espera ate 300s (5 min) — apos isso desiste
+    silenciosamente pra nao acumular threads."""
+    global _funnel_warming
+    if not _kommo_token():
+        _funnel_meta["last_error"] = "KOMMO_TOKEN não configurado"
+        _funnel_meta["last_warm_at"] = datetime.now(_BRT).isoformat()
+        _funnel_meta["last_warm_ok"] = False
+        return
+    with _funnel_cache_lock:
+        if _funnel_warming:
+            return
+        _funnel_warming = True
+    got_bg_lock = _kommo_api_bg_lock.acquire(timeout=300)
+    if not got_bg_lock:
+        logger.warning("funnel warm: nao conseguiu _kommo_api_bg_lock em 5min, pulando")
+        with _funnel_cache_lock:
+            _funnel_warming = False
+        return
+    try:
+        result, live_err, _src = _fetch_funnel_best_effort(dashboard_only=True)
+        if not result:
+            _funnel_meta["last_error"] = live_err or "contagem vazia"
+            _funnel_meta["last_warm_ok"] = False
+            logger.warning("funnel cache warm failed: %s", live_err)
+            return
+        try:
+            nt = _get_new_leads_today_payload(force=False)
+            new_today = nt["count"]
+            result["new_today_source"] = nt.get("source")
+        except Exception as e:
+            logger.warning("funnel warm new_today: %s", e)
+            new_today = 0
+        enriched = _enrich_funnel_result(
+            result,
+            new_today=new_today,
+            yesterday_summary=_get_yesterday_summary_light(),
+            live_error=live_err if result.get("source") == "db" else None,
+        )
+        with _funnel_cache_lock:
+            _funnel_cache["data"] = enriched
+            _funnel_cache["ts"] = _time.time()
+        _save_funnel_disk_cache()
+        _funnel_meta["last_error"] = live_err if result.get("source") == "db" else None
+        _funnel_meta["last_warm_at"] = datetime.now(_BRT).isoformat()
+        _funnel_meta["last_warm_ok"] = True
+        logger.info("funnel cache warmed total=%s", enriched.get("total"))
+    except Exception as e:
+        _funnel_meta["last_error"] = str(e)
+        _funnel_meta["last_warm_ok"] = False
+        logger.exception("funnel cache warm: %s", e)
+    finally:
+        _funnel_meta["last_warm_at"] = datetime.now(_BRT).isoformat()
+        with _funnel_cache_lock:
+            _funnel_warming = False
+        _kommo_api_bg_lock.release()
+
+
+def _start_funnel_cache_warm_async():
+    t = threading.Thread(target=_warm_funnel_cache_sync, daemon=True, name="funnel-cache-warm")
+    t.start()
+
+
+def register_funnel_cache_job(sched):
+    """Cron: mantém cache do funil quente (evita 502 no proxy em produção).
+
+    Escalonado nos minutos 2,7,12,... (offset +2 do sync_delta_interval que
+    roda em :00,:05,:10) pra evitar colisao de rps com o Kommo. Combinado com
+    _kommo_api_bg_lock, garante que warm nunca soma com aceite_reconcile
+    (:03,:13,:23) e responsible_history_daily (04:30)."""
+    from apscheduler.triggers.cron import CronTrigger as _CronTrigger
+    from datetime import timedelta as _td
+    sched.add_job(
+        _warm_funnel_cache_sync,
+        _CronTrigger(minute="2,7,12,17,22,27,32,37,42,47,52,57", timezone="America/Sao_Paulo"),
+        id="funnel_cache_warm",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    sched.add_job(
+        _warm_funnel_cache_sync,
+        "date",
+        run_date=datetime.now(_BRT) + _td(seconds=20),
+        id="funnel_cache_warm_boot",
+        replace_existing=True,
+    )
+
+
+def _fetch_funnel_live_parallel():
+    """Alias — mantido para compat interna; usa contagem sequencial."""
+    result, err = _fetch_funnel_live_counts()
+    if err:
+        return {"stages": [], "total": 0, "source": "live", "api_error": err}
+    return result
+
+
 def _fetch_funnel_live():
     """Fetch all leads in the funnel pipeline from Kommo API v4, count by status."""
     stage_ids = [s["id"] for s in FUNNEL_STAGES_DEF]
     all_leads = []
     seen_ids = set()
     page = 1
+    api_error = None
 
     while True:
         params = {"limit": 250, "page": page}
@@ -713,10 +1254,12 @@ def _fetch_funnel_live():
             r = _kommo_get("/leads", params)
         except Exception as e:
             logger.error("Kommo API error: %s", e)
+            api_error = str(e)
             break
 
         if r.status_code != 200:
-            logger.warning("Kommo API %d: %s", r.status_code, r.text[:200])
+            api_error = f"Kommo API {r.status_code}: {r.text[:200]}"
+            logger.warning("Kommo funnel %s", api_error)
             break
 
         data = r.json()
@@ -733,7 +1276,7 @@ def _fetch_funnel_live():
         if "_links" not in data or "next" not in data["_links"]:
             break
         page += 1
-        _time.sleep(0.05)
+        _time.sleep(_KOMMO_BG_PAGE_SLEEP)
 
     counts = {}
     for lead in all_leads:
@@ -756,12 +1299,111 @@ def _fetch_funnel_live():
     for s in stages:
         s["pct"] = round(s["count"] / total * 100, 1) if total > 0 else 0
 
-    return {
+    out = {
         "stages": stages,
         "total": total,
         "leads_fetched": len(all_leads),
         "pages": page,
     }
+    if api_error:
+        out["api_error"] = api_error
+    return out
+
+
+def _fetch_funnel_from_db():
+    """Contagem por etapa a partir do espelho Postgres (kommo_sync) — rápido, sem timeout."""
+    stage_ids = [s["id"] for s in FUNNEL_STAGES_DEF]
+    conn = _pg()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT status_id, COUNT(*) AS total
+                FROM leads
+                WHERE pipeline_id = %s AND NOT is_deleted
+                  AND status_id = ANY(%s)
+                GROUP BY status_id
+                """,
+                (FUNNEL_PIPELINE, stage_ids),
+            )
+            counts = {int(r["status_id"]): int(r["total"]) for r in cur.fetchall()}
+            last_sync = None
+            try:
+                cur.execute(
+                    """
+                    SELECT MAX(NULLIF(trim(synced_at), '')::timestamptz) AS last_sync
+                    FROM leads
+                    WHERE pipeline_id = %s AND NOT is_deleted
+                    """,
+                    (FUNNEL_PIPELINE,),
+                )
+                last_sync = cur.fetchone().get("last_sync")
+            except Exception as e:
+                logger.warning("funnel db last_sync: %s", e)
+    finally:
+        conn.close()
+
+    stages = []
+    total = 0
+    for sdef in FUNNEL_STAGES_DEF:
+        c = counts.get(sdef["id"], 0) if sdef["key"] in FUNNEL_DASHBOARD_COUNT_KEYS else 0
+        total += c
+        stages.append({
+            "key": sdef["key"],
+            "id": sdef["id"],
+            "label": sdef["label"],
+            "count": c,
+            "highlight": sdef["key"] in FUNNEL_HIGHLIGHT,
+        })
+
+    for s in stages:
+        s["pct"] = round(s["count"] / total * 100, 1) if total > 0 else 0
+
+    out = {
+        "stages": stages,
+        "total": total,
+        "leads_fetched": total,
+        "pages": 0,
+        "source": "db",
+        "funnel_api_version": _FUNNEL_API_VERSION,
+        "dashboard_only": True,
+    }
+    if last_sync:
+        if hasattr(last_sync, "astimezone"):
+            last_sync = last_sync.astimezone(_BRT)
+        out["synced_at"] = last_sync.strftime("%d/%m %H:%M")
+    return out
+
+
+def _enrich_funnel_result(result, new_today=None, yesterday_summary=None, live_error=None):
+    """Aplica D0, yesterday deltas e metadados comuns ao payload do funil."""
+    if new_today is not None:
+        result["new_today"] = new_today
+    if yesterday_summary is not None:
+        result["yesterday_summary"] = yesterday_summary
+    if live_error:
+        result["live_error"] = live_error
+
+    d0, yesterday = _get_snapshot_d0(result["stages"])
+    for s in result["stages"]:
+        d0_val = d0.get(s["key"], s["count"])
+        s["d0"] = d0_val
+        delta = s["count"] - d0_val
+        s["delta"] = delta
+        s["delta_pct"] = round(delta / d0_val * 100, 1) if d0_val > 0 else 0
+        if yesterday:
+            yd = yesterday.get(s["key"], 0)
+            s["yesterday"] = yd
+            s["delta_yesterday"] = s["count"] - yd
+        else:
+            s["yesterday"] = None
+            s["delta_yesterday"] = None
+
+    now_brt = datetime.now(_BRT)
+    result["d0_date"] = now_brt.date().isoformat()
+    if result.get("source") != "db":
+        result["fetched_at"] = now_brt.strftime("%H:%M:%S")
+    return result
 
 
 def _load_snapshot():
@@ -822,13 +1464,22 @@ def reconcile_aceite_leads():
     """Sync aceite leads between Kommo API and our DB.
     - Upserts leads currently in aceite (updates status_id for existing, inserts missing)
     - Marks stale leads (no longer in aceite on Kommo) as is_deleted=True
-    Safety: aborts without changes if API returns errors with zero leads."""
+    Safety: aborts without changes if API returns errors with zero leads.
+
+    Adquire _kommo_api_bg_lock (compartilhado com funnel_warm e responsible_history)
+    para evitar somar rps com outros jobs de background quando disparam no mesmo
+    minuto (03:00 BRT em especial). Timeout 300s para nao segurar o scheduler."""
     global _last_reconcile_ts
     now = _time.time()
     if now - _last_reconcile_ts < RECONCILE_COOLDOWN:
         return {"skipped": True, "reason": "cooldown"}
     if not _reconcile_lock.acquire(blocking=False):
         return {"skipped": True, "reason": "already running"}
+    got_bg_lock = _kommo_api_bg_lock.acquire(timeout=300)
+    if not got_bg_lock:
+        _reconcile_lock.release()
+        logger.warning("reconcile aceites: nao conseguiu _kommo_api_bg_lock em 5min, pulando")
+        return {"skipped": True, "reason": "kommo_api_bg_lock timeout"}
     try:
         _last_reconcile_ts = now
         if not KOMMO_TOKEN:
@@ -886,7 +1537,7 @@ def reconcile_aceite_leads():
                 if "next" not in data.get("_links", {}):
                     break
                 page += 1
-                _time.sleep(0.05)
+                _time.sleep(_KOMMO_BG_PAGE_SLEEP)
 
         if api_error and not api_lead_ids:
             logger.warning("Reconcile aceites: API returned errors and zero leads — aborting to prevent data loss")
@@ -975,7 +1626,7 @@ def reconcile_aceite_leads():
                         stale_check_errors += 1
                         logger.warning("Reconcile aceites: lead %s status %d", lid, r.status_code)
 
-                    _time.sleep(0.05)
+                    _time.sleep(_KOMMO_BG_PAGE_SLEEP)
 
                 logger.info(
                     "Reconcile aceites stale: %d com status atualizado, %d marcados deletados, %d erros",
@@ -1001,6 +1652,7 @@ def reconcile_aceite_leads():
         logger.error("Reconcile aceites error: %s", e)
         return {"error": str(e)}
     finally:
+        _kommo_api_bg_lock.release()
         _reconcile_lock.release()
 
 
@@ -1008,6 +1660,18 @@ def reconcile_aceite_leads():
 def api_kommo_reconcile_aceites():
     result = reconcile_aceite_leads()
     return jsonify({"ok": True, "data": result})
+
+
+@kommo_bp.route("/api/kommo/new-leads-today")
+def api_kommo_new_leads_today():
+    """KPI intraday de novos leads — endpoint leve (~1s), independente do funil."""
+    force = request.args.get("force", "0") == "1"
+    try:
+        data = _get_new_leads_today_payload(force=force)
+        return jsonify({"ok": True, **data})
+    except Exception as e:
+        logger.exception("new-leads-today: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @kommo_bp.route("/api/kommo/yesterday-summary")
@@ -1022,70 +1686,87 @@ def api_kommo_yesterday_summary():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@kommo_bp.route("/api/kommo/funnel-status")
+def api_kommo_funnel_status():
+    """Diagnóstico do funil (token, cache, último warm) — use logado no painel."""
+    with _funnel_cache_lock:
+        cached = _funnel_cache.get("data")
+        cache_ts = _funnel_cache.get("ts", 0)
+    tok = _kommo_token()
+    return jsonify({
+        "ok": True,
+        "code_version": _FUNNEL_API_VERSION,
+        "token_configured": bool(tok),
+        "token_length": len(tok),
+        "kommo_base_url": (os.getenv("KOMMO_BASE_URL") or "")[:120],
+        "cache_has_data": bool(cached),
+        "cache_age_s": int(_time.time() - cache_ts) if cache_ts else None,
+        "cache_total": cached.get("total") if cached else None,
+        "warming": _funnel_warming,
+        "meta": {
+            **dict(_funnel_meta),
+            "last_error": _sanitize_kommo_error(_funnel_meta.get("last_error")),
+        },
+    })
+
+
 @kommo_bp.route("/api/kommo/funnel-live")
 def api_kommo_funnel_live():
-    """Fetch real-time funnel data from Kommo API v4."""
+    """Funil Kommo — cache + stale-while-revalidate; PG se API bloqueada (403 WAF)."""
     force = request.args.get("force", "0") == "1"
     now = _time.time()
 
-    if not force and _funnel_cache["data"] and (now - _funnel_cache["ts"]) < _FUNNEL_CACHE_TTL:
-        data = dict(_funnel_cache["data"])
+    def _attach_intraday(data):
+        out = dict(data)
         try:
-            data["yesterday_summary"] = _get_yesterday_summary_cached(force=force)
+            nt = _get_new_leads_today_payload(force=force)
+            out["new_today"] = nt["count"]
+            out["new_today_source"] = nt.get("source")
         except Exception as e:
-            logger.exception("yesterday_summary cache attach: %s", e)
-            data["yesterday_summary"] = _build_yesterday_summary()
+            logger.warning("new_today cache refresh: %s", e)
+        out["yesterday_summary"] = _get_yesterday_summary_light()
+        return out
+
+    with _funnel_cache_lock:
+        cached = _funnel_cache.get("data")
+        cache_ts = _funnel_cache.get("ts", 0)
+    cache_age = now - cache_ts
+    cache_ok = (
+        cached
+        and cached.get("source") in ("live", "db")
+        and cached.get("funnel_api_version", 0) >= _FUNNEL_API_VERSION
+    )
+
+    if not _kommo_token():
+        return jsonify({"ok": False, "error": "KOMMO_TOKEN não configurado no servidor."}), 500
+
+    # Nunca bloquear o worker HTTP na contagem Kommo (30–120s → 502 no proxy Easypanel).
+    # Cache quente: responde na hora; stale-while-revalidate em background.
+    if cache_ok:
+        data = _attach_intraday(cached)
+        data["stale"] = force or cache_age >= _FUNNEL_CACHE_TTL
+        if data["stale"]:
+            _start_funnel_cache_warm_async()
         return jsonify({"ok": True, "data": data, "cached": True})
 
-    if not KOMMO_TOKEN:
-        return jsonify({"ok": False, "error": "KOMMO_TOKEN não configurado"}), 500
-
+    _start_funnel_cache_warm_async()
     try:
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            fut_funnel = pool.submit(_fetch_funnel_live)
-            fut_count = pool.submit(_count_new_leads_today)
-
-        result = fut_funnel.result()
-        try:
-            result["new_today"] = fut_count.result()
-        except Exception as e:
-            logger.error("count_new_leads_today failed: %s", e)
-            result["new_today"] = 0
-        try:
-            result["yesterday_summary"] = _get_yesterday_summary_cached(force=force)
-        except Exception as e:
-            logger.exception("yesterday_summary failed: %s", e)
-            result["yesterday_summary"] = _build_yesterday_summary()
-
-        d0, yesterday = _get_snapshot_d0(result["stages"])
-
-        for s in result["stages"]:
-            d0_val = d0.get(s["key"], s["count"])
-            s["d0"] = d0_val
-            delta = s["count"] - d0_val
-            s["delta"] = delta
-            s["delta_pct"] = round(delta / d0_val * 100, 1) if d0_val > 0 else 0
-
-            if yesterday:
-                yd = yesterday.get(s["key"], 0)
-                s["yesterday"] = yd
-                s["delta_yesterday"] = s["count"] - yd
-            else:
-                s["yesterday"] = None
-                s["delta_yesterday"] = None
-
-        BRT = timezone(timedelta(hours=-3))
-        result["d0_date"] = datetime.now(BRT).date().isoformat()
-        result["fetched_at"] = datetime.now(BRT).strftime("%H:%M:%S")
-
-        _funnel_cache["data"] = result
-        _funnel_cache["ts"] = now
-
-        return jsonify({"ok": True, "data": result})
+        db = _fetch_funnel_from_db()
+        data = _attach_intraday(db)
+        data["stale"] = True
+        data["live_error"] = (
+            _sanitize_kommo_error(_funnel_meta.get("last_error"))
+            or "Kommo indisponível — espelho Sync."
+        )
+        return jsonify({"ok": True, "data": data, "cached": False, "fallback": "db"})
     except Exception as e:
-        logger.error("funnel-live error: %s", e)
-        return jsonify({"ok": False, "error": str(e)}), 500
+        logger.warning("funnel pg immediate: %s", e)
+    return jsonify({
+        "ok": False,
+        "error": "Funil carregando (primeira carga). Aguarde ~30s.",
+        "warming": True,
+        "detail": _sanitize_kommo_error(_funnel_meta.get("last_error")),
+    }), 200
 
 
 # ---------------------------------------------------------------------------
@@ -1103,6 +1784,10 @@ def _sync_responsible_history(days_back: int = 1) -> dict:
     """Busca eventos 'lead_responsible_changed' da API Kommo e persiste em
     lead_responsible_history.
 
+    Adquire _kommo_api_bg_lock (compartilhado com funnel_warm e aceite_reconcile)
+    pra nao somar rps com outros jobs de background quando disparam no mesmo
+    minuto. Timeout 600s (10 min) — backfills longos aceitam esperar.
+
     Args:
         days_back: quantos dias para trás buscar (1 = incremental, 90 = backfill).
 
@@ -1112,6 +1797,19 @@ def _sync_responsible_history(days_back: int = 1) -> dict:
     if not KOMMO_TOKEN:
         return {"error": "KOMMO_TOKEN not set"}
 
+    got_bg_lock = _kommo_api_bg_lock.acquire(timeout=600)
+    if not got_bg_lock:
+        logger.warning("responsible_history: nao conseguiu _kommo_api_bg_lock em 10min, pulando")
+        return {"skipped": True, "reason": "kommo_api_bg_lock timeout"}
+
+    try:
+        return _sync_responsible_history_impl(days_back)
+    finally:
+        _kommo_api_bg_lock.release()
+
+
+def _sync_responsible_history_impl(days_back: int = 1) -> dict:
+    """Corpo do sync (sem lock). NAO chame diretamente — use _sync_responsible_history."""
     BRT = timezone(timedelta(hours=-3))
     from_ts = int((datetime.now(BRT) - timedelta(days=days_back)).timestamp())
 
@@ -1207,6 +1905,7 @@ def _sync_responsible_history(days_back: int = 1) -> dict:
         if not links.get("next"):
             break
         page += 1
+        _time.sleep(_KOMMO_BG_PAGE_SLEEP)
 
     # Atualiza metadado de última sync
     try:

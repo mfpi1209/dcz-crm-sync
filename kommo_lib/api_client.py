@@ -79,7 +79,12 @@ class KommoAPIClient:
         self.base_url = KOMMO_BASE_URL.rstrip("/")
         self.session = requests.Session()
         self.session.headers.update({
-            "Accept": "application/json",
+            # User-Agent realista evita bloqueio por WAF/nginx em datacenters
+            # (o default 'python-requests/X.Y' costuma cair em blacklist de bots).
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                           "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
             "Authorization": f"Bearer {KOMMO_TOKEN}",
         })
         self.rate_limiter = RateLimiter(RATE_LIMIT_REQUESTS, RATE_LIMIT_PERIOD_SECONDS)

@@ -1008,3 +1008,201 @@ def _ensure_avisos_tables():
         conn.close()
     except Exception as e:
         logger.warning("Could not ensure avisos tables: %s", e)
+
+
+def _ensure_dist_comercial_schedule_tables():
+    """Cria as tabelas do agendamento de troca de turno (Dia/Noite) do dist_comercial.
+
+    Ver AGENTS.md 2026-07-07 — regra automatica de troca de turno na
+    Distribuicao Comercial.
+
+    - dist_comercial_schedule: regras {hora, turno_alvo, enabled, last_run_date}.
+    - dist_comercial_turno_map: mapa global {id_lead -> 'dia' | 'noite'}. Promove
+      o localStorage anterior pra fonte unica (todos os gestores veem o mesmo).
+    - dist_comercial_snapshot: um payload por turno, capturado apos SALVAR
+      quando o gestor aplica manualmente Modo DIA/NOITE. Ex:
+      {'noite': {'12345': 'ATIVO', '67890': 'INATIVO'}, ...}
+    - dist_comercial_apply_log: historico de disparos (manual ou automatico)
+      pra auditoria — nunca truncado, pequeno o suficiente pra caber tudo.
+    """
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS dist_comercial_schedule (
+                    id                    SERIAL PRIMARY KEY,
+                    hora_inicio           TIME NOT NULL,
+                    hora_fim              TIME NOT NULL,
+                    turno_alvo            TEXT NOT NULL,
+                    enabled               BOOLEAN NOT NULL DEFAULT TRUE,
+                    last_run_inicio_date  DATE,
+                    last_run_fim_date     DATE,
+                    last_run_at           TIMESTAMPTZ,
+                    last_run_result       TEXT,
+                    created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    CONSTRAINT ck_dcs_turno CHECK (turno_alvo IN ('dia', 'noite'))
+                )
+            """)
+            # Migration idempotente: se veio da versao anterior com coluna `hora`, converte.
+            # AGENTS.md 2026-07-07 (segunda entrada) — modelo de janela.
+            cur.execute("""
+                DO $$
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_name = 'dist_comercial_schedule' AND column_name = 'hora') THEN
+                        ALTER TABLE dist_comercial_schedule ADD COLUMN IF NOT EXISTS hora_inicio TIME;
+                        ALTER TABLE dist_comercial_schedule ADD COLUMN IF NOT EXISTS hora_fim TIME;
+                        -- Fallback hardcoded (00:00 / 05:00) garante non-NULL mesmo em
+                        -- schemas em que `hora` tenha sido NULL por alguma migracao previa
+                        -- que dropou o constraint. Sem WHERE = cobre todas as rows.
+                        UPDATE dist_comercial_schedule
+                           SET hora_inicio = COALESCE(hora_inicio, hora, '00:00:00'::time),
+                               hora_fim = COALESCE(hora_fim, (hora + INTERVAL '5 hours')::time, '05:00:00'::time);
+                        ALTER TABLE dist_comercial_schedule ALTER COLUMN hora_inicio SET NOT NULL;
+                        ALTER TABLE dist_comercial_schedule ALTER COLUMN hora_fim SET NOT NULL;
+                        ALTER TABLE dist_comercial_schedule DROP COLUMN hora;
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_name = 'dist_comercial_schedule' AND column_name = 'last_run_date') THEN
+                        ALTER TABLE dist_comercial_schedule ADD COLUMN IF NOT EXISTS last_run_inicio_date DATE;
+                        ALTER TABLE dist_comercial_schedule ADD COLUMN IF NOT EXISTS last_run_fim_date DATE;
+                        UPDATE dist_comercial_schedule
+                           SET last_run_inicio_date = COALESCE(last_run_inicio_date, last_run_date)
+                         WHERE last_run_date IS NOT NULL;
+                        ALTER TABLE dist_comercial_schedule DROP COLUMN last_run_date;
+                    END IF;
+                END $$;
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_dcs_enabled ON dist_comercial_schedule(enabled)")
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS dist_comercial_turno_map (
+                    id_lead     BIGINT PRIMARY KEY,
+                    turno       TEXT NOT NULL,
+                    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_by  TEXT,
+                    CONSTRAINT ck_dctm_turno CHECK (turno IN ('dia', 'noite'))
+                )
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS dist_comercial_snapshot (
+                    turno       TEXT PRIMARY KEY,
+                    payload     JSONB NOT NULL,
+                    taken_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    taken_by    TEXT,
+                    CONSTRAINT ck_dcs_snap_turno CHECK (turno IN ('dia', 'noite'))
+                )
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS dist_comercial_apply_log (
+                    id          SERIAL PRIMARY KEY,
+                    turno_alvo  TEXT NOT NULL,
+                    origem      TEXT NOT NULL,
+                    schedule_id INTEGER,
+                    autor       TEXT,
+                    payload     JSONB,
+                    resultado   TEXT NOT NULL,
+                    mensagem    TEXT,
+                    executed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_dcal_executed ON dist_comercial_apply_log(executed_at DESC)")
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure dist_comercial schedule tables: %s", e)
+
+
+def _ensure_premiacao_interna_tables():
+    """Create Premiacoes Internas workflow tables (lote, colaborador, evento).
+
+    Kept in a dedicated ensure to avoid mixing with `premiacao_*` (campanhas
+    comerciais) — see AGENTS.md 2026-07-02 for the naming rationale.
+    """
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_interna_lote (
+                    id                       SERIAL PRIMARY KEY,
+                    mes_referencia           TEXT NOT NULL,
+                    setor                    TEXT NOT NULL,
+                    gestor_user_id           INTEGER NOT NULL REFERENCES app_users(id),
+                    gestor_nome              TEXT NOT NULL,
+                    observacoes_gerais       TEXT,
+                    status                   TEXT NOT NULL DEFAULT 'rascunho',
+                    valor_total              NUMERIC(14,2) NOT NULL DEFAULT 0,
+                    enviado_em               TIMESTAMPTZ,
+                    decidido_em              TIMESTAMPTZ,
+                    aprovador_user_id        INTEGER REFERENCES app_users(id),
+                    aprovador_nome           TEXT,
+                    aprovador_justificativa  TEXT,
+                    created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pil_status ON premiacao_interna_lote(status)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pil_gestor ON premiacao_interna_lote(gestor_user_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pil_mes    ON premiacao_interna_lote(mes_referencia)")
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_interna_colaborador (
+                    id                  SERIAL PRIMARY KEY,
+                    lote_id             INTEGER NOT NULL REFERENCES premiacao_interna_lote(id) ON DELETE CASCADE,
+                    nome                TEXT NOT NULL,
+                    cargo               TEXT NOT NULL,
+                    setor               TEXT NOT NULL,
+                    valor               NUMERIC(14,2) NOT NULL,
+                    justificativa       TEXT NOT NULL,
+                    observacoes         TEXT,
+                    is_auto_premiacao   BOOLEAN NOT NULL DEFAULT FALSE,
+                    ordem               INTEGER NOT NULL DEFAULT 0,
+                    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pic_lote ON premiacao_interna_colaborador(lote_id)")
+
+            cur.execute("""
+                ALTER TABLE premiacao_interna_colaborador
+                ADD COLUMN IF NOT EXISTS app_user_id INTEGER
+                    REFERENCES app_users(id) ON DELETE SET NULL
+            """)
+            cur.execute("""
+                ALTER TABLE premiacao_interna_colaborador
+                ADD COLUMN IF NOT EXISTS email TEXT
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pic_user ON premiacao_interna_colaborador(app_user_id)")
+
+            cur.execute("""
+                ALTER TABLE premiacao_interna_lote
+                ALTER COLUMN gestor_user_id DROP NOT NULL
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS premiacao_interna_evento (
+                    id               SERIAL PRIMARY KEY,
+                    lote_id          INTEGER NOT NULL REFERENCES premiacao_interna_lote(id) ON DELETE CASCADE,
+                    tipo             TEXT NOT NULL,
+                    status_anterior  TEXT,
+                    status_novo      TEXT,
+                    autor_user_id    INTEGER NOT NULL REFERENCES app_users(id),
+                    autor_nome       TEXT NOT NULL,
+                    justificativa    TEXT,
+                    payload_diff     JSONB,
+                    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pie_lote    ON premiacao_interna_evento(lote_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pie_created ON premiacao_interna_evento(created_at)")
+
+            cur.execute("""
+                ALTER TABLE premiacao_interna_evento
+                ALTER COLUMN autor_user_id DROP NOT NULL
+            """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure premiacao_interna tables: %s", e)

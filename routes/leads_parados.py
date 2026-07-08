@@ -76,7 +76,7 @@ def _fetch_leads_em_atendimento():
         if "next" not in data.get("_links", {}):
             break
         page += 1
-        _time.sleep(0.05)
+        _time.sleep(0.20)
 
     return all_leads
 

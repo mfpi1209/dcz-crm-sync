@@ -44,6 +44,7 @@ ALL_PAGES = [
     "meta-campaigns", "dist_comercial", "atualizar_preco",
     "comparar_cursos", "recomendacao_cursos", "localizacao_polos", "info_cursos",
     "leads_inscricao", "captacao", "clicks", "leads_promotores", "meus_atendimentos",
+    "premiacoes_internas", "aprovacao_premiacoes",
     "cadastro_leads",
     "disparador_whatsapp",
     "ia_comercial",
@@ -53,6 +54,8 @@ ALL_PAGES = [
     # tool_whatsapp_alunos). Quem tem 'disparador_whatsapp' mas nenhuma
     # sub abaixo => ve TUDO (compat). Quem tem 1+ sub => ve so as marcadas.
     "disparador_whatsapp_disparador",
+    "disparador_whatsapp_painel",
+    "disparador_whatsapp_metas",
     "disparador_whatsapp_alunos",
     "disparador_whatsapp_calendario",
     "disparador_whatsapp_bases",
@@ -66,6 +69,8 @@ ALL_PAGES = [
 # Mapping slug curto -> rota no app tool_whatsapp_alunos. Usado pelo
 # context_processor de abas permitidas.
 DISPARADOR_WHATSAPP_ABA_SLUGS = [
+    "painel",
+    "metas",
     "disparador",
     "alunos",
     "calendario",
@@ -118,6 +123,18 @@ def is_suporte_comercial_categoria(categoria):
 
 def is_suporte_comercial_login(username):
     return (username or "").strip().lower() in SUPORTE_COMERCIAL_LOGINS
+
+
+def is_supervisor_academico_categoria(categoria):
+    n = unicodedata.normalize("NFD", (categoria or "")).encode("ascii", "ignore").decode("ascii")
+    return n.strip().lower() == "supervisor academico"
+
+
+def user_has_disparador_full_access(role, categoria):
+    """Admin ou Supervisor Acadêmico — painel/metas/meu painel ver tudo."""
+    if (role or "").strip().lower() == "admin":
+        return True
+    return is_supervisor_academico_categoria(categoria)
 
 
 # ---------------------------------------------------------------------------
@@ -357,6 +374,110 @@ def _normalize_digits(s):
 # ---------------------------------------------------------------------------
 
 XL_TIPOS = ["matriculados", "inadimplentes", "concluintes", "acesso_ava", "sem_rematricula", "lista_alunos"]
+
+
+# ---------------------------------------------------------------------------
+# Avisos — helpers programaticos
+# ---------------------------------------------------------------------------
+# Reaproveitam a tabela `avisos` (ver `_ensure_avisos_tables` em db.py). O
+# sistema atual so cria avisos via `POST /api/avisos` (admin). Estes helpers
+# encapsulam INSERT direto para uso interno por outros modulos.
+
+
+def criar_aviso_para_usuarios(user_ids, titulo, corpo, *,
+                               prioridade="normal",
+                               created_by=None,
+                               expires_at=None):
+    """Cria um aviso direcionado a uma lista explicita de user_ids.
+
+    target_role='todos' + target_user_ids=[...] combina em AND na query de
+    visibilidade (_VISIBLE_WHERE em routes/avisos.py), so os IDs listados veem.
+    """
+    from db import get_conn
+
+    if not user_ids:
+        return None
+    ids = sorted({int(u) for u in user_ids if u is not None and int(u) > 0})
+    if not ids:
+        return None
+
+    titulo = (titulo or "").strip()
+    corpo = (corpo or "").strip()
+    if not titulo or not corpo:
+        raise ValueError("titulo e corpo sao obrigatorios")
+
+    prio = prioridade if prioridade in ("normal", "importante", "urgente") else "normal"
+
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO avisos (
+                    titulo, corpo, prioridade, target_role,
+                    target_user_ids, created_by, expires_at
+                ) VALUES (%s, %s, %s, 'todos', %s, %s, %s)
+                RETURNING id
+                """,
+                (titulo, corpo, prio, ids, created_by, expires_at),
+            )
+            aviso_id = cur.fetchone()[0]
+        conn.commit()
+        return aviso_id
+    finally:
+        conn.close()
+
+
+def criar_aviso_por_permissao(page, titulo, corpo, *,
+                               prioridade="normal",
+                               extra_user_ids=None,
+                               excluir_user_ids=None,
+                               incluir_admins=True,
+                               created_by=None,
+                               expires_at=None):
+    """Cria aviso direcionado a todos usuarios com `user_permissions.page = page`."""
+    from db import get_conn
+
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            if incluir_admins:
+                cur.execute(
+                    """
+                    SELECT DISTINCT u.id
+                      FROM app_users u
+                      LEFT JOIN user_permissions p
+                        ON p.user_id = u.id AND p.page = %s
+                     WHERE u.role = 'admin' OR p.user_id IS NOT NULL
+                    """,
+                    (page,),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT DISTINCT p.user_id
+                      FROM user_permissions p
+                     WHERE p.page = %s
+                    """,
+                    (page,),
+                )
+            base_ids = {row[0] for row in cur.fetchall() if row[0]}
+    finally:
+        conn.close()
+
+    if extra_user_ids:
+        base_ids.update(int(u) for u in extra_user_ids if u)
+    if excluir_user_ids:
+        base_ids.difference_update(int(u) for u in excluir_user_ids if u)
+
+    return criar_aviso_para_usuarios(
+        base_ids,
+        titulo,
+        corpo,
+        prioridade=prioridade,
+        created_by=created_by,
+        expires_at=expires_at,
+    )
 
 
 # ---------------------------------------------------------------------------
