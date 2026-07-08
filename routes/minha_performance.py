@@ -333,6 +333,33 @@ def _load_conflito_overrides() -> dict:
     return out
 
 
+def _load_consultor_reassign() -> dict:
+    """Mapa {uid_origem: uid_destino} de consultores excluídos no Dashboard Comercial.
+
+    Consultor 'excluído' tem os leads reatribuídos ao Admin Sistema (dashboard-only,
+    via comercial_consultor_ajuste). Precisa ser respeitado aqui para Minha
+    Performance ficar consistente com o ranking do Comercial.
+    """
+    if has_request_context() and hasattr(g, "_mp_cons_reassign"):
+        return g._mp_cons_reassign
+    out: dict[int, int] = {}
+    try:
+        conn = _pg()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT kommo_user_id, reassign_to FROM comercial_consultor_ajuste WHERE reassign_to IS NOT NULL"
+            )
+            for uid, rt in cur.fetchall():
+                if uid is not None and rt is not None:
+                    out[int(uid)] = int(rt)
+        conn.close()
+    except Exception as e:
+        logger.warning("consultor reassign load: %s", e)
+    if has_request_context():
+        g._mp_cons_reassign = out
+    return out
+
+
 def _get_rgm_to_uid_map() -> dict[str, int]:
     """Mapa RGM → kommo_user_id (1 scan por request; reutilizado em ranking/matriculas)."""
     if has_request_context() and hasattr(g, "_mp_rgm_to_uid"):
@@ -358,6 +385,13 @@ def _get_rgm_to_uid_map() -> dict[str, int]:
         logger.warning("_get_rgm_to_uid_map kommo: %s", e)
     for rgm, owner_uid in _load_conflito_overrides().items():
         rgm_to_uid[rgm] = owner_uid
+    # Consultores excluídos: reatribui para o Admin Sistema
+    _reassign = _load_consultor_reassign()
+    if _reassign:
+        for _r in list(rgm_to_uid.keys()):
+            _v = rgm_to_uid[_r]
+            if _v in _reassign:
+                rgm_to_uid[_r] = _reassign[_v]
     if has_request_context():
         g._mp_rgm_to_uid = rgm_to_uid
     return rgm_to_uid
