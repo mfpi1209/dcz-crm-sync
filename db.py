@@ -1053,10 +1053,12 @@ def _ensure_dist_comercial_schedule_tables():
                                WHERE table_name = 'dist_comercial_schedule' AND column_name = 'hora') THEN
                         ALTER TABLE dist_comercial_schedule ADD COLUMN IF NOT EXISTS hora_inicio TIME;
                         ALTER TABLE dist_comercial_schedule ADD COLUMN IF NOT EXISTS hora_fim TIME;
+                        -- Fallback hardcoded (00:00 / 05:00) garante non-NULL mesmo em
+                        -- schemas em que `hora` tenha sido NULL por alguma migracao previa
+                        -- que dropou o constraint. Sem WHERE = cobre todas as rows.
                         UPDATE dist_comercial_schedule
-                           SET hora_inicio = COALESCE(hora_inicio, hora),
-                               hora_fim = COALESCE(hora_fim, (hora + INTERVAL '5 hours')::time)
-                         WHERE hora IS NOT NULL;
+                           SET hora_inicio = COALESCE(hora_inicio, hora, '00:00:00'::time),
+                               hora_fim = COALESCE(hora_fim, (hora + INTERVAL '5 hours')::time, '05:00:00'::time);
                         ALTER TABLE dist_comercial_schedule ALTER COLUMN hora_inicio SET NOT NULL;
                         ALTER TABLE dist_comercial_schedule ALTER COLUMN hora_fim SET NOT NULL;
                         ALTER TABLE dist_comercial_schedule DROP COLUMN hora;
