@@ -762,9 +762,13 @@ def _run_scheduled_apply() -> None:
         # edge='inicio' -> aplica turno_alvo; edge='fim' -> aplica turno oposto.
         pending: list[tuple[int, str, str]] = []
         for rid, hi, hf, turno_alvo, last_inicio, last_fim in rules:
-            if hi and current_t >= hi and (last_inicio is None or last_inicio < today):
+            # `is not None` (nao `if hi`): schema garante NOT NULL, mas o padrao
+            # truthiness de time e ambiguo (em Python <3.5 time(0,0) era falsy,
+            # e uma regra a meia-noite nao dispararia). is not None deixa a
+            # intencao explicita: protege contra NULL, nao contra hora zero.
+            if hi is not None and current_t >= hi and (last_inicio is None or last_inicio < today):
                 pending.append((rid, "inicio", turno_alvo))
-            if hf and current_t >= hf and (last_fim is None or last_fim < today):
+            if hf is not None and current_t >= hf and (last_fim is None or last_fim < today):
                 oposto = "noite" if turno_alvo == "dia" else "dia"
                 pending.append((rid, "fim", oposto))
 
