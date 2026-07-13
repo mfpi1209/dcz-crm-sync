@@ -460,26 +460,44 @@ def build_insights(
         risco_detail = "Nenhuma pendência crítica identificada na consulta atual."
         risco_pill = "Regular"
 
+    # Próxima ação: agrega TODAS as frentes com problema (documentação + financeiro),
+    # não apenas a de maior prioridade. Se o aluno tem doc recusada E título vencido,
+    # a recomendação precisa cobrir os dois.
+    _actions: list[tuple[str, str, str, str]] = []  # (value, detail, tone, pill)
     if recusados:
-        prox_value = "Reenvio de documentação"
-        prox_detail = "Entrar em contato para orientar o aluno no reenvio do documento recusado."
-        prox_tone = "critical"
-        prox_pill = "Urgente"
+        _actions.append((
+            "Reenvio de documentação",
+            "Entrar em contato para orientar o aluno no reenvio do documento recusado.",
+            "critical",
+            "Urgente",
+        ))
     elif pendentes:
-        prox_value = "Envio de documentação"
-        prox_detail = "Solicitar envio da documentação pendente para evitar bloqueios futuros."
-        prox_tone = "warning"
-        prox_pill = "Atenção"
-    elif vencidos:
-        prox_value = "Regularização financeira"
-        prox_detail = "Orientar regularização financeira para evitar impacto na jornada acadêmica."
-        prox_tone = "critical"
-        prox_pill = "Urgente"
-    else:
+        _actions.append((
+            "Envio de documentação",
+            "Solicitar envio da documentação pendente para evitar bloqueios futuros.",
+            "warning",
+            "Atenção",
+        ))
+    if vencidos:
+        _actions.append((
+            "Regularização financeira",
+            "Orientar regularização financeira para evitar impacto na jornada acadêmica.",
+            "critical",
+            "Urgente",
+        ))
+
+    if not _actions:
         prox_value = "Acompanhamento padrão"
         prox_detail = "Aluno sem fricção crítica identificada. Manter acompanhamento de rotina."
         prox_tone = "ok"
         prox_pill = "Padrão"
+    else:
+        _tone_rank = {"critical": 2, "warning": 1, "ok": 0}
+        _pill_rank = {"Urgente": 2, "Atenção": 1, "Padrão": 0}
+        prox_value = " + ".join(a[0] for a in _actions)
+        prox_detail = " ".join(a[1] for a in _actions)
+        prox_tone = max((a[2] for a in _actions), key=lambda t: _tone_rank.get(t, 0))
+        prox_pill = max((a[3] for a in _actions), key=lambda p: _pill_rank.get(p, 0))
 
     status_geral = _build_status_geral(recusados, pendentes, vencidos)
     status_geral["detail"] = _build_resumo_atendimento(situacao_acad, recusados, pendentes, vencidos)
