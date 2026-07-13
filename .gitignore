@@ -12,4 +12,10 @@ venv/
 kommo_lib/kommo_sync.db
 kommo_lib/kommo_sync.log
 app_output.log
+_flask.log
+_flask.err.log
+_siaa_resp.json
+fb_dump.json
+capturas_siaa/
+cookies/
 flask_*.log

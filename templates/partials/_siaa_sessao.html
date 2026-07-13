@@ -1,0 +1,366 @@
+<div id="page-siaa_sessao" class="hidden">
+<style>
+#page-siaa_sessao { padding: 0; }
+
+/* ── Tokens locais escoped ─────────────────────────────── */
+#page-siaa_sessao {
+    --bg: #f1f5f9;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --hover-row: #fafafa;
+    --primary: #4f46e5;
+    --primary-light: #e0e7ff;
+    --success: #16a34a;
+    --success-light: #dcfce7;
+    --warning: #d97706;
+    --warning-light: #fef3c7;
+    --danger: #dc2626;
+    --danger-light: #fee2e2;
+    --neutral: #64748b;
+    --neutral-light: #e2e8f0;
+}
+.dark #page-siaa_sessao {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --border: #334155;
+    --text: #f1f5f9;
+    --text-muted: #94a3b8;
+    --hover-row: #263348;
+    --primary: #6366f1;
+    --primary-light: #1e1b4b;
+    --success: #4ade80;
+    --success-light: rgba(34,197,94,.15);
+    --warning: #fbbf24;
+    --warning-light: rgba(251,191,36,.15);
+    --danger: #f87171;
+    --danger-light: rgba(248,113,113,.15);
+    --neutral: #94a3b8;
+    --neutral-light: rgba(148,163,184,.15);
+}
+
+/* ── Topbar ─────────────────────────────────────────────── */
+#page-siaa_sessao .siaa-sessao-topbar {
+    padding: 14px 24px;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+}
+#page-siaa_sessao .topbar-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text);
+}
+
+/* ── Content ─────────────────────────────────────────────── */
+#page-siaa_sessao .content {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    background: var(--bg);
+    min-height: calc(100vh - 60px);
+}
+
+/* ── Instrucoes ──────────────────────────────────────────── */
+#page-siaa_sessao .siaa-sessao-instrucoes {
+    background: var(--primary-light);
+    border: 1px solid var(--primary);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 13px;
+    line-height: 1.6;
+}
+#page-siaa_sessao .siaa-sessao-instrucoes code {
+    background: rgba(99,102,241,.15);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--primary);
+}
+
+/* ── Grid de cards ───────────────────────────────────────── */
+#page-siaa_sessao .siaa-sessao-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+}
+@media (max-width: 900px) {
+    #page-siaa_sessao .siaa-sessao-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Card individual ─────────────────────────────────────── */
+#page-siaa_sessao .siaa-sessao-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* ── Header do card ──────────────────────────────────────── */
+#page-siaa_sessao .siaa-sessao-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    gap: 8px;
+}
+#page-siaa_sessao .siaa-sessao-title {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--text);
+}
+
+/* ── Pill de status ──────────────────────────────────────── */
+#page-siaa_sessao .siaa-sessao-status {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 700;
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+#page-siaa_sessao .siaa-sessao-status[data-status="idle"]    { background: var(--neutral-light); color: var(--text-muted); }
+#page-siaa_sessao .siaa-sessao-status[data-status="loading"] { background: var(--primary-light); color: var(--primary); }
+#page-siaa_sessao .siaa-sessao-status[data-status="alive"]   { background: var(--success-light); color: var(--success); }
+#page-siaa_sessao .siaa-sessao-status[data-status="dead"]    { background: var(--danger-light);  color: var(--danger); }
+#page-siaa_sessao .siaa-sessao-status[data-status="saved"]   { background: var(--success-light); color: var(--success); }
+#page-siaa_sessao .siaa-sessao-status[data-status="error"]   { background: var(--danger-light);  color: var(--danger); }
+
+/* ── Textarea ────────────────────────────────────────────── */
+#page-siaa_sessao textarea {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 140px;
+    padding: 12px 14px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace, ui-monospace;
+    font-size: 12.5px;
+    line-height: 1.4;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    resize: vertical;
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+}
+#page-siaa_sessao textarea::placeholder { color: var(--text-muted); }
+#page-siaa_sessao textarea:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(99,102,241,.12);
+}
+
+/* ── Botoes de acao ──────────────────────────────────────── */
+#page-siaa_sessao .siaa-sessao-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+#page-siaa_sessao .siaa-sessao-actions button,
+#page-siaa_sessao .siaa-sessao-batch button {
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background .15s, border-color .15s, filter .15s;
+}
+#page-siaa_sessao .siaa-sessao-actions button:hover,
+#page-siaa_sessao .siaa-sessao-batch button:hover {
+    background: var(--hover-row);
+    border-color: var(--primary);
+}
+#page-siaa_sessao .siaa-sessao-actions button.primary,
+#page-siaa_sessao .siaa-sessao-batch button.primary {
+    background: var(--primary);
+    color: #fff;
+    border-color: transparent;
+}
+#page-siaa_sessao .siaa-sessao-actions button.primary:hover,
+#page-siaa_sessao .siaa-sessao-batch button.primary:hover {
+    filter: brightness(1.1);
+    background: var(--primary);
+    border-color: transparent;
+}
+
+/* ── Mensagem de feedback ────────────────────────────────── */
+#page-siaa_sessao .siaa-sessao-msg {
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 0;
+    min-height: 0;
+    transition: padding .15s;
+}
+#page-siaa_sessao .siaa-sessao-msg:not(:empty) { padding: 10px 14px; }
+#page-siaa_sessao .siaa-sessao-msg.info    { background: var(--primary-light); color: var(--primary);  border: 1px solid var(--primary); }
+#page-siaa_sessao .siaa-sessao-msg.success { background: var(--success-light); color: var(--success);  border: 1px solid var(--success); }
+#page-siaa_sessao .siaa-sessao-msg.error   { background: var(--danger-light);  color: var(--danger);   border: 1px solid var(--danger); }
+#page-siaa_sessao .siaa-sessao-msg.warn    { background: var(--warning-light); color: var(--warning);  border: 1px solid var(--warning); }
+
+/* ── Acoes em lote ───────────────────────────────────────── */
+#page-siaa_sessao .siaa-sessao-batch {
+    display: flex;
+    gap: 8px;
+    padding-top: 4px;
+    flex-wrap: wrap;
+}
+</style>
+
+<div class="siaa-sessao-topbar">
+    <div class="topbar-title">Atualizar sessão SIAA</div>
+</div>
+
+<div class="content">
+    <div class="siaa-sessao-instrucoes">
+        <strong>Como capturar:</strong> No SIAA, em cada tela (Acadêmico e Tesouraria):
+        F12 → aba <strong>Network</strong> → botão direito numa requisição para
+        <code>siaa.cruzeirodosul.edu.br</code> → <strong>Copy</strong> →
+        <strong>Copy as cURL (bash)</strong> → cole na caixa correspondente abaixo.
+    </div>
+
+    <div class="siaa-sessao-grid">
+        <!-- Card Academico -->
+        <div class="siaa-sessao-card" data-module="academico">
+            <div class="siaa-sessao-card-header">
+                <span class="siaa-sessao-title">Acadêmico</span>
+                <span class="siaa-sessao-status" data-status="idle">—</span>
+            </div>
+            <textarea id="siaa-sessao-input-academico" placeholder="Cole aqui o Copy as cURL (bash) da tela Acadêmico do SIAA..."></textarea>
+            <div class="siaa-sessao-actions">
+                <button onclick="siaaSessaoTestar('academico')">Testar</button>
+                <button onclick="siaaSessaoSalvar('academico')" class="primary">Salvar</button>
+            </div>
+            <div class="siaa-sessao-msg" id="siaa-sessao-msg-academico"></div>
+        </div>
+
+        <!-- Card Financeiro -->
+        <div class="siaa-sessao-card" data-module="financeiro">
+            <div class="siaa-sessao-card-header">
+                <span class="siaa-sessao-title">Financeiro (Tesouraria)</span>
+                <span class="siaa-sessao-status" data-status="idle">—</span>
+            </div>
+            <textarea id="siaa-sessao-input-financeiro" placeholder="Cole aqui o Copy as cURL (bash) da tela Tesouraria do SIAA..."></textarea>
+            <div class="siaa-sessao-actions">
+                <button onclick="siaaSessaoTestar('financeiro')">Testar</button>
+                <button onclick="siaaSessaoSalvar('financeiro')" class="primary">Salvar</button>
+            </div>
+            <div class="siaa-sessao-msg" id="siaa-sessao-msg-financeiro"></div>
+        </div>
+    </div>
+
+    <div class="siaa-sessao-batch">
+        <button onclick="siaaSessaoTestarTodos()">Testar todos</button>
+        <button onclick="siaaSessaoSalvarTodos()" class="primary">Salvar todos</button>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    async function siaaSessaoCall(endpoint, module, cookie) {
+        const r = await fetch('/siaa-sessao/' + endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ module: module, cookie: cookie }),
+        });
+        const data = await r.json().catch(function () { return { ok: false, error: 'resposta invalida' }; });
+        return { status: r.status, data: data };
+    }
+
+    function siaaSessaoSetStatus(module, kind, text) {
+        var el = document.querySelector('#page-siaa_sessao .siaa-sessao-card[data-module="' + module + '"] .siaa-sessao-status');
+        if (el) { el.dataset.status = kind; el.textContent = text; }
+    }
+
+    function siaaSessaoSetMsg(module, kind, text) {
+        var el = document.getElementById('siaa-sessao-msg-' + module);
+        if (el) { el.className = 'siaa-sessao-msg ' + kind; el.textContent = text; }
+    }
+
+    window.siaaSessaoTestar = async function (module) {
+        var input = document.getElementById('siaa-sessao-input-' + module);
+        var cookie = (input ? input.value : '').trim();
+        if (!cookie) { siaaSessaoSetMsg(module, 'error', 'Cole o cURL antes de testar.'); return; }
+        siaaSessaoSetStatus(module, 'loading', 'Testando...');
+        siaaSessaoSetMsg(module, 'info', 'Enviando teste ao servidor de sessão...');
+        try {
+            var result = await siaaSessaoCall('testar', module, cookie);
+            var status = result.status;
+            var data = result.data;
+            if (status >= 400 || data.ok === false) {
+                siaaSessaoSetStatus(module, 'error', 'ERRO');
+                siaaSessaoSetMsg(module, 'error', data.error || ('HTTP ' + status));
+                return;
+            }
+            var alive = data.alive === true || data.alive === 'true' || data.status === 200;
+            if (alive) {
+                siaaSessaoSetStatus(module, 'alive', 'VIVO');
+                siaaSessaoSetMsg(module, 'success', 'Sessão respondeu com sucesso (HTTP ' + (data.status || 200) + ').');
+            } else {
+                siaaSessaoSetStatus(module, 'dead', 'MORTO');
+                siaaSessaoSetMsg(module, 'error', 'Sessão morta (HTTP ' + (data.status || '302') + '). Cole um cURL novo.');
+            }
+        } catch (e) {
+            siaaSessaoSetStatus(module, 'error', 'ERRO');
+            siaaSessaoSetMsg(module, 'error', 'Falha de rede.');
+        }
+    };
+
+    window.siaaSessaoSalvar = async function (module) {
+        var input = document.getElementById('siaa-sessao-input-' + module);
+        var cookie = (input ? input.value : '').trim();
+        if (!cookie) { siaaSessaoSetMsg(module, 'error', 'Cole o cURL antes de salvar.'); return; }
+        siaaSessaoSetStatus(module, 'loading', 'Salvando...');
+        siaaSessaoSetMsg(module, 'info', 'Gravando cookies no servidor de sessão...');
+        try {
+            var result = await siaaSessaoCall('salvar', module, cookie);
+            var status = result.status;
+            var data = result.data;
+            if (status >= 400 || data.ok === false) {
+                siaaSessaoSetStatus(module, 'error', 'ERRO');
+                siaaSessaoSetMsg(module, 'error', data.error || ('HTTP ' + status));
+                return;
+            }
+            siaaSessaoSetStatus(module, 'saved', 'SALVO');
+            var len = typeof data.length === 'number' ? data.length : null;
+            siaaSessaoSetMsg(module, 'success', 'Salvo com sucesso' + (len ? (' (' + len + ' chars).') : '.'));
+        } catch (e) {
+            siaaSessaoSetStatus(module, 'error', 'ERRO');
+            siaaSessaoSetMsg(module, 'error', 'Falha de rede.');
+        }
+    };
+
+    window.siaaSessaoTestarTodos = async function () {
+        await Promise.all(['academico', 'financeiro'].map(function (m) {
+            var el = document.getElementById('siaa-sessao-input-' + m);
+            if (el && el.value.trim()) return window.siaaSessaoTestar(m);
+            return Promise.resolve();
+        }));
+    };
+
+    window.siaaSessaoSalvarTodos = async function () {
+        await Promise.all(['academico', 'financeiro'].map(function (m) {
+            var el = document.getElementById('siaa-sessao-input-' + m);
+            if (el && el.value.trim()) return window.siaaSessaoSalvar(m);
+            return Promise.resolve();
+        }));
+    };
+
+    window.siaaSessaoLoadPage = function () { /* stateless — nada a carregar */ };
+})();
+</script>
+</div>

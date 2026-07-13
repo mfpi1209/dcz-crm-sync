@@ -1,0 +1,982 @@
+<div id="page-siaa_consulta" class="hidden">
+<style>
+#page-siaa_consulta { padding: 0; }
+
+/* ── Tokens locais escoped ─────────────────────────────── */
+#page-siaa_consulta {
+    --bg: #f1f5f9;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --hover-row: #fafafa;
+    --primary: #4f46e5;
+    --primary-light: #e0e7ff;
+    --success: #16a34a;
+    --success-light: #dcfce7;
+    --warning: #d97706;
+    --warning-light: #fef3c7;
+    --danger: #dc2626;
+    --danger-light: #fee2e2;
+    --neutral: #64748b;
+    --neutral-light: #e2e8f0;
+}
+.dark #page-siaa_consulta {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --border: #334155;
+    --text: #f1f5f9;
+    --text-muted: #94a3b8;
+    --hover-row: #263348;
+    --primary: #6366f1;
+    --primary-light: #1e1b4b;
+    --success: #4ade80;
+    --success-light: rgba(34,197,94,.15);
+    --warning: #fbbf24;
+    --warning-light: rgba(251,191,36,.15);
+    --danger: #f87171;
+    --danger-light: rgba(248,113,113,.15);
+    --neutral: #94a3b8;
+    --neutral-light: rgba(148,163,184,.15);
+}
+
+/* ── Topbar ─────────────────────────────────────────────── */
+#page-siaa_consulta .siaa-topbar {
+    padding: 14px 24px;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+#page-siaa_consulta .topbar-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text);
+}
+
+/* ── Content ────────────────────────────────────────────── */
+#page-siaa_consulta .content {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    background: var(--bg);
+    min-height: calc(100vh - 60px);
+}
+
+/* ── Search ─────────────────────────────────────────────── */
+#page-siaa_consulta .siaa-search {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+#page-siaa_consulta .siaa-search input {
+    flex: 0 0 260px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--card);
+    color: var(--text);
+    font-size: 14px;
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+}
+#page-siaa_consulta .siaa-search input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(99,102,241,.12);
+}
+#page-siaa_consulta .siaa-search input::placeholder { color: var(--text-muted); }
+#page-siaa_consulta .siaa-search button {
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 0;
+    background: var(--primary);
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 14px;
+    transition: filter .15s, transform .1s;
+}
+#page-siaa_consulta .siaa-search button:hover { filter: brightness(1.1); }
+#page-siaa_consulta .siaa-search button:active { transform: translateY(1px); }
+#page-siaa_consulta .siaa-search button#siaa-btn-refresh {
+    background: var(--warning);
+}
+
+/* ── Loading ────────────────────────────────────────────── */
+#page-siaa_consulta #siaa-loading {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 0;
+}
+#page-siaa_consulta .siaa-spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: siaaSpin .7s linear infinite;
+    flex-shrink: 0;
+}
+@keyframes siaaSpin { to { transform: rotate(360deg); } }
+#page-siaa_consulta #siaa-loading-msg {
+    font-size: 14px;
+    color: var(--text);
+}
+
+/* ── Alertas ────────────────────────────────────────────── */
+#page-siaa_consulta .siaa-alert {
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    border: 1px solid transparent;
+}
+#page-siaa_consulta .siaa-alert-info  { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
+#page-siaa_consulta .siaa-alert-warn  { background: var(--warning-light); color: var(--warning); border-color: var(--warning); }
+#page-siaa_consulta .siaa-alert-error { background: var(--danger-light);  color: var(--danger);  border-color: var(--danger); }
+
+/* ── Card do aluno ──────────────────────────────────────── */
+#page-siaa_consulta .siaa-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    border-left: 4px solid var(--neutral);
+}
+#page-siaa_consulta .siaa-card.tone-ok       { border-left-color: var(--success); }
+#page-siaa_consulta .siaa-card.tone-warning  { border-left-color: var(--warning); }
+#page-siaa_consulta .siaa-card.tone-critical { border-left-color: var(--danger); }
+#page-siaa_consulta .siaa-card.tone-neutral  { border-left-color: var(--neutral); }
+
+#page-siaa_consulta .siaa-card-aluno-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px 20px;
+    margin-top: 12px;
+}
+@media (max-width: 700px) {
+    #page-siaa_consulta .siaa-card-aluno-grid { grid-template-columns: repeat(2, 1fr); }
+}
+#page-siaa_consulta .siaa-field-label {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--text-muted);
+    margin-bottom: 3px;
+}
+#page-siaa_consulta .siaa-field-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+/* ── Aluno header/nome ──────────────────────────────────── */
+#page-siaa_consulta .siaa-aluno-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 4px;
+    flex-wrap: wrap;
+}
+#page-siaa_consulta .siaa-aluno-nome {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text);
+}
+
+/* ── Grade 4 / Status cards ─────────────────────────────── */
+#page-siaa_consulta .siaa-grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+@media (max-width: 900px) {
+    #page-siaa_consulta .siaa-grid-4 { grid-template-columns: repeat(2, 1fr); }
+}
+#page-siaa_consulta .siaa-status-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    border-left: 4px solid var(--neutral);
+    transition: box-shadow .15s;
+}
+#page-siaa_consulta .siaa-status-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.06); }
+#page-siaa_consulta .siaa-status-card.tone-ok       { border-left-color: var(--success); background: var(--success-light); }
+#page-siaa_consulta .siaa-status-card.tone-warning  { border-left-color: var(--warning); background: var(--warning-light); }
+#page-siaa_consulta .siaa-status-card.tone-critical { border-left-color: var(--danger);  background: var(--danger-light); }
+#page-siaa_consulta .siaa-status-card.tone-neutral  { border-left-color: var(--neutral); }
+#page-siaa_consulta .siaa-status-card-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+#page-siaa_consulta .siaa-status-card-value {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1.2;
+    margin-bottom: 4px;
+}
+#page-siaa_consulta .siaa-status-card-detail {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+/* ── Pills ──────────────────────────────────────────────── */
+#page-siaa_consulta .siaa-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+#page-siaa_consulta .siaa-pill.tone-ok       { background: var(--success-light); color: var(--success); }
+#page-siaa_consulta .siaa-pill.tone-warning  { background: var(--warning-light); color: var(--warning); }
+#page-siaa_consulta .siaa-pill.tone-critical { background: var(--danger-light);  color: var(--danger); }
+#page-siaa_consulta .siaa-pill.tone-neutral  { background: var(--neutral-light); color: var(--text-muted); }
+
+/* ── Accordion ──────────────────────────────────────────── */
+#page-siaa_consulta .siaa-accordion {
+    background: var(--card);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 8px;
+    border: 1px solid var(--border);
+    transition: border-color .15s;
+}
+#page-siaa_consulta .siaa-accordion:hover { border-color: var(--primary); }
+#page-siaa_consulta .siaa-accordion-header {
+    padding: 14px 18px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--text);
+    user-select: none;
+    transition: background .1s;
+}
+#page-siaa_consulta .siaa-accordion-header:hover { background: var(--hover-row); }
+#page-siaa_consulta .siaa-accordion-body { display: none; padding: 4px 18px 18px; }
+#page-siaa_consulta .siaa-accordion.open .siaa-accordion-body { display: block; }
+#page-siaa_consulta .siaa-accordion-chevron {
+    font-size: 18px;
+    transition: transform .2s;
+    color: var(--text-muted);
+}
+#page-siaa_consulta .siaa-accordion.open .siaa-accordion-chevron { transform: rotate(180deg); }
+
+/* ── Tabelas ────────────────────────────────────────────── */
+#page-siaa_consulta .siaa-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+#page-siaa_consulta .siaa-table th,
+#page-siaa_consulta .siaa-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+}
+#page-siaa_consulta .siaa-table th {
+    font-weight: 700;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--text-muted);
+    background: var(--bg);
+}
+#page-siaa_consulta .siaa-table td { color: var(--text); }
+#page-siaa_consulta .siaa-table tbody tr { transition: background .1s; }
+#page-siaa_consulta .siaa-table tbody tr:hover { background: var(--hover-row); }
+#page-siaa_consulta .siaa-table tbody tr:last-child td { border-bottom: 0; }
+
+/* ── Metric grid (pagamentos) ───────────────────────────── */
+#page-siaa_consulta .siaa-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin: 14px 0;
+}
+@media (max-width: 700px) {
+    #page-siaa_consulta .siaa-metric-grid { grid-template-columns: repeat(2, 1fr); }
+}
+#page-siaa_consulta .siaa-metric {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+}
+#page-siaa_consulta .siaa-metric-label {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--text-muted);
+    font-weight: 700;
+}
+#page-siaa_consulta .siaa-metric-value {
+    font-size: 15px;
+    font-weight: 800;
+    margin-top: 4px;
+    color: var(--text);
+}
+
+/* ── Próxima ação ───────────────────────────────────────── */
+#page-siaa_consulta .siaa-card-acao-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+#page-siaa_consulta .siaa-card-acao-value {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 6px;
+}
+#page-siaa_consulta .siaa-card-acao-detail {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 6px;
+}
+
+/* ── Rodapé / meta ──────────────────────────────────────── */
+#page-siaa_consulta .siaa-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 14px 0;
+}
+#page-siaa_consulta .siaa-online-badge {
+    display: inline-block;
+    background: var(--success-light);
+    color: var(--success);
+    font-weight: 700;
+    font-size: 10.5px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    margin-left: 8px;
+    vertical-align: middle;
+    letter-spacing: .04em;
+}
+
+/* ── Misc ───────────────────────────────────────────────── */
+#page-siaa_consulta .siaa-faded {
+    color: var(--text-muted);
+    font-style: italic;
+    font-weight: 500;
+}
+#page-siaa_consulta .siaa-section-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-muted);
+    margin: 8px 0;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+#page-siaa_consulta .siaa-frase {
+    background: var(--primary-light);
+    border-left: 3px solid var(--primary);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 14px;
+}
+#page-siaa_consulta .siaa-badge-count {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    margin-left: 6px;
+}
+#page-siaa_consulta .siaa-badge-red   { background: var(--danger-light);  color: var(--danger); }
+#page-siaa_consulta .siaa-badge-green { background: var(--success-light); color: var(--success); }
+#page-siaa_consulta .siaa-badge-blue  { background: rgba(59,130,246,.12); color: #3b82f6; }
+.dark #page-siaa_consulta .siaa-badge-blue { background: rgba(96,165,250,.15); color: #60a5fa; }
+</style>
+
+<!-- Topbar -->
+<div class="siaa-topbar">
+    <div class="topbar-title">Consulta SIAA</div>
+    <span id="siaa-online-badge" style="display:none" class="siaa-online-badge">🟢 SIAA ONLINE</span>
+</div>
+
+<div class="content">
+    <!-- Barra de busca -->
+    <div class="siaa-search">
+        <input id="siaa-input-rgm" type="text" inputmode="numeric" placeholder="RGM do aluno (ex: 12345)" maxlength="15" />
+        <button id="siaa-btn-buscar" onclick="siaaBuscar()">Buscar</button>
+        <button id="siaa-btn-refresh" onclick="siaaRefresh()" style="display:none">Consultar SIAA agora</button>
+    </div>
+
+    <!-- Loading -->
+    <div id="siaa-loading" style="display:none">
+        <div class="siaa-spinner"></div>
+        <p id="siaa-loading-msg">Buscando dados...</p>
+    </div>
+
+    <!-- Alertas -->
+    <div id="siaa-alert" style="display:none"></div>
+
+    <!-- Resultado -->
+    <div id="siaa-result" style="display:none">
+        <!-- Card do aluno -->
+        <div id="siaa-card-aluno" class="siaa-card"></div>
+
+        <!-- Grade 4 status cards -->
+        <div id="siaa-grade-status" class="siaa-grid-4"></div>
+
+        <!-- Financeiro accordions -->
+        <div id="siaa-financeiro">
+            <div class="siaa-section-title">Detalhe Financeiro</div>
+            <div class="siaa-accordion" id="siaa-acc-vencidos"></div>
+            <div class="siaa-accordion" id="siaa-acc-avencer"></div>
+            <div class="siaa-accordion" id="siaa-acc-pagos"></div>
+        </div>
+
+        <!-- Próxima ação -->
+        <div id="siaa-card-acao" class="siaa-card"></div>
+
+        <!-- Rodapé -->
+        <div id="siaa-meta" class="siaa-meta"></div>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    // ── Estado ──────────────────────────────────────────────────────────────
+    let siaaCurrentRgm = null;
+
+    // ── Helpers utilitários ──────────────────────────────────────────────────
+    function siaaEsc(s) {
+        const d = document.createElement('div');
+        d.textContent = (s == null) ? '' : String(s);
+        return d.innerHTML;
+    }
+
+    function siaaFmtBRL(v) {
+        if (v == null || v === '') return '—';
+        const n = typeof v === 'number' ? v : parseFloat(String(v).replace(',', '.'));
+        if (isNaN(n)) return String(v);
+        return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+
+    function _siaaAtrasoLabel(a) {
+        if (a == null || a === '') return '—';
+        const s = String(a).trim();
+        if (!s) return '—';
+        if (s === '0') return 'Sem atraso';
+        if (/^\d+$/.test(s)) return s + ' dias';
+        return s;
+    }
+
+    const _SIAA_MESES_ABREV = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
+                              'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+    function _siaaParseTituloRef(numero) {
+        if (numero == null) return null;
+        const raw = String(numero).trim();
+        if (!raw) return null;
+        // Remove sufixo tipo " - FAT"
+        const base = raw.split(/\s/)[0];
+        // Formato: YY[S][MM]/CC — YY=ano, S=semestre (1 ou 2), MM=parcela (01-06)
+        const m = /^(\d{2})(\d)(\d{2})(?:\d*)\/\d+/.exec(base);
+        if (!m) return null;
+        const yy = parseInt(m[1], 10);
+        const semester = parseInt(m[2], 10);
+        const parcela = parseInt(m[3], 10);
+        if (semester !== 1 && semester !== 2) return null;
+        if (parcela < 1 || parcela > 6) return null;
+        // MM dentro do numero e a parcela do semestre (1-6), nao o mes calendario.
+        // Sem 1: parcela 01..06 -> Jan..Jun (01..06)
+        // Sem 2: parcela 01..06 -> Jul..Dez (07..12)
+        const calendarMonth = semester === 1 ? parcela : parcela + 6;
+        const year = 2000 + yy;
+        return {
+            year, semester, month: calendarMonth,
+            sortKey: year * 100 + calendarMonth,
+            label: String(calendarMonth).padStart(2, '0') + '/' + year,
+        };
+    }
+
+    function _siaaTituloRefLabel(numero) {
+        const ref = _siaaParseTituloRef(numero);
+        if (!ref) return '—';
+        const mm = String(ref.month).padStart(2, '0');
+        return mm + '/' + ref.year;
+    }
+
+    function _siaaSortByTituloRef(itens) {
+        if (!Array.isArray(itens)) return [];
+        return itens.slice().sort((a, b) => {
+            const ra = _siaaParseTituloRef(a && a.numero_titulo);
+            const rb = _siaaParseTituloRef(b && b.numero_titulo);
+            const ka = ra ? ra.sortKey : Number.POSITIVE_INFINITY;
+            const kb = rb ? rb.sortKey : Number.POSITIVE_INFINITY;
+            return ka - kb;
+        });
+    }
+
+    function _siaaEhMensalidade(tipo) {
+        if (tipo == null) return false;
+        const s = String(tipo).trim();
+        if (!s) return false;
+        if (/^2\D/.test(s)) return true;
+        return /mensalidade/i.test(s);
+    }
+
+    function _siaaParseDataPagamento(str) {
+        if (!str) return null;
+        const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(str).trim());
+        if (!m) return null;
+        const day = parseInt(m[1], 10);
+        const month = parseInt(m[2], 10);
+        const year = parseInt(m[3], 10);
+        if (day < 1 || day > 31 || month < 1 || month > 12) return null;
+        return { day, month, year };
+    }
+
+    function _siaaCalcularBucketsPagamento(itens) {
+        const buckets = { ate10: 0, ate25: 0, apos25: 0, totalMens: 0 };
+        if (!Array.isArray(itens)) return buckets;
+
+        function _atrasoZero(a) {
+            if (a == null) return true;
+            const s = String(a).trim().toLowerCase();
+            if (!s) return true;
+            if (s === '0' || s === '0 dias' || s === 'sem atraso') return true;
+            const m = /^(\d+)/.exec(s);
+            if (m) return parseInt(m[1], 10) === 0;
+            return false;
+        }
+
+        for (const it of itens) {
+            if (!it || !_siaaEhMensalidade(it.tipo_titulo)) continue;
+            const ref = _siaaParseTituloRef(it.numero_titulo);
+            if (!ref) continue;
+            const dp = _siaaParseDataPagamento(it.data_pagamento);
+            if (!dp) continue;
+            buckets.totalMens++;
+            const refIdx = ref.year * 12 + ref.month;
+            const pagIdx = dp.year * 12 + dp.month;
+            const diff = pagIdx - refIdx;
+
+            if (diff < 0) {
+                // Pagamento antecipado (mes anterior a referencia)
+                buckets.ate10++;
+            } else if (diff === 0) {
+                // Mesmo mes da referencia
+                if (dp.day <= 10) buckets.ate10++;
+                else if (dp.day <= 25) buckets.ate25++;
+                else buckets.apos25++;
+            } else if (diff === 1 && dp.day <= 10 && _atrasoZero(it.atraso)) {
+                // Mes seguinte, dia <= 10, e SIAA considerou "Sem atraso" — tolerancia
+                buckets.ate10++;
+            } else {
+                // Mes seguinte com atraso, ou 2+ meses depois, etc.
+                buckets.apos25++;
+            }
+        }
+        return buckets;
+    }
+
+    function siaaToneClass(tone) {
+        return 'tone-' + (tone || 'neutral');
+    }
+
+    function siaaPill(label, tone) {
+        return `<span class="siaa-pill ${siaaEsc(siaaToneClass(tone))}">${siaaEsc(label || '—')}</span>`;
+    }
+
+    // ── UI helpers ────────────────────────────────────────────────────────────
+    function siaaShowLoading(msg) {
+        document.getElementById('siaa-loading').style.display = '';
+        document.getElementById('siaa-loading-msg').textContent = msg || 'Carregando...';
+    }
+
+    function siaaHideLoading() {
+        document.getElementById('siaa-loading').style.display = 'none';
+    }
+
+    function siaaShowAlert(kind, msg) {
+        const el = document.getElementById('siaa-alert');
+        el.className = 'siaa-alert siaa-alert-' + kind;
+        el.textContent = msg;
+        el.style.display = '';
+    }
+
+    // ── Fetch ─────────────────────────────────────────────────────────────────
+    async function siaaFetch(rgm, refresh) {
+        const url = `/api/siaa/aluno/${encodeURIComponent(rgm)}${refresh ? '?refresh=1' : ''}`;
+        const r = await fetch(url, { headers: { 'Accept': 'application/json' }, cache: 'no-store' });
+        const data = await r.json().catch(() => ({ ok: false, error: `HTTP ${r.status}` }));
+        return { status: r.status, data };
+    }
+
+    // ── Interações públicas ──────────────────────────────────────────────────
+    window.siaaBuscar = async function () {
+        const rgm = (document.getElementById('siaa-input-rgm').value || '').trim();
+        if (!/^\d{5,15}$/.test(rgm)) {
+            siaaShowAlert('warn', 'Informe um RGM válido (somente números, 5 a 15 dígitos).');
+            return;
+        }
+        siaaCurrentRgm = rgm;
+        await siaaRender(rgm, false);
+    };
+
+    window.siaaRefresh = async function () {
+        const rgm = (document.getElementById('siaa-input-rgm').value || '').trim();
+        if (!/^\d{5,15}$/.test(rgm)) {
+            siaaShowAlert('warn', 'Informe um RGM válido (somente números, 5 a 15 dígitos).');
+            return;
+        }
+        siaaCurrentRgm = rgm;
+        await siaaRender(rgm, true);
+    };
+
+    window.siaaLoadPage = function () {
+        const inp = document.getElementById('siaa-input-rgm');
+        if (inp) inp.focus();
+    };
+
+    // ── Render principal ─────────────────────────────────────────────────────
+    async function siaaRender(rgm, refresh) {
+        siaaShowLoading(refresh ? 'Consultando SIAA ao vivo...' : 'Buscando dados...');
+        document.getElementById('siaa-result').style.display = 'none';
+        document.getElementById('siaa-alert').style.display = 'none';
+        document.getElementById('siaa-online-badge').style.display = 'none';
+
+        try {
+            const { status, data } = await siaaFetch(rgm, refresh);
+
+            if (data.ok === false || status >= 500) {
+                siaaShowAlert('error', data.error || `Erro (HTTP ${status})`);
+                return;
+            }
+
+            if (data.found === false) {
+                document.getElementById('siaa-btn-refresh').style.display = '';
+                siaaShowAlert('info', 'Nenhuma captura para este RGM ainda. Clique em "Consultar SIAA agora" para buscar ao vivo.');
+                return;
+            }
+
+            // Sucesso — botão refresh sempre visível após primeira busca
+            document.getElementById('siaa-btn-refresh').style.display = '';
+
+            if (data.refresh_status === 'fail') {
+                siaaShowAlert('warn', data.refresh_message || 'Falha ao atualizar no SIAA. Exibindo última captura disponível.');
+            }
+
+            siaaRenderInsights(data.insights);
+            document.getElementById('siaa-result').style.display = '';
+        } catch (e) {
+            console.error('[SIAA]', e);
+            siaaShowAlert('error', 'Falha de rede ao consultar SIAA.');
+        } finally {
+            siaaHideLoading();
+        }
+    }
+
+    // ── Renderers ─────────────────────────────────────────────────────────────
+    function siaaRenderInsights(ins) {
+        if (!ins) return;
+        siaaRenderAluno(ins.aluno);
+        siaaRenderGrade4(ins);
+        siaaRenderFinanceiro(ins.financeiro_detalhe);
+        siaaRenderAcao(ins.proxima_acao);
+        siaaRenderMeta(ins.meta, ins.siaa_online);
+    }
+
+    function siaaRenderAluno(a) {
+        const el = document.getElementById('siaa-card-aluno');
+        if (!el || !a) return;
+
+        const tone = a.tone || 'neutral';
+        el.className = `siaa-card ${siaaToneClass(tone)}`;
+
+        const NOT_FOUND = 'Não identificado na consulta atual';
+        function fieldVal(v) {
+            if (!v || v === NOT_FOUND) {
+                return `<span class="siaa-faded">${siaaEsc(v || NOT_FOUND)}</span>`;
+            }
+            return siaaEsc(v);
+        }
+
+        const fields = Array.isArray(a.fields) ? a.fields : [];
+
+        const nomeField = fields.find(f => /^nome$/i.test(f.label || ''));
+        const nome = nomeField && nomeField.value && nomeField.value !== NOT_FOUND
+            ? nomeField.value
+            : 'Aluno';
+
+        const gridItems = fields.map(f => `
+            <div>
+                <div class="siaa-field-label">${siaaEsc(f.label || '')}</div>
+                <div class="siaa-field-value">${fieldVal(f.value)}</div>
+            </div>
+        `).join('');
+
+        el.innerHTML = `
+            <div class="siaa-aluno-header">
+                <div class="siaa-aluno-nome">${siaaEsc(nome)}</div>
+                ${siaaPill(a.status_label, tone)}
+            </div>
+            <div class="siaa-card-aluno-grid">${gridItems}</div>
+        `;
+    }
+
+    function siaaRenderGrade4(ins) {
+        const el = document.getElementById('siaa-grade-status');
+        if (!el) return;
+
+        const cards = [
+            { title: 'Status Geral', data: ins.status_geral },
+            { title: 'Risco',        data: ins.risco },
+            { title: 'Documentação', data: ins.documentacao },
+            { title: 'Financeiro',   data: ins.financeiro },
+        ];
+
+        el.innerHTML = cards.map(c => {
+            if (!c.data) return '<div class="siaa-status-card tone-neutral"><div class="siaa-status-card-title">' + siaaEsc(c.title) + '</div><div class="siaa-status-card-value">—</div></div>';
+            const d = c.data;
+            const tone = d.tone || 'neutral';
+            return `
+                <div class="siaa-status-card ${siaaToneClass(tone)}">
+                    <div class="siaa-status-card-title">${siaaEsc(c.title)}</div>
+                    <div class="siaa-status-card-value">${siaaEsc(d.value || d.label || '—')}</div>
+                    ${siaaPill(d.status_label, tone)}
+                    ${d.detail ? `<div class="siaa-status-card-detail">${siaaEsc(d.detail)}</div>` : ''}
+                </div>
+            `;
+        }).join('');
+    }
+
+    function siaaRenderFinanceiro(fd) {
+        if (!fd) return;
+
+        // Vencidos
+        _siaaRenderAccVencidos(document.getElementById('siaa-acc-vencidos'), fd.vencidos);
+        // A vencer
+        _siaaRenderAccAvencer(document.getElementById('siaa-acc-avencer'), fd.a_vencer);
+        // Pagos
+        _siaaRenderAccPagos(document.getElementById('siaa-acc-pagos'), fd.pagos);
+    }
+
+    function _siaaToggleAcc(el) {
+        el.classList.toggle('open');
+    }
+
+    function _siaaAccHeader(label, badgeHtml, openByDefault) {
+        return `
+            <div class="siaa-accordion-header" onclick="this.closest('.siaa-accordion').classList.toggle('open')">
+                <span>${siaaEsc(label)}${badgeHtml}</span>
+                <span class="material-symbols-outlined siaa-accordion-chevron">expand_more</span>
+            </div>
+        `;
+    }
+
+    function _siaaRenderAccVencidos(el, v) {
+        if (!el) return;
+        if (!v) { el.innerHTML = ''; return; }
+
+        const count = v.count || 0;
+        const total = v.total != null ? siaaFmtBRL(v.total) : '—';
+        const hasItems = count > 0;
+        const badgeClass = hasItems ? 'siaa-badge-red' : 'siaa-badge-green';
+        const badge = `<span class="siaa-badge-count ${badgeClass}">${count}</span>`;
+        const totalBadge = hasItems
+            ? `<span class="siaa-badge-count siaa-badge-red" style="margin-left:4px">${siaaEsc(total)}</span>`
+            : `<span class="siaa-badge-count siaa-badge-green" style="margin-left:4px">${siaaEsc(total)}</span>`;
+
+        const itensOrdenados = _siaaSortByTituloRef(v.itens || []);
+        const rows = itensOrdenados.map(i => `
+            <tr>
+                <td>${siaaEsc(i.tipo_titulo || '—')}</td>
+                <td>${siaaEsc(i.numero_titulo || '—')}</td>
+                <td>${siaaEsc(_siaaTituloRefLabel(i.numero_titulo))}</td>
+                <td>${siaaEsc(i.vencimento || '—')}</td>
+                <td>${siaaEsc(_siaaAtrasoLabel(i.atraso))}</td>
+                <td>${siaaEsc(siaaFmtBRL(i.total))}</td>
+            </tr>
+        `).join('');
+
+        const table = rows ? `
+            <table class="siaa-table">
+                <thead><tr>
+                    <th>Tipo</th><th>Nº</th><th>Referência</th><th>Vencimento</th><th>Atraso</th><th>Total</th>
+                </tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        ` : '<p style="font-size:13px;color:var(--text-muted)">Nenhum título vencido.</p>';
+
+        // Abre por padrão se tem vencidos
+        if (hasItems && v.tem === true) el.classList.add('open');
+
+        el.innerHTML = _siaaAccHeader('Vencidos', badge + totalBadge, hasItems) +
+            `<div class="siaa-accordion-body">${table}</div>`;
+    }
+
+    function _siaaRenderAccAvencer(el, v) {
+        if (!el) return;
+        if (!v) { el.innerHTML = ''; return; }
+
+        const count = v.count || 0;
+        const badge = `<span class="siaa-badge-count siaa-badge-blue">${count}</span>`;
+
+        const itensOrdenados = _siaaSortByTituloRef(v.itens || []);
+        const rows = itensOrdenados.map(i => `
+            <tr>
+                <td>${siaaEsc(i.tipo_titulo || '—')}</td>
+                <td>${siaaEsc(i.numero_titulo || '—')}</td>
+                <td>${siaaEsc(_siaaTituloRefLabel(i.numero_titulo))}</td>
+                <td>${siaaEsc(i.vencimento || '—')}</td>
+                <td>${siaaEsc(siaaFmtBRL(i.total))}</td>
+            </tr>
+        `).join('');
+
+        const table = rows ? `
+            <table class="siaa-table">
+                <thead><tr>
+                    <th>Tipo</th><th>Nº</th><th>Referência</th><th>Vencimento</th><th>Total</th>
+                </tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        ` : '<p style="font-size:13px;color:var(--text-muted)">Nenhum título a vencer.</p>';
+
+        el.innerHTML = _siaaAccHeader('A Vencer', badge, false) +
+            `<div class="siaa-accordion-body">${table}</div>`;
+    }
+
+    function _siaaRenderAccPagos(el, v) {
+        if (!el) return;
+        if (!v) { el.innerHTML = ''; return; }
+
+        const count = v.count || 0;
+        const badge = `<span class="siaa-badge-count siaa-badge-green">${count}</span>`;
+
+        const analise = v.analise || {};
+        const buckets = _siaaCalcularBucketsPagamento(v.itens || []);
+
+        const fraseHtml = '';
+
+        const metricas = [
+            { label: 'Pagas até dia 10',            val: buckets.ate10 },
+            { label: 'Pagas entre dia 11 e 25',     val: buckets.ate25 },
+            { label: 'Após dia 25 ou fora do mês',  val: buckets.apos25 },
+            { label: 'Consistência',                val: analise.consistencia },
+            { label: 'Valor típico',                val: analise.valor_tipico != null ? siaaFmtBRL(analise.valor_tipico) : null },
+            { label: 'Forma predominante',          val: analise.forma_predominante },
+            { label: 'Mensalidades analisadas',     val: analise.qtd_analisada },
+            { label: '% em dia',                    val: analise.pct_em_dia != null ? analise.pct_em_dia + '%' : null },
+        ];
+
+        const metricGrid = metricas.some(m => m.val != null) ? `
+            <div class="siaa-metric-grid">
+                ${metricas.map(m => `
+                    <div class="siaa-metric">
+                        <div class="siaa-metric-label">${siaaEsc(m.label)}</div>
+                        <div class="siaa-metric-value">${siaaEsc(m.val != null ? String(m.val) : '—')}</div>
+                    </div>
+                `).join('')}
+            </div>
+        ` : '';
+
+        const itensOrdenados = _siaaSortByTituloRef(v.itens || []);
+        const rows = itensOrdenados.map(i => `
+            <tr>
+                <td>${siaaEsc(i.tipo_titulo || '—')}</td>
+                <td>${siaaEsc(i.numero_titulo || '—')}</td>
+                <td>${siaaEsc(_siaaTituloRefLabel(i.numero_titulo))}</td>
+                <td>${siaaEsc(i.data_pagamento || '—')}</td>
+                <td>${siaaEsc(siaaFmtBRL(i.valor_pago))}</td>
+                <td>${siaaEsc(i.tipo_pagamento || '—')}</td>
+                <td>${siaaEsc(_siaaAtrasoLabel(i.atraso))}</td>
+            </tr>
+        `).join('');
+
+        const table = rows ? `
+            <table class="siaa-table">
+                <thead><tr>
+                    <th>Tipo</th><th>Nº</th><th>Referência</th><th>Data Pgto</th><th>Valor Pago</th><th>Forma</th><th>Atraso</th>
+                </tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        ` : '<p style="font-size:13px;color:var(--text-muted)">Nenhum título pago encontrado.</p>';
+
+        el.innerHTML = _siaaAccHeader('Pagos', badge, false) +
+            `<div class="siaa-accordion-body">${fraseHtml}${metricGrid}${table}</div>`;
+    }
+
+    function siaaRenderAcao(pa) {
+        const el = document.getElementById('siaa-card-acao');
+        if (!el || !pa) return;
+
+        const tone = pa.tone || 'neutral';
+        el.className = `siaa-card ${siaaToneClass(tone)}`;
+        el.innerHTML = `
+            <div class="siaa-card-acao-title">Próxima Ação Recomendada</div>
+            <div class="siaa-card-acao-value">${siaaEsc(pa.value || pa.label || '—')}</div>
+            ${siaaPill(pa.status_label, tone)}
+            ${pa.detail ? `<div class="siaa-card-acao-detail">${siaaEsc(pa.detail)}</div>` : ''}
+        `;
+    }
+
+    function siaaRenderMeta(m, online) {
+        const el = document.getElementById('siaa-meta');
+        if (!el || !m) return;
+
+        const parts = [];
+        if (m.captura_id)         parts.push(`Captura #${siaaEsc(String(m.captura_id))}`);
+        if (m.documentos_count != null) parts.push(`${siaaEsc(String(m.documentos_count))} documento(s)`);
+        if (m.titulos_count != null)    parts.push(`${siaaEsc(String(m.titulos_count))} título(s)`);
+        if (m.ultima_consulta)    parts.push(`Última consulta: ${siaaEsc(m.ultima_consulta)}`);
+
+        const onlineBadge = online === true
+            ? '<span class="siaa-online-badge">🟢 SIAA ONLINE</span>'
+            : '';
+
+        el.innerHTML = parts.join(' · ') + onlineBadge;
+
+        // Badge no topbar também
+        const topBadge = document.getElementById('siaa-online-badge');
+        if (topBadge) topBadge.style.display = online === true ? '' : 'none';
+    }
+
+    // ── Enter no input ────────────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', function () {
+        const inp = document.getElementById('siaa-input-rgm');
+        if (inp) {
+            inp.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') window.siaaBuscar();
+            });
+        }
+    });
+    // Também registra se DOM já pronto (partial carregado dinamicamente)
+    (function () {
+        const inp = document.getElementById('siaa-input-rgm');
+        if (inp && !inp._siaaKeyBound) {
+            inp._siaaKeyBound = true;
+            inp.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') window.siaaBuscar();
+            });
+        }
+    })();
+
+})();
+</script>
+</div>
