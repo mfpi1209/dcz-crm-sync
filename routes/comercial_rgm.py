@@ -25,7 +25,7 @@ from pathlib import Path
 
 import psycopg2
 import psycopg2.extras
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, request, jsonify, session, g, has_request_context
 
 from helpers import normalize_polo_display
 
@@ -759,6 +759,24 @@ def _ensure_table():
         """)
         conn.commit()
 
+        # Ajustes de consultor no nível do dashboard (renomear / ocultar / excluir).
+        # Não mexe no Kommo (que é a fonte de verdade e reverteria no sync):
+        #   display_name -> renomeia o consultor só na exibição do dashboard
+        #   hidden       -> some do ranking e do filtro AGENTE
+        #   reassign_to  -> "excluído": leads/matrículas deste uid passam a contar
+        #                   para o uid destino (Admin Sistema) em todo o dashboard
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS comercial_consultor_ajuste (
+                kommo_user_id INTEGER PRIMARY KEY,
+                display_name  TEXT,
+                hidden        BOOLEAN NOT NULL DEFAULT FALSE,
+                reassign_to   INTEGER,
+                updated_at    TIMESTAMPTZ DEFAULT NOW(),
+                updated_by    TEXT
+            )
+        """)
+        conn.commit()
+
         # Ensure unique constraint for batch upsert
         cur.execute("""
             SELECT 1 FROM pg_constraint
@@ -946,6 +964,16 @@ def _crgm_kommo_lookup_rgms(rgms):
         ek_conn.close()
     except Exception as ek_e:
         logger.warning("_crgm_kommo_lookup_rgms: %s", ek_e)
+
+    # Consultores excluídos: reatribui os RGMs para Admin Sistema + renomeações
+    _apply_reassign_to_rgm_map(rgm_to_uid)
+    _aj = _load_consultor_ajustes()
+    for _u, _a in _aj.items():
+        if _a.get("display_name"):
+            uid_to_nome[_u] = _a["display_name"]
+    _missing_names = [t for t in set(_consultor_reassign_map().values()) if t not in uid_to_nome]
+    if _missing_names:
+        uid_to_nome.update(_fetch_kommo_user_names(_missing_names))
     return rgm_to_uid, uid_to_nome
 
 
@@ -1919,9 +1947,121 @@ def crgm_filters():
         if not agentes:
             agentes = [{"id": k, "name": v} for k, v in sorted(_KNOWN_USERS.items(), key=lambda x: x[1])]
 
+        # Aplica ajustes de consultor: renomeia e remove ocultos/excluídos do dropdown
+        _aj = _load_consultor_ajustes()
+        _hidden = _consultor_hidden_uids()
+        agentes = [
+            {"id": a["id"], "name": (_aj.get(a["id"], {}).get("display_name") or a["name"])}
+            for a in agentes if a["id"] not in _hidden
+        ]
+
         return jsonify({"ok": True, "polos": polos, "niveis": niveis, "ciclos": ciclos, "agentes": agentes})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@comercial_rgm_bp.route("/api/comercial-rgm/consultores", methods=["GET"])
+def crgm_consultores_list():
+    """Lista consultores (usuários Kommo) com contagem de leads + ajustes do dashboard."""
+    if session.get("role") != "admin":
+        return jsonify({"ok": False, "error": "Sem permissão"}), 403
+    try:
+        kconn = _pg_kommo()
+        kcur = kconn.cursor()
+        kcur.execute("""
+            SELECT u.id, u.name, u.email,
+                   COUNT(l.id) FILTER (WHERE l.is_deleted = FALSE) AS leads
+            FROM users u
+            LEFT JOIN leads l ON l.responsible_user_id = u.id
+            GROUP BY u.id, u.name, u.email
+            ORDER BY leads DESC NULLS LAST, u.name
+        """)
+        base = [
+            {"id": int(r[0]), "name": (r[1] or f"User #{r[0]}"), "email": (r[2] or ""), "leads": int(r[3] or 0)}
+            for r in kcur.fetchall()
+        ]
+        kcur.close()
+        kconn.close()
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+    aj = _load_consultor_ajustes()
+    admin_uid = _admin_sistema_uid()
+    name_by_uid = {c["id"]: c["name"] for c in base}
+    out = []
+    for c in base:
+        a = aj.get(c["id"], {})
+        rt = a.get("reassign_to")
+        out.append({
+            **c,
+            "display_name": a.get("display_name"),
+            "hidden": bool(a.get("hidden")),
+            "reassign_to": rt,
+            "reassign_to_name": (name_by_uid.get(rt) if rt else None),
+            "excluido": rt is not None,
+            "is_admin_sistema": c["id"] == admin_uid,
+        })
+    return jsonify({"ok": True, "consultores": out, "admin_sistema_uid": admin_uid})
+
+
+@comercial_rgm_bp.route("/api/comercial-rgm/consultores/<int:uid>", methods=["POST"])
+def crgm_consultor_save(uid):
+    """Upsert do ajuste de um consultor (renomear / ocultar / excluir).
+
+    Body JSON: { display_name, hidden, excluir }. 'excluir=true' reatribui os
+    leads para o Admin Sistema e oculta o consultor. Estado completo (o front
+    envia sempre o estado desejado atual).
+    """
+    if session.get("role") != "admin":
+        return jsonify({"ok": False, "error": "Sem permissão"}), 403
+    body = request.get_json(silent=True) or {}
+    display_name = (body.get("display_name") or "").strip() or None
+    hidden = bool(body.get("hidden"))
+    excluir = bool(body.get("excluir"))
+    admin_uid = _admin_sistema_uid()
+    reassign_to = None
+    if excluir:
+        if uid == admin_uid:
+            return jsonify({"ok": False, "error": "Não é possível excluir o Admin Sistema"}), 400
+        reassign_to = admin_uid
+        hidden = True
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO comercial_consultor_ajuste
+                (kommo_user_id, display_name, hidden, reassign_to, updated_at, updated_by)
+            VALUES (%s, %s, %s, %s, NOW(), %s)
+            ON CONFLICT (kommo_user_id) DO UPDATE SET
+                display_name = EXCLUDED.display_name,
+                hidden       = EXCLUDED.hidden,
+                reassign_to  = EXCLUDED.reassign_to,
+                updated_at   = NOW(),
+                updated_by   = EXCLUDED.updated_by
+        """, (uid, display_name, hidden, reassign_to, (session.get("username") or "admin")))
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+    return jsonify({"ok": True})
+
+
+@comercial_rgm_bp.route("/api/comercial-rgm/consultores/<int:uid>", methods=["DELETE"])
+def crgm_consultor_reset(uid):
+    """Remove o ajuste (restaura o consultor ao padrão: nome do Kommo, visível, sem reatribuição)."""
+    if session.get("role") != "admin":
+        return jsonify({"ok": False, "error": "Sem permissão"}), 403
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM comercial_consultor_ajuste WHERE kommo_user_id = %s", (uid,))
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+    return jsonify({"ok": True})
 
 
 _KNOWN_USERS = {
@@ -2274,7 +2414,104 @@ def _fetch_kommo_user_names(user_ids):
         except Exception as e:
             logger.warning("fetch user names from API: %s", e)
 
+    # Renomeação por ajuste do dashboard (sobrepõe o nome do Kommo)
+    _aj = _load_consultor_ajustes()
+    for uid in list(user_map.keys()):
+        dn = _aj.get(uid, {}).get("display_name")
+        if dn:
+            user_map[uid] = dn
+
     return user_map
+
+
+# ---------------------------------------------------------------------------
+# Ajustes de consultor (dashboard-only): renomear / ocultar / excluir
+# ---------------------------------------------------------------------------
+
+_ADMIN_SISTEMA_FALLBACK_UID = 8261837
+
+
+def _admin_sistema_uid():
+    """kommo_user_id do 'Admin Sistema' (destino padrão de reatribuição).
+
+    Resolve por nome em kommo_sync.users; cai no fallback 8261837 se não achar.
+    """
+    if has_request_context() and hasattr(g, "_crgm_admin_uid"):
+        return g._crgm_admin_uid
+    uid = _ADMIN_SISTEMA_FALLBACK_UID
+    try:
+        conn = _pg_kommo()
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM users WHERE name ILIKE 'admin sistema' ORDER BY id LIMIT 1")
+        r = cur.fetchone()
+        if r:
+            uid = int(r[0])
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logger.warning("_admin_sistema_uid: %s", e)
+    if has_request_context():
+        g._crgm_admin_uid = uid
+    return uid
+
+
+def _load_consultor_ajustes():
+    """Mapa kommo_user_id -> {display_name, hidden, reassign_to} (override do dashboard).
+
+    Cacheado por request via flask.g para evitar múltiplos SELECT.
+    """
+    if has_request_context() and hasattr(g, "_crgm_cons_ajustes"):
+        return g._crgm_cons_ajustes
+    out = {}
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT kommo_user_id, display_name, hidden, reassign_to FROM comercial_consultor_ajuste"
+        )
+        for uid, dn, hidden, rt in cur.fetchall():
+            out[int(uid)] = {
+                "display_name": ((dn or "").strip() or None),
+                "hidden": bool(hidden),
+                "reassign_to": (int(rt) if rt is not None else None),
+            }
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logger.warning("_load_consultor_ajustes: %s", e)
+    if has_request_context():
+        g._crgm_cons_ajustes = out
+    return out
+
+
+def _consultor_reassign_map():
+    """{uid_origem: uid_destino} para consultores excluídos (reassign_to preenchido)."""
+    return {
+        u: a["reassign_to"]
+        for u, a in _load_consultor_ajustes().items()
+        if a.get("reassign_to")
+    }
+
+
+def _consultor_hidden_uids():
+    """uids que NÃO devem aparecer no ranking/filtro (ocultos OU excluídos)."""
+    return {
+        u
+        for u, a in _load_consultor_ajustes().items()
+        if a.get("hidden") or a.get("reassign_to")
+    }
+
+
+def _apply_reassign_to_rgm_map(rgm_to_uid):
+    """Remapeia os valores de rgm_to_uid conforme consultores excluídos (in-place)."""
+    rmap = _consultor_reassign_map()
+    if not rmap:
+        return rgm_to_uid
+    for k in list(rgm_to_uid.keys()):
+        v = rgm_to_uid.get(k)
+        if v in rmap:
+            rgm_to_uid[k] = rmap[v]
+    return rgm_to_uid
 
 
 def _date_to_epoch(dt_str):
@@ -2767,6 +3004,9 @@ def _build_agent_ranking_completa_vw(
         except Exception as _oe:
             logger.warning("conflito_resolucao override: %s", _oe)
 
+        # Consultores excluídos: reatribui os leads/matrículas para Admin Sistema
+        _apply_reassign_to_rgm_map(rgm_to_uid)
+
         _crm_ini = crm_dt_ini or dt_ini
         _crm_fim = crm_dt_fim or dt_fim
         ep_ini = _date_to_epoch(_crm_ini)
@@ -2832,6 +3072,19 @@ def _build_agent_ranking_completa_vw(
         kcur.close()
         kconn.close()
 
+        # Consultor excluído: soma as stats de CRM dele no destino (Admin Sistema)
+        _reassign_cs = _consultor_reassign_map()
+        if _reassign_cs:
+            _merged_cs = {}
+            for _u, _cs in crm_stats.items():
+                _t = _reassign_cs.get(_u, _u)
+                if _t in _merged_cs:
+                    for _kk, _vv in _cs.items():
+                        _merged_cs[_t][_kk] = _merged_cs[_t].get(_kk, 0) + _vv
+                else:
+                    _merged_cs[_t] = dict(_cs)
+            crm_stats = _merged_cs
+
         # Calcular prefixo dominante e overrides para filtrar outliers nas contagens
         _ranking_all_rgms = [n for n, _ in mat_rows]
         _ranking_dom_pfx = _compute_dominant_rgm_prefix(_ranking_all_rgms) or 99
@@ -2852,7 +3105,8 @@ def _build_agent_ranking_completa_vw(
         if tr_count:
             mat_per_agent[TR] = tr_count
 
-        uids_real = [u for u in (set(crm_stats) | set(mat_per_agent)) if u != TR]
+        _hidden_uids = _consultor_hidden_uids()
+        uids_real = [u for u in (set(crm_stats) | set(mat_per_agent)) if u != TR and u not in _hidden_uids]
         user_map = _fetch_kommo_user_names(uids_real)
         ranking = []
         for uid in uids_real:
@@ -4125,6 +4379,9 @@ def crgm_agente_detalhe():
             _oc.close()
         except Exception as _oe:
             logger.warning("agente-detalhe conflito_resolucao: %s", _oe)
+
+        # Consultores excluídos: reatribui para Admin Sistema
+        _apply_reassign_to_rgm_map(rgm_to_uid)
 
         # 3. Calcular prefixo dominante e overrides de contagem de outliers
         all_rgms = [_normalize_rgm(row[0]) for row in rows if row[0]]

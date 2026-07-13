@@ -3256,6 +3256,188 @@ async function crgmAtualizarBadgeConflitos() {
     } catch(_) {}
 }
 
+// ===================== Editar consultores =====================
+let _crgmConsData = [];
+let _crgmConsDirty = false;
+
+async function crgmAbrirConsultores() {
+    const modal = document.getElementById('crgm-consultores-modal');
+    const lista = document.getElementById('crgm-cons-lista');
+    const loading = document.getElementById('crgm-cons-loading');
+    const status = document.getElementById('crgm-cons-status');
+    const busca = document.getElementById('crgm-cons-busca');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    lista.classList.add('hidden');
+    loading.classList.remove('hidden');
+    loading.classList.add('flex');
+    status.textContent = '';
+    if (busca) busca.value = '';
+    _crgmConsDirty = false;
+    try {
+        const res = await api('/api/comercial-rgm/consultores');
+        const d = await res.json();
+        if (!d.ok) throw new Error(d.error || 'Erro desconhecido');
+        _crgmConsData = d.consultores || [];
+        const adminNome = (_crgmConsData.find(c => c.is_admin_sistema)?.name) || 'Admin Sistema';
+        const el = document.getElementById('crgm-cons-admin-nome');
+        if (el) el.textContent = adminNome;
+        _crgmRenderConsultores(_crgmConsData);
+        loading.classList.add('hidden');
+        loading.classList.remove('flex');
+        lista.classList.remove('hidden');
+        status.textContent = `${_crgmConsData.length} consultor(es)`;
+        status.className = 'text-xs text-slate-500';
+    } catch(e) {
+        loading.classList.add('hidden');
+        loading.classList.remove('flex');
+        lista.classList.remove('hidden');
+        lista.innerHTML = `<p class="text-red-400 text-sm px-2">Erro ao carregar: ${e.message}</p>`;
+    }
+}
+
+function crgmFecharConsultores() {
+    const modal = document.getElementById('crgm-consultores-modal');
+    if (modal) modal.classList.add('hidden');
+    if (_crgmConsDirty) {
+        _crgmConsDirty = false;
+        try { _crgmLoadFilters?.(); } catch(_) {}
+        try { crgmAtualizar?.(); } catch(_) {}
+    }
+    _crgmConsData = [];
+}
+
+function _crgmConsFiltrados() {
+    const q = (document.getElementById('crgm-cons-busca')?.value || '').toLowerCase().trim();
+    if (!q) return _crgmConsData;
+    return _crgmConsData.filter(c =>
+        (c.name || '').toLowerCase().includes(q) ||
+        (c.display_name || '').toLowerCase().includes(q) ||
+        (c.email || '').toLowerCase().includes(q)
+    );
+}
+
+function crgmFiltrarConsultores() {
+    _crgmRenderConsultores(_crgmConsFiltrados());
+}
+
+function _crgmRenderConsultores(list) {
+    const lista = document.getElementById('crgm-cons-lista');
+    lista.innerHTML = '';
+    if (!list.length) {
+        lista.innerHTML = '<p class="text-slate-500 text-sm text-center py-6">Nenhum consultor encontrado.</p>';
+        return;
+    }
+    for (const c of list) {
+        const excl = c.excluido;
+        const hid = c.hidden && !excl;
+        const row = document.createElement('div');
+        row.className = `rounded-xl border p-3 mb-2 flex items-center gap-3 flex-wrap ${excl ? 'border-red-700/40 bg-red-950/20' : (hid ? 'border-slate-700 bg-slate-800/40 opacity-70' : 'border-slate-700 bg-slate-800/30')}`;
+        row.dataset.id = c.id;
+        const badge = excl
+            ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-500/20 text-red-300 border border-red-500/30">Excluído → ${_escHtml(c.reassign_to_name || 'Admin Sistema')}</span>`
+            : (hid ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-600/40 text-slate-300">Oculto</span>` : '');
+        const adminTag = c.is_admin_sistema
+            ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-violet-500/20 text-violet-300 border border-violet-500/30">Admin Sistema</span>`
+            : '';
+        row.innerHTML = `
+            <div class="flex-1 min-w-[220px]">
+                <div class="flex items-center gap-2 mb-1 flex-wrap">
+                    <input type="text" value="${_escHtml(c.display_name || c.name)}"
+                        class="crgm-cons-nome bg-slate-700/60 border border-slate-600 text-white text-sm rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-violet-500 w-full max-w-[240px]"
+                        ${c.is_admin_sistema ? 'disabled' : ''}
+                        onkeydown="if(event.key==='Enter')_crgmConsRename(${c.id}, this)" />
+                    ${adminTag}${badge}
+                </div>
+                <p class="text-[11px] text-slate-500">${_escHtml(c.email || '—')} · ${(c.leads || 0).toLocaleString('pt-BR')} leads · id ${c.id}</p>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+                <button onclick="_crgmConsRename(${c.id}, this)" title="Salvar nome"
+                    class="p-1.5 rounded-lg bg-violet-600/20 hover:bg-violet-600/40 text-violet-300 transition-colors ${c.is_admin_sistema ? 'hidden' : ''}"><span class="material-symbols-outlined text-base">save</span></button>
+                <button onclick="_crgmConsToggleHide(${c.id})" title="${hid ? 'Mostrar' : 'Ocultar'}"
+                    class="p-1.5 rounded-lg bg-slate-600/40 hover:bg-slate-600/70 text-slate-300 transition-colors ${(c.is_admin_sistema || excl) ? 'hidden' : ''}"><span class="material-symbols-outlined text-base">${hid ? 'visibility' : 'visibility_off'}</span></button>
+                ${excl
+                    ? `<button onclick="_crgmConsRestaurar(${c.id})" title="Restaurar" class="px-2.5 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 text-xs font-medium flex items-center gap-1 transition-colors"><span class="material-symbols-outlined text-sm">restore</span>Restaurar</button>`
+                    : `<button onclick="_crgmConsExcluir(${c.id})" title="Excluir e reatribuir para Admin Sistema" class="px-2.5 py-1.5 rounded-lg bg-red-600/20 hover:bg-red-600/40 text-red-300 text-xs font-medium flex items-center gap-1 transition-colors ${c.is_admin_sistema ? 'hidden' : ''}"><span class="material-symbols-outlined text-sm">person_remove</span>Excluir</button>`
+                }
+            </div>
+        `;
+        lista.appendChild(row);
+    }
+}
+
+function _crgmConsFind(id) { return _crgmConsData.find(c => c.id === id); }
+
+async function _crgmConsPost(id, body) {
+    const res = await api('/api/comercial-rgm/consultores/' + id, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    return res.json();
+}
+
+function _crgmConsStatus(msg, ok) {
+    const status = document.getElementById('crgm-cons-status');
+    if (!status) return;
+    status.textContent = msg;
+    status.className = 'text-xs ' + (ok ? 'text-emerald-400' : 'text-red-400');
+}
+
+async function _crgmConsRename(id, el) {
+    const c = _crgmConsFind(id); if (!c) return;
+    const row = el.closest('[data-id]');
+    const nome = (row.querySelector('.crgm-cons-nome')?.value || '').trim();
+    const dn = (nome && nome !== c.name) ? nome : null;
+    try {
+        const d = await _crgmConsPost(id, { display_name: dn, hidden: !!c.hidden, excluir: !!c.excluido });
+        if (!d.ok) throw new Error(d.error);
+        c.display_name = dn;
+        _crgmConsStatus('Nome atualizado.', true);
+        _crgmConsDirty = true;
+    } catch(e) { _crgmConsStatus('Erro: ' + e.message, false); }
+}
+
+async function _crgmConsToggleHide(id) {
+    const c = _crgmConsFind(id); if (!c) return;
+    try {
+        const nh = !c.hidden;
+        const d = await _crgmConsPost(id, { display_name: c.display_name, hidden: nh, excluir: !!c.excluido });
+        if (!d.ok) throw new Error(d.error);
+        c.hidden = nh;
+        _crgmRenderConsultores(_crgmConsFiltrados());
+        _crgmConsStatus(nh ? 'Consultor ocultado.' : 'Consultor visível.', true);
+        _crgmConsDirty = true;
+    } catch(e) { _crgmConsStatus('Erro: ' + e.message, false); }
+}
+
+async function _crgmConsExcluir(id) {
+    const c = _crgmConsFind(id); if (!c) return;
+    if (!confirm(`Excluir "${c.display_name || c.name}"?\n\nOs leads e matrículas dele passarão a contar para o Admin Sistema no dashboard. Isso NÃO altera o Kommo e pode ser desfeito com "Restaurar".`)) return;
+    try {
+        const d = await _crgmConsPost(id, { display_name: c.display_name, excluir: true });
+        if (!d.ok) throw new Error(d.error);
+        c.excluido = true; c.hidden = true;
+        c.reassign_to_name = c.reassign_to_name || 'Admin Sistema';
+        _crgmRenderConsultores(_crgmConsFiltrados());
+        _crgmConsStatus('Consultor excluído — leads reatribuídos ao Admin Sistema.', true);
+        _crgmConsDirty = true;
+    } catch(e) { _crgmConsStatus('Erro: ' + e.message, false); }
+}
+
+async function _crgmConsRestaurar(id) {
+    const c = _crgmConsFind(id); if (!c) return;
+    try {
+        const res = await api('/api/comercial-rgm/consultores/' + id, { method: 'DELETE' });
+        const d = await res.json();
+        if (!d.ok) throw new Error(d.error);
+        c.excluido = false; c.hidden = false; c.display_name = null; c.reassign_to_name = null;
+        _crgmRenderConsultores(_crgmConsFiltrados());
+        _crgmConsStatus('Consultor restaurado ao padrão.', true);
+        _crgmConsDirty = true;
+    } catch(e) { _crgmConsStatus('Erro: ' + e.message, false); }
+}
+
 function _crgmKommoLeadUrl(leadId) {
     const base = (typeof window !== 'undefined' && window.DC_KOMMO_WEB_BASE) || 'https://eduitbr.kommo.com';
     return `${String(base).replace(/\/$/, '')}/leads/detail/${leadId}`;

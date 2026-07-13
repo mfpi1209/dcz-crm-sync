@@ -103,6 +103,7 @@ async function loadDashboard() {
     } catch (err) {
         console.error('Dashboard load error:', err);
     }
+    _dashLoadNewLeadsToday(false);
     _dashRefreshFunnel(false);
     await populateCicloFilter();
     _restoreRgmPadraoFilter();
@@ -131,17 +132,87 @@ async function _apiJsonSafe(res) {
     }
 }
 
+async function _apiJsonBody(res) {
+    if (!res) return null;
+    const ct = (res.headers.get('content-type') || '').toLowerCase();
+    if (!ct.includes('json')) return null;
+    try {
+        return await res.json();
+    } catch {
+        return null;
+    }
+}
+
+let _dashFunnelPollTimer = null;
+
+function _dashCancelFunnelPoll() {
+    if (_dashFunnelPollTimer) {
+        clearTimeout(_dashFunnelPollTimer);
+        _dashFunnelPollTimer = null;
+    }
+}
+
+function _dashFmtKommoErr(msg) {
+    if (!msg) return '';
+    const s = String(msg);
+    if (/<html|<!doctype/i.test(s)) {
+        return /403|forbidden/i.test(s)
+            ? 'Kommo bloqueou o servidor (403 WAF).'
+            : 'Resposta inválida do Kommo.';
+    }
+    return s.length > 160 ? s.slice(0, 160) + '…' : s;
+}
+
 function _dashShowFunnelError(msg) {
     const container = document.getElementById('dash-funnel-cards');
     if (!container) return;
     container.innerHTML = `
         <div class="col-span-full text-center py-8 text-slate-500 text-sm flex flex-col items-center gap-3">
-            <span>${msg || 'Erro ao carregar funil.'}</span>
+            <span>${_dashFmtKommoErr(msg) || 'Erro ao carregar funil.'}</span>
             <button type="button" onclick="_dashRefreshFunnel(true)"
                 class="text-xs text-cyan-400 hover:text-cyan-300 border border-slate-600 px-3 py-1.5 rounded-lg">
                 Tentar novamente
             </button>
         </div>`;
+}
+
+function _dashShowFunnelWarming(msg) {
+    const container = document.getElementById('dash-funnel-cards');
+    if (!container) return;
+    container.innerHTML = `
+        <div class="col-span-full text-center py-8 text-slate-500 text-sm flex flex-col items-center gap-3">
+            <svg class="animate-spin h-6 w-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            <span>${msg || 'Funil carregando (primeira carga)…'}</span>
+            <span class="text-xs text-slate-600">Contagem no Kommo pode levar até 2 min</span>
+        </div>`;
+}
+
+function _dashPollFunnelWarm(attempt) {
+    if (attempt >= 30) {
+        _dashShowFunnelError('Funil ainda carregando. Clique em Tentar novamente.');
+        return;
+    }
+    const delayMs = attempt === 0 ? 4000 : 5000;
+    _dashFunnelPollTimer = setTimeout(async () => {
+        _dashFunnelPollTimer = null;
+        try {
+            const res = await api('/api/kommo/funnel-live');
+            const d = await _apiJsonBody(res);
+            if (d?.ok && d.data && typeof _renderFunnelCards === 'function') {
+                _renderFunnelCards(d.data, 'dash-funnel');
+                if (d.data?.yesterday_summary && typeof _renderYesterdaySummary === 'function') {
+                    _renderYesterdaySummary(d.data.yesterday_summary, 'dash-funnel');
+                }
+                return;
+            }
+            if (d?.warming || !d?.ok) {
+                _dashPollFunnelWarm(attempt + 1);
+            }
+        } catch (e) {
+            console.warn('funnel warm poll:', e);
+            _dashPollFunnelWarm(attempt + 1);
+        }
+    }, delayMs);
 }
 
 async function _dashFallbackYesterdayCommercial(yStr) {
@@ -154,6 +225,27 @@ async function _dashFallbackYesterdayCommercial(yStr) {
     } catch (e) {
         console.warn('fallback yesterday vendas:', e);
         return null;
+    }
+}
+
+async function _dashLoadNewLeadsToday(force) {
+    const el = document.getElementById('dash-funnel-new');
+    if (!el) return;
+    const q = force ? '?force=1' : '';
+    try {
+        const res = await api('/api/kommo/new-leads-today' + q);
+        const d = await _apiJsonSafe(res);
+        if (!d?.ok || d.count == null) return;
+        el.textContent = Number(d.count).toLocaleString('pt-BR');
+        const convEl = document.getElementById('dash-funnel-conversao');
+        const aceiteEl = document.getElementById('dash-funnel-aceite');
+        if (convEl && aceiteEl) {
+            const aceite = parseInt(String(aceiteEl.textContent).replace(/\./g, ''), 10) || 0;
+            const pct = d.count > 0 ? ((aceite / d.count) * 100).toFixed(1) : '0.0';
+            convEl.textContent = pct + '%';
+        }
+    } catch (e) {
+        console.warn('new-leads-today:', e);
     }
 }
 
@@ -195,9 +287,11 @@ async function _dashLoadYesterdayKpi(force) {
 }
 
 async function _dashRefreshFunnel(force) {
+    _dashCancelFunnelPoll();
     const btn = document.getElementById('dash-funnel-refresh-btn');
     if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
     const q = force ? '?force=1' : '';
+    _dashLoadNewLeadsToday(force);
     const slowTimer = setTimeout(() => {
         const container = document.getElementById('dash-funnel-cards');
         if (!container) return;
@@ -206,7 +300,7 @@ async function _dashRefreshFunnel(force) {
             container.innerHTML = `
                 <div class="col-span-full text-center py-8 text-slate-500 text-sm flex flex-col items-center gap-3">
                     <svg class="animate-spin h-6 w-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                    Buscando dados do Kommo… (pode levar até 40s)
+                    Buscando dados do Kommo… (pode levar até 90s)
                 </div>`;
         }
     }, 8000);
@@ -215,7 +309,12 @@ async function _dashRefreshFunnel(force) {
         const timer = ctrl ? setTimeout(() => ctrl.abort(), 120000) : null;
         const res = await api('/api/kommo/funnel-live' + q, ctrl ? { signal: ctrl.signal } : {});
         if (timer) clearTimeout(timer);
-        const d = await _apiJsonSafe(res);
+        const d = await _apiJsonBody(res);
+        if (d?.warming) {
+            _dashShowFunnelWarming(d.error);
+            _dashPollFunnelWarm(0);
+            return;
+        }
         if (d?.ok && typeof _renderFunnelCards === 'function') {
             _renderFunnelCards(d.data, 'dash-funnel');
             if (d.data?.yesterday_summary && typeof _renderYesterdaySummary === 'function') {
@@ -225,8 +324,14 @@ async function _dashRefreshFunnel(force) {
             console.error('dash funnel-live: _renderFunnelCards ausente — recarregue a página');
             _dashShowFunnelError('Erro de carregamento do JS. Recarregue a página (Ctrl+Shift+R).');
         } else {
-            console.error('dash funnel-live error:', d?.error || res?.status);
-            _dashShowFunnelError(d?.error || 'Não foi possível carregar o funil. Verifique se o servidor foi reiniciado.');
+            const errMsg = _dashFmtKommoErr(d?.detail)
+                || d?.error
+                || (d?.warming ? 'Funil carregando… aguarde ~30s e clique Atualizar.' : null)
+                || (res && !res.ok && !d ? `HTTP ${res.status} — resposta inválida do servidor` : null)
+                || (res && !res.ok ? `HTTP ${res.status}` : null)
+                || 'Não foi possível carregar o funil.';
+            console.error('dash funnel-live error:', errMsg, d);
+            _dashShowFunnelError(errMsg);
         }
     } catch (e) {
         console.error('dash funnel-live error:', e);
@@ -716,9 +821,11 @@ async function applyDashboardFilters() {
         if (cicloSel.value) localStorage.setItem(_DASH_CICLO_KEY, cicloSel.value);
         else localStorage.removeItem(_DASH_CICLO_KEY);
     }
+    const sitHdr = document.getElementById('students-situacao-header');
     const sitSel = document.getElementById('students-situacao');
-    if (sitSel) _stuActiveSituacao = sitSel.value || null;
-    if (_stuActiveSituacao) _syncSitSelectFromActive();
+    const sitVal = (sitHdr?.value || sitSel?.value || '').trim();
+    _stuActiveSituacao = sitVal || null;
+    _syncSitSelectFromActive();
     const rgmSel = document.getElementById('students-rgm-padrao');
     if (rgmSel) {
         localStorage.setItem(_DASH_RGM_PADRAO_KEY, rgmSel.value || 'todos');
@@ -793,20 +900,51 @@ function _normSitKey(s) {
 }
 
 function _syncSitSelectFromActive() {
-    const sitSel = document.getElementById('students-situacao');
-    if (!sitSel) return;
-    if (!_stuActiveSituacao) {
-        sitSel.value = '';
-        return;
+    const selects = [
+        document.getElementById('students-situacao'),
+        document.getElementById('students-situacao-header'),
+    ].filter(Boolean);
+    if (!selects.length) return;
+    let value = '';
+    if (_stuActiveSituacao) {
+        const want = _normSitKey(_stuActiveSituacao);
+        for (const sitSel of selects) {
+            for (const opt of sitSel.options) {
+                if (_normSitKey(opt.value) === want) {
+                    value = opt.value;
+                    break;
+                }
+            }
+            if (value) break;
+        }
+        if (!value) value = _stuActiveSituacao;
     }
-    const want = _normSitKey(_stuActiveSituacao);
-    for (const opt of sitSel.options) {
-        if (_normSitKey(opt.value) === want) {
-            sitSel.value = opt.value;
-            return;
+    for (const sitSel of selects) sitSel.value = value;
+    const badge = document.getElementById('stu-situacao-filter-badge');
+    const clearBtn = document.getElementById('stu-situacao-clear');
+    if (badge) {
+        if (_stuActiveSituacao) {
+            badge.textContent = 'Filtro: ' + (_stuActiveSituacao || value);
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
         }
     }
-    sitSel.value = _stuActiveSituacao;
+    if (clearBtn) clearBtn.classList.toggle('hidden', !_stuActiveSituacao);
+}
+
+function _stuApplySituacaoHeaderFilter() {
+    const hdr = document.getElementById('students-situacao-header');
+    const val = (hdr?.value || '').trim();
+    _stuActiveSituacao = val || null;
+    _syncSitSelectFromActive();
+    _stuRefreshFiltered();
+}
+
+function _stuClearSituacaoFilter() {
+    _stuActiveSituacao = null;
+    _syncSitSelectFromActive();
+    _stuRefreshFiltered();
 }
 
 function _stuBindInteractiveCards() {
@@ -816,6 +954,13 @@ function _stuBindInteractiveCards() {
         sitEl.addEventListener('click', (ev) => {
             const card = ev.target.closest('[data-situacao]');
             if (!card) return;
+            _stuToggleSituacao(card.getAttribute('data-situacao'));
+        });
+        sitEl.addEventListener('keydown', (ev) => {
+            if (ev.key !== 'Enter' && ev.key !== ' ') return;
+            const card = ev.target.closest('[data-situacao]');
+            if (!card) return;
+            ev.preventDefault();
             _stuToggleSituacao(card.getAttribute('data-situacao'));
         });
     }
@@ -860,6 +1005,7 @@ function _stuClearCrossFilters() {
     _stuActivePolo = null;
     const sitSel = document.getElementById('students-situacao');
     if (sitSel) sitSel.value = '';
+    _syncSitSelectFromActive();
     _stuRefreshFiltered();
 }
 
@@ -1019,6 +1165,7 @@ async function loadStudentMetrics() {
         renderBreakdown('stu-by-ciclo', d.by_ciclo);
 
         _stuUpdateActiveFilterBar();
+        _syncSitSelectFromActive();
 
         const badge = document.getElementById('stu-filter-badge');
         const parts = [];

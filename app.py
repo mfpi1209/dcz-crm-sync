@@ -81,13 +81,12 @@ def inject_whatsapp_tool_base():
 
 @app.context_processor
 def inject_consultores_academicos_admin():
-    """Injeta a lista de consultores academicos APENAS quando o usuario logado
-    e admin. Consumida pelo _disparador_whatsapp.html pra anexar ?consultores=
-    na URL do iframe (modal de atribuicao manual no Meu Painel)."""
+    """Lista de consultores acadêmicos (app_users) para admin e Supervisor Acadêmico."""
     try:
-        if session.get("role") != "admin":
+        role, _, categoria = _nav_load_user_data()
+        from helpers import list_consultores_academicos, user_has_disparador_full_access
+        if not user_has_disparador_full_access(role, categoria):
             return {"consultores_academicos_admin": []}
-        from helpers import list_consultores_academicos
         return {"consultores_academicos_admin": list_consultores_academicos()}
     except Exception:
         return {"consultores_academicos_admin": []}
@@ -238,7 +237,7 @@ from routes.upload import upload_bp
 from routes.engagement import engagement_bp, register_engagement_job
 from routes.config import config_bp, init_scheduler, _load_schedules_from_db, register_delta_interval, register_aceite_reconcile, register_responsible_history_job
 from routes.logs import logs_bp
-from routes.kommo_sync import kommo_bp
+from routes.kommo_sync import kommo_bp, register_funnel_cache_job
 from routes.match_merge import match_merge_bp
 from routes.comercial_rgm import comercial_rgm_bp
 from routes.ativacoes import ativacoes_bp
@@ -250,12 +249,17 @@ from routes.minha_performance import minha_performance_bp
 from routes.repasse import repasse_bp
 from routes.supervisor_dashboard import supervisor_dashboard_bp
 from routes.meus_atendimentos import meus_atendimentos_bp
+from routes.premiacoes_internas import premiacoes_internas_bp
 from routes.inadimplencia import inadimplencia_bp
 from routes.disparador_whatsapp import disparador_whatsapp_bp
 from routes.page_views import page_views_bp
 from routes.solicitacoes_ti import solicitacoes_ti_bp
 from routes.captacao import captacao_bp
 from routes.siaa import siaa_bp
+from routes.dist_comercial_schedule import (
+    dist_comercial_schedule_bp,
+    register_dist_comercial_schedule_job,
+)
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(dashboard_bp)
@@ -276,12 +280,14 @@ app.register_blueprint(minha_performance_bp)
 app.register_blueprint(repasse_bp)
 app.register_blueprint(supervisor_dashboard_bp)
 app.register_blueprint(meus_atendimentos_bp)
+app.register_blueprint(premiacoes_internas_bp)
 app.register_blueprint(inadimplencia_bp)
 app.register_blueprint(disparador_whatsapp_bp)
 app.register_blueprint(page_views_bp)
 app.register_blueprint(solicitacoes_ti_bp)
 app.register_blueprint(captacao_bp)
 app.register_blueprint(siaa_bp)
+app.register_blueprint(dist_comercial_schedule_bp)
 
 # ── Atualizar Preço — rotas do webapp standalone integrado ────────────────
 try:
@@ -321,9 +327,11 @@ from db import (
     _ensure_page_views_table,
     _ensure_funnel_log_table,
     _ensure_premiacao_tables,
+    _ensure_premiacao_interna_tables,
     _ensure_pix_nivel_tables,
     _ensure_pix_faixa_tables,
     _ensure_suporte_tables,
+    _ensure_dist_comercial_schedule_tables,
 )
 
 _ensure_schedules_table()
@@ -340,9 +348,11 @@ _ensure_avisos_tables()
 _ensure_page_views_table()
 _ensure_funnel_log_table()
 _ensure_premiacao_tables()
+_ensure_premiacao_interna_tables()
 _ensure_pix_nivel_tables()
 _ensure_pix_faixa_tables()
 _ensure_suporte_tables()
+_ensure_dist_comercial_schedule_tables()
 
 # ── APScheduler ───────────────────────────────────────────────────────────
 
@@ -356,6 +366,8 @@ register_engagement_job(scheduler)
 register_delta_interval(scheduler)
 register_aceite_reconcile(scheduler)
 register_responsible_history_job(scheduler)
+register_funnel_cache_job(scheduler)
+register_dist_comercial_schedule_job(scheduler)
 
 # ── Entrypoint ────────────────────────────────────────────────────────────
 

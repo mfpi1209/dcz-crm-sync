@@ -18,3 +18,4 @@ _siaa_resp.json
 fb_dump.json
 capturas_siaa/
 cookies/
+flask_*.log

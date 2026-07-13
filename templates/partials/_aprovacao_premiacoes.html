@@ -1,0 +1,339 @@
+{# ═══════════════ Central de Aprovação de Premiações ═══════════════ #}
+<section id="page-aprovacao_premiacoes" class="hidden">
+<style>
+    .ap-kpi {
+        background: var(--bg-card);
+        border:1px solid var(--border);
+        border-radius: 1rem;
+        padding:1.15rem 1.25rem;
+        position: relative;
+        overflow: hidden;
+        box-shadow: var(--shadow);
+    }
+    .ap-kpi-icon {
+        width:2.75rem; height:2.75rem; border-radius:.85rem;
+        display:inline-flex; align-items:center; justify-content:center;
+    }
+    .ap-kpi-label { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color: var(--text-secondary); margin-bottom:.35rem }
+    .ap-kpi-value { font-size:1.85rem; font-weight:800; line-height:1; color: var(--text-primary) }
+    .ap-kpi-sub   { font-size:.72rem; color: var(--text-secondary); margin-top:.25rem }
+
+    .ap-kpi-pendente .ap-kpi-icon { background: rgba(245,158,11,.15); color:#b45309 }
+    .ap-kpi-aprovado .ap-kpi-icon { background: rgba(16,185,129,.15); color:#059669 }
+    .ap-kpi-reprovado .ap-kpi-icon { background: rgba(244,63,94,.15); color:#e11d48 }
+    .ap-kpi-ajuste .ap-kpi-icon { background: rgba(249,115,22,.15); color:#c2410c }
+
+    .ap-badge {
+        display:inline-flex; align-items:center; gap:.3rem;
+        font-size:.65rem; font-weight:700; letter-spacing:.04em;
+        padding:.28rem .65rem; border-radius:999px;
+        text-transform:uppercase; white-space:nowrap;
+    }
+    .ap-badge-aguardando { background: rgba(245,158,11,.15);  color:#b45309 }
+    .ap-badge-aprovado   { background: rgba(16,185,129,.15);  color:#059669 }
+    .ap-badge-reprovado  { background: rgba(244,63,94,.15);   color:#e11d48 }
+    .ap-badge-ajuste     { background: rgba(249,115,22,.15);  color:#c2410c }
+    .dark .ap-badge-aguardando { color:#fbbf24 }
+    .dark .ap-badge-aprovado   { color:#34d399 }
+    .dark .ap-badge-reprovado  { color:#fb7185 }
+    .dark .ap-badge-ajuste     { color:#fdba74 }
+
+    .ap-btn {
+        display:inline-flex; align-items:center; gap:.4rem;
+        padding:.55rem 1rem; border-radius:.65rem;
+        font-size:.8rem; font-weight:600;
+        transition: all .15s; cursor:pointer;
+        border:1px solid transparent;
+    }
+    .ap-btn-primary { background: var(--primary); color:#fff }
+    .ap-btn-primary:hover { background: var(--primary-container) }
+    .ap-btn-ghost   { background: var(--bg-elevated); color: var(--text-primary); border-color: var(--border) }
+    .ap-btn-ghost:hover { border-color: var(--primary) }
+    .ap-btn-success { background:#059669; color:#fff }
+    .ap-btn-success:hover { background:#047857 }
+    .ap-btn-danger  { background:#e11d48; color:#fff }
+    .ap-btn-danger:hover  { background:#be123c }
+    .ap-btn-warn    { background:#c2410c; color:#fff }
+    .ap-btn-warn:hover    { background:#9a3412 }
+    .ap-btn:disabled { opacity:.55; cursor:not-allowed }
+
+    .ap-input, .ap-select, .ap-textarea {
+        width:100%;
+        background: var(--bg-elevated);
+        border:1px solid var(--border);
+        color: var(--text-primary);
+        border-radius:.55rem;
+        padding:.55rem .75rem;
+        font-size:.85rem;
+    }
+    .ap-input:focus, .ap-select:focus, .ap-textarea:focus {
+        outline:none; border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(0,52,111,.12);
+    }
+    .ap-textarea { resize:vertical; min-height:5rem }
+    .ap-label { font-size:.7rem; font-weight:600; color: var(--text-secondary); text-transform:uppercase; letter-spacing:.04em; margin-bottom:.35rem; display:block }
+
+    .ap-table { width:100%; border-collapse:separate; border-spacing:0 }
+    .ap-table th {
+        background: var(--bg-elevated); text-align:left;
+        font-size:.68rem; font-weight:700; text-transform:uppercase;
+        letter-spacing:.04em; color: var(--text-secondary);
+        padding:.7rem .9rem; border-bottom:1px solid var(--border);
+    }
+    .ap-table td {
+        padding:.85rem .9rem; font-size:.85rem;
+        border-bottom:1px solid var(--border-subtle);
+        color: var(--text-primary);
+    }
+    .ap-table tbody tr { cursor:pointer }
+    .ap-table tbody tr:hover { background: var(--bg-elevated) }
+
+    .ap-modal-backdrop {
+        position:fixed; inset:0; background: rgba(15,23,42,.55);
+        backdrop-filter: blur(4px); z-index:50;
+        display:flex; align-items:center; justify-content:center;
+        padding:2rem 1rem;
+        overflow-y:auto;
+    }
+    .ap-modal {
+        background: var(--bg-card); border:1px solid var(--border);
+        border-radius:1rem; max-width:60rem; width:100%;
+        max-height:calc(100vh - 4rem);
+        max-height:calc(100dvh - 4rem);
+        overflow:hidden;
+        display:flex; flex-direction:column;
+        box-shadow: var(--shadow-xl);
+        margin:auto 0;
+    }
+    .ap-modal-header, .ap-modal-footer {
+        padding:1rem 1.5rem;
+        border-bottom:1px solid var(--border);
+        display:flex; align-items:center; justify-content:space-between;
+        gap:.75rem;
+    }
+    .ap-modal-footer { border-bottom:none; border-top:1px solid var(--border); background: var(--bg-elevated) }
+    .ap-modal-body { padding:1.25rem 1.5rem; overflow-y:auto; flex:1 }
+
+    .ap-tab {
+        padding:.5rem 1rem; border-radius:.55rem;
+        font-size:.78rem; font-weight:600;
+        background: transparent;
+        color: var(--text-secondary);
+        border:1px solid transparent;
+        cursor:pointer;
+    }
+    .ap-tab:hover { color: var(--text-primary) }
+    .ap-tab.is-active {
+        background: var(--bg-elevated);
+        color: var(--text-primary);
+        border-color: var(--border);
+    }
+
+    .ap-colab-card {
+        border:1px solid var(--border);
+        border-radius:.75rem;
+        padding:.85rem 1rem;
+        background: var(--bg-elevated);
+    }
+
+    .ap-total-strip {
+        display:flex; align-items:center; justify-content:space-between;
+        padding:.85rem 1.1rem;
+        border-radius:.7rem;
+        background: linear-gradient(135deg, rgba(0,52,111,.08), rgba(0,74,153,.04));
+        border:1px solid rgba(0,52,111,.15);
+        margin-top:1rem;
+    }
+    .dark .ap-total-strip {
+        background: linear-gradient(135deg, rgba(116,174,233,.1), rgba(76,112,154,.05));
+        border-color: rgba(116,174,233,.2);
+    }
+
+    .ap-timeline-item {
+        position:relative; padding-left:1.75rem; padding-bottom:1rem;
+        border-left:2px solid var(--border); margin-left:.4rem;
+    }
+    .ap-timeline-item:last-child { padding-bottom:.25rem; border-left-color: transparent }
+    .ap-timeline-dot {
+        position:absolute; left:-.5rem; top:.2rem;
+        width:.85rem; height:.85rem; border-radius:9999px;
+        background: var(--primary); box-shadow: 0 0 0 3px var(--bg-card);
+    }
+</style>
+
+<div class="p-4 lg:p-8 max-w-7xl mx-auto">
+
+    {# Header #}
+    <div class="flex items-center justify-between mb-6 gap-3 flex-wrap">
+        <div>
+            <h1 class="text-2xl lg:text-3xl font-bold" style="color: var(--text-primary)">Central de Aprovação de Premiações</h1>
+            <p class="text-sm mt-1" style="color: var(--text-secondary)">Analise e decida os lotes de premiação enviados pelos gestores.</p>
+        </div>
+    </div>
+
+    {# KPIs #}
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+        <div class="ap-kpi ap-kpi-pendente">
+            <div class="flex items-start justify-between">
+                <div>
+                    <div class="ap-kpi-label">Pendentes</div>
+                    <div class="ap-kpi-value" id="ap-kpi-pendentes">—</div>
+                    <div class="ap-kpi-sub" id="ap-kpi-valor-pendente">R$ 0,00 em análise</div>
+                </div>
+                <div class="ap-kpi-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+            </div>
+        </div>
+        <div class="ap-kpi ap-kpi-aprovado">
+            <div class="flex items-start justify-between">
+                <div>
+                    <div class="ap-kpi-label">Aprovadas hoje</div>
+                    <div class="ap-kpi-value" id="ap-kpi-aprovadas">—</div>
+                    <div class="ap-kpi-sub">liberadas</div>
+                </div>
+                <div class="ap-kpi-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                </div>
+            </div>
+        </div>
+        <div class="ap-kpi ap-kpi-reprovado">
+            <div class="flex items-start justify-between">
+                <div>
+                    <div class="ap-kpi-label">Reprovadas hoje</div>
+                    <div class="ap-kpi-value" id="ap-kpi-reprovadas">—</div>
+                    <div class="ap-kpi-sub">negadas</div>
+                </div>
+                <div class="ap-kpi-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </div>
+            </div>
+        </div>
+        <div class="ap-kpi ap-kpi-ajuste">
+            <div class="flex items-start justify-between">
+                <div>
+                    <div class="ap-kpi-label">Ajustes solicitados hoje</div>
+                    <div class="ap-kpi-value" id="ap-kpi-ajustes">—</div>
+                    <div class="ap-kpi-sub">aguardando ajuste</div>
+                </div>
+                <div class="ap-kpi-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# Filtros #}
+    <div class="glass-card p-4 mb-5">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div>
+                <label class="ap-label">Mês</label>
+                <input id="ap-filter-mes" type="month" class="ap-input" oninput="apReloadLotes()">
+            </div>
+            <div>
+                <label class="ap-label">Setor</label>
+                <select id="ap-filter-setor" class="ap-select" onchange="apReloadLotes()">
+                    <option value="">Todos</option>
+                    <option value="Acadêmico">Acadêmico</option>
+                    <option value="Comercial">Comercial</option>
+                    <option value="TI">TI</option>
+                    <option value="Marketing">Marketing</option>
+                </select>
+            </div>
+            <div>
+                <label class="ap-label">Buscar</label>
+                <input id="ap-filter-q" class="ap-input" placeholder="Gestor, setor..." oninput="apDebouncedReload()">
+            </div>
+            <div>
+                <label class="ap-label">&nbsp;</label>
+                <label class="flex items-center gap-2 py-2 text-sm" style="color: var(--text-primary)">
+                    <input id="ap-filter-decididos" type="checkbox" onchange="apReloadLotes()">
+                    Incluir lotes já decididos
+                </label>
+            </div>
+        </div>
+    </div>
+
+    {# Fila #}
+    <div class="glass-card overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="ap-table">
+                <thead>
+                    <tr>
+                        <th>Mês</th>
+                        <th>Gestor</th>
+                        <th>Setor</th>
+                        <th>Colaboradores</th>
+                        <th>Valor total</th>
+                        <th>Enviado em</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="ap-tbody">
+                    <tr><td colspan="7" class="text-center py-8" style="color: var(--text-secondary)">Carregando…</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div id="ap-empty" class="hidden text-center py-12 px-4">
+            <div style="color: var(--text-secondary)">Nenhum lote aguardando decisão no momento.</div>
+        </div>
+    </div>
+
+</div>
+
+{# ═══════════════ Modal de revisão ═══════════════ #}
+<div id="ap-modal" class="hidden">
+    <div class="ap-modal-backdrop" onclick="apMaybeCloseModal(event)">
+        <div class="ap-modal" onclick="event.stopPropagation()">
+            <div class="ap-modal-header">
+                <div>
+                    <h2 id="ap-modal-title" class="text-lg font-bold" style="color: var(--text-primary)">Revisar premiação</h2>
+                    <p id="ap-modal-subtitle" class="text-xs mt-0.5" style="color: var(--text-secondary)"></p>
+                </div>
+                <button class="ap-btn ap-btn-ghost" onclick="apCloseModal()" aria-label="Fechar">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="ap-modal-body">
+                <div id="ap-decided-info" class="hidden mb-4 p-3 rounded-lg" style="background: var(--bg-elevated); border:1px solid var(--border)"></div>
+
+                {# Abas #}
+                <div class="flex gap-2 mb-4">
+                    <button class="ap-tab is-active" data-tab="colab" onclick="apSwitchTab('colab')">Colaboradores</button>
+                    <button class="ap-tab" data-tab="hist" onclick="apSwitchTab('hist')">Histórico</button>
+                </div>
+
+                <div id="ap-tab-colab">
+                    <div id="ap-lote-header" class="mb-4"></div>
+                    <div id="ap-colab-list" class="space-y-3"></div>
+                    <div class="ap-total-strip">
+                        <div class="text-sm" style="color: var(--text-secondary)">Valor total do lote</div>
+                        <div id="ap-total-valor" class="text-xl font-bold" style="color: var(--primary)">R$ 0,00</div>
+                    </div>
+                </div>
+                <div id="ap-tab-hist" class="hidden">
+                    <div id="ap-hist-list"></div>
+                </div>
+
+                {# Drawer de justificativa #}
+                <div id="ap-decision-box" class="hidden mt-5 p-4 rounded-lg" style="background: var(--bg-elevated); border:1px solid var(--border)">
+                    <div class="text-sm font-semibold mb-2" style="color: var(--text-primary)" id="ap-decision-title">Justificativa</div>
+                    <textarea id="ap-decision-justificativa" class="ap-textarea" placeholder="Explique o motivo..."></textarea>
+                    <div class="flex justify-end gap-2 mt-3">
+                        <button class="ap-btn ap-btn-ghost" onclick="apCancelDecision()">Cancelar</button>
+                        <button id="ap-decision-confirm-btn" class="ap-btn ap-btn-primary" onclick="apConfirmDecision()">Confirmar</button>
+                    </div>
+                </div>
+            </div>
+            <div class="ap-modal-footer" id="ap-modal-footer">
+                <div class="text-xs" style="color: var(--text-secondary)" id="ap-modal-footer-hint">Escolha uma ação para o lote.</div>
+                <div class="flex gap-2" id="ap-modal-actions">
+                    <button id="ap-btn-ajustar" class="ap-btn ap-btn-warn" onclick="apRequestDecision('ajuste_solicitado')">Solicitar ajuste</button>
+                    <button id="ap-btn-reprovar" class="ap-btn ap-btn-danger" onclick="apRequestDecision('reprovado')">Reprovar</button>
+                    <button id="ap-btn-aprovar" class="ap-btn ap-btn-success" onclick="apRequestDecision('aprovado')">Aprovar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</section>

@@ -147,6 +147,37 @@ def send_message():
     return jsonify(data), r.status_code
 
 
+@disparador_whatsapp_bp.route("/api/disparador_whatsapp/consultores-academicos", methods=["GET"])
+def api_consultores_academicos():
+    """Catálogo de consultores acadêmicos (app_users) para Metas / Meu Painel."""
+    ok, status, payload = _user_has_permission()
+    if not ok:
+        return jsonify(payload), status
+    from helpers import list_consultores_academicos, user_has_disparador_full_access
+    role, categoria = _nav_load_user_data_from_session()
+    if not user_has_disparador_full_access(role, categoria):
+        return jsonify({"error": "Apenas admin ou Supervisor Acadêmico."}), 403
+    return jsonify({"ok": True, "consultores": list_consultores_academicos()})
+
+
+def _nav_load_user_data_from_session():
+    """Mini helper — categoria do usuário logado."""
+    categoria = ""
+    uid = session.get("user_id")
+    if uid:
+        try:
+            conn = psycopg2.connect(**DB_DSN)
+            with conn.cursor() as cur:
+                cur.execute("SELECT categoria FROM app_users WHERE id = %s", (uid,))
+                r = cur.fetchone()
+                if r:
+                    categoria = r[0] or ""
+            conn.close()
+        except Exception:
+            pass
+    return session.get("role", ""), categoria
+
+
 @disparador_whatsapp_bp.route("/api/disparador_whatsapp/health", methods=["GET"])
 def health():
     ok, status, payload = _user_has_permission()

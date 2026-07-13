@@ -242,12 +242,24 @@ async function _dashFallbackYesterdayCommercial(yStr) {
 function _renderFunnelCards(data, prefix) {
     const newEl = document.getElementById(prefix + '-new');
     const totalEl = document.getElementById(prefix + '-total');
-    if (newEl) newEl.textContent = (data.new_today || 0).toLocaleString('pt-BR');
+    if (newEl && data && Object.prototype.hasOwnProperty.call(data, 'new_today')) {
+        newEl.textContent = Number(data.new_today || 0).toLocaleString('pt-BR');
+    }
     if (totalEl) totalEl.textContent = (data.total || 0).toLocaleString('pt-BR');
 
     const tsEl = document.getElementById(prefix + '-ts');
     if (tsEl) {
-        const label = data.fetched_at ? `Live ${data.fetched_at}` : '';
+        let label = '';
+        if (data.source === 'db') {
+            label = 'Espelho PG desatualizado';
+            if (data.synced_at) label += ' (' + data.synced_at + ')';
+        } else if (data.fetched_at) {
+            label = 'Kommo ' + data.fetched_at;
+            if (data.stale) label += ' · atualizando…';
+        }
+        if (data.live_error) {
+            label += (label ? ' · ' : '') + data.live_error;
+        }
         tsEl.textContent = label;
     }
 

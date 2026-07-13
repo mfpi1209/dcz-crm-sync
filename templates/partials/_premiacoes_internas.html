@@ -1,0 +1,287 @@
+{# ═══════════════ Premiações Internas — Gestor ═══════════════ #}
+<section id="page-premiacoes_internas" class="hidden">
+<style>
+    .pi-badge {
+        display:inline-flex; align-items:center; gap:.3rem;
+        font-size:.65rem; font-weight:700; letter-spacing:.04em;
+        padding:.28rem .65rem; border-radius:999px;
+        text-transform:uppercase; white-space:nowrap;
+    }
+    .pi-badge-rascunho     { background: rgba(148,163,184,.15); color:#64748b }
+    .pi-badge-aguardando   { background: rgba(245,158,11,.15);  color:#b45309 }
+    .pi-badge-aprovado     { background: rgba(16,185,129,.15);  color:#059669 }
+    .pi-badge-reprovado    { background: rgba(244,63,94,.15);   color:#e11d48 }
+    .pi-badge-ajuste       { background: rgba(249,115,22,.15);  color:#c2410c }
+    .dark .pi-badge-rascunho   { color:#cbd5e1 }
+    .dark .pi-badge-aguardando { color:#fbbf24 }
+    .dark .pi-badge-aprovado   { color:#34d399 }
+    .dark .pi-badge-reprovado  { color:#fb7185 }
+    .dark .pi-badge-ajuste     { color:#fdba74 }
+
+    .pi-btn {
+        display:inline-flex; align-items:center; gap:.4rem;
+        padding:.55rem 1rem; border-radius:.65rem;
+        font-size:.8rem; font-weight:600;
+        transition: all .15s;
+        cursor:pointer; border:1px solid transparent;
+    }
+    .pi-btn-primary  { background: var(--primary); color:#fff; }
+    .pi-btn-primary:hover:not(:disabled) { background: var(--primary-container) }
+    .pi-btn-primary:disabled { opacity:.55; cursor:not-allowed }
+    .pi-btn-ghost    { background: var(--bg-elevated); color: var(--text-primary); border-color: var(--border) }
+    .pi-btn-ghost:hover  { border-color: var(--primary) }
+    .pi-btn-danger   { background: rgba(244,63,94,.12); color:#e11d48 }
+    .pi-btn-danger:hover { background: rgba(244,63,94,.2) }
+
+    .pi-input, .pi-select, .pi-textarea {
+        width:100%;
+        background: var(--bg-elevated);
+        border:1px solid var(--border);
+        color: var(--text-primary);
+        border-radius:.55rem;
+        padding:.55rem .75rem;
+        font-size:.85rem;
+        transition: border-color .15s, box-shadow .15s;
+    }
+    .pi-input:focus, .pi-select:focus, .pi-textarea:focus {
+        outline:none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(0,52,111,.12);
+    }
+    .pi-textarea { resize:vertical; min-height:4rem }
+    .pi-label { font-size:.7rem; font-weight:600; color: var(--text-secondary); text-transform:uppercase; letter-spacing:.04em; margin-bottom:.35rem; display:block }
+
+    .pi-table { width:100%; border-collapse:separate; border-spacing:0; }
+    .pi-table th {
+        background: var(--bg-elevated); text-align:left;
+        font-size:.68rem; font-weight:700; text-transform:uppercase;
+        letter-spacing:.04em; color: var(--text-secondary);
+        padding:.7rem .9rem; border-bottom:1px solid var(--border);
+    }
+    .pi-table td {
+        padding:.85rem .9rem; font-size:.85rem;
+        border-bottom:1px solid var(--border-subtle);
+        color: var(--text-primary);
+    }
+    .pi-table tbody tr:hover { background: var(--bg-elevated) }
+
+    .pi-modal-backdrop {
+        position:fixed; inset:0; background: rgba(15,23,42,.55);
+        backdrop-filter: blur(4px); z-index:50;
+        display:flex; align-items:center; justify-content:center;
+        padding:2rem 1rem;
+        overflow-y:auto;
+    }
+    .pi-modal {
+        background: var(--bg-card); border:1px solid var(--border);
+        border-radius:1rem; max-width:56rem; width:100%;
+        max-height:calc(100vh - 4rem);
+        max-height:calc(100dvh - 4rem);
+        overflow:hidden;
+        display:flex; flex-direction:column;
+        box-shadow: var(--shadow-xl);
+        margin:auto 0;
+    }
+    .pi-modal-header, .pi-modal-footer {
+        padding:1rem 1.5rem;
+        border-bottom:1px solid var(--border);
+        display:flex; align-items:center; justify-content:space-between;
+        gap:.75rem;
+    }
+    .pi-modal-footer { border-bottom:none; border-top:1px solid var(--border); background: var(--bg-elevated) }
+    .pi-modal-body { padding:1.25rem 1.5rem; overflow-y:auto; flex:1 }
+
+    .pi-colab-row {
+        border:1px solid var(--border);
+        border-radius:.75rem;
+        padding:1rem;
+        background: var(--bg-elevated);
+        transition: border-color .15s;
+    }
+    .pi-colab-row:hover { border-color: var(--primary) }
+
+    .pi-total-strip {
+        display:flex; align-items:center; justify-content:space-between;
+        padding:.85rem 1.1rem;
+        border-radius:.7rem;
+        background: linear-gradient(135deg, rgba(0,52,111,.08), rgba(0,74,153,.04));
+        border:1px solid rgba(0,52,111,.15);
+    }
+    .dark .pi-total-strip {
+        background: linear-gradient(135deg, rgba(116,174,233,.1), rgba(76,112,154,.05));
+        border-color: rgba(116,174,233,.2);
+    }
+
+    .pi-timeline-item {
+        position:relative;
+        padding-left:1.75rem;
+        padding-bottom:1rem;
+        border-left:2px solid var(--border);
+        margin-left:.4rem;
+    }
+    .pi-timeline-item:last-child { padding-bottom:.25rem; border-left-color: transparent }
+    .pi-timeline-dot {
+        position:absolute; left:-.5rem; top:.2rem;
+        width:.85rem; height:.85rem; border-radius:9999px;
+        background: var(--primary); box-shadow: 0 0 0 3px var(--bg-card);
+    }
+</style>
+
+<div class="p-4 lg:p-8 max-w-7xl mx-auto">
+
+    {# Header #}
+    <div class="flex items-center justify-between mb-6 gap-3 flex-wrap">
+        <div>
+            <h1 class="text-2xl lg:text-3xl font-bold" style="color: var(--text-primary)">Premiações Internas</h1>
+            <p class="text-sm mt-1" style="color: var(--text-secondary)">Crie lotes de premiação para os colaboradores da sua equipe e envie para aprovação.</p>
+        </div>
+        <button id="pi-new-btn" class="pi-btn pi-btn-primary" onclick="piOpenModal()">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Nova premiação
+        </button>
+    </div>
+
+    {# Filtros #}
+    <div class="glass-card p-4 mb-5">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div>
+                <label class="pi-label">Mês de referência</label>
+                <input id="pi-filter-mes" type="month" class="pi-input" oninput="piReloadLotes()">
+            </div>
+            <div>
+                <label class="pi-label">Setor</label>
+                <select id="pi-filter-setor" class="pi-select" onchange="piReloadLotes()">
+                    <option value="">Todos</option>
+                    <option value="Acadêmico">Acadêmico</option>
+                    <option value="Comercial">Comercial</option>
+                    <option value="TI">TI</option>
+                    <option value="Marketing">Marketing</option>
+                </select>
+            </div>
+            <div>
+                <label class="pi-label">Status</label>
+                <select id="pi-filter-status" class="pi-select" onchange="piReloadLotes()">
+                    <option value="">Todos</option>
+                    <option value="rascunho">Rascunho</option>
+                    <option value="aguardando_aprovacao">Aguardando aprovação</option>
+                    <option value="aprovado">Aprovado</option>
+                    <option value="reprovado">Reprovado</option>
+                    <option value="ajuste_solicitado">Ajuste solicitado</option>
+                </select>
+            </div>
+            <div>
+                <label class="pi-label">Buscar</label>
+                <input id="pi-filter-q" class="pi-input" placeholder="Gestor, setor..." oninput="piDebouncedReload()">
+            </div>
+        </div>
+    </div>
+
+    {# Tabela #}
+    <div class="glass-card overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="pi-table">
+                <thead>
+                    <tr>
+                        <th>Mês</th>
+                        <th>Setor</th>
+                        <th>Colaboradores</th>
+                        <th>Valor total</th>
+                        <th>Status</th>
+                        <th>Atualizado em</th>
+                        <th class="text-right">Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="pi-tbody">
+                    <tr><td colspan="7" class="text-center py-8" style="color: var(--text-secondary)">Carregando…</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div id="pi-empty" class="hidden text-center py-12 px-4">
+            <div style="color: var(--text-secondary)">Nenhuma premiação encontrada com os filtros atuais.</div>
+        </div>
+    </div>
+
+</div>
+
+{# ═══════════════ Modal de criação/edição/detalhe ═══════════════ #}
+<div id="pi-modal" class="hidden">
+    <div class="pi-modal-backdrop" onclick="piMaybeCloseModal(event)">
+        <div class="pi-modal" onclick="event.stopPropagation()">
+            <div class="pi-modal-header">
+                <div>
+                    <h2 id="pi-modal-title" class="text-lg font-bold" style="color: var(--text-primary)">Nova premiação</h2>
+                    <p id="pi-modal-subtitle" class="text-xs mt-0.5" style="color: var(--text-secondary)"></p>
+                </div>
+                <button class="pi-btn pi-btn-ghost" onclick="piCloseModal()" aria-label="Fechar">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="pi-modal-body">
+                {# Aviso quando status != editavel #}
+                <div id="pi-readonly-alert" class="hidden mb-4 p-3 rounded-lg" style="background: rgba(59,130,246,.1); border:1px solid rgba(59,130,246,.25); color: var(--text-primary); font-size:.8rem">
+                    <span id="pi-readonly-msg">Este lote está em modo leitura.</span>
+                </div>
+
+                {# Justificativa do aprovador se houver #}
+                <div id="pi-aprovador-box" class="hidden mb-4 p-4 rounded-lg" style="background: var(--bg-elevated); border:1px solid var(--border)">
+                    <div class="text-xs font-semibold mb-1" style="color: var(--text-secondary)">Feedback do aprovador</div>
+                    <div id="pi-aprovador-nome" class="text-sm font-medium mb-1"></div>
+                    <div id="pi-aprovador-justificativa" class="text-sm whitespace-pre-wrap" style="color: var(--text-secondary)"></div>
+                </div>
+
+                {# Dados do lote #}
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                    <div>
+                        <label class="pi-label">Mês de referência *</label>
+                        <input id="pi-lote-mes" type="month" class="pi-input">
+                    </div>
+                    <div>
+                        <label class="pi-label">Setor *</label>
+                        <select id="pi-lote-setor" class="pi-select" onchange="piOnSetorLoteChange()">
+                            <option value="">Selecione…</option>
+                            <option value="Acadêmico">Acadêmico</option>
+                            <option value="Comercial">Comercial</option>
+                            <option value="TI">TI</option>
+                            <option value="Marketing">Marketing</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="pi-label">Observações gerais</label>
+                    <textarea id="pi-lote-obs" class="pi-textarea" placeholder="Contexto geral desta premiação (opcional)"></textarea>
+                </div>
+
+                {# Colaboradores #}
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-semibold" style="color: var(--text-primary)">Colaboradores</h3>
+                    <button id="pi-add-colab-btn" type="button" class="pi-btn pi-btn-ghost" onclick="piAddColab()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        Adicionar
+                    </button>
+                </div>
+                <div id="pi-colab-list" class="space-y-3 mb-4"></div>
+
+                {# Total #}
+                <div class="pi-total-strip">
+                    <div class="text-sm" style="color: var(--text-secondary)">Valor total do lote</div>
+                    <div id="pi-total-valor" class="text-xl font-bold" style="color: var(--primary)">R$ 0,00</div>
+                </div>
+
+                {# Histórico #}
+                <div id="pi-historico-section" class="hidden mt-6">
+                    <h3 class="font-semibold mb-3" style="color: var(--text-primary)">Histórico</h3>
+                    <div id="pi-historico-list"></div>
+                </div>
+            </div>
+            <div class="pi-modal-footer">
+                <div id="pi-modal-actions-left" class="flex gap-2"></div>
+                <div class="flex gap-2">
+                    <button id="pi-cancel-btn" class="pi-btn pi-btn-ghost" onclick="piCloseModal()">Cancelar</button>
+                    <button id="pi-save-btn" class="pi-btn pi-btn-ghost" onclick="piSalvarRascunho()">Salvar rascunho</button>
+                    <button id="pi-submit-btn" class="pi-btn pi-btn-primary" onclick="piEnviarAprovacao()">Enviar para aprovação</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</section>
