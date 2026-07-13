@@ -84,6 +84,10 @@ NOME_BLOCKLIST = frozenset({
     "appinicio", "inicio", "siaa", "home", "consulta", "academico", "financeiro",
     "documentos", "matricula", "dados", "aluno", "cruzeiro", "ead",
     "salvar", "buscar", "pesquisar", "filtrar", "limpar", "voltar", "cancelar",
+    # Fragmentos do placeholder do input de busca ("RGM ou Nome ou CPF")
+    # — evita que caiam como nome do aluno quando a busca falha no SIAA.
+    "ou cpf", "ou nome", "nome ou cpf", "rgm ou nome ou cpf", "rgm ou nome",
+    "ou nome ou cpf",
 })
 
 
@@ -1421,11 +1425,25 @@ def process_siaa_http_rgm(
     print(f"[...] Buscando RGM {rgm_norm} no SIAA via HTTP...")
     http_result = buscar_aluno(rgm_norm, debug=debug)
 
+    # Guarda dura: se a busca falhou no SIAA (NPE) OU o aluno não foi carregado,
+    # NÃO parseia nem persiste — evita salvar "ou CPF" e títulos stale no Supabase.
+    search_err = http_result.get("search_error")
+    if search_err:
+        log.error("[SiaaHttp] SIAA retornou erro na busca — abortando: %s", search_err)
+        raise RuntimeError(search_err)
+
     if not http_result.get("found"):
-        log.warning("[SiaaHttp] Aluno RGM=%s não encontrado na resposta SIAA", rgm_norm)
-        print(f"[AVISO] RGM {rgm_norm} não encontrado na resposta SIAA (verifique cookies)")
-    else:
-        print(f"[OK] Consulta SIAA realizada — RGM {rgm_norm} encontrado")
+        log.warning("[SiaaHttp] Aluno RGM=%s não encontrado na resposta SIAA — abortando", rgm_norm)
+        raise RuntimeError(
+            f"RGM {rgm_norm} não encontrado no SIAA (verifique se o RGM está correto ou atualize a sessão)"
+        )
+
+    if not http_result.get("loaded"):
+        load_err = http_result.get("load_error") or "aluno não pôde ser carregado"
+        log.warning("[SiaaHttp] Aluno RGM=%s não carregado — abortando: %s", rgm_norm, load_err)
+        raise RuntimeError(f"Aluno RGM {rgm_norm} não carregou no SIAA: {load_err}")
+
+    print(f"[OK] Consulta SIAA realizada — RGM {rgm_norm} encontrado e carregado")
 
     payload: dict[str, Any] = {
         "rgm": rgm_norm,

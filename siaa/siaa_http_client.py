@@ -339,6 +339,18 @@ def _combine_html_parts(parts: list[tuple[str, str]]) -> str:
     return "\n\n".join(segments)
 
 
+def _has_jsf_error(xml_text: str) -> bool:
+    """Detecta <error> ou NullPointerException dentro de um partial-response JSF."""
+    if not xml_text:
+        return False
+    lower = xml_text.lower()
+    return (
+        "<error>" in lower
+        or "<error-name>" in lower
+        or "nullpointerexception" in lower
+    )
+
+
 def _detect_found(rgm: str, html: str) -> bool:
     if not html or rgm not in html:
         return False
@@ -1083,8 +1095,17 @@ def buscar_aluno(rgm: str, *, debug: bool = False) -> dict[str, Any]:
             if "ViewState" not in uid
         ],
     ])
-    found = _detect_found(rgm, search_html)
-    log.info("Busca: found=%s status=%d", found, search_resp.status_code)
+    search_jsf_error = _has_jsf_error(search_xml)
+    if search_jsf_error:
+        log.error(
+            "Busca RGM=%s retornou erro JSF (SIAA server): %s",
+            rgm, search_xml[:300].replace("\n", " "),
+        )
+    found = (not search_jsf_error) and _detect_found(rgm, search_html)
+    log.info(
+        "Busca: found=%s status=%d jsf_error=%s",
+        found, search_resp.status_code, search_jsf_error,
+    )
 
     _save_debug(f"{rgm}", search_xml, search_html)
 
@@ -1126,13 +1147,22 @@ def buscar_aluno(rgm: str, *, debug: bool = False) -> dict[str, Any]:
 
     # ------------------------------------------------------------------
     # Etapa 5 — Módulo financeiro: tela de vencidos
+    # Só busca se o aluno realmente foi carregado no módulo acadêmico
+    # (senão o financeiro retorna dados stale da sessão do último aluno).
     # ------------------------------------------------------------------
-    fin_result = buscar_financeiro_aluno(
-        session, rgm,
-        load_html=load_html,
-        debug=debug,
-    )
-    financeiro = fin_result.get("financeiro", {})
+    financeiro: dict[str, Any] = {}
+    if load_result.get("loaded"):
+        fin_result = buscar_financeiro_aluno(
+            session, rgm,
+            load_html=load_html,
+            debug=debug,
+        )
+        financeiro = fin_result.get("financeiro", {}) or {}
+    else:
+        log.warning(
+            "Pulando módulo financeiro (loaded=False) para evitar dados stale — RGM=%s",
+            rgm,
+        )
     vencidos_html = financeiro.get("vencidos_html", "") if financeiro else ""
 
     # HTML combinado final = busca + detalhe + iframes + vencidos
@@ -1143,6 +1173,9 @@ def buscar_aluno(rgm: str, *, debug: bool = False) -> dict[str, Any]:
         ("SIAA FINANCEIRO VENCIDOS", vencidos_html),
     ])
 
+    search_error = None
+    if search_jsf_error:
+        search_error = "SIAA retornou erro (NullPointerException) na busca — sessão pode estar inválida ou RGM inválido"
     return {
         "rgm": rgm,
         "status_code": search_resp.status_code,
@@ -1156,6 +1189,7 @@ def buscar_aluno(rgm: str, *, debug: bool = False) -> dict[str, Any]:
         "found": found,
         "loaded": load_result.get("loaded", False),
         "load_error": load_result.get("error"),
+        "search_error": search_error,
         "iframes": iframe_result.get("iframes", []),
         "financeiro": financeiro,
     }
