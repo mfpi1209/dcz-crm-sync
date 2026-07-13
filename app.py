@@ -121,6 +121,8 @@ from db import get_conn as _nav_get_conn
 # Páginas pessoais — sempre visíveis (exceto regras específicas, ex: comercial sem dashboard)
 # solicitacoes_ti = formulário de chamados de TI (qualquer pessoa pode abrir ticket).
 _NAV_ALWAYS = ("avisos", "profile", "solicitacoes_ti")
+# Páginas restritas a admin — nunca visíveis para outros perfis, mesmo com permissão explícita.
+_NAV_ADMIN_ONLY = frozenset({"siaa_consulta", "siaa_sessao"})
 # Conjunto completo conhecido pelo front (PAGES no utils.js + páginas pessoais)
 _NAV_KNOWN_PAGES = sorted(set(_NAV_ALL_PAGES) | set(_NAV_ALWAYS) | {"dashboard"})
 
@@ -173,6 +175,8 @@ def inject_nav_perms():
     def nav_can(page):
         if is_admin:
             return True
+        if page in _NAV_ADMIN_ONLY:
+            return False
         if perf_home and page == "dashboard":
             return False
         if page in _NAV_ALWAYS:
@@ -251,6 +255,7 @@ from routes.disparador_whatsapp import disparador_whatsapp_bp
 from routes.page_views import page_views_bp
 from routes.solicitacoes_ti import solicitacoes_ti_bp
 from routes.captacao import captacao_bp
+from routes.siaa import siaa_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(dashboard_bp)
@@ -276,6 +281,7 @@ app.register_blueprint(disparador_whatsapp_bp)
 app.register_blueprint(page_views_bp)
 app.register_blueprint(solicitacoes_ti_bp)
 app.register_blueprint(captacao_bp)
+app.register_blueprint(siaa_bp)
 
 # ── Atualizar Preço — rotas do webapp standalone integrado ────────────────
 try:
