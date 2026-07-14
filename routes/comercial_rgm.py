@@ -2948,6 +2948,18 @@ def _build_agent_ranking_completa_vw(
             already = tuple(rgm_nome.keys()) if rgm_nome else ('__NONE__',)
             supp_cw.append("regexp_replace(coalesce(r.data->>'rgm',''), '[^0-9]', '', 'g') != ALL(%s)")
             supp_cp.append(list(already))
+            # Respeita o dedup de PÓS multi-ciclo: NÃO recupera RGM que está EM CURSO
+            # no ÚLTIMO relatório em QUALQUER ciclo (ex.: pós rebaixado para 2026/1 pelo
+            # dedup — presente e EM CURSO, só que noutro ciclo). Recupera apenas sumiço
+            # real (ausente do último relatório) ou cancelado-pós-meta (presente, mas
+            # não-EM CURSO). Sem isso, a recuperação desfazia o dedup.
+            supp_cw.append("""regexp_replace(coalesce(r.data->>'rgm',''), '[^0-9]', '', 'g') NOT IN (
+                SELECT regexp_replace(coalesce(r2.data->>'rgm',''), '[^0-9]', '', 'g')
+                FROM xl_rows r2
+                WHERE r2.snapshot_id = (SELECT id FROM xl_snapshots WHERE tipo='matriculados' ORDER BY id DESC LIMIT 1)
+                  AND upper(trim(coalesce(r2.data->>'situacao',''))) = 'EM CURSO'
+                  AND regexp_replace(coalesce(r2.data->>'rgm',''), '[^0-9]', '', 'g') <> ''
+            )""")
             supp_where = "WHERE " + " AND ".join(supp_cw)
             _rgm_nome_antes_supp = len(rgm_nome)
             try:
