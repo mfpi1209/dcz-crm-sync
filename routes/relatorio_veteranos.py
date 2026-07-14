@@ -1,5 +1,6 @@
 import re
 import logging
+from datetime import date
 from io import BytesIO
 from xml.etree import ElementTree as ET
 
@@ -130,7 +131,8 @@ def gerar():
         logger.exception("Falha ao gerar relatório de veteranos (ano=%s)", ano)
         return "Erro interno ao gerar o relatório.", 500
 
-    filename = f"relatorio_veteranos_{ano.replace('/', '-')}.xlsx"
+    hoje = date.today().strftime("%Y-%m-%d")
+    filename = f"relatorio_veteranos_{ano.replace('/', '-')}_{hoje}.xlsx"
     return send_file(
         BytesIO(xlsx),
         as_attachment=True,
