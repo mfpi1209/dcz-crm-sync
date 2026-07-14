@@ -201,10 +201,10 @@
     <div class="rv-card">
         <h2>Como pegar o cookie</h2>
         <ol>
-            <li>No SIAA, abra qualquer tela do módulo <strong>Tesouraria / Financeiro</strong>.</li>
+            <li>No SIAA, abra o relatório <strong>Posição de Matrícula de Veteranos</strong> (módulo Tesouraria / Financeiro) e gere para qualquer polo.</li>
             <li>Aperte <kbd>F12</kbd> e vá na aba <strong>Network</strong>.</li>
-            <li>Clique em qualquer requisição para <code>siaa.cruzeirodosul.edu.br/siaa_financeiro/...</code>.</li>
-            <li>Botão direito → <strong>Copy → Copy as cURL (bash)</strong>. Cole o texto todo abaixo.</li>
+            <li>Procure a requisição chamada <code>XMLgridRel1.jsp</code> (é a que carrega a tabela de alunos).</li>
+            <li>Clique nela com o botão direito → <strong>Copy → Copy as cURL (bash)</strong>. Cole o texto todo abaixo.</li>
         </ol>
         <p class="hint">Você também pode colar só o valor do header <code>Cookie:</code>. O que importa é ter <code>JSESSIONID</code>.</p>
     </div>
@@ -251,7 +251,9 @@
                 var url = URL.createObjectURL(blob);
                 var a = document.createElement('a');
                 a.href = url;
-                a.download = 'relatorio_veteranos_' + ano.replace('/', '-') + '.xlsx';
+                var _d = new Date();
+                var _hoje = _d.getFullYear() + '-' + String(_d.getMonth() + 1).padStart(2, '0') + '-' + String(_d.getDate()).padStart(2, '0');
+                a.download = 'relatorio_veteranos_' + ano.replace('/', '-') + '_' + _hoje + '.xlsx';
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
