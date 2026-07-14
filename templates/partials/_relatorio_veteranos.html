@@ -1,0 +1,283 @@
+<div id="page-relatorio_veteranos" class="hidden">
+<style>
+#page-relatorio_veteranos { padding: 0; }
+
+/* ── Tokens locais escoped ─────────────────────────────── */
+#page-relatorio_veteranos {
+    --bg: #f1f5f9;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --hover-row: #fafafa;
+    --primary: #4f46e5;
+    --primary-light: #e0e7ff;
+    --success: #16a34a;
+    --success-light: #dcfce7;
+    --warning: #d97706;
+    --warning-light: #fef3c7;
+    --danger: #dc2626;
+    --danger-light: #fee2e2;
+    --neutral: #64748b;
+    --neutral-light: #e2e8f0;
+}
+.dark #page-relatorio_veteranos {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --border: #334155;
+    --text: #f1f5f9;
+    --text-muted: #94a3b8;
+    --hover-row: #263348;
+    --primary: #6366f1;
+    --primary-light: #1e1b4b;
+    --success: #4ade80;
+    --success-light: rgba(34,197,94,.15);
+    --warning: #fbbf24;
+    --warning-light: rgba(251,191,36,.15);
+    --danger: #f87171;
+    --danger-light: rgba(248,113,113,.15);
+    --neutral: #94a3b8;
+    --neutral-light: rgba(148,163,184,.15);
+}
+
+/* ── Topbar ─────────────────────────────────────────────── */
+#page-relatorio_veteranos .rv-topbar {
+    padding: 14px 24px;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+}
+#page-relatorio_veteranos .rv-topbar h1 {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text);
+    margin: 0;
+}
+
+/* ── Content ─────────────────────────────────────────────── */
+#page-relatorio_veteranos .rv-content {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    background: var(--bg);
+    min-height: calc(100vh - 60px);
+}
+
+/* ── Card ─────────────────────────────────────────────────── */
+#page-relatorio_veteranos .rv-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+#page-relatorio_veteranos .rv-card h2 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 4px;
+}
+#page-relatorio_veteranos .rv-card ol {
+    margin: 0;
+    padding-left: 20px;
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.7;
+}
+#page-relatorio_veteranos .rv-card p.hint {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+#page-relatorio_veteranos .rv-card kbd {
+    display: inline-block;
+    padding: 1px 6px;
+    background: var(--neutral-light);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: monospace;
+    color: var(--text);
+}
+#page-relatorio_veteranos .rv-card code {
+    background: rgba(99,102,241,.12);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--primary);
+}
+
+/* ── Label / Input / Textarea ────────────────────────────── */
+#page-relatorio_veteranos label {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--text-muted);
+}
+#page-relatorio_veteranos input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 9px 12px;
+    font-size: 13px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+}
+#page-relatorio_veteranos input[type="text"]:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(99,102,241,.12);
+}
+#page-relatorio_veteranos textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px 14px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace, ui-monospace;
+    font-size: 12.5px;
+    line-height: 1.4;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    resize: vertical;
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+}
+#page-relatorio_veteranos textarea::placeholder { color: var(--text-muted); }
+#page-relatorio_veteranos textarea:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(99,102,241,.12);
+}
+
+/* ── Botão principal ─────────────────────────────────────── */
+#page-relatorio_veteranos .actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+#page-relatorio_veteranos button#rv-btn-gerar {
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    background: var(--primary);
+    color: #fff;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    transition: filter .15s;
+}
+#page-relatorio_veteranos button#rv-btn-gerar:hover:not(:disabled) { filter: brightness(1.1); }
+#page-relatorio_veteranos button#rv-btn-gerar:disabled { opacity: .55; cursor: not-allowed; }
+
+/* ── Feedback ────────────────────────────────────────────── */
+#page-relatorio_veteranos .feedback {
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 0;
+    transition: padding .15s;
+}
+#page-relatorio_veteranos .feedback:not(:empty) { padding: 8px 12px; }
+#page-relatorio_veteranos .feedback.ok      { background: var(--success-light); color: var(--success); }
+#page-relatorio_veteranos .feedback.err     { background: var(--danger-light);  color: var(--danger); }
+#page-relatorio_veteranos .feedback.loading { background: var(--primary-light); color: var(--primary); }
+</style>
+
+<div class="rv-topbar">
+    <h1>Relatório de Veteranos</h1>
+</div>
+
+<div class="rv-content">
+    <!-- Card de instruções -->
+    <div class="rv-card">
+        <h2>Como pegar o cookie</h2>
+        <ol>
+            <li>No SIAA, abra qualquer tela do módulo <strong>Tesouraria / Financeiro</strong>.</li>
+            <li>Aperte <kbd>F12</kbd> e vá na aba <strong>Network</strong>.</li>
+            <li>Clique em qualquer requisição para <code>siaa.cruzeirodosul.edu.br/siaa_financeiro/...</code>.</li>
+            <li>Botão direito → <strong>Copy → Copy as cURL (bash)</strong>. Cole o texto todo abaixo.</li>
+        </ol>
+        <p class="hint">Você também pode colar só o valor do header <code>Cookie:</code>. O que importa é ter <code>JSESSIONID</code>.</p>
+    </div>
+
+    <!-- Card do formulário -->
+    <div class="rv-card">
+        <label for="rv-ano">Semestre</label>
+        <input id="rv-ano" type="text" value="2026/2" style="max-width:180px" />
+
+        <label for="rv-cookie">Cookie do SIAA (cURL ou header Cookie:)</label>
+        <textarea id="rv-cookie" rows="8" placeholder="curl 'https://siaa.cruzeirodosul.edu.br/...' -b 'JSESSIONID=...'"></textarea>
+
+        <div class="actions">
+            <button id="rv-btn-gerar" onclick="relatorioVeteranosGerar()">Gerar Excel</button>
+            <span id="rv-status" class="feedback"></span>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    window.relatorioVeteranosLoadPage = function () { /* stateless */ };
+
+    window.relatorioVeteranosGerar = async function () {
+        var btn = document.getElementById('rv-btn-gerar');
+        var status = document.getElementById('rv-status');
+        var ano = (document.getElementById('rv-ano').value || '2026/2').trim();
+        var cookie = (document.getElementById('rv-cookie').value || '').trim();
+        if (!cookie) {
+            status.textContent = 'Cole o cookie primeiro.';
+            status.className = 'feedback err';
+            return;
+        }
+        btn.disabled = true;
+        status.className = 'feedback loading';
+        status.textContent = 'Gerando... isso pode levar ~30s (todos os polos).';
+        try {
+            var body = new URLSearchParams({ ano: ano, cookie: cookie });
+            var r = await fetch('/ti/relatorio-veteranos', { method: 'POST', body: body });
+            if (r.ok) {
+                var blob = await r.blob();
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = 'relatorio_veteranos_' + ano.replace('/', '-') + '.xlsx';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+                status.className = 'feedback ok';
+                status.textContent = 'Excel gerado com sucesso.';
+            } else {
+                var msg = await r.text();
+                status.className = 'feedback err';
+                if (r.status === 409) {
+                    status.textContent = msg || 'Sessão do SIAA expirada — pegue o cookie novamente.';
+                } else if (r.status === 400) {
+                    status.textContent = msg || 'Cookie inválido.';
+                } else if (r.status === 403) {
+                    status.textContent = 'Acesso negado.';
+                } else {
+                    status.textContent = 'Erro: ' + (msg || r.status);
+                }
+            }
+        } catch (e) {
+            status.className = 'feedback err';
+            status.textContent = 'Erro de rede: ' + (e && e.message ? e.message : e);
+        } finally {
+            btn.disabled = false;
+        }
+    };
+})();
+</script>
+</div>

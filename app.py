@@ -121,7 +121,7 @@ from db import get_conn as _nav_get_conn
 # solicitacoes_ti = formulário de chamados de TI (qualquer pessoa pode abrir ticket).
 _NAV_ALWAYS = ("avisos", "profile", "solicitacoes_ti")
 # Páginas restritas a admin — nunca visíveis para outros perfis, mesmo com permissão explícita.
-_NAV_ADMIN_ONLY = frozenset({"siaa_consulta", "siaa_sessao"})
+_NAV_ADMIN_ONLY = frozenset({"siaa_consulta", "siaa_sessao", "relatorio_veteranos"})
 # Conjunto completo conhecido pelo front (PAGES no utils.js + páginas pessoais)
 _NAV_KNOWN_PAGES = sorted(set(_NAV_ALL_PAGES) | set(_NAV_ALWAYS) | {"dashboard"})
 
@@ -256,6 +256,7 @@ from routes.page_views import page_views_bp
 from routes.solicitacoes_ti import solicitacoes_ti_bp
 from routes.captacao import captacao_bp
 from routes.siaa import siaa_bp
+from routes.relatorio_veteranos import relatorio_veteranos_bp
 from routes.dist_comercial_schedule import (
     dist_comercial_schedule_bp,
     register_dist_comercial_schedule_job,
@@ -287,6 +288,7 @@ app.register_blueprint(page_views_bp)
 app.register_blueprint(solicitacoes_ti_bp)
 app.register_blueprint(captacao_bp)
 app.register_blueprint(siaa_bp)
+app.register_blueprint(relatorio_veteranos_bp)
 app.register_blueprint(dist_comercial_schedule_bp)
 
 # ── Atualizar Preço — rotas do webapp standalone integrado ────────────────
