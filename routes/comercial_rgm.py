@@ -2953,11 +2953,12 @@ def _build_agent_ranking_completa_vw(
             try:
                 cur2 = conn.cursor() if not conn.closed else _pg().cursor()
                 cur2.execute(f"""
-                    SELECT DISTINCT ON (rgm_norm) rgm_norm, nome
+                    SELECT DISTINCT ON (rgm_norm) rgm_norm, nome, dm
                     FROM (
                         SELECT
                             regexp_replace(coalesce(r.data->>'rgm',''), '[^0-9]', '', 'g') AS rgm_norm,
                             nullif(trim(coalesce(r.data->>'nome','')), '') AS nome,
+                            {_DM_EXPR} AS dm,
                             s.uploaded_at
                         FROM xl_rows r
                         JOIN xl_snapshots s ON s.id = r.snapshot_id
@@ -2966,10 +2967,19 @@ def _build_agent_ranking_completa_vw(
                     WHERE rgm_norm != ''
                     ORDER BY rgm_norm, uploaded_at DESC
                 """, supp_cp)
-                for rgm_raw, nome in cur2.fetchall():
+                for rgm_raw, nome, dm in cur2.fetchall():
                     n = _normalize_rgm(rgm_raw)
                     if n and n not in rgm_nome:
                         rgm_nome[n] = (nome or "").strip()
+                        # Alimenta rgm_date_map com a data de matrícula do RGM
+                        # recuperado, para ele entrar no matriculas_grid (usado pelo
+                        # cross-filter por dia no front). Sem isso o RGM contava no
+                        # período mas sumia ao filtrar por um dia específico.
+                        if dm is not None and n not in rgm_date_map:
+                            try:
+                                rgm_date_map[n] = dm.isoformat()[:10] if hasattr(dm, 'isoformat') else str(dm)[:10]
+                            except Exception:
+                                pass
                 cur2.close()
                 logger.info(
                     "ranking: +%d RGMs recuperados (cancelado-pós-meta / sumiço do SIAA)",
@@ -3153,8 +3163,8 @@ def _build_agent_ranking_completa_vw(
         ranking.sort(key=lambda x: x["matriculas_periodo"], reverse=True)
 
         # Decisão: incluir transferencia/regresso (user_id=-1) em matriculas_grid para completude.
-        # RGMs suplementares (cancelados pós-meta de xl_rows) não têm data rastreada e ficam fora do grid —
-        # a diferença é marginal e não afeta a usabilidade do cross-filter.
+        # RGMs suplementares (recuperados de xl_rows) agora carregam a data de matrícula
+        # (rgm_date_map) e entram no grid — o cross-filter por dia passa a contá-los.
         # count = bruto (inclui excluídos/evasão); count_liquido = EM CURSO apenas.
         grid_acc_bruto = defaultdict(int)
         grid_acc_liq   = defaultdict(int)
