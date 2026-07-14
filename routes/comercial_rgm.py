@@ -2887,23 +2887,32 @@ def _build_agent_ranking_completa_vw(
                 except Exception:
                     pass
 
-        # Regra de cancelados: inclui alunos que estavam EM CURSO em qualquer upload
-        # feito ATÉ dt_fim, mas foram cancelados depois (cancelamento após meta = conta)
+        # Regra de recuperação (janela ancorada no início da meta = dia 01 do mês):
+        # inclui alunos que estavam EM CURSO em QUALQUER relatório enviado a partir do
+        # dia 01 e que sumiram do relatório mais recente. Cobre dois casos:
+        #   (a) cancelamento após a meta (EM CURSO durante a meta, cancelado depois = conta);
+        #   (b) volatilidade do SIAA — matrícula ativa que some de um upload sem aparecer
+        #       como cancelada (fica na Minha Performance mas caía do ranking).
+        # Antes a janela era limitada a uploads feitos ATÉ dt_fim, o que perdia matrículas
+        # de um dia passado cujo primeiro relatório só chegou depois daquele dia.
         if dt_fim:
+            _meta_start = ((dt_ini or dt_fim) or "")[:7] + "-01"
             _NIVEL_CASE = """CASE
                 WHEN coalesce(r.data->>'nivel','') ~* 'p[oó]s'
                   OR coalesce(r.data->>'negocio','') ~* 'p[oó]s'
                   OR coalesce(r.data->>'curso','') ~* '(mba|especializa|p[oó]s.gradua|lato.sensu|stricto)'
                 THEN 'Pós-Graduação' ELSE 'Graduação' END"""
+            # Regex com classe [0-9] em string normal — NÃO usar E'\\d' (em E-string
+            # o Postgres colapsa \d -> d e a regex nunca casa datas dd/mm/yyyy).
             _DM_EXPR = """CASE
-                WHEN (r.data->>'data_mat') ~ E'^\\d{2}/\\d{2}/\\d{4}$'
+                WHEN (r.data->>'data_mat') ~ '^[0-9]{2}/[0-9]{2}/[0-9]{4}$'
                     THEN to_date(r.data->>'data_mat', 'DD/MM/YYYY')
-                WHEN (r.data->>'data_mat') ~ E'^\\d{4}-\\d{2}-\\d{2}'
+                WHEN (r.data->>'data_mat') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
                     THEN (r.data->>'data_mat')::date
                 ELSE NULL END"""
             supp_cw = [
                 "s.tipo = 'matriculados'",
-                "s.uploaded_at::date <= %s",
+                "s.uploaded_at::date >= %s",
                 "upper(trim(coalesce(r.data->>'situacao',''))) = 'EM CURSO'",
                 "upper(trim(coalesce(r.data->>'tipo_matricula',''))) = ANY(ARRAY['NOVA MATRICULA','RECOMPRA','RETORNO'])",
                 "trim(coalesce(r.data->>'empresa','')) ~ '^(12|7) -'",
@@ -2913,10 +2922,14 @@ def _build_agent_ranking_completa_vw(
                    OR ({_NIVEL_CASE} = 'Pós-Graduação'
                     AND trim(r.data->>'ciclo') = (SELECT ciclo FROM ciclo_atual_comercial WHERE nivel='Pós-Graduação')))""",
             ]
-            supp_cp = [dt_fim]
+            supp_cp = [_meta_start]
             if dt_ini:
                 supp_cw.append(f"{_DM_EXPR} >= %s")
                 supp_cp.append(dt_ini)
+            # Limite superior: respeita o dia/período filtrado. A janela ampliada de
+            # uploads não deve trazer matrículas com data_matricula fora do período.
+            supp_cw.append(f"{_DM_EXPR} <= %s")
+            supp_cp.append(dt_fim)
             if polo:
                 supp_cw.append("trim(regexp_replace(coalesce(r.data->>'polo',''), E'^\\d+\\s*[-–]\\s*', '')) = %s")
                 supp_cp.append(_normalize_polo(polo))
@@ -2959,7 +2972,7 @@ def _build_agent_ranking_completa_vw(
                         rgm_nome[n] = (nome or "").strip()
                 cur2.close()
                 logger.info(
-                    "ranking: +%d RGMs cancelados-pós-meta incluídos",
+                    "ranking: +%d RGMs recuperados (cancelado-pós-meta / sumiço do SIAA)",
                     len(rgm_nome) - _rgm_nome_antes_supp,
                 )
             except Exception as _se:
