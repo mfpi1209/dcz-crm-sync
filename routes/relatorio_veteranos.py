@@ -38,7 +38,30 @@ ROTULOS = {
 
 
 class SessaoExpirada(RuntimeError):
-    pass
+    """Levantada quando o SIAA nao aceita o cookie enviado.
+
+    O atributo `debug` traz status_code, Location e um preview curto do body
+    (sem cookie) — logado no servidor, nao exposto no response ao cliente.
+    """
+
+    def __init__(self, debug: dict | None = None):
+        super().__init__("sessao_expirada")
+        self.debug = debug or {}
+
+
+def _resp_preview(r) -> dict:
+    """Extrai informacoes seguras da resposta para diagnostico (sem cookie)."""
+    try:
+        body = r.content.decode("iso-8859-1", "replace")
+    except Exception:
+        body = ""
+    return {
+        "status_code": r.status_code,
+        "location": r.headers.get("Location"),
+        "content_type": r.headers.get("Content-Type"),
+        "body_len": len(body),
+        "body_preview": body[:400],
+    }
 
 
 def extrair_cookie(raw: str) -> str:
@@ -63,10 +86,18 @@ def _listar_polos(cookie: str) -> list:
         timeout=30,
         allow_redirects=False,
     )
+    dbg = _resp_preview(r)
+    logger.info("relatorio_veteranos: COMBO status=%s ct=%s len=%s", dbg["status_code"], dbg["content_type"], dbg["body_len"])
     if r.status_code != 200:
-        raise SessaoExpirada()
+        logger.warning("relatorio_veteranos: COMBO nao-200 diag=%s", dbg)
+        raise SessaoExpirada(debug={"step": "listar_polos", **dbg})
     txt = r.content.decode("iso-8859-1", "replace")
-    return re.findall(r'<option\s+value="(\d+)"[^>]*>\s*(.*?)\s*</option>', txt, re.DOTALL)
+    polos = re.findall(r'<option\s+value="(\d+)"[^>]*>\s*(.*?)\s*</option>', txt, re.DOTALL)
+    if not polos:
+        # 200 mas sem <option> = provavelmente HTML de login, WAF ou pagina de erro
+        logger.warning("relatorio_veteranos: COMBO sem <option> diag=%s", dbg)
+        raise SessaoExpirada(debug={"step": "listar_polos_sem_polos", **dbg})
+    return polos
 
 
 def _baixar_polo(cookie: str, id_polo: str, ano: str) -> list:
@@ -84,9 +115,18 @@ def _baixar_polo(cookie: str, id_polo: str, ano: str) -> list:
         timeout=90,
         allow_redirects=False,
     )
+    dbg = _resp_preview(r)
     if r.status_code in (301, 302, 303, 307, 308) or "access_denied" in (r.headers.get("Location") or ""):
-        raise SessaoExpirada()
-    root = ET.fromstring(r.content.decode("iso-8859-1", "replace"))
+        logger.warning("relatorio_veteranos: GRID polo=%s redirect diag=%s", id_polo, dbg)
+        raise SessaoExpirada(debug={"step": "baixar_polo", "id_polo": id_polo, **dbg})
+    if r.status_code != 200:
+        logger.warning("relatorio_veteranos: GRID polo=%s nao-200 diag=%s", id_polo, dbg)
+        raise SessaoExpirada(debug={"step": "baixar_polo", "id_polo": id_polo, **dbg})
+    try:
+        root = ET.fromstring(r.content.decode("iso-8859-1", "replace"))
+    except ET.ParseError:
+        logger.warning("relatorio_veteranos: GRID polo=%s xml invalido diag=%s", id_polo, dbg)
+        raise SessaoExpirada(debug={"step": "baixar_polo_xml_invalido", "id_polo": id_polo, **dbg})
     linhas = []
     for row in root.findall("row"):
         cells = row.findall("cell")
@@ -113,6 +153,65 @@ def _gerar_excel(cookie: str, ano: str) -> bytes:
     return buf.getvalue()
 
 
+@relatorio_veteranos_bp.route("/ti/relatorio-veteranos/diag", methods=["POST"])
+def diag():
+    """Retorna diagnostico da chamada ao SIAA sem gerar Excel.
+
+    Uso: mesmo form-encoded (`cookie`, opcional `ano`). Ideal pra rodar
+    em producao e comparar com o local quando o resultado difere.
+    Nao inclui o valor do cookie na resposta.
+    """
+    if session.get("role") != "admin":
+        return jsonify({"ok": False, "error": "forbidden"}), 403
+    raw_cookie = request.form.get("cookie") or ""
+    try:
+        cookie = extrair_cookie(raw_cookie)
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    out: dict = {"ok": True, "cookie_len": len(cookie)}
+    # 1. Testa COMBO
+    try:
+        r = requests.get(
+            COMBO,
+            params={"codEmpr": "12"},
+            headers={**HEADERS, "Cookie": cookie},
+            timeout=30,
+            allow_redirects=False,
+        )
+        out["combo"] = _resp_preview(r)
+        if r.status_code == 200:
+            txt = r.content.decode("iso-8859-1", "replace")
+            polos = re.findall(r'<option\s+value="(\d+)"[^>]*>\s*(.*?)\s*</option>', txt, re.DOTALL)
+            out["combo"]["polos_count"] = len(polos)
+            out["combo"]["polos_amostra"] = polos[:3]
+    except Exception as e:
+        out["combo"] = {"error": str(e)}
+    # 2. Testa GRID no primeiro polo (se listamos algum)
+    id_polo_teste = None
+    if isinstance(out.get("combo"), dict) and out["combo"].get("polos_amostra"):
+        id_polo_teste = out["combo"]["polos_amostra"][0][0]
+    if id_polo_teste:
+        try:
+            r = requests.get(
+                GRID,
+                params={
+                    "anoLeti": (request.form.get("ano") or "2026/2").strip(),
+                    "descEmpr": "GRADUAÇÃO EAD (CSED)",
+                    "codEmpr": "12",
+                    "idPolo": id_polo_teste,
+                    "codCurso": "0",
+                },
+                headers={**HEADERS, "Cookie": cookie},
+                timeout=60,
+                allow_redirects=False,
+            )
+            out["grid"] = _resp_preview(r)
+            out["grid"]["id_polo"] = id_polo_teste
+        except Exception as e:
+            out["grid"] = {"error": str(e)}
+    return jsonify(out)
+
+
 @relatorio_veteranos_bp.route("/ti/relatorio-veteranos", methods=["POST"])
 def gerar():
     if session.get("role") != "admin":
@@ -125,8 +224,15 @@ def gerar():
         return str(e), 400
     try:
         xlsx = _gerar_excel(cookie, ano)
-    except SessaoExpirada:
-        return "Sessão do SIAA expirada — pegue o cookie de novo e tente outra vez.", 409
+    except SessaoExpirada as se:
+        logger.warning("relatorio_veteranos: SIAA rejeitou requisicao debug=%s", se.debug)
+        step = se.debug.get("step") if isinstance(se.debug, dict) else None
+        status = se.debug.get("status_code") if isinstance(se.debug, dict) else None
+        detalhe = f" (step={step}, status={status})" if step else ""
+        return (
+            "Sessão do SIAA expirada ou requisição bloqueada — pegue o cookie de novo "
+            f"e tente outra vez.{detalhe}"
+        ), 409
     except Exception:
         logger.exception("Falha ao gerar relatório de veteranos (ano=%s)", ano)
         return "Erro interno ao gerar o relatório.", 500
