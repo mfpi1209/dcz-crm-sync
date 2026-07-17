@@ -4,6 +4,26 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-07-14 — Dashboard Comercial: ranking/KPIs alinham a Matrículas Oficiais (bypass ciclo_atual com datas + all_snapshots)
+- **Modelo usado:** Composer/Auto + Strategist (diagnóstico); Executor (Sonnet 4.6) implementou.
+- **Problema:** Rahi tinha 8 matrículas oficiais vs 6 no Dashboard Comercial (RGMs 49497464, 49504291 ausentes); "Consultar RGM" retornava "não encontrado na base" para alunos de ciclo ≠ ciclo_atual.
+- **Causa raiz:**
+  1. `_crgm_compute_kpis/_agentes/_grids` chamavam `_crgm_periodo_data` SEM `dt_ini/dt_fim` → forçava `ciclo IN ciclo_atual_comercial`; matrículas do dia com ciclo diferente somiam.
+  2. `_build_agent_ranking_completa_vw` lia `comercial_rgm_atual` (view Postgres = EM CURSO + ciclo_atual) — mesmo gap.
+  3. Snapshot: `_crgm_periodo_data` usava só o snapshot mais recente; Matrículas Oficiais (`_fetch_agent_matriculas` em `minha_performance.py`) usa TODOS snapshots `tipo='matriculados'` com `DISTINCT ON … ORDER BY s.id DESC`.
+- **Decisão:**
+  - Novo parâmetro `all_snapshots=False` em `_crgm_periodo_data`: quando `True`, usa `s.tipo = 'matriculados'` (todos os snapshots) em vez de só o mais recente, e adiciona `s.id DESC` no ORDER BY do DISTINCT ON.
+  - Novo parâmetro `situacao_filter=None` em `_crgm_periodo_data`: quando fornecido, filtra situação na camada deduplicada.
+  - Novo helper `_crgm_periodo_data_oficial(...)`: chama `_crgm_periodo_data(..., all_snapshots=True)`. Usado em todas as funções que devem bater com Matrículas Oficiais.
+  - `_crgm_compute_kpis`, `_crgm_compute_agentes`, `_crgm_compute_grids`: substituem `_crgm_periodo_data(...)` por `_crgm_periodo_data_oficial(dt_ini=_pd_dt_ini, dt_fim=_pd_dt_fim, ...)` — bypass de ciclo_atual já existia quando datas são passadas.
+  - `_build_agent_ranking_completa_vw`: substitui SELECT FROM `comercial_rgm_atual` por `_crgm_periodo_data_oficial(situacao_filter='EM CURSO')`; fix no bloco `supp_cw` para também remover `ciclo_atual_comercial` quando `dt_ini or dt_fim` (antes só removia quando `ciclo` manual).
+  - `_crgm_dashboard_rgm_list`: substitui SELECT FROM `comercial_rgm_atual` por `_crgm_periodo_data_oficial(situacao_filter='EM CURSO')`.
+  - `crgm_rgm_atribuicao`: adiciona fallback quando não encontrado na view — query DISTINCT ON em todos os snapshots matriculados para o RGM específico.
+- **Escopo desta entrega:** só o painel Dashboard Comercial (`routes/comercial_rgm.py`). `minha_performance` (Matrículas Oficiais / ranking interno) e `supervisor_dashboard` **não** foram alterados.
+- **View `comercial_rgm_atual` preservada:** intacta no banco — congelamento de ciclo depende dela. Apenas a camada Python do painel comercial parou de usá-la para períodos com datas.
+- **Alternativas descartadas:** mudar a view; só avançar `ciclo_atual_comercial` como "fix"; forçar Matrículas Oficiais a usar a view; ampliar de cara para supervisor/MP.
+- **Trade-off conhecido:** KPIs/ranking do painel comercial com filtro de data podem subir (convergência com Matrículas Oficiais — não é regressão, é correção). Sem datas (estado atual) segue com ciclo_atual via SQL.
+
 ### 2026-07-02 — Premiações Internas: colaboradores vinculados a `app_users` (Opção A — `categoria` como cargo sugerido)
 - **Modelo usado:** Opus 4.7 (principal). Implementação direta após aprovação da Opção A pelo usuário.
 - **Problema:** o campo "Nome" do colaborador era texto livre — o gestor precisava digitar manualmente, sem garantir que fosse um usuário real do sistema, e sem forma de distinguir homônimos.
