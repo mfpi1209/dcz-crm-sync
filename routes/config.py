@@ -631,22 +631,39 @@ def _run_aceite_reconcile():
 
 
 def register_aceite_reconcile(sched):
-    """Register periodic reconciliation of aceite leads (default every 10 min)."""
+    """Register periodic reconciliation of aceite leads.
+
+    Escalonado nos minutos 3,13,23,33,43,53 (offset +3 do sync_delta_interval
+    :00,:05,:10 e +1 do funnel_cache_warm :02,:07,:12) pra evitar colisao de
+    rps no Kommo. O env var ACEITE_RECONCILE_INTERVAL fica como fallback caso
+    alguem sobrescreva pra intervalo != 10min (mantem compat)."""
     try:
         sched.remove_job("aceite_reconcile")
     except Exception:
         pass
 
+    if ACEITE_RECONCILE_MINUTES == 10:
+        trigger = CronTrigger(
+            minute="3,13,23,33,43,53",
+            timezone="America/Sao_Paulo",
+        )
+        logger.info("Aceite reconcile registered: cron 3,13,23,33,43,53 (evita colisao)")
+    else:
+        trigger = IntervalTrigger(minutes=ACEITE_RECONCILE_MINUTES)
+        logger.info(
+            "Aceite reconcile registered: every %d minutes (intervalo custom)",
+            ACEITE_RECONCILE_MINUTES,
+        )
+
     sched.add_job(
         _run_aceite_reconcile,
-        trigger=IntervalTrigger(minutes=ACEITE_RECONCILE_MINUTES),
+        trigger=trigger,
         args=[],
         id="aceite_reconcile",
         replace_existing=True,
         misfire_grace_time=300,
         max_instances=1,
     )
-    logger.info("Aceite reconcile registered: every %d minutes", ACEITE_RECONCILE_MINUTES)
 
 
 def _run_responsible_history_daily():
@@ -659,7 +676,11 @@ def _run_responsible_history_daily():
 
 
 def register_responsible_history_job(sched):
-    """Registra job diário de sync do histórico de responsável (03:00 BRT)."""
+    """Registra job diário de sync do histórico de responsável (04:30 BRT).
+
+    Movido de 03:00 pra 04:30 pra sair da janela de colisao com sync_delta_interval,
+    funnel_cache_warm e aceite_reconcile que na virada de hora dispararam juntos
+    (root cause do bloqueio Kommo por 7+ rps em 27/06/2026 03:00)."""
     try:
         sched.remove_job("responsible_history_daily")
     except Exception:
@@ -667,13 +688,13 @@ def register_responsible_history_job(sched):
 
     sched.add_job(
         _run_responsible_history_daily,
-        trigger=CronTrigger(hour=3, minute=0, timezone="America/Sao_Paulo"),
+        trigger=CronTrigger(hour=4, minute=30, timezone="America/Sao_Paulo"),
         id="responsible_history_daily",
         replace_existing=True,
         misfire_grace_time=3600,
         max_instances=1,
     )
-    logger.info("Responsible history daily job registered (03:00 BRT)")
+    logger.info("Responsible history daily job registered (04:30 BRT)")
 
 
 # ---------------------------------------------------------------------------

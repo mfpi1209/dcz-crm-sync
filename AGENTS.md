@@ -23,6 +23,156 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 - **View `comercial_rgm_atual` preservada:** intacta no banco — congelamento de ciclo depende dela. Apenas a camada Python do painel comercial parou de usá-la para períodos com datas.
 - **Alternativas descartadas:** mudar a view; só avançar `ciclo_atual_comercial` como "fix"; forçar Matrículas Oficiais a usar a view; ampliar de cara para supervisor/MP.
 - **Trade-off conhecido:** KPIs/ranking do painel comercial com filtro de data podem subir (convergência com Matrículas Oficiais — não é regressão, é correção). Sem datas (estado atual) segue com ciclo_atual via SQL.
+### 2026-07-14 — Ranking Comercial: recuperar matrícula ativa que some do último relatório SIAA (janela ancorada no dia 01 da meta)
+- **Modelo usado:** Opus 4.8 (principal). Decisão aprovada pelo usuário (opção 3 — janela de tolerância).
+- **Problema:** consultor Rahi aparecia com **6** matrículas no Ranking do Dashboard Comercial (08/07) mas **8** na Minha Performance. Investigação: as duas telas usam fontes diferentes — o **Ranking** (`_build_agent_ranking_completa_vw` → view `comercial_rgm_atual`) lê **só o último snapshot SIAA**; a **Minha Performance** (`_fetch_agent_matriculas`) usa o **último status visto** de cada RGM em **qualquer** snapshot. Quando uma matrícula EM CURSO some do relatório SIAA mais recente sem virar cancelada (volatilidade do relatório — os 2 RGMs do Rahi, 49497464 e 49504291, estavam em relatórios de 10–13/07 e sumiram do de 14/07, mesmo com o relatório total *crescendo*), ela cai do ranking mas fica na Performance. Impacto geral no período: **~17 matrículas** de 8 consultores (Rahi, Gabriel Messias, Hugo, Beatriz, Juliana, Paloma, Kamilly, Claudia).
+- **Decisão:** no bloco "supp" de `_build_agent_ranking_completa_vw`, **ancorar a janela de recuperação no início da meta (dia 01 do mês)** em vez de limitar a uploads feitos `<= dt_fim`. Ou seja: recupera RGMs que estiveram **EM CURSO em QUALQUER relatório enviado a partir do dia 01** (`s.uploaded_at::date >= meta_start`, `meta_start = (dt_ini or dt_fim)[:7]+'-01'`), com `data_matricula` dentro do período filtrado (`>= dt_ini AND <= dt_fim`), escopo/ciclo atuais, e que **não estejam no último relatório**. Cobre tanto **cancelamento-pós-meta** (regra que já existia por design: "EM CURSO durante a meta, cancelado depois = conta") quanto **sumiço por volatilidade do SIAA**.
+- **Bug lateral corrigido (crítico):** o `_DM_EXPR` do bloco supp usava `E'^\\d{2}/\\d{2}/\\d{4}$'`. Em **E-string do Postgres, `\d` colapsa para `d`** (verificado: `'08/07/2026' ~ E'^\d{2}...'` → **FALSE**), então o filtro de data do supp **nunca casava datas dd/mm/yyyy** — a recuperação de cancelados-pós-meta estava **silenciosamente inoperante** em qualquer view com filtro de data. Trocado para classe `[0-9]` em string normal (padrão que `_crgm_periodo_data` já usava). *(Bug análogo latente na regex de polo do supp `E'^\\d+\\s*[-–]\\s*'` — só afeta quando há filtro por polo; NÃO corrigido nesta entrega, anotado para depois.)*
+- **Escopo:** aplicado **apenas ao Ranking por consultor** (view que define crédito/pagamento). O **KPI-topo "vendas"** e o heatmap de KPIs (`_crgm_compute_kpis` / `_crgm_periodo_data`) continuam lendo só o último snapshot — podem ficar alguns poucos abaixo da soma do ranking. Alinhar o KPI exigiria mexer em `_crgm_periodo_data` (usado também em comparativos 6m/1a e no contexto de outlier) e no tratamento sem-data; deixado como decisão separada a pedir aval.
+- **Guarda:** o bloco só roda quando `dt_fim` está setado (view com período/filtro de data). A view padrão do dashboard manda o período da meta, então cobre o caso; view "sem data nenhuma" não recupera (comportamento pré-existente).
+- **Fix follow-up (grid / cross-filter por dia):** a 1ª entrega só somava o RGM recuperado em `rgm_nome` (→ `matriculas_periodo`), mas **não** em `rgm_date_map`. O `matriculas_grid` (RGM→data, `if not dt_str: continue`) descartava os recuperados, e o **cross-filter por dia do front** (`_crgmCrossFilter.date`, filtragem client-side sobre `matriculas_grid`) **não os contava** — por isso o ranking do período mostrava 8, mas ao filtrar o dia 08/07 voltava a 6. Correção: a query supp passou a trazer também `{_DM_EXPR} AS dm` e o loop popula `rgm_date_map[n]` com a data de matrícula do recuperado. Validado: grid do Rahi em 08/07 = **8** (antes 6). O comentário antigo em `matriculas_grid` ("suplementares não têm data rastreada… diferença marginal") ficou desatualizado e foi corrigido.
+- **Fix follow-up 2 (conflito com o dedup de PÓS multi-ciclo):** após consertar o regex, a recuperação passou a trazer **79 RGMs** no período 01–14/07 — **65 concentrados no dia 06/07**, sendo **64 PÓS**. Investigação: esses 64 estão **presentes e EM CURSO no último relatório (snapshot 188), mas com ciclo `2026/1`** (o **dedup de PÓS multi-ciclo** de 07/07 os rebaixou para o ciclo antigo). Como a supp varre uploads desde o dia 01, ela pegava a **linha 2026/2 antiga** desses alunos e os **puxava de volta para 2026/2**, desfazendo o dedup (as duas features brigavam). Decisão do usuário: **respeitar o dedup**. Correção: a supp passou a excluir qualquer RGM que esteja **EM CURSO no último relatório em QUALQUER ciclo** (subquery `NOT IN` sobre o último snapshot). Assim recupera só **sumiço real** (ausente do último relatório, ex. Rahi) e **cancelado-pós-meta** (presente mas não-EM CURSO). Resultado: recuperados **79 → 15**; Rahi 08/07 mantém **8**; os 64 pós ficam em 2026/1 (como o dedup definiu).
+- **Alternativas descartadas:** (1) *não mexer* — some do ranking, prejudica pagamento do consultor mesmo com matrícula ativa; (2) *alinhar o ranking à lógica last-seen da Performance* — passaria a contar matrícula que saiu do SIAA de verdade sem confirmar cancelamento; (3-escolhida) *janela de tolerância ancorada no dia 01* — recupera sumiços do ciclo/meta corrente sem puxar histórico antigo (o filtro de `data_matricula` no período + ciclo atual delimita).
+
+### 2026-07-07 — Editar consultores no Dashboard Comercial (renomear / ocultar / excluir → Admin Sistema)
+- **Modelo usado:** Opus 4.8 (principal). Decisão aprovada pelo usuário (escopo dashboard-only; capacidades renomear + ocultar + excluir).
+- **Problema/pedido:** botão para gerenciar os consultores (agentes) no header do Dashboard Comercial. Ao **excluir** um consultor, os **leads/matrículas dele devem passar a contar para o "Admin Sistema"** (kommo_user_id **8261837**, `adm@eduit.com.br`, já com ~220k leads).
+- **Restrição arquitetural central:** o sistema é **espelho do Kommo**. `leads.responsible_user_id` é puxado do Kommo pelo sync (Sync Kommo + delta a cada 10 min). Reatribuir **só no banco local seria desfeito** no próximo sync; reatribuir **no Kommo via API** é pesado (ex.: Kamilly ~24k leads = milhares de PATCH) e mexe na produção, e o Kommo **não permite deletar usuário via API**. Por isso o usuário optou por **override no nível do dashboard** (mesma filosofia de `comercial_rgm_conflito_resolucao`), que **não briga com o sync** e é reversível.
+- **Decisão:** nova tabela **`comercial_consultor_ajuste`** (banco principal `dcz_sync`): `kommo_user_id PK`, `display_name` (renomear só na exibição), `hidden BOOL` (some do ranking/filtro AGENTE), `reassign_to INT` (excluído → destino da reatribuição = Admin Sistema), `updated_at/by`. Criada no ensure-schema de `routes/comercial_rgm.py` (junto de conflito/outlier).
+- **Helpers** (`routes/comercial_rgm.py`): `_admin_sistema_uid()` (resolve por `name ILIKE 'admin sistema'` em `kommo_sync.users`, fallback 8261837), `_load_consultor_ajustes()` (cacheado por request via `flask.g`), `_consultor_reassign_map()`, `_consultor_hidden_uids()`, `_apply_reassign_to_rgm_map()`.
+- **Pontos de integração (reatribuição = remap de `rgm_to_uid` + merge de `crm_stats`):**
+  - Ranking `_build_agent_ranking_completa_vw`: remap após conflito override; merge das stats de CRM do excluído no destino; drop de ocultos/excluídos de `uids_real`.
+  - `crgm_agente_detalhe` e `_crgm_kommo_lookup_rgms` (fora do padrão/evasão): remap + renomeação em `uid_to_nome`.
+  - `_fetch_kommo_user_names`: sobrepõe `display_name` (renomeação propaga em todo lugar que resolve nome).
+  - `/api/comercial-rgm/filters`: renomeia e remove ocultos/excluídos do dropdown AGENTE.
+  - `routes/minha_performance.py` `_get_rgm_to_uid_map`: novo `_load_consultor_reassign()` aplica o remap → Minha Performance fica consistente com o ranking do Comercial (leads do excluído aparecem no Admin Sistema).
+- **Endpoints (admin-only, `session.role == 'admin'`):** `GET /api/comercial-rgm/consultores` (lista de `kommo_sync.users` + contagem de leads + ajuste), `POST /api/comercial-rgm/consultores/<uid>` (upsert estado completo `{display_name, hidden, excluir}`; `excluir=true` seta `reassign_to=admin` e `hidden=true`; bloqueia excluir o próprio Admin Sistema), `DELETE /api/comercial-rgm/consultores/<uid>` (restaura ao padrão).
+- **UI:** botão "Editar consultores" no header (após "Sync Agentes", `_comercial_rgm.html`); modal em `templates/index.html` (`crgm-consultores-modal`, z-[9999]) com busca, input de nome inline, toggle ocultar, excluir/restaurar; JS em `static/js/comercial_rgm.js` (`crgmAbrirConsultores` etc.). Ao fechar com alterações, recarrega filtros + ranking.
+- **Efeito colateral aceito:** "ocultar" (sem reatribuir) tira o consultor da lista mas mantém a atribuição dos leads a ele — os números dele somem da visão, sem irem para ninguém. "Excluir" é o caminho para transferir a contagem ao Admin Sistema. Ambos são reversíveis e não tocam o Kommo.
+- **Alternativas descartadas:** reatribuir no Kommo via API (pesado, irreversível, mexe na produção, e não deleta usuário); reatribuir só em `kommo_sync.leads` (desfeito pelo sync); reaproveitar `comercial_rgm_conflito_resolucao` (é por RGM, não por consultor — não cobre renomear/ocultar nem reatribuição em massa por agente).
+
+### 2026-07-07 — Upload matriculados: dedup de PÓS com múltiplos ciclos (mantém o mais antigo)
+- **Modelo usado:** Opus 4.8 (principal). Implementação direta após validação nos dados.
+- **Problema:** no relatório "Relação de matriculados por polo", alunos de **pós-graduação** de um ciclo anterior (ex.: `2026/1`) reaparecem também com o ciclo do período atual (ex.: `2026/2`) — **mesmo RGM, 2 linhas, ciclos diferentes, ambas EM CURSO**. Como a view `comercial_rgm_atual` filtra `ciclo = ciclo_atual` (2026/2), esses alunos entram na base do ciclo corrente com **RGM de prefixo antigo** (< 49 dominante) e poluem o painel "Fora do padrão RGM" do Dashboard Comercial (68 casos observados; 59/60 vinham dessa duplicação).
+- **Decisão:** dedup na **ingestão** (`_persist_snapshot_entries` em `routes/upload.py`, só para `tipo='matriculados'`, via `_dedup_pos_matriculados_por_ciclo`). Quando o mesmo RGM **de pós** aparece com **>1 ciclo distinto**, mantém **apenas 1 linha — a do ciclo mais antigo e (desempate) data de matrícula mais antiga** — e descarta as demais. Só atua em pós (detecção nivel/negocio/curso, mesma regra da view) e só quando há ciclos diferentes; grad e linhas de ciclo único não são tocadas.
+- **Validação (snapshot 182):** 1.526 grupos pós multi-ciclo; **100% das linhas mantidas ficam EM CURSO** (0 casos de risco em que a linha mantida teria situação pior que a removida); 0 RGM pós com >1 ciclo após o dedup. Remove ~1.526 linhas duplicadas do relatório (o painel só exibia o subconjunto EM CURSO+contável, por isso mostrava só 68).
+- **Escopo/efeito:** vale para **novos uploads** (o usuário re-sobe o arquivo). Esses alunos passam a contar em 2026/1 (ciclo real) e somem da base 2026/2 → limpam o painel "Fora do padrão". Impacto colateral: Dashboard Acadêmico passa a contá-los em 2026/1 (correto, são alunos do ciclo anterior).
+- **Alternativas descartadas:** dedup no read/view (não casa com o fluxo "re-subir arquivo" pedido; espalha a regra); manter a linha por situação/"mais vivo" em vez de ciclo (o dado mostrou que ambas as linhas são EM CURSO, então ciclo-primário é seguro); restringir a prefixo antigo (menos geral que a regra pedida e deixaria casos de fora).
+
+### 2026-07-07 — Dist. Comercial: botão TURNO DIA/NOITE respeita snapshot anterior (comportamento esperto)
+- **Modelo usado:** Opus 4.7 (principal). Implementação direta após aprovação da opção "esperto".
+- **Contexto:** O botão `TURNO NOITE/DIA` na UI forçava **TODOS** os consultores do turno alvo pra `ATIVO`, ignorando quem estava `INATIVO` por folga/férias. O gestor precisava lembrar de ajustar manualmente antes de SALVAR — se esquecesse, ativava alguém de férias.
+- **Decisão:** `dcAplicarTurno(turnoAlvo)` no `static/js/dist_comercial.js` passa a buscar o snapshot do turno alvo (`GET /api/dist-comercial/snapshot`) **antes** de calcular o preview. Comportamento:
+  - **Se snapshot existe:** turno alvo recebe status do snapshot (ATIVO/INATIVO). Turno oposto → INATIVO. Consultores no turno alvo mas fora do snapshot (novos) → ATIVO por default.
+  - **Se snapshot não existe (primeira aplicação):** comportamento bruto anterior — todos do turno alvo ficam ATIVO.
+- **UX:** modal de confirmação mostra explicitamente qual dos dois caminhos vai executar ("respeitando snapshot anterior" vs "primeira aplicação").
+- **Backend inalterado:** endpoint `/apply/<turno>` do job automático continua com a lógica original (`_compute_target_statuses`) que já respeitava o snapshot desde o início. Essa mudança alinha a UI manual à mesma semântica que a regra automática já usava.
+- **Trade-off:** um round-trip HTTP a cada clique de TURNO DIA/NOITE (~200ms). Aceitável — é gesto manual, não critical path.
+- **Alternativas descartadas:**
+  - **Botão só inativa o turno oposto, não toca no alvo:** UX confusa ("por que clicar em TURNO DIA se ele não ativa ninguém?").
+  - **Manter bruto e treinar gestor:** o requisito explícito foi "não ativar todos" — vale mais gastar o round-trip que apostar em disciplina operacional.
+  - **Cachear snapshot no `dcState` e evitar o fetch:** cache fica stale (outro gestor pode ter clicado limpar snapshot em outra aba). Fetch on-demand é mais seguro.
+
+### 2026-07-07 — Dist. Comercial: regras de turno vira modelo de JANELA (revisa entrada abaixo)
+- **Modelo usado:** Opus 4.7 (principal). Implementação direta após aprovação (usuário escolheu "modelo de janela").
+- **Contexto:** A entrada abaixo (mesmo dia, mais cedo) implementou regras como `{hora, turno_alvo}` — cada regra dispara UMA vez ao chegar naquele horário. Pra ter "noite ativa das 17:00 às 22:00 + dia o resto", o gestor precisava criar DUAS regras separadas (17:00→NOITE e 22:00→DIA) e mentalmente entender que uma "cancela" a outra. UX confusa e pouco explícita sobre o efeito operacional.
+- **Decisão:** Trocar o modelo pra **janela horária**. Cada regra descreve uma janela inteira `{hora_inicio, hora_fim, turno_alvo}`. Semântica: `NOITE das 17:00 às 22:00` significa "aplica Modo NOITE às 17:00; aplica Modo DIA (turno oposto) às 22:00". UMA regra = DOIS gatilhos por dia.
+- **Schema (migration idempotente em `_ensure_dist_comercial_schedule_tables`):**
+  - `dist_comercial_schedule.hora` → **removido**; substituído por `hora_inicio TIME NOT NULL` + `hora_fim TIME NOT NULL`.
+  - `dist_comercial_schedule.last_run_date` → **removido**; substituído por `last_run_inicio_date DATE` + `last_run_fim_date DATE` (dedup independente por gatilho).
+  - Bloco `DO $$ ... $$` no CREATE detecta versão anterior (col `hora` existe) e migra: renomeia `hora`→`hora_inicio`, deriva `hora_fim = hora + 5h` como valor padrão de migração, dropa colunas antigas. Idempotente.
+  - Tabela tinha 0 regras no momento da migração — nenhuma perda de dados. Se em produção houver regras existentes, o fallback `+5h` é seguro (o gestor pode ajustar depois).
+- **Job APScheduler `_run_scheduled_apply` refatorado:**
+  - A cada minuto varre regras `enabled = TRUE`.
+  - Pra cada regra monta lista de gatilhos pendentes:
+    - Se `now >= hora_inicio` AND `last_run_inicio_date != today` → `(rule_id, 'inicio', turno_alvo)`.
+    - Se `now >= hora_fim` AND `last_run_fim_date != today` → `(rule_id, 'fim', oposto)` onde `oposto = 'noite' se turno_alvo=='dia' else 'dia'`.
+  - Executa cada gatilho pelo `_apply_turno` normal e marca a coluna correspondente. Concorrência protegida pelo mesmo `_apply_lock` (sem mudança).
+  - Grace: se o servidor estava parado no minuto exato, o gatilho ainda dispara no próximo tick (dedup só impede repetir no mesmo dia).
+- **UI redesenhada (`dist_comercial.js` + CSS em `_dist_comercial.html`):**
+  - Regra vira **card** com badge do turno (NOITE=azul #4c6ef5, DIA=laranja #f59e0b), inputs `hora_inicio`/`hora_fim`, select de turno, toggle enabled, botão remover.
+  - **Timeline visual 24h** por regra: barra colorida mostrando o segmento da janela alvo vs oposto; marcadores 00h/06h/12h/18h/24h; indicador vermelho na hora atual. Cobre cross-midnight (ex: 22:00 às 06:00 pinta 2 segmentos).
+  - Texto explicativo abaixo da timeline: "Das X às Y: aplica Modo NOITE (DIA inativo, NOITE conforme snapshot). Às Y: volta pro Modo DIA (NOITE inativo, DIA conforme snapshot)".
+  - `dcAdicionarRegra` pede turno → hora_inicio → hora_fim (com defaults inteligentes: NOITE = 17:00-22:00, DIA = 07:00-17:00).
+- **Endpoints:** `POST /rules` e `PATCH /rules/<id>` aceitam `hora_inicio` + `hora_fim` (era `hora`). Validação: `hora_inicio != hora_fim`, ambas HH:MM válidas 00:00-23:59. `GET /rules` retorna o novo formato.
+- **Compatibilidade:** front antigo (usando `hora` no body) quebraria — não é problema porque só o próprio `dist_comercial.js` chamava e foi atualizado junto. Backend não aceita mais o campo `hora`.
+- **Alternativas descartadas:**
+  - **Manter modelo antigo (2 regras) + melhorar preview visual:** simples de fazer mas continua com a fricção do gestor precisar criar 2 regras e pensar no "complemento". Descartado porque o usuário disse explicitamente "precisa estar claro visualmente".
+  - **UMA regra com N janelas (array de intervalos):** flexível pra futuros casos como "manhã + noite, tarde livre", mas overkill agora — se surgir, criar múltiplas regras cobre o mesmo caso.
+  - **Suportar `hora` legado no backend + auto-derivar `hora_fim`:** compat mais robusta, mas o front foi migrado junto e não há callers externos. Custo sem valor.
+- **Trade-off conhecido:** múltiplas regras podem definir janelas conflitantes (ex: NOITE 17-22 + DIA 15-20 se sobrepõem). O último gatilho a disparar ganha (comportamento consistente: aplica o Modo X, que sobrescreve o anterior). Aceitável — é responsabilidade do gestor não configurar janelas conflitantes; a timeline visual ajuda a evitar isso.
+
+### 2026-07-07 — Dist. Comercial: regras automáticas de troca de turno (Dia/Noite) com snapshot
+- **Modelo usado:** Opus 4.7 (principal). Implementação direta após aprovação das decisões críticas (execução no backend, escopo global, snapshot no clique manual, múltiplas regras).
+- **Problema:** Operação alterna entre turnos (dia/noite) todo dia. Ativar/inativar consultores manualmente 2x ao dia é operacional e sujeito a esquecimento. Regra automática precisa **respeitar quem estava ativo da última vez** — não pode ativar todos do noturno, porque nem todos trabalham todo dia (folga, férias, etc.).
+- **Decisão:** Módulo aditivo com 4 tabelas novas + blueprint Flask + job APScheduler:
+  - **`dist_comercial_schedule(id, hora, turno_alvo, enabled, last_run_date, last_run_at, last_run_result)`** — regras `{HH:MM, dia|noite}`. Múltiplas permitidas (ex: 07:00→DIA e 20:00→NOITE). `last_run_date` faz dedupe (não dispara 2x no mesmo dia).
+  - **`dist_comercial_turno_map(id_lead PK, turno)`** — mapa global promovido do localStorage anterior. Todos os gestores compartilham a mesma divisão. Frontend faz PUT do mapa completo a cada toggle.
+  - **`dist_comercial_snapshot(turno PK, payload JSONB, taken_at, taken_by)`** — payload `{id_lead: 'ATIVO'|'INATIVO'}` dos consultores do turno alvo, capturado no clique manual dos botões TURNO DIA/NOITE + SALVAR. É o "quem estava ativo da última vez".
+  - **`dist_comercial_apply_log`** — histórico imutável de disparos (manual/auto) pra auditoria.
+- **Algoritmo `_apply_turno(turno_alvo)`:**
+  1. Se `snapshot[turno_alvo]` não existe → **aborta** com erro claro. Isso protege contra ativar/inativar tudo por acidente na primeira execução.
+  2. Consultores com `turno_map == outro_turno` → força **INATIVO** (independente do status atual).
+  3. Consultores com `turno_map == turno_alvo` → aplica **status do snapshot** (preserva ATIVO/INATIVO da última aplicação).
+  4. Consultores fora do `turno_map` → **não toca** (segurança: quem não foi categorizado não é modificado).
+  5. Chama `POST /webhook/edicao_distrib` (n8n) — mesma rota que o botão SALVAR usa. Único ponto de contato com o CRM.
+- **Execução:** APScheduler roda `_run_scheduled_apply` a cada 1 min, busca regras `enabled AND hora <= now.time AND (last_run_date IS NULL OR last_run_date < today)`. Concorrência protegida por `_apply_lock` (threading.Lock) — impossível 2 disparos paralelos.
+- **UI:** botão novo **⚙ REGRAS** no header abre modal com:
+  - Cards de snapshot (dia/noite): mostra timestamp, contagem ATIVO/INATIVO, quem tirou, botão limpar. **Estado vazio destacado em vermelho** — deixa óbvio que a regra não vai rodar sem snapshot.
+  - Lista de regras editável inline (horário + turno + enable/disable + delete).
+  - Histórico das últimas 20 execuções em `<details>` colapsável.
+- **Endpoints (todos com gate `dist_comercial` server-side, admin passa direto):**
+  - `GET/POST/PATCH/DELETE /api/dist-comercial/rules[/<id>]`
+  - `GET/PUT /api/dist-comercial/turno-map`
+  - `GET/POST/DELETE /api/dist-comercial/snapshot[/<turno>]`
+  - `POST /api/dist-comercial/apply/<turno>` (dispara manualmente; útil pra debug)
+  - `GET /api/dist-comercial/apply-log?limit=N`
+- **Alternativas descartadas:**
+  - **Frontend com setInterval + localStorage:** só roda com aba aberta. Basta o gestor fechar o navegador antes do horário pra operação inteira ir pro turno errado a noite toda. Descartado pelo requisito "cautela e atenção nos detalhes".
+  - **Snapshot no primeiro disparo automático (auto-capture):** menos controle explícito, mais mágico. O usuário escolheu "no clique manual" — o gesto de aplicar TURNO NOITE + SALVAR já é a intenção clara de "este é o padrão do turno".
+  - **Snapshot = estado atual do CRM lido no momento do disparo:** eliminaria a necessidade da tabela snapshot, mas perderia a semântica "última aplicação manual" (o estado atual pode ter sido tocado durante o dia por outros motivos).
+  - **Uma regra global por turno (Dia/Noite) em vez de N regras:** limitaria futuros casos como "domingo aplica turno diferente". Múltiplas regras cobre com o mesmo custo.
+  - **Escopo por usuário:** fragmentaria a operação. Global é a fonte única.
+- **Compatibilidade:** aditivo puro. Se o módulo for removido, basta desregistrar o blueprint + o job + `DROP TABLE dist_comercial_*`. Painel principal continua funcionando 100% (webhooks n8n de load/save/create não mudaram).
+- **Trade-off conhecido:** o `turno_map` global significa que se dois gestores discordarem sobre quem é dia/noite, o último a mover ganha. Aceitável — é uma escala operacional, deveria ter consenso.
+- **Migração transparente do localStorage:** ao abrir a página pela primeira vez após deploy, o `loadDistComercial` chama `GET /turno-map`, que vem vazio → todos aparecem no Dia. Se o gestor tinha divisão salva no localStorage antigo (`dist_comercial_turno_noite_v1`), essa chave fica órfã (não é lida). Se ele quiser recuperar, precisa remover manualmente da UI (mover pra noite novamente). Custo aceitável — divisão nova é global e a antiga era per-browser.
+
+### 2026-07-07 — Rate limit Kommo: throttle + mutex + escalonamento (root cause do bloqueio 27/06 03:00)
+- **Modelo usado:** Opus 4.7 (principal). Implementação direta após aprovação.
+- **Problema:** Kommo bloqueou a conta em 27/06/2026 03:00 AM por passar de 7 req/s. Auditoria revelou 4 fontes de request paralelas disparando simultaneamente no minuto :00 de cada hora — no 03:00 é pior porque `responsible_history_daily` (03:00) coincide com `sync_delta_interval` (:00,:05,...), `funnel_cache_warm` (:00,:05,...) e `aceite_reconcile` (:00,:10,...). Sem mutex compartilhado nem throttle uniforme, o pico agregado chegava a 15–30 rps.
+- **Hotspots identificados (rps sem freio antes da correção):**
+  - `_count_leads_in_stage` (funnel warm): `sleep(0.08)` = ~12 rps máx.
+  - `_count_new_leads_between` (novos/dia): `sleep(0.05)` = ~20 rps máx.
+  - `reconcile_aceite_leads` paginação: `sleep(0.05)` = ~20 rps máx.
+  - `reconcile_aceite_leads` GET individual stale: `sleep(0.05)` = ~20 rps máx.
+  - `_sync_responsible_history` paginação `/events`: **zero sleep** — 5–10 rps sustentado.
+  - `_fetch_leads_em_atendimento` (leads_parados): `sleep(0.05)`.
+  - `_fetch_funnel_live` (fallback): `sleep(0.05)`.
+  - `kommo_lib/api_client.py` (subprocess sync): **já tinha** `RateLimiter(120, 60)` = ~1,8 rps. Único que estava OK, isolado.
+- **Decisão em 3 camadas (aditivas, sem mudança de schema):**
+  1. **Camada 1 — throttle uniforme:** todos os loops que usam `_kommo_get` (routes/kommo_sync.py) passam a esperar `_KOMMO_BG_PAGE_SLEEP = 0.20s` entre páginas (env var `KOMMO_BG_PAGE_SLEEP` sobrescreve). Cap teórico por loop: ~5 rps. `_sync_responsible_history` ganha o sleep que **não tinha antes**.
+  2. **Camada 2 — mutex global background:** novo `_kommo_api_bg_lock = threading.Lock()` em `routes/kommo_sync.py`. Adquirido em `_warm_funnel_cache_sync` (timeout 300s), `reconcile_aceite_leads` (timeout 300s), `_sync_responsible_history` (timeout 600s). Se timeout, pula silenciosamente. **Sync via `kommo_lib/main.py` fica FORA do lock** — tem seu próprio rate limiter (1,8 rps) e é o único caminho oficial de sync massivo; misturar no lock atrasaria demais o delta a cada 5min. Endpoints admin (`/api/kommo/reconcile-aceites`, `/api/kommo/sync-responsible-history`) também passam pelo lock (bloqueiam o worker HTTP até a vez, aceitável em admin trigger).
+  3. **Camada 3 — escalonar cron:**
+     - `sync_delta_interval`: mantido em `:00, :05, :10, ...` (5 min).
+     - `funnel_cache_warm`: mudou de `IntervalTrigger(minutes=5)` (que pegava :00, :05, :10) para `CronTrigger(minute="2,7,12,17,22,27,32,37,42,47,52,57")` — offset +2 min.
+     - `aceite_reconcile`: quando `ACEITE_RECONCILE_INTERVAL=10` (default), passa a usar `CronTrigger(minute="3,13,23,33,43,53")` — offset +3 min. Env var custom volta pro IntervalTrigger antigo (compat).
+     - `responsible_history_daily`: movido de **03:00 → 04:30 BRT** (fora do horário nobre de sync/warm/reconcile).
+- **Cap teórico pós-fix:**
+  - 1 job background × 5 rps (throttle 0,2s) + sync kommo_lib 1,8 rps + endpoints ad-hoc = **~7 rps de teto real, exatamente no limite** do que Kommo tolera. Bursts virtualmente impossíveis (mutex garante 1 background por vez; escalonamento espalha os minutos).
+- **Compatibilidade:**
+  - **Latência aceitável:** aceite reconcile ~30s → pode ir a ~2 min no pior caso (500 stale × 0,2s + paginação). Roda a cada 10 min, sem impacto operacional. Funnel warm em background continua não afetando UX (endpoint sempre responde do cache 5 min TTL).
+  - **Reversível:** git revert. Nenhum schema mudou, nenhum endpoint quebrou. Env var `KOMMO_BG_PAGE_SLEEP=0.05` volta o comportamento antigo se algum dia precisar.
+  - **Sync manual do painel** (`/api/kommo/sync`) e **match/merge pipeline** (`match_merge_lib.KommoAPI(rate_per_sec=5)`) já tinham throttle próprio, não foram alterados.
+- **Alternativas descartadas:**
+  - **Rate limiter global em `_kommo_get`** (token bucket compartilhado): arquiteturalmente mais limpo, mas exige refatorar 6+ chamadores diferentes. Trade-off ruim vs sleep uniforme, que resolve o problema imediato com risco mínimo. Reabrir se voltar a saturar.
+  - **Cancelar `responsible_history_daily`:** perde histórico usado em auditoria/dashboard. Não vale.
+  - **Só serializar via `max_instances=1`:** já estava setado em cada job, mas não evita colisão entre jobs *diferentes*. Precisava do mutex compartilhado.
+  - **`kommo_lib` sync entrar no mutex:** atrasaria o delta a cada 5min, e ele já tem rate limiter próprio (1,8 rps). Não vale.
+- **Env vars novas:** `KOMMO_BG_PAGE_SLEEP` (default 0.20, segundos entre páginas em background). `ACEITE_RECONCILE_INTERVAL` continua respeitado; `10` ativa o cron escalonado, qualquer outro valor volta ao IntervalTrigger.
+- **Arquivos alterados:**
+  - `routes/kommo_sync.py` — throttle uniforme + `_kommo_api_bg_lock` + wrap `_sync_responsible_history` → `_sync_responsible_history_impl` + cron escalonado no `register_funnel_cache_job`.
+  - `routes/config.py` — `register_aceite_reconcile` com CronTrigger escalonado quando intervalo=10 + `register_responsible_history_job` movido 03:00 → 04:30.
+  - `routes/leads_parados.py` — sleep entre páginas 0,05 → 0,20.
 
 ### 2026-07-02 — Premiações Internas: colaboradores vinculados a `app_users` (Opção A — `categoria` como cargo sugerido)
 - **Modelo usado:** Opus 4.7 (principal). Implementação direta após aprovação da Opção A pelo usuário.
@@ -81,6 +231,31 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
   - **Alterar schema de `avisos` para suportar target por permissão** — mais limpo semanticamente, mas exige refactor no back/front do sininho. Helper agregando `user_ids` no app-layer entrega mesmo resultado sem alterar tabelas.
   - **Vincular colaboradores a tabela de funcionários** — nenhuma tabela canônica existe hoje; texto livre + FK opcional a `app_users` é mais flexível.
 - **Fora de escopo (reabrir se pedir):** upload de anexos; exportação CSV/PDF; notificação por e-mail/whatsapp; aprovação multi-nível; integração com folha de pagamento.
+
+### 2026-07-07 — Editar consultores no Dashboard Comercial (renomear / ocultar / excluir → Admin Sistema)
+- **Modelo usado:** Opus 4.8 (principal). Decisão aprovada pelo usuário (escopo dashboard-only; capacidades renomear + ocultar + excluir).
+- **Problema/pedido:** botão para gerenciar os consultores (agentes) no header do Dashboard Comercial. Ao **excluir** um consultor, os **leads/matrículas dele devem passar a contar para o "Admin Sistema"** (kommo_user_id **8261837**, `adm@eduit.com.br`, já com ~220k leads).
+- **Restrição arquitetural central:** o sistema é **espelho do Kommo**. `leads.responsible_user_id` é puxado do Kommo pelo sync (Sync Kommo + delta a cada 10 min). Reatribuir **só no banco local seria desfeito** no próximo sync; reatribuir **no Kommo via API** é pesado (ex.: Kamilly ~24k leads = milhares de PATCH) e mexe na produção, e o Kommo **não permite deletar usuário via API**. Por isso o usuário optou por **override no nível do dashboard** (mesma filosofia de `comercial_rgm_conflito_resolucao`), que **não briga com o sync** e é reversível.
+- **Decisão:** nova tabela **`comercial_consultor_ajuste`** (banco principal `dcz_sync`): `kommo_user_id PK`, `display_name` (renomear só na exibição), `hidden BOOL` (some do ranking/filtro AGENTE), `reassign_to INT` (excluído → destino da reatribuição = Admin Sistema), `updated_at/by`. Criada no ensure-schema de `routes/comercial_rgm.py` (junto de conflito/outlier).
+- **Helpers** (`routes/comercial_rgm.py`): `_admin_sistema_uid()` (resolve por `name ILIKE 'admin sistema'` em `kommo_sync.users`, fallback 8261837), `_load_consultor_ajustes()` (cacheado por request via `flask.g`), `_consultor_reassign_map()`, `_consultor_hidden_uids()`, `_apply_reassign_to_rgm_map()`.
+- **Pontos de integração (reatribuição = remap de `rgm_to_uid` + merge de `crm_stats`):**
+  - Ranking `_build_agent_ranking_completa_vw`: remap após conflito override; merge das stats de CRM do excluído no destino; drop de ocultos/excluídos de `uids_real`.
+  - `crgm_agente_detalhe` e `_crgm_kommo_lookup_rgms` (fora do padrão/evasão): remap + renomeação em `uid_to_nome`.
+  - `_fetch_kommo_user_names`: sobrepõe `display_name` (renomeação propaga em todo lugar que resolve nome).
+  - `/api/comercial-rgm/filters`: renomeia e remove ocultos/excluídos do dropdown AGENTE.
+  - `routes/minha_performance.py` `_get_rgm_to_uid_map`: novo `_load_consultor_reassign()` aplica o remap → Minha Performance fica consistente com o ranking do Comercial (leads do excluído aparecem no Admin Sistema).
+- **Endpoints (admin-only, `session.role == 'admin'`):** `GET /api/comercial-rgm/consultores` (lista de `kommo_sync.users` + contagem de leads + ajuste), `POST /api/comercial-rgm/consultores/<uid>` (upsert estado completo `{display_name, hidden, excluir}`; `excluir=true` seta `reassign_to=admin` e `hidden=true`; bloqueia excluir o próprio Admin Sistema), `DELETE /api/comercial-rgm/consultores/<uid>` (restaura ao padrão).
+- **UI:** botão "Editar consultores" no header (após "Sync Agentes", `_comercial_rgm.html`); modal em `templates/index.html` (`crgm-consultores-modal`, z-[9999]) com busca, input de nome inline, toggle ocultar, excluir/restaurar; JS em `static/js/comercial_rgm.js` (`crgmAbrirConsultores` etc.). Ao fechar com alterações, recarrega filtros + ranking.
+- **Efeito colateral aceito:** "ocultar" (sem reatribuir) tira o consultor da lista mas mantém a atribuição dos leads a ele — os números dele somem da visão, sem irem para ninguém. "Excluir" é o caminho para transferir a contagem ao Admin Sistema. Ambos são reversíveis e não tocam o Kommo.
+- **Alternativas descartadas:** reatribuir no Kommo via API (pesado, irreversível, mexe na produção, e não deleta usuário); reatribuir só em `kommo_sync.leads` (desfeito pelo sync); reaproveitar `comercial_rgm_conflito_resolucao` (é por RGM, não por consultor — não cobre renomear/ocultar nem reatribuição em massa por agente).
+
+### 2026-07-07 — Upload matriculados: dedup de PÓS com múltiplos ciclos (mantém o mais antigo)
+- **Modelo usado:** Opus 4.8 (principal). Implementação direta após validação nos dados.
+- **Problema:** no relatório "Relação de matriculados por polo", alunos de **pós-graduação** de um ciclo anterior (ex.: `2026/1`) reaparecem também com o ciclo do período atual (ex.: `2026/2`) — **mesmo RGM, 2 linhas, ciclos diferentes, ambas EM CURSO**. Como a view `comercial_rgm_atual` filtra `ciclo = ciclo_atual` (2026/2), esses alunos entram na base do ciclo corrente com **RGM de prefixo antigo** (< 49 dominante) e poluem o painel "Fora do padrão RGM" do Dashboard Comercial (68 casos observados; 59/60 vinham dessa duplicação).
+- **Decisão:** dedup na **ingestão** (`_persist_snapshot_entries` em `routes/upload.py`, só para `tipo='matriculados'`, via `_dedup_pos_matriculados_por_ciclo`). Quando o mesmo RGM **de pós** aparece com **>1 ciclo distinto**, mantém **apenas 1 linha — a do ciclo mais antigo e (desempate) data de matrícula mais antiga** — e descarta as demais. Só atua em pós (detecção nivel/negocio/curso, mesma regra da view) e só quando há ciclos diferentes; grad e linhas de ciclo único não são tocadas.
+- **Validação (snapshot 182):** 1.526 grupos pós multi-ciclo; **100% das linhas mantidas ficam EM CURSO** (0 casos de risco em que a linha mantida teria situação pior que a removida); 0 RGM pós com >1 ciclo após o dedup. Remove ~1.526 linhas duplicadas do relatório (o painel só exibia o subconjunto EM CURSO+contável, por isso mostrava só 68).
+- **Escopo/efeito:** vale para **novos uploads** (o usuário re-sobe o arquivo). Esses alunos passam a contar em 2026/1 (ciclo real) e somem da base 2026/2 → limpam o painel "Fora do padrão". Impacto colateral: Dashboard Acadêmico passa a contá-los em 2026/1 (correto, são alunos do ciclo anterior).
+- **Alternativas descartadas:** dedup no read/view (não casa com o fluxo "re-subir arquivo" pedido; espalha a regra); manter a linha por situação/"mais vivo" em vez de ciclo (o dado mostrou que ambas as linhas são EM CURSO, então ciclo-primário é seguro); restringir a prefixo antigo (menos geral que a regra pedida e deixaria casos de fora).
 
 ### 2026-06-18 — Match/Merge: campo Origem só é preenchido em leads NOVO
 - **Modelo usado:** Opus 4.8 (principal). Implementação direta (bugfix pontual).

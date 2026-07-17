@@ -2208,25 +2208,29 @@ def atualizar_wix3_pos_canais():
 # ═══════════════════════════════════════════════════════════════════
 
 FIELD_KOMMO_GRAD = {
-    'preco_cruzeiro':  676675,
-    'mar_aberto':      677543,
-    'balcao':          676369,
-    'balcao_pct':      693235,
-    'estrategico':     677537,
-    'pct_estrategico': 683921,
-    'dois_grad':       685015,
-    'transferencia':   685017,
+    'preco_cruzeiro':      676675,
+    'mar_aberto':          677543,
+    'balcao':              676369,
+    'balcao_pct':          693235,
+    'estrategico':         677537,
+    'pct_estrategico':     683921,
+    'dois_grad':           685015,
+    'transferencia':       685017,
+    'balcao_aprovados_20': 694333,   # numérico
+    'balcao_comercial_25': 695353,   # texto
 }
 FIELD_KOMMO_GRAD_META = {'grau': 676375, 'modalidade': 678221, 'filtro': 677387}
 ENUM_POS_GRADUACAO = 426519
 
 CAMPOS_KOMMO_GRAD = [
-    {'key': 'preco_cruzeiro', 'label': 'PREÇO CRUZEIRO'},
-    {'key': 'mar_aberto',     'label': 'MAR ABERTO'},
-    {'key': 'balcao',         'label': 'BALCÃO'},
-    {'key': 'estrategico',    'label': 'BALCÃO ESTRATÉGICO'},
-    {'key': 'dois_grad',      'label': '2 GRAD'},
-    {'key': 'transferencia',  'label': 'TRANSFERÊNCIA'},
+    {'key': 'preco_cruzeiro',      'label': 'PREÇO CRUZEIRO'},
+    {'key': 'mar_aberto',          'label': 'MAR ABERTO'},
+    {'key': 'balcao',              'label': 'BALCÃO'},
+    {'key': 'estrategico',         'label': 'BALCÃO ESTRATÉGICO'},
+    {'key': 'dois_grad',           'label': '2 GRAD'},
+    {'key': 'transferencia',       'label': 'TRANSFERÊNCIA'},
+    {'key': 'balcao_aprovados_20', 'label': 'BALCAO APROVADOS 20'},
+    {'key': 'balcao_comercial_25', 'label': 'BALCÃO COMERCIAL 25'},
 ]
 AUTO_PCT_GRAD = {'balcao': 'balcao_pct', 'estrategico': 'pct_estrategico'}
 
@@ -2611,7 +2615,8 @@ def _compute_novos_kommo(mapping, info, auto_pct_map):
             fv = float(v)
         except (ValueError, TypeError):
             continue
-        if k == 'balcao_pos_20':
+        if k in ('balcao_pos_20', 'balcao_comercial_25'):
+            # Campos que precisam ir como texto no Kommo
             novos[k] = str(int(round(fv)))
         else:
             novos[k] = int(round(fv))

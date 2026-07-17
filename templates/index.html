@@ -76,6 +76,8 @@
             {% include 'partials/_ia_comercial.html' %}
             {% include 'partials/_page_views.html' %}
             {% include 'partials/_solicitacoes_ti.html' %}
+            {% include 'partials/_siaa_consulta.html' %}
+            {% include 'partials/_siaa_sessao.html' %}
         </main>
     </div>
 </div>
@@ -299,6 +301,48 @@
         </div>
         <div class="px-6 py-3 border-t border-slate-700 shrink-0 flex justify-end">
             <button type="button" onclick="crgmFecharBuscaRgm()" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Editar consultores -->
+<div id="crgm-consultores-modal" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" style="position:fixed;top:0;left:0;right:0;bottom:0;">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col" style="max-height:92vh;">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-700 shrink-0">
+            <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-violet-400 text-2xl">manage_accounts</span>
+                <div>
+                    <p class="text-[10px] text-slate-500 uppercase tracking-wider">Gestão de agentes</p>
+                    <p class="text-white font-semibold text-sm">Editar consultores</p>
+                </div>
+            </div>
+            <button type="button" onclick="crgmFecharConsultores()" class="text-slate-500 hover:text-white transition-colors">
+                <span class="material-symbols-outlined text-xl">close</span>
+            </button>
+        </div>
+
+        <div class="px-4 py-3 border-b border-slate-800 shrink-0 bg-slate-800/40 flex items-center gap-3 flex-wrap">
+            <p class="text-xs text-slate-400 shrink-0">Renomear, ocultar ou excluir. Ao excluir, os leads vão para o <span class="text-violet-300 font-medium" id="crgm-cons-admin-nome">Admin Sistema</span>.</p>
+            <div class="flex-1 min-w-[180px] relative">
+                <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-base pointer-events-none">search</span>
+                <input id="crgm-cons-busca" type="text" placeholder="Buscar por nome ou e-mail..."
+                    oninput="crgmFiltrarConsultores()"
+                    class="w-full bg-slate-700/60 border border-slate-600 text-white text-xs rounded-lg pl-8 pr-3 py-2 focus:outline-none focus:border-violet-500 placeholder-slate-500" />
+            </div>
+        </div>
+
+        <div class="overflow-y-auto flex-1 px-4 py-3" id="crgm-cons-lista"></div>
+
+        <div id="crgm-cons-loading" class="hidden flex-1 items-center justify-center py-12">
+            <div class="flex flex-col items-center gap-3 text-slate-500">
+                <span class="material-symbols-outlined text-4xl animate-spin">progress_activity</span>
+                <p class="text-sm">Carregando consultores...</p>
+            </div>
+        </div>
+
+        <div class="px-6 py-4 border-t border-slate-700 shrink-0 flex items-center justify-between gap-3">
+            <p class="text-xs text-slate-500" id="crgm-cons-status"></p>
+            <button type="button" onclick="crgmFecharConsultores()" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm transition-colors">Fechar</button>
         </div>
     </div>
 </div>

@@ -317,8 +317,87 @@ def _save_xl_snapshot(filepath, filename, tipo="matriculados"):
     return _persist_snapshot_entries(entries, tipo, filename)
 
 
+def _dedup_pos_matriculados_por_ciclo(entries):
+    """Colapsa RGMs de PÓS-GRADUAÇÃO que aparecem em mais de um ciclo no mesmo
+    relatório de matriculados em uma única linha.
+
+    Motivo: alunos de pós de um ciclo anterior (ex.: 2026/1) reaparecem no
+    relatório também com o ciclo do período atual (ex.: 2026/2), gerando o
+    mesmo RGM duas vezes. Isso infla a base do ciclo atual e polui o painel
+    "fora do padrão RGM" do Dashboard Comercial.
+
+    Regra: quando o mesmo RGM (pós) aparece com >1 ciclo distinto, mantém
+    apenas 1 linha — a do CICLO mais antigo e (desempate) DATA DE MATRÍCULA
+    mais antiga. As demais linhas do mesmo RGM são descartadas.
+    Só atua em pós e só quando há ciclos diferentes (linhas legítimas de grad
+    ou de um único ciclo não são tocadas).
+    """
+    def _is_pos(e):
+        nivel = e.get("nivel") or ""
+        negocio = e.get("negocio") or ""
+        curso = e.get("curso") or ""
+        if re.search(r"p[oó]s", nivel, re.I):
+            return True
+        if re.search(r"p[oó]s", negocio, re.I):
+            return True
+        if re.search(r"(mba|especializa|pós.gradua|lato.sensu|stricto)", curso, re.I):
+            return True
+        return False
+
+    def _ciclo_key(e):
+        c = (e.get("ciclo") or "").strip()
+        m = re.match(r"(\d{4})\D+(\d)", c)
+        if m:
+            return (int(m.group(1)), int(m.group(2)))
+        return (9999, 9)  # sem ciclo válido -> tratado como "mais novo"
+
+    def _data_key(e):
+        d = (e.get("data_mat") or "").strip()
+        m = re.match(r"(\d{2})/(\d{2})/(\d{4})", d)
+        if m:
+            return (int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        m2 = re.match(r"(\d{4})-(\d{2})-(\d{2})", d)
+        if m2:
+            return (int(m2.group(1)), int(m2.group(2)), int(m2.group(3)))
+        return (9999, 99, 99)  # sem data -> tratado como "mais novo"
+
+    grupos = {}
+    for i, e in enumerate(entries):
+        rgm = (e.get("rgm_digits") or "").strip()
+        if not rgm or not _is_pos(e):
+            continue
+        grupos.setdefault(rgm, []).append(i)
+
+    remover = set()
+    for _rgm, idxs in grupos.items():
+        if len(idxs) < 2:
+            continue
+        ciclos = {(entries[i].get("ciclo") or "").strip() for i in idxs}
+        ciclos = {c for c in ciclos if c}
+        if len(ciclos) < 2:
+            continue  # mesmo ciclo (ou sem ciclo) -> fora do escopo
+        ordenados = sorted(idxs, key=lambda i: (_ciclo_key(entries[i]), _data_key(entries[i])))
+        for i in ordenados[1:]:
+            remover.add(i)
+
+    if not remover:
+        return entries, 0
+    return [e for i, e in enumerate(entries) if i not in remover], len(remover)
+
+
 def _persist_snapshot_entries(entries, tipo, filename, nivel=None):
     """Grava uma lista de dicts no banco como snapshot e retorna row count."""
+    if tipo == "matriculados":
+        try:
+            entries, _n_dedup = _dedup_pos_matriculados_por_ciclo(entries)
+            if _n_dedup:
+                current_app.logger.info(
+                    "Dedup pós multi-ciclo: %d linhas duplicadas removidas do relatório %s",
+                    _n_dedup, filename,
+                )
+        except Exception as _dex:
+            current_app.logger.warning("Falha no dedup pós multi-ciclo: %s", _dex)
+
     conn = get_conn()
     try:
         with conn.cursor() as cur:
