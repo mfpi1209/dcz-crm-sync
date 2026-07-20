@@ -368,6 +368,8 @@ register_aceite_reconcile(scheduler)
 register_responsible_history_job(scheduler)
 register_funnel_cache_job(scheduler)
 register_dist_comercial_schedule_job(scheduler)
+from routes.conversao_backfill import register_conversao_backfill_job
+register_conversao_backfill_job(scheduler)
 
 # ── Entrypoint ────────────────────────────────────────────────────────────
 
