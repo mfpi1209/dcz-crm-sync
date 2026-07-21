@@ -56,23 +56,15 @@ class SessaoExpirada(RuntimeError):
 # ---------- Cookie loader ----------
 
 def _load_cookie_academico() -> str:
-    """Busca o cookie do modulo Academico no servidor de sessao remoto.
-    Raises SessaoExpirada se nao configurado ou nao houver cookie."""
-    session_url = (os.environ.get("SIAA_SESSION_URL", "") or "").strip().rstrip("/")
-    tok = (os.environ.get("SIAA_SESSION_TOKEN", "") or "").strip()
-    if not session_url:
-        raise SessaoExpirada("SIAA_SESSION_URL nao configurado. " + SESSAO_EXPIRADA_MSG)
+    """Carrega o cookie Academico usando a mesma cadeia de fallbacks do Consulta SIAA
+    (servidor remoto -> env -> arquivo). Isso garante paridade de comportamento em prod."""
     try:
-        headers = {}
-        if tok:
-            headers["Authorization"] = f"Bearer {tok}"
-        r = requests.get(f"{session_url}/session/academico", headers=headers, timeout=10)
-        if r.status_code != 200:
-            raise SessaoExpirada()
-        cookie = ((r.json() or {}).get("cookie") or "").strip()
-        if not cookie:
-            raise SessaoExpirada()
-        return cookie
+        # reusar a funcao ja usada pelo Consulta SIAA para 100% de paridade
+        from siaa.siaa_http_client import _load_cookie_header
+        cookie = (_load_cookie_header("academico") or "").strip()
+        if cookie:
+            return cookie
+        raise SessaoExpirada()
     except SessaoExpirada:
         raise
     except Exception as e:
