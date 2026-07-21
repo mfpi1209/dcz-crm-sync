@@ -121,7 +121,7 @@ from db import get_conn as _nav_get_conn
 # solicitacoes_ti = formulário de chamados de TI (qualquer pessoa pode abrir ticket).
 _NAV_ALWAYS = ("avisos", "profile", "solicitacoes_ti")
 # Páginas restritas a admin — nunca visíveis para outros perfis, mesmo com permissão explícita.
-_NAV_ADMIN_ONLY = frozenset({"siaa_consulta", "siaa_sessao"})
+_NAV_ADMIN_ONLY = frozenset({"siaa_consulta", "siaa_sessao", "match_inadimplentes", "materias_alunos"})
 # Conjunto completo conhecido pelo front (PAGES no utils.js + páginas pessoais)
 _NAV_KNOWN_PAGES = sorted(set(_NAV_ALL_PAGES) | set(_NAV_ALWAYS) | {"dashboard"})
 
@@ -256,6 +256,8 @@ from routes.page_views import page_views_bp
 from routes.solicitacoes_ti import solicitacoes_ti_bp
 from routes.captacao import captacao_bp
 from routes.siaa import siaa_bp
+from routes.match_inadimplentes import match_inadimplentes_bp
+from routes.materias_alunos import materias_alunos_bp
 from routes.dist_comercial_schedule import (
     dist_comercial_schedule_bp,
     register_dist_comercial_schedule_job,
@@ -287,6 +289,8 @@ app.register_blueprint(page_views_bp)
 app.register_blueprint(solicitacoes_ti_bp)
 app.register_blueprint(captacao_bp)
 app.register_blueprint(siaa_bp)
+app.register_blueprint(match_inadimplentes_bp)
+app.register_blueprint(materias_alunos_bp)
 app.register_blueprint(dist_comercial_schedule_bp)
 
 # ── Atualizar Preço — rotas do webapp standalone integrado ────────────────
@@ -328,6 +332,7 @@ from db import (
     _ensure_funnel_log_table,
     _ensure_premiacao_tables,
     _ensure_premiacao_interna_tables,
+    _ensure_materias_alunos_tables,
     _ensure_pix_nivel_tables,
     _ensure_pix_faixa_tables,
     _ensure_suporte_tables,
@@ -349,6 +354,7 @@ _ensure_page_views_table()
 _ensure_funnel_log_table()
 _ensure_premiacao_tables()
 _ensure_premiacao_interna_tables()
+_ensure_materias_alunos_tables()
 _ensure_pix_nivel_tables()
 _ensure_pix_faixa_tables()
 _ensure_suporte_tables()

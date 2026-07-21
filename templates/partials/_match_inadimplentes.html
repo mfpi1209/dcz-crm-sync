@@ -1,0 +1,509 @@
+<div id="page-match_inadimplentes" class="hidden">
+<style>
+#page-match_inadimplentes { padding: 0; }
+
+#page-match_inadimplentes {
+    --bg: #f1f5f9;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --hover-row: #fafafa;
+    --primary: #4f46e5;
+    --primary-light: #e0e7ff;
+    --success: #16a34a;
+    --success-light: #dcfce7;
+    --warning: #d97706;
+    --warning-light: #fef3c7;
+    --danger: #dc2626;
+    --danger-light: #fee2e2;
+    --neutral: #64748b;
+    --neutral-light: #e2e8f0;
+}
+.dark #page-match_inadimplentes {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --border: #334155;
+    --text: #f1f5f9;
+    --text-muted: #94a3b8;
+    --hover-row: #263348;
+    --primary: #6366f1;
+    --primary-light: #1e1b4b;
+    --success: #4ade80;
+    --success-light: rgba(34,197,94,.15);
+    --warning: #fbbf24;
+    --warning-light: rgba(251,191,36,.15);
+    --danger: #f87171;
+    --danger-light: rgba(248,113,113,.15);
+    --neutral: #94a3b8;
+    --neutral-light: rgba(148,163,184,.15);
+}
+
+#page-match_inadimplentes .mi-wrap { padding: 24px; background: var(--bg); min-height: 100%; color: var(--text); }
+#page-match_inadimplentes .mi-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+#page-match_inadimplentes .mi-title { font-size: 22px; font-weight: 700; color: var(--text); margin: 0; }
+#page-match_inadimplentes .mi-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+#page-match_inadimplentes .mi-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+}
+#page-match_inadimplentes .mi-card h3 {
+    font-size: 14px; font-weight: 700; color: var(--text);
+    margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px;
+}
+
+#page-match_inadimplentes .mi-uploads {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+}
+@media (max-width: 900px) {
+    #page-match_inadimplentes .mi-uploads { grid-template-columns: 1fr; }
+}
+#page-match_inadimplentes .mi-drop {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 20px 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: all .15s ease;
+    background: var(--card);
+    color: var(--text-muted);
+}
+#page-match_inadimplentes .mi-drop:hover,
+#page-match_inadimplentes .mi-drop.dragover {
+    border-color: var(--primary);
+    background: var(--primary-light);
+    color: var(--text);
+}
+#page-match_inadimplentes .mi-drop.filled {
+    border-color: var(--success);
+    background: var(--success-light);
+    color: var(--text);
+}
+#page-match_inadimplentes .mi-drop .mi-drop-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+#page-match_inadimplentes .mi-drop .mi-drop-hint { font-size: 12px; }
+#page-match_inadimplentes .mi-drop .mi-drop-file { font-size: 12px; font-weight: 600; margin-top: 6px; word-break: break-all; }
+
+#page-match_inadimplentes .mi-filters {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+}
+#page-match_inadimplentes .mi-filter-label { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+#page-match_inadimplentes .mi-radio-group { display: inline-flex; background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+#page-match_inadimplentes .mi-radio-group label {
+    padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text-muted);
+    border-right: 1px solid var(--border);
+}
+#page-match_inadimplentes .mi-radio-group label:last-child { border-right: none; }
+#page-match_inadimplentes .mi-radio-group input { display: none; }
+#page-match_inadimplentes .mi-radio-group input:checked + label,
+#page-match_inadimplentes .mi-radio-group label:has(input:checked) {
+    background: var(--primary); color: #fff;
+}
+
+#page-match_inadimplentes .mi-btn {
+    padding: 9px 16px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;
+    border: 1px solid transparent; transition: all .15s ease; display: inline-flex; align-items: center; gap: 6px;
+}
+#page-match_inadimplentes .mi-btn-primary { background: var(--primary); color: #fff; }
+#page-match_inadimplentes .mi-btn-primary:hover { filter: brightness(1.08); }
+#page-match_inadimplentes .mi-btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+#page-match_inadimplentes .mi-btn-secondary { background: var(--card); color: var(--text); border-color: var(--border); }
+#page-match_inadimplentes .mi-btn-secondary:hover { background: var(--hover-row); }
+#page-match_inadimplentes .mi-btn-secondary:disabled { opacity: .5; cursor: not-allowed; }
+
+#page-match_inadimplentes .mi-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+#page-match_inadimplentes .mi-stats { display: flex; gap: 12px; flex-wrap: wrap; margin: 8px 0 12px; }
+#page-match_inadimplentes .mi-stat {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 14px; min-width: 130px;
+}
+#page-match_inadimplentes .mi-stat .mi-stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
+#page-match_inadimplentes .mi-stat .mi-stat-val { font-size: 20px; font-weight: 700; color: var(--text); }
+
+#page-match_inadimplentes .mi-searchbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+#page-match_inadimplentes .mi-search-input {
+    background: var(--card); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px; font-size: 13px; min-width: 260px;
+}
+
+#page-match_inadimplentes .mi-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--card); }
+#page-match_inadimplentes table.mi-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+#page-match_inadimplentes table.mi-table th {
+    text-align: left; padding: 10px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--text-muted); background: var(--hover-row); border-bottom: 1px solid var(--border);
+    position: sticky; top: 0;
+}
+#page-match_inadimplentes table.mi-table td {
+    padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text);
+}
+#page-match_inadimplentes table.mi-table tr:hover td { background: var(--hover-row); }
+#page-match_inadimplentes table.mi-table tr:last-child td { border-bottom: none; }
+#page-match_inadimplentes .mi-empty { padding: 32px; text-align: center; color: var(--text-muted); font-size: 13px; }
+
+#page-match_inadimplentes .mi-pager { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; gap: 8px; }
+#page-match_inadimplentes .mi-pager .mi-page-info { font-size: 12px; color: var(--text-muted); }
+#page-match_inadimplentes .mi-pager .mi-page-btns { display: flex; gap: 6px; }
+
+#page-match_inadimplentes .mi-alert {
+    padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 12px;
+}
+#page-match_inadimplentes .mi-alert-error { background: var(--danger-light); color: var(--danger); border: 1px solid var(--danger); }
+#page-match_inadimplentes .mi-alert-info { background: var(--primary-light); color: var(--text); border: 1px solid var(--border); }
+
+#page-match_inadimplentes .mi-spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,.35); border-top-color: #fff;
+    border-radius: 50%; animation: mi-spin .6s linear infinite;
+}
+@keyframes mi-spin { to { transform: rotate(360deg); } }
+
+#page-match_inadimplentes .mi-skel-row td { padding: 10px 12px; }
+#page-match_inadimplentes .mi-skel-cell {
+    height: 12px; border-radius: 4px;
+    background: linear-gradient(90deg, var(--hover-row) 0%, var(--border) 50%, var(--hover-row) 100%);
+    background-size: 200% 100%;
+    animation: mi-shimmer 1.4s infinite;
+}
+@keyframes mi-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+</style>
+
+<div class="mi-wrap">
+    <div class="mi-topbar">
+        <div>
+            <h1 class="mi-title">Match Inadimplentes</h1>
+            <div class="mi-sub">Cruze inadimplentes SIAA x matriculados x leads DataCrazy para achar quem pode ser trabalhado.</div>
+        </div>
+    </div>
+
+    <div id="mi-alert" style="display:none"></div>
+
+    <!-- Uploads -->
+    <div class="mi-card">
+        <h3><span class="material-symbols-outlined text-base" style="color:var(--primary)">upload_file</span> Arquivos</h3>
+        <div class="mi-uploads">
+            <label class="mi-drop" data-key="inadimplentes" for="mi-file-inad">
+                <div class="mi-drop-title">Inadimplentes (SIAA)</div>
+                <div class="mi-drop-hint">Clique ou arraste um .xlsx</div>
+                <div class="mi-drop-file" id="mi-file-inad-name"></div>
+                <input type="file" id="mi-file-inad" accept=".xlsx" style="display:none">
+            </label>
+            <label class="mi-drop" data-key="matriculados" for="mi-file-matr">
+                <div class="mi-drop-title">Matriculados por polo</div>
+                <div class="mi-drop-hint">Clique ou arraste um .xlsx</div>
+                <div class="mi-drop-file" id="mi-file-matr-name"></div>
+                <input type="file" id="mi-file-matr" accept=".xlsx" style="display:none">
+            </label>
+            <label class="mi-drop" data-key="leads" for="mi-file-leads">
+                <div class="mi-drop-title">Leads DataCrazy</div>
+                <div class="mi-drop-hint">Clique ou arraste um .csv</div>
+                <div class="mi-drop-file" id="mi-file-leads-name"></div>
+                <input type="file" id="mi-file-leads" accept=".csv,text/csv" style="display:none">
+            </label>
+        </div>
+    </div>
+
+    <!-- Filtros + ações -->
+    <div class="mi-card">
+        <div class="mi-filters">
+            <span class="mi-filter-label">Filtro:</span>
+            <div class="mi-radio-group" id="mi-filtro">
+                <label><input type="radio" name="mi-filtro" value="ambos" checked>Ambos</label>
+                <label><input type="radio" name="mi-filtro" value="pos">Pós-graduação</label>
+                <label><input type="radio" name="mi-filtro" value="grad">Graduação</label>
+            </div>
+
+            <div style="flex:1"></div>
+
+            <div class="mi-actions">
+                <button class="mi-btn mi-btn-primary" id="mi-btn-processar" onclick="miProcessar()">
+                    <span class="material-symbols-outlined text-base">play_arrow</span>
+                    Processar
+                </button>
+                <button class="mi-btn mi-btn-secondary" id="mi-btn-exportar" onclick="miExportar()" disabled>
+                    <span class="material-symbols-outlined text-base">download</span>
+                    Exportar XLSX
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resultado -->
+    <div class="mi-card" id="mi-result-card" style="display:none">
+        <div class="mi-stats" id="mi-stats"></div>
+
+        <div class="mi-searchbar">
+            <input type="text" class="mi-search-input" id="mi-search" placeholder="Buscar por nome, RGM, telefone, curso, polo...">
+            <div class="mi-page-info" id="mi-count"></div>
+        </div>
+
+        <div class="mi-table-wrap">
+            <table class="mi-table">
+                <thead>
+                    <tr>
+                        <th>RGM</th>
+                        <th>Nome</th>
+                        <th>Curso</th>
+                        <th>Polo</th>
+                        <th>Telefone</th>
+                        <th>E-mail</th>
+                        <th style="text-align:right">Valor</th>
+                        <th style="text-align:right">Atraso</th>
+                        <th>Portador</th>
+                        <th>Lead ID</th>
+                    </tr>
+                </thead>
+                <tbody id="mi-tbody"></tbody>
+            </table>
+        </div>
+
+        <div class="mi-pager">
+            <div class="mi-page-info" id="mi-page-info"></div>
+            <div class="mi-page-btns">
+                <button class="mi-btn mi-btn-secondary" id="mi-prev" onclick="miPage(-1)">Anterior</button>
+                <button class="mi-btn mi-btn-secondary" id="mi-next" onclick="miPage(1)">Próxima</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const state = {
+        files: { inadimplentes: null, matriculados: null, leads: null },
+        rows: [],
+        filtered: [],
+        page: 1,
+        pageSize: 25,
+        lastFiltro: 'ambos',
+    };
+    window.__miState = state;
+
+    // Bloqueia o comportamento default de drag/drop em toda a pagina
+    // (evita o browser abrir/baixar o arquivo se o usuario soltar fora da zona)
+    const _miPage = document.getElementById('page-match_inadimplentes');
+    if (_miPage) {
+        ['dragover', 'drop'].forEach(ev => {
+            _miPage.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); });
+        });
+    }
+
+    // === Upload handlers ===
+    function setupDrop(key, inputId, nameId) {
+        const drop = document.querySelector(`#page-match_inadimplentes .mi-drop[data-key="${key}"]`);
+        const input = document.getElementById(inputId);
+        const nameEl = document.getElementById(nameId);
+        if (!drop || !input) return;
+        drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('dragover'); });
+        drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
+        drop.addEventListener('drop', e => {
+            e.preventDefault(); drop.classList.remove('dragover');
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                input.files = e.dataTransfer.files;
+                setFile(key, input.files[0], drop, nameEl);
+            }
+        });
+        input.addEventListener('change', () => {
+            if (input.files && input.files[0]) setFile(key, input.files[0], drop, nameEl);
+        });
+    }
+    function setFile(key, file, drop, nameEl) {
+        state.files[key] = file;
+        drop.classList.add('filled');
+        nameEl.textContent = file.name;
+    }
+
+    function miAlert(msg, kind) {
+        const el = document.getElementById('mi-alert');
+        if (!msg) { el.style.display = 'none'; el.textContent = ''; return; }
+        el.className = 'mi-alert ' + (kind === 'error' ? 'mi-alert-error' : 'mi-alert-info');
+        el.textContent = msg;
+        el.style.display = 'block';
+    }
+
+    function fmtBRL(v) {
+        try { return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+        catch { return v; }
+    }
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+            ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    function renderSkeleton(n) {
+        const tb = document.getElementById('mi-tbody');
+        tb.innerHTML = '';
+        for (let i = 0; i < n; i++) {
+            tb.insertAdjacentHTML('beforeend',
+                '<tr class="mi-skel-row">' +
+                '<td><div class="mi-skel-cell" style="width:60%"></div></td>'.repeat(10) +
+                '</tr>');
+        }
+    }
+
+    function renderRows() {
+        const tb = document.getElementById('mi-tbody');
+        const total = state.filtered.length;
+        const pages = Math.max(1, Math.ceil(total / state.pageSize));
+        if (state.page > pages) state.page = pages;
+        const start = (state.page - 1) * state.pageSize;
+        const slice = state.filtered.slice(start, start + state.pageSize);
+
+        if (!slice.length) {
+            tb.innerHTML = '<tr><td colspan="10"><div class="mi-empty">Nenhum registro encontrado.</div></td></tr>';
+        } else {
+            tb.innerHTML = slice.map(r => `
+                <tr>
+                    <td>${esc(r.rgm)}</td>
+                    <td>${esc(r.nome)}</td>
+                    <td>${esc(r.curso)}</td>
+                    <td>${esc(r.polo)}</td>
+                    <td>${esc(r.telefone)}</td>
+                    <td>${esc(r.email)}</td>
+                    <td style="text-align:right">${fmtBRL(r.valor)}</td>
+                    <td style="text-align:right">${esc(r.atraso)}</td>
+                    <td>${esc(r.portador)}</td>
+                    <td style="font-family:ui-monospace,monospace;font-size:11px">${esc(r.lead_id)}</td>
+                </tr>`).join('');
+        }
+        document.getElementById('mi-count').textContent = `${total} match${total === 1 ? '' : 'es'}`;
+        document.getElementById('mi-page-info').textContent = `Página ${state.page} de ${pages}`;
+        document.getElementById('mi-prev').disabled = state.page <= 1;
+        document.getElementById('mi-next').disabled = state.page >= pages;
+    }
+
+    function renderStats(stats) {
+        const box = document.getElementById('mi-stats');
+        const items = [
+            { l: 'Inadimplentes', v: stats.inadimplentes },
+            { l: 'Matriculados',  v: stats.matriculados },
+            { l: 'Leads',         v: stats.leads },
+            { l: 'Matches',       v: stats.matches },
+        ];
+        box.innerHTML = items.map(i =>
+            `<div class="mi-stat"><div class="mi-stat-label">${i.l}</div><div class="mi-stat-val">${i.v.toLocaleString('pt-BR')}</div></div>`
+        ).join('');
+    }
+
+    function applySearch() {
+        const q = (document.getElementById('mi-search').value || '').trim().toLowerCase();
+        if (!q) state.filtered = state.rows.slice();
+        else state.filtered = state.rows.filter(r =>
+            [r.rgm, r.nome, r.curso, r.polo, r.telefone, r.email, r.portador, r.lead_id]
+                .some(v => String(v == null ? '' : v).toLowerCase().includes(q)));
+        state.page = 1;
+        renderRows();
+    }
+
+    window.miPage = function(delta) {
+        state.page += delta;
+        renderRows();
+    };
+
+    function validateFiles() {
+        const missing = [];
+        if (!state.files.inadimplentes) missing.push('Inadimplentes');
+        if (!state.files.matriculados)  missing.push('Matriculados');
+        if (!state.files.leads)         missing.push('Leads DataCrazy');
+        if (missing.length) {
+            miAlert('Envie os arquivos: ' + missing.join(', '), 'error');
+            return false;
+        }
+        miAlert('', null);
+        return true;
+    }
+
+    function getFiltro() {
+        const el = document.querySelector('#mi-filtro input[name="mi-filtro"]:checked');
+        return el ? el.value : 'ambos';
+    }
+
+    window.miProcessar = async function() {
+        if (!validateFiles()) return;
+        const btn = document.getElementById('mi-btn-processar');
+        btn.disabled = true;
+        const label = btn.innerHTML;
+        btn.innerHTML = '<span class="mi-spinner"></span> Processando...';
+        document.getElementById('mi-result-card').style.display = '';
+        renderSkeleton(8);
+        document.getElementById('mi-stats').innerHTML = '';
+
+        try {
+            const fd = new FormData();
+            fd.append('inadimplentes', state.files.inadimplentes);
+            fd.append('matriculados',  state.files.matriculados);
+            fd.append('leads',         state.files.leads);
+            fd.append('filtro',        getFiltro());
+            const r = await fetch('/api/match-inadimplentes', { method: 'POST', body: fd, cache: 'no-store' });
+            const data = await r.json();
+            if (!r.ok || !data.ok) {
+                throw new Error(data.error || `HTTP ${r.status}`);
+            }
+            state.rows = data.rows || [];
+            state.filtered = state.rows.slice();
+            state.page = 1;
+            state.lastFiltro = getFiltro();
+            renderStats(data.stats || { inadimplentes: 0, matriculados: 0, leads: 0, matches: state.rows.length });
+            renderRows();
+            document.getElementById('mi-btn-exportar').disabled = state.rows.length === 0;
+        } catch (e) {
+            miAlert('Erro ao processar: ' + (e && e.message ? e.message : e), 'error');
+            document.getElementById('mi-result-card').style.display = 'none';
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = label;
+        }
+    };
+
+    window.miExportar = async function() {
+        if (!validateFiles()) return;
+        const btn = document.getElementById('mi-btn-exportar');
+        btn.disabled = true;
+        const label = btn.innerHTML;
+        btn.innerHTML = '<span class="mi-spinner"></span> Gerando...';
+        try {
+            const fd = new FormData();
+            fd.append('inadimplentes', state.files.inadimplentes);
+            fd.append('matriculados',  state.files.matriculados);
+            fd.append('leads',         state.files.leads);
+            fd.append('filtro',        getFiltro());
+            fd.append('export',        'xlsx');
+            const r = await fetch('/api/match-inadimplentes', { method: 'POST', body: fd, cache: 'no-store' });
+            if (!r.ok) {
+                let msg = `HTTP ${r.status}`;
+                try { const j = await r.json(); if (j.error) msg = j.error; } catch (_) {}
+                throw new Error(msg);
+            }
+            const blob = await r.blob();
+            const cd = r.headers.get('content-disposition') || '';
+            const m = /filename="?([^"]+)"?/.exec(cd);
+            const today = new Date().toISOString().slice(0, 10);
+            const filename = (m && m[1]) || `match_inadimplentes_${today}.xlsx`;
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click(); a.remove();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            miAlert('Erro ao exportar: ' + (e && e.message ? e.message : e), 'error');
+        } finally {
+            btn.disabled = state.rows.length === 0;
+            btn.innerHTML = label;
+        }
+    };
+
+    window.matchInadLoadPage = function() {
+        // Nada a auto-carregar; a pagina reage apenas aos uploads.
+    };
+
+    // Init
+    setupDrop('inadimplentes', 'mi-file-inad',  'mi-file-inad-name');
+    setupDrop('matriculados',  'mi-file-matr',  'mi-file-matr-name');
+    setupDrop('leads',         'mi-file-leads', 'mi-file-leads-name');
+    document.getElementById('mi-search').addEventListener('input', applySearch);
+})();
+</script>
+</div>

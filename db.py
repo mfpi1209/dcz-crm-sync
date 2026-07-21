@@ -1206,3 +1206,39 @@ def _ensure_premiacao_interna_tables():
         conn.close()
     except Exception as e:
         logger.warning("Could not ensure premiacao_interna tables: %s", e)
+
+
+def _ensure_materias_alunos_tables():
+    """Cria as tabelas materias_alunos e materias_alunos_consultas."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS materias_alunos (
+                    id            BIGSERIAL PRIMARY KEY,
+                    rgm           TEXT NOT NULL,
+                    aluno         TEXT,
+                    sigla         TEXT NOT NULL,
+                    disciplina    TEXT,
+                    resultado     TEXT,
+                    consultado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE (rgm, sigla)
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_materias_alunos_rgm ON materias_alunos (rgm)")
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS materias_alunos_consultas (
+                    rgm           TEXT PRIMARY KEY,
+                    aluno         TEXT,
+                    status        TEXT NOT NULL,
+                    mensagem      TEXT,
+                    qtd_materias  INTEGER NOT NULL DEFAULT 0,
+                    consultado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_mac_status ON materias_alunos_consultas (status)")
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure materias_alunos tables: %s", e)
