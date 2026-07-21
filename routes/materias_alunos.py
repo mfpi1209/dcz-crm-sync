@@ -466,9 +466,10 @@ def api_diag():
     )
     steps: list[dict] = []
     rgm_num = re.sub(r"\D", "", rgm)
+    T = 12  # timeout curto pra caber no timeout do proxy (Traefik/EasyPanel)
     try:
         s = _sessao_cookie(cookie)
-        r0 = s.get(CONS_JSF, params={"init": "true"}, headers=HDR_NAV, timeout=60, allow_redirects=False)
+        r0 = s.get(CONS_JSF, params={"init": "true"}, headers=HDR_NAV, timeout=T, allow_redirects=False)
         steps.append({
             "step": "GET init",
             "status": r0.status_code,
@@ -492,7 +493,7 @@ def api_diag():
                 f"&formPrincipal%3AfilterAluno={rgm_num}&formPrincipal%3AtabelaListaAlunos_rppDD=10"
                 "&formPrincipal%3AtipoEnade_focus=&formPrincipal%3AtipoEnade_input=1"
                 f"&javax.faces.ViewState={quote(vs, safe='')}")
-        rb = s.post(CONS_JSF, data=body, headers={**HDR_AJAX, "Referer": CONS_JSF + "?init=true"}, timeout=60, allow_redirects=False)
+        rb = s.post(CONS_JSF, data=body, headers={**HDR_AJAX, "Referer": CONS_JSF + "?init=true"}, timeout=T, allow_redirects=False)
         steps.append({
             "step": "POST buscar",
             "status": rb.status_code,

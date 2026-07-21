@@ -27,18 +27,39 @@ CONS_HIST = CONS_BASE + "/historico.xhtml"
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
        "(KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0")
 
-HDR_NAV = {
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+# Fingerprint de browser identico ao siaa_http_client (Consulta SIAA), que
+# funciona em producao. O SIAA/WAF exige esses headers para nao redirecionar.
+_BROWSER_BASE = {
     "User-Agent": _UA,
+    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+    "sec-ch-ua": '"Microsoft Edge";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+}
+
+HDR_NAV = {
+    **_BROWSER_BASE,
+    "Accept": ("text/html,application/xhtml+xml,application/xml;q=0.9,"
+               "image/avif,image/webp,image/apng,*/*;q=0.8"),
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
+    "Connection": "keep-alive",
     "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "same-origin",
+    "Sec-Fetch-User": "?1",
 }
 HDR_AJAX = {
+    **_BROWSER_BASE,
     "Accept": "application/xml, text/xml, */*; q=0.01",
     "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
     "Faces-Request": "partial/ajax",
     "Origin": "https://siaa.cruzeirodosul.edu.br",
-    "User-Agent": _UA,
     "X-Requested-With": "XMLHttpRequest",
+    "Sec-Fetch-Dest": "empty",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Site": "same-origin",
 }
 
 SESSAO_EXPIRADA_MSG = (
@@ -74,13 +95,17 @@ def _load_cookie_academico() -> str:
 # ---------- Helpers ----------
 
 def _sessao_cookie(cookie_str: str) -> requests.Session:
+    """Monta a sessao igual ao siaa_http_client (Consulta SIAA):
+    header Cookie bruto + cookies no jar com dominio amplo .cruzeirodosul.edu.br."""
     s = requests.Session()
-    s.headers.update({"User-Agent": _UA})
+    s.headers.update(_BROWSER_BASE)
+    # header Cookie bruto (garante envio de todos os cookies, igual ao que funciona)
+    s.headers["Cookie"] = cookie_str
     for parte in cookie_str.split(";"):
         parte = parte.strip()
         if "=" in parte:
             k, v = parte.split("=", 1)
-            s.cookies.set(k.strip(), v.strip(), domain=".siaa.cruzeirodosul.edu.br", path="/")
+            s.cookies.set(k.strip(), v.strip(), domain=".cruzeirodosul.edu.br")
     return s
 
 
