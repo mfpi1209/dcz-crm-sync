@@ -363,36 +363,27 @@ def _crgm_excluded_rgms(_unused=None) -> set:
 
 def _crgm_dashboard_rgm_list(dt_ini: str, dt_fim: str,
                               polo: str = None, nivel: str = None) -> list[str]:
-    """Retorna lista de RGMs únicos para o período, usando EXATAMENTE a mesma
-    fonte do Dashboard Comercial (comercial_rgm_atual + excluded_rgms +
-    conflict_resolucao). Garantia: total bate com 'Matrículas no Período' do Dash."""
+    """Retorna lista de RGMs únicos para o período, alinhada a Matrículas Oficiais
+    (all_snapshots=True, situacao_filter='EM CURSO'). Garante que o total bate com
+    o ranking e KPIs do Dashboard Comercial após a correção de ciclo."""
     dt_ini, dt_fim = _crgm_normalize_period(dt_ini, dt_fim)
     try:
         conn = _pg()
         excluded = _crgm_excluded_rgms(conn)
-        cur = conn.cursor()
-        extra = ""
-        params: list = [dt_ini, dt_fim]
-        if nivel:
-            extra += " AND nivel = %s"
-            params.append(nivel)
-        cur.execute(
-            f"SELECT rgm, polo FROM comercial_rgm_atual "
-            f"WHERE data_matricula BETWEEN %s AND %s{extra} "
-            "ORDER BY data_matricula DESC NULLS LAST",
-            params,
+        rows = _crgm_periodo_data_oficial(
+            dt_ini=dt_ini, dt_fim=dt_fim,
+            polo=polo, nivel=nivel, conn=conn,
+            situacao_filter="EM CURSO",
         )
+        conn.close()
+
         seen: set[str] = set()
         rgm_list: list[str] = []
-        for raw, polo_v in cur.fetchall():
-            if polo and normalize_polo_display(polo_v or "") != polo:
-                continue
-            n = _normalize_rgm(raw)
+        for row in rows:
+            n = _normalize_rgm(row.get("rgm"))
             if n and n not in seen and n not in excluded:
                 seen.add(n)
                 rgm_list.append(n)
-        cur.close()
-        conn.close()
 
         # Overrides de conflito manuais (mesmos do Dashboard Comercial)
         # — não afetam a lista de RGMs, só a atribuição ao usuário; retornamos
@@ -403,14 +394,29 @@ def _crgm_dashboard_rgm_list(dt_ini: str, dt_fim: str,
         return []
 
 
-def _crgm_periodo_data(dt_ini=None, dt_fim=None, polo=None, nivel=None, ciclo_filter=None, turma=None, conn=None):
+def _crgm_periodo_data(
+    dt_ini=None, dt_fim=None, polo=None, nivel=None, ciclo_filter=None, turma=None,
+    conn=None, *, all_snapshots=False, situacao_filter=None,
+):
     """
     Retorna TODOS os RGMs únicos do período (registro mais recente por id),
-    aplicando filtros de tipo_matricula, empresa e ciclo, mas SEM filtro de situação.
+    aplicando filtros de tipo_matricula, empresa e ciclo, mas SEM filtro de situação
+    por padrão.
     Retorna lista de dicts: {rgm, nome, situacao, data_matricula, polo, nivel, ciclo}
 
     Quando `conn` é fornecida, reutiliza a conexão (não abre/fecha). Caso contrário,
     abre uma conexão própria via _pg() e fecha ao final.
+
+    Parâmetros adicionais:
+    - all_snapshots (bool): se True, lê TODOS os snapshots 'matriculados' em vez de
+      apenas o mais recente, espelhando o dedupe de _fetch_agent_matriculas (Matrículas
+      Oficiais). Garante que alunos presentes em snapshots intermediários mas ausentes
+      do snapshot mais recente sejam incluídos. Padrão: False (comportamento anterior).
+    - situacao_filter (str | None): se fornecido (ex. 'EM CURSO'), filtra a camada
+      deduplicada pela situação exata (UPPER). Padrão: None (sem filtro de situação).
+    - Bypass de ciclo com datas: quando dt_ini ou dt_fim estão presentes, o recorte por
+      ciclo_atual_comercial NÃO é aplicado — o filtro de data é suficiente. Com
+      ciclo_filter explícito, aplica filtro textual de ciclo SIAA.
     """
     dt_ini, dt_fim = _crgm_normalize_period(dt_ini, dt_fim)
     _conn = None
@@ -446,8 +452,23 @@ def _crgm_periodo_data(dt_ini=None, dt_fim=None, polo=None, nivel=None, ciclo_fi
             outer_conds.append(
                 "ciclo IN (SELECT ciclo FROM ciclo_atual_comercial)"
             )
+        if situacao_filter:
+            outer_conds.append("situacao = %s")
+            params.append(situacao_filter.upper())
 
         outer_where = ("WHERE " + " AND ".join(outer_conds)) if outer_conds else ""
+
+        # Fonte de snapshots: só o mais recente (padrão) ou todos os snapshots
+        # matriculados (all_snapshots=True, alinha dedupe ao Matrículas Oficiais).
+        if all_snapshots:
+            snapshot_cond = "s.tipo = 'matriculados'"
+            # s.id DESC garante que, no DISTINCT ON, o snapshot mais recente tem
+            # prioridade quando dois snapshots contêm o mesmo RGM — espelhando o
+            # ORDER BY s.id DESC de _fetch_agent_matriculas.
+            snapshot_order = "s.id DESC,"
+        else:
+            snapshot_cond = "s.id = (SELECT id FROM xl_snapshots WHERE tipo = 'matriculados' ORDER BY id DESC LIMIT 1)"
+            snapshot_order = ""
 
         sql = f"""
             SELECT rgm, nome, situacao, data_matricula, polo, nivel, ciclo
@@ -474,13 +495,14 @@ def _crgm_periodo_data(dt_ini=None, dt_fim=None, polo=None, nivel=None, ciclo_fi
                     NULLIF(TRIM(COALESCE(r.data->>'curso','')), '')                AS turma
                 FROM xl_rows r
                 JOIN xl_snapshots s ON s.id = r.snapshot_id
-                WHERE s.id = (SELECT id FROM xl_snapshots WHERE tipo = 'matriculados' ORDER BY id DESC LIMIT 1)
+                WHERE {snapshot_cond}
                   AND COALESCE(r.data->>'rgm','') ~ '[0-9]'
                   AND UPPER(TRIM(COALESCE(r.data->>'tipo_matricula','')))
                       = ANY(ARRAY['NOVA MATRICULA','RECOMPRA','RETORNO'])
                   AND TRIM(COALESCE(r.data->>'empresa','')) ~ '^(12|7) -'
                 ORDER BY
                     regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g'),
+                    {snapshot_order}
                     -- Em transferências internas o aluno aparece 2x: prioriza
                     -- a linha que ainda está EM CURSO sobre TRANSFERIDO/CANCELADO.
                     CASE
@@ -535,6 +557,25 @@ def _crgm_periodo_data(dt_ini=None, dt_fim=None, polo=None, nivel=None, ciclo_fi
                 _conn.close()
             except Exception:
                 pass
+
+
+def _crgm_periodo_data_oficial(
+    dt_ini=None, dt_fim=None, polo=None, nivel=None,
+    ciclo_filter=None, turma=None, conn=None,
+    situacao_filter=None,
+):
+    """Universo alinhado a Matrículas Oficiais: usa all_snapshots=True para garantir
+    que RGMs presentes em qualquer snapshot 'matriculados' (não apenas o mais recente)
+    sejam incluídos. Quando há dt_ini ou dt_fim, o filtro por ciclo_atual_comercial é
+    bypassado automaticamente (já existia em _crgm_periodo_data). Use este helper em
+    todas as funções que devem bater com o total de Matrículas Oficiais.
+    """
+    return _crgm_periodo_data(
+        dt_ini=dt_ini, dt_fim=dt_fim, polo=polo, nivel=nivel,
+        ciclo_filter=ciclo_filter, turma=turma, conn=conn,
+        all_snapshots=True,
+        situacao_filter=situacao_filter,
+    )
 
 
 def comercial_periodo_vendas_resumo(dt_ini=None, dt_fim=None, polo=None, nivel=None):
@@ -2830,7 +2871,12 @@ def _build_agent_ranking_completa_vw(
     dt_ini=None, dt_fim=None, polo=None, nivel=None, ciclo=None, turma=None,
     excluded_rgms: set = None, crm_dt_ini=None, crm_dt_fim=None, conn=None,
 ):
-    """Matrículas em comercial_rgm_completa Ã— responsável em vw_leads_rgm. Sem match → transferencia/regresso.
+    """Matrículas (all_snapshots, alinhado a Matrículas Oficiais) × responsável em
+    vw_leads_rgm. Sem match → transferencia/regresso.
+
+    Fonte de matrículas: _crgm_periodo_data_oficial (all_snapshots=True, bypass de
+    ciclo_atual quando datas estão presentes). A view comercial_rgm_atual permanece
+    intacta para fins de congelamento de ciclo.
 
     Quando `conn` é fornecida, reutiliza a conexão Postgres principal (não abre/fecha).
     """
@@ -2840,52 +2886,30 @@ def _build_agent_ranking_completa_vw(
         conn = conn if conn is not None else _pg()
         if excluded_rgms is None:
             excluded_rgms = _crgm_excluded_rgms(conn)
-        cur = conn.cursor()
-        cw, cp = [], []
-        if polo:
-            cw.append(f"{_POLO_SQL} = %s")
-            cp.append(_normalize_polo(polo))
-        if nivel:
-            cw.append("nivel = %s")
-            cp.append(nivel)
-        if dt_ini:
-            cw.append("data_matricula >= %s")
-            cp.append(dt_ini)
-        if dt_fim:
-            cw.append("data_matricula <= %s")
-            cp.append(dt_fim)
-        if ciclo:
-            cw.append("ciclo = %s")
-            cp.append(ciclo)
-        if turma:
-            cw.append("turma = %s")
-            cp.append(turma)
-        w = "WHERE " + " AND ".join(cw) if cw else ""
-        cur.execute(
-            f"SELECT rgm, nome, polo, data_matricula FROM comercial_rgm_atual {w}  ORDER BY data_matricula DESC NULLS LAST",
-            cp,
+
+        # Substitui SELECT FROM comercial_rgm_atual por _crgm_periodo_data_oficial
+        # com situacao_filter='EM CURSO' (a view já filtrava só EM CURSO).
+        _pd_rows = _crgm_periodo_data_oficial(
+            dt_ini=dt_ini, dt_fim=dt_fim, polo=polo, nivel=nivel,
+            ciclo_filter=ciclo, turma=turma, conn=conn,
+            situacao_filter="EM CURSO",
         )
         rgm_nome = {}
         rgm_date_map = {}      # rgm → 'YYYY-MM-DD', para matriculas_grid (EM CURSO)
         rgm_date_map_all = {}  # rgm → 'YYYY-MM-DD', todos incl. excluídos (para bruto)
-        for rgm, nome, _polo, _dm in cur.fetchall():
-            n = _normalize_rgm(rgm)
+        for _row in _pd_rows:
+            n = _normalize_rgm(_row.get("rgm"))
             if not n:
                 continue
+            _dm_str = _row.get("data_matricula")
             # Captura data de TODOS os RGMs (incluindo excluídos) para o grid bruto
-            if _dm is not None and n not in rgm_date_map_all:
-                try:
-                    rgm_date_map_all[n] = _dm.isoformat()[:10] if hasattr(_dm, 'isoformat') else str(_dm)[:10]
-                except Exception:
-                    pass
+            if _dm_str and n not in rgm_date_map_all:
+                rgm_date_map_all[n] = str(_dm_str)[:10]
             if n in rgm_nome or n in excluded_rgms:
                 continue
-            rgm_nome[n] = (nome or "").strip()
-            if _dm is not None:
-                try:
-                    rgm_date_map[n] = _dm.isoformat()[:10] if hasattr(_dm, 'isoformat') else str(_dm)[:10]
-                except Exception:
-                    pass
+            rgm_nome[n] = (_row.get("nome") or "").strip()
+            if _dm_str:
+                rgm_date_map[n] = str(_dm_str)[:10]
 
         # Regra de recuperação (janela ancorada no início da meta = dia 01 do mês):
         # inclui alunos que estavam EM CURSO em QUALQUER relatório enviado a partir do
@@ -2936,9 +2960,11 @@ def _build_agent_ranking_completa_vw(
             if nivel:
                 supp_cw.append(f"{_NIVEL_CASE} = %s")
                 supp_cp.append(nivel)
-            if ciclo:
-                # Ciclo manual: remove o filtro automático e adiciona o manual
+            # Quando há ciclo manual ou filtro de datas, bypass do filtro automático
+            # ciclo_atual_comercial (datas já limitam o escopo sem precisar do ciclo atual).
+            if ciclo or dt_ini or dt_fim:
                 supp_cw = [c for c in supp_cw if 'ciclo_atual_comercial' not in c]
+            if ciclo:
                 supp_cw.append("trim(coalesce(r.data->>'ciclo','')) = %s")
                 supp_cp.append(ciclo)
             if turma:
@@ -3001,7 +3027,6 @@ def _build_agent_ranking_completa_vw(
                 logger.warning("ranking supp cancelados: %s", _se)
 
         mat_rows = list(rgm_nome.items())
-        cur.close()
         if _own_conn:
             conn.close()
 
@@ -3514,7 +3539,17 @@ def _crgm_compute_kpis(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -> d
     conn = _pg()
     cur  = conn.cursor()
 
-    ciclo_all = _crgm_periodo_data(polo=polo or None, nivel=nivel or None, conn=conn)
+    if _pd_dt_ini or _pd_dt_fim:
+        ciclo_all = _crgm_periodo_data_oficial(
+            dt_ini=_pd_dt_ini, dt_fim=_pd_dt_fim,
+            polo=polo or None, nivel=nivel or None,
+            turma=turma_nome or None, conn=conn,
+        )
+    else:
+        ciclo_all = _crgm_periodo_data_oficial(
+            polo=polo or None, nivel=nivel or None,
+            turma=turma_nome or None, conn=conn,
+        )
     _lap("ciclo_all_xl_rows")
 
     (
@@ -3816,7 +3851,17 @@ def _crgm_compute_agentes(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -
 
     # Minimal setup: só precisa de _excluded para passar ao ranking
     conn = _pg()
-    ciclo_all = _crgm_periodo_data(polo=polo or None, nivel=nivel or None, conn=conn)
+    if _pd_dt_ini or _pd_dt_fim:
+        ciclo_all = _crgm_periodo_data_oficial(
+            dt_ini=_pd_dt_ini, dt_fim=_pd_dt_fim,
+            polo=polo or None, nivel=nivel or None,
+            turma=turma_nome or None, conn=conn,
+        )
+    else:
+        ciclo_all = _crgm_periodo_data_oficial(
+            polo=polo or None, nivel=nivel or None,
+            turma=turma_nome or None, conn=conn,
+        )
     _lap("ciclo_all_xl_rows")
 
     _periodo_rows = []
@@ -4065,8 +4110,18 @@ def _crgm_compute_grids(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -> 
 
     _pd_dt_ini, _pd_dt_fim = _crgm_resolve_ciclo_pd_dates(ciclo_nome, turma_nome, dt_ini, dt_fim)
 
-    conn      = _pg()
-    ciclo_all = _crgm_periodo_data(polo=polo or None, nivel=nivel or None, conn=conn)
+    conn = _pg()
+    if _pd_dt_ini or _pd_dt_fim:
+        ciclo_all = _crgm_periodo_data_oficial(
+            dt_ini=_pd_dt_ini, dt_fim=_pd_dt_fim,
+            polo=polo or None, nivel=nivel or None,
+            turma=turma_nome or None, conn=conn,
+        )
+    else:
+        ciclo_all = _crgm_periodo_data_oficial(
+            polo=polo or None, nivel=nivel or None,
+            turma=turma_nome or None, conn=conn,
+        )
     _lap("ciclo_all_xl_rows")
 
     _periodo_rows = []
@@ -5441,6 +5496,67 @@ def crgm_rgm_atribuicao():
                 "ciclo": row[5],
                 "tipo_matricula": row[6],
             }
+        # Fallback: quando não encontrado na view (ciclo diferente do atual), busca em
+        # todos os snapshots matriculados via DISTINCT ON (mesmo dedupe de Matrículas Oficiais).
+        if academico is None:
+            try:
+                cur.execute("""
+                    SELECT nome, polo, data_matricula, situacao, nivel, ciclo, tipo_matricula
+                    FROM (
+                        SELECT DISTINCT ON (regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g'))
+                            NULLIF(TRIM(COALESCE(r.data->>'nome','')), '')                  AS nome,
+                            TRIM(regexp_replace(COALESCE(r.data->>'polo',''), '^[0-9]+\\s*[-]\\s*', '')) AS polo,
+                            CASE
+                                WHEN (r.data->>'data_mat') ~ E'^\\d{2}/\\d{2}/\\d{4}$'
+                                    THEN to_date(r.data->>'data_mat','DD/MM/YYYY')
+                                WHEN (r.data->>'data_mat') ~ E'^\\d{4}-\\d{2}-\\d{2}'
+                                    THEN (r.data->>'data_mat')::date
+                                ELSE NULL
+                            END AS data_matricula,
+                            UPPER(TRIM(COALESCE(r.data->>'situacao','')))   AS situacao,
+                            CASE
+                                WHEN COALESCE(r.data->>'nivel','')   ~* 'p[oó]s'                                         THEN 'Pós-Graduação'
+                                WHEN COALESCE(r.data->>'negocio','') ~* 'p[oó]s'                                         THEN 'Pós-Graduação'
+                                WHEN COALESCE(r.data->>'curso','')   ~* '(mba|especializa|p.s.gradua|lato.sensu|stricto)' THEN 'Pós-Graduação'
+                                ELSE 'Graduação'
+                            END AS nivel,
+                            NULLIF(TRIM(COALESCE(r.data->>'ciclo','')), '') AS ciclo,
+                            UPPER(TRIM(COALESCE(r.data->>'tipo_matricula',''))) AS tipo_matricula
+                        FROM xl_rows r
+                        JOIN xl_snapshots s ON s.id = r.snapshot_id
+                        WHERE s.tipo = 'matriculados'
+                          AND regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g') = %s
+                          AND UPPER(TRIM(COALESCE(r.data->>'tipo_matricula','')))
+                              = ANY(ARRAY['NOVA MATRICULA','RECOMPRA','RETORNO'])
+                          AND TRIM(COALESCE(r.data->>'empresa','')) ~ '^(12|7) -'
+                        ORDER BY
+                            regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g'),
+                            s.id DESC,
+                            CASE WHEN UPPER(TRIM(COALESCE(r.data->>'situacao',''))) = 'EM CURSO' THEN 0
+                                 WHEN UPPER(TRIM(COALESCE(r.data->>'situacao',''))) IN ('TRANCADO','SEM EVOLUCAO','SEM EVOLUÇÃO') THEN 1
+                                 ELSE 2 END,
+                            CASE WHEN (r.data->>'data_mat') ~ E'^\\d{2}/\\d{2}/\\d{4}$'
+                                     THEN to_date(r.data->>'data_mat','DD/MM/YYYY')
+                                 WHEN (r.data->>'data_mat') ~ E'^\\d{4}-\\d{2}-\\d{2}'
+                                     THEN (r.data->>'data_mat')::date
+                                 ELSE NULL END DESC NULLS LAST,
+                            r.id DESC
+                    ) sub
+                    LIMIT 1
+                """, (rgm_n,))
+                fb = cur.fetchone()
+                if fb:
+                    academico = {
+                        "nome": fb[0],
+                        "polo": fb[1],
+                        "data_matricula": fb[2].isoformat() if fb[2] else None,
+                        "situacao": fb[3],
+                        "nivel": fb[4],
+                        "ciclo": fb[5],
+                        "tipo_matricula": fb[6],
+                    }
+            except Exception as _fb_e:
+                logger.warning("rgm-atribuicao fallback all_snapshots: %s", _fb_e)
         cur.execute(
             """
             SELECT user_id, user_name, resolved_by, resolved_at

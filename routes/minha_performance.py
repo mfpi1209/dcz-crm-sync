@@ -39,12 +39,19 @@ logger = logging.getLogger(__name__)
 
 minha_performance_bp = Blueprint("minha_performance", __name__)
 
+# Timeout de conexão: sem isso, psycopg2.connect() pode ficar pendurado
+# indefinidamente quando o Postgres está saturado/indisponível, e a requisição
+# HTTP trava até o gateway cortar — o browser mostra "Failed to fetch".
+# Com o timeout a conexão falha rápido e o handler devolve JSON de erro.
+_PG_CONNECT_TIMEOUT = int(os.getenv("DB_CONNECT_TIMEOUT", "10"))
+
 DB_DSN = dict(
     host=os.getenv("DB_HOST", "localhost"),
     port=os.getenv("DB_PORT", "5432"),
     user=os.getenv("DB_USER"),
     password=os.getenv("DB_PASS"),
     dbname=os.getenv("DB_NAME", "dcz_sync"),
+    connect_timeout=_PG_CONNECT_TIMEOUT,
 )
 
 KOMMO_DB_DSN = dict(
@@ -53,6 +60,7 @@ KOMMO_DB_DSN = dict(
     user=os.getenv("KOMMO_PG_USER", os.getenv("DB_USER")),
     password=os.getenv("KOMMO_PG_PASS", os.getenv("DB_PASS")),
     dbname=os.getenv("KOMMO_PG_DB", "kommo_sync"),
+    connect_timeout=_PG_CONNECT_TIMEOUT,
 )
 
 
@@ -62,6 +70,22 @@ def _pg():
 
 def _pg_kommo():
     return psycopg2.connect(**KOMMO_DB_DSN)
+
+
+def _pg_safe_close(cur=None, conn=None):
+    """Fecha cursor/conexão sem levantar exceção — usar em finally para não
+    vazar conexões do Postgres nas rotas (vazamento esgota max_connections e
+    faz requisições futuras travarem → 'Failed to fetch' no browser)."""
+    try:
+        if cur is not None:
+            cur.close()
+    except Exception:
+        pass
+    try:
+        if conn is not None:
+            conn.close()
+    except Exception:
+        pass
 
 
 def _normalize_rgm(val):
@@ -3811,6 +3835,8 @@ def api_minhas_mat_list():
     view_user_id, kommo_uid = _resolve_agent_view_context(request.args.get("kommo_uid", type=int))
     if not view_user_id:
         return jsonify({"ok": False, "error": "Não autenticado"}), 401
+    conn = None
+    cur = None
     try:
         conn = _pg()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -3841,12 +3867,12 @@ def api_minhas_mat_list():
                 (view_user_id,),
             )
         rows = [dict(r) for r in cur.fetchall()]
-        cur.close()
-        conn.close()
         return jsonify({"ok": True, "matriculas": rows})
     except Exception as e:
         logger.error("minhas-matriculas list: %s", e)
         return jsonify({"ok": False, "error": str(e)}), 500
+    finally:
+        _pg_safe_close(cur, conn)
 
 
 @minha_performance_bp.route("/api/minha-performance/minhas-matriculas", methods=["POST"])
@@ -3854,8 +3880,10 @@ def api_minhas_mat_create():
     user_id, kommo_uid = _get_agent_user_id()
     if not user_id:
         return jsonify({"error": "Não autenticado"}), 401
-    b = request.get_json(force=True)
+    conn = None
+    cur = None
     try:
+        b = request.get_json(force=True) or {}
         conn = _pg()
         cur = conn.cursor()
         cur.execute("""
@@ -3875,11 +3903,12 @@ def api_minhas_mat_create():
         ))
         new_id = cur.fetchone()[0]
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"ok": True, "id": new_id})
     except Exception as e:
+        logger.error("minhas-matriculas create: %s", e)
         return jsonify({"ok": False, "error": str(e)}), 500
+    finally:
+        _pg_safe_close(cur, conn)
 
 
 @minha_performance_bp.route("/api/minha-performance/minhas-matriculas/<int:mid>", methods=["PUT"])
@@ -3887,17 +3916,17 @@ def api_minhas_mat_update(mid):
     user_id, _ = _get_agent_user_id()
     if not user_id:
         return jsonify({"error": "Não autenticado"}), 401
-    b = request.get_json(force=True)
+    conn = None
+    cur = None
     try:
+        b = request.get_json(force=True) or {}
         conn = _pg()
         cur = conn.cursor()
         cur.execute("SELECT user_id FROM agent_matriculas WHERE id = %s", (mid,))
         row = cur.fetchone()
         if not row:
-            cur.close(); conn.close()
             return jsonify({"ok": False, "error": "Não encontrado"}), 404
         if row[0] != user_id and not _is_admin():
-            cur.close(); conn.close()
             return jsonify({"ok": False, "error": "Sem permissão"}), 403
         cur.execute("""
             UPDATE agent_matriculas SET rgm=%s, nome=%s, curso=%s, polo=%s, data_matricula=%s,
@@ -3916,11 +3945,12 @@ def api_minhas_mat_update(mid):
             mid,
         ))
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"ok": True})
     except Exception as e:
+        logger.error("minhas-matriculas update: %s", e)
         return jsonify({"ok": False, "error": str(e)}), 500
+    finally:
+        _pg_safe_close(cur, conn)
 
 
 @minha_performance_bp.route("/api/minha-performance/minhas-matriculas/<int:mid>", methods=["DELETE"])
@@ -3928,24 +3958,25 @@ def api_minhas_mat_delete(mid):
     user_id, _ = _get_agent_user_id()
     if not user_id:
         return jsonify({"error": "Não autenticado"}), 401
+    conn = None
+    cur = None
     try:
         conn = _pg()
         cur = conn.cursor()
         cur.execute("SELECT user_id FROM agent_matriculas WHERE id = %s", (mid,))
         row = cur.fetchone()
         if not row:
-            cur.close(); conn.close()
             return jsonify({"ok": False, "error": "Não encontrado"}), 404
         if row[0] != user_id and not _is_admin():
-            cur.close(); conn.close()
             return jsonify({"ok": False, "error": "Sem permissão"}), 403
         cur.execute("DELETE FROM agent_matriculas WHERE id = %s", (mid,))
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"ok": True})
     except Exception as e:
+        logger.error("minhas-matriculas delete: %s", e)
         return jsonify({"ok": False, "error": str(e)}), 500
+    finally:
+        _pg_safe_close(cur, conn)
 
 
 # ══════════════════════════════════════════════════════════════════════════
