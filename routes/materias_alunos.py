@@ -436,6 +436,36 @@ def api_status():
     return jsonify({"ok": True, "job": snap})
 
 
+@materias_alunos_bp.route("/api/materias-alunos/diag", methods=["GET"])
+def api_diag():
+    """Diagnostica a leitura do cookie SIAA Academico (admin-only)."""
+    fb = _forbidden()
+    if fb: return fb
+    session_url = (os.environ.get("SIAA_SESSION_URL", "") or "").strip().rstrip("/")
+    tok = (os.environ.get("SIAA_SESSION_TOKEN", "") or "").strip()
+    info = {
+        "SIAA_SESSION_URL": session_url or None,
+        "SIAA_SESSION_TOKEN_len": len(tok),
+    }
+    if not session_url:
+        return jsonify({"ok": False, "step": "env", "info": info, "error": "SIAA_SESSION_URL vazio"}), 500
+    try:
+        headers = {"Authorization": f"Bearer {tok}"} if tok else {}
+        r = requests.get(f"{session_url}/session/academico", headers=headers, timeout=15)
+        info["http_status"] = r.status_code
+        info["body_preview"] = (r.text or "")[:400]
+        try:
+            j = r.json()
+            info["cookie_len"] = len((j or {}).get("cookie") or "")
+        except Exception:
+            info["cookie_len"] = 0
+        info["ok"] = r.status_code == 200 and info["cookie_len"] > 0
+        return jsonify({"ok": info["ok"], "info": info}), (200 if info["ok"] else 502)
+    except Exception as e:
+        info["exception"] = f"{type(e).__name__}: {e}"
+        return jsonify({"ok": False, "step": "request", "info": info}), 502
+
+
 @materias_alunos_bp.route("/api/materias-alunos/cancel", methods=["POST"])
 def api_cancel():
     fb = _forbidden()
