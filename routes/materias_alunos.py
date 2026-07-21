@@ -438,7 +438,8 @@ def api_status():
 
 @materias_alunos_bp.route("/api/materias-alunos/diag", methods=["GET"])
 def api_diag():
-    """Diagnostica a leitura do cookie SIAA Academico (admin-only)."""
+    """Diagnostica a leitura do cookie SIAA Academico (admin-only).
+    Passar ?rgm=XXXX faz uma chamada real ao SIAA para ver onde falha."""
     fb = _forbidden()
     if fb: return fb
     info = {
@@ -449,13 +450,87 @@ def api_diag():
         cookie = _load_cookie_academico()
         info["cookie_len"] = len(cookie)
         info["cookie_preview"] = cookie[:120]
-        return jsonify({"ok": True, "info": info})
     except SessaoExpirada as e:
         info["error"] = str(e)
         return jsonify({"ok": False, "info": info}), 502
+
+    rgm = _s(request.args.get("rgm"))
+    if not rgm:
+        return jsonify({"ok": True, "info": info, "hint": "passe ?rgm=NNNN para testar chamada real ao SIAA"})
+
+    # Chamada instrumentada ao SIAA
+    from urllib.parse import quote
+    from siaa.materias_alunos_client import (
+        _sessao_cookie, _viewstate, _turmas, _parse_grid, _redirecionou,
+        CONS_JSF, CONS_HIST, HDR_NAV, HDR_AJAX,
+    )
+    steps: list[dict] = []
+    rgm_num = re.sub(r"\D", "", rgm)
+    try:
+        s = _sessao_cookie(cookie)
+        r0 = s.get(CONS_JSF, params={"init": "true"}, headers=HDR_NAV, timeout=60, allow_redirects=False)
+        steps.append({
+            "step": "GET init",
+            "status": r0.status_code,
+            "location": r0.headers.get("Location"),
+            "content_type": r0.headers.get("Content-Type"),
+            "len": len(r0.text or ""),
+            "redirected": _redirecionou(r0),
+            "body_preview": (r0.text or "")[:400],
+        })
+        if _redirecionou(r0):
+            return jsonify({"ok": False, "info": info, "steps": steps, "diag": "redirect no GET init"}), 502
+        vs = _viewstate(r0.text)
+        steps[-1]["has_viewstate"] = bool(vs)
+        if not vs:
+            return jsonify({"ok": False, "info": info, "steps": steps, "diag": "sem ViewState no GET init"}), 502
+
+        body = ("javax.faces.partial.ajax=true&javax.faces.source=formPrincipal%3AbtnBuscar"
+                "&javax.faces.partial.execute=%40all&javax.faces.partial.render=formPrincipal"
+                "&formPrincipal%3AbtnBuscar=formPrincipal%3AbtnBuscar&formPrincipal=formPrincipal"
+                f"&formPrincipal%3Aempresas_focus=&formPrincipal%3Aempresas_input=12"
+                f"&formPrincipal%3AfilterAluno={rgm_num}&formPrincipal%3AtabelaListaAlunos_rppDD=10"
+                "&formPrincipal%3AtipoEnade_focus=&formPrincipal%3AtipoEnade_input=1"
+                f"&javax.faces.ViewState={quote(vs, safe='')}")
+        rb = s.post(CONS_JSF, data=body, headers={**HDR_AJAX, "Referer": CONS_JSF + "?init=true"}, timeout=60, allow_redirects=False)
+        steps.append({
+            "step": "POST buscar",
+            "status": rb.status_code,
+            "location": rb.headers.get("Location"),
+            "content_type": rb.headers.get("Content-Type"),
+            "len": len(rb.text or ""),
+            "redirected": _redirecionou(rb),
+            "body_preview": (rb.text or "")[:400],
+        })
+        if _redirecionou(rb):
+            return jsonify({"ok": False, "info": info, "steps": steps, "diag": "redirect no POST buscar"}), 502
+
+        rh = s.get(CONS_HIST, headers={**HDR_NAV, "Referer": CONS_JSF, "Sec-Fetch-Dest": "iframe"}, timeout=60, allow_redirects=False)
+        steps.append({
+            "step": "GET historico",
+            "status": rh.status_code,
+            "location": rh.headers.get("Location"),
+            "content_type": rh.headers.get("Content-Type"),
+            "len": len(rh.text or ""),
+            "redirected": _redirecionou(rh),
+            "has_viewstate": bool(_viewstate(rh.text)),
+            "body_preview": (rh.text or "")[:400],
+        })
+        if _redirecionou(rh):
+            return jsonify({"ok": False, "info": info, "steps": steps, "diag": "redirect no GET historico"}), 502
+        sel, turmas = _turmas(rh.text)
+        materias = _parse_grid(rh.text)
+        return jsonify({
+            "ok": True,
+            "info": info,
+            "steps": steps,
+            "turma_selected": sel,
+            "turmas_total": len(turmas),
+            "materias_encontradas": len(materias),
+            "materias_amostra": [m.get("disciplina") for m in materias[:5]],
+        })
     except Exception as e:
-        info["exception"] = f"{type(e).__name__}: {e}"
-        return jsonify({"ok": False, "info": info}), 502
+        return jsonify({"ok": False, "info": info, "steps": steps, "exception": f"{type(e).__name__}: {e}"}), 502
 
 
 @materias_alunos_bp.route("/api/materias-alunos/cancel", methods=["POST"])
