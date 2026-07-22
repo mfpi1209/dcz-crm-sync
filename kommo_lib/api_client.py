@@ -146,12 +146,8 @@ class KommoAPIClient:
                     attempt += 1
                     retry_after = int(response.headers.get("Retry-After", 5))
                     if attempt >= max_retries:
-                        logger.warning("Rate limited (429) — esgotou %d tentativas.", max_retries)
                         break
-                    logger.warning(
-                        "Rate limited pelo servidor (429). Aguardando %ds... (tentativa %d/%d)",
-                        retry_after, attempt, max_retries
-                    )
+                    logger.info("Kommo pediu para aguardar (429). Aguardando %ds...", retry_after)
                     time.sleep(retry_after)
                     continue
 
@@ -173,16 +169,15 @@ class KommoAPIClient:
                         wait = min((2 ** min(attempt + 1, 6)) * 2, 60)
                     if block_403_waited + wait > _BLOCK_403_MAX_WAIT:
                         logger.error(
-                            "Bloqueio de IP (403) persistiu além de %.0fs em %s — desistindo.",
-                            _BLOCK_403_MAX_WAIT, url
+                            "Kommo manteve o IP bloqueado (403) por mais de %.0fs — problema no "
+                            "lado do Kommo (bloqueio de IP), não na sync.", _BLOCK_403_MAX_WAIT
                         )
                         response.raise_for_status()
                     block_403_waited += wait
-                    logger.warning(
-                        "Bloqueio temporário de IP (403) em %s. Aguardando %.0fs para a penalidade "
-                        "do Kommo passar (acumulado %.0fs/%.0fs)...",
-                        url, wait, block_403_waited, _BLOCK_403_MAX_WAIT
-                    )
+                    if block_403_waited <= wait:  # loga só na 1ª espera pra não poluir
+                        logger.info(
+                            "Kommo bloqueou o IP temporariamente (403). Aguardando liberar..."
+                        )
                     time.sleep(wait)
                     continue
 
@@ -192,10 +187,7 @@ class KommoAPIClient:
                     if attempt >= max_retries:
                         break
                     wait = min(2 ** attempt, 30)
-                    logger.warning(
-                        "Erro do servidor (%d). Retry em %ds... (tentativa %d/%d)",
-                        response.status_code, wait, attempt, max_retries
-                    )
+                    logger.info("Kommo instável (%d). Aguardando %ds...", response.status_code, wait)
                     time.sleep(wait)
                     continue
 
@@ -211,10 +203,7 @@ class KommoAPIClient:
                 if attempt >= max_retries:
                     break
                 wait = min(2 ** attempt, 30)
-                logger.warning(
-                    "Erro de conexão: %s. Retry em %ds... (tentativa %d/%d)",
-                    str(e)[:200], wait, attempt, max_retries
-                )
+                logger.info("Sem conexão com o Kommo. Aguardando %ds...", wait)
                 time.sleep(wait)
 
             except requests.exceptions.Timeout:
@@ -222,14 +211,11 @@ class KommoAPIClient:
                 if attempt >= max_retries:
                     break
                 wait = min(2 ** attempt, 30)
-                logger.warning(
-                    "Timeout na requisição. Retry em %ds... (tentativa %d/%d)",
-                    wait, attempt, max_retries
-                )
+                logger.info("Kommo demorou a responder. Aguardando %ds...", wait)
                 time.sleep(wait)
 
-        logger.error("Máximo de retries (%d) atingido para %s", max_retries, url)
-        raise ConnectionError(f"Falha após {max_retries} tentativas: {url}")
+        logger.error("Não foi possível acessar o Kommo: %s", url)
+        raise ConnectionError(f"Não foi possível acessar o Kommo: {url}")
 
     def get(self, endpoint: str, params: dict = None) -> dict | None:
         """Executa GET request."""
