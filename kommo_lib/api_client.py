@@ -150,10 +150,22 @@ class KommoAPIClient:
                 # e retry; se persistir por todas as tentativas, cai no raise final abaixo.
                 if response.status_code == 403:
                     wait = min(2 ** attempt, 30)
+                    # Diagnóstico: o corpo + headers do 403 dizem a ORIGEM do bloqueio.
+                    #   - "cloudflare" / cf-ray / cf-mitigated / server:cloudflare  -> WAF por reputação de IP (datacenter)
+                    #   - "rate limit"/"too many requests" + Retry-After            -> limite de taxa do Kommo
+                    #   - página nginx/HTML do Kommo                                -> bloqueio de IP no proxy do Kommo
+                    _hdrs = response.headers
+                    _diag = {
+                        "server": _hdrs.get("Server"),
+                        "cf_ray": _hdrs.get("CF-RAY"),
+                        "cf_mitigated": _hdrs.get("cf-mitigated"),
+                        "retry_after": _hdrs.get("Retry-After"),
+                        "content_type": _hdrs.get("Content-Type"),
+                    }
                     logger.warning(
-                        "Bloqueio temporário (403) — provável WAF/limite de IP. Retry em %ds... "
-                        "(tentativa %d/%d)",
-                        wait, attempt + 1, max_retries
+                        "Bloqueio (403) em %s. Origem provável -> headers=%s | corpo[:500]=%r "
+                        "| Retry em %ds (tentativa %d/%d)",
+                        url, _diag, response.text[:500], wait, attempt + 1, max_retries
                     )
                     time.sleep(wait)
                     continue
