@@ -143,6 +143,21 @@ class KommoAPIClient:
                     logger.error("Token expirado ou inválido (401). Verifique KOMMO_TOKEN.")
                     raise PermissionError("Token de autenticação inválido ou expirado.")
 
+                # Bloqueio temporário (403) — WAF/nginx/limite de IP do Kommo costuma
+                # devolver 403 por alguns minutos e depois liberar. Sem retry, um bloqueio
+                # transitório derruba TODAS as chamadas de uma vez e "envenena" o sync inteiro
+                # (todas as entidades ficam failed/error). Tratamos como transitório: backoff
+                # e retry; se persistir por todas as tentativas, cai no raise final abaixo.
+                if response.status_code == 403:
+                    wait = min(2 ** attempt, 30)
+                    logger.warning(
+                        "Bloqueio temporário (403) — provável WAF/limite de IP. Retry em %ds... "
+                        "(tentativa %d/%d)",
+                        wait, attempt + 1, max_retries
+                    )
+                    time.sleep(wait)
+                    continue
+
                 # Erro do servidor (5xx) - retry
                 if response.status_code >= 500:
                     wait = min(2 ** attempt, 30)
