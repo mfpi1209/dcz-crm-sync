@@ -4,6 +4,7 @@ Implementa rate limiting (token bucket), retry com backoff exponencial,
 e paginação automática.
 """
 
+import os
 import time
 import logging
 import threading
@@ -19,6 +20,11 @@ from config import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Tempo total (s) que uma requisição espera atravessar uma penalidade de IP (403) do
+# Kommo/WAF antes de desistir. A penalidade é temporária (minutos); esperar deixa a
+# incremental concluir em vez de falhar. Sobrescrevível por env sem novo deploy.
+_BLOCK_403_MAX_WAIT = float(os.getenv("KOMMO_403_MAX_WAIT_S", "300"))
 
 
 class RateLimiter:
@@ -105,7 +111,14 @@ class KommoAPIClient:
             ep = ep[7:]
         url = f"{base}/{ep}"
 
-        for attempt in range(max_retries):
+        # `attempt` conta só erros transitórios "normais" (429/5xx/conexão/timeout),
+        # limitados por max_retries. O bloqueio de IP (403) NÃO consome esse orçamento —
+        # tem espera própria por tempo (_BLOCK_403_MAX_WAIT), pra atravessar a penalidade
+        # temporária do Kommo sem derrubar o sync.
+        attempt = 0
+        block_403_waited = 0.0
+
+        while True:
             # Rate limiting
             self.rate_limiter.wait_if_needed()
 
@@ -130,10 +143,14 @@ class KommoAPIClient:
 
                 # Rate limited pelo servidor
                 if response.status_code == 429:
+                    attempt += 1
                     retry_after = int(response.headers.get("Retry-After", 5))
+                    if attempt >= max_retries:
+                        logger.warning("Rate limited (429) — esgotou %d tentativas.", max_retries)
+                        break
                     logger.warning(
                         "Rate limited pelo servidor (429). Aguardando %ds... (tentativa %d/%d)",
-                        retry_after, attempt + 1, max_retries
+                        retry_after, attempt, max_retries
                     )
                     time.sleep(retry_after)
                     continue
@@ -143,39 +160,41 @@ class KommoAPIClient:
                     logger.error("Token expirado ou inválido (401). Verifique KOMMO_TOKEN.")
                     raise PermissionError("Token de autenticação inválido ou expirado.")
 
-                # Bloqueio temporário (403) — WAF/nginx/limite de IP do Kommo costuma
-                # devolver 403 por alguns minutos e depois liberar. Sem retry, um bloqueio
-                # transitório derruba TODAS as chamadas de uma vez e "envenena" o sync inteiro
-                # (todas as entidades ficam failed/error). Tratamos como transitório: backoff
-                # e retry; se persistir por todas as tentativas, cai no raise final abaixo.
+                # Bloqueio temporário de IP (403): o Kommo/Cloudflare põe o IP do servidor
+                # numa penalidade de alguns minutos, na qual TODA chamada volta 403 — inclusive
+                # a primeira. Em vez de desistir em ~30s e falhar o sync inteiro, esperamos a
+                # janela passar: orçamento próprio por TEMPO (não gasta o retry normal),
+                # respeitando Retry-After, backoff até 60s, teto total _BLOCK_403_MAX_WAIT.
                 if response.status_code == 403:
-                    wait = min(2 ** attempt, 30)
-                    # Diagnóstico: o corpo + headers do 403 dizem a ORIGEM do bloqueio.
-                    #   - "cloudflare" / cf-ray / cf-mitigated / server:cloudflare  -> WAF por reputação de IP (datacenter)
-                    #   - "rate limit"/"too many requests" + Retry-After            -> limite de taxa do Kommo
-                    #   - página nginx/HTML do Kommo                                -> bloqueio de IP no proxy do Kommo
-                    _hdrs = response.headers
-                    _diag = {
-                        "server": _hdrs.get("Server"),
-                        "cf_ray": _hdrs.get("CF-RAY"),
-                        "cf_mitigated": _hdrs.get("cf-mitigated"),
-                        "retry_after": _hdrs.get("Retry-After"),
-                        "content_type": _hdrs.get("Content-Type"),
-                    }
+                    ra = response.headers.get("Retry-After")
+                    try:
+                        wait = float(ra) if ra else min((2 ** min(attempt + 1, 6)) * 2, 60)
+                    except (TypeError, ValueError):
+                        wait = min((2 ** min(attempt + 1, 6)) * 2, 60)
+                    if block_403_waited + wait > _BLOCK_403_MAX_WAIT:
+                        logger.error(
+                            "Bloqueio de IP (403) persistiu além de %.0fs em %s — desistindo.",
+                            _BLOCK_403_MAX_WAIT, url
+                        )
+                        response.raise_for_status()
+                    block_403_waited += wait
                     logger.warning(
-                        "Bloqueio (403) em %s. Origem provável -> headers=%s | corpo[:500]=%r "
-                        "| Retry em %ds (tentativa %d/%d)",
-                        url, _diag, response.text[:500], wait, attempt + 1, max_retries
+                        "Bloqueio temporário de IP (403) em %s. Aguardando %.0fs para a penalidade "
+                        "do Kommo passar (acumulado %.0fs/%.0fs)...",
+                        url, wait, block_403_waited, _BLOCK_403_MAX_WAIT
                     )
                     time.sleep(wait)
                     continue
 
                 # Erro do servidor (5xx) - retry
                 if response.status_code >= 500:
+                    attempt += 1
+                    if attempt >= max_retries:
+                        break
                     wait = min(2 ** attempt, 30)
                     logger.warning(
                         "Erro do servidor (%d). Retry em %ds... (tentativa %d/%d)",
-                        response.status_code, wait, attempt + 1, max_retries
+                        response.status_code, wait, attempt, max_retries
                     )
                     time.sleep(wait)
                     continue
@@ -188,18 +207,24 @@ class KommoAPIClient:
                 response.raise_for_status()
 
             except requests.exceptions.ConnectionError as e:
+                attempt += 1
+                if attempt >= max_retries:
+                    break
                 wait = min(2 ** attempt, 30)
                 logger.warning(
                     "Erro de conexão: %s. Retry em %ds... (tentativa %d/%d)",
-                    str(e)[:200], wait, attempt + 1, max_retries
+                    str(e)[:200], wait, attempt, max_retries
                 )
                 time.sleep(wait)
 
             except requests.exceptions.Timeout:
+                attempt += 1
+                if attempt >= max_retries:
+                    break
                 wait = min(2 ** attempt, 30)
                 logger.warning(
                     "Timeout na requisição. Retry em %ds... (tentativa %d/%d)",
-                    wait, attempt + 1, max_retries
+                    wait, attempt, max_retries
                 )
                 time.sleep(wait)
 
