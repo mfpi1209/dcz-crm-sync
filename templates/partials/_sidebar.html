@@ -19,7 +19,7 @@
             {% set _show_comercial = nav_can('dist_consultor') or nav_can('comercial_rgm') or nav_can('dist_comercial') or nav_can('inscricao') or nav_can('recadastros') or nav_can('comercial_dashboard') or nav_can('auditoria_comercial') or nav_can('atualizar_preco') or nav_can('leads_parados') or _show_minha_perf_in_comercial or nav_can('repasse') or nav_can('captacao') or nav_can('clicks') or nav_can('leads_promotores') or nav_can('premiacao_admin') %}
             {% set _show_voc = nav_can('vocacional') %}
             {% set _show_meta = nav_can('meta-campaigns') %}
-            {% set _show_ti_admin_only = nav_is_admin and (nav_can('ia_comercial') or nav_can('page_views')) %}
+            {% set _show_ti_admin_only = nav_is_admin and (nav_can('ia_comercial') or nav_can('page_views') or nav_can('match_inadimplentes') or nav_can('materias_alunos')) %}
             {% set _show_ti = _show_ti_admin_only or nav_can('solicitacoes_ti') %}
             {% set _show_sistema = nav_can('pipeline') or nav_can('update') or nav_can('sync') or nav_can('ajustes_matricula') or nav_can('kommo_sync') or nav_can('match_merge') or nav_can('config') or nav_can('schedule') or nav_can('kommo_dispatcher') or nav_can('logs') %}
             <div class="space-y-1">
@@ -385,6 +385,18 @@
                     <a href="#page_views" onclick="navigate('page_views')" class="sidebar-link sidebar-sub" data-page="page_views">
                         <span class="material-symbols-outlined text-base">insights</span>
                         Uso do Dashboard
+                    </a>
+                    {% endif %}
+                    {% if nav_can('match_inadimplentes') %}
+                    <a href="#match_inadimplentes" onclick="navigate('match_inadimplentes')" class="sidebar-link sidebar-sub" data-page="match_inadimplentes">
+                        <span class="material-symbols-outlined text-base">join_inner</span>
+                        Match Inadimplentes
+                    </a>
+                    {% endif %}
+                    {% if nav_can('materias_alunos') %}
+                    <a href="#materias_alunos" onclick="navigate('materias_alunos')" class="sidebar-link sidebar-sub" data-page="materias_alunos">
+                        <span class="material-symbols-outlined text-base">menu_book</span>
+                        Matérias dos Alunos
                     </a>
                     {% endif %}
                 </div>
