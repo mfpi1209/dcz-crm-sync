@@ -73,6 +73,14 @@ KOMMO_TOKEN = os.getenv("KOMMO_TOKEN", "") or _load_from_app_config("KOMMO_TOKEN
 
 ACEITE_STATUS_ID = 48566207
 
+# Responsável padrão para leads criados pelo pipeline (NOVO). O Kommo atribui
+# leads criados via API ao dono do token; quando o token muda de usuário (ex.:
+# regeneração do bearer), os NOVO passam a cair nesse novo dono (foi o que
+# aconteceu em 22/07: token virou "TI" e os 38 NOVO caíram no TI). Fixar o
+# responsável aqui torna o comportamento independente do dono do token,
+# mantendo "Admin Sistema" (8261837) como sempre foi. Override por env var.
+NOVO_RESPONSIBLE_USER_ID = int(os.getenv("KOMMO_NOVO_RESPONSIBLE_UID", "8261837"))
+
 DATACRAZY_API_BASE = "https://api.g1.datacrazy.io/api/v1"
 DATACRAZY_API_TOKEN = os.getenv("DATACRAZY_API_TOKEN", "")
 
@@ -2779,6 +2787,7 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
     # e gerar MATRICULADO para mover o lead para Venda ganha.
     acoes_lead_ids = {a["lead_id"] for a in acoes if a.get("lead_id")}
     n_mat_d1 = 0
+    n_dup_perdido = 0  # duplicatas ativas fechadas por já haver 142 com mesmo RGM
     try:
         dconn_mat = get_conn()
         with dconn_mat.cursor() as dcur_mat:
@@ -2837,6 +2846,7 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
 
                 # Lead pipelines + sort do status para priorizar fase mais quente
                 lead_pipe: dict[int, tuple] = {}
+                lead_deleted: set[int] = set()
                 all_candidate_ids = set()
                 for idx in (idx_cpf, idx_email, idx_tel, idx_rgm):
                     for s in idx.values():
@@ -2844,13 +2854,16 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                 if all_candidate_ids:
                     kcur_mat.execute("""
                         SELECT l.id, l.pipeline_id, l.status_id,
-                               COALESCE(ps.sort, 0) AS status_sort
+                               COALESCE(ps.sort, 0) AS status_sort,
+                               COALESCE(l.is_deleted, FALSE) AS is_deleted
                         FROM leads l
                         LEFT JOIN pipeline_statuses ps ON ps.id = l.status_id
                         WHERE l.id = ANY(%s)
                     """, (sorted(all_candidate_ids),))
-                    for lid, pip, st, st_sort in kcur_mat.fetchall():
+                    for lid, pip, st, st_sort, _deleted in kcur_mat.fetchall():
                         lead_pipe[lid] = (pip, st, st_sort)
+                        if _deleted:
+                            lead_deleted.add(lid)
 
             kconn_mat.close()
 
@@ -2897,16 +2910,48 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                     53917599,  # ROBÔ (Funil de vendas)
                     76715668,  # Robo (Licenciado)
                 }
-                # Se a pessoa ja tem lead em 142 COM O MESMO RGM, pular
-                # (ja foi processada para esta matricula). Se o 142 nao tem
-                # o mesmo RGM, e' outra matricula antiga — pode prosseguir.
+                # Se a pessoa ja tem lead em 142 COM O MESMO RGM, a venda ja esta
+                # atribuida (por RGM o lead em Venda Ganha vence — ver
+                # _crgm_kommo_lookup_rgms em routes/comercial_rgm.py). NAO movemos
+                # outro lead para 142 (evita 2 ganhos pro mesmo RGM / disputa de
+                # atribuicao). MAS, em vez de so pular e deixar o lead ativo
+                # encalhado (bug "presos na atualizacao"), FECHAMOS a(s) duplicata(s)
+                # ativa(s) do mesmo RGM como "Duplicado - Ja Matriculado". Isso NAO
+                # muda quem leva a venda (continua no 142) e limpa o lead que ficava
+                # parado em Aceite (ou qualquer outra fase).
                 if rgm_clean:
+                    rgm_lids = idx_rgm.get(rgm_clean.lower(), set())
                     ganho_lids = {lid for lid in candidates
                                   if lead_pipe.get(lid, (None, None, None))[1] == 142}
-                    if ganho_lids:
-                        rgm_lids = idx_rgm.get(rgm_clean.lower(), set())
-                        if ganho_lids & rgm_lids:
-                            continue
+                    if ganho_lids and (ganho_lids & rgm_lids):
+                        for dup_lid in rgm_lids:
+                            if dup_lid in ganho_lids or dup_lid in lead_deleted:
+                                continue  # nunca fecha o proprio ganho nem deletado
+                            info = lead_pipe.get(dup_lid)
+                            if not info:
+                                continue
+                            pip_d, st_d, _ = info
+                            if pip_d not in PIPELINES_PERMITIDOS:
+                                continue
+                            if st_d in (142, 143):
+                                continue  # ja ganho ou ja perdido
+                            if dup_lid in acoes_lead_ids:
+                                acoes = [a for a in acoes
+                                         if not (a.get("lead_id") == dup_lid
+                                                 and a["acao"] in ("ATUALIZAR", "NOVO", "RESTAURAR"))]
+                            acoes.append({
+                                "acao": "MOVER_PERDIDO",
+                                "lead_id": dup_lid,
+                                "nome": nome,
+                                "cpf": cpf_clean,
+                                "rgm": rgm_clean,
+                                "lead_pipeline_id": pip_d,
+                                "situacao_siaa": sit or "Matriculado",
+                                "match_tipo": "dup_ja_matriculado",
+                            })
+                            acoes_lead_ids.add(dup_lid)
+                            n_dup_perdido += 1
+                        continue
 
                 best_lid = None
                 best_sort = -1
@@ -2947,6 +2992,7 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                     acoes_lead_ids.add(best_lid)
                     n_mat_d1 += 1
         log.info("MATRICULADO (janela 7d) cruzado com kommo_sync: %d", n_mat_d1)
+        log.info("Duplicatas ativas fechadas (RGM já em Venda Ganha): %d", n_dup_perdido)
     except Exception as exc:
         log.warning("Erro na geração de MATRICULADO D-1: %s", exc, exc_info=True)
 
@@ -3901,7 +3947,7 @@ def executar_acoes(acoes, limit=None, log_callback=None):
 
             nome = acao.get("nome") or "Lead SIAA"
             _sit_novo = (acao.get("situacao_siaa") or "").strip().lower()
-            lead_payload = [{"name": nome}]
+            lead_payload = [{"name": nome, "responsible_user_id": NOVO_RESPONSIBLE_USER_ID}]
             if _is_novo_mat:
                 lead_payload[0]["status_id"] = 142
             elif _sit_novo == "indefinido" and processo_seletivo_stage:
