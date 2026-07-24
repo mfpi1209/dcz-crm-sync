@@ -5,6 +5,7 @@
 const DIST_API_LOAD = 'https://n8n-new-n8n.ca31ey.easypanel.host/webhook/distribuicaocomercial';
 const DIST_API_SAVE = 'https://n8n-new-n8n.ca31ey.easypanel.host/webhook/edicao_distrib';
 const DIST_API_CREATE = 'https://n8n-new-n8n.ca31ey.easypanel.host/webhook/criar_consultor';
+const DIST_API_DELETE = 'https://n8n-new-n8n.ca31ey.easypanel.host/webhook/excluir_consultor';
 
 const dcState = {
     data: [],
@@ -113,6 +114,98 @@ async function dcSubmitAdicionar(event) {
         dcShowNotification('Erro ao cadastrar. Verifique o webhook criar_consultor no n8n.', 'error');
     } finally {
         if (btn) btn.disabled = false;
+    }
+}
+
+async function dcExcluirConsultor(id) {
+    const pessoa = (dcState.data || []).find(p => Number(p.id) === Number(id));
+    if (!pessoa) {
+        dcShowNotification('Consultor não encontrado na lista', 'error');
+        return;
+    }
+
+    const nome = pessoa.nome || ('ID ' + (pessoa.id_lead || id));
+    if (!confirm(
+        'Excluir "' + nome + '" da distribuição comercial?\n\n' +
+        'Isso remove o consultor do painel (cadastro no n8n). ' +
+        'Não apaga o usuário no Kommo.'
+    )) {
+        return;
+    }
+
+    const idLead = Number(pessoa.id_lead);
+    const row = document.querySelector('tr[data-id="' + id + '"]');
+    const btn = row ? row.querySelector('.dist-btn-excluir') : null;
+    if (btn) btn.disabled = true;
+
+    try {
+        const response = await fetch(DIST_API_DELETE, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                id: pessoa.id,
+                id_lead: idLead,
+                nome: pessoa.nome || '',
+                timestamp: new Date().toISOString()
+            })
+        });
+
+        if (!response.ok) {
+            const errText = await response.text().catch(() => '');
+            if (response.status === 404) {
+                throw new Error(
+                    'Webhook excluir_consultor ainda não existe no n8n. ' +
+                    'Crie o fluxo espelhando criar_consultor (remover a linha do cadastro).'
+                );
+            }
+            throw new Error(errText || ('HTTP ' + response.status));
+        }
+
+        // Limpa turno-map local antes do reload (evita id órfão no mapa).
+        const key = dcTurnoKey(pessoa);
+        if (key && dcState.turnoMap[key]) {
+            delete dcState.turnoMap[key];
+        }
+        dcState.data = (dcState.data || []).filter(p => Number(p.id) !== Number(id));
+        dcState.initialData = (dcState.initialData || []).filter(p => Number(p.id) !== Number(id));
+        await dcTurnoMapPersistCompleto();
+        await dcStripIdFromSnapshots(key);
+
+        dcShowNotification(nome + ' excluído com sucesso!', 'success');
+        await dcCarregarDados();
+    } catch (error) {
+        console.error('Erro ao excluir consultor:', error);
+        dcShowNotification(
+            error.message || 'Erro ao excluir. Verifique o webhook excluir_consultor no n8n.',
+            'error'
+        );
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+window.dcExcluirConsultor = dcExcluirConsultor;
+
+async function dcStripIdFromSnapshots(idLeadKey) {
+    const k = String(idLeadKey || '').trim();
+    if (!k) return;
+    try {
+        const r = await fetch('/api/dist-comercial/snapshot');
+        if (!r.ok) return;
+        const data = await r.json();
+        const snaps = (data && data.snapshots) || {};
+        for (const turno of ['dia', 'noite']) {
+            const snap = snaps[turno];
+            const payload = snap && snap.payload ? { ...snap.payload } : null;
+            if (!payload || !(k in payload)) continue;
+            delete payload[k];
+            await fetch('/api/dist-comercial/snapshot', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ turno, payload })
+            });
+        }
+    } catch (e) {
+        console.warn('Falha ao limpar id dos snapshots:', e);
     }
 }
 
@@ -393,6 +486,14 @@ function _dcRowHtml(pessoa, turnoAtual) {
                     ${btnIcon}<span>${btnLabel}</span>
                 </button>
             </td>
+            <td class="center">
+                <button type="button" class="dist-btn-excluir"
+                        title="Excluir consultor da distribuição"
+                        onclick="window.dcExcluirConsultor(${pessoa.id})">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                    <span>Excluir</span>
+                </button>
+            </td>
         </tr>
     `;
 }
@@ -408,6 +509,7 @@ function _dcTableHtml(rows) {
                         <th class="center" style="min-width: 160px;">Quantidade Leads</th>
                         <th style="min-width: 320px;">Observação</th>
                         <th class="center" style="min-width: 140px;">Turno</th>
+                        <th class="center" style="min-width: 110px;">Ações</th>
                     </tr>
                 </thead>
                 <tbody>
