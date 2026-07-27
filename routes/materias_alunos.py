@@ -252,19 +252,24 @@ def _ja_consultados(rgms: list[str]) -> set[str]:
 # ---------- Persistencia por RGM ----------
 
 def _upsert_materias(rgm: str, aluno: str, materias: list[dict]):
-    """Upsert em materias_alunos: 1 linha por aluno com jsonb das disciplinas."""
-    nomes: list[str] = []
-    vistos: set[str] = set()
+    """Upsert em materias_alunos: 1 linha por aluno com jsonb [{disciplina, data}]."""
+    itens: list[dict] = []
+    vistos: set[tuple] = set()
     for m in materias or ():
         nome = _s(m.get("disciplina")) or _s(m.get("sigla"))
-        if nome and nome not in vistos:
-            vistos.add(nome)
-            nomes.append(nome)
+        data = _s(m.get("data"))
+        if not nome:
+            continue
+        chave = (nome, data)
+        if chave in vistos:
+            continue
+        vistos.add(chave)
+        itens.append({"disciplina": nome, "data": data})
     _sb_upsert("materias_alunos", [{
         "rgm": rgm,
         "aluno": aluno,
-        "materias": nomes,
-        "qtd_materias": len(nomes),
+        "materias": itens,
+        "qtd_materias": len(itens),
         "consultado_em": datetime.now(timezone.utc).isoformat(),
     }], on_conflict="rgm")
 

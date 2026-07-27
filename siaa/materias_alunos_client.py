@@ -129,10 +129,13 @@ def _parse_grid(text: str) -> list[dict]:
         if not mn:
             continue
         mr = re.search(r'tipo_resultado"[^>]*?title="([^"]*)"', row)
+        # coluna "Seq. Oferta" = periodo/data da materia (ex.: "01/08/2026 a 18/12/2026")
+        md = re.search(r'idSeqOferta"[^>]*>\s*([^<]*)', row)
         out.append({
             "sigla":      html.unescape(mn.group(2)).strip(),
             "disciplina": html.unescape(mn.group(1)).strip(),
             "resultado":  html.unescape(mr.group(1)).strip() if mr else "",
+            "data":       html.unescape(md.group(1)).strip() if md else "",
         })
     return out
 
@@ -222,10 +225,10 @@ def buscar_materias(cookie_str: str, rgm: str, empresa: str = "12") -> dict:
         vs_h = _viewstate(txt) or vs_h
         materias += _parse_grid(txt)
 
-    # dedupe por (sigla, disciplina, resultado)
+    # dedupe por (sigla, disciplina, resultado, data)
     uniq, seen = [], set()
     for m in materias:
-        k = (m["sigla"], m["disciplina"], m["resultado"])
+        k = (m["sigla"], m["disciplina"], m["resultado"], m.get("data", ""))
         if k in seen:
             continue
         seen.add(k)
