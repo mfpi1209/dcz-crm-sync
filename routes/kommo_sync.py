@@ -644,7 +644,7 @@ _kommo_api_bg_lock = threading.Lock()
 # Ao receber 403, aplicamos uma penalidade global: as proximas chamadas
 # esperam _KOMMO_403_PENALTY_S segundos, dando tempo do WAF liberar o IP em
 # vez de martelar e prolongar o bloqueio.
-_KOMMO_MAX_RPS = float(os.getenv("KOMMO_MAX_RPS", "4"))
+_KOMMO_MAX_RPS = float(os.getenv("KOMMO_MAX_RPS", "5"))
 _KOMMO_403_PENALTY_S = float(os.getenv("KOMMO_403_PENALTY_S", "60"))
 _kommo_rate_lock = threading.Lock()
 _kommo_call_times: deque = deque()   # timestamps monotonic na janela de 1s
