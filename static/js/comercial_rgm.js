@@ -12,6 +12,7 @@ const _crgmCrossFilter = {
 };
 let _crgmLastData = null;
 let _crgmLastAtividade = null;
+let _crgmLastInteracao = null;   // { "<uid>": { total, por_dia } } — leads que interagiram
 
 function _crgmChartTheme() {
     var dark = document.documentElement.classList.contains('dark');
@@ -267,6 +268,9 @@ async function crgmAtualizar() {
     _crgmLoadAtividade(dtIni, dtFim, null)
         .then(() => _crgmRenderAtividade())
         .catch(err => console.error('Erro ao carregar atividade Kommo:', err));
+
+    // Interação de leads (quantos responderam ≥1x) — não bloqueia o restante
+    _crgmLoadInteracao(dtIni, dtFim);
 
     // Quando TODOS terminarem: render consolidado final + limpar loading
     Promise.allSettled([pKpis, pAgentes, pGrids]).then(() => {
@@ -848,11 +852,36 @@ function _crgmFormatMinutos(m) {
     return `${h}h${String(r).padStart(2, '0')}`;
 }
 
+// ── Interação de leads (responderam ≥1x no período) ─────────────────────
+
+async function _crgmLoadInteracao(dtIni, dtFim) {
+    _crgmLastInteracao = null;
+    if (!dtIni || !dtFim) return;
+    try {
+        const qs = new URLSearchParams({ dt_ini: dtIni, dt_fim: dtFim });
+        const res = await api(`/api/comercial-rgm/interacao-leads?${qs}`);
+        const d = await res.json();
+        if (!d || !d.ok) return;
+        _crgmLastInteracao = d.por_agente || {};
+        _crgmCrossRerenderAll();
+    } catch (e) {
+        console.warn('interacao-leads:', e);
+    }
+}
+
+/** Quantos leads do agente interagiram. date ('YYYY-MM-DD') filtra por dia. */
+function _crgmInteracaoAgente(uid, date) {
+    const m = _crgmLastInteracao ? _crgmLastInteracao[String(uid)] : null;
+    if (!m) return null;
+    if (date) return (m.por_dia && m.por_dia[date]) || 0;
+    return m.total != null ? m.total : null;
+}
+
 function _crgmRenderAgentes(agentes) {
     const tbody = document.getElementById('crgm-agentes-body');
     const countEl = document.getElementById('crgm-agentes-count');
     if (!agentes || !agentes.length) {
-        tbody.innerHTML = '<tr><td colspan="10" class="px-5 py-8 text-center text-slate-600">Nenhum agente encontrado</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="px-5 py-8 text-center text-slate-600">Nenhum agente encontrado</td></tr>';
         if (countEl) countEl.textContent = ''; return;
     }
     const agenteFilter = document.getElementById('crgm-agente').value;
@@ -870,6 +899,17 @@ function _crgmRenderAgentes(agentes) {
         const intermediaria = a.meta_intermediaria||0;
         const supermeta = a.supermeta||0;
         const tier = _crgmTierLabel(mp, meta, intermediaria, supermeta);
+        // Interação: leads que responderam ≥1x (cross-filter de data filtra por dia)
+        const inter = _crgmInteracaoAgente(a.user_id, _crgmCrossFilter.date);
+        let interHtml = '<span class="text-slate-400 dark:text-slate-500">—</span>';
+        if (inter != null) {
+            const base = (typeof a.novos_periodo === 'number' && a.novos_periodo > 0) ? a.novos_periodo : null;
+            const pct = base ? Math.round(inter / base * 100) : null;
+            const pctCls = pct == null ? '' : (pct >= 50 ? 'text-emerald-600 dark:text-emerald-400' : pct >= 25 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400');
+            interHtml = `<span class="text-slate-800 dark:text-slate-200 font-semibold">${inter.toLocaleString('pt-BR')}</span>`
+                + (pct != null ? ` <span class="text-[10px] ${pctCls}">(${pct}%)</span>` : '');
+        }
+
         const taxaVal = a.taxa_conversao;
         const taxaStr = taxaVal == null ? '\u2014' : `${taxaVal}%`;
         const taxaClass = taxaVal==null ? 'text-slate-500 dark:text-slate-400' : (taxaVal>=20 ? 'text-emerald-600 dark:text-emerald-400' : taxaVal>=8 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400');
@@ -909,6 +949,7 @@ function _crgmRenderAgentes(agentes) {
             <td class="px-4 py-2.5 text-right font-mono text-emerald-700 dark:text-emerald-300/70">${supermeta>0?supermeta:'\u2014'}</td>
             <td class="px-4 py-2.5 text-right font-mono ${tier.cls}">${tier.icon} ${tier.label}</td>
             <td class="px-4 py-2.5 text-right font-mono text-cyan-700 dark:text-cyan-400">${npStr}</td>
+            <td class="px-4 py-2.5 text-right font-mono">${interHtml}</td>
             <td class="px-4 py-2.5 text-right font-mono text-slate-500 dark:text-slate-400">${_crgmFormatHoras(a.horas_media)}</td>
             <td class="px-4 py-2.5 text-right font-mono font-bold ${taxaClass}">${taxaStr}</td>
         </tr>`;

@@ -4339,6 +4339,121 @@ def crgm_data_grids():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+# ── Interação de leads (quantos leads recebidos falaram ≥1x) ─────────────
+# Fonte: view vw_lead_interacao no projeto Supabase do comercial_feedback
+# (sql/lead_interacao.sql). A view devolve (lead_id, dia) dos dias em que o
+# cliente enviou >=1 mensagem, já em America/Sao_Paulo.
+_COM_FB_URL = os.getenv(
+    "SUPABASE_FEEDBACK_URL", "https://vtlbndvcgajcoajhcnnx.supabase.co"
+).rstrip("/")
+_COM_FB_KEY = os.getenv(
+    "SUPABASE_FEEDBACK_KEY", "sb_publishable_sW0h7aqgrjiwqGqKpawm4g_FuMi5xU_"
+)
+
+
+def _fetch_lead_interacao(lead_ids: list, dt_ini: str, dt_fim: str) -> dict:
+    """Retorna {lead_id: set(dias)} para os leads com >=1 msg de cliente no período."""
+    out: dict = {}
+    if not (_COM_FB_URL and _COM_FB_KEY and lead_ids):
+        return out
+    headers = {
+        "apikey": _COM_FB_KEY,
+        "Authorization": f"Bearer {_COM_FB_KEY}",
+        "Accept": "application/json",
+    }
+    CHUNK = 400
+    for i in range(0, len(lead_ids), CHUNK):
+        lote = lead_ids[i:i + CHUNK]
+        params = [
+            ("select", "lead_id,dia"),
+            ("lead_id", f"in.({','.join(str(x) for x in lote)})"),
+            ("dia", f"gte.{dt_ini}"),
+            ("dia", f"lte.{dt_fim}"),
+        ]
+        try:
+            r = requests.get(
+                f"{_COM_FB_URL}/rest/v1/vw_lead_interacao",
+                headers=headers, params=params, timeout=30,
+            )
+            r.raise_for_status()
+            for row in r.json() or []:
+                lid = row.get("lead_id")
+                dia = row.get("dia")
+                if lid is None or not dia:
+                    continue
+                out.setdefault(int(lid), set()).add(str(dia)[:10])
+        except Exception as e:
+            logger.warning("interacao-leads: falha lote %d: %s", i // CHUNK, e)
+    return out
+
+
+@comercial_rgm_bp.route("/api/comercial-rgm/interacao-leads")
+def crgm_interacao_leads():
+    """Por agente: quantos leads criados no período interagiram >=1x no período.
+
+    Resposta: { ok, por_agente: { "<uid>": { "total": N, "por_dia": {dia: n} } } }
+    """
+    dt_ini = request.args.get("dt_ini", "")
+    dt_fim = request.args.get("dt_fim", "")
+    if not (dt_ini and dt_fim):
+        return jsonify({"ok": True, "por_agente": {}})
+
+    _cache_key = _crgm_cache_key_prefixed("interacao")
+    if request.args.get("no_cache") != "1":
+        _cached = _crgm_cache_get(_cache_key)
+        if _cached is not None:
+            return jsonify(_cached)
+
+    try:
+        # Mesma base do leads_grid: leads criados no período, não deletados
+        ep_ini = _date_to_epoch(dt_ini)
+        ep_fim = _date_to_epoch(dt_fim) + 86399
+        kconn = _pg_kommo()
+        kcur = kconn.cursor()
+        kcur.execute(
+            """
+            SELECT l.id, l.responsible_user_id
+            FROM leads l
+            WHERE l.responsible_user_id IS NOT NULL
+              AND NOT l.is_deleted
+              AND l.created_at IS NOT NULL
+              AND l.created_at >= %s
+              AND l.created_at <= %s
+            """,
+            (ep_ini, ep_fim),
+        )
+        uid_leads: dict = {}
+        for lid, uid in kcur.fetchall():
+            if lid is not None and uid is not None:
+                uid_leads.setdefault(int(uid), []).append(int(lid))
+        kcur.close()
+        kconn.close()
+
+        todos = sorted({lid for ids in uid_leads.values() for lid in ids})
+        inter = _fetch_lead_interacao(todos, dt_ini, dt_fim)
+
+        por_agente = {}
+        for uid, ids in uid_leads.items():
+            por_dia: dict = {}
+            total = 0
+            for lid in ids:
+                dias = inter.get(lid)
+                if not dias:
+                    continue
+                total += 1
+                for d in dias:
+                    por_dia[d] = por_dia.get(d, 0) + 1
+            if total:
+                por_agente[str(uid)] = {"total": total, "por_dia": por_dia}
+
+        payload = {"ok": True, "por_agente": por_agente}
+        _crgm_cache_set(_cache_key, payload)
+        return jsonify(payload)
+    except Exception as e:
+        logger.exception("comercial_rgm interacao-leads error")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @comercial_rgm_bp.get("/api/comercial-rgm/atividade-kommo")
 def crgm_atividade_kommo():
     """Retorna linhas detalhadas de atividade Kommo do Supabase para o período."""
