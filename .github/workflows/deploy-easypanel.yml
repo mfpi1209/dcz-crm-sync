@@ -1,0 +1,44 @@
+name: Deploy EasyPanel
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-easypanel
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Trigger EasyPanel deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call EasyPanel deploy webhook
+        env:
+          DEPLOY_HOOK: ${{ secrets.PAINEL_EDUIT_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DEPLOY_HOOK:-}" ]; then
+            echo "::error::Secret PAINEL_EDUIT_TOKEN não está configurado no repositório."
+            exit 1
+          fi
+          echo "Disparando deploy no EasyPanel..."
+          http_code="$(curl -sS -o /tmp/easypanel-deploy-body.txt -w '%{http_code}' \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            --max-time 60 \
+            "$DEPLOY_HOOK")"
+          echo "HTTP $http_code"
+          if [ -s /tmp/easypanel-deploy-body.txt ]; then
+            cat /tmp/easypanel-deploy-body.txt
+            echo
+          fi
+          case "$http_code" in
+            2*) echo "Deploy disparado com sucesso." ;;
+            *)
+              echo "::error::Falha ao disparar deploy (HTTP $http_code)."
+              exit 1
+              ;;
+          esac
