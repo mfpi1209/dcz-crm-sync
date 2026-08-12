@@ -435,8 +435,10 @@ Append this block to routes/atualizar_preco_app.py after the existing Wix3 route
 # ═══════════════════════════════════════════════════════════════════
 # Helpers compartilhados (canal / Supabase)
 # ═══════════════════════════════════════════════════════════════════
+import time as _time
 import unicodedata as _uc
 import json as _json_mod
+import urllib.error as _uerr
 import urllib.request as _ureq_mod
 import urllib.parse as _uparse_mod
 
@@ -1662,19 +1664,39 @@ def _relay_wix_grad_preview(orig_route, canal_xlsx_bytes):
     return jsonify(data)
 
 
-def _relay_wix_grad_update(canal_xlsx_bytes, get_items_fn, put_fn, price_field='balcao'):
+def _wix_call_with_retry(fn, attempts=4, base_delay=1.5):
+    """Retry Wix calls on 403/429 (rate limit / WAF) with exponential backoff."""
+    for i in range(attempts):
+        try:
+            return fn()
+        except _uerr.HTTPError as e:
+            if e.code in (403, 429) and i < attempts - 1:
+                _time.sleep(base_delay * (2 ** i))
+                continue
+            raise
+
+
+def _relay_wix_grad_update(canal_xlsx_bytes, get_items_fn, put_fn,
+                           price_field='balcao', as_str=False):
     """
     Update wrapper: build price_idx via ler_grad, fetch items via get_items_fn,
-    and for each item whose 'chave' is in the index with a differing price,
+    and for each item whose key is in the index with a differing price,
     update the price_field and PUT the full item via put_fn(id, full_data).
+
+    Key field varies by site: Wix1/Wix2 use 'chave', Wix3 uses 'chave1'.
+    Tecnólogos may need the 'Cst Em ' prefix variant (same rule as preview).
     """
     price_idx = _wix_grad_price_index(canal_xlsx_bytes)
-    items     = get_items_fn()
+    items     = _wix_call_with_retry(get_items_fn)
     atualizados, erros, ultimo_erro = 0, 0, ''
     for it in items:
-        d     = it.get('data', it) if isinstance(it, dict) else it
-        chave = d.get('chave')
-        novo  = price_idx.get(chave) if chave else None
+        d         = it.get('data', it) if isinstance(it, dict) else it
+        chave_raw = d.get('chave') or d.get('chave1') or d.get('chave_1') or ''
+        chave     = str(chave_raw).strip()
+        novo      = price_idx.get(chave) if chave else None
+        if novo is None and chave:
+            alt  = chave[len('Cst Em '):] if chave.startswith('Cst Em ') else 'Cst Em ' + chave
+            novo = price_idx.get(alt)
         if novo is None:
             continue
         try:
@@ -1687,10 +1709,11 @@ def _relay_wix_grad_update(canal_xlsx_bytes, get_items_fn, put_fn, price_field='
         if not iid:
             continue
         full = dict(d)
-        full[price_field] = novo
+        full[price_field] = str(novo) if as_str else novo
         try:
-            put_fn(iid, _clean_data(full))
+            _wix_call_with_retry(lambda: put_fn(iid, _clean_data(full)))
             atualizados += 1
+            _time.sleep(0.15)  # evita burst que dispara rate limit do Wix
         except Exception as e:
             erros += 1
             ultimo_erro = str(e)
@@ -1748,8 +1771,9 @@ def atualizar_wix2_canal():
         return _relay_wix_grad_update(
             _build_canal_xlsx(f.read(), canal),
             lambda: mod.wix2_get_all_items(mod.WIX_SITE2_COL_GRADEAD),
-            lambda iid, data: mod.wix2_put_item(iid, data),
-            price_field='balcao',
+            lambda iid, data: mod.wix2_put_item(mod.WIX_SITE2_COL_GRADEAD, iid, data),
+            price_field='precoSiteEduit',
+            as_str=True,
         )
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1778,7 +1802,8 @@ def atualizar_wix3_canal():
             _build_canal_xlsx(f.read(), canal),
             lambda: mod.wix3_get_all_items(mod.WIX_SITE3_COL_GRAD),
             lambda iid, data: wix3_put_item(mod.WIX_SITE3_COL_GRAD, iid, data),
-            price_field='balcao',
+            price_field='preco',
+            as_str=True,
         )
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -2020,8 +2045,9 @@ def _atualizar_pos_canais_core(mapping, headers, rows, canal_col, siaa_col,
         if not changed:
             continue
         try:
-            put_fn(iid, _clean_data(full))
+            _wix_call_with_retry(lambda: put_fn(iid, _clean_data(full)))
             atualizados += 1
+            _time.sleep(0.15)  # evita burst que dispara rate limit do Wix
         except Exception as e:
             erros += 1
             ultimo_erro = str(e)
