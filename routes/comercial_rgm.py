@@ -208,7 +208,7 @@ def _pg():
 import threading as _crgm_threading
 
 _CRGM_DATA_CACHE: dict = {}
-_CRGM_DATA_CACHE_VER = 6  # bump quando a lógica de contagem mudar (ex.: outliers / fora_padrao)
+_CRGM_DATA_CACHE_VER = 7  # bump quando a lógica de contagem mudar (ex.: outliers / fora_padrao)
 _CRGM_DATA_CACHE_TTL_S = 120  # segundos
 _CRGM_DATA_CACHE_LOCK = _crgm_threading.Lock()
 
@@ -287,6 +287,7 @@ def clear_crgm_data_cache(reason: str = ""):
     with _CRGM_DATA_CACHE_LOCK:
         n = len(_CRGM_DATA_CACHE)
         _CRGM_DATA_CACHE.clear()
+        _CRGM_CICLO_PFX_CACHE.clear()
     if n:
         logger.info("CRGM /data cache LIMPO (%d entradas) motivo=%s", n, reason or "manual")
 
@@ -608,7 +609,7 @@ def comercial_periodo_vendas_resumo(dt_ini=None, dt_fim=None, polo=None, nivel=N
                 day_rgms[dt].add(n)
 
     # Filtrar outliers das contagens (mesmo critério do Dashboard Comercial)
-    _vr_dom_pfx   = _compute_dominant_rgm_prefix(list(rgms_periodo) or list(rgms_bruto))
+    _vr_dom_pfx   = _crgm_effective_dominant_prefix(list(rgms_periodo) or list(rgms_bruto))
     _vr_overrides = _load_outlier_contagem_overrides()
     _rgms_contando = {r for r in rgms_periodo if _rgm_conta_para_venda(r, _vr_dom_pfx, _vr_overrides)}
     day_rgms_contando = {d: s & _rgms_contando for d, s in day_rgms.items()}
@@ -918,6 +919,84 @@ def _is_rgm_prefix_outlier(rgm, dominant_prefix):
     return int(n[:2]) < dominant_prefix
 
 
+_CRGM_CICLO_PFX_CACHE: dict = {}
+_CRGM_CICLO_PFX_TTL_S = 300
+
+
+def _crgm_ciclo_dominant_prefix():
+    """Prefixo dominante apurado sobre o(s) ciclo(s) comercial(is) atual(is) INTEIRO(s).
+
+    Independe de polo/nível/turma e da janela de datas da tela: a série de RGM é
+    sequencial na instituição, então recortá-la só adiciona instabilidade.
+    Retorna int ou None quando não há dados do ciclo atual.
+
+    Usa conexão própria de propósito: se a consulta falhar, uma conexão emprestada
+    ficaria com a transação abortada e derrubaria as queries seguintes do chamador.
+    """
+    import time as _t
+    now = _t.time()
+    cached = _CRGM_CICLO_PFX_CACHE.get("v")
+    if cached and (now - cached[0]) <= _CRGM_CICLO_PFX_TTL_S:
+        return cached[1]
+
+    sql = """
+        WITH rgms AS (
+            SELECT DISTINCT regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g') AS rgm
+            FROM xl_rows r
+            JOIN xl_snapshots s ON s.id = r.snapshot_id
+            WHERE s.tipo = 'matriculados'
+              AND COALESCE(r.data->>'rgm','') ~ '[0-9]'
+              AND UPPER(TRIM(COALESCE(r.data->>'situacao',''))) = 'EM CURSO'
+              AND UPPER(TRIM(COALESCE(r.data->>'tipo_matricula','')))
+                  = ANY(ARRAY['NOVA MATRICULA','RECOMPRA','RETORNO'])
+              AND TRIM(COALESCE(r.data->>'empresa','')) ~ '^(12|7) -'
+              AND NULLIF(TRIM(COALESCE(r.data->>'ciclo','')), '')
+                  IN (SELECT ciclo FROM ciclo_atual_comercial)
+        )
+        SELECT LEFT(rgm, 2) AS pfx, COUNT(*) AS n
+        FROM rgms
+        WHERE LENGTH(rgm) >= 2 AND LEFT(rgm, 2) ~ '^[0-9]{2}$'
+        GROUP BY 1
+        -- Empate: vence o prefixo menor (mais inclusivo — não derruba a série anterior).
+        ORDER BY n DESC, pfx ASC
+        LIMIT 1
+    """
+    pfx = None
+    _c = None
+    try:
+        _c = _pg()
+        with _c.cursor() as cur:
+            cur.execute(sql)
+            row = cur.fetchone()
+        if row and row[0]:
+            pfx = int(row[0])
+    except Exception as e:
+        logger.warning("_crgm_ciclo_dominant_prefix: %s", e)
+    finally:
+        if _c is not None:
+            try:
+                _c.close()
+            except Exception:
+                pass
+
+    _CRGM_CICLO_PFX_CACHE["v"] = (now, pfx)
+    return pfx
+
+
+def _crgm_effective_dominant_prefix(periodo_rgms):
+    """Régua de outlier: o MENOR entre o dominante do período e o do ciclo atual.
+
+    O dominante do período sozinho quebra na virada da série de RGM (ex.: 49 -> 50):
+    numa janela curta a série nova vira maioria e a anterior — que ainda é do ciclo
+    corrente — passa a ser tratada como outlier. Usar o mínimo mantém períodos
+    históricos com a régua antiga (nada que contava antes deixa de contar).
+    """
+    periodo_pfx = _compute_dominant_rgm_prefix(periodo_rgms)
+    ciclo_pfx = _crgm_ciclo_dominant_prefix()
+    candidatos = [p for p in (periodo_pfx, ciclo_pfx) if p is not None]
+    return min(candidatos) if candidatos else None
+
+
 def _load_outlier_contagem_overrides(conn=None):
     """Retorna set de RGMs normalizados que foram marcados pelo admin como 'contar para venda'."""
     out = set()
@@ -1075,7 +1154,7 @@ def crgm_outlier_context(dt_ini=None, dt_fim=None, polo=None, nivel=None, exclud
         em_curso_rgms = [r["rgm"] for r in rows if r.get("situacao") == "EM CURSO"]
         if not em_curso_rgms:
             em_curso_rgms = [r["rgm"] for r in rows]
-        dominant_prefix = _compute_dominant_rgm_prefix(em_curso_rgms)
+        dominant_prefix = _crgm_effective_dominant_prefix(em_curso_rgms)
     except Exception as e:
         logger.warning("crgm_outlier_context: %s", e)
         dominant_prefix = None
@@ -3147,7 +3226,7 @@ def _build_agent_ranking_completa_vw(
 
         # Calcular prefixo dominante e overrides para filtrar outliers nas contagens
         _ranking_all_rgms = [n for n, _ in mat_rows]
-        _ranking_dom_pfx = _compute_dominant_rgm_prefix(_ranking_all_rgms) or 99
+        _ranking_dom_pfx = _crgm_effective_dominant_prefix(_ranking_all_rgms) or 99
         _ranking_overrides = _load_outlier_contagem_overrides()
 
         mat_per_agent = {}
@@ -3559,7 +3638,7 @@ def _crgm_compute_kpis(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -> d
     _lap("derive_periodo_inmem")
 
     # Filtrar outliers (prefixo abaixo do dominante sem override manual) das contagens
-    _kpi_dom_pfx  = _compute_dominant_rgm_prefix(list(rgms_periodo) or list(rgms_bruto))
+    _kpi_dom_pfx  = _crgm_effective_dominant_prefix(list(rgms_periodo) or list(rgms_bruto))
     _kpi_overrides = _load_outlier_contagem_overrides()
     _rgms_contando = {r for r in rgms_periodo if _rgm_conta_para_venda(r, _kpi_dom_pfx, _kpi_overrides)}
     day_rgms_contando   = {d: s & _rgms_contando for d, s in day_rgms.items()}
@@ -4145,7 +4224,7 @@ def _crgm_compute_grids(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -> 
         if row["rgm"] and row["situacao"] != "EM CURSO":
             evasao_rows.append(row)
 
-    _fp_dom_pfx = _compute_dominant_rgm_prefix(
+    _fp_dom_pfx = _crgm_effective_dominant_prefix(
         [r["rgm"] for r in _periodo_rows if r.get("situacao") == "EM CURSO"]
         or [r["rgm"] for r in _periodo_rows if r.get("rgm")]
     )
@@ -4590,7 +4669,7 @@ def crgm_agente_detalhe():
 
         # 3. Calcular prefixo dominante e overrides de contagem de outliers
         all_rgms = [_normalize_rgm(row[0]) for row in rows if row[0]]
-        dominant_prefix = _compute_dominant_rgm_prefix(all_rgms) or 99
+        dominant_prefix = _crgm_effective_dominant_prefix(all_rgms) or 99
         _outlier_overrides = _load_outlier_contagem_overrides()
 
         # 4. Filtrar linhas do agente solicitado
