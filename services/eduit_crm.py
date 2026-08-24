@@ -351,7 +351,8 @@ def assign_lead_to_user(telefone: str, crm_user: dict) -> dict:
     uid = crm_user["id"]
     if deal.get("ownerId") != uid:
         _request("PUT", f"/api/deals/{urllib.parse.quote(deal['id'])}", {"ownerId": uid})
+        found = lookup_lead(telefone)
     found["assigned"] = True
     found["crm_user"] = crm_user
-    found["crm_url"] = lead_url(deal, found.get("conversation"))
+    found["crm_url"] = lead_url(found.get("deal"), found.get("conversation"))
     return found

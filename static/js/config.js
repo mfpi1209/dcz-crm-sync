@@ -426,6 +426,7 @@ const PAGE_LABELS = {
     clicks: 'QR Codes',
     leads_promotores: 'Leads · Promotores',
     meus_atendimentos: 'Meus Atendimentos',
+    academico_interacoes: 'Interações Acadêmicas',
     premiacoes_internas: 'Premiações (Gestores)',
     aprovacao_premiacoes: 'Central de Aprovação de Premiações',
     rematricula: 'Rematrícula',
@@ -530,7 +531,7 @@ const PAGE_GROUPS_CONFIG = [
         icon: 'school',
         color: 'var(--primary)',
         pages: [
-            'meus_atendimentos', 'ativacoes', 'distribuicao', 'intelligence',
+            'meus_atendimentos', 'academico_interacoes', 'ativacoes', 'distribuicao', 'intelligence',
             'inadimplencia', 'feedback', 'macro_email', 'rematricula', 'disparador_whatsapp',
             'disparador_whatsapp_painel', 'disparador_whatsapp_metas',
             'disparador_whatsapp_disparador', 'disparador_whatsapp_alunos',

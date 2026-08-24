@@ -326,6 +326,7 @@ from db import (
     _ensure_turmas_comercial_table,
     _ensure_ciclo_atual_comercial_table,
     _ensure_users_table,
+    _ensure_academico_interacoes_page,
     _ensure_suporte_comercial_users,
     _ensure_xl_snapshots_table,
     _ensure_engagement_tables,
@@ -348,6 +349,7 @@ _ensure_ciclos_comercial_table()
 _ensure_turmas_comercial_table()
 _ensure_ciclo_atual_comercial_table()
 _ensure_users_table()
+_ensure_academico_interacoes_page()
 _ensure_suporte_comercial_users()
 _ensure_xl_snapshots_table()
 _ensure_engagement_tables()

@@ -400,6 +400,31 @@ def _ensure_users_table():
         logger.warning("Could not ensure users table: %s", e)
 
 
+def _ensure_academico_interacoes_page():
+    """Libera Interações Acadêmicas para operadores da categoria Acadêmico."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO user_permissions (user_id, page)
+                SELECT u.id, 'academico_interacoes'
+                FROM app_users u
+                WHERE u.categoria IS NOT NULL
+                  AND LOWER(u.categoria) LIKE %s
+                ON CONFLICT (user_id, page) DO NOTHING
+                """,
+                ("%acad%mico%",),
+            )
+            n = cur.rowcount
+        conn.commit()
+        conn.close()
+        if n:
+            logger.info("Interações Acadêmicas: permissão concedida a %s usuário(s) acadêmicos", n)
+    except Exception as e:
+        logger.warning("Could not ensure academico_interacoes permissions: %s", e)
+
+
 def _ensure_suporte_comercial_users():
     """Garante categoria e permissões do time Suporte Comercial (logins conhecidos)."""
     if not SUPORTE_COMERCIAL_LOGINS:

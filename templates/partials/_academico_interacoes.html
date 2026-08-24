@@ -117,6 +117,14 @@
     align-items: center; justify-content: center;
     background: rgba(15, 23, 42, .55); backdrop-filter: blur(8px);
     padding: 20px;
+    --bg: #f1f5f9; --card: #ffffff; --border: #e2e8f0;
+    --text: #0f172a; --text-muted: #64748b; --primary: #4f46e5;
+    --danger: #dc2626; --danger-light: #fee2e2;
+}
+.dark #ai-atender-overlay {
+    --bg: #0f172a; --card: #1e293b; --border: #334155;
+    --text: #f1f5f9; --text-muted: #94a3b8; --primary: #6366f1;
+    --danger: #f87171; --danger-light: rgba(248,113,113,.15);
 }
 #ai-atender-overlay.is-open { display: flex; }
 #ai-atender-overlay .ai-modal {
@@ -149,8 +157,15 @@
     border-radius: 10px; padding: 10px 12px; font-size: 12px; margin-bottom: 10px;
 }
 #ai-atender-overlay .ai-modal-actions { display: flex; gap: 8px; margin-top: 16px; }
-#ai-atender-overlay .ai-modal-actions .ai-btn { flex: 1; justify-content: center; }
+#ai-atender-overlay .ai-modal-actions .ai-btn {
+    flex: 1; justify-content: center;
+    padding: 9px 16px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;
+    border: 1px solid transparent; display: inline-flex; align-items: center; gap: 6px;
+}
+#ai-atender-overlay .ai-btn-primary { background: var(--primary); color: #fff; }
 #ai-atender-overlay .ai-btn-ghost { background: transparent; color: var(--text-muted); border-color: var(--border); }
+#ai-atender-overlay .ai-btn:disabled { opacity: .5; cursor: not-allowed; }
+#ai-atender-overlay .ai-mono { font-family: ui-monospace, monospace; }
 </style>
 
 <div class="ai-wrap">
@@ -297,6 +312,7 @@
         const rgm = btn.getAttribute('data-rgm') || '';
         _atender = { telefone, rgm, preview: null, loading: true };
         const overlay = document.getElementById('ai-atender-overlay');
+        if (overlay.parentElement !== document.body) document.body.appendChild(overlay);
         const confirmBtn = document.getElementById('ai-atender-confirm');
         confirmBtn.disabled = true;
         setAtenderErr('');
