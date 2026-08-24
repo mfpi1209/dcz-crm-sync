@@ -1,6 +1,7 @@
 """Cliente HTTP do CRM EduIT (backend_crm1) para Interações Acadêmicas.
 
-Auth: Bearer `EDUIT_CRM_TOKEN` (prefixo eduit_). Base default: https://crm.eduit.com.br
+Auth: Bearer `EDUIT_CRM_TOKEN` (prefixo eduit_). API default: https://crm.eduit.com.br
+Front (deep-link): https://frontend-front.v74knz.easypanel.host
 O GET /api/users exige sessão NextAuth (não aceita Bearer). O match do operador
 usa a busca de conversas, que indexa assignedTo.name e assignedTo.email.
 
@@ -24,6 +25,7 @@ from helpers import display_name_from_login, fold_name
 logger = logging.getLogger(__name__)
 
 _DEFAULT_BASE = "https://crm.eduit.com.br"
+_DEFAULT_WEB = "https://frontend-front.v74knz.easypanel.host"
 _USER_CACHE: dict[str, tuple[float, dict]] = {}
 _USER_CACHE_TTL = 300.0
 _TIMEOUT = 25
@@ -40,7 +42,11 @@ def _base() -> str:
 
 
 def _web() -> str:
-    return (os.getenv("EDUIT_CRM_WEB_URL") or _base()).rstrip("/")
+    web = (os.getenv("EDUIT_CRM_WEB_URL") or "").strip().rstrip("/")
+    # Front real do time é o EasyPanel; crm.eduit.com.br é o SaaS/marketing.
+    if not web or "crm.eduit.com.br" in web.lower():
+        return _DEFAULT_WEB
+    return web
 
 
 def _token() -> str:

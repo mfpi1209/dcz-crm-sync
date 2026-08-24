@@ -4,6 +4,10 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-08-24 — Deep-link do atender abre o front EasyPanel, não crm.eduit.com.br
+- **Sintoma:** após atribuir, o browser ia para `https://crm.eduit.com.br/pipeline?deal=…` (SaaS/marketing). O time usa `https://frontend-front.v74knz.easypanel.host/`.
+- **Decisão:** `EDUIT_CRM_WEB_URL` default = EasyPanel. API continua em `EDUIT_CRM_BASE_URL` (`crm.eduit.com.br`). Se o env ainda apontar para `crm.eduit.com.br`, o código ignora e usa o EasyPanel.
+
 ### 2026-08-24 — Config: excluir usuário falhava com HTML ("Unexpected token <")
 - **Causa:** `DELETE FROM app_users` estoura FK em `agent_matriculas` (e outras) sem `ON DELETE`. O Flask devolve página HTML de erro; o front faz `res.json()` e mostra `Unexpected token '<'`.
 - **Decisão:** FKs históricas passam a `ON DELETE SET NULL` (matrículas/avisos/ajustes/premiação interna permanecem). Endpoint de delete devolve JSON em caso de erro. Front não assume JSON.
@@ -12,7 +16,7 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 - **Modelo usado:** Grok 4.6 (Cloud Agent).
 - **Pedido:** na página Interações Acadêmicas, clicar no telefone abre um popup de confirmação; ao confirmar, o lead no CRM EduIT (org Cruzeiro EaD) é atribuído ao operador logado no painel (ex.: Wesley Guerreiro / wesley.guerreiro@cruzeiroead.com.br) e o browser abre o lead.
 - **Decisão:**
-  - Token de org `EDUIT_CRM_TOKEN` (prefixo `eduit_`) + `EDUIT_CRM_BASE_URL`/`EDUIT_CRM_WEB_URL` (default `https://crm.eduit.com.br`).
+  - Token de org `EDUIT_CRM_TOKEN` (prefixo `eduit_`) + `EDUIT_CRM_BASE_URL` (API, default `https://crm.eduit.com.br`) + `EDUIT_CRM_WEB_URL` (front, default `https://frontend-front.v74knz.easypanel.host`). Deep-link NÃO usa crm.eduit.com.br.
   - Match painel→CRM: e-mail (`app_users.email_cruzeiro` ou username se for e-mail) e nome derivado (`wesley.guerreiro` → `Wesley Guerreiro`). O `GET /api/users` do CRM só aceita sessão NextAuth; com Bearer a busca é `GET /api/conversations?search=` (indexa `assignedTo.name` e `assignedTo.email`).
   - Atribuição: `PUT /api/deals/:id { ownerId }` — o backend do CRM propaga o responsável para o contato e as conversas (`propagateOwnerToContactAndChat`). `POST /api/conversations/:id/actions` (assign) **não** aceita Bearer.
   - Deep-link: `/pipeline?deal={number}` (lead). Fallback `/inbox?c={number}` se não houver negócio.
