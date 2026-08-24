@@ -366,6 +366,13 @@ _ensure_pix_faixa_tables()
 _ensure_suporte_tables()
 _ensure_dist_comercial_schedule_tables()
 
+try:
+    from routes.academico_interacoes import _ensure_claim_table
+    _ensure_claim_table()
+except Exception as _e:
+    import logging as _logging
+    _logging.getLogger(__name__).warning("academico_atendimento_claim: %s", _e)
+
 # ── APScheduler ───────────────────────────────────────────────────────────
 
 from apscheduler.schedulers.background import BackgroundScheduler

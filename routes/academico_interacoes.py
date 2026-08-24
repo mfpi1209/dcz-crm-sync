@@ -12,12 +12,17 @@ GET  /api/academico-interacoes/atender-preview?telefone=
 POST /api/academico-interacoes/atender  {telefone}
     Casa o usuário logado no painel com o operador da org no CRM EduIT
     (nome/e-mail) e, no POST, atribui o lead + abre a URL do funil.
+    O POST grava quem puxou o atendimento (lock); o 2º operador recebe 409.
+
+GET /api/academico-interacoes/claims
+    Mapa telefone_key → quem puxou, para a lista atualizar sem recarregar o Supabase.
 """
 from __future__ import annotations
 
 import json
 import logging
 import os
+import re
 import urllib.parse
 import urllib.request
 
@@ -38,6 +43,168 @@ academico_interacoes_bp = Blueprint("academico_interacoes_bp", __name__)
 
 _TABLE = "academico_interacoes"
 _PAGE_SIZE = 1000
+_CLAIM_TABLE_READY = False
+
+
+def _tel_key(telefone: str) -> str:
+    digits = re.sub(r"\D+", "", telefone or "")
+    if digits.startswith("55") and len(digits) >= 12:
+        digits = digits[2:]
+    return digits
+
+
+def _claim_public(row) -> dict:
+    claimed_at = row[3]
+    if hasattr(claimed_at, "isoformat"):
+        claimed_at = claimed_at.isoformat()
+    return {
+        "user_id": row[0],
+        "username": row[1] or "",
+        "display_name": row[2] or "",
+        "claimed_at": claimed_at,
+    }
+
+
+def _is_mine(claim: dict | None, dash: dict) -> bool:
+    if not claim:
+        return True
+    cid = claim.get("user_id")
+    did = dash.get("user_id")
+    if cid and did and cid == did:
+        return True
+    u1 = (claim.get("username") or "").strip().lower()
+    u2 = (dash.get("username") or "").strip().lower()
+    return bool(u1 and u2 and u1 == u2)
+
+
+def _ensure_claim_table():
+    global _CLAIM_TABLE_READY
+    if _CLAIM_TABLE_READY:
+        return
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS academico_atendimento_claim (
+                    telefone_key TEXT PRIMARY KEY,
+                    telefone TEXT NOT NULL,
+                    user_id INTEGER,
+                    username TEXT,
+                    display_name TEXT NOT NULL,
+                    claimed_at TIMESTAMP NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_aac_claimed_at "
+                "ON academico_atendimento_claim (claimed_at DESC)"
+            )
+        conn.commit()
+        _CLAIM_TABLE_READY = True
+    except Exception:
+        conn.rollback()
+        logger.exception("academico_interacoes: falha ao criar academico_atendimento_claim")
+        raise
+    finally:
+        conn.close()
+
+
+def _get_claim(telefone: str) -> dict | None:
+    key = _tel_key(telefone)
+    if not key:
+        return None
+    _ensure_claim_table()
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT user_id, username, display_name, claimed_at
+                FROM academico_atendimento_claim
+                WHERE telefone_key = %s
+                """,
+                (key,),
+            )
+            row = cur.fetchone()
+        return _claim_public(row) if row else None
+    finally:
+        conn.close()
+
+
+def _load_claims(keys: list[str]) -> dict[str, dict]:
+    keys = [k for k in keys if k]
+    if not keys:
+        return {}
+    _ensure_claim_table()
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT telefone_key, user_id, username, display_name, claimed_at
+                FROM academico_atendimento_claim
+                WHERE telefone_key = ANY(%s)
+                """,
+                (keys,),
+            )
+            rows = cur.fetchall()
+        return {r[0]: _claim_public(r[1:]) for r in rows}
+    finally:
+        conn.close()
+
+
+def _try_claim(telefone: str, dash: dict) -> tuple[bool, dict]:
+    """Tenta puxar o telefone. Retorna (mine, claim). Se mine=False, outro operador já puxou."""
+    key = _tel_key(telefone)
+    if not key:
+        raise EduitCrmError("Telefone inválido para puxar atendimento.", 400)
+    _ensure_claim_table()
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO academico_atendimento_claim
+                    (telefone_key, telefone, user_id, username, display_name)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (telefone_key) DO NOTHING
+                RETURNING user_id, username, display_name, claimed_at
+                """,
+                (
+                    key,
+                    telefone,
+                    dash.get("user_id") or None,
+                    dash.get("username") or "",
+                    dash.get("display_name") or dash.get("username") or "operador",
+                ),
+            )
+            row = cur.fetchone()
+            if row:
+                conn.commit()
+                return True, _claim_public(row)
+            cur.execute(
+                """
+                SELECT user_id, username, display_name, claimed_at
+                FROM academico_atendimento_claim
+                WHERE telefone_key = %s
+                """,
+                (key,),
+            )
+            existing = cur.fetchone()
+        conn.commit()
+        claim = _claim_public(existing) if existing else {
+            "user_id": None,
+            "username": "",
+            "display_name": "outro operador",
+            "claimed_at": None,
+        }
+        return _is_mine(claim, dash), claim
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def _fetch_all_rows(de: str = "", ate: str = "") -> list[dict]:
@@ -105,12 +272,26 @@ def resumo():
             }
 
     lista = sorted(contatos.values(), key=lambda c: c.get("data") or "", reverse=True)
+    try:
+        claims = _load_claims([_tel_key(c["telefone"]) for c in lista])
+        for c in lista:
+            claim = claims.get(_tel_key(c["telefone"]))
+            if claim:
+                c["puxado_por"] = claim
+    except Exception:
+        logger.exception("academico_interacoes: falha ao ler claims")
+    dash = _session_dashboard_user()
     return jsonify({
         "total": len(rows),
         "interagiram": interagiram,
         "nao_interagiram": len(rows) - interagiram,
         "sem_telefone": sem_telefone,
         "contatos": lista,
+        "me": {
+            "user_id": dash.get("user_id"),
+            "username": dash.get("username"),
+            "display_name": dash.get("display_name"),
+        },
     })
 
 
@@ -202,6 +383,7 @@ def atender_preview():
         return jsonify({"error": "EDUIT_CRM_TOKEN não configurado no .env"}), 503
 
     dash = _session_dashboard_user()
+    claim = _get_claim(telefone)
     try:
         crm_user = _crm_user_for_session(dash)
         lead = lookup_lead(telefone)
@@ -210,6 +392,8 @@ def atender_preview():
         return jsonify({
             "error": str(e),
             "dashboard_user": dash,
+            "claimed_by": claim,
+            "can_atender": _is_mine(claim, dash),
         }), status
 
     return jsonify({
@@ -217,6 +401,8 @@ def atender_preview():
         "dashboard_user": dash,
         "crm_user": crm_user,
         "lead": lead,
+        "claimed_by": claim,
+        "can_atender": _is_mine(claim, dash),
     })
 
 
@@ -233,6 +419,15 @@ def atender():
 
     dash = _session_dashboard_user()
     try:
+        mine, claim = _try_claim(telefone, dash)
+        if not mine:
+            who = claim.get("display_name") or claim.get("username") or "outro operador"
+            return jsonify({
+                "error": f"Este atendimento já foi puxado por {who}.",
+                "claimed_by": claim,
+                "can_atender": False,
+                "dashboard_user": dash,
+            }), 409
         crm_user = _crm_user_for_session(dash)
         result = assign_lead_to_user(telefone, crm_user)
     except EduitCrmError as e:
@@ -240,6 +435,7 @@ def atender():
         return jsonify({
             "error": str(e),
             "dashboard_user": dash,
+            "claimed_by": _get_claim(telefone),
         }), status
     except Exception:
         logger.exception("academico_interacoes: falha ao atribuir lead no CRM")
@@ -251,4 +447,33 @@ def atender():
         "crm_user": crm_user,
         "lead": result,
         "crm_url": result.get("crm_url"),
+        "claimed_by": claim,
+    })
+
+
+@academico_interacoes_bp.route("/api/academico-interacoes/claims", methods=["GET", "POST"])
+def list_claims():
+    if not session.get("role"):
+        return jsonify({"error": "Não autenticado"}), 401
+    if request.method == "POST":
+        body = request.get_json(silent=True) or {}
+        tels = body.get("telefones") or []
+    else:
+        raw = (request.args.get("telefones") or "").strip()
+        tels = [t for t in raw.split(",") if t.strip()]
+    keys = [_tel_key(str(t)) for t in tels]
+    try:
+        claims = _load_claims(keys) if keys else {}
+    except Exception:
+        logger.exception("academico_interacoes: falha ao listar claims")
+        return jsonify({"error": "Falha ao ler quem puxou os atendimentos"}), 502
+    dash = _session_dashboard_user()
+    return jsonify({
+        "ok": True,
+        "claims": claims,
+        "me": {
+            "user_id": dash.get("user_id"),
+            "username": dash.get("username"),
+            "display_name": dash.get("display_name"),
+        },
     })

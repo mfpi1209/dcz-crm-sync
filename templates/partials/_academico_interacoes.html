@@ -92,6 +92,8 @@
 }
 #page-academico_interacoes .ai-badge.b-ok { background: var(--success-light); color: var(--success); }
 #page-academico_interacoes .ai-badge.b-no { background: var(--danger-light); color: var(--danger); }
+#page-academico_interacoes .ai-badge.b-claim { background: var(--primary-light); color: var(--primary); }
+#page-academico_interacoes .ai-phone-btn.is-claimed { color: var(--text-muted); }
 
 #page-academico_interacoes .ai-loading { display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-size: 13px; padding: 24px 0; justify-content: center; }
 #page-academico_interacoes .ai-spinner {
@@ -233,7 +235,7 @@
             <span class="material-symbols-outlined" style="font-size:18px;color:var(--danger)">call</span>
             Telefones de quem não interagiu
             <span id="ai-contatos-count" style="font-weight:600;color:var(--text-muted);font-size:12px"></span>
-            <span style="font-weight:500;color:var(--text-muted);font-size:11px">(atendidos saem da lista ao atualizar)</span>
+            <span style="font-weight:500;color:var(--text-muted);font-size:11px">(atendidos saem da lista ao atualizar · puxado por aparece na hora)</span>
         </h3>
         <div class="ai-toolbar">
             <input id="ai-search" class="ai-input" type="text" placeholder="Filtrar por telefone ou RGM..." oninput="acadInteracoesRenderTable()">
@@ -268,6 +270,8 @@
 (function () {
     let _loaded = false;
     let _data = null;
+    let _me = { user_id: 0, username: '', display_name: '' };
+    let _claimPoll = null;
     // telefones marcados como atendido nesta sessão: ficam visíveis (com badge)
     // até o próximo carregamento, permitindo desfazer clique errado
     const _recentlyMarked = new Set();
@@ -294,6 +298,33 @@
         if (!parts.length) return '?';
         if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
         return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+
+    function telKey(t) {
+        let d = String(t || '').replace(/\D+/g, '');
+        if (d.startsWith('55') && d.length >= 12) d = d.slice(2);
+        return d;
+    }
+
+    function isMineClaim(claim) {
+        if (!claim) return true;
+        if (claim.user_id && _me.user_id && claim.user_id === _me.user_id) return true;
+        const a = String(claim.username || '').trim().toLowerCase();
+        const b = String(_me.username || '').trim().toLowerCase();
+        return !!(a && b && a === b);
+    }
+
+    function applyClaim(telefone, claim) {
+        if (!_data || !claim) return;
+        const key = telKey(telefone);
+        const c = (_data.contatos || []).find(x => telKey(x.telefone) === key);
+        if (c) c.puxado_por = claim;
+    }
+
+    function claimLabel(claim) {
+        if (!claim) return '';
+        const name = claim.display_name || claim.username || 'operador';
+        return isMineClaim(claim) ? 'Você' : name;
     }
 
     let _atender = { telefone: '', rgm: '', preview: null, loading: false };
@@ -323,6 +354,7 @@
         const confirmBtn = document.getElementById('ai-atender-confirm');
         confirmBtn.disabled = true;
         confirmBtn.style.display = '';
+        confirmBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">how_to_reg</span> Sim, vou atender';
         setAtenderErr('');
         const fallback = document.getElementById('ai-atender-fallback');
         if (fallback) fallback.style.display = 'none';
@@ -341,6 +373,34 @@
             const lead = (data.lead || {});
             const contact = lead.contact || {};
             const deal = lead.deal || {};
+            const claimed = data.claimed_by;
+            if (claimed) applyClaim(telefone, claimed);
+            if (!res.ok || data.error) {
+                document.getElementById('ai-atender-title').textContent = 'Não foi possível puxar';
+                document.getElementById('ai-atender-sub').textContent = '';
+                document.getElementById('ai-atender-info').innerHTML =
+                    `<div class="ai-modal-row"><span>Telefone</span><span class="ai-mono">${esc(telefone)}</span></div>`;
+                setAtenderErr(data.error || ('HTTP ' + res.status));
+                _atender.loading = false;
+                return;
+            }
+            if (claimed && data.can_atender === false) {
+                const holder = claimed.display_name || claimed.username || 'outro operador';
+                document.getElementById('ai-atender-initials').textContent = initials(holder);
+                document.getElementById('ai-atender-title').textContent = 'Já puxado por ' + holder;
+                document.getElementById('ai-atender-sub').innerHTML =
+                    'Outra pessoa já puxou este atendimento. Não atribui de novo para evitar conflito.';
+                document.getElementById('ai-atender-info').innerHTML =
+                    `<div class="ai-modal-row"><span>Puxado por</span><span>${esc(holder)}</span></div>` +
+                    `<div class="ai-modal-row"><span>Telefone</span><span class="ai-mono">${esc(contact.phone || telefone)}</span></div>` +
+                    (rgm && rgm !== '—' ? `<div class="ai-modal-row"><span>RGM</span><span class="ai-mono">${esc(rgm)}</span></div>` : '');
+                confirmBtn.style.display = 'none';
+                const url = lead.crm_url;
+                if (url) showCrmFallback(url, 'Pode abrir no CRM só para consultar.');
+                acadInteracoesRenderTable();
+                _atender.loading = false;
+                return;
+            }
             const who = crm.name || dash.display_name || dash.username || 'você';
             document.getElementById('ai-atender-initials').textContent = initials(who);
             document.getElementById('ai-atender-title').textContent = who + ', vai atender?';
@@ -352,14 +412,12 @@
                 `<div class="ai-modal-row"><span>Telefone</span><span class="ai-mono">${esc(contact.phone || telefone)}</span></div>` +
                 (rgm && rgm !== '—' ? `<div class="ai-modal-row"><span>RGM</span><span class="ai-mono">${esc(rgm)}</span></div>` : '') +
                 `<div class="ai-modal-row"><span>Lead</span><span>${esc(deal.title || contact.name || '—')}${deal.number != null ? ' · #' + esc(deal.number) : ''}</span></div>`;
-            if (!res.ok || data.error) {
-                setAtenderErr(data.error || ('HTTP ' + res.status));
-                _atender.loading = false;
-                return;
-            }
             _atender.preview = data;
             _atender.loading = false;
             confirmBtn.disabled = false;
+            if (claimed) {
+                confirmBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">open_in_new</span> Abrir de novo';
+            }
         } catch (e) {
             setAtenderErr('Falha ao preparar o atendimento: ' + e.message);
             _atender.loading = false;
@@ -409,7 +467,21 @@
                 body: JSON.stringify({ telefone: _atender.telefone, rgm: _atender.rgm }),
             });
             const data = await res.json();
+            if (res.status === 409 && data.claimed_by) {
+                applyClaim(_atender.telefone, data.claimed_by);
+                acadInteracoesRenderTable();
+                if (crmTab) { try { crmTab.close(); } catch (err) {} }
+                const who = data.claimed_by.display_name || data.claimed_by.username || 'outro operador';
+                confirmBtn.style.display = 'none';
+                showCrmFallback(
+                    (data.crm_url || previewUrl || ''),
+                    (data.error || ('Este atendimento já foi puxado por ' + who))
+                );
+                return;
+            }
             if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+            if (data.claimed_by) applyClaim(_atender.telefone, data.claimed_by);
+            acadInteracoesRenderTable();
             const url = data.crm_url || (data.lead && data.lead.crm_url) || previewUrl;
             if (!url) throw new Error('CRM não devolveu a URL do lead.');
             if (crmTab) {
@@ -463,7 +535,7 @@
         wrap.innerHTML = `
             <div style="max-height:520px;overflow-y:auto">
             <table>
-                <thead><tr><th>Telefone</th><th>RGM</th><th>Data</th><th style="text-align:right">Ligação</th></tr></thead>
+                <thead><tr><th>Telefone</th><th>RGM</th><th>Data</th><th>Puxado por</th><th style="text-align:right">Ligação</th></tr></thead>
                 <tbody>
                     ${rows.map(c => {
                         const st = c.ligacao_feita;
@@ -472,18 +544,26 @@
                             : (st === 'não atendido'
                                 ? '<span class="ai-badge b-no"><span class="material-symbols-outlined" style="font-size:13px">phone_missed</span>Não atendido</span>'
                                 : '');
+                        const claim = c.puxado_por;
+                        const claimCell = claim
+                            ? `<span class="ai-badge b-claim" title="${esc(fmtDate(claim.claimed_at))}">
+                                 <span class="material-symbols-outlined" style="font-size:13px">person</span>
+                                 ${esc(claimLabel(claim))}
+                               </span>`
+                            : '<span style="color:var(--text-muted)">—</span>';
                         return `<tr>
                         <td class="ai-mono">
-                            <button type="button" class="ai-phone-btn"
+                            <button type="button" class="ai-phone-btn${claim && !isMineClaim(claim) ? ' is-claimed' : ''}"
                                 data-tel="${esc(c.telefone)}" data-rgm="${esc(c.rgm ?? '')}"
                                 onclick="acadInteracoesAtender(this)"
-                                title="Abrir lead no CRM e atribuir a você">
+                                title="${claim && !isMineClaim(claim) ? 'Já puxado por ' + esc(claimLabel(claim)) : 'Abrir lead no CRM e atribuir a você'}">
                                 <span class="material-symbols-outlined" style="font-size:16px">smartphone</span>
                                 ${esc(c.telefone)}
                             </button>
                         </td>
                         <td class="ai-mono">${esc(c.rgm ?? '—')}</td>
                         <td>${fmtDate(c.data)}</td>
+                        <td>${claimCell}</td>
                         <td style="text-align:right">
                             <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap">
                                 ${badge}
@@ -564,6 +644,7 @@
             const data = await res.json();
             if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
             _data = data;
+            if (data.me) _me = data.me;
             _recentlyMarked.clear();
             const pct = (n) => data.total ? `(${(100 * n / data.total).toFixed(1)}%)` : '';
             document.getElementById('ai-stat-total').textContent = data.total.toLocaleString('pt-BR');
@@ -584,7 +665,44 @@
         }
     };
 
-    window.acadInteracoesLoadPage = function () { acadInteracoesLoad(false); };
+    window.acadInteracoesRefreshClaims = async function () {
+        if (!_data || !(_data.contatos || []).length) return;
+        try {
+            const res = await fetch('/api/academico-interacoes/claims', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ telefones: _data.contatos.map(c => c.telefone).filter(Boolean) }),
+            });
+            const data = await res.json();
+            if (!res.ok || data.error) return;
+            if (data.me) _me = data.me;
+            const map = data.claims || {};
+            let changed = false;
+            for (const c of _data.contatos) {
+                const cl = map[telKey(c.telefone)];
+                if (cl && JSON.stringify(c.puxado_por || null) !== JSON.stringify(cl)) {
+                    c.puxado_por = cl;
+                    changed = true;
+                }
+            }
+            if (changed) acadInteracoesRenderTable();
+        } catch (e) { /* poll silencioso */ }
+    };
+
+    function startClaimPoll() {
+        if (_claimPoll) return;
+        _claimPoll = setInterval(() => {
+            const page = document.getElementById('page-academico_interacoes');
+            if (page && !page.classList.contains('hidden') && document.visibilityState === 'visible') {
+                acadInteracoesRefreshClaims();
+            }
+        }, 8000);
+    }
+
+    window.acadInteracoesLoadPage = function () {
+        acadInteracoesLoad(false);
+        startClaimPoll();
+    };
 })();
 </script>
 </div>

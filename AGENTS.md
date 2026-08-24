@@ -4,6 +4,11 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-08-24 — Interações Acadêmicas: tag de quem puxou o atendimento (lock anti-conflito)
+- **Pedido:** se duas pessoas abrem a lista ao mesmo tempo, o 2º clique não pode roubar o lead; a linha precisa mostrar quem puxou.
+- **Decisão:** tabela `academico_atendimento_claim` (PG local, PK `telefone_key` = dígitos). `POST /atender` faz INSERT … ON CONFLICT DO NOTHING **antes** de atribuir no CRM. Quem já puxou reabre; outro operador recebe 409. A lista traz `puxado_por` e faz poll de 8s em `/claims`.
+- **Alternativas descartadas:** (a) só o owner do CRM — lead já atribuído fora da fila acadêmica bloquearia indevidamente; (b) coluna no Supabase — a lista acadêmica é outro projeto, lock do painel fica no PG que o app controla.
+
 ### 2026-08-24 — Deep-link do atender abre o front EasyPanel, não crm.eduit.com.br
 - **Sintoma:** após atribuir, o browser ia para `https://crm.eduit.com.br/pipeline?deal=…` (SaaS/marketing). O time usa `https://frontend-front.v74knz.easypanel.host/`.
 - **Decisão:** `EDUIT_CRM_WEB_URL` default = EasyPanel. API continua em `EDUIT_CRM_BASE_URL` (`crm.eduit.com.br`). Se o env ainda apontar para `crm.eduit.com.br`, o código ignora e usa o EasyPanel.
