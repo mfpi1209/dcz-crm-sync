@@ -14,6 +14,7 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
   - Deep-link: `/pipeline?deal={number}` (lead). Fallback `/inbox?c={number}` se não houver negócio.
   - UI: telefone vira botão; modal de confirmação mostra nome do painel + nome/e-mail casado no CRM + lead; só então atribui e abre nova aba.
   - Permissão: `_ensure_academico_interacoes_page()` concede `academico_interacoes` a usuários cuja `categoria` contém "Acadêmico" (inclui Supervisor). Sem isso a página só existia para admin.
+  - Config → Editar usuário: checkbox no grupo Acadêmico + presets Acadêmico/Supervisor Acadêmico; páginas de `ALL_PAGES` fora de grupo caem em "Outras" para não sumirem do modal.
 - **Endpoints:** `GET /api/academico-interacoes/atender-preview`, `POST /api/academico-interacoes/atender`. `/api/me` passa a devolver `email_cruzeiro` e `display_name`.
 - **Alternativas descartadas:** (a) round-robin da distribuição do CRM — o pedido é self-assign do logado; (b) abrir só o Kommo — a fila acadêmica vive no CRM EduIT; (c) exigir `GET /api/users` com Bearer — a rota não aceita token de API.
 

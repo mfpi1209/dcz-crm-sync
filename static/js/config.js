@@ -461,6 +461,7 @@ const CATEGORY_PRESETS = {
     'Acadêmico': [
         ..._PRESET_FERRAMENTAS_BASIC,
         'meus_atendimentos',
+        'academico_interacoes',
         'search', 'avisos',
     ],
     'Suporte Comercial': [
@@ -483,6 +484,7 @@ const CATEGORY_PRESETS = {
         'dashboard', 'search', 'avisos',
         'ativacoes', 'distribuicao', 'intelligence', 'inadimplencia',
         'feedback', 'macro_email', 'meus_atendimentos', 'rematricula',
+        'academico_interacoes',
         ..._PRESET_FERRAMENTAS_BASIC,
     ],
 };
@@ -933,6 +935,25 @@ function _renderPermsGrouped(cbClass, checkedPages, disabled) {
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">${groupsHtml}</div>
         </div>`;
     }).filter(Boolean);
+
+    // Páginas em ALL_PAGES que ainda não estão em nenhum grupo — aparecem
+    // no modal de editar/criar usuário em vez de sumirem em silêncio.
+    const groupedSlugs = new Set();
+    for (const g of PAGE_GROUPS_CONFIG) {
+        for (const p of (g.pages || [])) groupedSlugs.add(p);
+    }
+    const leftover = (_allPages || []).filter(p =>
+        !groupedSlugs.has(p) && !_isDisparadorWhatsappChild(p)
+    );
+    if (leftover.length) {
+        const extra = renderGroup({
+            label: 'Outras',
+            icon: 'more_horiz',
+            color: 'var(--text-muted)',
+            pages: leftover,
+        });
+        if (extra) blocks.push(extra);
+    }
 
     return blocks.join('');
 }
