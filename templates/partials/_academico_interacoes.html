@@ -251,6 +251,9 @@
         <p class="ai-modal-sub" id="ai-atender-sub">O lead será atribuído a você no CRM EduIT.</p>
         <div class="ai-modal-card" id="ai-atender-info"></div>
         <div class="ai-modal-err" id="ai-atender-err"></div>
+        <div id="ai-atender-fallback" style="display:none;margin-top:10px">
+            <a id="ai-atender-fallback-link" href="#" target="_blank" rel="noopener" class="ai-btn ai-btn-primary" style="display:flex;text-decoration:none;justify-content:center">Abrir lead no CRM</a>
+        </div>
         <div class="ai-modal-actions">
             <button type="button" class="ai-btn ai-btn-ghost" onclick="acadInteracoesFecharAtender()">Cancelar</button>
             <button type="button" class="ai-btn ai-btn-primary" id="ai-atender-confirm" onclick="acadInteracoesConfirmarAtender()">
@@ -304,6 +307,10 @@
 
     window.acadInteracoesFecharAtender = function () {
         document.getElementById('ai-atender-overlay').classList.remove('is-open');
+        const fallback = document.getElementById('ai-atender-fallback');
+        if (fallback) fallback.style.display = 'none';
+        const confirmBtn = document.getElementById('ai-atender-confirm');
+        if (confirmBtn) confirmBtn.style.display = '';
         _atender = { telefone: '', rgm: '', preview: null, loading: false };
     };
 
@@ -315,7 +322,10 @@
         if (overlay.parentElement !== document.body) document.body.appendChild(overlay);
         const confirmBtn = document.getElementById('ai-atender-confirm');
         confirmBtn.disabled = true;
+        confirmBtn.style.display = '';
         setAtenderErr('');
+        const fallback = document.getElementById('ai-atender-fallback');
+        if (fallback) fallback.style.display = 'none';
         document.getElementById('ai-atender-title').textContent = 'Confirmar atendimento';
         document.getElementById('ai-atender-sub').textContent = 'Checando seu usuário no CRM e o lead deste telefone…';
         document.getElementById('ai-atender-info').innerHTML =
@@ -356,13 +366,42 @@
         }
     };
 
-    window.acadInteracoesConfirmarAtender = async function () {
+    function showCrmFallback(url, msg) {
+        const box = document.getElementById('ai-atender-fallback');
+        const link = document.getElementById('ai-atender-fallback-link');
+        if (url && link && box) {
+            link.href = url;
+            box.style.display = 'block';
+        }
+        if (msg) setAtenderErr(msg);
+    }
+
+    window.acadInteracoesConfirmarAtender = function () {
         if (!_atender.telefone || _atender.loading) return;
         const confirmBtn = document.getElementById('ai-atender-confirm');
         confirmBtn.disabled = true;
         _atender.loading = true;
         setAtenderErr('');
+        const fallback = document.getElementById('ai-atender-fallback');
+        if (fallback) fallback.style.display = 'none';
         confirmBtn.innerHTML = '<span class="ai-spinner" style="width:14px;height:14px;border-width:2px"></span> Atribuindo…';
+
+        const previewUrl = (_atender.preview && _atender.preview.lead && _atender.preview.lead.crm_url) || '';
+        /* window.open precisa ser síncrono no clique — async/await perde o gesto e o popup é bloqueado. */
+        let crmTab = null;
+        try {
+            crmTab = window.open('about:blank', '_blank');
+            if (crmTab) {
+                try {
+                    crmTab.document.write('<!doctype html><title>CRM</title><p style="font-family:sans-serif;padding:24px">Abrindo o lead no CRM…</p>');
+                    crmTab.document.close();
+                } catch (e) {}
+            }
+        } catch (e) {
+            crmTab = null;
+        }
+
+        (async () => {
         try {
             const res = await fetch('/api/academico-interacoes/atender', {
                 method: 'POST',
@@ -371,17 +410,33 @@
             });
             const data = await res.json();
             if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
-            const url = data.crm_url || (data.lead && data.lead.crm_url);
-            acadInteracoesFecharAtender();
-            if (url) window.open(url, '_blank', 'noopener');
-            else throw new Error('CRM não devolveu a URL do lead.');
+            const url = data.crm_url || (data.lead && data.lead.crm_url) || previewUrl;
+            if (!url) throw new Error('CRM não devolveu a URL do lead.');
+            if (crmTab) {
+                try {
+                    crmTab.location.replace(url);
+                    crmTab.focus();
+                    acadInteracoesFecharAtender();
+                    return;
+                } catch (e) { /* cross-origin / blocked — cai no fallback */ }
+            }
+            confirmBtn.style.display = 'none';
+            showCrmFallback(url, crmTab
+                ? 'Lead atribuído. Clique abaixo para abrir o CRM.'
+                : 'Lead atribuído. O navegador bloqueou a nova aba — clique abaixo para abrir o CRM.');
         } catch (e) {
+            if (crmTab) {
+                try { crmTab.close(); } catch (err) {}
+            }
             setAtenderErr(e.message);
-            _atender.loading = false;
             confirmBtn.disabled = false;
         } finally {
-            confirmBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">how_to_reg</span> Sim, vou atender';
+            _atender.loading = false;
+            if (confirmBtn.style.display !== 'none') {
+                confirmBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">how_to_reg</span> Sim, vou atender';
+            }
         }
+        })();
     };
 
     window.acadInteracoesRenderTable = function () {
