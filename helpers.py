@@ -30,6 +30,23 @@ def to_brt(dt):
     return str(dt)
 
 
+def fold_name(s: str) -> str:
+    """Lowercase ASCII fold for matching names across dashboard and CRM."""
+    nfkd = unicodedata.normalize("NFKD", s or "")
+    return "".join(c for c in nfkd if not unicodedata.combining(c)).lower().strip()
+
+
+def display_name_from_login(username: str = "", email: str = "") -> str:
+    """wesley.guerreiro@… / wesley.guerreiro → 'Wesley Guerreiro'."""
+    src = (username or email or "").strip()
+    if "@" in src:
+        src = src.split("@", 1)[0]
+    parts = [p for p in re.split(r"[._\-+]+", src) if p]
+    if not parts:
+        return (username or email or "").strip()
+    return " ".join(p[:1].upper() + p[1:] for p in parts)
+
+
 # ---------------------------------------------------------------------------
 # Autenticação — constantes
 # ---------------------------------------------------------------------------

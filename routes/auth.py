@@ -155,12 +155,13 @@ def api_me():
     role = session.get("role")
     kommo_user_id = None
     categoria = None
+    email_cruzeiro = None
     if uid and uid != 0:
         try:
             conn = get_conn()
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT role, kommo_user_id, categoria FROM app_users WHERE id = %s",
+                    "SELECT role, kommo_user_id, categoria, email_cruzeiro FROM app_users WHERE id = %s",
                     (uid,),
                 )
                 row = cur.fetchone()
@@ -171,6 +172,7 @@ def api_me():
                     session["role"] = role
                 kommo_user_id = row[1]
                 categoria = row[2]
+                email_cruzeiro = row[3]
         except Exception:
             pass
     elif uid == 0 and session.get("authenticated"):
@@ -185,7 +187,11 @@ def api_me():
     else:
         pages = _get_user_permissions(uid)
 
-    from helpers import is_suporte_comercial_categoria, is_suporte_comercial_login
+    from helpers import (
+        display_name_from_login,
+        is_suporte_comercial_categoria,
+        is_suporte_comercial_login,
+    )
 
     username = session.get("username", "")
     is_suporte = is_suporte_comercial_categoria(categoria) or is_suporte_comercial_login(username)
@@ -197,6 +203,8 @@ def api_me():
         "pages": pages,
         "kommo_user_id": kommo_user_id,
         "categoria": categoria,
+        "email_cruzeiro": email_cruzeiro,
+        "display_name": display_name_from_login(username, email_cruzeiro or ""),
         "is_suporte_comercial": is_suporte,
     })
 

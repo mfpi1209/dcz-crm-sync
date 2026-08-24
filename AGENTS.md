@@ -4,6 +4,18 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-08-24 — Interações Acadêmicas: clique no telefone atribui o lead no CRM EduIT ao usuário logado
+- **Modelo usado:** Grok 4.6 (Cloud Agent).
+- **Pedido:** na página Interações Acadêmicas, clicar no telefone abre um popup de confirmação; ao confirmar, o lead no CRM EduIT (org Cruzeiro EaD) é atribuído ao operador logado no painel (ex.: Wesley Guerreiro / wesley.guerreiro@cruzeiroead.com.br) e o browser abre o lead.
+- **Decisão:**
+  - Token de org `EDUIT_CRM_TOKEN` (prefixo `eduit_`) + `EDUIT_CRM_BASE_URL`/`EDUIT_CRM_WEB_URL` (default `https://crm.eduit.com.br`).
+  - Match painel→CRM: e-mail (`app_users.email_cruzeiro` ou username se for e-mail) e nome derivado (`wesley.guerreiro` → `Wesley Guerreiro`). O `GET /api/users` do CRM só aceita sessão NextAuth; com Bearer a busca é `GET /api/conversations?search=` (indexa `assignedTo.name` e `assignedTo.email`).
+  - Atribuição: `PUT /api/deals/:id { ownerId }` — o backend do CRM propaga o responsável para o contato e as conversas (`propagateOwnerToContactAndChat`). `POST /api/conversations/:id/actions` (assign) **não** aceita Bearer.
+  - Deep-link: `/pipeline?deal={number}` (lead). Fallback `/inbox?c={number}` se não houver negócio.
+  - UI: telefone vira botão; modal de confirmação mostra nome do painel + nome/e-mail casado no CRM + lead; só então atribui e abre nova aba.
+- **Endpoints:** `GET /api/academico-interacoes/atender-preview`, `POST /api/academico-interacoes/atender`. `/api/me` passa a devolver `email_cruzeiro` e `display_name`.
+- **Alternativas descartadas:** (a) round-robin da distribuição do CRM — o pedido é self-assign do logado; (b) abrir só o Kommo — a fila acadêmica vive no CRM EduIT; (c) exigir `GET /api/users` com Bearer — a rota não aceita token de API.
+
 ### 2026-08-21 — Dashboard Comercial: virada da série de RGM (49→50) derrubou vendas; régua de outlier passa a considerar o ciclo inteiro
 - **Modelo usado:** Opus 5 (principal). Diagnóstico + fix, com escolha do usuário entre as alternativas ("dominante por ciclo").
 - **Sintoma:** após o upload do relatório de matriculados, o KPI caiu (563 bruto / **331** contando), "Fora do padrão RGM" saltou para **230** (prefixo 49 = 225, mais 37/41/44/46/48 com 1 cada) e as vendas dos consultores no ranking diminuíram. Card mostrando "Padrão do período: prefixo **50**".

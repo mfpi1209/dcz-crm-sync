@@ -104,6 +104,53 @@
     background: var(--danger-light); border: 1px solid var(--danger); color: var(--danger);
     border-radius: 10px; padding: 12px 16px; font-size: 13px; margin-bottom: 16px;
 }
+
+#page-academico_interacoes .ai-phone-btn {
+    display: inline-flex; align-items: center; gap: 6px; font-family: ui-monospace, monospace;
+    background: none; border: none; color: var(--primary); cursor: pointer; padding: 2px 4px;
+    border-radius: 6px; font-size: 13px; font-weight: 600;
+}
+#page-academico_interacoes .ai-phone-btn:hover { background: var(--primary-light); text-decoration: underline; }
+
+#ai-atender-overlay {
+    position: fixed; inset: 0; z-index: 10050; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(15, 23, 42, .55); backdrop-filter: blur(8px);
+    padding: 20px;
+}
+#ai-atender-overlay.is-open { display: flex; }
+#ai-atender-overlay .ai-modal {
+    width: min(440px, 100%); background: var(--card); color: var(--text);
+    border: 1px solid var(--border); border-radius: 20px;
+    box-shadow: 0 24px 80px rgba(0,0,0,.35); padding: 28px 24px 20px;
+    animation: ai-pop .22s ease-out;
+}
+@keyframes ai-pop {
+    from { opacity: 0; transform: translateY(12px) scale(.96); }
+    to { opacity: 1; transform: none; }
+}
+#ai-atender-overlay .ai-modal-avatar {
+    width: 56px; height: 56px; border-radius: 16px; margin: 0 auto 14px;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff;
+    font-size: 20px; font-weight: 800; letter-spacing: .02em;
+}
+#ai-atender-overlay .ai-modal h2 { margin: 0; font-size: 18px; font-weight: 800; text-align: center; }
+#ai-atender-overlay .ai-modal-sub { text-align: center; color: var(--text-muted); font-size: 13px; margin: 8px 0 18px; line-height: 1.45; }
+#ai-atender-overlay .ai-modal-card {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 14px; margin-bottom: 10px; font-size: 13px;
+}
+#ai-atender-overlay .ai-modal-row { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; }
+#ai-atender-overlay .ai-modal-row span:first-child { color: var(--text-muted); }
+#ai-atender-overlay .ai-modal-row span:last-child { font-weight: 700; text-align: right; }
+#ai-atender-overlay .ai-modal-err {
+    display: none; background: var(--danger-light); color: var(--danger);
+    border-radius: 10px; padding: 10px 12px; font-size: 12px; margin-bottom: 10px;
+}
+#ai-atender-overlay .ai-modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+#ai-atender-overlay .ai-modal-actions .ai-btn { flex: 1; justify-content: center; }
+#ai-atender-overlay .ai-btn-ghost { background: transparent; color: var(--text-muted); border-color: var(--border); }
 </style>
 
 <div class="ai-wrap">
@@ -182,6 +229,23 @@
     </div>
 </div>
 
+<div id="ai-atender-overlay" onclick="if(event.target===this)acadInteracoesFecharAtender()">
+    <div class="ai-modal" role="dialog" aria-modal="true" aria-labelledby="ai-atender-title">
+        <div class="ai-modal-avatar" id="ai-atender-initials">?</div>
+        <h2 id="ai-atender-title">Confirmar atendimento</h2>
+        <p class="ai-modal-sub" id="ai-atender-sub">O lead será atribuído a você no CRM EduIT.</p>
+        <div class="ai-modal-card" id="ai-atender-info"></div>
+        <div class="ai-modal-err" id="ai-atender-err"></div>
+        <div class="ai-modal-actions">
+            <button type="button" class="ai-btn ai-btn-ghost" onclick="acadInteracoesFecharAtender()">Cancelar</button>
+            <button type="button" class="ai-btn ai-btn-primary" id="ai-atender-confirm" onclick="acadInteracoesConfirmarAtender()">
+                <span class="material-symbols-outlined" style="font-size:16px">how_to_reg</span>
+                Sim, vou atender
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
 (function () {
     let _loaded = false;
@@ -189,6 +253,12 @@
     // telefones marcados como atendido nesta sessão: ficam visíveis (com badge)
     // até o próximo carregamento, permitindo desfazer clique errado
     const _recentlyMarked = new Set();
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && document.getElementById('ai-atender-overlay')?.classList.contains('is-open')) {
+            acadInteracoesFecharAtender();
+        }
+    });
 
     function esc(s) {
         return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -200,6 +270,103 @@
         if (isNaN(d)) return '—';
         return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     }
+
+    function initials(name) {
+        const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+        if (!parts.length) return '?';
+        if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+
+    let _atender = { telefone: '', rgm: '', preview: null, loading: false };
+
+    function setAtenderErr(msg) {
+        const el = document.getElementById('ai-atender-err');
+        if (!msg) { el.style.display = 'none'; el.textContent = ''; return; }
+        el.textContent = msg;
+        el.style.display = 'block';
+    }
+
+    window.acadInteracoesFecharAtender = function () {
+        document.getElementById('ai-atender-overlay').classList.remove('is-open');
+        _atender = { telefone: '', rgm: '', preview: null, loading: false };
+    };
+
+    window.acadInteracoesAtender = async function (btn) {
+        const telefone = btn.getAttribute('data-tel') || '';
+        const rgm = btn.getAttribute('data-rgm') || '';
+        _atender = { telefone, rgm, preview: null, loading: true };
+        const overlay = document.getElementById('ai-atender-overlay');
+        const confirmBtn = document.getElementById('ai-atender-confirm');
+        confirmBtn.disabled = true;
+        setAtenderErr('');
+        document.getElementById('ai-atender-title').textContent = 'Confirmar atendimento';
+        document.getElementById('ai-atender-sub').textContent = 'Checando seu usuário no CRM e o lead deste telefone…';
+        document.getElementById('ai-atender-info').innerHTML =
+            `<div class="ai-modal-row"><span>Telefone</span><span class="ai-mono">${esc(telefone)}</span></div>` +
+            (rgm && rgm !== '—' ? `<div class="ai-modal-row"><span>RGM</span><span class="ai-mono">${esc(rgm)}</span></div>` : '') +
+            `<div class="ai-modal-row"><span>Status</span><span>Buscando…</span></div>`;
+        overlay.classList.add('is-open');
+        try {
+            const res = await fetch('/api/academico-interacoes/atender-preview?telefone=' + encodeURIComponent(telefone));
+            const data = await res.json();
+            const dash = data.dashboard_user || {};
+            const crm = data.crm_user || {};
+            const lead = (data.lead || {});
+            const contact = lead.contact || {};
+            const deal = lead.deal || {};
+            const who = crm.name || dash.display_name || dash.username || 'você';
+            document.getElementById('ai-atender-initials').textContent = initials(who);
+            document.getElementById('ai-atender-title').textContent = who + ', vai atender?';
+            document.getElementById('ai-atender-sub').innerHTML =
+                'O lead será <strong>distribuído para você</strong> no CRM EduIT (mesmo nome/e-mail da org) e aberto em uma nova aba.';
+            document.getElementById('ai-atender-info').innerHTML =
+                `<div class="ai-modal-row"><span>No painel</span><span>${esc(dash.display_name || dash.username || '—')}</span></div>` +
+                `<div class="ai-modal-row"><span>No CRM</span><span>${esc(crm.name || '—')}${crm.email ? '<br><span style="font-weight:500;color:var(--text-muted);font-size:11px">' + esc(crm.email) + '</span>' : ''}</span></div>` +
+                `<div class="ai-modal-row"><span>Telefone</span><span class="ai-mono">${esc(contact.phone || telefone)}</span></div>` +
+                (rgm && rgm !== '—' ? `<div class="ai-modal-row"><span>RGM</span><span class="ai-mono">${esc(rgm)}</span></div>` : '') +
+                `<div class="ai-modal-row"><span>Lead</span><span>${esc(deal.title || contact.name || '—')}${deal.number != null ? ' · #' + esc(deal.number) : ''}</span></div>`;
+            if (!res.ok || data.error) {
+                setAtenderErr(data.error || ('HTTP ' + res.status));
+                _atender.loading = false;
+                return;
+            }
+            _atender.preview = data;
+            _atender.loading = false;
+            confirmBtn.disabled = false;
+        } catch (e) {
+            setAtenderErr('Falha ao preparar o atendimento: ' + e.message);
+            _atender.loading = false;
+        }
+    };
+
+    window.acadInteracoesConfirmarAtender = async function () {
+        if (!_atender.telefone || _atender.loading) return;
+        const confirmBtn = document.getElementById('ai-atender-confirm');
+        confirmBtn.disabled = true;
+        _atender.loading = true;
+        setAtenderErr('');
+        confirmBtn.innerHTML = '<span class="ai-spinner" style="width:14px;height:14px;border-width:2px"></span> Atribuindo…';
+        try {
+            const res = await fetch('/api/academico-interacoes/atender', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ telefone: _atender.telefone, rgm: _atender.rgm }),
+            });
+            const data = await res.json();
+            if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+            const url = data.crm_url || (data.lead && data.lead.crm_url);
+            acadInteracoesFecharAtender();
+            if (url) window.open(url, '_blank', 'noopener');
+            else throw new Error('CRM não devolveu a URL do lead.');
+        } catch (e) {
+            setAtenderErr(e.message);
+            _atender.loading = false;
+            confirmBtn.disabled = false;
+        } finally {
+            confirmBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">how_to_reg</span> Sim, vou atender';
+        }
+    };
 
     window.acadInteracoesRenderTable = function () {
         const wrap = document.getElementById('ai-table-wrap');
@@ -235,7 +402,15 @@
                                 ? '<span class="ai-badge b-no"><span class="material-symbols-outlined" style="font-size:13px">phone_missed</span>Não atendido</span>'
                                 : '');
                         return `<tr>
-                        <td class="ai-mono">${esc(c.telefone)}</td>
+                        <td class="ai-mono">
+                            <button type="button" class="ai-phone-btn"
+                                data-tel="${esc(c.telefone)}" data-rgm="${esc(c.rgm ?? '')}"
+                                onclick="acadInteracoesAtender(this)"
+                                title="Abrir lead no CRM e atribuir a você">
+                                <span class="material-symbols-outlined" style="font-size:16px">smartphone</span>
+                                ${esc(c.telefone)}
+                            </button>
+                        </td>
                         <td class="ai-mono">${esc(c.rgm ?? '—')}</td>
                         <td>${fmtDate(c.data)}</td>
                         <td style="text-align:right">
