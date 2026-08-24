@@ -1,10 +1,13 @@
 import os
 import hashlib
+import logging
 import psycopg2
 import psycopg2.extras
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session
 from db import get_conn, DB_DSN
 from helpers import ALL_PAGES, APP_USER_FALLBACK, APP_PASS_FALLBACK, to_brt
+
+logger = logging.getLogger(__name__)
 
 KOMMO_DB_DSN = dict(
     host=os.getenv("KOMMO_PG_HOST", os.getenv("DB_HOST", "localhost")),
@@ -360,9 +363,21 @@ def api_users_delete(uid):
     if uid == session.get("user_id"):
         return jsonify({"error": "Não é possível deletar o próprio usuário"}), 400
     conn = get_conn()
-    with conn.cursor() as cur:
-        cur.execute("DELETE FROM app_users WHERE id = %s", (uid,))
-    conn.commit()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM app_users WHERE id = %s", (uid,))
+            if not cur.fetchone():
+                conn.close()
+                return jsonify({"error": "Usuário não encontrado"}), 404
+            cur.execute("DELETE FROM app_users WHERE id = %s", (uid,))
+        conn.commit()
+    except psycopg2.Error:
+        conn.rollback()
+        conn.close()
+        logger.exception("api_users_delete uid=%s", uid)
+        return jsonify({
+            "error": "Não foi possível excluir: há registros vinculados a este usuário.",
+        }), 409
     conn.close()
     return jsonify({"ok": True})
 

@@ -335,6 +335,7 @@ from db import (
     _ensure_funnel_log_table,
     _ensure_premiacao_tables,
     _ensure_premiacao_interna_tables,
+    _ensure_app_users_delete_fks,
     _ensure_materias_alunos_tables,
     _ensure_pix_nivel_tables,
     _ensure_pix_faixa_tables,
@@ -358,6 +359,7 @@ _ensure_page_views_table()
 _ensure_funnel_log_table()
 _ensure_premiacao_tables()
 _ensure_premiacao_interna_tables()
+_ensure_app_users_delete_fks()
 _ensure_materias_alunos_tables()
 _ensure_pix_nivel_tables()
 _ensure_pix_faixa_tables()

@@ -1107,8 +1107,14 @@ async function deleteUser(uid, name) {
     if (!confirm(`Excluir o usuário "${name}"?`)) return;
     try {
         const res = await api('/api/users/' + uid, { method: 'DELETE' });
-        const d = await res.json();
-        if (d.error) { toast(d.error, 'error'); return; }
+        const text = await res.text();
+        let d = {};
+        try { d = JSON.parse(text); } catch {
+            toast('Não foi possível excluir o usuário. Recarregue a página e tente de novo.', 'error');
+            return;
+        }
+        if (!res.ok || d.error) { toast(d.error || 'Falha ao excluir', 'error'); return; }
+        toast('Usuário excluído', 'success');
         loadUsers();
     } catch (e) { toast('Erro: ' + e.message, 'error'); }
 }

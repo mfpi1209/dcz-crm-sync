@@ -400,6 +400,59 @@ def _ensure_users_table():
         logger.warning("Could not ensure users table: %s", e)
 
 
+def _ensure_app_users_delete_fks():
+    """Excluir usuário não pode falhar por FK: SET NULL nos vínculos históricos.
+
+    Tabelas com CASCADE/SET NULL já ok. As demais (agent_matriculas, avisos,
+    ajustes, premiação interna) bloqueavam o DELETE e o Flask devolvia HTML,
+    quebrando o toast do Config com 'Unexpected token <'.
+    """
+    targets = (
+        ("agent_matriculas", "user_id"),
+        ("matricula_ajustes", "user_id"),
+        ("avisos", "created_by"),
+        ("premiacao_interna_lote", "gestor_user_id"),
+        ("premiacao_interna_lote", "aprovador_user_id"),
+        ("premiacao_interna_evento", "autor_user_id"),
+    )
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            for table, col in targets:
+                cur.execute(
+                    """
+                    SELECT c.conname, pg_get_constraintdef(c.oid)
+                    FROM pg_constraint c
+                    JOIN pg_class t ON t.oid = c.conrelid
+                    JOIN pg_namespace n ON n.oid = t.relnamespace
+                    JOIN LATERAL unnest(c.conkey) AS k(attnum) ON TRUE
+                    JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
+                    WHERE c.contype = 'f'
+                      AND n.nspname = 'public'
+                      AND t.relname = %s
+                      AND a.attname = %s
+                    """,
+                    (table, col),
+                )
+                row = cur.fetchone()
+                if not row:
+                    continue
+                name, defn = row[0], (row[1] or "")
+                up = defn.upper()
+                if "ON DELETE SET NULL" in up or "ON DELETE CASCADE" in up:
+                    continue
+                cur.execute(f'ALTER TABLE {table} DROP CONSTRAINT {name}')
+                cur.execute(
+                    f'ALTER TABLE {table} ADD CONSTRAINT {name} '
+                    f'FOREIGN KEY ({col}) REFERENCES app_users(id) ON DELETE SET NULL'
+                )
+                logger.info("FK %s.%s → ON DELETE SET NULL", table, col)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure app_users delete FKs: %s", e)
+
+
 def _ensure_academico_interacoes_page():
     """Libera Interações Acadêmicas para operadores da categoria Acadêmico."""
     try:

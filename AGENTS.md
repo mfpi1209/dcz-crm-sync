@@ -4,6 +4,10 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-08-24 — Config: excluir usuário falhava com HTML ("Unexpected token <")
+- **Causa:** `DELETE FROM app_users` estoura FK em `agent_matriculas` (e outras) sem `ON DELETE`. O Flask devolve página HTML de erro; o front faz `res.json()` e mostra `Unexpected token '<'`.
+- **Decisão:** FKs históricas passam a `ON DELETE SET NULL` (matrículas/avisos/ajustes/premiação interna permanecem). Endpoint de delete devolve JSON em caso de erro. Front não assume JSON.
+
 ### 2026-08-24 — Interações Acadêmicas: clique no telefone atribui o lead no CRM EduIT ao usuário logado
 - **Modelo usado:** Grok 4.6 (Cloud Agent).
 - **Pedido:** na página Interações Acadêmicas, clicar no telefone abre um popup de confirmação; ao confirmar, o lead no CRM EduIT (org Cruzeiro EaD) é atribuído ao operador logado no painel (ex.: Wesley Guerreiro / wesley.guerreiro@cruzeiroead.com.br) e o browser abre o lead.
