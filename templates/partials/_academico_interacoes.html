@@ -239,6 +239,11 @@
         </h3>
         <div class="ai-toolbar">
             <input id="ai-search" class="ai-input" type="text" placeholder="Filtrar por telefone ou RGM..." oninput="acadInteracoesRenderTable()">
+            <select id="ai-filtro-atrib" class="ai-input" style="min-width:0" onchange="acadInteracoesRenderTable()" title="Filtrar por atribuição">
+                <option value="todos">Todos</option>
+                <option value="sem">Sem atribuição</option>
+                <option value="meus">Atribuídos a mim</option>
+            </select>
         </div>
         <div id="ai-table-wrap">
             <div class="ai-empty">Carregue os dados para ver a lista.</div>
@@ -520,12 +525,21 @@
         // (exceto os marcados agora, que ficam visíveis até o próximo carregamento)
         const pendentes = _data.contatos.filter(c =>
             c.ligacao_feita !== 'atendido' || _recentlyMarked.has(c.telefone));
-        const rows = pendentes.filter(c => {
+        const fAtrib = (document.getElementById('ai-filtro-atrib') || {}).value || 'todos';
+        let rows = pendentes.filter(c => {
+            if (fAtrib === 'sem') return !c.puxado_por;
+            if (fAtrib === 'meus') return !!c.puxado_por && isMineClaim(c.puxado_por);
+            return true;
+        }).filter(c => {
             if (!q && !qRaw) return true;
             const tel = (c.telefone || '').toLowerCase();
             const rgm = String(c.rgm || '');
             return tel.includes(qRaw) || (q && tel.replace(/\D/g, '').includes(q)) || rgm.includes(qRaw);
         });
+        // ordena: atribuídos a mim → atribuídos a outros → sem atribuição; data desc no grupo
+        const rank = (c) => !c.puxado_por ? 2 : (isMineClaim(c.puxado_por) ? 0 : 1);
+        rows = rows.slice().sort((a, b) =>
+            rank(a) - rank(b) || String(b.data || '').localeCompare(String(a.data || '')));
         document.getElementById('ai-contatos-count').textContent =
             `(${rows.length}${rows.length !== pendentes.length ? ' de ' + pendentes.length : ''} telefones)`;
         if (!rows.length) {
