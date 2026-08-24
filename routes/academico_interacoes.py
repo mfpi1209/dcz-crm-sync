@@ -1,4 +1,4 @@
-"""Iterações Acadêmicas: resumo da tabela academico_interacoes.
+"""Interações Acadêmicas: resumo da tabela academico_interacoes.
 
 A tabela fica em um projeto Supabase SEPARADO do principal, configurado via:
     SUPABASE_ACADEMICO_URL / SUPABASE_ACADEMICO_KEY  (.env)
