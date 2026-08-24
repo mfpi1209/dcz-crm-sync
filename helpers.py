@@ -53,6 +53,7 @@ ALL_PAGES = [
     "siaa_consulta", "siaa_sessao",
     "match_inadimplentes",
     "materias_alunos",
+    "academico_interacoes",
     # Sub-permissoes do Disparador WhatsApp (uma por aba do iframe do
     # tool_whatsapp_alunos). Quem tem 'disparador_whatsapp' mas nenhuma
     # sub abaixo => ve TUDO (compat). Quem tem 1+ sub => ve so as marcadas.

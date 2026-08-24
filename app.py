@@ -258,6 +258,7 @@ from routes.captacao import captacao_bp
 from routes.siaa import siaa_bp
 from routes.match_inadimplentes import match_inadimplentes_bp
 from routes.materias_alunos import materias_alunos_bp
+from routes.academico_interacoes import academico_interacoes_bp
 from routes.dist_comercial_schedule import (
     dist_comercial_schedule_bp,
     register_dist_comercial_schedule_job,
@@ -291,6 +292,7 @@ app.register_blueprint(captacao_bp)
 app.register_blueprint(siaa_bp)
 app.register_blueprint(match_inadimplentes_bp)
 app.register_blueprint(materias_alunos_bp)
+app.register_blueprint(academico_interacoes_bp)
 app.register_blueprint(dist_comercial_schedule_bp)
 
 # ── Atualizar Preço — rotas do webapp standalone integrado ────────────────
