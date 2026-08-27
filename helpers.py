@@ -71,6 +71,7 @@ ALL_PAGES = [
     "match_inadimplentes",
     "materias_alunos",
     "academico_interacoes",
+    "subir_blog",
     # Sub-permissoes do Disparador WhatsApp (uma por aba do iframe do
     # tool_whatsapp_alunos). Quem tem 'disparador_whatsapp' mas nenhuma
     # sub abaixo => ve TUDO (compat). Quem tem 1+ sub => ve so as marcadas.
@@ -86,6 +87,16 @@ ALL_PAGES = [
     "disparador_whatsapp_regras",
     "rematricula",
 ]
+
+# Subir Blog: só admin + logins extras (acesso automático, sem checkbox em Config).
+SUBIR_BLOG_EXTRA_LOGINS = frozenset({"mikami@eduit.com.br"})
+
+
+def can_access_subir_blog(role: str = "", username: str = "") -> bool:
+    if (role or "").strip().lower() == "admin":
+        return True
+    return (username or "").strip().lower() in SUBIR_BLOG_EXTRA_LOGINS
+
 
 # Mapping slug curto -> rota no app tool_whatsapp_alunos. Usado pelo
 # context_processor de abas permitidas.

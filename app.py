@@ -115,6 +115,7 @@ def inject_static_version():
 
 # ── Permissões de navegação injetadas no template (sem flash de UI) ───────
 from helpers import ALL_PAGES as _NAV_ALL_PAGES
+from helpers import can_access_subir_blog as _can_access_subir_blog
 from db import get_conn as _nav_get_conn
 
 # Páginas pessoais — sempre visíveis (exceto regras específicas, ex: comercial sem dashboard)
@@ -172,6 +173,8 @@ def inject_nav_perms():
     perf_home = is_comercial or is_suporte_comercial
 
     def nav_can(page):
+        if page == "subir_blog":
+            return _can_access_subir_blog(role, username)
         if is_admin:
             return True
         if page in _NAV_ADMIN_ONLY:
@@ -259,6 +262,7 @@ from routes.siaa import siaa_bp
 from routes.match_inadimplentes import match_inadimplentes_bp
 from routes.materias_alunos import materias_alunos_bp
 from routes.academico_interacoes import academico_interacoes_bp
+from routes.blog_posts import blog_posts_bp
 from routes.dist_comercial_schedule import (
     dist_comercial_schedule_bp,
     register_dist_comercial_schedule_job,
@@ -293,6 +297,7 @@ app.register_blueprint(siaa_bp)
 app.register_blueprint(match_inadimplentes_bp)
 app.register_blueprint(materias_alunos_bp)
 app.register_blueprint(academico_interacoes_bp)
+app.register_blueprint(blog_posts_bp)
 app.register_blueprint(dist_comercial_schedule_bp)
 
 # ── Atualizar Preço — rotas do webapp standalone integrado ────────────────

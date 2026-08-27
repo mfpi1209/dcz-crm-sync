@@ -944,6 +944,7 @@ function _renderPermsGrouped(cbClass, checkedPages, disabled) {
     }
     const leftover = (_allPages || []).filter(p =>
         !groupedSlugs.has(p) && !_isDisparadorWhatsappChild(p)
+        && p !== 'subir_blog'
     );
     if (leftover.length) {
         const extra = renderGroup({

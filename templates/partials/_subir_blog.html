@@ -1,0 +1,529 @@
+<div id="page-subir_blog" class="hidden">
+<style>
+#page-subir_blog { padding: 0; }
+#page-subir_blog {
+    --bg: #f1f5f9;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --hover-row: #fafafa;
+    --primary: #4f46e5;
+    --primary-light: #e0e7ff;
+    --success: #16a34a;
+    --success-light: #dcfce7;
+    --danger: #dc2626;
+    --danger-light: #fee2e2;
+    --warning: #d97706;
+    --warning-light: #fef3c7;
+}
+.dark #page-subir_blog {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --border: #334155;
+    --text: #f1f5f9;
+    --text-muted: #94a3b8;
+    --hover-row: #263348;
+    --primary: #6366f1;
+    --primary-light: #1e1b4b;
+    --success: #4ade80;
+    --success-light: rgba(34,197,94,.15);
+    --danger: #f87171;
+    --danger-light: rgba(248,113,113,.15);
+    --warning: #fbbf24;
+    --warning-light: rgba(251,191,36,.15);
+}
+
+#page-subir_blog .sb-wrap { padding: 24px; background: var(--bg); min-height: 100%; color: var(--text); }
+#page-subir_blog .sb-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 12px; flex-wrap: wrap; }
+#page-subir_blog .sb-title { font-size: 22px; font-weight: 700; margin: 0; }
+#page-subir_blog .sb-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+#page-subir_blog .sb-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; }
+@media (max-width: 1100px) { #page-subir_blog .sb-grid { grid-template-columns: 1fr; } }
+
+#page-subir_blog .sb-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+#page-subir_blog .sb-card h3 { font-size: 14px; font-weight: 700; margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px; }
+
+#page-subir_blog .sb-field { margin-bottom: 14px; }
+#page-subir_blog .sb-label { display: block; font-size: 12px; font-weight: 700; color: var(--text-muted); margin-bottom: 5px; }
+#page-subir_blog .sb-label .req { color: var(--danger); }
+#page-subir_blog .sb-input, #page-subir_blog .sb-textarea, #page-subir_blog .sb-select {
+    width: 100%; background: var(--card); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 9px 12px; font-size: 13px; font-family: inherit; box-sizing: border-box;
+}
+#page-subir_blog .sb-textarea {
+    resize: vertical; line-height: 1.5;
+    white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-all;
+    overflow-x: hidden; max-width: 100%;
+}
+#page-subir_blog .sb-input:focus, #page-subir_blog .sb-textarea:focus, #page-subir_blog .sb-select:focus {
+    outline: none; border-color: var(--primary);
+}
+#page-subir_blog .sb-hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+#page-subir_blog .sb-slug-preview {
+    font-family: ui-monospace, monospace; font-size: 12px; color: var(--primary);
+    background: var(--primary-light); border-radius: 6px; padding: 4px 8px; margin-top: 5px;
+    display: inline-block; word-break: break-all;
+}
+
+#page-subir_blog .sb-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+#page-subir_blog .sb-tag {
+    display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; cursor: pointer; user-select: none;
+    background: var(--card); color: var(--text-muted); border: 1px solid var(--border); transition: all .15s;
+}
+#page-subir_blog .sb-tag.on { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
+#page-subir_blog .sb-tag.locked { opacity: .85; cursor: not-allowed; }
+
+#page-subir_blog .sb-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 640px) { #page-subir_blog .sb-row2 { grid-template-columns: 1fr; } }
+
+#page-subir_blog .sb-drop {
+    border: 2px dashed var(--border); border-radius: 10px; padding: 18px 12px;
+    text-align: center; cursor: pointer; transition: all .15s ease;
+    background: var(--card); color: var(--text-muted); font-size: 12px;
+}
+#page-subir_blog .sb-drop:hover, #page-subir_blog .sb-drop.dragover { border-color: var(--primary); background: var(--primary-light); color: var(--text); }
+#page-subir_blog .sb-img-preview { margin-top: 10px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); display: none; }
+#page-subir_blog .sb-img-preview img { width: 100%; max-height: 180px; object-fit: cover; display: block; }
+
+#page-subir_blog .sb-check { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+#page-subir_blog .sb-check input { width: 16px; height: 16px; accent-color: var(--primary); }
+
+#page-subir_blog .sb-btn {
+    padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;
+    border: 1px solid transparent; display: inline-flex; align-items: center; gap: 6px; transition: all .15s;
+}
+#page-subir_blog .sb-btn-primary { background: var(--primary); color: #fff; }
+#page-subir_blog .sb-btn-primary:hover { filter: brightness(1.08); }
+#page-subir_blog .sb-btn-secondary { background: var(--card); color: var(--text); border-color: var(--border); }
+#page-subir_blog .sb-btn-secondary:hover { background: var(--hover-row); }
+#page-subir_blog .sb-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+#page-subir_blog .sb-msg { border-radius: 10px; padding: 12px 16px; font-size: 13px; margin-bottom: 14px; display: none; }
+#page-subir_blog .sb-msg.ok { display: block; background: var(--success-light); border: 1px solid var(--success); color: var(--success); }
+#page-subir_blog .sb-msg.err { display: block; background: var(--danger-light); border: 1px solid var(--danger); color: var(--danger); }
+
+#page-subir_blog .sb-post { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); align-items: center; }
+#page-subir_blog .sb-post:last-child { border-bottom: none; }
+#page-subir_blog .sb-post img { width: 56px; height: 42px; object-fit: cover; border-radius: 6px; flex-shrink: 0; background: var(--bg); }
+#page-subir_blog .sb-post .sb-post-title { font-size: 13px; font-weight: 700; line-height: 1.3; }
+#page-subir_blog .sb-post .sb-post-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+#page-subir_blog .sb-post-actions { display: flex; flex-direction: column; gap: 4px; margin-left: auto; flex-shrink: 0; }
+#page-subir_blog .sb-icon-btn {
+    width: 28px; height: 28px; border-radius: 7px; border: 1px solid var(--border);
+    background: var(--card); color: var(--text-muted); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; transition: all .15s;
+}
+#page-subir_blog .sb-icon-btn:hover { color: var(--primary); border-color: var(--primary); background: var(--primary-light); }
+#page-subir_blog .sb-icon-btn.danger:hover { color: var(--danger); border-color: var(--danger); background: var(--danger-light); }
+#page-subir_blog .sb-editing-banner {
+    display: none; align-items: center; gap: 8px; background: var(--warning-light); color: var(--warning);
+    border: 1px solid var(--warning); border-radius: 10px; padding: 10px 14px; font-size: 13px;
+    font-weight: 600; margin-bottom: 14px;
+}
+#page-subir_blog .sb-editing-banner.on { display: flex; }
+#page-subir_blog .sb-badge {
+    display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 999px;
+    font-size: 10px; font-weight: 700; background: var(--warning-light); color: var(--warning);
+}
+#page-subir_blog .sb-empty { text-align: center; color: var(--text-muted); font-size: 13px; padding: 20px 0; }
+#page-subir_blog .sb-spinner {
+    width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--primary);
+    border-radius: 50%; animation: sb-spin .8s linear infinite; display: inline-block;
+}
+@keyframes sb-spin { to { transform: rotate(360deg); } }
+</style>
+
+<div class="sb-wrap">
+    <div class="sb-topbar">
+        <div>
+            <h1 class="sb-title">Subir Blog</h1>
+            <p class="sb-sub">Publica um post na tabela <span style="font-family:ui-monospace,monospace">blog_posts</span> — o site monta a página sozinho.</p>
+        </div>
+    </div>
+
+    <div class="sb-grid">
+        <div>
+            <div class="sb-card">
+                <h3><span class="material-symbols-outlined" style="font-size:18px;color:var(--primary)">edit_note</span> <span id="sb-form-title">Novo post</span></h3>
+                <div id="sb-editing" class="sb-editing-banner">
+                    <span class="material-symbols-outlined" style="font-size:16px">edit</span>
+                    Editando: <span id="sb-editing-id" style="font-family:ui-monospace,monospace"></span>
+                    <button class="sb-btn sb-btn-secondary" style="margin-left:auto;padding:4px 10px;font-size:11px" onclick="sbCancelarEdicao()">Cancelar edição</button>
+                </div>
+                <div id="sb-msg" class="sb-msg"></div>
+
+                <div class="sb-field">
+                    <label class="sb-label">Título <span class="req">*</span></label>
+                    <input id="sb-title" class="sb-input" type="text" maxlength="200" placeholder="Ex.: Como escolher uma graduação em 2026?" oninput="sbUpdateSlug(); sbUpdateReadTime()">
+                    <div class="sb-slug-preview" id="sb-slug">slug aparecerá aqui</div>
+                </div>
+
+                <div class="sb-field">
+                    <label class="sb-label">Resumo <span class="req">*</span></label>
+                    <textarea id="sb-summary" class="sb-textarea" rows="2" maxlength="400" placeholder="1 a 3 frases, texto puro"></textarea>
+                </div>
+
+                <div class="sb-field">
+                    <label class="sb-label">Conteúdo <span class="req">*</span></label>
+                    <textarea id="sb-content" class="sb-textarea" rows="14" placeholder="Texto do artigo ou HTML simples (sem header/menu/footer do site)" oninput="sbUpdateReadTime()"></textarea>
+                    <div class="sb-hint" id="sb-wordcount">0 palavras</div>
+                </div>
+
+                <div class="sb-row2">
+                    <div class="sb-field">
+                        <label class="sb-label">Categoria principal <span class="req">*</span></label>
+                        <select id="sb-category" class="sb-select" onchange="sbSyncTags()"></select>
+                    </div>
+                    <div class="sb-field">
+                        <label class="sb-label">Data de publicação <span class="req">*</span></label>
+                        <input id="sb-date" class="sb-input" type="date">
+                    </div>
+                </div>
+
+                <div class="sb-field">
+                    <label class="sb-label">Aparece nas categorias (tags) <span class="req">*</span></label>
+                    <div class="sb-tags" id="sb-tags"></div>
+                    <div class="sb-hint">A categoria principal é sempre incluída.</div>
+                </div>
+
+                <div class="sb-field">
+                    <label class="sb-label">Tempo de leitura</label>
+                    <input id="sb-readtime" class="sb-input" type="text" placeholder="Calculado automaticamente">
+                    <div class="sb-hint">Automático (~200 palavras/min). Edite se quiser.</div>
+                </div>
+
+                <div class="sb-field">
+                    <label class="sb-label">Imagem de capa <span class="req">*</span></label>
+                    <div class="sb-drop" id="blog-drop" onclick="document.getElementById('blog-file').click()">
+                        <div style="font-weight:700;color:var(--text)">Clique ou arraste a imagem</div>
+                        <div>jpg, png, webp ou gif — sobe para o Storage e gera a URL pública</div>
+                    </div>
+                    <input id="blog-file" type="file" accept=".jpg,.jpeg,.png,.webp,.gif" style="display:none" onchange="sbUpload(this.files[0])">
+                    <div class="sb-img-preview" id="sb-img-preview"><img id="sb-img-tag" alt="Capa"></div>
+                    <input id="sb-image" class="sb-input" type="url" placeholder="https://... (preenchido pelo upload, ou cole uma URL)" style="margin-top:8px">
+                </div>
+
+                <div class="sb-row2">
+                    <div class="sb-field">
+                        <label class="sb-label">Autor (opcional)</label>
+                        <input id="sb-author-name" class="sb-input" type="text" placeholder="Eduit">
+                    </div>
+                    <div class="sb-field">
+                        <label class="sb-label">Função do autor (opcional)</label>
+                        <input id="sb-author-role" class="sb-input" type="text" placeholder="Blog Eduit">
+                    </div>
+                </div>
+
+                <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
+                    <button class="sb-btn sb-btn-secondary" onclick="sbLimpar()">
+                        <span class="material-symbols-outlined" style="font-size:16px">ink_eraser</span> Limpar
+                    </button>
+                    <button id="sb-btn-publish" class="sb-btn sb-btn-primary" onclick="sbPublicar()">
+                        <span class="material-symbols-outlined" style="font-size:16px">publish</span> Publicar post
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <div class="sb-card">
+                <h3>
+                    <span class="material-symbols-outlined" style="font-size:18px;color:var(--primary)">article</span>
+                    Posts publicados
+                    <span id="sb-posts-count" style="font-weight:600;color:var(--text-muted);font-size:12px"></span>
+                </h3>
+                <div id="sb-posts"><div class="sb-empty">Carregando...</div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    let _loaded = false;
+    let _categorias = [];
+    let _editingId = null;
+    let _editingFeatured = false;
+    const _MESES = { Jan: '01', Fev: '02', Mar: '03', Abr: '04', Mai: '05', Jun: '06', Jul: '07', Ago: '08', Set: '09', Out: '10', Nov: '11', Dez: '12' };
+
+    function dateToInput(d) {
+        const m = String(d || '').match(/^(\d{2}) (\w{3}) (\d{4})$/);
+        return m ? `${m[3]}-${_MESES[m[2]] || '01'}-${m[1]}` : '';
+    }
+
+    function esc(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function slugify(s) {
+        return String(s || '').normalize('NFKD').replace(/[̀-ͯ]/g, '')
+            .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    }
+
+    window.sbUpdateSlug = function () {
+        const t = document.getElementById('sb-title').value;
+        document.getElementById('sb-slug').textContent = slugify(t) || 'slug aparecerá aqui';
+    };
+
+    window.sbUpdateReadTime = function () {
+        const words = (document.getElementById('sb-content').value || '')
+            .replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length;
+        document.getElementById('sb-wordcount').textContent = words + ' palavras';
+        const rt = document.getElementById('sb-readtime');
+        if (!rt.dataset.touched) {
+            rt.value = words ? Math.max(1, Math.round(words / 200)) + ' min de leitura' : '';
+        }
+    };
+    document.addEventListener('input', (e) => {
+        if (e.target && e.target.id === 'sb-readtime') e.target.dataset.touched = '1';
+    });
+
+    window.sbSyncTags = function () {
+        const cat = document.getElementById('sb-category').value;
+        document.querySelectorAll('#sb-tags .sb-tag').forEach(el => {
+            const isCat = el.dataset.cat === cat;
+            if (isCat) el.classList.add('on', 'locked');
+            else el.classList.remove('locked');
+        });
+    };
+
+    function renderTagChips() {
+        const wrap = document.getElementById('sb-tags');
+        wrap.innerHTML = _categorias.map(c =>
+            `<span class="sb-tag" data-cat="${esc(c)}" onclick="sbToggleTag(this)">${esc(c)}</span>`
+        ).join('');
+        sbSyncTags();
+    }
+
+    window.sbToggleTag = function (el) {
+        if (el.classList.contains('locked')) return;
+        el.classList.toggle('on');
+    };
+
+    function selectedTags() {
+        return [...document.querySelectorAll('#sb-tags .sb-tag.on')].map(el => el.dataset.cat);
+    }
+
+    window.sbUpload = async function (file) {
+        if (!file) return;
+        const drop = document.getElementById('blog-drop');
+        const old = drop.innerHTML;
+        drop.innerHTML = '<span class="sb-spinner"></span> Enviando imagem...';
+        try {
+            const fd = new FormData();
+            fd.append('file', file);
+            const res = await fetch('/api/blog/upload-image', { method: 'POST', body: fd });
+            const data = await res.json();
+            if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+            document.getElementById('sb-image').value = data.url;
+            const prev = document.getElementById('sb-img-preview');
+            document.getElementById('sb-img-tag').src = data.url;
+            prev.style.display = 'block';
+            drop.innerHTML = old;
+        } catch (e) {
+            drop.innerHTML = old;
+            sbMsg('Erro no upload: ' + e.message, false);
+        } finally {
+            document.getElementById('blog-file').value = '';
+        }
+    };
+
+    function sbBlogPageVisible() {
+        const p = document.getElementById('page-subir_blog');
+        return p && !p.classList.contains('hidden');
+    }
+    document.addEventListener('dragover', (e) => {
+        if (!sbBlogPageVisible()) return;
+        e.preventDefault();
+        const drop = document.getElementById('blog-drop');
+        if (drop && drop.contains(e.target)) drop.classList.add('dragover');
+    });
+    document.addEventListener('dragleave', (e) => {
+        const drop = document.getElementById('blog-drop');
+        if (drop && e.target === drop) drop.classList.remove('dragover');
+    });
+    document.addEventListener('drop', (e) => {
+        if (!sbBlogPageVisible()) return;
+        e.preventDefault();
+        const drop = document.getElementById('blog-drop');
+        if (drop) drop.classList.remove('dragover');
+        const page = document.getElementById('page-subir_blog');
+        if (!page || !page.contains(e.target)) return;
+        const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f && f.type && f.type.startsWith('image/')) sbUpload(f);
+    });
+
+    function sbMsg(text, ok) {
+        const el = document.getElementById('sb-msg');
+        el.textContent = text;
+        el.className = 'sb-msg ' + (ok ? 'ok' : 'err');
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    window.sbLimpar = function () {
+        ['sb-title', 'sb-summary', 'sb-content', 'sb-image', 'sb-author-name', 'sb-author-role']
+            .forEach(id => document.getElementById(id).value = '');
+        const rt = document.getElementById('sb-readtime');
+        rt.value = ''; delete rt.dataset.touched;
+        document.getElementById('sb-img-preview').style.display = 'none';
+        document.getElementById('sb-date').valueAsDate = new Date();
+        document.querySelectorAll('#sb-tags .sb-tag').forEach(el => el.classList.remove('on'));
+        sbSyncTags(); sbUpdateSlug(); sbUpdateReadTime();
+        document.getElementById('sb-msg').className = 'sb-msg';
+        sbSetEditing(null);
+    };
+
+    function sbSetEditing(id) {
+        _editingId = id;
+        if (!id) _editingFeatured = false;
+        document.getElementById('sb-editing').classList.toggle('on', !!id);
+        document.getElementById('sb-editing-id').textContent = id || '';
+        document.getElementById('sb-form-title').textContent = id ? 'Editar post' : 'Novo post';
+        document.getElementById('sb-btn-publish').innerHTML = id
+            ? '<span class="material-symbols-outlined" style="font-size:16px">save</span> Salvar alterações'
+            : '<span class="material-symbols-outlined" style="font-size:16px">publish</span> Publicar post';
+    }
+
+    window.sbCancelarEdicao = function () { sbLimpar(); };
+
+    window.sbEditar = async function (id) {
+        sbMsg('Carregando post...', true);
+        try {
+            const res = await fetch('/api/blog/posts/' + encodeURIComponent(id));
+            const data = await res.json();
+            if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+            const p = data.post;
+            sbLimpar();
+            document.getElementById('sb-title').value = p.title || '';
+            document.getElementById('sb-summary').value = p.summary || '';
+            document.getElementById('sb-content').value = p.content || '';
+            document.getElementById('sb-category').value = p.category || _categorias[0];
+            document.getElementById('sb-date').value = dateToInput(p.date);
+            const rt = document.getElementById('sb-readtime');
+            rt.value = p.read_time || ''; rt.dataset.touched = '1';
+            document.getElementById('sb-image').value = p.image || '';
+            if (p.image) {
+                document.getElementById('sb-img-tag').src = p.image;
+                document.getElementById('sb-img-preview').style.display = 'block';
+            }
+            document.getElementById('sb-author-name').value = p.author_name || '';
+            document.getElementById('sb-author-role').value = p.author_role || '';
+            document.querySelectorAll('#sb-tags .sb-tag').forEach(el => {
+                el.classList.toggle('on', (p.tags || []).includes(el.dataset.cat));
+            });
+            sbSyncTags(); sbUpdateSlug(); sbUpdateReadTime();
+            document.getElementById('sb-slug').textContent = p.id + ' (não muda)';
+            sbSetEditing(p.id);
+            _editingFeatured = !!p.is_featured;
+            document.getElementById('sb-msg').className = 'sb-msg';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        } catch (e) {
+            sbMsg('Erro ao carregar post: ' + e.message, false);
+        }
+    };
+
+    window.sbApagar = async function (id) {
+        if (!confirm('Apagar o post "' + id + '"?\n\nEssa ação não pode ser desfeita.')) return;
+        try {
+            const res = await fetch('/api/blog/posts/' + encodeURIComponent(id), { method: 'DELETE' });
+            const data = await res.json();
+            if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+            if (_editingId === id) sbLimpar();
+            sbMsg('Post apagado: ' + id, true);
+            sbLoadPosts();
+        } catch (e) {
+            sbMsg('Erro ao apagar: ' + e.message, false);
+        }
+    };
+
+    window.sbPublicar = async function () {
+        const btn = document.getElementById('sb-btn-publish');
+        const editing = _editingId;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="sb-spinner" style="border-top-color:#fff"></span> ' + (editing ? 'Salvando...' : 'Publicando...');
+        try {
+            const payload = {
+                title: document.getElementById('sb-title').value,
+                summary: document.getElementById('sb-summary').value,
+                content: document.getElementById('sb-content').value,
+                category: document.getElementById('sb-category').value,
+                tags: selectedTags(),
+                date: document.getElementById('sb-date').value,
+                read_time: document.getElementById('sb-readtime').value,
+                image: document.getElementById('sb-image').value,
+                is_featured: editing ? _editingFeatured : false,
+                author_name: document.getElementById('sb-author-name').value,
+                author_role: document.getElementById('sb-author-role').value,
+            };
+            const res = await fetch(editing ? '/api/blog/posts/' + encodeURIComponent(editing) : '/api/blog/posts', {
+                method: editing ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+            if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+            sbMsg((editing ? 'Post atualizado: ' : 'Post publicado! Slug: ') + data.id + (data.is_featured ? ' (destaque)' : ''), true);
+            sbLimpar();
+            sbLoadPosts();
+        } catch (e) {
+            sbMsg('Erro ao ' + (editing ? 'salvar' : 'publicar') + ': ' + e.message, false);
+        } finally {
+            btn.disabled = false;
+            sbSetEditing(_editingId);
+        }
+    };
+
+    window.sbLoadPosts = async function () {
+        const wrap = document.getElementById('sb-posts');
+        try {
+            const res = await fetch('/api/blog/posts');
+            const data = await res.json();
+            if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+            if (!_categorias.length && data.categorias) {
+                _categorias = data.categorias;
+                const sel = document.getElementById('sb-category');
+                sel.innerHTML = _categorias.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+                renderTagChips();
+            }
+            const posts = data.posts || [];
+            document.getElementById('sb-posts-count').textContent = `(${posts.length})`;
+            if (!posts.length) {
+                wrap.innerHTML = '<div class="sb-empty">Nenhum post ainda.</div>';
+                return;
+            }
+            wrap.innerHTML = posts.map(p => `
+                <div class="sb-post">
+                    ${p.image ? `<img src="${esc(p.image)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+                    <div style="min-width:0">
+                        <div class="sb-post-title">
+                            ${p.is_featured ? '<span class="sb-badge"><span class="material-symbols-outlined" style="font-size:11px">star</span>Destaque</span> ' : ''}
+                            ${esc(p.title)}
+                        </div>
+                        <div class="sb-post-meta">${esc(p.category)} · ${esc(p.date)} · ${esc(p.read_time || '')}</div>
+                    </div>
+                    <div class="sb-post-actions">
+                        <button class="sb-icon-btn" onclick="sbEditar('${esc(p.id)}')" title="Editar post">
+                            <span class="material-symbols-outlined" style="font-size:16px">edit</span>
+                        </button>
+                        <button class="sb-icon-btn danger" onclick="sbApagar('${esc(p.id)}')" title="Apagar post">
+                            <span class="material-symbols-outlined" style="font-size:16px">delete</span>
+                        </button>
+                    </div>
+                </div>`).join('');
+        } catch (e) {
+            wrap.innerHTML = '<div class="sb-empty">Falha ao carregar: ' + esc(e.message) + '</div>';
+        }
+    };
+
+    window.sbLoadPage = function () {
+        if (_loaded) return;
+        _loaded = true;
+        document.getElementById('sb-date').valueAsDate = new Date();
+        sbLoadPosts();
+    };
+})();
+</script>
+</div>
