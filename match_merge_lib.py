@@ -2307,6 +2307,29 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
         pass
     log.info("CPFs com RGM (já matriculados): %d", len(cpfs_com_rgm))
 
+    # RGMs ainda EM CURSO/Matriculado por CPF — para não sobrescrever um 142
+    # de outro curso ativo (recompra/nova matrícula paralela).
+    cpf_rgms_ativos: dict[str, set[str]] = {}
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT regexp_replace(COALESCE(cpf,''), '[^0-9]', '', 'g'),
+                       regexp_replace(COALESCE(rgm,''), '[^0-9]', '', 'g')
+                FROM mm_matriculados
+                WHERE UPPER(COALESCE(situacao,'')) IN ('MATRICULADO', 'EM CURSO')
+                  AND rgm IS NOT NULL AND TRIM(rgm) != ''
+                  AND cpf IS NOT NULL AND TRIM(cpf) != ''
+            """)
+            for _c, _r in cur.fetchall():
+                _c = (_c or "").zfill(11)
+                if _c and _c != "0" * 11 and _r:
+                    cpf_rgms_ativos.setdefault(_c, set()).add(_r)
+        conn.close()
+    except Exception as exc:
+        log.warning("cpf_rgms_ativos: %s", exc)
+    log.info("CPFs com RGM ativo (mm_matriculados): %d", len(cpf_rgms_ativos))
+
     # Lookup CPF -> dados de mm_matriculados (enriquece NOVO de inscrito Matriculado).
     # Janela 60d para cobrir matrículas antigas que ainda não viraram lead.
     # Usado pela Opção A da decisão 2026-06-09: inscrito com siaa_situacao=Matriculado
@@ -2953,6 +2976,78 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                             n_dup_perdido += 1
                         continue
 
+                # Lead já em 142 com OUTRO RGM (aluno fez nova matrícula/retorno
+                # e o ganho ficou com o RGM antigo). Atualiza o 142 se o RGM
+                # antigo não estiver mais ativo; se estiver (2 cursos), cria NOVO
+                # para não apagar a matrícula anterior. Sem isso a pessoa cai em
+                # Transferência/Regresso — a aba só casa o RGM atual em vw_leads_rgm.
+                ganho_perm = [
+                    lid for lid in candidates
+                    if lead_pipe.get(lid)
+                    and lead_pipe[lid][0] in PIPELINES_PERMITIDOS
+                    and lead_pipe[lid][1] == 142
+                    and lid not in lead_deleted
+                ]
+                if ganho_perm:
+                    target_142 = max(ganho_perm)
+                    old_rgm_digits = ""
+                    for _rk, _lids in idx_rgm.items():
+                        if target_142 in _lids:
+                            old_rgm_digits = re.sub(r"[^0-9]", "", _rk or "")
+                            break
+                    new_rgm_digits = re.sub(r"[^0-9]", "", rgm_clean)
+                    _ativos = cpf_rgms_ativos.get(cpf_clean, set())
+                    _outro_curso_ativo = (
+                        bool(old_rgm_digits)
+                        and old_rgm_digits != new_rgm_digits
+                        and old_rgm_digits in _ativos
+                    )
+                    if _outro_curso_ativo:
+                        acoes.append({
+                            "acao": "NOVO",
+                            "lead_id": None,
+                            "novo_matriculado": True,
+                            "nome": nome,
+                            "cpf": cpf_clean,
+                            "rgm": rgm_clean,
+                            "curso_siaa": curso or "",
+                            "polo": polo or "",
+                            "situacao_siaa": sit or "Matriculado",
+                            "match_tipo": "d1_novo_curso",
+                            "data_matricula": str(dt_mat or ""),
+                            "tipo_matricula": tipo_mat or "",
+                            "email_ad": (email_ad or "").strip().lower(),
+                            "email_pessoal": (email or "").strip().lower(),
+                            "telefone": fone_cel or "",
+                            "origem": "SIAA",
+                        })
+                    else:
+                        if target_142 in acoes_lead_ids:
+                            acoes = [a for a in acoes if not (
+                                a.get("lead_id") == target_142
+                                and a["acao"] in ("ATUALIZAR", "NOVO", "RESTAURAR")
+                            )]
+                        acoes.append({
+                            "acao": "MATRICULADO",
+                            "lead_id": target_142,
+                            "nome": nome,
+                            "cpf": cpf_clean,
+                            "rgm": rgm_clean,
+                            "curso_siaa": curso or "",
+                            "polo": polo or "",
+                            "situacao_siaa": sit or "Matriculado",
+                            "situacao_kommo": "",
+                            "match_tipo": "d1_update_ganho",
+                            "data_matricula": str(dt_mat or ""),
+                            "tipo_matricula": tipo_mat or "",
+                            "email_ad": (email_ad or "").strip().lower(),
+                            "email_pessoal": (email or "").strip().lower(),
+                            "telefone": fone_cel or "",
+                        })
+                        acoes_lead_ids.add(target_142)
+                        n_mat_d1 += 1
+                    continue
+
                 best_lid = None
                 best_sort = -1
                 for lid in candidates:
@@ -3073,23 +3168,82 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
             if cpf_clean_o in acoes_cpfs_atuais:
                 continue  # já tem ação para essa pessoa (NOVO/ATUALIZAR/MATRICULADO)
 
-            # Verifica match em qualquer índice do Kommo
-            has_match = bool(idx_cpf_orf.get(cpf_clean_o))
             rgm_norm_o = (str(rgm_o or "")).strip().lower()
-            if not has_match and rgm_norm_o and idx_rgm_orf.get(rgm_norm_o):
-                has_match = True
+            rgm_digits_o = re.sub(r"[^0-9]", "", str(rgm_o or ""))
             email_o_l = (email_o or "").strip().lower()
-            if not has_match and email_o_l and idx_email_orf.get(email_o_l):
-                has_match = True
             email_ad_o_l = (email_ad_o or "").strip().lower()
-            if not has_match and email_ad_o_l and idx_email_orf.get(email_ad_o_l):
-                has_match = True
-            if not has_match and fone_o:
-                tc_o = re.sub(r"[^0-9]", "", str(fone_o))
-                if len(tc_o) >= 10 and (idx_tel_orf.get(tc_o[-11:]) or idx_tel_orf.get(tc_o[-10:])):
-                    has_match = True
-            if has_match:
+
+            # Este RGM já tem lead → não é órfão (atribuição já existe).
+            if rgm_norm_o and idx_rgm_orf.get(rgm_norm_o):
                 continue
+
+            # Pessoa tem lead (CPF/email/tel) mas o RGM novo não está no Kommo:
+            # ou atualiza o 142 existente, ou cria NOVO se o 142 ainda carrega
+            # outro curso ativo / se o lead só existe em pipeline arquivado.
+            cand_orf: set[int] = set()
+            cand_orf |= idx_cpf_orf.get(cpf_clean_o, set())
+            if email_o_l:
+                cand_orf |= idx_email_orf.get(email_o_l, set())
+            if email_ad_o_l:
+                cand_orf |= idx_email_orf.get(email_ad_o_l, set())
+            if fone_o:
+                tc_o = re.sub(r"[^0-9]", "", str(fone_o))
+                if len(tc_o) >= 10:
+                    cand_orf |= idx_tel_orf.get(tc_o[-11:], set())
+                    cand_orf |= idx_tel_orf.get(tc_o[-10:], set())
+
+            if cand_orf:
+                try:
+                    kconn_pick = get_kommo_conn()
+                    with kconn_pick.cursor() as kcur_pick:
+                        kcur_pick.execute("""
+                            SELECT l.id, l.pipeline_id, l.status_id,
+                                   COALESCE(l.is_deleted, FALSE),
+                                   (SELECT regexp_replace(COALESCE(f.values_json->0->>'value',''),
+                                           '[^0-9]', '', 'g')
+                                    FROM lead_custom_field_values f
+                                    WHERE f.lead_id = l.id AND f.field_name = 'RGM'
+                                    LIMIT 1)
+                            FROM leads l WHERE l.id = ANY(%s)
+                        """, (list(cand_orf),))
+                        pick_rows = kcur_pick.fetchall()
+                    kconn_pick.close()
+                except Exception as exc_pick:
+                    log.warning("orfao pick leads: %s", exc_pick)
+                    pick_rows = []
+                ganho_ok = [
+                    r for r in pick_rows
+                    if (not r[3]) and r[1] in PIPELINES_PERMITIDOS and r[2] == 142
+                ]
+                if ganho_ok:
+                    ganho_ok.sort(key=lambda r: r[0], reverse=True)
+                    _lid, _pip, _st, _del, _old = ganho_ok[0]
+                    _ativos = cpf_rgms_ativos.get(cpf_clean_o, set())
+                    if _old and _old != rgm_digits_o and _old in _ativos:
+                        pass  # cai no NOVO abaixo (2º curso)
+                    else:
+                        acoes.append({
+                            "acao": "MATRICULADO",
+                            "lead_id": int(_lid),
+                            "nome": nome_o,
+                            "cpf": cpf_clean_o,
+                            "rgm": str(rgm_o or ""),
+                            "curso_siaa": curso_o or "",
+                            "polo": polo_aulas_o or "",
+                            "situacao_siaa": "Matriculado",
+                            "situacao_kommo": "",
+                            "match_tipo": "orfao_update_ganho",
+                            "data_matricula": str(dt_mat_o or ""),
+                            "tipo_matricula": tipo_mat_o or "",
+                            "email_ad": email_ad_o_l,
+                            "email_pessoal": email_o_l,
+                            "telefone": str(fone_o or "").strip(),
+                        })
+                        acoes_cpfs_atuais.add(cpf_clean_o)
+                        n_orf_novo += 1
+                        continue
+                # lead só em Backup/perdido/outro funil → trata como sem lead comercial
+            # sem lead comercial utilizável → NOVO (segue o bloco abaixo)
 
             # Sem match em lugar nenhum → enriquece com mm_inscritos quando disponível
             d_insc_o = polo_norm_o = marca_o = modalidade_o = grau_o = ""
@@ -3841,12 +3995,7 @@ def executar_acoes(acoes, limit=None, log_callback=None):
                     log_callback(f"[{i+1}/{len(to_process)}] SKIP MATRICULADO lead={lead_id} — lead deletado")
                 continue
             _current_status = check.get("body", {}).get("status_id")
-            if _current_status == 142:
-                log.info("MATRICULADO skip: lead %s já está em Fechado Ganho", lead_id)
-                results["skip"] += 1
-                if log_callback:
-                    log_callback(f"[{i+1}/{len(to_process)}] SKIP MATRICULADO lead={lead_id} {acao.get('nome','')} — já em Fechado Ganho")
-                continue
+            _ja_ganho = (_current_status == 142)
             _mat_map = {
                 "Situação": "situacao_siaa",
                 "RGM": "rgm",
@@ -3880,7 +4029,19 @@ def executar_acoes(acoes, limit=None, log_callback=None):
                     "field_id": field_ids.get("Situação"),
                     "values": [{"value": "Matriculado"}],
                 }]
-            payload = {"custom_fields_values": cf, "status_id": 142}
+            payload = {"custom_fields_values": cf}
+            if not _ja_ganho:
+                payload["status_id"] = 142
+            else:
+                log.info(
+                    "MATRICULADO update-in-place: lead %s já em Fechado Ganho — atualiza RGM/data/curso sem mudar status",
+                    lead_id,
+                )
+                if log_callback:
+                    log_callback(
+                        f"[{i+1}/{len(to_process)}] MATRICULADO (já ganho) lead={lead_id} "
+                        f"{acao.get('nome','')} rgm={acao.get('rgm','')}"
+                    )
             resp = api.patch_lead(lead_id, payload)
 
         elif tipo == "MOVER_PERDIDO" and lead_id:
@@ -3914,18 +4075,33 @@ def executar_acoes(acoes, limit=None, log_callback=None):
             if cpf_novo and len(cpf_novo) == 11:
                 existing = api.search_lead_by_cpf(cpf_novo)
                 if existing:
-                    log.warning(
-                        "NOVO bloqueado (duplicata): CPF %s já existe no Kommo "
-                        "como L%s (%s). Ação ignorada.",
-                        cpf_novo, existing.get("id"), existing.get("name", ""),
+                    _ex_pipe = existing.get("pipeline_id")
+                    _ex_status = existing.get("status_id")
+                    _ex_usable = (
+                        _ex_pipe in (5481944, 9994596)
+                        and _ex_status not in (143,)
                     )
-                    results["skip"] += 1
-                    if log_callback:
-                        log_callback(
-                            f"[{i+1}/{len(to_process)}] SKIP NOVO {acao.get('nome','')} "
-                            f"— CPF já existe no Kommo (L{existing.get('id')})"
+                    # novo_matriculado sobre lead só em Backup/Perdido: cria o 142
+                    # comercial. Lead utilizável no funil (ativo/ganho) continua
+                    # bloqueado para não duplicar.
+                    if _ex_usable or not acao.get("novo_matriculado"):
+                        log.warning(
+                            "NOVO bloqueado (duplicata): CPF %s já existe no Kommo "
+                            "como L%s (%s). Ação ignorada.",
+                            cpf_novo, existing.get("id"), existing.get("name", ""),
                         )
-                    continue
+                        results["skip"] += 1
+                        if log_callback:
+                            log_callback(
+                                f"[{i+1}/{len(to_process)}] SKIP NOVO {acao.get('nome','')} "
+                                f"— CPF já existe no Kommo (L{existing.get('id')})"
+                            )
+                        continue
+                    log.info(
+                        "NOVO matriculado permitido: CPF %s tem L%s em pipe=%s status=%s "
+                        "(fora do funil comercial) — cria 142 novo",
+                        cpf_novo, existing.get("id"), _ex_pipe, _ex_status,
+                    )
 
             _is_novo_mat = acao.get("novo_matriculado", False)
             if _is_novo_mat:

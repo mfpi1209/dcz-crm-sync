@@ -4,6 +4,20 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-08-31 — Mini-sync manual: verde ≠ crédito; fixar atribuição no lead sincronizado
+- **Modelo usado:** Grok 4.6. Subido na `master`.
+- **Sintoma:** "Atualizar lead na base Kommo" fica verde (Joseane `#21870683` RGM `50124269`; Gilson `#21841599` RGM `50121821`) mas a venda não passa para o responsável daquele lead nem sai de quem estava indevido.
+- **Causa:** o botão só faz GET+upsert daquele ID (SQLite + `kommo_sync`). O ranking credita por RGM via `DISTINCT ON (rgm) … status 142, id DESC`. Outro lead com o mesmo RGM (ex.: Autolead `21888919` / Hugo na distribuição) continua elegível; o verde não pinava `comercial_rgm_conflito_resolucao` nem atualizava os irmãos.
+- **Decisão:** após mini-sync de um **Ganho (142)** com RGM 8 dígitos, upsert em `comercial_rgm_conflito_resolucao` (`resolved_by='mini_sync'`) para o `responsible_user_id` daquele lead — mesmo mecanismo de Vendas em Conflito, sem PATCH no Kommo. Em seguida ressincroniza até 8 leads irmãos com o mesmo RGM. `_crgm_kommo_lookup_rgms`, ranking, detalhe do agente e Dist. Consultor (fechadas) passam a aplicar o override. Os dois RGMs acima foram pinados agora (Claudia / Gabriela).
+- **Não muda:** responsável no Kommo; leads que não estão em 142 não roubam crédito.
+
+### 2026-08-31 — Transferência/Regresso: lead existe com RGM antigo (142) ou só no Backup; atualizar ganho / criar NOVO
+- **Modelo usado:** Grok 4.6. Diagnóstico nos 12 da aba + ajuste de regra em `match_merge_lib.py`. Subido na `master`.
+- **Sintoma:** aba Transferência/Regresso lista RGMs "sem lead em vw_leads_rgm". Na prática quase todos TÊM lead: ou 142 no Funil/Licenciado com **RGM da matrícula anterior**, ou 143 em **Backup - Antigos**. A aba só casa o RGM **atual** do snapshot comercial.
+- **Causa raiz (duas):** (1) `executar_acoes` MATRICULADO dava `skip` se `status_id==142`, então nova matrícula/retorno nunca gravava RGM/data novos — Laura (49612301→49996126) é o caso-tipo; (2) bloco órfão só criava NOVO quando não havia match por CPF/email/tel/RGM, então quem tinha lead antigo (mesmo perdido no Backup) nunca ganhava 142 comercial. `search_lead_by_cpf` ainda bloqueava o NOVO.
+- **Regra nova:** MATRICULADO em lead já 142 **atualiza campos** (RGM, Matrícula, curso, polo, situação) e **não mexe no status**. D-1 / órfão: se o RGM novo não está no Kommo, atualiza o 142 do funil comercial, **exceto** quando o RGM antigo ainda está Matriculado (2º curso) — aí cria NOVO. Lead só em Backup/143 → NOVO `novo_matriculado` (Admin Sistema), e o guard de CPF libera nesse caso.
+- **Não muda:** atribuição do 142 existente (consultor permanece); anti-dup do mesmo RGM em 142 (fecha duplicata ativa).
+
 ### 2026-08-24 — Interações Acadêmicas: tag de quem puxou o atendimento (lock anti-conflito)
 - **Pedido:** se duas pessoas abrem a lista ao mesmo tempo, o 2º clique não pode roubar o lead; a linha precisa mostrar quem puxou.
 - **Decisão:** tabela `academico_atendimento_claim` (PG local, PK `telefone_key` = dígitos). `POST /atender` faz INSERT … ON CONFLICT DO NOTHING **antes** de atribuir no CRM. Quem já puxou reabre; outro operador recebe 409. A lista traz `puxado_por` e faz poll de 8s em `/claims`.
