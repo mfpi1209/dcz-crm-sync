@@ -55,52 +55,40 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # GITHUB_TOKEN não consegue mudar visibilidade do pacote.
-      # Se existir o secret GHCR_PAT (classic PAT com delete:packages + write:packages
-      # ou fine-grained com Admin em packages), tornamos público automaticamente.
+      # GITHUB_TOKEN não consegue mudar visibilidade. Sem GHCR_PAT isso dá 404
+      # e NÃO pode abortar o job: o EasyPanel deste painel não tem botão de
+      # rebuild — o único deploy é o webhook abaixo.
       - name: Tornar pacote GHCR público
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           PKG="$(echo '${{ github.event.repository.name }}' | tr '[:upper:]' '[:lower:]')"
           echo "Tentando tornar ghcr.io/${{ github.repository_owner }}/${PKG} público..."
-          ok=0
-          for i in 1 2 3 4 5 6; do
-            if gh api \
-              --method PUT \
-              -H "Accept: application/vnd.github+json" \
-              "/user/packages/container/${PKG}/visibility" \
-              -f visibility=public 2>/tmp/ghcr-vis.err; then
-              echo "Pacote público."
-              ok=1
-              break
-            fi
-            echo "Tentativa $i falhou: $(cat /tmp/ghcr-vis.err || true)"
-            sleep 5
-          done
-          if [ "$ok" != "1" ]; then
-            echo "::error::Pacote GHCR ainda privado. EasyPanel vai tomar 403 no pull."
-            echo "::error::Faça 1x no GitHub: Packages → dcz-crm-sync → Package settings → Change visibility → Public"
-            echo "::error::Ou cadastre secret GHCR_PAT (PAT com permissão de admin no package) e rode de novo."
-            echo "::error::Link: https://github.com/users/${{ github.repository_owner }}/packages/container/package/${PKG}"
-            exit 1
+          if gh api \
+            --method PUT \
+            -H "Accept: application/vnd.github+json" \
+            "/user/packages/container/${PKG}/visibility" \
+            -f visibility=public; then
+            echo "Pacote público."
+          else
+            echo "::warning::Não deu para mudar visibilidade (GITHUB_TOKEN sem admin no package). Seguindo para o webhook."
           fi
 
       - name: Verificar pull anônimo (como o EasyPanel)
+        continue-on-error: true
         run: |
           set -euo pipefail
           IMG="${{ env.REGISTRY }}/$(echo '${{ env.IMAGE_NAME }}' | tr '[:upper:]' '[:lower:]'):latest"
           echo "Testando pull anônimo de $IMG ..."
-          # token anônimo do GHCR
           token="$(curl -fsS "https://ghcr.io/token?service=ghcr.io&scope=repository:$(echo '${{ env.IMAGE_NAME }}' | tr '[:upper:]' '[:lower:]'):pull" | jq -r .token)"
           code="$(curl -sS -o /dev/null -w '%{http_code}' \
             -H "Authorization: Bearer $token" \
             "https://ghcr.io/v2/$(echo '${{ env.IMAGE_NAME }}' | tr '[:upper:]' '[:lower:]')/manifests/latest")"
           echo "HTTP $code"
           if [ "$code" != "200" ]; then
-            echo "::error::Manifest ainda inacessível anonimamente (HTTP $code). Pacote precisa ser Public."
-            exit 1
+            echo "::warning::Manifest inacessível anonimamente (HTTP $code). Se o EasyPanel tiver credencial GHCR ou buildar do Git, o webhook ainda vale."
           fi
 
       - name: Call EasyPanel deploy webhook

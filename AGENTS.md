@@ -4,6 +4,13 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-08-31 — Deploy EasyPanel: não abortar no GHCR público (sem botão de rebuild)
+- **Modelo usado:** Grok 4.6. Subido na `master`.
+- **Sintoma:** todos os "Deploy EasyPanel" falhavam em ~1 min; o painel/banco no EasyPanel não tem Rebuild. Código na `master` não ia para produção.
+- **Causa:** o job builda e publica a imagem, depois `Tornar pacote GHCR público` chama `PUT /user/packages/.../visibility` com `GITHUB_TOKEN` → 404. Esse `exit 1` pulava o webhook `PAINEL_EDUIT_TOKEN`, que é o único gatilho de deploy.
+- **Decisão:** os dois passos de visibilidade/pull anônimo passam a `continue-on-error`. Build+push continua obrigatório; o webhook sempre dispara em seguida.
+- **Não muda:** o pacote pode continuar privado; se o EasyPanel puxar GHCR sem credencial, o pull lá pode falhar — aí o caminho é credencial no EasyPanel ou `GHCR_PAT` / pacote Public.
+
 ### 2026-08-31 — Mini-sync manual: verde ≠ crédito; fixar atribuição no lead sincronizado
 - **Modelo usado:** Grok 4.6. Subido na `master`.
 - **Sintoma:** "Atualizar lead na base Kommo" fica verde (Joseane `#21870683` RGM `50124269`; Gilson `#21841599` RGM `50121821`) mas a venda não passa para o responsável daquele lead nem sai de quem estava indevido.
