@@ -3,6 +3,7 @@ Inadimplência — blueprint de taxa e evolução temporal.
 Prefixo: /api/inadimplencia
 """
 import re
+import time
 from datetime import datetime, timezone, timedelta, date as date_cls
 
 import psycopg2
@@ -223,6 +224,25 @@ def _parse_recent_months(req_val):
         return 3
 
 
+_MEMO_TTL_S = 60
+_EM_CURSO_MEMO: dict = {}
+_CICLO_MEMO: dict = {}
+
+
+def _memo_get(store: dict, key):
+    hit = store.get(key)
+    if not hit:
+        return None
+    val, ts = hit
+    if time.time() - ts > _MEMO_TTL_S:
+        return None
+    return val
+
+
+def _memo_set(store: dict, key, val) -> None:
+    store[key] = (val, time.time())
+
+
 def _get_total_em_curso(conn, target_date=None, _cache=None, ciclo=None):
     """
     Retorna (count_em_curso: int, uploaded_at: datetime|None) do snapshot de
@@ -238,6 +258,11 @@ def _get_total_em_curso(conn, target_date=None, _cache=None, ciclo=None):
     key = (target_date or date_cls.today(), ciclo)
     if _cache is not None and key in _cache:
         return _cache[key]
+    memoed = _memo_get(_EM_CURSO_MEMO, key)
+    if memoed is not None:
+        if _cache is not None:
+            _cache[key] = memoed
+        return memoed
 
     with conn.cursor() as cur:
         cur.execute("""
@@ -281,7 +306,17 @@ def _get_total_em_curso(conn, target_date=None, _cache=None, ciclo=None):
 
     if _cache is not None:
         _cache[key] = result
+    _memo_set(_EM_CURSO_MEMO, key, result)
     return result
+
+
+def _ref_inicio_competencia(nivel):
+    """Dia 10 do mês da competência (YYYY-MM) — mesma base do comparativo roxo."""
+    try:
+        y, m = (nivel or "").split("-")
+        return date_cls(int(y), int(m), 10)
+    except (ValueError, TypeError):
+        return None
 
 
 def _get_ciclo_da_competencia(conn, nivel, _cache=None):
@@ -295,6 +330,11 @@ def _get_ciclo_da_competencia(conn, nivel, _cache=None):
         return None
     if _cache is not None and nivel in _cache:
         return _cache[nivel]
+    memoed = _memo_get(_CICLO_MEMO, nivel)
+    if memoed is not None:
+        if _cache is not None:
+            _cache[nivel] = memoed
+        return memoed
     with conn.cursor() as cur:
         cur.execute("""
             WITH inad_snap AS (
@@ -325,6 +365,7 @@ def _get_ciclo_da_competencia(conn, nivel, _cache=None):
     ciclo = row[0] if row else None
     if _cache is not None:
         _cache[nivel] = ciclo
+    _memo_set(_CICLO_MEMO, nivel, ciclo)
     return ciclo
 
 
@@ -411,8 +452,9 @@ def _get_dedupe_snapshots(conn, em_curso_total, nivel=None, date_a=None, date_b=
         eff_date = _extract_date_from_filename(s["filename"], s["uploaded_at"])
         # Ciclo correspondente a competencia desse snapshot (ex.: '2026/1')
         ciclo = _get_ciclo_da_competencia(conn, s["nivel"], ciclo_cache)
-        # Base vigente na data do snapshot, filtrada pelo ciclo (fallback total)
-        em_curso_dia, _ = _get_total_em_curso(conn, eff_date, em_curso_cache, ciclo=ciclo)
+        # Base do começo do mês da competência (dia 10), não a do dia do upload
+        ref = _ref_inicio_competencia(s["nivel"]) or eff_date
+        em_curso_dia, _ = _get_total_em_curso(conn, ref, em_curso_cache, ciclo=ciclo)
         if em_curso_dia <= 0:
             em_curso_dia = em_curso_total
         taxa = round(inad / em_curso_dia * 100, 2) if em_curso_dia > 0 else 0.0
@@ -704,15 +746,20 @@ def api_inadimplencia_evolucao():
         if not snapshots:
             return jsonify({"points": [], "em_curso_constant": total_em_curso})
 
-        # Aplica corte por days apenas quando não há range explícito de datas
-        if not date_a and not date_b and days_param != "all":
+        # 7d/30d/90d cortam a série; se houver data final em cima, o corte
+        # é a partir dela (não de "hoje"), para os dois filtros se combinarem.
+        if days_param != "all":
             try:
                 days = int(days_param)
                 if days <= 0:
                     days = 30
             except ValueError:
                 days = 30
-            cutoff = date_cls.today() - timedelta(days=days)
+            try:
+                end = date_cls.fromisoformat(date_b) if date_b else date_cls.today()
+            except ValueError:
+                end = date_cls.today()
+            cutoff = end - timedelta(days=days)
             snapshots = [
                 s for s in snapshots
                 if s["effective_date"] and s["effective_date"] >= cutoff
@@ -759,15 +806,21 @@ def api_inadimplencia_evolucao():
 def api_inadimplencia_evolucao_por_mes():
     """
     Retorna uma serie por competencia (mes/ano) com pontos { day, taxa_pct, ... }.
-    Eixo X no front = dia do mes (1..31). Ignora filtros de competencia e
-    "recent_months"; respeita apenas date_a / date_b (intervalo de uploaded_at).
+    Respeita competencia, recent_months e date_a / date_b.
     """
+    competencia = request.args.get("competencia", "").strip() or None
     date_a = request.args.get("date_a", "").strip() or None
     date_b = request.args.get("date_b", "").strip() or None
+    recent_months = _parse_recent_months(request.args.get("recent_months"))
     conn = get_conn()
     try:
         total_em_curso, _ = _get_total_em_curso(conn)
-        snapshots = _get_dedupe_snapshots(conn, total_em_curso, date_a=date_a, date_b=date_b)
+        nivel_in = None
+        if not competencia and recent_months is not None:
+            nivel_in = _ultimas_n_competencias_de_hoje(recent_months)
+        snapshots = _get_dedupe_snapshots(
+            conn, total_em_curso, nivel=competencia, date_a=date_a, date_b=date_b, nivel_in=nivel_in
+        )
 
         # Agrupa por nivel; dentro de cada nivel, mantem 1 ponto por dia do mes
         # (o snapshot com effective_date mais recente naquele dia)

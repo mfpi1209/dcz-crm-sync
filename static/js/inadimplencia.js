@@ -10,7 +10,10 @@
     let _chartMeses = null;
     let _chartMesesData = null;
     let _chartMesesDate = null;
-    let _currentRange = 30;
+    let _currentRange = 'all';
+    let _loadToken = 0;
+    let _loadAbort = null;
+    let _evolAbort = null;
 
     function _currentMonthCompetencia() {
         const d = new Date();
@@ -492,6 +495,8 @@
         try {
             const f = window._inadFilters || {};
             const parts = [];
+            if (f.competencia) parts.push('competencia=' + encodeURIComponent(f.competencia));
+            if (!f.competencia && f.recent_months) parts.push('recent_months=' + encodeURIComponent(f.recent_months));
             if (f.date_a) parts.push('date_a=' + f.date_a);
             if (f.date_b) parts.push('date_b=' + f.date_b);
             const qs = parts.length ? '?' + parts.join('&') : '';
@@ -598,8 +603,7 @@
 
     // ── Botões de range ─────────────────────────────────────────────────────
 
-    function _setActiveRange(range) {
-        _currentRange = range;
+    function _paintRangeButtons(range) {
         ['7', '30', '90', 'all'].forEach(r => {
             const btn = document.getElementById(`inad-range-${r}`);
             if (!btn) return;
@@ -611,28 +615,34 @@
             btn.classList.toggle('hover:bg-slate-100', !isActive);
             btn.classList.toggle('dark:hover:bg-slate-700/50', !isActive);
         });
+    }
+
+    function _setActiveRange(range) {
+        _currentRange = range;
+        _paintRangeButtons(range);
         _reloadEvolucao();
     }
 
+    function _evolucaoQs() {
+        const f = window._inadFilters || {};
+        const parts = [`days=${_currentRange}`];
+        if (f.competencia) parts.push('competencia=' + encodeURIComponent(f.competencia));
+        if (!f.competencia && f.recent_months) parts.push('recent_months=' + encodeURIComponent(f.recent_months));
+        if (f.date_a) parts.push('date_a=' + f.date_a);
+        if (f.date_b) parts.push('date_b=' + f.date_b);
+        return '?' + parts.join('&');
+    }
+
     async function _reloadEvolucao() {
+        if (_evolAbort) _evolAbort.abort();
+        _evolAbort = new AbortController();
+        const signal = _evolAbort.signal;
         try {
-            const f = window._inadFilters || {};
-            const qs = [];
-            // Quando há filtro de data, não aplica o range por dias
-            if (f.date_a || f.date_b) {
-                if (f.competencia) qs.push('competencia=' + encodeURIComponent(f.competencia));
-                if (f.date_a) qs.push('date_a=' + f.date_a);
-                if (f.date_b) qs.push('date_b=' + f.date_b);
-                if (!f.competencia && f.recent_months) qs.push('recent_months=' + encodeURIComponent(f.recent_months));
-            } else {
-                qs.push(`days=${_currentRange}`);
-                if (f.competencia) qs.push('competencia=' + encodeURIComponent(f.competencia));
-                if (!f.competencia && f.recent_months) qs.push('recent_months=' + encodeURIComponent(f.recent_months));
-            }
-            const res = await api('/api/inadimplencia/evolucao' + (qs.length ? '?' + qs.join('&') : ''));
+            const res = await api('/api/inadimplencia/evolucao' + _evolucaoQs(), { signal });
             const data = await res.json();
             _renderEvolucaoChart(data);
         } catch (e) {
+            if (e.name === 'AbortError') return;
             console.error('Erro ao carregar evolução:', e);
         }
     }
@@ -656,12 +666,36 @@
 
     // ── Filtros: Aplicar / Limpar ────────────────────────────────────────────
 
+    function _setLoading(on) {
+        const el = document.getElementById('inad-loading');
+        if (el) el.classList.toggle('hidden', !on);
+        const applyBtn = document.getElementById('inad-filter-apply');
+        if (applyBtn) {
+            applyBtn.disabled = !!on;
+            applyBtn.textContent = on ? 'Aplicando…' : 'Aplicar';
+        }
+    }
+
+    // Só um filtro de cima vale por vez (o último modificado).
+    // Prioridade quando vários campos estão preenchidos: datas > competência > últimos meses.
     function _applyFilters() {
         const competencia = (document.getElementById('inad-filter-competencia') || {}).value || '';
-        const date_a = (document.getElementById('inad-filter-date-a') || {}).value || '';
-        const date_b = (document.getElementById('inad-filter-date-b') || {}).value || '';
+        const date_a = (document.getElementById('inad-filter-date-a') || {}).value || null;
+        const date_b = (document.getElementById('inad-filter-date-b') || {}).value || null;
         const recent_months = (document.getElementById('inad-filter-recent-months') || {}).value || '3';
-        window._inadFilters = { competencia, date_a, date_b, recent_months };
+
+        let f;
+        if (date_a || date_b) {
+            f = { competencia: '', date_a: date_a || null, date_b: date_b || null, recent_months: null };
+        } else if (competencia) {
+            f = { competencia, date_a: null, date_b: null, recent_months: null };
+        } else {
+            f = { competencia: '', date_a: null, date_b: null, recent_months };
+        }
+        window._inadFilters = f;
+        // Filtro de cima define a janela; 7d/30d só cortam se o usuário clicar depois
+        _currentRange = 'all';
+        _paintRangeButtons('all');
         loadInadimplencia();
     }
 
@@ -687,6 +721,9 @@
         const applyBtn = document.getElementById('inad-filter-apply');
         const clearBtn = document.getElementById('inad-filter-clear');
         const recentSel = document.getElementById('inad-filter-recent-months');
+        const compSel = document.getElementById('inad-filter-competencia');
+        const dateA = document.getElementById('inad-filter-date-a');
+        const dateB = document.getElementById('inad-filter-date-b');
         if (applyBtn && !applyBtn._wired) {
             applyBtn.addEventListener('click', _applyFilters);
             applyBtn._wired = true;
@@ -695,11 +732,35 @@
             clearBtn.addEventListener('click', _clearFilters);
             clearBtn._wired = true;
         }
-        // Trocar "últimos meses" recarrega na hora (sem precisar clicar Aplicar)
+        // Trocar "últimos meses" limpa competência/datas e vale sozinho
         if (recentSel && !recentSel._wired) {
-            recentSel.addEventListener('change', _applyFilters);
+            recentSel.addEventListener('change', () => {
+                if (compSel) compSel.value = '';
+                if (dateA) dateA.value = '';
+                if (dateB) dateB.value = '';
+                _applyFilters();
+            });
             recentSel._wired = true;
         }
+        // Trocar competência limpa datas e vale sozinha
+        if (compSel && !compSel._wired) {
+            compSel.addEventListener('change', () => {
+                if (dateA) dateA.value = '';
+                if (dateB) dateB.value = '';
+                _applyFilters();
+            });
+            compSel._wired = true;
+        }
+        // Preencher/alterar data limpa competência e vale sozinha
+        [dateA, dateB].forEach((inp) => {
+            if (inp && !inp._wired) {
+                inp.addEventListener('change', () => {
+                    if (compSel) compSel.value = '';
+                    _applyFilters();
+                });
+                inp._wired = true;
+            }
+        });
     }
 
     // ── Estado vazio / conteúdo ─────────────────────────────────────────────
@@ -745,6 +806,11 @@
     // ── loadInadimplencia — ponto de entrada chamado por utils.js ───────────
 
     async function loadInadimplencia() {
+        const token = ++_loadToken;
+        if (_loadAbort) _loadAbort.abort();
+        _loadAbort = new AbortController();
+        const signal = _loadAbort.signal;
+        _setLoading(true);
         try {
             _wireFilterButtons();
             loadCompetencias();
@@ -753,44 +819,34 @@
             const today = new Date().toISOString().slice(0, 10);
             const sevenAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
 
-            // Preenche defaults nos inputs de comparação manual (não os de filtro)
             const dateAEl = document.getElementById('inad-date-a');
             const dateBEl = document.getElementById('inad-date-b');
             if (dateAEl && !dateAEl.value) dateAEl.value = sevenAgo;
             if (dateBEl && !dateBEl.value) dateBEl.value = today;
 
-            // Monta URL da evolução
-            const evolQs = (() => {
-                const parts = [`days=${_currentRange}`];
-                if (f.competencia) parts.push('competencia=' + encodeURIComponent(f.competencia));
-                if (f.date_a) parts.push('date_a=' + f.date_a);
-                if (f.date_b) parts.push('date_b=' + f.date_b);
-                if (!f.competencia && f.recent_months) parts.push('recent_months=' + encodeURIComponent(f.recent_months));
-                return '?' + parts.join('&');
-            })();
+            const evolQs = _evolucaoQs();
 
-            // Monta URL de comparação
             const compUrl = f.competencia
                 ? '/api/inadimplencia/comparar-periodo' + _filterQs()
                 : '/api/inadimplencia/comparar';
-
-            // Monta URL de reincidência (nunca usa competencia, só datas)
             const reincQs = _filterQs(false);
+            const opts = { signal };
 
-            // Dispara todos os endpoints em paralelo
             const [listRes, atualRes, compRes, evolRes, reincRes] = await Promise.all([
-                api('/api/inadimplencia/list' + _filterQs()),
-                api('/api/inadimplencia/atual' + _filterQs()),
-                api(compUrl),
-                api('/api/inadimplencia/evolucao' + evolQs),
-                api('/api/inadimplencia/reincidencia' + reincQs),
+                api('/api/inadimplencia/list' + _filterQs(), opts),
+                api('/api/inadimplencia/atual' + _filterQs(), opts),
+                api(compUrl, opts),
+                api('/api/inadimplencia/evolucao' + evolQs, opts),
+                api('/api/inadimplencia/reincidencia' + reincQs, opts),
             ]);
+            if (token !== _loadToken) return;
 
             const listData = await listRes.json();
             const atualData = atualRes.ok ? await atualRes.json() : null;
             const compData = await compRes.json();
             const evolData = await evolRes.json();
             const reincData = reincRes.ok ? await reincRes.json() : null;
+            if (token !== _loadToken) return;
 
             if (!listData.snapshots || listData.snapshots.length === 0) {
                 _showEmpty();
@@ -807,13 +863,16 @@
             }
 
             _renderEvolucaoChart(evolData);
+            _paintRangeButtons(_currentRange);
             _renderHistoryTable(listData.snapshots);
             _renderReincidencia(reincData);
-            _setActiveRange(_currentRange);
             _reloadChartMeses();
 
         } catch (e) {
+            if (e.name === 'AbortError') return;
             console.error('Erro ao carregar inadimplência:', e);
+        } finally {
+            if (token === _loadToken) _setLoading(false);
         }
     }
 
