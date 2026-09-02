@@ -68,21 +68,8 @@ def _display_name(username: str) -> str:
 
 
 def _has_fila_perm() -> bool:
-    uid, _username, role = _current_user()
-    if role == "admin" or session.get("user_id") == 0:
-        return True
-    if not uid:
-        return False
-    conn = get_conn()
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT 1 FROM user_permissions WHERE user_id = %s AND page = %s",
-                (uid, PAGE_FILA),
-            )
-            return cur.fetchone() is not None
-    finally:
-        conn.close()
+    """Fila herda o público do formulário: qualquer autenticado."""
+    return bool(session.get("authenticated"))
 
 
 def _iso(v):

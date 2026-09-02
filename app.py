@@ -119,8 +119,9 @@ from helpers import can_access_subir_blog as _can_access_subir_blog
 from db import get_conn as _nav_get_conn
 
 # Páginas pessoais — sempre visíveis (exceto regras específicas, ex: comercial sem dashboard)
-# solicitacoes_ti / meus_chamados_ti = abertura e acompanhamento do próprio chamado.
-_NAV_ALWAYS = ("avisos", "profile", "solicitacoes_ti", "meus_chamados_ti")
+# solicitacoes_ti / meus_chamados_ti / chamados_ti = mesmo público da tela original
+# (qualquer autenticado abria chamado; as telas novas herdam esse acesso).
+_NAV_ALWAYS = ("avisos", "profile", "solicitacoes_ti", "meus_chamados_ti", "chamados_ti")
 # Páginas restritas a admin — nunca visíveis para outros perfis, mesmo com permissão explícita.
 _NAV_ADMIN_ONLY = frozenset({"siaa_consulta", "siaa_sessao", "match_inadimplentes", "materias_alunos"})
 # Conjunto completo conhecido pelo front (PAGES no utils.js + páginas pessoais)

@@ -8,9 +8,10 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 - **Modelo usado:** Grok 4.6.
 - **Pedido:** o formulário `solicitacoes_ti` gravava no Google Sheets via Apps Script; o time precisa persistir no banco, uma fila para o TI alterar status (em andamento / concluído) e uma página para o solicitante acompanhar o próprio chamado.
 - **Decisão:** tabela `ti_chamado` (+ `ti_chamado_evento` de auditoria) no PG `dcz_sync`. Submit deixa de chamar Apps Script. Status: `Pendente` (abertura) → `Em andamento` → `Concluído`. Três páginas:
-  - `solicitacoes_ti` — formulário (continua em `_NAV_ALWAYS`).
+  - `solicitacoes_ti` — formulário (`_NAV_ALWAYS`).
   - `meus_chamados_ti` — só os tickets do usuário logado, read-only (`_NAV_ALWAYS`).
-  - `chamados_ti` — fila operacional (admin + permissão; auto-grant se `categoria` contém "TI").
+  - `chamados_ti` — fila operacional (`_NAV_ALWAYS`, mesmo público da tela original).
+- **Permissão:** quem já via Solicitações TI (checkbox `solicitacoes_ti` **e** todos os `app_users`, porque o formulário já era sempre visível) ganha `meus_chamados_ti` e `chamados_ti`. Categoria TI também.
 - **Não muda:** campos do formulário (setor/categoria/urgência); responsável no Kommo; planilha antiga (fica órfã, sem sync retroativo).
 - **Aviso:** abertura notifica quem tem `chamados_ti`; troca de status notifica o solicitante.
 

@@ -1342,10 +1342,41 @@ def _ensure_ti_chamado_tables():
 
 
 def _ensure_chamados_ti_page():
-    """Libera a fila operacional de chamados para usuários da categoria TI."""
+    """Libera Meus chamados e a fila para quem já via Solicitações TI.
+
+    A tela original entra em `_NAV_ALWAYS` (qualquer autenticado). Copiamos
+    `solicitacoes_ti` → `meus_chamados_ti` / `chamados_ti` e também gravamos
+    as duas páginas para todo `app_users`, para o Config marcar o checkbox.
+    Categoria TI continua ganhando a fila mesmo sem a permissão antiga.
+    """
     try:
         conn = get_conn()
         with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO user_permissions (user_id, page)
+                SELECT p.user_id, v.page
+                  FROM user_permissions p
+                  CROSS JOIN (VALUES ('meus_chamados_ti'), ('chamados_ti')) AS v(page)
+                 WHERE p.page = 'solicitacoes_ti'
+                ON CONFLICT (user_id, page) DO NOTHING
+                """
+            )
+            n_copy = cur.rowcount
+            cur.execute(
+                """
+                INSERT INTO user_permissions (user_id, page)
+                SELECT u.id, v.page
+                  FROM app_users u
+                  CROSS JOIN (VALUES
+                    ('solicitacoes_ti'),
+                    ('meus_chamados_ti'),
+                    ('chamados_ti')
+                  ) AS v(page)
+                ON CONFLICT (user_id, page) DO NOTHING
+                """
+            )
+            n_all = cur.rowcount
             cur.execute(
                 """
                 INSERT INTO user_permissions (user_id, page)
@@ -1359,13 +1390,16 @@ def _ensure_chamados_ti_page():
                     OR LOWER(u.categoria) LIKE '% ti %'
                   )
                 ON CONFLICT (user_id, page) DO NOTHING
-                """,
+                """
             )
-            n = cur.rowcount
+            n_ti = cur.rowcount
         conn.commit()
         conn.close()
-        if n:
-            logger.info("Chamados TI: permissão concedida a %s usuário(s) de TI", n)
+        if n_copy or n_all or n_ti:
+            logger.info(
+                "Chamados TI: permissões — copia solicitacoes_ti=%s, todos os users=%s, categoria TI=%s",
+                n_copy, n_all, n_ti,
+            )
     except Exception as e:
         logger.warning("Could not ensure chamados_ti permissions: %s", e)
 
