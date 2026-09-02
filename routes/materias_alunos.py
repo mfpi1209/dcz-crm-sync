@@ -138,11 +138,20 @@ def _get_col(row: tuple, idx: dict, *keys: str) -> Any:
 
 # ---------- Leitura da planilha + filtro ----------
 
-def _ler_rgms(file_bytes: bytes, data_matricula_iso: str) -> tuple[list[dict], str | None]:
-    """Retorna (rgms_com_nome, err). Filtra Negocio=GRADUACAO, Tipo=NOVA MATRICULA, Data==data escolhida."""
-    alvo = _parse_data(data_matricula_iso)
-    if not alvo:
+def _ler_rgms(file_bytes: bytes, filtro: dict) -> tuple[list[dict], str | None]:
+    """Retorna (rgms_com_nome, err). Filtra Negocio=GRADUACAO, Tipo=NOVA MATRICULA
+    e a Data Matricula conforme o filtro:
+      modo="unica"     -> Data == ini
+      modo="intervalo" -> ini <= Data <= fim (limites abertos se um dos lados faltar)
+      modo="tudo"      -> sem filtro de data
+    """
+    modo = (filtro or {}).get("modo") or "unica"
+    ini = (filtro or {}).get("ini")
+    fim = (filtro or {}).get("fim")
+    if modo == "unica" and not ini:
         return [], "data_matricula invalida"
+    if modo == "intervalo" and not ini and not fim:
+        return [], "informe ao menos uma data do intervalo"
 
     try:
         wb = load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
@@ -169,8 +178,17 @@ def _ler_rgms(file_bytes: bytes, data_matricula_iso: str) -> tuple[list[dict], s
         if tipo != "novamatricula":
             continue
         dt = _parse_data(_get_col(row, idx, "Data Matrícula", "Data Matricula"))
-        if dt != alvo:
-            continue
+        if modo == "unica":
+            if dt != ini:
+                continue
+        elif modo == "intervalo":
+            if dt is None:
+                continue
+            if ini and dt < ini:
+                continue
+            if fim and dt > fim:
+                continue
+        # modo == "tudo": nao filtra por data
         rgm = _norm_rgm(_get_col(row, idx, "RGM", "RGM_ALUN"))
         if not rgm or rgm in seen:
             continue
@@ -353,23 +371,30 @@ def _forbidden():
     return None
 
 
-def _read_form_file() -> tuple[bytes | None, str | None, Any]:
+def _read_form_file() -> tuple[bytes | None, dict | None, Any]:
     f = request.files.get("matriculados")
     if not f:
         return None, None, (jsonify({"ok": False, "error": "envie o arquivo 'matriculados'"}), 400)
-    data_iso = _s(request.form.get("data_matricula"))
-    if not data_iso:
-        return None, None, (jsonify({"ok": False, "error": "informe data_matricula (YYYY-MM-DD)"}), 400)
-    return f.read(), data_iso, None
+    modo = (_s(request.form.get("modo_data")) or "unica").lower()
+    if modo not in ("unica", "intervalo", "tudo"):
+        modo = "unica"
+    ini = _parse_data(_s(request.form.get("data_ini")) or _s(request.form.get("data_matricula")))
+    fim = _parse_data(_s(request.form.get("data_fim")))
+    if modo == "unica" and not ini:
+        return None, None, (jsonify({"ok": False, "error": "informe a data (YYYY-MM-DD)"}), 400)
+    if modo == "intervalo" and not ini and not fim:
+        return None, None, (jsonify({"ok": False, "error": "informe ao menos uma data do intervalo"}), 400)
+    filtro = {"modo": modo, "ini": ini, "fim": fim}
+    return f.read(), filtro, None
 
 
 @materias_alunos_bp.route("/api/materias-alunos/preview", methods=["POST"])
 def api_preview():
     fb = _forbidden()
     if fb: return fb
-    file_bytes, data_iso, err = _read_form_file()
+    file_bytes, filtro, err = _read_form_file()
     if err: return err
-    rgms_info, err_msg = _ler_rgms(file_bytes, data_iso)
+    rgms_info, err_msg = _ler_rgms(file_bytes, filtro)
     if err_msg:
         return jsonify({"ok": False, "error": err_msg}), 400
     all_rgms = [r["rgm"] for r in rgms_info]
@@ -395,7 +420,7 @@ def api_start():
         if _job is not None and _job.get("status") == "running":
             return jsonify({"ok": False, "error": "ja existe um job rodando"}), 409
 
-    file_bytes, data_iso, err = _read_form_file()
+    file_bytes, filtro, err = _read_form_file()
     if err: return err
 
     try:
@@ -406,7 +431,7 @@ def api_start():
 
     pular = (request.form.get("pular_ja_consultados") or "true").lower() != "false"
 
-    rgms_info, err_msg = _ler_rgms(file_bytes, data_iso)
+    rgms_info, err_msg = _ler_rgms(file_bytes, filtro)
     if err_msg:
         return jsonify({"ok": False, "error": err_msg}), 400
 
@@ -425,7 +450,12 @@ def api_start():
 
     with _job_lock:
         _job = _new_job(len(rgms), intervalo)
-        _job["filtros"] = {"data_matricula": data_iso, "pular_ja_consultados": pular}
+        _job["filtros"] = {
+            "modo_data": filtro.get("modo"),
+            "data_ini": filtro["ini"].isoformat() if filtro.get("ini") else None,
+            "data_fim": filtro["fim"].isoformat() if filtro.get("fim") else None,
+            "pular_ja_consultados": pular,
+        }
 
     t = threading.Thread(target=_worker, args=(rgms, intervalo), daemon=True)
     t.start()

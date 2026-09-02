@@ -10,7 +10,9 @@
     let _chartMeses = null;
     let _chartMesesData = null;
     let _chartMesesDate = null;
-    let _currentRange = 'all';
+    // null = nenhum botão de range ativo (quem manda é o filtro de cima).
+    // '7'|'30'|'90'|'all' = janela por dias vira o filtro ativo do gráfico.
+    let _currentRange = null;
     let _loadToken = 0;
     let _loadAbort = null;
     let _evolAbort = null;
@@ -625,9 +627,16 @@
 
     function _evolucaoQs() {
         const f = window._inadFilters || {};
-        const parts = [`days=${_currentRange}`];
+        // Modo range: a janela por dias vira o filtro ativo do gráfico e ignora
+        // os filtros de cima (mês/competência/datas), mostrando todos os dias.
+        if (_currentRange != null) {
+            const days = _currentRange === 'all' ? 'all' : _currentRange;
+            return '?days=' + days + '&recent_months=all';
+        }
+        // Modo filtro de cima: gráfico usa competência / últimos meses / datas.
+        const parts = ['days=all'];
         if (f.competencia) parts.push('competencia=' + encodeURIComponent(f.competencia));
-        if (!f.competencia && f.recent_months) parts.push('recent_months=' + encodeURIComponent(f.recent_months));
+        else if (f.recent_months) parts.push('recent_months=' + encodeURIComponent(f.recent_months));
         if (f.date_a) parts.push('date_a=' + f.date_a);
         if (f.date_b) parts.push('date_b=' + f.date_b);
         return '?' + parts.join('&');
@@ -693,9 +702,9 @@
             f = { competencia: '', date_a: null, date_b: null, recent_months };
         }
         window._inadFilters = f;
-        // Filtro de cima define a janela; 7d/30d só cortam se o usuário clicar depois
-        _currentRange = 'all';
-        _paintRangeButtons('all');
+        // Filtro de cima passa a mandar; nenhum botão de range fica ativo
+        _currentRange = null;
+        _paintRangeButtons(null);
         loadInadimplencia();
     }
 
@@ -714,6 +723,8 @@
         if (db) db.value = '';
         const rm = document.getElementById('inad-filter-recent-months');
         if (rm) rm.value = '3';
+        _currentRange = null;
+        _paintRangeButtons(null);
         loadInadimplencia();
     }
 

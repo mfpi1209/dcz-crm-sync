@@ -161,7 +161,14 @@
             <span class="ma-label">Tipo Matrícula:</span>
             <span class="ma-chip">NOVA MATRICULA</span>
             <span class="ma-label">Data Matrícula:</span>
+            <select class="ma-input" id="ma-modo-data" onchange="maModoData()">
+                <option value="unica">Data única</option>
+                <option value="intervalo">Intervalo</option>
+                <option value="tudo">Tudo</option>
+            </select>
             <input type="date" class="ma-input" id="ma-data">
+            <span class="ma-label" id="ma-data-sep" style="display:none">até</span>
+            <input type="date" class="ma-input" id="ma-data-fim" style="display:none">
         </div>
     </div>
 
@@ -268,21 +275,51 @@
         return parts.join(' ');
     }
 
+    window.maModoData = function() {
+        const modo = document.getElementById('ma-modo-data').value;
+        const ini = document.getElementById('ma-data');
+        const sep = document.getElementById('ma-data-sep');
+        const fim = document.getElementById('ma-data-fim');
+        ini.style.display = (modo === 'tudo') ? 'none' : '';
+        sep.style.display = (modo === 'intervalo') ? '' : 'none';
+        fim.style.display = (modo === 'intervalo') ? '' : 'none';
+    };
+
     function validate() {
-        const dataEl = document.getElementById('ma-data');
-        dataEl.style.borderColor = '';
+        const modo = document.getElementById('ma-modo-data').value;
+        const iniEl = document.getElementById('ma-data');
+        const fimEl = document.getElementById('ma-data-fim');
+        iniEl.style.borderColor = '';
+        fimEl.style.borderColor = '';
         if (!state.file) { alertMsg('Envie a planilha antes.', 'error'); return null; }
         console.log('[materias] file info', { name: state.file.name, size: state.file.size, type: state.file.type, lastModified: state.file.lastModified });
-        const data = dataEl.value;
-        if (!data) {
-            alertMsg('Escolha uma Data Matrícula clicando no calendário (o "19/07/2026" que aparece é apenas o formato do campo).', 'error');
-            dataEl.style.borderColor = 'var(--danger)';
-            dataEl.focus();
-            try { dataEl.showPicker && dataEl.showPicker(); } catch (_) {}
-            return null;
+
+        const ini = iniEl.value;
+        const fim = fimEl.value;
+
+        if (modo === 'unica') {
+            if (!ini) {
+                alertMsg('Escolha uma Data Matrícula clicando no calendário (o "19/07/2026" que aparece é apenas o formato do campo).', 'error');
+                iniEl.style.borderColor = 'var(--danger)';
+                iniEl.focus();
+                try { iniEl.showPicker && iniEl.showPicker(); } catch (_) {}
+                return null;
+            }
+        } else if (modo === 'intervalo') {
+            if (!ini && !fim) {
+                alertMsg('Informe ao menos uma data do intervalo (inicial e/ou final).', 'error');
+                iniEl.style.borderColor = 'var(--danger)';
+                iniEl.focus();
+                return null;
+            }
+            if (ini && fim && ini > fim) {
+                alertMsg('A data inicial não pode ser maior que a final.', 'error');
+                fimEl.style.borderColor = 'var(--danger)';
+                return null;
+            }
         }
         alertMsg('', null);
-        return { data };
+        return { modo, ini, fim };
     }
 
     // Le o arquivo completo em memoria como Blob. Isso evita ERR_FAILED
@@ -302,7 +339,10 @@
         const blob = await fileToBlob();
         const fd = new FormData();
         fd.append('matriculados', blob, state.file.name);
-        fd.append('data_matricula', v.data);
+        fd.append('modo_data', v.modo);
+        if (v.ini) fd.append('data_ini', v.ini);
+        if (v.fim) fd.append('data_fim', v.fim);
+        if (v.modo === 'unica' && v.ini) fd.append('data_matricula', v.ini);
         fd.append('intervalo', '15');
         return fd;
     }
