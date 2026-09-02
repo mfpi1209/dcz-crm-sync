@@ -119,8 +119,8 @@ from helpers import can_access_subir_blog as _can_access_subir_blog
 from db import get_conn as _nav_get_conn
 
 # Páginas pessoais — sempre visíveis (exceto regras específicas, ex: comercial sem dashboard)
-# solicitacoes_ti = formulário de chamados de TI (qualquer pessoa pode abrir ticket).
-_NAV_ALWAYS = ("avisos", "profile", "solicitacoes_ti")
+# solicitacoes_ti / meus_chamados_ti = abertura e acompanhamento do próprio chamado.
+_NAV_ALWAYS = ("avisos", "profile", "solicitacoes_ti", "meus_chamados_ti")
 # Páginas restritas a admin — nunca visíveis para outros perfis, mesmo com permissão explícita.
 _NAV_ADMIN_ONLY = frozenset({"siaa_consulta", "siaa_sessao", "match_inadimplentes", "materias_alunos"})
 # Conjunto completo conhecido pelo front (PAGES no utils.js + páginas pessoais)
@@ -341,6 +341,8 @@ from db import (
     _ensure_premiacao_tables,
     _ensure_premiacao_interna_tables,
     _ensure_app_users_delete_fks,
+    _ensure_ti_chamado_tables,
+    _ensure_chamados_ti_page,
     _ensure_materias_alunos_tables,
     _ensure_pix_nivel_tables,
     _ensure_pix_faixa_tables,
@@ -365,6 +367,8 @@ _ensure_funnel_log_table()
 _ensure_premiacao_tables()
 _ensure_premiacao_interna_tables()
 _ensure_app_users_delete_fks()
+_ensure_ti_chamado_tables()
+_ensure_chamados_ti_page()
 _ensure_materias_alunos_tables()
 _ensure_pix_nivel_tables()
 _ensure_pix_faixa_tables()

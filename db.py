@@ -414,6 +414,9 @@ def _ensure_app_users_delete_fks():
         ("premiacao_interna_lote", "gestor_user_id"),
         ("premiacao_interna_lote", "aprovador_user_id"),
         ("premiacao_interna_evento", "autor_user_id"),
+        ("ti_chamado", "solicitante_user_id"),
+        ("ti_chamado", "status_updated_by"),
+        ("ti_chamado_evento", "autor_user_id"),
     )
     try:
         conn = get_conn()
@@ -1284,6 +1287,87 @@ def _ensure_premiacao_interna_tables():
         conn.close()
     except Exception as e:
         logger.warning("Could not ensure premiacao_interna tables: %s", e)
+
+
+def _ensure_ti_chamado_tables():
+    """Chamados de TI (substitui a gravação no Google Sheets)."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS ti_chamado (
+                    id                      SERIAL PRIMARY KEY,
+                    protocolo               TEXT NOT NULL UNIQUE,
+                    solicitante             TEXT NOT NULL,
+                    solicitante_user_id     INTEGER REFERENCES app_users(id) ON DELETE SET NULL,
+                    solicitante_username    TEXT,
+                    setor                   TEXT NOT NULL,
+                    categoria               TEXT NOT NULL,
+                    urgencia                TEXT NOT NULL DEFAULT 'Média',
+                    titulo                  TEXT NOT NULL,
+                    descricao               TEXT NOT NULL,
+                    observacoes             TEXT,
+                    status                  TEXT NOT NULL DEFAULT 'Pendente',
+                    status_nota             TEXT,
+                    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    status_updated_at       TIMESTAMPTZ,
+                    status_updated_by       INTEGER REFERENCES app_users(id) ON DELETE SET NULL,
+                    status_updated_by_nome  TEXT
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_status ON ti_chamado(status)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_user ON ti_chamado(solicitante_user_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_created ON ti_chamado(created_at DESC)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_username ON ti_chamado(solicitante_username)")
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS ti_chamado_evento (
+                    id               SERIAL PRIMARY KEY,
+                    chamado_id       INTEGER NOT NULL REFERENCES ti_chamado(id) ON DELETE CASCADE,
+                    status_anterior  TEXT,
+                    status_novo      TEXT NOT NULL,
+                    autor_user_id    INTEGER REFERENCES app_users(id) ON DELETE SET NULL,
+                    autor_nome       TEXT NOT NULL,
+                    nota             TEXT,
+                    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_evento_chamado ON ti_chamado_evento(chamado_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_evento_created ON ti_chamado_evento(created_at)")
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure ti_chamado tables: %s", e)
+
+
+def _ensure_chamados_ti_page():
+    """Libera a fila operacional de chamados para usuários da categoria TI."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO user_permissions (user_id, page)
+                SELECT u.id, 'chamados_ti'
+                FROM app_users u
+                WHERE u.categoria IS NOT NULL
+                  AND (
+                    LOWER(TRIM(u.categoria)) = 'ti'
+                    OR LOWER(u.categoria) LIKE 'ti %'
+                    OR LOWER(u.categoria) LIKE '% ti'
+                    OR LOWER(u.categoria) LIKE '% ti %'
+                  )
+                ON CONFLICT (user_id, page) DO NOTHING
+                """,
+            )
+            n = cur.rowcount
+        conn.commit()
+        conn.close()
+        if n:
+            logger.info("Chamados TI: permissão concedida a %s usuário(s) de TI", n)
+    except Exception as e:
+        logger.warning("Could not ensure chamados_ti permissions: %s", e)
 
 
 def _ensure_materias_alunos_tables():

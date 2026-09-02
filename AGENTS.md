@@ -4,6 +4,16 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-09-02 — Solicitações TI: chamados no Postgres (fila + meus chamados)
+- **Modelo usado:** Grok 4.6.
+- **Pedido:** o formulário `solicitacoes_ti` gravava no Google Sheets via Apps Script; o time precisa persistir no banco, uma fila para o TI alterar status (em andamento / concluído) e uma página para o solicitante acompanhar o próprio chamado.
+- **Decisão:** tabela `ti_chamado` (+ `ti_chamado_evento` de auditoria) no PG `dcz_sync`. Submit deixa de chamar Apps Script. Status: `Pendente` (abertura) → `Em andamento` → `Concluído`. Três páginas:
+  - `solicitacoes_ti` — formulário (continua em `_NAV_ALWAYS`).
+  - `meus_chamados_ti` — só os tickets do usuário logado, read-only (`_NAV_ALWAYS`).
+  - `chamados_ti` — fila operacional (admin + permissão; auto-grant se `categoria` contém "TI").
+- **Não muda:** campos do formulário (setor/categoria/urgência); responsável no Kommo; planilha antiga (fica órfã, sem sync retroativo).
+- **Aviso:** abertura notifica quem tem `chamados_ti`; troca de status notifica o solicitante.
+
 ### 2026-09-02 — Match/Merge D-1: CPF `00000000009` deixava matriculados presos no Aceite
 - **Modelo usado:** Grok 4.6. Subido na `master`.
 - **Sintoma:** 1º Processar gerou 66 MATRICULADO; o 2º gerou 2; ~40 leads de 01/09 continuaram em Aceite (RGM preenchido, SIAA Matriculado).

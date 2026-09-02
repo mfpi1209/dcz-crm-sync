@@ -20,7 +20,7 @@
             {% set _show_voc = nav_can('vocacional') %}
             {% set _show_meta = nav_can('meta-campaigns') %}
             {% set _show_ti_admin_only = nav_is_admin and (nav_can('ia_comercial') or nav_can('page_views') or nav_can('match_inadimplentes') or nav_can('materias_alunos')) %}
-            {% set _show_ti = _show_ti_admin_only or nav_can('solicitacoes_ti') %}
+            {% set _show_ti = _show_ti_admin_only or nav_can('solicitacoes_ti') or nav_can('meus_chamados_ti') or nav_can('chamados_ti') %}
             {% set _show_sistema = nav_can('pipeline') or nav_can('update') or nav_can('sync') or nav_can('ajustes_matricula') or nav_can('kommo_sync') or nav_can('match_merge') or nav_can('config') or nav_can('schedule') or nav_can('kommo_dispatcher') or nav_can('logs') %}
             <div class="space-y-1">
                 {% if (nav_is_comercial or nav_is_suporte_comercial) and nav_can('minha_performance') %}
@@ -385,6 +385,18 @@
                     <a href="#solicitacoes_ti" onclick="navigate('solicitacoes_ti')" class="sidebar-link sidebar-sub" data-page="solicitacoes_ti">
                         <span class="material-symbols-outlined text-base">support</span>
                         Solicitações TI
+                    </a>
+                    {% endif %}
+                    {% if nav_can('meus_chamados_ti') %}
+                    <a href="#meus_chamados_ti" onclick="navigate('meus_chamados_ti')" class="sidebar-link sidebar-sub" data-page="meus_chamados_ti">
+                        <span class="material-symbols-outlined text-base">confirmation_number</span>
+                        Meus chamados
+                    </a>
+                    {% endif %}
+                    {% if nav_can('chamados_ti') %}
+                    <a href="#chamados_ti" onclick="navigate('chamados_ti')" class="sidebar-link sidebar-sub" data-page="chamados_ti">
+                        <span class="material-symbols-outlined text-base">assignment</span>
+                        Fila de chamados
                     </a>
                     {% endif %}
                     {% if nav_can('ia_comercial') %}

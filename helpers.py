@@ -67,6 +67,8 @@ ALL_PAGES = [
     "ia_comercial",
     "page_views",
     "solicitacoes_ti",
+    "meus_chamados_ti",
+    "chamados_ti",
     "siaa_consulta", "siaa_sessao",
     "match_inadimplentes",
     "materias_alunos",

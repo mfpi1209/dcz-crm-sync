@@ -442,6 +442,8 @@ const PAGE_LABELS = {
     disparador_whatsapp_meu_painel: 'Disparador WhatsApp · Meu Painel',
     disparador_whatsapp_regras: 'Disparador WhatsApp · Regras',
     solicitacoes_ti: 'Solicitações TI (formulário)',
+    meus_chamados_ti: 'Meus chamados TI',
+    chamados_ti: 'Fila de chamados TI',
 };
 
 // ---------------------------------------------------------------------------
@@ -486,6 +488,10 @@ const CATEGORY_PRESETS = {
         'feedback', 'macro_email', 'meus_atendimentos', 'rematricula',
         'academico_interacoes',
         ..._PRESET_FERRAMENTAS_BASIC,
+    ],
+    'TI': [
+        'dashboard', 'search', 'avisos',
+        'solicitacoes_ti', 'meus_chamados_ti', 'chamados_ti',
     ],
 };
 
@@ -591,7 +597,7 @@ const PAGE_GROUPS_CONFIG = [
         section: 'Operação',
         icon: 'developer_board',
         color: 'var(--primary)',
-        pages: ['solicitacoes_ti'],
+        pages: ['solicitacoes_ti', 'meus_chamados_ti', 'chamados_ti'],
     },
     {
         label: 'Premiações Internas',
@@ -710,6 +716,7 @@ function renderUsers() {
         'Acadêmico': 'tag-cat-academico',
         'Supervisor Comercial': 'tag-cat-supervisor-comercial',
         'Supervisor Acadêmico': 'tag-cat-supervisor-academico',
+        'TI': 'tag-cat-fallback',
     };
     const _roleTag = {
         admin:  '<span class="tag-pill tag-role-admin">Admin</span>',
@@ -1035,6 +1042,7 @@ function openUserCreateModal() {
                                 <option value="Supervisor Comercial">Supervisor Comercial</option>
                                 <option value="Acadêmico">Acadêmico</option>
                                 <option value="Supervisor Acadêmico">Supervisor Acadêmico</option>
+                                <option value="TI">TI</option>
                             </select>
                             <button type="button"
                                     onclick="applyCategoryPresetFromSelect('user-new-categoria', 'user-new-page-cb')"
@@ -1173,6 +1181,7 @@ async function editUser(uid) {
                                 <option value="Supervisor Comercial" ${u.categoria==='Supervisor Comercial'?'selected':''}>Supervisor Comercial</option>
                                 <option value="Acadêmico" ${u.categoria==='Acadêmico'?'selected':''}>Acadêmico</option>
                                 <option value="Supervisor Acadêmico" ${u.categoria==='Supervisor Acadêmico'?'selected':''}>Supervisor Acadêmico</option>
+                                <option value="TI" ${u.categoria==='TI'?'selected':''}>TI</option>
                             </select>
                             <button type="button"
                                     onclick="applyCategoryPresetFromSelect('edit-user-categoria', 'edit-perm-cb')"
