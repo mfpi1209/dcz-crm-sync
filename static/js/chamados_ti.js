@@ -40,6 +40,7 @@
     function qs() {
         const params = new URLSearchParams();
         if (_status) params.set('status', _status);
+        else params.set('status', 'todos');
         const urg = $('cti-urgencia')?.value || '';
         const setor = $('cti-setor')?.value || '';
         const q = ($('cti-q')?.value || '').trim();

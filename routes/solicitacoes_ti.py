@@ -400,7 +400,9 @@ def list_chamados():
     busca = (request.args.get("q") or "").strip()
     clauses: list[str] = []
     params: list[Any] = []
-    if status == "abertos":
+    if status in ("todos", "all", "*"):
+        pass
+    elif status == "abertos":
         clauses.append("status = ANY(%s)")
         params.append(list(STATUS_ABERTOS))
     elif status in STATUS_VALIDOS:
