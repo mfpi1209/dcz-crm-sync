@@ -32,21 +32,21 @@
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
-            <div id="cti-tabs" class="flex gap-1 p-1 rounded-xl" style="background: var(--bg-elevated);">
+            <div id="cti-tabs" class="flex flex-wrap gap-1 p-1 rounded-xl" style="background: var(--bg-elevated);">
                 <button type="button" data-status="abertos" class="cti-tab is-active px-3 py-1.5 text-[11px] font-bold rounded-lg">Abertos</button>
                 <button type="button" data-status="" class="cti-tab px-3 py-1.5 text-[11px] font-bold rounded-lg">Todos</button>
                 <button type="button" data-status="Pendente" class="cti-tab px-3 py-1.5 text-[11px] font-bold rounded-lg">Pendentes</button>
                 <button type="button" data-status="Em andamento" class="cti-tab px-3 py-1.5 text-[11px] font-bold rounded-lg">Em andamento</button>
                 <button type="button" data-status="Concluído" class="cti-tab px-3 py-1.5 text-[11px] font-bold rounded-lg">Concluídos</button>
             </div>
-            <select id="cti-urgencia" class="input-glass h-9 px-3 rounded-lg text-sm">
+            <select id="cti-urgencia" class="input-glass cti-ctrl rounded-lg text-sm">
                 <option value="">Prioridade</option>
                 <option>Baixa</option>
                 <option>Média</option>
                 <option>Alta</option>
                 <option>Crítica</option>
             </select>
-            <select id="cti-setor" class="input-glass h-9 px-3 rounded-lg text-sm">
+            <select id="cti-setor" class="input-glass cti-ctrl rounded-lg text-sm">
                 <option value="">Setor</option>
                 <option>Marketing</option>
                 <option>Comercial</option>
@@ -55,46 +55,50 @@
                 <option>Financeiro</option>
             </select>
             <input type="search" id="cti-q" placeholder="Buscar protocolo, título ou solicitante…"
-                   class="input-glass h-9 px-3 rounded-lg text-sm flex-1 min-w-[200px]">
+                   class="input-glass cti-ctrl rounded-lg text-sm flex-1 min-w-[200px]">
         </div>
 
         <div id="cti-empty" class="hidden glass-card border border-[var(--border)] rounded-2xl p-10 text-center text-slate-500">
             <span class="material-symbols-outlined text-[36px] mb-2">task_alt</span>
             <p class="text-sm">Nenhum chamado neste filtro.</p>
         </div>
-        <div class="overflow-x-auto glass-card border border-[var(--border)] rounded-2xl">
-            <table class="w-full text-left">
-                <thead>
-                    <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-[var(--border)]">
-                        <th class="px-4 py-3">Protocolo</th>
-                        <th class="px-4 py-3">Título</th>
-                        <th class="px-4 py-3">Solicitante</th>
-                        <th class="px-4 py-3">Setor</th>
-                        <th class="px-4 py-3">Prioridade</th>
-                        <th class="px-4 py-3">Status</th>
-                        <th class="px-4 py-3">Aberto em</th>
-                        <th class="px-4 py-3"></th>
-                    </tr>
-                </thead>
-                <tbody id="cti-tbody"></tbody>
-            </table>
+        <div class="glass-card border border-[var(--border)] rounded-2xl">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left min-w-[860px]">
+                    <thead>
+                        <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-[var(--border)]">
+                            <th class="px-4 py-3">Protocolo</th>
+                            <th class="px-4 py-3">Título</th>
+                            <th class="px-4 py-3">Solicitante</th>
+                            <th class="px-4 py-3">Setor</th>
+                            <th class="px-4 py-3">Prioridade</th>
+                            <th class="px-4 py-3">Status</th>
+                            <th class="px-4 py-3">Aberto em</th>
+                            <th class="px-4 py-3 pr-6"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="cti-tbody"></tbody>
+                </table>
+            </div>
         </div>
     </main>
 
-    <div id="cti-modal" class="hidden fixed inset-0 z-[80] flex items-start justify-center p-4 overflow-y-auto"
+    <div id="cti-modal" data-dcz-modal-root
+         class="hidden fixed inset-0 z-[80] flex items-start justify-center p-4 overflow-y-auto"
          style="background: rgba(15,23,42,.55); backdrop-filter: blur(4px);">
-        <div class="glass-card border border-[var(--border)] rounded-2xl w-full max-w-2xl my-8 overflow-hidden">
-            <div class="flex items-start justify-between gap-3 px-5 py-4 border-b border-[var(--border)]">
-                <div>
+        <div class="sti-ticket-card glass-card border border-[var(--border)] rounded-2xl w-full max-w-2xl my-auto">
+            <div class="flex items-start justify-between gap-3 px-5 py-4 border-b border-[var(--border)] shrink-0">
+                <div class="min-w-0">
                     <p id="cti-modal-proto" class="font-mono text-xs font-bold" style="color: var(--primary);"></p>
-                    <h3 id="cti-modal-title" class="text-lg font-bold text-[var(--text-primary)] mt-1"></h3>
+                    <h3 id="cti-modal-title" class="text-lg font-bold text-[var(--text-primary)] mt-1 break-words"></h3>
                 </div>
-                <button type="button" onclick="ctiCloseModal()" class="p-1 rounded-lg hover:bg-[var(--bg-elevated)]">
+                <button type="button" onclick="ctiCloseModal()" class="p-1 rounded-lg hover:bg-[var(--bg-elevated)] shrink-0"
+                        aria-label="Fechar">
                     <span class="material-symbols-outlined">close</span>
                 </button>
             </div>
             <div id="cti-modal-body" class="px-5 py-4 space-y-4 text-sm"></div>
-            <div class="px-5 py-4 border-t border-[var(--border)] space-y-3" style="background: var(--bg-elevated);">
+            <div class="px-5 py-4 border-t border-[var(--border)] space-y-3 shrink-0" style="background: var(--bg-elevated);">
                 <p class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Atualizar status</p>
                 <div class="flex flex-wrap gap-2" id="cti-status-btns">
                     <button type="button" data-st="Pendente" class="cti-st-btn px-3 py-2 rounded-lg text-xs font-bold border">Pendente</button>
@@ -114,15 +118,25 @@
 <style>
     #page-chamados_ti .cti-tab { color: var(--text-secondary); }
     #page-chamados_ti .cti-tab.is-active { background: var(--bg-card); color: var(--text-primary); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
-    #page-chamados_ti .sti-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 9999px; white-space: nowrap; }
-    #page-chamados_ti .sti-st-Pendente { background: rgba(245,158,11,0.12); color: #b45309; }
-    #page-chamados_ti .sti-st-Em { background: rgba(59,130,246,0.12); color: #1d4ed8; }
-    #page-chamados_ti .sti-st-Concluído { background: rgba(16,185,129,0.12); color: #059669; }
-    #page-chamados_ti .sti-badge-Baixa { background: rgba(100,116,139,0.10); color: #475569; }
-    #page-chamados_ti .sti-badge-Média { background: rgba(59,130,246,0.12); color: #1d4ed8; }
-    #page-chamados_ti .sti-badge-Alta { background: rgba(245,158,11,0.12); color: #b45309; }
-    #page-chamados_ti .sti-badge-Crítica { background: rgba(239,68,68,0.12); color: #b91c1c; }
-    #page-chamados_ti .cti-st-btn { background: var(--bg-card); border-color: var(--border); color: var(--text-secondary); }
-    #page-chamados_ti .cti-st-btn.is-active { border-color: var(--primary); color: var(--primary); }
+    #page-chamados_ti .sti-badge,
+    #cti-modal .sti-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 9999px; white-space: nowrap; }
+    #page-chamados_ti .sti-st-Pendente,
+    #cti-modal .sti-st-Pendente { background: rgba(245,158,11,0.12); color: #b45309; }
+    #page-chamados_ti .sti-st-Em,
+    #cti-modal .sti-st-Em { background: rgba(59,130,246,0.12); color: #1d4ed8; }
+    #page-chamados_ti .sti-st-Concluído,
+    #cti-modal .sti-st-Concluído { background: rgba(16,185,129,0.12); color: #059669; }
+    #page-chamados_ti .sti-badge-Baixa,
+    #cti-modal .sti-badge-Baixa { background: rgba(100,116,139,0.10); color: #475569; }
+    #page-chamados_ti .sti-badge-Média,
+    #cti-modal .sti-badge-Média { background: rgba(59,130,246,0.12); color: #1d4ed8; }
+    #page-chamados_ti .sti-badge-Alta,
+    #cti-modal .sti-badge-Alta { background: rgba(245,158,11,0.12); color: #b45309; }
+    #page-chamados_ti .sti-badge-Crítica,
+    #cti-modal .sti-badge-Crítica { background: rgba(239,68,68,0.12); color: #b91c1c; }
+    #page-chamados_ti .cti-st-btn,
+    #cti-modal .cti-st-btn { background: var(--bg-card); border-color: var(--border); color: var(--text-secondary); }
+    #page-chamados_ti .cti-st-btn.is-active,
+    #cti-modal .cti-st-btn.is-active { border-color: var(--primary); color: var(--primary); }
     #page-chamados_ti tbody tr:hover { background: var(--bg-elevated); }
 </style>

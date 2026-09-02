@@ -1341,23 +1341,34 @@ def _ensure_ti_chamado_tables():
         logger.warning("Could not ensure ti_chamado tables: %s", e)
 
 
-def _ensure_chamados_ti_page():
-    """Libera Meus chamados e a fila para quem já via Solicitações TI.
+# Fila operacional (`chamados_ti`): só estes logins + role=admin.
+# Casados por username OU email_cruzeiro (minúsculo, trim).
+CHAMADOS_TI_ALLOWLIST = frozenset({
+    "emanuel.felipe@cruzeiroead.com.br",  # Emanuel Filipe
+    "camila@cruzeiroead.com.br",          # Camila Ferreira
+    "mikami@eduit.com.br",                # Vanessa Mikami
+    "katia.policeno@cruzeiroead.com.br",  # Katia Cabeço
+    "katia@cruzeiroead.com.br",
+    "eduardo.tang@eduit.com.br",          # Eduardo Tang
+})
 
-    A tela original entra em `_NAV_ALWAYS` (qualquer autenticado). Copiamos
-    `solicitacoes_ti` → `meus_chamados_ti` / `chamados_ti` e também gravamos
-    as duas páginas para todo `app_users`, para o Config marcar o checkbox.
-    Categoria TI continua ganhando a fila mesmo sem a permissão antiga.
+
+def _ensure_chamados_ti_page():
+    """Formulário/Meus chamados para todos; fila só admin + allowlist.
+
+    `solicitacoes_ti` e `meus_chamados_ti` continuam para todo `app_users`.
+    `chamados_ti` é reconciliado a cada boot: concede à allowlist e revoga
+    de quem não é admin nem está na lista (desfaz o grant global anterior).
     """
     try:
+        allow = tuple(sorted(CHAMADOS_TI_ALLOWLIST))
         conn = get_conn()
         with conn.cursor() as cur:
             cur.execute(
                 """
                 INSERT INTO user_permissions (user_id, page)
-                SELECT p.user_id, v.page
+                SELECT p.user_id, 'meus_chamados_ti'
                   FROM user_permissions p
-                  CROSS JOIN (VALUES ('meus_chamados_ti'), ('chamados_ti')) AS v(page)
                  WHERE p.page = 'solicitacoes_ti'
                 ON CONFLICT (user_id, page) DO NOTHING
                 """
@@ -1370,8 +1381,7 @@ def _ensure_chamados_ti_page():
                   FROM app_users u
                   CROSS JOIN (VALUES
                     ('solicitacoes_ti'),
-                    ('meus_chamados_ti'),
-                    ('chamados_ti')
+                    ('meus_chamados_ti')
                   ) AS v(page)
                 ON CONFLICT (user_id, page) DO NOTHING
                 """
@@ -1381,24 +1391,34 @@ def _ensure_chamados_ti_page():
                 """
                 INSERT INTO user_permissions (user_id, page)
                 SELECT u.id, 'chamados_ti'
-                FROM app_users u
-                WHERE u.categoria IS NOT NULL
-                  AND (
-                    LOWER(TRIM(u.categoria)) = 'ti'
-                    OR LOWER(u.categoria) LIKE 'ti %'
-                    OR LOWER(u.categoria) LIKE '% ti'
-                    OR LOWER(u.categoria) LIKE '% ti %'
-                  )
+                  FROM app_users u
+                 WHERE LOWER(TRIM(u.username)) = ANY(%s)
+                    OR LOWER(TRIM(COALESCE(u.email_cruzeiro, ''))) = ANY(%s)
                 ON CONFLICT (user_id, page) DO NOTHING
-                """
+                """,
+                (list(allow), list(allow)),
             )
-            n_ti = cur.rowcount
+            n_grant = cur.rowcount
+            cur.execute(
+                """
+                DELETE FROM user_permissions p
+                 USING app_users u
+                 WHERE p.user_id = u.id
+                   AND p.page = 'chamados_ti'
+                   AND COALESCE(u.role, '') <> 'admin'
+                   AND LOWER(TRIM(u.username)) <> ALL(%s)
+                   AND LOWER(TRIM(COALESCE(u.email_cruzeiro, ''))) <> ALL(%s)
+                """,
+                (list(allow), list(allow)),
+            )
+            n_revoke = cur.rowcount
         conn.commit()
         conn.close()
-        if n_copy or n_all or n_ti:
+        if n_copy or n_all or n_grant or n_revoke:
             logger.info(
-                "Chamados TI: permissões — copia solicitacoes_ti=%s, todos os users=%s, categoria TI=%s",
-                n_copy, n_all, n_ti,
+                "Chamados TI: permissões — copia meus=%s, form/meus todos=%s, "
+                "fila allowlist=%s, fila revogada=%s",
+                n_copy, n_all, n_grant, n_revoke,
             )
     except Exception as e:
         logger.warning("Could not ensure chamados_ti permissions: %s", e)

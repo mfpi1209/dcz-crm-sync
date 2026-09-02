@@ -491,7 +491,7 @@ const CATEGORY_PRESETS = {
     ],
     'TI': [
         'dashboard', 'search', 'avisos',
-        'solicitacoes_ti', 'meus_chamados_ti', 'chamados_ti',
+        'solicitacoes_ti', 'meus_chamados_ti',
     ],
 };
 
