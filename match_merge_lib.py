@@ -2853,10 +2853,15 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                 idx_email: dict[str, set[int]] = {}
                 idx_tel: dict[str, set[int]] = {}
                 idx_rgm: dict[str, set[int]] = {}
+                lid_cpf: dict[int, str] = {}
                 for lid, fname, val in kcur_mat.fetchall():
                     if fname == "CPF":
                         cpf_norm = re.sub(r"[^0-9]", "", val).zfill(11)
-                        idx_cpf.setdefault(cpf_norm, set()).add(lid)
+                        lid_cpf[lid] = cpf_norm
+                        # CPF lixo (00000000009 etc.) agrupa milhares de leads
+                        # alheios — não pode ser chave de match.
+                        if _cpf_valido(cpf_norm):
+                            idx_cpf.setdefault(cpf_norm, set()).add(lid)
                     elif fname == "E-mail":
                         idx_email.setdefault(val.strip(), set()).add(lid)
                     elif fname in ("Telefone Comercial", "Telefone Inscricao"):
@@ -2900,7 +2905,7 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                 match_by: dict[int, str] = {}
 
                 cpf_clean = re.sub(r"[^0-9]", "", cpf or "").zfill(11)
-                if cpf_clean and cpf_clean != "0" * 11:
+                if _cpf_valido(cpf_clean):
                     for lid in idx_cpf.get(cpf_clean, set()):
                         candidates.add(lid)
                         match_by[lid] = "cpf"
@@ -2933,23 +2938,26 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                     53917599,  # ROBÔ (Funil de vendas)
                     76715668,  # Robo (Licenciado)
                 }
-                # Se a pessoa ja tem lead em 142 COM O MESMO RGM, a venda ja esta
-                # atribuida (por RGM o lead em Venda Ganha vence — ver
-                # _crgm_kommo_lookup_rgms em routes/comercial_rgm.py). NAO movemos
-                # outro lead para 142 (evita 2 ganhos pro mesmo RGM / disputa de
-                # atribuicao). MAS, em vez de so pular e deixar o lead ativo
-                # encalhado (bug "presos na atualizacao"), FECHAMOS a(s) duplicata(s)
-                # ativa(s) do mesmo RGM como "Duplicado - Ja Matriculado". Isso NAO
-                # muda quem leva a venda (continua no 142) e limpa o lead que ficava
-                # parado em Aceite (ou qualquer outra fase).
+                # Se a pessoa ja tem lead em 142 COM O MESMO RGM e CPF válido,
+                # a venda ja esta atribuida. Fecha as duplicatas ativas
+                # (Aceite etc.) como "Duplicado - Ja Matriculado".
+                # 142 com o RGM mas CPF inválido (00000000009) NÃO conta —
+                # é lixo de match anterior; fecha esse 142 e segue para
+                # MATRICULADO no Aceite real.
                 if rgm_clean:
                     rgm_lids = idx_rgm.get(rgm_clean.lower(), set())
                     ganho_lids = {lid for lid in candidates
                                   if lead_pipe.get(lid, (None, None, None))[1] == 142}
-                    if ganho_lids and (ganho_lids & rgm_lids):
-                        for dup_lid in rgm_lids:
-                            if dup_lid in ganho_lids or dup_lid in lead_deleted:
-                                continue  # nunca fecha o proprio ganho nem deletado
+                    same_rgm_142 = ganho_lids & rgm_lids
+                    trusted_142 = {
+                        lid for lid in same_rgm_142
+                        if _cpf_valido(lid_cpf.get(lid, ""))
+                    }
+                    junk_142 = same_rgm_142 - trusted_142
+                    if trusted_142:
+                        for dup_lid in (rgm_lids | candidates):
+                            if dup_lid in trusted_142 or dup_lid in lead_deleted:
+                                continue
                             info = lead_pipe.get(dup_lid)
                             if not info:
                                 continue
@@ -2957,7 +2965,7 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                             if pip_d not in PIPELINES_PERMITIDOS:
                                 continue
                             if st_d in (142, 143):
-                                continue  # ja ganho ou ja perdido
+                                continue
                             if dup_lid in acoes_lead_ids:
                                 acoes = [a for a in acoes
                                          if not (a.get("lead_id") == dup_lid
@@ -2975,18 +2983,49 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                             acoes_lead_ids.add(dup_lid)
                             n_dup_perdido += 1
                         continue
+                    for dup_lid in junk_142:
+                        if dup_lid in lead_deleted:
+                            continue
+                        info = lead_pipe.get(dup_lid)
+                        if not info:
+                            continue
+                        pip_d, st_d, _ = info
+                        if pip_d not in PIPELINES_PERMITIDOS:
+                            continue
+                        if dup_lid in acoes_lead_ids:
+                            acoes = [a for a in acoes
+                                     if not (a.get("lead_id") == dup_lid
+                                             and a["acao"] in (
+                                                 "ATUALIZAR", "NOVO",
+                                                 "RESTAURAR", "MATRICULADO"))]
+                        acoes.append({
+                            "acao": "MOVER_PERDIDO",
+                            "lead_id": dup_lid,
+                            "nome": nome,
+                            "cpf": cpf_clean,
+                            "rgm": rgm_clean,
+                            "lead_pipeline_id": pip_d,
+                            "situacao_siaa": sit or "Matriculado",
+                            "match_tipo": "dup_rgm_cpf_invalido",
+                        })
+                        acoes_lead_ids.add(dup_lid)
+                        n_dup_perdido += 1
 
                 # Lead já em 142 com OUTRO RGM (aluno fez nova matrícula/retorno
-                # e o ganho ficou com o RGM antigo). Atualiza o 142 se o RGM
-                # antigo não estiver mais ativo; se estiver (2 cursos), cria NOVO
-                # para não apagar a matrícula anterior. Sem isso a pessoa cai em
-                # Transferência/Regresso — a aba só casa o RGM atual em vw_leads_rgm.
+                # e o ganho ficou com o RGM antigo). Só aceita 142 com CPF
+                # válido da mesma pessoa — senão um 00000000009 alheio
+                # "roubava" o Aceite (ganho_perm + continue).
+                # Atualiza o 142 se o RGM antigo não estiver mais ativo;
+                # se estiver (2 cursos) e houver Aceite/ativo, move ESSE
+                # lead em vez de criar NOVO (senão o Aceite fica parado).
                 ganho_perm = [
                     lid for lid in candidates
                     if lead_pipe.get(lid)
                     and lead_pipe[lid][0] in PIPELINES_PERMITIDOS
                     and lead_pipe[lid][1] == 142
                     and lid not in lead_deleted
+                    and _cpf_valido(lid_cpf.get(lid, ""))
+                    and (not _cpf_valido(cpf_clean) or lid_cpf.get(lid) == cpf_clean)
                 ]
                 if ganho_perm:
                     target_142 = max(ganho_perm)
@@ -2996,31 +3035,71 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                             old_rgm_digits = re.sub(r"[^0-9]", "", _rk or "")
                             break
                     new_rgm_digits = re.sub(r"[^0-9]", "", rgm_clean)
-                    _ativos = cpf_rgms_ativos.get(cpf_clean, set())
+                    _ativos = cpf_rgms_ativos.get(cpf_clean, set()) if _cpf_valido(cpf_clean) else set()
                     _outro_curso_ativo = (
                         bool(old_rgm_digits)
                         and old_rgm_digits != new_rgm_digits
                         and old_rgm_digits in _ativos
                     )
                     if _outro_curso_ativo:
-                        acoes.append({
-                            "acao": "NOVO",
-                            "lead_id": None,
-                            "novo_matriculado": True,
-                            "nome": nome,
-                            "cpf": cpf_clean,
-                            "rgm": rgm_clean,
-                            "curso_siaa": curso or "",
-                            "polo": polo or "",
-                            "situacao_siaa": sit or "Matriculado",
-                            "match_tipo": "d1_novo_curso",
-                            "data_matricula": str(dt_mat or ""),
-                            "tipo_matricula": tipo_mat or "",
-                            "email_ad": (email_ad or "").strip().lower(),
-                            "email_pessoal": (email or "").strip().lower(),
-                            "telefone": fone_cel or "",
-                            "origem": "SIAA",
-                        })
+                        best_2curso = None
+                        best_2_sort = -1
+                        for lid in candidates:
+                            info = lead_pipe.get(lid)
+                            if not info or lid in lead_deleted:
+                                continue
+                            pip, status, st_sort = info
+                            if pip not in PIPELINES_PERMITIDOS:
+                                continue
+                            if status in (142, 143) or status in _STATUS_FRIOS:
+                                continue
+                            if best_2curso is None or st_sort > best_2_sort:
+                                best_2curso = lid
+                                best_2_sort = st_sort
+                        if best_2curso is not None:
+                            if best_2curso in acoes_lead_ids:
+                                acoes = [a for a in acoes if not (
+                                    a.get("lead_id") == best_2curso
+                                    and a["acao"] in ("ATUALIZAR", "NOVO", "RESTAURAR")
+                                )]
+                            acoes.append({
+                                "acao": "MATRICULADO",
+                                "lead_id": best_2curso,
+                                "nome": nome,
+                                "cpf": cpf_clean,
+                                "rgm": rgm_clean,
+                                "curso_siaa": curso or "",
+                                "polo": polo or "",
+                                "situacao_siaa": sit or "Matriculado",
+                                "situacao_kommo": "",
+                                "match_tipo": "d1_segundo_curso",
+                                "data_matricula": str(dt_mat or ""),
+                                "tipo_matricula": tipo_mat or "",
+                                "email_ad": (email_ad or "").strip().lower(),
+                                "email_pessoal": (email or "").strip().lower(),
+                                "telefone": fone_cel or "",
+                            })
+                            acoes_lead_ids.add(best_2curso)
+                            n_mat_d1 += 1
+                        else:
+                            acoes.append({
+                                "acao": "NOVO",
+                                "lead_id": None,
+                                "novo_matriculado": True,
+                                "nome": nome,
+                                "cpf": cpf_clean,
+                                "rgm": rgm_clean,
+                                "curso_siaa": curso or "",
+                                "polo": polo or "",
+                                "situacao_siaa": sit or "Matriculado",
+                                "match_tipo": "d1_novo_curso",
+                                "data_matricula": str(dt_mat or ""),
+                                "tipo_matricula": tipo_mat or "",
+                                "email_ad": (email_ad or "").strip().lower(),
+                                "email_pessoal": (email or "").strip().lower(),
+                                "telefone": fone_cel or "",
+                                "origem": "SIAA",
+                            })
                     else:
                         if target_142 in acoes_lead_ids:
                             acoes = [a for a in acoes if not (
@@ -3046,6 +3125,34 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                         })
                         acoes_lead_ids.add(target_142)
                         n_mat_d1 += 1
+                        for dup_lid in candidates:
+                            if dup_lid == target_142 or dup_lid in lead_deleted:
+                                continue
+                            info = lead_pipe.get(dup_lid)
+                            if not info:
+                                continue
+                            pip_d, st_d, _ = info
+                            if pip_d not in PIPELINES_PERMITIDOS:
+                                continue
+                            if st_d in (142, 143) or st_d in _STATUS_FRIOS:
+                                continue
+                            if dup_lid in acoes_lead_ids:
+                                acoes = [a for a in acoes if not (
+                                    a.get("lead_id") == dup_lid
+                                    and a["acao"] in ("ATUALIZAR", "NOVO", "RESTAURAR")
+                                )]
+                            acoes.append({
+                                "acao": "MOVER_PERDIDO",
+                                "lead_id": dup_lid,
+                                "nome": nome,
+                                "cpf": cpf_clean,
+                                "rgm": rgm_clean,
+                                "lead_pipeline_id": pip_d,
+                                "situacao_siaa": sit or "Matriculado",
+                                "match_tipo": "dup_update_ganho",
+                            })
+                            acoes_lead_ids.add(dup_lid)
+                            n_dup_perdido += 1
                     continue
 
                 best_lid = None
@@ -3124,7 +3231,9 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
             """)
             for lid, fname, val in kcur_orf.fetchall():
                 if fname == "CPF":
-                    idx_cpf_orf.setdefault(re.sub(r"[^0-9]", "", val).zfill(11), set()).add(lid)
+                    _orf_cpf = re.sub(r"[^0-9]", "", val).zfill(11)
+                    if _cpf_valido(_orf_cpf):
+                        idx_cpf_orf.setdefault(_orf_cpf, set()).add(lid)
                 elif fname in ("E-mail", "Email Acadêmico"):
                     idx_email_orf.setdefault(val.strip(), set()).add(lid)
                 elif fname in ("Telefone Comercial", "Telefone Inscricao"):

@@ -4,6 +4,14 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-09-02 — Match/Merge D-1: CPF `00000000009` deixava matriculados presos no Aceite
+- **Modelo usado:** Grok 4.6. Subido na `master`.
+- **Sintoma:** 1º Processar gerou 66 MATRICULADO; o 2º gerou 2; ~40 leads de 01/09 continuaram em Aceite (RGM preenchido, SIAA Matriculado).
+- **Causa:** o relatório SIAA veio com CPF inválido `00000000009` nessas matrículas. O D-1 usava esse CPF como chave e agrupava todos os leads Kommo com o mesmo lixo — incluindo 142 de outras pessoas. `ganho_perm` atualizava esse 142 alheio e dava `continue`, sem mover o Aceite real. O bloco órfão já ignorava CPF inválido (`_cpf_valido`), então essas pessoas não ganhavam NOVO tampouco.
+- **Decisão:** D-1 (e o índice CPF do órfão) só casa CPF com `_cpf_valido`. 142 com o mesmo RGM mas CPF inválido não bloqueia o Aceite — fecha esse 142 (`dup_rgm_cpf_invalido`) e gera MATRICULADO no Aceite. 2º curso: se já existe Aceite/ativo, move ele (`d1_segundo_curso`) em vez de criar NOVO. Ao atualizar um 142 legítimo, fecha os irmãos ativos (`dup_update_ganho`).
+- **Não muda:** match por RGM/e-mail/telefone; fechar Aceite quando o 142 da mesma pessoa (CPF válido) já tem o RGM; Daniele/Byanca sem linha em `mm_matriculados` continuam de fora.
+- **Efeito no lote de 01/09:** ~37 Aceite passam a MATRICULADO; duplicatas reais (Manoela, Silvana) continuam MOVER_PERDIDO; Waldirene/Rosisella (2º curso) movem o Aceite.
+
 ### 2026-08-31 — Deploy EasyPanel: não abortar no GHCR público (sem botão de rebuild)
 - **Modelo usado:** Grok 4.6. Subido na `master`.
 - **Sintoma:** todos os "Deploy EasyPanel" falhavam em ~1 min; o painel/banco no EasyPanel não tem Rebuild. Código na `master` não ia para produção.
