@@ -103,12 +103,16 @@
                 ${renderTimeline(data.eventos)}
             </div>
         `;
-        $('mct-modal').classList.remove('hidden');
+        const modal = $('mct-modal');
+        if (typeof dczPortalToBody === 'function') dczPortalToBody(modal);
+        modal.classList.remove('hidden');
+        if (typeof dczLockBodyScroll === 'function') dczLockBodyScroll(true);
     };
 
     window.mctCloseModal = function () {
         const m = $('mct-modal');
         if (m) m.classList.add('hidden');
+        if (typeof dczLockBodyScroll === 'function') dczLockBodyScroll(false);
     };
 
     function bind() {
@@ -132,6 +136,9 @@
                 if (e.target === modal) mctCloseModal();
             });
         }
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') mctCloseModal();
+        });
     }
 
     let _bound = false;

@@ -4,14 +4,22 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-09-02 — Fila TI: modal cortada + acesso só à allowlist
+- **Modelo usado:** Grok 4.6.
+- **Sintoma:** modal de Meus chamados cortava o andamento; na fila, Prioridade/Setor/busca e o "Abrir" da tabela saíam cortados. Fila visível para todos.
+- **Causa UI:** overlay dentro de `main overflow-auto` + `.glass-card { will-change: transform }` (containing block) + card `overflow: hidden` sem max-height; `.input-glass` padding 12px + `h-9` (36px) clipava o texto; `overflow-x-auto` no mesmo nó do card arredondado clipava a última coluna.
+- **Decisão UI:** `#mct-modal` / `#cti-modal` entram no portal `dcz-modal-portal` (body). Card `.sti-ticket-card` com `max-height: 100dvh - 2rem` e corpo com scroll. Filtros `.cti-ctrl` (40px, padding 8/12). Tabela com wrapper interno de overflow e coluna Abrir `nowrap`.
+- **Permissão:** fila `chamados_ti` sai de `_NAV_ALWAYS`. Só **admin** + allowlist (`CHAMADOS_TI_ALLOWLIST`): Emanuel Filipe (`emanuel.felipe@cruzeiroead.com.br`), Camila Ferreira (`camila@cruzeiroead.com.br`), Vanessa Mikami (`mikami@eduit.com.br`), Katia Cabeço (`katia.policeno@cruzeiroead.com.br` / `katia@cruzeiroead.com.br`), Eduardo Tang (`eduardo.tang@eduit.com.br`). Boot reconcilia: concede à lista e **revoga** o resto (não-admin). Formulário e Meus chamados continuam para todo autenticado.
+- **Não muda:** fluxo Pendente → Em andamento → Concluído; aviso de abertura ainda vai para quem tem `chamados_ti`.
+- **Alternativas descartadas:** deixar a fila no checkbox Config sem allowlist (voltaria a vazar no próximo grant); preset categoria TI incluindo a fila (os nomes não são categoria TI).
+
 ### 2026-09-02 — Solicitações TI: chamados no Postgres (fila + meus chamados)
 - **Modelo usado:** Grok 4.6.
 - **Pedido:** o formulário `solicitacoes_ti` gravava no Google Sheets via Apps Script; o time precisa persistir no banco, uma fila para o TI alterar status (em andamento / concluído) e uma página para o solicitante acompanhar o próprio chamado.
 - **Decisão:** tabela `ti_chamado` (+ `ti_chamado_evento` de auditoria) no PG `dcz_sync`. Submit deixa de chamar Apps Script. Status: `Pendente` (abertura) → `Em andamento` → `Concluído`. Três páginas:
   - `solicitacoes_ti` — formulário (`_NAV_ALWAYS`).
   - `meus_chamados_ti` — só os tickets do usuário logado, read-only (`_NAV_ALWAYS`).
-  - `chamados_ti` — fila operacional (`_NAV_ALWAYS`, mesmo público da tela original).
-- **Permissão:** quem já via Solicitações TI (checkbox `solicitacoes_ti` **e** todos os `app_users`, porque o formulário já era sempre visível) ganha `meus_chamados_ti` e `chamados_ti`. Categoria TI também.
+  - `chamados_ti` — fila operacional (admin + allowlist; ver entrada do mesmo dia).
 - **Não muda:** campos do formulário (setor/categoria/urgência); responsável no Kommo; planilha antiga (fica órfã, sem sync retroativo).
 - **Aviso:** abertura notifica quem tem `chamados_ti`; troca de status notifica o solicitante.
 

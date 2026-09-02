@@ -158,6 +158,8 @@ function navigate(page, params) {
     if (page === 'solicitacoes_ti' && typeof loadSolicitacoesTi === 'function') loadSolicitacoesTi();
     if (page === 'meus_chamados_ti' && typeof loadMeusChamadosTi === 'function') loadMeusChamadosTi();
     if (page === 'chamados_ti' && typeof loadChamadosTi === 'function') loadChamadosTi();
+    if (page !== 'meus_chamados_ti' && typeof mctCloseModal === 'function') mctCloseModal();
+    if (page !== 'chamados_ti' && typeof ctiCloseModal === 'function') ctiCloseModal();
     if (page === 'siaa_consulta' && typeof siaaLoadPage === 'function') siaaLoadPage();
     if (page === 'siaa_sessao' && typeof siaaSessaoLoadPage === 'function') siaaSessaoLoadPage();
     if (page === 'match_inadimplentes' && typeof matchInadLoadPage === 'function') matchInadLoadPage();
@@ -856,6 +858,8 @@ const DCZ_MODAL_ROOT_IDS = [
     'pa-grupo-modal',
     'pa-edit-modal',
     'crgm-edit-meta-modal',
+    'mct-modal',
+    'cti-modal',
 ];
 
 function dczPortalToBody(el) {

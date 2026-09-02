@@ -79,7 +79,7 @@
                 <td class="px-4 py-3"><span class="sti-badge sti-badge-${escapeHtml(t.urgencia)}">${escapeHtml(t.urgencia)}</span></td>
                 <td class="px-4 py-3"><span class="sti-badge ${statusClass(t.status)}">${escapeHtml(t.status)}</span></td>
                 <td class="px-4 py-3 font-mono text-[11px] text-slate-400 whitespace-nowrap">${fmtTs(t.created_at)}</td>
-                <td class="px-4 py-3">
+                <td class="px-4 py-3 pr-6 whitespace-nowrap text-right">
                     <button type="button" onclick="ctiOpen(${t.id})" class="text-xs font-bold" style="color: var(--primary);">Abrir</button>
                 </td>
             </tr>
@@ -133,13 +133,17 @@
                 ${renderTimeline(data.eventos)}
             </div>
         `;
-        $('cti-modal').classList.remove('hidden');
+        const modal = $('cti-modal');
+        if (typeof dczPortalToBody === 'function') dczPortalToBody(modal);
+        modal.classList.remove('hidden');
+        if (typeof dczLockBodyScroll === 'function') dczLockBodyScroll(true);
     };
 
     window.ctiCloseModal = function () {
         const m = $('cti-modal');
         if (m) m.classList.add('hidden');
         _openId = null;
+        if (typeof dczLockBodyScroll === 'function') dczLockBodyScroll(false);
     };
 
     window.ctiSaveStatus = async function () {
@@ -205,6 +209,9 @@
                 if (e.target === modal) ctiCloseModal();
             });
         }
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') ctiCloseModal();
+        });
     }
 
     let _bound = false;
