@@ -2381,6 +2381,39 @@ def _wix_pos_tokens(norm_str):
     return out
 
 
+def _collapse_glued_dupes(norm_str):
+    """Junta sufixo colado+repetido da planilha.
+    Ex.: 'analises clinicas e toxicologicase toxicologicas'
+      -> 'analises clinicas e toxicologicas'."""
+    toks = (norm_str or '').split()
+    if not toks:
+        return ''
+    out = []
+    i = 0
+    while i < len(toks):
+        w = toks[i]
+        if i + 1 < len(toks):
+            nxt = toks[i + 1]
+            if w != nxt and len(w) >= 6 and len(nxt) >= 6:
+                if w.startswith(nxt) or nxt.startswith(w):
+                    out.append(nxt if w.startswith(nxt) else w)
+                    i += 2
+                    continue
+        if out and out[-1] == w:
+            i += 1
+            continue
+        out.append(w)
+        i += 1
+    return ' '.join(out)
+
+
+def _pos_name_key(s):
+    """Chave canônica do nome de pós (acento, prefixo, sufixo colado, stopwords)."""
+    n = _strip_prefix_suffix(_norm_corp(s))
+    n = _collapse_glued_dupes(n)
+    return _stopless(n)
+
+
 def _strip_prefix_suffix(norm_str):
     if not norm_str:
         return ''
@@ -2539,13 +2572,19 @@ def _build_grad_indexes(planilha_items):
 def _build_pos_indexes(planilha_items):
     idx_full  = {}
     idx_strip = {}
+    idx_key   = {}
+    by_name   = {}
     for info in planilha_items:
         nome_full  = _norm_corp(info['curso'])
         nome_strip = _strip_prefix_suffix(nome_full)
+        nome_key   = _pos_name_key(info['curso'])
         dur        = info['dur_meses']
         idx_full[(nome_full,   dur)] = info
         idx_strip[(nome_strip, dur)] = info
-    return idx_full, idx_strip
+        if nome_key:
+            idx_key[(nome_key, dur)] = info
+            by_name.setdefault(nome_key, []).append(info)
+    return idx_full, idx_strip, idx_key, by_name
 
 
 # ── Helpers Kommo ──
@@ -2601,10 +2640,11 @@ def _match_grad_product(product, idx_full, idx_strip, idx_namemod):
     return idx_namemod.get((name_strip, modal_norm))
 
 
-def _match_pos_product(product, idx_full, idx_strip):
+def _match_pos_product(product, idx_full, idx_strip, idx_key=None, by_name=None):
     name_full  = str(product.get('name') or '').strip()
     name_norm  = _norm_corp(name_full)
     name_strip = _strip_prefix_suffix(name_norm)
+    nome_key   = _pos_name_key(name_full)
 
     dur_raw = _get_kommo_field_val(product, FIELD_KOMMO_POS_META['duracao'])
     dur_m   = _parse_dur_meses(dur_raw)
@@ -2612,7 +2652,19 @@ def _match_pos_product(product, idx_full, idx_strip):
     hit = idx_full.get((name_norm, dur_m))
     if hit:
         return hit
-    return idx_strip.get((name_strip, dur_m))
+    hit = idx_strip.get((name_strip, dur_m))
+    if hit:
+        return hit
+    if idx_key and nome_key:
+        hit = idx_key.get((nome_key, dur_m))
+        if hit:
+            return hit
+    # Mesmo curso com duração antiga no Kommo: se a planilha só tem 1 duração, usa ela.
+    if by_name and nome_key:
+        opts = by_name.get(nome_key) or []
+        if len(opts) == 1:
+            return opts[0]
+    return None
 
 
 def _extract_kommo_atual(product, field_map):
@@ -2742,9 +2794,10 @@ def _run_kommo_grad_preview(mapping, planilha, idx_full, idx_strip, idx_namemod,
     }
 
 
-def _run_kommo_pos_preview(mapping, planilha, idx_full, idx_strip, produtos_pos):
+def _run_kommo_pos_preview(mapping, planilha, idx_full, idx_strip, produtos_pos,
+                           idx_key=None, by_name=None):
     mapping_dict = {m['kommo']: m['canal'] for m in mapping if m.get('kommo')}
-    planilha_set = {(_norm_corp(info['curso']), info['dur_meses']): info
+    planilha_set = {(_pos_name_key(info['curso']), info['dur_meses']): info
                     for info in planilha}
 
     matched_keys = set()
@@ -2752,7 +2805,7 @@ def _run_kommo_pos_preview(mapping, planilha, idx_full, idx_strip, produtos_pos)
     so_kommo  = []
 
     for p in produtos_pos:
-        info = _match_pos_product(p, idx_full, idx_strip)
+        info = _match_pos_product(p, idx_full, idx_strip, idx_key, by_name)
         name_full = str(p.get('name') or '').strip()
         dur_raw   = _get_kommo_field_val(p, FIELD_KOMMO_POS_META['duracao'])
         dur_m     = _parse_dur_meses(dur_raw)
@@ -2760,12 +2813,19 @@ def _run_kommo_pos_preview(mapping, planilha, idx_full, idx_strip, produtos_pos)
         if info is None:
             so_kommo.append({'curso': name_full, 'duracao': dur_label})
             continue
-        key = (_norm_corp(info['curso']), info['dur_meses'])
+        key = (_pos_name_key(info['curso']), info['dur_meses'])
         matched_keys.add(key)
         novos = _compute_novos_kommo(mapping, info, AUTO_PCT_POS)
         atual = _extract_kommo_atual(p, FIELD_KOMMO_POS)
         diffs = []
         needs = False
+        if info.get('dur_meses') is not None and info['dur_meses'] != dur_m:
+            needs = True
+            diffs.append({
+                'campo': 'duracao',
+                'atual': dur_label,
+                'novo': f"{info['dur_meses']} meses",
+            })
         for k in novos:
             a = atual.get(k)
             n = str(novos[k])
@@ -2884,11 +2944,11 @@ def preview_kommo_pos_canais():
         if not mapping:
             return jsonify({'error': 'Mapeamento vazio'}), 400
         planilha = _parse_pos_planilha(f.read())
-        idx_full, idx_strip = _build_pos_indexes(planilha)
+        idx_full, idx_strip, idx_key, by_name = _build_pos_indexes(planilha)
         produtos = mod.buscar_produtos_kommo()
         produtos_pos = [p for p in produtos if _is_pos_product(p)]
         return jsonify(_run_kommo_pos_preview(
-            mapping, planilha, idx_full, idx_strip, produtos_pos))
+            mapping, planilha, idx_full, idx_strip, produtos_pos, idx_key, by_name))
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -2904,23 +2964,29 @@ def atualizar_kommo_pos_canais():
         if not mapping:
             return jsonify({'error': 'Mapeamento vazio'}), 400
         planilha = _parse_pos_planilha(f.read())
-        idx_full, idx_strip = _build_pos_indexes(planilha)
+        idx_full, idx_strip, idx_key, by_name = _build_pos_indexes(planilha)
         produtos = mod.buscar_produtos_kommo()
         produtos_pos = [p for p in produtos if _is_pos_product(p)]
 
         mapping_dict = {m['kommo']: m['canal'] for m in mapping if m.get('kommo')}
+        field_map = dict(FIELD_KOMMO_POS)
+        field_map['duracao'] = FIELD_KOMMO_POS_META['duracao']
         batch = []
         batches = []
         for p in produtos_pos:
-            info = _match_pos_product(p, idx_full, idx_strip)
+            info = _match_pos_product(p, idx_full, idx_strip, idx_key, by_name)
             if info is None:
                 continue
             novos = _compute_novos_kommo(mapping, info, AUTO_PCT_POS)
             atual = _extract_kommo_atual(p, FIELD_KOMMO_POS)
             patch = {k: v for k, v in novos.items() if (atual.get(k) or '') != str(v)}
+            dur_raw = _get_kommo_field_val(p, FIELD_KOMMO_POS_META['duracao'])
+            dur_m = _parse_dur_meses(dur_raw)
+            if info.get('dur_meses') is not None and info['dur_meses'] != dur_m:
+                patch['duracao'] = f"{info['dur_meses']} meses"
             if not patch:
                 continue
-            batch.append(_make_kommo_patch_item(p.get('id'), patch, FIELD_KOMMO_POS))
+            batch.append(_make_kommo_patch_item(p.get('id'), patch, field_map))
             if len(batch) >= 50:
                 batches.append(batch)
                 batch = []
