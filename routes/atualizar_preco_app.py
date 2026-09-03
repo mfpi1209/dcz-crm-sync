@@ -831,8 +831,7 @@ def _build_pos_index_canal(rows, headers, canal, canal_col, siaa_col):
             price = r.get(valor_col) if valor_col else None
         if price is None:
             continue
-        key = (_norm(str(curso)), dur_m)
-        index[key] = price
+        _pos_index_put(index, curso, dur_m, price)
     return index
 
 
@@ -862,8 +861,8 @@ def preview_pos_canal():
             curso  = inner.get('curso') or ''
             dur_raw = inner.get('tempo')
             dur_m  = _parse_dur_meses(dur_raw)
-            key    = (_norm(curso), dur_m)
-            if key not in idx:
+            price  = _pos_price_lookup(idx, curso, dur_m)
+            if price is None:
                 nao_enc.append({
                     'curso': curso, 'duracao': dur_raw,
                     '_dbg_norm': _norm(curso), '_dbg_dur': dur_m,
@@ -871,7 +870,7 @@ def preview_pos_canal():
                     '_dbg_inner_keys': list(inner.keys())[:8],
                 })
                 continue
-            novo_fmt  = _fmt_valor_int(idx[key])
+            novo_fmt  = _fmt_valor_int(price)
             atual_fmt = _fmt_valor_int(inner.get('valor'))
             needs_upd = (novo_fmt is not None and novo_fmt != atual_fmt)
             matches.append({
@@ -882,8 +881,12 @@ def preview_pos_canal():
             })
         att = sum(1 for m in matches if m['needs_update'])
         _dbg_keys = []
-        for k in list(idx.keys())[:5]:
+        for k in list(idx.keys()):
+            if not isinstance(k, tuple) or len(k) != 2:
+                continue
             _dbg_keys.append({'curso': k[0], 'dur_meses': k[1]})
+            if len(_dbg_keys) >= 5:
+                break
         return jsonify({
             'matches': matches,
             'nao_encontrado': nao_enc,
@@ -922,10 +925,10 @@ def atualizar_pos_canal():
                 continue
             curso = inner.get('curso') or ''
             dur_m = _parse_dur_meses(inner.get('tempo'))
-            key   = (_norm(curso), dur_m)
-            if key not in idx:
+            price = _pos_price_lookup(idx, curso, dur_m)
+            if price is None:
                 continue
-            novo_fmt  = _fmt_valor_int(idx[key])
+            novo_fmt  = _fmt_valor_int(price)
             atual_fmt = _fmt_valor_int(inner.get('valor'))
             if novo_fmt is None or novo_fmt == atual_fmt:
                 continue
@@ -1279,7 +1282,7 @@ def preview_salesbot_pos_canal():
         # Filter by CERTIFICADORA (prefix match — aceita "Cruzeiro do Sul - ...")
         if cert_col:
             rows = [r for r in rows if _is_cruzeiro_pos(r.get(cert_col))]
-        # Build index: {(_norm(curso), dur_meses): preco}
+        # Build index: nome canônico + duração
         price_index = {}
         for r in rows:
             rc = str(r.get(canal_col) or '').strip()
@@ -1293,8 +1296,7 @@ def preview_salesbot_pos_canal():
                 price = r.get(siaa_col) if siaa_col else None
             else:
                 price = r.get(valor_col) if valor_col else None
-            if price is not None:
-                price_index[(_norm(str(curso)), dur_m)] = price
+            _pos_index_put(price_index, curso, dur_m, price)
         docs = _supa_fetch_all('cursos_salesbot_pos_nome', select='id,content,metadata')
         matches, nao_enc = [], []
         for doc in docs:
@@ -1305,18 +1307,17 @@ def preview_salesbot_pos_canal():
                 except Exception:
                     meta = {}
             curso_doc = str(meta.get('curso') or doc.get('content') or '')
-            nc        = _norm(curso_doc)
             contagem  = int(meta.get('contagem') or 1)
             found_any = False
             entry_matches = []
             for i in range(1, contagem + 1):
                 dur_str = meta.get(f'duracao_{i}')
                 dur_m   = _parse_dur_meses(dur_str)
-                key     = (nc, dur_m)
-                if key not in price_index:
+                price   = _pos_price_lookup(price_index, curso_doc, dur_m)
+                if price is None:
                     continue
                 found_any = True
-                novo_fmt  = _fmt_valor_int(price_index[key])
+                novo_fmt  = _fmt_valor_int(price)
                 atual_fmt = _fmt_valor_int(meta.get(f'preco_{i}'))
                 entry_matches.append({
                     'slot': i, 'duracao': dur_str,
@@ -1374,8 +1375,7 @@ def atualizar_salesbot_pos_canal():
                 price = r.get(siaa_col) if siaa_col else None
             else:
                 price = r.get(valor_col) if valor_col else None
-            if price is not None:
-                price_index[(_norm(str(curso)), dur_m)] = price
+            _pos_index_put(price_index, curso, dur_m, price)
         docs = _supa_fetch_all('cursos_salesbot_pos_nome', select='id,content,metadata')
         atualizados, erros, ultimo_erro = 0, 0, ''
         for doc in docs:
@@ -1386,17 +1386,16 @@ def atualizar_salesbot_pos_canal():
                 except Exception:
                     meta = {}
             curso_doc = str(meta.get('curso') or doc.get('content') or '')
-            nc        = _norm(curso_doc)
             contagem  = int(meta.get('contagem') or 1)
             updated   = dict(meta)
             changed   = False
             for i in range(1, contagem + 1):
                 dur_str = meta.get(f'duracao_{i}')
                 dur_m   = _parse_dur_meses(dur_str)
-                key     = (nc, dur_m)
-                if key not in price_index:
+                price   = _pos_price_lookup(price_index, curso_doc, dur_m)
+                if price is None:
                     continue
-                novo_fmt  = _fmt_valor_int(price_index[key])
+                novo_fmt  = _fmt_valor_int(price)
                 atual_fmt = _fmt_valor_int(meta.get(f'preco_{i}'))
                 if novo_fmt is not None and novo_fmt != atual_fmt:
                     updated[f'preco_{i}'] = novo_fmt
@@ -1843,22 +1842,10 @@ def _build_wix_pos_canal_index(rows, headers, canal, canal_col, siaa_col):
 
     filtered_rows = rows
     if cert_col:
-        cert_prefix = _norm('Cruzeiro do Sul')
-        candidates = [r for r in rows
-                      if _norm(str(r.get(cert_col) or '')).startswith(cert_prefix)]
-        # Fallback: if the strict prefix matches nothing, accept any value
-        # that contains 'cruz' (e.g. 'CRUZSUL', 'Cruz. do Sul').
-        if not candidates:
-            candidates = [r for r in rows
-                          if 'cruz' in _norm(str(r.get(cert_col) or ''))]
-        # Last-resort: if still empty, use all rows so the user at least
-        # sees matches instead of silently filtering everything out.
+        candidates = [r for r in rows if _is_cruzeiro_pos(r.get(cert_col))]
         filtered_rows = candidates or rows
 
     index = {}
-    # Fuzzy bucket: {dur_m: [(tokens_set, price, original_norm), ...]}
-    # Used as fallback when no key matches exactly.
-    index['_fuzzy'] = {}
     for r in filtered_rows:
         rc = str(r.get(canal_col) or '').strip()
         if canal != SIAA_SENTINEL and rc != canal:
@@ -1871,21 +1858,7 @@ def _build_wix_pos_canal_index(rows, headers, canal, canal_col, siaa_col):
             price = r.get(siaa_col) if siaa_col else None
         else:
             price = r.get(valor_col) if valor_col else None
-        if price is None:
-            continue
-        norm_curso  = _norm(str(curso))
-        strip_curso = _strip_prefix_suffix(norm_curso)
-        stop_curso  = _stopless(_strip_prefix_suffix(norm_curso))
-        # Three exact-key variants:
-        index[(norm_curso, dur_m)] = price
-        if strip_curso and strip_curso != norm_curso:
-            index[(strip_curso, dur_m)] = price
-        if stop_curso and stop_curso not in (norm_curso, strip_curso):
-            index[(stop_curso, dur_m)] = price
-        # Fuzzy bucket entry
-        toks = _wix_pos_tokens(strip_curso or norm_curso)
-        if toks:
-            index['_fuzzy'].setdefault(dur_m, []).append((toks, price, norm_curso))
+        _pos_index_put(index, curso, dur_m, price)
     return index
 
 
@@ -1917,6 +1890,47 @@ def _wix_pos_fuzzy_lookup(idx, curso_str, dur_m):
         if score > best_score:
             best, best_score = price, score
     return best
+
+
+def _pos_index_put(index, curso, dur_m, price):
+    """Indexa um curso de pós com várias chaves (norm, strip MBA, nome canônico, fuzzy)."""
+    if price is None or curso in (None, ''):
+        return
+    curso = str(curso)
+    norm_curso = _norm(curso)
+    strip_curso = _strip_prefix_suffix(norm_curso)
+    key_name = _pos_name_key(curso)
+    stop_curso = _stopless(strip_curso)
+    for k in (norm_curso, strip_curso, stop_curso, key_name):
+        if k:
+            index[(k, dur_m)] = price
+    toks = _wix_pos_tokens(strip_curso or norm_curso)
+    if toks:
+        index.setdefault('_fuzzy', {}).setdefault(dur_m, []).append((toks, price, norm_curso))
+    if key_name:
+        index.setdefault('_by_name', {}).setdefault(key_name, []).append((dur_m, price))
+
+
+def _pos_price_lookup(index, curso, dur_m):
+    """Resolve preço por nome+duração, com fallback de nome canônico e duração única."""
+    if not index:
+        return None
+    curso = curso or ''
+    norm_curso = _norm(curso)
+    strip_curso = _strip_prefix_suffix(norm_curso)
+    key_name = _pos_name_key(curso)
+    stop_curso = _stopless(strip_curso)
+    for k in (norm_curso, strip_curso, stop_curso, key_name):
+        if k and (k, dur_m) in index:
+            return index[(k, dur_m)]
+    price = _wix_pos_fuzzy_lookup(index, curso, dur_m)
+    if price is not None:
+        return price
+    opts = (index.get('_by_name') or {}).get(key_name) or []
+    durs = {d for d, _p in opts}
+    if len(durs) == 1:
+        return opts[0][1]
+    return None
 
 
 def _preview_pos_canais_core(mapping, headers, rows, canal_col, siaa_col,
@@ -1951,18 +1965,12 @@ def _preview_pos_canais_core(mapping, headers, rows, canal_col, siaa_col,
                 if cfg['key'] == campo:
                     dur_field = cfg.get('dur_field', 'duracao')
                     break
-            dur_raw = (d.get(dur_field) or d.get('duracao') or d.get('durao') or '').strip()
+            dur_raw = (d.get(dur_field) or d.get('duracao') or d.get('durao') or '')
+            if not isinstance(dur_raw, str):
+                dur_raw = str(dur_raw or '')
+            dur_raw = dur_raw.strip()
             dur_m   = _parse_dur_meses(dur_raw)
-            curso_norm  = _norm(curso)
-            curso_strip = _strip_prefix_suffix(curso_norm)
-            curso_stop  = _stopless(curso_strip)
-            price = None
-            for k in ((curso_norm, dur_m), (curso_strip, dur_m), (curso_stop, dur_m)):
-                if k in idx:
-                    price = idx[k]
-                    break
-            if price is None:
-                price = _wix_pos_fuzzy_lookup(idx, curso, dur_m)
+            price = _pos_price_lookup(idx, curso, dur_m)
             if price is None:
                 continue
             found_any = True
@@ -1975,18 +1983,27 @@ def _preview_pos_canais_core(mapping, headers, rows, canal_col, siaa_col,
             })
 
         if not found_any:
-            dur_any = (d.get('duracao') or d.get('durao') or '').strip()
-            nao_enc.append({'curso': curso, 'duracao': dur_any})
+            dur_any = (d.get('duracao') or d.get('durao') or '')
+            if not isinstance(dur_any, str):
+                dur_any = str(dur_any or '')
+            nao_enc.append({'curso': curso, 'duracao': dur_any.strip()})
             continue
         matches.extend(campo_diffs)
 
-    att = sum(1 for m in matches if m['needs_update'])
+    # Totais por curso (não por campo mapeado — valorSite+mix dobrava o número).
+    by_curso = {}
+    for m in matches:
+        key = m.get('id') or m.get('curso')
+        rec = by_curso.setdefault(key, False)
+        if m.get('needs_update'):
+            by_curso[key] = True
+    att = sum(1 for needs in by_curso.values() if needs)
     return {
         'mapping_aplicado': mapping,
         'matches': matches,
         'nao_encontrado': nao_enc,
         'total_atualizar': att,
-        'total_sem_mudanca': len(matches) - att,
+        'total_sem_mudanca': len(by_curso) - att,
         'total_nao_enc': len(nao_enc),
     }
 
@@ -2021,19 +2038,13 @@ def _atualizar_pos_canais_core(mapping, headers, rows, canal_col, siaa_col,
                 if cfg['key'] == campo:
                     dur_field = cfg.get('dur_field', 'duracao')
                     break
-            dur_raw = (d.get(dur_field) or d.get('duracao') or d.get('durao') or '').strip()
+            dur_raw = (d.get(dur_field) or d.get('duracao') or d.get('durao') or '')
+            if not isinstance(dur_raw, str):
+                dur_raw = str(dur_raw or '')
+            dur_raw = dur_raw.strip()
             dur_m   = _parse_dur_meses(dur_raw)
             curso_str = d.get('curso') or d.get('title') or ''
-            curso_norm  = _norm(curso_str)
-            curso_strip = _strip_prefix_suffix(curso_norm)
-            curso_stop  = _stopless(curso_strip)
-            price = None
-            for k in ((curso_norm, dur_m), (curso_strip, dur_m), (curso_stop, dur_m)):
-                if k in idx:
-                    price = idx[k]
-                    break
-            if price is None:
-                price = _wix_pos_fuzzy_lookup(idx, curso_str, dur_m)
+            price = _pos_price_lookup(idx, curso_str, dur_m)
             if price is None:
                 continue
             novo = fmt_fn(price)
