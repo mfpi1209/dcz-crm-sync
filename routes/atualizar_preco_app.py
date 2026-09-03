@@ -1879,13 +1879,19 @@ def _wix_pos_fuzzy_lookup(idx, curso_str, dur_m):
         inter = wix_toks & sheet_toks
         if not inter:
             continue
-        # Strong condition: Wix tokens are (almost) all contained in sheet tokens.
+        # Wix⊆planilha (nome curto no site) ou planilha⊆Wix (nome abreviado na planilha).
         coverage = len(inter) / len(wix_toks)
+        coverage_rev = len(inter) / len(sheet_toks) if sheet_toks else 0.0
         jaccard  = len(inter) / len(wix_toks | sheet_toks)
-        score = max(coverage, jaccard)
-        # Require both decent coverage AND non-trivial overlap to avoid
-        # matching very common single tokens (e.g. "gestao").
-        if coverage < 0.8 or jaccard < 0.25:
+        score = max(coverage, coverage_rev, jaccard)
+        # Forward: site tokens almost all in the sheet (jaccard 0.25).
+        # Reverse: sheet is a short alias — exige jaccard maior pra não
+        # casar 'Fisiologia Do Exercício' com '...Exercício Clínico'.
+        is_fwd = coverage >= 0.8
+        is_rev = coverage_rev >= 0.8
+        if not (is_fwd or is_rev):
+            continue
+        if jaccard < (0.25 if is_fwd else 0.55):
             continue
         if score > best_score:
             best, best_score = price, score
@@ -1911,6 +1917,9 @@ def _pos_index_put(index, curso, dur_m, price):
         index.setdefault('_by_name', {}).setdefault(key_name, []).append((dur_m, price))
 
 
+_POS_DUR_FALLBACKS = (6, 9, 12)
+
+
 def _pos_price_lookup(index, curso, dur_m):
     """Resolve preço por nome+duração, com fallback de nome canônico e duração única."""
     if not index:
@@ -1931,6 +1940,81 @@ def _pos_price_lookup(index, curso, dur_m):
     if len(durs) == 1:
         return opts[0][1]
     return None
+
+
+def _pos_cfg_for_campo(campos_cfg, campo):
+    for cfg in campos_cfg:
+        if cfg.get('key') == campo:
+            return cfg
+    return {'key': campo, 'dur_field': 'duracao'}
+
+
+def _pos_lookup_from_item(index, d, cfg, curso):
+    """Lookup de pós no item Wix.
+
+    Eduit New (PrecoPos): tenta durao/durao1, depois chave1/chave2
+    (ex.: 'Curso - 6 Meses') e por último 6/9/12 — o CMS costuma
+    gravar 12 meses mesmo quando a planilha só tem 6 e 9.
+    Cruzeiro/Eduit EAD não ativam chave_field nem dur_fallback.
+    """
+    dur_field = cfg.get('dur_field', 'duracao')
+    chave_field = cfg.get('chave_field')
+    use_fb = bool(cfg.get('dur_fallback'))
+
+    dur_raw = d.get(dur_field) or d.get('duracao') or d.get('durao') or ''
+    if not isinstance(dur_raw, str):
+        dur_raw = str(dur_raw or '')
+    dur_raw = dur_raw.strip()
+    dur_m = _parse_dur_meses(dur_raw)
+
+    attempts = []
+    if curso:
+        attempts.append((curso, dur_m))
+
+    if chave_field:
+        ch = (d.get(chave_field) or '').strip()
+        if ch:
+            n1, dd1 = _parse_chave(ch)
+            if n1:
+                attempts.append((n1, _parse_dur_meses(dd1) if dd1 else None))
+
+    sibling = {'durao': 'durao1', 'durao1': 'durao'}.get(dur_field)
+    if sibling and curso:
+        raw2 = d.get(sibling)
+        if raw2 not in (None, ''):
+            raw2 = raw2.strip() if isinstance(raw2, str) else str(raw2).strip()
+            dm2 = _parse_dur_meses(raw2)
+            if dm2 is not None:
+                attempts.append((curso, dm2))
+
+    seen = set()
+    for name, dm in attempts:
+        key = (name, dm)
+        if not name or key in seen:
+            continue
+        seen.add(key)
+        price = _pos_price_lookup(index, name, dm)
+        if price is not None:
+            return price, dur_raw or (f'{dm} Meses' if dm else '')
+
+    if use_fb:
+        names = []
+        for name, _dm in attempts:
+            if name and name not in names:
+                names.append(name)
+        if curso and curso not in names:
+            names.insert(0, curso)
+        for name in names:
+            for alt in _POS_DUR_FALLBACKS:
+                key = (name, alt)
+                if key in seen:
+                    continue
+                seen.add(key)
+                price = _pos_price_lookup(index, name, alt)
+                if price is not None:
+                    return price, dur_raw or f'{alt} Meses'
+
+    return None, dur_raw
 
 
 def _preview_pos_canais_core(mapping, headers, rows, canal_col, siaa_col,
@@ -1960,17 +2044,8 @@ def _preview_pos_canais_core(mapping, headers, rows, canal_col, siaa_col,
                 continue
             idx = canal_indexes.get(canal, {})
 
-            dur_field = 'duracao'
-            for cfg in campos_cfg:
-                if cfg['key'] == campo:
-                    dur_field = cfg.get('dur_field', 'duracao')
-                    break
-            dur_raw = (d.get(dur_field) or d.get('duracao') or d.get('durao') or '')
-            if not isinstance(dur_raw, str):
-                dur_raw = str(dur_raw or '')
-            dur_raw = dur_raw.strip()
-            dur_m   = _parse_dur_meses(dur_raw)
-            price = _pos_price_lookup(idx, curso, dur_m)
+            cfg = _pos_cfg_for_campo(campos_cfg, campo)
+            price, dur_raw = _pos_lookup_from_item(idx, d, cfg, curso)
             if price is None:
                 continue
             found_any = True
@@ -1983,10 +2058,14 @@ def _preview_pos_canais_core(mapping, headers, rows, canal_col, siaa_col,
             })
 
         if not found_any:
-            dur_any = (d.get('duracao') or d.get('durao') or '')
-            if not isinstance(dur_any, str):
-                dur_any = str(dur_any or '')
-            nao_enc.append({'curso': curso, 'duracao': dur_any.strip()})
+            parts = []
+            for k in ('duracao', 'durao', 'durao1'):
+                v = d.get(k)
+                if v not in (None, ''):
+                    s = str(v).strip()
+                    if s and s not in parts:
+                        parts.append(s)
+            nao_enc.append({'curso': curso, 'duracao': ' / '.join(parts)})
             continue
         matches.extend(campo_diffs)
 
@@ -2033,18 +2112,12 @@ def _atualizar_pos_canais_core(mapping, headers, rows, canal_col, siaa_col,
                 continue
             idx = canal_indexes.get(canal, {})
 
-            dur_field = 'duracao'
-            for cfg in campos_cfg:
-                if cfg['key'] == campo:
-                    dur_field = cfg.get('dur_field', 'duracao')
-                    break
-            dur_raw = (d.get(dur_field) or d.get('duracao') or d.get('durao') or '')
-            if not isinstance(dur_raw, str):
-                dur_raw = str(dur_raw or '')
-            dur_raw = dur_raw.strip()
-            dur_m   = _parse_dur_meses(dur_raw)
-            curso_str = d.get('curso') or d.get('title') or ''
-            price = _pos_price_lookup(idx, curso_str, dur_m)
+            cfg = _pos_cfg_for_campo(campos_cfg, campo)
+            curso_str = (d.get('curso') or d.get('title') or '')
+            if not isinstance(curso_str, str):
+                curso_str = str(curso_str or '')
+            curso_str = curso_str.strip()
+            price, _dur_raw = _pos_lookup_from_item(idx, d, cfg, curso_str)
             if price is None:
                 continue
             novo = fmt_fn(price)
@@ -2184,8 +2257,8 @@ def atualizar_wix2_pos_canais():
 # ── Wix3 PrecoPos ──
 
 _WIX3_PRECOPOS_CAMPOS_CFG = [
-    {'key': 'valorSite',  'label': 'valorSite (durao)',   'dur_field': 'durao'},
-    {'key': 'valorSite1', 'label': 'valorSite1 (durao1)', 'dur_field': 'durao1'},
+    {'key': 'valorSite',  'label': 'valorSite (durao)',   'dur_field': 'durao',  'chave_field': 'chave1', 'dur_fallback': True},
+    {'key': 'valorSite1', 'label': 'valorSite1 (durao1)', 'dur_field': 'durao1', 'chave_field': 'chave2', 'dur_fallback': True},
 ]
 
 

@@ -4,4 +4,13 @@ from waitress import serve
 
 if __name__ == "__main__":
     print("* Serving on http://0.0.0.0:5001 via Waitress")
-    serve(app, host="0.0.0.0", port=5001, threads=8, max_request_body_size=200*1024*1024)
+    serve(
+        app,
+        host="0.0.0.0",
+        port=5001,
+        threads=8,
+        max_request_body_size=200 * 1024 * 1024,
+        # Atualizar Site (Wix) escreve dezenas/centenas de itens e só
+        # responde no fim; o default (120s) fecha a conexão no meio.
+        channel_timeout=1800,
+    )
