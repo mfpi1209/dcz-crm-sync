@@ -618,6 +618,14 @@ def _get_price_from_row(row, headers, canal, siaa_col):
     return row.get(valor_col) if valor_col else None
 
 
+def _is_cruzeiro_pos(cert_val):
+    """CERTIFICADORA da pós Cruzeiro (aceita variações de nome do arquivo).
+    Ex.: 'Cruzeiro - Pós Graduação Ead', 'Cruzeiro do Sul - Pós EAD'.
+    Exclui 'Cruzeiro do Sul' puro (sem pós) e outras certificadoras (Positivo, Unipê)."""
+    n = _norm(cert_val)
+    return 'cruzeiro' in n and 'pos' in n
+
+
 # ═══════════════════════════════════════════════════════════════════
 # IA Graduação — canal
 # ═══════════════════════════════════════════════════════════════════
@@ -791,8 +799,7 @@ def listar_canais_pos():
             return jsonify({'error': 'Coluna CANAL não encontrada'}), 400
         # Filter by CERTIFICADORA if column exists
         if cert_col:
-            rows = [r for r in rows
-                    if _norm(str(r.get(cert_col) or '')) == _norm('Cruzeiro do Sul - Pós EAD')]
+            rows = [r for r in rows if _is_cruzeiro_pos(r.get(cert_col))]
         canais = sorted({str(r[canal_col]).strip()
                          for r in rows if r.get(canal_col) not in (None, '')})
         tem_siaa = bool(siaa_col and
@@ -843,9 +850,7 @@ def preview_pos_canal():
         if not canal_col:
             return jsonify({'error': 'Coluna CANAL não encontrada'}), 400
         if cert_col:
-            _cert_prefix = _norm('Cruzeiro do Sul')
-            rows = [r for r in rows
-                    if _norm(str(r.get(cert_col) or '')).startswith(_cert_prefix)]
+            rows = [r for r in rows if _is_cruzeiro_pos(r.get(cert_col))]
         idx = _build_pos_index_canal(rows, headers, canal, canal_col, siaa_col)
         docs = _supa_fetch_all('documents_precos')
         matches, nao_enc = [], []
@@ -906,9 +911,7 @@ def atualizar_pos_canal():
         if not canal_col:
             return jsonify({'error': 'Coluna CANAL não encontrada'}), 400
         if cert_col:
-            _cert_prefix = _norm('Cruzeiro do Sul')
-            rows = [r for r in rows
-                    if _norm(str(r.get(cert_col) or '')).startswith(_cert_prefix)]
+            rows = [r for r in rows if _is_cruzeiro_pos(r.get(cert_col))]
         idx = _build_pos_index_canal(rows, headers, canal, canal_col, siaa_col)
         docs = _supa_fetch_all('documents_precos')
         atualizados, erros, ultimo_erro = 0, 0, ''
@@ -1275,9 +1278,7 @@ def preview_salesbot_pos_canal():
             return jsonify({'error': 'Colunas CANAL e CURSO são obrigatórias'}), 400
         # Filter by CERTIFICADORA (prefix match — aceita "Cruzeiro do Sul - ...")
         if cert_col:
-            _cert_prefix = _norm('Cruzeiro do Sul')
-            rows = [r for r in rows
-                    if _norm(str(r.get(cert_col) or '')).startswith(_cert_prefix)]
+            rows = [r for r in rows if _is_cruzeiro_pos(r.get(cert_col))]
         # Build index: {(_norm(curso), dur_meses): preco}
         price_index = {}
         for r in rows:
@@ -1359,9 +1360,7 @@ def atualizar_salesbot_pos_canal():
         if not canal_col or not curso_col:
             return jsonify({'error': 'Colunas CANAL e CURSO são obrigatórias'}), 400
         if cert_col:
-            _cert_prefix = _norm('Cruzeiro do Sul')
-            rows = [r for r in rows
-                    if _norm(str(r.get(cert_col) or '')).startswith(_cert_prefix)]
+            rows = [r for r in rows if _is_cruzeiro_pos(r.get(cert_col))]
         price_index = {}
         for r in rows:
             rc = str(r.get(canal_col) or '').strip()
@@ -2470,9 +2469,7 @@ def _parse_pos_planilha(file_bytes):
     siaa_col  = _find_col(headers, 'PREÇO SIAA', 'PRECO SIAA', 'PRECO_SIAA')
 
     if cert_col:
-        _cert_prefix = _norm('Cruzeiro do Sul')
-        rows = [r for r in rows
-                if _norm(str(r.get(cert_col) or '')).startswith(_cert_prefix)]
+        rows = [r for r in rows if _is_cruzeiro_pos(r.get(cert_col))]
 
     agg = {}
     for r in rows:
