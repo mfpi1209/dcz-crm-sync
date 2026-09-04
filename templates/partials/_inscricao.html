@@ -550,6 +550,32 @@
                         gap: 14px;
                     }
 
+                    #page-inscricao .insc-recent-row {
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        padding: 8px 12px;
+                        background: var(--insc-bg-card);
+                        border: 1px solid var(--insc-border-light);
+                        border-radius: 8px;
+                        font-size: 13px;
+                    }
+
+                    #page-inscricao .insc-recent-cpf {
+                        font-weight: 700;
+                        font-variant-numeric: tabular-nums;
+                        min-width: 130px;
+                        color: var(--insc-text-primary);
+                    }
+
+                    #page-inscricao .insc-recent-msg {
+                        flex: 1;
+                        color: var(--insc-text-secondary);
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+
                     #page-inscricao .insc-error-card {
                         background: var(--insc-bg-card);
                         border-radius: var(--insc-radius-lg);
@@ -640,6 +666,36 @@
                         line-height: 1.6;
                         margin-bottom: 14px;
                         font-weight: 500;
+                    }
+
+                    #page-inscricao .insc-meta-grid {
+                        display: grid;
+                        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+                        gap: 10px;
+                    }
+
+                    #page-inscricao .insc-meta-item {
+                        background: var(--insc-bg-main);
+                        border: 1px solid var(--insc-border-light);
+                        border-radius: 8px;
+                        padding: 8px 10px;
+                    }
+
+                    #page-inscricao .insc-meta-item span {
+                        display: block;
+                        font-size: 10px;
+                        font-weight: 700;
+                        text-transform: uppercase;
+                        letter-spacing: 0.04em;
+                        color: var(--insc-text-muted);
+                        margin-bottom: 2px;
+                    }
+
+                    #page-inscricao .insc-meta-item strong {
+                        font-size: 13px;
+                        font-weight: 600;
+                        color: var(--insc-text-primary);
+                        word-break: break-word;
                     }
 
                     #page-inscricao .insc-error-output-toggle {
@@ -788,6 +844,12 @@
                         <div class="insc-toolbar-group">
                             <label for="insc-inputTo">Data final</label>
                             <input type="date" id="insc-inputTo" class="input-glass px-3 py-2.5 rounded-xl text-sm min-w-[170px] text-slate-900 dark:text-slate-100">
+                        </div>
+                        <div class="insc-toolbar-group">
+                            <label for="insc-inputSearch">CPF ou telefone</label>
+                            <input type="text" id="insc-inputSearch" placeholder="000.000.000-00 ou telefone"
+                                class="input-glass px-3 py-2.5 rounded-xl text-sm min-w-[220px] text-slate-900 dark:text-slate-100"
+                                onkeydown="if(event.key==='Enter'){event.preventDefault();inscApplyFilter();}">
                         </div>
                         <div class="insc-toolbar-actions">
                             <button class="insc-btn insc-btn-primary" id="insc-btnApply" onclick="inscApplyFilter()">
