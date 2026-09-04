@@ -1,0 +1,496 @@
+<div id="page-materias_alunos" class="hidden">
+<style>
+#page-materias_alunos { padding: 0; }
+
+#page-materias_alunos {
+    --bg: #f1f5f9;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --hover-row: #fafafa;
+    --primary: #4f46e5;
+    --primary-light: #e0e7ff;
+    --success: #16a34a;
+    --success-light: #dcfce7;
+    --warning: #d97706;
+    --warning-light: #fef3c7;
+    --danger: #dc2626;
+    --danger-light: #fee2e2;
+}
+.dark #page-materias_alunos {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --border: #334155;
+    --text: #f1f5f9;
+    --text-muted: #94a3b8;
+    --hover-row: #263348;
+    --primary: #6366f1;
+    --primary-light: #1e1b4b;
+    --success: #4ade80;
+    --success-light: rgba(34,197,94,.15);
+    --warning: #fbbf24;
+    --warning-light: rgba(251,191,36,.15);
+    --danger: #f87171;
+    --danger-light: rgba(248,113,113,.15);
+}
+
+#page-materias_alunos .ma-wrap { padding: 24px; background: var(--bg); min-height: 100%; color: var(--text); }
+#page-materias_alunos .ma-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 12px; flex-wrap: wrap; }
+#page-materias_alunos .ma-title { font-size: 22px; font-weight: 700; margin: 0; }
+#page-materias_alunos .ma-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+#page-materias_alunos .ma-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+#page-materias_alunos .ma-card h3 { font-size: 14px; font-weight: 700; margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px; }
+
+#page-materias_alunos .ma-drop {
+    border: 2px dashed var(--border); border-radius: 10px; padding: 22px 12px;
+    text-align: center; cursor: pointer; transition: all .15s ease;
+    background: var(--card); color: var(--text-muted);
+}
+#page-materias_alunos .ma-drop:hover, #page-materias_alunos .ma-drop.dragover {
+    border-color: var(--primary); background: var(--primary-light); color: var(--text);
+}
+#page-materias_alunos .ma-drop.filled { border-color: var(--success); background: var(--success-light); color: var(--text); }
+#page-materias_alunos .ma-drop .ma-drop-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; color: var(--text); }
+#page-materias_alunos .ma-drop .ma-drop-hint  { font-size: 12px; }
+#page-materias_alunos .ma-drop .ma-drop-file  { font-size: 12px; font-weight: 600; margin-top: 6px; word-break: break-all; }
+
+#page-materias_alunos .ma-filters { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+#page-materias_alunos .ma-label { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+#page-materias_alunos .ma-chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
+    border-radius: 999px; font-size: 12px; font-weight: 700;
+    background: var(--primary-light); color: var(--primary); border: 1px solid var(--primary);
+}
+#page-materias_alunos .ma-input {
+    background: var(--card); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px; font-size: 13px;
+}
+#page-materias_alunos .ma-input[type="number"] { width: 90px; }
+
+#page-materias_alunos .ma-btn {
+    padding: 9px 16px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;
+    border: 1px solid transparent; display: inline-flex; align-items: center; gap: 6px; transition: all .15s;
+}
+#page-materias_alunos .ma-btn-primary { background: var(--primary); color: #fff; }
+#page-materias_alunos .ma-btn-primary:hover { filter: brightness(1.08); }
+#page-materias_alunos .ma-btn-secondary { background: var(--card); color: var(--text); border-color: var(--border); }
+#page-materias_alunos .ma-btn-secondary:hover { background: var(--hover-row); }
+#page-materias_alunos .ma-btn-danger { background: var(--danger); color: #fff; }
+#page-materias_alunos .ma-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+#page-materias_alunos .ma-stats { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+#page-materias_alunos .ma-stat { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; min-width: 140px; }
+#page-materias_alunos .ma-stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
+#page-materias_alunos .ma-stat-val { font-size: 22px; font-weight: 700; }
+
+#page-materias_alunos .ma-progress-bar { position: relative; height: 12px; background: var(--hover-row); border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+#page-materias_alunos .ma-progress-fill { position: absolute; inset: 0 auto 0 0; background: var(--primary); transition: width .3s ease; }
+#page-materias_alunos .ma-progress-text { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+#page-materias_alunos .ma-alert { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 12px; }
+#page-materias_alunos .ma-alert-error { background: var(--danger-light); color: var(--danger); border: 1px solid var(--danger); }
+#page-materias_alunos .ma-alert-warn  { background: var(--warning-light); color: var(--warning); border: 1px solid var(--warning); }
+#page-materias_alunos .ma-alert-info  { background: var(--primary-light); color: var(--text); border: 1px solid var(--border); }
+
+#page-materias_alunos .ma-session-banner {
+    display: none; align-items: flex-start; gap: 14px;
+    background: var(--danger-light); border: 2px solid var(--danger);
+    border-radius: 12px; padding: 18px 20px; margin-bottom: 16px;
+    box-shadow: 0 4px 16px rgba(220,38,38,.15);
+    animation: maShake .5s ease;
+}
+#page-materias_alunos .ma-session-banner.on { display: flex; }
+#page-materias_alunos .ma-session-banner .ma-sb-icon {
+    flex: 0 0 44px; height: 44px; border-radius: 50%;
+    background: var(--danger); color: #fff; display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 900;
+}
+#page-materias_alunos .ma-session-banner .ma-sb-body { flex: 1; min-width: 0; }
+#page-materias_alunos .ma-session-banner .ma-sb-title { font-size: 18px; font-weight: 800; color: var(--danger); margin: 0 0 4px 0; }
+#page-materias_alunos .ma-session-banner .ma-sb-msg { font-size: 14px; color: var(--text); margin: 0 0 10px 0; line-height: 1.45; }
+#page-materias_alunos .ma-session-banner .ma-sb-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+#page-materias_alunos .ma-session-banner .ma-sb-btn {
+    padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;
+    border: 1px solid var(--danger); background: var(--danger); color: #fff;
+}
+#page-materias_alunos .ma-session-banner .ma-sb-btn.ghost { background: transparent; color: var(--danger); }
+@keyframes maShake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+</style>
+
+<div class="ma-wrap">
+    <div class="ma-topbar">
+        <div>
+            <h1 class="ma-title">Matérias dos Alunos</h1>
+            <div class="ma-sub">Consulta em lote no SIAA (módulo Acadêmico) e grava em <code>materias_alunos</code>.</div>
+        </div>
+    </div>
+
+    <div id="ma-alert" style="display:none"></div>
+
+    <div id="ma-session-banner" class="ma-session-banner" role="alert">
+        <div class="ma-sb-icon">!</div>
+        <div class="ma-sb-body">
+            <p class="ma-sb-title">Sessão do SIAA (Acadêmico) expirada</p>
+            <p class="ma-sb-msg" id="ma-sb-msg">O SIAA encerrou a sessão durante o processamento. Suba uma nova cURL em <b>Atualizar sessão SIAA</b> (aba Acadêmico) e clique em <b>Iniciar processamento</b> novamente — o job retoma de onde parou.</p>
+            <div class="ma-sb-actions">
+                <button type="button" class="ma-sb-btn" onclick="navigate('siaa_sessao')">Ir para Atualizar sessão SIAA</button>
+                <button type="button" class="ma-sb-btn ghost" onclick="document.getElementById('ma-session-banner').classList.remove('on')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Arquivo -->
+    <div class="ma-card">
+        <h3><span class="material-symbols-outlined text-base" style="color:var(--primary)">upload_file</span> Arquivo</h3>
+        <div class="ma-drop" id="ma-drop" onclick="document.getElementById('ma-file').click()">
+            <div class="ma-drop-title">Relação de matriculados por polo</div>
+            <div class="ma-drop-hint">Clique ou arraste um .xlsx</div>
+            <div class="ma-drop-file" id="ma-file-name"></div>
+        </div>
+        <input type="file" id="ma-file" accept=".xlsx" style="display:none">
+    </div>
+
+    <!-- Filtros -->
+    <div class="ma-card">
+        <h3><span class="material-symbols-outlined text-base" style="color:var(--primary)">filter_alt</span> Filtros</h3>
+        <div class="ma-filters">
+            <span class="ma-label">Negócio:</span>
+            <span class="ma-chip">GRADUAÇÃO</span>
+            <span class="ma-label">Tipo Matrícula:</span>
+            <span class="ma-chip">NOVA MATRICULA</span>
+            <span class="ma-label">Data Matrícula:</span>
+            <select class="ma-input" id="ma-modo-data" onchange="maModoData()">
+                <option value="unica">Data única</option>
+                <option value="intervalo">Intervalo</option>
+                <option value="tudo">Tudo</option>
+            </select>
+            <input type="date" class="ma-input" id="ma-data">
+            <span class="ma-label" id="ma-data-sep" style="display:none">até</span>
+            <input type="date" class="ma-input" id="ma-data-fim" style="display:none">
+        </div>
+    </div>
+
+    <!-- Ações -->
+    <div class="ma-card">
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="ma-btn ma-btn-secondary" id="ma-btn-preview" onclick="maPreview()">
+                <span class="material-symbols-outlined text-base">visibility</span> Analisar
+            </button>
+            <button class="ma-btn ma-btn-primary" id="ma-btn-start" onclick="maStart()" disabled>
+                <span class="material-symbols-outlined text-base">play_arrow</span> Iniciar processamento
+            </button>
+            <button class="ma-btn ma-btn-danger" id="ma-btn-cancel" onclick="maCancel()" style="display:none">
+                <span class="material-symbols-outlined text-base">stop</span> Cancelar
+            </button>
+        </div>
+
+        <div id="ma-preview-box" style="display:none">
+            <div class="ma-stats">
+                <div class="ma-stat"><div class="ma-stat-label">Total encontrados</div><div class="ma-stat-val" id="ma-p-total">–</div></div>
+                <div class="ma-stat"><div class="ma-stat-label">Já consultados</div><div class="ma-stat-val" id="ma-p-ja">–</div></div>
+                <div class="ma-stat"><div class="ma-stat-label">Pendentes</div><div class="ma-stat-val" id="ma-p-pend">–</div></div>
+                <div class="ma-stat"><div class="ma-stat-label">Tempo estimado</div><div class="ma-stat-val" id="ma-p-eta">–</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progresso -->
+    <div class="ma-card" id="ma-progress-card" style="display:none">
+        <h3><span class="material-symbols-outlined text-base" style="color:var(--primary)">sync</span> Progresso</h3>
+        <div class="ma-progress-bar"><div class="ma-progress-fill" id="ma-prog-fill" style="width:0%"></div></div>
+        <div class="ma-progress-text">
+            <span id="ma-prog-label">0 / 0 (0%)</span>
+            <span id="ma-prog-eta"></span>
+        </div>
+        <div class="ma-stats" style="margin-top:14px">
+            <div class="ma-stat"><div class="ma-stat-label">Sucesso</div><div class="ma-stat-val" id="ma-s-ok" style="color:var(--success)">0</div></div>
+            <div class="ma-stat"><div class="ma-stat-label">Sem matérias</div><div class="ma-stat-val" id="ma-s-sm" style="color:var(--warning)">0</div></div>
+            <div class="ma-stat"><div class="ma-stat-label">Erros</div><div class="ma-stat-val" id="ma-s-er" style="color:var(--danger)">0</div></div>
+        </div>
+        <div style="margin-top:12px; font-size:12px; color:var(--text-muted);">
+            Último RGM: <span id="ma-last-rgm">–</span>
+            <span id="ma-last-aluno" style="margin-left:12px"></span>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const state = { file: null, pollTimer: null };
+    window.__maState = state;
+
+    // Upload
+    const page = document.getElementById('page-materias_alunos');
+    const drop = document.getElementById('ma-drop');
+    const input = document.getElementById('ma-file');
+    const nameEl = document.getElementById('ma-file-name');
+
+    // Bloqueia o comportamento default de drag/drop em toda a pagina
+    // (evita o browser abrir/baixar o arquivo se o usuario soltar fora da zona)
+    ['dragover', 'drop'].forEach(ev => {
+        page.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); });
+    });
+
+    if (drop && input) {
+        drop.addEventListener('dragenter', e => { e.preventDefault(); drop.classList.add('dragover'); });
+        drop.addEventListener('dragover',  e => { e.preventDefault(); drop.classList.add('dragover'); });
+        drop.addEventListener('dragleave', e => { e.preventDefault(); drop.classList.remove('dragover'); });
+        drop.addEventListener('drop', e => {
+            e.preventDefault(); e.stopPropagation();
+            drop.classList.remove('dragover');
+            if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+                input.files = e.dataTransfer.files;
+                setFile(e.dataTransfer.files[0]);
+            }
+        });
+        input.addEventListener('change', () => { if (input.files[0]) setFile(input.files[0]); });
+    }
+    function setFile(f) {
+        state.file = f;
+        drop.classList.add('filled');
+        nameEl.textContent = f.name;
+    }
+
+    function alertMsg(msg, kind) {
+        const el = document.getElementById('ma-alert');
+        if (!msg) { el.style.display = 'none'; return; }
+        el.className = 'ma-alert ma-alert-' + (kind || 'info');
+        el.textContent = msg;
+        el.style.display = 'block';
+        try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) {}
+    }
+
+    function fmtDuracao(s) {
+        s = Math.max(0, Math.round(s));
+        const d = Math.floor(s / 86400); s -= d * 86400;
+        const h = Math.floor(s / 3600);  s -= h * 3600;
+        const m = Math.floor(s / 60);    s -= m * 60;
+        const parts = [];
+        if (d) parts.push(d + 'd');
+        if (h) parts.push(h + 'h');
+        if (m) parts.push(m + 'min');
+        if (!parts.length) parts.push(s + 's');
+        return parts.join(' ');
+    }
+
+    window.maModoData = function() {
+        const modo = document.getElementById('ma-modo-data').value;
+        const ini = document.getElementById('ma-data');
+        const sep = document.getElementById('ma-data-sep');
+        const fim = document.getElementById('ma-data-fim');
+        ini.style.display = (modo === 'tudo') ? 'none' : '';
+        sep.style.display = (modo === 'intervalo') ? '' : 'none';
+        fim.style.display = (modo === 'intervalo') ? '' : 'none';
+    };
+
+    function validate() {
+        const modo = document.getElementById('ma-modo-data').value;
+        const iniEl = document.getElementById('ma-data');
+        const fimEl = document.getElementById('ma-data-fim');
+        iniEl.style.borderColor = '';
+        fimEl.style.borderColor = '';
+        if (!state.file) { alertMsg('Envie a planilha antes.', 'error'); return null; }
+        console.log('[materias] file info', { name: state.file.name, size: state.file.size, type: state.file.type, lastModified: state.file.lastModified });
+
+        const ini = iniEl.value;
+        const fim = fimEl.value;
+
+        if (modo === 'unica') {
+            if (!ini) {
+                alertMsg('Escolha uma Data Matrícula clicando no calendário (o "19/07/2026" que aparece é apenas o formato do campo).', 'error');
+                iniEl.style.borderColor = 'var(--danger)';
+                iniEl.focus();
+                try { iniEl.showPicker && iniEl.showPicker(); } catch (_) {}
+                return null;
+            }
+        } else if (modo === 'intervalo') {
+            if (!ini && !fim) {
+                alertMsg('Informe ao menos uma data do intervalo (inicial e/ou final).', 'error');
+                iniEl.style.borderColor = 'var(--danger)';
+                iniEl.focus();
+                return null;
+            }
+            if (ini && fim && ini > fim) {
+                alertMsg('A data inicial não pode ser maior que a final.', 'error');
+                fimEl.style.borderColor = 'var(--danger)';
+                return null;
+            }
+        }
+        alertMsg('', null);
+        return { modo, ini, fim };
+    }
+
+    // Le o arquivo completo em memoria como Blob. Isso evita ERR_FAILED
+    // quando o arquivo esta em OneDrive/GDrive cloud-only, foi movido apos
+    // selecionado, ou o browser nao consegue fazer stream do disco.
+    async function fileToBlob() {
+        if (state.blob && state.blobFromSize === state.file.size) {
+            return state.blob;
+        }
+        const buf = await state.file.arrayBuffer();
+        state.blob = new Blob([buf], { type: state.file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        state.blobFromSize = state.file.size;
+        return state.blob;
+    }
+
+    async function buildFormData(v) {
+        const blob = await fileToBlob();
+        const fd = new FormData();
+        fd.append('matriculados', blob, state.file.name);
+        fd.append('modo_data', v.modo);
+        if (v.ini) fd.append('data_ini', v.ini);
+        if (v.fim) fd.append('data_fim', v.fim);
+        if (v.modo === 'unica' && v.ini) fd.append('data_matricula', v.ini);
+        fd.append('intervalo', '15');
+        return fd;
+    }
+
+    window.maPreview = async function() {
+        const btn = document.getElementById('ma-btn-preview');
+        try {
+            console.log('[materias] Analisar clicado', { hasFile: !!state.file, data: document.getElementById('ma-data').value });
+            const v = validate();
+            if (!v) { console.log('[materias] validate falhou'); return; }
+            btn.disabled = true;
+            alertMsg('Lendo planilha do disco...', 'info');
+            let fd;
+            try { fd = await buildFormData(v); }
+            catch (readErr) {
+                console.error('[materias] leitura falhou', readErr);
+                throw new Error('Nao consegui ler o arquivo. Se ele esta no OneDrive/Google Drive, clique com botao direito no arquivo e escolha "Sempre manter neste dispositivo" antes de arrasta-lo. Detalhe: ' + (readErr.message || readErr));
+            }
+            console.log('[materias] blob pronto, enviando', state.blob.size, 'bytes');
+            alertMsg('Enviando ao servidor...', 'info');
+            const r = await fetch('/api/materias-alunos/preview', { method: 'POST', body: fd, cache: 'no-store' });
+            console.log('[materias] preview status', r.status);
+            const d = await r.json();
+            console.log('[materias] preview body', d);
+            if (!r.ok || !d.ok) throw new Error(d.error || `HTTP ${r.status}`);
+            alertMsg('', null);
+            document.getElementById('ma-preview-box').style.display = '';
+            document.getElementById('ma-p-total').textContent = d.total.toLocaleString('pt-BR');
+            document.getElementById('ma-p-ja').textContent    = d.ja_consultados.toLocaleString('pt-BR');
+            document.getElementById('ma-p-pend').textContent  = d.pendentes.toLocaleString('pt-BR');
+            document.getElementById('ma-p-eta').textContent   = d.pendentes ? fmtDuracao(d.eta_segundos) : '–';
+            document.getElementById('ma-btn-start').disabled  = d.pendentes === 0;
+            if (d.pendentes === 0) alertMsg('Todos os RGMs desse filtro já foram consultados.', 'info');
+        } catch (e) {
+            console.error('[materias] Analisar erro', e);
+            alertMsg('Erro ao analisar: ' + (e.message || e), 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    };
+
+    window.maStart = async function() {
+        const v = validate(); if (!v) return;
+        if (!confirm('Iniciar processamento em lote? O intervalo entre alunos é 15s.')) return;
+        const btn = document.getElementById('ma-btn-start');
+        btn.disabled = true;
+        try {
+            const fd = await buildFormData(v);
+            const r = await fetch('/api/materias-alunos/start', { method: 'POST', body: fd, cache: 'no-store' });
+            const d = await r.json();
+            if (!r.ok || !d.ok) {
+                if (d.session_expired) {
+                    const banner = document.getElementById('ma-session-banner');
+                    if (d.error) document.getElementById('ma-sb-msg').textContent = d.error;
+                    banner.classList.add('on');
+                    try { banner.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) {}
+                    alertMsg('', null);
+                } else {
+                    alertMsg('Erro ao iniciar: ' + (d.error || `HTTP ${r.status}`), 'error');
+                }
+                btn.disabled = false;
+                return;
+            }
+            alertMsg('', null);
+            document.getElementById('ma-progress-card').style.display = '';
+            document.getElementById('ma-btn-cancel').style.display = '';
+            document.getElementById('ma-btn-preview').disabled = true;
+            renderJob(d.job);
+            startPolling();
+        } catch (e) {
+            alertMsg('Erro ao iniciar: ' + (e.message || e), 'error');
+            btn.disabled = false;
+        }
+    };
+
+    window.maCancel = async function() {
+        if (!confirm('Cancelar o processamento em andamento?')) return;
+        try {
+            await fetch('/api/materias-alunos/cancel', { method: 'POST', cache: 'no-store' });
+        } catch (_) {}
+    };
+
+    function renderJob(j) {
+        if (!j) return;
+        const pct = j.total ? Math.round((j.processados / j.total) * 100) : 0;
+        document.getElementById('ma-prog-fill').style.width = pct + '%';
+        document.getElementById('ma-prog-label').textContent = `${j.processados} / ${j.total} (${pct}%)`;
+        document.getElementById('ma-prog-eta').textContent = j.status === 'running'
+            ? 'Estimativa: ' + fmtDuracao(j.eta_segundos || 0)
+            : ({ done: 'Concluído', cancelled: 'Cancelado', session_expired: 'Sessão expirada', error: 'Erro' }[j.status] || j.status);
+        document.getElementById('ma-s-ok').textContent = j.sucesso;
+        document.getElementById('ma-s-sm').textContent = j.sem_materias;
+        document.getElementById('ma-s-er').textContent = j.erros;
+        document.getElementById('ma-last-rgm').textContent = j.ultimo_rgm || '–';
+        document.getElementById('ma-last-aluno').textContent = j.ultimo_aluno || '';
+
+        if (j.status === 'session_expired') {
+            const banner = document.getElementById('ma-session-banner');
+            if (j.ultima_msg) document.getElementById('ma-sb-msg').textContent = j.ultima_msg;
+            banner.classList.add('on');
+            try { banner.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) {}
+            alertMsg('', null);
+        } else {
+            document.getElementById('ma-session-banner').classList.remove('on');
+        }
+        if (j.status !== 'running') {
+            document.getElementById('ma-btn-cancel').style.display = 'none';
+            document.getElementById('ma-btn-preview').disabled = false;
+            document.getElementById('ma-btn-start').disabled = false;
+            stopPolling();
+        }
+    }
+
+    function startPolling() {
+        stopPolling();
+        state.pollTimer = setInterval(async () => {
+            try {
+                const r = await fetch('/api/materias-alunos/status', { cache: 'no-store' });
+                const d = await r.json();
+                if (d.ok && d.job) renderJob(d.job);
+            } catch (_) {}
+        }, 3000);
+    }
+    function stopPolling() {
+        if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
+    }
+
+    window.materiasAlunosLoadPage = async function() {
+        // Garante estado inicial: Analisar sempre habilitado, Iniciar so apos preview
+        try {
+            document.getElementById('ma-btn-preview').disabled = false;
+            document.getElementById('ma-btn-start').disabled = true;
+            document.getElementById('ma-btn-cancel').style.display = 'none';
+        } catch (_) {}
+        // Retoma progresso APENAS se ha job realmente rodando
+        try {
+            const r = await fetch('/api/materias-alunos/status', { cache: 'no-store' });
+            const d = await r.json();
+            if (d.ok && d.job && d.job.status === 'running') {
+                document.getElementById('ma-progress-card').style.display = '';
+                renderJob(d.job);
+                document.getElementById('ma-btn-cancel').style.display = '';
+                document.getElementById('ma-btn-preview').disabled = true;
+                document.getElementById('ma-btn-start').disabled = true;
+                startPolling();
+            }
+        } catch (_) {}
+    };
+})();
+</script>
+</div>

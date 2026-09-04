@@ -1,0 +1,722 @@
+<div id="page-academico_interacoes" class="hidden">
+<style>
+#page-academico_interacoes { padding: 0; }
+#page-academico_interacoes {
+    --bg: #f1f5f9;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --hover-row: #fafafa;
+    --primary: #4f46e5;
+    --primary-light: #e0e7ff;
+    --success: #16a34a;
+    --success-light: #dcfce7;
+    --danger: #dc2626;
+    --danger-light: #fee2e2;
+    --warning: #d97706;
+    --warning-light: #fef3c7;
+}
+.dark #page-academico_interacoes {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --border: #334155;
+    --text: #f1f5f9;
+    --text-muted: #94a3b8;
+    --hover-row: #263348;
+    --primary: #6366f1;
+    --primary-light: #1e1b4b;
+    --success: #4ade80;
+    --success-light: rgba(34,197,94,.15);
+    --danger: #f87171;
+    --danger-light: rgba(248,113,113,.15);
+    --warning: #fbbf24;
+    --warning-light: rgba(251,191,36,.15);
+}
+
+#page-academico_interacoes .ai-wrap { padding: 24px; background: var(--bg); min-height: 100%; color: var(--text); }
+#page-academico_interacoes .ai-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 12px; flex-wrap: wrap; }
+#page-academico_interacoes .ai-title { font-size: 22px; font-weight: 700; margin: 0; }
+#page-academico_interacoes .ai-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+#page-academico_interacoes .ai-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+#page-academico_interacoes .ai-stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+#page-academico_interacoes .ai-stat .ai-stat-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
+#page-academico_interacoes .ai-stat .ai-stat-value { font-size: 28px; font-weight: 800; margin-top: 4px; }
+#page-academico_interacoes .ai-stat .ai-stat-pct { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+#page-academico_interacoes .ai-stat.c-success .ai-stat-value { color: var(--success); }
+#page-academico_interacoes .ai-stat.c-danger  .ai-stat-value { color: var(--danger); }
+#page-academico_interacoes .ai-stat.c-warning .ai-stat-value { color: var(--warning); }
+
+#page-academico_interacoes .ai-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+#page-academico_interacoes .ai-card h3 { font-size: 14px; font-weight: 700; margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px; }
+
+#page-academico_interacoes .ai-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+#page-academico_interacoes .ai-input {
+    background: var(--card); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px; font-size: 13px; min-width: 240px;
+}
+#page-academico_interacoes .ai-input:focus { outline: none; border-color: var(--primary); }
+#page-academico_interacoes .ai-btn {
+    padding: 9px 16px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;
+    border: 1px solid transparent; display: inline-flex; align-items: center; gap: 6px; transition: all .15s;
+}
+#page-academico_interacoes .ai-btn-primary { background: var(--primary); color: #fff; }
+#page-academico_interacoes .ai-btn-primary:hover { filter: brightness(1.08); }
+#page-academico_interacoes .ai-btn-secondary { background: var(--card); color: var(--text); border-color: var(--border); }
+#page-academico_interacoes .ai-btn-secondary:hover { background: var(--hover-row); }
+#page-academico_interacoes .ai-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+#page-academico_interacoes table { width: 100%; border-collapse: collapse; }
+#page-academico_interacoes th {
+    text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--text-muted); padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+}
+#page-academico_interacoes td { padding: 9px 12px; font-size: 13px; border-bottom: 1px solid var(--border); }
+#page-academico_interacoes tbody tr:hover { background: var(--hover-row); }
+#page-academico_interacoes .ai-mono { font-family: ui-monospace, monospace; }
+
+#page-academico_interacoes .ai-call-btn {
+    padding: 5px 10px; border-radius: 7px; font-size: 11px; font-weight: 700; cursor: pointer;
+    border: 1px solid transparent; display: inline-flex; align-items: center; gap: 4px; transition: all .15s;
+}
+#page-academico_interacoes .ai-call-btn:disabled { opacity: .5; cursor: wait; }
+#page-academico_interacoes .ai-call-ok { background: var(--success-light); color: var(--success); border-color: var(--success); }
+#page-academico_interacoes .ai-call-ok:hover { filter: brightness(.97); }
+#page-academico_interacoes .ai-call-no { background: var(--danger-light); color: var(--danger); border-color: var(--danger); }
+#page-academico_interacoes .ai-call-no:hover { filter: brightness(.97); }
+#page-academico_interacoes .ai-badge {
+    display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px;
+    border-radius: 999px; font-size: 11px; font-weight: 700;
+}
+#page-academico_interacoes .ai-badge.b-ok { background: var(--success-light); color: var(--success); }
+#page-academico_interacoes .ai-badge.b-no { background: var(--danger-light); color: var(--danger); }
+#page-academico_interacoes .ai-badge.b-claim { background: var(--primary-light); color: var(--primary); }
+#page-academico_interacoes .ai-phone-btn.is-claimed { color: var(--text-muted); }
+
+#page-academico_interacoes .ai-loading { display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-size: 13px; padding: 24px 0; justify-content: center; }
+#page-academico_interacoes .ai-spinner {
+    width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--primary);
+    border-radius: 50%; animation: ai-spin .8s linear infinite;
+}
+@keyframes ai-spin { to { transform: rotate(360deg); } }
+#page-academico_interacoes .ai-empty { text-align: center; color: var(--text-muted); font-size: 13px; padding: 24px 0; }
+#page-academico_interacoes .ai-error {
+    background: var(--danger-light); border: 1px solid var(--danger); color: var(--danger);
+    border-radius: 10px; padding: 12px 16px; font-size: 13px; margin-bottom: 16px;
+}
+
+#page-academico_interacoes .ai-phone-btn {
+    display: inline-flex; align-items: center; gap: 6px; font-family: ui-monospace, monospace;
+    background: none; border: none; color: var(--primary); cursor: pointer; padding: 2px 4px;
+    border-radius: 6px; font-size: 13px; font-weight: 600;
+}
+#page-academico_interacoes .ai-phone-btn:hover { background: var(--primary-light); text-decoration: underline; }
+
+#ai-atender-overlay {
+    position: fixed; inset: 0; z-index: 10050; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(15, 23, 42, .55); backdrop-filter: blur(8px);
+    padding: 20px;
+    --bg: #f1f5f9; --card: #ffffff; --border: #e2e8f0;
+    --text: #0f172a; --text-muted: #64748b; --primary: #4f46e5;
+    --danger: #dc2626; --danger-light: #fee2e2;
+}
+.dark #ai-atender-overlay {
+    --bg: #0f172a; --card: #1e293b; --border: #334155;
+    --text: #f1f5f9; --text-muted: #94a3b8; --primary: #6366f1;
+    --danger: #f87171; --danger-light: rgba(248,113,113,.15);
+}
+#ai-atender-overlay.is-open { display: flex; }
+#ai-atender-overlay .ai-modal {
+    width: min(440px, 100%); background: var(--card); color: var(--text);
+    border: 1px solid var(--border); border-radius: 20px;
+    box-shadow: 0 24px 80px rgba(0,0,0,.35); padding: 28px 24px 20px;
+    animation: ai-pop .22s ease-out;
+}
+@keyframes ai-pop {
+    from { opacity: 0; transform: translateY(12px) scale(.96); }
+    to { opacity: 1; transform: none; }
+}
+#ai-atender-overlay .ai-modal-avatar {
+    width: 56px; height: 56px; border-radius: 16px; margin: 0 auto 14px;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff;
+    font-size: 20px; font-weight: 800; letter-spacing: .02em;
+}
+#ai-atender-overlay .ai-modal h2 { margin: 0; font-size: 18px; font-weight: 800; text-align: center; }
+#ai-atender-overlay .ai-modal-sub { text-align: center; color: var(--text-muted); font-size: 13px; margin: 8px 0 18px; line-height: 1.45; }
+#ai-atender-overlay .ai-modal-card {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 14px; margin-bottom: 10px; font-size: 13px;
+}
+#ai-atender-overlay .ai-modal-row { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; }
+#ai-atender-overlay .ai-modal-row span:first-child { color: var(--text-muted); }
+#ai-atender-overlay .ai-modal-row span:last-child { font-weight: 700; text-align: right; }
+#ai-atender-overlay .ai-modal-err {
+    display: none; background: var(--danger-light); color: var(--danger);
+    border-radius: 10px; padding: 10px 12px; font-size: 12px; margin-bottom: 10px;
+}
+#ai-atender-overlay .ai-modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+#ai-atender-overlay .ai-modal-actions .ai-btn {
+    flex: 1; justify-content: center;
+    padding: 9px 16px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;
+    border: 1px solid transparent; display: inline-flex; align-items: center; gap: 6px;
+}
+#ai-atender-overlay .ai-btn-primary { background: var(--primary); color: #fff; }
+#ai-atender-overlay .ai-btn-ghost { background: transparent; color: var(--text-muted); border-color: var(--border); }
+#ai-atender-overlay .ai-btn:disabled { opacity: .5; cursor: not-allowed; }
+#ai-atender-overlay .ai-mono { font-family: ui-monospace, monospace; }
+</style>
+
+<div class="ai-wrap">
+    <div class="ai-topbar">
+        <div>
+            <h1 class="ai-title">Interações Acadêmicas</h1>
+            <p class="ai-sub">Resumo da tabela <span class="ai-mono">academico_interacoes</span> — quem interagiu e quem ainda não interagiu.</p>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
+            <div>
+                <label style="display:block;font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px">DE</label>
+                <input id="ai-date-de" class="ai-input" type="date" style="min-width:0">
+            </div>
+            <div>
+                <label style="display:block;font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px">ATÉ</label>
+                <input id="ai-date-ate" class="ai-input" type="date" style="min-width:0">
+            </div>
+            <button class="ai-btn ai-btn-secondary" onclick="acadInteracoesLoad(true)" title="Aplicar filtro de data">
+                <span class="material-symbols-outlined" style="font-size:16px">filter_alt</span>
+                Filtrar
+            </button>
+            <button class="ai-btn ai-btn-secondary" onclick="acadInteracoesLimparFiltro()" title="Limpar filtro de data">
+                <span class="material-symbols-outlined" style="font-size:16px">filter_alt_off</span>
+            </button>
+            <button id="ai-btn-refresh" class="ai-btn ai-btn-primary" onclick="acadInteracoesLoad(true)">
+                <span class="material-symbols-outlined" style="font-size:16px">refresh</span>
+                Atualizar
+            </button>
+        </div>
+    </div>
+
+    <div id="ai-error" class="ai-error" style="display:none"></div>
+
+    <div class="ai-cards">
+        <div class="ai-stat">
+            <div class="ai-stat-label">Total de registros</div>
+            <div class="ai-stat-value" id="ai-stat-total">—</div>
+        </div>
+        <div class="ai-stat c-success">
+            <div class="ai-stat-label">Interagiram</div>
+            <div class="ai-stat-value" id="ai-stat-true">—</div>
+            <div class="ai-stat-pct" id="ai-stat-true-pct"></div>
+        </div>
+        <div class="ai-stat c-danger">
+            <div class="ai-stat-label">Não interagiram</div>
+            <div class="ai-stat-value" id="ai-stat-false">—</div>
+            <div class="ai-stat-pct" id="ai-stat-false-pct"></div>
+        </div>
+        <div class="ai-stat c-success">
+            <div class="ai-stat-label">Atendidos</div>
+            <div class="ai-stat-value" id="ai-stat-atend">—</div>
+        </div>
+        <div class="ai-stat c-danger">
+            <div class="ai-stat-label">Não atendidos</div>
+            <div class="ai-stat-value" id="ai-stat-naoatend">—</div>
+        </div>
+        <div class="ai-stat c-warning">
+            <div class="ai-stat-label">Falta ligar</div>
+            <div class="ai-stat-value" id="ai-stat-falta">—</div>
+        </div>
+    </div>
+
+    <div class="ai-card">
+        <h3>
+            <span class="material-symbols-outlined" style="font-size:18px;color:var(--danger)">call</span>
+            Telefones de quem não interagiu
+            <span id="ai-contatos-count" style="font-weight:600;color:var(--text-muted);font-size:12px"></span>
+            <span style="font-weight:500;color:var(--text-muted);font-size:11px">(atendidos saem da lista ao atualizar · puxado por aparece na hora)</span>
+        </h3>
+        <div class="ai-toolbar">
+            <input id="ai-search" class="ai-input" type="text" placeholder="Filtrar por telefone ou RGM..." oninput="acadInteracoesRenderTable()">
+            <select id="ai-filtro-atrib" class="ai-input" style="min-width:0" onchange="acadInteracoesRenderTable()" title="Filtrar por atribuição">
+                <option value="todos">Todos</option>
+                <option value="sem">Sem atribuição</option>
+                <option value="meus">Atribuídos a mim</option>
+            </select>
+        </div>
+        <div id="ai-table-wrap">
+            <div class="ai-empty">Carregue os dados para ver a lista.</div>
+        </div>
+    </div>
+</div>
+
+<div id="ai-atender-overlay" onclick="if(event.target===this)acadInteracoesFecharAtender()">
+    <div class="ai-modal" role="dialog" aria-modal="true" aria-labelledby="ai-atender-title">
+        <div class="ai-modal-avatar" id="ai-atender-initials">?</div>
+        <h2 id="ai-atender-title">Confirmar atendimento</h2>
+        <p class="ai-modal-sub" id="ai-atender-sub">O lead será atribuído a você no CRM EduIT.</p>
+        <div class="ai-modal-card" id="ai-atender-info"></div>
+        <div class="ai-modal-err" id="ai-atender-err"></div>
+        <div id="ai-atender-fallback" style="display:none;margin-top:10px">
+            <a id="ai-atender-fallback-link" href="#" target="_blank" rel="noopener" class="ai-btn ai-btn-primary" style="display:flex;text-decoration:none;justify-content:center">Abrir lead no CRM</a>
+        </div>
+        <div class="ai-modal-actions">
+            <button type="button" class="ai-btn ai-btn-ghost" onclick="acadInteracoesFecharAtender()">Cancelar</button>
+            <button type="button" class="ai-btn ai-btn-primary" id="ai-atender-confirm" onclick="acadInteracoesConfirmarAtender()">
+                <span class="material-symbols-outlined" style="font-size:16px">how_to_reg</span>
+                Sim, vou atender
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    let _loaded = false;
+    let _data = null;
+    let _me = { user_id: 0, username: '', display_name: '' };
+    let _claimPoll = null;
+    // telefones marcados como atendido nesta sessão: ficam visíveis (com badge)
+    // até o próximo carregamento, permitindo desfazer clique errado
+    const _recentlyMarked = new Set();
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && document.getElementById('ai-atender-overlay')?.classList.contains('is-open')) {
+            acadInteracoesFecharAtender();
+        }
+    });
+
+    function esc(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function fmtDate(iso) {
+        if (!iso) return '—';
+        const d = new Date(iso);
+        if (isNaN(d)) return '—';
+        return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function initials(name) {
+        const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+        if (!parts.length) return '?';
+        if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+
+    function telKey(t) {
+        let d = String(t || '').replace(/\D+/g, '');
+        if (d.startsWith('55') && d.length >= 12) d = d.slice(2);
+        return d;
+    }
+
+    function isMineClaim(claim) {
+        if (!claim) return true;
+        if (claim.user_id && _me.user_id && claim.user_id === _me.user_id) return true;
+        const a = String(claim.username || '').trim().toLowerCase();
+        const b = String(_me.username || '').trim().toLowerCase();
+        return !!(a && b && a === b);
+    }
+
+    function applyClaim(telefone, claim) {
+        if (!_data || !claim) return;
+        const key = telKey(telefone);
+        const c = (_data.contatos || []).find(x => telKey(x.telefone) === key);
+        if (c) c.puxado_por = claim;
+    }
+
+    function claimLabel(claim) {
+        if (!claim) return '';
+        const name = claim.display_name || claim.username || 'operador';
+        return isMineClaim(claim) ? 'Você' : name;
+    }
+
+    let _atender = { telefone: '', rgm: '', preview: null, loading: false };
+
+    function setAtenderErr(msg) {
+        const el = document.getElementById('ai-atender-err');
+        if (!msg) { el.style.display = 'none'; el.textContent = ''; return; }
+        el.textContent = msg;
+        el.style.display = 'block';
+    }
+
+    window.acadInteracoesFecharAtender = function () {
+        document.getElementById('ai-atender-overlay').classList.remove('is-open');
+        const fallback = document.getElementById('ai-atender-fallback');
+        if (fallback) fallback.style.display = 'none';
+        const confirmBtn = document.getElementById('ai-atender-confirm');
+        if (confirmBtn) confirmBtn.style.display = '';
+        _atender = { telefone: '', rgm: '', preview: null, loading: false };
+    };
+
+    window.acadInteracoesAtender = async function (btn) {
+        const telefone = btn.getAttribute('data-tel') || '';
+        const rgm = btn.getAttribute('data-rgm') || '';
+        _atender = { telefone, rgm, preview: null, loading: true };
+        const overlay = document.getElementById('ai-atender-overlay');
+        if (overlay.parentElement !== document.body) document.body.appendChild(overlay);
+        const confirmBtn = document.getElementById('ai-atender-confirm');
+        confirmBtn.disabled = true;
+        confirmBtn.style.display = '';
+        confirmBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">how_to_reg</span> Sim, vou atender';
+        setAtenderErr('');
+        const fallback = document.getElementById('ai-atender-fallback');
+        if (fallback) fallback.style.display = 'none';
+        document.getElementById('ai-atender-title').textContent = 'Confirmar atendimento';
+        document.getElementById('ai-atender-sub').textContent = 'Checando seu usuário no CRM e o lead deste telefone…';
+        document.getElementById('ai-atender-info').innerHTML =
+            `<div class="ai-modal-row"><span>Telefone</span><span class="ai-mono">${esc(telefone)}</span></div>` +
+            (rgm && rgm !== '—' ? `<div class="ai-modal-row"><span>RGM</span><span class="ai-mono">${esc(rgm)}</span></div>` : '') +
+            `<div class="ai-modal-row"><span>Status</span><span>Buscando…</span></div>`;
+        overlay.classList.add('is-open');
+        try {
+            const res = await fetch('/api/academico-interacoes/atender-preview?telefone=' + encodeURIComponent(telefone));
+            const data = await res.json();
+            const dash = data.dashboard_user || {};
+            const crm = data.crm_user || {};
+            const lead = (data.lead || {});
+            const contact = lead.contact || {};
+            const deal = lead.deal || {};
+            const claimed = data.claimed_by;
+            if (claimed) applyClaim(telefone, claimed);
+            if (!res.ok || data.error) {
+                document.getElementById('ai-atender-title').textContent = 'Não foi possível puxar';
+                document.getElementById('ai-atender-sub').textContent = '';
+                document.getElementById('ai-atender-info').innerHTML =
+                    `<div class="ai-modal-row"><span>Telefone</span><span class="ai-mono">${esc(telefone)}</span></div>`;
+                setAtenderErr(data.error || ('HTTP ' + res.status));
+                _atender.loading = false;
+                return;
+            }
+            if (claimed && data.can_atender === false) {
+                const holder = claimed.display_name || claimed.username || 'outro operador';
+                document.getElementById('ai-atender-initials').textContent = initials(holder);
+                document.getElementById('ai-atender-title').textContent = 'Já puxado por ' + holder;
+                document.getElementById('ai-atender-sub').innerHTML =
+                    'Outra pessoa já puxou este atendimento. Não atribui de novo para evitar conflito.';
+                document.getElementById('ai-atender-info').innerHTML =
+                    `<div class="ai-modal-row"><span>Puxado por</span><span>${esc(holder)}</span></div>` +
+                    `<div class="ai-modal-row"><span>Telefone</span><span class="ai-mono">${esc(contact.phone || telefone)}</span></div>` +
+                    (rgm && rgm !== '—' ? `<div class="ai-modal-row"><span>RGM</span><span class="ai-mono">${esc(rgm)}</span></div>` : '');
+                confirmBtn.style.display = 'none';
+                const url = lead.crm_url;
+                if (url) showCrmFallback(url, 'Pode abrir no CRM só para consultar.');
+                acadInteracoesRenderTable();
+                _atender.loading = false;
+                return;
+            }
+            const who = crm.name || dash.display_name || dash.username || 'você';
+            document.getElementById('ai-atender-initials').textContent = initials(who);
+            document.getElementById('ai-atender-title').textContent = who + ', vai atender?';
+            document.getElementById('ai-atender-sub').innerHTML =
+                'O lead será <strong>distribuído para você</strong> no CRM EduIT (mesmo nome/e-mail da org) e aberto em uma nova aba.';
+            document.getElementById('ai-atender-info').innerHTML =
+                `<div class="ai-modal-row"><span>No painel</span><span>${esc(dash.display_name || dash.username || '—')}</span></div>` +
+                `<div class="ai-modal-row"><span>No CRM</span><span>${esc(crm.name || '—')}${crm.email ? '<br><span style="font-weight:500;color:var(--text-muted);font-size:11px">' + esc(crm.email) + '</span>' : ''}</span></div>` +
+                `<div class="ai-modal-row"><span>Telefone</span><span class="ai-mono">${esc(contact.phone || telefone)}</span></div>` +
+                (rgm && rgm !== '—' ? `<div class="ai-modal-row"><span>RGM</span><span class="ai-mono">${esc(rgm)}</span></div>` : '') +
+                `<div class="ai-modal-row"><span>Lead</span><span>${esc(deal.title || contact.name || '—')}${deal.number != null ? ' · #' + esc(deal.number) : ''}</span></div>`;
+            _atender.preview = data;
+            _atender.loading = false;
+            confirmBtn.disabled = false;
+            if (claimed) {
+                confirmBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">open_in_new</span> Abrir de novo';
+            }
+        } catch (e) {
+            setAtenderErr('Falha ao preparar o atendimento: ' + e.message);
+            _atender.loading = false;
+        }
+    };
+
+    function showCrmFallback(url, msg) {
+        const box = document.getElementById('ai-atender-fallback');
+        const link = document.getElementById('ai-atender-fallback-link');
+        if (url && link && box) {
+            link.href = url;
+            box.style.display = 'block';
+        }
+        if (msg) setAtenderErr(msg);
+    }
+
+    window.acadInteracoesConfirmarAtender = function () {
+        if (!_atender.telefone || _atender.loading) return;
+        const confirmBtn = document.getElementById('ai-atender-confirm');
+        confirmBtn.disabled = true;
+        _atender.loading = true;
+        setAtenderErr('');
+        const fallback = document.getElementById('ai-atender-fallback');
+        if (fallback) fallback.style.display = 'none';
+        confirmBtn.innerHTML = '<span class="ai-spinner" style="width:14px;height:14px;border-width:2px"></span> Atribuindo…';
+
+        const previewUrl = (_atender.preview && _atender.preview.lead && _atender.preview.lead.crm_url) || '';
+        /* window.open precisa ser síncrono no clique — async/await perde o gesto e o popup é bloqueado. */
+        let crmTab = null;
+        try {
+            crmTab = window.open('about:blank', '_blank');
+            if (crmTab) {
+                try {
+                    crmTab.document.write('<!doctype html><title>CRM</title><p style="font-family:sans-serif;padding:24px">Abrindo o lead no CRM…</p>');
+                    crmTab.document.close();
+                } catch (e) {}
+            }
+        } catch (e) {
+            crmTab = null;
+        }
+
+        (async () => {
+        try {
+            const res = await fetch('/api/academico-interacoes/atender', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ telefone: _atender.telefone, rgm: _atender.rgm }),
+            });
+            const data = await res.json();
+            if (res.status === 409 && data.claimed_by) {
+                applyClaim(_atender.telefone, data.claimed_by);
+                acadInteracoesRenderTable();
+                if (crmTab) { try { crmTab.close(); } catch (err) {} }
+                const who = data.claimed_by.display_name || data.claimed_by.username || 'outro operador';
+                confirmBtn.style.display = 'none';
+                showCrmFallback(
+                    (data.crm_url || previewUrl || ''),
+                    (data.error || ('Este atendimento já foi puxado por ' + who))
+                );
+                return;
+            }
+            if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+            if (data.claimed_by) applyClaim(_atender.telefone, data.claimed_by);
+            acadInteracoesRenderTable();
+            const url = data.crm_url || (data.lead && data.lead.crm_url) || previewUrl;
+            if (!url) throw new Error('CRM não devolveu a URL do lead.');
+            if (crmTab) {
+                try {
+                    crmTab.location.replace(url);
+                    crmTab.focus();
+                    acadInteracoesFecharAtender();
+                    return;
+                } catch (e) { /* cross-origin / blocked — cai no fallback */ }
+            }
+            confirmBtn.style.display = 'none';
+            showCrmFallback(url, crmTab
+                ? 'Lead atribuído. Clique abaixo para abrir o CRM.'
+                : 'Lead atribuído. O navegador bloqueou a nova aba — clique abaixo para abrir o CRM.');
+        } catch (e) {
+            if (crmTab) {
+                try { crmTab.close(); } catch (err) {}
+            }
+            setAtenderErr(e.message);
+            confirmBtn.disabled = false;
+        } finally {
+            _atender.loading = false;
+            if (confirmBtn.style.display !== 'none') {
+                confirmBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">how_to_reg</span> Sim, vou atender';
+            }
+        }
+        })();
+    };
+
+    window.acadInteracoesRenderTable = function () {
+        const wrap = document.getElementById('ai-table-wrap');
+        if (!_data) return;
+        const q = (document.getElementById('ai-search').value || '').replace(/\D/g, '').toLowerCase();
+        const qRaw = (document.getElementById('ai-search').value || '').toLowerCase();
+        // atendidos saem da lista: quem fica é quem ainda precisa de ligação
+        // (exceto os marcados agora, que ficam visíveis até o próximo carregamento)
+        const pendentes = _data.contatos.filter(c =>
+            c.ligacao_feita !== 'atendido' || _recentlyMarked.has(c.telefone));
+        const fAtrib = (document.getElementById('ai-filtro-atrib') || {}).value || 'todos';
+        let rows = pendentes.filter(c => {
+            if (fAtrib === 'sem') return !c.puxado_por;
+            if (fAtrib === 'meus') return !!c.puxado_por && isMineClaim(c.puxado_por);
+            return true;
+        }).filter(c => {
+            if (!q && !qRaw) return true;
+            const tel = (c.telefone || '').toLowerCase();
+            const rgm = String(c.rgm || '');
+            return tel.includes(qRaw) || (q && tel.replace(/\D/g, '').includes(q)) || rgm.includes(qRaw);
+        });
+        // ordena: atribuídos a mim → atribuídos a outros → sem atribuição; data desc no grupo
+        const rank = (c) => !c.puxado_por ? 2 : (isMineClaim(c.puxado_por) ? 0 : 1);
+        rows = rows.slice().sort((a, b) =>
+            rank(a) - rank(b) || String(b.data || '').localeCompare(String(a.data || '')));
+        document.getElementById('ai-contatos-count').textContent =
+            `(${rows.length}${rows.length !== pendentes.length ? ' de ' + pendentes.length : ''} telefones)`;
+        if (!rows.length) {
+            wrap.innerHTML = '<div class="ai-empty">Nenhum telefone encontrado.</div>';
+            return;
+        }
+        wrap.innerHTML = `
+            <div style="max-height:520px;overflow-y:auto">
+            <table>
+                <thead><tr><th>Telefone</th><th>RGM</th><th>Data</th><th>Puxado por</th><th style="text-align:right">Ligação</th></tr></thead>
+                <tbody>
+                    ${rows.map(c => {
+                        const st = c.ligacao_feita;
+                        const badge = st === 'atendido'
+                            ? '<span class="ai-badge b-ok"><span class="material-symbols-outlined" style="font-size:13px">call</span>Atendido</span>'
+                            : (st === 'não atendido'
+                                ? '<span class="ai-badge b-no"><span class="material-symbols-outlined" style="font-size:13px">phone_missed</span>Não atendido</span>'
+                                : '');
+                        const claim = c.puxado_por;
+                        const claimCell = claim
+                            ? `<span class="ai-badge b-claim" title="${esc(fmtDate(claim.claimed_at))}">
+                                 <span class="material-symbols-outlined" style="font-size:13px">person</span>
+                                 ${esc(claimLabel(claim))}
+                               </span>`
+                            : '<span style="color:var(--text-muted)">—</span>';
+                        return `<tr>
+                        <td class="ai-mono">
+                            <button type="button" class="ai-phone-btn${claim && !isMineClaim(claim) ? ' is-claimed' : ''}"
+                                data-tel="${esc(c.telefone)}" data-rgm="${esc(c.rgm ?? '')}"
+                                onclick="acadInteracoesAtender(this)"
+                                title="${claim && !isMineClaim(claim) ? 'Já puxado por ' + esc(claimLabel(claim)) : 'Abrir lead no CRM e atribuir a você'}">
+                                <span class="material-symbols-outlined" style="font-size:16px">smartphone</span>
+                                ${esc(c.telefone)}
+                            </button>
+                        </td>
+                        <td class="ai-mono">${esc(c.rgm ?? '—')}</td>
+                        <td>${fmtDate(c.data)}</td>
+                        <td>${claimCell}</td>
+                        <td style="text-align:right">
+                            <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap">
+                                ${badge}
+                                <button class="ai-call-btn ai-call-ok" data-tel="${esc(c.telefone)}"
+                                    onclick="acadInteracoesMarcar('${esc(c.telefone)}', 'atendido', this)"
+                                    title="A pessoa atendeu a ligação">
+                                    <span class="material-symbols-outlined" style="font-size:14px">call</span>Atendeu
+                                </button>
+                                <button class="ai-call-btn ai-call-no" data-tel="${esc(c.telefone)}"
+                                    onclick="acadInteracoesMarcar('${esc(c.telefone)}', 'não atendido', this)"
+                                    title="A pessoa não atendeu a ligação">
+                                    <span class="material-symbols-outlined" style="font-size:14px">phone_missed</span>Não atendeu
+                                </button>
+                            </div>
+                        </td>
+                    </tr>`; }).join('')}
+                </tbody>
+            </table>
+            </div>`;
+    };
+
+    window.acadInteracoesMarcar = async function (telefone, status, btn) {
+        const btns = document.querySelectorAll(`#page-academico_interacoes .ai-call-btn[data-tel="${telefone}"]`);
+        btns.forEach(b => b.disabled = true);
+        try {
+            const res = await fetch('/api/academico-interacoes/ligacao', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ telefone, status }),
+            });
+            const data = await res.json();
+            if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+            const c = (_data.contatos || []).find(x => x.telefone === telefone);
+            if (c) c.ligacao_feita = status;
+            if (status === 'atendido') _recentlyMarked.add(telefone);
+            else _recentlyMarked.delete(telefone);
+            renderLigacaoStats();
+            acadInteracoesRenderTable();
+        } catch (e) {
+            alert('Erro ao registrar ligação: ' + e.message);
+            btns.forEach(b => b.disabled = false);
+        }
+    };
+
+    function renderLigacaoStats() {
+        if (!_data) return;
+        const cs = _data.contatos || [];
+        const atend = cs.filter(c => c.ligacao_feita === 'atendido').length;
+        const naoatend = cs.filter(c => c.ligacao_feita === 'não atendido').length;
+        document.getElementById('ai-stat-atend').textContent = atend.toLocaleString('pt-BR');
+        document.getElementById('ai-stat-naoatend').textContent = naoatend.toLocaleString('pt-BR');
+        // quem não atendeu continua precisando de ligação
+        document.getElementById('ai-stat-falta').textContent = (cs.length - atend).toLocaleString('pt-BR');
+    }
+
+    window.acadInteracoesLimparFiltro = function () {
+        document.getElementById('ai-date-de').value = '';
+        document.getElementById('ai-date-ate').value = '';
+        acadInteracoesLoad(true);
+    };
+
+    window.acadInteracoesLoad = async function (force) {
+        if (_loaded && !force) return;
+        _loaded = true;
+        const btn = document.getElementById('ai-btn-refresh');
+        const errEl = document.getElementById('ai-error');
+        errEl.style.display = 'none';
+        btn.disabled = true;
+        document.getElementById('ai-table-wrap').innerHTML =
+            '<div class="ai-loading"><div class="ai-spinner"></div>Carregando dados...</div>';
+        try {
+            const de = document.getElementById('ai-date-de').value;
+            const ate = document.getElementById('ai-date-ate').value;
+            const qs = new URLSearchParams();
+            if (de) qs.set('de', de);
+            if (ate) qs.set('ate', ate);
+            const res = await fetch('/api/academico-interacoes/resumo' + (qs.toString() ? '?' + qs : ''));
+            const data = await res.json();
+            if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+            _data = data;
+            if (data.me) _me = data.me;
+            _recentlyMarked.clear();
+            const pct = (n) => data.total ? `(${(100 * n / data.total).toFixed(1)}%)` : '';
+            document.getElementById('ai-stat-total').textContent = data.total.toLocaleString('pt-BR');
+            document.getElementById('ai-stat-true').textContent = data.interagiram.toLocaleString('pt-BR');
+            document.getElementById('ai-stat-true-pct').textContent = pct(data.interagiram);
+            document.getElementById('ai-stat-false').textContent = data.nao_interagiram.toLocaleString('pt-BR');
+            document.getElementById('ai-stat-false-pct').textContent = pct(data.nao_interagiram);
+            renderLigacaoStats();
+            acadInteracoesRenderTable();
+        } catch (e) {
+            _loaded = false;
+            errEl.textContent = 'Erro ao carregar: ' + e.message;
+            errEl.style.display = '';
+            document.getElementById('ai-table-wrap').innerHTML =
+                '<div class="ai-empty">Falha ao carregar os dados.</div>';
+        } finally {
+            btn.disabled = false;
+        }
+    };
+
+    window.acadInteracoesRefreshClaims = async function () {
+        if (!_data || !(_data.contatos || []).length) return;
+        try {
+            const res = await fetch('/api/academico-interacoes/claims', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ telefones: _data.contatos.map(c => c.telefone).filter(Boolean) }),
+            });
+            const data = await res.json();
+            if (!res.ok || data.error) return;
+            if (data.me) _me = data.me;
+            const map = data.claims || {};
+            let changed = false;
+            for (const c of _data.contatos) {
+                const cl = map[telKey(c.telefone)];
+                if (cl && JSON.stringify(c.puxado_por || null) !== JSON.stringify(cl)) {
+                    c.puxado_por = cl;
+                    changed = true;
+                }
+            }
+            if (changed) acadInteracoesRenderTable();
+        } catch (e) { /* poll silencioso */ }
+    };
+
+    function startClaimPoll() {
+        if (_claimPoll) return;
+        _claimPoll = setInterval(() => {
+            const page = document.getElementById('page-academico_interacoes');
+            if (page && !page.classList.contains('hidden') && document.visibilityState === 'visible') {
+                acadInteracoesRefreshClaims();
+            }
+        }, 8000);
+    }
+
+    window.acadInteracoesLoadPage = function () {
+        acadInteracoesLoad(false);
+        startClaimPoll();
+    };
+})();
+</script>
+</div>

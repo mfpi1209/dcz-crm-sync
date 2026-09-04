@@ -416,6 +416,87 @@ def _ensure_users_table():
         logger.warning("Could not ensure users table: %s", e)
 
 
+def _ensure_app_users_delete_fks():
+    """Excluir usuário não pode falhar por FK: SET NULL nos vínculos históricos.
+
+    Tabelas com CASCADE/SET NULL já ok. As demais (agent_matriculas, avisos,
+    ajustes, premiação interna) bloqueavam o DELETE e o Flask devolvia HTML,
+    quebrando o toast do Config com 'Unexpected token <'.
+    """
+    targets = (
+        ("agent_matriculas", "user_id"),
+        ("matricula_ajustes", "user_id"),
+        ("avisos", "created_by"),
+        ("premiacao_interna_lote", "gestor_user_id"),
+        ("premiacao_interna_lote", "aprovador_user_id"),
+        ("premiacao_interna_evento", "autor_user_id"),
+        ("ti_chamado", "solicitante_user_id"),
+        ("ti_chamado", "status_updated_by"),
+        ("ti_chamado_evento", "autor_user_id"),
+    )
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            for table, col in targets:
+                cur.execute(
+                    """
+                    SELECT c.conname, pg_get_constraintdef(c.oid)
+                    FROM pg_constraint c
+                    JOIN pg_class t ON t.oid = c.conrelid
+                    JOIN pg_namespace n ON n.oid = t.relnamespace
+                    JOIN LATERAL unnest(c.conkey) AS k(attnum) ON TRUE
+                    JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
+                    WHERE c.contype = 'f'
+                      AND n.nspname = 'public'
+                      AND t.relname = %s
+                      AND a.attname = %s
+                    """,
+                    (table, col),
+                )
+                row = cur.fetchone()
+                if not row:
+                    continue
+                name, defn = row[0], (row[1] or "")
+                up = defn.upper()
+                if "ON DELETE SET NULL" in up or "ON DELETE CASCADE" in up:
+                    continue
+                cur.execute(f'ALTER TABLE {table} DROP CONSTRAINT {name}')
+                cur.execute(
+                    f'ALTER TABLE {table} ADD CONSTRAINT {name} '
+                    f'FOREIGN KEY ({col}) REFERENCES app_users(id) ON DELETE SET NULL'
+                )
+                logger.info("FK %s.%s → ON DELETE SET NULL", table, col)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure app_users delete FKs: %s", e)
+
+
+def _ensure_academico_interacoes_page():
+    """Libera Interações Acadêmicas para operadores da categoria Acadêmico."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO user_permissions (user_id, page)
+                SELECT u.id, 'academico_interacoes'
+                FROM app_users u
+                WHERE u.categoria IS NOT NULL
+                  AND LOWER(u.categoria) LIKE %s
+                ON CONFLICT (user_id, page) DO NOTHING
+                """,
+                ("%acad%mico%",),
+            )
+            n = cur.rowcount
+        conn.commit()
+        conn.close()
+        if n:
+            logger.info("Interações Acadêmicas: permissão concedida a %s usuário(s) acadêmicos", n)
+    except Exception as e:
+        logger.warning("Could not ensure academico_interacoes permissions: %s", e)
+
+
 def _ensure_suporte_comercial_users():
     """Garante categoria e permissões do time Suporte Comercial (logins conhecidos)."""
     if not SUPORTE_COMERCIAL_LOGINS:
@@ -1222,3 +1303,174 @@ def _ensure_premiacao_interna_tables():
         conn.close()
     except Exception as e:
         logger.warning("Could not ensure premiacao_interna tables: %s", e)
+
+
+def _ensure_ti_chamado_tables():
+    """Chamados de TI (substitui a gravação no Google Sheets)."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS ti_chamado (
+                    id                      SERIAL PRIMARY KEY,
+                    protocolo               TEXT NOT NULL UNIQUE,
+                    solicitante             TEXT NOT NULL,
+                    solicitante_user_id     INTEGER REFERENCES app_users(id) ON DELETE SET NULL,
+                    solicitante_username    TEXT,
+                    setor                   TEXT NOT NULL,
+                    categoria               TEXT NOT NULL,
+                    urgencia                TEXT NOT NULL DEFAULT 'Média',
+                    titulo                  TEXT NOT NULL,
+                    descricao               TEXT NOT NULL,
+                    observacoes             TEXT,
+                    status                  TEXT NOT NULL DEFAULT 'Pendente',
+                    status_nota             TEXT,
+                    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    status_updated_at       TIMESTAMPTZ,
+                    status_updated_by       INTEGER REFERENCES app_users(id) ON DELETE SET NULL,
+                    status_updated_by_nome  TEXT
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_status ON ti_chamado(status)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_user ON ti_chamado(solicitante_user_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_created ON ti_chamado(created_at DESC)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_username ON ti_chamado(solicitante_username)")
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS ti_chamado_evento (
+                    id               SERIAL PRIMARY KEY,
+                    chamado_id       INTEGER NOT NULL REFERENCES ti_chamado(id) ON DELETE CASCADE,
+                    status_anterior  TEXT,
+                    status_novo      TEXT NOT NULL,
+                    autor_user_id    INTEGER REFERENCES app_users(id) ON DELETE SET NULL,
+                    autor_nome       TEXT NOT NULL,
+                    nota             TEXT,
+                    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_evento_chamado ON ti_chamado_evento(chamado_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_evento_created ON ti_chamado_evento(created_at)")
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure ti_chamado tables: %s", e)
+
+
+# Fila operacional (`chamados_ti`): só estes logins + role=admin.
+# Casados por username OU email_cruzeiro (minúsculo, trim).
+CHAMADOS_TI_ALLOWLIST = frozenset({
+    "emanuel.felipe@cruzeiroead.com.br",  # Emanuel Filipe
+    "camila@cruzeiroead.com.br",          # Camila Ferreira
+    "mikami@eduit.com.br",                # Vanessa Mikami
+    "katia.policeno@cruzeiroead.com.br",  # Katia Cabeço
+    "katia@cruzeiroead.com.br",
+    "eduardo.tang@eduit.com.br",          # Eduardo Tang
+})
+
+
+def _ensure_chamados_ti_page():
+    """Formulário/Meus chamados para todos; fila só admin + allowlist.
+
+    `solicitacoes_ti` e `meus_chamados_ti` continuam para todo `app_users`.
+    `chamados_ti` é reconciliado a cada boot: concede à allowlist e revoga
+    de quem não é admin nem está na lista (desfaz o grant global anterior).
+    """
+    try:
+        allow = tuple(sorted(CHAMADOS_TI_ALLOWLIST))
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO user_permissions (user_id, page)
+                SELECT p.user_id, 'meus_chamados_ti'
+                  FROM user_permissions p
+                 WHERE p.page = 'solicitacoes_ti'
+                ON CONFLICT (user_id, page) DO NOTHING
+                """
+            )
+            n_copy = cur.rowcount
+            cur.execute(
+                """
+                INSERT INTO user_permissions (user_id, page)
+                SELECT u.id, v.page
+                  FROM app_users u
+                  CROSS JOIN (VALUES
+                    ('solicitacoes_ti'),
+                    ('meus_chamados_ti')
+                  ) AS v(page)
+                ON CONFLICT (user_id, page) DO NOTHING
+                """
+            )
+            n_all = cur.rowcount
+            cur.execute(
+                """
+                INSERT INTO user_permissions (user_id, page)
+                SELECT u.id, 'chamados_ti'
+                  FROM app_users u
+                 WHERE LOWER(TRIM(u.username)) = ANY(%s)
+                    OR LOWER(TRIM(COALESCE(u.email_cruzeiro, ''))) = ANY(%s)
+                ON CONFLICT (user_id, page) DO NOTHING
+                """,
+                (list(allow), list(allow)),
+            )
+            n_grant = cur.rowcount
+            cur.execute(
+                """
+                DELETE FROM user_permissions p
+                 USING app_users u
+                 WHERE p.user_id = u.id
+                   AND p.page = 'chamados_ti'
+                   AND COALESCE(u.role, '') <> 'admin'
+                   AND LOWER(TRIM(u.username)) <> ALL(%s)
+                   AND LOWER(TRIM(COALESCE(u.email_cruzeiro, ''))) <> ALL(%s)
+                """,
+                (list(allow), list(allow)),
+            )
+            n_revoke = cur.rowcount
+        conn.commit()
+        conn.close()
+        if n_copy or n_all or n_grant or n_revoke:
+            logger.info(
+                "Chamados TI: permissões — copia meus=%s, form/meus todos=%s, "
+                "fila allowlist=%s, fila revogada=%s",
+                n_copy, n_all, n_grant, n_revoke,
+            )
+    except Exception as e:
+        logger.warning("Could not ensure chamados_ti permissions: %s", e)
+
+
+def _ensure_materias_alunos_tables():
+    """Cria as tabelas materias_alunos e materias_alunos_consultas."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS materias_alunos (
+                    id            BIGSERIAL PRIMARY KEY,
+                    rgm           TEXT NOT NULL,
+                    aluno         TEXT,
+                    sigla         TEXT NOT NULL,
+                    disciplina    TEXT,
+                    resultado     TEXT,
+                    consultado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE (rgm, sigla)
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_materias_alunos_rgm ON materias_alunos (rgm)")
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS materias_alunos_consultas (
+                    rgm           TEXT PRIMARY KEY,
+                    aluno         TEXT,
+                    status        TEXT NOT NULL,
+                    mensagem      TEXT,
+                    qtd_materias  INTEGER NOT NULL DEFAULT 0,
+                    consultado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_mac_status ON materias_alunos_consultas (status)")
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure materias_alunos tables: %s", e)

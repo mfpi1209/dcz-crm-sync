@@ -76,8 +76,14 @@
             {% include 'partials/_ia_comercial.html' %}
             {% include 'partials/_page_views.html' %}
             {% include 'partials/_solicitacoes_ti.html' %}
+            {% include 'partials/_meus_chamados_ti.html' %}
+            {% include 'partials/_chamados_ti.html' %}
             {% include 'partials/_siaa_consulta.html' %}
             {% include 'partials/_siaa_sessao.html' %}
+            {% include 'partials/_match_inadimplentes.html' %}
+            {% include 'partials/_materias_alunos.html' %}
+            {% include 'partials/_academico_interacoes.html' %}
+            {% include 'partials/_subir_blog.html' %}
         </main>
     </div>
 </div>
@@ -393,6 +399,8 @@
 <script defer src="{{ url_for('static', filename='js/ia_comercial.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/page_views.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/solicitacoes_ti.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/meus_chamados_ti.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/chamados_ti.js') }}?v={{_v}}"></script>
 
 </body>
 </html>

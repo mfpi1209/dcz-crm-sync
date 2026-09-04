@@ -30,6 +30,23 @@ def to_brt(dt):
     return str(dt)
 
 
+def fold_name(s: str) -> str:
+    """Lowercase ASCII fold for matching names across dashboard and CRM."""
+    nfkd = unicodedata.normalize("NFKD", s or "")
+    return "".join(c for c in nfkd if not unicodedata.combining(c)).lower().strip()
+
+
+def display_name_from_login(username: str = "", email: str = "") -> str:
+    """wesley.guerreiro@… / wesley.guerreiro → 'Wesley Guerreiro'."""
+    src = (username or email or "").strip()
+    if "@" in src:
+        src = src.split("@", 1)[0]
+    parts = [p for p in re.split(r"[._\-+]+", src) if p]
+    if not parts:
+        return (username or email or "").strip()
+    return " ".join(p[:1].upper() + p[1:] for p in parts)
+
+
 # ---------------------------------------------------------------------------
 # Autenticação — constantes
 # ---------------------------------------------------------------------------
@@ -50,7 +67,13 @@ ALL_PAGES = [
     "ia_comercial",
     "page_views",
     "solicitacoes_ti",
+    "meus_chamados_ti",
+    "chamados_ti",
     "siaa_consulta", "siaa_sessao",
+    "match_inadimplentes",
+    "materias_alunos",
+    "academico_interacoes",
+    "subir_blog",
     # Sub-permissoes do Disparador WhatsApp (uma por aba do iframe do
     # tool_whatsapp_alunos). Quem tem 'disparador_whatsapp' mas nenhuma
     # sub abaixo => ve TUDO (compat). Quem tem 1+ sub => ve so as marcadas.
@@ -66,6 +89,16 @@ ALL_PAGES = [
     "disparador_whatsapp_regras",
     "rematricula",
 ]
+
+# Subir Blog: só admin + logins extras (acesso automático, sem checkbox em Config).
+SUBIR_BLOG_EXTRA_LOGINS = frozenset({"mikami@eduit.com.br"})
+
+
+def can_access_subir_blog(role: str = "", username: str = "") -> bool:
+    if (role or "").strip().lower() == "admin":
+        return True
+    return (username or "").strip().lower() in SUBIR_BLOG_EXTRA_LOGINS
+
 
 # Mapping slug curto -> rota no app tool_whatsapp_alunos. Usado pelo
 # context_processor de abas permitidas.

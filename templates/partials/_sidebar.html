@@ -13,14 +13,14 @@
 
         <!-- Nav -->
         <nav class="flex-1 px-3 py-4 overflow-y-auto" style="min-height:0">
-            {% set _show_acad = nav_can('ativacoes') or nav_can('distribuicao') or nav_can('intelligence') or nav_can('inadimplencia') or nav_can('feedback') or nav_can('macro_email') or nav_can('meus_atendimentos') or nav_can('rematricula') or nav_can('disparador_whatsapp') or nav_is_admin %}
-            {% set _show_ferramentas = nav_can('comparar_cursos') or nav_can('recomendacao_cursos') or nav_can('localizacao_polos') or nav_can('info_cursos') or nav_can('leads_inscricao') or nav_can('cadastro_leads') %}
+            {% set _show_acad = nav_can('ativacoes') or nav_can('distribuicao') or nav_can('intelligence') or nav_can('inadimplencia') or nav_can('feedback') or nav_can('macro_email') or nav_can('meus_atendimentos') or nav_can('rematricula') or nav_can('disparador_whatsapp') or nav_can('academico_interacoes') or nav_is_admin %}
+            {% set _show_ferramentas = nav_can('comparar_cursos') or nav_can('recomendacao_cursos') or nav_can('localizacao_polos') or nav_can('info_cursos') or nav_can('leads_inscricao') or nav_can('cadastro_leads') or nav_can('subir_blog') %}
             {% set _show_minha_perf_in_comercial = (not nav_is_comercial) and nav_can('minha_performance') %}
             {% set _show_comercial = nav_can('dist_consultor') or nav_can('comercial_rgm') or nav_can('dist_comercial') or nav_can('inscricao') or nav_can('recadastros') or nav_can('comercial_dashboard') or nav_can('auditoria_comercial') or nav_can('atualizar_preco') or nav_can('leads_parados') or _show_minha_perf_in_comercial or nav_can('repasse') or nav_can('captacao') or nav_can('clicks') or nav_can('leads_promotores') or nav_can('premiacao_admin') %}
             {% set _show_voc = nav_can('vocacional') %}
             {% set _show_meta = nav_can('meta-campaigns') %}
-            {% set _show_ti_admin_only = nav_is_admin and (nav_can('ia_comercial') or nav_can('page_views')) %}
-            {% set _show_ti = _show_ti_admin_only or nav_can('solicitacoes_ti') %}
+            {% set _show_ti_admin_only = nav_is_admin and (nav_can('ia_comercial') or nav_can('page_views') or nav_can('match_inadimplentes') or nav_can('materias_alunos')) %}
+            {% set _show_ti = _show_ti_admin_only or nav_can('solicitacoes_ti') or nav_can('meus_chamados_ti') or nav_can('chamados_ti') %}
             {% set _show_sistema = nav_can('pipeline') or nav_can('update') or nav_can('ajustes_matricula') or nav_can('kommo_sync') or nav_can('match_merge') or nav_can('config') or nav_can('schedule') or nav_can('kommo_dispatcher') or nav_can('logs') %}
             <div class="space-y-1">
                 {% if (nav_is_comercial or nav_is_suporte_comercial) and nav_can('minha_performance') %}
@@ -88,6 +88,12 @@
                         Atualizar sessão SIAA
                     </a>
                     {% endif %}
+                    {% if nav_can('academico_interacoes') %}
+                    <a href="#academico_interacoes" onclick="navigate('academico_interacoes')" class="sidebar-link sidebar-sub" data-page="academico_interacoes">
+                        <span class="material-symbols-outlined text-base">forum</span>
+                        Interações Acadêmicas
+                    </a>
+                    {% endif %}
                     {% if nav_can('ativacoes') %}
                     <a href="#ativacoes" onclick="navigate('ativacoes')" class="sidebar-link sidebar-sub" data-page="ativacoes">
                         <span class="material-symbols-outlined text-base">campaign</span>
@@ -151,6 +157,12 @@
                     <span class="material-symbols-outlined text-sm sidebar-group-chevron">expand_more</span>
                 </button>
                 <div class="sidebar-group-items">
+                    {% if nav_can('subir_blog') %}
+                    <a href="#subir_blog" onclick="navigate('subir_blog')" class="sidebar-link sidebar-sub" data-page="subir_blog">
+                        <span class="material-symbols-outlined text-base">article</span>
+                        Subir Blog
+                    </a>
+                    {% endif %}
                     {% if nav_can('comparar_cursos') %}
                     <a href="#comparar_cursos" onclick="navigate('comparar_cursos')" class="sidebar-link sidebar-sub" data-page="comparar_cursos">
                         <span class="material-symbols-outlined text-base">compare_arrows</span>
@@ -375,6 +387,18 @@
                         Solicitações TI
                     </a>
                     {% endif %}
+                    {% if nav_can('meus_chamados_ti') %}
+                    <a href="#meus_chamados_ti" onclick="navigate('meus_chamados_ti')" class="sidebar-link sidebar-sub" data-page="meus_chamados_ti">
+                        <span class="material-symbols-outlined text-base">confirmation_number</span>
+                        Meus chamados
+                    </a>
+                    {% endif %}
+                    {% if nav_can('chamados_ti') %}
+                    <a href="#chamados_ti" onclick="navigate('chamados_ti')" class="sidebar-link sidebar-sub" data-page="chamados_ti">
+                        <span class="material-symbols-outlined text-base">assignment</span>
+                        Fila de chamados
+                    </a>
+                    {% endif %}
                     {% if nav_can('ia_comercial') %}
                     <a href="#ia_comercial" onclick="navigate('ia_comercial')" class="sidebar-link sidebar-sub" data-page="ia_comercial">
                         <span class="material-symbols-outlined text-base">smart_toy</span>
@@ -385,6 +409,18 @@
                     <a href="#page_views" onclick="navigate('page_views')" class="sidebar-link sidebar-sub" data-page="page_views">
                         <span class="material-symbols-outlined text-base">insights</span>
                         Uso do Dashboard
+                    </a>
+                    {% endif %}
+                    {% if nav_can('match_inadimplentes') %}
+                    <a href="#match_inadimplentes" onclick="navigate('match_inadimplentes')" class="sidebar-link sidebar-sub" data-page="match_inadimplentes">
+                        <span class="material-symbols-outlined text-base">join_inner</span>
+                        Match Inadimplentes
+                    </a>
+                    {% endif %}
+                    {% if nav_can('materias_alunos') %}
+                    <a href="#materias_alunos" onclick="navigate('materias_alunos')" class="sidebar-link sidebar-sub" data-page="materias_alunos">
+                        <span class="material-symbols-outlined text-base">menu_book</span>
+                        Matérias dos Alunos
                     </a>
                     {% endif %}
                 </div>

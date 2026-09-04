@@ -431,6 +431,7 @@ const PAGE_LABELS = {
     clicks: 'QR Codes',
     leads_promotores: 'Leads · Promotores',
     meus_atendimentos: 'Meus Atendimentos',
+    academico_interacoes: 'Interações Acadêmicas',
     premiacoes_internas: 'Premiações (Gestores)',
     aprovacao_premiacoes: 'Central de Aprovação de Premiações',
     rematricula: 'Rematrícula',
@@ -446,6 +447,8 @@ const PAGE_LABELS = {
     disparador_whatsapp_meu_painel: 'Disparador WhatsApp · Meu Painel',
     disparador_whatsapp_regras: 'Disparador WhatsApp · Regras',
     solicitacoes_ti: 'Solicitações TI (formulário)',
+    meus_chamados_ti: 'Meus chamados TI',
+    chamados_ti: 'Fila de chamados TI',
 };
 
 // ---------------------------------------------------------------------------
@@ -465,6 +468,7 @@ const CATEGORY_PRESETS = {
     'Acadêmico': [
         ..._PRESET_FERRAMENTAS_BASIC,
         'meus_atendimentos',
+        'academico_interacoes',
         'search', 'avisos',
     ],
     'Suporte Comercial': [
@@ -487,7 +491,12 @@ const CATEGORY_PRESETS = {
         'dashboard', 'search', 'avisos',
         'ativacoes', 'distribuicao', 'intelligence', 'inadimplencia',
         'feedback', 'macro_email', 'meus_atendimentos', 'rematricula',
+        'academico_interacoes',
         ..._PRESET_FERRAMENTAS_BASIC,
+    ],
+    'TI': [
+        'dashboard', 'search', 'avisos',
+        'solicitacoes_ti', 'meus_chamados_ti',
     ],
 };
 
@@ -535,7 +544,7 @@ const PAGE_GROUPS_CONFIG = [
         icon: 'school',
         color: 'var(--primary)',
         pages: [
-            'meus_atendimentos', 'ativacoes', 'distribuicao', 'intelligence',
+            'meus_atendimentos', 'academico_interacoes', 'ativacoes', 'distribuicao', 'intelligence',
             'inadimplencia', 'feedback', 'macro_email', 'rematricula', 'disparador_whatsapp',
             'disparador_whatsapp_painel', 'disparador_whatsapp_metas',
             'disparador_whatsapp_disparador', 'disparador_whatsapp_alunos',
@@ -593,7 +602,7 @@ const PAGE_GROUPS_CONFIG = [
         section: 'Operação',
         icon: 'developer_board',
         color: 'var(--primary)',
-        pages: ['solicitacoes_ti'],
+        pages: ['solicitacoes_ti', 'meus_chamados_ti', 'chamados_ti'],
     },
     {
         label: 'Premiações Internas',
@@ -712,6 +721,7 @@ function renderUsers() {
         'Acadêmico': 'tag-cat-academico',
         'Supervisor Comercial': 'tag-cat-supervisor-comercial',
         'Supervisor Acadêmico': 'tag-cat-supervisor-academico',
+        'TI': 'tag-cat-fallback',
     };
     const _roleTag = {
         admin:  '<span class="tag-pill tag-role-admin">Admin</span>',
@@ -938,6 +948,26 @@ function _renderPermsGrouped(cbClass, checkedPages, disabled) {
         </div>`;
     }).filter(Boolean);
 
+    // Páginas em ALL_PAGES que ainda não estão em nenhum grupo — aparecem
+    // no modal de editar/criar usuário em vez de sumirem em silêncio.
+    const groupedSlugs = new Set();
+    for (const g of PAGE_GROUPS_CONFIG) {
+        for (const p of (g.pages || [])) groupedSlugs.add(p);
+    }
+    const leftover = (_allPages || []).filter(p =>
+        !groupedSlugs.has(p) && !_isDisparadorWhatsappChild(p)
+        && p !== 'subir_blog'
+    );
+    if (leftover.length) {
+        const extra = renderGroup({
+            label: 'Outras',
+            icon: 'more_horiz',
+            color: 'var(--text-muted)',
+            pages: leftover,
+        });
+        if (extra) blocks.push(extra);
+    }
+
     return blocks.join('');
 }
 
@@ -1017,6 +1047,7 @@ function openUserCreateModal() {
                                 <option value="Supervisor Comercial">Supervisor Comercial</option>
                                 <option value="Acadêmico">Acadêmico</option>
                                 <option value="Supervisor Acadêmico">Supervisor Acadêmico</option>
+                                <option value="TI">TI</option>
                             </select>
                             <button type="button"
                                     onclick="applyCategoryPresetFromSelect('user-new-categoria', 'user-new-page-cb')"
@@ -1090,8 +1121,14 @@ async function deleteUser(uid, name) {
     if (!confirm(`Excluir o usuário "${name}"?`)) return;
     try {
         const res = await api('/api/users/' + uid, { method: 'DELETE' });
-        const d = await res.json();
-        if (d.error) { toast(d.error, 'error'); return; }
+        const text = await res.text();
+        let d = {};
+        try { d = JSON.parse(text); } catch {
+            toast('Não foi possível excluir o usuário. Recarregue a página e tente de novo.', 'error');
+            return;
+        }
+        if (!res.ok || d.error) { toast(d.error || 'Falha ao excluir', 'error'); return; }
+        toast('Usuário excluído', 'success');
         loadUsers();
     } catch (e) { toast('Erro: ' + e.message, 'error'); }
 }
@@ -1149,6 +1186,7 @@ async function editUser(uid) {
                                 <option value="Supervisor Comercial" ${u.categoria==='Supervisor Comercial'?'selected':''}>Supervisor Comercial</option>
                                 <option value="Acadêmico" ${u.categoria==='Acadêmico'?'selected':''}>Acadêmico</option>
                                 <option value="Supervisor Acadêmico" ${u.categoria==='Supervisor Acadêmico'?'selected':''}>Supervisor Acadêmico</option>
+                                <option value="TI" ${u.categoria==='TI'?'selected':''}>TI</option>
                             </select>
                             <button type="button"
                                     onclick="applyCategoryPresetFromSelect('edit-user-categoria', 'edit-perm-cb')"

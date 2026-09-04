@@ -11,6 +11,7 @@ import logging
 import threading
 import subprocess
 import time as _time
+from collections import deque
 from datetime import datetime, date, timezone, timedelta
 from pathlib import Path
 
@@ -631,6 +632,54 @@ _KOMMO_BG_PAGE_SLEEP = float(os.getenv("KOMMO_BG_PAGE_SLEEP", "0.20"))
 # tem seu proprio rate limiter (1.8 rps) e nao entra neste lock.
 _kommo_api_bg_lock = threading.Lock()
 
+# ── Freio GLOBAL de requisicoes ao Kommo ──────────────────────────────────
+# Problema: _kommo_get era um requests.get puro. Cada chamador dependia de
+# lembrar de dar sleep no proprio loop. Chamadas paralelas (yesterday_summary
+# com 2 workers, lookups de dashboard) e jobs de background sobrepostos
+# somavam rps sem coordenacao -> estouro do limite -> 403 WAF no IP inteiro
+# (derrubando tudo, inclusive o feedback horario).
+#
+# Solucao: TODA chamada ao Kommo passa por _kommo_throttle() antes de sair.
+# Janela deslizante de 1s com teto de _KOMMO_MAX_RPS (global, thread-safe).
+# Ao receber 403, aplicamos uma penalidade global: as proximas chamadas
+# esperam _KOMMO_403_PENALTY_S segundos, dando tempo do WAF liberar o IP em
+# vez de martelar e prolongar o bloqueio.
+_KOMMO_MAX_RPS = float(os.getenv("KOMMO_MAX_RPS", "5"))
+_KOMMO_403_PENALTY_S = float(os.getenv("KOMMO_403_PENALTY_S", "60"))
+_kommo_rate_lock = threading.Lock()
+_kommo_call_times: deque = deque()   # timestamps monotonic na janela de 1s
+_kommo_penalty_until = 0.0           # monotonic; se > now, aguardar
+
+
+def _kommo_throttle():
+    """Bloqueia ate ser seguro fazer a proxima chamada ao Kommo.
+
+    Combina janela deslizante de 1s (teto _KOMMO_MAX_RPS) com penalidade
+    global pos-403. Thread-safe: o lock so e mantido para calcular a espera;
+    o sleep ocorre fora do lock para nao serializar demais as threads.
+    """
+    while True:
+        with _kommo_rate_lock:
+            now = _time.monotonic()
+            if _kommo_penalty_until > now:
+                wait = _kommo_penalty_until - now
+            else:
+                while _kommo_call_times and (now - _kommo_call_times[0]) > 1.0:
+                    _kommo_call_times.popleft()
+                if len(_kommo_call_times) < _KOMMO_MAX_RPS:
+                    _kommo_call_times.append(now)
+                    return
+                wait = 1.0 - (now - _kommo_call_times[0]) + 0.02
+        _time.sleep(min(max(wait, 0.0), 5.0))
+
+
+def _kommo_mark_penalty(seconds: float | None = None):
+    """Marca penalidade global apos 403/429: proximas chamadas aguardam."""
+    global _kommo_penalty_until
+    s = _KOMMO_403_PENALTY_S if seconds is None else seconds
+    with _kommo_rate_lock:
+        _kommo_penalty_until = max(_kommo_penalty_until, _time.monotonic() + s)
+
 SNAPSHOT_FILE = Path(__file__).resolve().parent.parent / "data" / "funnel_snapshot.json"
 
 
@@ -689,7 +738,12 @@ def _kommo_get(path, params=None):
     headers["Authorization"] = f"Bearer {_kommo_token()}"
     headers["Origin"] = web_base
     headers["Referer"] = f"{web_base}/"
-    return _requests.get(url, headers=headers, params=params, timeout=30)
+    _kommo_throttle()
+    r = _requests.get(url, headers=headers, params=params, timeout=30)
+    # 403 (WAF) / 429 (rate) -> penalidade global para nao prolongar o bloqueio
+    if r.status_code in (403, 429):
+        _kommo_mark_penalty()
+    return r
 
 
 _BRT = timezone(timedelta(hours=-3))

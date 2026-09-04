@@ -97,6 +97,79 @@ def _kommo_mini_sync_lead_flask(lead_id: int) -> tuple[dict | None, str | None]:
     return mini_sync_lead(lead_id)
 
 
+def _crgm_conflito_overrides() -> dict:
+    """Mapa rgm normalizado → user_id de comercial_rgm_conflito_resolucao."""
+    out = {}
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("SELECT rgm, user_id FROM comercial_rgm_conflito_resolucao")
+        for rgm_raw, uid in cur.fetchall():
+            nk = _normalize_rgm(rgm_raw)
+            if nk and uid:
+                out[nk] = int(uid)
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logger.warning("conflito_resolucao load: %s", e)
+    return out
+
+
+def _apply_conflito_overrides_to_rgm_map(rgm_to_uid: dict) -> None:
+    """Sobrescreve rgm→uid com resolução manual / mini-sync (in-place)."""
+    for nk, uid in _crgm_conflito_overrides().items():
+        rgm_to_uid[nk] = uid
+
+
+def _pin_rgm_attribution(rgm: str, user_id: int, user_name: str = "", resolved_by: str = "mini_sync") -> bool:
+    """Fixa o crédito da venda neste RGM para o responsável do lead sincronizado.
+
+    Sobrevive ao próximo sync e tira o RGM de qualquer outro 142 que o
+    DISTINCT ON (142 + id DESC) ainda escolheria.
+    """
+    nk = _normalize_rgm(rgm)
+    uid = _kommo_uid_int(user_id)
+    if not nk or len(nk) != 8 or not uid:
+        return False
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO comercial_rgm_conflito_resolucao
+                (rgm, user_id, user_name, resolved_at, resolved_by)
+            VALUES (%s, %s, %s, NOW(), %s)
+            ON CONFLICT (rgm) DO UPDATE
+              SET user_id = EXCLUDED.user_id,
+                  user_name = EXCLUDED.user_name,
+                  resolved_at = NOW(),
+                  resolved_by = EXCLUDED.resolved_by
+            """,
+            (nk, uid, user_name or None, resolved_by),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        logger.info("mini_sync pin RGM %s → uid=%s (%s) by=%s", nk, uid, user_name, resolved_by)
+        return True
+    except Exception as e:
+        logger.warning("pin_rgm_attribution rgm=%s: %s", nk, e)
+        return False
+
+
+def _kommo_sibling_lead_ids_for_rgm(rgm_clean: str, except_id: int) -> list[int]:
+    """Outros leads no kommo_sync com o mesmo RGM (pra refrescar e não deixar crédito velho)."""
+    nk = _normalize_rgm(rgm_clean)
+    if not nk or len(nk) != 8:
+        return []
+    try:
+        found, _err = _kommo_resolve_lead_id_by_rgm(nk)
+        return [i for i in (found or []) if i and int(i) != int(except_id)]
+    except Exception as e:
+        logger.warning("sibling leads rgm=%s: %s", nk, e)
+        return []
+
+
 def _kommo_resolve_lead_id_by_rgm(rgm_clean: str) -> tuple[list[int], str | None]:
     """Retorna (lista de lead_ids, None) ou ([], mensagem_erro)."""
     ids: list[int] = []
@@ -209,7 +282,7 @@ def _pg():
 import threading as _crgm_threading
 
 _CRGM_DATA_CACHE: dict = {}
-_CRGM_DATA_CACHE_VER = 6  # bump quando a lógica de contagem mudar (ex.: outliers / fora_padrao)
+_CRGM_DATA_CACHE_VER = 7  # bump quando a lógica de contagem mudar (ex.: outliers / fora_padrao)
 _CRGM_DATA_CACHE_TTL_S = 120  # segundos
 _CRGM_DATA_CACHE_LOCK = _crgm_threading.Lock()
 
@@ -288,6 +361,7 @@ def clear_crgm_data_cache(reason: str = ""):
     with _CRGM_DATA_CACHE_LOCK:
         n = len(_CRGM_DATA_CACHE)
         _CRGM_DATA_CACHE.clear()
+        _CRGM_CICLO_PFX_CACHE.clear()
     if n:
         logger.info("CRGM /data cache LIMPO (%d entradas) motivo=%s", n, reason or "manual")
 
@@ -690,7 +764,7 @@ def comercial_periodo_vendas_resumo(dt_ini=None, dt_fim=None, polo=None, nivel=N
                 day_rgms[dt].add(n)
 
     # Filtrar outliers das contagens (mesmo critério do Dashboard Comercial)
-    _vr_dom_pfx   = _compute_dominant_rgm_prefix(list(rgms_periodo) or list(rgms_bruto))
+    _vr_dom_pfx   = _crgm_effective_dominant_prefix(list(rgms_periodo) or list(rgms_bruto))
     _vr_overrides = _load_outlier_contagem_overrides()
     _rgms_contando = {r for r in rgms_periodo if _rgm_conta_para_venda(r, _vr_dom_pfx, _vr_overrides)}
     day_rgms_contando = {d: s & _rgms_contando for d, s in day_rgms.items()}
@@ -1000,6 +1074,84 @@ def _is_rgm_prefix_outlier(rgm, dominant_prefix):
     return int(n[:2]) < dominant_prefix
 
 
+_CRGM_CICLO_PFX_CACHE: dict = {}
+_CRGM_CICLO_PFX_TTL_S = 300
+
+
+def _crgm_ciclo_dominant_prefix():
+    """Prefixo dominante apurado sobre o(s) ciclo(s) comercial(is) atual(is) INTEIRO(s).
+
+    Independe de polo/nível/turma e da janela de datas da tela: a série de RGM é
+    sequencial na instituição, então recortá-la só adiciona instabilidade.
+    Retorna int ou None quando não há dados do ciclo atual.
+
+    Usa conexão própria de propósito: se a consulta falhar, uma conexão emprestada
+    ficaria com a transação abortada e derrubaria as queries seguintes do chamador.
+    """
+    import time as _t
+    now = _t.time()
+    cached = _CRGM_CICLO_PFX_CACHE.get("v")
+    if cached and (now - cached[0]) <= _CRGM_CICLO_PFX_TTL_S:
+        return cached[1]
+
+    sql = """
+        WITH rgms AS (
+            SELECT DISTINCT regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g') AS rgm
+            FROM xl_rows r
+            JOIN xl_snapshots s ON s.id = r.snapshot_id
+            WHERE s.tipo = 'matriculados'
+              AND COALESCE(r.data->>'rgm','') ~ '[0-9]'
+              AND UPPER(TRIM(COALESCE(r.data->>'situacao',''))) = 'EM CURSO'
+              AND UPPER(TRIM(COALESCE(r.data->>'tipo_matricula','')))
+                  = ANY(ARRAY['NOVA MATRICULA','RECOMPRA','RETORNO'])
+              AND TRIM(COALESCE(r.data->>'empresa','')) ~ '^(12|7) -'
+              AND NULLIF(TRIM(COALESCE(r.data->>'ciclo','')), '')
+                  IN (SELECT ciclo FROM ciclo_atual_comercial)
+        )
+        SELECT LEFT(rgm, 2) AS pfx, COUNT(*) AS n
+        FROM rgms
+        WHERE LENGTH(rgm) >= 2 AND LEFT(rgm, 2) ~ '^[0-9]{2}$'
+        GROUP BY 1
+        -- Empate: vence o prefixo menor (mais inclusivo — não derruba a série anterior).
+        ORDER BY n DESC, pfx ASC
+        LIMIT 1
+    """
+    pfx = None
+    _c = None
+    try:
+        _c = _pg()
+        with _c.cursor() as cur:
+            cur.execute(sql)
+            row = cur.fetchone()
+        if row and row[0]:
+            pfx = int(row[0])
+    except Exception as e:
+        logger.warning("_crgm_ciclo_dominant_prefix: %s", e)
+    finally:
+        if _c is not None:
+            try:
+                _c.close()
+            except Exception:
+                pass
+
+    _CRGM_CICLO_PFX_CACHE["v"] = (now, pfx)
+    return pfx
+
+
+def _crgm_effective_dominant_prefix(periodo_rgms):
+    """Régua de outlier: o MENOR entre o dominante do período e o do ciclo atual.
+
+    O dominante do período sozinho quebra na virada da série de RGM (ex.: 49 -> 50):
+    numa janela curta a série nova vira maioria e a anterior — que ainda é do ciclo
+    corrente — passa a ser tratada como outlier. Usar o mínimo mantém períodos
+    históricos com a régua antiga (nada que contava antes deixa de contar).
+    """
+    periodo_pfx = _compute_dominant_rgm_prefix(periodo_rgms)
+    ciclo_pfx = _crgm_ciclo_dominant_prefix()
+    candidatos = [p for p in (periodo_pfx, ciclo_pfx) if p is not None]
+    return min(candidatos) if candidatos else None
+
+
 def _load_outlier_contagem_overrides(conn=None):
     """Retorna set de RGMs normalizados que foram marcados pelo admin como 'contar para venda'."""
     out = set()
@@ -1088,6 +1240,8 @@ def _crgm_kommo_lookup_rgms(rgms):
     except Exception as ek_e:
         logger.warning("_crgm_kommo_lookup_rgms: %s", ek_e)
 
+    _apply_conflito_overrides_to_rgm_map(rgm_to_uid)
+
     # Consultores excluídos: reatribui os RGMs para Admin Sistema + renomeações
     _apply_reassign_to_rgm_map(rgm_to_uid)
     _aj = _load_consultor_ajustes()
@@ -1157,7 +1311,7 @@ def crgm_outlier_context(dt_ini=None, dt_fim=None, polo=None, nivel=None, exclud
         em_curso_rgms = [r["rgm"] for r in rows if r.get("situacao") == "EM CURSO"]
         if not em_curso_rgms:
             em_curso_rgms = [r["rgm"] for r in rows]
-        dominant_prefix = _compute_dominant_rgm_prefix(em_curso_rgms)
+        dominant_prefix = _crgm_effective_dominant_prefix(em_curso_rgms)
     except Exception as e:
         logger.warning("crgm_outlier_context: %s", e)
         dominant_prefix = None
@@ -3142,19 +3296,7 @@ def _build_agent_ranking_completa_vw(
             if nk and row[1]:
                 rgm_to_uid[nk] = row[1]
 
-        # Aplicar overrides de conflito salvos manualmente
-        try:
-            _oc = _pg()
-            _oc_cur = _oc.cursor()
-            _oc_cur.execute("SELECT rgm, user_id FROM comercial_rgm_conflito_resolucao")
-            for _rgm_raw, _uid in _oc_cur.fetchall():
-                _nk = _normalize_rgm(_rgm_raw)
-                if _nk:
-                    rgm_to_uid[_nk] = _uid
-            _oc_cur.close()
-            _oc.close()
-        except Exception as _oe:
-            logger.warning("conflito_resolucao override: %s", _oe)
+        _apply_conflito_overrides_to_rgm_map(rgm_to_uid)
 
         # Consultores excluídos: reatribui os leads/matrículas para Admin Sistema
         _apply_reassign_to_rgm_map(rgm_to_uid)
@@ -3239,7 +3381,7 @@ def _build_agent_ranking_completa_vw(
 
         # Calcular prefixo dominante e overrides para filtrar outliers nas contagens
         _ranking_all_rgms = [n for n, _ in mat_rows]
-        _ranking_dom_pfx = _compute_dominant_rgm_prefix(_ranking_all_rgms) or 99
+        _ranking_dom_pfx = _crgm_effective_dominant_prefix(_ranking_all_rgms) or 99
         _ranking_overrides = _load_outlier_contagem_overrides()
 
         mat_per_agent = {}
@@ -3653,7 +3795,7 @@ def _crgm_compute_kpis(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -> d
     _lap("derive_periodo_inmem")
 
     # Filtrar outliers (prefixo abaixo do dominante sem override manual) das contagens
-    _kpi_dom_pfx  = _compute_dominant_rgm_prefix(list(rgms_periodo) or list(rgms_bruto))
+    _kpi_dom_pfx  = _crgm_effective_dominant_prefix(list(rgms_periodo) or list(rgms_bruto))
     _kpi_overrides = _load_outlier_contagem_overrides()
     _rgms_contando = {r for r in rgms_periodo if _rgm_conta_para_venda(r, _kpi_dom_pfx, _kpi_overrides)}
     day_rgms_contando   = {d: s & _rgms_contando for d, s in day_rgms.items()}
@@ -4243,7 +4385,7 @@ def _crgm_compute_grids(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -> 
         if row["rgm"] and row["situacao"] != "EM CURSO":
             evasao_rows.append(row)
 
-    _fp_dom_pfx = _compute_dominant_rgm_prefix(
+    _fp_dom_pfx = _crgm_effective_dominant_prefix(
         [r["rgm"] for r in _periodo_rows if r.get("situacao") == "EM CURSO"]
         or [r["rgm"] for r in _periodo_rows if r.get("rgm")]
     )
@@ -4437,6 +4579,121 @@ def crgm_data_grids():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+# ── Interação de leads (quantos leads recebidos falaram ≥1x) ─────────────
+# Fonte: view vw_lead_interacao no projeto Supabase do comercial_feedback
+# (sql/lead_interacao.sql). A view devolve (lead_id, dia) dos dias em que o
+# cliente enviou >=1 mensagem, já em America/Sao_Paulo.
+_COM_FB_URL = os.getenv(
+    "SUPABASE_FEEDBACK_URL", "https://vtlbndvcgajcoajhcnnx.supabase.co"
+).rstrip("/")
+_COM_FB_KEY = os.getenv(
+    "SUPABASE_FEEDBACK_KEY", "sb_publishable_sW0h7aqgrjiwqGqKpawm4g_FuMi5xU_"
+)
+
+
+def _fetch_lead_interacao(lead_ids: list, dt_ini: str, dt_fim: str) -> dict:
+    """Retorna {lead_id: set(dias)} para os leads com >=1 msg de cliente no período."""
+    out: dict = {}
+    if not (_COM_FB_URL and _COM_FB_KEY and lead_ids):
+        return out
+    headers = {
+        "apikey": _COM_FB_KEY,
+        "Authorization": f"Bearer {_COM_FB_KEY}",
+        "Accept": "application/json",
+    }
+    CHUNK = 400
+    for i in range(0, len(lead_ids), CHUNK):
+        lote = lead_ids[i:i + CHUNK]
+        params = [
+            ("select", "lead_id,dia"),
+            ("lead_id", f"in.({','.join(str(x) for x in lote)})"),
+            ("dia", f"gte.{dt_ini}"),
+            ("dia", f"lte.{dt_fim}"),
+        ]
+        try:
+            r = requests.get(
+                f"{_COM_FB_URL}/rest/v1/vw_lead_interacao",
+                headers=headers, params=params, timeout=30,
+            )
+            r.raise_for_status()
+            for row in r.json() or []:
+                lid = row.get("lead_id")
+                dia = row.get("dia")
+                if lid is None or not dia:
+                    continue
+                out.setdefault(int(lid), set()).add(str(dia)[:10])
+        except Exception as e:
+            logger.warning("interacao-leads: falha lote %d: %s", i // CHUNK, e)
+    return out
+
+
+@comercial_rgm_bp.route("/api/comercial-rgm/interacao-leads")
+def crgm_interacao_leads():
+    """Por agente: quantos leads criados no período interagiram >=1x no período.
+
+    Resposta: { ok, por_agente: { "<uid>": { "total": N, "por_dia": {dia: n} } } }
+    """
+    dt_ini = request.args.get("dt_ini", "")
+    dt_fim = request.args.get("dt_fim", "")
+    if not (dt_ini and dt_fim):
+        return jsonify({"ok": True, "por_agente": {}})
+
+    _cache_key = _crgm_cache_key_prefixed("interacao")
+    if request.args.get("no_cache") != "1":
+        _cached = _crgm_cache_get(_cache_key)
+        if _cached is not None:
+            return jsonify(_cached)
+
+    try:
+        # Mesma base do leads_grid: leads criados no período, não deletados
+        ep_ini = _date_to_epoch(dt_ini)
+        ep_fim = _date_to_epoch(dt_fim) + 86399
+        kconn = _pg_kommo()
+        kcur = kconn.cursor()
+        kcur.execute(
+            """
+            SELECT l.id, l.responsible_user_id
+            FROM leads l
+            WHERE l.responsible_user_id IS NOT NULL
+              AND NOT l.is_deleted
+              AND l.created_at IS NOT NULL
+              AND l.created_at >= %s
+              AND l.created_at <= %s
+            """,
+            (ep_ini, ep_fim),
+        )
+        uid_leads: dict = {}
+        for lid, uid in kcur.fetchall():
+            if lid is not None and uid is not None:
+                uid_leads.setdefault(int(uid), []).append(int(lid))
+        kcur.close()
+        kconn.close()
+
+        todos = sorted({lid for ids in uid_leads.values() for lid in ids})
+        inter = _fetch_lead_interacao(todos, dt_ini, dt_fim)
+
+        por_agente = {}
+        for uid, ids in uid_leads.items():
+            por_dia: dict = {}
+            total = 0
+            for lid in ids:
+                dias = inter.get(lid)
+                if not dias:
+                    continue
+                total += 1
+                for d in dias:
+                    por_dia[d] = por_dia.get(d, 0) + 1
+            if total:
+                por_agente[str(uid)] = {"total": total, "por_dia": por_dia}
+
+        payload = {"ok": True, "por_agente": por_agente}
+        _crgm_cache_set(_cache_key, payload)
+        return jsonify(payload)
+    except Exception as e:
+        logger.exception("comercial_rgm interacao-leads error")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @comercial_rgm_bp.get("/api/comercial-rgm/atividade-kommo")
 def crgm_atividade_kommo():
     """Retorna linhas detalhadas de atividade Kommo do Supabase para o período."""
@@ -4554,26 +4811,14 @@ def crgm_agente_detalhe():
             logger.warning("agente-detalhe kommo: %s", e)
             rgm_to_uid = {}
 
-        # Aplicar overrides de conflito de atribuição (mesma lógica do ranking)
-        try:
-            _oc = _pg()
-            _oc_cur = _oc.cursor()
-            _oc_cur.execute("SELECT rgm, user_id FROM comercial_rgm_conflito_resolucao")
-            for _rgm_raw, _uid in _oc_cur.fetchall():
-                _nk = _normalize_rgm(_rgm_raw)
-                if _nk:
-                    rgm_to_uid[_nk] = _uid
-            _oc_cur.close()
-            _oc.close()
-        except Exception as _oe:
-            logger.warning("agente-detalhe conflito_resolucao: %s", _oe)
+        _apply_conflito_overrides_to_rgm_map(rgm_to_uid)
 
         # Consultores excluídos: reatribui para Admin Sistema
         _apply_reassign_to_rgm_map(rgm_to_uid)
 
         # 3. Calcular prefixo dominante e overrides de contagem de outliers
         all_rgms = [_normalize_rgm(row[0]) for row in rows if row[0]]
-        dominant_prefix = _compute_dominant_rgm_prefix(all_rgms) or 99
+        dominant_prefix = _crgm_effective_dominant_prefix(all_rgms) or 99
         _outlier_overrides = _load_outlier_contagem_overrides()
 
         # 4. Filtrar linhas do agente solicitado
@@ -5143,6 +5388,38 @@ def crgm_kommo_sync_lead():
         st = lead.get("status_id")
         status_txt = "Ganho" if st == 142 else "Perdido" if st == 143 else f"Ativo ({st})"
 
+        # O verde do upsert NÃO mudava o crédito: o ranking escolhe
+        # DISTINCT ON (rgm) o 142 de maior id. Se outro lead (lixo/autolead)
+        # ainda tem o mesmo RGM, a venda fica na pessoa errada. Ao sincronizar
+        # este lead em Ganho, ele passa a ser a fonte do crédito e os irmãos
+        # são atualizados pra soltar RGM velho no kommo_sync.
+        pinned = False
+        siblings_synced = 0
+        rgm_pin = re.sub(r"[^0-9]", "", str(rgm_out or ""))
+        uid_pin = _kommo_uid_int(lead.get("responsible_user_id"))
+        if st == 142 and len(rgm_pin) == 8 and uid_pin:
+            names = _fetch_kommo_user_names([uid_pin])
+            pinned = _pin_rgm_attribution(
+                rgm_pin, uid_pin, names.get(uid_pin) or "", resolved_by="mini_sync",
+            )
+            for sib in _kommo_sibling_lead_ids_for_rgm(rgm_pin, int(lead["id"]))[:8]:
+                try:
+                    time.sleep(0.2)
+                    _sib_lead, _sib_err = _kommo_mini_sync_lead_flask(int(sib))
+                    if _sib_lead:
+                        siblings_synced += 1
+                except Exception as _se:
+                    logger.warning("mini_sync sibling %s: %s", sib, _se)
+
+        pin_txt = ""
+        if pinned:
+            pin_txt = (
+                " Crédito da venda fixado neste responsável"
+                " (sai de qualquer outro lead com o mesmo RGM)."
+            )
+            if siblings_synced:
+                pin_txt += f" {siblings_synced} lead(s) com o mesmo RGM também atualizado(s)."
+
         return jsonify({
             "ok": True,
             "lead_id": lead["id"],
@@ -5151,7 +5428,13 @@ def crgm_kommo_sync_lead():
             "pipeline": pipeline,
             "pipeline_id": lead.get("pipeline_id"),
             "status": status_txt,
-            "msg": "Sincronização pontual concluída (SQLite kommo_lib + PostgreSQL kommo_sync). O cruzamento com matrículas atualiza ao recarregar o dashboard.",
+            "pinned": pinned,
+            "siblings_synced": siblings_synced,
+            "msg": (
+                "Sincronização pontual concluída (SQLite kommo_lib + PostgreSQL kommo_sync)."
+                + pin_txt
+                + " Recarregue o dashboard para ver o ranking."
+            ),
         })
     except Exception as e:
         logger.exception("kommo-sync-lead")
@@ -5852,7 +6135,13 @@ def dist_consultor_fechadas_periodo():
             "do_periodo": 0, "fora_periodo": 0, "total": 0
         })
         matched_rgms = {r[0] for r in rgm_rows}
+        _ov = _crgm_conflito_overrides()
+        _ov_names = _fetch_kommo_user_names(list({int(v) for v in _ov.values()})) if _ov else {}
         for rgm, lead_id, kommo_name, uid, status_id, created_at_raw in rgm_rows:
+            nk = _normalize_rgm(rgm)
+            if nk and nk in _ov:
+                uid = _ov[nk]
+                kommo_name = _ov_names.get(uid) or kommo_name
             key = _dist_consultor_owner_key(
                 uid, lead_id, dist_name_map, uid_to_dist_name, kommo_name, status_id,
             )

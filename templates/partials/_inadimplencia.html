@@ -61,6 +61,13 @@
                     </div>
                 </header>
 
+                <div id="inad-loading" class="hidden mx-4 lg:mx-8 mb-2">
+                    <div class="flex items-center gap-2 text-sm text-slate-500">
+                        <span class="inline-block w-4 h-4 rounded-full border-2 border-slate-400 border-t-transparent animate-spin"></span>
+                        Carregando dados…
+                    </div>
+                </div>
+
                 <!-- Main content -->
                 <main class="flex-1 p-4 lg:p-8 space-y-6">
 
@@ -91,11 +98,11 @@
                                 <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">Data final</label>
                                 <input type="date" id="inad-filter-date-b" class="input-glass px-3 py-2.5 rounded-lg text-sm text-slate-900 dark:text-white w-[145px]">
                             </div>
-                            <button id="inad-filter-apply"
+                            <button type="button" id="inad-filter-apply"
                                 class="px-5 py-2.5 bg-[var(--primary)] hover:opacity-90 text-white font-semibold rounded-lg transition-all text-sm whitespace-nowrap">
                                 Aplicar
                             </button>
-                            <button id="inad-filter-clear"
+                            <button type="button" id="inad-filter-clear"
                                 class="px-5 py-2.5 bg-slate-200 dark:bg-slate-700 hover:opacity-80 text-slate-700 dark:text-white font-semibold rounded-lg transition-all text-sm whitespace-nowrap">
                                 Limpar
                             </button>
@@ -186,7 +193,7 @@
                                         7d
                                     </button>
                                     <button id="inad-range-30" onclick="_inadSetRange(30)"
-                                        class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-rose-500 text-white">
+                                        class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50">
                                         30d
                                     </button>
                                     <button id="inad-range-90" onclick="_inadSetRange(90)"
