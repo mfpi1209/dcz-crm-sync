@@ -21,7 +21,7 @@
             {% set _show_meta = nav_can('meta-campaigns') %}
             {% set _show_ti_admin_only = nav_is_admin and (nav_can('ia_comercial') or nav_can('page_views')) %}
             {% set _show_ti = _show_ti_admin_only or nav_can('solicitacoes_ti') %}
-            {% set _show_sistema = nav_can('pipeline') or nav_can('update') or nav_can('sync') or nav_can('ajustes_matricula') or nav_can('kommo_sync') or nav_can('match_merge') or nav_can('config') or nav_can('schedule') or nav_can('kommo_dispatcher') or nav_can('logs') %}
+            {% set _show_sistema = nav_can('pipeline') or nav_can('update') or nav_can('ajustes_matricula') or nav_can('kommo_sync') or nav_can('match_merge') or nav_can('config') or nav_can('schedule') or nav_can('kommo_dispatcher') or nav_can('logs') %}
             <div class="space-y-1">
                 {% if (nav_is_comercial or nav_is_suporte_comercial) and nav_can('minha_performance') %}
                 <a href="#minha_performance" onclick="navigate('minha_performance')" class="sidebar-link active" data-page="minha_performance">
@@ -430,7 +430,7 @@
                     <span class="material-symbols-outlined text-sm sidebar-group-chevron">expand_more</span>
                 </button>
                 <div class="sidebar-group-items">
-                    {% set _show_crm = nav_can('pipeline') or nav_can('update') or nav_can('sync') or nav_can('ajustes_matricula') or nav_can('kommo_sync') or nav_can('match_merge') %}
+                    {% set _show_crm = nav_can('pipeline') or nav_can('update') or nav_can('ajustes_matricula') or nav_can('kommo_sync') or nav_can('match_merge') %}
                     {% set _show_geral = nav_can('config') or nav_can('schedule') or nav_can('kommo_dispatcher') or nav_can('logs') %}
                     {% if _show_crm %}
                     <p class="px-3 pt-3 pb-1 text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">CRM</p>
@@ -446,12 +446,7 @@
                         Upload Acadêmico
                     </a>
                     {% endif %}
-                    {% if nav_can('sync') %}
-                    <a href="#sync" onclick="navigate('sync')" class="sidebar-link sidebar-sub" data-page="sync">
-                        <span class="material-symbols-outlined text-base">sync</span>
-                        Sync/Delta CRM Acadêmico
-                    </a>
-                    {% endif %}
+                    {# Sync/Delta CRM Acadêmico (DataCrazy) — link removido; sync desativado #}
                     {% if nav_can('ajustes_matricula') %}
                     <a href="#ajustes_matricula" onclick="navigate('ajustes_matricula')" class="sidebar-link sidebar-sub" data-page="ajustes_matricula">
                         <span class="material-symbols-outlined text-base">fact_check</span>

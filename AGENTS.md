@@ -4,6 +4,86 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-09-04 — Acadêmico: observação de transferências inbound no card Em Curso
+- **Modelo usado:** Cursor Grok 4.5.
+- **Pedido:** no card **EM CURSO** (Graduação e Pós), avisar quantos alunos vieram de outro polo e permitir ver quem são.
+- **Backend:** `inbound_transfers` em `/api/dashboard/students` (flag `inbound_transfer` no `_MAT_COLS` = `situacao ~* '^transfer'` já remapeada para Em Curso). Lista em `GET /api/dashboard/inbound-transfers` (RGM, nome, polo, tipo, ciclo; respeita ciclo/nível/período/polo/tipo).
+- **UI:** no card Em Curso, pill roxa “N transferências de outro polo · ver quem são”; abre painel `#stu-inbound-panel` com a tabela. Fecha ao trocar filtros.
+- **Contagem:** `inbound_transfers` = **RGMs distintos** (não `SUM(total)`). No XLSX o mesmo aluno pode ter 2 linhas (TRANSFERIDO + EM CURSO); o GROUP BY juntava e inflava o pill (ex. 77) vs a lista (42).
+- **Não muda:** contagem de Em Curso (inbound já entra nela); card Transferido continua = só sumidos (saíram).
+
+### 2026-09-03 — Dashboard Acadêmico: fonte = Bases Matriculados do Disparador
+- **Modelo usado:** Cursor Grok 4.5.
+- **Decisão do usuário:** o Dashboard Acadêmico (Graduação **e** Pós) deixa de ler `xl_snapshots`/`xl_rows` (Upload Acadêmico do dcz) e passa a ler o último upload de **Matriculados** do Disparador (`tool_whatsapp_alunos`).
+- **Fonte:** DB `disparos` (mesmo host do `dcz_sync`), tabelas `matriculados_snapshots` + `matriculados_rows`. Conn nova `get_disparos_conn()` em `db.py` (`DISPAROS_DB_NAME`, default `disparos`).
+- **Por quê:** o upload do Disparador é o operacional diário (ex.: 03/09 56.054 linhas) e já traz as ~1.400 rematrículas de Pós em 2026/2; o snapshot do Upload Acadêmico (#248) só tinha 3.
+- **Mapeamento JSONB:** headers SIAA em Title Case (`Tipo Matrícula`, `Situação Matrícula`, `Ciclo`, `Empresa`, `Negócio`, `Polo`, `RGM`, `Data Matrícula`) via COALESCE com aliases ASCII/lowercase.
+- **Regras preservadas:** empresas `^(12|7) -`; TRANSFERIDO no arquivo → EM CURSO; sumidos entre snapshots do Disparador → TRANSFERIDO; Pós veteranos via `tipo_matricula`.
+- **Escopo:** só Dashboard Acadêmico (`routes/dashboard.py`). Comercial / Match & Merge / Upload Acadêmico **não** mudam.
+- **Números (snapshot Disparador 56.054, ciclo 2026/2):** Pós Veteranos **1.462** (antes 3); Pós Novos ~733; total do ciclo ~27.235.
+- **Alternativas descartadas:** usar `mm_matriculados` do Match & Merge (TRUNCATE por nível apaga Grad ou Pós); copiar Disparador→`xl_snapshots` a cada upload.
+
+### 2026-09-03 — Dashboard Acadêmico: Transferido tem dois sentidos (inbound ≠ sumiu)
+- **Modelo usado:** Cursor Grok 4.5.
+- **Problema:** no relatório SIAA, `situacao=TRANSFERIDO` significa aluno que **veio de outro polo para a gente** (está conosco). Já quem **sumiu do relatório atual** é o oposto — foi transferido **para outro polo**. O card "Transferido" misturava os dois e os 42 inbound sumiam da leitura de Em Curso.
+- **Decisão (Acadêmico only):**
+  1. No `_MAT_COLS` (leitura do snapshot), `situacao ~* '^transfer'` é remapeada para **`EM CURSO`** — inbound conta como aluno nosso ativo.
+  2. Quem existia em snapshot anterior e **não está no mais recente** entra via `_SUMIDOS_QUERY` / `_academic_sumidos_rows` como **`TRANSFERIDO`** (last-seen: tipo/ciclo/polo da última aparição), mesclado em `api_dashboard_students`.
+- **Performance:** a varredura dos sumidos cobre todos os snapshots (~20–30s). Cache memoizado por `snapshot_id` + warm assíncrono no boot (`warm_academic_sumidos_cache` em `app.py`); se o snapshot mudou, devolve cache velho e recalcula em background.
+- **Números (ciclo 2026/2):** raw TRANSFERIDO no arquivo = **42** → passam a Em Curso; sumidos = **393** (313 nova + 68 retorno + 12 recompra) → card Transferido. Novos sem filtro sobe ~393 (passa a incluir os que saíram, na situação Transferido — simétrico a já incluir Cancelado/Trancado).
+- **Comercial não muda:** lá inbound TRANSFERIDO do SIAA é raro/outro significado operacional; sumidos já viram TRANSFERIDO na evasão via `mark_missing_as_transferido`.
+- **Alternativa descartada:** manter TRANSFERIDO do relatório como está e só adicionar sumidos — o card continuaria mostrando os 42 "que são nossos" misturados com quem foi embora.
+
+### 2026-09-03 — Dashboard Acadêmico: alinhamento ao Comercial revertido por completo (Novos volta ao snapshot)
+- **Modelo usado:** Opus 5.
+- **Decisão do usuário:** desfazer o alinhamento do card **Novos** do Dashboard Acadêmico ao "em curso" do Comercial. O Acadêmico volta a contar **calouros + regresso + recompra do snapshot mais recente**, filtrado por ciclo/nível/polo/período, incluindo todas as situações do recorte. **As duas telas voltam a ter recortes próprios e números diferentes — isso é esperado.**
+- **O que saiu de `routes/dashboard.py`:** o bloco em `api_dashboard_students` que trocava as linhas de novos por `_academic_novos_from_comercial`, os helpers `_academic_novos_from_comercial` / `_comercial_period_for_siaa_ciclo`, o cache `_NOVOS_COM_*` e as chaves `novos_periodo` da resposta. `novos_fonte` fica fixo em `"snapshot"` e `novos_fora_padrao` em `0` (mantidos só para não quebrar o front antigo).
+- **Card laranja "Alunos / RGM fora do padrão" removido do Acadêmico:** ele só fazia sentido no modo comercial, onde os fora do padrão eram **excluídos** do número principal. No snapshot eles já estão dentro dos Novos — manter o card duplicaria a contagem na leitura. No Dashboard Comercial o card continua.
+- **Números após a reversão (ciclo 2026/2, snapshot de 03/09):** Novos **9.083** (7.103 calouros + 1.757 regresso + 223 recompra), rematrículas 16.245, total 25.328. Bate com o comportamento pré-alinhamento (era 8.989 no snapshot de 02/09; a diferença é o arquivo novo).
+- **Preservado:** todo o lado Comercial (TRANSFERIDO na evasão, `require_latest_presence` no ranking, cards com botão `!`) e o fix de veteranos de Pós-Graduação em `_is_rematricula_empresa`.
+- **Alternativa descartada:** manter o alinhamento atrás de um toggle na UI — mais superfície para manter e o usuário quer explicitamente o número antigo como padrão único do Acadêmico.
+
+### 2026-09-03 — Sumidos do CSV atual viram TRANSFERIDO na evasão do Comercial; Acadêmico volta ao critério anterior
+- **Modelo usado:** Opus 5.
+- **Problema:** a entrada anterior fazia os "sumidos do CSV atual" simplesmente **desaparecerem** do Comercial (eram descartados). O usuário quer que eles apareçam — como **evasão/transferência** — em vez de sumirem da conta. Além disso, o alinhamento tinha vazado para o Acadêmico, que deveria manter o critério antigo.
+- **Bug de performance corrigido junto:** `require_latest_presence` estava implementado como `EXISTS` correlacionado (`regexp_replace` sobre JSONB) varrendo **todos** os snapshots. `/api/dashboard/students` levava **~5 min** e a tela ficava no skeleton. A checagem passou a ser feita em Python via `_crgm_latest_snapshot_rgms()` (um `SELECT DISTINCT` no snapshot mais recente).
+- **Decisão:** novo parâmetro `mark_missing_as_transferido` em `_crgm_periodo_data` / `_crgm_periodo_data_oficial`. Em vez de descartar quem não está no CSV mais recente, marca `situacao = 'TRANSFERIDO'` (+ flag `sumiu_do_csv`). Efeito: sai do EM CURSO (não conta venda) e **entra na evasão**.
+- **Onde aplica cada modo:**
+  - `_crgm_compute_kpis` e `_crgm_compute_grids` → `mark_missing_as_transferido=True` (hero bruto + painel de evasão).
+  - `_build_agent_ranking_completa_vw` e `_crgm_compute_agentes` → seguem com `require_latest_presence=True` (drop). Transferência não credita/descredita consultor no ranking — regra de pagamento inalterada.
+  - `routes/dashboard.py` `_academic_novos_from_comercial` → `require_latest_presence=False`. O **Acadêmico volta ao critério anterior** (last-seen, sem remover transferidos).
+- **Números validados (período 14/05–15/12):** bruto **9.562** = em curso contando **7.868** + fora do padrão **192** + evasão **1.502**. Evasão passa de 1.109 → 1.502; `TRANSFERIDO` vai de 1 → **394** (393 sumidos + 1 já existente). `EM CURSO` cai de 8.453 para 8.060 — exatamente os 393 que viraram transferência.
+- **Alternativas descartadas:** manter o descarte silencioso (o aluno some da conta sem aparecer em lugar nenhum); marcar como `CANCELADO` (mistura transferência com evasão real e polui o motivo); aplicar a marcação também no ranking por consultor (mudaria crédito/pagamento, fora do pedido).
+- **Follow-up — Matrículas Oficiais do consultor:** `_fetch_agent_matriculas` (`routes/minha_performance.py`) usa last-seen em todos os snapshots e continuava mostrando o transferido como `EM CURSO`, **contando a venda**. Corrigido: aplica a mesma marcação (`TRANSFERIDO` + `sumiu_do_csv`, `conta_para_meta=False`) e o filtro `only_em_curso` passou de SQL para Python, **depois** da marcação — assim a linha some das contagens mas continua visível na lista do consultor. Caso validado: RGM `50166077` (Tamires) aparece como TRANSFERIDO e a contagem oficial fica **27** (antes 28).
+- **Cache:** `_crgm_latest_snapshot_rgms()` é memoizado por `snapshot_id` (invalida sozinho no próximo upload). Sem isso, cada agente do ranking repetiria o scan do snapshot inteiro.
+- **Follow-up 2 — pílula na Minha Performance:** `_mpClassifySituacao` (`static/js/minha_performance.js`) só mandava para `evadido` situações com `CANCEL/EVAD/DESIST/TRANC`, então `TRANSFERIDO` caía em `OUTROS` — divergindo do card Evasão do Comercial. Decisão do usuário: **`TRANSFERIDO` passa a contar em `EVADIDOS`**. O badge da linha ganhou cor própria (roxo, como no Comercial) para separar transferência de cancelamento sem criar uma 4ª pílula. Nada muda em contagem de venda/meta — isso já estava resolvido.
+
+### 2026-09-03 — Comercial/Acadêmico: sumidos do CSV atual deixam de contar; cards exibem regra; Pós mostra veteranos
+- **Modelo usado:** Auto.
+- **Problema:** o alinhamento anterior ainda carregava RGMs vistos só em snapshots antigos (`all_snapshots`), mas o usuário confirmou que os "sumidos do CSV atual" são, na prática, **transferências para outro polo** e não devem continuar como alunos da carteira. Além disso, no filtro `Pós-Graduação` o card de rematrícula aparecia como "Veteranos" no front, mas o backend zerava quase tudo por aceitar rematrícula só na empresa `12 -`.
+- **Decisão:** o universo "oficial" usado nos cards/KPIs passa a exigir **presença no CSV mais recente** (`require_latest_presence=True`) mesmo quando usa last-seen para dedupe. Isso vale para `_crgm_compute_kpis`, `_crgm_compute_agentes`, `_crgm_compute_grids`, `_build_agent_ranking_completa_vw` e para o card Novos do Dashboard Acadêmico alinhado ao Comercial.
+- **Ranking/supp:** a regra suplementar do comercial deixa de recuperar o caso "sumiu do CSV mais recente"; mantém apenas casos ainda presentes no arquivo atual. Motivo: sumiço agora é interpretado como transferência para outro polo.
+- **UI explicativa:** cards principais ganham botão `!` com texto do recorte aplicado, para deixar explícito o filtro/regra e evitar reabrir a dúvida meses depois.
+- **Pós/Veteranos:** `rematricula` deixa de depender só de `empresa=12` quando `nivel='Pós-Graduação'`; no dashboard acadêmico, o backend passa a mostrar veteranos de pós usando o próprio `tipo_matricula` do snapshot.
+
+### 2026-09-03 — Dashboard Acadêmico: card Novos alinha ao "em curso" do Comercial
+- **Modelo usado:** Cursor Grok 4.6 (principal).
+- **Problema:** mesmo recorte teórico (ciclo 2026/2 / 2º semestre 2026) dava Novos **8.989** no Acadêmico vs **8.185 em curso** no Comercial. O usuário pediu um número só — não dá para ter 2 resultados.
+- **Causa (medida no banco, snapshot 246):** o Acadêmico lia só o último XLSX + coluna `ciclo=2026/2` + todas as situações (1.095 cancelado/trancado dentro dos 8.989). O Comercial corta por `data_matricula` 14/05–15/12, last-seen em todos os snapshots, só `NOVA MATRICULA/RECOMPRA/RETORNO`, só EM CURSO que conta pra meta (tira 202 fora do padrão). Interseção: os 7.894 EM CURSO do Acadêmico cabiam no Comercial; sobravam 493 só no Comercial (380 sumiram do arquivo de 02/09, 108 com ciclo SIAA ≠ 2026/2, 5 mudaram de ciclo/tipo).
+- **Decisão:** o card **Novos** (calouros + regresso + recompra) do Dashboard Acadêmico passa a usar `_crgm_periodo_data_oficial` + regra `vendas_liquidas` do Comercial quando há ciclo SIAA mapeável em `ciclos_comercial` (ex.: `2026/2` → 14/05–15/12) ou De/Até explícito. Fonte oficial = **8.185**.
+- **Rematrículas:** continuam no snapshot mais recente + coluna `ciclo` (o Comercial não conta rematrícula).
+- **UI:** subtítulo do card Novos indica "Mesmo critério do Comercial (em curso, padrão RGM)".
+- **Supervisor Acadêmico:** consome a mesma `/api/dashboard/students` — o KPI "Em curso" sobe um pouco (entra last-seen + sai cancelado dos novos). Aceito.
+- **Alternativas descartadas:** mudar o Comercial para o último arquivo (quebra ranking/meta); só filtrar situação no Acadêmico (ainda ficava 7.894 ≠ 8.185).
+- **Trade-off:** com ciclo selecionado, Novos deixa de ser "o que está no XLSX de hoje" e vira a conta oficial de venda. Sem ciclo e sem datas, o card volta ao snapshot (comportamento antigo).
+
+### 2026-07-22 — DataCrazy CRM acadêmico: UI/sync/write desativados; Upload + Kommo preservados
+- **Modelo usado:** Composer/Auto + Executor.
+- **Decisão:** Descontinuar operações de escrita/sync no CRM acadêmico (DataCrazy): aba Pipeline vira placeholder ("Atualização CRM Acadêmico"); Sync Acadêmico some do menu; bloco Update CRM some do Upload; agendamentos `sync_delta`/`sync_full` desativados. Jobs APScheduler (`register_delta_interval`, `_run_scheduled_sync`) viraram no-op. Rotas de write removidas/410. Scripts Python de write deletados (`update_crm.py`, `sanitize_crm.py`, etc.); `sync.py` mantido para cleanup futuro. Botão "Atualizar Inadimplência" pós-upload em Distribuição removido (empurrava pro DC).
+- **Preservado:** Upload Acadêmico (snapshots/dashboards), Sync/Delta Kommo (comercial), Match/Merge, busca no espelho (`/api/search`) e search-xl. Espelho local `leads` read-only.
+- **Deixado pra depois:** apagar `sync.py`/tabelas espelho; página Buscar DC; `datacrazy_user_id`; Disparador WhatsApp (outro app).
+- **Alternativas descartadas:** deletar espelho agora (quebra busca histórica); migrar já pro CRM novo (ainda indefinido).
+
 ### 2026-07-14 — Dashboard Comercial: ranking/KPIs alinham a Matrículas Oficiais (bypass ciclo_atual com datas + all_snapshots)
 - **Modelo usado:** Composer/Auto + Strategist (diagnóstico); Executor (Sonnet 4.6) implementou.
 - **Problema:** Rahi tinha 8 matrículas oficiais vs 6 no Dashboard Comercial (RGMs 49497464, 49504291 ausentes); "Consultar RGM" retornava "não encontrado na base" para alunos de ciclo ≠ ciclo_atual.

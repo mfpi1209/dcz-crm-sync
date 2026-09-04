@@ -18,6 +18,7 @@ from collections import defaultdict
 import io
 import logging
 import re
+import threading
 import time
 import requests
 from datetime import datetime, date, timedelta
@@ -394,9 +395,61 @@ def _crgm_dashboard_rgm_list(dt_ini: str, dt_fim: str,
         return []
 
 
+_LATEST_RGMS_CACHE = {"snapshot_id": None, "rgms": set()}
+_LATEST_RGMS_LOCK = threading.Lock()
+
+
+def _crgm_latest_snapshot_rgms(conn=None):
+    """RGMs normalizados presentes no snapshot 'matriculados' mais recente.
+
+    Cacheado por snapshot_id: a varredura só refaz quando entra um upload novo.
+    Sem isso, cada agente do ranking repetiria o scan do snapshot inteiro.
+    """
+    _conn = None
+    _own = conn is None
+    try:
+        _conn = conn if conn is not None else _pg()
+        with _conn.cursor() as cur:
+            cur.execute(
+                "SELECT id FROM xl_snapshots WHERE tipo = 'matriculados' "
+                "ORDER BY id DESC LIMIT 1"
+            )
+            row = cur.fetchone()
+            if not row:
+                return set()
+            snap_id = row[0]
+
+            with _LATEST_RGMS_LOCK:
+                if _LATEST_RGMS_CACHE["snapshot_id"] == snap_id:
+                    return _LATEST_RGMS_CACHE["rgms"]
+
+            cur.execute("""
+                SELECT DISTINCT regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g')
+                FROM xl_rows r
+                WHERE r.snapshot_id = %s
+                  AND COALESCE(r.data->>'rgm','') ~ '[0-9]'
+            """, (snap_id,))
+            rgms = {r[0] for r in cur.fetchall() if r[0]}
+
+        with _LATEST_RGMS_LOCK:
+            _LATEST_RGMS_CACHE["snapshot_id"] = snap_id
+            _LATEST_RGMS_CACHE["rgms"] = rgms
+        return rgms
+    except Exception as e:
+        logger.warning("_crgm_latest_snapshot_rgms: %s", e)
+        return set()
+    finally:
+        if _conn is not None and _own:
+            try:
+                _conn.close()
+            except Exception:
+                pass
+
+
 def _crgm_periodo_data(
     dt_ini=None, dt_fim=None, polo=None, nivel=None, ciclo_filter=None, turma=None,
-    conn=None, *, all_snapshots=False, situacao_filter=None,
+    conn=None, *, all_snapshots=False, situacao_filter=None, require_latest_presence=False,
+    mark_missing_as_transferido=False,
 ):
     """
     Retorna TODOS os RGMs únicos do período (registro mais recente por id),
@@ -414,6 +467,12 @@ def _crgm_periodo_data(
       do snapshot mais recente sejam incluídos. Padrão: False (comportamento anterior).
     - situacao_filter (str | None): se fornecido (ex. 'EM CURSO'), filtra a camada
       deduplicada pela situação exata (UPPER). Padrão: None (sem filtro de situação).
+    - require_latest_presence (bool): quando True, mantém apenas RGMs ainda presentes
+      no CSV mais recente. Evita que alunos que sumiram do relatório atual (ex. transferência
+      de polo) continuem contando via last-seen de snapshots antigos.
+    - mark_missing_as_transferido (bool): mesma detecção do anterior, mas em vez de
+      descartar quem sumiu do CSV atual, marca a situação como TRANSFERIDO. Sai do
+      EM CURSO (não conta venda) e entra na evasão.
     - Bypass de ciclo com datas: quando dt_ini ou dt_fim estão presentes, o recorte por
       ciclo_atual_comercial NÃO é aplicado — o filtro de data é suficiente. Com
       ciclo_filter explícito, aplica filtro textual de ciclo SIAA.
@@ -458,8 +517,10 @@ def _crgm_periodo_data(
 
         outer_where = ("WHERE " + " AND ".join(outer_conds)) if outer_conds else ""
 
-        # Fonte de snapshots: só o mais recente (padrão) ou todos os snapshots
-        # matriculados (all_snapshots=True, alinha dedupe ao Matrículas Oficiais).
+        # A checagem de presença no CSV atual é feita em Python (um SELECT no snapshot
+        # mais recente), não com EXISTS correlacionado — este varria o histórico inteiro
+        # em JSONB e travava as rotas por minutos.
+        check_latest = require_latest_presence or mark_missing_as_transferido
         if all_snapshots:
             snapshot_cond = "s.tipo = 'matriculados'"
             # s.id DESC garante que, no DISTINCT ON, o snapshot mais recente tem
@@ -471,12 +532,13 @@ def _crgm_periodo_data(
             snapshot_order = ""
 
         sql = f"""
-            SELECT rgm, nome, situacao, data_matricula, polo, nivel, ciclo
+            SELECT rgm, nome, situacao, data_matricula, polo, nivel, ciclo, tipo_matricula
             FROM (
                 SELECT DISTINCT ON (regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g'))
                     regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g')  AS rgm,
                     NULLIF(TRIM(COALESCE(r.data->>'nome','')), '')                  AS nome,
                     UPPER(TRIM(COALESCE(r.data->>'situacao','')))                   AS situacao,
+                    UPPER(TRIM(COALESCE(r.data->>'tipo_matricula','')))             AS tipo_matricula,
                     CASE
                         WHEN (r.data->>'data_mat') ~ '^[0-9]{{2}}/[0-9]{{2}}/[0-9]{{4}}$'
                             THEN to_date(r.data->>'data_mat','DD/MM/YYYY')
@@ -528,7 +590,7 @@ def _crgm_periodo_data(
         cur.close()
 
         result = []
-        for rgm, nome, situacao, dm, polo_v, nivel_v, ciclo_v in rows:
+        for rgm, nome, situacao, dm, polo_v, nivel_v, ciclo_v, tipo_v in rows:
             if not rgm:
                 continue
             try:
@@ -543,9 +605,26 @@ def _crgm_periodo_data(
                 "polo": polo_v or "",
                 "nivel": nivel_v or "",
                 "ciclo": ciclo_v or "",
+                "tipo_matricula": tipo_v or "",
             })
         if polo:
             result = [r for r in result if normalize_polo_display(r.get("polo") or "") == polo]
+
+        if check_latest:
+            latest_rgms = _crgm_latest_snapshot_rgms(_conn)
+            if latest_rgms:
+                if mark_missing_as_transferido:
+                    for r in result:
+                        if r["rgm"] not in latest_rgms:
+                            # Sumir do relatório atual = transferência para outro polo.
+                            r["situacao"] = "TRANSFERIDO"
+                            r["sumiu_do_csv"] = True
+                    # situacao_filter foi aplicado no SQL, antes da marcação.
+                    if situacao_filter:
+                        alvo = situacao_filter.upper()
+                        result = [r for r in result if r["situacao"] == alvo]
+                else:
+                    result = [r for r in result if r["rgm"] in latest_rgms]
         return result
 
     except Exception as e:
@@ -562,7 +641,8 @@ def _crgm_periodo_data(
 def _crgm_periodo_data_oficial(
     dt_ini=None, dt_fim=None, polo=None, nivel=None,
     ciclo_filter=None, turma=None, conn=None,
-    situacao_filter=None,
+    situacao_filter=None, require_latest_presence=False,
+    mark_missing_as_transferido=False,
 ):
     """Universo alinhado a Matrículas Oficiais: usa all_snapshots=True para garantir
     que RGMs presentes em qualquer snapshot 'matriculados' (não apenas o mais recente)
@@ -575,6 +655,8 @@ def _crgm_periodo_data_oficial(
         ciclo_filter=ciclo_filter, turma=turma, conn=conn,
         all_snapshots=True,
         situacao_filter=situacao_filter,
+        require_latest_presence=require_latest_presence,
+        mark_missing_as_transferido=mark_missing_as_transferido,
     )
 
 
@@ -2893,6 +2975,7 @@ def _build_agent_ranking_completa_vw(
             dt_ini=dt_ini, dt_fim=dt_fim, polo=polo, nivel=nivel,
             ciclo_filter=ciclo, turma=turma, conn=conn,
             situacao_filter="EM CURSO",
+            require_latest_presence=True,
         )
         rgm_nome = {}
         rgm_date_map = {}      # rgm → 'YYYY-MM-DD', para matriculas_grid (EM CURSO)
@@ -2912,11 +2995,10 @@ def _build_agent_ranking_completa_vw(
                 rgm_date_map[n] = str(_dm_str)[:10]
 
         # Regra de recuperação (janela ancorada no início da meta = dia 01 do mês):
-        # inclui alunos que estavam EM CURSO em QUALQUER relatório enviado a partir do
-        # dia 01 e que sumiram do relatório mais recente. Cobre dois casos:
-        #   (a) cancelamento após a meta (EM CURSO durante a meta, cancelado depois = conta);
-        #   (b) volatilidade do SIAA — matrícula ativa que some de um upload sem aparecer
-        #       como cancelada (fica na Minha Performance mas caía do ranking).
+        # mantém apenas o caso (a) cancelamento após a meta. O caso antigo de
+        # "sumiu do CSV mais recente" foi removido porque, operacionalmente, esses
+        # alunos representam transferência para outro polo e não devem continuar
+        # contando para a carteira atual.
         # Antes a janela era limitada a uploads feitos ATÉ dt_fim, o que perdia matrículas
         # de um dia passado cujo primeiro relatório só chegou depois daquele dia.
         if dt_fim:
@@ -2941,6 +3023,16 @@ def _build_agent_ranking_completa_vw(
                 "upper(trim(coalesce(r.data->>'tipo_matricula',''))) = ANY(ARRAY['NOVA MATRICULA','RECOMPRA','RETORNO'])",
                 "trim(coalesce(r.data->>'empresa','')) ~ '^(12|7) -'",
                 "coalesce(r.data->>'rgm','') ~ '\\d'",
+                """regexp_replace(coalesce(r.data->>'rgm',''), '[^0-9]', '', 'g') IN (
+                    SELECT regexp_replace(coalesce(rl.data->>'rgm',''), '[^0-9]', '', 'g')
+                    FROM xl_rows rl
+                    WHERE rl.snapshot_id = (
+                        SELECT id FROM xl_snapshots
+                        WHERE tipo = 'matriculados'
+                        ORDER BY id DESC LIMIT 1
+                    )
+                      AND coalesce(rl.data->>'rgm','') ~ '[0-9]'
+                )""",
                 f"""(({_NIVEL_CASE} = 'Graduação'
                     AND trim(r.data->>'ciclo') = (SELECT ciclo FROM ciclo_atual_comercial WHERE nivel='Graduação'))
                    OR ({_NIVEL_CASE} = 'Pós-Graduação'
@@ -3544,11 +3636,13 @@ def _crgm_compute_kpis(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -> d
             dt_ini=_pd_dt_ini, dt_fim=_pd_dt_fim,
             polo=polo or None, nivel=nivel or None,
             turma=turma_nome or None, conn=conn,
+            mark_missing_as_transferido=True,
         )
     else:
         ciclo_all = _crgm_periodo_data_oficial(
             polo=polo or None, nivel=nivel or None,
             turma=turma_nome or None, conn=conn,
+            mark_missing_as_transferido=True,
         )
     _lap("ciclo_all_xl_rows")
 
@@ -3856,11 +3950,13 @@ def _crgm_compute_agentes(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -
             dt_ini=_pd_dt_ini, dt_fim=_pd_dt_fim,
             polo=polo or None, nivel=nivel or None,
             turma=turma_nome or None, conn=conn,
+            require_latest_presence=True,
         )
     else:
         ciclo_all = _crgm_periodo_data_oficial(
             polo=polo or None, nivel=nivel or None,
             turma=turma_nome or None, conn=conn,
+            require_latest_presence=True,
         )
     _lap("ciclo_all_xl_rows")
 
@@ -4116,11 +4212,13 @@ def _crgm_compute_grids(polo, nivel, dt_ini, dt_fim, ciclo_nome, turma_nome) -> 
             dt_ini=_pd_dt_ini, dt_fim=_pd_dt_fim,
             polo=polo or None, nivel=nivel or None,
             turma=turma_nome or None, conn=conn,
+            mark_missing_as_transferido=True,
         )
     else:
         ciclo_all = _crgm_periodo_data_oficial(
             polo=polo or None, nivel=nivel or None,
             turma=turma_nome or None, conn=conn,
+            mark_missing_as_transferido=True,
         )
     _lap("ciclo_all_xl_rows")
 

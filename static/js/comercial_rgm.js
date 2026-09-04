@@ -4,6 +4,7 @@
 
 let _crgmChartEvolucao = null;
 let _crgmChartAgentes = null;
+let _crgmInfoOpenId = null;
 
 // ── Cross-filter state ───────────────────────────────────
 const _crgmCrossFilter = {
@@ -21,6 +22,29 @@ function _crgmChartTheme() {
         grid: dark ? 'rgba(100,116,139,0.1)' : 'rgba(0, 52, 111, 0.07)',
         prevLine: dark ? '#64748b' : '#7d8ea3',
     };
+}
+
+function crgmToggleInfo(id) {
+    _crgmInfoOpenId = _crgmInfoOpenId === id ? null : id;
+    document.querySelectorAll('[id^="crgm-"][id$="-info"]').forEach((el) => {
+        el.classList.toggle('hidden', el.id !== _crgmInfoOpenId);
+    });
+}
+
+function _crgmHeroFilterText() {
+    const ciclo = document.getElementById('crgm-ciclo');
+    const nivel = document.getElementById('crgm-nivel');
+    const polo = document.getElementById('crgm-polo');
+    const turma = document.getElementById('crgm-turma');
+    const dtIni = document.getElementById('crgm-dt-ini');
+    const dtFim = document.getElementById('crgm-dt-fim');
+    const parts = [];
+    if (ciclo?.selectedOptions?.[0]?.textContent?.trim()) parts.push(`ciclo ${ciclo.selectedOptions[0].textContent.trim()}`);
+    if (nivel?.value) parts.push(`nível ${nivel.value}`);
+    if (polo?.value) parts.push(`polo ${polo.value}`);
+    if (turma?.selectedOptions?.[0]?.textContent?.trim() && turma.value) parts.push(`turma ${turma.selectedOptions[0].textContent.trim()}`);
+    if (dtIni?.value || dtFim?.value) parts.push(`período ${dtIni?.value || '…'} até ${dtFim?.value || '…'}`);
+    return parts.length ? `Filtros ativos: ${parts.join(' · ')}.` : 'Sem filtro extra além do card.';
 }
 
 /** Escolhe o período (dt_ini/dt_fim) mais recente entre comercial_metas e campanhas de Premiação. */
@@ -335,17 +359,36 @@ function _crgmRenderKPIs(k) {
     // Mostra líquido se diferente do bruto
     const liqEl = document.getElementById('crgm-vendas-liquidas');
     const liqLabel = document.getElementById('crgm-vendas-liquidas-label');
+    const heroInfo = document.getElementById('crgm-hero-info');
     if (liqEl && liqLabel && k.vendas_liquidas != null && k.vendas_liquidas !== k.vendas) {
         liqEl.textContent = k.vendas_liquidas.toLocaleString('pt-BR');
         liqLabel.classList.remove('hidden');
     } else if (liqLabel) {
         liqLabel.classList.add('hidden');
     }
+    if (heroInfo) {
+        heroInfo.textContent =
+            'Conta matrículas do período com tipos Nova Matrícula, Recompra e Retorno. ' +
+            'O bruto inclui todas as situações; "em curso" mostra só EM CURSO. ' +
+            'Quem sumiu do CSV mais recente entra na evasão como TRANSFERIDO (transferência de polo) e sai do em curso. ' +
+            'Alunos fora do padrão RGM aparecem no card laranja ao lado e ficam fora da meta. ' +
+            _crgmHeroFilterText();
+    }
     const fpHint = document.getElementById('crgm-fora-padrao-hint');
+    const fpMini = document.getElementById('crgm-fora-padrao-mini');
+    const fpMiniN = document.getElementById('crgm-fora-padrao-mini-n');
     const fpTotal = k.fora_padrao_total || 0;
+    if (fpMini && fpMiniN) {
+        if (fpTotal > 0) {
+            fpMiniN.textContent = fpTotal.toLocaleString('pt-BR');
+            fpMini.classList.remove('hidden');
+        } else {
+            fpMini.classList.add('hidden');
+        }
+    }
     if (fpHint) {
         if (fpTotal > 0) {
-            fpHint.textContent = `+ ${fpTotal.toLocaleString('pt-BR')} fora do padrão RGM (ver detalhes)`;
+            fpHint.textContent = `${fpTotal.toLocaleString('pt-BR')} alunos em curso — ver lista`;
             fpHint.classList.remove('hidden');
         } else {
             fpHint.classList.add('hidden');

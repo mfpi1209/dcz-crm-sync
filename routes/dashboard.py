@@ -1,4 +1,6 @@
+import logging
 import re
+import threading
 import traceback
 import unicodedata
 from datetime import date, datetime
@@ -8,7 +10,7 @@ import psycopg2.extras
 import requests
 from flask import Blueprint, render_template, request, jsonify, current_app
 
-from db import get_conn
+from db import get_conn, get_disparos_conn
 from helpers import BRT, to_brt, normalize_polo_display
 
 dashboard_bp = Blueprint("dashboard", __name__)
@@ -39,55 +41,80 @@ def _get_process_state():
     return _sync_running, _update_running
 
 
-def _is_rematricula_empresa(empresa):
-    """Rematrícula conta só Graduação EAD (código 12). Pós (7) e UCS-CL (79) ficam fora."""
+def _is_rematricula_empresa(empresa, nivel=None):
+    """Graduação conta só empresa 12; Pós usa o próprio tipo_matricula do snapshot."""
+    if (nivel or "").strip() == "Pós-Graduação":
+        return True
     return bool(re.match(r'^12 -', (empresa or '').strip()))
+
+
+# Colunas derivadas de matriculados_rows.data (DB disparos / Bases do Disparador).
+# Headers do XLSX SIAA vêm em Title Case com acento; COALESCE cobre aliases.
+_J_EMPRESA = "COALESCE(r.data->>'Empresa', r.data->>'empresa', '')"
+_J_TIPO = "COALESCE(r.data->>'Tipo Matrícula', r.data->>'Tipo Matricula', r.data->>'tipo_matricula', '')"
+_J_SIT = "COALESCE(r.data->>'Situação Matrícula', r.data->>'Situacao Matricula', r.data->>'situacao', '')"
+_J_CICLO = "COALESCE(r.data->>'Ciclo', r.data->>'ciclo', '')"
+_J_POLO = "COALESCE(r.data->>'Polo', r.data->>'polo', '')"
+_J_RGM = "COALESCE(r.data->>'RGM', r.data->>'rgm', '')"
+_J_CURSO = "COALESCE(r.data->>'Curso', r.data->>'curso', '')"
+_J_NIVEL = "COALESCE(r.data->>'nível', r.data->>'nivel', '')"
+_J_NEGOCIO = "COALESCE(r.data->>'Negócio', r.data->>'Negocio', r.data->>'negocio', '')"
+_J_DATA_MAT = "COALESCE(r.data->>'Data Matrícula', r.data->>'Data Matricula', r.data->>'data_mat', r.data->>'data_matricula', '')"
+
+_MAT_COLS = rf"""
+        {_J_TIPO} AS tipo_aluno,
+        {_J_EMPRESA} AS empresa,
+        CASE
+          WHEN {_J_DATA_MAT} ~ '^\d{{2}}/\d{{2}}/\d{{4}}' THEN
+            TO_DATE(SUBSTRING({_J_DATA_MAT} FROM 1 FOR 10), 'DD/MM/YYYY')
+          WHEN {_J_DATA_MAT} ~ '^\d{{4}}-\d{{2}}-\d{{2}}' THEN
+            (SUBSTRING({_J_DATA_MAT} FROM 1 FOR 10))::date
+          ELSE NULL
+        END AS data_matricula,
+        -- TRANSFERIDO no relatório = aluno que veio de outro polo para a gente.
+        CASE
+          WHEN TRIM({_J_SIT}) ~* '^transfer' THEN 'EM CURSO'
+          ELSE NULLIF(TRIM({_J_SIT}), '')
+        END AS situacao,
+        CASE
+          WHEN {_J_NIVEL} != '' THEN
+            CASE WHEN {_J_NIVEL} ~* 'p[oó]s' THEN 'Pós-Graduação'
+                 ELSE 'Graduação' END
+          WHEN {_J_NEGOCIO} ~* 'p[oó]s' THEN 'Pós-Graduação'
+          WHEN {_J_CURSO} ~* '(mba|especializa[cç][aã]o|p[oó]s.gradua|lato.sensu|stricto)'
+               THEN 'Pós-Graduação'
+          ELSE 'Graduação'
+        END AS nivel,
+        TRIM(REGEXP_REPLACE({_J_POLO}, '^\d+\s*[-–]\s*', '')) AS polo,
+        NULLIF(regexp_replace({_J_RGM}, '[^0-9]', '', 'g'), '') AS rgm,
+        {_J_CURSO} AS turma,
+        CASE
+          WHEN TRIM({_J_CICLO}) ~ '^\d{{4}}/\d$'
+            THEN TRIM({_J_CICLO})
+          ELSE NULL
+        END AS ciclo,
+        (TRIM({_J_SIT}) ~* '^transfer') AS inbound_transfer
+"""
 
 
 def _mat_cte_sql(empresa_re=r'^(12|7) -'):
     return f"""
 WITH mat AS (
     SELECT
-        r.data->>'tipo_matricula' AS tipo_aluno,
-        r.data->>'empresa' AS empresa,
-        CASE
-          WHEN r.data->>'data_mat' ~ '^\\d{{2}}/\\d{{2}}/\\d{{4}}' THEN
-            TO_DATE(SUBSTRING(r.data->>'data_mat' FROM 1 FOR 10), 'DD/MM/YYYY')
-          WHEN r.data->>'data_mat' ~ '^\\d{{4}}-\\d{{2}}-\\d{{2}}' THEN
-            (SUBSTRING(r.data->>'data_mat' FROM 1 FOR 10))::date
-          ELSE NULL
-        END AS data_matricula,
-        r.data->>'situacao' AS situacao,
-        CASE
-          WHEN COALESCE(r.data->>'nivel','') != '' THEN
-            CASE WHEN r.data->>'nivel' ~* 'p[oó]s' THEN 'Pós-Graduação'
-                 ELSE 'Graduação' END
-          WHEN r.data->>'negocio' ~* 'p[oó]s' THEN 'Pós-Graduação'
-          WHEN r.data->>'curso' ~* '(mba|especializa[cç][aã]o|p[oó]s.gradua|lato.sensu|stricto)'
-               THEN 'Pós-Graduação'
-          ELSE 'Graduação'
-        END AS nivel,
-        TRIM(REGEXP_REPLACE(COALESCE(r.data->>'polo',''), '^\\d+\\s*[-–]\\s*', '')) AS polo,
-        NULLIF(regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g'), '') AS rgm,
-        r.data->>'curso' AS turma,
-        CASE
-          WHEN TRIM(COALESCE(r.data->>'ciclo','')) ~ '^\\d{{4}}/\\d$'
-            THEN TRIM(r.data->>'ciclo')
-          ELSE NULL
-        END AS ciclo
-    FROM xl_rows r
+{_MAT_COLS}
+    FROM matriculados_rows r
     WHERE r.snapshot_id = (
-        SELECT id FROM xl_snapshots
-        WHERE tipo = 'matriculados' ORDER BY id DESC LIMIT 1
+        SELECT id FROM matriculados_snapshots
+        ORDER BY created_at DESC LIMIT 1
     )
-      AND TRIM(COALESCE(r.data->>'empresa','')) ~ '{empresa_re}'
+      AND TRIM({_J_EMPRESA}) ~ '{empresa_re}'
 )
 """
 
 
 # Dashboard geral: Graduação (12) + Pós UCS (7).
 _MAT_CTE = _mat_cte_sql(r'^(12|7) -')
-# Rematrícula: só Graduação EAD (12) — Pós não rematricula; UCS-CL (79) fora do escopo.
+# Rematrícula timeline: só Graduação EAD (12) — UCS-CL (79) fora do escopo.
 _MAT_CTE_REMAT = _mat_cte_sql(r'^12 -')
 
 # Data em que o SIAA liberou rematrícula por ciclo destino (antes disso não há conversão).
@@ -140,31 +167,6 @@ def _is_em_curso_sit(sit_norm):
     return sit_norm == "em curso"
 
 
-def _rgm_fora_padrao_nao_conta(rgm, dom_pfx, overrides):
-    from routes.comercial_rgm import (
-        _is_rgm_prefix_outlier,
-        _rgm_conta_para_venda,
-    )
-
-    if not rgm or dom_pfx is None:
-        return False
-    return _is_rgm_prefix_outlier(rgm, dom_pfx) and not _rgm_conta_para_venda(
-        rgm, dom_pfx, overrides
-    )
-
-
-def _matches_rgm_padrao_filter(rgm, sit_norm, mode, dom_pfx, overrides):
-    """mode: todos | padrao | fora_padrao — mesma regra do Dashboard Comercial."""
-    mode = (mode or "todos").strip().lower()
-    if mode in ("", "todos"):
-        return True
-    if not _is_em_curso_sit(sit_norm):
-        return mode != "fora_padrao"
-    if _rgm_fora_padrao_nao_conta(rgm, dom_pfx, overrides):
-        return mode == "fora_padrao"
-    return mode != "fora_padrao"
-
-
 # ---------------------------------------------------------------------------
 # Rota — Index
 # ---------------------------------------------------------------------------
@@ -182,24 +184,30 @@ def index():
 
 @dashboard_bp.route("/api/dashboard")
 def api_dashboard():
-    conn = get_conn()
+    conn = get_disparos_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute("""
-                SELECT id, tipo, filename, row_count, uploaded_at
-                FROM xl_snapshots WHERE tipo = 'matriculados'
-                ORDER BY id DESC LIMIT 1
+                SELECT id::text AS id, 'matriculados' AS tipo,
+                       file_name AS filename, row_count,
+                       created_at AS uploaded_at
+                FROM matriculados_snapshots
+                ORDER BY created_at DESC LIMIT 1
             """)
             snap = cur.fetchone()
             diag = None
             if snap:
                 snap["uploaded_at"] = to_brt(snap["uploaded_at"])
-                cur.execute("""
+                snap["fonte"] = "disparador"
+                cur.execute(f"""
                     SELECT
-                        ARRAY_AGG(DISTINCT r.data->>'negocio') FILTER (WHERE r.data->>'negocio' IS NOT NULL AND r.data->>'negocio' != '') AS negocio_vals,
-                        ARRAY_AGG(DISTINCT r.data->>'nivel')   FILTER (WHERE r.data->>'nivel' IS NOT NULL AND r.data->>'nivel' != '')     AS nivel_vals,
-                        ARRAY_AGG(DISTINCT r.data->>'tipo_matricula') FILTER (WHERE r.data->>'tipo_matricula' IS NOT NULL AND r.data->>'tipo_matricula' != '') AS tipo_vals
-                    FROM (SELECT r.data FROM xl_rows r WHERE r.snapshot_id = %s LIMIT 500) r
+                        ARRAY_AGG(DISTINCT {_J_NEGOCIO}) FILTER (WHERE {_J_NEGOCIO} IS NOT NULL AND {_J_NEGOCIO} != '') AS negocio_vals,
+                        ARRAY_AGG(DISTINCT {_J_NIVEL}) FILTER (WHERE {_J_NIVEL} IS NOT NULL AND {_J_NIVEL} != '') AS nivel_vals,
+                        ARRAY_AGG(DISTINCT {_J_TIPO}) FILTER (WHERE {_J_TIPO} IS NOT NULL AND {_J_TIPO} != '') AS tipo_vals
+                    FROM (
+                        SELECT r.data FROM matriculados_rows r
+                        WHERE r.snapshot_id = %s::uuid LIMIT 500
+                    ) r
                 """, (snap["id"],))
                 diag = cur.fetchone()
 
@@ -218,8 +226,149 @@ def api_dashboard():
 
 
 # ---------------------------------------------------------------------------
-# Rotas — Dashboard: Métricas de Alunos (from xl_rows snapshots)
+# Rotas — Dashboard: Métricas de Alunos (fonte: Bases Disparador / disparos)
 # ---------------------------------------------------------------------------
+
+# Alunos que já estiveram em algum relatório de matriculados e não estão no mais
+# recente: na prática são transferências para outro polo. Entram no dashboard como
+# situação TRANSFERIDO, com os dados da última vez em que foram vistos.
+_SUMIDOS_QUERY = f"""
+WITH latest AS (
+    SELECT id FROM matriculados_snapshots ORDER BY created_at DESC LIMIT 1
+),
+latest_rgms AS (
+    SELECT DISTINCT NULLIF(regexp_replace({_J_RGM}, '[^0-9]', '', 'g'), '') AS rgm
+    FROM matriculados_rows r
+    WHERE r.snapshot_id = (SELECT id FROM latest)
+),
+hist AS (
+    SELECT s.created_at AS snap_at,
+{_MAT_COLS}
+    FROM matriculados_rows r
+    JOIN matriculados_snapshots s ON s.id = r.snapshot_id
+    WHERE TRIM({_J_EMPRESA}) ~ '^(12|7) -'
+      AND NULLIF(regexp_replace({_J_RGM}, '[^0-9]', '', 'g'), '') IS NOT NULL
+      AND NOT EXISTS (
+          SELECT 1 FROM latest_rgms lr
+          WHERE lr.rgm = NULLIF(regexp_replace({_J_RGM}, '[^0-9]', '', 'g'), '')
+      )
+),
+ultimo AS (
+    SELECT DISTINCT ON (rgm) *
+    FROM hist
+    ORDER BY rgm, snap_at DESC
+)
+SELECT
+    COALESCE(u.tipo_aluno, 'Não informado') AS tipo,
+    u.empresa,
+    'TRANSFERIDO' AS situacao,
+    u.nivel,
+    u.polo,
+    u.turma,
+    u.ciclo,
+    u.rgm,
+    u.data_matricula,
+    1 AS total
+FROM ultimo u
+"""
+
+_SUMIDOS_CACHE = {"snapshot_id": None, "rows": None}
+_SUMIDOS_LOCK = threading.Lock()
+_SUMIDOS_REFRESHING = set()
+
+
+def _sumidos_latest_snapshot_id(conn):
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT id FROM matriculados_snapshots ORDER BY created_at DESC LIMIT 1"
+        )
+        row = cur.fetchone()
+    return row[0] if row else None
+
+
+def _compute_sumidos(conn, snap_id):
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(_SUMIDOS_QUERY)
+        rows = cur.fetchall()
+    with _SUMIDOS_LOCK:
+        _SUMIDOS_CACHE["snapshot_id"] = snap_id
+        _SUMIDOS_CACHE["rows"] = rows
+    return rows
+
+
+def _refresh_sumidos_async(snap_id):
+    def _run():
+        conn = None
+        try:
+            conn = get_disparos_conn()
+            _compute_sumidos(conn, snap_id)
+        except Exception as e:
+            logging.getLogger(__name__).warning("warm sumidos: %s", e)
+        finally:
+            if conn is not None:
+                conn.close()
+            _SUMIDOS_REFRESHING.discard(snap_id)
+
+    if snap_id in _SUMIDOS_REFRESHING:
+        return
+    _SUMIDOS_REFRESHING.add(snap_id)
+    threading.Thread(target=_run, daemon=True, name="warm-sumidos").start()
+
+
+def _academic_sumidos_rows(conn):
+    """Linhas TRANSFERIDO dos alunos ausentes do relatório mais recente (Disparador)."""
+    snap_id = _sumidos_latest_snapshot_id(conn)
+    if snap_id is None:
+        return []
+
+    cached_id = _SUMIDOS_CACHE["snapshot_id"]
+    cached_rows = _SUMIDOS_CACHE["rows"]
+    if cached_id == snap_id:
+        return cached_rows
+    if cached_rows is not None:
+        _refresh_sumidos_async(snap_id)
+        return cached_rows
+    return _compute_sumidos(conn, snap_id)
+
+
+def warm_academic_sumidos_cache():
+    """Pré-aquece o cache no boot para ninguém pagar a varredura na primeira visita."""
+    def _run():
+        conn = None
+        try:
+            conn = get_disparos_conn()
+            snap_id = _sumidos_latest_snapshot_id(conn)
+            if snap_id is not None and _SUMIDOS_CACHE["snapshot_id"] != snap_id:
+                _compute_sumidos(conn, snap_id)
+        except Exception as e:
+            logging.getLogger(__name__).warning("warm sumidos (boot): %s", e)
+        finally:
+            if conn is not None:
+                conn.close()
+
+    threading.Thread(target=_run, daemon=True, name="warm-sumidos-boot").start()
+
+
+def _filter_sumidos(rows, dt_from=None, dt_to=None, nivel=None, ciclo=None):
+    """Aplica os mesmos recortes do _STUDENT_METRICS_QUERY nas linhas sumidas."""
+    di = date.fromisoformat(dt_from) if dt_from else None
+    df = date.fromisoformat(dt_to) if dt_to else None
+    out = []
+    for r in rows:
+        dm = r.get("data_matricula")
+        if (di or df) and dm is None:
+            continue
+        if di and dm < di:
+            continue
+        if df and dm > df:
+            continue
+        if nivel and r.get("nivel") != nivel:
+            continue
+        if ciclo and r.get("ciclo") != ciclo:
+            continue
+        out.append(r)
+    return out
+
 
 _STUDENT_METRICS_QUERY = _MAT_CTE + """
 SELECT
@@ -231,6 +380,7 @@ SELECT
     m.turma,
     m.ciclo AS ciclo,
     m.rgm,
+    BOOL_OR(COALESCE(m.inbound_transfer, FALSE)) AS inbound_transfer,
     COUNT(*) AS total
 FROM mat m
 WHERE (%(dt_from)s IS NULL OR m.data_matricula >= %(dt_from)s::date)
@@ -252,11 +402,8 @@ def api_dashboard_students():
     f_ciclo = request.args.get("ciclo", "")
     f_tipo = request.args.get("tipo", "")
     f_polo = request.args.get("polo", "")
-    f_rgm_padrao = (request.args.get("rgm_padrao", "") or "todos").strip().lower()
-    if f_rgm_padrao not in ("todos", "padrao", "fora_padrao"):
-        f_rgm_padrao = "todos"
     f_sit_norm = _norm_situacao_param(f_sit)
-    conn = get_conn()
+    conn = get_disparos_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(_STUDENT_METRICS_QUERY, {
@@ -268,26 +415,20 @@ def api_dashboard_students():
             })
             rows = cur.fetchall()
 
-        from routes.comercial_rgm import (
-            _compute_dominant_rgm_prefix,
-            _load_outlier_contagem_overrides,
+        # Quem sumiu do relatório mais recente foi transferido para outro polo:
+        # entra aqui como TRANSFERIDO, com os dados da última vez que apareceu.
+        # (O caminho inverso — TRANSFERIDO no relatório, aluno que veio de outro
+        # polo para a gente — já vira EM CURSO no _MAT_COLS.)
+        rows = list(rows) + _filter_sumidos(
+            _academic_sumidos_rows(conn),
+            dt_from=dt_from, dt_to=dt_to, nivel=f_nivel, ciclo=f_ciclo,
         )
 
-        em_curso_rgms = []
-        for r in rows:
-            sn = _norm_situacao_param(r.get("situacao") or "")
-            if _is_em_curso_sit(sn) and r.get("rgm"):
-                em_curso_rgms.append(r["rgm"])
-        dom_pfx = _compute_dominant_rgm_prefix(em_curso_rgms)
-        overrides = _load_outlier_contagem_overrides(conn)
-        fora_padrao_total = 0
-        for r in rows:
-            sn = _norm_situacao_param(r.get("situacao") or "")
-            if _is_em_curso_sit(sn) and _rgm_fora_padrao_nao_conta(
-                r.get("rgm"), dom_pfx, overrides
-            ):
-                fora_padrao_total += r["total"]
-
+        # Novos vêm do próprio snapshot (calouros + regresso + recompra). O
+        # alinhamento ao "em curso" do Comercial foi revertido a pedido: as duas
+        # telas voltam a ter recortes próprios. O recorte de "RGM fora do padrão"
+        # também saiu daqui — no Acadêmico ele pegava todos os veteranos de
+        # ciclos anteriores e não dizia nada; ele vive só no Dashboard Comercial.
         totals = {"novos": 0, "regresso": 0, "recompra": 0, "rematricula": 0, "outros": 0}
         by_situacao = {}
         by_nivel = {}
@@ -296,11 +437,16 @@ def api_dashboard_students():
         by_ciclo = {}
         by_tipo_detail = {}
         raw_tipos = {}
+        # Conta RGM único: no XLSX o mesmo aluno pode vir em 2 linhas (TRANSFERIDO +
+        # EM CURSO). O GROUP BY junta as duas, BOOL_OR marca inbound e COUNT(*)=2 —
+        # somar total inflava o pill (ex.: 77) vs a lista (só linhas transfer = 42).
+        inbound_rgms = set()
+        inbound_sem_rgm = 0
 
         for r in rows:
             tipo = r["tipo"] or "Não informado"
             cat = _classify_tipo(tipo)
-            if cat == "rematricula" and not _is_rematricula_empresa(r.get("empresa")):
+            if cat == "rematricula" and not _is_rematricula_empresa(r.get("empresa"), r.get("nivel")):
                 continue
 
             sit = r["situacao"] or "N/I"
@@ -313,14 +459,16 @@ def api_dashboard_students():
             if f_polo and polo != f_polo:
                 continue
 
-            if not _matches_rgm_padrao_filter(
-                r.get("rgm"), sit_norm, f_rgm_padrao, dom_pfx, overrides
-            ):
-                continue
-
             # Cards de situação: sempre mostram todas as situações (respeitam ciclo/período/tipo/polo).
             if not f_tipo or _tipo_matches_filter(cat, f_tipo):
                 by_situacao[sit] = by_situacao.get(sit, 0) + r["total"]
+                # inbound = TRANSFERIDO no relatório (já remapeado para EM CURSO)
+                if r.get("inbound_transfer") and sit_norm == "em curso":
+                    rgm = (r.get("rgm") or "").strip()
+                    if rgm:
+                        inbound_rgms.add(rgm)
+                    else:
+                        inbound_sem_rgm += 1
 
             if f_sit_norm and sit_norm != f_sit_norm:
                 continue
@@ -371,15 +519,101 @@ def api_dashboard_students():
             "active_tipo": f_tipo,
             "active_situacao": f_sit or None,
             "active_polo": f_polo or None,
-            "active_rgm_padrao": f_rgm_padrao,
-            "rgm_padrao": {
-                "filter": f_rgm_padrao,
-                "dominant_prefix": dom_pfx,
-                "fora_padrao_total": fora_padrao_total,
+            "inbound_transfers": len(inbound_rgms) + inbound_sem_rgm,
+            "card_filters": {
+                "novos": (
+                    "Fonte: Bases do Disparador (último upload de Matriculados). "
+                    "Filtrado por ciclo/nível/período, somando Calouros + Regresso + Recompra. "
+                    "TRANSFERIDO no relatório vira Em Curso (veio de outro polo). "
+                    "Quem sumiu do relatório atual entra como Transferido. "
+                    "Empresas 12 (Graduação) e 7 (Pós UCS)."
+                ),
+                "rematricula": (
+                    "Fonte: Bases do Disparador. Veteranos/rematrículas do snapshot mais recente, "
+                    "filtrados por ciclo/nível/período. Em Pós-Graduação usa tipo_matricula do relatório. "
+                    "Mesma regra de transferência dos Novos."
+                ),
             },
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+_INBOUND_LIST_QUERY = f"""
+WITH latest AS (
+    SELECT id FROM matriculados_snapshots ORDER BY created_at DESC LIMIT 1
+),
+mat AS (
+    SELECT
+{_MAT_COLS},
+        COALESCE(r.data->>'Nome', r.data->>'nome', '') AS nome
+    FROM matriculados_rows r
+    WHERE r.snapshot_id = (SELECT id FROM latest)
+      AND TRIM({_J_EMPRESA}) ~ '^(12|7) -'
+      AND TRIM({_J_SIT}) ~* '^transfer'
+)
+SELECT
+    m.rgm,
+    m.nome,
+    m.polo,
+    m.turma AS curso,
+    COALESCE(m.tipo_aluno, '') AS tipo,
+    m.ciclo,
+    m.nivel,
+    m.empresa
+FROM mat m
+WHERE m.rgm IS NOT NULL
+  AND (%(dt_from)s IS NULL OR m.data_matricula >= %(dt_from)s::date)
+  AND (%(dt_to)s   IS NULL OR m.data_matricula <= %(dt_to)s::date)
+  AND (%(f_nivel)s IS NULL OR m.nivel = %(f_nivel)s)
+  AND (%(f_ciclo)s IS NULL OR m.ciclo = %(f_ciclo)s)
+ORDER BY m.nome NULLS LAST, m.rgm
+"""
+
+
+@dashboard_bp.route("/api/dashboard/inbound-transfers")
+def api_dashboard_inbound_transfers():
+    """Lista alunos que vieram de outro polo (TRANSFERIDO no relatório → Em Curso)."""
+    dt_from = request.args.get("from", "")
+    dt_to = request.args.get("to", "")
+    f_nivel = request.args.get("nivel", "")
+    f_ciclo = request.args.get("ciclo", "")
+    f_polo = request.args.get("polo", "")
+    f_tipo = request.args.get("tipo", "")
+    conn = get_disparos_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(_INBOUND_LIST_QUERY, {
+                "dt_from": dt_from or None,
+                "dt_to": dt_to or None,
+                "f_nivel": f_nivel or None,
+                "f_ciclo": f_ciclo or None,
+            })
+            rows = cur.fetchall()
+        out = []
+        for r in rows:
+            polo = normalize_polo_display(r.get("polo") or "") or "N/I"
+            if f_polo and polo != f_polo:
+                continue
+            cat = _classify_tipo(r.get("tipo") or "")
+            if f_tipo and not _tipo_matches_filter(cat, f_tipo):
+                continue
+            if cat == "rematricula" and not _is_rematricula_empresa(r.get("empresa"), r.get("nivel")):
+                continue
+            out.append({
+                "rgm": r.get("rgm") or "",
+                "nome": (r.get("nome") or "").strip() or "—",
+                "polo": polo,
+                "curso": (r.get("curso") or "").strip() or "—",
+                "tipo": r.get("tipo") or "",
+                "ciclo": r.get("ciclo") or "",
+                "nivel": r.get("nivel") or "",
+            })
+        return jsonify({"ok": True, "total": len(out), "alunos": out})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
     finally:
         conn.close()
 
@@ -418,28 +652,28 @@ def api_dashboard_ciclos_distinct():
                          (retrocompat: rematricula.js usa isso no dropdown).
     """
     count_remat_only = request.args.get("tipo", "").strip().lower() == "rematricula"
-    conn = get_conn()
+    conn = get_disparos_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute("""
+            cur.execute(f"""
                 SELECT
-                  TRIM(r.data->>'ciclo') AS ciclo,
+                  TRIM({_J_CICLO}) AS ciclo,
                   COUNT(*) AS total,
                   COUNT(*) FILTER (
-                    WHERE LOWER(COALESCE(r.data->>'tipo_matricula', '')) ~ '(remat|renovacao|veterano)'
-                      AND TRIM(COALESCE(r.data->>'empresa','')) ~ '^12 -'
+                    WHERE LOWER({_J_TIPO}) ~ '(remat|renovacao|veterano)'
+                      AND TRIM({_J_EMPRESA}) ~ '^12 -'
                   ) AS rematricula
-                FROM xl_rows r
+                FROM matriculados_rows r
                 WHERE r.snapshot_id = (
-                    SELECT id FROM xl_snapshots
-                    WHERE tipo = 'matriculados' ORDER BY id DESC LIMIT 1
+                    SELECT id FROM matriculados_snapshots
+                    ORDER BY created_at DESC LIMIT 1
                 )
-                  AND TRIM(COALESCE(r.data->>'ciclo','')) ~ '^\\d{4}/\\d$'
-                  AND TRIM(COALESCE(r.data->>'empresa','')) ~ '^(12|7) -'
+                  AND TRIM({_J_CICLO}) ~ '^\\d{{4}}/\\d$'
+                  AND TRIM({_J_EMPRESA}) ~ '^(12|7) -'
                 GROUP BY 1
                 ORDER BY
-                  (substring(TRIM(r.data->>'ciclo') from '^([0-9]{4})'))::int DESC,
-                  (substring(TRIM(r.data->>'ciclo') from '/([0-9])$'))::int DESC
+                  (substring(TRIM({_J_CICLO}) from '^([0-9]{{4}})'))::int DESC,
+                  (substring(TRIM({_J_CICLO}) from '/([0-9])$'))::int DESC
             """)
             rows = cur.fetchall()
         result = []
@@ -562,7 +796,7 @@ def api_dashboard_timeline():
         "f_sit_norm": f_sit_norm,
     }
 
-    conn = get_conn()
+    conn = get_disparos_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             if f_ciclo and not dt_from and not dt_to:
@@ -587,7 +821,7 @@ def api_dashboard_timeline():
         all_periods = set()
         for r in rows:
             cat = _classify_tipo(r["tipo"] or "")
-            if cat == "rematricula" and not _is_rematricula_empresa(r.get("empresa")):
+            if cat == "rematricula" and not _is_rematricula_empresa(r.get("empresa"), r.get("nivel")):
                 continue
             if not _tipo_matches_filter(cat, f_tipo):
                 continue
@@ -638,15 +872,13 @@ def api_dashboard_timeline():
 
 _CICLO_COMPARE_QUERY = _MAT_CTE + """
 SELECT
-    c.nome AS ciclo, c.nivel AS ciclo_nivel,
+    m.ciclo AS ciclo, m.nivel AS ciclo_nivel,
     COALESCE(m.tipo_aluno, 'Não informado') AS tipo,
     m.situacao, m.nivel, m.polo, COUNT(*) AS total
 FROM mat m
-INNER JOIN ciclos c ON c.nivel = m.nivel
-    AND m.data_matricula IS NOT NULL
-    AND m.data_matricula BETWEEN c.dt_inicio AND c.dt_fim
-GROUP BY c.nome, c.nivel, m.tipo_aluno, m.situacao, m.nivel, m.polo
-ORDER BY c.nome, total DESC
+WHERE m.ciclo IS NOT NULL
+GROUP BY m.ciclo, m.nivel, m.tipo_aluno, m.situacao, m.polo
+ORDER BY m.ciclo DESC, total DESC
 """
 
 _DATE_RANGE_QUERY = _MAT_CTE + """
@@ -688,35 +920,37 @@ def api_dashboard_ciclos():
 
     f_nivel = request.args.get("nivel") or None
 
-    conn = get_conn()
+    conn_cfg = get_conn()
+    conn = get_disparos_conn()
     try:
         today = datetime.now().date()
 
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        with conn_cfg.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             if f_nivel:
                 cur.execute("SELECT nome, nivel, dt_inicio, dt_fim FROM ciclos WHERE nivel = %s ORDER BY dt_inicio", (f_nivel,))
             else:
                 cur.execute("SELECT nome, nivel, dt_inicio, dt_fim FROM ciclos ORDER BY dt_inicio")
             ciclos_config = cur.fetchall()
 
-            cur.execute("""
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(f"""
                 SELECT nivel, COUNT(*) AS total FROM (
                     SELECT CASE
-                      WHEN COALESCE(r.data->>'nivel','') != '' THEN
-                        CASE WHEN r.data->>'nivel' ~* 'p[oó]s' THEN 'Pós-Graduação'
+                      WHEN {_J_NIVEL} != '' THEN
+                        CASE WHEN {_J_NIVEL} ~* 'p[oó]s' THEN 'Pós-Graduação'
                              ELSE 'Graduação' END
-                      WHEN r.data->>'negocio' ~* 'p[oó]s' THEN 'Pós-Graduação'
-                      WHEN r.data->>'curso' ~* '(mba|especializa[cç][aã]o|p[oó]s.gradua|lato.sensu|stricto)'
+                      WHEN {_J_NEGOCIO} ~* 'p[oó]s' THEN 'Pós-Graduação'
+                      WHEN {_J_CURSO} ~* '(mba|especializa[cç][aã]o|p[oó]s.gradua|lato.sensu|stricto)'
                            THEN 'Pós-Graduação'
                       ELSE 'Graduação'
                     END AS nivel
-                    FROM xl_rows r
+                    FROM matriculados_rows r
                     WHERE r.snapshot_id = (
-                        SELECT id FROM xl_snapshots
-                        WHERE tipo = 'matriculados' ORDER BY id DESC LIMIT 1
+                        SELECT id FROM matriculados_snapshots
+                        ORDER BY created_at DESC LIMIT 1
                     )
                 ) sub GROUP BY nivel ORDER BY total DESC
-            """, {})
+            """)
             distinct_nivels = {r["nivel"]: r["total"] for r in cur.fetchall()}
 
             cur.execute(_CICLO_COMPARE_QUERY, {})
@@ -808,7 +1042,14 @@ def api_dashboard_ciclos():
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
     finally:
-        conn.close()
+        try:
+            conn.close()
+        except Exception:
+            pass
+        try:
+            conn_cfg.close()
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------

@@ -377,13 +377,24 @@
                 <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
             </div>
             <div>
-                <p class="text-[10px] font-bold text-blue-100/90 uppercase tracking-widest">Matrículas no Período</p>
-                <div class="flex items-baseline gap-3 flex-wrap">
-                    <p class="text-4xl font-black text-white font-display" id="crgm-vendas">—</p>
-                    <p class="text-sm text-blue-200/80 hidden" id="crgm-vendas-liquidas-label">
-                        <span class="text-emerald-300 font-bold" id="crgm-vendas-liquidas">—</span> em curso
-                    </p>
+                <div class="flex items-center gap-2">
+                    <p class="text-[10px] font-bold text-blue-100/90 uppercase tracking-widest">Matrículas no Período</p>
+                    <button type="button" onclick="crgmToggleInfo('crgm-hero-info')" class="inline-flex items-center justify-center w-5 h-5 rounded-full border border-blue-200/40 text-[11px] font-black text-blue-100/80 hover:text-white hover:border-blue-100/70 transition-colors" title="Ver regra do card">!</button>
                 </div>
+                <div class="flex items-end gap-3 flex-wrap">
+                    <div>
+                        <p class="text-4xl font-black text-white font-display" id="crgm-vendas">—</p>
+                        <p class="text-sm text-blue-200/80 hidden" id="crgm-vendas-liquidas-label">
+                            <span class="text-emerald-300 font-bold" id="crgm-vendas-liquidas">—</span> em curso
+                        </p>
+                    </div>
+                    <button type="button" id="crgm-fora-padrao-mini" class="hidden text-left px-3 py-2 rounded-xl border border-orange-300/50 bg-orange-400/15 hover:bg-orange-400/25 transition-colors" onclick="crgmScrollToForaPadrao()" title="Alunos em curso com RGM de ciclo anterior — não entram na meta">
+                        <p class="text-[9px] font-bold uppercase tracking-wider text-orange-200">Alunos</p>
+                        <p class="text-xl font-black text-orange-100 font-display leading-tight" id="crgm-fora-padrao-mini-n">—</p>
+                        <p class="text-[9px] text-orange-200/80 leading-tight">RGM fora do padrão</p>
+                    </button>
+                </div>
+                <div id="crgm-hero-info" class="hidden mt-3 text-[11px] leading-5 text-blue-50/90 bg-white/10 border border-white/10 rounded-lg px-3 py-2"></div>
                 <button type="button" id="crgm-fora-padrao-hint" class="hidden mt-1.5 text-left text-xs text-orange-200 hover:text-orange-100 underline decoration-orange-300/50" onclick="crgmScrollToForaPadrao()"></button>
             </div>
             <div class="ml-auto flex items-center gap-6">

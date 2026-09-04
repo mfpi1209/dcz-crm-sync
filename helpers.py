@@ -237,13 +237,6 @@ def _hash_pw(password):
 
 BASE_DIR = Path(__file__).parent
 SYNC_SCRIPT = str(BASE_DIR / "sync.py")
-UPDATE_SCRIPT = str(BASE_DIR / "update_crm.py")
-SANITIZE_SCRIPT = str(BASE_DIR / "sanitize_crm.py")
-PIPELINE_SCRIPT = str(BASE_DIR / "pipeline_crm.py")
-ENRICH_SCRIPT = str(BASE_DIR / "enrich_crosslead.py")
-MERGE_SCRIPT = str(BASE_DIR / "merge_leads.py")
-INADIMPLENTES_SCRIPT = str(BASE_DIR / "update_inadimplentes.py")
-CONCLUINTES_SCRIPT = str(BASE_DIR / "update_concluintes.py")
 LOG_DIR = BASE_DIR / "logs"
 REPORTS_DIR = BASE_DIR / "reports"
 

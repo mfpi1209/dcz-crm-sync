@@ -231,7 +231,7 @@ def _add_update_log(msg):
 # ── Registrar Blueprints ──────────────────────────────────────────────────
 
 from routes.auth import auth_bp
-from routes.dashboard import dashboard_bp
+from routes.dashboard import dashboard_bp, warm_academic_sumidos_cache
 from routes.crm import crm_bp
 from routes.upload import upload_bp
 from routes.engagement import engagement_bp, register_engagement_job
@@ -368,6 +368,7 @@ register_aceite_reconcile(scheduler)
 register_responsible_history_job(scheduler)
 register_funnel_cache_job(scheduler)
 register_dist_comercial_schedule_job(scheduler)
+warm_academic_sumidos_cache()
 
 # ── Entrypoint ────────────────────────────────────────────────────────────
 

@@ -345,8 +345,13 @@ async function loadSchedules() {
 }
 
 async function saveSchedule() {
+    const jobType = document.getElementById('sched-type').value;
+    if (jobType === 'disabled' || jobType === 'sync_delta' || jobType === 'sync_full') {
+        toast('Agendamentos DataCrazy (sync_delta/sync_full) foram desativados.', 'warning');
+        return;
+    }
     const payload = {
-        job_type: document.getElementById('sched-type').value,
+        job_type: jobType,
         cron_days: document.getElementById('sched-days').value,
         cron_hour: parseInt(document.getElementById('sched-hour').value),
         cron_minute: parseInt(document.getElementById('sched-minute').value),
@@ -612,7 +617,7 @@ const PAGE_GROUPS_CONFIG = [
         section: 'Sistema',
         icon: 'sync_alt',
         color: 'var(--outline)',
-        pages: ['pipeline', 'update', 'sync', 'kommo_sync', 'match_merge'],
+        pages: ['pipeline', 'update', 'kommo_sync', 'match_merge'],
     },
 ];
 let _allPages = [];
@@ -1223,30 +1228,3 @@ async function importKommoUsers() {
     }
 }
 
-async function importDataCrazyUsers() {
-    const msg = document.getElementById('import-kommo-msg');
-    if (msg) msg.textContent = 'Importando do DataCrazy...';
-    try {
-        const res = await api('/api/users/import-datacrazy', {
-            method: 'POST', headers: {'Content-Type':'application/json'},
-        });
-        const d = await res.json();
-        console.log('DataCrazy import response:', JSON.stringify(d, null, 2));
-        if (d.ok) {
-            let detail = d.summary;
-            if (d.version) detail += ` [${d.version}]`;
-            toast(detail);
-            if (msg) msg.textContent = detail;
-            if (d.skipped?.length) {
-                console.table(d.skipped);
-            }
-            loadUsers();
-        } else {
-            toast(d.error || 'Erro', 'error');
-            if (msg) msg.textContent = d.error || 'Erro';
-        }
-    } catch (e) {
-        toast('Erro: ' + e.message, 'error');
-        if (msg) msg.textContent = 'Erro de conexão';
-    }
-}
