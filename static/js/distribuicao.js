@@ -327,7 +327,7 @@ async function handleUploadBatchInadimplentes(fileList, nivel) {
             const rowsTxt = data.snapshot_rows >= 0 ? ` (${data.snapshot_rows.toLocaleString('pt-BR')} alunos)` : '';
             const fileNames = valid.map(f => f.name).join(', ');
             const fileLine = `<div class="text-[10px] text-slate-400 dark:text-slate-500 mt-1 font-normal break-all">📄 ${fileNames}</div>`;
-            msg.innerHTML = `✓ ${data.files_count} arquivo(s) processado(s)!${rowsTxt} <button onclick="_triggerInadimplentesUpdate(this)" class="ml-2 px-2 py-0.5 text-[10px] rounded bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/30 transition">Atualizar Inadimplência</button>${fileLine}`;
+            msg.innerHTML = `✓ ${data.files_count} arquivo(s) processado(s)!${rowsTxt}${fileLine}`;
             msg.className = 'upload-msg text-xs text-emerald-400 font-semibold mt-1';
         }
         loadFileInfo();
@@ -347,27 +347,6 @@ async function handleUploadBatchInadimplentes(fileList, nivel) {
     }
 
     card.querySelector('input[type="file"]').value = '';
-}
-
-async function _triggerInadimplentesUpdate(btn) {
-    if (btn) {
-        btn.disabled = true;
-        btn.textContent = 'Atualizando...';
-    }
-    try {
-        const res = await api('/api/inadimplentes/execute', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
-        const d = await res.json();
-        if (d.ok) {
-            if (btn) {
-                btn.textContent = '✓ Iniciado';
-                btn.className = 'ml-2 px-2 py-0.5 text-[10px] rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
-            }
-        } else {
-            if (btn) btn.textContent = d.error || 'Erro';
-        }
-    } catch(e) {
-        if (btn) btn.textContent = 'Erro: ' + e.message;
-    }
 }
 
 function handleDropSemRemat(e, subtipo) {

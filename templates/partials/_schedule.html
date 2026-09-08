@@ -7,40 +7,35 @@
                 <!-- New schedule form -->
                 <div class="glass-card p-5 mb-6">
                     <h3 class="text-sm font-bold text-[var(--text-primary)] dark:text-slate-200 font-display mb-4">Novo Agendamento</h3>
-                    <div class="flex flex-wrap gap-4 items-end">
+                    <div class="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200/90 leading-relaxed">
+                        Agendamentos DataCrazy (<code class="text-amber-100">sync_delta</code> / <code class="text-amber-100">sync_full</code>) foram desativados.
+                        Use Sync/Delta CRM Comercial (Kommo) para sincronização comercial.
+                    </div>
+                    <div class="flex flex-wrap gap-4 items-end opacity-60 pointer-events-none">
                         <div>
                             <label class="block text-xs text-slate-500 mb-1.5 font-medium">Tipo</label>
-                            <select id="sched-type" class="input-glass px-3 py-2.5 text-sm text-slate-900 dark:text-slate-200 rounded-xl">
-                                <option value="sync_delta">Sync Delta</option>
-                                <option value="sync_full">Sync Full</option>
+                            <select id="sched-type" class="input-glass px-3 py-2.5 text-sm text-slate-900 dark:text-slate-200 rounded-xl" disabled>
+                                <option value="disabled">Desativado (DataCrazy)</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-xs text-slate-500 mb-1.5 font-medium">Dias</label>
-                            <select id="sched-days" class="input-glass px-3 py-2.5 text-sm text-slate-900 dark:text-slate-200 rounded-xl">
-                                <option value="*">Todos os dias</option>
-                                <option value="0,1,2,3,4">Seg — Sex</option>
-                                <option value="0">Segunda</option>
-                                <option value="1">Terça</option>
-                                <option value="2">Quarta</option>
-                                <option value="3">Quinta</option>
-                                <option value="4">Sexta</option>
-                                <option value="5">Sábado</option>
-                                <option value="6">Domingo</option>
+                            <select id="sched-days" class="input-glass px-3 py-2.5 text-sm text-slate-900 dark:text-slate-200 rounded-xl" disabled>
+                                <option value="*">—</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-xs text-slate-500 mb-1.5 font-medium">Hora</label>
-                            <input type="number" id="sched-hour" value="2" min="0" max="23"
+                            <input type="number" id="sched-hour" value="0" min="0" max="23" disabled
                                 class="input-glass px-3 py-2.5 text-sm w-20 text-slate-900 dark:text-slate-200 rounded-xl">
                         </div>
                         <div>
                             <label class="block text-xs text-slate-500 mb-1.5 font-medium">Minuto</label>
-                            <input type="number" id="sched-minute" value="0" min="0" max="59"
+                            <input type="number" id="sched-minute" value="0" min="0" max="59" disabled
                                 class="input-glass px-3 py-2.5 text-sm w-20 text-slate-900 dark:text-slate-200 rounded-xl">
                         </div>
-                        <button onclick="saveSchedule()"
-                            class="btn-primary text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center gap-2">
+                        <button type="button" onclick="saveSchedule()" disabled
+                            class="btn-primary text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center gap-2 opacity-50 cursor-not-allowed">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                             Salvar
                         </button>

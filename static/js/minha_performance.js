@@ -1606,7 +1606,9 @@ function _mpClassifySituacao(sit) {
     const s = (sit || '').toUpperCase();
     if (!s) return 'outros';
     if (s === 'EM CURSO') return 'ativo';
-    if (s.includes('CANCEL') || s.includes('EVAD') || s.includes('DESIST') || s.includes('TRANC')) return 'evadido';
+    // TRANSFERIDO entra em evadido para bater com o card Evasão do Dashboard Comercial.
+    if (s.includes('CANCEL') || s.includes('EVAD') || s.includes('DESIST') || s.includes('TRANC')
+        || s.includes('TRANSFER')) return 'evadido';
     return 'outros';
 }
 
@@ -1670,8 +1672,11 @@ function _mpRenderOficialTable(mats) {
     tbody.innerHTML = mats.map(m => {
         const sit = (m.situacao || '').toUpperCase();
         const cat = _mpClassifySituacao(sit);
+        const isTransferido = sit.includes('TRANSFER');
         const badge = sit
-            ? (cat === 'evadido'
+            ? (isTransferido
+                ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/25" title="Saiu do relatório atual — transferência para outro polo. Não conta venda.">${sit}</span>`
+                : cat === 'evadido'
                 ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/15 text-red-400 border border-red-500/20">${sit}</span>`
                 : cat === 'ativo'
                     ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">${sit}</span>`

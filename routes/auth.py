@@ -518,6 +518,8 @@ def api_users_import_datacrazy():
     if session.get("role") != "admin":
         return jsonify({"error": "Sem permissão"}), 403
 
+    return jsonify({"ok": False, "error": "DataCrazy desativado"}), 410
+
     import requests as req
 
     API_BASE = "https://accounts.g1.datacrazy.io"

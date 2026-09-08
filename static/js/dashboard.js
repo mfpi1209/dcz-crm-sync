@@ -106,7 +106,6 @@ async function loadDashboard() {
     _dashLoadNewLeadsToday(false);
     _dashRefreshFunnel(false);
     await populateCicloFilter();
-    _restoreRgmPadraoFilter();
     _stuBindInteractiveCards();
     await applyDashboardFilters();
     if (typeof _dismissBootSplash === 'function') _dismissBootSplash();
@@ -365,26 +364,9 @@ let _tlLastSeries = {};
 let _tlFetchGen = 0;
 let _dashGrandTotal = null;
 /** Filtros globais da página — fonte única para timeline e demais blocos. */
-const _DASH_RGM_PADRAO_KEY = 'dash_rgm_padrao_v1';
-const _RGM_PADRAO_LABELS = {
-    todos: 'Todos os RGMs',
-    padrao: 'Excluir fora do padrão',
-    fora_padrao: 'Somente fora do padrão',
-};
-let _dashActiveFilters = { ciclo: '', nivel: '', dtFrom: '', dtTo: '', situacao: '', tipo: '', polo: '', rgmPadrao: 'todos' };
-
-function _restoreRgmPadraoFilter() {
-    const rgmSel = document.getElementById('students-rgm-padrao');
-    if (!rgmSel) return;
-    const saved = localStorage.getItem(_DASH_RGM_PADRAO_KEY);
-    if (saved && rgmSel.querySelector(`option[value="${saved}"]`)) {
-        rgmSel.value = saved;
-    }
-}
+let _dashActiveFilters = { ciclo: '', nivel: '', dtFrom: '', dtTo: '', situacao: '', tipo: '', polo: '' };
 
 function _readDashboardFilters() {
-    const rgmSel = document.getElementById('students-rgm-padrao');
-    const rgmPadrao = rgmSel?.value || 'todos';
     return {
         ciclo: document.getElementById('students-ciclo')?.value || '',
         nivel: document.getElementById('students-nivel')?.value || '',
@@ -393,7 +375,6 @@ function _readDashboardFilters() {
         situacao: _stuActiveSituacao || '',
         tipo: _stuActiveTipo || '',
         polo: _stuActivePolo || '',
-        rgmPadrao: rgmPadrao === 'padrao' || rgmPadrao === 'fora_padrao' ? rgmPadrao : 'todos',
     };
 }
 
@@ -406,7 +387,6 @@ function _appendStudentFilterParams(params) {
     if (f.situacao) params.set('situacao', f.situacao);
     if (f.tipo) params.set('tipo', f.tipo);
     if (f.polo) params.set('polo', f.polo);
-    if (f.rgmPadrao !== 'todos') params.set('rgm_padrao', f.rgmPadrao);
     if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
         console.debug('[Dashboard] GET /api/dashboard/students?' + params.toString());
     }
@@ -800,9 +780,6 @@ function _syncDashboardFilterUi() {
         if (f.tipo) parts.push(_TIPO_LABELS[f.tipo] || f.tipo);
         if (f.polo) parts.push(f.polo);
         if (f.nivel) parts.push(f.nivel);
-        if (f.rgmPadrao && f.rgmPadrao !== 'todos') {
-            parts.push(_RGM_PADRAO_LABELS[f.rgmPadrao] || f.rgmPadrao);
-        }
         if (parts.length) {
             tlBadge.textContent = parts.join(' · ');
             tlBadge.classList.remove('hidden');
@@ -823,13 +800,16 @@ async function applyDashboardFilters() {
     }
     const sitHdr = document.getElementById('students-situacao-header');
     const sitSel = document.getElementById('students-situacao');
-    const sitVal = (sitHdr?.value || sitSel?.value || '').trim();
-    _stuActiveSituacao = sitVal || null;
-    _syncSitSelectFromActive();
-    const rgmSel = document.getElementById('students-rgm-padrao');
-    if (rgmSel) {
-        localStorage.setItem(_DASH_RGM_PADRAO_KEY, rgmSel.value || 'todos');
+    // Não usar `hdr || sel`: value="" ("Todas") é falsy e o outro select
+    // com "Em Curso" ganhava, impedindo limpar o filtro de situação.
+    // applyDashboardFilters vem do painel de filtros → o select do painel manda;
+    // o header tem handler próprio (_stuApplySituacaoHeaderFilter).
+    if (sitSel) {
+        _stuActiveSituacao = (sitSel.value || '').trim() || null;
+    } else if (sitHdr) {
+        _stuActiveSituacao = (sitHdr.value || '').trim() || null;
     }
+    _syncSitSelectFromActive();
     _dashActiveFilters = _readDashboardFilters();
     _tlGranularity = 'month';
     _tlDrillMonth = null;
@@ -882,6 +862,7 @@ async function populateCicloFilter() {
 let _stuActiveTipo = null;
 let _stuActiveSituacao = null;
 let _stuActivePolo = null;
+let _stuInfoOpenId = null;
 
 const _TIPO_LABELS = {
     novos_agg: 'Novos (Calouros+Regresso+Recompra)',
@@ -979,6 +960,31 @@ function _stuToggleTipo(tipo) {
     _stuRefreshFiltered();
 }
 
+function _stuToggleInfo(cardId) {
+    _stuInfoOpenId = _stuInfoOpenId === cardId ? null : cardId;
+    const cards = document.querySelectorAll('[data-stu-card-info]');
+    cards.forEach((el) => {
+        el.classList.toggle('hidden', el.id !== _stuInfoOpenId);
+    });
+}
+
+function _stuInfoButton(id) {
+    return `<button type="button"
+        onclick="event.stopPropagation(); _stuToggleInfo('${id}')"
+        class="inline-flex items-center justify-center w-5 h-5 rounded-full border border-slate-300/70 dark:border-slate-600 text-[11px] font-black text-slate-500 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white hover:border-slate-400 dark:hover:border-slate-400 transition-colors"
+        title="Ver regra do card">!</button>`;
+}
+
+function _stuExplainAppliedFilters(baseText, f) {
+    const parts = [];
+    if (f.ciclo) parts.push(`ciclo ${f.ciclo}`);
+    if (f.nivel) parts.push(`nível ${f.nivel}`);
+    if (f.dtFrom || f.dtTo) parts.push(`período ${f.dtFrom || '…'} até ${f.dtTo || '…'}`);
+    if (f.polo) parts.push(`polo ${f.polo}`);
+    if (f.situacao) parts.push(`situação ${f.situacao}`);
+    return `${baseText} ${parts.length ? 'Filtros ativos: ' + parts.join(' · ') + '.' : 'Sem filtro extra além do card selecionado.'}`;
+}
+
 function _stuToggleSituacao(sit) {
     const next = _normSitKey(_stuActiveSituacao) === _normSitKey(sit) ? null : sit;
     _stuActiveSituacao = next;
@@ -1017,10 +1023,6 @@ function _stuUpdateActiveFilterBar() {
     if (_stuActiveTipo) parts.push('Tipo: ' + (_TIPO_LABELS[_stuActiveTipo] || _stuActiveTipo));
     if (_stuActiveSituacao) parts.push('Situação: ' + _stuActiveSituacao);
     if (_stuActivePolo) parts.push('Polo: ' + _stuActivePolo);
-    const rgmPadrao = document.getElementById('students-rgm-padrao')?.value || 'todos';
-    if (rgmPadrao && rgmPadrao !== 'todos') {
-        parts.push(_RGM_PADRAO_LABELS[rgmPadrao] || rgmPadrao);
-    }
     const dtFrom = document.getElementById('students-from')?.value;
     const dtTo = document.getElementById('students-to')?.value;
     if (dtFrom || dtTo) parts.push(`Período: ${dtFrom || '…'} → ${dtTo || '…'}`);
@@ -1039,6 +1041,7 @@ async function loadStudentMetrics() {
     const f = _dashActiveFilters;
     const params = new URLSearchParams();
     _appendStudentFilterParams(params);
+    _stuCloseInboundPanel();
 
     const stuContainer = document.getElementById('stu-tipo-cards');
     if (stuContainer) stuContainer.innerHTML = `
@@ -1058,23 +1061,6 @@ async function loadStudentMetrics() {
             return;
         }
 
-        const serverRgmFilter = d.active_rgm_padrao ?? d.rgm_padrao?.filter ?? null;
-        const rpHint = document.getElementById('stu-rgm-padrao-hint');
-        if (f.rgmPadrao !== 'todos' && serverRgmFilter !== f.rgmPadrao) {
-            console.warn(
-                '[Dashboard] Filtro RGM ignorado pelo servidor. Enviado:',
-                f.rgmPadrao,
-                '| Resposta:',
-                serverRgmFilter,
-                '| Reinicie o Flask (scripts/restart-flask.ps1)'
-            );
-            if (rpHint) {
-                rpHint.textContent =
-                    'Filtro RGM selecionado, mas o servidor ainda não aplicou. Feche Flask antigos, rode scripts/restart-flask.ps1 e recarregue (Ctrl+F5).';
-                rpHint.classList.remove('hidden');
-            }
-        }
-
         const fmt = n => (n || 0).toLocaleString('pt-BR');
         const t = d.totals || {};
         const novosAgg = (t.novos || 0) + (t.regresso || 0) + (t.recompra || 0);
@@ -1086,7 +1072,7 @@ async function loadStudentMetrics() {
         else if (_stuActiveTipo === 'novos') gt = t.novos || 0;
         else if (_stuActiveTipo === 'regresso') gt = t.regresso || 0;
         else if (_stuActiveTipo === 'recompra') gt = t.recompra || 0;
-        else gt = d.grand_total ?? Object.values(t).reduce((a, v) => a + (v || 0), 0);
+        else gt = (d.grand_total ?? Object.values(t).reduce((a, v) => a + (v || 0), 0));
         _dashGrandTotal = gt;
 
         const stuIsPosOnly = f.nivel === 'Pós-Graduação';
@@ -1102,6 +1088,8 @@ async function loadStudentMetrics() {
 
         const pctNovos = gt ? Math.round(novosAgg / gt * 100) : 0;
         const pctRemat = gt ? Math.round(remat / gt * 100) : 0;
+        const infoNovos = _stuExplainAppliedFilters(d.card_filters?.novos || '', f);
+        const infoRemat = _stuExplainAppliedFilters(d.card_filters?.rematricula || '', f);
 
         stuContainer.innerHTML = `
             <div class="flex items-center justify-end mb-3">
@@ -1119,11 +1107,17 @@ async function loadStudentMetrics() {
                         <div class="w-12 h-12 bg-blue-50 dark:bg-blue-500/10 rounded-xl flex items-center justify-center">
                             <span class="material-symbols-outlined text-blue-600 dark:text-blue-400">person_add</span>
                         </div>
-                        <span class="text-blue-600 dark:text-blue-400 text-xs font-bold bg-blue-50 dark:bg-blue-500/10 px-2 py-1 rounded-full">${pctNovos}%</span>
+                        <div class="flex items-center gap-2">
+                            ${_stuInfoButton('stu-card-info-novos')}
+                            <span class="text-blue-600 dark:text-blue-400 text-xs font-bold bg-blue-50 dark:bg-blue-500/10 px-2 py-1 rounded-full">${pctNovos}%</span>
+                        </div>
                     </div>
                     <p class="text-slate-500 text-sm font-medium">Novos</p>
                     <p class="text-[10px] text-slate-400 mb-1">Calouros + Regresso + Recompra</p>
-                    <p class="text-3xl font-black text-slate-900 dark:text-white mt-1" data-count="${novosAgg}">0</p>
+                    <div class="flex items-end justify-between gap-3 mt-1">
+                        <p class="text-3xl font-black text-slate-900 dark:text-white" data-count="${novosAgg}">0</p>
+                    </div>
+                    <div id="stu-card-info-novos" data-stu-card-info class="hidden mt-3 text-[11px] leading-5 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/30 rounded-lg px-3 py-2">${esc(infoNovos)}</div>
                     <div class="grid grid-cols-3 gap-2 mt-4">
                         <div class="rounded-lg px-3 py-2 cursor-pointer transition-all ${isNovos ? 'bg-blue-50 dark:bg-indigo-500/20 ring-1 ring-blue-300 dark:ring-indigo-400/50' : 'bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-700/40'}"
                              onclick="event.stopPropagation(); _stuToggleTipo('novos')">
@@ -1149,16 +1143,20 @@ async function loadStudentMetrics() {
                         <div class="w-12 h-12 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl flex items-center justify-center">
                             <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400">autorenew</span>
                         </div>
-                        <span class="text-emerald-600 dark:text-emerald-400 text-xs font-bold bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-full">${pctRemat}%</span>
+                        <div class="flex items-center gap-2">
+                            ${_stuInfoButton('stu-card-info-remat')}
+                            <span class="text-emerald-600 dark:text-emerald-400 text-xs font-bold bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-full">${pctRemat}%</span>
+                        </div>
                     </div>
                     <p class="text-slate-500 text-sm font-medium">${esc(stuRematLabel)}</p>
                     <p class="text-[10px] text-slate-400 mb-1">Renovações de matrícula</p>
                     <p class="text-3xl font-black text-slate-900 dark:text-white mt-1" data-count="${remat}">0</p>
+                    <div id="stu-card-info-remat" data-stu-card-info class="hidden mt-3 text-[11px] leading-5 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/30 rounded-lg px-3 py-2">${esc(infoRemat)}</div>
                 </div>
             </div>`;
 
         countUpAll(stuContainer);
-        _renderSituacaoCardsClickable('stu-by-situacao', d.by_situacao);
+        _renderSituacaoCardsClickable('stu-by-situacao', d.by_situacao, d.inbound_transfers || 0);
         renderProportionBars('stu-by-nivel', d.by_nivel);
         renderPoloRankingTable('stu-by-polo', mergePoloBreakdown(d.by_polo));
         renderBreakdown('stu-by-turma', d.by_turma);
@@ -1175,33 +1173,11 @@ async function loadStudentMetrics() {
         if (f.situacao) parts.push(f.situacao);
         if (f.tipo) parts.push(_TIPO_LABELS[f.tipo] || f.tipo);
         if (f.polo) parts.push(f.polo);
-        if (f.rgmPadrao && f.rgmPadrao !== 'todos') {
-            parts.push(_RGM_PADRAO_LABELS[f.rgmPadrao] || f.rgmPadrao);
-        }
         if (parts.length) {
             badge.textContent = parts.join(' · ');
             badge.classList.remove('hidden');
         } else {
             badge.classList.add('hidden');
-        }
-
-        const rp = d.rgm_padrao || {};
-        if (rpHint && !(f.rgmPadrao !== 'todos' && (d.active_rgm_padrao || 'todos') !== f.rgmPadrao)) {
-            if ((rp.fora_padrao_total || 0) > 0 && f.rgmPadrao === 'todos') {
-                const pfx = rp.dominant_prefix != null ? ` (padrão: prefixo ${rp.dominant_prefix})` : '';
-                rpHint.textContent =
-                    `${(rp.fora_padrao_total || 0).toLocaleString('pt-BR')} matrícula(s) EM CURSO fora do padrão RGM${pfx} — ` +
-                    'use o filtro RGM para excluir ou ver só estes.';
-                rpHint.classList.remove('hidden');
-            } else if (f.rgmPadrao === 'padrao' && rp.dominant_prefix != null) {
-                rpHint.textContent = `Exibindo só RGMs no padrão (prefixo ${rp.dominant_prefix}+) — alinhado ao Comercial.`;
-                rpHint.classList.remove('hidden');
-            } else if (f.rgmPadrao === 'fora_padrao') {
-                rpHint.textContent = 'Exibindo somente matrículas EM CURSO fora do padrão RGM do período.';
-                rpHint.classList.remove('hidden');
-            } else {
-                rpHint.classList.add('hidden');
-            }
         }
     } catch (err) {
         console.error('Student metrics error:', err);
@@ -1259,7 +1235,7 @@ const _sitOrder = ['em curso', 'cancelado', 'trancado', 'transferido'];
 function _sitLookup(k) { return _sitMeta[k.toLowerCase()] || _sitMeta['_default']; }
 
 function renderSituacaoCards(elId, data) {
-    _renderSituacaoCardsClickable(elId, data);
+    _renderSituacaoCardsClickable(elId, data, 0);
 }
 
 const _sitIcons = {
@@ -1270,7 +1246,7 @@ const _sitIcons = {
     '_default': 'help',
 };
 
-function _renderSituacaoCardsClickable(elId, data) {
+function _renderSituacaoCardsClickable(elId, data, inboundTransfers) {
     const el = document.getElementById(elId);
     if (!data || !Object.keys(data).length) { el.innerHTML = '<span class="text-slate-500 text-sm col-span-4">—</span>'; return; }
     const total = Object.values(data).reduce((a, b) => a + b, 0);
@@ -1281,6 +1257,7 @@ function _renderSituacaoCardsClickable(elId, data) {
         .concat(keys.filter(k => !_sitOrder.includes(k.toLowerCase())));
 
     const ringActive = 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-[#101f22] scale-[1.02]';
+    const inboundN = Number(inboundTransfers) || 0;
 
     el.innerHTML = ordered.map(k => {
         const v = data[k];
@@ -1289,6 +1266,17 @@ function _renderSituacaoCardsClickable(elId, data) {
         const icon = _sitIcons[k.toLowerCase()] || _sitIcons['_default'];
         const isActive = _normSitKey(_stuActiveSituacao) === _normSitKey(k);
         const activeRing = isActive ? `${ringActive} ring-${c.text}-500` : '';
+        const isEmCurso = _normSitKey(k) === 'em curso';
+        const inboundNote = isEmCurso
+            ? `<button type="button"
+                    onclick="event.stopPropagation(); _stuOpenInboundTransfers()"
+                    class="mt-2 w-full text-left text-[10px] leading-snug text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-500/10 border border-violet-200/60 dark:border-violet-500/25 rounded-lg px-2 py-1.5 hover:bg-violet-100 dark:hover:bg-violet-500/20 transition-colors"
+                    title="Ver lista dos alunos que vieram de outro polo">
+                    <span class="font-bold">${inboundN.toLocaleString('pt-BR')}</span>
+                    ${inboundN === 1 ? 'transferência' : 'transferências'} de outro polo
+                    <span class="opacity-70">· ver quem são</span>
+               </button>`
+            : '';
 
         return `<div class="glass-card p-5 relative overflow-hidden cursor-pointer transition-all hover:shadow-md ${activeRing}"
                      data-situacao="${esc(k)}" role="button" tabindex="0">
@@ -1300,12 +1288,73 @@ function _renderSituacaoCardsClickable(elId, data) {
             </div>
             <p class="text-slate-500 text-sm font-medium">${esc(k)}</p>
             <p class="text-2xl font-black text-slate-900 dark:text-white mt-1" data-count="${v}">0</p>
+            ${inboundNote}
             <div class="w-full progress-bar-bg mt-3 !h-1.5">
                 <div class="progress-bar-fill bg-${c.from}" style="width:${Math.min(pct,100)}%"></div>
             </div>
         </div>`;
     }).join('');
     countUpAll(el);
+}
+
+function _stuCloseInboundPanel() {
+    document.getElementById('stu-inbound-panel')?.classList.add('hidden');
+}
+
+async function _stuOpenInboundTransfers() {
+    const panel = document.getElementById('stu-inbound-panel');
+    const list = document.getElementById('stu-inbound-list');
+    if (!panel || !list) return;
+    panel.classList.remove('hidden');
+    list.innerHTML = '<p class="text-slate-500 py-3">Carregando…</p>';
+    try {
+        const params = new URLSearchParams();
+        const f = _readDashboardFilters();
+        if (f.ciclo) params.set('ciclo', f.ciclo);
+        if (f.nivel) params.set('nivel', f.nivel);
+        if (f.dtFrom) params.set('from', f.dtFrom);
+        if (f.dtTo) params.set('to', f.dtTo);
+        if (f.polo) params.set('polo', f.polo);
+        if (f.tipo) params.set('tipo', f.tipo);
+        const res = await api('/api/dashboard/inbound-transfers?' + params.toString());
+        const d = await res.json();
+        if (!d.ok) {
+            list.innerHTML = `<p class="text-rose-400 py-3">${esc(d.error || 'Erro')}</p>`;
+            return;
+        }
+        const alunos = d.alunos || [];
+        if (!alunos.length) {
+            list.innerHTML = '<p class="text-slate-500 py-3">Nenhuma transferência inbound neste recorte.</p>';
+            return;
+        }
+        list.innerHTML = `
+            <p class="text-[11px] text-violet-700 dark:text-violet-300 mb-2 font-medium">${alunos.length.toLocaleString('pt-BR')} aluno(s)</p>
+            <table class="w-full text-left">
+                <thead class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-violet-200/40 dark:border-violet-500/20">
+                    <tr>
+                        <th class="py-1.5 pr-2">RGM</th>
+                        <th class="py-1.5 pr-2">Nome</th>
+                        <th class="py-1.5 pr-2">Polo</th>
+                        <th class="py-1.5 pr-2">Tipo</th>
+                        <th class="py-1.5">Ciclo</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-violet-100/60 dark:divide-violet-500/10">
+                    ${alunos.map(a => `
+                        <tr>
+                            <td class="py-1.5 pr-2 font-mono text-slate-700 dark:text-slate-200">${esc(a.rgm)}</td>
+                            <td class="py-1.5 pr-2 text-slate-800 dark:text-slate-100">${esc(a.nome)}</td>
+                            <td class="py-1.5 pr-2 text-slate-600 dark:text-slate-300">${esc(a.polo)}</td>
+                            <td class="py-1.5 pr-2 text-slate-600 dark:text-slate-300">${esc(a.tipo)}</td>
+                            <td class="py-1.5 text-slate-600 dark:text-slate-300">${esc(a.ciclo)}</td>
+                        </tr>`).join('')}
+                </tbody>
+            </table>`;
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } catch (err) {
+        console.error(err);
+        list.innerHTML = '<p class="text-rose-400 py-3">Falha ao carregar a lista.</p>';
+    }
 }
 
 function renderPoloRankingTable(elId, byPolo) {
@@ -1392,11 +1441,6 @@ function clearStudentFilter() {
     document.getElementById('students-to').value = '';
     document.getElementById('students-nivel').value = '';
     document.getElementById('students-situacao').value = '';
-    const rgmSel = document.getElementById('students-rgm-padrao');
-    if (rgmSel) {
-        rgmSel.value = 'todos';
-        localStorage.setItem(_DASH_RGM_PADRAO_KEY, 'todos');
-    }
     document.getElementById('stu-filter-badge').classList.add('hidden');
     _stuActiveTipo = null;
     _stuActiveSituacao = null;
@@ -1537,6 +1581,9 @@ async function _loadInadimplenciaCard() {
 // onclick nos cards / botão limpar — expor no escopo global
 window._stuToggleSituacao = _stuToggleSituacao;
 window._stuToggleTipo = _stuToggleTipo;
+window._stuToggleInfo = _stuToggleInfo;
 window._stuTogglePolo = _stuTogglePolo;
 window._stuToggleNivel = _stuToggleNivel;
 window._stuClearCrossFilters = _stuClearCrossFilters;
+window._stuOpenInboundTransfers = _stuOpenInboundTransfers;
+window._stuCloseInboundPanel = _stuCloseInboundPanel;

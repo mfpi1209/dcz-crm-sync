@@ -573,8 +573,8 @@ def _fetch_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=F
         ]
         inner_params = [list(agent_rgms)]
         outer_conds, outer_params = [], []
-        if only_em_curso:
-            outer_conds.append("situacao = 'EM CURSO'")
+        # only_em_curso é aplicado depois, em Python: quem sumiu do CSV atual vira
+        # TRANSFERIDO e precisa passar pela marcação antes de ser descartado.
         if dt_ini:
             outer_conds.append("data_matricula >= %s")
             outer_params.append(dt_ini)
@@ -644,6 +644,27 @@ def _fetch_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=F
         cur.close()
         conn.close()
 
+        # Sumir do CSV mais recente = transferência para outro polo: mantém a linha
+        # na lista do consultor, mas como TRANSFERIDO (sai do EM CURSO e da meta).
+        try:
+            from routes.comercial_rgm import _crgm_latest_snapshot_rgms
+
+            latest_rgms = _crgm_latest_snapshot_rgms()
+            if latest_rgms:
+                for d in results:
+                    n = _normalize_rgm(d.get("rgm"))
+                    if n and n not in latest_rgms:
+                        d["situacao"] = "TRANSFERIDO"
+                        d["sumiu_do_csv"] = True
+        except Exception as _te:
+            logger.warning("marcar transferidos (sumiram do CSV): %s", _te)
+
+        if only_em_curso:
+            results = [
+                d for d in results
+                if (d.get("situacao") or "").upper() == "EM CURSO"
+            ]
+
         # Enriquecer com flags outlier/conta_venda/conta_para_meta (usando contexto do período)
         try:
             from routes.comercial_rgm import (
@@ -663,6 +684,10 @@ def _fetch_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=F
                 d.setdefault("outlier", False)
                 d.setdefault("conta_venda", False)
                 d.setdefault("conta_para_meta", True)
+
+        for d in results:
+            if d.get("sumiu_do_csv"):
+                d["conta_para_meta"] = False
 
         return results
     except Exception as e:

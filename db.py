@@ -41,6 +41,22 @@ def get_conn():
     return psycopg2.connect(**DB_DSN)
 
 
+# Banco do Disparador (tool_whatsapp_alunos) — bases Matriculados/Financeiro/etc.
+# Mesmo host/credencial do dcz; só muda o database (default: disparos).
+DISPAROS_DSN = dict(
+    host=os.getenv("DB_HOST", "localhost"),
+    port=os.getenv("DB_PORT", "5432"),
+    user=os.getenv("DB_USER"),
+    password=os.getenv("DB_PASS"),
+    dbname=os.getenv("DISPAROS_DB_NAME", "disparos"),
+)
+
+
+def get_disparos_conn():
+    """Conexão read-oriented ao DB do Disparador (matriculados_snapshots/rows)."""
+    return psycopg2.connect(**DISPAROS_DSN)
+
+
 ME_DSN = dict(
     host=os.getenv("DB_HOST", "localhost"),
     port=os.getenv("DB_PORT", "5432"),

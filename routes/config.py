@@ -496,54 +496,8 @@ def api_debug():
 
 def _run_scheduled_sync(job_type):
     """Executa sync agendado (roda no thread do scheduler)."""
-    import app as _app
-
-    if _app._sync_running:
-        logger.info("Scheduled %s skipped — sync already running", job_type)
-        return
-
-    mode = "full" if job_type == "sync_full" else "delta"
-    _app._sync_running = True
-    _app._sync_logs.clear()
-
-    try:
-        cmd = [sys.executable, SYNC_SCRIPT]
-        if mode == "full":
-            cmd.append("--full")
-
-        _app._add_sync_log(f"[AGENDADO] Sincronização {mode.upper()} iniciada automaticamente")
-
-        env = {**os.environ, "PYTHONUNBUFFERED": "1"}
-        proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, bufsize=1, cwd=str(BASE_DIR), env=env,
-        )
-        _app._sync_proc = proc
-
-        for line in proc.stdout:
-            _app._add_sync_log(line)
-
-        proc.wait()
-
-        if proc.returncode == 0:
-            _app._add_sync_log("[FIM] Sincronização agendada concluída com sucesso")
-        else:
-            _app._add_sync_log(f"[ERRO] Sincronização agendada falhou (exit code {proc.returncode})")
-
-        try:
-            conn = get_conn()
-            with conn.cursor() as cur:
-                cur.execute("UPDATE schedules SET last_run_at = NOW() WHERE job_type = %s", (job_type,))
-            conn.commit()
-            conn.close()
-        except Exception:
-            pass
-
-    except Exception as e:
-        _app._add_sync_log(f"[ERRO] {e}")
-    finally:
-        _app._sync_proc = None
-        _app._sync_running = False
+    logger.info("Scheduled %s skipped — DataCrazy CRM desativado", job_type)
+    return
 
 
 def _register_schedule_job(schedule_id, job_type, cron_days, cron_hour, cron_minute, enabled):
@@ -601,23 +555,12 @@ ACEITE_RECONCILE_MINUTES = int(os.getenv("ACEITE_RECONCILE_INTERVAL", "10"))
 
 
 def register_delta_interval(sched):
-    """Register a sync_delta job that runs every N minutes (default 5).
-    Skips if another sync is already running (handled inside _run_scheduled_sync)."""
+    """DataCrazy sync_delta_interval desativado — não registra job."""
     try:
         sched.remove_job("sync_delta_interval")
     except Exception:
         pass
-
-    sched.add_job(
-        _run_scheduled_sync,
-        trigger=IntervalTrigger(minutes=DELTA_INTERVAL_MINUTES),
-        args=["sync_delta"],
-        id="sync_delta_interval",
-        replace_existing=True,
-        misfire_grace_time=120,
-        max_instances=1,
-    )
-    logger.info("Sync delta interval registered: every %d minutes", DELTA_INTERVAL_MINUTES)
+    logger.info("DataCrazy sync_delta_interval NOT registered (CRM desativado)")
 
 
 def _run_aceite_reconcile():

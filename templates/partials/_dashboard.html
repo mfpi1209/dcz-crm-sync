@@ -233,17 +233,8 @@
                                     <label class="text-[10px] text-slate-400 font-bold uppercase">Até</label>
                                     <input type="date" id="students-to" onchange="applyDashboardFilters()" class="input-glass px-2.5 py-1 text-xs rounded-lg">
                                 </div>
-                                <div class="flex flex-col gap-1">
-                                    <label class="text-[10px] text-slate-400 font-bold uppercase">RGM</label>
-                                    <select id="students-rgm-padrao" onchange="applyDashboardFilters()" class="input-glass px-2.5 py-1 text-xs rounded-lg min-w-[180px]" title="Mesma regra do Dashboard Comercial: prefixo abaixo do dominante do período">
-                                        <option value="todos">Todos os RGMs</option>
-                                        <option value="padrao">Excluir fora do padrão</option>
-                                        <option value="fora_padrao">Somente fora do padrão</option>
-                                    </select>
-                                </div>
                                 <button type="button" onclick="applyDashboardFilters()" class="btn-primary px-4 py-2 mt-auto text-xs rounded-lg">Aplicar</button>
                             </div>
-                            <p id="stu-rgm-padrao-hint" class="hidden w-full text-[10px] text-amber-600 dark:text-amber-400/90 mt-1"></p>
                         </div>
 
                         <div id="stu-active-filter-bar" class="hidden mb-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
@@ -278,6 +269,16 @@
                     </div>
                     <div class="p-5">
                         <div id="stu-by-situacao" class="grid grid-cols-2 lg:grid-cols-4 gap-4 text-[13px]">—</div>
+                        <div id="stu-inbound-panel" class="hidden mt-4 rounded-xl border border-violet-300/40 dark:border-violet-500/30 bg-violet-50/80 dark:bg-violet-500/10 p-4">
+                            <div class="flex items-center justify-between gap-2 mb-3">
+                                <div>
+                                    <p class="text-sm font-bold text-violet-800 dark:text-violet-200">Transferências recebidas de outro polo</p>
+                                    <p class="text-[11px] text-violet-700/80 dark:text-violet-300/80">Constam como Em Curso — vieram com situação Transferido no relatório.</p>
+                                </div>
+                                <button type="button" onclick="_stuCloseInboundPanel()" class="text-[11px] text-slate-500 hover:text-slate-800 dark:hover:text-white border border-slate-200 dark:border-slate-700/40 px-2 py-1 rounded-lg">Fechar</button>
+                            </div>
+                            <div id="stu-inbound-list" class="max-h-72 overflow-y-auto text-xs">—</div>
+                        </div>
                     </div>
                 </div>
 

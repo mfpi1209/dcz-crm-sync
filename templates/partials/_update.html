@@ -1,7 +1,7 @@
             <div id="page-update" class="p-4 lg:p-8 max-w-7xl mx-auto hidden">
                 <div class="mb-8 pb-6 border-b border-[var(--border)]">
                     <h2 class="text-3xl font-bold text-[var(--text-primary)] dark:text-white font-display mb-1">Upload Acadêmico</h2>
-                    <p class="text-[var(--text-muted)] text-sm max-w-2xl leading-relaxed">Atualize leads e negócios com base na planilha de matriculados.</p>
+                    <p class="text-[var(--text-muted)] text-sm max-w-2xl leading-relaxed">Envie planilhas acadêmicas para alimentar snapshots e dashboards.</p>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-6" id="upload-cards">
@@ -211,94 +211,5 @@
                         <div class="snap-info mt-3 text-xs text-slate-600 dark:text-slate-500 min-h-[1.25rem]" id="snap-info-lista_alunos">—</div>
                         </div>
                     </div>
-                </div>
-
-                <div class="glass-card p-5 mb-5 border border-[var(--border)]">
-                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mb-3">
-                        <svg class="w-4 h-4 text-indigo-600 dark:text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                        <label class="text-sm font-bold text-[var(--text-primary)] dark:text-white font-display">Rate Limit</label>
-                        <span id="rate-value" class="text-sm font-mono font-bold text-indigo-600 dark:text-indigo-400">120</span>
-                        <span class="text-xs text-[var(--text-muted)]">req/min</span>
-                        <span class="text-xs text-[var(--text-muted)] ml-auto">API max: 240/min</span>
-                    </div>
-                    <input type="range" id="rate-slider" min="0" max="240" step="10" value="120"
-                        class="w-full h-2 bg-slate-200 dark:bg-slate-700/70 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                        oninput="document.getElementById('rate-value').textContent=this.value; updateRateBar()">
-                    <div class="flex justify-between text-[10px] text-[var(--text-muted)] mt-1 px-0.5">
-                        <span>0</span><span>60</span><span>120</span><span>180</span><span>240</span>
-                    </div>
-                    <div class="mt-2 h-1.5 bg-slate-200/90 dark:bg-slate-800/70 rounded-full overflow-hidden">
-                        <div id="rate-bar" class="h-full rounded-full transition-all" style="width:50%; background: linear-gradient(90deg, #22c55e, #2563eb)"></div>
-                    </div>
-                </div>
-
-                <div class="flex items-center gap-3 mb-4">
-                    <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" id="with-address" class="w-4 h-4 rounded accent-indigo-500 border-slate-300 dark:bg-slate-700 dark:border-slate-600">
-                        <span class="text-sm text-[var(--text-primary)] dark:text-slate-300">Incluir endereço (rua/bairro/cidade)</span>
-                    </label>
-                </div>
-
-                <div class="flex flex-wrap gap-3 mb-5 items-end">
-                    <button onclick="startUpdate('dry-run')" id="btn-dryrun"
-                        class="btn-warning text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                        Dry-Run (Preview)
-                    </button>
-                    <button onclick="startUpdate('test')" id="btn-test"
-                        class="btn-primary text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                        Testar 1 Registro
-                    </button>
-                    <div class="flex items-end gap-2">
-                        <div>
-                            <label class="block text-xs text-[var(--text-muted)] mb-1.5 font-medium">Limite (opcional)</label>
-                            <input type="number" id="update-limit" placeholder="todos" min="1"
-                                class="input-glass px-3 py-2.5 text-sm w-28 text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500">
-                        </div>
-                        <button onclick="confirmExecute()" id="btn-execute"
-                            class="btn-danger text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center gap-2">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                            Executar Update
-                        </button>
-                    </div>
-                    <button onclick="stopUpdate()" id="btn-update-stop"
-                        class="hidden btn-danger text-white font-medium text-sm px-5 py-2.5 rounded-xl flex items-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
-                        Parar
-                    </button>
-                </div>
-
-                <div id="update-preview-section" class="hidden mb-5">
-                    <div class="glass-card overflow-hidden border border-[var(--border)]">
-                        <div class="log-header flex items-center justify-between border-b border-[var(--border)]">
-                            <span class="text-xs text-[var(--text-muted)] font-semibold">Preview de Atualizações <span id="preview-count" class="text-[var(--text-primary)] dark:text-slate-300"></span></span>
-                            <button type="button" onclick="document.getElementById('update-preview-section').classList.add('hidden')"
-                                class="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] dark:hover:text-white transition">Fechar</button>
-                        </div>
-                        <div class="overflow-auto max-h-80">
-                            <table class="w-full text-left text-xs">
-                                <thead class="sticky top-0 bg-slate-100/95 dark:bg-slate-900/95 backdrop-blur border-b border-[var(--border)]">
-                                    <tr class="text-[var(--text-muted)]">
-                                        <th class="px-3 py-2 font-semibold">Match</th>
-                                        <th class="px-3 py-2 font-semibold">RGM</th>
-                                        <th class="px-3 py-2 font-semibold">Nome</th>
-                                        <th class="px-3 py-2 font-semibold">Lead ID</th>
-                                        <th class="px-3 py-2 font-semibold">Lead Mudanças</th>
-                                        <th class="px-3 py-2 font-semibold">Negócio Mudanças</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="preview-tbody" class="text-slate-700 dark:text-slate-300"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="log-panel">
-                    <div class="log-header flex items-center justify-between">
-                        <span class="text-xs text-[var(--text-muted)] font-semibold tracking-wide uppercase">Log de Atualização</span>
-                        <button type="button" onclick="clearUpdateLog()" class="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] dark:hover:text-white transition">Limpar</button>
-                    </div>
-                    <pre id="update-log" class="log-terminal p-4 h-96 overflow-auto text-slate-400 whitespace-pre-wrap"></pre>
                 </div>
             </div>
