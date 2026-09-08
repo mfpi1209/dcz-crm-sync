@@ -4,6 +4,13 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-09-08 — Rematrícula zerada: Data Matrícula do Disparador é serial Excel
+- **Modelo usado:** Cursor Grok 4.5.
+- **Sintoma:** aba Rematrícula com dropdown `2026/2 (N rematr.)` mas cards/gráficos em **0**.
+- **Causa:** após a migração para Bases Matriculados do Disparador, `Data Matrícula` no JSONB vem como **serial Excel** (ex.: `46218` = 15/07/2026), não `dd/mm/aaaa`. O `_MAT_COLS` do Dashboard só parseava `DD/MM/YYYY` e `YYYY-MM-DD` → `data_matricula` NULL. O dropdown conta estoque **sem data**; a timeline exige data no intervalo (clamp liberação `2026/2` ≥ 14/06/2026) → série vazia.
+- **Fix:** em `routes/dashboard.py`, `_DATA_MAT_SQL` aceita também serial numérico `30000–60000` via `DATE '1899-12-30' + FLOOR(serial)`. Texto da página Rematrícula atualizado (fonte = Disparador, não Upload Acadêmico).
+- **Não muda:** regra de liberação por ciclo; empresa 12 no escopo remat; Comercial/`xl_rows`.
+
 ### 2026-09-04 — Acadêmico: observação de transferências inbound no card Em Curso
 - **Modelo usado:** Cursor Grok 4.5.
 - **Pedido:** no card **EM CURSO** (Graduação e Pós), avisar quantos alunos vieram de outro polo e permitir ver quem são.
