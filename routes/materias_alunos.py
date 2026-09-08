@@ -3,7 +3,7 @@
 POST /api/materias-alunos/preview  (multipart: matriculados xlsx + data_matricula)
     Le a planilha, filtra por Negocio=GRADUACAO, Tipo Matricula=NOVA MATRICULA
     e Data Matricula==data escolhida. Retorna quais RGMs ja foram consultados
-    (via materias_alunos_consultas) e quais estao pendentes.
+    (via eduit.public.materias_alunos) e quais estao pendentes.
 
 POST /api/materias-alunos/start    (multipart: matriculados xlsx + data_matricula + intervalo)
     Dispara job em background. Um job global por vez.
@@ -24,12 +24,12 @@ import threading
 import time
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
-from urllib.parse import urlencode as _urlencode
-
-import requests
+import psycopg2
 from flask import Blueprint, jsonify, request, session
 from openpyxl import load_workbook
+from psycopg2.extras import Json, RealDictCursor
 
+from db import DB_DSN
 from siaa.materias_alunos_client import (
     SessaoExpirada, SESSAO_EXPIRADA_MSG, _load_cookie_academico, buscar_materias,
 )
@@ -197,70 +197,36 @@ def _ler_rgms(file_bytes: bytes, filtro: dict) -> tuple[list[dict], str | None]:
     return out, None
 
 
-# ---------- Supabase helpers ----------
+# ---------- Postgres eduit.materias_alunos ----------
 
-def _sb_headers(prefer: str = "return=minimal") -> dict[str, str]:
-    url = (os.environ.get("SUPABASE_URL", "") or "").rstrip("/")
-    key = os.environ.get("SUPABASE_KEY", "") or ""
-    if not url or not key:
-        raise RuntimeError("SUPABASE_URL e SUPABASE_KEY são obrigatórios")
-    return {
-        "apikey": key,
-        "Authorization": f"Bearer {key}",
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "Prefer": prefer,
-    }
-
-
-def _sb_base() -> str:
-    return (os.environ.get("SUPABASE_URL", "") or "").rstrip("/") + "/rest/v1"
-
-
-def _sb_upsert(table: str, rows: list[dict], on_conflict: str) -> None:
-    if not rows:
-        return
-    url = f"{_sb_base()}/{table}?{_urlencode({'on_conflict': on_conflict})}"
-    r = requests.post(
-        url,
-        headers=_sb_headers("resolution=merge-duplicates,return=minimal"),
-        json=rows,
-        timeout=30,
-    )
-    if r.status_code >= 300:
-        raise RuntimeError(f"Supabase upsert {table} {r.status_code}: {(r.text or '')[:500]}")
-
-
-def _sb_get(table: str, params: dict[str, str]) -> list[dict]:
-    r = requests.get(
-        f"{_sb_base()}/{table}?{_urlencode(params)}",
-        headers=_sb_headers("return=representation"),
-        timeout=30,
-    )
-    if r.status_code >= 300:
-        raise RuntimeError(f"Supabase GET {table} {r.status_code}: {(r.text or '')[:500]}")
-    data = r.json()
-    return data if isinstance(data, list) else [data]
+def _eduit_conn():
+    dsn = dict(DB_DSN)
+    dsn["dbname"] = os.getenv("EDUIT_PG_DB", "eduit")
+    return psycopg2.connect(**dsn, connect_timeout=15)
 
 
 def _ja_consultados(rgms: list[str]) -> set[str]:
-    """RGMs que ja aparecem em materias_alunos (Supabase), consultados em lotes."""
+    """RGMs que ja aparecem em eduit.public.materias_alunos."""
     if not rgms:
         return set()
     result: set[str] = set()
-    CHUNK = 200
+    CHUNK = 500
     try:
-        for i in range(0, len(rgms), CHUNK):
-            batch = rgms[i:i + CHUNK]
-            in_list = "(" + ",".join(batch) + ")"
-            rows = _sb_get(
-                "materias_alunos",
-                {"select": "rgm", "rgm": f"in.{in_list}"},
-            )
-            for row in rows:
-                v = row.get("rgm")
-                if v:
-                    result.add(str(v))
+        conn = _eduit_conn()
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                for i in range(0, len(rgms), CHUNK):
+                    batch = rgms[i:i + CHUNK]
+                    cur.execute(
+                        "SELECT rgm FROM public.materias_alunos WHERE rgm = ANY(%s)",
+                        (batch,),
+                    )
+                    for row in cur.fetchall():
+                        v = row.get("rgm")
+                        if v:
+                            result.add(str(v))
+        finally:
+            conn.close()
         return result
     except Exception as e:
         logger.warning("ja_consultados: %s", e)
@@ -270,7 +236,7 @@ def _ja_consultados(rgms: list[str]) -> set[str]:
 # ---------- Persistencia por RGM ----------
 
 def _upsert_materias(rgm: str, aluno: str, materias: list[dict]):
-    """Upsert em materias_alunos: 1 linha por aluno com jsonb [{disciplina, data}]."""
+    """Upsert em eduit.public.materias_alunos: 1 linha por aluno (PK rgm)."""
     itens: list[dict] = []
     vistos: set[tuple] = set()
     for m in materias or ():
@@ -283,13 +249,25 @@ def _upsert_materias(rgm: str, aluno: str, materias: list[dict]):
             continue
         vistos.add(chave)
         itens.append({"disciplina": nome, "data": data})
-    _sb_upsert("materias_alunos", [{
-        "rgm": rgm,
-        "aluno": aluno,
-        "materias": itens,
-        "qtd_materias": len(itens),
-        "consultado_em": datetime.now(timezone.utc).isoformat(),
-    }], on_conflict="rgm")
+    conn = _eduit_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO public.materias_alunos
+                    (rgm, aluno, materias, qtd_materias, consultado_em)
+                VALUES (%s, %s, %s, %s, NOW())
+                ON CONFLICT (rgm) DO UPDATE SET
+                    aluno = EXCLUDED.aluno,
+                    materias = EXCLUDED.materias,
+                    qtd_materias = EXCLUDED.qtd_materias,
+                    consultado_em = EXCLUDED.consultado_em
+                """,
+                (rgm, aluno, Json(itens), len(itens)),
+            )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def _registrar_erro(rgm: str, aluno: str | None, msg: str):
