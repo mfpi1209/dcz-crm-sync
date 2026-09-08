@@ -132,6 +132,46 @@ def _parse_matricula_date(value):
     return None
 
 
+def _validate_minha_matricula_required(b):
+    """Valida campos obrigatórios da Minha Lista (observação é opcional).
+    Retorna (erro, payload_limpo) — erro é str ou None.
+    """
+    rgm = _normalize_rgm(b.get("rgm")) or (str(b.get("rgm") or "").strip() or None)
+    nome = (b.get("nome") or "").strip()
+    curso = (b.get("curso") or "").strip()
+    polo = (b.get("polo") or "").strip()
+    ciclo = (b.get("ciclo") or "").strip()
+    nivel = (b.get("nivel") or "").strip()
+    kommo_lead_id = (b.get("kommo_lead_id") or "").strip()
+    observacao = (b.get("observacao") or "").strip()
+    data_mat = _parse_matricula_date(b.get("data_matricula"))
+
+    checks = [
+        (nome, "Nome do Aluno"),
+        (rgm, "RGM"),
+        (curso, "Curso"),
+        (polo, "Polo"),
+        (data_mat, "Data Matrícula"),
+        (ciclo, "Ciclo"),
+        (nivel, "Nível"),
+        (kommo_lead_id, "Lead Kommo ID"),
+    ]
+    for val, label in checks:
+        if not val:
+            return f"Preencha o campo obrigatório: {label}.", None
+    return None, {
+        "rgm": rgm,
+        "nome": nome,
+        "curso": curso,
+        "polo": polo,
+        "data_matricula": data_mat,
+        "ciclo": ciclo,
+        "nivel": nivel,
+        "kommo_lead_id": kommo_lead_id,
+        "observacao": observacao,
+    }
+
+
 def _is_admin():
     return session.get("role") == "admin"
 
@@ -3803,6 +3843,199 @@ def api_minha_matriculas():
 
 
 # ══════════════════════════════════════════════════════════════════════════
+# Prefill via mini sync Kommo (mesmo pipeline do Dashboard Comercial)
+# ══════════════════════════════════════════════════════════════════════════
+
+def _lead_cf_values(lead: dict) -> dict:
+    """Mapa field_name.lower() -> value (string) a partir de custom_fields_values."""
+    out = {}
+    for cf in lead.get("custom_fields_values") or []:
+        name = str(cf.get("field_name") or "").strip().lower()
+        if not name:
+            continue
+        vals = cf.get("values") or []
+        raw = vals[0].get("value") if vals else None
+        if raw is None:
+            continue
+        out[name] = str(raw).strip()
+    return out
+
+
+def _cf_pick(cf: dict, *names: str) -> str:
+    """Busca exata por field_name (sem substring — evita Polo pegar Polo_Inscricao)."""
+    for n in names:
+        v = cf.get(n.lower().strip())
+        if v:
+            return v
+    return ""
+
+
+def _normalize_date_br(raw) -> str:
+    """Normaliza data para DD/MM/YYYY (Kommo UI / lista).
+
+    Aceita:
+      - 'dd/mm/yyyy'
+      - 'yyyy-mm-dd'
+      - timestamp Unix (int/str) — campo Matrícula no Kommo vem assim
+    """
+    if raw is None or raw == "":
+        return ""
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        ts = int(raw)
+        if ts > 10_000_000_000:  # ms
+            ts //= 1000
+        try:
+            return datetime.fromtimestamp(ts, tz=BRT).strftime("%d/%m/%Y")
+        except (OverflowError, OSError, ValueError):
+            return ""
+    s = str(raw).strip()
+    m = re.match(r"^(\d{2})/(\d{2})/(\d{4})", s)
+    if m:
+        return f"{m.group(1)}/{m.group(2)}/{m.group(3)}"
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})", s)
+    if m:
+        return f"{m.group(3)}/{m.group(2)}/{m.group(1)}"
+    # timestamp em string (ex.: "1788577200")
+    if re.match(r"^\d{9,13}$", s):
+        try:
+            ts = int(s)
+            if ts > 10_000_000_000:
+                ts //= 1000
+            return datetime.fromtimestamp(ts, tz=BRT).strftime("%d/%m/%Y")
+        except (OverflowError, OSError, ValueError):
+            return ""
+    return ""
+
+
+def _lead_to_matricula_prefill(lead: dict) -> dict:
+    cf = _lead_cf_values(lead)
+    # Valor bruto (pode ser int timestamp) — não passar só pelo mapa string
+    raw_mat = None
+    for c in lead.get("custom_fields_values") or []:
+        name = str(c.get("field_name") or "").strip().lower()
+        if name in ("matrícula", "matricula"):
+            vals = c.get("values") or []
+            if vals:
+                raw_mat = vals[0].get("value")
+            break
+    rgm = re.sub(r"[^0-9]", "", _cf_pick(cf, "rgm"))
+    # Curso: só o campo "Curso" (não "Curso Inscrição")
+    curso = _cf_pick(cf, "curso")
+    # Polo: só o campo "Polo" (não "Polo_Inscricao" / "polo mais próximo")
+    polo = _cf_pick(cf, "polo")
+    data_mat = _normalize_date_br(raw_mat if raw_mat is not None else _cf_pick(cf, "matrícula", "matricula"))
+    nivel = _cf_pick(cf, "nível", "nivel")
+    if nivel and re.search(r"p[oó]s", nivel, re.I):
+        nivel = "Pós-Graduação"
+    elif nivel and re.search(r"grad", nivel, re.I):
+        nivel = "Graduação"
+    elif not nivel and curso:
+        if re.search(r"(mba|especializa|p[oó]s|lato|stricto)", curso, re.I):
+            nivel = "Pós-Graduação"
+        else:
+            nivel = "Graduação"
+    return {
+        "lead_id": lead.get("id"),
+        "nome": (lead.get("name") or "").strip(),
+        "rgm": rgm[:12] if rgm else "",
+        "curso": curso,
+        "polo": polo,
+        "data_matricula": data_mat,
+        # Ciclo NÃO vem do sync — o consultor preenche manualmente.
+        "ciclo": "",
+        "nivel": nivel,
+        "kommo_lead_id": str(lead.get("id") or ""),
+    }
+
+
+@minha_performance_bp.route("/api/minha-performance/sync-lead-prefill", methods=["POST"])
+def api_mp_sync_lead_prefill():
+    """Mini sync Kommo + campos prontos para o formulário 'Minha lista de vendas'."""
+    user_id, _kommo_uid = _get_agent_user_id()
+    if not user_id:
+        return jsonify({"ok": False, "error": "Não autenticado"}), 401
+    try:
+        from routes.comercial_rgm import (
+            KOMMO_TOKEN,
+            _kommo_mini_sync_lead_flask,
+            _kommo_resolve_lead_id_by_rgm,
+            _pin_rgm_attribution,
+            _kommo_uid_int,
+            _fetch_kommo_user_names,
+            _kommo_sibling_lead_ids_for_rgm,
+        )
+        import time as _time
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Módulo comercial indisponível: {e}"}), 500
+
+    if not KOMMO_TOKEN:
+        return jsonify({"ok": False, "error": "KOMMO_TOKEN não configurado no servidor."}), 500
+
+    body = request.get_json(force=True, silent=True) or {}
+    lead_id = body.get("lead_id")
+    rgm = body.get("rgm")
+    lid = None
+    if lead_id is not None and str(lead_id).strip():
+        try:
+            lid = int(str(lead_id).strip())
+        except (TypeError, ValueError):
+            return jsonify({"ok": False, "error": "ID do lead inválido."}), 400
+
+    rgm_clean = re.sub(r"[^0-9]", "", str(rgm or ""))
+    if lid is None and len(rgm_clean) == 8:
+        found, err = _kommo_resolve_lead_id_by_rgm(rgm_clean)
+        if err:
+            return jsonify({"ok": False, "error": err}), 404
+        if len(found) > 1:
+            return jsonify({
+                "ok": False,
+                "error": "Vários leads com esse RGM. Informe o ID do lead correto.",
+                "lead_ids": found,
+            }), 409
+        lid = found[0]
+    elif lid is None:
+        return jsonify({
+            "ok": False,
+            "error": "Informe o ID do lead (Kommo) ou o RGM com 8 dígitos.",
+        }), 400
+
+    lead, sync_err = _kommo_mini_sync_lead_flask(lid)
+    if not lead:
+        return jsonify({"ok": False, "error": sync_err or "Falha na sincronização do lead."}), 404
+
+    prefill = _lead_to_matricula_prefill(lead)
+
+    # Mesmo pin de crédito do Comercial quando o lead está em Ganho (142).
+    pinned = False
+    siblings_synced = 0
+    rgm_pin = re.sub(r"[^0-9]", "", str(prefill.get("rgm") or ""))
+    uid_pin = _kommo_uid_int(lead.get("responsible_user_id"))
+    st = lead.get("status_id")
+    if st == 142 and len(rgm_pin) == 8 and uid_pin:
+        names = _fetch_kommo_user_names([uid_pin])
+        pinned = _pin_rgm_attribution(
+            rgm_pin, uid_pin, names.get(uid_pin) or "", resolved_by="mini_sync_mp",
+        )
+        for sib in _kommo_sibling_lead_ids_for_rgm(rgm_pin, int(lead["id"]))[:8]:
+            try:
+                _time.sleep(0.2)
+                _sib, _ = _kommo_mini_sync_lead_flask(int(sib))
+                if _sib:
+                    siblings_synced += 1
+            except Exception:
+                pass
+
+    return jsonify({
+        "ok": True,
+        "prefill": prefill,
+        "pinned": pinned,
+        "siblings_synced": siblings_synced,
+        "status_id": st,
+        "msg": "Lead sincronizado. Confira os campos e clique em Salvar.",
+    })
+
+
+# ══════════════════════════════════════════════════════════════════════════
 # Lista propria do agente — CRUD
 # ══════════════════════════════════════════════════════════════════════════
 
@@ -3860,6 +4093,8 @@ def api_minhas_mat_list():
     view_user_id, kommo_uid = _resolve_agent_view_context(request.args.get("kommo_uid", type=int))
     if not view_user_id:
         return jsonify({"ok": False, "error": "Não autenticado"}), 401
+    dt_ini = (request.args.get("dt_ini") or "").strip() or None
+    dt_fim = (request.args.get("dt_fim") or "").strip() or None
     conn = None
     cur = None
     try:
@@ -3871,28 +4106,32 @@ def api_minhas_mat_list():
             ciclo, nivel, kommo_lead_id, observacao,
             created_at::text AS created_at, updated_at::text AS updated_at
         """
+        conds = []
+        params = []
         if kommo_uid:
-            cur.execute(
-                f"""
-                SELECT {cols}
-                FROM agent_matriculas
-                WHERE user_id = %s OR kommo_user_id = %s
-                ORDER BY data_matricula DESC NULLS LAST, created_at DESC
-                """,
-                (view_user_id, kommo_uid),
-            )
+            conds.append("(user_id = %s OR kommo_user_id = %s)")
+            params.extend([view_user_id, kommo_uid])
         else:
-            cur.execute(
-                f"""
-                SELECT {cols}
-                FROM agent_matriculas
-                WHERE user_id = %s
-                ORDER BY data_matricula DESC NULLS LAST, created_at DESC
-                """,
-                (view_user_id,),
-            )
+            conds.append("user_id = %s")
+            params.append(view_user_id)
+        if dt_ini:
+            conds.append("data_matricula >= %s::date")
+            params.append(dt_ini)
+        if dt_fim:
+            conds.append("data_matricula <= %s::date")
+            params.append(dt_fim)
+        where = " AND ".join(conds)
+        cur.execute(
+            f"""
+            SELECT {cols}
+            FROM agent_matriculas
+            WHERE {where}
+            ORDER BY data_matricula DESC NULLS LAST, created_at DESC
+            """,
+            params,
+        )
         rows = [dict(r) for r in cur.fetchall()]
-        return jsonify({"ok": True, "matriculas": rows})
+        return jsonify({"ok": True, "matriculas": rows, "total": len(rows)})
     except Exception as e:
         logger.error("minhas-matriculas list: %s", e)
         return jsonify({"ok": False, "error": str(e)}), 500
@@ -3909,22 +4148,52 @@ def api_minhas_mat_create():
     cur = None
     try:
         b = request.get_json(force=True) or {}
+        err, payload = _validate_minha_matricula_required(b)
+        if err:
+            return jsonify({"ok": False, "error": err}), 400
+        rgm = payload["rgm"]
         conn = _pg()
         cur = conn.cursor()
+        # Bloqueia o mesmo RGM 2x na lista do agente
+        if kommo_uid:
+            cur.execute(
+                """
+                SELECT id FROM agent_matriculas
+                WHERE regexp_replace(COALESCE(rgm,''), '[^0-9]', '', 'g') = %s
+                  AND (user_id = %s OR kommo_user_id = %s)
+                LIMIT 1
+                """,
+                (rgm, user_id, kommo_uid),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT id FROM agent_matriculas
+                WHERE regexp_replace(COALESCE(rgm,''), '[^0-9]', '', 'g') = %s
+                  AND user_id = %s
+                LIMIT 1
+                """,
+                (rgm, user_id),
+            )
+        if cur.fetchone():
+            return jsonify({
+                "ok": False,
+                "error": f"RGM {rgm} já está na sua lista de vendas. Não é permitido cadastrar o mesmo RGM duas vezes.",
+            }), 409
         cur.execute("""
             INSERT INTO agent_matriculas (user_id, kommo_user_id, rgm, nome, curso, polo, data_matricula, ciclo, nivel, kommo_lead_id, observacao)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
         """, (
             user_id, kommo_uid,
-            (b.get("rgm") or "").strip(),
-            (b.get("nome") or "").strip(),
-            (b.get("curso") or "").strip(),
-            (b.get("polo") or "").strip(),
-            _parse_matricula_date(b.get("data_matricula")),
-            (b.get("ciclo") or "").strip(),
-            (b.get("nivel") or "").strip(),
-            (b.get("kommo_lead_id") or "").strip(),
-            (b.get("observacao") or "").strip(),
+            payload["rgm"],
+            payload["nome"],
+            payload["curso"],
+            payload["polo"],
+            payload["data_matricula"],
+            payload["ciclo"],
+            payload["nivel"],
+            payload["kommo_lead_id"],
+            payload["observacao"],
         ))
         new_id = cur.fetchone()[0]
         conn.commit()
@@ -3938,13 +4207,17 @@ def api_minhas_mat_create():
 
 @minha_performance_bp.route("/api/minha-performance/minhas-matriculas/<int:mid>", methods=["PUT"])
 def api_minhas_mat_update(mid):
-    user_id, _ = _get_agent_user_id()
+    user_id, kommo_uid = _get_agent_user_id()
     if not user_id:
         return jsonify({"error": "Não autenticado"}), 401
     conn = None
     cur = None
     try:
         b = request.get_json(force=True) or {}
+        err, payload = _validate_minha_matricula_required(b)
+        if err:
+            return jsonify({"ok": False, "error": err}), 400
+        rgm = payload["rgm"]
         conn = _pg()
         cur = conn.cursor()
         cur.execute("SELECT user_id FROM agent_matriculas WHERE id = %s", (mid,))
@@ -3953,20 +4226,48 @@ def api_minhas_mat_update(mid):
             return jsonify({"ok": False, "error": "Não encontrado"}), 404
         if row[0] != user_id and not _is_admin():
             return jsonify({"ok": False, "error": "Sem permissão"}), 403
+        owner_id = row[0]
+        if kommo_uid:
+            cur.execute(
+                """
+                SELECT id FROM agent_matriculas
+                WHERE regexp_replace(COALESCE(rgm,''), '[^0-9]', '', 'g') = %s
+                  AND (user_id = %s OR kommo_user_id = %s)
+                  AND id <> %s
+                LIMIT 1
+                """,
+                (rgm, owner_id, kommo_uid, mid),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT id FROM agent_matriculas
+                WHERE regexp_replace(COALESCE(rgm,''), '[^0-9]', '', 'g') = %s
+                  AND user_id = %s
+                  AND id <> %s
+                LIMIT 1
+                """,
+                (rgm, owner_id, mid),
+            )
+        if cur.fetchone():
+            return jsonify({
+                "ok": False,
+                "error": f"RGM {rgm} já está na sua lista de vendas. Não é permitido cadastrar o mesmo RGM duas vezes.",
+            }), 409
         cur.execute("""
             UPDATE agent_matriculas SET rgm=%s, nome=%s, curso=%s, polo=%s, data_matricula=%s,
             ciclo=%s, nivel=%s, kommo_lead_id=%s, observacao=%s, updated_at=NOW()
             WHERE id=%s
         """, (
-            (b.get("rgm") or "").strip(),
-            (b.get("nome") or "").strip(),
-            (b.get("curso") or "").strip(),
-            (b.get("polo") or "").strip(),
-            _parse_matricula_date(b.get("data_matricula")),
-            (b.get("ciclo") or "").strip(),
-            (b.get("nivel") or "").strip(),
-            (b.get("kommo_lead_id") or "").strip(),
-            (b.get("observacao") or "").strip(),
+            payload["rgm"],
+            payload["nome"],
+            payload["curso"],
+            payload["polo"],
+            payload["data_matricula"],
+            payload["ciclo"],
+            payload["nivel"],
+            payload["kommo_lead_id"],
+            payload["observacao"],
             mid,
         ))
         conn.commit()

@@ -15,8 +15,10 @@ const _mpFmtN = v => Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:
 
 function _mpFmtDate(d) {
     if (!d) return '';
-    const p = String(d).split('-');
-    return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : d;
+    const s = String(d).trim();
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) return s.slice(0, 10);
+    const p = s.split('-');
+    return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : s;
 }
 
 function _mpDestroyCharts() {
@@ -1578,19 +1580,7 @@ function _mpSwitchTab(tab) {
         tabP.className = rowCls + ' ds-segment__btn--inactive';
         if (!_mpMatLoaded) {
             _mpMatLoaded = true;
-            const now = new Date();
-            const y = now.getFullYear();
-            const m = String(now.getMonth() + 1).padStart(2, '0');
-            const iniEl = document.getElementById('mp-mat-dt-ini');
-            const fimEl = document.getElementById('mp-mat-dt-fim');
-            if (iniEl && !iniEl.value) iniEl.value = `${y}-${m}-01`;
-            if (fimEl && !fimEl.value) {
-                const last = new Date(y, now.getMonth() + 1, 0).getDate();
-                fimEl.value = `${y}-${m}-${String(last).padStart(2, '0')}`;
-            }
-            _mpLoadMatriculas();
-            _mpLoadMinhasMatriculas();
-            _mpLoadAjustes();
+            _mpInitMatriculasFiltroPadrao();
         }
     }
 }
@@ -1601,6 +1591,46 @@ function _mpSwitchTab(tab) {
 let _mpOficialData = [];
 
 let _mpStatusFilter = 'all'; // 'all' | 'ativo' | 'evadido' | 'outros'
+
+function _mpFallbackMesCorrente() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const last = new Date(y, now.getMonth() + 1, 0).getDate();
+    return {
+        dt_inicio: `${y}-${m}-01`,
+        dt_fim: `${y}-${m}-${String(last).padStart(2, '0')}`,
+    };
+}
+
+async function _mpEnsureMetaPeriodos() {
+    if (_mpMetaPeriodosCache && _mpMetaPeriodosCache.length) return _mpMetaPeriodosCache;
+    try {
+        const res = await api('/api/premiacao/campanhas-periodos');
+        const d = await res.json();
+        if (d.ok && Array.isArray(d.campanhas)) {
+            _mpMetaPeriodosCache = d.campanhas;
+            return _mpMetaPeriodosCache;
+        }
+    } catch (e) {
+        console.warn('_mpEnsureMetaPeriodos', e);
+    }
+    return _mpMetaPeriodosCache || [];
+}
+
+async function _mpInitMatriculasFiltroPadrao() {
+    const iniEl = document.getElementById('mp-mat-dt-ini');
+    const fimEl = document.getElementById('mp-mat-dt-fim');
+    if (iniEl && fimEl && (!iniEl.value || !fimEl.value)) {
+        const campanhas = await _mpEnsureMetaPeriodos();
+        const meta = _mpPickLatestMetaPeriod(campanhas) || _mpFallbackMesCorrente();
+        if (!iniEl.value) iniEl.value = meta.dt_inicio;
+        if (!fimEl.value) fimEl.value = meta.dt_fim;
+    }
+    _mpLoadMatriculas();
+    _mpLoadMinhasMatriculas();
+    _mpLoadAjustes();
+}
 
 function _mpClassifySituacao(sit) {
     const s = (sit || '').toUpperCase();
@@ -1773,20 +1803,32 @@ let _mpMinhasData = [];
 async function _mpLoadMinhasMatriculas() {
     const uid = _mpEffectiveMatUid();
     const tbody = document.getElementById('mp-minha-lista-tbody');
+    const countEl = document.getElementById('mp-minha-lista-count');
     if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-slate-600 text-xs">Carregando...</td></tr>';
     try {
-        const qs = uid ? `?kommo_uid=${uid}` : '';
+        const params = new URLSearchParams();
+        if (uid) params.set('kommo_uid', uid);
+        const dtIni = document.getElementById('mp-mat-dt-ini')?.value;
+        const dtFim = document.getElementById('mp-mat-dt-fim')?.value;
+        if (dtIni) params.set('dt_ini', dtIni);
+        if (dtFim) params.set('dt_fim', dtFim);
+        const qs = params.toString() ? `?${params}` : '';
         const res = await api(`/api/minha-performance/minhas-matriculas${qs}`);
         const d = await res.json();
         if (!res.ok || d.ok === false) {
             throw new Error(d.error || `HTTP ${res.status}`);
         }
         _mpMinhasData = d.matriculas || [];
+        if (countEl) {
+            const n = _mpMinhasData.length;
+            countEl.textContent = n ? `${n} no período` : 'nenhuma no período';
+        }
         _mpRenderMinhaLista();
     } catch(e) {
         console.error('_mpLoadMinhasMatriculas', e);
         const msg = e.message === 'Sessão expirada' ? 'Sessão expirada' : (e.message || 'Erro ao carregar');
         if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-red-400 text-xs">${msg}</td></tr>`;
+        if (countEl) countEl.textContent = '';
     }
 }
 
@@ -1826,14 +1868,218 @@ function _mpOpenMinhaMatModal(data = null) {
     document.getElementById('mp-mm-rgm').value = data?.rgm || '';
     document.getElementById('mp-mm-curso').value = data?.curso || '';
     document.getElementById('mp-mm-polo').value = data?.polo || '';
-    document.getElementById('mp-mm-data').value = data?.data_matricula ? String(data.data_matricula).substring(0,10) : '';
+    document.getElementById('mp-mm-data').value = data?.data_matricula ? _mpFmtDate(data.data_matricula) : '';
     document.getElementById('mp-mm-ciclo').value = data?.ciclo || '';
     document.getElementById('mp-mm-nivel').value = data?.nivel || '';
     document.getElementById('mp-mm-kommo').value = data?.kommo_lead_id || '';
     document.getElementById('mp-mm-obs').value = data?.observacao || '';
+    const syncLead = document.getElementById('mp-mm-sync-lead');
+    const syncRgm = document.getElementById('mp-mm-sync-rgm');
+    const syncMsg = document.getElementById('mp-mm-sync-msg');
+    const syncPick = document.getElementById('mp-mm-sync-pick');
+    if (syncLead) syncLead.value = '';
+    if (syncRgm) syncRgm.value = '';
+    if (syncMsg) { syncMsg.classList.add('hidden'); syncMsg.textContent = ''; }
+    if (syncPick) { syncPick.classList.add('hidden'); syncPick.innerHTML = ''; }
+    const srcWrap = document.getElementById('mp-mm-source-wrap');
     if (title) title.textContent = data ? 'Editar Matrícula' : 'Adicionar Matrícula';
+    if (srcWrap) {
+        if (data) {
+            srcWrap.classList.add('hidden');
+        } else {
+            srcWrap.classList.remove('hidden');
+            _mpSetMinhaMatSource('oficial');
+            _mpLoadOficialPicker();
+        }
+    }
     modal.classList.remove('hidden');
     modal.classList.add('flex');
+}
+
+function _mpSetMinhaMatSource(src) {
+    const oficial = document.getElementById('mp-mm-panel-oficial');
+    const sync = document.getElementById('mp-mm-panel-sync');
+    if (oficial) oficial.classList.toggle('hidden', src !== 'oficial');
+    if (sync) sync.classList.toggle('hidden', src !== 'sync');
+    document.querySelectorAll('.mp-mm-src-btn').forEach(btn => {
+        const active = btn.dataset.mpMmSrc === src;
+        btn.classList.toggle('ring-2', active);
+        btn.classList.toggle('ring-offset-1', active);
+        btn.classList.toggle('ring-offset-[#101f22]', active);
+    });
+}
+
+function _mpOficialPickerRows() {
+    const rows = Array.isArray(_mpOficialData) ? _mpOficialData.slice() : [];
+    return rows.sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'));
+}
+
+async function _mpLoadOficialPicker() {
+    const list = document.getElementById('mp-mm-oficial-list');
+    if (!list) return;
+    if (!_mpOficialData.length) {
+        list.innerHTML = '<p class="text-[11px] text-slate-500 px-3 py-4 text-center">Carregando matrículas oficiais…</p>';
+        try {
+            await _mpLoadMatriculas();
+        } catch (_) { /* ignore */ }
+    }
+    _mpFilterOficialPicker();
+}
+
+function _mpFilterOficialPicker() {
+    const list = document.getElementById('mp-mm-oficial-list');
+    const countEl = document.getElementById('mp-mm-oficial-count');
+    if (!list) return;
+    const q = (document.getElementById('mp-mm-oficial-q')?.value || '').trim().toLowerCase();
+    const rows = _mpOficialPickerRows().filter(m => {
+        if (!q) return true;
+        const blob = [m.nome, m.rgm, m.curso, m.polo, m.situacao].map(x => String(x || '').toLowerCase()).join(' ');
+        return blob.includes(q);
+    });
+    list._mpFiltered = rows;
+    if (!rows.length) {
+        list.innerHTML = '<p class="text-[11px] text-slate-500 px-3 py-4 text-center">Nenhuma matrícula neste filtro</p>';
+        if (countEl) countEl.textContent = '0 resultado(s)';
+        return;
+    }
+    list.innerHTML = rows.map((m, i) => {
+        const sit = (m.situacao || '').toUpperCase() || '—';
+        const dt = m.data_matricula ? _mpFmtDate(m.data_matricula) : '—';
+        return `<button type="button"
+            class="w-full text-left px-3 py-2.5 hover:bg-amber-500/15 focus:bg-amber-500/20 focus:outline-none transition-colors"
+            onclick="_mpPickOficialMatricula(${i})">
+            <div class="text-[12px] font-semibold text-slate-100 leading-snug truncate">${esc(m.nome || '—')}</div>
+            <div class="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-slate-400 leading-relaxed">
+                <span class="font-mono text-amber-200/90">RGM ${esc(m.rgm || '—')}</span>
+                <span>${esc(m.polo || '—')}</span>
+                <span>${esc(dt)}</span>
+                <span class="text-slate-500">${esc(sit)}</span>
+            </div>
+            <div class="mt-0.5 text-[10px] text-slate-500 truncate">${esc(m.curso || '—')}</div>
+        </button>`;
+    }).join('');
+    if (countEl) countEl.textContent = `${rows.length} aluno(s) · clique para preencher`;
+}
+
+function _mpPickOficialMatricula(idx) {
+    const list = document.getElementById('mp-mm-oficial-list');
+    const rows = (list && list._mpFiltered) || _mpOficialPickerRows();
+    const m = rows[Number(idx)];
+    if (!m) return;
+    document.querySelectorAll('#mp-mm-oficial-list button').forEach((btn, i) => {
+        btn.classList.toggle('bg-amber-500/20', i === Number(idx));
+        btn.classList.toggle('ring-1', i === Number(idx));
+        btn.classList.toggle('ring-amber-400/40', i === Number(idx));
+    });
+    const dt = m.data_matricula ? _mpFmtDate(m.data_matricula) : '';
+    document.getElementById('mp-mm-nome').value = m.nome || '';
+    document.getElementById('mp-mm-rgm').value = m.rgm || '';
+    document.getElementById('mp-mm-curso').value = m.curso || '';
+    document.getElementById('mp-mm-polo').value = m.polo || '';
+    document.getElementById('mp-mm-data').value = dt;
+    // Ciclo continua manual — não preenche das oficiais
+    document.getElementById('mp-mm-nivel').value = m.nivel || '';
+    const obs = document.getElementById('mp-mm-obs');
+    if (obs && !obs.value.trim()) {
+        obs.value = 'Importado das matrículas oficiais';
+    }
+    const cicloEl = document.getElementById('mp-mm-ciclo');
+    if (cicloEl && !cicloEl.value.trim()) cicloEl.focus();
+}
+
+function _mpApplyPrefill(p) {
+    if (!p) return;
+    if (p.nome) document.getElementById('mp-mm-nome').value = p.nome;
+    if (p.rgm) document.getElementById('mp-mm-rgm').value = p.rgm;
+    if (p.curso) document.getElementById('mp-mm-curso').value = p.curso;
+    if (p.polo) document.getElementById('mp-mm-polo').value = p.polo;
+    if (p.data_matricula) document.getElementById('mp-mm-data').value = p.data_matricula;
+    // Ciclo é sempre manual — não sobrescreve com sync
+    if (p.nivel) document.getElementById('mp-mm-nivel').value = p.nivel;
+    if (p.kommo_lead_id || p.lead_id) {
+        document.getElementById('mp-mm-kommo').value = String(p.kommo_lead_id || p.lead_id);
+    }
+    const obs = document.getElementById('mp-mm-obs');
+    if (obs && !obs.value.trim()) {
+        obs.value = 'Preenchido via mini sync Kommo';
+    }
+    const cicloEl = document.getElementById('mp-mm-ciclo');
+    if (cicloEl && !cicloEl.value.trim()) {
+        cicloEl.focus();
+    }
+}
+
+async function _mpSyncLeadPrefill(forcedLeadId) {
+    const msgEl = document.getElementById('mp-mm-sync-msg');
+    const pickEl = document.getElementById('mp-mm-sync-pick');
+    const btn = document.getElementById('mp-mm-sync-btn');
+    const idEl = document.getElementById('mp-mm-sync-lead');
+    const rgmEl = document.getElementById('mp-mm-sync-rgm');
+    const body = {};
+    if (forcedLeadId != null) {
+        body.lead_id = forcedLeadId;
+        if (idEl) idEl.value = String(forcedLeadId);
+    } else {
+        const idVal = (idEl?.value || '').trim();
+        const rgmVal = (rgmEl?.value || '').trim().replace(/\D/g, '');
+        if (idVal) body.lead_id = parseInt(idVal, 10);
+        else if (rgmVal.length === 8) body.rgm = rgmVal;
+        else {
+            if (msgEl) {
+                msgEl.classList.remove('hidden');
+                msgEl.style.color = '#f87171';
+                msgEl.textContent = 'Informe o ID do lead ou um RGM com 8 dígitos.';
+            }
+            return;
+        }
+    }
+    if (pickEl) { pickEl.classList.add('hidden'); pickEl.innerHTML = ''; }
+    if (btn) btn.disabled = true;
+    try {
+        const res = await api('/api/minha-performance/sync-lead-prefill', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (res.status === 409 && d.lead_ids?.length) {
+            if (msgEl) {
+                msgEl.classList.remove('hidden');
+                msgEl.style.color = '#fbbf24';
+                msgEl.textContent = d.error || 'Vários leads com esse RGM. Clique no ID:';
+            }
+            if (pickEl) {
+                pickEl.classList.remove('hidden');
+                pickEl.innerHTML = d.lead_ids.map(id =>
+                    `<button type="button" onclick="_mpSyncLeadPrefill(${id})" class="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-emerald-600 text-white transition-colors">Lead #${id}</button>`
+                ).join('');
+            }
+            return;
+        }
+        if (!res.ok || !d.ok) {
+            if (msgEl) {
+                msgEl.classList.remove('hidden');
+                msgEl.style.color = '#f87171';
+                msgEl.textContent = d.error || 'Falha no sync';
+            }
+            return;
+        }
+        _mpApplyPrefill(d.prefill || {});
+        if (msgEl) {
+            msgEl.classList.remove('hidden');
+            msgEl.style.color = '#34d399';
+            const p = d.prefill || {};
+            msgEl.textContent = `${d.msg || 'OK'} Lead #${p.lead_id || '—'} · RGM ${p.rgm || '—'}.`;
+        }
+    } catch (e) {
+        if (msgEl) {
+            msgEl.classList.remove('hidden');
+            msgEl.style.color = '#f87171';
+            msgEl.textContent = 'Erro: ' + (e.message || e);
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+    }
 }
 
 function _mpEditMinhaMatricula(id) {
@@ -1843,16 +2089,53 @@ function _mpEditMinhaMatricula(id) {
 
 async function _mpSaveMinhaMatricula() {
     const id = document.getElementById('mp-minha-mat-id').value;
+    const required = [
+        { id: 'mp-mm-nome', label: 'Nome do Aluno' },
+        { id: 'mp-mm-rgm', label: 'RGM' },
+        { id: 'mp-mm-curso', label: 'Curso' },
+        { id: 'mp-mm-polo', label: 'Polo' },
+        { id: 'mp-mm-data', label: 'Data Matrícula' },
+        { id: 'mp-mm-ciclo', label: 'Ciclo' },
+        { id: 'mp-mm-nivel', label: 'Nível' },
+        { id: 'mp-mm-kommo', label: 'Lead Kommo ID' },
+    ];
+    for (const f of required) {
+        const el = document.getElementById(f.id);
+        const val = (el?.value || '').trim();
+        if (!val) {
+            alert(`Preencha o campo obrigatório: ${f.label}.`);
+            el?.focus();
+            return;
+        }
+    }
+    const ciclo = (document.getElementById('mp-mm-ciclo').value || '').trim();
+    const rgm = (document.getElementById('mp-mm-rgm').value || '').replace(/\D/g, '');
+    if (!rgm) {
+        alert('Informe um RGM válido.');
+        document.getElementById('mp-mm-rgm')?.focus();
+        return;
+    }
+    const dup = (Array.isArray(_mpMinhasData) ? _mpMinhasData : []).find(m => {
+        const other = String(m.rgm || '').replace(/\D/g, '');
+        if (!other || other !== rgm) return false;
+        if (id && String(m.id) === String(id)) return false;
+        return true;
+    });
+    if (dup) {
+        alert(`RGM ${rgm} já está na sua lista de vendas. Não é permitido cadastrar o mesmo RGM duas vezes.`);
+        document.getElementById('mp-mm-rgm')?.focus();
+        return;
+    }
     const body = {
-        nome: document.getElementById('mp-mm-nome').value,
-        rgm: document.getElementById('mp-mm-rgm').value,
-        curso: document.getElementById('mp-mm-curso').value,
-        polo: document.getElementById('mp-mm-polo').value,
-        data_matricula: document.getElementById('mp-mm-data').value || null,
-        ciclo: document.getElementById('mp-mm-ciclo').value,
-        nivel: document.getElementById('mp-mm-nivel').value,
-        kommo_lead_id: document.getElementById('mp-mm-kommo').value,
-        observacao: document.getElementById('mp-mm-obs').value,
+        nome: (document.getElementById('mp-mm-nome').value || '').trim(),
+        rgm,
+        curso: (document.getElementById('mp-mm-curso').value || '').trim(),
+        polo: (document.getElementById('mp-mm-polo').value || '').trim(),
+        data_matricula: (document.getElementById('mp-mm-data').value || '').trim() || null,
+        ciclo,
+        nivel: (document.getElementById('mp-mm-nivel').value || '').trim(),
+        kommo_lead_id: (document.getElementById('mp-mm-kommo').value || '').trim(),
+        observacao: (document.getElementById('mp-mm-obs').value || '').trim(),
     };
     try {
         const method = id ? 'PUT' : 'POST';
@@ -2054,6 +2337,7 @@ function _mpAplicarMetaPeriodo(dtIni, dtFim) {
     _mpMetaDropdownOpen = false;
 
     _mpLoadMatriculas();
+    _mpLoadMinhasMatriculas();
 }
 
 // Fecha dropdown ao clicar fora
