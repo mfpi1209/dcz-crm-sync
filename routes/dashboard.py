@@ -61,16 +61,25 @@ _J_NIVEL = "COALESCE(r.data->>'nível', r.data->>'nivel', '')"
 _J_NEGOCIO = "COALESCE(r.data->>'Negócio', r.data->>'Negocio', r.data->>'negocio', '')"
 _J_DATA_MAT = "COALESCE(r.data->>'Data Matrícula', r.data->>'Data Matricula', r.data->>'data_mat', r.data->>'data_matricula', '')"
 
-_MAT_COLS = rf"""
-        {_J_TIPO} AS tipo_aluno,
-        {_J_EMPRESA} AS empresa,
+# Disparador (tool_whatsapp) grava Data Matrícula como serial Excel (ex.: 46218 → 2026-07-15).
+# Epoch Excel no Postgres: 1899-12-30. Faixa 30000–60000 ≈ 1982–2064.
+_DATA_MAT_SQL = rf"""
         CASE
           WHEN {_J_DATA_MAT} ~ '^\d{{2}}/\d{{2}}/\d{{4}}' THEN
             TO_DATE(SUBSTRING({_J_DATA_MAT} FROM 1 FOR 10), 'DD/MM/YYYY')
           WHEN {_J_DATA_MAT} ~ '^\d{{4}}-\d{{2}}-\d{{2}}' THEN
             (SUBSTRING({_J_DATA_MAT} FROM 1 FOR 10))::date
+          WHEN {_J_DATA_MAT} ~ '^\d+(\.\d+)?$'
+               AND {_J_DATA_MAT}::numeric BETWEEN 30000 AND 60000 THEN
+            DATE '1899-12-30' + FLOOR({_J_DATA_MAT}::numeric)::int
           ELSE NULL
-        END AS data_matricula,
+        END
+"""
+
+_MAT_COLS = rf"""
+        {_J_TIPO} AS tipo_aluno,
+        {_J_EMPRESA} AS empresa,
+{_DATA_MAT_SQL} AS data_matricula,
         -- TRANSFERIDO no relatório = aluno que veio de outro polo para a gente.
         CASE
           WHEN TRIM({_J_SIT}) ~* '^transfer' THEN 'EM CURSO'

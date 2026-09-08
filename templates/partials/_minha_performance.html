@@ -430,10 +430,10 @@
                 <label class="text-[10px] text-slate-500 block mb-1">Até</label>
                 <input type="date" id="mp-mat-dt-fim" class="input-glass px-3 py-1.5 text-xs">
             </div>
-            <button onclick="_mpLoadMatriculas()" class="px-3 py-1.5 text-xs font-semibold text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-lg transition-colors flex items-center gap-1">
+            <button onclick="_mpLoadMatriculas();_mpLoadMinhasMatriculas()" class="px-3 py-1.5 text-xs font-semibold text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-lg transition-colors flex items-center gap-1">
                 <span class="material-symbols-outlined text-sm">filter_alt</span> Filtrar
             </button>
-            <button onclick="document.getElementById('mp-mat-dt-ini').value='';document.getElementById('mp-mat-dt-fim').value='';_mpLoadMatriculas()" class="px-3 py-1.5 text-xs text-slate-500 hover:text-[var(--text-primary)] transition-colors">
+            <button onclick="document.getElementById('mp-mat-dt-ini').value='';document.getElementById('mp-mat-dt-fim').value='';_mpLoadMatriculas();_mpLoadMinhasMatriculas()" class="px-3 py-1.5 text-xs text-slate-500 hover:text-[var(--text-primary)] transition-colors">
                 Limpar
             </button>
             <!-- Filtro rápido por período de meta -->
@@ -499,10 +499,12 @@
                 <span class="material-symbols-outlined text-sm text-amber-400">edit_note</span>
                 Minha Lista de Vendas
             </h3>
+            <span id="mp-minha-lista-count" class="text-[10px] text-slate-500"></span>
             <button onclick="_mpOpenMinhaMatModal()" class="ml-auto flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg transition-colors">
                 <span class="material-symbols-outlined text-sm">add</span> Adicionar
             </button>
         </div>
+        <p class="text-[10px] text-slate-500 mb-3">Usa o mesmo período <strong class="text-slate-400">De / Até</strong> das Matrículas Oficiais acima.</p>
         <div class="overflow-x-auto">
             <table class="w-full text-xs">
                 <thead><tr class="text-slate-500 border-b border-[var(--border)]">
@@ -537,21 +539,72 @@
 
 <!-- Modal: Minha Matrícula -->
 <div id="mp-modal-minha-mat" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm" onclick="if(event.target===this){this.classList.add('hidden');this.classList.remove('flex')}">
-    <div class="glass-card rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+    <div class="glass-card rounded-2xl p-6 w-full max-w-xl mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
         <h3 class="text-sm font-bold text-[var(--text-primary)] mb-4 flex items-center gap-2">
             <span class="material-symbols-outlined text-amber-400">edit_note</span>
             <span id="mp-minha-mat-title">Adicionar Matrícula</span>
         </h3>
         <input type="hidden" id="mp-minha-mat-id">
+
+        <!-- Fonte ao adicionar (oculto no editar) -->
+        <div id="mp-mm-source-wrap" class="mb-4">
+            <div class="flex flex-wrap gap-1.5 mb-3">
+                <button type="button" data-mp-mm-src="oficial" onclick="_mpSetMinhaMatSource('oficial')"
+                    class="mp-mm-src-btn px-3 py-1.5 text-[11px] font-semibold rounded-lg border border-amber-500/30 text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 transition-colors">
+                    Matrículas oficiais
+                </button>
+                <button type="button" data-mp-mm-src="sync" onclick="_mpSetMinhaMatSource('sync')"
+                    class="mp-mm-src-btn px-3 py-1.5 text-[11px] font-semibold rounded-lg border border-emerald-500/30 text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors">
+                    Sync Lead Kommo
+                </button>
+                <button type="button" data-mp-mm-src="manual" onclick="_mpSetMinhaMatSource('manual')"
+                    class="mp-mm-src-btn px-3 py-1.5 text-[11px] font-semibold rounded-lg border border-slate-500/30 text-slate-300 bg-slate-500/10 hover:bg-slate-500/20 transition-colors">
+                    Preencher manual
+                </button>
+            </div>
+
+            <div id="mp-mm-panel-oficial" class="hidden mb-3 rounded-xl border border-amber-500/25 bg-amber-500/5 p-3">
+                <label class="text-[11px] text-amber-200/90 block mb-1">Buscar nas suas matrículas oficiais</label>
+                <input id="mp-mm-oficial-q" type="search" placeholder="Nome, RGM, curso ou polo…"
+                    oninput="_mpFilterOficialPicker()"
+                    class="input-glass px-3 py-2 w-full text-xs mb-2">
+                <div id="mp-mm-oficial-list" class="max-h-52 overflow-y-auto rounded-lg border border-slate-600/40 bg-slate-950/40 divide-y divide-slate-700/40">
+                    <p class="text-[11px] text-slate-500 px-3 py-4 text-center">Carregando…</p>
+                </div>
+                <p id="mp-mm-oficial-count" class="text-[10px] text-slate-500 mt-1.5">Clique em um aluno para preencher o formulário.</p>
+            </div>
+
+            <div id="mp-mm-panel-sync" class="hidden mb-3 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3">
+                <p class="text-[11px] text-emerald-200/90 mb-2">Mesmo mini sync do Dashboard Comercial: busca o lead na API Kommo e preenche os campos.</p>
+                <div class="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-2 items-end">
+                    <div>
+                        <label class="text-[10px] text-slate-500 block mb-1">ID do lead (Kommo)</label>
+                        <input id="mp-mm-sync-lead" class="input-glass px-3 py-2 w-full text-xs" placeholder="Ex: 20796123">
+                    </div>
+                    <span class="text-[10px] text-slate-500 text-center pb-2 hidden sm:block">ou</span>
+                    <div>
+                        <label class="text-[10px] text-slate-500 block mb-1">RGM (8 dígitos)</label>
+                        <input id="mp-mm-sync-rgm" class="input-glass px-3 py-2 w-full text-xs" placeholder="Ex: 48411612" maxlength="12">
+                    </div>
+                </div>
+                <div id="mp-mm-sync-pick" class="hidden flex flex-wrap gap-1.5 mt-2"></div>
+                <button type="button" id="mp-mm-sync-btn" onclick="_mpSyncLeadPrefill()"
+                    class="mt-2 w-full sm:w-auto px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-colors">
+                    Buscar e preencher
+                </button>
+                <p id="mp-mm-sync-msg" class="hidden text-[11px] mt-2"></p>
+            </div>
+        </div>
+
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-            <div><label class="text-slate-600 dark:text-slate-400 block mb-1">Nome do Aluno</label><input id="mp-mm-nome" class="input-glass px-3 py-2 w-full"></div>
-            <div><label class="text-slate-600 dark:text-slate-400 block mb-1">RGM</label><input id="mp-mm-rgm" class="input-glass px-3 py-2 w-full"></div>
-            <div><label class="text-slate-600 dark:text-slate-400 block mb-1">Curso</label><input id="mp-mm-curso" class="input-glass px-3 py-2 w-full"></div>
-            <div><label class="text-slate-600 dark:text-slate-400 block mb-1">Polo</label><input id="mp-mm-polo" class="input-glass px-3 py-2 w-full"></div>
-            <div><label class="text-slate-600 dark:text-slate-400 block mb-1">Data Matrícula</label><input id="mp-mm-data" type="date" class="input-glass px-3 py-2 w-full"></div>
-            <div><label class="text-slate-600 dark:text-slate-400 block mb-1">Ciclo</label><input id="mp-mm-ciclo" class="input-glass px-3 py-2 w-full"></div>
-            <div><label class="text-slate-600 dark:text-slate-400 block mb-1">Nível</label><input id="mp-mm-nivel" class="input-glass px-3 py-2 w-full"></div>
-            <div><label class="text-slate-600 dark:text-slate-400 block mb-1">Lead Kommo ID</label><input id="mp-mm-kommo" class="input-glass px-3 py-2 w-full"></div>
+            <div><label class="text-slate-600 dark:text-slate-400 block mb-1">Nome do Aluno <span class="text-rose-400">*</span></label><input id="mp-mm-nome" class="input-glass px-3 py-2 w-full" required></div>
+            <div><label class="text-slate-600 dark:text-slate-400 block mb-1">RGM <span class="text-rose-400">*</span></label><input id="mp-mm-rgm" class="input-glass px-3 py-2 w-full" required></div>
+            <div><label class="text-slate-600 dark:text-slate-400 block mb-1">Curso <span class="text-rose-400">*</span></label><input id="mp-mm-curso" class="input-glass px-3 py-2 w-full" required></div>
+            <div><label class="text-slate-600 dark:text-slate-400 block mb-1">Polo <span class="text-rose-400">*</span></label><input id="mp-mm-polo" class="input-glass px-3 py-2 w-full" required></div>
+            <div><label class="text-slate-600 dark:text-slate-400 block mb-1">Data Matrícula <span class="text-rose-400">*</span></label><input id="mp-mm-data" class="input-glass px-3 py-2 w-full" placeholder="dd/mm/aaaa" inputmode="numeric" required></div>
+            <div><label class="text-slate-600 dark:text-slate-400 block mb-1">Ciclo <span class="text-rose-400">*</span> <span class="text-[10px] text-slate-500">(preencher manual)</span></label><input id="mp-mm-ciclo" class="input-glass px-3 py-2 w-full" placeholder="Ex: 2026/2" required></div>
+            <div><label class="text-slate-600 dark:text-slate-400 block mb-1">Nível <span class="text-rose-400">*</span></label><input id="mp-mm-nivel" class="input-glass px-3 py-2 w-full" required></div>
+            <div><label class="text-slate-600 dark:text-slate-400 block mb-1">Lead Kommo ID <span class="text-rose-400">*</span></label><input id="mp-mm-kommo" class="input-glass px-3 py-2 w-full" required></div>
             <div class="sm:col-span-2"><label class="text-slate-600 dark:text-slate-400 block mb-1">Observação</label><textarea id="mp-mm-obs" class="input-glass px-3 py-2 w-full h-16 resize-none"></textarea></div>
         </div>
         <div class="flex justify-end gap-2 mt-4">
