@@ -52,7 +52,7 @@
           <label class="block text-[10px] text-slate-500 mb-1.5 uppercase tracking-wider font-medium">Taxa de Repasse</label>
           <div class="flex items-center gap-1.5">
             <div class="relative">
-              <input type="number" id="rep-taxa" value="30" min="0" max="100" step="0.1"
+              <input type="number" id="rep-taxa" value="20" min="0" max="100" step="0.1"
                 oninput="repAtualizarTaxa()"
                 onkeydown="if(event.key==='Enter' && !this.readOnly) repSalvarTaxa()"
                 class="input-glass pl-3 pr-7 py-2 text-xs text-amber-900 dark:text-amber-200 w-24 text-right rounded-lg border border-amber-300 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-500/5 focus:border-amber-500 dark:focus:border-amber-500/60 focus:outline-none transition-colors font-mono font-semibold">
@@ -94,7 +94,7 @@
           <div class="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-500/15 flex items-center justify-center">
             <span class="material-symbols-outlined text-amber-700 dark:text-amber-400 text-base">savings</span>
           </div>
-          <span class="text-[9px] text-amber-800 dark:text-amber-500/70 bg-amber-100 dark:bg-amber-500/10 px-1.5 py-0.5 rounded-full uppercase tracking-wider"><span class="rep-taxa-col">30</span>%</span>
+          <span class="text-[9px] text-amber-800 dark:text-amber-500/70 bg-amber-100 dark:bg-amber-500/10 px-1.5 py-0.5 rounded-full uppercase tracking-wider"><span class="rep-taxa-col">20</span>%</span>
         </div>
         <p class="text-[10px] text-amber-900/80 dark:text-amber-500/80 uppercase tracking-wider mb-1">Total Repasse</p>
         <p id="rep-kpi-repasse" class="text-xl font-bold text-amber-800 dark:text-amber-400 font-display">—</p>
@@ -188,7 +188,7 @@
             </span>
             <span class="inline-flex items-center gap-1 text-[10px] bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 text-amber-900 dark:text-amber-400 px-2 py-0.5 rounded-full">
               <span class="material-symbols-outlined text-[10px]">savings</span>
-              Repasse (<span class="rep-taxa-col">30</span>%): <span id="rep-detalhe-repasse" class="font-bold"></span>
+              Repasse (<span class="rep-taxa-col">20</span>%): <span id="rep-detalhe-repasse" class="font-bold"></span>
             </span>
             <span class="inline-flex items-center gap-1 text-[10px] bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 text-blue-800 dark:text-blue-400 px-2 py-0.5 rounded-full">
               <span class="material-symbols-outlined text-[10px]">school</span>
@@ -222,7 +222,7 @@
               <th class="py-2.5 px-4 font-medium">Turma</th>
               <th class="py-2.5 px-4 font-medium">Ciclo</th>
               <th class="py-2.5 px-4 text-right font-medium rep-col-recebido">Valor Recebido</th>
-              <th class="py-2.5 px-4 text-right font-medium text-amber-700 dark:text-amber-500/80">Repasse (<span class="rep-taxa-col">30</span>%)</th>
+              <th class="py-2.5 px-4 text-right font-medium text-amber-700 dark:text-amber-500/80">Repasse (<span class="rep-taxa-col">20</span>%)</th>
             </tr>
           </thead>
           <tbody id="rep-detalhe-tbody"></tbody>

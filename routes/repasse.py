@@ -134,11 +134,11 @@ def api_repasse_taxa_get():
         cur.execute("SELECT valor FROM app_config WHERE chave = 'taxa_repasse'")
         row = cur.fetchone()
         cur.close(); conn.close()
-        taxa = float(row[0]) if row else 30.0
+        taxa = float(row[0]) if row else 20.0
         return jsonify({"taxa": taxa})
     except Exception as e:
         logger.error("api_repasse_taxa_get: %s", e)
-        return jsonify({"taxa": 30.0})
+        return jsonify({"taxa": 20.0})
 
 
 @repasse_bp.route("/api/repasse/taxa", methods=["PUT"])
@@ -149,7 +149,7 @@ def api_repasse_taxa_put():
         return jsonify({"error": "Apenas admin pode alterar a taxa"}), 403
     body = request.get_json(silent=True) or {}
     try:
-        taxa = float(body.get("taxa", 30))
+        taxa = float(body.get("taxa", 20))
         if taxa < 0 or taxa > 100:
             return jsonify({"error": "Taxa inválida"}), 400
     except (ValueError, TypeError):

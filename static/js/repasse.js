@@ -21,8 +21,8 @@ const _repColors = [
 ];
 
 function _repGetTaxa() {
-    const v = parseFloat(document.getElementById('rep-taxa')?.value || '30');
-    return isNaN(v) ? 0.30 : v / 100;
+    const v = parseFloat(document.getElementById('rep-taxa')?.value || '20');
+    return isNaN(v) ? 0.20 : v / 100;
 }
 
 function _repInitials(nome) {
@@ -89,12 +89,12 @@ async function _repCarregarTaxa() {
         const d = await res.json();
         const input = document.getElementById('rep-taxa');
         if (input && d.taxa != null) input.value = d.taxa;
-    } catch(e) { /* mantém padrão 30 */ }
+    } catch(e) { /* mantém padrão 20 */ }
 }
 
 async function repSalvarTaxa() {
     const input = document.getElementById('rep-taxa');
-    const taxa = parseFloat(input?.value || '30');
+    const taxa = parseFloat(input?.value || '20');
     if (isNaN(taxa) || taxa < 0 || taxa > 100) {
         alert('Taxa inválida. Use um valor entre 0 e 100.');
         return;
