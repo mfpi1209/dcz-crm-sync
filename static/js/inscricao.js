@@ -10,6 +10,7 @@ const inscState = {
     limit: 200,
     offset: 0,
     q: '',
+    errorCode: '',
     data: null,
     loading: false,
     error: null,
@@ -28,6 +29,7 @@ function inscBuildURL() {
     if (inscState.view === 'errors') {
         params.set('limit', inscState.limit);
         params.set('offset', inscState.offset);
+        if (inscState.errorCode) params.set('error_code', inscState.errorCode);
     }
     if (inscState.view === 'search' && inscState.q) {
         params.set('q', inscState.q);
@@ -140,6 +142,16 @@ function inscApplyFilter() {
 function inscSwitchToErrors() {
     inscSyncFilters();
     inscState.view = 'errors';
+    inscState.errorCode = '';
+    inscState.offset = 0;
+    inscUpdateToolbarButtons();
+    inscFetchData();
+}
+
+function inscFilterError(code) {
+    inscSyncFilters();
+    inscState.view = 'errors';
+    inscState.errorCode = code || '';
     inscState.offset = 0;
     inscUpdateToolbarButtons();
     inscFetchData();
@@ -149,6 +161,7 @@ function inscSwitchToHome() {
     inscSyncFilters();
     inscState.view = 'home';
     inscState.q = '';
+    inscState.errorCode = '';
     const el = document.getElementById('insc-inputSearch');
     if (el) el.value = '';
     inscUpdateToolbarButtons();
@@ -200,9 +213,11 @@ function inscRenderViewIndicator() {
     const toStr   = inscFormatDate(filters.to);
     const filterText = inscState.view === 'search'
         ? `Busca: ${inscSafe(d.q || inscState.q)}`
-        : ((filters.from || filters.to)
-            ? `Período: ${fromStr} a ${toStr}`
-            : 'Sem filtro de data');
+        : (inscState.view === 'errors' && (d.error_code || inscState.errorCode)
+            ? `Erros: ${inscSafe(d.error_code || inscState.errorCode)}`
+            : ((filters.from || filters.to)
+                ? `Período: ${fromStr} a ${toStr}`
+                : 'Sem filtro de data'));
 
     document.getElementById('insc-viewIndicator').innerHTML = `
         <span class="insc-view-badge ${isHome ? 'home' : 'errors'}">
@@ -217,15 +232,16 @@ function inscRenderViewIndicator() {
     `;
 }
 
-function inscBars(items, nameKey) {
+function inscBars(items, nameKey, onClick) {
     const maxTotal = items.length > 0 ? Math.max(...items.map(t => t.total || 0)) : 1;
     if (!items.length) {
         return '<div style="padding:12px;color:var(--insc-text-muted);font-size:14px;">Nenhum item.</div>';
     }
     return items.map(t => {
         const pct = maxTotal > 0 ? ((t.total || 0) / maxTotal) * 100 : 0;
+        const click = onClick ? ` onclick="${onClick}('${String(t[nameKey]).replace(/'/g, "\\'")}')" style="cursor:pointer"` : '';
         return `
-            <div class="insc-tipo-item">
+            <div class="insc-tipo-item"${click}>
                 <span class="insc-tipo-name">${inscSafe(t[nameKey])}</span>
                 <div class="insc-tipo-bar-container">
                     <div class="insc-tipo-bar" style="width:${pct}%"></div>
@@ -261,6 +277,7 @@ function inscRenderHome() {
     const m = d.metrics || {};
     const tipos = d.tipo_inscricao || [];
     const depts = d.department || [];
+    const erros = d.errors_breakdown || [];
     const recent = d.recent || [];
     const avgSec = m.avg_execution_seconds;
     const avgLabel = avgSec != null ? (Math.round(avgSec * 10) / 10) + ' segundos' : '';
@@ -313,6 +330,15 @@ function inscRenderHome() {
                     <span class="insc-card-label">Departamento</span>
                 </div>
                 <div class="insc-tipos-list">${inscBars(depts, 'department')}</div>
+            </div>
+            <div class="insc-metric-card card-errors insc-animate-in">
+                <div class="insc-card-header">
+                    <div class="insc-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                    </div>
+                    <span class="insc-card-label">Erros</span>
+                </div>
+                <div class="insc-tipos-list">${inscBars(erros, 'error_code', 'inscFilterError')}</div>
             </div>
         </div>
         <div class="insc-errors-header" style="margin-top:28px">
@@ -393,11 +419,13 @@ function inscRenderErrors() {
 
     const hasPrev = offset > 0;
     const hasNext = rows.length >= limit;
+    const activeCode = d.error_code || inscState.errorCode;
 
     document.getElementById('insc-contentArea').innerHTML = `
         <div class="insc-errors-header">
             <div class="insc-errors-stats">
                 <span class="insc-stat-chip">Erros: <strong>&nbsp;${inscSafe(d.total_erros != null ? d.total_erros : totalReturned)}</strong></span>
+                ${activeCode ? `<span class="insc-stat-chip" style="background:#fee2e2;color:#b91c1c">Filtro: <strong>&nbsp;${inscSafe(activeCode)}</strong>&nbsp;<a href="javascript:void(0)" onclick="inscSwitchToErrors()" style="color:#b91c1c;font-weight:700;text-decoration:none" title="Limpar filtro">×</a></span>` : ''}
                 <span class="insc-stat-chip">Nesta página: <strong>&nbsp;${inscSafe(totalReturned)}</strong></span>
                 <span class="insc-stat-chip">Limit: <strong>&nbsp;${inscSafe(limit)}</strong></span>
                 <span class="insc-stat-chip">Offset: <strong>&nbsp;${inscSafe(offset)}</strong></span>

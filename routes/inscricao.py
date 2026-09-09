@@ -162,6 +162,10 @@ def _home(rows: list[dict], filters: dict) -> dict:
     ok_n = sum(1 for r in rows if _is_ok(r))
     formas = Counter((r.get("forma_ingresso") or "—") for r in rows)
     depts = Counter((r.get("department") or "—") for r in rows)
+    erros = Counter(
+        (r.get("error_code") or "Sem código")
+        for r in rows if not _is_ok(r)
+    )
     return {
         "view": "home",
         "filters": filters,
@@ -181,16 +185,23 @@ def _home(rows: list[dict], filters: dict) -> dict:
             {"department": k, "total": v}
             for k, v in depts.most_common()
         ],
+        "errors_breakdown": [
+            {"error_code": k, "total": v}
+            for k, v in erros.most_common()
+        ],
         "recent": [_public_row(r) for r in rows[:50]],
     }
 
 
-def _errors(rows: list[dict], filters: dict, limit: int, offset: int) -> dict:
+def _errors(rows: list[dict], filters: dict, limit: int, offset: int, error_code: str = "") -> dict:
     failed = [r for r in rows if not _is_ok(r)]
+    if error_code:
+        failed = [r for r in failed if (r.get("error_code") or "Sem código") == error_code]
     page = failed[offset:offset + limit]
     return {
         "view": "errors",
         "filters": filters,
+        "error_code": error_code or None,
         "pagination": {"limit": limit, "offset": offset},
         "total_returned": len(page),
         "total_erros": len(failed),
@@ -242,5 +253,6 @@ def api_inscricao():
             "rows": found,
         })
     if view == "errors":
-        return jsonify(_errors(rows, filters, limit, offset))
+        error_code = (request.args.get("error_code") or "").strip()
+        return jsonify(_errors(rows, filters, limit, offset, error_code))
     return jsonify(_home(rows, filters))
