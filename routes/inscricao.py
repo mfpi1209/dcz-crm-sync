@@ -111,8 +111,14 @@ def _hhmmss(seconds: float | None) -> str | None:
     return f"{h:02d}:{m:02d}:{sec:02d}"
 
 
+def _kommo_base() -> str:
+    return (os.getenv("KOMMO_BASE_URL") or "https://admamoeduitcombr.kommo.com").rstrip("/")
+
+
 def _public_row(row: dict) -> dict:
     ms = _duration_ms(row)
+    lead_id = row.get("lead_id")
+    lead_url = f"{_kommo_base()}/leads/detail/{lead_id}" if lead_id else ""
     return {
         "id": row.get("id"),
         "execution_id": row.get("id"),
@@ -121,6 +127,7 @@ def _public_row(row: dict) -> dict:
         "data_fim": row.get("created_at"),
         "duration_ms": ms,
         "ok": _is_ok(row),
+        "lead_url": lead_url,
         "forma_ingresso": row.get("forma_ingresso") or "",
         "tipo_inscricao": row.get("forma_ingresso") or "",
         "department": row.get("department") or "",
