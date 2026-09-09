@@ -251,6 +251,12 @@ function inscBars(items, nameKey, onClick) {
     }).join('');
 }
 
+function inscLeadLink(r, text, style) {
+    const label = inscSafe(text);
+    if (!r.lead_url) return label;
+    return `<a href="${r.lead_url}" target="_blank" rel="noopener" title="Abrir lead no Kommo" style="color:inherit;text-decoration:underline;text-underline-offset:2px;${style || ''}">${label}&nbsp;↗</a>`;
+}
+
 function inscMetaGrid(r) {
     const pairs = [
         ['Curso', r.curso],
@@ -286,7 +292,7 @@ function inscRenderHome() {
         ? '<div style="padding:12px;color:var(--insc-text-muted);font-size:14px;">Nenhum registro no período.</div>'
         : recent.map(r => `
             <div class="insc-recent-row insc-animate-in">
-                <span class="insc-recent-cpf">${inscSafe(r.cpf, 'sem CPF')}</span>
+                <span class="insc-recent-cpf">${inscLeadLink(r, r.cpf || 'sem CPF')}</span>
                 <span class="insc-recent-msg">${r.ok ? 'Inscrição concluída' : inscSafe(r.error_message || r.erro_mensagem, 'Erro')}</span>
                 <span class="insc-error-etapa" style="${r.ok ? 'color:#047857;background:#d1fae5' : ''}">${r.ok ? 'OK' : inscSafe(r.error_code || r.etapa_erro, 'Erro')}</span>
             </div>`).join('');
@@ -313,6 +319,15 @@ function inscRenderHome() {
                 <div class="insc-card-value">${inscSafe(m.total)}</div>
                 <div class="insc-card-sub">${inscSafe(m.total_ok)} ok · ${inscSafe(m.total_erro)} erro</div>
             </div>
+            <div class="insc-metric-card card-errors insc-animate-in">
+                <div class="insc-card-header">
+                    <div class="insc-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                    </div>
+                    <span class="insc-card-label">Erros</span>
+                </div>
+                <div class="insc-tipos-list">${inscBars(erros, 'error_code', 'inscFilterError')}</div>
+            </div>
             <div class="insc-metric-card card-types insc-animate-in">
                 <div class="insc-card-header">
                     <div class="insc-card-icon">
@@ -331,15 +346,6 @@ function inscRenderHome() {
                 </div>
                 <div class="insc-tipos-list">${inscBars(depts, 'department')}</div>
             </div>
-            <div class="insc-metric-card card-errors insc-animate-in">
-                <div class="insc-card-header">
-                    <div class="insc-card-icon">
-                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-                    </div>
-                    <span class="insc-card-label">Erros</span>
-                </div>
-                <div class="insc-tipos-list">${inscBars(erros, 'error_code', 'inscFilterError')}</div>
-            </div>
         </div>
         <div class="insc-errors-header" style="margin-top:28px">
             <div class="insc-errors-stats">
@@ -355,7 +361,7 @@ function inscRenderPersonCards(rows, emptyTitle, emptyText) {
     return rows.map(r => `
         <div class="insc-error-card insc-animate-in">
             <div class="insc-error-card-header" style="${r.ok ? 'background:linear-gradient(180deg,#ecfdf5 0%,white 100%)' : ''}">
-                <span class="insc-error-id">${inscSafe(r.cpf, inscSafe(r.id))}</span>
+                <span class="insc-error-id">${inscLeadLink(r, r.cpf || r.id)}</span>
                 <div class="insc-error-card-header-right">
                     ${inscFormatDateTime(r.created_at) ? `<span class="insc-error-timestamp">${inscFormatDateTime(r.created_at)}</span>` : ''}
                     <span class="insc-error-etapa" style="${r.ok ? 'color:#047857;background:#d1fae5' : ''}">${r.ok ? 'OK' : inscSafe(r.error_code || r.etapa_erro, 'Erro')}</span>
@@ -398,7 +404,7 @@ function inscRenderErrors() {
             return `
             <div class="insc-error-card insc-animate-in">
                 <div class="insc-error-card-header">
-                    <span class="insc-error-id" title="${inscSafe(r.execution_id || r.id)}">${inscSafe(r.execution_id || r.id)}</span>
+                    <span class="insc-error-id" title="${inscSafe(r.execution_id || r.id)}">${inscLeadLink(r, r.execution_id || r.id)}</span>
                     <div class="insc-error-card-header-right">
                         ${endTimeFormatted ? `
                         <span class="insc-error-timestamp" title="Data">
