@@ -90,6 +90,13 @@ async function _repCarregarTaxa() {
         const input = document.getElementById('rep-taxa');
         if (input && d.taxa != null) input.value = d.taxa;
     } catch(e) { /* mantém padrão 20 */ }
+    _repSyncTaxaLabels();
+}
+
+function _repSyncTaxaLabels() {
+    const pct = _repGetTaxa() * 100;
+    const txt = (pct % 1 === 0) ? pct.toFixed(0) : pct.toFixed(1);
+    document.querySelectorAll('.rep-taxa-col').forEach(el => el.textContent = txt);
 }
 
 async function repSalvarTaxa() {
@@ -202,8 +209,7 @@ function _repAtualizarKpis(totais) {
     document.getElementById('rep-kpi-agentes-wrap')?.classList.toggle('hidden', !_repIsAdmin);
 
     // Labels de taxa (badges menores, não o KPI title)
-    const taxaPct = (taxa * 100 % 1 === 0) ? (taxa * 100).toFixed(0) : (taxa * 100).toFixed(1);
-    document.querySelectorAll('.rep-taxa-col').forEach(el => el.textContent = taxaPct);
+    _repSyncTaxaLabels();
 }
 
 function repAtualizarTurmas() {
@@ -226,6 +232,7 @@ function repAtualizarTurmas() {
 }
 
 function repAtualizarTaxa() {
+    _repSyncTaxaLabels();
     if (!_repAgentesData.length) return;
     const totalValor   = _repAgentesData.reduce((s, a) => s + (a.total_valor  || 0), 0);
     const totalAlunos  = _repAgentesData.reduce((s, a) => s + (a.qtd_alunos   || 0), 0);
