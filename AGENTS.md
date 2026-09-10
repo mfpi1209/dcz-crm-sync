@@ -4,6 +4,18 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-09-10 — Acadêmico: Transferido/Rematrículas inflados (cache no upload, não D-1)
+- **Modelo usado:** Cursor Grok 4.5.
+- **Sintoma:** ontem Transferido ~**500** (ok); hoje Total **45.794**, Rematrículas **26.668**, Transferido **18.565** com ciclo `2026/2 (27.229)`. Em Curso/Cancelado/Trancado batiam com o snapshot.
+- **Causa:** no upload do Disparador o sumidos rodou com **latest incompleto** (mesmo `snapshot_id`, poucas linhas) → milhares de RGMs “sumidos” fantasmas; o cache em memória **ficava preso** nesse `snapshot_id` o dia inteiro. Esses fantasmas ainda entravam nos cards de **tipo** (Remat/Novos).
+- **O que NÃO fazer:** restringir sumidos a D-1 (snapshot anterior só) — o card Transferido é o **acumulado** de quem saiu e não voltou (~centenas), não o delta do dia (~unidades).
+- **Fix:** sumidos voltam ao critério **histórico vs latest** (last-seen); linhas `TRANSFERIDO` (sumidos) contam **só** no card de situação, não no Total/Novos/Rematrículas.
+- **4 guardas no cache (`_compute_sumidos`):** (1) invalida por `snapshot_id` **e** `COUNT(*)` do latest; (2) latest < 80% do snapshot anterior → mantém cache antigo e não grava; (3) recontagem depois da varredura — se o snapshot cresceu no meio, descarta o resultado; (4) sanidade `len(sumidos) > 20%` do latest → descarta (transferência é centena, não milhar). Sem resultado confiável devolve o **último cache bom** (nunca fantasma).
+- **Single-flight:** `_SUMIDOS_COMPUTE_LOCK` — a varredura leva ~15–30s; sem lock, N requests após o upload disparavam N varreduras no `disparos`.
+- **Exceção do filtro:** ao clicar no card **Transferido**, o `continue` não se aplica (`f_sit_norm == 'transferido'`) — senão a tela filtrada zerava tipo/polo/nível.
+- **Números esperados (ciclo 2026/2):** Total tipo ≈ **27.229**; Rematrículas ≈ **17.8k**; Transferido ≈ **~400–500** (acumulado real), não 18k. Sem filtro de ciclo: Total = **55.164** (= linhas do snapshot) e Transferido **520**.
+- **Não muda:** inbound TRANSFERIDO do arquivo → Em Curso.
+
 ### 2026-09-08 — Rematrícula zerada: Data Matrícula do Disparador é serial Excel
 - **Modelo usado:** Cursor Grok 4.5.
 - **Sintoma:** aba Rematrícula com dropdown `2026/2 (N rematr.)` mas cards/gráficos em **0**.
