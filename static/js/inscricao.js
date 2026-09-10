@@ -26,10 +26,10 @@ function inscBuildURL() {
     params.set('view', inscState.view);
     if (inscState.from) params.set('from', inscState.from);
     if (inscState.to) params.set('to', inscState.to);
-    if (inscState.view === 'errors') {
+    if (inscState.view === 'errors' || inscState.view === 'afiliados') {
         params.set('limit', inscState.limit);
         params.set('offset', inscState.offset);
-        if (inscState.errorCode) params.set('error_code', inscState.errorCode);
+        if (inscState.view === 'errors' && inscState.errorCode) params.set('error_code', inscState.errorCode);
     }
     if (inscState.view === 'search' && inscState.q) {
         params.set('q', inscState.q);
@@ -157,6 +157,15 @@ function inscFilterError(code) {
     inscFetchData();
 }
 
+function inscSwitchToAfiliados() {
+    inscSyncFilters();
+    inscState.view = 'afiliados';
+    inscState.errorCode = '';
+    inscState.offset = 0;
+    inscUpdateToolbarButtons();
+    inscFetchData();
+}
+
 function inscSwitchToHome() {
     inscSyncFilters();
     inscState.view = 'home';
@@ -200,6 +209,8 @@ function inscRender() {
         inscRenderHome();
     } else if (inscState.view === 'search') {
         inscRenderSearch();
+    } else if (inscState.view === 'afiliados') {
+        inscRenderAfiliados();
     } else {
         inscRenderErrors();
     }
@@ -219,14 +230,18 @@ function inscRenderViewIndicator() {
                 ? `Período: ${fromStr} a ${toStr}`
                 : 'Sem filtro de data'));
 
+    const badgeIcon = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>';
+    const badge = isHome
+        ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg> Home'
+        : (inscState.view === 'search'
+            ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg> Busca'
+            : (inscState.view === 'afiliados'
+                ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg> Afiliados'
+                : badgeIcon + ' Erros'));
+
     document.getElementById('insc-viewIndicator').innerHTML = `
         <span class="insc-view-badge ${isHome ? 'home' : 'errors'}">
-            ${isHome
-                ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg> Home'
-                : (inscState.view === 'search'
-                    ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg> Busca'
-                    : '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg> Erros')
-            }
+            ${badge}
         </span>
         <span class="insc-filter-display">${filterText}</span>
     `;
@@ -294,7 +309,8 @@ function inscRenderHome() {
             <div class="insc-recent-row insc-animate-in">
                 <span class="insc-recent-cpf">${inscLeadLink(r, r.cpf || 'sem CPF')}</span>
                 <span class="insc-recent-msg">${r.ok ? 'Inscrição concluída' : inscSafe(r.error_message || r.erro_mensagem, 'Erro')}</span>
-                <span class="insc-error-etapa" style="${r.ok ? 'color:#047857;background:#d1fae5' : ''}">${r.ok ? 'OK' : inscSafe(r.error_code || r.etapa_erro, 'Erro')}</span>
+                <span class="insc-recent-time">${inscFormatDateTime(r.created_at) || ''}</span>
+                <span class="insc-error-etapa ${r.ok ? 'insc-badge-ok' : ''}">${r.ok ? 'OK' : inscSafe(r.error_code || r.etapa_erro, 'Erro')}</span>
             </div>`).join('');
 
     document.getElementById('insc-contentArea').innerHTML = `
@@ -318,6 +334,16 @@ function inscRenderHome() {
                 </div>
                 <div class="insc-card-value">${inscSafe(m.total)}</div>
                 <div class="insc-card-sub">${inscSafe(m.total_ok)} ok · ${inscSafe(m.total_erro)} erro</div>
+            </div>
+            <div class="insc-metric-card card-afiliados insc-animate-in" onclick="inscSwitchToAfiliados()" style="cursor:pointer" title="Ver apenas inscrições de afiliados">
+                <div class="insc-card-header">
+                    <div class="insc-card-icon">
+                        <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                    </div>
+                    <span class="insc-card-label">Afiliados</span>
+                </div>
+                <div class="insc-card-value">${inscSafe(m.total_afiliados, '0')}</div>
+                <div class="insc-card-sub">de ${inscSafe(m.total)} inscrições no período · clique para filtrar</div>
             </div>
             <div class="insc-metric-card card-errors insc-animate-in">
                 <div class="insc-card-header">
@@ -360,11 +386,11 @@ function inscRenderPersonCards(rows, emptyTitle, emptyText) {
     if (!rows.length) return inscRenderEmptyState(emptyTitle, emptyText);
     return rows.map(r => `
         <div class="insc-error-card insc-animate-in">
-            <div class="insc-error-card-header" style="${r.ok ? 'background:linear-gradient(180deg,#ecfdf5 0%,white 100%)' : ''}">
+            <div class="insc-error-card-header ${r.ok ? 'insc-ok-header' : ''}">
                 <span class="insc-error-id">${inscLeadLink(r, r.cpf || r.id)}</span>
                 <div class="insc-error-card-header-right">
                     ${inscFormatDateTime(r.created_at) ? `<span class="insc-error-timestamp">${inscFormatDateTime(r.created_at)}</span>` : ''}
-                    <span class="insc-error-etapa" style="${r.ok ? 'color:#047857;background:#d1fae5' : ''}">${r.ok ? 'OK' : inscSafe(r.error_code || r.etapa_erro, 'Erro')}</span>
+                    <span class="insc-error-etapa ${r.ok ? 'insc-badge-ok' : ''}">${r.ok ? 'OK' : inscSafe(r.error_code || r.etapa_erro, 'Erro')}</span>
                 </div>
             </div>
             <div class="insc-error-card-body">
@@ -384,6 +410,40 @@ function inscRenderSearch() {
             </div>
         </div>
         <div class="insc-errors-list">${inscRenderPersonCards(rows, 'Nenhuma inscrição', 'Não achei CPF/telefone nesse valor.')}</div>
+    `;
+}
+
+function inscRenderAfiliados() {
+    const d = inscState.data;
+    const rows = d.rows || [];
+    const totalReturned = d.total_returned != null ? d.total_returned : rows.length;
+    const pagination = d.pagination || {};
+    const limit  = pagination.limit  != null ? pagination.limit  : inscState.limit;
+    const offset = pagination.offset != null ? pagination.offset : inscState.offset;
+    const hasPrev = offset > 0;
+    const hasNext = rows.length >= limit;
+
+    document.getElementById('insc-contentArea').innerHTML = `
+        <div class="insc-errors-header">
+            <div class="insc-errors-stats">
+                <span class="insc-stat-chip">Afiliados: <strong>&nbsp;${inscSafe(d.total_afiliados != null ? d.total_afiliados : totalReturned)}</strong></span>
+                <span class="insc-stat-chip">Nesta página: <strong>&nbsp;${inscSafe(totalReturned)}</strong></span>
+            </div>
+        </div>
+        <div class="insc-errors-list">
+            ${inscRenderPersonCards(rows, 'Nenhum afiliado', 'Não há inscrições de afiliados neste período.')}
+        </div>
+        <div class="insc-pagination">
+            <button class="insc-btn insc-btn-outline" onclick="inscPrevPage()" ${hasPrev ? '' : 'disabled'}>
+                <svg viewBox="0 0 24 24" fill="currentColor" style="width:16px;height:16px"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+                Anterior
+            </button>
+            <span class="insc-pagination-info">Página ${Math.floor(offset / limit) + 1}</span>
+            <button class="insc-btn insc-btn-outline" onclick="inscNextPage()" ${hasNext ? '' : 'disabled'}>
+                Próximo
+                <svg viewBox="0 0 24 24" fill="currentColor" style="width:16px;height:16px"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+            </button>
+        </div>
     `;
 }
 
@@ -431,7 +491,7 @@ function inscRenderErrors() {
         <div class="insc-errors-header">
             <div class="insc-errors-stats">
                 <span class="insc-stat-chip">Erros: <strong>&nbsp;${inscSafe(d.total_erros != null ? d.total_erros : totalReturned)}</strong></span>
-                ${activeCode ? `<span class="insc-stat-chip" style="background:#fee2e2;color:#b91c1c">Filtro: <strong>&nbsp;${inscSafe(activeCode)}</strong>&nbsp;<a href="javascript:void(0)" onclick="inscSwitchToErrors()" style="color:#b91c1c;font-weight:700;text-decoration:none" title="Limpar filtro">×</a></span>` : ''}
+                ${activeCode ? `<span class="insc-stat-chip insc-chip-filter">Filtro: <strong>&nbsp;${inscSafe(activeCode)}</strong>&nbsp;<a href="javascript:void(0)" onclick="inscSwitchToErrors()" title="Limpar filtro">×</a></span>` : ''}
                 <span class="insc-stat-chip">Nesta página: <strong>&nbsp;${inscSafe(totalReturned)}</strong></span>
                 <span class="insc-stat-chip">Limit: <strong>&nbsp;${inscSafe(limit)}</strong></span>
                 <span class="insc-stat-chip">Offset: <strong>&nbsp;${inscSafe(offset)}</strong></span>
@@ -472,6 +532,62 @@ function inscEscapeHtml(text) {
 }
 
 // ---------------------------------------------------------------------------
+// Afiliados
+// ---------------------------------------------------------------------------
+async function inscAfiliadosLoad() {
+    try {
+        const res = await fetch(`${INSC_API_BASE}/afiliados`);
+        const json = await res.json();
+        if (!res.ok || !json.ok) throw new Error(json.error || `HTTP ${res.status}`);
+        const valor = json.valor != null ? json.valor : 0;
+        document.getElementById('insc-afiliados-slider').value = valor;
+        document.getElementById('insc-afiliados-num').value = valor;
+        document.getElementById('insc-afiliados-total').textContent =
+            json.total_indicados != null ? json.total_indicados : '—';
+    } catch (err) {
+        console.error('[Inscrição] afiliados load:', err);
+        const fb = document.getElementById('insc-afiliados-feedback');
+        if (fb) { fb.textContent = 'Erro ao carregar'; fb.style.color = '#dc2626'; }
+    }
+}
+
+async function inscAfiliadosSave() {
+    const num = document.getElementById('insc-afiliados-num');
+    const fb = document.getElementById('insc-afiliados-feedback');
+    const btn = document.getElementById('insc-afiliados-save');
+    let valor = parseInt(num.value, 10);
+    if (isNaN(valor) || valor < 0 || valor > 100) {
+        fb.textContent = 'Informe um valor entre 0 e 100';
+        fb.style.color = '#dc2626';
+        return;
+    }
+    valor = Math.round(valor);
+    num.value = valor;
+    document.getElementById('insc-afiliados-slider').value = valor;
+    btn.disabled = true;
+    fb.textContent = 'Salvando…';
+    fb.style.color = 'var(--insc-text-muted)';
+    try {
+        const res = await fetch(`${INSC_API_BASE}/afiliados`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ valor }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.ok) throw new Error(json.error || `HTTP ${res.status}`);
+        fb.textContent = 'Salvo ✓';
+        fb.style.color = '#047857';
+    } catch (err) {
+        console.error('[Inscrição] afiliados save:', err);
+        fb.textContent = `Erro: ${err.message}`;
+        fb.style.color = '#dc2626';
+    } finally {
+        btn.disabled = false;
+        setTimeout(() => { if (fb.textContent === 'Salvo ✓') fb.textContent = ''; }, 4000);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Init (called by navigate)
 // ---------------------------------------------------------------------------
 function loadInscricao() {
@@ -490,4 +606,5 @@ function loadInscricao() {
 
     inscUpdateToolbarButtons();
     inscFetchData();
+    inscAfiliadosLoad();
 }

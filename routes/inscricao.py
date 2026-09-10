@@ -144,6 +144,7 @@ def _public_row(row: dict) -> dict:
         "order_id": row.get("order_id") or "",
         "inscricao_siaa": row.get("inscricao_siaa") or "",
         "telefone": row.get("telefone") or row.get("phone") or row.get("celular") or "",
+        "afiliado": _is_ok({"ok": row.get("afiliado")}),
     }
 
 
@@ -167,6 +168,7 @@ def _home(rows: list[dict], filters: dict) -> dict:
     secs = [(_duration_ms(r) or 0) / 1000.0 for r in timed_ok]
     avg = (sum(secs) / len(secs)) if secs else None
     ok_n = sum(1 for r in rows if _is_ok(r))
+    afiliados_n = sum(1 for r in rows if _is_ok({"ok": r.get("afiliado")}))
     formas = Counter((r.get("forma_ingresso") or "—") for r in rows)
     depts = Counter((r.get("department") or "—") for r in rows)
     erros = Counter(
@@ -183,6 +185,7 @@ def _home(rows: list[dict], filters: dict) -> dict:
             "total": len(rows),
             "total_ok": ok_n,
             "total_erro": len(rows) - ok_n,
+            "total_afiliados": afiliados_n,
         },
         "tipo_inscricao": [
             {"tipo_inscricao": k, "total": v}
@@ -216,10 +219,109 @@ def _errors(rows: list[dict], filters: dict, limit: int, offset: int, error_code
     }
 
 
+def _sb_req(method: str, path: str, body: dict | None = None, extra_headers: dict | None = None):
+    """Chamada REST ao Supabase de inscrições. Retorna (status, headers, data)."""
+    base, key = _cfg()
+    headers = {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": "dcz-crm-sync/1.0",
+    }
+    if extra_headers:
+        headers.update(extra_headers)
+    payload = json.dumps(body).encode("utf-8") if body is not None else None
+    req = urllib.request.Request(
+        f"{base}/rest/v1/{path}", data=payload, headers=headers, method=method,
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        raw = resp.read().decode("utf-8")
+        data = json.loads(raw) if raw else None
+        return resp.status, dict(resp.headers), data
+
+
+def _count_indicados() -> int | None:
+    """Total de inscricoes_logs com afiliado=true (None se a coluna não existir)."""
+    try:
+        _, hdrs, _ = _sb_req(
+            "GET",
+            f"{_TABLE}?afiliado=eq.true&select=id&limit=1",
+            extra_headers={"Prefer": "count=exact"},
+        )
+        content_range = hdrs.get("Content-Range") or hdrs.get("content-range") or ""
+        # formato: "0-0/123" ou "*/123"
+        if "/" in content_range:
+            return int(content_range.rsplit("/", 1)[-1])
+        return None
+    except Exception as e:
+        logger.warning("count indicados: %s", e)
+        return None
+
+
+@inscricao_bp.route("/api/inscricao/afiliados", methods=["GET", "PATCH"])
+def api_inscricao_afiliados():
+    try:
+        if request.method == "GET":
+            _, _, data = _sb_req(
+                "GET",
+                "porcentagem_afiliados?chave=eq.afiliado_percentual&select=valor",
+            )
+            valor = None
+            if isinstance(data, list) and data:
+                try:
+                    valor = int(float(str(data[0].get("valor") or "0")))
+                except (TypeError, ValueError):
+                    valor = 0
+            return jsonify({
+                "ok": True,
+                "valor": valor,
+                "total_indicados": _count_indicados(),
+            })
+
+        body = request.get_json(silent=True) or {}
+        try:
+            valor = int(float(str(body.get("valor"))))
+        except (TypeError, ValueError):
+            return jsonify({"ok": False, "error": "valor inválido (0 a 100)"}), 400
+        if not 0 <= valor <= 100:
+            return jsonify({"ok": False, "error": "valor deve estar entre 0 e 100"}), 400
+        _sb_req(
+            "PATCH",
+            "porcentagem_afiliados?chave=eq.afiliado_percentual",
+            body={
+                "valor": str(valor),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            },
+            extra_headers={"Prefer": "return=minimal"},
+        )
+        return jsonify({"ok": True, "valor": valor})
+    except urllib.error.HTTPError as e:
+        body_txt = e.read().decode("utf-8", "replace")[:400]
+        logger.exception("afiliados HTTP %s", e.code)
+        return jsonify({"ok": False, "error": f"Supabase HTTP {e.code}: {body_txt}"}), 502
+    except Exception as e:
+        logger.exception("afiliados")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+def _afiliados(rows: list[dict], filters: dict, limit: int, offset: int) -> dict:
+    afiliados = [r for r in rows if _is_ok({"ok": r.get("afiliado")})]
+    page = afiliados[offset:offset + limit]
+    return {
+        "view": "afiliados",
+        "filters": filters,
+        "pagination": {"limit": limit, "offset": offset},
+        "total_returned": len(page),
+        "total_afiliados": len(afiliados),
+        "rows": [_public_row(r) for r in page],
+    }
+
+
 @inscricao_bp.route("/api/inscricao", methods=["GET"])
 def api_inscricao():
     view = (request.args.get("view") or "home").strip().lower()
-    if view not in ("home", "errors", "search"):
+    if view not in ("home", "errors", "search", "afiliados"):
         view = "home"
     q = (request.args.get("q") or "").strip()
     frm_q = (request.args.get("from") or "").strip()
@@ -262,4 +364,6 @@ def api_inscricao():
     if view == "errors":
         error_code = (request.args.get("error_code") or "").strip()
         return jsonify(_errors(rows, filters, limit, offset, error_code))
+    if view == "afiliados":
+        return jsonify(_afiliados(rows, filters, limit, offset))
     return jsonify(_home(rows, filters))
