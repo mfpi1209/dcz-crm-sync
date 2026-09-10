@@ -238,9 +238,10 @@ def api_dashboard():
 # Rotas — Dashboard: Métricas de Alunos (fonte: Bases Disparador / disparos)
 # ---------------------------------------------------------------------------
 
-# Alunos que já estiveram em algum relatório de matriculados e não estão no mais
-# recente: na prática são transferências para outro polo. Entram no dashboard como
-# situação TRANSFERIDO, com os dados da última vez em que foram vistos.
+# Alunos que já estiveram em algum relatório (histórico) e não estão no mais
+# recente: transferências para outro polo. Escopo = last-seen em TODOS os
+# snapshots (não só D-1) — o card Transferido é o acumulado (~centenas), não
+# só o delta do dia. Proteção de cache evita o "18k fantasma" no meio do upload.
 _SUMIDOS_QUERY = f"""
 WITH latest AS (
     SELECT id FROM matriculados_snapshots ORDER BY created_at DESC LIMIT 1
@@ -249,6 +250,7 @@ latest_rgms AS (
     SELECT DISTINCT NULLIF(regexp_replace({_J_RGM}, '[^0-9]', '', 'g'), '') AS rgm
     FROM matriculados_rows r
     WHERE r.snapshot_id = (SELECT id FROM latest)
+      AND NULLIF(regexp_replace({_J_RGM}, '[^0-9]', '', 'g'), '') IS NOT NULL
 ),
 hist AS (
     SELECT s.created_at AS snap_at,
@@ -277,13 +279,18 @@ SELECT
     u.ciclo,
     u.rgm,
     u.data_matricula,
+    FALSE AS inbound_transfer,
     1 AS total
 FROM ultimo u
 """
 
-_SUMIDOS_CACHE = {"snapshot_id": None, "rows": None}
+_SUMIDOS_CACHE = {"snapshot_id": None, "latest_rows": None, "rows": None}
 _SUMIDOS_LOCK = threading.Lock()
-_SUMIDOS_REFRESHING = set()
+# Single-flight: a varredura histórica é cara (~15–30s). Sem isso, N requests
+# simultâneos no primeiro acesso após o upload disparam N varreduras no `disparos`.
+_SUMIDOS_COMPUTE_LOCK = threading.Lock()
+# Sumidos são centenas em ~56k linhas. Acima disso o latest está incompleto.
+_SUMIDOS_SANITY_RATIO = 0.20
 
 
 def _sumidos_latest_snapshot_id(conn):
@@ -295,48 +302,108 @@ def _sumidos_latest_snapshot_id(conn):
     return row[0] if row else None
 
 
-def _compute_sumidos(conn, snap_id):
-    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-        cur.execute(_SUMIDOS_QUERY)
-        rows = cur.fetchall()
+def _sumidos_snapshot_row_count(conn, snap_id):
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT COUNT(*)::int FROM matriculados_rows WHERE snapshot_id = %s",
+            (snap_id,),
+        )
+        row = cur.fetchone()
+    return int(row[0] or 0) if row else 0
+
+
+def _sumidos_prev_snapshot_row_count(conn):
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            WITH ordered AS (
+                SELECT id, ROW_NUMBER() OVER (ORDER BY created_at DESC) AS rn
+                FROM matriculados_snapshots
+            )
+            SELECT COUNT(*)::int FROM matriculados_rows
+            WHERE snapshot_id = (SELECT id FROM ordered WHERE rn = 2)
+            """
+        )
+        row = cur.fetchone()
+    return int(row[0] or 0) if row else 0
+
+
+def _sumidos_cached(snap_id, latest_rows):
     with _SUMIDOS_LOCK:
-        _SUMIDOS_CACHE["snapshot_id"] = snap_id
-        _SUMIDOS_CACHE["rows"] = rows
-    return rows
+        if (
+            _SUMIDOS_CACHE["snapshot_id"] == snap_id
+            and _SUMIDOS_CACHE["latest_rows"] == latest_rows
+            and _SUMIDOS_CACHE["rows"] is not None
+        ):
+            return _SUMIDOS_CACHE["rows"]
+    return None
 
 
-def _refresh_sumidos_async(snap_id):
-    def _run():
-        conn = None
-        try:
-            conn = get_disparos_conn()
-            _compute_sumidos(conn, snap_id)
-        except Exception as e:
-            logging.getLogger(__name__).warning("warm sumidos: %s", e)
-        finally:
-            if conn is not None:
-                conn.close()
-            _SUMIDOS_REFRESHING.discard(snap_id)
+def _sumidos_fallback():
+    """Último resultado confiável; nunca inventa TRANSFERIDO fantasma."""
+    with _SUMIDOS_LOCK:
+        rows = _SUMIDOS_CACHE["rows"]
+    return rows if rows is not None else []
 
-    if snap_id in _SUMIDOS_REFRESHING:
-        return
-    _SUMIDOS_REFRESHING.add(snap_id)
-    threading.Thread(target=_run, daemon=True, name="warm-sumidos").start()
+
+def _compute_sumidos(conn, snap_id):
+    log = logging.getLogger(__name__)
+    with _SUMIDOS_COMPUTE_LOCK:
+        n_before = _sumidos_snapshot_row_count(conn, snap_id)
+        cached = _sumidos_cached(snap_id, n_before)
+        if cached is not None:
+            return cached
+
+        prev_n = _sumidos_prev_snapshot_row_count(conn)
+        if prev_n >= 1000 and n_before < int(prev_n * 0.80):
+            log.warning(
+                "sumidos: latest incompleto (%s linhas vs %s no anterior) — mantém cache",
+                n_before, prev_n,
+            )
+            return _sumidos_fallback()
+
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(_SUMIDOS_QUERY)
+            rows = cur.fetchall()
+
+        # O upload continuou gravando durante a varredura → resultado não confiável.
+        n_after = _sumidos_snapshot_row_count(conn, snap_id)
+        if n_after != n_before:
+            log.warning(
+                "sumidos: snapshot cresceu durante a varredura (%s → %s) — descarta",
+                n_before, n_after,
+            )
+            return _sumidos_fallback()
+
+        # Sanidade: transferência é da ordem de centenas. Milhares = latest ruim.
+        if n_before and len(rows) > int(n_before * _SUMIDOS_SANITY_RATIO):
+            log.warning(
+                "sumidos: %s linhas para snapshot de %s — fora do esperado, descarta",
+                len(rows), n_before,
+            )
+            return _sumidos_fallback()
+
+        with _SUMIDOS_LOCK:
+            _SUMIDOS_CACHE["snapshot_id"] = snap_id
+            _SUMIDOS_CACHE["latest_rows"] = n_before
+            _SUMIDOS_CACHE["rows"] = rows
+        return rows
 
 
 def _academic_sumidos_rows(conn):
-    """Linhas TRANSFERIDO dos alunos ausentes do relatório mais recente (Disparador)."""
+    """Linhas TRANSFERIDO: RGM visto no histórico e ausente do relatório mais recente.
+
+    Cache invalida por `snapshot_id` **e** pela contagem de linhas do latest — um
+    upload ainda gravando no mesmo id foi o que gerou o Transferido de 18k.
+    """
     snap_id = _sumidos_latest_snapshot_id(conn)
     if snap_id is None:
         return []
 
-    cached_id = _SUMIDOS_CACHE["snapshot_id"]
-    cached_rows = _SUMIDOS_CACHE["rows"]
-    if cached_id == snap_id:
-        return cached_rows
-    if cached_rows is not None:
-        _refresh_sumidos_async(snap_id)
-        return cached_rows
+    latest_rows = _sumidos_snapshot_row_count(conn, snap_id)
+    cached = _sumidos_cached(snap_id, latest_rows)
+    if cached is not None:
+        return cached
     return _compute_sumidos(conn, snap_id)
 
 
@@ -347,7 +414,10 @@ def warm_academic_sumidos_cache():
         try:
             conn = get_disparos_conn()
             snap_id = _sumidos_latest_snapshot_id(conn)
-            if snap_id is not None and _SUMIDOS_CACHE["snapshot_id"] != snap_id:
+            if snap_id is None:
+                return
+            n = _sumidos_snapshot_row_count(conn, snap_id)
+            if _sumidos_cached(snap_id, n) is None:
                 _compute_sumidos(conn, snap_id)
         except Exception as e:
             logging.getLogger(__name__).warning("warm sumidos (boot): %s", e)
@@ -482,6 +552,14 @@ def api_dashboard_students():
             if f_sit_norm and sit_norm != f_sit_norm:
                 continue
 
+            # Sumidos (TRANSFERIDO) entram só no card de situação — não inflar
+            # Novos/Rematrículas nem o Total do bloco de tipo (dropdown do ciclo
+            # é só o snapshot; misturar sumidos fazia Total 45k vs ciclo 27k).
+            # Exceção: quando o próprio card Transferido é o filtro ativo, aí a
+            # tela é sobre eles e precisa mostrar a quebra por tipo/polo/nível.
+            if sit_norm == "transferido" and f_sit_norm != "transferido":
+                continue
+
             totals[cat] += r["total"]
             raw_tipos[tipo] = raw_tipos.get(tipo, 0) + r["total"]
 
@@ -534,13 +612,13 @@ def api_dashboard_students():
                     "Fonte: Bases do Disparador (último upload de Matriculados). "
                     "Filtrado por ciclo/nível/período, somando Calouros + Regresso + Recompra. "
                     "TRANSFERIDO no relatório vira Em Curso (veio de outro polo). "
-                    "Quem sumiu do relatório atual entra como Transferido. "
-                    "Empresas 12 (Graduação) e 7 (Pós UCS)."
+                    "Quem sumiu do relatório atual (acumulado) aparece só no card Transferido "
+                    "(não entra neste Total). Empresas 12 (Graduação) e 7 (Pós UCS)."
                 ),
                 "rematricula": (
                     "Fonte: Bases do Disparador. Veteranos/rematrículas do snapshot mais recente, "
                     "filtrados por ciclo/nível/período. Em Pós-Graduação usa tipo_matricula do relatório. "
-                    "Mesma regra de transferência dos Novos."
+                    "Sumidos (transferência para outro polo) não entram neste card."
                 ),
             },
         })
