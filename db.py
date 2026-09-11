@@ -18,6 +18,7 @@ from helpers import (
     XL_TIPOS,
     SUPORTE_COMERCIAL_LOGINS,
     SUPORTE_COMERCIAL_PAGES,
+    CHAMADOS_ABRIR_CATEGORIAS_SQL,
 )
 
 load_dotenv(Path(__file__).parent / ".env")
@@ -1342,12 +1343,22 @@ def _ensure_ti_chamado_tables():
             )
             cur.execute("ALTER TABLE ti_chamado ADD COLUMN IF NOT EXISTS briefing JSONB")
             cur.execute("ALTER TABLE ti_chamado ADD COLUMN IF NOT EXISTS prazo_desejado DATE")
+            # Responsável ("puxar"): quem da fila assumiu o chamado. NULL = livre.
+            # `responsavel_nome` é snapshot (sobrevive à exclusão do usuário),
+            # igual a `status_updated_by_nome`.
+            cur.execute(
+                "ALTER TABLE ti_chamado ADD COLUMN IF NOT EXISTS responsavel_user_id "
+                "INTEGER REFERENCES app_users(id) ON DELETE SET NULL"
+            )
+            cur.execute("ALTER TABLE ti_chamado ADD COLUMN IF NOT EXISTS responsavel_nome TEXT")
+            cur.execute("ALTER TABLE ti_chamado ADD COLUMN IF NOT EXISTS responsavel_desde TIMESTAMPTZ")
 
             cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_status ON ti_chamado(status)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_user ON ti_chamado(solicitante_user_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_created ON ti_chamado(created_at DESC)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_username ON ti_chamado(solicitante_username)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_depto ON ti_chamado(departamento)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_resp ON ti_chamado(responsavel_user_id)")
 
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS ti_chamado_evento (
@@ -1387,48 +1398,92 @@ def _parse_allowlist_env(var: str) -> frozenset[str]:
     return frozenset(p.strip().lower() for p in raw.split(",") if p.strip())
 
 
-# Fila de Marketing (`chamados_marketing`): sem nomes fixos no código —
-# preencha `CHAMADOS_MARKETING_ALLOWLIST` no .env (vírgula separa). Vazio =
-# só admin vê a fila de Marketing.
+# Fila de Marketing (`chamados_marketing`): além da categoria Marketing, dá
+# para nomear gente pelo `.env` (vírgula separa). Vazio = só a categoria.
 CHAMADOS_MARKETING_ALLOWLIST = _parse_allowlist_env("CHAMADOS_MARKETING_ALLOWLIST")
 
 
 def _ensure_chamados_ti_page():
-    """Formulário/Meus chamados para todos; filas só admin + allowlist.
+    """Reconcilia (idempotente) as 4 permissões do módulo de chamados.
 
-    `solicitacoes_ti` e `meus_chamados_ti` continuam para todo `app_users`.
-    `chamados_ti` (fila TI) e `chamados_marketing` (fila Marketing) são
-    reconciliados a cada boot: concede à allowlist do departamento e revoga
-    de quem não é admin nem está na lista.
+    `solicitacoes_ti` — abrir chamado: admin + categorias de
+    `CHAMADOS_ABRIR_CATEGORIAS` (helpers). Revoga de quem não se encaixa.
+    `meus_chamados_ti` — mesma turma **mais** quem já tem chamado aberto, para
+    ninguém ficar com histórico órfão ao perder o direito de abrir novos.
+    `chamados_ti` (fila TI) — allowlist fixa no código.
+    `chamados_marketing` (fila Marketing) — categoria Marketing + allowlist do
+    `.env`; se as duas fontes estiverem vazias, não revoga nada (um grant
+    manual feito na tela de Config continua valendo).
     """
     try:
         allow = tuple(sorted(CHAMADOS_TI_ALLOWLIST))
         allow_mkt = tuple(sorted(CHAMADOS_MARKETING_ALLOWLIST))
+        cats_abrir = list(CHAMADOS_ABRIR_CATEGORIAS_SQL)
         conn = get_conn()
         with conn.cursor() as cur:
+            # Abrir chamado — só admin + categorias autorizadas.
             cur.execute(
                 """
                 INSERT INTO user_permissions (user_id, page)
-                SELECT p.user_id, 'meus_chamados_ti'
-                  FROM user_permissions p
-                 WHERE p.page = 'solicitacoes_ti'
-                ON CONFLICT (user_id, page) DO NOTHING
-                """
-            )
-            n_copy = cur.rowcount
-            cur.execute(
-                """
-                INSERT INTO user_permissions (user_id, page)
-                SELECT u.id, v.page
+                SELECT u.id, 'solicitacoes_ti'
                   FROM app_users u
-                  CROSS JOIN (VALUES
-                    ('solicitacoes_ti'),
-                    ('meus_chamados_ti')
-                  ) AS v(page)
+                 WHERE COALESCE(u.role, '') = 'admin'
+                    OR LOWER(TRIM(COALESCE(u.categoria, ''))) = ANY(%s)
                 ON CONFLICT (user_id, page) DO NOTHING
-                """
+                """,
+                (cats_abrir,),
             )
-            n_all = cur.rowcount
+            n_abrir = cur.rowcount
+            cur.execute(
+                """
+                DELETE FROM user_permissions p
+                 USING app_users u
+                 WHERE p.user_id = u.id
+                   AND p.page = 'solicitacoes_ti'
+                   AND COALESCE(u.role, '') <> 'admin'
+                   AND LOWER(TRIM(COALESCE(u.categoria, ''))) <> ALL(%s)
+                """,
+                (cats_abrir,),
+            )
+            n_abrir_rev = cur.rowcount
+
+            # Meus chamados — quem abre + quem já tem histórico.
+            cur.execute(
+                """
+                INSERT INTO user_permissions (user_id, page)
+                SELECT u.id, 'meus_chamados_ti'
+                  FROM app_users u
+                 WHERE COALESCE(u.role, '') = 'admin'
+                    OR LOWER(TRIM(COALESCE(u.categoria, ''))) = ANY(%s)
+                    OR EXISTS (
+                        SELECT 1 FROM ti_chamado c
+                         WHERE c.solicitante_user_id = u.id
+                            OR LOWER(TRIM(COALESCE(c.solicitante_username, ''))) =
+                               LOWER(TRIM(u.username))
+                    )
+                ON CONFLICT (user_id, page) DO NOTHING
+                """,
+                (cats_abrir,),
+            )
+            n_meus = cur.rowcount
+            cur.execute(
+                """
+                DELETE FROM user_permissions p
+                 USING app_users u
+                 WHERE p.user_id = u.id
+                   AND p.page = 'meus_chamados_ti'
+                   AND COALESCE(u.role, '') <> 'admin'
+                   AND LOWER(TRIM(COALESCE(u.categoria, ''))) <> ALL(%s)
+                   AND NOT EXISTS (
+                        SELECT 1 FROM ti_chamado c
+                         WHERE c.solicitante_user_id = u.id
+                            OR LOWER(TRIM(COALESCE(c.solicitante_username, ''))) =
+                               LOWER(TRIM(u.username))
+                   )
+                """,
+                (cats_abrir,),
+            )
+            n_meus_rev = cur.rowcount
             cur.execute(
                 """
                 INSERT INTO user_permissions (user_id, page)
@@ -1455,20 +1510,28 @@ def _ensure_chamados_ti_page():
             )
             n_revoke = cur.rowcount
 
-            # Fila de Marketing — mesma mecânica, allowlist do .env.
-            if allow_mkt:
-                cur.execute(
-                    """
-                    INSERT INTO user_permissions (user_id, page)
-                    SELECT u.id, 'chamados_marketing'
-                      FROM app_users u
-                     WHERE LOWER(TRIM(u.username)) = ANY(%s)
-                        OR LOWER(TRIM(COALESCE(u.email_cruzeiro, ''))) = ANY(%s)
-                    ON CONFLICT (user_id, page) DO NOTHING
-                    """,
-                    (list(allow_mkt), list(allow_mkt)),
-                )
-                n_grant_mkt = cur.rowcount
+            # Fila de Marketing — categoria Marketing + allowlist do .env.
+            cur.execute(
+                """
+                INSERT INTO user_permissions (user_id, page)
+                SELECT u.id, 'chamados_marketing'
+                  FROM app_users u
+                 WHERE LOWER(TRIM(COALESCE(u.categoria, ''))) = 'marketing'
+                    OR LOWER(TRIM(u.username)) = ANY(%s)
+                    OR LOWER(TRIM(COALESCE(u.email_cruzeiro, ''))) = ANY(%s)
+                ON CONFLICT (user_id, page) DO NOTHING
+                """,
+                (list(allow_mkt), list(allow_mkt)),
+            )
+            n_grant_mkt = cur.rowcount
+            # Revoga só quando existe alguma fonte de verdade (gente na
+            # categoria ou allowlist). Fontes vazias => preserva grant manual.
+            cur.execute(
+                "SELECT COUNT(*) FROM app_users "
+                "WHERE LOWER(TRIM(COALESCE(categoria, ''))) = 'marketing'"
+            )
+            tem_categoria_mkt = int(cur.fetchone()[0]) > 0
+            if allow_mkt or tem_categoria_mkt:
                 cur.execute(
                     """
                     DELETE FROM user_permissions p
@@ -1476,6 +1539,7 @@ def _ensure_chamados_ti_page():
                      WHERE p.user_id = u.id
                        AND p.page = 'chamados_marketing'
                        AND COALESCE(u.role, '') <> 'admin'
+                       AND LOWER(TRIM(COALESCE(u.categoria, ''))) <> 'marketing'
                        AND LOWER(TRIM(u.username)) <> ALL(%s)
                        AND LOWER(TRIM(COALESCE(u.email_cruzeiro, ''))) <> ALL(%s)
                     """,
@@ -1483,16 +1547,15 @@ def _ensure_chamados_ti_page():
                 )
                 n_revoke_mkt = cur.rowcount
             else:
-                # Sem allowlist configurada não revogamos nada: um grant manual
-                # feito na tela de Config continua valendo.
-                n_grant_mkt = n_revoke_mkt = 0
+                n_revoke_mkt = 0
         conn.commit()
         conn.close()
-        if n_copy or n_all or n_grant or n_revoke or n_grant_mkt or n_revoke_mkt:
+        if n_abrir or n_abrir_rev or n_meus or n_meus_rev or n_grant or n_revoke or n_grant_mkt or n_revoke_mkt:
             logger.info(
-                "Chamados: permissões — copia meus=%s, form/meus todos=%s, "
-                "fila TI allowlist=%s/revogada=%s, fila MKT allowlist=%s/revogada=%s",
-                n_copy, n_all, n_grant, n_revoke, n_grant_mkt, n_revoke_mkt,
+                "Chamados: permissões — abrir=%s/revogada=%s, meus=%s/revogada=%s, "
+                "fila TI=%s/revogada=%s, fila MKT=%s/revogada=%s",
+                n_abrir, n_abrir_rev, n_meus, n_meus_rev,
+                n_grant, n_revoke, n_grant_mkt, n_revoke_mkt,
             )
     except Exception as e:
         logger.warning("Could not ensure chamados permissions: %s", e)

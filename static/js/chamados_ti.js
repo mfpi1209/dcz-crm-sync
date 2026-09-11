@@ -116,7 +116,7 @@
         const data = await resp.json().catch(() => ({}));
         if (resp.status === 403) {
             const tbody = $('cti-tbody');
-            if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="px-4 py-8 text-center text-sm text-slate-500">${escapeHtml(data.message || 'Sem permissão.')}</td></tr>`;
+            if (tbody) tbody.innerHTML = `<tr><td colspan="10" class="px-4 py-8 text-center text-sm text-slate-500">${escapeHtml(data.message || 'Sem permissão.')}</td></tr>`;
             return;
         }
         const items = Array.isArray(data.items) ? data.items : [];
@@ -145,12 +145,21 @@
                 <td class="px-4 py-3">${escapeHtml(t.setor)}</td>
                 <td class="px-4 py-3"><span class="sti-badge sti-badge-${escapeHtml(t.urgencia)}">${escapeHtml(t.urgencia)}</span></td>
                 <td class="px-4 py-3"><span class="sti-badge ${statusClass(t.status)}">${escapeHtml(t.status)}</span></td>
+                <td class="px-4 py-3 whitespace-nowrap">${respCell(t)}</td>
                 <td class="px-4 py-3 font-mono text-[11px] text-slate-400 whitespace-nowrap">${fmtTs(t.created_at)}</td>
                 <td class="px-4 py-3 pr-6 whitespace-nowrap text-right">
                     <button type="button" onclick="ctiOpen(${t.id})" class="text-xs font-bold" style="color: var(--primary);">Abrir</button>
                 </td>
             </tr>
         `).join('');
+    }
+
+    /* Quem puxou o chamado. Livre = disponível para qualquer um da fila. */
+    function respCell(t) {
+        if (!t.responsavel_nome) {
+            return '<span class="sti-badge cti-livre">Livre</span>';
+        }
+        return `<span class="text-xs font-medium">${escapeHtml(t.responsavel_nome)}</span>`;
     }
 
     function renderTimeline(eventos) {
@@ -207,10 +216,64 @@
                 ${renderTimeline(data.eventos)}
             </div>
         `;
+        renderResponsavel(t, data);
         const modal = $('cti-modal');
         if (typeof dczPortalToBody === 'function') dczPortalToBody(modal);
         modal.classList.remove('hidden');
         if (typeof dczLockBodyScroll === 'function') dczLockBodyScroll(true);
+    };
+
+    /* Linha de responsável + botões de puxar/devolver do modal. */
+    function renderResponsavel(t, data) {
+        const txt = $('cti-resp-txt');
+        if (txt) {
+            txt.innerHTML = t.responsavel_nome
+                ? `Responsável: <strong>${escapeHtml(t.responsavel_nome)}</strong>${data.sou_responsavel ? ' (você)' : ''}`
+                : 'Sem responsável — puxe o chamado para assumir.';
+        }
+        const btnA = $('cti-assumir');
+        if (btnA) btnA.classList.toggle('hidden', !data.can_assumir);
+        const btnL = $('cti-liberar');
+        if (btnL) {
+            btnL.classList.toggle('hidden', !data.can_liberar);
+            btnL.textContent = data.sou_responsavel ? 'Devolver à fila' : 'Liberar (admin)';
+        }
+        const save = $('cti-save-status');
+        if (save) {
+            const pode = data.can_manage !== false;
+            save.disabled = !pode;
+            save.style.opacity = pode ? '1' : '0.5';
+            save.title = pode ? '' : 'Só o responsável altera o status.';
+        }
+    }
+
+    async function postAcao(url, okMsg) {
+        if (!_openId) return;
+        try {
+            const resp = await fetch(url, { method: 'POST' });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok || data.ok === false) {
+                // 409 = outra pessoa puxou primeiro: fecha e recarrega a fila.
+                if (typeof toast === 'function') toast(data.message || 'Não foi possível concluir.', 'error');
+                ctiCloseModal();
+                await loadList();
+                return;
+            }
+            if (typeof toast === 'function') toast(data.message || okMsg, 'success');
+            await ctiOpen(_openId);
+            await loadList();
+        } catch (e) {
+            console.error(e);
+            if (typeof toast === 'function') toast('Falha de rede.', 'error');
+        }
+    }
+
+    window.ctiAssumir = function () {
+        return postAcao('/api/solicitacoes_ti/chamados/' + _openId + '/assumir', 'Chamado atribuído a você.');
+    };
+
+    window.ctiLiberar = function () {
+        return postAcao('/api/solicitacoes_ti/chamados/' + _openId + '/liberar', 'Chamado devolvido à fila.');
     };
 
     window.ctiCloseModal = function () {

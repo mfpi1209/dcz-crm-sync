@@ -103,6 +103,7 @@
                 <span class="sti-badge sti-badge-${escapeHtml(t.urgencia)}">${escapeHtml(t.urgencia)}</span>
             </div>
             <p><span class="text-slate-500 text-xs uppercase font-bold">Setor</span><br>${escapeHtml(t.setor)}</p>
+            <p><span class="text-slate-500 text-xs uppercase font-bold">Responsável</span><br>${t.responsavel_nome ? escapeHtml(t.responsavel_nome) : 'Aguardando alguém assumir'}</p>
             <p><span class="text-slate-500 text-xs uppercase font-bold">${isMkt ? 'Formato da peça' : 'Categoria'}</span><br>${escapeHtml(t.categoria)}</p>
             ${t.prazo_desejado ? `<p><span class="text-slate-500 text-xs uppercase font-bold">Prazo desejado</span><br>${escapeHtml(t.prazo_desejado)}</p>` : ''}
             <p><span class="text-slate-500 text-xs uppercase font-bold">${isMkt ? 'Informações obrigatórias' : 'Descrição'}</span><br>${escapeHtml(t.descricao).replace(/\n/g, '<br>')}</p>

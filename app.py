@@ -119,9 +119,11 @@ from helpers import can_access_subir_blog as _can_access_subir_blog
 from db import get_conn as _nav_get_conn
 
 # Páginas pessoais — sempre visíveis (exceto regras específicas, ex: comercial sem dashboard)
-# solicitacoes_ti / meus_chamados_ti: qualquer autenticado abre e acompanha o próprio chamado.
-# chamados_ti (fila) NÃO entra aqui — só admin + allowlist em _ensure_chamados_ti_page.
-_NAV_ALWAYS = ("avisos", "profile", "solicitacoes_ti", "meus_chamados_ti")
+# Chamados NÃO entram aqui: `solicitacoes_ti` depende da categoria
+# (CHAMADOS_ABRIR_CATEGORIAS), `meus_chamados_ti` da categoria ou de já ter
+# chamado, e `chamados_ti` (fila) da allowlist — tudo reconciliado em
+# _ensure_chamados_ti_page.
+_NAV_ALWAYS = ("avisos", "profile")
 # Páginas restritas a admin — nunca visíveis para outros perfis, mesmo com permissão explícita.
 _NAV_ADMIN_ONLY = frozenset({"siaa_consulta", "siaa_sessao", "match_inadimplentes", "materias_alunos"})
 # Conjunto completo conhecido pelo front (PAGES no utils.js + páginas pessoais)
@@ -166,7 +168,11 @@ def _nav_load_user_data():
 @app.context_processor
 def inject_nav_perms():
     role, pages, categoria = _nav_load_user_data()
-    from helpers import is_suporte_comercial_categoria, is_suporte_comercial_login
+    from helpers import (
+        is_suporte_comercial_categoria,
+        is_suporte_comercial_login,
+        pode_abrir_chamado,
+    )
 
     is_admin = role == "admin"
     username = (session.get("username") or "").strip()
@@ -178,6 +184,8 @@ def inject_nav_perms():
     )
     perf_home = is_comercial or is_suporte_comercial
 
+    pode_chamado = pode_abrir_chamado(role, categoria)
+
     def nav_can(page):
         if page == "subir_blog":
             return _can_access_subir_blog(role, username)
@@ -185,6 +193,12 @@ def inject_nav_perms():
             return True
         if page in _NAV_ADMIN_ONLY:
             return False
+        # Abrir chamado segue a categoria (mesma regra do gate no POST).
+        if page == "solicitacoes_ti":
+            return pode_chamado
+        # Quem perdeu o direito de abrir continua acompanhando o histórico.
+        if page == "meus_chamados_ti":
+            return pode_chamado or ("meus_chamados_ti" in pages)
         if perf_home and page == "dashboard":
             return False
         if page in _NAV_ALWAYS:

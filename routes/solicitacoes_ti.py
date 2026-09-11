@@ -24,7 +24,13 @@ import psycopg2.extras
 from flask import Blueprint, g, jsonify, request, session
 
 from db import get_conn
-from helpers import criar_aviso_para_usuarios, criar_aviso_por_permissao, display_name_from_login
+from helpers import (
+    CHAMADOS_ABRIR_CATEGORIAS,
+    criar_aviso_para_usuarios,
+    criar_aviso_por_permissao,
+    display_name_from_login,
+    pode_abrir_chamado,
+)
 
 logger = logging.getLogger(__name__)
 solicitacoes_ti_bp = Blueprint("solicitacoes_ti_bp", __name__)
@@ -37,6 +43,12 @@ PAGE_FILA = "chamados_ti"
 PAGE_FILA_MKT = "chamados_marketing"
 # Permissão que dá acesso à fila de cada departamento.
 DEPTO_PAGE = {DEPTO_TI: PAGE_FILA, DEPTO_MKT: PAGE_FILA_MKT}
+
+# Departamentos em que o responsável ("puxar") **restringe** a fila: quem não é
+# admin só vê chamado livre ou seu, e só o responsável altera o status. Em TI a
+# atribuição existe (a coluna é a mesma), mas é informativa — a fila continua
+# aberta para todos os operadores, como antes.
+DEPTOS_RESPONSAVEL_EXCLUSIVO = (DEPTO_MKT,)
 
 STATUS_PENDENTE = "Pendente"
 STATUS_ANDAMENTO = "Em andamento"
@@ -185,6 +197,40 @@ def _display_name(username: str) -> str:
     return display_name_from_login(username) or username or "Usuário"
 
 
+def _is_admin() -> bool:
+    _uid, _username, role = _current_user()
+    return role == "admin" or session.get("user_id") == 0
+
+
+def _categoria_atual() -> str:
+    """Categoria do usuário logado (memoizada por request)."""
+    cached = getattr(g, "_chamados_categoria", None)
+    if cached is not None:
+        return cached
+    uid, _username, _role = _current_user()
+    categoria = ""
+    if uid:
+        conn = get_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT categoria FROM app_users WHERE id = %s", (uid,))
+                row = cur.fetchone()
+                if row and row[0]:
+                    categoria = row[0]
+        finally:
+            conn.close()
+    g._chamados_categoria = categoria
+    return categoria
+
+
+def _pode_abrir() -> bool:
+    """Abrir chamado: admin + categorias de `CHAMADOS_ABRIR_CATEGORIAS`."""
+    if _is_admin():
+        return True
+    _uid, _username, role = _current_user()
+    return pode_abrir_chamado(role, _categoria_atual())
+
+
 def _fila_departamentos() -> list[str]:
     """Departamentos cuja fila o usuário pode ver (memoizado por request).
 
@@ -223,6 +269,37 @@ def _has_fila_perm(departamento: str | None = None) -> bool:
     return departamento in deptos
 
 
+def _fila_escopo_sql() -> tuple[str, list[Any]]:
+    """Recorte por responsável nas filas exclusivas (hoje: Marketing).
+
+    Admin vê tudo. Os demais veem o que está **livre** (sem responsável) ou é
+    **seu** — chamado puxado por outra pessoa fica oculto.
+    """
+    uid, _username, _role = _current_user()
+    if _is_admin() or not DEPTOS_RESPONSAVEL_EXCLUSIVO:
+        return "", []
+    deptos = list(DEPTOS_RESPONSAVEL_EXCLUSIVO)
+    if not uid:
+        return "COALESCE(departamento, 'TI') <> ALL(%s) OR responsavel_user_id IS NULL", [deptos]
+    return (
+        "(COALESCE(departamento, 'TI') <> ALL(%s)"
+        " OR responsavel_user_id IS NULL OR responsavel_user_id = %s)",
+        [deptos, uid],
+    )
+
+
+def _pode_ver_na_fila(row: dict[str, Any]) -> bool:
+    """Mesma regra do `_fila_escopo_sql`, aplicada a uma linha já carregada."""
+    depto = _norm_depto(row.get("departamento"))
+    if not _has_fila_perm(depto):
+        return False
+    if _is_admin() or depto not in DEPTOS_RESPONSAVEL_EXCLUSIVO:
+        return True
+    uid, _username, _role = _current_user()
+    resp = row.get("responsavel_user_id")
+    return resp is None or (uid is not None and resp == uid)
+
+
 def _iso(v):
     if v is None:
         return None
@@ -250,6 +327,9 @@ def _row_public(row: dict[str, Any], *, include_body: bool = True) -> dict[str, 
         "updated_at": _iso(row.get("updated_at")),
         "status_updated_at": _iso(row.get("status_updated_at")),
         "status_updated_by_nome": row.get("status_updated_by_nome") or "",
+        "responsavel_user_id": row.get("responsavel_user_id"),
+        "responsavel_nome": row.get("responsavel_nome") or "",
+        "responsavel_desde": _iso(row.get("responsavel_desde")),
     }
     if include_body:
         out["descricao"] = row.get("descricao") or ""
@@ -288,6 +368,8 @@ def get_config():
         "storage": "postgres",
         "default_solicitante": _display_name(username),
         "can_manage": _has_fila_perm(),
+        "pode_abrir": _pode_abrir(),
+        "categorias_que_abrem": list(CHAMADOS_ABRIR_CATEGORIAS),
         "user_id": uid,
         "setores": list(SETORES),
         "categorias": list(CATEGORIAS),
@@ -306,6 +388,17 @@ def submit_ticket():
     deny = _require_auth()
     if deny:
         return deny
+    # Gate server-side: sumir o link do menu não basta.
+    if not _pode_abrir():
+        return jsonify({
+            "ok": False,
+            "status": "error",
+            "message": (
+                "Abertura de chamado liberada apenas para "
+                + ", ".join(CHAMADOS_ABRIR_CATEGORIAS)
+                + " e administradores."
+            ),
+        }), 403
 
     body = request.get_json(silent=True) or {}
     departamento = _norm_depto(body.get("departamento"))
@@ -562,7 +655,7 @@ def get_meu(chamado_id: int):
             if not row:
                 return jsonify({"ok": False, "message": "Chamado não encontrado."}), 404
             row = dict(row)
-            if not _owns(row, uid, username) and not _has_fila_perm(_norm_depto(row.get("departamento"))):
+            if not _owns(row, uid, username) and not _pode_ver_na_fila(row):
                 return jsonify({"ok": False, "message": "Sem permissão."}), 403
             cur.execute(
                 """
@@ -620,6 +713,11 @@ def list_chamados():
     busca = (request.args.get("q") or "").strip()
     clauses: list[str] = ["COALESCE(departamento, 'TI') = ANY(%s)"]
     params: list[Any] = [deptos_scope]
+    # Chamado puxado por outra pessoa fica fora da fila (só Marketing; admin vê tudo).
+    esc_sql, esc_params = _fila_escopo_sql()
+    if esc_sql:
+        clauses.append(esc_sql)
+        params.extend(esc_params)
     if status in ("todos", "all", "*"):
         pass
     elif status == "abertos":
@@ -676,28 +774,29 @@ def list_chamados():
                 params + [limit, offset],
             )
             items = [_row_public(dict(r), include_body=False) for r in cur.fetchall()]
-            # KPIs seguem o mesmo escopo de departamento da listagem.
+            # KPIs seguem o mesmo escopo (departamento + responsável) da listagem.
+            esc_and = (" AND " + esc_sql) if esc_sql else ""
             cur.execute(
-                """
+                f"""
                 SELECT status, COUNT(*) AS n
                   FROM ti_chamado
-                 WHERE COALESCE(departamento, 'TI') = ANY(%s)
+                 WHERE COALESCE(departamento, 'TI') = ANY(%s){esc_and}
                  GROUP BY status
                 """,
-                (deptos_scope,),
+                [deptos_scope] + esc_params,
             )
             kpis = {s: 0 for s in STATUS_VALIDOS}
             for r in cur.fetchall():
                 kpis[r["status"]] = int(r["n"])
             cur.execute(
-                """
+                f"""
                 SELECT COALESCE(departamento, 'TI') AS d, COUNT(*) AS n
                   FROM ti_chamado
                  WHERE COALESCE(departamento, 'TI') = ANY(%s)
-                   AND status = ANY(%s)
+                   AND status = ANY(%s){esc_and}
                  GROUP BY 1
                 """,
-                (list(deptos_ok), list(STATUS_ABERTOS)),
+                [list(deptos_ok), list(STATUS_ABERTOS)] + esc_params,
             )
             abertos_por_depto = {d: 0 for d in deptos_ok}
             for r in cur.fetchall():
@@ -709,6 +808,9 @@ def list_chamados():
         "ok": True, "items": items, "total": total, "kpis": kpis,
         "fila_departamentos": list(deptos_ok),
         "abertos_por_departamento": abertos_por_depto,
+        "is_admin": _is_admin(),
+        "user_id": _current_user()[0],
+        "departamentos_exclusivos": list(DEPTOS_RESPONSAVEL_EXCLUSIVO),
     })
 
 
@@ -727,7 +829,7 @@ def get_chamado(chamado_id: int):
                 return jsonify({"ok": False, "message": "Chamado não encontrado."}), 404
             row = dict(row)
             row_depto = _norm_depto(row.get("departamento"))
-            if not _has_fila_perm(row_depto) and not _owns(row, uid, username):
+            if not _pode_ver_na_fila(row) and not _owns(row, uid, username):
                 return jsonify({"ok": False, "message": "Sem permissão."}), 403
             cur.execute(
                 """
@@ -748,11 +850,197 @@ def get_chamado(chamado_id: int):
             } for ev in cur.fetchall()]
     finally:
         conn.close()
+    resp_id = row.get("responsavel_user_id")
+    na_fila = _has_fila_perm(row_depto)
     return jsonify({
         "ok": True,
         "ticket": _row_public(row),
         "eventos": eventos,
-        "can_manage": _has_fila_perm(row_depto),
+        "can_manage": na_fila and _pode_alterar_status(row),
+        "can_assumir": na_fila and resp_id is None,
+        "can_liberar": na_fila and resp_id is not None and (_is_admin() or resp_id == uid),
+        "sou_responsavel": bool(resp_id and uid and resp_id == uid),
+    })
+
+
+# ---------------------------------------------------------------------------
+# Responsável ("puxar" o chamado)
+# ---------------------------------------------------------------------------
+
+def _pode_alterar_status(row: dict[str, Any]) -> bool:
+    """Nas filas exclusivas o status é do responsável (admin sempre pode).
+
+    Chamado livre pode ser mexido por qualquer operador da fila — o próprio
+    PATCH assume o chamado antes de gravar (ver `patch_status`).
+    """
+    depto = _norm_depto(row.get("departamento"))
+    if not _has_fila_perm(depto):
+        return False
+    if _is_admin() or depto not in DEPTOS_RESPONSAVEL_EXCLUSIVO:
+        return True
+    resp = row.get("responsavel_user_id")
+    if resp is None:
+        return True
+    uid, _username, _role = _current_user()
+    return bool(uid and resp == uid)
+
+
+def _registrar_evento(cur, chamado_id: int, status: str, uid: int | None, autor: str, nota: str):
+    cur.execute(
+        """
+        INSERT INTO ti_chamado_evento (
+            chamado_id, status_anterior, status_novo, autor_user_id, autor_nome, nota
+        ) VALUES (%s, %s, %s, %s, %s, %s)
+        """,
+        (chamado_id, status, status, uid, autor, nota),
+    )
+
+
+@solicitacoes_ti_bp.route("/api/solicitacoes_ti/chamados/<int:chamado_id>/assumir", methods=["POST"])
+def assumir_chamado(chamado_id: int):
+    """Puxa o chamado para o usuário logado.
+
+    O UPDATE é condicionado a `responsavel_user_id IS NULL`, então dois cliques
+    simultâneos não se sobrescrevem: o segundo recebe 409 com o nome de quem
+    ficou com o chamado (mesma filosofia do claim de `academico_atendimento_claim`).
+    """
+    deny = _require_auth()
+    if deny:
+        return deny
+    uid, username, _role = _current_user()
+    if not uid:
+        return jsonify({
+            "ok": False,
+            "message": "Só usuários cadastrados podem assumir chamados.",
+        }), 403
+    autor = _display_name(username)
+
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT * FROM ti_chamado WHERE id = %s", (chamado_id,))
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"ok": False, "message": "Chamado não encontrado."}), 404
+            row = dict(row)
+            if not _has_fila_perm(_norm_depto(row.get("departamento"))):
+                return jsonify({
+                    "ok": False,
+                    "message": "Sem permissão para a fila deste chamado.",
+                }), 403
+            cur.execute(
+                """
+                UPDATE ti_chamado
+                   SET responsavel_user_id = %s,
+                       responsavel_nome = %s,
+                       responsavel_desde = NOW(),
+                       updated_at = NOW()
+                 WHERE id = %s
+                   AND responsavel_user_id IS NULL
+                """,
+                (uid, autor, chamado_id),
+            )
+            if cur.rowcount == 0:
+                cur.execute(
+                    "SELECT responsavel_user_id, responsavel_nome FROM ti_chamado WHERE id = %s",
+                    (chamado_id,),
+                )
+                atual = dict(cur.fetchone() or {})
+                conn.rollback()
+                if atual.get("responsavel_user_id") == uid:
+                    return jsonify({
+                        "ok": True,
+                        "unchanged": True,
+                        "message": "Este chamado já é seu.",
+                    })
+                dono = atual.get("responsavel_nome") or "outro usuário"
+                return jsonify({
+                    "ok": False,
+                    "message": f"Chamado já assumido por {dono}. Atualize a fila.",
+                }), 409
+            _registrar_evento(
+                cur, chamado_id, row["status"], uid, autor,
+                f"Chamado assumido por {autor}",
+            )
+            cur.execute("SELECT * FROM ti_chamado WHERE id = %s", (chamado_id,))
+            updated = dict(cur.fetchone())
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        logger.exception("solicitacoes_ti: falha ao assumir chamado")
+        return jsonify({"ok": False, "message": "Falha ao assumir o chamado."}), 500
+    finally:
+        conn.close()
+
+    return jsonify({
+        "ok": True,
+        "ticket": _row_public(updated),
+        "message": f"Chamado {updated['protocolo']} atribuído a você.",
+    })
+
+
+@solicitacoes_ti_bp.route("/api/solicitacoes_ti/chamados/<int:chamado_id>/liberar", methods=["POST"])
+def liberar_chamado(chamado_id: int):
+    """Devolve o chamado para a fila (só o responsável ou admin)."""
+    deny = _require_auth()
+    if deny:
+        return deny
+    uid, username, _role = _current_user()
+    autor = _display_name(username)
+
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT * FROM ti_chamado WHERE id = %s FOR UPDATE", (chamado_id,))
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"ok": False, "message": "Chamado não encontrado."}), 404
+            row = dict(row)
+            if not _has_fila_perm(_norm_depto(row.get("departamento"))):
+                conn.rollback()
+                return jsonify({
+                    "ok": False,
+                    "message": "Sem permissão para a fila deste chamado.",
+                }), 403
+            resp = row.get("responsavel_user_id")
+            if resp is None:
+                conn.rollback()
+                return jsonify({"ok": True, "unchanged": True, "message": "Chamado já estava livre."})
+            if not _is_admin() and resp != uid:
+                conn.rollback()
+                return jsonify({
+                    "ok": False,
+                    "message": f"Chamado é de {row.get('responsavel_nome') or 'outro usuário'}.",
+                }), 403
+            cur.execute(
+                """
+                UPDATE ti_chamado
+                   SET responsavel_user_id = NULL,
+                       responsavel_nome = NULL,
+                       responsavel_desde = NULL,
+                       updated_at = NOW()
+                 WHERE id = %s
+                """,
+                (chamado_id,),
+            )
+            _registrar_evento(
+                cur, chamado_id, row["status"], uid, autor,
+                f"Chamado devolvido à fila por {autor}",
+            )
+            cur.execute("SELECT * FROM ti_chamado WHERE id = %s", (chamado_id,))
+            updated = dict(cur.fetchone())
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        logger.exception("solicitacoes_ti: falha ao liberar chamado")
+        return jsonify({"ok": False, "message": "Falha ao liberar o chamado."}), 500
+    finally:
+        conn.close()
+
+    return jsonify({
+        "ok": True,
+        "ticket": _row_public(updated),
+        "message": "Chamado devolvido à fila.",
     })
 
 
@@ -785,19 +1073,62 @@ def patch_status(chamado_id: int):
             if not row:
                 return jsonify({"ok": False, "message": "Chamado não encontrado."}), 404
             row = dict(row)
-            if not _has_fila_perm(_norm_depto(row.get("departamento"))):
+            row_depto = _norm_depto(row.get("departamento"))
+            if not _has_fila_perm(row_depto):
                 conn.rollback()
                 return jsonify({
                     "ok": False,
                     "message": "Sem permissão para alterar chamados deste departamento.",
                 }), 403
+            if not _pode_alterar_status(row):
+                conn.rollback()
+                return jsonify({
+                    "ok": False,
+                    "message": (
+                        f"Chamado é de {row.get('responsavel_nome') or 'outro usuário'} — "
+                        "só o responsável altera o status."
+                    ),
+                }), 403
+            # Mexer num chamado livre de fila exclusiva equivale a puxá-lo: sem
+            # isso ninguém conseguiria tocar o chamado sem clicar em "assumir".
+            assumido_agora = False
+            if (
+                row_depto in DEPTOS_RESPONSAVEL_EXCLUSIVO
+                and row.get("responsavel_user_id") is None
+                and uid
+                and not _is_admin()
+            ):
+                cur.execute(
+                    """
+                    UPDATE ti_chamado
+                       SET responsavel_user_id = %s,
+                           responsavel_nome = %s,
+                           responsavel_desde = NOW()
+                     WHERE id = %s
+                       AND responsavel_user_id IS NULL
+                    """,
+                    (uid, autor, chamado_id),
+                )
+                assumido_agora = cur.rowcount > 0
+                if assumido_agora:
+                    _registrar_evento(
+                        cur, chamado_id, row["status"], uid, autor,
+                        f"Chamado assumido por {autor}",
+                    )
             anterior = row["status"]
             if anterior == novo and not nota:
+                # Commit para não descartar a atribuição feita acima.
+                cur.execute("SELECT * FROM ti_chamado WHERE id = %s", (chamado_id,))
+                atual = dict(cur.fetchone())
+                conn.commit()
                 return jsonify({
                     "ok": True,
                     "unchanged": True,
-                    "ticket": _row_public(row),
-                    "message": "Status já estava nesse valor.",
+                    "ticket": _row_public(atual),
+                    "message": (
+                        "Chamado atribuído a você." if assumido_agora
+                        else "Status já estava nesse valor."
+                    ),
                 })
             cur.execute(
                 """
@@ -849,8 +1180,11 @@ def patch_status(chamado_id: int):
         except Exception:
             logger.exception("solicitacoes_ti: aviso de status falhou")
 
+    msg = f"Status atualizado para {novo}."
+    if assumido_agora:
+        msg += " Chamado atribuído a você."
     return jsonify({
         "ok": True,
         "ticket": _row_public(updated),
-        "message": f"Status atualizado para {novo}.",
+        "message": msg,
     })

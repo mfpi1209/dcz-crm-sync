@@ -73,7 +73,7 @@
         </div>
         <div class="glass-card border border-[var(--border)] rounded-2xl">
             <div class="overflow-x-auto">
-                <table class="w-full text-left min-w-[980px]">
+                <table class="w-full text-left min-w-[1080px]">
                     <thead>
                         <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-[var(--border)]">
                             <th class="px-4 py-3">Protocolo</th>
@@ -83,6 +83,7 @@
                             <th class="px-4 py-3">Setor</th>
                             <th class="px-4 py-3">Prioridade</th>
                             <th class="px-4 py-3">Status</th>
+                            <th class="px-4 py-3">Responsável</th>
                             <th class="px-4 py-3">Aberto em</th>
                             <th class="px-4 py-3 pr-6"></th>
                         </tr>
@@ -109,6 +110,17 @@
             </div>
             <div id="cti-modal-body" class="px-5 py-4 space-y-4 text-sm"></div>
             <div class="px-5 py-4 border-t border-[var(--border)] space-y-3 shrink-0" style="background: var(--bg-elevated);">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <p id="cti-resp-txt" class="text-xs text-slate-500"></p>
+                    <div class="flex gap-2">
+                        <button type="button" id="cti-assumir" onclick="ctiAssumir()"
+                                class="hidden px-3 h-9 rounded-lg text-xs font-bold text-white"
+                                style="background: var(--primary);">Puxar chamado</button>
+                        <button type="button" id="cti-liberar" onclick="ctiLiberar()"
+                                class="hidden px-3 h-9 rounded-lg text-xs font-bold border border-[var(--border)]"
+                                style="color: var(--text-secondary);">Devolver à fila</button>
+                    </div>
+                </div>
                 <p class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Atualizar status</p>
                 <div class="flex flex-wrap gap-2" id="cti-status-btns">
                     <button type="button" data-st="Pendente" class="cti-st-btn px-3 py-2 rounded-lg text-xs font-bold border">Pendente</button>
@@ -147,6 +159,7 @@
     #cti-modal .sti-badge-Alta { background: rgba(245,158,11,0.12); color: #b45309; }
     #page-chamados_ti .sti-badge-Crítica,
     #cti-modal .sti-badge-Crítica { background: rgba(239,68,68,0.12); color: #b91c1c; }
+    #page-chamados_ti .cti-livre { background: rgba(100,116,139,0.12); color: #475569; }
     #page-chamados_ti .cti-st-btn,
     #cti-modal .cti-st-btn { background: var(--bg-card); border-color: var(--border); color: var(--text-secondary); }
     #page-chamados_ti .cti-st-btn.is-active,

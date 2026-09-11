@@ -485,6 +485,7 @@ const CATEGORY_PRESETS = {
         'dist_consultor', 'comercial_rgm', 'dist_comercial', 'inscricao',
         'recadastros', 'comercial_dashboard', 'auditoria_comercial',
         'leads_parados', 'minha_performance', 'repasse',
+        'solicitacoes_ti', 'meus_chamados_ti',
     ],
     // Geral (Dashboard, Buscar, Avisos) + Acadêmico completo + Ferramentas
     // exceto Leads em Inscrição. Sem Comercial, sem Sistema.
@@ -494,10 +495,14 @@ const CATEGORY_PRESETS = {
         'feedback', 'macro_email', 'meus_atendimentos', 'rematricula',
         'academico_interacoes',
         ..._PRESET_FERRAMENTAS_BASIC,
+        'solicitacoes_ti', 'meus_chamados_ti',
     ],
+    // TI opera a fila (`chamados_ti` só vale para quem está na
+    // CHAMADOS_TI_ALLOWLIST) mas não abre chamado: `solicitacoes_ti` é
+    // reconciliado no boot pela categoria (supervisores + Marketing).
     'TI': [
         'dashboard', 'search', 'avisos',
-        'solicitacoes_ti', 'meus_chamados_ti',
+        'chamados_ti', 'meus_chamados_ti',
     ],
     // Marketing opera a própria fila de chamados (briefing de design).
     'Marketing': [
@@ -728,6 +733,7 @@ function renderUsers() {
         'Supervisor Comercial': 'tag-cat-supervisor-comercial',
         'Supervisor Acadêmico': 'tag-cat-supervisor-academico',
         'TI': 'tag-cat-fallback',
+        'Marketing': 'tag-cat-marketing',
     };
     const _roleTag = {
         admin:  '<span class="tag-pill tag-role-admin">Admin</span>',
