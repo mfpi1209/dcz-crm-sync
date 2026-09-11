@@ -446,9 +446,10 @@ const PAGE_LABELS = {
     disparador_whatsapp_conversao: 'Disparador WhatsApp · Conversão',
     disparador_whatsapp_meu_painel: 'Disparador WhatsApp · Meu Painel',
     disparador_whatsapp_regras: 'Disparador WhatsApp · Regras',
-    solicitacoes_ti: 'Solicitações TI (formulário)',
-    meus_chamados_ti: 'Meus chamados TI',
-    chamados_ti: 'Fila de chamados TI',
+    solicitacoes_ti: 'Abrir chamado (formulário TI/Marketing)',
+    meus_chamados_ti: 'Meus chamados',
+    chamados_ti: 'Fila de chamados · TI',
+    chamados_marketing: 'Fila de chamados · Marketing',
 };
 
 // ---------------------------------------------------------------------------
@@ -497,6 +498,11 @@ const CATEGORY_PRESETS = {
     'TI': [
         'dashboard', 'search', 'avisos',
         'solicitacoes_ti', 'meus_chamados_ti',
+    ],
+    // Marketing opera a própria fila de chamados (briefing de design).
+    'Marketing': [
+        'dashboard', 'avisos',
+        'solicitacoes_ti', 'meus_chamados_ti', 'chamados_marketing',
     ],
 };
 
@@ -598,11 +604,11 @@ const PAGE_GROUPS_CONFIG = [
         pages: ['meta-campaigns'],
     },
     {
-        label: 'TI',
+        label: 'Chamados',
         section: 'Operação',
-        icon: 'developer_board',
+        icon: 'support_agent',
         color: 'var(--primary)',
-        pages: ['solicitacoes_ti', 'meus_chamados_ti', 'chamados_ti'],
+        pages: ['solicitacoes_ti', 'meus_chamados_ti', 'chamados_ti', 'chamados_marketing'],
     },
     {
         label: 'Premiações Internas',
@@ -1048,6 +1054,7 @@ function openUserCreateModal() {
                                 <option value="Acadêmico">Acadêmico</option>
                                 <option value="Supervisor Acadêmico">Supervisor Acadêmico</option>
                                 <option value="TI">TI</option>
+                                <option value="Marketing">Marketing</option>
                             </select>
                             <button type="button"
                                     onclick="applyCategoryPresetFromSelect('user-new-categoria', 'user-new-page-cb')"
@@ -1187,6 +1194,7 @@ async function editUser(uid) {
                                 <option value="Acadêmico" ${u.categoria==='Acadêmico'?'selected':''}>Acadêmico</option>
                                 <option value="Supervisor Acadêmico" ${u.categoria==='Supervisor Acadêmico'?'selected':''}>Supervisor Acadêmico</option>
                                 <option value="TI" ${u.categoria==='TI'?'selected':''}>TI</option>
+                                <option value="Marketing" ${u.categoria==='Marketing'?'selected':''}>Marketing</option>
                             </select>
                             <button type="button"
                                     onclick="applyCategoryPresetFromSelect('edit-user-categoria', 'edit-perm-cb')"

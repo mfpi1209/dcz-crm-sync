@@ -19,8 +19,8 @@
             {% set _show_comercial = nav_can('dist_consultor') or nav_can('comercial_rgm') or nav_can('dist_comercial') or nav_can('inscricao') or nav_can('recadastros') or nav_can('comercial_dashboard') or nav_can('auditoria_comercial') or nav_can('atualizar_preco') or nav_can('leads_parados') or _show_minha_perf_in_comercial or nav_can('repasse') or nav_can('captacao') or nav_can('clicks') or nav_can('leads_promotores') or nav_can('premiacao_admin') %}
             {% set _show_voc = nav_can('vocacional') %}
             {% set _show_meta = nav_can('meta-campaigns') %}
-            {% set _show_ti_admin_only = nav_is_admin and (nav_can('ia_comercial') or nav_can('page_views') or nav_can('match_inadimplentes') or nav_can('materias_alunos')) %}
-            {% set _show_ti = _show_ti_admin_only or nav_can('solicitacoes_ti') or nav_can('meus_chamados_ti') or nav_can('chamados_ti') %}
+            {% set _show_ti = nav_is_admin and (nav_can('ia_comercial') or nav_can('page_views') or nav_can('match_inadimplentes') or nav_can('materias_alunos')) %}
+            {% set _show_chamados = nav_can('solicitacoes_ti') or nav_can('meus_chamados_ti') or nav_can('chamados_ti') %}
             {% set _show_sistema = nav_can('pipeline') or nav_can('update') or nav_can('ajustes_matricula') or nav_can('kommo_sync') or nav_can('match_merge') or nav_can('config') or nav_can('schedule') or nav_can('kommo_dispatcher') or nav_can('logs') %}
             <div class="space-y-1">
                 {% if (nav_is_comercial or nav_is_suporte_comercial) and nav_can('minha_performance') %}
@@ -370,13 +370,13 @@
             </div>
             {% endif %}
 
-            {% if _show_ti %}
-            <!-- TI -->
-            <div class="sidebar-group" data-group="ti">
-                <button class="sidebar-group-toggle" onclick="toggleSidebarGroup('ti')">
+            {% if _show_chamados %}
+            <!-- Chamados (TI + Marketing) -->
+            <div class="sidebar-group" data-group="chamados">
+                <button class="sidebar-group-toggle" onclick="toggleSidebarGroup('chamados')">
                     <span class="flex items-center gap-2.5">
-                        <span class="material-symbols-outlined text-base" style="color: var(--primary)">developer_board</span>
-                        TI
+                        <span class="material-symbols-outlined text-base" style="color: var(--primary)">support_agent</span>
+                        Chamados
                     </span>
                     <span class="material-symbols-outlined text-sm sidebar-group-chevron">expand_more</span>
                 </button>
@@ -384,7 +384,7 @@
                     {% if nav_can('solicitacoes_ti') %}
                     <a href="#solicitacoes_ti" onclick="navigate('solicitacoes_ti')" class="sidebar-link sidebar-sub" data-page="solicitacoes_ti">
                         <span class="material-symbols-outlined text-base">support</span>
-                        Solicitações TI
+                        Abrir chamado
                     </a>
                     {% endif %}
                     {% if nav_can('meus_chamados_ti') %}
@@ -399,6 +399,21 @@
                         Fila de chamados
                     </a>
                     {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if _show_ti %}
+            <!-- TI -->
+            <div class="sidebar-group" data-group="ti">
+                <button class="sidebar-group-toggle" onclick="toggleSidebarGroup('ti')">
+                    <span class="flex items-center gap-2.5">
+                        <span class="material-symbols-outlined text-base" style="color: var(--primary)">developer_board</span>
+                        TI
+                    </span>
+                    <span class="material-symbols-outlined text-sm sidebar-group-chevron">expand_more</span>
+                </button>
+                <div class="sidebar-group-items">
                     {% if nav_can('ia_comercial') %}
                     <a href="#ia_comercial" onclick="navigate('ia_comercial')" class="sidebar-link sidebar-sub" data-page="ia_comercial">
                         <span class="material-symbols-outlined text-base">smart_toy</span>

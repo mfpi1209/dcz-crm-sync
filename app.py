@@ -155,6 +155,11 @@ def _nav_load_user_data():
     # do Acadêmico. Ter qualquer sub equivale a ter acesso ao modulo.
     if any(p.startswith("disparador_whatsapp_") for p in pages):
         pages.add("disparador_whatsapp")
+    # Fila de chamados é uma página só, escopada por departamento no backend.
+    # Quem tem a fila de Marketing (`chamados_marketing`) precisa abrir a
+    # mesma página `chamados_ti` — lá só verá os chamados de Marketing.
+    if "chamados_marketing" in pages:
+        pages.add("chamados_ti")
     return role, pages, categoria
 
 

@@ -69,6 +69,7 @@ ALL_PAGES = [
     "solicitacoes_ti",
     "meus_chamados_ti",
     "chamados_ti",
+    "chamados_marketing",
     "siaa_consulta", "siaa_sessao",
     "match_inadimplentes",
     "materias_alunos",

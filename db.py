@@ -1306,7 +1306,7 @@ def _ensure_premiacao_interna_tables():
 
 
 def _ensure_ti_chamado_tables():
-    """Chamados de TI (substitui a gravação no Google Sheets)."""
+    """Chamados internos — departamento TI ou Marketing (era só TI)."""
     try:
         conn = get_conn()
         with conn.cursor() as cur:
@@ -1314,6 +1314,7 @@ def _ensure_ti_chamado_tables():
                 CREATE TABLE IF NOT EXISTS ti_chamado (
                     id                      SERIAL PRIMARY KEY,
                     protocolo               TEXT NOT NULL UNIQUE,
+                    departamento            TEXT NOT NULL DEFAULT 'TI',
                     solicitante             TEXT NOT NULL,
                     solicitante_user_id     INTEGER REFERENCES app_users(id) ON DELETE SET NULL,
                     solicitante_username    TEXT,
@@ -1332,10 +1333,21 @@ def _ensure_ti_chamado_tables():
                     status_updated_by_nome  TEXT
                 )
             """)
+            # Marketing entra no mesmo módulo: `departamento` separa as filas
+            # (default 'TI' preserva todo o histórico), `briefing` guarda o
+            # formulário de briefing de design e `prazo_desejado` a data-alvo.
+            cur.execute(
+                "ALTER TABLE ti_chamado "
+                "ADD COLUMN IF NOT EXISTS departamento TEXT NOT NULL DEFAULT 'TI'"
+            )
+            cur.execute("ALTER TABLE ti_chamado ADD COLUMN IF NOT EXISTS briefing JSONB")
+            cur.execute("ALTER TABLE ti_chamado ADD COLUMN IF NOT EXISTS prazo_desejado DATE")
+
             cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_status ON ti_chamado(status)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_user ON ti_chamado(solicitante_user_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_created ON ti_chamado(created_at DESC)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_username ON ti_chamado(solicitante_username)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_depto ON ti_chamado(departamento)")
 
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS ti_chamado_evento (
@@ -1369,15 +1381,29 @@ CHAMADOS_TI_ALLOWLIST = frozenset({
 })
 
 
+def _parse_allowlist_env(var: str) -> frozenset[str]:
+    """Allowlist vinda do .env — logins/e-mails separados por vírgula."""
+    raw = (os.getenv(var) or "").replace(";", ",").replace("\n", ",")
+    return frozenset(p.strip().lower() for p in raw.split(",") if p.strip())
+
+
+# Fila de Marketing (`chamados_marketing`): sem nomes fixos no código —
+# preencha `CHAMADOS_MARKETING_ALLOWLIST` no .env (vírgula separa). Vazio =
+# só admin vê a fila de Marketing.
+CHAMADOS_MARKETING_ALLOWLIST = _parse_allowlist_env("CHAMADOS_MARKETING_ALLOWLIST")
+
+
 def _ensure_chamados_ti_page():
-    """Formulário/Meus chamados para todos; fila só admin + allowlist.
+    """Formulário/Meus chamados para todos; filas só admin + allowlist.
 
     `solicitacoes_ti` e `meus_chamados_ti` continuam para todo `app_users`.
-    `chamados_ti` é reconciliado a cada boot: concede à allowlist e revoga
-    de quem não é admin nem está na lista (desfaz o grant global anterior).
+    `chamados_ti` (fila TI) e `chamados_marketing` (fila Marketing) são
+    reconciliados a cada boot: concede à allowlist do departamento e revoga
+    de quem não é admin nem está na lista.
     """
     try:
         allow = tuple(sorted(CHAMADOS_TI_ALLOWLIST))
+        allow_mkt = tuple(sorted(CHAMADOS_MARKETING_ALLOWLIST))
         conn = get_conn()
         with conn.cursor() as cur:
             cur.execute(
@@ -1428,16 +1454,48 @@ def _ensure_chamados_ti_page():
                 (list(allow), list(allow)),
             )
             n_revoke = cur.rowcount
+
+            # Fila de Marketing — mesma mecânica, allowlist do .env.
+            if allow_mkt:
+                cur.execute(
+                    """
+                    INSERT INTO user_permissions (user_id, page)
+                    SELECT u.id, 'chamados_marketing'
+                      FROM app_users u
+                     WHERE LOWER(TRIM(u.username)) = ANY(%s)
+                        OR LOWER(TRIM(COALESCE(u.email_cruzeiro, ''))) = ANY(%s)
+                    ON CONFLICT (user_id, page) DO NOTHING
+                    """,
+                    (list(allow_mkt), list(allow_mkt)),
+                )
+                n_grant_mkt = cur.rowcount
+                cur.execute(
+                    """
+                    DELETE FROM user_permissions p
+                     USING app_users u
+                     WHERE p.user_id = u.id
+                       AND p.page = 'chamados_marketing'
+                       AND COALESCE(u.role, '') <> 'admin'
+                       AND LOWER(TRIM(u.username)) <> ALL(%s)
+                       AND LOWER(TRIM(COALESCE(u.email_cruzeiro, ''))) <> ALL(%s)
+                    """,
+                    (list(allow_mkt), list(allow_mkt)),
+                )
+                n_revoke_mkt = cur.rowcount
+            else:
+                # Sem allowlist configurada não revogamos nada: um grant manual
+                # feito na tela de Config continua valendo.
+                n_grant_mkt = n_revoke_mkt = 0
         conn.commit()
         conn.close()
-        if n_copy or n_all or n_grant or n_revoke:
+        if n_copy or n_all or n_grant or n_revoke or n_grant_mkt or n_revoke_mkt:
             logger.info(
-                "Chamados TI: permissões — copia meus=%s, form/meus todos=%s, "
-                "fila allowlist=%s, fila revogada=%s",
-                n_copy, n_all, n_grant, n_revoke,
+                "Chamados: permissões — copia meus=%s, form/meus todos=%s, "
+                "fila TI allowlist=%s/revogada=%s, fila MKT allowlist=%s/revogada=%s",
+                n_copy, n_all, n_grant, n_revoke, n_grant_mkt, n_revoke_mkt,
             )
     except Exception as e:
-        logger.warning("Could not ensure chamados_ti permissions: %s", e)
+        logger.warning("Could not ensure chamados permissions: %s", e)
 
 
 def _ensure_materias_alunos_tables():

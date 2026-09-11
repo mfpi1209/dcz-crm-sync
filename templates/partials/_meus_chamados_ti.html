@@ -9,7 +9,7 @@
                 </div>
                 <div class="min-w-0">
                     <h2 class="text-2xl font-black text-[var(--text-primary)] dark:text-white truncate">Meus chamados</h2>
-                    <p class="text-xs text-slate-600 dark:text-slate-400 mt-1 uppercase tracking-widest">Acompanhe o status das solicitações que você abriu</p>
+                    <p class="text-xs text-slate-600 dark:text-slate-400 mt-1 uppercase tracking-widest">Acompanhe suas solicitações de TI e Marketing</p>
                 </div>
             </div>
             <button type="button" onclick="navigate('solicitacoes_ti')"
@@ -42,6 +42,11 @@
                 <button type="button" data-status="" class="mct-tab px-3 py-1.5 text-[11px] font-bold rounded-lg">Todos</button>
                 <button type="button" data-status="Concluído" class="mct-tab px-3 py-1.5 text-[11px] font-bold rounded-lg">Concluídos</button>
             </div>
+            <select id="mct-departamento" class="input-glass cti-ctrl rounded-lg text-sm">
+                <option value="">Todos os departamentos</option>
+                <option value="TI">TI</option>
+                <option value="Marketing">Marketing</option>
+            </select>
             <input type="search" id="mct-q" placeholder="Buscar protocolo ou título…"
                    class="input-glass cti-ctrl rounded-lg text-sm flex-1 min-w-[180px]">
         </div>
