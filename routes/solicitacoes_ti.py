@@ -280,7 +280,11 @@ def _fila_escopo_sql() -> tuple[str, list[Any]]:
         return "", []
     deptos = list(DEPTOS_RESPONSAVEL_EXCLUSIVO)
     if not uid:
-        return "COALESCE(departamento, 'TI') <> ALL(%s) OR responsavel_user_id IS NULL", [deptos]
+        # Parênteses obrigatórios: a cláusula entra num AND com as outras.
+        return (
+            "(COALESCE(departamento, 'TI') <> ALL(%s) OR responsavel_user_id IS NULL)",
+            [deptos],
+        )
     return (
         "(COALESCE(departamento, 'TI') <> ALL(%s)"
         " OR responsavel_user_id IS NULL OR responsavel_user_id = %s)",
