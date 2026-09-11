@@ -18,6 +18,7 @@ from helpers import (
     XL_TIPOS,
     SUPORTE_COMERCIAL_LOGINS,
     SUPORTE_COMERCIAL_PAGES,
+    CHAMADOS_ABRIR_CATEGORIAS_SQL,
 )
 
 load_dotenv(Path(__file__).parent / ".env")
@@ -1306,7 +1307,7 @@ def _ensure_premiacao_interna_tables():
 
 
 def _ensure_ti_chamado_tables():
-    """Chamados de TI (substitui a gravação no Google Sheets)."""
+    """Chamados internos — departamento TI ou Marketing (era só TI)."""
     try:
         conn = get_conn()
         with conn.cursor() as cur:
@@ -1314,6 +1315,7 @@ def _ensure_ti_chamado_tables():
                 CREATE TABLE IF NOT EXISTS ti_chamado (
                     id                      SERIAL PRIMARY KEY,
                     protocolo               TEXT NOT NULL UNIQUE,
+                    departamento            TEXT NOT NULL DEFAULT 'TI',
                     solicitante             TEXT NOT NULL,
                     solicitante_user_id     INTEGER REFERENCES app_users(id) ON DELETE SET NULL,
                     solicitante_username    TEXT,
@@ -1332,10 +1334,31 @@ def _ensure_ti_chamado_tables():
                     status_updated_by_nome  TEXT
                 )
             """)
+            # Marketing entra no mesmo módulo: `departamento` separa as filas
+            # (default 'TI' preserva todo o histórico), `briefing` guarda o
+            # formulário de briefing de design e `prazo_desejado` a data-alvo.
+            cur.execute(
+                "ALTER TABLE ti_chamado "
+                "ADD COLUMN IF NOT EXISTS departamento TEXT NOT NULL DEFAULT 'TI'"
+            )
+            cur.execute("ALTER TABLE ti_chamado ADD COLUMN IF NOT EXISTS briefing JSONB")
+            cur.execute("ALTER TABLE ti_chamado ADD COLUMN IF NOT EXISTS prazo_desejado DATE")
+            # Responsável ("puxar"): quem da fila assumiu o chamado. NULL = livre.
+            # `responsavel_nome` é snapshot (sobrevive à exclusão do usuário),
+            # igual a `status_updated_by_nome`.
+            cur.execute(
+                "ALTER TABLE ti_chamado ADD COLUMN IF NOT EXISTS responsavel_user_id "
+                "INTEGER REFERENCES app_users(id) ON DELETE SET NULL"
+            )
+            cur.execute("ALTER TABLE ti_chamado ADD COLUMN IF NOT EXISTS responsavel_nome TEXT")
+            cur.execute("ALTER TABLE ti_chamado ADD COLUMN IF NOT EXISTS responsavel_desde TIMESTAMPTZ")
+
             cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_status ON ti_chamado(status)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_user ON ti_chamado(solicitante_user_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_created ON ti_chamado(created_at DESC)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_username ON ti_chamado(solicitante_username)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_depto ON ti_chamado(departamento)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_chamado_resp ON ti_chamado(responsavel_user_id)")
 
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS ti_chamado_evento (
@@ -1369,40 +1392,98 @@ CHAMADOS_TI_ALLOWLIST = frozenset({
 })
 
 
-def _ensure_chamados_ti_page():
-    """Formulário/Meus chamados para todos; fila só admin + allowlist.
+def _parse_allowlist_env(var: str) -> frozenset[str]:
+    """Allowlist vinda do .env — logins/e-mails separados por vírgula."""
+    raw = (os.getenv(var) or "").replace(";", ",").replace("\n", ",")
+    return frozenset(p.strip().lower() for p in raw.split(",") if p.strip())
 
-    `solicitacoes_ti` e `meus_chamados_ti` continuam para todo `app_users`.
-    `chamados_ti` é reconciliado a cada boot: concede à allowlist e revoga
-    de quem não é admin nem está na lista (desfaz o grant global anterior).
+
+# Fila de Marketing (`chamados_marketing`): além da categoria Marketing, dá
+# para nomear gente pelo `.env` (vírgula separa). Vazio = só a categoria.
+CHAMADOS_MARKETING_ALLOWLIST = _parse_allowlist_env("CHAMADOS_MARKETING_ALLOWLIST")
+
+
+def _ensure_chamados_ti_page():
+    """Reconcilia (idempotente) as 4 permissões do módulo de chamados.
+
+    `solicitacoes_ti` — abrir chamado: admin + categorias de
+    `CHAMADOS_ABRIR_CATEGORIAS` (helpers). Revoga de quem não se encaixa.
+    `meus_chamados_ti` — mesma turma **mais** quem já tem chamado aberto, para
+    ninguém ficar com histórico órfão ao perder o direito de abrir novos.
+    `chamados_ti` (fila TI) — allowlist fixa no código.
+    `chamados_marketing` (fila Marketing) — categoria Marketing + allowlist do
+    `.env`; se as duas fontes estiverem vazias, não revoga nada (um grant
+    manual feito na tela de Config continua valendo).
     """
     try:
         allow = tuple(sorted(CHAMADOS_TI_ALLOWLIST))
+        allow_mkt = tuple(sorted(CHAMADOS_MARKETING_ALLOWLIST))
+        cats_abrir = list(CHAMADOS_ABRIR_CATEGORIAS_SQL)
         conn = get_conn()
         with conn.cursor() as cur:
+            # Abrir chamado — só admin + categorias autorizadas.
             cur.execute(
                 """
                 INSERT INTO user_permissions (user_id, page)
-                SELECT p.user_id, 'meus_chamados_ti'
-                  FROM user_permissions p
-                 WHERE p.page = 'solicitacoes_ti'
-                ON CONFLICT (user_id, page) DO NOTHING
-                """
-            )
-            n_copy = cur.rowcount
-            cur.execute(
-                """
-                INSERT INTO user_permissions (user_id, page)
-                SELECT u.id, v.page
+                SELECT u.id, 'solicitacoes_ti'
                   FROM app_users u
-                  CROSS JOIN (VALUES
-                    ('solicitacoes_ti'),
-                    ('meus_chamados_ti')
-                  ) AS v(page)
+                 WHERE COALESCE(u.role, '') = 'admin'
+                    OR LOWER(TRIM(COALESCE(u.categoria, ''))) = ANY(%s)
                 ON CONFLICT (user_id, page) DO NOTHING
-                """
+                """,
+                (cats_abrir,),
             )
-            n_all = cur.rowcount
+            n_abrir = cur.rowcount
+            cur.execute(
+                """
+                DELETE FROM user_permissions p
+                 USING app_users u
+                 WHERE p.user_id = u.id
+                   AND p.page = 'solicitacoes_ti'
+                   AND COALESCE(u.role, '') <> 'admin'
+                   AND LOWER(TRIM(COALESCE(u.categoria, ''))) <> ALL(%s)
+                """,
+                (cats_abrir,),
+            )
+            n_abrir_rev = cur.rowcount
+
+            # Meus chamados — quem abre + quem já tem histórico.
+            cur.execute(
+                """
+                INSERT INTO user_permissions (user_id, page)
+                SELECT u.id, 'meus_chamados_ti'
+                  FROM app_users u
+                 WHERE COALESCE(u.role, '') = 'admin'
+                    OR LOWER(TRIM(COALESCE(u.categoria, ''))) = ANY(%s)
+                    OR EXISTS (
+                        SELECT 1 FROM ti_chamado c
+                         WHERE c.solicitante_user_id = u.id
+                            OR LOWER(TRIM(COALESCE(c.solicitante_username, ''))) =
+                               LOWER(TRIM(u.username))
+                    )
+                ON CONFLICT (user_id, page) DO NOTHING
+                """,
+                (cats_abrir,),
+            )
+            n_meus = cur.rowcount
+            cur.execute(
+                """
+                DELETE FROM user_permissions p
+                 USING app_users u
+                 WHERE p.user_id = u.id
+                   AND p.page = 'meus_chamados_ti'
+                   AND COALESCE(u.role, '') <> 'admin'
+                   AND LOWER(TRIM(COALESCE(u.categoria, ''))) <> ALL(%s)
+                   AND NOT EXISTS (
+                        SELECT 1 FROM ti_chamado c
+                         WHERE c.solicitante_user_id = u.id
+                            OR LOWER(TRIM(COALESCE(c.solicitante_username, ''))) =
+                               LOWER(TRIM(u.username))
+                   )
+                """,
+                (cats_abrir,),
+            )
+            n_meus_rev = cur.rowcount
             cur.execute(
                 """
                 INSERT INTO user_permissions (user_id, page)
@@ -1428,16 +1509,56 @@ def _ensure_chamados_ti_page():
                 (list(allow), list(allow)),
             )
             n_revoke = cur.rowcount
+
+            # Fila de Marketing — categoria Marketing + allowlist do .env.
+            cur.execute(
+                """
+                INSERT INTO user_permissions (user_id, page)
+                SELECT u.id, 'chamados_marketing'
+                  FROM app_users u
+                 WHERE LOWER(TRIM(COALESCE(u.categoria, ''))) = 'marketing'
+                    OR LOWER(TRIM(u.username)) = ANY(%s)
+                    OR LOWER(TRIM(COALESCE(u.email_cruzeiro, ''))) = ANY(%s)
+                ON CONFLICT (user_id, page) DO NOTHING
+                """,
+                (list(allow_mkt), list(allow_mkt)),
+            )
+            n_grant_mkt = cur.rowcount
+            # Revoga só quando existe alguma fonte de verdade (gente na
+            # categoria ou allowlist). Fontes vazias => preserva grant manual.
+            cur.execute(
+                "SELECT COUNT(*) FROM app_users "
+                "WHERE LOWER(TRIM(COALESCE(categoria, ''))) = 'marketing'"
+            )
+            tem_categoria_mkt = int(cur.fetchone()[0]) > 0
+            if allow_mkt or tem_categoria_mkt:
+                cur.execute(
+                    """
+                    DELETE FROM user_permissions p
+                     USING app_users u
+                     WHERE p.user_id = u.id
+                       AND p.page = 'chamados_marketing'
+                       AND COALESCE(u.role, '') <> 'admin'
+                       AND LOWER(TRIM(COALESCE(u.categoria, ''))) <> 'marketing'
+                       AND LOWER(TRIM(u.username)) <> ALL(%s)
+                       AND LOWER(TRIM(COALESCE(u.email_cruzeiro, ''))) <> ALL(%s)
+                    """,
+                    (list(allow_mkt), list(allow_mkt)),
+                )
+                n_revoke_mkt = cur.rowcount
+            else:
+                n_revoke_mkt = 0
         conn.commit()
         conn.close()
-        if n_copy or n_all or n_grant or n_revoke:
+        if n_abrir or n_abrir_rev or n_meus or n_meus_rev or n_grant or n_revoke or n_grant_mkt or n_revoke_mkt:
             logger.info(
-                "Chamados TI: permissões — copia meus=%s, form/meus todos=%s, "
-                "fila allowlist=%s, fila revogada=%s",
-                n_copy, n_all, n_grant, n_revoke,
+                "Chamados: permissões — abrir=%s/revogada=%s, meus=%s/revogada=%s, "
+                "fila TI=%s/revogada=%s, fila MKT=%s/revogada=%s",
+                n_abrir, n_abrir_rev, n_meus, n_meus_rev,
+                n_grant, n_revoke, n_grant_mkt, n_revoke_mkt,
             )
     except Exception as e:
-        logger.warning("Could not ensure chamados_ti permissions: %s", e)
+        logger.warning("Could not ensure chamados permissions: %s", e)
 
 
 def _ensure_materias_alunos_tables():

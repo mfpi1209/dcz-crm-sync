@@ -8,14 +8,20 @@
                     <span class="material-symbols-outlined text-[22px]">assignment</span>
                 </div>
                 <div class="min-w-0">
-                    <h2 class="text-2xl font-black text-[var(--text-primary)] dark:text-white truncate">Fila de chamados TI</h2>
-                    <p class="text-xs text-slate-600 dark:text-slate-400 mt-1 uppercase tracking-widest">Todos os chamados · altere o status conforme o andamento</p>
+                    <h2 class="text-2xl font-black text-[var(--text-primary)] dark:text-white truncate">Fila de chamados</h2>
+                    <p id="cti-sub" class="text-xs text-slate-600 dark:text-slate-400 mt-1 uppercase tracking-widest">Altere o status conforme o andamento</p>
                 </div>
             </div>
         </div>
     </header>
 
     <main class="flex-1 px-4 lg:px-8 pb-8 space-y-5">
+        <!-- Departamentos que o usuário pode operar (montado pelo JS; some
+             quando ele só tem acesso a uma fila). -->
+        <div id="cti-depto-wrap" class="hidden flex flex-wrap gap-1 p-1 rounded-xl w-fit" style="background: var(--bg-elevated);">
+            <div id="cti-depto-tabs" class="flex flex-wrap gap-1"></div>
+        </div>
+
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <button type="button" onclick="ctiSetStatus('Pendente')" class="glass-card border border-[var(--border)] rounded-xl p-4 text-left hover:border-[var(--primary)]">
                 <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Pendentes</p>
@@ -54,6 +60,9 @@
                 <option>TI</option>
                 <option>Financeiro</option>
             </select>
+            <select id="cti-categoria" class="input-glass cti-ctrl rounded-lg text-sm">
+                <option value="">Tipo / formato</option>
+            </select>
             <input type="search" id="cti-q" placeholder="Buscar protocolo, título ou solicitante…"
                    class="input-glass cti-ctrl rounded-lg text-sm flex-1 min-w-[200px]">
         </div>
@@ -64,15 +73,17 @@
         </div>
         <div class="glass-card border border-[var(--border)] rounded-2xl">
             <div class="overflow-x-auto">
-                <table class="w-full text-left min-w-[860px]">
+                <table class="w-full text-left min-w-[1080px]">
                     <thead>
                         <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-[var(--border)]">
                             <th class="px-4 py-3">Protocolo</th>
+                            <th class="px-4 py-3">Depto</th>
                             <th class="px-4 py-3">Título</th>
                             <th class="px-4 py-3">Solicitante</th>
                             <th class="px-4 py-3">Setor</th>
                             <th class="px-4 py-3">Prioridade</th>
                             <th class="px-4 py-3">Status</th>
+                            <th class="px-4 py-3">Responsável</th>
                             <th class="px-4 py-3">Aberto em</th>
                             <th class="px-4 py-3 pr-6"></th>
                         </tr>
@@ -99,6 +110,17 @@
             </div>
             <div id="cti-modal-body" class="px-5 py-4 space-y-4 text-sm"></div>
             <div class="px-5 py-4 border-t border-[var(--border)] space-y-3 shrink-0" style="background: var(--bg-elevated);">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <p id="cti-resp-txt" class="text-xs text-slate-500"></p>
+                    <div class="flex gap-2">
+                        <button type="button" id="cti-assumir" onclick="ctiAssumir()"
+                                class="hidden px-3 h-9 rounded-lg text-xs font-bold text-white"
+                                style="background: var(--primary);">Puxar chamado</button>
+                        <button type="button" id="cti-liberar" onclick="ctiLiberar()"
+                                class="hidden px-3 h-9 rounded-lg text-xs font-bold border border-[var(--border)]"
+                                style="color: var(--text-secondary);">Devolver à fila</button>
+                    </div>
+                </div>
                 <p class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Atualizar status</p>
                 <div class="flex flex-wrap gap-2" id="cti-status-btns">
                     <button type="button" data-st="Pendente" class="cti-st-btn px-3 py-2 rounded-lg text-xs font-bold border">Pendente</button>
@@ -116,8 +138,11 @@
 </div>
 
 <style>
-    #page-chamados_ti .cti-tab { color: var(--text-secondary); }
-    #page-chamados_ti .cti-tab.is-active { background: var(--bg-card); color: var(--text-primary); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+    #page-chamados_ti .cti-tab,
+    #page-chamados_ti .cti-dep-tab { color: var(--text-secondary); }
+    #page-chamados_ti .cti-tab.is-active,
+    #page-chamados_ti .cti-dep-tab.is-active { background: var(--bg-card); color: var(--text-primary); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+    #page-chamados_ti .cti-dep-tab { padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 8px; }
     #page-chamados_ti .sti-badge,
     #cti-modal .sti-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 9999px; white-space: nowrap; }
     #page-chamados_ti .sti-st-Pendente,
@@ -134,6 +159,7 @@
     #cti-modal .sti-badge-Alta { background: rgba(245,158,11,0.12); color: #b45309; }
     #page-chamados_ti .sti-badge-Crítica,
     #cti-modal .sti-badge-Crítica { background: rgba(239,68,68,0.12); color: #b91c1c; }
+    #page-chamados_ti .cti-livre { background: rgba(100,116,139,0.12); color: #475569; }
     #page-chamados_ti .cti-st-btn,
     #cti-modal .cti-st-btn { background: var(--bg-card); border-color: var(--border); color: var(--text-secondary); }
     #page-chamados_ti .cti-st-btn.is-active,

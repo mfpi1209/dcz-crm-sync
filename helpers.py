@@ -69,6 +69,7 @@ ALL_PAGES = [
     "solicitacoes_ti",
     "meus_chamados_ti",
     "chamados_ti",
+    "chamados_marketing",
     "siaa_consulta", "siaa_sessao",
     "match_inadimplentes",
     "materias_alunos",
@@ -162,6 +163,32 @@ def is_suporte_comercial_login(username):
 def is_supervisor_academico_categoria(categoria):
     n = unicodedata.normalize("NFD", (categoria or "")).encode("ascii", "ignore").decode("ascii")
     return n.strip().lower() == "supervisor academico"
+
+
+# ---------------------------------------------------------------------------
+# Chamados (TI / Marketing) — quem pode ABRIR
+# ---------------------------------------------------------------------------
+# Fonte única da regra: supervisores para cima + Marketing, mais role=admin.
+# Para liberar alguém de fora, mude a categoria do usuário na tela de Config
+# (ou acrescente a categoria aqui) — não há grant avulso por checkbox.
+CHAMADOS_ABRIR_CATEGORIAS = ("Supervisor Comercial", "Supervisor Acadêmico", "Marketing")
+_CHAMADOS_ABRIR_FOLD = frozenset(fold_name(c) for c in CHAMADOS_ABRIR_CATEGORIAS)
+# Variantes aceitas quando a comparação acontece no SQL (com e sem acento) —
+# consumido pela reconciliação de permissões em db.py.
+CHAMADOS_ABRIR_CATEGORIAS_SQL = tuple(sorted(
+    {c.strip().lower() for c in CHAMADOS_ABRIR_CATEGORIAS} | set(_CHAMADOS_ABRIR_FOLD)
+))
+
+
+def categoria_pode_abrir_chamado(categoria=""):
+    """Tolerante a acento/caixa: 'Acadêmico' == 'academico'."""
+    return fold_name(categoria) in _CHAMADOS_ABRIR_FOLD
+
+
+def pode_abrir_chamado(role="", categoria=""):
+    if (role or "").strip().lower() == "admin":
+        return True
+    return categoria_pode_abrir_chamado(categoria)
 
 
 def user_has_disparador_full_access(role, categoria):

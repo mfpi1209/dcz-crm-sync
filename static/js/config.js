@@ -446,9 +446,10 @@ const PAGE_LABELS = {
     disparador_whatsapp_conversao: 'Disparador WhatsApp · Conversão',
     disparador_whatsapp_meu_painel: 'Disparador WhatsApp · Meu Painel',
     disparador_whatsapp_regras: 'Disparador WhatsApp · Regras',
-    solicitacoes_ti: 'Solicitações TI (formulário)',
-    meus_chamados_ti: 'Meus chamados TI',
-    chamados_ti: 'Fila de chamados TI',
+    solicitacoes_ti: 'Abrir chamado (formulário TI/Marketing)',
+    meus_chamados_ti: 'Meus chamados',
+    chamados_ti: 'Fila de chamados · TI',
+    chamados_marketing: 'Fila de chamados · Marketing',
 };
 
 // ---------------------------------------------------------------------------
@@ -484,6 +485,7 @@ const CATEGORY_PRESETS = {
         'dist_consultor', 'comercial_rgm', 'dist_comercial', 'inscricao',
         'recadastros', 'comercial_dashboard', 'auditoria_comercial',
         'leads_parados', 'minha_performance', 'repasse',
+        'solicitacoes_ti', 'meus_chamados_ti',
     ],
     // Geral (Dashboard, Buscar, Avisos) + Acadêmico completo + Ferramentas
     // exceto Leads em Inscrição. Sem Comercial, sem Sistema.
@@ -493,10 +495,19 @@ const CATEGORY_PRESETS = {
         'feedback', 'macro_email', 'meus_atendimentos', 'rematricula',
         'academico_interacoes',
         ..._PRESET_FERRAMENTAS_BASIC,
+        'solicitacoes_ti', 'meus_chamados_ti',
     ],
+    // TI opera a fila (`chamados_ti` só vale para quem está na
+    // CHAMADOS_TI_ALLOWLIST) mas não abre chamado: `solicitacoes_ti` é
+    // reconciliado no boot pela categoria (supervisores + Marketing).
     'TI': [
         'dashboard', 'search', 'avisos',
-        'solicitacoes_ti', 'meus_chamados_ti',
+        'chamados_ti', 'meus_chamados_ti',
+    ],
+    // Marketing opera a própria fila de chamados (briefing de design).
+    'Marketing': [
+        'dashboard', 'avisos',
+        'solicitacoes_ti', 'meus_chamados_ti', 'chamados_marketing',
     ],
 };
 
@@ -598,11 +609,11 @@ const PAGE_GROUPS_CONFIG = [
         pages: ['meta-campaigns'],
     },
     {
-        label: 'TI',
+        label: 'Chamados',
         section: 'Operação',
-        icon: 'developer_board',
+        icon: 'support_agent',
         color: 'var(--primary)',
-        pages: ['solicitacoes_ti', 'meus_chamados_ti', 'chamados_ti'],
+        pages: ['solicitacoes_ti', 'meus_chamados_ti', 'chamados_ti', 'chamados_marketing'],
     },
     {
         label: 'Premiações Internas',
@@ -722,6 +733,7 @@ function renderUsers() {
         'Supervisor Comercial': 'tag-cat-supervisor-comercial',
         'Supervisor Acadêmico': 'tag-cat-supervisor-academico',
         'TI': 'tag-cat-fallback',
+        'Marketing': 'tag-cat-marketing',
     };
     const _roleTag = {
         admin:  '<span class="tag-pill tag-role-admin">Admin</span>',
@@ -1048,6 +1060,7 @@ function openUserCreateModal() {
                                 <option value="Acadêmico">Acadêmico</option>
                                 <option value="Supervisor Acadêmico">Supervisor Acadêmico</option>
                                 <option value="TI">TI</option>
+                                <option value="Marketing">Marketing</option>
                             </select>
                             <button type="button"
                                     onclick="applyCategoryPresetFromSelect('user-new-categoria', 'user-new-page-cb')"
@@ -1187,6 +1200,7 @@ async function editUser(uid) {
                                 <option value="Acadêmico" ${u.categoria==='Acadêmico'?'selected':''}>Acadêmico</option>
                                 <option value="Supervisor Acadêmico" ${u.categoria==='Supervisor Acadêmico'?'selected':''}>Supervisor Acadêmico</option>
                                 <option value="TI" ${u.categoria==='TI'?'selected':''}>TI</option>
+                                <option value="Marketing" ${u.categoria==='Marketing'?'selected':''}>Marketing</option>
                             </select>
                             <button type="button"
                                     onclick="applyCategoryPresetFromSelect('edit-user-categoria', 'edit-perm-cb')"

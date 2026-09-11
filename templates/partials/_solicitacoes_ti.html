@@ -5,10 +5,12 @@
         <div class="flex items-center justify-between gap-4 flex-wrap">
             <div class="flex items-center gap-3 min-w-0">
                 <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0"
-                     style="background: var(--primary)">TI</div>
+                     style="background: var(--primary)">
+                    <span class="material-symbols-outlined text-[22px]">support_agent</span>
+                </div>
                 <div class="min-w-0">
-                    <h2 class="text-2xl font-black text-[var(--text-primary)] dark:text-white truncate">Central de Solicitações TI</h2>
-                    <p class="text-xs text-slate-600 dark:text-slate-400 mt-1 uppercase tracking-widest">Abra um chamado e acompanhe o status em Meus chamados</p>
+                    <h2 class="text-2xl font-black text-[var(--text-primary)] dark:text-white truncate">Abrir chamado</h2>
+                    <p class="text-xs text-slate-600 dark:text-slate-400 mt-1 uppercase tracking-widest">TI ou Marketing · acompanhe o status em Meus chamados</p>
                 </div>
             </div>
             <div class="flex items-center gap-2">
@@ -31,11 +33,34 @@
                 <header class="mb-6 flex items-start justify-between gap-3 flex-wrap">
                     <div>
                         <h3 class="text-xl font-bold text-[var(--text-primary)] dark:text-white">Abertura de Chamado</h3>
-                        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                        <p id="sti-form-sub" class="text-sm text-slate-500 dark:text-slate-400 mt-1">
                             Preencha os dados abaixo para enviar sua solicitação ao setor de TI.
                         </p>
                     </div>
                 </header>
+
+                <!-- Departamento de destino: define quais campos o formulário pede -->
+                <div id="sti-depto-group" class="mb-6" data-value="TI">
+                    <p class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+                        Para qual departamento? <span class="text-red-500">*</span>
+                    </p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <button type="button" data-depto="TI" class="sti-depto-btn rounded-xl border p-4 text-left transition-all">
+                            <span class="flex items-center gap-2">
+                                <span class="material-symbols-outlined text-[20px]">developer_board</span>
+                                <span class="text-sm font-bold">TI</span>
+                            </span>
+                            <span class="block text-[11px] mt-1 opacity-80">Erros, processos e ideias de sistema</span>
+                        </button>
+                        <button type="button" data-depto="Marketing" class="sti-depto-btn rounded-xl border p-4 text-left transition-all">
+                            <span class="flex items-center gap-2">
+                                <span class="material-symbols-outlined text-[20px]">palette</span>
+                                <span class="text-sm font-bold">Marketing</span>
+                            </span>
+                            <span class="block text-[11px] mt-1 opacity-80">Briefing de design: peças, vídeo, e-book, brinde</span>
+                        </button>
+                    </div>
+                </div>
 
                 <!-- Mensagem de erro -->
                 <div id="sti-error" class="hidden mb-5 p-4 rounded-xl flex items-start gap-3 text-sm"
@@ -106,7 +131,7 @@
                     </div>
 
                     <div class="flex flex-col gap-2">
-                        <label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        <label id="sti-lbl-categoria" class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                             Tipo de Requisição <span class="text-red-500">*</span>
                         </label>
                         <div class="relative">
@@ -114,9 +139,6 @@
                             <select id="sti-categoria" required
                                     class="input-glass h-11 pl-10 pr-4 rounded-lg w-full text-sm font-medium cursor-pointer">
                                 <option value="">Selecione a categoria técnica…</option>
-                                <option value="Erros/Bugs">🐛 Erros/Bugs</option>
-                                <option value="Processos Novos">⚙️ Processos Novos</option>
-                                <option value="Ideias Novas">💡 Ideias Novas</option>
                             </select>
                         </div>
                     </div>
@@ -137,8 +159,31 @@
                         </div>
                     </div>
 
-                    <div class="md:col-span-2 flex flex-col gap-2">
+                    <!-- Briefing de design (só Marketing) -->
+                    <div class="sti-mkt-only flex flex-col gap-2">
                         <label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Bandeira / Empresa <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">apartment</span>
+                            <select id="sti-bandeira"
+                                    class="input-glass h-11 pl-10 pr-4 rounded-lg w-full text-sm font-medium cursor-pointer">
+                                <option value="">Selecione sua bandeira…</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="sti-mkt-only flex flex-col gap-2">
+                        <label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Público-alvo <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" id="sti-publico-alvo" maxlength="2000"
+                               placeholder="Ex: Vestibulandos de 17 a 24 anos da região da Barra Funda"
+                               class="input-glass h-11 px-4 rounded-lg w-full text-sm font-medium">
+                    </div>
+
+                    <div class="md:col-span-2 flex flex-col gap-2">
+                        <label id="sti-lbl-titulo" class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                             Título Resumido / Assunto <span class="text-red-500">*</span>
                         </label>
                         <input type="text" id="sti-titulo" required maxlength="200"
@@ -146,8 +191,25 @@
                                class="input-glass h-11 px-4 rounded-lg w-full text-sm font-medium">
                     </div>
 
-                    <div class="md:col-span-2 flex flex-col gap-2">
+                    <div class="sti-mkt-only flex flex-col gap-2">
                         <label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Assunto / Tema Principal
+                        </label>
+                        <input type="text" id="sti-assunto-tema" maxlength="2000"
+                               placeholder="Ex: Campanha de rematrícula 2026/2"
+                               class="input-glass h-11 px-4 rounded-lg w-full text-sm font-medium">
+                    </div>
+
+                    <div class="sti-mkt-only flex flex-col gap-2">
+                        <label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Prazo Desejado
+                        </label>
+                        <input type="date" id="sti-prazo"
+                               class="input-glass h-11 px-4 rounded-lg w-full text-sm font-medium">
+                    </div>
+
+                    <div class="md:col-span-2 flex flex-col gap-2">
+                        <label id="sti-lbl-descricao" class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                             Descrição Detalhada <span class="text-red-500">*</span>
                         </label>
                         <textarea id="sti-descricao" required rows="5" maxlength="4000"
@@ -155,8 +217,40 @@
                                   class="input-glass p-4 rounded-lg w-full text-sm font-medium resize-none"></textarea>
                     </div>
 
-                    <div class="md:col-span-2 flex flex-col gap-2">
+                    <div class="sti-mkt-only md:col-span-2 flex flex-col gap-2">
                         <label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Objetivo da Peça
+                        </label>
+                        <textarea id="sti-objetivo" rows="2" maxlength="2000"
+                                  placeholder="O que essa peça precisa gerar? (tráfego, inscrição, reconhecimento…)"
+                                  class="input-glass p-4 rounded-lg w-full text-sm font-medium resize-none"></textarea>
+                    </div>
+
+                    <!-- Telefone que deve aparecer na peça -->
+                    <div class="sti-mkt-only md:col-span-2 rounded-xl border border-[var(--border)] p-4 space-y-3"
+                         style="background: var(--bg-elevated);">
+                        <div class="flex items-center justify-between gap-2 flex-wrap">
+                            <span class="flex items-center gap-2 text-xs font-bold text-[var(--text-primary)]">
+                                <span class="material-symbols-outlined text-[18px]">call</span>
+                                Telefone de contato na peça?
+                            </span>
+                            <div id="sti-tel-group" class="flex gap-2" data-value="nao">
+                                <button type="button" data-tel="nao" class="sti-tel-btn px-3 py-1.5 rounded-lg text-xs font-bold border">Não se aplica</button>
+                                <button type="button" data-tel="sim" class="sti-tel-btn px-3 py-1.5 rounded-lg text-xs font-bold border">Sim, deve conter</button>
+                            </div>
+                        </div>
+                        <div id="sti-tel-wrap" class="hidden">
+                            <input type="text" id="sti-telefone" maxlength="120"
+                                   placeholder="Ex: 0800 123 4567 ou (11) 99999-9999"
+                                   class="input-glass h-11 px-4 rounded-lg w-full text-sm font-medium">
+                        </div>
+                    </div>
+
+                    <!-- Especificações por formato da peça — montadas pelo JS -->
+                    <div id="sti-specs" class="sti-mkt-only md:col-span-2 hidden"></div>
+
+                    <div class="md:col-span-2 flex flex-col gap-2">
+                        <label id="sti-lbl-observacoes" class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                             Observações Extras / Patrimônio (opcional)
                         </label>
                         <input type="text" id="sti-observacoes" maxlength="300"
@@ -167,7 +261,7 @@
                     <div class="md:col-span-2 flex flex-col sm:flex-row items-center justify-between gap-3 mt-2 pt-5 border-t border-[var(--border)]">
                         <div class="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 italic">
                             <span class="material-symbols-outlined text-[16px]" style="color: var(--primary)">check_circle</span>
-                            <span>O chamado fica registrado no sistema para o TI acompanhar.</span>
+                            <span id="sti-footer-hint">O chamado fica registrado no sistema para o TI acompanhar.</span>
                         </div>
                         <button type="submit" id="sti-submit-btn"
                                 class="w-full sm:w-auto px-8 h-12 rounded-xl text-white text-xs font-bold tracking-wider transition-all hover:opacity-90 active:scale-95 shadow-lg"
@@ -213,7 +307,8 @@
                     <span>Como funciona</span>
                 </div>
                 <ul class="space-y-2 leading-relaxed list-disc pl-5">
-                    <li>O chamado é gravado no sistema e o time de TI recebe um aviso.</li>
+                    <li>O chamado é gravado no sistema e o time do departamento escolhido (TI ou Marketing) recebe um aviso.</li>
+                    <li>Em <strong>Marketing</strong> o formulário vira o briefing de design e pede as especificações do formato da peça.</li>
                     <li>Cada envio gera um protocolo (ex: <code class="font-mono bg-[var(--bg-elevated)] px-1 rounded">CH-00042</code>).</li>
                     <li>Status: <strong>Pendente</strong> → <strong>Em andamento</strong> → <strong>Concluído</strong>.</li>
                     <li>Use prioridade <strong>Crítica</strong> só quando algo está bloqueando seu trabalho.</li>
@@ -225,6 +320,62 @@
 </div>
 
 <style>
+    /* Seleção de departamento e do toggle de telefone: mesmo tratamento
+       visual dos botões de urgência (default + is-active). */
+    #page-solicitacoes_ti .sti-depto-btn,
+    #page-solicitacoes_ti .sti-tel-btn {
+        background: var(--bg-elevated);
+        border-color: var(--border);
+        color: var(--text-secondary);
+    }
+    #page-solicitacoes_ti .sti-depto-btn:hover,
+    #page-solicitacoes_ti .sti-tel-btn:hover {
+        background: var(--bg-card);
+        color: var(--text-primary);
+    }
+    #page-solicitacoes_ti .sti-depto-btn.is-active,
+    #page-solicitacoes_ti .sti-tel-btn.is-active {
+        border-color: var(--primary);
+        color: var(--primary);
+        background: rgba(0,52,111,0.08);
+        font-weight: 700;
+    }
+    html.dark #page-solicitacoes_ti .sti-depto-btn.is-active,
+    html.dark #page-solicitacoes_ti .sti-tel-btn.is-active {
+        color: #93c5fd;
+        border-color: #3b82f6;
+        background: rgba(59,130,246,0.14);
+    }
+
+    /* Cartão de especificações do briefing (montado pelo JS) */
+    #page-solicitacoes_ti .sti-spec-card {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 20px;
+        background: var(--bg-elevated);
+    }
+    #page-solicitacoes_ti .sti-spec-label {
+        font-size: 11px; font-weight: 700; text-transform: uppercase;
+        letter-spacing: .06em; color: var(--text-secondary);
+        display: block; margin-bottom: 6px;
+    }
+    #page-solicitacoes_ti .sti-chip {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        color: var(--text-secondary);
+        font-size: 12px; font-weight: 600;
+        padding: 8px 12px; border-radius: 10px;
+        text-align: left; transition: all .15s ease;
+    }
+    #page-solicitacoes_ti .sti-chip:hover { color: var(--text-primary); }
+    #page-solicitacoes_ti .sti-chip.is-active {
+        border-color: var(--primary); color: var(--primary);
+        background: rgba(0,52,111,0.08); font-weight: 700;
+    }
+    html.dark #page-solicitacoes_ti .sti-chip.is-active {
+        color: #93c5fd; border-color: #3b82f6; background: rgba(59,130,246,0.14);
+    }
+
     /* Botões de urgência: estado padrão e selecionado.
        Cores absolutas pra preservar identidade visual em ambos os temas. */
     #page-solicitacoes_ti .sti-urg-btn {

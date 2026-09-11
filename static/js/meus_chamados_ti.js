@@ -1,4 +1,4 @@
-/* Meus chamados TI — tickets do usuário logado. */
+/* Meus chamados (TI e Marketing) — tickets do usuário logado. */
 (function () {
     let _status = 'abertos';
     let _qTimer = null;
@@ -37,9 +37,11 @@
 
     async function loadList() {
         const q = ($('mct-q')?.value || '').trim();
+        const depto = ($('mct-departamento')?.value || '').trim();
         const params = new URLSearchParams();
         if (_status) params.set('status', _status);
         if (q) params.set('q', q);
+        if (depto) params.set('departamento', depto);
         params.set('limit', '80');
         const resp = await fetch('/api/solicitacoes_ti/meus?' + params.toString(), { cache: 'no-store' });
         const data = await resp.json().catch(() => ({}));
@@ -58,6 +60,7 @@
             <button type="button" onclick="mctOpen(${t.id})"
                     class="w-full text-left glass-card border border-[var(--border)] rounded-xl px-4 py-3 flex flex-wrap items-center gap-3 hover:border-[var(--primary)]">
                 <span class="font-mono text-[11px] font-bold px-2 py-0.5 rounded" style="background: var(--bg-elevated);">${escapeHtml(t.protocolo)}</span>
+                <span class="sti-dep-${escapeHtml(t.departamento || 'TI')}">${escapeHtml(t.departamento || 'TI')}</span>
                 <span class="flex-1 min-w-[140px] font-semibold text-sm text-[var(--text-primary)] truncate">${escapeHtml(t.titulo)}</span>
                 <span class="sti-badge ${statusClass(t.status)}">${escapeHtml(t.status)}</span>
                 <span class="sti-badge sti-badge-${escapeHtml(t.urgencia || 'Média')}">${escapeHtml(t.urgencia || '')}</span>
@@ -89,15 +92,23 @@
         const t = data.ticket;
         $('mct-modal-proto').textContent = t.protocolo || '';
         $('mct-modal-title').textContent = t.titulo || '';
+        const depto = t.departamento || 'TI';
+        const isMkt = depto === 'Marketing';
+        const briefHtml = (isMkt && typeof stiBriefingHtml === 'function')
+            ? stiBriefingHtml(t.briefing, t.categoria) : '';
         $('mct-modal-body').innerHTML = `
             <div class="flex flex-wrap gap-2">
+                <span class="sti-dep-${escapeHtml(depto)}">${escapeHtml(depto)}</span>
                 <span class="sti-badge ${statusClass(t.status)}">${escapeHtml(t.status)}</span>
                 <span class="sti-badge sti-badge-${escapeHtml(t.urgencia)}">${escapeHtml(t.urgencia)}</span>
             </div>
             <p><span class="text-slate-500 text-xs uppercase font-bold">Setor</span><br>${escapeHtml(t.setor)}</p>
-            <p><span class="text-slate-500 text-xs uppercase font-bold">Categoria</span><br>${escapeHtml(t.categoria)}</p>
-            <p><span class="text-slate-500 text-xs uppercase font-bold">Descrição</span><br>${escapeHtml(t.descricao).replace(/\n/g, '<br>')}</p>
+            <p><span class="text-slate-500 text-xs uppercase font-bold">Responsável</span><br>${t.responsavel_nome ? escapeHtml(t.responsavel_nome) : 'Aguardando alguém assumir'}</p>
+            <p><span class="text-slate-500 text-xs uppercase font-bold">${isMkt ? 'Formato da peça' : 'Categoria'}</span><br>${escapeHtml(t.categoria)}</p>
+            ${t.prazo_desejado ? `<p><span class="text-slate-500 text-xs uppercase font-bold">Prazo desejado</span><br>${escapeHtml(t.prazo_desejado)}</p>` : ''}
+            <p><span class="text-slate-500 text-xs uppercase font-bold">${isMkt ? 'Informações obrigatórias' : 'Descrição'}</span><br>${escapeHtml(t.descricao).replace(/\n/g, '<br>')}</p>
             ${t.observacoes ? `<p><span class="text-slate-500 text-xs uppercase font-bold">Observações</span><br>${escapeHtml(t.observacoes)}</p>` : ''}
+            ${briefHtml}
             <div>
                 <p class="text-slate-500 text-xs uppercase font-bold mb-2">Andamento</p>
                 ${renderTimeline(data.eventos)}
@@ -130,6 +141,8 @@
                 _qTimer = setTimeout(loadList, 250);
             });
         }
+        const dep = $('mct-departamento');
+        if (dep) dep.addEventListener('change', loadList);
         const modal = $('mct-modal');
         if (modal) {
             modal.addEventListener('click', (e) => {
