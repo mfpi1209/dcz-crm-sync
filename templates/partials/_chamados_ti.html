@@ -18,8 +18,18 @@
     <main class="flex-1 px-4 lg:px-8 pb-8 space-y-5">
         <!-- Departamentos que o usuário pode operar (montado pelo JS; some
              quando ele só tem acesso a uma fila). -->
-        <div id="cti-depto-wrap" class="hidden flex flex-wrap gap-1 p-1 rounded-xl w-fit" style="background: var(--bg-elevated);">
-            <div id="cti-depto-tabs" class="flex flex-wrap gap-1"></div>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <div id="cti-depto-wrap" class="hidden flex flex-wrap gap-1 p-1 rounded-xl w-fit" style="background: var(--bg-elevated);">
+                <div id="cti-depto-tabs" class="flex flex-wrap gap-1"></div>
+            </div>
+            <div id="cti-view-seg" class="ds-segment ds-segment--compact ml-auto" role="group" aria-label="Visualização">
+                <button type="button" data-view="lista" class="cti-view-btn ds-segment__btn inline-flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-[16px]">view_list</span>Lista
+                </button>
+                <button type="button" data-view="kanban" class="cti-view-btn ds-segment__btn inline-flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-[16px]">view_kanban</span>Kanban
+                </button>
+            </div>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -71,7 +81,15 @@
             <span class="material-symbols-outlined text-[36px] mb-2">task_alt</span>
             <p class="text-sm">Nenhum chamado neste filtro.</p>
         </div>
-        <div class="glass-card border border-[var(--border)] rounded-2xl">
+        <!-- Kanban: uma coluna por status. As colunas exibidas seguem o chip de
+             status (Abertos mostra Pendente + Em andamento, Todos mostra as 3). -->
+        <p id="cti-kb-hint" class="hidden text-[11px] text-slate-500">
+            <span class="material-symbols-outlined text-[13px] align-[-2px]">info</span>
+            Filtro de status com uma coluna só — escolha “Abertos” ou “Todos” para arrastar entre colunas.
+        </p>
+        <div id="cti-kanban" class="hidden"></div>
+
+        <div id="cti-list-wrap" class="glass-card border border-[var(--border)] rounded-2xl">
             <div class="overflow-x-auto">
                 <table class="w-full text-left min-w-[1080px]">
                     <thead>
@@ -165,4 +183,41 @@
     #page-chamados_ti .cti-st-btn.is-active,
     #cti-modal .cti-st-btn.is-active { border-color: var(--primary); color: var(--primary); }
     #page-chamados_ti tbody tr:hover { background: var(--bg-elevated); }
+
+    /* ── Kanban ─────────────────────────────────────────────────────────── */
+    #cti-kanban { display: flex; gap: 12px; align-items: flex-start; overflow-x: auto; padding-bottom: 6px; }
+    #cti-kanban.hidden { display: none; }
+    #page-chamados_ti .cti-kb-col {
+        flex: 1 1 0; min-width: 270px; display: flex; flex-direction: column;
+        border: 1px solid var(--border); border-radius: 16px; background: var(--bg-elevated);
+    }
+    #page-chamados_ti .cti-kb-head {
+        display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+        border-bottom: 1px solid var(--border);
+    }
+    #page-chamados_ti .cti-kb-dot { width: 8px; height: 8px; border-radius: 9999px; flex-shrink: 0; }
+    #page-chamados_ti .cti-kb-body {
+        display: flex; flex-direction: column; gap: 10px; padding: 10px;
+        min-height: 110px; max-height: calc(100dvh - 26rem); overflow-y: auto;
+    }
+    #page-chamados_ti .cti-kb-col.is-over { border-color: var(--primary); }
+    #page-chamados_ti .cti-kb-col.is-over .cti-kb-body { background: rgba(59,130,246,.08); }
+    #page-chamados_ti .cti-kb-card {
+        border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px;
+        background: var(--bg-card); text-align: left; width: 100%;
+        display: flex; flex-direction: column; gap: 6px;
+        transition: border-color .15s ease, opacity .15s ease;
+    }
+    #page-chamados_ti .cti-kb-card:hover { border-color: var(--primary); }
+    #page-chamados_ti .cti-kb-card[draggable="true"] { cursor: grab; }
+    #page-chamados_ti .cti-kb-card.is-dragging { opacity: .45; cursor: grabbing; }
+    #page-chamados_ti .cti-kb-card.is-saving { opacity: .6; pointer-events: none; }
+    #page-chamados_ti .cti-kb-empty { font-size: 11px; color: var(--text-secondary); opacity: .7; padding: 6px 2px; }
+    #page-chamados_ti .cti-prazo { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 9999px; white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; }
+    #page-chamados_ti .cti-prazo-late { background: rgba(239,68,68,.12); color: #b91c1c; }
+    #page-chamados_ti .cti-prazo-soon { background: rgba(245,158,11,.14); color: #b45309; }
+    #page-chamados_ti .cti-prazo-ok { background: rgba(100,116,139,.12); color: #475569; }
+    html.dark #page-chamados_ti .cti-prazo-late { color: #fca5a5; }
+    html.dark #page-chamados_ti .cti-prazo-soon { color: #fcd34d; }
+    html.dark #page-chamados_ti .cti-prazo-ok { color: #cbd5e1; }
 </style>
