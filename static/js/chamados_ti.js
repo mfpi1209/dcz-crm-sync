@@ -8,6 +8,15 @@
     let _qTimer = null;
     let _openId = null;
     let _pickedStatus = null;
+    let _view = 'lista';      // 'lista' | 'kanban'
+    let _items = [];          // última resposta do backend (re-render sem refetch)
+    let _meta = {};           // is_admin / user_id / departamentos_exclusivos
+    let _dragId = null;       // id do chamado em arraste (dataTransfer não é legível no dragover)
+    let _dragFrom = null;
+
+    const VIEW_KEY = 'cti_view_v1';
+    const STATUS_ORDEM = ['Pendente', 'Em andamento', 'Concluído'];
+    const STATUS_COR = { 'Pendente': '#b45309', 'Em andamento': '#1d4ed8', 'Concluído': '#059669' };
 
     const CATEGORIAS_POR_DEPTO = {
         'TI': ['Erros/Bugs', 'Processos Novos', 'Ideias Novas'],
@@ -115,11 +124,19 @@
         const resp = await fetch('/api/solicitacoes_ti/chamados?' + qs(), { cache: 'no-store' });
         const data = await resp.json().catch(() => ({}));
         if (resp.status === 403) {
+            _items = [];
             const tbody = $('cti-tbody');
             if (tbody) tbody.innerHTML = `<tr><td colspan="10" class="px-4 py-8 text-center text-sm text-slate-500">${escapeHtml(data.message || 'Sem permissão.')}</td></tr>`;
+            const kb = $('cti-kanban');
+            if (kb) kb.innerHTML = '';
             return;
         }
-        const items = Array.isArray(data.items) ? data.items : [];
+        _items = Array.isArray(data.items) ? data.items : [];
+        _meta = {
+            is_admin: !!data.is_admin,
+            user_id: data.user_id ?? null,
+            exclusivos: Array.isArray(data.departamentos_exclusivos) ? data.departamentos_exclusivos : [],
+        };
         setKpis(data.kpis);
         if (Array.isArray(data.fila_departamentos)) {
             const primeiraCarga = _deptosOk === null;
@@ -127,15 +144,19 @@
             if (primeiraCarga) setCategoriaOptions();
             renderDeptoTabs(_deptosOk, data.abertos_por_departamento);
         }
+        render();
+    }
+
+    function render() {
         const empty = $('cti-empty');
+        if (empty) empty.classList.toggle('hidden', _items.length > 0);
+        if (_view === 'kanban') renderKanban(_items);
+        else renderTable(_items);
+    }
+
+    function renderTable(items) {
         const tbody = $('cti-tbody');
         if (!tbody) return;
-        if (!items.length) {
-            tbody.innerHTML = '';
-            if (empty) empty.classList.remove('hidden');
-            return;
-        }
-        if (empty) empty.classList.add('hidden');
         tbody.innerHTML = items.map(t => `
             <tr class="border-b border-[var(--border)] text-sm">
                 <td class="px-4 py-3 font-mono text-[11px] font-bold">${escapeHtml(t.protocolo)}</td>
@@ -152,6 +173,206 @@
                 </td>
             </tr>
         `).join('');
+    }
+
+    /* ── Kanban ──────────────────────────────────────────────────────────── */
+
+    /* Espelha `_pode_alterar_status` do backend: nas filas exclusivas
+       (Marketing) o status é do responsável; chamado livre é de quem pegar. */
+    function podeAlterar(t) {
+        if (_meta.is_admin) return true;
+        const depto = t.departamento || 'TI';
+        if (!(_meta.exclusivos || []).includes(depto)) return true;
+        if (t.responsavel_user_id == null) return true;
+        return _meta.user_id != null && t.responsavel_user_id === _meta.user_id;
+    }
+
+    /* Colunas visíveis = o que o chip de status deixa passar. */
+    function colunasVisiveis() {
+        if (_status === 'abertos') return ['Pendente', 'Em andamento'];
+        if (!_status) return STATUS_ORDEM.slice();
+        return STATUS_ORDEM.includes(_status) ? [_status] : STATUS_ORDEM.slice();
+    }
+
+    /* Badge de prazo (só Marketing preenche `prazo_desejado`). */
+    function prazoBadge(t) {
+        const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t.prazo_desejado || '');
+        if (!m) return '';
+        const alvo = new Date(+m[1], +m[2] - 1, +m[3]);
+        const hoje = new Date();
+        hoje.setHours(0, 0, 0, 0);
+        const dias = Math.round((alvo - hoje) / 86400000);
+        const dataTxt = `${m[3]}/${m[2]}`;
+        let cls = 'cti-prazo-ok';
+        let txt = `Prazo ${dataTxt}`;
+        if (t.status !== 'Concluído') {
+            if (dias < 0) {
+                cls = 'cti-prazo-late';
+                txt = `Atrasado há ${-dias} ${-dias === 1 ? 'dia' : 'dias'}`;
+            } else if (dias === 0) {
+                cls = 'cti-prazo-soon';
+                txt = 'Vence hoje';
+            } else if (dias <= 2) {
+                cls = 'cti-prazo-soon';
+                txt = `Falta ${dias} ${dias === 1 ? 'dia' : 'dias'}`;
+            }
+        }
+        return `<span class="cti-prazo ${cls}"><span class="material-symbols-outlined text-[12px]">schedule</span>${escapeHtml(txt)}</span>`;
+    }
+
+    function cardHtml(t) {
+        const pode = podeAlterar(t);
+        const depto = t.departamento || 'TI';
+        const resp = t.responsavel_nome
+            ? `<span class="text-[11px] font-medium text-[var(--text-secondary)] truncate">${escapeHtml(t.responsavel_nome)}</span>`
+            : '<span class="sti-badge cti-livre">Livre</span>';
+        return `
+            <div class="cti-kb-card" data-id="${t.id}" data-status="${escapeHtml(t.status)}"
+                 ${pode ? 'draggable="true"' : ''} role="button" tabindex="0"
+                 title="${pode ? 'Arraste para mudar o status ou clique para abrir' : 'Só o responsável altera o status deste chamado'}">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="font-mono text-[11px] font-bold" style="color: var(--primary);">${escapeHtml(t.protocolo)}</span>
+                    <span class="sti-badge sti-badge-${escapeHtml(t.urgencia)}">${escapeHtml(t.urgencia)}</span>
+                </div>
+                <p class="text-sm font-bold text-[var(--text-primary)] leading-snug break-words">${escapeHtml(t.titulo)}</p>
+                <div class="flex flex-wrap items-center gap-1.5">
+                    <span class="sti-dep-${escapeHtml(depto)}">${escapeHtml(depto)}</span>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">${escapeHtml(t.categoria || '')}</span>
+                </div>
+                <p class="text-[11px] text-slate-500 truncate">${escapeHtml(t.solicitante)} · ${escapeHtml(t.setor)}</p>
+                <div class="flex items-center justify-between gap-2 pt-1">
+                    ${prazoBadge(t) || '<span class="text-[10px] text-slate-500">' + fmtTs(t.created_at) + '</span>'}
+                    ${resp}
+                </div>
+            </div>`;
+    }
+
+    function renderKanban(items) {
+        const wrap = $('cti-kanban');
+        if (!wrap) return;
+        const cols = colunasVisiveis();
+        const hint = $('cti-kb-hint');
+        if (hint) hint.classList.toggle('hidden', cols.length > 1);
+        wrap.innerHTML = cols.map(st => {
+            const doColuna = items.filter(t => t.status === st);
+            const cards = doColuna.length
+                ? doColuna.map(cardHtml).join('')
+                : '<p class="cti-kb-empty">Nenhum chamado aqui.</p>';
+            return `
+                <section class="cti-kb-col" data-status="${escapeHtml(st)}">
+                    <header class="cti-kb-head">
+                        <span class="cti-kb-dot" style="background: ${STATUS_COR[st]}"></span>
+                        <span class="text-xs font-bold text-[var(--text-primary)]">${escapeHtml(st)}</span>
+                        <span class="text-xs font-bold text-slate-500">(${doColuna.length})</span>
+                    </header>
+                    <div class="cti-kb-body">${cards}</div>
+                </section>`;
+        }).join('');
+        bindKanban(wrap);
+    }
+
+    function bindKanban(wrap) {
+        wrap.querySelectorAll('.cti-kb-card').forEach(card => {
+            card.addEventListener('click', () => {
+                if (card.classList.contains('is-saving')) return;
+                ctiOpen(Number(card.dataset.id));
+            });
+            card.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    ctiOpen(Number(card.dataset.id));
+                }
+            });
+            if (card.getAttribute('draggable') !== 'true') return;
+            card.addEventListener('dragstart', (e) => {
+                _dragId = Number(card.dataset.id);
+                _dragFrom = card.dataset.status || '';
+                card.classList.add('is-dragging');
+                try {
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', String(_dragId));
+                } catch (_) { /* noop */ }
+            });
+            card.addEventListener('dragend', () => {
+                card.classList.remove('is-dragging');
+                _dragId = null;
+                _dragFrom = null;
+                wrap.querySelectorAll('.cti-kb-col.is-over').forEach(c => c.classList.remove('is-over'));
+            });
+        });
+        wrap.querySelectorAll('.cti-kb-col').forEach(col => {
+            const alvo = col.dataset.status || '';
+            col.addEventListener('dragover', (e) => {
+                if (_dragId == null || alvo === _dragFrom) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                col.classList.add('is-over');
+            });
+            col.addEventListener('dragleave', (e) => {
+                if (!col.contains(e.relatedTarget)) col.classList.remove('is-over');
+            });
+            col.addEventListener('drop', (e) => {
+                col.classList.remove('is-over');
+                if (_dragId == null || alvo === _dragFrom) return;
+                e.preventDefault();
+                moverCard(_dragId, alvo);
+            });
+        });
+    }
+
+    /* Move o card para a coluna alvo e grava. Se o backend recusar (403 de quem
+       não é responsável, 409, etc.) o card volta para a coluna de origem. */
+    async function moverCard(id, novoStatus) {
+        const wrap = $('cti-kanban');
+        const card = wrap?.querySelector(`.cti-kb-card[data-id="${id}"]`);
+        const alvo = wrap?.querySelector(`.cti-kb-col[data-status="${novoStatus}"] .cti-kb-body`);
+        if (!card || !alvo) return;
+        const origem = card.parentElement;
+        const vizinho = card.nextElementSibling;
+        const vazio = alvo.querySelector('.cti-kb-empty');
+        if (vazio) vazio.remove();
+        alvo.appendChild(card);
+        card.classList.add('is-saving');
+        try {
+            const resp = await fetch('/api/solicitacoes_ti/chamados/' + id + '/status', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: novoStatus, nota: '' }),
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok || data.ok === false) {
+                card.classList.remove('is-saving');
+                if (vizinho) origem.insertBefore(card, vizinho);
+                else origem.appendChild(card);
+                if (!alvo.children.length) alvo.innerHTML = '<p class="cti-kb-empty">Nenhum chamado aqui.</p>';
+                if (typeof toast === 'function') toast(data.message || 'Não foi possível mudar o status.', 'error');
+                return;
+            }
+            if (typeof toast === 'function') toast(data.message || 'Status atualizado.', 'success');
+            await loadList();
+        } catch (e) {
+            console.error(e);
+            card.classList.remove('is-saving');
+            if (vizinho) origem.insertBefore(card, vizinho);
+            else origem.appendChild(card);
+            if (typeof toast === 'function') toast('Falha de rede.', 'error');
+        }
+    }
+
+    function applyView(v, persist) {
+        _view = v === 'kanban' ? 'kanban' : 'lista';
+        if (persist) {
+            try { localStorage.setItem(VIEW_KEY, _view); } catch (_) { /* noop */ }
+        }
+        document.querySelectorAll('#cti-view-seg .cti-view-btn').forEach(b => {
+            b.classList.toggle('ds-segment__btn--active', (b.dataset.view || '') === _view);
+        });
+        const list = $('cti-list-wrap');
+        const kb = $('cti-kanban');
+        const hint = $('cti-kb-hint');
+        if (list) list.classList.toggle('hidden', _view === 'kanban');
+        if (kb) kb.classList.toggle('hidden', _view !== 'kanban');
+        if (hint && _view !== 'kanban') hint.classList.add('hidden');
     }
 
     /* Quem puxou o chamado. Livre = disponível para qualquer um da fila. */
@@ -319,6 +540,12 @@
     };
 
     function bind() {
+        document.querySelectorAll('#cti-view-seg .cti-view-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                applyView(btn.dataset.view || 'lista', true);
+                render();
+            });
+        });
         document.querySelectorAll('#cti-tabs .cti-tab').forEach(btn => {
             btn.addEventListener('click', () => {
                 _status = btn.dataset.status || '';
@@ -353,7 +580,14 @@
 
     let _bound = false;
     window.loadChamadosTi = function () {
-        if (!_bound) { bind(); setCategoriaOptions(); _bound = true; }
+        if (!_bound) {
+            bind();
+            setCategoriaOptions();
+            let salvo = null;
+            try { salvo = localStorage.getItem(VIEW_KEY); } catch (_) { /* noop */ }
+            applyView(salvo || 'lista', false);
+            _bound = true;
+        }
         loadList().catch(err => console.error(err));
     };
 })();
