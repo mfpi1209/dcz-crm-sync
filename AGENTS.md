@@ -4,6 +4,13 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-09-15 — Briefing de Marketing alinhado à referência do ZIP
+- **Modelo usado:** Cursor Grok 4.6.
+- **Pedido:** o formulário de Marketing tinha campos a mais que o ZIP (`formulário-de-briefing-de-design.zip`), dificultando o uso. Alinhar **exatamente** à tela que o app React renderiza (`SectionGeneral` + `SectionSpecs`).
+- **O que o ZIP mostra de verdade (App.tsx):** nome, bandeira, público-alvo, formato da peça, título/assunto, informações obrigatórias, telefone na peça, e as specs do formato. `SectionContent` (assunto/tema, objetivo) **não entra no App** — ficou de fora.
+- **Saiu do formulário de Marketing:** prazo, objetivo da peça, assunto/tema extra, observações/patrimônio, opção "Outro", dimensão específica (imagem), duração (vídeo), referências UX, quantidade de páginas (e-book) e fornecedor do brinde. **Setor e prioridade ficam** — pedido explícito depois do alinhamento.
+- **Não muda:** formulário de TI; chamados antigos continuam legíveis (chaves extras no JSONB só deixam de ser gravadas em envios novos).
+
 ### 2026-09-14 — Fila de chamados: modo Kanban (Lista ⇄ Kanban) com drag & drop de status
 - **Modelo usado:** Opus 5.
 - **Pedido:** "na fila de chamados vc adicione o modo de Kanban, para que eu possa alternar do modo em Lista e kanban". Referências enviadas: um segmented control (Kanban/Flow/Lista, ativo em azul sólido) e um quadro Kanban do app React do briefing.

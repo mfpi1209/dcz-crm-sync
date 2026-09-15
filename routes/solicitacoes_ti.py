@@ -60,7 +60,7 @@ URGENCIAS = ("Baixa", "Média", "Alta", "Crítica")
 SETORES = ("Marketing", "Comercial", "Acadêmico", "TI", "Financeiro")
 CATEGORIAS = ("Erros/Bugs", "Processos Novos", "Ideias Novas")
 # Marketing: "categoria" é o formato da peça (briefing de design).
-CATEGORIAS_MKT = ("Imagem", "Vídeo", "UX / UI", "E-book", "Brinde", "Outro")
+CATEGORIAS_MKT = ("Imagem", "Vídeo", "UX / UI", "E-book", "Brinde")
 CATEGORIAS_POR_DEPTO = {DEPTO_TI: CATEGORIAS, DEPTO_MKT: CATEGORIAS_MKT}
 BANDEIRAS = ("Cruzeiro do Sul", "DNA WORK", "Sumaré")
 
@@ -77,30 +77,24 @@ BRIEF_LIST_MAX = 12
 # Campos do briefing de design aceitos no JSONB. Chaves fora desta lista são
 # descartadas — o payload vem do front, não vale gravar cru.
 BRIEF_COMUNS = (
-    "bandeira", "publico_alvo", "assunto_tema", "objetivo_peca",
-    "tem_telefone", "telefone_contato", "outras_informacoes",
+    "bandeira", "publico_alvo", "tem_telefone", "telefone_contato",
 )
 BRIEF_SPECS = {
-    "Imagem": ("formatos", "dimensao_especifica", "observacoes"),
+    "Imagem": ("formatos", "observacoes"),
     "Vídeo": (
         "tem_material_bruto", "materiais_disponiveis", "material_outro",
         "link_material_bruto", "tem_roteiro", "link_roteiro", "ideia_roteiro",
-        "formato_video", "formato_video_outro", "duracao_estimada",
+        "formato_video", "formato_video_outro",
     ),
     "UX / UI": (
         "o_que_sera_desenvolvido", "quantidade_telas", "quais_telas",
-        "referencias_links", "observacoes",
+        "observacoes",
     ),
     "E-book": (
         "tema_titulo", "tem_texto", "link_conteudo_textual", "conceito_texto",
-        "quantidade_paginas", "formato_entrega", "formato_entrega_outro",
-        "observacoes",
+        "formato_entrega", "formato_entrega_outro", "observacoes",
     ),
-    "Brinde": ("qual_brinde", "quantidade", "link_referencia", "observacoes"),
-    "Outro": (
-        "tipo_personalizado", "especificacoes_tecnicas", "formato_entrega",
-        "observacoes",
-    ),
+    "Brinde": ("qual_brinde", "quantidade", "observacoes"),
 }
 # Rótulos usados na renderização (front) — servidos junto do config para o
 # JS não duplicar as opções do briefing.
@@ -130,9 +124,9 @@ BRIEF_OPCOES = {
     },
     "E-book": {
         "formato_entrega": [
-            ["pdf", "PDF Interativo"],
+            ["pdf", "PDF Interativo (Download padrão)"],
             ["digital", "Digital Web / Flipbook"],
-            ["impressao", "Fechamento para Gráfica"],
+            ["impressao", "Fechamento para Gráfica / Impressão"],
             ["outro", "Outro Formato"],
         ],
     },
