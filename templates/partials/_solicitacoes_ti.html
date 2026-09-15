@@ -118,7 +118,7 @@
                         </label>
                         <div class="relative">
                             <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">domain</span>
-                            <select id="sti-setor" required
+                            <select id="sti-setor"
                                     class="input-glass h-11 pl-10 pr-4 rounded-lg w-full text-sm font-medium cursor-pointer">
                                 <option value="">Selecione o setor…</option>
                                 <option value="Marketing">Marketing</option>
@@ -128,6 +128,28 @@
                                 <option value="Financeiro">Financeiro</option>
                             </select>
                         </div>
+                    </div>
+
+                    <div class="sti-mkt-only hidden flex flex-col gap-2">
+                        <label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Bandeira / Empresa <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">apartment</span>
+                            <select id="sti-bandeira"
+                                    class="input-glass h-11 pl-10 pr-4 rounded-lg w-full text-sm font-medium cursor-pointer">
+                                <option value="">Selecione sua bandeira</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="sti-mkt-only hidden flex flex-col gap-2">
+                        <label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Público-alvo <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" id="sti-publico-alvo" maxlength="2000"
+                               placeholder="Informe o público-alvo"
+                               class="input-glass h-11 px-4 rounded-lg w-full text-sm font-medium">
                     </div>
 
                     <div class="flex flex-col gap-2">
@@ -159,52 +181,12 @@
                         </div>
                     </div>
 
-                    <!-- Briefing de design (só Marketing) -->
-                    <div class="sti-mkt-only flex flex-col gap-2">
-                        <label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Bandeira / Empresa <span class="text-red-500">*</span>
-                        </label>
-                        <div class="relative">
-                            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">apartment</span>
-                            <select id="sti-bandeira"
-                                    class="input-glass h-11 pl-10 pr-4 rounded-lg w-full text-sm font-medium cursor-pointer">
-                                <option value="">Selecione sua bandeira…</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="sti-mkt-only flex flex-col gap-2">
-                        <label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Público-alvo <span class="text-red-500">*</span>
-                        </label>
-                        <input type="text" id="sti-publico-alvo" maxlength="2000"
-                               placeholder="Ex: Vestibulandos de 17 a 24 anos da região da Barra Funda"
-                               class="input-glass h-11 px-4 rounded-lg w-full text-sm font-medium">
-                    </div>
-
                     <div class="md:col-span-2 flex flex-col gap-2">
                         <label id="sti-lbl-titulo" class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                             Título Resumido / Assunto <span class="text-red-500">*</span>
                         </label>
                         <input type="text" id="sti-titulo" required maxlength="200"
                                placeholder="Ex: Não consigo conectar na VPN corporativa"
-                               class="input-glass h-11 px-4 rounded-lg w-full text-sm font-medium">
-                    </div>
-
-                    <div class="sti-mkt-only flex flex-col gap-2">
-                        <label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Assunto / Tema Principal
-                        </label>
-                        <input type="text" id="sti-assunto-tema" maxlength="2000"
-                               placeholder="Ex: Campanha de rematrícula 2026/2"
-                               class="input-glass h-11 px-4 rounded-lg w-full text-sm font-medium">
-                    </div>
-
-                    <div class="sti-mkt-only flex flex-col gap-2">
-                        <label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Prazo Desejado
-                        </label>
-                        <input type="date" id="sti-prazo"
                                class="input-glass h-11 px-4 rounded-lg w-full text-sm font-medium">
                     </div>
 
@@ -217,17 +199,8 @@
                                   class="input-glass p-4 rounded-lg w-full text-sm font-medium resize-none"></textarea>
                     </div>
 
-                    <div class="sti-mkt-only md:col-span-2 flex flex-col gap-2">
-                        <label class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Objetivo da Peça
-                        </label>
-                        <textarea id="sti-objetivo" rows="2" maxlength="2000"
-                                  placeholder="O que essa peça precisa gerar? (tráfego, inscrição, reconhecimento…)"
-                                  class="input-glass p-4 rounded-lg w-full text-sm font-medium resize-none"></textarea>
-                    </div>
-
                     <!-- Telefone que deve aparecer na peça -->
-                    <div class="sti-mkt-only md:col-span-2 rounded-xl border border-[var(--border)] p-4 space-y-3"
+                    <div class="sti-mkt-only hidden md:col-span-2 rounded-xl border border-[var(--border)] p-4 space-y-3"
                          style="background: var(--bg-elevated);">
                         <div class="flex items-center justify-between gap-2 flex-wrap">
                             <span class="flex items-center gap-2 text-xs font-bold text-[var(--text-primary)]">
@@ -249,7 +222,7 @@
                     <!-- Especificações por formato da peça — montadas pelo JS -->
                     <div id="sti-specs" class="sti-mkt-only md:col-span-2 hidden"></div>
 
-                    <div class="md:col-span-2 flex flex-col gap-2">
+                    <div class="sti-ti-only md:col-span-2 flex flex-col gap-2">
                         <label id="sti-lbl-observacoes" class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                             Observações Extras / Patrimônio (opcional)
                         </label>
@@ -308,7 +281,7 @@
                 </div>
                 <ul class="space-y-2 leading-relaxed list-disc pl-5">
                     <li>O chamado é gravado no sistema e o time do departamento escolhido (TI ou Marketing) recebe um aviso.</li>
-                    <li>Em <strong>Marketing</strong> o formulário vira o briefing de design e pede as especificações do formato da peça.</li>
+                    <li>Em <strong>Marketing</strong> o formulário é o briefing de design da referência: nome, bandeira, público, formato da peça, título, detalhes e telefone na peça — mais as especificações do formato escolhido.</li>
                     <li>Cada envio gera um protocolo (ex: <code class="font-mono bg-[var(--bg-elevated)] px-1 rounded">CH-00042</code>).</li>
                     <li>Status: <strong>Pendente</strong> → <strong>Em andamento</strong> → <strong>Concluído</strong>.</li>
                     <li>Use prioridade <strong>Crítica</strong> só quando algo está bloqueando seu trabalho.</li>

@@ -11,51 +11,48 @@
     // de opções (`opts`) vêm do config para não duplicar rótulos.
     const SPEC_DEFS = {
         'Imagem': [
-            { key: 'formatos', type: 'multi', opts: 'formatos', label: 'Formato / aplicação da imagem' },
-            { key: 'dimensao_especifica', type: 'text', label: 'Dimensão específica (opcional)', ph: 'Ex: 1080x1350px' },
-            { key: 'observacoes', type: 'area', label: 'Observações de imagem', ph: 'Estilo visual, composição, peso do arquivo…' },
+            { key: 'formatos', type: 'multi', opts: 'formatos', label: 'Formato / Aplicação da Imagem' },
+            { key: 'observacoes', type: 'area', label: 'Observações de Imagem', ph: 'Ex: Peso máximo de arquivo, orientações de composição, estilo visual desejado...' },
         ],
         'Vídeo': [
-            { key: 'tem_material_bruto', type: 'bool', label: 'Existe material bruto disponível?', yes: 'Sim, temos material', no: 'Não (precisa gravar)' },
+            { key: 'tem_material_bruto', type: 'bool', label: 'Existe material bruto disponível?', yes: 'Sim, temos material', no: 'Não (precisa ser gravado / banco de vídeos)' },
             { key: 'materiais_disponiveis', type: 'multi', opts: 'materiais_disponiveis', label: 'Materiais disponíveis para a edição', showIf: { tem_material_bruto: true } },
-            { key: 'material_outro', type: 'text', label: 'Quais outros materiais?', ph: 'Ex: trilha licenciada, vinheta 3D…', showIf: { tem_material_bruto: true } },
-            { key: 'link_material_bruto', type: 'text', label: 'Link da pasta na nuvem', ph: 'https://drive.google.com/…', showIf: { tem_material_bruto: true } },
+            { key: 'material_outro', type: 'text', label: 'Quais outros materiais estão disponíveis?', ph: 'Ex: Trilha sonora licenciada, vinheta 3D pronta…', showIf: { tem_material_bruto: true, materiais_has: 'outros' } },
+            { key: 'link_material_bruto', type: 'text', label: 'Link da pasta na nuvem (Google Drive, Dropbox, WeTransfer, OneDrive)', ph: 'https://drive.google.com/drive/folders/…', showIf: { tem_material_bruto: true } },
             { key: 'tem_roteiro', type: 'bool', label: 'Possui roteiro pronto?', yes: 'Sim', no: 'Não' },
-            { key: 'link_roteiro', type: 'text', label: 'Link do roteiro', ph: 'https://docs.google.com/…', showIf: { tem_roteiro: true } },
-            { key: 'ideia_roteiro', type: 'area', label: 'Conceito / ideia do vídeo', ph: 'Mensagem principal, objetivo, cenas desejadas…', showIf: { tem_roteiro: false } },
-            { key: 'formato_video', type: 'single', opts: 'formato_video', label: 'Formato do vídeo' },
-            { key: 'formato_video_outro', type: 'text', label: 'Qual formato?', ph: 'Ex: 32:9, 4:5 carrossel…', showIf: { formato_video: 'outro' } },
-            { key: 'duracao_estimada', type: 'text', label: 'Duração estimada', ph: 'Ex: 15 a 30 segundos' },
+            { key: 'link_roteiro', type: 'text', label: 'Link do Roteiro (Google Docs, Word Online, Notion…)', ph: 'https://docs.google.com/document/d/…', showIf: { tem_roteiro: true } },
+            { key: 'ideia_roteiro', type: 'area', label: 'Conceito / Ideia do Vídeo', ph: 'Mensagem principal, objetivo, cenas desejadas ou referências…', showIf: { tem_roteiro: false } },
+            { key: 'formato_video', type: 'single', opts: 'formato_video', label: 'Formato do Vídeo' },
+            { key: 'formato_video_outro', type: 'text', label: 'Qual formato?', ph: 'Ex: Painel ultra-wide 32:9, 4:5 carrossel…', showIf: { formato_video: 'outro' } },
         ],
         'UX / UI': [
-            { key: 'o_que_sera_desenvolvido', type: 'text', label: 'O que será desenvolvido?', ph: 'Ex: Landing page de captação' },
-            { key: 'quantidade_telas', type: 'text', label: 'Quantidade de telas', ph: 'Ex: 3 telas + modal' },
-            { key: 'quais_telas', type: 'text', label: 'Quais telas precisam ser criadas?' },
-            { key: 'referencias_links', type: 'text', label: 'Referências / links' },
-            { key: 'observacoes', type: 'area', label: 'Observações de UX / UI' },
+            { key: 'o_que_sera_desenvolvido', type: 'text', label: 'O que será desenvolvido?', ph: 'Ex: Landing Page de produto, Aplicativo Mobile, Dashboard administrativo…' },
+            { key: 'quantidade_telas', type: 'text', label: 'Quantidade de telas', ph: 'Ex: 3 a 5 telas, 1 landing page…' },
+            { key: 'quais_telas', type: 'text', label: 'Quais telas precisam ser criadas?', ph: 'Ex: Home, Detalhe do Produto, Checkout, Login e Perfil' },
+            { key: 'observacoes', type: 'area', label: 'Observações de UX / UI', ph: 'Ex: Seguir Design System no Figma, prever modo escuro…' },
         ],
         'E-book': [
-            { key: 'tema_titulo', type: 'text', label: 'Tema / título do e-book' },
+            { key: 'tema_titulo', type: 'text', label: 'Tema / Título do E-book' },
             { key: 'tem_texto', type: 'bool', label: 'Tem texto?', yes: 'Sim', no: 'Não' },
-            { key: 'link_conteudo_textual', type: 'text', label: 'Link do documento com os textos', ph: 'https://docs.google.com/…', showIf: { tem_texto: true } },
-            { key: 'conceito_texto', type: 'area', label: 'Conceito do e-book', showIf: { tem_texto: false } },
-            { key: 'quantidade_paginas', type: 'text', label: 'Quantidade de páginas', ph: 'Ex: 18 a 22 páginas' },
-            { key: 'formato_entrega', type: 'multi', opts: 'formato_entrega', label: 'Formato de entrega' },
-            { key: 'formato_entrega_outro', type: 'text', label: 'Qual outro formato?' },
-            { key: 'observacoes', type: 'area', label: 'Observações de e-book' },
+            { key: 'link_conteudo_textual', type: 'text', label: 'Link do documento com os textos', ph: 'https://docs.google.com/document/d/…', showIf: { tem_texto: true } },
+            { key: 'conceito_texto', type: 'area', label: 'Conceito do E-book', showIf: { tem_texto: false } },
+            { key: 'formato_entrega', type: 'multi', opts: 'formato_entrega', label: 'Formato de Entrega' },
+            { key: 'formato_entrega_outro', type: 'text', label: 'Especifique outro formato de entrega', ph: 'Ex: ePub, InDesign aberto…', showIf: { formato_has: 'outro' } },
+            { key: 'observacoes', type: 'area', label: 'Observações de E-book' },
         ],
         'Brinde': [
-            { key: 'qual_brinde', type: 'text', label: 'Qual será o brinde?', ph: 'Ex: garrafa térmica inox gravada a laser' },
-            { key: 'quantidade', type: 'text', label: 'Quantidade estimada', ph: 'Ex: 250 unidades' },
-            { key: 'link_referencia', type: 'text', label: 'Fornecedor / modelo / link de referência' },
-            { key: 'observacoes', type: 'area', label: 'Observações de brindes' },
+            { key: 'qual_brinde', type: 'text', label: 'Qual será o brinde?', ph: 'Ex: Garrafa térmica inox, Camiseta 100% algodão…' },
+            { key: 'quantidade', type: 'text', label: 'Quantidade estimada', ph: 'Ex: 100 un, 500 peças…' },
+            { key: 'observacoes', type: 'area', label: 'Observações de Brindes', ph: 'Ex: Gravação a laser, área máxima de gravação…' },
         ],
-        'Outro': [
-            { key: 'tipo_personalizado', type: 'text', label: 'Nome do formato / material', ph: 'Ex: cenografia de evento, stand 3D…' },
-            { key: 'formato_entrega', type: 'text', label: 'Formato de entrega esperado', ph: 'Ex: AI aberto + PDF em curvas' },
-            { key: 'especificacoes_tecnicas', type: 'area', label: 'Especificações técnicas (medidas, materiais, regras)' },
-            { key: 'observacoes', type: 'area', label: 'Observações adicionais' },
-        ],
+    };
+
+    const MKT_CAT_LABELS = {
+        'Imagem': 'Imagem (Feed, Stories, Banner, E-mail)',
+        'Vídeo': 'Vídeo (Motion, Reels, TikTok, YouTube)',
+        'UX / UI': 'UX / UI (Landing Page, App, Telas)',
+        'E-book': 'E-book (Editorial, Guia Digital)',
+        'Brinde': 'Brinde (Merchandise, Personalizados)',
     };
 
     // Rótulos do briefing para leitura (Meus chamados / Fila). Estáticos, para
@@ -216,15 +213,11 @@
         if (!sel) return;
         const mapa = (_cfg && _cfg.categorias_por_departamento) || {};
         const lista = mapa[_depto] || [];
-        const placeholder = isMkt() ? 'Selecione o formato da peça…' : 'Selecione a categoria técnica…';
-        const icones = {
-            'Erros/Bugs': '🐛 ', 'Processos Novos': '⚙️ ', 'Ideias Novas': '💡 ',
-            'Imagem': '🖼️ ', 'Vídeo': '🎥 ', 'UX / UI': '🖥️ ',
-            'E-book': '📖 ', 'Brinde': '🎁 ', 'Outro': '✍️ ',
-        };
-        sel.innerHTML = `<option value="">${escapeHtml(placeholder)}</option>` + lista.map(c =>
-            `<option value="${escapeHtml(c)}">${escapeHtml((icones[c] || '') + c)}</option>`
-        ).join('');
+        const placeholder = isMkt() ? 'Selecione o formato da peça' : 'Selecione a categoria técnica…';
+        sel.innerHTML = `<option value="">${escapeHtml(placeholder)}</option>` + lista.map(c => {
+            const label = isMkt() ? (MKT_CAT_LABELS[c] || c) : c;
+            return `<option value="${escapeHtml(c)}">${escapeHtml(label)}</option>`;
+        }).join('');
     }
 
     function setBandeiras() {
@@ -238,7 +231,17 @@
 
     function specVisible(def) {
         if (!def.showIf) return true;
-        return Object.keys(def.showIf).every(k => _brief[k] === def.showIf[k]);
+        return Object.keys(def.showIf).every(k => {
+            if (k === 'materiais_has') {
+                return Array.isArray(_brief.materiais_disponiveis)
+                    && _brief.materiais_disponiveis.includes(def.showIf[k]);
+            }
+            if (k === 'formato_has') {
+                return Array.isArray(_brief.formato_entrega)
+                    && _brief.formato_entrega.includes(def.showIf[k]);
+            }
+            return _brief[k] === def.showIf[k];
+        });
     }
 
     function renderSpecs() {
@@ -354,32 +357,37 @@
         document.querySelectorAll('#page-solicitacoes_ti .sti-mkt-only').forEach(el => {
             el.classList.toggle('hidden', !mkt);
         });
+        document.querySelectorAll('#page-solicitacoes_ti .sti-ti-only').forEach(el => {
+            el.classList.toggle('hidden', mkt);
+        });
+        const setorEl = $('sti-setor');
+        if (setorEl) setorEl.required = true;
 
         const txt = (id, v) => { const el = $(id); if (el) el.textContent = v; };
         const req = '<span class="text-red-500">*</span>';
         const html = (id, v) => { const el = $(id); if (el) el.innerHTML = v; };
         if (mkt) {
-            txt('sti-form-sub', 'Preencha o briefing abaixo para enviar sua solicitação ao setor de Marketing.');
-            html('sti-lbl-categoria', 'Formato da Peça ' + req);
+            txt('sti-form-sub', 'Preencha os dados abaixo para enviar sua solicitação ao setor de Marketing.');
+            html('sti-lbl-categoria', 'Formato da Peça (especificação técnica)');
             html('sti-lbl-titulo', 'Título Resumido / Assunto ' + req);
             html('sti-lbl-descricao', 'Informações Obrigatórias / Detalhes ' + req);
-            txt('sti-lbl-observacoes', 'Outras Informações (opcional)');
             txt('sti-footer-hint', 'O briefing fica registrado e o time de Marketing recebe um aviso.');
+            const t = $('sti-titulo');
+            if (t) t.placeholder = 'Digite o título resumido ou assunto';
             const d = $('sti-descricao');
-            if (d) d.placeholder = 'Logo, disclaimer, cupom, datas de vigência, URL do site…';
-            const o = $('sti-observacoes');
-            if (o) o.placeholder = 'Paleta, tom de voz, referências…';
+            if (d) { d.placeholder = 'Descreva as informações obrigatórias e detalhes da solicitação...'; d.rows = 3; }
             const b = $('sti-submit-btn');
-            if (b) b.textContent = 'Enviar Briefing de Marketing';
+            if (b) b.textContent = 'Enviar Solicitação';
         } else {
             txt('sti-form-sub', 'Preencha os dados abaixo para enviar sua solicitação ao setor de TI.');
             html('sti-lbl-categoria', 'Tipo de Requisição ' + req);
             html('sti-lbl-titulo', 'Título Resumido / Assunto ' + req);
             html('sti-lbl-descricao', 'Descrição Detalhada ' + req);
-            txt('sti-lbl-observacoes', 'Observações Extras / Patrimônio (opcional)');
             txt('sti-footer-hint', 'O chamado fica registrado no sistema para o TI acompanhar.');
+            const t = $('sti-titulo');
+            if (t) t.placeholder = 'Ex: Não consigo conectar na VPN corporativa';
             const d = $('sti-descricao');
-            if (d) d.placeholder = 'Descreva detalhadamente sua solicitação…';
+            if (d) { d.placeholder = 'Descreva detalhadamente sua solicitação…'; d.rows = 5; }
             const o = $('sti-observacoes');
             if (o) o.placeholder = 'Ex: Patrimônio nº 8574-A ou RAMAL 415';
             const b = $('sti-submit-btn');
@@ -436,7 +444,7 @@
 
     window.stiResetForm = function () {
         ['sti-titulo', 'sti-descricao', 'sti-observacoes', 'sti-publico-alvo',
-         'sti-assunto-tema', 'sti-objetivo', 'sti-prazo', 'sti-telefone'].forEach(id => {
+         'sti-telefone'].forEach(id => {
             const el = $(id);
             if (el) el.value = '';
         });
@@ -460,8 +468,6 @@
         };
         put('bandeira', 'sti-bandeira');
         put('publico_alvo', 'sti-publico-alvo');
-        put('assunto_tema', 'sti-assunto-tema');
-        put('objetivo_peca', 'sti-objetivo');
         const temTel = ($('sti-tel-group')?.dataset.value || 'nao') === 'sim';
         brief.tem_telefone = temTel;
         if (temTel) put('telefone_contato', 'sti-telefone');
@@ -475,7 +481,7 @@
         const categoria = ($('sti-categoria')?.value || '').trim();
         const titulo = ($('sti-titulo')?.value || '').trim();
         const descricao = ($('sti-descricao')?.value || '').trim();
-        const observacoes = ($('sti-observacoes')?.value || '').trim();
+        const observacoes = isMkt() ? '' : ($('sti-observacoes')?.value || '').trim();
         const urgencia = getUrgencia();
 
         if (!solicitante || !setor || !categoria || !titulo || !descricao) {
@@ -495,8 +501,6 @@
                 return;
             }
             payload.briefing = brief;
-            const prazo = ($('sti-prazo')?.value || '').trim();
-            if (prazo) payload.prazo_desejado = prazo;
         }
 
         setBusy(true);

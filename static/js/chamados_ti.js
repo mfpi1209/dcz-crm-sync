@@ -20,7 +20,7 @@
 
     const CATEGORIAS_POR_DEPTO = {
         'TI': ['Erros/Bugs', 'Processos Novos', 'Ideias Novas'],
-        'Marketing': ['Imagem', 'Vídeo', 'UX / UI', 'E-book', 'Brinde', 'Outro'],
+        'Marketing': ['Imagem', 'Vídeo', 'UX / UI', 'E-book', 'Brinde'],
     };
 
     function $(id) { return document.getElementById(id); }
