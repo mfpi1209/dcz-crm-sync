@@ -328,6 +328,8 @@ def _row_public(row: dict[str, Any], *, include_body: bool = True) -> dict[str, 
         "responsavel_user_id": row.get("responsavel_user_id"),
         "responsavel_nome": row.get("responsavel_nome") or "",
         "responsavel_desde": _iso(row.get("responsavel_desde")),
+        # Recorte curto p/ o card do Kanban (a lista não manda o body inteiro).
+        "nota": ((row.get("status_nota") or row.get("descricao") or "").strip())[:180],
     }
     if include_body:
         out["descricao"] = row.get("descricao") or ""

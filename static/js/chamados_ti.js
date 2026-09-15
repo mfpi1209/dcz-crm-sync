@@ -17,6 +17,11 @@
     const VIEW_KEY = 'cti_view_v1';
     const STATUS_ORDEM = ['Pendente', 'Em andamento', 'Concluído'];
     const STATUS_COR = { 'Pendente': '#b45309', 'Em andamento': '#1d4ed8', 'Concluído': '#059669' };
+    const TIPO_CLS = {
+        'Imagem': 'cti-tipo-imagem', 'Vídeo': 'cti-tipo-video', 'UX / UI': 'cti-tipo-ux',
+        'E-book': 'cti-tipo-ebook', 'Brinde': 'cti-tipo-brinde',
+        'Erros/Bugs': 'cti-tipo-ti', 'Processos Novos': 'cti-tipo-ti', 'Ideias Novas': 'cti-tipo-ti',
+    };
 
     const CATEGORIAS_POR_DEPTO = {
         'TI': ['Erros/Bugs', 'Processos Novos', 'Ideias Novas'],
@@ -205,44 +210,60 @@
         const dataTxt = `${m[3]}/${m[2]}`;
         let cls = 'cti-prazo-ok';
         let txt = `Prazo ${dataTxt}`;
-        if (t.status !== 'Concluído') {
-            if (dias < 0) {
-                cls = 'cti-prazo-late';
-                txt = `Atrasado há ${-dias} ${-dias === 1 ? 'dia' : 'dias'}`;
-            } else if (dias === 0) {
-                cls = 'cti-prazo-soon';
-                txt = 'Vence hoje';
-            } else if (dias <= 2) {
-                cls = 'cti-prazo-soon';
-                txt = `Falta ${dias} ${dias === 1 ? 'dia' : 'dias'}`;
-            }
+        if (t.status === 'Concluído') {
+            cls = 'cti-prazo-done';
+            txt = 'Concluído';
+        } else if (dias < 0) {
+            cls = 'cti-prazo-late';
+            txt = `Atrasado há ${-dias} ${-dias === 1 ? 'dia' : 'dias'}`;
+        } else if (dias === 0) {
+            cls = 'cti-prazo-soon';
+            txt = 'Entrega hoje';
+        } else if (dias <= 3) {
+            cls = 'cti-prazo-soon';
+            txt = `Falta${dias === 1 ? '' : 'm'} ${dias} ${dias === 1 ? 'dia' : 'dias'}`;
         }
-        return `<span class="cti-prazo ${cls}"><span class="material-symbols-outlined text-[12px]">schedule</span>${escapeHtml(txt)}</span>`;
+        return `<span class="cti-prazo ${cls}"><span class="material-symbols-outlined text-[13px]">schedule</span>${escapeHtml(txt)}</span>`;
+    }
+
+    function iniciais(nome) {
+        const p = String(nome || '').trim().split(/\s+/).filter(Boolean);
+        if (!p.length) return '?';
+        return ((p[0][0] || '') + (p[1] ? p[1][0] : '')).toUpperCase();
     }
 
     function cardHtml(t) {
         const pode = podeAlterar(t);
-        const depto = t.departamento || 'TI';
-        const resp = t.responsavel_nome
-            ? `<span class="text-[11px] font-medium text-[var(--text-secondary)] truncate">${escapeHtml(t.responsavel_nome)}</span>`
-            : '<span class="sti-badge cti-livre">Livre</span>';
+        const tipo = t.categoria || (t.departamento || 'TI');
+        const tipoCls = TIPO_CLS[t.categoria] || 'cti-tipo-ti';
+        const nota = String(t.nota || t.status_nota || '').trim();
+        const notaHtml = nota
+            ? `<p class="cti-kb-note">Nota: ${escapeHtml(nota)}</p>`
+            : '';
+        const respNome = (t.responsavel_nome || '').trim();
+        const footerPessoa = respNome
+            ? `<span class="cti-kb-who"><span class="cti-kb-ava">${escapeHtml(iniciais(respNome))}</span><span class="cti-kb-who-name">${escapeHtml(respNome)}</span></span>`
+            : '<span class="cti-kb-who cti-kb-who-livre"><span class="cti-kb-ava">?</span><span class="cti-kb-who-name">Livre</span></span>';
+        const prazo = prazoBadge(t);
         return `
             <div class="cti-kb-card" data-id="${t.id}" data-status="${escapeHtml(t.status)}"
                  ${pode ? 'draggable="true"' : ''} role="button" tabindex="0"
                  title="${pode ? 'Arraste para mudar o status ou clique para abrir' : 'Só o responsável altera o status deste chamado'}">
                 <div class="flex items-center justify-between gap-2">
-                    <span class="font-mono text-[11px] font-bold" style="color: var(--primary);">${escapeHtml(t.protocolo)}</span>
-                    <span class="sti-badge sti-badge-${escapeHtml(t.urgencia)}">${escapeHtml(t.urgencia)}</span>
+                    <span class="cti-tipo ${tipoCls}">${escapeHtml(tipo)}</span>
+                    <span class="cti-kb-proto">${escapeHtml(t.protocolo)}</span>
                 </div>
-                <p class="text-sm font-bold text-[var(--text-primary)] leading-snug break-words">${escapeHtml(t.titulo)}</p>
-                <div class="flex flex-wrap items-center gap-1.5">
-                    <span class="sti-dep-${escapeHtml(depto)}">${escapeHtml(depto)}</span>
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">${escapeHtml(t.categoria || '')}</span>
+                <p class="cti-kb-title">${escapeHtml(t.titulo)}</p>
+                ${notaHtml}
+                <div class="cti-kb-meta">
+                    <span>Prazo de entrega</span>
+                    ${prazo || (t.status === 'Concluído'
+                        ? '<span class="cti-prazo cti-prazo-done"><span class="material-symbols-outlined text-[13px]">check_circle</span>Concluído</span>'
+                        : `<span class="cti-prazo cti-prazo-ok">${escapeHtml(fmtTs(t.created_at))}</span>`)}
                 </div>
-                <p class="text-[11px] text-slate-500 truncate">${escapeHtml(t.solicitante)} · ${escapeHtml(t.setor)}</p>
-                <div class="flex items-center justify-between gap-2 pt-1">
-                    ${prazoBadge(t) || '<span class="text-[10px] text-slate-500">' + fmtTs(t.created_at) + '</span>'}
-                    ${resp}
+                <div class="cti-kb-foot">
+                    ${footerPessoa}
+                    <span class="cti-kb-solic">${escapeHtml(t.solicitante)}</span>
                 </div>
             </div>`;
     }
@@ -262,8 +283,8 @@
                 <section class="cti-kb-col" data-status="${escapeHtml(st)}">
                     <header class="cti-kb-head">
                         <span class="cti-kb-dot" style="background: ${STATUS_COR[st]}"></span>
-                        <span class="text-xs font-bold text-[var(--text-primary)]">${escapeHtml(st)}</span>
-                        <span class="text-xs font-bold text-slate-500">(${doColuna.length})</span>
+                        <span class="cti-kb-col-name">${escapeHtml(st)}</span>
+                        <span class="cti-kb-col-n">(${doColuna.length})</span>
                     </header>
                     <div class="cti-kb-body">${cards}</div>
                 </section>`;

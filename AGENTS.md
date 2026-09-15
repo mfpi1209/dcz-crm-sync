@@ -4,6 +4,13 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-09-15 — Kanban da fila: visual da referência (colunas pastel + card claro)
+- **Modelo usado:** Cursor Grok 4.6.
+- **Pedido:** "deixe a fila do Kanban mais parecida tbm" (screenshot da fila escura vs quadro do app React do briefing).
+- **Só visual do modo Kanban.** Lista, KPIs, filtros, drag e PATCH de status não mudam. Status continuam Pendente / Em andamento / Concluído (não viram Novo Ticket / A Fazer / Em Produção).
+- **Colunas** no tema do painel (não pastel claro da referência — destoa do navy): poço âmbar / azul / verde semitransparente, as mesmas cores dos KPIs. Cards `var(--bg-card)` com chip de tipo, título, nota (recorte de `status_nota` ou `descricao` — campo `nota` na listagem, sem mandar o briefing), linha "Prazo de entrega" + badge e rodapé com iniciais do responsável (dado real, não avatar inventado).
+- **Fora de propósito:** barra de progresso, checklist e subtarefas — não existem em `ti_chamado`.
+
 ### 2026-09-15 — Briefing de Marketing alinhado à referência do ZIP
 - **Modelo usado:** Cursor Grok 4.6.
 - **Pedido:** o formulário de Marketing tinha campos a mais que o ZIP (`formulário-de-briefing-de-design.zip`), dificultando o uso. Alinhar **exatamente** à tela que o app React renderiza (`SectionGeneral` + `SectionSpecs`).
