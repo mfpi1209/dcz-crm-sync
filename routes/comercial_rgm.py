@@ -2358,7 +2358,7 @@ _KNOWN_USERS = {
     13304804: "T.I",
     14205944: "Thainá",
     14464488: "Tamires",
-    14482884: "Eduardo",
+    14482884: "Sabrina",
     14546744: "Suporte",
     14546760: "Jessyca",
     14932700: "Beatriz",

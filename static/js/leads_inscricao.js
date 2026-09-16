@@ -21,7 +21,7 @@ const LI_CONSULTORES = [
     { id: "13018360", nome: "Thais" },
     { id: "14205944", nome: "Thaina" },
     { id: "12209212", nome: "Gabriela" },
-    { id: "14482884", nome: "Eduardo" },
+    { id: "14482884", nome: "Sabrina" },
     { id: "14464488", nome: "Tamires" },
 ];
 
