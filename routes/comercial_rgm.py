@@ -282,7 +282,7 @@ def _pg():
 import threading as _crgm_threading
 
 _CRGM_DATA_CACHE: dict = {}
-_CRGM_DATA_CACHE_VER = 7  # bump quando a lógica de contagem mudar (ex.: outliers / fora_padrao)
+_CRGM_DATA_CACHE_VER = 8  # bump quando a lógica de contagem mudar (ex.: outliers / fora_padrao)
 _CRGM_DATA_CACHE_TTL_S = 120  # segundos
 _CRGM_DATA_CACHE_LOCK = _crgm_threading.Lock()
 
@@ -3148,129 +3148,9 @@ def _build_agent_ranking_completa_vw(
             if _dm_str:
                 rgm_date_map[n] = str(_dm_str)[:10]
 
-        # Regra de recuperação (janela ancorada no início da meta = dia 01 do mês):
-        # mantém apenas o caso (a) cancelamento após a meta. O caso antigo de
-        # "sumiu do CSV mais recente" foi removido porque, operacionalmente, esses
-        # alunos representam transferência para outro polo e não devem continuar
-        # contando para a carteira atual.
-        # Antes a janela era limitada a uploads feitos ATÉ dt_fim, o que perdia matrículas
-        # de um dia passado cujo primeiro relatório só chegou depois daquele dia.
-        if dt_fim:
-            _meta_start = ((dt_ini or dt_fim) or "")[:7] + "-01"
-            _NIVEL_CASE = """CASE
-                WHEN coalesce(r.data->>'nivel','') ~* 'p[oó]s'
-                  OR coalesce(r.data->>'negocio','') ~* 'p[oó]s'
-                  OR coalesce(r.data->>'curso','') ~* '(mba|especializa|p[oó]s.gradua|lato.sensu|stricto)'
-                THEN 'Pós-Graduação' ELSE 'Graduação' END"""
-            # Regex com classe [0-9] em string normal — NÃO usar E'\\d' (em E-string
-            # o Postgres colapsa \d -> d e a regex nunca casa datas dd/mm/yyyy).
-            _DM_EXPR = """CASE
-                WHEN (r.data->>'data_mat') ~ '^[0-9]{2}/[0-9]{2}/[0-9]{4}$'
-                    THEN to_date(r.data->>'data_mat', 'DD/MM/YYYY')
-                WHEN (r.data->>'data_mat') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
-                    THEN (r.data->>'data_mat')::date
-                ELSE NULL END"""
-            supp_cw = [
-                "s.tipo = 'matriculados'",
-                "s.uploaded_at::date >= %s",
-                "upper(trim(coalesce(r.data->>'situacao',''))) = 'EM CURSO'",
-                "upper(trim(coalesce(r.data->>'tipo_matricula',''))) = ANY(ARRAY['NOVA MATRICULA','RECOMPRA','RETORNO'])",
-                "trim(coalesce(r.data->>'empresa','')) ~ '^(12|7) -'",
-                "coalesce(r.data->>'rgm','') ~ '\\d'",
-                """regexp_replace(coalesce(r.data->>'rgm',''), '[^0-9]', '', 'g') IN (
-                    SELECT regexp_replace(coalesce(rl.data->>'rgm',''), '[^0-9]', '', 'g')
-                    FROM xl_rows rl
-                    WHERE rl.snapshot_id = (
-                        SELECT id FROM xl_snapshots
-                        WHERE tipo = 'matriculados'
-                        ORDER BY id DESC LIMIT 1
-                    )
-                      AND coalesce(rl.data->>'rgm','') ~ '[0-9]'
-                )""",
-                f"""(({_NIVEL_CASE} = 'Graduação'
-                    AND trim(r.data->>'ciclo') = (SELECT ciclo FROM ciclo_atual_comercial WHERE nivel='Graduação'))
-                   OR ({_NIVEL_CASE} = 'Pós-Graduação'
-                    AND trim(r.data->>'ciclo') = (SELECT ciclo FROM ciclo_atual_comercial WHERE nivel='Pós-Graduação')))""",
-            ]
-            supp_cp = [_meta_start]
-            if dt_ini:
-                supp_cw.append(f"{_DM_EXPR} >= %s")
-                supp_cp.append(dt_ini)
-            # Limite superior: respeita o dia/período filtrado. A janela ampliada de
-            # uploads não deve trazer matrículas com data_matricula fora do período.
-            supp_cw.append(f"{_DM_EXPR} <= %s")
-            supp_cp.append(dt_fim)
-            if polo:
-                supp_cw.append("trim(regexp_replace(coalesce(r.data->>'polo',''), E'^\\d+\\s*[-–]\\s*', '')) = %s")
-                supp_cp.append(_normalize_polo(polo))
-            if nivel:
-                supp_cw.append(f"{_NIVEL_CASE} = %s")
-                supp_cp.append(nivel)
-            # Quando há ciclo manual ou filtro de datas, bypass do filtro automático
-            # ciclo_atual_comercial (datas já limitam o escopo sem precisar do ciclo atual).
-            if ciclo or dt_ini or dt_fim:
-                supp_cw = [c for c in supp_cw if 'ciclo_atual_comercial' not in c]
-            if ciclo:
-                supp_cw.append("trim(coalesce(r.data->>'ciclo','')) = %s")
-                supp_cp.append(ciclo)
-            if turma:
-                supp_cw.append("nullif(trim(coalesce(r.data->>'curso','')), '') = %s")
-                supp_cp.append(turma)
-            # Exclui RGMs já contabilizados na query principal
-            already = tuple(rgm_nome.keys()) if rgm_nome else ('__NONE__',)
-            supp_cw.append("regexp_replace(coalesce(r.data->>'rgm',''), '[^0-9]', '', 'g') != ALL(%s)")
-            supp_cp.append(list(already))
-            # Respeita o dedup de PÓS multi-ciclo: NÃO recupera RGM que está EM CURSO
-            # no ÚLTIMO relatório em QUALQUER ciclo (ex.: pós rebaixado para 2026/1 pelo
-            # dedup — presente e EM CURSO, só que noutro ciclo). Recupera apenas sumiço
-            # real (ausente do último relatório) ou cancelado-pós-meta (presente, mas
-            # não-EM CURSO). Sem isso, a recuperação desfazia o dedup.
-            supp_cw.append("""regexp_replace(coalesce(r.data->>'rgm',''), '[^0-9]', '', 'g') NOT IN (
-                SELECT regexp_replace(coalesce(r2.data->>'rgm',''), '[^0-9]', '', 'g')
-                FROM xl_rows r2
-                WHERE r2.snapshot_id = (SELECT id FROM xl_snapshots WHERE tipo='matriculados' ORDER BY id DESC LIMIT 1)
-                  AND upper(trim(coalesce(r2.data->>'situacao',''))) = 'EM CURSO'
-                  AND regexp_replace(coalesce(r2.data->>'rgm',''), '[^0-9]', '', 'g') <> ''
-            )""")
-            supp_where = "WHERE " + " AND ".join(supp_cw)
-            _rgm_nome_antes_supp = len(rgm_nome)
-            try:
-                cur2 = conn.cursor() if not conn.closed else _pg().cursor()
-                cur2.execute(f"""
-                    SELECT DISTINCT ON (rgm_norm) rgm_norm, nome, dm
-                    FROM (
-                        SELECT
-                            regexp_replace(coalesce(r.data->>'rgm',''), '[^0-9]', '', 'g') AS rgm_norm,
-                            nullif(trim(coalesce(r.data->>'nome','')), '') AS nome,
-                            {_DM_EXPR} AS dm,
-                            s.uploaded_at
-                        FROM xl_rows r
-                        JOIN xl_snapshots s ON s.id = r.snapshot_id
-                        {supp_where}
-                    ) t
-                    WHERE rgm_norm != ''
-                    ORDER BY rgm_norm, uploaded_at DESC
-                """, supp_cp)
-                for rgm_raw, nome, dm in cur2.fetchall():
-                    n = _normalize_rgm(rgm_raw)
-                    if n and n not in rgm_nome:
-                        rgm_nome[n] = (nome or "").strip()
-                        # Alimenta rgm_date_map com a data de matrícula do RGM
-                        # recuperado, para ele entrar no matriculas_grid (usado pelo
-                        # cross-filter por dia no front). Sem isso o RGM contava no
-                        # período mas sumia ao filtrar por um dia específico.
-                        if dm is not None and n not in rgm_date_map:
-                            try:
-                                rgm_date_map[n] = dm.isoformat()[:10] if hasattr(dm, 'isoformat') else str(dm)[:10]
-                            except Exception:
-                                pass
-                cur2.close()
-                logger.info(
-                    "ranking: +%d RGMs recuperados (cancelado-pós-meta / sumiço do SIAA)",
-                    len(rgm_nome) - _rgm_nome_antes_supp,
-                )
-            except Exception as _se:
-                logger.warning("ranking supp cancelados: %s", _se)
+        # Ranking conta só EM CURSO presente no último relatório (já filtrado acima).
+        # A recuperação de cancelado-pós-meta saiu em 25/09: quem cancelou no arquivo
+        # atual é evasão e não entra em matrículas do consultor.
 
         mat_rows = list(rgm_nome.items())
         if _own_conn:
@@ -3434,9 +3314,7 @@ def _build_agent_ranking_completa_vw(
         ranking.sort(key=lambda x: x["matriculas_periodo"], reverse=True)
 
         # Decisão: incluir transferencia/regresso (user_id=-1) em matriculas_grid para completude.
-        # RGMs suplementares (recuperados de xl_rows) agora carregam a data de matrícula
-        # (rgm_date_map) e entram no grid — o cross-filter por dia passa a contá-los.
-        # count = bruto (inclui excluídos/evasão); count_liquido = EM CURSO apenas.
+        # count = bruto (inclui excluídos/evasão); count_liquido = EM CURSO que conta venda.
         grid_acc_bruto = defaultdict(int)
         grid_acc_liq   = defaultdict(int)
         # EM CURSO (não-excluídos); count_liquido exclui outliers sem override
