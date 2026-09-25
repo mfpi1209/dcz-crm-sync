@@ -1,0 +1,133 @@
+<div id="page-tracker_tarefas" class="hidden">
+<style>
+#page-tracker_tarefas { padding: 24px; background: var(--bg); min-height: 100%; color: var(--text); }
+#page-tracker_tarefas .tt-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 12px; flex-wrap: wrap; }
+#page-tracker_tarefas .tt-title { font-size: 22px; font-weight: 700; margin: 0; }
+#page-tracker_tarefas .tt-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+#page-tracker_tarefas .tt-stats { display: flex; gap: 10px; flex-wrap: wrap; }
+#page-tracker_tarefas .tt-stat { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 10px 16px; min-width: 120px; }
+#page-tracker_tarefas .tt-stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
+#page-tracker_tarefas .tt-stat-val { font-size: 20px; font-weight: 700; }
+
+#page-tracker_tarefas .tt-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+#page-tracker_tarefas .tt-table-wrap { overflow-x: auto; }
+#page-tracker_tarefas table.tt-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+#page-tracker_tarefas .tt-table th {
+    text-align: left; padding: 10px 12px; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted);
+    border-bottom: 2px solid var(--border); white-space: nowrap;
+}
+#page-tracker_tarefas .tt-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+#page-tracker_tarefas .tt-table tbody tr:hover { background: var(--hover-row); }
+#page-tracker_tarefas .tt-id { color: var(--text-muted); font-variant-numeric: tabular-nums; font-weight: 600; }
+#page-tracker_tarefas .tt-tarefa { font-weight: 600; }
+
+#page-tracker_tarefas .tt-input, #page-tracker_tarefas .tt-select {
+    width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 7px 10px; font-size: 13px; color: var(--text); font-family: inherit;
+    color-scheme: dark;
+}
+#page-tracker_tarefas .tt-input:focus, #page-tracker_tarefas .tt-select:focus { outline: none; border-color: var(--primary); }
+.dark #page-tracker_tarefas .tt-input,
+.dark #page-tracker_tarefas .tt-select {
+    background: #0f172a;
+    color: #f1f5f9;
+    border-color: #475569;
+}
+.dark #page-tracker_tarefas .tt-select option {
+    background: #1e293b;
+    color: #f1f5f9;
+}
+
+#page-tracker_tarefas .tt-status {
+    display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px;
+    border-radius: 100px; font-size: 12px; font-weight: 600; border: none; cursor: pointer;
+}
+#page-tracker_tarefas .tt-status-pendente { background: rgba(239,68,68,.16); color: #dc2626; }
+#page-tracker_tarefas .tt-status-andamento { background: rgba(245,158,11,.18); color: #d97706; }
+#page-tracker_tarefas .tt-status-concluido { background: rgba(16,185,129,.15); color: #10b981; }
+.dark #page-tracker_tarefas .tt-status-pendente { background: rgba(239,68,68,.28); color: #fecaca; }
+.dark #page-tracker_tarefas .tt-status-andamento { background: rgba(245,158,11,.28); color: #fde68a; }
+.dark #page-tracker_tarefas .tt-status-concluido { background: rgba(16,185,129,.28); color: #a7f3d0; }
+#page-tracker_tarefas .tt-stat-pendente { color: #dc2626; }
+#page-tracker_tarefas .tt-stat-andamento { color: #d97706; }
+#page-tracker_tarefas .tt-stat-concluido { color: #10b981; }
+.dark #page-tracker_tarefas .tt-stat-pendente { color: #fecaca; }
+.dark #page-tracker_tarefas .tt-stat-andamento { color: #fde68a; }
+.dark #page-tracker_tarefas .tt-stat-concluido { color: #a7f3d0; }
+
+#page-tracker_tarefas .tt-filters { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+#page-tracker_tarefas .tt-filter-group { display: flex; flex-direction: column; gap: 4px; }
+#page-tracker_tarefas .tt-filter-group label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
+
+#page-tracker_tarefas .tt-btn {
+    padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
+    border: 1px solid var(--border); background: var(--card); color: var(--text);
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+}
+#page-tracker_tarefas .tt-btn:hover { background: var(--hover-row); }
+#page-tracker_tarefas .tt-btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+#page-tracker_tarefas .tt-btn-primary:hover { filter: brightness(1.08); }
+#page-tracker_tarefas .tt-btn-icon { padding: 6px 8px; border-radius: 6px; }
+#page-tracker_tarefas .tt-btn-danger { color: var(--danger); }
+#page-tracker_tarefas .tt-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+#page-tracker_tarefas .tt-alert { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 12px; display: none; }
+#page-tracker_tarefas .tt-alert-error { background: var(--danger-light); color: var(--danger); border: 1px solid var(--danger); }
+#page-tracker_tarefas .tt-alert-ok { background: var(--success-light); color: var(--success); border: 1px solid var(--success); }
+
+#page-tracker_tarefas .tt-empty { text-align: center; padding: 40px 20px; color: var(--text-muted); font-size: 14px; }
+#page-tracker_tarefas .tt-new-row td { background: var(--bg); }
+</style>
+
+<div class="tt-topbar">
+    <div>
+        <h1 class="tt-title">Tracker de Tarefas - TI</h1>
+        <div class="tt-sub">Organização das tarefas do time de TI. Clique em uma linha para editar.</div>
+    </div>
+    <div class="tt-stats">
+        <div class="tt-stat"><div class="tt-stat-label">Pendentes</div><div class="tt-stat-val tt-stat-pendente" id="tt-stat-pendente">—</div></div>
+        <div class="tt-stat"><div class="tt-stat-label">Em andamento</div><div class="tt-stat-val tt-stat-andamento" id="tt-stat-andamento">—</div></div>
+        <div class="tt-stat"><div class="tt-stat-label">Concluídas</div><div class="tt-stat-val tt-stat-concluido" id="tt-stat-concluido">—</div></div>
+    </div>
+</div>
+
+<div class="tt-alert" id="tt-alert"></div>
+
+<div class="tt-card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px;gap:12px;flex-wrap:wrap">
+        <div class="tt-filters">
+            <div class="tt-filter-group">
+                <label for="tt-filtro-mes">Mês</label>
+                <select class="tt-select" id="tt-filtro-mes" onchange="ttRender()" style="min-width:160px"></select>
+            </div>
+            <div class="tt-filter-group">
+                <label for="tt-filtro-resp">Responsável</label>
+                <select class="tt-select" id="tt-filtro-resp" onchange="ttRender()" style="min-width:160px"></select>
+            </div>
+        </div>
+        <button class="tt-btn tt-btn-primary" onclick="ttNovaTarefa()">
+            <span class="material-symbols-outlined" style="font-size:16px">add</span>
+            Nova tarefa
+        </button>
+    </div>
+    <div class="tt-table-wrap">
+        <table class="tt-table">
+            <thead>
+                <tr>
+                    <th style="width:110px">Data início</th>
+                    <th style="width:14%">Responsável</th>
+                    <th>Descrição</th>
+                    <th style="width:120px">Mês</th>
+                    <th style="width:110px">Data final</th>
+                    <th style="width:150px">Status</th>
+                    <th style="width:70px"></th>
+                </tr>
+            </thead>
+            <tbody id="tt-tbody">
+                <tr><td colspan="7" class="tt-empty">Carregando…</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</div>

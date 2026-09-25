@@ -450,6 +450,7 @@ const PAGE_LABELS = {
     meus_chamados_ti: 'Meus chamados',
     chamados_ti: 'Fila de chamados · TI',
     chamados_marketing: 'Fila de chamados · Marketing',
+    tracker_tarefas: 'Tracker de Tarefas - TI',
 };
 
 // ---------------------------------------------------------------------------
@@ -614,6 +615,13 @@ const PAGE_GROUPS_CONFIG = [
         icon: 'support_agent',
         color: 'var(--primary)',
         pages: ['solicitacoes_ti', 'meus_chamados_ti', 'chamados_ti', 'chamados_marketing'],
+    },
+    {
+        label: 'TI',
+        section: 'Operação',
+        icon: 'developer_board',
+        color: 'var(--primary)',
+        pages: ['tracker_tarefas'],
     },
     {
         label: 'Premiações Internas',

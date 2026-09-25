@@ -73,6 +73,7 @@ ALL_PAGES = [
     "siaa_consulta", "siaa_sessao",
     "match_inadimplentes",
     "materias_alunos",
+    "tracker_tarefas",
     "academico_interacoes",
     "subir_blog",
     # Sub-permissoes do Disparador WhatsApp (uma por aba do iframe do
