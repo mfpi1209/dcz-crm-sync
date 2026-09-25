@@ -4,6 +4,13 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-09-25 — Ranking do Dashboard Comercial conta só EM CURSO
+- **Modelo usado:** Cursor Grok 4.7.
+- **Pedido:** o ranking (MATR. PER.) não pode incluir evasão. Só quem está em curso no último relatório.
+- **O que saiu:** o bloco de recuperação em `_build_agent_ranking_completa_vw` (`routes/comercial_rgm.py`) que recolocava RGM cancelado no arquivo atual quando ele tinha estado EM CURSO em algum upload desde o dia 01 do mês. No recorte 14–30/09 isso somava 24 matrículas (Rahi 125→123, Tamires 106→104, Gabriela 105→102, e 1–3 nos demais). Esses 24 estão CANCELADO no último SIAA e seguem na evasão.
+- **Cache:** `_CRGM_DATA_CACHE_VER` 7→8.
+- **Não muda:** card de evasão; Minha Performance e Repasse; painel Bwipo (já contava só em curso).
+
 ### 2026-09-15 — Kanban da fila: visual da referência (colunas pastel + card claro)
 - **Modelo usado:** Cursor Grok 4.6.
 - **Pedido:** "deixe a fila do Kanban mais parecida tbm" (screenshot da fila escura vs quadro do app React do briefing).
