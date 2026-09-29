@@ -17,6 +17,8 @@
     let _openStatus = '';
     let _canManage = false;
     let _ticketSnap = null;
+    let _respFilter = 'todos';
+    let _prazoFilter = 'todos';
 
     const VIEW_KEY = 'cti_view_v1';
     const STATUS_ORDEM = ['Novo Ticket', 'A Fazer', 'Em Produção', 'Pausado', 'Concluído'];
@@ -164,11 +166,113 @@
         render();
     }
 
+    function diasAtePrazo(t) {
+        const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t.prazo_desejado || '');
+        if (!m) return null;
+        const alvo = new Date(+m[1], +m[2] - 1, +m[3]);
+        const hoje = new Date();
+        hoje.setHours(0, 0, 0, 0);
+        return Math.round((alvo - hoje) / 86400000);
+    }
+
+    function itensVisiveis(items) {
+        const dia = $('cti-board-date')?.value || '';
+        return items.filter(t => {
+            const nome = (t.responsavel_nome || '').trim();
+            if (_respFilter === '__livre') {
+                if (nome) return false;
+            } else if (_respFilter !== 'todos' && nome !== _respFilter) {
+                return false;
+            }
+            if (dia) {
+                const m = /^(\d{4}-\d{2}-\d{2})/.exec(t.prazo_desejado || '');
+                if (!m || m[1] !== dia) return false;
+            }
+            if (_prazoFilter !== 'todos') {
+                if (t.status === 'Concluído') return false;
+                const dias = diasAtePrazo(t);
+                if (dias == null) return false;
+                if (_prazoFilter === 'atrasados' && dias >= 0) return false;
+                if (_prazoFilter === 'hoje' && dias !== 0) return false;
+                if (_prazoFilter === 'amanha' && dias !== 1) return false;
+                if (_prazoFilter === 'proximos_7_dias' && (dias < 0 || dias > 7)) return false;
+            }
+            return true;
+        });
+    }
+
+    function paintBoardHead() {
+        const agora = new Date();
+        const escolhida = $('cti-board-date')?.value || '';
+        const base = escolhida
+            ? new Date(+escolhida.slice(0, 4), +escolhida.slice(5, 7) - 1, +escolhida.slice(8, 10))
+            : agora;
+        const mes = base.toLocaleDateString('pt-BR', { month: 'long' });
+        const monthEl = $('cti-board-month');
+        if (monthEl) monthEl.textContent = mes.charAt(0).toUpperCase() + mes.slice(1);
+        const diaNome = agora.toLocaleDateString('pt-BR', { weekday: 'long' });
+        const mesHoje = agora.toLocaleDateString('pt-BR', { month: 'long' });
+        const mesCap = mesHoje.charAt(0).toUpperCase() + mesHoje.slice(1);
+        const todayEl = $('cti-board-today');
+        if (todayEl) {
+            todayEl.textContent = `Hoje é ${diaNome.charAt(0).toUpperCase() + diaNome.slice(1)}, ${agora.getDate()} de ${mesCap}, ${agora.getFullYear()}`;
+        }
+        const n = (_respFilter !== 'todos' ? 1 : 0) + (_prazoFilter !== 'todos' ? 1 : 0) + (escolhida ? 1 : 0);
+        const badge = $('cti-filtros-n');
+        const btn = $('cti-filtros-btn');
+        if (badge) {
+            badge.textContent = String(n);
+            badge.classList.toggle('hidden', n === 0);
+        }
+        if (btn) btn.classList.toggle('is-on', n > 0);
+    }
+
+    function syncRespOptions(items) {
+        const sel = $('cti-f-resp');
+        if (!sel) return;
+        const nomes = [];
+        items.forEach(t => {
+            const nome = (t.responsavel_nome || '').trim();
+            if (nome && !nomes.includes(nome)) nomes.push(nome);
+        });
+        nomes.sort((a, b) => a.localeCompare(b, 'pt-BR'));
+        const atual = _respFilter;
+        sel.innerHTML = '<option value="todos">Todos os responsáveis</option>'
+            + '<option value="__livre">Sem responsável</option>'
+            + nomes.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+        if ([...sel.options].some(o => o.value === atual)) sel.value = atual;
+        else { _respFilter = 'todos'; sel.value = 'todos'; }
+    }
+
+    function paintFaces(items) {
+        const box = $('cti-board-faces');
+        if (!box) return;
+        const nomes = [];
+        items.forEach(t => {
+            const nome = (t.responsavel_nome || '').trim();
+            if (nome && !nomes.includes(nome)) nomes.push(nome);
+        });
+        const vis = nomes.slice(0, 4);
+        const resto = nomes.length - vis.length;
+        box.innerHTML = vis.map(n =>
+            `<span class="cti-face" title="${escapeHtml(n)}">${escapeHtml(iniciais(n))}</span>`
+        ).join('') + (resto > 0 ? `<span class="cti-face" title="${resto} a mais">+${resto}</span>` : '');
+    }
+
     function render() {
+        const visiveis = itensVisiveis(_items);
         const empty = $('cti-empty');
-        if (empty) empty.classList.toggle('hidden', _items.length > 0);
-        if (_view === 'kanban') renderKanban(_items);
-        else renderTable(_items);
+        if (empty) empty.classList.toggle('hidden', visiveis.length > 0);
+        paintBoardHead();
+        syncRespOptions(_items);
+        paintFaces(_items);
+        const quadro = $('cti-quadro-label');
+        if (quadro) {
+            const nome = _depto || ((_deptosOk && _deptosOk.length === 1) ? _deptosOk[0] : '');
+            quadro.textContent = nome ? `Quadro — ${nome}` : 'Quadro — todas as filas';
+        }
+        if (_view === 'kanban') renderKanban(visiveis);
+        else renderTable(visiveis);
     }
 
     function renderTable(items) {
@@ -783,6 +887,43 @@
                 _qTimer = setTimeout(loadList, 250);
             });
         }
+        const filtrosBtn = $('cti-filtros-btn');
+        const filtrosPop = $('cti-filtros-pop');
+        if (filtrosBtn && filtrosPop) {
+            filtrosBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                filtrosPop.classList.toggle('hidden');
+            });
+            filtrosPop.addEventListener('click', (e) => e.stopPropagation());
+            document.addEventListener('click', () => filtrosPop.classList.add('hidden'));
+        }
+        const fResp = $('cti-f-resp');
+        if (fResp) fResp.addEventListener('change', () => {
+            _respFilter = fResp.value || 'todos';
+            render();
+        });
+        const fPrazo = $('cti-f-prazo');
+        if (fPrazo) fPrazo.addEventListener('change', () => {
+            _prazoFilter = fPrazo.value || 'todos';
+            render();
+        });
+        const limpar = $('cti-filtros-limpar');
+        if (limpar) limpar.addEventListener('click', () => {
+            _respFilter = 'todos';
+            _prazoFilter = 'todos';
+            if (fResp) fResp.value = 'todos';
+            if (fPrazo) fPrazo.value = 'todos';
+            const data = $('cti-board-date');
+            if (data) data.value = '';
+            render();
+        });
+        const dataFiltro = $('cti-board-date');
+        if (dataFiltro) dataFiltro.addEventListener('change', () => render());
+        const criar = $('cti-criar');
+        if (criar) criar.addEventListener('click', () => {
+            if (typeof navigate === 'function') navigate('solicitacoes_ti');
+        });
+        paintBoardHead();
         const modal = $('cti-modal');
         if (modal) {
             modal.addEventListener('click', (e) => {
