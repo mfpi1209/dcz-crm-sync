@@ -4,6 +4,13 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-09-29 — Fila de chamados: fases do Kanban
+- **Modelo usado:** Cursor Grok 4.7.
+- **Pedido:** renomear as fases do Kanban e incluir Novo Ticket, A Fazer e Pausado.
+- **Fases:** Novo Ticket → A Fazer → Em Produção → Pausado → Concluído. Abertura grava **Novo Ticket**. **Abertos** = as quatro que não são Concluído.
+- **Migração no boot:** `Pendente` → `Novo Ticket`, `Em andamento` → `Em Produção`. O histórico em `ti_chamado_evento` fica com o nome da época.
+- **Não muda:** arraste continua no mesmo PATCH de status; Lista, filtros e Meus chamados usam os mesmos nomes.
+
 ### 2026-09-25 — Ranking do Dashboard Comercial conta só EM CURSO
 - **Modelo usado:** Cursor Grok 4.7.
 - **Pedido:** o ranking (MATR. PER.) não pode incluir evasão. Só quem está em curso no último relatório.

@@ -9,10 +9,12 @@
             { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
         ));
     }
+    const STATUS_CLS = {
+        'Novo Ticket': 'sti-st-novo', 'A Fazer': 'sti-st-fazer', 'Em Produção': 'sti-st-prod',
+        'Pausado': 'sti-st-pausado', 'Concluído': 'sti-st-Concluído',
+    };
     function statusClass(st) {
-        if (st === 'Concluído') return 'sti-st-Concluído';
-        if (st === 'Em andamento') return 'sti-st-Em';
-        return 'sti-st-Pendente';
+        return STATUS_CLS[st] || 'sti-st-novo';
     }
     function fmtTs(iso) {
         if (!iso) return '—';
@@ -27,12 +29,15 @@
 
     function setKpis(kpis) {
         kpis = kpis || {};
-        const p = $('mct-kpi-pendente');
-        const a = $('mct-kpi-andamento');
-        const c = $('mct-kpi-concluido');
-        if (p) p.textContent = String(kpis['Pendente'] || 0);
-        if (a) a.textContent = String(kpis['Em andamento'] || 0);
-        if (c) c.textContent = String(kpis['Concluído'] || 0);
+        const ids = {
+            'Novo Ticket': 'mct-kpi-novo', 'A Fazer': 'mct-kpi-fazer',
+            'Em Produção': 'mct-kpi-prod', 'Pausado': 'mct-kpi-pausado',
+            'Concluído': 'mct-kpi-concluido',
+        };
+        Object.keys(ids).forEach(st => {
+            const el = $(ids[st]);
+            if (el) el.textContent = String(kpis[st] || 0);
+        });
     }
 
     async function loadList() {

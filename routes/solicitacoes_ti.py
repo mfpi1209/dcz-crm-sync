@@ -6,7 +6,7 @@ solicitacoes_ti     formulário de abertura (qualquer autenticado, _NAV_ALWAYS)
 meus_chamados_ti    tickets do próprio usuário (read-only, _NAV_ALWAYS)
 chamados_ti         fila operacional: altera status (permissão / admin)
 
-Status: Pendente (abertura) → Em andamento → Concluído.
+Status: Novo Ticket (abertura) → A Fazer → Em Produção → Pausado → Concluído.
 
 Departamento (`ti_chamado.departamento`): `TI` mantém os campos originais;
 `Marketing` usa o formulário de briefing de design, gravado em `briefing`
@@ -50,11 +50,15 @@ DEPTO_PAGE = {DEPTO_TI: PAGE_FILA, DEPTO_MKT: PAGE_FILA_MKT}
 # aberta para todos os operadores, como antes.
 DEPTOS_RESPONSAVEL_EXCLUSIVO = (DEPTO_MKT,)
 
-STATUS_PENDENTE = "Pendente"
-STATUS_ANDAMENTO = "Em andamento"
+STATUS_NOVO = "Novo Ticket"
+STATUS_FAZER = "A Fazer"
+STATUS_PRODUCAO = "Em Produção"
+STATUS_PAUSADO = "Pausado"
 STATUS_CONCLUIDO = "Concluído"
-STATUS_VALIDOS = (STATUS_PENDENTE, STATUS_ANDAMENTO, STATUS_CONCLUIDO)
-STATUS_ABERTOS = (STATUS_PENDENTE, STATUS_ANDAMENTO)
+STATUS_VALIDOS = (
+    STATUS_NOVO, STATUS_FAZER, STATUS_PRODUCAO, STATUS_PAUSADO, STATUS_CONCLUIDO,
+)
+STATUS_ABERTOS = (STATUS_NOVO, STATUS_FAZER, STATUS_PRODUCAO, STATUS_PAUSADO)
 
 URGENCIAS = ("Baixa", "Média", "Alta", "Crítica")
 SETORES = ("Marketing", "Comercial", "Acadêmico", "TI", "Financeiro")
@@ -476,7 +480,7 @@ def submit_ticket():
                     departamento,
                     solicitante, uid, username or None,
                     setor, categoria, urgencia, titulo, descricao, observacoes or None,
-                    STATUS_PENDENTE,
+                    STATUS_NOVO,
                     json.dumps(briefing, ensure_ascii=False) if briefing else None,
                     prazo or None,
                 ),
@@ -493,7 +497,7 @@ def submit_ticket():
                     chamado_id, status_anterior, status_novo, autor_user_id, autor_nome, nota
                 ) VALUES (%s, NULL, %s, %s, %s, %s)
                 """,
-                (new_id, STATUS_PENDENTE, uid, _display_name(username) or solicitante, "Abertura do chamado"),
+                (new_id, STATUS_NOVO, uid, _display_name(username) or solicitante, "Abertura do chamado"),
             )
             cur.execute("SELECT * FROM ti_chamado WHERE id = %s", (new_id,))
             row = dict(cur.fetchone())

@@ -116,9 +116,10 @@
     }
 
     function statusClass(st) {
-        if (st === 'Concluído') return 'sti-st-Concluído';
-        if (st === 'Em andamento') return 'sti-st-Em';
-        return 'sti-st-Pendente';
+        return ({
+            'Novo Ticket': 'sti-st-novo', 'A Fazer': 'sti-st-fazer', 'Em Produção': 'sti-st-prod',
+            'Pausado': 'sti-st-pausado', 'Concluído': 'sti-st-Concluído',
+        })[st] || 'sti-st-novo';
     }
 
     function fmtTs(iso) {
@@ -157,7 +158,7 @@
                 const ts = fmtTs(t.created_at);
                 const urg = escapeHtml(t.urgencia || 'Média');
                 const id = escapeHtml(t.protocolo || '');
-                const st = t.status || 'Pendente';
+                const st = t.status || 'Novo Ticket';
                 const setorHtml = setor ? ` (${escapeHtml(setor)})` : '';
                 const depto = escapeHtml(t.departamento || 'TI');
                 return `
