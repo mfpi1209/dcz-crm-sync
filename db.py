@@ -1384,6 +1384,10 @@ def _ensure_ti_chamado_tables():
             cur.execute(
                 "ALTER TABLE ti_chamado ALTER COLUMN status SET DEFAULT 'Novo Ticket'"
             )
+            cur.execute("ALTER TABLE ti_chamado ADD COLUMN IF NOT EXISTS link_demanda TEXT")
+            cur.execute(
+                "ALTER TABLE ti_chamado ADD COLUMN IF NOT EXISTS checklist JSONB NOT NULL DEFAULT '[]'::jsonb"
+            )
         conn.commit()
         conn.close()
     except Exception as e:

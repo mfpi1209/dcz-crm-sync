@@ -13,6 +13,10 @@
     let _meta = {};           // is_admin / user_id / departamentos_exclusivos
     let _dragId = null;       // id do chamado em arraste (dataTransfer não é legível no dragover)
     let _dragFrom = null;
+    let _checks = [];
+    let _openStatus = '';
+    let _canManage = false;
+    let _ticketSnap = null;
 
     const VIEW_KEY = 'cti_view_v1';
     const STATUS_ORDEM = ['Novo Ticket', 'A Fazer', 'Em Produção', 'Pausado', 'Concluído'];
@@ -240,38 +244,67 @@
         return ((p[0][0] || '') + (p[1] ? p[1][0] : '')).toUpperCase();
     }
 
+    const PROG_POR_STATUS = {
+        'Novo Ticket': 10, 'A Fazer': 25, 'Em Produção': 75, 'Pausado': 30, 'Concluído': 100,
+    };
+    function temaDe(cat) {
+        const c = String(cat || '').toLowerCase();
+        if (c.includes('vídeo') || c.includes('video')) return 'video';
+        if (c.includes('ux')) return 'ux';
+        if (c.includes('e-book') || c.includes('ebook')) return 'ebook';
+        if (c.includes('brinde')) return 'brinde';
+        if (c.includes('imagem')) return 'imagem';
+        return 'outro';
+    }
+    function progressoDe(t, checks) {
+        if (checks && checks.length) {
+            return Math.round(checks.filter(c => c.feito).length * 100 / checks.length);
+        }
+        return PROG_POR_STATUS[t.status] ?? 10;
+    }
+
     function cardHtml(t) {
         const pode = podeAlterar(t);
         const tipo = t.categoria || (t.departamento || 'TI');
-        const tipoCls = TIPO_CLS[t.categoria] || 'cti-tipo-ti';
         const nota = String(t.nota || t.status_nota || '').trim();
-        const notaHtml = nota
-            ? `<p class="cti-kb-note">Nota: ${escapeHtml(nota)}</p>`
-            : '';
         const respNome = (t.responsavel_nome || '').trim();
-        const footerPessoa = respNome
-            ? `<span class="cti-kb-who"><span class="cti-kb-ava">${escapeHtml(iniciais(respNome))}</span><span class="cti-kb-who-name">${escapeHtml(respNome)}</span></span>`
-            : '<span class="cti-kb-who cti-kb-who-livre"><span class="cti-kb-ava">?</span><span class="cti-kb-who-name">Livre</span></span>';
-        const prazo = prazoBadge(t);
+        const checks = Array.isArray(t.checklist) ? t.checklist : [];
+        const pendentes = checks.filter(c => !c.feito);
+        const pct = progressoDe(t, checks);
+        const filled = Math.round(pct / 10);
+        const dots = Array.from({ length: 10 }, (_, i) =>
+            `<span class="cti-dot${i < filled ? ' on' : ''}"></span>`).join('');
+        let checkHtml = '';
+        if (checks.length && !pendentes.length) {
+            checkHtml = '<p class="cti-kb-done">Checklist concluído</p>';
+        } else if (pendentes.length) {
+            checkHtml = `<ul class="cti-kb-checks">${pendentes.slice(0, 3).map(c =>
+                `<li>${escapeHtml(c.texto)}</li>`).join('')}</ul>`
+                + (pendentes.length > 3 ? `<p class="cti-kb-more">+${pendentes.length - 3} pendente(s)</p>` : '');
+        }
+        const prazo = prazoBadge(t) || (t.status === 'Concluído'
+            ? '<span class="cti-prazo cti-prazo-done">Concluído</span>'
+            : '<span class="cti-prazo cti-prazo-ok">Sem prazo</span>');
+        const quem = respNome || 'Livre';
         return `
-            <div class="cti-kb-card" data-id="${t.id}" data-status="${escapeHtml(t.status)}"
+            <div class="cti-kb-card" data-theme="${temaDe(t.categoria)}" data-id="${t.id}" data-status="${escapeHtml(t.status)}"
                  ${pode ? 'draggable="true"' : ''} role="button" tabindex="0"
                  title="${pode ? 'Arraste para mudar o status ou clique para abrir' : 'Só o responsável altera o status deste chamado'}">
-                <div class="flex items-center justify-between gap-2">
-                    <span class="cti-tipo ${tipoCls}">${escapeHtml(tipo)}</span>
-                    <span class="cti-kb-proto">${escapeHtml(t.protocolo)}</span>
+                <div class="cti-kb-top">
+                    <span class="cti-kb-tag">${escapeHtml(tipo)}</span>
                 </div>
                 <p class="cti-kb-title">${escapeHtml(t.titulo)}</p>
-                ${notaHtml}
+                ${nota ? `<p class="cti-kb-note"><strong>Nota: </strong>${escapeHtml(nota)}</p>` : ''}
+                ${checkHtml}
                 <div class="cti-kb-meta">
                     <span>Prazo de entrega</span>
-                    ${prazo || (t.status === 'Concluído'
-                        ? '<span class="cti-prazo cti-prazo-done"><span class="material-symbols-outlined text-[13px]">check_circle</span>Concluído</span>'
-                        : `<span class="cti-prazo cti-prazo-ok">${escapeHtml(fmtTs(t.created_at))}</span>`)}
+                    ${prazo}
                 </div>
+                <div class="cti-kb-prog-row"><span>Progresso</span><strong>${pct}%</strong></div>
+                <div class="cti-kb-dots">${dots}</div>
                 <div class="cti-kb-foot">
-                    ${footerPessoa}
-                    <span class="cti-kb-solic">${escapeHtml(t.solicitante)}</span>
+                    <span class="cti-kb-who"><span class="cti-kb-ava">${escapeHtml(iniciais(quem === 'Livre' ? '' : quem))}</span><span class="cti-kb-who-name">${escapeHtml(quem.split(' ')[0])}</span></span>
+                    <span class="cti-kb-count">${checks.length}</span>
                 </div>
             </div>`;
     }
@@ -290,13 +323,17 @@
             return `
                 <section class="cti-kb-col" data-status="${escapeHtml(st)}">
                     <header class="cti-kb-head">
-                        <span class="cti-kb-dot" style="background: ${STATUS_COR[st]}"></span>
-                        <span class="cti-kb-col-name">${escapeHtml(st)}</span>
-                        <span class="cti-kb-col-n">(${doColuna.length})</span>
+                        <span class="cti-kb-col-name"><span class="cti-kb-caret">▸</span> ${escapeHtml(st)} <span class="cti-kb-col-n">(${doColuna.length})</span></span>
+                        <button type="button" class="cti-col-add" title="Abrir novo chamado">+</button>
                     </header>
                     <div class="cti-kb-body">${cards}</div>
                 </section>`;
         }).join('');
+        wrap.querySelectorAll('.cti-col-add').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (typeof navigate === 'function') navigate('solicitacoes_ti');
+            });
+        });
         bindKanban(wrap);
     }
 
@@ -427,8 +464,44 @@
 
     function highlightStatus(st) {
         _pickedStatus = st;
-        document.querySelectorAll('#cti-status-btns .cti-st-btn').forEach(btn => {
-            btn.classList.toggle('is-active', btn.dataset.st === st);
+        const chip = $('cti-status-chip');
+        if (chip) {
+            chip.className = 'cti-status-chip ' + statusClass(st);
+            chip.textContent = st || '';
+        }
+        const sel = $('cti-status-sel');
+        if (sel && sel.value !== st) sel.value = st;
+    }
+
+    function renderChecklist() {
+        const list = $('cti-check-list');
+        if (!list) return;
+        const feitos = _checks.filter(c => c.feito).length;
+        const pct = _checks.length ? Math.round(feitos * 100 / _checks.length) : 0;
+        const count = $('cti-check-count');
+        if (count) count.textContent = `${feitos} de ${_checks.length} concluídos`;
+        const bar = $('cti-check-bar');
+        if (bar) bar.style.width = pct + '%';
+        list.innerHTML = _checks.map((c, i) => `
+            <li>
+                <label>
+                    <input type="checkbox" data-i="${i}" ${_canManage ? '' : 'disabled'} ${c.feito ? 'checked' : ''}>
+                    <span class="${c.feito ? 'is-done' : ''}">${escapeHtml(c.texto)}</span>
+                </label>
+                ${_canManage ? `<button type="button" data-del="${i}" aria-label="Remover">×</button>` : ''}
+            </li>`).join('') || '<li class="cti-check-empty">Nenhuma entrega neste checklist.</li>';
+        list.querySelectorAll('input[type="checkbox"]').forEach(inp => {
+            inp.addEventListener('change', () => {
+                const i = Number(inp.dataset.i);
+                if (_checks[i]) _checks[i].feito = inp.checked;
+                renderChecklist();
+            });
+        });
+        list.querySelectorAll('[data-del]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                _checks.splice(Number(btn.dataset.del), 1);
+                renderChecklist();
+            });
         });
     }
 
@@ -441,31 +514,93 @@
         }
         const t = data.ticket;
         _openId = t.id;
-        $('cti-modal-proto').textContent = t.protocolo || '';
-        $('cti-modal-title').textContent = t.titulo || '';
-        $('cti-nota').value = '';
-        highlightStatus(t.status);
+        _openStatus = t.status || '';
+        _canManage = !!data.can_manage;
+        _ticketSnap = t;
+        _checks = (Array.isArray(t.checklist) ? t.checklist : []).map(c => ({
+            id: c.id, texto: c.texto, feito: !!c.feito,
+        }));
         const depto = t.departamento || 'TI';
         const isMkt = depto === 'Marketing';
+        const sheet = document.querySelector('#cti-modal .sti-ticket-card');
+        if (sheet) {
+            sheet.classList.add('cti-sheet');
+            sheet.dataset.theme = temaDe(t.categoria);
+        }
+        const chips = $('cti-modal-chips');
+        if (chips) {
+            chips.innerHTML = `
+                <span class="cti-sheet-code">${escapeHtml(t.protocolo || '')}</span>
+                <span id="cti-status-chip" class="cti-status-chip ${statusClass(t.status)}">${escapeHtml(t.status || '')}</span>
+                <span class="cti-sheet-tag">${escapeHtml(t.categoria || depto)}</span>
+                ${t.bandeira ? `<span class="cti-sheet-soft">${escapeHtml(t.bandeira)}</span>` : ''}
+                ${prazoBadge(t)}
+            `;
+        }
+        highlightStatus(t.status);
+        $('cti-modal-title').textContent = t.titulo || '';
+        const meta = $('cti-modal-meta');
+        if (meta) {
+            meta.textContent = `Criado em ${fmtTs(t.created_at)} · Solicitante: ${t.solicitante || '—'}`;
+        }
+        const dis = _canManage ? '' : 'disabled';
         const briefHtml = (isMkt && typeof stiBriefingHtml === 'function')
             ? stiBriefingHtml(t.briefing, t.categoria) : '';
+        const feitos = _checks.filter(c => c.feito).length;
+        const pct = _checks.length ? Math.round(feitos * 100 / _checks.length) : 0;
         $('cti-modal-body').innerHTML = `
-            <div class="flex flex-wrap gap-2">
-                <span class="sti-dep-${escapeHtml(depto)}">${escapeHtml(depto)}</span>
-                <span class="sti-badge ${statusClass(t.status)}">${escapeHtml(t.status)}</span>
-                <span class="sti-badge sti-badge-${escapeHtml(t.urgencia)}">${escapeHtml(t.urgencia)}</span>
-            </div>
-            <p><span class="text-slate-500 text-xs uppercase font-bold">Solicitante</span><br>${escapeHtml(t.solicitante)} · ${escapeHtml(t.setor)}</p>
-            <p><span class="text-slate-500 text-xs uppercase font-bold">${isMkt ? 'Formato da peça' : 'Categoria'}</span><br>${escapeHtml(t.categoria)}</p>
-            ${t.prazo_desejado ? `<p><span class="text-slate-500 text-xs uppercase font-bold">Prazo desejado</span><br>${escapeHtml(t.prazo_desejado)}</p>` : ''}
-            <p><span class="text-slate-500 text-xs uppercase font-bold">${isMkt ? 'Informações obrigatórias' : 'Descrição'}</span><br>${escapeHtml(t.descricao).replace(/\n/g, '<br>')}</p>
-            ${t.observacoes ? `<p><span class="text-slate-500 text-xs uppercase font-bold">Observações</span><br>${escapeHtml(t.observacoes)}</p>` : ''}
+            ${_canManage ? `<label class="cti-field">
+                <span class="cti-field-label">Status</span>
+                <select id="cti-status-sel" class="input-glass w-full p-3 rounded-lg text-sm">
+                    ${STATUS_ORDEM.map(st => `<option value="${escapeHtml(st)}"${st === t.status ? ' selected' : ''}>${escapeHtml(st)}</option>`).join('')}
+                </select>
+            </label>` : ''}
+            <label class="cti-field">
+                <span class="cti-field-label"><span class="material-symbols-outlined text-[16px]">link</span> Link da demanda / arquivos</span>
+                <input id="cti-link" type="url" maxlength="500" ${dis} class="input-glass w-full p-3 rounded-lg text-sm"
+                       placeholder="https://drive.google.com/… ou Figma, Canva" value="${escapeHtml(t.link_demanda || '')}">
+                <span class="cti-field-hint">Link de arquivos, pastas do Drive, Figma ou material de entrega.</span>
+            </label>
+            <label class="cti-field">
+                <span class="cti-field-label">Observação / alinhamento interno</span>
+                <textarea id="cti-obs" rows="3" maxlength="300" ${dis} class="input-glass w-full p-3 rounded-lg text-sm"
+                          placeholder="Notas de alinhamento para a equipe">${escapeHtml(t.observacoes || '')}</textarea>
+            </label>
+            <p><span class="text-slate-500 text-xs uppercase font-bold">${isMkt ? 'Informações obrigatórias' : 'Descrição'}</span><br>${escapeHtml(t.descricao || '').replace(/\n/g, '<br>')}</p>
+            <section class="cti-check">
+                <div class="cti-check-head">
+                    <span class="cti-field-label"><span class="material-symbols-outlined text-[16px]">checklist</span> Checklist de entregas</span>
+                    <span id="cti-check-count">${feitos} de ${_checks.length} concluídos</span>
+                </div>
+                <div class="cti-kb-prog"><span id="cti-check-bar" style="width:${pct}%"></span></div>
+                <ul id="cti-check-list" class="cti-check-list"></ul>
+                ${_canManage ? `<div class="cti-check-add">
+                    <input id="cti-check-novo" maxlength="180" class="input-glass flex-1 p-2 rounded-lg text-sm" placeholder="Adicionar nova etapa ou entrega…">
+                    <button type="button" id="cti-check-add" class="px-3 h-9 rounded-lg text-xs font-bold border border-[var(--border)]">Adicionar</button>
+                </div>` : ''}
+            </section>
             ${briefHtml}
             <div>
                 <p class="text-slate-500 text-xs uppercase font-bold mb-2">Histórico</p>
                 ${renderTimeline(data.eventos)}
             </div>
         `;
+        const selSt = $('cti-status-sel');
+        if (selSt) selSt.addEventListener('change', () => highlightStatus(selSt.value));
+        renderChecklist();
+        const addBtn = $('cti-check-add');
+        if (addBtn) addBtn.addEventListener('click', () => {
+            const inp = $('cti-check-novo');
+            const texto = (inp?.value || '').trim();
+            if (!texto) return;
+            _checks.push({ id: Math.random().toString(36).slice(2, 10), texto, feito: false });
+            if (inp) inp.value = '';
+            renderChecklist();
+        });
+        const saveBtn = $('cti-save-status');
+        if (saveBtn) saveBtn.classList.toggle('hidden', !_canManage);
+        const delBtn = $('cti-excluir');
+        if (delBtn) delBtn.classList.toggle('hidden', !data.is_admin);
         renderResponsavel(t, data);
         const modal = $('cti-modal');
         if (typeof dczPortalToBody === 'function') dczPortalToBody(modal);
@@ -533,23 +668,75 @@
         if (typeof dczLockBodyScroll === 'function') dczLockBodyScroll(false);
     };
 
+    window.ctiCopiar = async function () {
+        const t = _ticketSnap;
+        if (!t) return;
+        const linhas = [
+            t.protocolo, t.titulo, t.status,
+            t.link_demanda ? 'Link: ' + t.link_demanda : '',
+            t.observacoes ? 'Obs: ' + t.observacoes : '',
+            _checks.map(c => (c.feito ? '[x] ' : '[ ] ') + c.texto).join('\n'),
+        ].filter(Boolean).join('\n');
+        try {
+            await navigator.clipboard.writeText(linhas);
+            if (typeof toast === 'function') toast('Copiado.', 'success');
+        } catch (e) {
+            if (typeof toast === 'function') toast('Não foi possível copiar.', 'error');
+        }
+    };
+
+    window.ctiExcluir = async function () {
+        if (!_openId) return;
+        if (!window.confirm('Excluir este chamado? Essa ação não volta.')) return;
+        try {
+            const resp = await fetch('/api/solicitacoes_ti/chamados/' + _openId, { method: 'DELETE' });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok || data.ok === false) {
+                if (typeof toast === 'function') toast(data.message || 'Não foi possível excluir.', 'error');
+                return;
+            }
+            if (typeof toast === 'function') toast(data.message || 'Chamado excluído.', 'success');
+            ctiCloseModal();
+            await loadList();
+        } catch (e) {
+            if (typeof toast === 'function') toast('Falha de rede.', 'error');
+        }
+    };
+
     window.ctiSaveStatus = async function () {
-        if (!_openId || !_pickedStatus) return;
-        const nota = ($('cti-nota')?.value || '').trim();
+        if (!_openId || !_canManage) return;
         const btn = $('cti-save-status');
         if (btn) btn.disabled = true;
         try {
-            const resp = await fetch('/api/solicitacoes_ti/chamados/' + _openId + '/status', {
+            const quadro = await fetch('/api/solicitacoes_ti/chamados/' + _openId + '/quadro', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: _pickedStatus, nota }),
+                body: JSON.stringify({
+                    link_demanda: ($('cti-link')?.value || '').trim(),
+                    observacoes: ($('cti-obs')?.value || '').trim(),
+                    checklist: _checks,
+                }),
             });
-            const data = await resp.json().catch(() => ({}));
-            if (!resp.ok || data.ok === false) {
-                if (typeof toast === 'function') toast(data.message || 'Falha ao salvar.', 'error');
+            const quadroData = await quadro.json().catch(() => ({}));
+            if (!quadro.ok || quadroData.ok === false) {
+                if (typeof toast === 'function') toast(quadroData.message || 'Falha ao salvar o quadro.', 'error');
                 return;
             }
-            if (typeof toast === 'function') toast(data.message || 'Status atualizado.', 'success');
+            if (_pickedStatus && _pickedStatus !== _openStatus) {
+                const resp = await fetch('/api/solicitacoes_ti/chamados/' + _openId + '/status', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: _pickedStatus, nota: '' }),
+                });
+                const data = await resp.json().catch(() => ({}));
+                if (!resp.ok || data.ok === false) {
+                    if (typeof toast === 'function') toast(data.message || 'Quadro salvo, mas o status não mudou.', 'error');
+                    await ctiOpen(_openId);
+                    await loadList();
+                    return;
+                }
+            }
+            if (typeof toast === 'function') toast('Alterações salvas.', 'success');
             await ctiOpen(_openId);
             await loadList();
         } catch (e) {
