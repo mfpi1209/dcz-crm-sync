@@ -74,6 +74,9 @@ TITULO_MAX = 200
 DESCRICAO_MAX = 4000
 OBS_MAX = 300
 NOTA_MAX = 500
+LINK_MAX = 500
+CHECK_MAX = 20
+CHECK_TEXTO_MAX = 180
 SOLICITANTE_MAX = 120
 BRIEF_TEXT_MAX = 2000
 BRIEF_LIST_MAX = 12
@@ -302,6 +305,38 @@ def _pode_ver_na_fila(row: dict[str, Any]) -> bool:
     return resp is None or (uid is not None and resp == uid)
 
 
+def _parse_checklist(raw: Any) -> list[dict[str, Any]]:
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except ValueError:
+            return []
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in raw[:CHECK_MAX]:
+        if not isinstance(item, dict):
+            continue
+        texto = str(item.get("texto") or "").strip()[:CHECK_TEXTO_MAX]
+        if not texto:
+            continue
+        iid = str(item.get("id") or "").strip()[:40] or uuid.uuid4().hex[:8]
+        out.append({"id": iid, "texto": texto, "feito": bool(item.get("feito"))})
+    return out
+
+
+def _bandeira_de(row: dict[str, Any]) -> str:
+    brief = row.get("briefing")
+    if isinstance(brief, str):
+        try:
+            brief = json.loads(brief)
+        except ValueError:
+            brief = None
+    if isinstance(brief, dict):
+        return str(brief.get("bandeira") or "").strip()[:80]
+    return ""
+
+
 def _iso(v):
     if v is None:
         return None
@@ -334,6 +369,9 @@ def _row_public(row: dict[str, Any], *, include_body: bool = True) -> dict[str, 
         "responsavel_desde": _iso(row.get("responsavel_desde")),
         # Recorte curto p/ o card do Kanban (a lista não manda o body inteiro).
         "nota": ((row.get("status_nota") or row.get("descricao") or "").strip())[:180],
+        "bandeira": _bandeira_de(row),
+        "checklist": _parse_checklist(row.get("checklist")),
+        "link_demanda": (row.get("link_demanda") or "")[:LINK_MAX],
     }
     if include_body:
         out["descricao"] = row.get("descricao") or ""
@@ -861,10 +899,83 @@ def get_chamado(chamado_id: int):
         "ticket": _row_public(row),
         "eventos": eventos,
         "can_manage": na_fila and _pode_alterar_status(row),
+        "is_admin": _is_admin(),
         "can_assumir": na_fila and resp_id is None,
         "can_liberar": na_fila and resp_id is not None and (_is_admin() or resp_id == uid),
         "sou_responsavel": bool(resp_id and uid and resp_id == uid),
     })
+
+
+@solicitacoes_ti_bp.route("/api/solicitacoes_ti/chamados/<int:chamado_id>/quadro", methods=["PATCH"])
+def patch_quadro(chamado_id: int):
+    """Link da demanda, observação interna e checklist do card."""
+    deny = _require_auth()
+    if deny:
+        return deny
+    body = request.get_json(silent=True) or {}
+    link = str(body.get("link_demanda") or "").strip()[:LINK_MAX]
+    observacoes = str(body.get("observacoes") or "").strip()[:OBS_MAX]
+    checklist = _parse_checklist(body.get("checklist"))
+
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT * FROM ti_chamado WHERE id = %s FOR UPDATE", (chamado_id,))
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"ok": False, "message": "Chamado não encontrado."}), 404
+            row = dict(row)
+            if not _pode_alterar_status(row):
+                conn.rollback()
+                return jsonify({
+                    "ok": False,
+                    "message": "Só quem opera este chamado altera o quadro.",
+                }), 403
+            cur.execute(
+                """
+                UPDATE ti_chamado
+                   SET link_demanda = %s,
+                       observacoes = %s,
+                       checklist = %s::jsonb,
+                       updated_at = NOW()
+                 WHERE id = %s
+                """,
+                (link or None, observacoes or None, json.dumps(checklist, ensure_ascii=False), chamado_id),
+            )
+            cur.execute("SELECT * FROM ti_chamado WHERE id = %s", (chamado_id,))
+            updated = dict(cur.fetchone())
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        logger.exception("solicitacoes_ti: falha ao gravar quadro")
+        return jsonify({"ok": False, "message": "Não foi possível salvar o quadro."}), 500
+    finally:
+        conn.close()
+    return jsonify({"ok": True, "ticket": _row_public(updated), "message": "Quadro atualizado."})
+
+
+@solicitacoes_ti_bp.route("/api/solicitacoes_ti/chamados/<int:chamado_id>", methods=["DELETE"])
+def delete_chamado(chamado_id: int):
+    deny = _require_auth()
+    if deny:
+        return deny
+    if not _is_admin():
+        return jsonify({"ok": False, "message": "Só um admin exclui chamado."}), 403
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM ti_chamado WHERE id = %s", (chamado_id,))
+            if cur.rowcount == 0:
+                conn.rollback()
+                return jsonify({"ok": False, "message": "Chamado não encontrado."}), 404
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        logger.exception("solicitacoes_ti: falha ao excluir chamado")
+        return jsonify({"ok": False, "message": "Não foi possível excluir."}), 500
+    finally:
+        conn.close()
+    return jsonify({"ok": True, "message": "Chamado excluído."})
 
 
 # ---------------------------------------------------------------------------
