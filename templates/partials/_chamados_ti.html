@@ -32,18 +32,26 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <button type="button" onclick="ctiSetStatus('Pendente')" class="glass-card border border-[var(--border)] rounded-xl p-4 text-left hover:border-[var(--primary)]">
-                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Pendentes</p>
-                <p id="cti-kpi-pendente" class="text-2xl font-black mt-1" style="color: #b45309;">0</p>
+        <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
+            <button type="button" onclick="ctiSetStatus('Novo Ticket')" class="glass-card border border-[var(--border)] rounded-xl p-4 text-left hover:border-[var(--primary)]">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Novo ticket</p>
+                <p id="cti-kpi-novo" class="text-2xl font-black mt-1" style="color: #60a5fa;">0</p>
             </button>
-            <button type="button" onclick="ctiSetStatus('Em andamento')" class="glass-card border border-[var(--border)] rounded-xl p-4 text-left hover:border-[var(--primary)]">
-                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Em andamento</p>
-                <p id="cti-kpi-andamento" class="text-2xl font-black mt-1" style="color: #1d4ed8;">0</p>
+            <button type="button" onclick="ctiSetStatus('A Fazer')" class="glass-card border border-[var(--border)] rounded-xl p-4 text-left hover:border-[var(--primary)]">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">A fazer</p>
+                <p id="cti-kpi-fazer" class="text-2xl font-black mt-1" style="color: #34d399;">0</p>
+            </button>
+            <button type="button" onclick="ctiSetStatus('Em Produção')" class="glass-card border border-[var(--border)] rounded-xl p-4 text-left hover:border-[var(--primary)]">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Em produção</p>
+                <p id="cti-kpi-prod" class="text-2xl font-black mt-1" style="color: #a78bfa;">0</p>
+            </button>
+            <button type="button" onclick="ctiSetStatus('Pausado')" class="glass-card border border-[var(--border)] rounded-xl p-4 text-left hover:border-[var(--primary)]">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Pausado</p>
+                <p id="cti-kpi-pausado" class="text-2xl font-black mt-1" style="color: #fb923c;">0</p>
             </button>
             <button type="button" onclick="ctiSetStatus('Concluído')" class="glass-card border border-[var(--border)] rounded-xl p-4 text-left hover:border-[var(--primary)]">
                 <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Concluídos</p>
-                <p id="cti-kpi-concluido" class="text-2xl font-black mt-1" style="color: #059669;">0</p>
+                <p id="cti-kpi-concluido" class="text-2xl font-black mt-1" style="color: #2dd4bf;">0</p>
             </button>
         </div>
 
@@ -51,8 +59,10 @@
             <div id="cti-tabs" class="flex flex-wrap gap-1 p-1 rounded-xl" style="background: var(--bg-elevated);">
                 <button type="button" data-status="abertos" class="cti-tab is-active px-3 py-1.5 text-[11px] font-bold rounded-lg">Abertos</button>
                 <button type="button" data-status="" class="cti-tab px-3 py-1.5 text-[11px] font-bold rounded-lg">Todos</button>
-                <button type="button" data-status="Pendente" class="cti-tab px-3 py-1.5 text-[11px] font-bold rounded-lg">Pendentes</button>
-                <button type="button" data-status="Em andamento" class="cti-tab px-3 py-1.5 text-[11px] font-bold rounded-lg">Em andamento</button>
+                <button type="button" data-status="Novo Ticket" class="cti-tab px-3 py-1.5 text-[11px] font-bold rounded-lg">Novo ticket</button>
+                <button type="button" data-status="A Fazer" class="cti-tab px-3 py-1.5 text-[11px] font-bold rounded-lg">A fazer</button>
+                <button type="button" data-status="Em Produção" class="cti-tab px-3 py-1.5 text-[11px] font-bold rounded-lg">Em produção</button>
+                <button type="button" data-status="Pausado" class="cti-tab px-3 py-1.5 text-[11px] font-bold rounded-lg">Pausado</button>
                 <button type="button" data-status="Concluído" class="cti-tab px-3 py-1.5 text-[11px] font-bold rounded-lg">Concluídos</button>
             </div>
             <select id="cti-urgencia" class="input-glass cti-ctrl rounded-lg text-sm">
@@ -81,8 +91,8 @@
             <span class="material-symbols-outlined text-[36px] mb-2">task_alt</span>
             <p class="text-sm">Nenhum chamado neste filtro.</p>
         </div>
-        <!-- Kanban: uma coluna por status. As colunas exibidas seguem o chip de
-             status (Abertos mostra Pendente + Em andamento, Todos mostra as 3). -->
+        <!-- Kanban: uma coluna por status. Abertos mostra as 4 fases abertas;
+             Todos mostra as 5. Um chip só deixa uma coluna. -->
         <p id="cti-kb-hint" class="hidden text-[11px] text-slate-500">
             <span class="material-symbols-outlined text-[13px] align-[-2px]">info</span>
             Filtro de status com uma coluna só — escolha “Abertos” ou “Todos” para arrastar entre colunas.
@@ -141,8 +151,10 @@
                 </div>
                 <p class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Atualizar status</p>
                 <div class="flex flex-wrap gap-2" id="cti-status-btns">
-                    <button type="button" data-st="Pendente" class="cti-st-btn px-3 py-2 rounded-lg text-xs font-bold border">Pendente</button>
-                    <button type="button" data-st="Em andamento" class="cti-st-btn px-3 py-2 rounded-lg text-xs font-bold border">Em andamento</button>
+                    <button type="button" data-st="Novo Ticket" class="cti-st-btn px-3 py-2 rounded-lg text-xs font-bold border">Novo Ticket</button>
+                    <button type="button" data-st="A Fazer" class="cti-st-btn px-3 py-2 rounded-lg text-xs font-bold border">A Fazer</button>
+                    <button type="button" data-st="Em Produção" class="cti-st-btn px-3 py-2 rounded-lg text-xs font-bold border">Em Produção</button>
+                    <button type="button" data-st="Pausado" class="cti-st-btn px-3 py-2 rounded-lg text-xs font-bold border">Pausado</button>
                     <button type="button" data-st="Concluído" class="cti-st-btn px-3 py-2 rounded-lg text-xs font-bold border">Concluído</button>
                 </div>
                 <textarea id="cti-nota" rows="2" maxlength="500" placeholder="Observação (opcional) — visível para quem abriu o chamado"
@@ -163,12 +175,16 @@
     #page-chamados_ti .cti-dep-tab { padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 8px; }
     #page-chamados_ti .sti-badge,
     #cti-modal .sti-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 9999px; white-space: nowrap; }
-    #page-chamados_ti .sti-st-Pendente,
-    #cti-modal .sti-st-Pendente { background: rgba(245,158,11,0.12); color: #b45309; }
-    #page-chamados_ti .sti-st-Em,
-    #cti-modal .sti-st-Em { background: rgba(59,130,246,0.12); color: #1d4ed8; }
+    #page-chamados_ti .sti-st-novo,
+    #cti-modal .sti-st-novo { background: rgba(96,165,250,0.14); color: #60a5fa; }
+    #page-chamados_ti .sti-st-fazer,
+    #cti-modal .sti-st-fazer { background: rgba(52,211,153,0.14); color: #34d399; }
+    #page-chamados_ti .sti-st-prod,
+    #cti-modal .sti-st-prod { background: rgba(167,139,250,0.16); color: #a78bfa; }
+    #page-chamados_ti .sti-st-pausado,
+    #cti-modal .sti-st-pausado { background: rgba(251,146,60,0.16); color: #fb923c; }
     #page-chamados_ti .sti-st-Concluído,
-    #cti-modal .sti-st-Concluído { background: rgba(16,185,129,0.12); color: #059669; }
+    #cti-modal .sti-st-Concluído { background: rgba(45,212,191,0.14); color: #2dd4bf; }
     #page-chamados_ti .sti-badge-Baixa,
     #cti-modal .sti-badge-Baixa { background: rgba(100,116,139,0.10); color: #475569; }
     #page-chamados_ti .sti-badge-Média,
@@ -191,14 +207,20 @@
         flex: 1 1 0; min-width: 280px; display: flex; flex-direction: column;
         border: 1px solid var(--border); border-radius: 20px; background: var(--bg-elevated);
     }
-    #page-chamados_ti .cti-kb-col[data-status="Pendente"] {
-        background: rgba(180, 83, 9, .10); border-color: rgba(180, 83, 9, .28);
+    #page-chamados_ti .cti-kb-col[data-status="Novo Ticket"] {
+        background: rgba(96, 165, 250, .12); border-color: rgba(96, 165, 250, .32);
     }
-    #page-chamados_ti .cti-kb-col[data-status="Em andamento"] {
-        background: rgba(29, 78, 216, .12); border-color: rgba(116, 174, 233, .28);
+    #page-chamados_ti .cti-kb-col[data-status="A Fazer"] {
+        background: rgba(52, 211, 153, .10); border-color: rgba(52, 211, 153, .30);
+    }
+    #page-chamados_ti .cti-kb-col[data-status="Em Produção"] {
+        background: rgba(167, 139, 250, .14); border-color: rgba(167, 139, 250, .34);
+    }
+    #page-chamados_ti .cti-kb-col[data-status="Pausado"] {
+        background: rgba(251, 146, 60, .12); border-color: rgba(251, 146, 60, .34);
     }
     #page-chamados_ti .cti-kb-col[data-status="Concluído"] {
-        background: rgba(5, 150, 105, .10); border-color: rgba(5, 150, 105, .28);
+        background: rgba(45, 212, 191, .10); border-color: rgba(45, 212, 191, .30);
     }
     #page-chamados_ti .cti-kb-head {
         display: flex; align-items: center; gap: 8px; padding: 14px 16px 8px;

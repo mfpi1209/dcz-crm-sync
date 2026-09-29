@@ -15,8 +15,15 @@
     let _dragFrom = null;
 
     const VIEW_KEY = 'cti_view_v1';
-    const STATUS_ORDEM = ['Pendente', 'Em andamento', 'Concluído'];
-    const STATUS_COR = { 'Pendente': '#b45309', 'Em andamento': '#1d4ed8', 'Concluído': '#059669' };
+    const STATUS_ORDEM = ['Novo Ticket', 'A Fazer', 'Em Produção', 'Pausado', 'Concluído'];
+    const STATUS_COR = {
+        'Novo Ticket': '#60a5fa', 'A Fazer': '#34d399', 'Em Produção': '#a78bfa',
+        'Pausado': '#fb923c', 'Concluído': '#2dd4bf',
+    };
+    const STATUS_CLS = {
+        'Novo Ticket': 'sti-st-novo', 'A Fazer': 'sti-st-fazer', 'Em Produção': 'sti-st-prod',
+        'Pausado': 'sti-st-pausado', 'Concluído': 'sti-st-Concluído',
+    };
     const TIPO_CLS = {
         'Imagem': 'cti-tipo-imagem', 'Vídeo': 'cti-tipo-video', 'UX / UI': 'cti-tipo-ux',
         'E-book': 'cti-tipo-ebook', 'Brinde': 'cti-tipo-brinde',
@@ -35,9 +42,7 @@
         ));
     }
     function statusClass(st) {
-        if (st === 'Concluído') return 'sti-st-Concluído';
-        if (st === 'Em andamento') return 'sti-st-Em';
-        return 'sti-st-Pendente';
+        return STATUS_CLS[st] || 'sti-st-novo';
     }
     function fmtTs(iso) {
         if (!iso) return '—';
@@ -52,12 +57,15 @@
 
     function setKpis(kpis) {
         kpis = kpis || {};
-        const p = $('cti-kpi-pendente');
-        const a = $('cti-kpi-andamento');
-        const c = $('cti-kpi-concluido');
-        if (p) p.textContent = String(kpis['Pendente'] || 0);
-        if (a) a.textContent = String(kpis['Em andamento'] || 0);
-        if (c) c.textContent = String(kpis['Concluído'] || 0);
+        const ids = {
+            'Novo Ticket': 'cti-kpi-novo', 'A Fazer': 'cti-kpi-fazer',
+            'Em Produção': 'cti-kpi-prod', 'Pausado': 'cti-kpi-pausado',
+            'Concluído': 'cti-kpi-concluido',
+        };
+        Object.keys(ids).forEach(st => {
+            const el = $(ids[st]);
+            if (el) el.textContent = String(kpis[st] || 0);
+        });
     }
 
     function qs() {
@@ -194,7 +202,7 @@
 
     /* Colunas visíveis = o que o chip de status deixa passar. */
     function colunasVisiveis() {
-        if (_status === 'abertos') return ['Pendente', 'Em andamento'];
+        if (_status === 'abertos') return STATUS_ORDEM.filter(st => st !== 'Concluído');
         if (!_status) return STATUS_ORDEM.slice();
         return STATUS_ORDEM.includes(_status) ? [_status] : STATUS_ORDEM.slice();
     }

@@ -1374,6 +1374,16 @@ def _ensure_ti_chamado_tables():
             """)
             cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_evento_chamado ON ti_chamado_evento(chamado_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_ti_evento_created ON ti_chamado_evento(created_at)")
+            # Fases do quadro: Pendente vira Novo Ticket, Em andamento vira Em Produção.
+            cur.execute(
+                "UPDATE ti_chamado SET status = 'Novo Ticket' WHERE status = 'Pendente'"
+            )
+            cur.execute(
+                "UPDATE ti_chamado SET status = 'Em Produção' WHERE status = 'Em andamento'"
+            )
+            cur.execute(
+                "ALTER TABLE ti_chamado ALTER COLUMN status SET DEFAULT 'Novo Ticket'"
+            )
         conn.commit()
         conn.close()
     except Exception as e:

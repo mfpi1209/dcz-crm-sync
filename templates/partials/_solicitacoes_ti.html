@@ -283,7 +283,7 @@
                     <li>O chamado é gravado no sistema e o time do departamento escolhido (TI ou Marketing) recebe um aviso.</li>
                     <li>Em <strong>Marketing</strong> o formulário é o briefing de design da referência: nome, bandeira, público, formato da peça, título, detalhes e telefone na peça — mais as especificações do formato escolhido.</li>
                     <li>Cada envio gera um protocolo (ex: <code class="font-mono bg-[var(--bg-elevated)] px-1 rounded">CH-00042</code>).</li>
-                    <li>Status: <strong>Pendente</strong> → <strong>Em andamento</strong> → <strong>Concluído</strong>.</li>
+                    <li>Status: <strong>Novo Ticket</strong> → <strong>A Fazer</strong> → <strong>Em Produção</strong> → <strong>Pausado</strong> → <strong>Concluído</strong>.</li>
                     <li>Use prioridade <strong>Crítica</strong> só quando algo está bloqueando seu trabalho.</li>
                 </ul>
             </div>
@@ -401,10 +401,14 @@
     html.dark #page-solicitacoes_ti .sti-badge-Alta     { color: #fcd34d; }
     html.dark #page-solicitacoes_ti .sti-badge-Crítica  { color: #fca5a5; }
 
-    #page-solicitacoes_ti .sti-st-Pendente { background: rgba(245,158,11,0.12); color: #b45309; border: 1px solid rgba(245,158,11,0.30); }
-    #page-solicitacoes_ti .sti-st-Em { background: rgba(59,130,246,0.12); color: #1d4ed8; border: 1px solid rgba(59,130,246,0.30); }
-    #page-solicitacoes_ti .sti-st-Concluído { background: rgba(16,185,129,0.12); color: #059669; border: 1px solid rgba(16,185,129,0.30); }
-    html.dark #page-solicitacoes_ti .sti-st-Pendente { color: #fcd34d; }
-    html.dark #page-solicitacoes_ti .sti-st-Em { color: #93c5fd; }
-    html.dark #page-solicitacoes_ti .sti-st-Concluído { color: #34d399; }
+    #page-solicitacoes_ti .sti-st-novo { background: rgba(96,165,250,0.14); color: #3b82f6; border: 1px solid rgba(96,165,250,0.30); }
+    #page-solicitacoes_ti .sti-st-fazer { background: rgba(52,211,153,0.14); color: #059669; border: 1px solid rgba(52,211,153,0.30); }
+    #page-solicitacoes_ti .sti-st-prod { background: rgba(167,139,250,0.16); color: #7c3aed; border: 1px solid rgba(167,139,250,0.30); }
+    #page-solicitacoes_ti .sti-st-pausado { background: rgba(251,146,60,0.16); color: #c2410c; border: 1px solid rgba(251,146,60,0.30); }
+    #page-solicitacoes_ti .sti-st-Concluído { background: rgba(45,212,191,0.14); color: #0f766e; border: 1px solid rgba(45,212,191,0.30); }
+    html.dark #page-solicitacoes_ti .sti-st-novo { color: #93c5fd; }
+    html.dark #page-solicitacoes_ti .sti-st-fazer { color: #6ee7b7; }
+    html.dark #page-solicitacoes_ti .sti-st-prod { color: #c4b5fd; }
+    html.dark #page-solicitacoes_ti .sti-st-pausado { color: #fdba74; }
+    html.dark #page-solicitacoes_ti .sti-st-Concluído { color: #5eead4; }
 </style>
