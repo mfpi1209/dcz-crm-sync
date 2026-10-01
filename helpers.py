@@ -52,7 +52,7 @@ def display_name_from_login(username: str = "", email: str = "") -> str:
 # ---------------------------------------------------------------------------
 
 ALL_PAGES = [
-    "dashboard", "search", "sync", "kommo_sync", "update", "pipeline", "match_merge",
+    "dashboard", "search", "sync", "kommo_sync", "bwipo_sync", "bwipo_comercial", "update", "pipeline", "match_merge",
     "comercial_rgm", "logs", "distribuicao", "ativacoes", "intelligence", "inadimplencia",
     "feedback", "config", "schedule", "inscricao", "avisos", "kommo_dispatcher",
     "leads_parados", "dist_consultor", "minha_performance", "premiacao_admin",

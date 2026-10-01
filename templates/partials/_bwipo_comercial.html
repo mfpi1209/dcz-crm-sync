@@ -1,0 +1,253 @@
+<section id="page-bwipo_comercial" class="hidden p-4 lg:p-8 max-w-7xl mx-auto">
+    <div class="mb-6">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-[#00346f] dark:bg-gradient-to-br dark:from-blue-500 dark:to-cyan-600 flex items-center justify-center">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            </div>
+            <div>
+                <h2 class="text-2xl md:text-3xl font-bold text-[#00346f] dark:text-white font-display">Dashboard Comercial Bwipo</h2>
+                <p class="text-slate-600 dark:text-slate-500 text-sm" id="bwc-snapshot">Performance comercial e ranking de agentes</p>
+            </div>
+            <div class="ml-auto flex flex-wrap gap-2 text-xs">
+                <button type="button" onclick="bwcAbrirPainel('crgm-sync-kommo-panel','crgmToggleSyncKommo')" class="px-3 py-1.5 rounded-lg border border-emerald-500/40 text-emerald-500">Sync Kommo</button>
+                <button type="button" onclick="bwcAbrirPainel('crgm-historico-metas-panel','crgmToggleHistoricoMetas')" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600">Histórico</button>
+                <button type="button" onclick="bwcAbrirPainel('crgm-congelar-panel','crgmToggleCongelar')" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600">Congelar</button>
+                <button type="button" onclick="bwcAbrirDuplicatas()" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600">Duplicatas</button>
+                <button type="button" onclick="bwcAbrirSemData()" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600">Sem data</button>
+                <button type="button" onclick="bwcAbrirPainel('crgm-kommo-lead-panel','crgmToggleKommoLead')" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600">Atualizar lead</button>
+                <button type="button" data-bwc-admin onclick="bwcSyncAgentes()" class="hidden px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600">Sync agentes</button>
+                <button type="button" data-bwc-admin onclick="bwcAbrirConsultores()" class="hidden px-3 py-1.5 rounded-lg border border-blue-500/40 text-blue-500">Editar consultores</button>
+                <label class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 cursor-pointer">Upload
+                    <input type="file" accept=".csv,.xlsx,.xlsm" class="hidden" onchange="crgmUpload(this)">
+                </label>
+                <button type="button" onclick="crgmToggleSolicitacoes()" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600">Solicitações
+                    <span id="bwc-sol-badge" class="hidden ml-1 px-1.5 rounded-full bg-orange-500 text-white text-[9px] font-bold">0</span>
+                </button>
+                <button type="button" onclick="bwcAbrirMetas()" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600">Metas</button>
+                <button type="button" onclick="bwcAbrirDiagnostico()" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600">Diagnóstico</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="bwc-paineis"></div>
+
+    <div class="glass-card p-4 mb-4">
+        <div class="flex flex-wrap items-end gap-3">
+            <div>
+                <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">Ciclo</label>
+                <select id="bwc-ciclo" onchange="bwcCicloChanged()" class="input-glass px-3 py-1.5 text-xs min-w-[140px]"><option value="">Todos</option></select>
+            </div>
+            <div>
+                <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">Turma</label>
+                <select id="bwc-turma" onchange="bwcTurmaChanged()" class="input-glass px-3 py-1.5 text-xs min-w-[140px]"><option value="">Todas</option></select>
+            </div>
+            <button type="button" onclick="bwcAbrirPainel('crgm-novo-ciclo','crgmToggleNovoCiclo')" class="text-xs px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600">+ Novo ciclo</button>
+            <button type="button" onclick="bwcAbrirPainel('crgm-nova-turma','crgmToggleNovaTurma')" class="text-xs px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600">+ Nova turma</button>
+            <button type="button" onclick="bwcAbrirPainel('crgm-ver-turmas','crgmToggleVerTurmas')" class="text-xs px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600">Ver turmas</button>
+        </div>
+    </div>
+
+    <div class="glass-card p-4 mb-6">
+        <div class="flex flex-wrap items-end gap-3">
+            <div>
+                <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">Polo</label>
+                <select id="bwc-polo" class="input-glass px-3 py-1.5 text-xs min-w-[140px]"><option value="">Todos</option></select>
+            </div>
+            <div>
+                <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">Nível</label>
+                <select id="bwc-nivel" class="input-glass px-3 py-1.5 text-xs min-w-[140px]">
+                    <option value="">Todos</option>
+                    <option value="Graduação">Graduação</option>
+                    <option value="Pós-Graduação">Pós-Graduação</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">Agente</label>
+                <select id="bwc-agente" class="input-glass px-3 py-1.5 text-xs min-w-[160px]"><option value="">Todos</option></select>
+            </div>
+            <div>
+                <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">De</label>
+                <input type="date" id="bwc-dt-ini" class="input-glass px-3 py-1.5 text-xs">
+            </div>
+            <div>
+                <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1 font-semibold">Até</label>
+                <input type="date" id="bwc-dt-fim" class="input-glass px-3 py-1.5 text-xs">
+            </div>
+            <button type="button" id="bwc-btn" onclick="bwcAtualizar()" class="btn-primary text-xs px-4 py-1.5">Atualizar</button>
+        </div>
+    </div>
+
+    <div id="bwc-erro" class="hidden text-center py-2 text-sm text-red-400 glass-card mb-4 p-3"></div>
+
+    <div class="mb-4">
+        <div class="relative rounded-2xl overflow-hidden bg-[#002D5E] border border-[#002247] p-5 flex flex-wrap items-center gap-5 shadow-lg">
+            <div class="flex-shrink-0 w-14 h-14 rounded-xl bg-white/15 flex items-center justify-center">
+                <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-blue-100/90 uppercase tracking-widest">Matrículas no Período</p>
+                <p class="text-4xl font-black text-white font-display" id="bwc-matriculas">—</p>
+                <p class="text-sm text-blue-200/80"><span class="text-emerald-300 font-bold" id="bwc-ganho-label">—</span> em curso</p>
+                <button type="button" id="bwc-fora-hero" onclick="bwcToggle('bwc-fora-lista')" class="hidden mt-2 text-left px-3 py-1.5 rounded-xl border border-orange-300/50 bg-orange-400/15 text-xs">
+                    <b id="bwc-fora-hero-n">0</b> RGM fora do padrão
+                    <span class="block text-orange-100/80" id="bwc-fora-hero-sub"></span>
+                </button>
+            </div>
+            <div class="ml-auto flex items-center gap-6">
+                <div class="text-right">
+                    <p class="text-[10px] text-blue-200/75 uppercase tracking-wider">YTD</p>
+                    <p class="text-2xl font-bold text-white font-display tabular-nums" id="bwc-ytd">—</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-[10px] text-blue-200/75 uppercase tracking-wider">Inscritos M&amp;M</p>
+                    <p class="text-2xl font-bold text-white font-display tabular-nums" id="bwc-inscritos">—</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-[10px] text-blue-200/75 uppercase tracking-wider">Em aberto</p>
+                    <p class="text-2xl font-bold text-white font-display tabular-nums" id="bwc-aberto">—</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-[10px] text-blue-200/75 uppercase tracking-wider">Perdidos</p>
+                    <p class="text-2xl font-bold text-rose-200 font-display tabular-nums" id="bwc-perdido">—</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="bwc-evasao-panel" class="mb-6">
+        <div class="rounded-2xl border border-slate-200 dark:border-rose-500/25 bg-[var(--bg-card)] overflow-hidden border-l-[3px] border-l-rose-500/50">
+            <button type="button" onclick="bwcToggle('bwc-evasao-lista')" class="w-full flex items-center gap-3 p-4 text-left">
+                <div class="flex-1">
+                    <p class="text-[10px] font-bold text-rose-400/80 uppercase tracking-widest">Evasão no Período</p>
+                    <span class="text-xl font-black text-rose-300 font-display" id="bwc-evasao">—</span>
+                    <span id="bwc-evasao-chips" class="ml-2 text-[11px]"></span>
+                    <p class="text-[11px] text-slate-500">Matrícula do período que saiu de em curso. Clique para ver quem.</p>
+                </div>
+            </button>
+            <div id="bwc-evasao-lista" class="hidden border-t border-slate-200 dark:border-rose-500/20 max-h-80 overflow-y-auto text-xs"></div>
+        </div>
+    </div>
+
+    <div id="bwc-fora-panel" class="mb-6">
+        <div class="rounded-2xl border border-orange-500/25 bg-[var(--bg-card)] overflow-hidden border-l-[3px] border-l-orange-500/50">
+            <button type="button" onclick="bwcToggle('bwc-fora-lista')" class="w-full p-4 text-left">
+                <p class="text-[10px] font-bold text-orange-400/80 uppercase tracking-widest">Fora do Padrão RGM</p>
+                <p class="text-[10px] text-slate-500">Prefixo abaixo do dominante do período (<span id="bwc-prefixo">—</span>). Não entram na matrícula que conta.</p>
+                <span class="text-xl font-black text-orange-300 font-display" id="bwc-fora">—</span>
+                <div id="bwc-prefixos" class="flex gap-2 flex-wrap mt-2"></div>
+            </button>
+            <div id="bwc-fora-lista" class="hidden border-t border-orange-500/20 max-h-80 overflow-y-auto text-xs"></div>
+        </div>
+    </div>
+
+    <div id="bwc-conflito-panel" class="mb-6">
+        <div class="rounded-2xl border border-amber-500/25 bg-[var(--bg-card)] overflow-hidden border-l-[3px] border-l-amber-500/50">
+            <button type="button" onclick="bwcToggle('bwc-conflito-lista')" class="w-full p-4 text-left">
+                <p class="text-[10px] font-bold text-amber-400/80 uppercase tracking-widest">Vendas em Conflito</p>
+                <p class="text-[10px] text-slate-500">RGM do período com mais de um consultor entre Kommo e Bwipo. Escolha quem fica com a venda.</p>
+                <span class="text-xl font-black text-amber-300 font-display" id="bwc-conflitos">—</span>
+                <span class="text-[11px] text-slate-500" id="bwc-conflitos-sub"></span>
+            </button>
+            <div id="bwc-conflito-lista" class="hidden border-t border-amber-500/20 max-h-96 overflow-y-auto text-xs"></div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div class="glass-card p-4">
+            <span class="text-[10px] uppercase tracking-wider font-bold text-slate-500">Média Diária</span>
+            <p class="text-2xl font-black text-[#00346f] dark:text-white" id="bwc-media">—</p>
+            <p class="text-[10px] text-slate-500 mt-1"><span id="bwc-dias">—</span> dias no período</p>
+        </div>
+        <div class="glass-card p-4">
+            <span class="text-[10px] uppercase tracking-wider font-bold text-slate-500">Ticket Médio (30%)</span>
+            <p class="text-2xl font-black text-[#00346f] dark:text-white" id="bwc-ticket">—</p>
+        </div>
+        <div class="glass-card p-4">
+            <span class="text-[10px] uppercase tracking-wider font-bold text-slate-500">Em aberto</span>
+            <p class="text-2xl font-black text-[#00346f] dark:text-white" id="bwc-aberto-card">—</p>
+            <p class="text-[10px] text-slate-500 mt-1">Carteira atual do funil</p>
+        </div>
+        <div class="glass-card p-4">
+            <span class="text-[10px] uppercase tracking-wider font-bold text-slate-500">Perdidos</span>
+            <p class="text-2xl font-black text-[#00346f] dark:text-white" id="bwc-perdido-card">—</p>
+            <p class="text-[10px] text-slate-500 mt-1">Carteira atual do funil</p>
+        </div>
+    </div>
+
+    <div class="glass-card overflow-hidden mb-6">
+        <div class="px-5 pt-4 pb-2">
+            <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display">Matrículas por Dia</h3>
+            <span id="bwc-dia-hint" class="text-[10px] text-slate-500">Clique num dia para filtrar o ranking</span>
+        </div>
+        <div class="px-5 pb-5">
+            <div class="rounded-xl p-3 bg-slate-100 border border-slate-200 dark:bg-slate-800/20 dark:border-slate-700/20" style="height:300px;">
+                <canvas id="bwc-chart-dia"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div id="bwc-cross" class="hidden mb-4 text-xs px-3 py-2 rounded-lg border border-blue-500/30 bg-blue-500/10"></div>
+
+    <div class="glass-card overflow-hidden mb-6">
+        <div class="px-5 py-3 border-b border-slate-200 dark:border-slate-700/20 flex items-center justify-between gap-3">
+            <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display">Ranking de Agentes Comerciais</h3>
+            <div class="flex items-center gap-2">
+                <input id="bwc-rgm" type="text" inputmode="numeric" maxlength="12" placeholder="Consultar RGM" class="input-glass px-2 py-1 text-xs w-32" onkeydown="if(event.key==='Enter')bwcConsultarRgm()">
+                <button type="button" onclick="bwcConsultarRgm()" class="text-xs px-2 py-1 rounded-lg border border-blue-500/30 text-blue-500">Buscar</button>
+                <button type="button" onclick="bwcMiniSync()" title="Atualiza um lead do Kommo ou um negócio do Bwipo e, se estiver em Ganho, fixa a venda no responsável" class="text-xs px-2 py-1 rounded-lg border border-emerald-500/30 text-emerald-500">Mini-sync</button>
+                <span id="bwc-agentes-count" class="text-[10px] text-slate-500"></span>
+            </div>
+        </div>
+        <div class="overflow-x-auto max-h-[500px] overflow-y-auto">
+            <table class="w-full text-sm">
+                <thead class="sticky top-0 z-10">
+                    <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-700/20 bg-slate-50/95 dark:bg-slate-900/95">
+                        <th class="text-center px-3 py-3 w-10">#</th>
+                        <th class="text-left px-4 py-3">Agente</th>
+                        <th class="text-right px-4 py-3">Matr.</th>
+                        <th class="text-right px-4 py-3">Interm.</th>
+                        <th class="text-right px-4 py-3">Meta</th>
+                        <th class="text-right px-4 py-3">Super</th>
+                        <th class="text-right px-4 py-3">Nível</th>
+                        <th class="text-right px-4 py-3" title="Carteira atual, não filtrada pela data">Aberto</th>
+                        <th class="text-right px-4 py-3">Perdidos</th>
+                        <th class="text-right px-4 py-3">Evasão</th>
+                        <th class="text-right px-4 py-3">Conv.</th>
+                    </tr>
+                </thead>
+                <tbody id="bwc-ranking" class="divide-y divide-slate-200 dark:divide-slate-700/10"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <div class="glass-card overflow-hidden">
+            <div class="px-5 pt-4 pb-2">
+                <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display">Matrículas por Agente</h3>
+            </div>
+            <div class="px-5 pb-5">
+                <div class="rounded-xl p-3 bg-slate-100 border border-slate-200 dark:bg-slate-800/20" style="height:360px;">
+                    <canvas id="bwc-chart-agentes"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="glass-card overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-200 dark:border-slate-700/20">
+                <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display">Matrículas por Polo</h3>
+            </div>
+            <div class="overflow-x-auto max-h-[400px] overflow-y-auto">
+                <table class="w-full text-sm">
+                    <thead class="sticky top-0 z-10">
+                        <tr class="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-700/20 bg-slate-50/95 dark:bg-slate-900/95">
+                            <th class="text-center px-3 py-3 w-10">#</th>
+                            <th class="text-left px-4 py-3">Polo</th>
+                            <th class="text-right px-4 py-3">Total</th>
+                            <th class="text-left px-4 py-3 w-40">Proporção</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bwc-polos"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>

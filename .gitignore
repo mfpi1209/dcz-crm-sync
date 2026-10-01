@@ -1,5 +1,6 @@
 .env
 data/funnel_live_cache.json
+data/bwipo_kommo_depara.csv
 __pycache__/
 *.pyc
 *.xlsx

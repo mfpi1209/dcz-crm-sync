@@ -16,12 +16,12 @@
             {% set _show_acad = nav_can('ativacoes') or nav_can('distribuicao') or nav_can('intelligence') or nav_can('inadimplencia') or nav_can('feedback') or nav_can('macro_email') or nav_can('meus_atendimentos') or nav_can('rematricula') or nav_can('disparador_whatsapp') or nav_can('academico_interacoes') or nav_is_admin %}
             {% set _show_ferramentas = nav_can('comparar_cursos') or nav_can('recomendacao_cursos') or nav_can('localizacao_polos') or nav_can('info_cursos') or nav_can('leads_inscricao') or nav_can('cadastro_leads') or nav_can('subir_blog') %}
             {% set _show_minha_perf_in_comercial = (not nav_is_comercial) and nav_can('minha_performance') %}
-            {% set _show_comercial = nav_can('dist_consultor') or nav_can('comercial_rgm') or nav_can('dist_comercial') or nav_can('inscricao') or nav_can('recadastros') or nav_can('comercial_dashboard') or nav_can('auditoria_comercial') or nav_can('atualizar_preco') or nav_can('leads_parados') or _show_minha_perf_in_comercial or nav_can('repasse') or nav_can('captacao') or nav_can('clicks') or nav_can('leads_promotores') or nav_can('premiacao_admin') %}
+            {% set _show_comercial = nav_can('dist_consultor') or nav_can('comercial_rgm') or nav_can('bwipo_comercial') or nav_can('dist_comercial') or nav_can('inscricao') or nav_can('recadastros') or nav_can('comercial_dashboard') or nav_can('auditoria_comercial') or nav_can('atualizar_preco') or nav_can('leads_parados') or _show_minha_perf_in_comercial or nav_can('repasse') or nav_can('captacao') or nav_can('clicks') or nav_can('leads_promotores') or nav_can('premiacao_admin') %}
             {% set _show_voc = nav_can('vocacional') %}
             {% set _show_meta = nav_can('meta-campaigns') %}
             {% set _show_ti = nav_is_admin and (nav_can('ia_comercial') or nav_can('page_views') or nav_can('match_inadimplentes') or nav_can('materias_alunos') or nav_can('tracker_tarefas')) %}
             {% set _show_chamados = nav_can('solicitacoes_ti') or nav_can('meus_chamados_ti') or nav_can('chamados_ti') %}
-            {% set _show_sistema = nav_can('pipeline') or nav_can('update') or nav_can('ajustes_matricula') or nav_can('kommo_sync') or nav_can('match_merge') or nav_can('config') or nav_can('schedule') or nav_can('kommo_dispatcher') or nav_can('logs') %}
+            {% set _show_sistema = nav_can('pipeline') or nav_can('update') or nav_can('ajustes_matricula') or nav_can('kommo_sync') or nav_can('bwipo_sync') or nav_can('match_merge') or nav_can('config') or nav_can('schedule') or nav_can('kommo_dispatcher') or nav_can('logs') %}
             <div class="space-y-1">
                 {% if (nav_is_comercial or nav_is_suporte_comercial) and nav_can('minha_performance') %}
                 <a href="#minha_performance" onclick="navigate('minha_performance')" class="sidebar-link active" data-page="minha_performance">
@@ -224,6 +224,12 @@
                     <a href="#comercial_rgm" onclick="navigate('comercial_rgm')" class="sidebar-link sidebar-sub" data-page="comercial_rgm">
                         <span class="material-symbols-outlined text-base">storefront</span>
                         Dashboard Comercial
+                    </a>
+                    {% endif %}
+                    {% if nav_can('bwipo_comercial') %}
+                    <a href="#bwipo_comercial" onclick="navigate('bwipo_comercial')" class="sidebar-link sidebar-sub" data-page="bwipo_comercial">
+                        <span class="material-symbols-outlined text-base">monitoring</span>
+                        Dashboard Comercial Bwipo
                     </a>
                     {% endif %}
                     {% if nav_can('premiacao_admin') %}
@@ -487,7 +493,7 @@
                     <span class="material-symbols-outlined text-sm sidebar-group-chevron">expand_more</span>
                 </button>
                 <div class="sidebar-group-items">
-                    {% set _show_crm = nav_can('pipeline') or nav_can('update') or nav_can('ajustes_matricula') or nav_can('kommo_sync') or nav_can('match_merge') %}
+                    {% set _show_crm = nav_can('pipeline') or nav_can('update') or nav_can('ajustes_matricula') or nav_can('kommo_sync') or nav_can('bwipo_sync') or nav_can('match_merge') %}
                     {% set _show_geral = nav_can('config') or nav_can('schedule') or nav_can('kommo_dispatcher') or nav_can('logs') %}
                     {% if _show_crm %}
                     <p class="px-3 pt-3 pb-1 text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">CRM</p>
@@ -514,6 +520,12 @@
                     <a href="#kommo_sync" onclick="navigate('kommo_sync')" class="sidebar-link sidebar-sub" data-page="kommo_sync">
                         <span class="material-symbols-outlined text-base">cloud_sync</span>
                         Sync/Delta CRM Comercial
+                    </a>
+                    {% endif %}
+                    {% if nav_can('bwipo_sync') %}
+                    <a href="#bwipo_sync" onclick="navigate('bwipo_sync')" class="sidebar-link sidebar-sub" data-page="bwipo_sync">
+                        <span class="material-symbols-outlined text-base">sync_alt</span>
+                        Sync Bwipo
                     </a>
                     {% endif %}
                     {% if nav_can('match_merge') %}

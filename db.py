@@ -1575,6 +1575,222 @@ def _ensure_chamados_ti_page():
         logger.warning("Could not ensure chamados permissions: %s", e)
 
 
+def _ensure_bwipo_sync_tables():
+    """Espelho do CRM comercial Bwipo + depara Kommo → Bwipo."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS bwipo_sync_metadata (
+                    entity_type       TEXT PRIMARY KEY,
+                    last_sync_at      TIMESTAMPTZ,
+                    last_full_sync_at TIMESTAMPTZ,
+                    records_synced    INTEGER NOT NULL DEFAULT 0,
+                    status            TEXT NOT NULL DEFAULT 'pending',
+                    error_message     TEXT
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS bwipo_pipelines (
+                    id              TEXT PRIMARY KEY,
+                    name            TEXT,
+                    slug            TEXT,
+                    number          INTEGER,
+                    is_default      BOOLEAN NOT NULL DEFAULT FALSE,
+                    organization_id TEXT,
+                    raw_json        JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    synced_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS bwipo_stages (
+                    id           TEXT PRIMARY KEY,
+                    pipeline_id  TEXT REFERENCES bwipo_pipelines(id) ON DELETE CASCADE,
+                    name         TEXT,
+                    slug         TEXT,
+                    number       INTEGER,
+                    position     INTEGER,
+                    color        TEXT,
+                    is_won       BOOLEAN NOT NULL DEFAULT FALSE,
+                    is_lost      BOOLEAN NOT NULL DEFAULT FALSE,
+                    is_incoming  BOOLEAN NOT NULL DEFAULT FALSE,
+                    deal_count   INTEGER,
+                    raw_json     JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    synced_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS bwipo_users (
+                    id        TEXT PRIMARY KEY,
+                    name      TEXT,
+                    email     TEXT,
+                    raw_json  JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS bwipo_contacts (
+                    id              TEXT PRIMARY KEY,
+                    number          INTEGER,
+                    name            TEXT,
+                    email           TEXT,
+                    phone           TEXT,
+                    phone_norm      TEXT,
+                    email_norm      TEXT,
+                    source          TEXT,
+                    assigned_to_id  TEXT,
+                    assigned_to_name TEXT,
+                    cpf_norm        TEXT,
+                    rgm_norm        TEXT,
+                    custom_fields   JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    is_deleted      BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at      TIMESTAMPTZ,
+                    updated_at      TIMESTAMPTZ,
+                    raw_json        JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    synced_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS bwipo_deals (
+                    id              TEXT PRIMARY KEY,
+                    number          INTEGER,
+                    title           TEXT,
+                    value           NUMERIC,
+                    status          TEXT,
+                    deal_role       TEXT,
+                    contact_id      TEXT,
+                    stage_id        TEXT,
+                    stage_name      TEXT,
+                    stage_slug      TEXT,
+                    pipeline_id     TEXT,
+                    pipeline_name   TEXT,
+                    owner_id        TEXT,
+                    owner_name      TEXT,
+                    lost_reason     TEXT,
+                    phone_norm      TEXT,
+                    email_norm      TEXT,
+                    rgm_norm        TEXT,
+                    cpf_norm        TEXT,
+                    data_matricula  TEXT,
+                    situacao        TEXT,
+                    curso           TEXT,
+                    polo            TEXT,
+                    origem          TEXT,
+                    custom_fields   JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    is_deleted      BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at      TIMESTAMPTZ,
+                    updated_at      TIMESTAMPTZ,
+                    closed_at       TIMESTAMPTZ,
+                    raw_json        JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    synced_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS bwipo_kommo_depara (
+                    kommo_lead_id    BIGINT PRIMARY KEY,
+                    bwipo_deal_id    TEXT,
+                    bwipo_contact_id TEXT,
+                    match_type       TEXT NOT NULL,
+                    match_key        TEXT,
+                    kommo_name       TEXT,
+                    bwipo_name       TEXT,
+                    kommo_rgm        TEXT,
+                    bwipo_rgm        TEXT,
+                    confidence       TEXT NOT NULL DEFAULT 'exact',
+                    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_bwipo_contacts_phone ON bwipo_contacts (phone_norm) WHERE phone_norm IS NOT NULL AND NOT is_deleted")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_bwipo_contacts_email ON bwipo_contacts (email_norm) WHERE email_norm IS NOT NULL AND NOT is_deleted")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_bwipo_contacts_cpf ON bwipo_contacts (cpf_norm) WHERE cpf_norm IS NOT NULL AND NOT is_deleted")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_bwipo_contacts_rgm ON bwipo_contacts (rgm_norm) WHERE rgm_norm IS NOT NULL AND NOT is_deleted")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_bwipo_contacts_name ON bwipo_contacts (lower(name))")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_bwipo_deals_stage ON bwipo_deals (stage_id) WHERE NOT is_deleted")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_bwipo_deals_owner ON bwipo_deals (owner_id) WHERE owner_id IS NOT NULL AND NOT is_deleted")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_bwipo_deals_rgm ON bwipo_deals (rgm_norm) WHERE rgm_norm IS NOT NULL AND NOT is_deleted")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_bwipo_deals_phone ON bwipo_deals (phone_norm) WHERE phone_norm IS NOT NULL AND NOT is_deleted")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_bwipo_deals_cpf ON bwipo_deals (cpf_norm) WHERE cpf_norm IS NOT NULL AND NOT is_deleted")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_bwipo_deals_updated ON bwipo_deals (updated_at)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_bwipo_depara_deal ON bwipo_kommo_depara (bwipo_deal_id)")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS bwipo_kommo_user_depara (
+                    bwipo_user_id  TEXT PRIMARY KEY REFERENCES bwipo_users(id) ON DELETE CASCADE,
+                    kommo_user_id  BIGINT NOT NULL,
+                    match_type     TEXT NOT NULL,
+                    email          TEXT,
+                    bwipo_name     TEXT,
+                    kommo_name     TEXT,
+                    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_bwipo_user_depara_kommo ON bwipo_kommo_user_depara (kommo_user_id)")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS bwipo_consultor_tombamento (
+                    kommo_user_id  BIGINT PRIMARY KEY,
+                    desde          DATE NOT NULL,
+                    updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_by     TEXT
+                )
+            """)
+            cur.execute("""
+                CREATE OR REPLACE VIEW vw_bwipo_deals_rgm AS
+                SELECT id AS deal_id, number, title, rgm_norm AS rgm, owner_id, owner_name,
+                       stage_id, stage_name, pipeline_id, status, closed_at, created_at
+                FROM bwipo_deals
+                WHERE rgm_norm IS NOT NULL
+                  AND length(rgm_norm) = 8
+                  AND NOT is_deleted
+            """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure bwipo_sync tables: %s", e)
+
+
+def _ensure_bwipo_comercial_page():
+    """Quem vê o Dashboard Comercial ou o Sync Bwipo vê a página de observação."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO user_permissions (user_id, page)
+                SELECT p.user_id, 'bwipo_comercial'
+                FROM user_permissions p
+                WHERE p.page IN ('comercial_rgm', 'bwipo_sync')
+                  AND NOT EXISTS (
+                      SELECT 1 FROM user_permissions x
+                      WHERE x.user_id = p.user_id AND x.page = 'bwipo_comercial'
+                  )
+            """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure bwipo_comercial page grants: %s", e)
+
+
+def _ensure_bwipo_sync_page():
+    """Libera bwipo_sync para quem já tem kommo_sync (mesma turma do Sync Comercial)."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO user_permissions (user_id, page)
+                SELECT p.user_id, 'bwipo_sync'
+                FROM user_permissions p
+                WHERE p.page = 'kommo_sync'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM user_permissions x
+                      WHERE x.user_id = p.user_id AND x.page = 'bwipo_sync'
+                  )
+            """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure bwipo_sync page grants: %s", e)
+
+
 def _ensure_materias_alunos_tables():
     """Cria as tabelas materias_alunos e materias_alunos_consultas."""
     try:
