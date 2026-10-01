@@ -397,6 +397,8 @@ async function deleteSchedule(id) {
 const PAGE_LABELS = {
     dashboard: 'Dashboard', search: 'Buscar', sync: 'Sync/Delta CRM Acadêmico',
     kommo_sync: 'Sync/Delta CRM Comercial',
+    bwipo_sync: 'Sync Bwipo',
+    bwipo_comercial: 'Dashboard Comercial Bwipo',
     update: 'Upload Acadêmico', pipeline: 'Atualização CRM Acadêmico',
     match_merge: 'Upload Comercial', comercial_rgm: 'Comercial RGM',
     logs: 'Logs / Relatórios', distribuicao: 'Distribuição',
@@ -578,7 +580,7 @@ const PAGE_GROUPS_CONFIG = [
         icon: 'trending_up',
         color: 'var(--secondary)',
         pages: [
-            'dist_consultor', 'comercial_rgm', 'premiacao_admin', 'dist_comercial', 'inscricao',
+            'dist_consultor', 'comercial_rgm', 'bwipo_comercial', 'premiacao_admin', 'dist_comercial', 'inscricao',
             'recadastros', 'comercial_dashboard', 'auditoria_comercial',
             'atualizar_preco', 'leads_parados', 'minha_performance', 'repasse',
             'captacao', 'clicks', 'leads_promotores',
@@ -645,7 +647,7 @@ const PAGE_GROUPS_CONFIG = [
         section: 'Sistema',
         icon: 'sync_alt',
         color: 'var(--outline)',
-        pages: ['pipeline', 'update', 'kommo_sync', 'match_merge'],
+        pages: ['pipeline', 'update', 'kommo_sync', 'bwipo_sync', 'match_merge'],
     },
 ];
 let _allPages = [];

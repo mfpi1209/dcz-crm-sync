@@ -18,6 +18,60 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 - **Cache:** `_CRGM_DATA_CACHE_VER` 7→8.
 - **Não muda:** card de evasão; Minha Performance e Repasse; painel Bwipo (já contava só em curso).
 
+### 2026-09-18 — Sync comercial Bwipo (org Comercial Cruzeiro) + depara Kommo
+- **Modelo usado:** Cursor Grok 4.6.
+- **Pedido:** sair do Kommo para o Bwipo; começar pelo Sync (espelho para o Dashboard Comercial / Minha Performance) pegando os mesmos campos de hoje (ID, nome, RGM, data de matrícula, etc.) e um depara Kommo→Bwipo para histórico. Leads antigos ainda não foram migrados — o CRM comercial está sendo montado.
+- **Conta certa:** org **Comercial Cruzeiro** em `https://comercialcruzeiro.bwipo.com`, API `https://integrations.bwipo.com`. Token `BWIPO_COMERCIAL_API_TOKEN`. **Não** usar o token/host do CRM acadêmico (`cruzeiro-ead.bwipo.com` / Disparador / `EDUIT_CRM_*`).
+- **Pipeline Principal** (espelho do funil Kommo): Lead de Entrada → … → Aceite → Ganho (`isWon`) / Perdido (`isLost`). Pipeline **Ativações** não entra no crédito comercial.
+- **Espelho no `dcz_sync`:** `bwipo_pipelines`, `bwipo_stages`, `bwipo_users`, `bwipo_contacts`, `bwipo_deals`, `bwipo_sync_metadata`, `bwipo_kommo_depara`, view `vw_bwipo_deals_rgm`. Kommo (`kommo_sync` + tela Sync Comercial) **fica ligado**.
+- **Campos achatados** a partir de `dealPanelFields` (slugs da org: `rgm`, `cpf`, `data_de_matricula`, `curso_de_inscricao`, `polo`, `situacao`, `e_mail`…). Sync grava o que tiver valor. Lead de teste Rapha (#4997) confirmou o painel; valores custom ainda vinham vazios — owner/etapa já vêm no deal.
+- **Depara leads:** RGM > CPF > telefone > e-mail contra `kommo_sync`; manual não é sobrescrito. **Depara consultor:** `bwipo_kommo_user_depara` por e-mail (Claudia `cmu3129do0005uap8fm9vpjoj` ↔ Kommo `8240438` via `claudia.beatriz@cruzeiroead.com.br`).
+- **Permissão:** página `bwipo_sync`; boot copia grant de quem já tem `kommo_sync`.
+- **Sync:** Incremental e Full **só no botão**. Incremental usa `updatedSince` na API de deals (folga 5 min, teto `BWIPO_DELTA_LOOKBACK_DAYS=7`); contatos do delta vêm do embed do deal (`/api/contacts?updatedSince` não filtra). Full continua paginando tudo e tombstonando o que sumiu. Sem cron de sync. **Responsável dos leads novos** (23/09): job `bwipo_owner_recente` a cada 5 min pega negócios do Pipeline Principal criados na última 1h30 ainda sem `ownerId` e grava o id Bwipo do mesmo consultor do contato no Kommo (`services/bwipo_owner.py`, mapa dos 16 usuários). Não cria o lead — a entrada continua na integração de fora. Consultor sem id na tabela (ex.: Diego) fica sem responsável.
+- **Não muda nesta leva (confirmado 2026-09-21, de novo 2026-09-22):** crédito (Dashboard Comercial / Minha Performance) **fica no Kommo** até a migração da semana de 28/09. Não ligar o ranking no Ganho do Bwipo antes disso. O desenho da leitura, fechado em 23/09, está na entrada abaixo. Match/Merge outra pessoa, não mexer. Dist. Comercial só depois do sync/espelho/depara estarem redondos. Commit desta leva é **aditivo** (página + tabelas `bwipo_*`); Sync Comercial Kommo, ranking e Match **não são trocados**.
+
+### 2026-09-23 — Painel: histórico no banco, migrados com depara, atualização pelo Bwipo
+- **Modelo usado:** Cursor Grok 4.7.
+- **Pedido:** subiu ~60 mil leads do funil comercial para o Bwipo. Não vamos espelhar a base inteira do Kommo (~500 mil). O histórico que o painel já tem fica no banco (`kommo_sync`). Quem migrou entra no depara. O painel segue com esse histórico e passa a atualizar pelo Bwipo.
+- **Leitura:** histórico = banco local. Lead migrado = linha em `bwipo_kommo_depara` (RGM > CPF > telefone > e-mail; manual não é sobrescrito). Atualização de etapa, responsável e ganho desses casados vem do Bwipo. Quem não migrou permanece só no histórico, sem negócio novo no Bwipo.
+- **Estado medido em 23/09:** depara **1.690**; espelho `bwipo_deals` **7.161**. Os ~60 mil importados ainda não estão no espelho, então o depara deles só fecha depois de um sync do Bwipo para o banco. Não é outro import para o CRM.
+- **Não fazer:** subir Backup, Licenciado ou o restante dos perdidos antigos para o Pipeline Principal.
+
+### 2026-09-24 — Página Dashboard Comercial Bwipo (painel de vendas, só observação)
+- **Modelo usado:** Cursor Grok 4.7.
+- **Pedido:** página para observar o CRM, no visual do Dashboard Comercial do Kommo. Sem funil/sync/depara na tela — o que aparece é venda por pessoa.
+- **Página** `bwipo_comercial`, grupo Comercial, para quem já tem Dashboard Comercial ou Sync Bwipo. **Não** alimenta ranking, Minha Performance nem Repasse. O crédito continua no Kommo até a semana de 28/09.
+- **Número do hero = o mesmo recorte do Dashboard Comercial** (`_crgm_periodo_data_oficial` + fora do padrão de prefixo). 14–30/09: **847** matrículas, **791** em curso, **49** evasão, **7** fora do padrão. Não é a contagem de cards em Ganho no Bwipo (essa dava 536 e deixava gente de fora).
+- **Consultor:** dono do negócio no espelho Bwipo, casado pelo RGM. Sem dono no card, ou RGM sem negócio no Bwipo, a venda conta em **Admin Sistema** — a mesma regra do painel quando não há responsável. Enquanto o espelho estiver sem os PUTs de responsável, o ranking inteiro cai em Admin Sistema; o sync incremental separa quem já tem dono.
+- **Filtro De/Até** é a data de matrícula do relatório SIAA (o mesmo De/Até do Comercial), não o `created_at` do import.
+- **Funções de leitura alinhadas ao Comercial (25/09):** ranking com meta da campanha (depara do consultor), clique no agente lista as matrículas, clique no dia filtra o ranking, evasão e fora do padrão abrem a lista, consultar RGM, ticket = média do valor do negócio × 30%. Em aberto e perdidos são a carteira atual do Pipeline Principal, não o recorte da data. Interação de WhatsApp, horas e inscritos do Match continuam só no painel Kommo — o Bwipo não tem essa fonte. Crédito (Minha Performance, Repasse, conflito, sync Kommo) não muda.
+
+### 2026-09-25 — Dashboard Comercial Bwipo vira o novo Dashboard Comercial; herda o histórico do Kommo por consultor
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** a página `bwipo_comercial` substitui o Dashboard Comercial do Kommo, que será excluído. O histórico que não foi migrado continua valendo e continua com o consultor (vendas do Hugo no Kommo seguem do Hugo). Todas as funções do painel antigo (mini-sync, contar venda, conflito etc.) precisam existir no novo.
+- **Identidade do consultor = `kommo_user_id`** (já usado em login, metas, campanha, PIX, conflito). Bwipo → Kommo por `bwipo_kommo_user_depara`. Dono do Bwipo sem depara aparece pelo nome do Bwipo.
+- **Tombamento é por consultor, não por data.** Tabela `bwipo_consultor_tombamento (kommo_user_id, desde)`. Primeiro só o Hugo (`12158628`) em 29/09, como teste; os demais entram se der certo. **Não usar 28/09 como data de corte.**
+- **Dono da venda (`_atribuir_rgms` em `routes/bwipo_sync.py`):** manual (`comercial_rgm_conflito_resolucao`: conflito, ajuste aprovado, mini-sync) > dono no Bwipo se o consultor está tombado e a matrícula é ≥ data dele > responsável no Kommo (mesma regra do painel antigo, 142 primeiro) > dono no Bwipo > Admin Sistema. Consultor excluído é reatribuído e oculto sai do ranking (`comercial_consultor_ajuste`). Substitui a regra de 24/09 "sem dono no Bwipo → Admin Sistema".
+- **Medido 14–30/09:** Admin Sistema 286 → 48; 892 vendas pelo Kommo, 29 manuais, 1 pelo Bwipo, 12 sem dono. Por consultor bate com o ranking antigo com 1–3 a menos (o antigo ainda recupera RGM que sumiu do último relatório).
+- **Depara de leads:** `_rebuild_depara` não segura mais a conexão do `dcz_sync` em transação durante as consultas ao Kommo (era o que derrubava a conexão); grava tudo em lote no final. Rodado em 25/09: 49.342 leads Kommo ↔ 44.448 negócios Bwipo.
+- **Etapa 2 (feita 25/09), mesmas tabelas do painel antigo — decisão numa tela vale na outra:**
+  - **Vendas em Conflito** (`POST /api/bwipo/painel/conflitos`, body com os RGMs do recorte): conflito = mais de um consultor **em Ganho** entre leads Kommo e negócios Bwipo; Admin Sistema não disputa. 14–30/09: 25 conflitos, 9 sem decisão. Fixar/desfazer em `/api/bwipo/painel/conflitos/resolver` grava em `comercial_rgm_conflito_resolucao` (`resolved_by='conflito_bwipo'`).
+  - **Mini-sync** (`POST /api/bwipo/painel/mini-sync`): `{lead_id}` delega ao mini-sync Kommo existente; `{deal_id|number}` atualiza o negócio no espelho e, se estiver em Ganho com RGM e dono com depara, fixa a venda (`mini_sync_bwipo`). Responsável sem depara não fixa.
+  - **Contar venda** (admin, `/api/bwipo/painel/contar-venda`) → `comercial_rgm_outlier_contagem`.
+  - **Consultar RGM** (`GET /api/bwipo/painel/rgm`) mostra dono, regra usada, decisão manual e todos os leads/negócios com o RGM, com botões de fixar e mini-sync.
+  - Cuidado: o card de teste Rapha #4997 está em Ganho com RGM 47277581; mini-sync nele fixa venda (fixação de teste já removida).
+- **Etapa 3 (feita 25/09):** barra no topo da página.
+  - **Reaproveitado** (só depende do `kommo_user_id`): renomear/ocultar/excluir (`/api/comercial-rgm/consultores`), metas avulsas (`/api/comercial-rgm/metas`), sync de usuários Kommo.
+  - **Editar consultores** (`GET /api/bwipo/painel/consultores`, admin): cada consultor Kommo com o usuário Bwipo ligado, data "No Bwipo desde" (`POST /api/bwipo/painel/tombamento`) e ligação manual Bwipo→Kommo (`POST /api/bwipo/painel/user-depara`, `match_type='manual'`, não é sobrescrita pelo sync). Em 25/09 só Caio Vinicius (1 negócio) sem depara.
+  - **Sync agentes** (`POST /api/bwipo/painel/sync-agentes`, admin): usuários Kommo + depara de consultores.
+  - **Duplicatas** (`POST /api/bwipo/painel/duplicatas`): RGM do recorte com mais de um negócio ativo no Bwipo. 14–30/09: 307 — o import trouxe a mesma pessoa em vários cards, muitos em Ganho.
+  - **Sem data** (`POST /api/bwipo/painel/sem-data`): negócio sem data de matrícula (0 em 25/09) e matrícula SIAA sem negócio no Bwipo (209).
+  - **Detalhe do agente:** CSV das matrículas + carteira no Bwipo por etapa (`GET /api/bwipo/painel/agente-carteira`).
+  - **Metas:** mostra campanha ativa, meta aplicada no ranking e metas avulsas (editar/excluir/adicionar). Campanha continua sendo editada em Premiação.
+  - **Diagnóstico** (`GET /api/bwipo/painel/diagnostico`): espelho, depara por tipo, donos sem depara, decisões manuais, últimos syncs e de onde veio o dono das vendas do recorte.
+- **Ordem combinada:** 1) dono da venda e ranking (feito); 2) conflito, mini-sync e contar venda (feito); 3) o resto (feito) (duplicatas, sem data, editar consultores, metas, sync agentes, diagnóstico). Ciclos/turmas/upload/congelar continuam onde estão (são do SIAA).
+- **Até o tombamento de cada um:** Minha Performance e Repasse seguem no Kommo.
+
 ### 2026-09-15 — Kanban da fila: visual da referência (colunas pastel + card claro)
 - **Modelo usado:** Cursor Grok 4.6.
 - **Pedido:** "deixe a fila do Kanban mais parecida tbm" (screenshot da fila escura vs quadro do app React do briefing).

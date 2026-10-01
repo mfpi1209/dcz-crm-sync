@@ -261,6 +261,7 @@ from routes.engagement import engagement_bp, register_engagement_job
 from routes.config import config_bp, init_scheduler, _load_schedules_from_db, register_delta_interval, register_aceite_reconcile, register_responsible_history_job
 from routes.logs import logs_bp
 from routes.kommo_sync import kommo_bp, register_funnel_cache_job
+from routes.bwipo_sync import bwipo_bp, register_bwipo_sync_job
 from routes.match_merge import match_merge_bp
 from routes.comercial_rgm import comercial_rgm_bp
 from routes.ativacoes import ativacoes_bp
@@ -298,6 +299,7 @@ app.register_blueprint(engagement_bp)
 app.register_blueprint(config_bp)
 app.register_blueprint(logs_bp)
 app.register_blueprint(kommo_bp)
+app.register_blueprint(bwipo_bp)
 app.register_blueprint(match_merge_bp)
 app.register_blueprint(comercial_rgm_bp)
 app.register_blueprint(ativacoes_bp)
@@ -372,6 +374,9 @@ from db import (
     _ensure_pix_faixa_tables,
     _ensure_suporte_tables,
     _ensure_dist_comercial_schedule_tables,
+    _ensure_bwipo_sync_tables,
+    _ensure_bwipo_sync_page,
+    _ensure_bwipo_comercial_page,
 )
 
 _ensure_schedules_table()
@@ -398,6 +403,9 @@ _ensure_pix_nivel_tables()
 _ensure_pix_faixa_tables()
 _ensure_suporte_tables()
 _ensure_dist_comercial_schedule_tables()
+_ensure_bwipo_sync_tables()
+_ensure_bwipo_sync_page()
+_ensure_bwipo_comercial_page()
 
 try:
     from routes.academico_interacoes import _ensure_claim_table
@@ -419,6 +427,7 @@ register_delta_interval(scheduler)
 register_aceite_reconcile(scheduler)
 register_responsible_history_job(scheduler)
 register_funnel_cache_job(scheduler)
+register_bwipo_sync_job(scheduler)
 register_dist_comercial_schedule_job(scheduler)
 from routes.conversao_backfill import register_conversao_backfill_job
 register_conversao_backfill_job(scheduler)

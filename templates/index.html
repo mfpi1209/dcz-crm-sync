@@ -39,6 +39,8 @@
             {% include 'partials/_intelligence.html' %}
             {% include 'partials/_inadimplencia.html' %}
             {% include 'partials/_kommo_sync.html' %}
+            {% include 'partials/_bwipo_sync.html' %}
+            {% include 'partials/_bwipo_comercial.html' %}
             {% include 'partials/_match_merge.html' %}
             {% include 'partials/_comercial_rgm.html' %}
             {% include 'partials/_dist_comercial.html' %}
@@ -357,6 +359,8 @@
 {% set _v = range(100000) | random %}
 <script defer src="{{ url_for('static', filename='js/utils.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/kommo_sync.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/bwipo_sync.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/bwipo_comercial.js') }}?v={{_v}}-vendas4"></script>
 <script defer src="{{ url_for('static', filename='js/dashboard.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/dashboard_supervisor.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/dashboard_supervisor_academico.js') }}?v={{_v}}"></script>
