@@ -615,7 +615,7 @@ _funnel_cache_lock = threading.Lock()
 _funnel_warming = False
 _funnel_meta = {"last_error": None, "last_warm_at": None, "last_warm_ok": None}
 _FUNNEL_CACHE_TTL = 300
-_FUNNEL_API_VERSION = 6
+_FUNNEL_API_VERSION = 8
 _FUNNEL_CACHE_FILE = Path(__file__).resolve().parent.parent / "data" / "funnel_live_cache.json"
 # Easypanel/nginx costuma cortar em ~60s; live Kommo pode levar 40s+.
 _FUNNEL_LIVE_TIMEOUT_S = int(os.getenv("FUNNEL_LIVE_TIMEOUT_S", "25"))
@@ -879,22 +879,24 @@ def _get_new_leads_today_payload(force=False):
             "cached": True,
         }
 
-    source = "kommo"
+    source = "bwipo"
+    today = datetime.now(_BRT).date()
+    start = datetime(today.year, today.month, today.day, tzinfo=_BRT)
+    end = start + timedelta(days=1)
     try:
-        if not _kommo_token():
-            source = "db"
-            count = _count_leads_day_pg(datetime.now(_BRT).date(), pipeline_id=FUNNEL_PIPELINE)
-        else:
-            count = _count_new_leads_today_best()
-            if count <= 0:
-                pg_n = _count_leads_day_pg(datetime.now(_BRT).date(), pipeline_id=FUNNEL_PIPELINE)
-                if pg_n > count:
-                    count = pg_n
-                    source = "db"
+        from services.bwipo_comercial import count_created_between, configured
+        if not configured():
+            raise RuntimeError("BWIPO_COMERCIAL_API_TOKEN ausente")
+        count = count_created_between(start, end)
     except Exception as e:
-        logger.warning("new_leads_today payload: %s", e)
+        logger.warning("new_leads_today bwipo: %s", e)
         source = "db"
-        count = _count_leads_day_pg(datetime.now(_BRT).date(), pipeline_id=FUNNEL_PIPELINE)
+        try:
+            from services.bwipo_comercial import count_created_mirror
+            count = count_created_mirror(start, end)
+        except Exception as e2:
+            logger.warning("new_leads_today mirror: %s", e2)
+            count = 0
 
     _new_today_cache["count"] = count
     _new_today_cache["source"] = source
@@ -962,32 +964,34 @@ def _count_leads_day_kommo(d: date, pipeline_id: int | None = FUNNEL_PIPELINE) -
 
 def _build_yesterday_summary():
     """
-    Vendas (EM CURSO) de ontem via comercial_rgm — mesma fonte do gráfico do Dash Comercial.
-    Leads criados ontem vs anteontem (API Kommo) para tendência de captação.
+    Ganho de ontem = negócios WON com closedAt no dia (API Bwipo).
+    Leads de ontem e anteontem = criados no Pipeline Principal (espelho; a API não filtra createdAt).
     """
-    from concurrent.futures import ThreadPoolExecutor
+    from services.bwipo_comercial import count_created_mirror, count_won_closed_between
 
     today = datetime.now(_BRT).date()
     yesterday = today - timedelta(days=1)
     day_before = today - timedelta(days=2)
     y_str = yesterday.isoformat()
 
-    vendas = _vendas_comercial_dia(yesterday)
-    if vendas <= 0:
-        vendas = _ganhos_kommo_dia(yesterday)
+    def _bounds(d: date):
+        start = datetime(d.year, d.month, d.day, tzinfo=_BRT)
+        return start, start + timedelta(days=1)
 
-    y_from, y_to = _day_bounds_brt(yesterday)
-    p_from, p_to = _day_bounds_brt(day_before)
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        fut_y = pool.submit(_count_new_leads_between, y_from, y_to, FUNNEL_PIPELINE)
-        fut_p = pool.submit(_count_new_leads_between, p_from, p_to, FUNNEL_PIPELINE)
-        leads = fut_y.result()
-        leads_prev = fut_p.result()
-
-    if leads <= 0:
-        leads = _count_leads_day_kommo(yesterday)
-    if leads_prev <= 0:
-        leads_prev = _count_leads_day_kommo(day_before)
+    y0, y1 = _bounds(yesterday)
+    p0, p1 = _bounds(day_before)
+    try:
+        vendas = count_won_closed_between(y0, y1)
+    except Exception as e:
+        logger.warning("ganho ontem bwipo: %s", e)
+        vendas = 0
+    try:
+        leads = count_created_mirror(y0, y1)
+        leads_prev = count_created_mirror(p0, p1)
+    except Exception as e:
+        logger.warning("leads ontem bwipo: %s", e)
+        leads = 0
+        leads_prev = 0
 
     if leads_prev > 0:
         leads_delta_pct = round((leads - leads_prev) / leads_prev * 100, 1)
@@ -1009,7 +1013,7 @@ def _build_yesterday_summary():
 
 _yesterday_cache = {"data": None, "ts": 0, "version": 0}
 _YESTERDAY_CACHE_TTL = 600  # 10 min — independente do cache do funil
-_YESTERDAY_CACHE_VERSION = 2  # v2 = leads só funil principal (644, não 659)
+_YESTERDAY_CACHE_VERSION = 3  # v3 = ganho e leads no Bwipo
 
 
 def _yesterday_summary_has_signal(data: dict) -> bool:
@@ -1099,61 +1103,29 @@ def _count_leads_in_stage(status_id: int) -> tuple[int, str | None]:
 
 
 def _fetch_funnel_live_counts(*, dashboard_only: bool = True):
-    """Contagem ao vivo por fila — sequencial; dashboard_only pula filas fora do painel."""
-    count_keys = FUNNEL_DASHBOARD_COUNT_KEYS if dashboard_only else {
-        s["key"] for s in FUNNEL_STAGES_DEF
-    }
-    counts = {}
-    for sdef in FUNNEL_STAGES_DEF:
-        if sdef["key"] not in count_keys:
-            continue
-        n, err = _count_leads_in_stage(sdef["id"])
-        if err:
-            return None, err
-        counts[sdef["id"]] = n
-        _time.sleep(_KOMMO_BG_PAGE_SLEEP)
-
-    stages = []
-    total = 0
-    for sdef in FUNNEL_STAGES_DEF:
-        c = counts.get(sdef["id"], 0) if sdef["key"] in count_keys else 0
-        total += c
-        stages.append({
-            "key": sdef["key"],
-            "id": sdef["id"],
-            "label": sdef["label"],
-            "count": c,
-            "highlight": sdef["key"] in FUNNEL_HIGHLIGHT,
-        })
-
-    for s in stages:
-        s["pct"] = round(s["count"] / total * 100, 1) if total > 0 else 0
-
-    out = {
-        "stages": stages,
-        "total": total,
-        "leads_fetched": total,
-        "pages": 0,
-        "source": "live",
-        "funnel_api_version": _FUNNEL_API_VERSION,
-        "dashboard_only": dashboard_only,
-    }
+    """Estoque ao vivo no Pipeline Principal do Bwipo. dashboard_only fica pela assinatura antiga."""
+    del dashboard_only
+    from services.bwipo_comercial import dashboard_funnel_live
+    out = dashboard_funnel_live()
+    out["funnel_api_version"] = _FUNNEL_API_VERSION
     return out, None
 
 
 def _fetch_funnel_best_effort(*, dashboard_only: bool = True):
-    """API Kommo ao vivo; se bloqueada (403 WAF), cai no espelho Postgres."""
-    result, err = _fetch_funnel_live_counts(dashboard_only=dashboard_only)
-    if result:
-        return result, None, "live"
-    err_s = _sanitize_kommo_error(err)
-    if _kommo_err_blocked(err):
-        try:
-            db = _fetch_funnel_from_db()
-            return db, err_s, "db"
-        except Exception as e:
-            logger.warning("funnel db fallback: %s", e)
-    return None, err_s, None
+    """API Bwipo ao vivo; se falhar, cai no espelho bwipo_deals."""
+    try:
+        result, err = _fetch_funnel_live_counts(dashboard_only=dashboard_only)
+        if result:
+            return result, None, "live"
+    except Exception as e:
+        err = str(e)
+        logger.warning("funnel bwipo live: %s", e)
+    try:
+        db = _fetch_funnel_from_db()
+        return db, str(err)[:200], "db"
+    except Exception as e:
+        logger.warning("funnel db fallback: %s", e)
+        return None, str(err)[:200], None
 
 
 def _load_funnel_disk_cache():
@@ -1190,15 +1162,11 @@ _load_funnel_disk_cache()
 
 
 def _warm_funnel_cache_sync():
-    """Atualiza cache do funil em background (cron / stale-while-revalidate).
-
-    Adquire _kommo_api_bg_lock para nao rodar em paralelo com outros jobs
-    de background que batem no Kommo (aceite_reconcile, responsible_history).
-    Se o lock estiver tomado, espera ate 300s (5 min) — apos isso desiste
-    silenciosamente pra nao acumular threads."""
+    """Atualiza o cache do funil no Bwipo em background (cron / stale-while-revalidate)."""
     global _funnel_warming
-    if not _kommo_token():
-        _funnel_meta["last_error"] = "KOMMO_TOKEN não configurado"
+    from services.bwipo_comercial import configured as _bwipo_configured
+    if not _bwipo_configured():
+        _funnel_meta["last_error"] = "BWIPO_COMERCIAL_API_TOKEN não configurado"
         _funnel_meta["last_warm_at"] = datetime.now(_BRT).isoformat()
         _funnel_meta["last_warm_ok"] = False
         return
@@ -1206,12 +1174,6 @@ def _warm_funnel_cache_sync():
         if _funnel_warming:
             return
         _funnel_warming = True
-    got_bg_lock = _kommo_api_bg_lock.acquire(timeout=300)
-    if not got_bg_lock:
-        logger.warning("funnel warm: nao conseguiu _kommo_api_bg_lock em 5min, pulando")
-        with _funnel_cache_lock:
-            _funnel_warming = False
-        return
     try:
         result, live_err, _src = _fetch_funnel_best_effort(dashboard_only=True)
         if not result:
@@ -1248,7 +1210,6 @@ def _warm_funnel_cache_sync():
         _funnel_meta["last_warm_at"] = datetime.now(_BRT).isoformat()
         with _funnel_cache_lock:
             _funnel_warming = False
-        _kommo_api_bg_lock.release()
 
 
 def _start_funnel_cache_warm_async():
@@ -1365,67 +1326,10 @@ def _fetch_funnel_live():
 
 
 def _fetch_funnel_from_db():
-    """Contagem por etapa a partir do espelho Postgres (kommo_sync) — rápido, sem timeout."""
-    stage_ids = [s["id"] for s in FUNNEL_STAGES_DEF]
-    conn = _pg()
-    try:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(
-                """
-                SELECT status_id, COUNT(*) AS total
-                FROM leads
-                WHERE pipeline_id = %s AND NOT is_deleted
-                  AND status_id = ANY(%s)
-                GROUP BY status_id
-                """,
-                (FUNNEL_PIPELINE, stage_ids),
-            )
-            counts = {int(r["status_id"]): int(r["total"]) for r in cur.fetchall()}
-            last_sync = None
-            try:
-                cur.execute(
-                    """
-                    SELECT MAX(NULLIF(trim(synced_at), '')::timestamptz) AS last_sync
-                    FROM leads
-                    WHERE pipeline_id = %s AND NOT is_deleted
-                    """,
-                    (FUNNEL_PIPELINE,),
-                )
-                last_sync = cur.fetchone().get("last_sync")
-            except Exception as e:
-                logger.warning("funnel db last_sync: %s", e)
-    finally:
-        conn.close()
-
-    stages = []
-    total = 0
-    for sdef in FUNNEL_STAGES_DEF:
-        c = counts.get(sdef["id"], 0) if sdef["key"] in FUNNEL_DASHBOARD_COUNT_KEYS else 0
-        total += c
-        stages.append({
-            "key": sdef["key"],
-            "id": sdef["id"],
-            "label": sdef["label"],
-            "count": c,
-            "highlight": sdef["key"] in FUNNEL_HIGHLIGHT,
-        })
-
-    for s in stages:
-        s["pct"] = round(s["count"] / total * 100, 1) if total > 0 else 0
-
-    out = {
-        "stages": stages,
-        "total": total,
-        "leads_fetched": total,
-        "pages": 0,
-        "source": "db",
-        "funnel_api_version": _FUNNEL_API_VERSION,
-        "dashboard_only": True,
-    }
-    if last_sync:
-        if hasattr(last_sync, "astimezone"):
-            last_sync = last_sync.astimezone(_BRT)
-        out["synced_at"] = last_sync.strftime("%d/%m %H:%M")
+    """Contagem por etapa no espelho Bwipo — rápido, sem timeout da API."""
+    from services.bwipo_comercial import dashboard_funnel_mirror
+    out = dashboard_funnel_mirror()
+    out["funnel_api_version"] = _FUNNEL_API_VERSION
     return out
 
 
@@ -1791,8 +1695,9 @@ def api_kommo_funnel_live():
         and cached.get("funnel_api_version", 0) >= _FUNNEL_API_VERSION
     )
 
-    if not _kommo_token():
-        return jsonify({"ok": False, "error": "KOMMO_TOKEN não configurado no servidor."}), 500
+    from services.bwipo_comercial import configured as _bwipo_configured
+    if not _bwipo_configured():
+        return jsonify({"ok": False, "error": "BWIPO_COMERCIAL_API_TOKEN não configurado no servidor."}), 500
 
     # Nunca bloquear o worker HTTP na contagem Kommo (30–120s → 502 no proxy Easypanel).
     # Cache quente: responde na hora; stale-while-revalidate em background.
@@ -1810,7 +1715,7 @@ def api_kommo_funnel_live():
         data["stale"] = True
         data["live_error"] = (
             _sanitize_kommo_error(_funnel_meta.get("last_error"))
-            or "Kommo indisponível — espelho Sync."
+            or "Bwipo indisponível — espelho do sync."
         )
         return jsonify({"ok": True, "data": data, "cached": False, "fallback": "db"})
     except Exception as e:

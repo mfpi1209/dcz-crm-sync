@@ -379,3 +379,192 @@ def get_contact(contact_id: str) -> dict:
     if isinstance(raw, dict) and isinstance(raw.get("contact"), dict):
         return raw["contact"]
     return raw if isinstance(raw, dict) else {}
+
+
+# Pipeline Principal do comercial. O funil da home conta só estas etapas.
+PIPELINE_PRINCIPAL_ID = "cmu2tx2f600h1qo018c7r0alx"
+
+# Ordem do Kanban do Pipeline Principal. Ganho e Perdido ficam fora do total de ativos.
+_FUNNEL_ROWS = (
+    ("sem resposta", "sem_resposta", "Sem Resposta", True),
+    ("em atendimento", "em_atendimento", "Em Atendimento", True),
+    ("aguardando resposta", "aguardando_resposta", "Aguardando Resposta", True),
+    ("aguardando inscricao", "aguardando_inscricao", "Aguardando Inscrição", True),
+    ("inscricao", "inscricao", "Inscrição", True),
+    ("processo seletivo", "processo_seletivo", "Processo Seletivo", True),
+    ("em processo", "em_processo", "Em Processo", True),
+    ("aprovado/reprovado", "aprovado_reprovado", "Aprovados/Reprovados", True),
+    ("boleto enviado", "boleto_enviado", "Boleto Enviado", True),
+    ("pagamento confirmado", "pagamento_confirmado", "Pagamento Confirmado", True),
+    ("aceite", "aceite", "Aceite", True),
+)
+
+
+def _iso_z(dt: datetime) -> str:
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
+def deal_total(extra: Optional[dict] = None) -> int:
+    page = list_page("/api/deals", page=1, per_page=1, extra=extra)
+    return int(page.get("total") or 0)
+
+
+def _principal_stage_ids() -> dict[str, str]:
+    """Nome dobrado → id da etapa no Pipeline Principal (espelho local)."""
+    from db import get_conn
+
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT name, id FROM bwipo_stages
+            WHERE pipeline_id = %s
+            """,
+            (PIPELINE_PRINCIPAL_ID,),
+        )
+        return {_fold(name): sid for name, sid in cur.fetchall()}
+    finally:
+        conn.close()
+
+
+def _funnel_payload(counts: dict[str, int], *, source: str) -> dict:
+    stages = []
+    active = 0
+    for _fold_name, key, label, highlight in _FUNNEL_ROWS:
+        count = int(counts.get(key) or 0)
+        if key != "perdido":
+            active += count
+        stages.append({
+            "key": key,
+            "id": key,
+            "label": label,
+            "count": count,
+            "highlight": highlight,
+        })
+    for stage in stages:
+        if stage["key"] == "perdido" or active <= 0:
+            stage["pct"] = None
+        else:
+            stage["pct"] = round(stage["count"] / active * 100, 1)
+    return {
+        "stages": stages,
+        "total": active,
+        "leads_fetched": active,
+        "pages": 0,
+        "source": source,
+        "crm": "bwipo",
+        "dashboard_only": True,
+    }
+
+
+def dashboard_funnel_live() -> dict:
+    """Estoque ao vivo de cada etapa do funil. Uma chamada por etapa (o total vem na página)."""
+    ids = _principal_stage_ids()
+    counts = {}
+    for fold_name, key, _label, _highlight in _FUNNEL_ROWS:
+        sid = ids.get(fold_name)
+        if not sid:
+            counts[key] = 0
+            continue
+        counts[key] = deal_total({"pipelineId": PIPELINE_PRINCIPAL_ID, "stageId": sid})
+    return _funnel_payload(counts, source="live")
+
+
+def dashboard_funnel_mirror() -> dict:
+    """Mesmas etapas, lidas do espelho, quando a API não responde."""
+    from db import get_conn
+
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT s.name, COUNT(d.id)
+            FROM bwipo_stages s
+            LEFT JOIN bwipo_deals d ON d.stage_id = s.id AND NOT d.is_deleted
+            WHERE s.pipeline_id = %s
+            GROUP BY s.name
+            """,
+            (PIPELINE_PRINCIPAL_ID,),
+        )
+        by_name = {_fold(name): int(n or 0) for name, n in cur.fetchall()}
+        synced_at = None
+        cur.execute(
+            """
+            SELECT last_sync_at FROM bwipo_sync_metadata
+            WHERE entity_type = 'deals'
+            """
+        )
+        row = cur.fetchone()
+        if row:
+            synced_at = row[0]
+    finally:
+        conn.close()
+    counts = {key: by_name.get(fold_name, 0) for fold_name, key, _l, _h in _FUNNEL_ROWS}
+    out = _funnel_payload(counts, source="db")
+    if synced_at is not None:
+        if hasattr(synced_at, "astimezone"):
+            synced_at = synced_at.astimezone(timezone(timedelta(hours=-3)))
+            out["synced_at"] = synced_at.strftime("%d/%m %H:%M")
+        else:
+            out["synced_at"] = str(synced_at)[:16]
+    return out
+
+
+def count_created_between(start: datetime, end: datetime, *, max_pages: int = 40) -> int:
+    """Negócios criados no intervalo. A API ignora createdSince; filtra createdAt em updatedSince."""
+    since = _iso_z(start)
+    until = _iso_z(end)
+    extra = {"pipelineId": PIPELINE_PRINCIPAL_ID, "updatedSince": since}
+    found = 0
+    for page_n in range(1, max_pages + 1):
+        page = list_page("/api/deals", page=page_n, per_page=100, extra=extra)
+        if page_n == 1 and int(page.get("total") or 0) > max_pages * 100:
+            return count_created_mirror(start, end)
+        items = page.get("items") or []
+        for deal in items:
+            created = deal.get("createdAt") or ""
+            if since <= created < until:
+                found += 1
+        if len(items) < 100:
+            break
+    return found
+
+
+def count_created_mirror(start: datetime, end: datetime) -> int:
+    from db import get_conn
+
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT COUNT(*) FROM bwipo_deals
+            WHERE NOT is_deleted
+              AND pipeline_id = %s
+              AND created_at >= %s AND created_at < %s
+            """,
+            (PIPELINE_PRINCIPAL_ID, start, end),
+        )
+        return int(cur.fetchone()[0] or 0)
+    finally:
+        conn.close()
+
+
+def count_won_closed_between(start: datetime, end: datetime, *, max_pages: int = 10) -> int:
+    """Ganhos cujo closedAt cai no intervalo. updatedSince limita a página."""
+    since = _iso_z(start)
+    until = _iso_z(end)
+    extra = {"pipelineId": PIPELINE_PRINCIPAL_ID, "status": "WON", "updatedSince": since}
+    found = 0
+    for page_n in range(1, max_pages + 1):
+        page = list_page("/api/deals", page=page_n, per_page=100, extra=extra)
+        items = page.get("items") or []
+        for deal in items:
+            closed = deal.get("closedAt") or ""
+            if since <= closed < until:
+                found += 1
+        if len(items) < 100:
+            break
+    return found

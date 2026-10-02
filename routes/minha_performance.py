@@ -899,6 +899,31 @@ def _get_agent_metas(kommo_uid, dt_ini=None, dt_fim=None):
 
 ACEITE_STATUS_ID = 48566207
 FUNNEL_PIPELINE_ID = 5481944
+_BWIPO_PIPE = "cmu2tx2f600h1qo018c7r0alx"
+_BWIPO_ACEITE = "cmu2x30f30jlnqn01wqcb2wlf"
+
+
+def _bwipo_aceites():
+    """Negócios em Aceite no Pipeline Principal: (kommo_user_id ou None, dia BRT da atualização)."""
+    conn = _pg()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT u.kommo_user_id,
+               (d.updated_at AT TIME ZONE 'America/Sao_Paulo')::date
+        FROM bwipo_deals d
+        JOIN bwipo_stages s ON s.id = d.stage_id
+        LEFT JOIN bwipo_kommo_user_depara u ON u.bwipo_user_id = d.owner_id
+        WHERE NOT d.is_deleted
+          AND s.pipeline_id = %s
+          AND (s.id = %s OR lower(s.name) = 'aceite')
+        """,
+        (_BWIPO_PIPE, _BWIPO_ACEITE),
+    )
+    rows = [(r[0], r[1]) for r in cur.fetchall()]
+    cur.close()
+    conn.close()
+    return rows
 
 _aceite_status_ids_cache = None
 
@@ -927,26 +952,15 @@ def _get_aceite_status_ids():
 
 def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
     """Ranking de matrículas com o mesmo dono do Dashboard Comercial Bwipo.
-    Aceites continuam a etapa Aceite do Kommo."""
+    Aceites são os negócios em Aceite no Bwipo, pelo dono com depara."""
 
-    # Count aceites per agent (leads in ANY Aceite stage)
-    ace_ids = _get_aceite_status_ids()
-    aceites_per_agent = {}
-    if ace_ids:
-        ace_ph = ",".join(["%s"] * len(ace_ids))
-        kconn = _pg_kommo()
-        kcur = kconn.cursor()
-        kcur.execute(f"""
-            SELECT responsible_user_id, COUNT(*)
-            FROM leads
-            WHERE status_id IN ({ace_ph})
-              AND NOT is_deleted
-              AND responsible_user_id IS NOT NULL
-            GROUP BY responsible_user_id
-        """, ace_ids)
-        aceites_per_agent = {r[0]: r[1] for r in kcur.fetchall()}
-        kcur.close()
-        kconn.close()
+    aceites_per_agent = defaultdict(int)
+    try:
+        for uid, _dia in _bwipo_aceites():
+            if uid:
+                aceites_per_agent[int(uid)] += 1
+    except Exception as e:
+        logger.warning("ranking aceites bwipo: %s", e)
 
     # 2. Matrículas do período com o mesmo dono do Dashboard Comercial Bwipo
     mat_per_agent = defaultdict(int)
@@ -1211,29 +1225,14 @@ def _matriculas_to_by_date(matriculas):
 
 
 def _all_consultants_aceites_by_date(dt_ini_str, dt_fim_str):
-    """Aceites na fila Kommo (status Aceite) agregados de todos os consultores."""
+    """Aceites do Bwipo (etapa Aceite) por dia de atualização, todos os consultores."""
     aceites_by_date = defaultdict(int)
     try:
-        ace_ids = _get_aceite_status_ids()
-        if ace_ids:
-            ace_ph = ",".join(["%s"] * len(ace_ids))
-            dt_ini = datetime.strptime(dt_ini_str, "%Y-%m-%d").date()
-            ini_ts = int(datetime.combine(dt_ini, datetime.min.time(), tzinfo=BRT).timestamp())
-            kconn = _pg_kommo()
-            kcur = kconn.cursor()
-            kcur.execute(f"""
-                SELECT DATE(to_timestamp(updated_at) AT TIME ZONE 'America/Sao_Paulo') AS dt, COUNT(*)
-                FROM leads
-                WHERE status_id IN ({ace_ph})
-                  AND NOT is_deleted
-                  AND updated_at >= %s
-                GROUP BY dt
-            """, ace_ids + [ini_ts])
-            for row in kcur.fetchall():
-                if row[0]:
-                    aceites_by_date[row[0]] = row[1]
-            kcur.close()
-            kconn.close()
+        dt_ini = datetime.strptime(dt_ini_str, "%Y-%m-%d").date()
+        dt_fim = datetime.strptime(dt_fim_str, "%Y-%m-%d").date()
+        for _uid, dia in _bwipo_aceites():
+            if dia and dt_ini <= dia <= dt_fim:
+                aceites_by_date[dia] += 1
     except Exception as e:
         logger.warning("all consultants aceites by date: %s", e)
     return aceites_by_date
@@ -1278,22 +1277,9 @@ def _all_consultants_ganhos_by_date(dt_ini_str, dt_fim_str):
 
 
 def _all_consultants_aceites_fila():
-    """Total na fila de aceite (todos os consultores)."""
+    """Total na fila de Aceite do Bwipo (todos os negócios da etapa)."""
     try:
-        ace_ids = _get_aceite_status_ids()
-        if ace_ids:
-            ace_ph = ",".join(["%s"] * len(ace_ids))
-            kconn = _pg_kommo()
-            kcur = kconn.cursor()
-            kcur.execute(f"""
-                SELECT COUNT(*) FROM leads
-                WHERE status_id IN ({ace_ph})
-                  AND NOT is_deleted
-            """, ace_ids)
-            n = kcur.fetchone()[0] or 0
-            kcur.close()
-            kconn.close()
-            return n
+        return len(_bwipo_aceites())
     except Exception as e:
         logger.warning("all consultants aceites fila: %s", e)
     return 0
@@ -2030,55 +2016,23 @@ def api_minha_insights():
     yesterday = today - timedelta(days=1)
     yesterday_mat = mat_by_date.get(yesterday, 0)
 
-    # Aceites na fila do Kommo (leads em qualquer stage "Aceite")
+    # Aceites da pessoa no Bwipo (negócio na etapa Aceite, dono com depara)
     aceites_fila = 0
     aceites_hoje = 0
     if not suporte_pix:
         try:
-            ace_ids = _get_aceite_status_ids()
-            if ace_ids:
-                ace_ph = ",".join(["%s"] * len(ace_ids))
-                kconn_ac = _pg_kommo()
-                kcur_ac = kconn_ac.cursor()
-                kcur_ac.execute(f"""
-                    SELECT COUNT(*) FROM leads
-                    WHERE responsible_user_id = %s
-                      AND status_id IN ({ace_ph})
-                      AND NOT is_deleted
-                """, [kommo_uid] + ace_ids)
-                aceites_fila = kcur_ac.fetchone()[0] or 0
-                today_ts = int(datetime.combine(today, datetime.min.time(), tzinfo=BRT).timestamp())
-                kcur_ac.execute(f"""
-                    SELECT COUNT(*) FROM leads
-                    WHERE responsible_user_id = %s
-                      AND status_id IN ({ace_ph})
-                      AND NOT is_deleted
-                      AND updated_at >= %s
-                """, [kommo_uid] + ace_ids + [today_ts])
-                aceites_hoje = kcur_ac.fetchone()[0] or 0
-
-                ini_ts = int(datetime.combine(dt_ini, datetime.min.time(), tzinfo=BRT).timestamp())
-                kcur_ac.execute(f"""
-                    SELECT DATE(to_timestamp(updated_at) AT TIME ZONE 'America/Sao_Paulo') AS dt, COUNT(*)
-                    FROM leads
-                    WHERE responsible_user_id = %s
-                      AND status_id IN ({ace_ph})
-                      AND NOT is_deleted
-                      AND updated_at >= %s
-                    GROUP BY dt
-                """, [kommo_uid] + ace_ids + [ini_ts])
-                for row in kcur_ac.fetchall():
-                    if row[0]:
-                        aceites_by_date[row[0]] = row[1]
-
-                logger.info("Aceites uid=%s: fila=%d, hoje=%d, by_date=%d days (status_ids=%s)",
-                             kommo_uid, aceites_fila, aceites_hoje, len(aceites_by_date), ace_ids)
-                kcur_ac.close()
-                kconn_ac.close()
-            else:
-                logger.info("No aceite status IDs found, skipping aceites queries")
+            for uid, dia in _bwipo_aceites():
+                if uid is None or int(uid) != int(kommo_uid):
+                    continue
+                aceites_fila += 1
+                if dia and dt_ini <= dia <= dt_fim:
+                    aceites_by_date[dia] += 1
+                if dia == today:
+                    aceites_hoje += 1
+            logger.info("Aceites bwipo uid=%s: fila=%d, hoje=%d, by_date=%d days",
+                        kommo_uid, aceites_fila, aceites_hoje, len(aceites_by_date))
         except Exception as e:
-            logger.warning("Error fetching aceites: %s", e)
+            logger.warning("Error fetching aceites bwipo: %s", e)
     else:
         aceites_hoje = aceites_by_date.get(today, 0)
         aceites_fila = _all_consultants_aceites_fila()
