@@ -214,19 +214,6 @@ function _dashPollFunnelWarm(attempt) {
     }, delayMs);
 }
 
-async function _dashFallbackYesterdayCommercial(yStr) {
-    try {
-        const res = await api(`/api/comercial-rgm/data/kpis?dt_ini=${encodeURIComponent(yStr)}&dt_fim=${encodeURIComponent(yStr)}`);
-        const d = await _apiJsonSafe(res);
-        if (!d || !d.ok) return null;
-        const row = (d.evolucao || []).find(e => e.data === yStr);
-        return row ? row.count : (d.vendas_liquidas || 0);
-    } catch (e) {
-        console.warn('fallback yesterday vendas:', e);
-        return null;
-    }
-}
-
 async function _dashLoadNewLeadsToday(force) {
     const el = document.getElementById('dash-funnel-new');
     if (!el) return;
@@ -257,13 +244,8 @@ async function _dashLoadYesterdayKpi(force) {
             const res = await api(path + q);
             const y = await _apiJsonSafe(res);
             if (y?.ok && y.data) {
-                let ys = y.data;
-                if (!ys.vendas) {
-                    const vendas = await _dashFallbackYesterdayCommercial(ys.date || yStr);
-                    if (vendas != null) ys = { ...ys, vendas };
-                }
                 if (typeof _renderYesterdaySummary === 'function') {
-                    _renderYesterdaySummary(ys, 'dash-funnel');
+                    _renderYesterdaySummary(y.data, 'dash-funnel');
                 }
                 return;
             }
@@ -272,12 +254,10 @@ async function _dashLoadYesterdayKpi(force) {
         }
     }
 
-    const vendas = await _dashFallbackYesterdayCommercial(yStr);
-
     if (typeof _renderYesterdaySummary === 'function') {
         _renderYesterdaySummary({
             date: yStr,
-            vendas: vendas || 0,
+            vendas: 0,
             leads: 0,
             leads_prev: 0,
             leads_delta_pct: 0,

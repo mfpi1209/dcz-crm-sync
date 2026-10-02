@@ -710,17 +710,9 @@ def api_dashboard_funnel_yesterday():
     """KPI Fechado Ganho Ontem + leads ontem (desacoplado do cache do funil live)."""
     force = request.args.get("force", "0") == "1"
     try:
-        from datetime import date as _date
         from routes.kommo_sync import _get_yesterday_summary_cached
-        from routes.comercial_rgm import comercial_periodo_vendas_resumo
 
         data = _get_yesterday_summary_cached(force=force)
-        if not data.get("vendas"):
-            y = _date.fromisoformat(data["date"])
-            y_str = y.isoformat()
-            resumo = comercial_periodo_vendas_resumo(dt_ini=y_str, dt_fim=y_str)
-            by_day = resumo.get("mat_by_date") or {}
-            data["vendas"] = int(by_day.get(y) or resumo.get("vendas_liquidas") or 0)
         return jsonify({"ok": True, "data": data})
     except Exception as e:
         current_app.logger.exception("funnel-yesterday: %s", e)
