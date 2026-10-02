@@ -26,6 +26,8 @@ import io
 import csv
 import re
 import logging
+import threading
+import time as _time
 from collections import defaultdict
 from datetime import datetime, date, timedelta, timezone as _tz
 
@@ -591,13 +593,99 @@ def _get_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=Fal
     return result
 
 
+_BWIPO_PERIODO_TTL = 300
+_bwipo_periodo_cache: dict = {}
+_bwipo_periodo_lock = threading.Lock()
+_bwipo_periodo_refreshing: set = set()
+_bwipo_periodo_used: dict = {}
+
+
+def _bwipo_periodo_refresh(key):
+    try:
+        payload = _bwipo_periodo_calc(*key)
+        with _bwipo_periodo_lock:
+            _bwipo_periodo_cache[key] = (_time.time(), payload)
+    except Exception as e:
+        logger.warning("bwipo periodo refresh %s: %s", key, e)
+    finally:
+        with _bwipo_periodo_lock:
+            _bwipo_periodo_refreshing.discard(key)
+
+
 def _bwipo_periodo_credito(dt_ini, dt_fim):
-    """Mesmas vendas do Dashboard Comercial Bwipo: SIAA oficial + dono de _atribuir_rgms."""
+    """Mesmas vendas do Dashboard Comercial Bwipo, guardadas no processo.
+
+    A conta leva 20–45s. Só uma roda por recorte; vencida, devolve a anterior e refaz em background.
+    """
     key = (str(dt_ini or ""), str(dt_fim or ""))
     if has_request_context():
         hit = getattr(g, "_mp_bwipo_periodo", None)
         if hit and hit[0] == key:
             return hit[1]
+    with _bwipo_periodo_lock:
+        _bwipo_periodo_used[key] = _time.time()
+        cached = _bwipo_periodo_cache.get(key)
+        if cached and _time.time() - cached[0] >= _BWIPO_PERIODO_TTL and key not in _bwipo_periodo_refreshing:
+            _bwipo_periodo_refreshing.add(key)
+            threading.Thread(
+                target=_bwipo_periodo_refresh, args=(key,), daemon=True, name="mp-bwipo-periodo",
+            ).start()
+    if cached:
+        payload = cached[1]
+    else:
+        with _bwipo_key_lock(key):
+            with _bwipo_periodo_lock:
+                cached = _bwipo_periodo_cache.get(key)
+            if cached:
+                payload = cached[1]
+            else:
+                payload = _bwipo_periodo_calc(*key)
+                with _bwipo_periodo_lock:
+                    _bwipo_periodo_cache[key] = (_time.time(), payload)
+    if has_request_context():
+        g._mp_bwipo_periodo = (key, payload)
+    return payload
+
+
+def _warm_bwipo_periodo():
+    now = _time.time()
+    with _bwipo_periodo_lock:
+        for key, ts in list(_bwipo_periodo_used.items()):
+            if now - ts > 1800:
+                _bwipo_periodo_used.pop(key, None)
+                _bwipo_periodo_cache.pop(key, None)
+        keys = set(_bwipo_periodo_used.keys()) | {("", "")}
+    for key in keys:
+        with _bwipo_periodo_lock:
+            if key in _bwipo_periodo_refreshing:
+                continue
+            _bwipo_periodo_refreshing.add(key)
+        _bwipo_periodo_refresh(key)
+
+
+def register_bwipo_periodo_warm(sched):
+    from apscheduler.triggers.interval import IntervalTrigger
+    sched.add_job(
+        _warm_bwipo_periodo, IntervalTrigger(minutes=4),
+        id="mp_bwipo_periodo_warm", max_instances=1, coalesce=True, replace_existing=True,
+        next_run_time=datetime.now(_tz.utc) + timedelta(seconds=45),
+    )
+
+
+_bwipo_key_locks: dict = {}
+
+
+def _bwipo_key_lock(key):
+    with _bwipo_periodo_lock:
+        lk = _bwipo_key_locks.get(key)
+        if lk is None:
+            lk = _bwipo_key_locks[key] = threading.Lock()
+        return lk
+
+
+def _bwipo_periodo_calc(dt_ini, dt_fim):
+    dt_ini = dt_ini or None
+    dt_fim = dt_fim or None
     from routes.bwipo_sync import _atribuir_rgms
     from routes.comercial_rgm import (
         _crgm_build_periodo_sets,
@@ -620,10 +708,7 @@ def _bwipo_periodo_credito(dt_ini, dt_fim):
         row["rgm"]: row.get("data_matricula") for row in periodo_rows if row.get("rgm")
     }
     dono, _nomes, _fonte = _atribuir_rgms(rgm_datas)
-    payload = (periodo_rows, dono, contando, overrides)
-    if has_request_context():
-        g._mp_bwipo_periodo = (key, payload)
-    return payload
+    return (periodo_rows, dono, contando, overrides)
 
 
 def _fetch_agent_matriculas_bwipo(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=False):

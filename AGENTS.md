@@ -9,6 +9,7 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 - **Pedido:** ranking, calendário, sequência e meta diária passam a olhar o Aceite no Bwipo, da própria pessoa.
 - **Regra:** `_bwipo_aceites` lê `bwipo_deals` na etapa Aceite do Pipeline Principal. O dono entra pelo depara `bwipo_kommo_user_depara`. A fila é o estoque atual. O dia do calendário e da meta é a data de atualização do negócio (BRT). Matrícula do período continua a do painel Bwipo; a meta do dia soma matrícula + esses aceites.
 - **Não muda:** faixas de PIX (se o dia não tem faixa, a tela segue "sem meta"); Repasse.
+- **Crédito guardado no processo (02/10):** `_bwipo_periodo_credito` leva 24–43s (SIAA oficial + `_atribuir_rgms`). Antes, cada abertura da tela refazia isso em vários pedidos e as 4 threads do gunicorn travavam. Agora: 1 conta por período por vez, resultado vale 5 min; vencido, devolve o anterior e refaz em background. Job `mp_bwipo_periodo_warm` (4 min) refaz o recorte sem data e os períodos abertos nos últimos 30 min.
 
 ### 2026-10-02 — Funil da home lê o Bwipo ao vivo
 - **Modelo usado:** Cursor Grok 4.7.
