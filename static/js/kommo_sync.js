@@ -232,19 +232,6 @@ function _renderYesterdaySummary(ys, prefix) {
     }
 }
 
-async function _dashFallbackYesterdayCommercial(yStr) {
-    try {
-        const res = await api(`/api/comercial-rgm/data/kpis?dt_ini=${encodeURIComponent(yStr)}&dt_fim=${encodeURIComponent(yStr)}`);
-        const d = await res.json();
-        if (!d.ok) return null;
-        const row = (d.evolucao || []).find(e => e.data === yStr);
-        return row ? row.count : (d.vendas_liquidas || 0);
-    } catch (e) {
-        console.warn('fallback yesterday vendas:', e);
-        return null;
-    }
-}
-
 function _renderFunnelCards(data, prefix) {
     const newEl = document.getElementById(prefix + '-new');
     const totalEl = document.getElementById(prefix + '-total');

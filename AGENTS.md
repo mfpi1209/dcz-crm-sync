@@ -15,7 +15,8 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 - **Pedido:** o Funil de Vendas do Dashboard deixa o token do Kommo e mostra o estoque do CRM comercial Bwipo.
 - **Leitura:** `dashboard_funnel_live` conta o Pipeline Principal com `GET /api/deals?stageId=`. A fila segue o Kanban: Sem Resposta, Em Atendimento, Aguardando Resposta, Aguardando Inscrição, Inscrição, Processo Seletivo, Em Processo, Aprovado/Reprovado, Boleto Enviado, Pagamento Confirmado, Aceite. Ganho e Perdido ficam fora do total de ativos. Sem Resposta não é a coluna Perdidos.
 - **Novos hoje:** negócios criados no dia, filtrando `createdAt` nas páginas de `updatedSince` (a API ignora `createdSince`). **Ganho ontem:** `status=WON` com `closedAt` no dia. **Leads ontem:** espelho `bwipo_deals`, porque a listagem não filtra data de criação e o dia anterior passa de 10 mil atualizações.
-- **Cache:** `_FUNNEL_API_VERSION` 6→7. Se a API falhar, o funil cai no espelho Bwipo. O job de aquecimento não pega mais o lock do Kommo.
+- **Cache:** `_FUNNEL_API_VERSION` 6→8. Se a API falhar, o funil cai no espelho Bwipo. O job de aquecimento não pega mais o lock do Kommo.
+- **Pedido HTTP não varre o SIAA.** Ganho de ontem zerado no espelho fica 0. A home não chama `/api/comercial-rgm/data/kpis` para completar esse card: essa varredura segurava as 4 threads do gunicorn (timeout 600s) e o login parava de responder.
 - **Não muda:** o arquivo de matriculados no rodapé do Dashboard; Sync Kommo; aceite da Minha Performance.
 
 ### 2026-10-02 — Minha Performance conta as mesmas vendas do Dashboard Comercial Bwipo
