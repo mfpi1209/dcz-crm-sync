@@ -154,7 +154,7 @@ def _validate_minha_matricula_required(b):
         (data_mat, "Data Matrícula"),
         (ciclo, "Ciclo"),
         (nivel, "Nível"),
-        (kommo_lead_id, "Lead Kommo ID"),
+        (kommo_lead_id, "Nº do negócio"),
     ]
     for val, label in checks:
         if not val:
@@ -591,11 +591,85 @@ def _get_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=Fal
     return result
 
 
+def _bwipo_periodo_credito(dt_ini, dt_fim):
+    """Mesmas vendas do Dashboard Comercial Bwipo: SIAA oficial + dono de _atribuir_rgms."""
+    key = (str(dt_ini or ""), str(dt_fim or ""))
+    if has_request_context():
+        hit = getattr(g, "_mp_bwipo_periodo", None)
+        if hit and hit[0] == key:
+            return hit[1]
+    from routes.bwipo_sync import _atribuir_rgms
+    from routes.comercial_rgm import (
+        _crgm_build_periodo_sets,
+        _crgm_effective_dominant_prefix,
+        _crgm_periodo_data_oficial,
+        _load_outlier_contagem_overrides,
+        _rgm_conta_para_venda,
+    )
+
+    ciclo_all = _crgm_periodo_data_oficial(
+        dt_ini=dt_ini, dt_fim=dt_fim, mark_missing_as_transferido=True,
+    ) or []
+    periodo_rows, rgms_periodo, rgms_bruto, *_rest = _crgm_build_periodo_sets(
+        ciclo_all, dt_ini, dt_fim,
+    )
+    dom = _crgm_effective_dominant_prefix(list(rgms_periodo) or list(rgms_bruto))
+    overrides = _load_outlier_contagem_overrides()
+    contando = {r for r in rgms_periodo if _rgm_conta_para_venda(r, dom, overrides)}
+    rgm_datas = {
+        row["rgm"]: row.get("data_matricula") for row in periodo_rows if row.get("rgm")
+    }
+    dono, _nomes, _fonte = _atribuir_rgms(rgm_datas)
+    payload = (periodo_rows, dono, contando, overrides)
+    if has_request_context():
+        g._mp_bwipo_periodo = (key, payload)
+    return payload
+
+
+def _fetch_agent_matriculas_bwipo(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=False):
+    """Lista do consultor com o mesmo recorte e o mesmo dono do painel Bwipo."""
+    kommo_uid = int(kommo_uid)
+    periodo_rows, dono, contando, overrides = _bwipo_periodo_credito(dt_ini, dt_fim)
+    results = []
+    seen = set()
+    for row in periodo_rows:
+        n = row.get("rgm")
+        if not n or dono.get(n) != kommo_uid or n in seen:
+            continue
+        seen.add(n)
+        sit = (row.get("situacao") or "").upper()
+        if only_em_curso and sit != "EM CURSO":
+            continue
+        results.append({
+            "rgm": n,
+            "nome": row.get("nome") or "",
+            "situacao": row.get("situacao") or "",
+            "curso": "",
+            "data_matricula": row.get("data_matricula"),
+            "polo": row.get("polo") or "",
+            "nivel": row.get("nivel") or "",
+            "ciclo": row.get("ciclo") or "",
+            "modalidade": "",
+            "tipo_matricula": row.get("tipo_matricula") or "",
+            "outlier": sit == "EM CURSO" and n not in contando,
+            "conta_venda": n in overrides,
+            "conta_para_meta": n in contando,
+            "sumiu_do_csv": bool(row.get("sumiu_do_csv")),
+        })
+    results.sort(key=lambda d: str(d.get("data_matricula") or ""), reverse=True)
+    return results
+
+
 def _fetch_agent_matriculas(kommo_uid, dt_ini=None, dt_fim=None, only_em_curso=False):
     """Get matriculas for a specific agent from xl_rows.
     only_em_curso=True filters to situacao='EM CURSO' only (para contagens oficiais).
     only_em_curso=False retorna todas incluindo cancelados (para listagem informativa).
+    O crédito é o do Dashboard Comercial Bwipo. Se essa leitura falhar, cai no responsável do Kommo.
     """
+    try:
+        return _fetch_agent_matriculas_bwipo(kommo_uid, dt_ini, dt_fim, only_em_curso)
+    except Exception as e:
+        logger.warning("matriculas bwipo, fallback kommo: %s", e)
     agent_rgms = _get_agent_credited_rgms(kommo_uid)
 
     if not agent_rgms:
@@ -852,10 +926,8 @@ def _get_aceite_status_ids():
 
 
 def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
-    """Calculate ranking using same logic as the RGM dashboard (DISTINCT ON rgm).
-    Also counts aceites in Kommo pipeline as +1 each."""
-
-    rgm_to_uid = _get_rgm_to_uid_map()
+    """Ranking de matrículas com o mesmo dono do Dashboard Comercial Bwipo.
+    Aceites continuam a etapa Aceite do Kommo."""
 
     # Count aceites per agent (leads in ANY Aceite stage)
     ace_ids = _get_aceite_status_ids()
@@ -876,31 +948,39 @@ def _calc_ranking_batch(kommo_uid, my_total, dt_ini, dt_fim, campanha_id):
         kcur.close()
         kconn.close()
 
-    # 2. DCZ: get all matrículas in the period, applying outlier filter
-    try:
-        from routes.comercial_rgm import crgm_outlier_context, _rgm_conta_para_venda
-        _rk_dominant, _rk_overrides = crgm_outlier_context(dt_ini=dt_ini, dt_fim=dt_fim)
-    except Exception as _oe:
-        logger.warning("_calc_ranking_batch outlier context: %s", _oe)
-        _rk_dominant, _rk_overrides = None, set()
-
-    conn = _pg()
-    cur = conn.cursor()
-    cw, cp = [], []
-    if dt_ini:
-        cw.append("data_matricula >= %s"); cp.append(dt_ini)
-    if dt_fim:
-        cw.append("data_matricula <= %s"); cp.append(dt_fim)
-    w = ("WHERE " + " AND ".join(cw)) if cw else ""
-    cur.execute(f"SELECT rgm FROM comercial_rgm_atual {w}", cp)
+    # 2. Matrículas do período com o mesmo dono do Dashboard Comercial Bwipo
     mat_per_agent = defaultdict(int)
-    for row in cur.fetchall():
-        n = _normalize_rgm(row[0])
-        if n and n in rgm_to_uid:
-            if _rgm_conta_para_venda(n, _rk_dominant, _rk_overrides):
-                mat_per_agent[rgm_to_uid[n]] += 1
-    cur.close()
-    conn.close()
+    try:
+        periodo_rows, dono, contando, _overrides = _bwipo_periodo_credito(dt_ini, dt_fim)
+        for row in periodo_rows:
+            uid = dono.get(row.get("rgm"))
+            if isinstance(uid, int) and row.get("rgm") in contando:
+                mat_per_agent[uid] += 1
+    except Exception as e:
+        logger.warning("ranking bwipo, fallback kommo: %s", e)
+        rgm_to_uid = _get_rgm_to_uid_map()
+        try:
+            from routes.comercial_rgm import crgm_outlier_context, _rgm_conta_para_venda
+            _rk_dominant, _rk_overrides = crgm_outlier_context(dt_ini=dt_ini, dt_fim=dt_fim)
+        except Exception as _oe:
+            logger.warning("_calc_ranking_batch outlier context: %s", _oe)
+            _rk_dominant, _rk_overrides = None, set()
+        conn = _pg()
+        cur = conn.cursor()
+        cw, cp = [], []
+        if dt_ini:
+            cw.append("data_matricula >= %s"); cp.append(dt_ini)
+        if dt_fim:
+            cw.append("data_matricula <= %s"); cp.append(dt_fim)
+        w = ("WHERE " + " AND ".join(cw)) if cw else ""
+        cur.execute(f"SELECT rgm FROM comercial_rgm_atual {w}", cp)
+        for row in cur.fetchall():
+            n = _normalize_rgm(row[0])
+            if n and n in rgm_to_uid:
+                if _rgm_conta_para_venda(n, _rk_dominant, _rk_overrides):
+                    mat_per_agent[rgm_to_uid[n]] += 1
+        cur.close()
+        conn.close()
 
     # 3. Build scores: matrículas + aceites
     all_uids = set(mat_per_agent.keys()) | set(aceites_per_agent.keys())
@@ -3946,6 +4026,92 @@ def _lead_to_matricula_prefill(lead: dict) -> dict:
         "nivel": nivel,
         "kommo_lead_id": str(lead.get("id") or ""),
     }
+
+
+@minha_performance_bp.route("/api/minha-performance/sync-bwipo-prefill", methods=["POST"])
+def api_mp_sync_bwipo_prefill():
+    """Busca um negócio no Bwipo e devolve os campos do formulário de matrícula."""
+    user_id, _kommo_uid = _get_agent_user_id()
+    if not user_id:
+        return jsonify({"ok": False, "error": "Não autenticado"}), 401
+    body = request.get_json(force=True, silent=True) or {}
+    rgm = re.sub(r"[^0-9]", "", str(body.get("rgm") or ""))
+    number_raw = str(body.get("number") or body.get("deal_number") or "").strip()
+    number = int(number_raw) if number_raw.isdigit() else None
+    if not number and len(rgm) != 8:
+        return jsonify({"ok": False, "error": "Informe o número do negócio ou um RGM com 8 dígitos."}), 400
+    try:
+        from routes.bwipo_sync import refresh_deal
+        from services.bwipo_comercial import BwipoComercialError
+        from db import get_conn
+    except Exception as e:
+        logger.exception("sync bwipo prefill import")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+    if not number:
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT d.number, COALESCE(NULLIF(d.title, ''), 'Sem nome'), COALESCE(d.stage_name, '')
+            FROM bwipo_deals d
+            LEFT JOIN bwipo_stages s ON s.id = d.stage_id
+            WHERE NOT d.is_deleted AND d.rgm_norm = %s
+            ORDER BY CASE WHEN COALESCE(s.is_won, FALSE) THEN 0 ELSE 1 END, d.updated_at DESC NULLS LAST
+            LIMIT 8
+            """,
+            (rgm,),
+        )
+        found = cur.fetchall()
+        cur.close()
+        conn.close()
+        if not found:
+            return jsonify({"ok": False, "error": "Nenhum negócio no Bwipo com esse RGM."}), 404
+        if len(found) > 1:
+            return jsonify({
+                "ok": False,
+                "error": "Vários negócios com esse RGM. Escolha o número:",
+                "deals": [{"number": n, "title": t, "etapa": e} for n, t, e in found],
+            }), 409
+        number = int(found[0][0])
+
+    try:
+        row = refresh_deal(number=number)
+    except BwipoComercialError as e:
+        return jsonify({"ok": False, "error": str(e)}), getattr(e, "status", 400) or 400
+    except Exception as e:
+        logger.exception("sync bwipo prefill")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+    raw = row.get("raw") if isinstance(row.get("raw"), dict) else {}
+    contact = raw.get("contact") if isinstance(raw.get("contact"), dict) else {}
+    known = row.get("known_fields") if isinstance(row.get("known_fields"), dict) else {}
+    curso = (row.get("curso") or known.get("curso") or "").strip()
+    grau = (known.get("grau") or "").strip()
+    blob = f"{grau} {curso}"
+    if re.search(r"(mba|especializa|p[oó]s|lato|stricto)", blob, re.I):
+        nivel = "Pós-Graduação"
+    elif curso or grau:
+        nivel = "Graduação"
+    else:
+        nivel = ""
+    nome = (contact.get("name") or row.get("title") or "").strip()
+    prefill = {
+        "bwipo_number": row.get("number"),
+        "nome": nome,
+        "rgm": (row.get("rgm_norm") or "")[:12],
+        "curso": curso,
+        "polo": (row.get("polo") or known.get("polo") or "").strip(),
+        "data_matricula": _normalize_date_br(row.get("data_matricula") or known.get("data_matricula")),
+        "ciclo": "",
+        "nivel": nivel,
+        "kommo_lead_id": str(row.get("number") or ""),
+    }
+    return jsonify({
+        "ok": True,
+        "prefill": prefill,
+        "msg": f"Negócio #{row.get('number')} · {row.get('stage_name') or 'sem etapa'}.",
+    })
 
 
 @minha_performance_bp.route("/api/minha-performance/sync-lead-prefill", methods=["POST"])

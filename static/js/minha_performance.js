@@ -2001,7 +2001,7 @@ function _mpApplyPrefill(p) {
     }
     const obs = document.getElementById('mp-mm-obs');
     if (obs && !obs.value.trim()) {
-        obs.value = 'Preenchido via mini sync Kommo';
+        obs.value = 'Preenchido via sync Bwipo';
     }
     const cicloEl = document.getElementById('mp-mm-ciclo');
     if (cicloEl && !cicloEl.value.trim()) {
@@ -2017,18 +2017,18 @@ async function _mpSyncLeadPrefill(forcedLeadId) {
     const rgmEl = document.getElementById('mp-mm-sync-rgm');
     const body = {};
     if (forcedLeadId != null) {
-        body.lead_id = forcedLeadId;
+        body.number = forcedLeadId;
         if (idEl) idEl.value = String(forcedLeadId);
     } else {
-        const idVal = (idEl?.value || '').trim();
+        const idVal = (idEl?.value || '').trim().replace(/\D/g, '');
         const rgmVal = (rgmEl?.value || '').trim().replace(/\D/g, '');
-        if (idVal) body.lead_id = parseInt(idVal, 10);
+        if (idVal) body.number = parseInt(idVal, 10);
         else if (rgmVal.length === 8) body.rgm = rgmVal;
         else {
             if (msgEl) {
                 msgEl.classList.remove('hidden');
                 msgEl.style.color = '#f87171';
-                msgEl.textContent = 'Informe o ID do lead ou um RGM com 8 dígitos.';
+                msgEl.textContent = 'Informe o número do negócio ou um RGM com 8 dígitos.';
             }
             return;
         }
@@ -2036,22 +2036,22 @@ async function _mpSyncLeadPrefill(forcedLeadId) {
     if (pickEl) { pickEl.classList.add('hidden'); pickEl.innerHTML = ''; }
     if (btn) btn.disabled = true;
     try {
-        const res = await api('/api/minha-performance/sync-lead-prefill', {
+        const res = await api('/api/minha-performance/sync-bwipo-prefill', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
         });
         const d = await res.json().catch(() => ({}));
-        if (res.status === 409 && d.lead_ids?.length) {
+        if (res.status === 409 && d.deals?.length) {
             if (msgEl) {
                 msgEl.classList.remove('hidden');
                 msgEl.style.color = '#fbbf24';
-                msgEl.textContent = d.error || 'Vários leads com esse RGM. Clique no ID:';
+                msgEl.textContent = d.error || 'Vários negócios com esse RGM. Escolha um:';
             }
             if (pickEl) {
                 pickEl.classList.remove('hidden');
-                pickEl.innerHTML = d.lead_ids.map(id =>
-                    `<button type="button" onclick="_mpSyncLeadPrefill(${id})" class="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-emerald-600 text-white transition-colors">Lead #${id}</button>`
+                pickEl.innerHTML = d.deals.map(deal =>
+                    `<button type="button" onclick="_mpSyncLeadPrefill(${deal.number})" class="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-emerald-600 text-white transition-colors">#${deal.number}${deal.etapa ? ' · ' + deal.etapa : ''}</button>`
                 ).join('');
             }
             return;
@@ -2069,7 +2069,7 @@ async function _mpSyncLeadPrefill(forcedLeadId) {
             msgEl.classList.remove('hidden');
             msgEl.style.color = '#34d399';
             const p = d.prefill || {};
-            msgEl.textContent = `${d.msg || 'OK'} Lead #${p.lead_id || '—'} · RGM ${p.rgm || '—'}.`;
+            msgEl.textContent = `${d.msg || 'OK'} RGM ${p.rgm || '—'}.`;
         }
     } catch (e) {
         if (msgEl) {
@@ -2097,7 +2097,7 @@ async function _mpSaveMinhaMatricula() {
         { id: 'mp-mm-data', label: 'Data Matrícula' },
         { id: 'mp-mm-ciclo', label: 'Ciclo' },
         { id: 'mp-mm-nivel', label: 'Nível' },
-        { id: 'mp-mm-kommo', label: 'Lead Kommo ID' },
+        { id: 'mp-mm-kommo', label: 'Nº do negócio' },
     ];
     for (const f of required) {
         const el = document.getElementById(f.id);

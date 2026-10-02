@@ -4,6 +4,13 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-10-02 — Minha Performance conta as mesmas vendas do Dashboard Comercial Bwipo
+- **Modelo usado:** Cursor Grok 4.7.
+- **Pedido:** a lista e a contagem da Minha Performance passam a ser as vendas do painel Bwipo, como antes eram as do painel Kommo.
+- **Crédito:** `_bwipo_periodo_credito` em `routes/minha_performance.py` usa o SIAA oficial (`_crgm_periodo_data_oficial`, sumido vira TRANSFERIDO) e o dono de `_atribuir_rgms` (manual > Bwipo se o consultor está tombado e a matrícula é da data dele em diante > Kommo > Bwipo > Admin Sistema). Entra na meta quem está em curso e passa no padrão de RGM, igual ao ranking do painel.
+- **Medido 01/10:** 55 em curso no SIAA; 4 com a Gabriela no Bwipo e 0 no Kommo. A regra do painel já entrega essas 4 para ela.
+- **Não muda:** fila de aceite da Minha Performance continua a etapa Aceite do Kommo; Repasse não entrou nesta troca. Se a leitura do painel falhar, a lista cai no responsável do Kommo.
+
 ### 2026-09-29 — Fila de chamados: fases do Kanban
 - **Modelo usado:** Cursor Grok 4.7.
 - **Pedido:** renomear as fases do Kanban e incluir Novo Ticket, A Fazer e Pausado.
