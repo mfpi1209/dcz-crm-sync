@@ -131,6 +131,12 @@ function _bwcNum(n) {
     return (n || 0).toLocaleString("pt-BR");
 }
 
+function _bwcDataBr(s) {
+    const t = String(s || "").slice(0, 10);
+    const iso = t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return iso ? `${iso[3]}/${iso[2]}/${iso[1]}` : (t || "—");
+}
+
 function _bwcFillSelect(id, values, atual) {
     const sel = document.getElementById(id);
     if (!sel) return;
@@ -266,14 +272,25 @@ function _bwcIsAdmin() {
 function _bwcLista(rows, contarVenda) {
     if (!rows.length) return '<p class="px-4 py-3 text-slate-500">Ninguém neste recorte.</p>';
     const admin = contarVenda && _bwcIsAdmin();
-    return rows.slice(0, 200).map((l) =>
-        `<div class="px-4 py-2 flex justify-between items-center gap-3 border-b border-slate-200/60 dark:border-slate-700/30">
-            <span><button type="button" class="font-bold underline decoration-dotted" onclick="bwcConsultarRgm('${_bwcEsc(l.rgm)}')">${_bwcEsc(l.rgm)}</button> ${_bwcEsc(l.nome)}</span>
-            <span class="text-slate-500 flex items-center gap-2">${_bwcEsc(l.agente)} <span class="text-[10px] opacity-70">(${_BWC_FONTE[l.fonte] || "—"})</span> · ${_bwcEsc(l.situacao)} · ${_bwcEsc(l.data)}
-                ${admin ? `<button type="button" onclick="bwcContarVenda('${_bwcEsc(l.rgm)}', true)" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40">Contar venda</button>` : ""}
-            </span>
-        </div>`
-    ).join("") + (rows.length > 200 ? `<p class="px-4 py-2 text-slate-500">+ ${rows.length - 200} linhas</p>` : "");
+    return rows.slice(0, 200).map((l) => {
+        const sit = (l.situacao || "").toUpperCase();
+        const sitCls = sit === "EM CURSO"
+            ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+            : (sit.includes("CANCEL") || sit.includes("TRANC") ? "bg-rose-500/15 text-rose-500" : "bg-slate-500/15 text-slate-500");
+        return `<div class="px-4 py-2.5 border-b border-slate-200/60 dark:border-slate-700/30">
+            <div class="flex items-start justify-between gap-3">
+                <p class="min-w-0 leading-5"><button type="button" class="font-bold tabular-nums underline decoration-dotted" onclick="bwcConsultarRgm('${_bwcEsc(l.rgm)}')">${_bwcEsc(l.rgm)}</button> <span class="break-words">${_bwcEsc(l.nome)}</span></p>
+                ${admin ? `<button type="button" onclick="bwcContarVenda('${_bwcEsc(l.rgm)}', true)" class="shrink-0 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40">Contar venda</button>` : ""}
+            </div>
+            <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500">
+                <span class="px-1.5 py-0.5 rounded-full ${sitCls}">${_bwcEsc(sit || "—")}</span>
+                <span>${_bwcDataBr(l.data)}</span>
+                <span>${_bwcEsc(l.agente)} · ${_BWC_FONTE[l.fonte] || "—"}</span>
+                ${l.polo ? `<span>${_bwcEsc(l.polo)}</span>` : ""}
+                ${l.fora ? '<span class="text-orange-500">fora do padrão</span>' : ""}
+            </p>
+        </div>`;
+    }).join("") + (rows.length > 200 ? `<p class="px-4 py-2 text-slate-500">+ ${rows.length - 200} linhas</p>` : "");
 }
 
 function _bwcModal(titulo, sub, corpo) {
@@ -483,9 +500,9 @@ function bwcAbrirAgente(nomeOuIdx) {
     const rk = ((_bwcPayload && _bwcPayload.ranking) || []).find((r) => r.agente === nome) || {};
     _bwcAgenteLinhas = linhas;
     _bwcAgenteNome = nome;
-    const topo = `<div class="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-center gap-3">
-        <button type="button" onclick="bwcAgenteCsv()" class="px-2 py-0.5 rounded text-[10px] border border-slate-400/40">Baixar CSV</button>
-        <span id="bwc-carteira" class="text-slate-500">Carteira no Bwipo: carregando…</span>
+    const topo = `<div class="px-4 py-3 border-b border-slate-200 dark:border-slate-700 space-y-2">
+        <button type="button" onclick="bwcAgenteCsv()" class="px-2 py-1 rounded text-[11px] border border-slate-400/40">Baixar CSV</button>
+        <div id="bwc-carteira" class="flex flex-wrap gap-1.5 text-[11px] leading-5 text-slate-500">Carteira no Bwipo: carregando…</div>
     </div>`;
     _bwcModal(_bwcEsc(nome), `${vendas} em curso · ${linhas.length} matrículas no recorte`, topo + _bwcLista(linhas));
     const qs = rk.user_id ? "user_id=" + rk.user_id : rk.bwipo_owner ? "owner=" + encodeURIComponent(rk.bwipo_owner) : "";
@@ -499,8 +516,8 @@ function bwcAbrirAgente(nomeOuIdx) {
         .then((d) => {
             if (!alvo()) return;
             if (!d.ok) throw new Error(d.error || "falha");
-            alvo().innerHTML = `Carteira no Bwipo (${_bwcNum(d.total)}): ` + (d.etapas || []).map((e) =>
-                `<span class="inline-block px-2 py-0.5 mr-1 rounded-full ${e.ganho ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300" : e.perdido ? "bg-rose-500/15 text-rose-500" : "bg-slate-500/15"}">${_bwcEsc(e.etapa)} · ${_bwcNum(e.total)}</span>`
+            alvo().innerHTML = `<span class="w-full text-slate-500">Carteira no Bwipo · ${_bwcNum(d.total)}</span>` + (d.etapas || []).map((e) =>
+                `<span class="px-2 py-0.5 rounded-full whitespace-nowrap ${e.ganho ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300" : e.perdido ? "bg-rose-500/15 text-rose-500" : "bg-slate-500/15"}">${_bwcEsc(e.etapa)} · ${_bwcNum(e.total)}</span>`
             ).join("");
         })
         .catch((e) => { if (alvo()) alvo().textContent = "Carteira no Bwipo: " + e.message; });
@@ -757,21 +774,41 @@ function _bwcPintarMetas(ini, fim) {
     </div>`).join("") : '<p class="px-4 py-2 text-slate-500">Nenhuma meta avulsa no período.</p>';
     const agOpts = ((_bwcPayload && _bwcPayload.ranking) || []).filter((r) => r.user_id)
         .map((r) => `<option value="${r.user_id}">${_bwcEsc(r.agente)}</option>`).join("");
-    const novo = `<div class="px-4 py-2 flex flex-wrap items-center gap-2">
-        <select id="bwc-nm-ag" class="input-glass px-2 py-0.5 text-xs">${agOpts}</select>
-        <input type="date" id="bwc-nm-ini" value="${ini}" class="input-glass px-1 py-0.5 text-xs">
-        <input type="date" id="bwc-nm-fim" value="${fim}" class="input-glass px-1 py-0.5 text-xs">
-        <input type="number" id="bwc-nm-i" placeholder="Interm." class="input-glass px-1 py-0.5 text-xs w-16">
-        <input type="number" id="bwc-nm-m" placeholder="Meta" class="input-glass px-1 py-0.5 text-xs w-16">
-        <input type="number" id="bwc-nm-s" placeholder="Super" class="input-glass px-1 py-0.5 text-xs w-16">
-        <button type="button" onclick="bwcNovaMeta()" class="px-2 py-0.5 rounded border border-emerald-500/40 text-emerald-500">Adicionar</button>
+    const campAlvo = camps[0];
+    const novo = `<div class="px-4 py-3 space-y-2">
+        <p class="text-slate-500">Se o período cair na campanha ativa, salva a meta desse consultor na Premiação — o mesmo número do ranking. Campanha nova (nome, datas, equipe e R$) se cria na aba Premiação.</p>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <label class="col-span-2 text-[11px] text-slate-500">Consultor
+                <select id="bwc-nm-ag" class="input-glass mt-0.5 w-full px-2 py-1 text-xs">${agOpts}</select>
+            </label>
+            <label class="text-[11px] text-slate-500">De
+                <input type="date" id="bwc-nm-ini" value="${ini}" class="input-glass mt-0.5 w-full px-2 py-1 text-xs">
+            </label>
+            <label class="text-[11px] text-slate-500">Até
+                <input type="date" id="bwc-nm-fim" value="${fim}" class="input-glass mt-0.5 w-full px-2 py-1 text-xs">
+            </label>
+            <label class="text-[11px] text-slate-500">Intermediária
+                <input type="number" id="bwc-nm-i" min="0" class="input-glass mt-0.5 w-full px-2 py-1 text-xs">
+            </label>
+            <label class="text-[11px] text-slate-500">Meta
+                <input type="number" id="bwc-nm-m" min="0" class="input-glass mt-0.5 w-full px-2 py-1 text-xs">
+            </label>
+            <label class="text-[11px] text-slate-500">Supermeta
+                <input type="number" id="bwc-nm-s" min="0" class="input-glass mt-0.5 w-full px-2 py-1 text-xs">
+            </label>
+        </div>
+        <div class="flex flex-wrap gap-2 pt-1">
+            <button type="button" onclick="bwcNovaMeta()" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-semibold">Salvar meta</button>
+            <button type="button" onclick="bwcIrPremiacao()" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600">Abrir Premiação</button>
+        </div>
+        <p class="text-slate-500">${campAlvo ? `Período atual cai em <b>${_bwcEsc(campAlvo.nome)}</b>. Salvar altera a meta do consultor nessa campanha.` : "Nenhuma campanha cobre este período. Salvar grava uma meta avulsa."}</p>
     </div>`;
     _bwcModal("Metas",
-        "Ordem usada no ranking: meta do agente na campanha → padrão da campanha → meta avulsa. Campanha se edita em Premiação.",
+        "O ranking lê a Premiação: meta do agente na campanha, depois o padrão da campanha, depois a meta avulsa.",
         `<p class="px-4 pt-3 pb-1 font-semibold">Campanha ativa</p>${campHtml}`
         + `<p class="px-4 pt-3 pb-1 font-semibold">Meta aplicada no ranking</p>${rkHtml || '<p class="px-4 py-2 text-slate-500">Sem ranking carregado.</p>'}`
         + `<p class="px-4 pt-3 pb-1 font-semibold">Metas avulsas (sem campanha)</p>${metasHtml}`
-        + `<p class="px-4 pt-3 pb-1 font-semibold">Nova meta avulsa</p>${novo}`);
+        + `<p class="px-4 pt-3 pb-1 font-semibold">Salvar meta do consultor</p>${novo}`);
 }
 
 function _bwcMetasRecarregar(msg) {
@@ -794,10 +831,19 @@ function bwcExcluirMeta(id) {
         .catch((e) => toast(e.message, "error"));
 }
 
+function bwcIrPremiacao() {
+    bwcFecharModal();
+    if (typeof navigate === "function") navigate("premiacao_admin");
+}
+
 function bwcNovaMeta() {
     const sel = document.getElementById("bwc-nm-ag");
     const val = (id) => document.getElementById(id)?.value || "";
-    const body = { metas: [{
+    if (!sel || !sel.value) {
+        toast("Escolha o consultor.", "error");
+        return;
+    }
+    const body = {
         user_id: sel.value,
         user_name: sel.options[sel.selectedIndex]?.text || "",
         dt_inicio: val("bwc-nm-ini"),
@@ -805,16 +851,17 @@ function bwcNovaMeta() {
         meta_intermediaria: Number(val("bwc-nm-i") || 0),
         meta: Number(val("bwc-nm-m") || 0),
         supermeta: Number(val("bwc-nm-s") || 0),
-        categoria: "matriculas",
-    }] };
-    if (!body.metas[0].dt_inicio || !body.metas[0].dt_fim) {
+    };
+    if (!body.dt_inicio || !body.dt_fim) {
         toast("Informe o período da meta.", "error");
         return;
     }
-    _bwcSend("/api/comercial-rgm/metas", "POST", body)
+    _bwcSend("/api/bwipo/painel/meta-agente", "POST", body)
         .then((d) => {
-            if (!d.saved) throw new Error("Meta não gravada: preencha ao menos um valor.");
-            _bwcMetasRecarregar("Meta adicionada.");
+            const msg = d.onde === "campanha"
+                ? `Meta gravada na campanha ${d.campanha}. A Premiação usa o mesmo número.`
+                : "Meta avulsa gravada. Neste período não há campanha.";
+            _bwcMetasRecarregar(msg);
         })
         .catch((e) => toast(e.message, "error"));
 }

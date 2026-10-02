@@ -513,7 +513,7 @@
                     <th class="text-left py-2 px-2">Curso</th>
                     <th class="text-left py-2 px-2">Polo</th>
                     <th class="text-left py-2 px-2">Data Mat.</th>
-                    <th class="text-left py-2 px-2">Lead Kommo</th>
+                    <th class="text-left py-2 px-2">Negócio</th>
                     <th class="text-left py-2 px-2">Ações</th>
                 </tr></thead>
                 <tbody id="mp-minha-lista-tbody"></tbody>
@@ -555,7 +555,7 @@
                 </button>
                 <button type="button" data-mp-mm-src="sync" onclick="_mpSetMinhaMatSource('sync')"
                     class="mp-mm-src-btn px-3 py-1.5 text-[11px] font-semibold rounded-lg border border-emerald-500/30 text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors">
-                    Sync Lead Kommo
+                    Sync Bwipo
                 </button>
                 <button type="button" data-mp-mm-src="manual" onclick="_mpSetMinhaMatSource('manual')"
                     class="mp-mm-src-btn px-3 py-1.5 text-[11px] font-semibold rounded-lg border border-slate-500/30 text-slate-300 bg-slate-500/10 hover:bg-slate-500/20 transition-colors">
@@ -575,16 +575,16 @@
             </div>
 
             <div id="mp-mm-panel-sync" class="hidden mb-3 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3">
-                <p class="text-[11px] text-emerald-200/90 mb-2">Mesmo mini sync do Dashboard Comercial: busca o lead na API Kommo e preenche os campos.</p>
+                <p class="text-[11px] text-emerald-200/90 mb-2">Busca o negócio no Bwipo e preenche com o nome, RGM, curso, polo e data de matrícula do CRM.</p>
                 <div class="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-2 items-end">
                     <div>
-                        <label class="text-[10px] text-slate-500 block mb-1">ID do lead (Kommo)</label>
-                        <input id="mp-mm-sync-lead" class="input-glass px-3 py-2 w-full text-xs" placeholder="Ex: 20796123">
+                        <label class="text-[10px] text-slate-500 block mb-1">Nº do negócio</label>
+                        <input id="mp-mm-sync-lead" class="input-glass px-3 py-2 w-full text-xs" placeholder="Ex: 18420">
                     </div>
                     <span class="text-[10px] text-slate-500 text-center pb-2 hidden sm:block">ou</span>
                     <div>
                         <label class="text-[10px] text-slate-500 block mb-1">RGM (8 dígitos)</label>
-                        <input id="mp-mm-sync-rgm" class="input-glass px-3 py-2 w-full text-xs" placeholder="Ex: 48411612" maxlength="12">
+                        <input id="mp-mm-sync-rgm" class="input-glass px-3 py-2 w-full text-xs" placeholder="Ex: 50511602" maxlength="12">
                     </div>
                 </div>
                 <div id="mp-mm-sync-pick" class="hidden flex flex-wrap gap-1.5 mt-2"></div>
@@ -604,7 +604,7 @@
             <div><label class="text-slate-600 dark:text-slate-400 block mb-1">Data Matrícula <span class="text-rose-400">*</span></label><input id="mp-mm-data" class="input-glass px-3 py-2 w-full" placeholder="dd/mm/aaaa" inputmode="numeric" required></div>
             <div><label class="text-slate-600 dark:text-slate-400 block mb-1">Ciclo <span class="text-rose-400">*</span> <span class="text-[10px] text-slate-500">(preencher manual)</span></label><input id="mp-mm-ciclo" class="input-glass px-3 py-2 w-full" placeholder="Ex: 2026/2" required></div>
             <div><label class="text-slate-600 dark:text-slate-400 block mb-1">Nível <span class="text-rose-400">*</span></label><input id="mp-mm-nivel" class="input-glass px-3 py-2 w-full" required></div>
-            <div><label class="text-slate-600 dark:text-slate-400 block mb-1">Lead Kommo ID <span class="text-rose-400">*</span></label><input id="mp-mm-kommo" class="input-glass px-3 py-2 w-full" required></div>
+            <div><label class="text-slate-600 dark:text-slate-400 block mb-1">Nº do negócio <span class="text-rose-400">*</span></label><input id="mp-mm-kommo" class="input-glass px-3 py-2 w-full" required></div>
             <div class="sm:col-span-2"><label class="text-slate-600 dark:text-slate-400 block mb-1">Observação</label><textarea id="mp-mm-obs" class="input-glass px-3 py-2 w-full h-16 resize-none"></textarea></div>
         </div>
         <div class="flex justify-end gap-2 mt-4">

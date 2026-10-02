@@ -2070,6 +2070,81 @@ def _admin_only():
     return None
 
 
+@bwipo_bp.route("/api/bwipo/painel/meta-agente", methods=["POST"])
+def api_bwipo_painel_meta_agente():
+    """Grava a meta do consultor na campanha da Premiação que cobre o período.
+    Sem campanha nesse intervalo, cai em comercial_metas (avulsa)."""
+    denied = _admin_only()
+    if denied:
+        return denied
+    body = request.get_json(force=True, silent=True) or {}
+    try:
+        uid = int(body.get("user_id") or 0)
+    except (TypeError, ValueError):
+        uid = 0
+    if not uid:
+        return jsonify({"ok": False, "error": "Escolha o consultor."}), 400
+    dt_ini = str(body.get("dt_inicio") or "")[:10]
+    dt_fim = str(body.get("dt_fim") or "")[:10]
+    if not dt_ini or not dt_fim:
+        return jsonify({"ok": False, "error": "Informe o período da meta."}), 400
+    try:
+        inter = float(body.get("meta_intermediaria") or 0)
+        meta = float(body.get("meta") or 0)
+        super_ = float(body.get("supermeta") or 0)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "Valores inválidos."}), 400
+    if inter <= 0 and meta <= 0 and super_ <= 0:
+        return jsonify({"ok": False, "error": "Preencha ao menos um valor."}), 400
+    name = str(body.get("user_name") or "")[:120]
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT id, nome FROM premiacao_campanha
+        WHERE COALESCE(ativa, TRUE)
+          AND dt_inicio <= %s::date AND dt_fim >= %s::date
+        ORDER BY dt_inicio DESC
+        LIMIT 1
+        """,
+        (dt_fim, dt_ini),
+    )
+    camp = cur.fetchone()
+    if camp:
+        cur.execute(
+            """
+            INSERT INTO premiacao_campanha_meta
+                (campanha_id, kommo_user_id, meta, meta_intermediaria, supermeta)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (campanha_id, kommo_user_id) DO UPDATE
+              SET meta = EXCLUDED.meta,
+                  meta_intermediaria = EXCLUDED.meta_intermediaria,
+                  supermeta = EXCLUDED.supermeta
+            """,
+            (camp[0], uid, meta, inter, super_),
+        )
+        conn.commit()
+        conn.close()
+        return jsonify({"ok": True, "onde": "campanha", "campanha": camp[1], "saved": 1})
+    cur.execute(
+        """
+        INSERT INTO comercial_metas
+            (user_id, user_name, meta, meta_intermediaria, supermeta,
+             categoria, dt_inicio, dt_fim, descricao)
+        VALUES (%s, %s, %s, %s, %s, 'matriculas', %s, %s, '')
+        ON CONFLICT (user_id, dt_inicio, dt_fim, categoria) DO UPDATE
+          SET meta = EXCLUDED.meta,
+              meta_intermediaria = EXCLUDED.meta_intermediaria,
+              supermeta = EXCLUDED.supermeta,
+              user_name = EXCLUDED.user_name
+        """,
+        (uid, name, meta, inter, super_, dt_ini, dt_fim),
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True, "onde": "avulsa", "saved": 1})
+
+
 @bwipo_bp.route("/api/bwipo/painel/consultores")
 def api_bwipo_painel_consultores():
     """Consultores do Kommo com o usuário Bwipo ligado, ajuste do painel e data de tombamento.
