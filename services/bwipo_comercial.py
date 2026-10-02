@@ -552,6 +552,27 @@ def count_created_mirror(start: datetime, end: datetime) -> int:
         conn.close()
 
 
+def count_won_closed_mirror(start: datetime, end: datetime) -> int:
+    from db import get_conn
+
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT COUNT(*) FROM bwipo_deals
+            WHERE NOT is_deleted
+              AND pipeline_id = %s
+              AND status = 'WON'
+              AND closed_at >= %s AND closed_at < %s
+            """,
+            (PIPELINE_PRINCIPAL_ID, start, end),
+        )
+        return int(cur.fetchone()[0] or 0)
+    finally:
+        conn.close()
+
+
 def count_won_closed_between(start: datetime, end: datetime, *, max_pages: int = 10) -> int:
     """Ganhos cujo closedAt cai no intervalo. updatedSince limita a página."""
     since = _iso_z(start)
