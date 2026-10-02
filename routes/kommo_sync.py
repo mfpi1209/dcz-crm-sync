@@ -879,24 +879,16 @@ def _get_new_leads_today_payload(force=False):
             "cached": True,
         }
 
-    source = "bwipo"
+    source = "db"
     today = datetime.now(_BRT).date()
     start = datetime(today.year, today.month, today.day, tzinfo=_BRT)
     end = start + timedelta(days=1)
     try:
-        from services.bwipo_comercial import count_created_between, configured
-        if not configured():
-            raise RuntimeError("BWIPO_COMERCIAL_API_TOKEN ausente")
-        count = count_created_between(start, end)
+        from services.bwipo_comercial import count_created_mirror
+        count = count_created_mirror(start, end)
     except Exception as e:
-        logger.warning("new_leads_today bwipo: %s", e)
-        source = "db"
-        try:
-            from services.bwipo_comercial import count_created_mirror
-            count = count_created_mirror(start, end)
-        except Exception as e2:
-            logger.warning("new_leads_today mirror: %s", e2)
-            count = 0
+        logger.warning("new_leads_today mirror: %s", e)
+        count = 0
 
     _new_today_cache["count"] = count
     _new_today_cache["source"] = source
@@ -967,7 +959,7 @@ def _build_yesterday_summary():
     Ganho de ontem = negócios WON com closedAt no dia (API Bwipo).
     Leads de ontem e anteontem = criados no Pipeline Principal (espelho; a API não filtra createdAt).
     """
-    from services.bwipo_comercial import count_created_mirror, count_won_closed_between
+    from services.bwipo_comercial import count_created_mirror, count_won_closed_mirror
 
     today = datetime.now(_BRT).date()
     yesterday = today - timedelta(days=1)
@@ -981,7 +973,7 @@ def _build_yesterday_summary():
     y0, y1 = _bounds(yesterday)
     p0, p1 = _bounds(day_before)
     try:
-        vendas = count_won_closed_between(y0, y1)
+        vendas = count_won_closed_mirror(y0, y1)
     except Exception as e:
         logger.warning("ganho ontem bwipo: %s", e)
         vendas = 0
@@ -1056,7 +1048,7 @@ def _get_yesterday_summary_light():
     yesterday = datetime.now(_BRT).date() - timedelta(days=1)
     return {
         "date": yesterday.isoformat(),
-        "vendas": _vendas_comercial_dia(yesterday),
+        "vendas": 0,
         "leads": 0,
         "leads_prev": 0,
         "leads_delta_pct": 0,
