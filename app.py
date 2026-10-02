@@ -429,6 +429,8 @@ register_responsible_history_job(scheduler)
 register_funnel_cache_job(scheduler)
 register_bwipo_sync_job(scheduler)
 register_dist_comercial_schedule_job(scheduler)
+from routes.minha_performance import register_bwipo_periodo_warm
+register_bwipo_periodo_warm(scheduler)
 from routes.conversao_backfill import register_conversao_backfill_job
 register_conversao_backfill_job(scheduler)
 warm_academic_sumidos_cache()
