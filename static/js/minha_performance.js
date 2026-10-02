@@ -610,7 +610,7 @@ function _mpCalcMaxPotencial(d) {
 function _mpRenderPixDia(d) {
     const pixFila = !!(d.pix_suporte_equipe && d.pix_fonte_fila);
     const teamPixNote = pixFila
-        ? '<p class="text-[10px] text-violet-400/90 mb-1.5 font-medium">PIX do time: <strong>fila de aceite</strong> agora (todos os consultores no Kommo)</p>'
+        ? '<p class="text-[10px] text-violet-400/90 mb-1.5 font-medium">PIX do time: <strong>fila de aceite</strong> agora (negócios em Aceite no Bwipo)</p>'
         : (d.pix_suporte_equipe
             ? '<p class="text-[10px] text-violet-400/90 mb-1.5 font-medium">PIX do time Suporte</p>'
             : '');

@@ -4,6 +4,20 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-10-02 — Minha Performance: meta diária e aceites no Bwipo
+- **Modelo usado:** Cursor Grok 4.7.
+- **Pedido:** ranking, calendário, sequência e meta diária passam a olhar o Aceite no Bwipo, da própria pessoa.
+- **Regra:** `_bwipo_aceites` lê `bwipo_deals` na etapa Aceite do Pipeline Principal. O dono entra pelo depara `bwipo_kommo_user_depara`. A fila é o estoque atual. O dia do calendário e da meta é a data de atualização do negócio (BRT). Matrícula do período continua a do painel Bwipo; a meta do dia soma matrícula + esses aceites.
+- **Não muda:** faixas de PIX (se o dia não tem faixa, a tela segue "sem meta"); Repasse.
+
+### 2026-10-02 — Funil da home lê o Bwipo ao vivo
+- **Modelo usado:** Cursor Grok 4.7.
+- **Pedido:** o Funil de Vendas do Dashboard deixa o token do Kommo e mostra o estoque do CRM comercial Bwipo.
+- **Leitura:** `dashboard_funnel_live` conta o Pipeline Principal com `GET /api/deals?stageId=`. A fila segue o Kanban: Sem Resposta, Em Atendimento, Aguardando Resposta, Aguardando Inscrição, Inscrição, Processo Seletivo, Em Processo, Aprovado/Reprovado, Boleto Enviado, Pagamento Confirmado, Aceite. Ganho e Perdido ficam fora do total de ativos. Sem Resposta não é a coluna Perdidos.
+- **Novos hoje:** negócios criados no dia, filtrando `createdAt` nas páginas de `updatedSince` (a API ignora `createdSince`). **Ganho ontem:** `status=WON` com `closedAt` no dia. **Leads ontem:** espelho `bwipo_deals`, porque a listagem não filtra data de criação e o dia anterior passa de 10 mil atualizações.
+- **Cache:** `_FUNNEL_API_VERSION` 6→7. Se a API falhar, o funil cai no espelho Bwipo. O job de aquecimento não pega mais o lock do Kommo.
+- **Não muda:** o arquivo de matriculados no rodapé do Dashboard; Sync Kommo; aceite da Minha Performance.
+
 ### 2026-10-02 — Minha Performance conta as mesmas vendas do Dashboard Comercial Bwipo
 - **Modelo usado:** Cursor Grok 4.7.
 - **Pedido:** a lista e a contagem da Minha Performance passam a ser as vendas do painel Bwipo, como antes eram as do painel Kommo.

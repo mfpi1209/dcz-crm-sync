@@ -156,8 +156,8 @@ function _dashFmtKommoErr(msg) {
     const s = String(msg);
     if (/<html|<!doctype/i.test(s)) {
         return /403|forbidden/i.test(s)
-            ? 'Kommo bloqueou o servidor (403 WAF).'
-            : 'Resposta inválida do Kommo.';
+            ? 'O CRM recusou a consulta.'
+            : 'Resposta inválida do Bwipo.';
     }
     return s.length > 160 ? s.slice(0, 160) + '…' : s;
 }
@@ -182,7 +182,7 @@ function _dashShowFunnelWarming(msg) {
         <div class="col-span-full text-center py-8 text-slate-500 text-sm flex flex-col items-center gap-3">
             <svg class="animate-spin h-6 w-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
             <span>${msg || 'Funil carregando (primeira carga)…'}</span>
-            <span class="text-xs text-slate-600">Contagem no Kommo pode levar até 2 min</span>
+            <span class="text-xs text-slate-600">Contagem no Bwipo pode levar cerca de 20s</span>
         </div>`;
 }
 
@@ -294,12 +294,12 @@ async function _dashRefreshFunnel(force) {
     const slowTimer = setTimeout(() => {
         const container = document.getElementById('dash-funnel-cards');
         if (!container) return;
-        const stillLoading = container.textContent.includes('Buscando dados do Kommo');
+        const stillLoading = container.textContent.includes('Buscando dados do Bwipo');
         if (stillLoading) {
             container.innerHTML = `
                 <div class="col-span-full text-center py-8 text-slate-500 text-sm flex flex-col items-center gap-3">
                     <svg class="animate-spin h-6 w-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                    Buscando dados do Kommo… (pode levar até 90s)
+                    Buscando dados do Bwipo… (pode levar cerca de 20s)
                 </div>`;
         }
     }, 8000);

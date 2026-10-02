@@ -21,20 +21,24 @@ function escHtml(s) {
 }
 
 const _FUNNEL_GRADIENTS = {
+    sem_resposta:         { from: '#f43f5e', to: '#e11d48', border: 'border-rose-500/30',    shadow: 'shadow-rose-500/20' },
     em_atendimento:       { from: '#14b8a6', to: '#0d9488', border: 'border-teal-500/30',   shadow: 'shadow-teal-500/20' },
+    aguardando_resposta:  { from: '#a855f7', to: '#7c3aed', border: 'border-purple-500/30', shadow: 'shadow-purple-500/20' },
     aguardando_inscricao: { from: '#3b82f6', to: '#6366f1', border: 'border-blue-500/30',   shadow: 'shadow-blue-500/20' },
     inscricao:            { from: '#6366f1', to: '#8b5cf6', border: 'border-indigo-500/30', shadow: 'shadow-indigo-500/20' },
     processo_seletivo:    { from: '#8b5cf6', to: '#a855f7', border: 'border-violet-500/30', shadow: 'shadow-violet-500/20' },
     em_processo:          { from: '#06b6d4', to: '#0ea5e9', border: 'border-cyan-500/30',   shadow: 'shadow-cyan-500/20' },
     aprovado_reprovado:   { from: '#f59e0b', to: '#f97316', border: 'border-amber-500/30',  shadow: 'shadow-amber-500/20' },
-    aceite:               { from: '#10b981', to: '#14b8a6', border: 'border-emerald-500/30', shadow: 'shadow-emerald-500/20' },
+    boleto_enviado:       { from: '#84cc16', to: '#65a30d', border: 'border-lime-500/30',   shadow: 'shadow-lime-500/20' },
     pagamento_confirmado: { from: '#059669', to: '#047857', border: 'border-emerald-600/40', shadow: 'shadow-emerald-600/20' },
+    aceite:               { from: '#10b981', to: '#14b8a6', border: 'border-emerald-500/30', shadow: 'shadow-emerald-500/20' },
 };
 
 const _FUNNEL_VISUAL_ORDER = [
-    'em_atendimento',
+    'sem_resposta', 'em_atendimento', 'aguardando_resposta',
     'aguardando_inscricao', 'inscricao', 'processo_seletivo',
-    'em_processo', 'aprovado_reprovado', 'aceite', 'pagamento_confirmado',
+    'em_processo', 'aprovado_reprovado', 'boleto_enviado',
+    'pagamento_confirmado', 'aceite',
 ];
 
 function _fmtKCount(n) {
@@ -61,7 +65,7 @@ function _renderFunnelVisual(data, prefix) {
         .filter(Boolean);
     if (!ordered.length) { wrap.innerHTML = ''; return; }
 
-    const lost = byKey.sem_resposta;
+    const lost = byKey.perdido;
 
     // Heights: proporcional ao maior estágio do funil (teto 100% — evita coluna
     // "Perdidos" estourar quando sem_resposta >> max dos demais estágios).
@@ -74,14 +78,16 @@ function _renderFunnelVisual(data, prefix) {
 
     const visualLabels = {
         em_atendimento: 'Em Atendimento',
+        sem_resposta: 'Sem Resposta',
+        aguardando_resposta: 'Aguardando Resposta',
         aguardando_inscricao: 'Aguardando Inscrição',
+        boleto_enviado: 'Boleto',
         inscricao: 'Inscrição',
         processo_seletivo: 'Seletivo',
         em_processo: 'Em Processo',
         aprovado_reprovado: 'Aprovados',
         aceite: 'Aceite',
         pagamento_confirmado: 'Pagamento',
-        sem_resposta: 'Sem Resposta',
     };
 
     const stageBars = ordered.map((s, i) => {
@@ -251,10 +257,10 @@ function _renderFunnelCards(data, prefix) {
     if (tsEl) {
         let label = '';
         if (data.source === 'db') {
-            label = 'Espelho PG desatualizado';
+            label = 'Espelho Bwipo';
             if (data.synced_at) label += ' (' + data.synced_at + ')';
         } else if (data.fetched_at) {
-            label = 'Kommo ' + data.fetched_at;
+            label = 'Bwipo ' + data.fetched_at;
             if (data.stale) label += ' · atualizando…';
         }
         if (data.live_error) {
