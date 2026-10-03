@@ -7,6 +7,7 @@ let _mmExecPollTimer = null;
 let _mmUnifPollTimer = null;
 let _mmUnifLogSince = 0;
 let _mmPreviewPage = 1;
+let _mmCrmDest = 'kommo';
 
 function loadMatchMerge() {
     _mmLogSince = 0;
@@ -36,8 +37,48 @@ function mmLoadDataCorte() {
             if (d.override_ativo) {
                 banner.classList.add('border-amber-500/50');
             }
+            const sel = document.getElementById('mm-crm-dest');
+            if (sel && d.bwipo_ui) {
+                if (![...sel.options].some(o => o.value === 'bwipo')) {
+                    const opt = document.createElement('option');
+                    opt.value = 'bwipo';
+                    opt.textContent = 'Novo CRM';
+                    sel.appendChild(opt);
+                }
+                const saved = localStorage.getItem('mm_crm_dest_v1');
+                if (saved === 'bwipo') sel.value = 'bwipo';
+            }
+            mmApplyCrmLabels();
         })
         .catch(() => {});
+}
+
+function mmOnCrmDestChange() {
+    const sel = document.getElementById('mm-crm-dest');
+    if (sel) localStorage.setItem('mm_crm_dest_v1', sel.value);
+    mmApplyCrmLabels();
+}
+
+function mmApplyCrmLabels() {
+    const dest = document.getElementById('mm-crm-dest')?.value || 'kommo';
+    _mmCrmDest = dest;
+    const isBwipo = dest === 'bwipo';
+    const crmBanner = document.getElementById('mm-crm-dest-banner');
+    if (crmBanner) crmBanner.classList.toggle('hidden', !isBwipo);
+    const kpi = document.getElementById('mm-kpi-match-label');
+    if (kpi) kpi.textContent = isBwipo ? 'Match Novo CRM' : 'Match Kommo';
+    const th = document.getElementById('mm-th-sit-crm');
+    if (th) th.textContent = isBwipo ? 'Sit. Novo CRM' : 'Sit. Kommo';
+    const exec = document.getElementById('mm-exec-crm-label');
+    if (exec) exec.textContent = isBwipo ? 'no Novo CRM' : 'no Kommo';
+}
+
+function mmLeadHref(id) {
+    if (!id) return '';
+    if (_mmCrmDest === 'bwipo') {
+        return `https://comercialcruzeiro.bwipo.com/pipeline?deal=${encodeURIComponent(id)}`;
+    }
+    return `https://admamoeduitcombr.kommo.com/leads/detail/${id}`;
 }
 
 /* ── Upload ─────────────────────────────────────── */
@@ -130,7 +171,7 @@ function mmStartProcess() {
     fetch('/api/match-merge/process', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nivel }),
+        body: JSON.stringify({ nivel, crm: (document.getElementById('mm-crm-dest') || {}).value || 'kommo' }),
     })
         .then(r => r.json())
         .then(data => {
@@ -219,6 +260,18 @@ function mmLoadPreview() {
         .then(data => {
             if (data.error) return;
             if (data.running) return;
+            if (data.crm) {
+                _mmCrmDest = data.crm;
+                const sel = document.getElementById('mm-crm-dest');
+                if (sel && data.crm === 'bwipo' && ![...sel.options].some(o => o.value === 'bwipo')) {
+                    const opt = document.createElement('option');
+                    opt.value = 'bwipo';
+                    opt.textContent = 'Novo CRM';
+                    sel.appendChild(opt);
+                }
+                if (sel && (data.crm === 'bwipo' || data.crm === 'kommo')) sel.value = data.crm;
+                mmApplyCrmLabels();
+            }
 
             const sec = document.getElementById('mm-results-section');
             sec.classList.remove('hidden');
@@ -268,11 +321,13 @@ function mmLoadPreview() {
                                    a.acao === 'RESTAURAR' ? 'bg-indigo-500/10' :
                                    a.acao === 'UNIFICAR' ? 'bg-purple-500/10' : 'bg-gray-500/10';
 
-                    let leadCell = `<span class="text-gray-500 font-mono">${a.lead_id || '—'}</span>`;
+                    let leadCell = a.lead_id
+                        ? `<a href="${mmLeadHref(a.lead_id)}" target="_blank" class="text-purple-400 hover:underline font-mono">${a.lead_id}</a>`
+                        : `<span class="text-gray-500 font-mono">—</span>`;
                     if (a.acao === 'UNIFICAR' && a.dup_lead_ids) {
                         const ids = a.dup_lead_ids;
                         leadCell = ids.map(id =>
-                            `<a href="https://admamoeduitcombr.kommo.com/leads/detail/${id}" target="_blank" class="text-purple-400 hover:underline font-mono">${id}</a>`
+                            `<a href="${mmLeadHref(id)}" target="_blank" class="text-purple-400 hover:underline font-mono">${id}</a>`
                         ).join(', ');
                     }
 
@@ -322,18 +377,21 @@ function mmExecute() {
     const limitEl = document.getElementById('mm-exec-limit');
     const limit = limitEl.value ? parseInt(limitEl.value) : null;
 
-    if (!confirm(`Executar atualizações no Kommo${filtro ? ' (' + filtro + ')' : ''}${limit ? ' — limite ' + limit : ''}?`)) return;
+    const destLabel = _mmCrmDest === 'bwipo' ? 'Novo CRM' : 'Kommo';
+    if (!confirm(`Executar atualizações no ${destLabel}${filtro ? ' (' + filtro + ')' : ''}${limit ? ' — limite ' + limit : ''}?`)) return;
 
     const btn = document.getElementById('mm-btn-execute');
     btn.disabled = true;
     btn.classList.add('opacity-50');
     document.getElementById('mm-exec-status').textContent = 'Iniciando...';
+    const logEl = document.getElementById('mm-log-content');
+    if (logEl) logEl.textContent = '';
     _mmExecLogSince = 0;
 
     fetch('/api/match-merge/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filtro, limit }),
+        body: JSON.stringify({ filtro, limit, crm: _mmCrmDest }),
     })
         .then(r => r.json())
         .then(data => {
@@ -343,8 +401,9 @@ function mmExecute() {
                 btn.classList.remove('opacity-50');
                 return;
             }
-            document.getElementById('mm-exec-status').textContent = `Executando ${data.total} ações...`;
+            document.getElementById('mm-exec-status').textContent = `Executando ${data.total} ações — o log abaixo atualiza a cada pessoa`;
             _mmStartExecPoll();
+            _mmPollExec();
         })
         .catch(err => {
             document.getElementById('mm-exec-status').textContent = 'Erro: ' + err;
@@ -355,7 +414,7 @@ function mmExecute() {
 
 function _mmStartExecPoll() {
     if (_mmExecPollTimer) clearInterval(_mmExecPollTimer);
-    _mmExecPollTimer = setInterval(_mmPollExec, 2000);
+    _mmExecPollTimer = setInterval(_mmPollExec, 1000);
 }
 
 function _mmPollExec() {
@@ -367,6 +426,11 @@ function _mmPollExec() {
                 el.textContent += data.lines.join('\n') + '\n';
                 el.scrollTop = el.scrollHeight;
                 _mmExecLogSince = data.total;
+                if (data.running) {
+                    const last = data.lines[data.lines.length - 1] || '';
+                    const short = last.replace(/^\d{2}:\d{2}:\d{2}\s*/, '');
+                    document.getElementById('mm-exec-status').textContent = short;
+                }
             }
 
             if (!data.running) {
@@ -384,7 +448,8 @@ function _mmPollExec() {
                         `Concluído: ${r.ok || 0} OK, ${r.erro || 0} erros, ${r.skip || 0} ignorados`;
                 }
             }
-        });
+        })
+        .catch(() => { /* poll segue; execute continua no servidor */ });
 }
 
 /* ── Merge Modal (UNIFICAR) ────────────────────── */
@@ -441,7 +506,7 @@ function _mmRenderMergeCards(container, leads) {
         return `<div id="mm-merge-card-${id}" class="border border-[var(--border)] rounded-xl p-4 cursor-pointer hover:border-purple-500/60 transition-all"
                      onclick="mmSelectKeepLead(${id})">
             <div class="flex items-center justify-between mb-3">
-                <a href="https://admamoeduitcombr.kommo.com/leads/detail/${id}" target="_blank"
+                <a href="${mmLeadHref(id)}" target="_blank"
                    class="text-sm font-bold text-purple-400 hover:underline font-mono">#${id}</a>
                 <span class="text-[10px] font-bold ${statusClass} px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800">${statusLabel}</span>
             </div>

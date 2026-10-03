@@ -143,7 +143,11 @@ def mm_process():
     if _running:
         return jsonify({"error": "Pipeline já está em execução."}), 409
 
-    nivel = request.json.get("nivel", "grad") if request.is_json else "grad"
+    body = request.json if request.is_json else {}
+    nivel = (body or {}).get("nivel", "grad")
+    crm_dest = _parse_crm_dest((body or {}).get("crm"))
+    if crm_dest == "__denied_bwipo__":
+        return jsonify({"error": "Novo CRM não está liberado neste ambiente."}), 403
 
     cand_dir = UPLOAD_DIR / nivel / "candidatos"
     mat_dir = UPLOAD_DIR / nivel / "matriculados"
@@ -161,33 +165,55 @@ def mm_process():
         global _running, _result
         _running = True
         try:
-            from match_merge_lib import run_pipeline
+            from match_merge_lib import run_pipeline, set_upload_crm
+            set_upload_crm(crm_dest)
+            _add_log(f"Destino: {'Novo CRM (Bwipo)' if crm_dest == 'bwipo' else 'Kommo'}")
             _result = run_pipeline(
                 candidatos_files=cand_files,
                 matriculados_files=mat_files,
                 nivel=nivel,
                 log_callback=_add_log,
             )
+            if isinstance(_result, dict):
+                _result["crm"] = crm_dest
         except Exception as e:
             import traceback
             _add_log(f"ERRO FATAL: {e}")
             _add_log(traceback.format_exc())
-            _result = {"error": str(e)}
+            _result = {"error": str(e), "crm": crm_dest}
         finally:
+            from match_merge_lib import set_upload_crm
+            set_upload_crm(None)
             _running = False
 
     t = threading.Thread(target=_run, daemon=True)
     t.start()
 
     return jsonify({"ok": True, "msg": "Pipeline iniciado.", "nivel": nivel,
-                    "candidatos": len(cand_files), "matriculados": len(mat_files)})
+                    "candidatos": len(cand_files), "matriculados": len(mat_files),
+                    "crm": crm_dest})
+
+
+def _parse_crm_dest(raw) -> str:
+    """kommo (padrão) ou bwipo. bwipo só se a UI local estiver liberada."""
+    from match_merge_lib import bwipo_ui_enabled
+    name = (raw or "kommo").strip().lower()
+    if name in ("bwipo", "novo", "novo_crm", "comercialcruzeiro"):
+        if not bwipo_ui_enabled():
+            return "__denied_bwipo__"
+        return "bwipo"
+    return "kommo"
 
 
 @match_merge_bp.route("/api/match-merge/data-corte", methods=["GET"])
 def mm_data_corte():
     """Data de corte usada no pipeline (regra D-1/D-2 ou override)."""
-    from match_merge_lib import _data_corte_info
-    return jsonify({"ok": True, **_data_corte_info()})
+    from match_merge_lib import _data_corte_info, bwipo_ui_enabled
+    return jsonify({
+        "ok": True,
+        **_data_corte_info(),
+        "bwipo_ui": bwipo_ui_enabled(),
+    })
 
 
 @match_merge_bp.route("/api/match-merge/status", methods=["GET"])
@@ -199,6 +225,7 @@ def mm_status():
         "has_result": _result is not None,
         "has_exec_result": _exec_result is not None,
         "has_unif_result": _unif_result is not None,
+        "crm": (_result or {}).get("crm") or "kommo",
     })
 
 
@@ -256,6 +283,7 @@ def mm_preview():
         "page": page,
         "per_page": per_page,
         "pages": (total + per_page - 1) // per_page if per_page else 1,
+        "crm": (_result or {}).get("crm") or "kommo",
     })
 
 
@@ -346,6 +374,13 @@ def mm_execute():
     data = request.json or {}
     limit = data.get("limit")
     filtro = data.get("filtro", "")
+    crm_dest = _result.get("crm") or _parse_crm_dest(data.get("crm"))
+    if crm_dest == "__denied_bwipo__":
+        return jsonify({"error": "Novo CRM não está liberado neste ambiente."}), 403
+    if crm_dest == "bwipo":
+        from match_merge_lib import bwipo_ui_enabled
+        if not bwipo_ui_enabled():
+            return jsonify({"error": "Novo CRM não está liberado neste ambiente."}), 403
 
     to_exec = acoes
     if filtro:
@@ -360,7 +395,11 @@ def mm_execute():
         global _exec_running, _exec_result
         _exec_running = True
         try:
-            from match_merge_lib import executar_acoes
+            from match_merge_lib import executar_acoes, set_upload_crm
+            set_upload_crm(crm_dest)
+            _add_exec_log(
+                f"Executando no {'Novo CRM (Bwipo)' if crm_dest == 'bwipo' else 'Kommo'}"
+            )
             _exec_result = executar_acoes(to_exec, log_callback=_add_exec_log)
         except Exception as e:
             import traceback
@@ -368,6 +407,8 @@ def mm_execute():
             _add_exec_log(traceback.format_exc())
             _exec_result = {"error": str(e)}
         finally:
+            from match_merge_lib import set_upload_crm
+            set_upload_crm(None)
             _exec_running = False
 
     t = threading.Thread(target=_run, daemon=True)

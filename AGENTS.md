@@ -4,6 +4,20 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-10-03 — Aceite preso sai no Processar do Novo CRM
+- **Modelo usado:** Cursor Grok 4.7.
+- **Pedido:** Aceite só fica com quem fechou hoje. Matrícula de outro dia não pode continuar parada; cancelado/trancado/transferido vai para Perdido.
+- **Causa:** o Novo CRM só gera MATRICULADO com `data_matricula >= data_corte`. Quem ficou em Aceite no dia 30/09 não entrou no Processar de 02/10 (corte 01/10).
+- **Decisão:** depois do D-1, um passe só nos negócios que **ainda estão em Aceite**. Janela de 14 dias, mesmos polos e tipos do D-1. Matrícula ativa anterior a hoje → MATRICULADO (Ganho). Só Cancelado/Trancado/Transferido, sem matrícula ativa → MOVER_PERDIDO. Quem o SIAA marca como matrícula de hoje, ou quem não casa, permanece em Aceite. A janela de 7 dias do Kommo não volta.
+- **Não muda:** Kommo; D-1 do card Matriculados; órfão 60d desligado no Novo CRM.
+
+### 2026-10-02 — Perdido não come matrícula ativa no mesmo CPF
+- **Modelo usado:** Cursor Grok 4.7.
+- **Caso:** Manoela dos Santos Silva (`48505313852`) matriculou em 01/10 (RGM `50506846`) e o Aceite foi para MOVER_PERDIDO. O CPF tinha outra linha Cancelado (Psicologia Hospitalar, 31/08).
+- **Causa:** `cpfs_cancelado_transferido` marcava o CPF inteiro se qualquer linha de `mm_cruzado` fosse Cancelado/Transferido. A matrícula ativa de hoje não impedia o Perdido.
+- **Decisão:** o CPF só entra nessa lista se **não** houver nenhuma linha `Matriculado` em `mm_matriculados`. Quem tem matrícula ativa segue para MATRICULADO (negócio existe) ou NOVO em Ganho (não existe). Se o D-1 gerar MATRICULADO no mesmo lead, o MOVER_PERDIDO daquele lead sai.
+- **Não muda:** Perdido de duplicata quando já existe Ganho com o mesmo RGM; quem está só Cancelado/Transferido, sem matrícula ativa, continua indo para Perdido.
+
 ### 2026-10-02 — Minha Performance: meta diária e aceites no Bwipo
 - **Modelo usado:** Cursor Grok 4.7.
 - **Pedido:** ranking, calendário, sequência e meta diária passam a olhar o Aceite no Bwipo, da própria pessoa.
@@ -26,6 +40,20 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 - **Crédito:** `_bwipo_periodo_credito` em `routes/minha_performance.py` usa o SIAA oficial (`_crgm_periodo_data_oficial`, sumido vira TRANSFERIDO) e o dono de `_atribuir_rgms` (manual > Bwipo se o consultor está tombado e a matrícula é da data dele em diante > Kommo > Bwipo > Admin Sistema). Entra na meta quem está em curso e passa no padrão de RGM, igual ao ranking do painel.
 - **Medido 01/10:** 55 em curso no SIAA; 4 com a Gabriela no Bwipo e 0 no Kommo. A regra do painel já entrega essas 4 para ela.
 - **Não muda:** fila de aceite da Minha Performance continua a etapa Aceite do Kommo; Repasse não entrou nesta troca. Se a leitura do painel falhar, a lista cai no responsável do Kommo.
+
+### 2026-10-01 — Novo CRM: NOVO herda o responsável do lead no Kommo
+- **Modelo usado:** Cursor Grok 4.7.
+- **Pedido:** lead criado no Bwipo pelo Upload Comercial não pode cair todo em Admin Sistema. O responsável tem que ser o mesmo do lead dessa pessoa no Kommo (ex.: Sabrina).
+- **Decisão:** no `NOVO` de `executar_acoes_bwipo`, o `ownerId` vem do `responsible_user_id` do funil Kommo (CPF, pipeline 5481944, lead ativo antes de 142/143). O nome casa com o usuário do Bwipo lido nos negócios recentes (`GET /api/users` continua 401). Sem lead no Kommo ou sem nome único no Bwipo, permanece Admin Sistema. Kommo em si não muda (NOVO lá segue `KOMMO_NOVO_RESPONSIBLE_UID`).
+- **Log:** a execução no Novo CRM grava na tela só a linha final (OK/SKIP/ERRO), como o Kommo. A linha "…" de início saiu.
+- **Não muda:** Origem=SIAA só no NOVO; etapa do NOVO (PS / Aprovado / Ganho).
+
+### 2026-09-30 — Novo CRM: MATRICULADO D-1 sem janela de 7 dias
+- **Modelo usado:** Cursor Grok 4.6.
+- **Pedido:** Processar no Novo CRM (Bwipo) com as mesmas regras do Kommo, inclusive D-1, mas **só daqui pra frente** — não listar 300+ Matriculados (backlog de Aceite dos últimos 7 dias).
+- **Causa:** o bloco MATRICULADO em `gerar_acoes` varria `data_matricula >= data_corte - 7 days`. No Kommo isso não infla o card (a maioria já está em 142). No Bwipo os mesmos RGMs ainda estão em Aceite → o Processar vira catch-up da semana.
+- **Decisão:** `use_bwipo_crm()` usa `data_matricula >= data_corte` (D-1; segunda = D-2 sábado). Kommo **não muda** (continua 7 dias). Órfão 60d e Opção A já estavam desligados no Novo CRM.
+- **Não muda:** tipo/polo do D-1; DATA_CORTE_NOVO_OVERRIDE só no Kommo; Executar/replay.
 
 ### 2026-09-29 — Fila de chamados: fases do Kanban
 - **Modelo usado:** Cursor Grok 4.7.
