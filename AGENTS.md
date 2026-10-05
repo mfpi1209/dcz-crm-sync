@@ -4,6 +4,13 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-10-05 — Subir Blog entra na lista de permissões da Config
+- **Modelo usado:** Cursor Grok 4.7.
+- **Pedido:** em Config, a tela `#subir_blog` não aparecia nas permissões, então não dava para liberar a visualização de um usuário cadastrado.
+- **Lista:** checkbox **Subir Blog** no grupo Ferramentas (novo usuário e editar usuário). A permissão `subir_blog` já existia em `ALL_PAGES`; o modal escondia o slug.
+- **Acesso:** admin e o login extra (`mikami@eduit.com.br`) continuam entrando sem o checkbox. Os demais entram quando a permissão está marcada — menu, hash e a API do blog.
+- **Não muda:** presets de categoria; o restante das telas.
+
 ### 2026-10-05 — Dashboard Comercial Bwipo: tabela pronta + cache de 5 min
 - **Modelo usado:** Cursor Grok 4.7.
 - **Pedido:** a abertura do painel fazia a varredura de todos os relatórios SIAA na hora (~18s) mais o dono (~4s). Fazer o cache da resposta e uma tabela pronta.

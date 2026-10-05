@@ -92,14 +92,43 @@ ALL_PAGES = [
     "rematricula",
 ]
 
-# Subir Blog: só admin + logins extras (acesso automático, sem checkbox em Config).
+# Subir Blog: admin e estes logins entram sempre.
+# Os demais entram pela permissão `subir_blog` marcada em Config.
 SUBIR_BLOG_EXTRA_LOGINS = frozenset({"mikami@eduit.com.br"})
 
 
-def can_access_subir_blog(role: str = "", username: str = "") -> bool:
+def can_access_subir_blog(role: str = "", username: str = "", pages=None) -> bool:
     if (role or "").strip().lower() == "admin":
         return True
-    return (username or "").strip().lower() in SUBIR_BLOG_EXTRA_LOGINS
+    if (username or "").strip().lower() in SUBIR_BLOG_EXTRA_LOGINS:
+        return True
+    if pages is not None:
+        return "subir_blog" in pages
+    return _session_has_page("subir_blog")
+
+
+def _session_has_page(page: str) -> bool:
+    """Permissão gravada em user_permissions do usuário da sessão."""
+    try:
+        from flask import has_request_context, session
+        if not has_request_context():
+            return False
+        uid = session.get("user_id")
+        if not uid:
+            return False
+        from db import get_conn
+        conn = get_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT 1 FROM user_permissions WHERE user_id = %s AND page = %s LIMIT 1",
+                    (uid, page),
+                )
+                return cur.fetchone() is not None
+        finally:
+            conn.close()
+    except Exception:
+        return False
 
 
 # Mapping slug curto -> rota no app tool_whatsapp_alunos. Usado pelo

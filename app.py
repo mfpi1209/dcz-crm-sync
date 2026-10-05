@@ -188,7 +188,7 @@ def inject_nav_perms():
 
     def nav_can(page):
         if page == "subir_blog":
-            return _can_access_subir_blog(role, username)
+            return _can_access_subir_blog(role, username, pages)
         if is_admin:
             return True
         if page in _NAV_ADMIN_ONLY:
