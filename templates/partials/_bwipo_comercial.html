@@ -20,11 +20,14 @@
                 <label class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 cursor-pointer">Upload
                     <input type="file" accept=".csv,.xlsx,.xlsm" class="hidden" onchange="crgmUpload(this)">
                 </label>
-                <button type="button" onclick="crgmToggleSolicitacoes()" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600">Solicitações
-                    <span id="bwc-sol-badge" class="hidden ml-1 px-1.5 rounded-full bg-orange-500 text-white text-[9px] font-bold">0</span>
-                </button>
                 <button type="button" onclick="bwcAbrirMetas()" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600">Metas</button>
                 <button type="button" onclick="bwcAbrirDiagnostico()" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600">Diagnóstico</button>
+                <button type="button" onclick="crgmToggleSolicitacoes()"
+                    class="text-xs text-slate-600 dark:text-slate-300 hover:text-[#00346f] dark:hover:text-white border border-orange-400/60 bg-orange-500/10 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-sm text-orange-400">assignment</span>
+                    Solicitações
+                    <span class="bwc-sol-badge hidden min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-orange-500 text-white text-[9px] font-bold leading-none inline-flex items-center justify-center">0</span>
+                </button>
             </div>
         </div>
     </div>
@@ -201,6 +204,12 @@
                 <input id="bwc-rgm" type="text" inputmode="numeric" maxlength="12" placeholder="Consultar RGM" class="input-glass px-2 py-1 text-xs w-32" onkeydown="if(event.key==='Enter')bwcConsultarRgm()">
                 <button type="button" onclick="bwcConsultarRgm()" class="text-xs px-2 py-1 rounded-lg border border-blue-500/30 text-blue-500">Buscar</button>
                 <button type="button" onclick="bwcMiniSync()" title="Atualiza um lead do Kommo ou um negócio do Bwipo e, se estiver em Ganho, fixa a venda no responsável" class="text-xs px-2 py-1 rounded-lg border border-emerald-500/30 text-emerald-500">Mini-sync</button>
+                <button type="button" onclick="crgmToggleSolicitacoes()"
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/40 text-orange-500 text-xs font-semibold">
+                    <span class="material-symbols-outlined text-sm">assignment</span>
+                    Solicitações
+                    <span class="bwc-sol-badge hidden min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-orange-500 text-white text-[9px] font-bold leading-none inline-flex items-center justify-center">0</span>
+                </button>
                 <span id="bwc-agentes-count" class="text-[10px] text-slate-500"></span>
             </div>
         </div>

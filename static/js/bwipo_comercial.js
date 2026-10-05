@@ -64,13 +64,11 @@ function bwcSnapshot() {
 
 function bwcBadgeSolicitacoes() {
     return fetch("/api/ajustes-matricula?status=pendente").then((r) => r.json()).then((d) => {
-        const badge = document.getElementById("bwc-sol-badge");
         const n = (d.ajustes || []).length;
-        if (!badge) return;
-        if (n > 0) {
+        document.querySelectorAll(".bwc-sol-badge").forEach((badge) => {
             badge.textContent = n > 99 ? "99+" : String(n);
-            badge.classList.remove("hidden");
-        }
+            badge.classList.toggle("hidden", n <= 0);
+        });
     }).catch(() => {});
 }
 
@@ -535,43 +533,169 @@ function bwcLimparDia() {
     if (_bwcPayload) _bwcCharts(_bwcPayload.evolucao || [], rows);
 }
 
+function _bwcTipoBadge(tipo) {
+    const t = String(tipo || "").toUpperCase();
+    if (!t) return "";
+    if (t === "NOVA MATRICULA") return '<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-300">NOVA</span>';
+    if (t === "RETORNO") return '<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 text-amber-300">RETORNO</span>';
+    if (t === "RECOMPRA") return '<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-500/20 text-blue-300">RECOMPRA</span>';
+    return `<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-600/40 text-slate-400">${_bwcEsc(tipo)}</span>`;
+}
+
+function _bwcContagemCell(l) {
+    if (!l.fora) return '<span class="text-slate-400">—</span>';
+    if (!l.conta) {
+        return _bwcIsAdmin()
+            ? `<button type="button" onclick="bwcContarVenda('${_bwcEsc(l.rgm)}', true)" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-orange-500/20 text-orange-300 border border-orange-500/40">Contar venda</button>`
+            : '<span class="text-[10px] text-orange-400/70">Não conta</span>';
+    }
+    const desfazer = _bwcIsAdmin()
+        ? ` <button type="button" onclick="bwcContarVenda('${_bwcEsc(l.rgm)}', false)" class="ml-1 text-[10px] text-slate-500 hover:text-red-400 underline">Desfazer</button>`
+        : "";
+    return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">✓ Contando</span>${desfazer}`;
+}
+
+function _bwcAgenteRow(l) {
+    const rowCls = l.fora
+        ? "hover:bg-slate-50 dark:hover:bg-white/[0.03] bg-orange-50 dark:bg-orange-500/5"
+        : "hover:bg-slate-50 dark:hover:bg-white/[0.03]";
+    const rgmTag = l.fora
+        ? `<button type="button" class="font-mono text-orange-700 dark:text-orange-300 underline decoration-dotted" title="RGM fora do padrão do ciclo" onclick="bwcConsultarRgm('${_bwcEsc(l.rgm)}')">${_bwcEsc(l.rgm)} ⚠</button>`
+        : `<button type="button" class="font-mono text-slate-700 dark:text-slate-300 underline decoration-dotted" onclick="bwcConsultarRgm('${_bwcEsc(l.rgm)}')">${_bwcEsc(l.rgm)}</button>`;
+    return `<tr class="${rowCls}">
+        <td class="px-3 py-2 whitespace-nowrap">${rgmTag}</td>
+        <td class="px-3 py-2 text-[var(--text-primary)]">${_bwcEsc(l.nome)}</td>
+        <td class="px-3 py-2 font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">${_bwcEsc(l.cpf || "")}</td>
+        <td class="px-3 py-2 font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">${_bwcEsc(l.telefone || "")}</td>
+        <td class="px-3 py-2 whitespace-nowrap">${_bwcTipoBadge(l.tipo)}</td>
+        <td class="px-3 py-2 text-slate-700 dark:text-slate-300 whitespace-nowrap">${_bwcEsc(l.polo || "")}</td>
+        <td class="px-3 py-2 text-slate-600 dark:text-slate-400 whitespace-nowrap">${_bwcEsc(l.nivel || "")}</td>
+        <td class="px-3 py-2 font-mono text-blue-700 dark:text-blue-300 whitespace-nowrap">${_bwcDataBr(l.data)}</td>
+        <td class="px-3 py-2 text-slate-700 dark:text-slate-300 max-w-[200px] truncate" title="${_bwcEsc(l.curso || "")}">${_bwcEsc(l.curso || "")}</td>
+        <td class="px-3 py-2 whitespace-nowrap">${_bwcContagemCell(l)}</td>
+    </tr>`;
+}
+
 function bwcAbrirAgente(nomeOuIdx) {
     const nome = typeof nomeOuIdx === "number" ? (_bwcRankingRows()[nomeOuIdx] || {}).agente : nomeOuIdx;
     if (!nome) return;
     const linhas = (_bwcPayload && _bwcPayload.linhas || []).filter((l) => l.agente === nome && (!_bwcDia || l.data === _bwcDia));
-    const vendas = linhas.filter((l) => l.conta).length;
     const rk = ((_bwcPayload && _bwcPayload.ranking) || []).find((r) => r.agente === nome) || {};
-    _bwcAgenteLinhas = linhas;
+    _bwcAgenteLinhas = linhas.map((l) => Object.assign({ cpf: "", telefone: "" }, l));
     _bwcAgenteNome = nome;
-    const topo = `<div class="px-4 py-3 border-b border-slate-200 dark:border-slate-700 space-y-2">
-        <button type="button" onclick="bwcAgenteCsv()" class="px-2 py-1 rounded text-[11px] border border-slate-400/40">Baixar CSV</button>
-        <div id="bwc-carteira" class="flex flex-wrap gap-1.5 text-[11px] leading-5 text-slate-500">Carteira no Bwipo: carregando…</div>
-    </div>`;
-    _bwcModal(_bwcEsc(nome), `${vendas} em curso · ${linhas.length} matrículas no recorte`, topo + _bwcLista(linhas));
-    const qs = rk.user_id ? "user_id=" + rk.user_id : rk.bwipo_owner ? "owner=" + encodeURIComponent(rk.bwipo_owner) : "";
-    const alvo = () => document.getElementById("bwc-carteira");
-    if (!qs) {
-        if (alvo()) alvo().textContent = "Carteira no Bwipo: consultor sem usuário ligado.";
-        return;
+    _bwcAgenteUid = rk.user_id || null;
+    const vendas = linhas.filter((l) => l.conta).length;
+    const fora = linhas.filter((l) => l.fora).length;
+    const ini = _bwcDataBr(document.getElementById("bwc-dt-ini")?.value);
+    const fim = _bwcDataBr(document.getElementById("bwc-dt-fim")?.value);
+    const titulo = vendas < linhas.length
+        ? `${vendas} venda(s) · ${linhas.length} matrícula(s)`
+        : `${linhas.length} matrícula(s)`;
+    const totalLabel = vendas !== linhas.length
+        ? `<span class="text-emerald-600 dark:text-emerald-400 font-bold">${vendas} vendas</span> <span class="text-slate-500">· ${linhas.length} matrículas listadas</span>`
+        : `<span class="text-[var(--text-primary)] font-semibold">${linhas.length}</span>`;
+    const outlier = fora
+        ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-500/20 text-orange-300 border border-orange-500/30">⚠ ${fora} RGM${fora > 1 ? "s" : ""} fora do padrão</span>`
+        : '<span class="text-[10px] text-slate-500">Todos os RGMs dentro do padrão do ciclo</span>';
+    const perf = _bwcAgenteUid
+        ? `<button type="button" onclick="bwcFecharModal();navigateToPerformance(${_bwcAgenteUid})" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg" title="Ver painel motivacional completo deste agente">Ver Performance</button>`
+        : "";
+    const corpo = `
+        <div class="mb-3 flex items-center justify-between gap-3 flex-wrap">
+            <div class="flex items-center gap-2 flex-wrap text-xs">
+                <span class="text-slate-600 dark:text-slate-400">Total: ${totalLabel}</span>
+                <span class="text-slate-400">·</span>
+                ${outlier}
+            </div>
+            <button type="button" onclick="bwcAgenteCsv()" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg shrink-0">Baixar CSV</button>
+        </div>
+        <div class="mb-3 flex items-center gap-2">
+            <input id="bwc-agente-busca" type="text" placeholder="Buscar RGM ou nome" oninput="bwcFiltrarAgente()"
+                onkeydown="if(event.key==='Enter')bwcFiltrarAgente()"
+                class="input-glass px-3 py-2 text-sm flex-1 font-mono" />
+            <button type="button" onclick="bwcFiltrarAgente()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold shrink-0">Buscar</button>
+        </div>
+        <div class="overflow-auto max-h-[52vh]">
+            <table class="w-full text-xs">
+                <thead class="sticky top-0 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 uppercase tracking-wider text-[10px]">
+                    <tr>
+                        <th class="px-3 py-2 text-left">RGM</th>
+                        <th class="px-3 py-2 text-left">Nome</th>
+                        <th class="px-3 py-2 text-left">CPF</th>
+                        <th class="px-3 py-2 text-left">Telefone</th>
+                        <th class="px-3 py-2 text-left">Tipo</th>
+                        <th class="px-3 py-2 text-left">Polo</th>
+                        <th class="px-3 py-2 text-left">Nível</th>
+                        <th class="px-3 py-2 text-left">Data Matrícula</th>
+                        <th class="px-3 py-2 text-left">Curso</th>
+                        <th class="px-3 py-2 text-left">Contagem</th>
+                    </tr>
+                </thead>
+                <tbody id="bwc-agente-body" class="divide-y divide-slate-200 dark:divide-slate-700/30"></tbody>
+            </table>
+        </div>`;
+    let modal = document.getElementById("bwc-modal");
+    if (!modal) {
+        modal = document.createElement("div");
+        modal.id = "bwc-modal";
+        modal.className = "fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4";
+        modal.addEventListener("click", (e) => { if (e.target === modal) bwcFecharModal(); });
+        document.body.appendChild(modal);
     }
-    fetch("/api/bwipo/painel/agente-carteira?" + qs)
+    modal.className = "fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4";
+    modal.innerHTML = `<div class="glass-card rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
+        <div class="px-5 py-4 border-b border-[var(--border)] flex items-center justify-between gap-3">
+            <h3 class="text-sm font-bold text-[var(--text-primary)]">${_bwcEsc(nome)} · ${titulo} — período ${ini} a ${fim}</h3>
+            <div class="flex items-center gap-2 shrink-0">${perf}
+                <button type="button" onclick="bwcFecharModal()" class="text-slate-500 hover:text-[var(--text-primary)] text-lg leading-none">&times;</button>
+            </div>
+        </div>
+        <div class="p-5 overflow-auto flex-1">${corpo}</div>
+    </div>`;
+    bwcFiltrarAgente();
+    document.getElementById("bwc-agente-busca")?.focus();
+    fetch("/api/bwipo/painel/contatos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rgms: linhas.map((l) => l.rgm) }),
+    })
         .then((r) => r.json())
         .then((d) => {
-            if (!alvo()) return;
-            if (!d.ok) throw new Error(d.error || "falha");
-            alvo().innerHTML = `<span class="w-full text-slate-500">Carteira no Bwipo · ${_bwcNum(d.total)}</span>` + (d.etapas || []).map((e) =>
-                `<span class="px-2 py-0.5 rounded-full whitespace-nowrap ${e.ganho ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300" : e.perdido ? "bg-rose-500/15 text-rose-500" : "bg-slate-500/15"}">${_bwcEsc(e.etapa)} · ${_bwcNum(e.total)}</span>`
-            ).join("");
+            if (!d.ok || !document.getElementById("bwc-agente-body")) return;
+            const mapa = d.contatos || {};
+            _bwcAgenteLinhas.forEach((l) => {
+                const c = mapa[l.rgm];
+                if (!c) return;
+                l.cpf = c.cpf || "";
+                l.telefone = c.telefone || "";
+            });
+            bwcFiltrarAgente();
         })
-        .catch((e) => { if (alvo()) alvo().textContent = "Carteira no Bwipo: " + e.message; });
+        .catch(() => {});
 }
 
 let _bwcAgenteLinhas = [];
 let _bwcAgenteNome = "";
+let _bwcAgenteUid = null;
+
+function bwcFiltrarAgente() {
+    const body = document.getElementById("bwc-agente-body");
+    if (!body) return;
+    const q = (document.getElementById("bwc-agente-busca")?.value || "").trim().toLowerCase();
+    const digits = q.replace(/\D/g, "");
+    const rows = _bwcAgenteLinhas.filter((l) => {
+        if (!q) return true;
+        const blob = [l.rgm, l.nome, l.cpf, l.telefone, l.polo, l.curso, l.tipo].join(" ").toLowerCase();
+        return blob.includes(q) || (digits.length >= 2 && String(l.rgm).includes(digits));
+    });
+    body.innerHTML = rows.length
+        ? rows.map(_bwcAgenteRow).join("")
+        : '<tr><td colspan="10" class="px-3 py-4 text-slate-500">Nenhum RGM nesse filtro.</td></tr>';
+}
 
 function bwcAgenteCsv() {
-    const cols = ["rgm", "nome", "situacao", "data", "polo", "nivel", "tipo", "fonte", "conta", "fora"];
-    const esc = (v) => `"${String(v === true ? "SIM" : v === false ? "" : v ?? "").replace(/"/g, '""')}"`;
+    const cols = ["rgm", "nome", "cpf", "telefone", "tipo", "polo", "nivel", "data", "curso", "situacao", "fonte"];
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const csv = [cols.join(";")].concat(_bwcAgenteLinhas.map((l) => cols.map((c) => esc(l[c])).join(";"))).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }));
