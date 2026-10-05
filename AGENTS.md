@@ -4,6 +4,12 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-10-05 — Menu: só o Dashboard Comercial Bwipo
+- **Modelo usado:** Cursor Grok 4.7.
+- **Pedido:** ocultar o Dashboard Comercial antigo e deixar só o Bwipo.
+- **Menu:** o link `comercial_rgm` saiu da sidebar. Quem abre `#comercial_rgm` cai em `bwipo_comercial`.
+- **Não muda:** a página e as APIs do painel antigo continuam no código (Minha Performance e o Bwipo ainda leem essas funções). A permissão `comercial_rgm` continua existindo.
+
 ### 2026-10-05 — Formulário de matrícula: Nome Completo e ciclo do painel
 - **Modelo usado:** Cursor Grok 4.7.
 - **Pedido:** o nome do aluno no sync Bwipo tem que vir do campo Nome Completo, e o ciclo preenche sozinho com o ciclo vigente do painel.

@@ -82,6 +82,7 @@ function _dismissBootSplash() {
 })();
 
 function navigate(page, params) {
+    if (page === 'comercial_rgm') page = 'bwipo_comercial';
     if (!isPageAllowed(page)) {
         const fallback = _initialPageFromBody();
         if (page !== fallback && isPageAllowed(fallback)) {
