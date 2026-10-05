@@ -8,7 +8,7 @@
                         </div>
                         <div>
                             <h2 class="text-3xl font-bold text-[var(--text-primary)] font-display">Upload Comercial</h2>
-                            <p class="text-gray-500 text-sm">Upload comercial — cruzamento SIAA e atualização do Kommo CRM</p>
+                            <p class="text-gray-500 text-sm">Upload comercial — cruzamento SIAA e atualização do CRM (Kommo ou Novo CRM)</p>
                         </div>
                     </div>
                 </div>
@@ -16,6 +16,11 @@
                 <div id="mm-data-corte-banner" class="hidden mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
                     <p class="font-semibold">Data de corte do processamento</p>
                     <p id="mm-data-corte-text" class="text-xs mt-1 opacity-90"></p>
+                </div>
+
+                <div id="mm-crm-dest-banner" class="hidden mb-4 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
+                    <p class="font-semibold">Novo CRM (teste local)</p>
+                    <p class="text-xs mt-1 opacity-90">Processar e Executar gravam no comercialcruzeiro — o Kommo de produção não é alterado. Matriculados usam só a data de corte (D-1 / D-2 na segunda), sem a janela de 7 dias do Kommo.</p>
                 </div>
 
                 <!-- Step 1: Upload -->
@@ -26,6 +31,10 @@
                             Upload de Relatórios SIAA
                         </h3>
                         <div class="flex items-center gap-3">
+                            <label class="text-xs text-gray-400">Destino:</label>
+                            <select id="mm-crm-dest" class="input-glass px-3 py-1.5 text-sm text-gray-200 rounded-lg w-40" onchange="mmOnCrmDestChange()">
+                                <option value="kommo">Kommo</option>
+                            </select>
                             <label class="text-xs text-gray-400">Nível:</label>
                             <select id="mm-nivel" class="input-glass px-3 py-1.5 text-sm text-gray-200 rounded-lg w-40">
                                 <option value="grad">Graduação</option>
@@ -114,7 +123,7 @@
                         </div>
                         <div class="glass-card p-4 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-violet-500 to-purple-500"></div>
-                            <p class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Match Kommo</p>
+                            <p class="text-[10px] font-bold text-gray-500 uppercase tracking-wider" id="mm-kpi-match-label">Match Kommo</p>
                             <p class="text-xl font-bold text-[var(--text-primary)] font-display mt-1" id="mm-kpi-match">0</p>
                         </div>
                         <div class="glass-card p-4 relative overflow-hidden">
@@ -225,7 +234,7 @@
                                         <th class="py-2 px-3">Curso SIAA</th>
                                         <th class="py-2 px-3">Polo</th>
                                         <th class="py-2 px-3">Sit. SIAA</th>
-                                        <th class="py-2 px-3">Sit. Kommo</th>
+                                        <th class="py-2 px-3" id="mm-th-sit-crm">Sit. Kommo</th>
                                         <th class="py-2 px-3">Dt. Inscrição</th>
                                         <th class="py-2 px-3">Fase Funil</th>
                                         <th class="py-2 px-3">Match</th>
@@ -249,7 +258,7 @@
                         <div class="flex items-center justify-between mb-4">
                             <h3 class="text-sm font-bold text-[var(--text-primary)] font-display flex items-center gap-2">
                                 <span class="w-6 h-6 rounded-full bg-violet-600/30 text-violet-400 text-xs flex items-center justify-center font-bold">3</span>
-                                Executar Atualizações no Kommo
+                                Executar Atualizações <span id="mm-exec-crm-label">no Kommo</span>
                             </h3>
                         </div>
                         <div class="flex flex-wrap items-center gap-3">

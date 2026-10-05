@@ -73,6 +73,45 @@ KOMMO_TOKEN = os.getenv("KOMMO_TOKEN", "") or _load_from_app_config("KOMMO_TOKEN
 
 ACEITE_STATUS_ID = 48566207
 
+
+_crm_tls = threading.local()
+
+
+def set_upload_crm(name: str | None) -> None:
+    """Override do destino neste thread: 'bwipo' | 'kommo' | None (volta ao env)."""
+    _crm_tls.override = name
+
+
+def bwipo_ui_enabled() -> bool:
+    """Seletor 'Novo CRM' na UI: só com token + flag local. Produção fica sem o botão."""
+    token = (os.getenv("BWIPO_CRM_TOKEN") or "").strip()
+    flag = (os.getenv("MM_ALLOW_BWIPO_UI") or "").strip().lower()
+    return bool(token) and flag in ("1", "true", "on", "yes")
+
+
+def use_bwipo_crm() -> bool:
+    """Upload Comercial no CRM Bwipo: override por request, senão env (produção = Kommo)."""
+    ov = getattr(_crm_tls, "override", None)
+    if ov == "bwipo":
+        return True
+    if ov == "kommo":
+        return False
+    flag = (os.getenv("UPLOAD_COMERCIAL_CRM") or "").strip().lower()
+    return flag in ("bwipo", "1", "on", "true", "comercialcruzeiro")
+
+
+def _as_lead_id(x):
+    if x is None or x is False:
+        return None
+    if isinstance(x, int):
+        return x
+    s = str(x).strip()
+    if not s:
+        return None
+    if s.isdigit():
+        return int(s)
+    return s
+
 # Responsável padrão para leads criados pelo pipeline (NOVO). O Kommo atribui
 # leads criados via API ao dono do token; quando o token muda de usuário (ex.:
 # regeneração do bearer), os NOVO passam a cair nesse novo dono (foi o que
@@ -1383,6 +1422,9 @@ _NO_VALUE_SITS = {None, "", "None", "Indefinido", "0"}
 
 def match_kommo():
     """Compare mm_inscritos (dcz_sync) with Kommo leads (kommo_sync)."""
+    if use_bwipo_crm():
+        from services.bwipo_match import match_inscritos
+        return match_inscritos()
     dcz = get_conn()
     dcz_cur = dcz.cursor()
     cols_sql = ", ".join(_MM_INSCRITOS_COLS_FOR_MATCH)
@@ -1465,6 +1507,9 @@ def match_kommo():
 
 def match_matriculados_kommo():
     """Compare mm_matriculados (dcz_sync) with Kommo leads by RGM (kommo_sync)."""
+    if use_bwipo_crm():
+        from services.bwipo_match import match_matriculados
+        return match_matriculados()
     dcz = get_conn()
     dcz_cur = dcz.cursor()
     cols_sql = ", ".join(_MM_MATRICULADOS_COLS_FOR_MATCH)
@@ -2239,6 +2284,9 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
       UNIFICAR      - duplicatas por CPF no Kommo -> merge
     """
     PIPELINES_PERMITIDOS = {5481944, 9994596}  # Funil de vendas, Licenciado
+    if use_bwipo_crm():
+        from services.bwipo_crm import SYNTHETIC_PIPE_VENDAS
+        PIPELINES_PERMITIDOS = {SYNTHETIC_PIPE_VENDAS, 5481944, 9994596}
 
     data_corte = _calcular_data_corte()
     hoje = datetime.now(BRT).date()
@@ -2248,7 +2296,13 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
     import os as _os_novo
     _override_novo = _os_novo.environ.get("DATA_CORTE_NOVO_OVERRIDE", "").strip()
     data_corte_novo = data_corte
-    if _override_novo:
+    # Novo CRM: só a data de corte do dia (D-1/D-2). Override e backfill histórico
+    # inflariam Criar com todo mundo que ainda não está no Bwipo.
+    if use_bwipo_crm():
+        if _override_novo:
+            log.info("DATA_CORTE_NOVO_OVERRIDE=%s ignorado no Novo CRM (usa data_corte %s)",
+                     _override_novo, data_corte)
+    elif _override_novo:
         try:
             from datetime import date as _date_novo
             _dc_novo = _date_novo.fromisoformat(_override_novo)
@@ -2271,15 +2325,20 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
         conn = get_conn()
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT DISTINCT cpf FROM mm_cruzado
-                WHERE situacao_matriculado IN ('Cancelado', 'Transferido')
-                  AND cpf IS NOT NULL AND cpf != ''
+                SELECT DISTINCT c.cpf FROM mm_cruzado c
+                WHERE c.situacao_matriculado IN ('Cancelado', 'Transferido')
+                  AND c.cpf IS NOT NULL AND c.cpf != ''
+                  AND NOT EXISTS (
+                      SELECT 1 FROM mm_matriculados m
+                      WHERE m.cpf = c.cpf
+                        AND UPPER(COALESCE(m.situacao, '')) = 'MATRICULADO'
+                  )
             """)
             cpfs_cancelado_transferido = {r[0] for r in cur.fetchall()}
         conn.close()
     except Exception:
         pass
-    log.info("CPFs Cancelado/Transferido no SIAA: %d", len(cpfs_cancelado_transferido))
+    log.info("CPFs só Cancelado/Transferido (sem matrícula ativa): %d", len(cpfs_cancelado_transferido))
 
     # Load CPFs that already have RGM (already matriculated — no need to restore)
     cpfs_com_rgm = set()
@@ -2372,34 +2431,38 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
     log.info("Lookup mm_matriculados (60d, polos UNICID/CSED): %d CPFs", len(cpf_to_mat_data))
 
     # RGM por lead + quais RGMs já estão em Venda ganha (anti-duplicidade).
-    lead_rgm_idx: dict[int, str] = {}
-    rgm_to_ganho_lids: dict[str, set[int]] = {}
+    lead_rgm_idx: dict = {}
+    rgm_to_ganho_lids: dict[str, set] = {}
     try:
-        kconn_rgm = get_kommo_conn()
-        with kconn_rgm.cursor() as kcur_rgm:
-            kcur_rgm.execute("""
-                SELECT lcf.lead_id, TRIM(lcf.values_json->0->>'value') AS rgm
-                FROM lead_custom_field_values lcf
-                JOIN leads l ON l.id = lcf.lead_id AND NOT COALESCE(l.is_deleted, FALSE)
-                WHERE lcf.field_name = 'RGM'
-                  AND TRIM(lcf.values_json->0->>'value') IS NOT NULL
-                  AND TRIM(lcf.values_json->0->>'value') != ''
-            """)
-            for lid, rgm in kcur_rgm.fetchall():
-                if lid and rgm:
-                    lead_rgm_idx[int(lid)] = str(rgm).strip()
-            kcur_rgm.execute("""
-                SELECT l.id, TRIM(lcf.values_json->0->>'value') AS rgm
-                FROM leads l
-                JOIN lead_custom_field_values lcf
-                  ON lcf.lead_id = l.id AND lcf.field_name = 'RGM'
-                WHERE l.status_id = 142 AND NOT COALESCE(l.is_deleted, FALSE)
-                  AND TRIM(lcf.values_json->0->>'value') != ''
-            """)
-            for lid, rgm in kcur_rgm.fetchall():
-                if lid and rgm:
-                    rgm_to_ganho_lids.setdefault(str(rgm).strip().lower(), set()).add(int(lid))
-        kconn_rgm.close()
+        if use_bwipo_crm():
+            from services.bwipo_match import rgm_indexes
+            lead_rgm_idx, rgm_to_ganho_lids = rgm_indexes()
+        else:
+            kconn_rgm = get_kommo_conn()
+            with kconn_rgm.cursor() as kcur_rgm:
+                kcur_rgm.execute("""
+                    SELECT lcf.lead_id, TRIM(lcf.values_json->0->>'value') AS rgm
+                    FROM lead_custom_field_values lcf
+                    JOIN leads l ON l.id = lcf.lead_id AND NOT COALESCE(l.is_deleted, FALSE)
+                    WHERE lcf.field_name = 'RGM'
+                      AND TRIM(lcf.values_json->0->>'value') IS NOT NULL
+                      AND TRIM(lcf.values_json->0->>'value') != ''
+                """)
+                for lid, rgm in kcur_rgm.fetchall():
+                    if lid and rgm:
+                        lead_rgm_idx[_as_lead_id(lid)] = str(rgm).strip()
+                kcur_rgm.execute("""
+                    SELECT l.id, TRIM(lcf.values_json->0->>'value') AS rgm
+                    FROM leads l
+                    JOIN lead_custom_field_values lcf
+                      ON lcf.lead_id = l.id AND lcf.field_name = 'RGM'
+                    WHERE l.status_id = 142 AND NOT COALESCE(l.is_deleted, FALSE)
+                      AND TRIM(lcf.values_json->0->>'value') != ''
+                """)
+                for lid, rgm in kcur_rgm.fetchall():
+                    if lid and rgm:
+                        rgm_to_ganho_lids.setdefault(str(rgm).strip().lower(), set()).add(_as_lead_id(lid))
+            kconn_rgm.close()
     except Exception as exc:
         log.warning("Falha ao carregar idx RGM leads: %s", exc)
     log.info("Idx RGM leads: %d | RGMs em Ganho: %d", len(lead_rgm_idx), len(rgm_to_ganho_lids))
@@ -2522,14 +2585,13 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                     n_data_filtrada += 1
                     continue
                 dup_ids = set()
-                dup_ids.add(int(lead_id))
+                dup_ids.add(_as_lead_id(lead_id))
                 dup_lead_ids = row.get("dup_lead_ids")
                 if dup_lead_ids:
                     for did in (dup_lead_ids if isinstance(dup_lead_ids, list) else []):
-                        try:
-                            dup_ids.add(int(did))
-                        except (ValueError, TypeError):
-                            pass
+                        _did = _as_lead_id(did)
+                        if _did is not None:
+                            dup_ids.add(_did)
                 if cpf_val not in _perdido_unificar:
                     _perdido_unificar[cpf_val] = {
                         "nome": base["nome"],
@@ -2538,11 +2600,10 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                 _perdido_unificar[cpf_val]["lead_ids"].update(dup_ids)
             elif ganho_lead_id and lead_status_id != ACEITE_STATUS_ID:
                 dup_ids = set()
-                dup_ids.add(int(lead_id))
-                try:
-                    dup_ids.add(int(ganho_lead_id))
-                except (ValueError, TypeError):
-                    pass
+                dup_ids.add(_as_lead_id(lead_id))
+                _gid = _as_lead_id(ganho_lead_id)
+                if _gid is not None:
+                    dup_ids.add(_gid)
                 if cpf_val not in _perdido_unificar:
                     _perdido_unificar[cpf_val] = {
                         "nome": base["nome"],
@@ -2559,8 +2620,8 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                     if _siaa_s.upper() == "MATRICULADO":
                         # Fallback: inscrito Matriculado no SIAA, lead em Aceite com RGM
                         # preenchido no Kommo, mas ainda sem linha em mm_matriculados.
-                        _lid = int(lead_id)
-                        _lead_rgm = lead_rgm_idx.get(_lid, "").strip()
+                        _lid = _as_lead_id(lead_id)
+                        _lead_rgm = (lead_rgm_idx.get(_lid) or "").strip()
                         if lead_status_id == ACEITE_STATUS_ID and _lead_rgm:
                             _ganho_rgm = rgm_to_ganho_lids.get(_lead_rgm.lower(), set())
                             if _ganho_rgm:
@@ -2596,14 +2657,15 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                     else:
                         acoes.append({**base, "acao": "ATUALIZAR", "lead_id": lead_id})
         else:
-            # Opção A (decisão 2026-06-09): inscrito com SIAA situação "Matriculado"
-            # e sem lead Kommo ignora a janela data_corte_novo e cria NOVO direto
-            # em Venda ganha (novo_matriculado=True). Cobre o caso "inscreveu antes
-            # de D-2 e matriculou depois — ficaria órfão pelo filtro de data".
+            # Opção A (decisão 2026-06-09): no Kommo, inscrito SIAA "Matriculado"
+            # sem lead ignora a janela e cria NOVO em Venda ganha.
+            # No Novo CRM isso vira dezenas de milhares (o histórico não está lá);
+            # a regra diária é só data de corte (D-1/D-2).
             _siaa_sit_upper = (siaa_sit or "").strip().upper()
             _is_matriculado_inscrito = _siaa_sit_upper == "MATRICULADO"
+            _ignora_janela_matriculado = _is_matriculado_inscrito and not use_bwipo_crm()
 
-            if not _is_matriculado_inscrito and not is_recente_novo:
+            if not _ignora_janela_matriculado and not is_recente_novo:
                 n_data_filtrada += 1
                 continue
 
@@ -2649,10 +2711,9 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
             if raw:
                 items = raw if isinstance(raw, list) else list(raw or [])
                 for x in items:
-                    try:
-                        all_ids.add(int(x))
-                    except (ValueError, TypeError):
-                        pass
+                    _xid = _as_lead_id(x)
+                    if _xid is not None:
+                        all_ids.add(_xid)
 
         if len(all_ids) < 2:
             continue
@@ -2668,58 +2729,59 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
         }
     # --- Duplicatas extras por RG ---
     n_rg_dups = 0
-    try:
-        kconn = get_kommo_conn()
-        with kconn.cursor() as kcur:
-            kcur.execute("""
-                SELECT rg_val, array_agg(DISTINCT lead_id ORDER BY lead_id)
-                FROM (
-                    SELECT lcf.lead_id,
-                           regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g') AS rg_val
-                    FROM lead_custom_field_values lcf
-                    WHERE lcf.field_name = 'RG'
-                      AND lcf.values_json->0->>'value' IS NOT NULL
-                      AND length(regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g')) >= 5
-                ) sub
-                GROUP BY rg_val
-                HAVING COUNT(DISTINCT lead_id) > 1
-            """)
-            rg_dup_groups = {row[0]: [int(x) for x in row[1]] for row in kcur.fetchall()}
-
-            if rg_dup_groups:
-                all_dup_rg_ids = set()
-                for ids in rg_dup_groups.values():
-                    all_dup_rg_ids.update(ids)
+    if not use_bwipo_crm():
+        try:
+            kconn = get_kommo_conn()
+            with kconn.cursor() as kcur:
                 kcur.execute("""
-                    SELECT lead_id,
-                           LPAD(regexp_replace(values_json->0->>'value', '[^0-9]', '', 'g'), 11, '0') AS cpf
-                    FROM lead_custom_field_values
-                    WHERE lead_id = ANY(%s) AND field_name = 'CPF'
-                      AND length(regexp_replace(values_json->0->>'value', '[^0-9]', '', 'g')) BETWEEN 10 AND 11
-                """, (list(all_dup_rg_ids),))
-                lid_to_cpf = {row[0]: row[1] for row in kcur.fetchall()}
+                    SELECT rg_val, array_agg(DISTINCT lead_id ORDER BY lead_id)
+                    FROM (
+                        SELECT lcf.lead_id,
+                               regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g') AS rg_val
+                        FROM lead_custom_field_values lcf
+                        WHERE lcf.field_name = 'RG'
+                          AND lcf.values_json->0->>'value' IS NOT NULL
+                          AND length(regexp_replace(lcf.values_json->0->>'value', '[^0-9]', '', 'g')) >= 5
+                    ) sub
+                    GROUP BY rg_val
+                    HAVING COUNT(DISTINCT lead_id) > 1
+                """)
+                rg_dup_groups = {row[0]: [int(x) for x in row[1]] for row in kcur.fetchall()}
 
-                for rg_val, lead_ids in rg_dup_groups.items():
-                    cpfs_for_group = {lid_to_cpf[lid] for lid in lead_ids if lid in lid_to_cpf}
-                    for cpf in cpfs_for_group:
-                        if cpf not in cpfs_recentes or cpf in cpfs_unificar:
-                            continue
-                        if not _cpf_valido(cpf):
-                            continue
-                        ids_sorted = sorted(lead_ids)
-                        cpfs_unificar[cpf] = {
-                            "acao": "UNIFICAR",
-                            "nome": "",
-                            "cpf": cpf,
-                            "dup_lead_ids": ids_sorted,
-                            "dup_count": len(ids_sorted),
-                            "lead_id": ids_sorted[0],
-                        }
-                        n_rg_dups += 1
-                        break
-        kconn.close()
-    except Exception as exc:
-        log.warning("Erro ao detectar duplicatas por RG: %s", exc)
+                if rg_dup_groups:
+                    all_dup_rg_ids = set()
+                    for ids in rg_dup_groups.values():
+                        all_dup_rg_ids.update(ids)
+                    kcur.execute("""
+                        SELECT lead_id,
+                               LPAD(regexp_replace(values_json->0->>'value', '[^0-9]', '', 'g'), 11, '0') AS cpf
+                        FROM lead_custom_field_values
+                        WHERE lead_id = ANY(%s) AND field_name = 'CPF'
+                          AND length(regexp_replace(values_json->0->>'value', '[^0-9]', '', 'g')) BETWEEN 10 AND 11
+                    """, (list(all_dup_rg_ids),))
+                    lid_to_cpf = {row[0]: row[1] for row in kcur.fetchall()}
+
+                    for rg_val, lead_ids in rg_dup_groups.items():
+                        cpfs_for_group = {lid_to_cpf[lid] for lid in lead_ids if lid in lid_to_cpf}
+                        for cpf in cpfs_for_group:
+                            if cpf not in cpfs_recentes or cpf in cpfs_unificar:
+                                continue
+                            if not _cpf_valido(cpf):
+                                continue
+                            ids_sorted = sorted(lead_ids)
+                            cpfs_unificar[cpf] = {
+                                "acao": "UNIFICAR",
+                                "nome": "",
+                                "cpf": cpf,
+                                "dup_lead_ids": ids_sorted,
+                                "dup_count": len(ids_sorted),
+                                "lead_id": ids_sorted[0],
+                            }
+                            n_rg_dups += 1
+                            break
+            kconn.close()
+        except Exception as exc:
+            log.warning("Erro ao detectar duplicatas por RG: %s", exc)
     if n_rg_dups:
         log.info("Duplicatas extras detectadas por RG: %d", n_rg_dups)
 
@@ -2751,10 +2813,11 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
 
     # Filter out multi-RGM CPFs from UNIFICAR (different courses = legitimate separate leads)
     multi_rgm_cpfs_kommo = set()
-    try:
-        kconn = get_kommo_conn()
-        with kconn.cursor() as kcur:
-            kcur.execute("""
+    if not use_bwipo_crm():
+        try:
+            kconn = get_kommo_conn()
+            with kconn.cursor() as kcur:
+                kcur.execute("""
                 SELECT cpf FROM (
                     SELECT LPAD(regexp_replace(cpf_cf.values_json->0->>'value',
                                 '[^0-9]', '', 'g'), 11, '0') AS cpf
@@ -2772,10 +2835,10 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                 GROUP BY cpf
                 HAVING COUNT(*) > 1
             """)
-            multi_rgm_cpfs_kommo = {r[0] for r in kcur.fetchall()}
-        kconn.close()
-    except Exception as exc:
-        log.warning("Erro ao buscar multi-RGM no Kommo: %s", exc)
+                multi_rgm_cpfs_kommo = {r[0] for r in kcur.fetchall()}
+            kconn.close()
+        except Exception as exc:
+            log.warning("Erro ao buscar multi-RGM no Kommo: %s", exc)
 
     # Also add multi-RGM from mm_cruzado
     try:
@@ -2805,21 +2868,25 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
         acoes.append(info)
 
     # ── MATRICULADO: matriculados de D-1 cruzados com kommo_sync ──────────
-    # Regra: pegar todos os matriculados do dia anterior (data_corte) no
-    # relatório, cruzar com o kommo_sync por CPF, Email, Telefone e RGM,
-    # e gerar MATRICULADO para mover o lead para Venda ganha.
+    # Kommo: janela de 7 dias até data_corte (reconcilia Aceite atrasado;
+    # quem já está em 142 some do card). Novo CRM: só >= data_corte
+    # (D-1 / D-2 na segunda) — a janela de 7d puxaria o backlog de Aceite.
     acoes_lead_ids = {a["lead_id"] for a in acoes if a.get("lead_id")}
     n_mat_d1 = 0
     n_dup_perdido = 0  # duplicatas ativas fechadas por já haver 142 com mesmo RGM
     try:
         dconn_mat = get_conn()
         with dconn_mat.cursor() as dcur_mat:
-            dcur_mat.execute("""
+            _mat_from = (
+                "%s::date" if use_bwipo_crm()
+                else "(%s::date - INTERVAL '7 days')"
+            )
+            dcur_mat.execute(f"""
                 SELECT nome, cpf, rgm, email, fone_cel, curso_limpo,
                        polo_aulas, situacao, data_matricula, tipo_matricula, tipo,
                        email_ad
                 FROM mm_matriculados
-                WHERE data_matricula::date >= (%s::date - INTERVAL '7 days')
+                WHERE data_matricula::date >= {_mat_from}
                   AND UPPER(COALESCE(tipo_matricula, '')) IN (
                       'NOVA MATRICULA', 'RECOMPRA', 'RETORNO'
                   )
@@ -2831,14 +2898,28 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
             """, (str(data_corte),))
             mat_d1 = dcur_mat.fetchall()
         dconn_mat.close()
-        log.info("Matriculados (janela 7d ate %s): %d pessoas", data_corte, len(mat_d1))
+        if use_bwipo_crm():
+            log.info("Matriculados (D-1/D-2 desde %s): %d pessoas", data_corte, len(mat_d1))
+        else:
+            log.info("Matriculados (janela 7d ate %s): %d pessoas", data_corte, len(mat_d1))
 
         if mat_d1:
-            kconn_mat = get_kommo_conn()
-            with kconn_mat.cursor() as kcur_mat:
-                # Índices para cruzamento rápido: lead_id → {CPF, Email, Tel, RGM}
-                # Buscar todos os campos relevantes de uma vez
-                kcur_mat.execute("""
+            if use_bwipo_crm():
+                from services.bwipo_match import load_d1_indexes
+                _ix = load_d1_indexes()
+                idx_cpf = _ix["idx_cpf"]
+                idx_email = _ix["idx_email"]
+                idx_tel = _ix["idx_tel"]
+                idx_rgm = _ix["idx_rgm"]
+                lid_cpf = _ix["lid_cpf"]
+                lead_pipe = _ix["lead_pipe"]
+                lead_deleted = _ix["lead_deleted"]
+            else:
+                kconn_mat = get_kommo_conn()
+                with kconn_mat.cursor() as kcur_mat:
+                    # Índices para cruzamento rápido: lead_id → {CPF, Email, Tel, RGM}
+                    # Buscar todos os campos relevantes de uma vez
+                    kcur_mat.execute("""
                     SELECT lead_id, field_name,
                            LOWER(TRIM(values_json->0->>'value')) AS val
                     FROM lead_custom_field_values
@@ -2848,39 +2929,39 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                     ) AND values_json->0->>'value' IS NOT NULL
                       AND TRIM(values_json->0->>'value') != ''
                 """)
-                # Índices reversos: valor normalizado → set de lead_ids
-                idx_cpf: dict[str, set[int]] = {}
-                idx_email: dict[str, set[int]] = {}
-                idx_tel: dict[str, set[int]] = {}
-                idx_rgm: dict[str, set[int]] = {}
-                lid_cpf: dict[int, str] = {}
-                for lid, fname, val in kcur_mat.fetchall():
-                    if fname == "CPF":
-                        cpf_norm = re.sub(r"[^0-9]", "", val).zfill(11)
-                        lid_cpf[lid] = cpf_norm
-                        # CPF lixo (00000000009 etc.) agrupa milhares de leads
-                        # alheios — não pode ser chave de match.
-                        if _cpf_valido(cpf_norm):
-                            idx_cpf.setdefault(cpf_norm, set()).add(lid)
-                    elif fname == "E-mail":
-                        idx_email.setdefault(val.strip(), set()).add(lid)
-                    elif fname in ("Telefone Comercial", "Telefone Inscricao"):
-                        tel_norm = re.sub(r"[^0-9]", "", val)
-                        if len(tel_norm) >= 10:
-                            idx_tel.setdefault(tel_norm[-11:], set()).add(lid)
-                            idx_tel.setdefault(tel_norm[-10:], set()).add(lid)
-                    elif fname == "RGM":
-                        idx_rgm.setdefault(val.strip(), set()).add(lid)
+                    # Índices reversos: valor normalizado → set de lead_ids
+                    idx_cpf: dict[str, set] = {}
+                    idx_email: dict[str, set] = {}
+                    idx_tel: dict[str, set] = {}
+                    idx_rgm: dict[str, set] = {}
+                    lid_cpf: dict = {}
+                    for lid, fname, val in kcur_mat.fetchall():
+                        if fname == "CPF":
+                            cpf_norm = re.sub(r"[^0-9]", "", val).zfill(11)
+                            lid_cpf[lid] = cpf_norm
+                            # CPF lixo (00000000009 etc.) agrupa milhares de leads
+                            # alheios — não pode ser chave de match.
+                            if _cpf_valido(cpf_norm):
+                                idx_cpf.setdefault(cpf_norm, set()).add(lid)
+                        elif fname == "E-mail":
+                            idx_email.setdefault(val.strip(), set()).add(lid)
+                        elif fname in ("Telefone Comercial", "Telefone Inscricao"):
+                            tel_norm = re.sub(r"[^0-9]", "", val)
+                            if len(tel_norm) >= 10:
+                                idx_tel.setdefault(tel_norm[-11:], set()).add(lid)
+                                idx_tel.setdefault(tel_norm[-10:], set()).add(lid)
+                        elif fname == "RGM":
+                            idx_rgm.setdefault(val.strip(), set()).add(lid)
 
-                # Lead pipelines + sort do status para priorizar fase mais quente
-                lead_pipe: dict[int, tuple] = {}
-                lead_deleted: set[int] = set()
-                all_candidate_ids = set()
-                for idx in (idx_cpf, idx_email, idx_tel, idx_rgm):
-                    for s in idx.values():
-                        all_candidate_ids.update(s)
-                if all_candidate_ids:
-                    kcur_mat.execute("""
+                    # Lead pipelines + sort do status para priorizar fase mais quente
+                    lead_pipe: dict = {}
+                    lead_deleted: set = set()
+                    all_candidate_ids = set()
+                    for idx in (idx_cpf, idx_email, idx_tel, idx_rgm):
+                        for s in idx.values():
+                            all_candidate_ids.update(s)
+                    if all_candidate_ids:
+                        kcur_mat.execute("""
                         SELECT l.id, l.pipeline_id, l.status_id,
                                COALESCE(ps.sort, 0) AS status_sort,
                                COALESCE(l.is_deleted, FALSE) AS is_deleted
@@ -2888,12 +2969,12 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                         LEFT JOIN pipeline_statuses ps ON ps.id = l.status_id
                         WHERE l.id = ANY(%s)
                     """, (sorted(all_candidate_ids),))
-                    for lid, pip, st, st_sort, _deleted in kcur_mat.fetchall():
-                        lead_pipe[lid] = (pip, st, st_sort)
-                        if _deleted:
-                            lead_deleted.add(lid)
+                        for lid, pip, st, st_sort, _deleted in kcur_mat.fetchall():
+                            lead_pipe[lid] = (pip, st, st_sort)
+                            if _deleted:
+                                lead_deleted.add(lid)
 
-            kconn_mat.close()
+                kconn_mat.close()
 
             for row in mat_d1:
                 nome, cpf, rgm, email, fone_cel = row[0], row[1], row[2], row[3], row[4]
@@ -3173,7 +3254,10 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
 
                 if best_lid is not None:
                     if best_lid in acoes_lead_ids:
-                        acoes = [a for a in acoes if not (a.get("lead_id") == best_lid and a["acao"] in ("ATUALIZAR", "NOVO", "RESTAURAR"))]
+                        acoes = [a for a in acoes if not (
+                            a.get("lead_id") == best_lid
+                            and a["acao"] in ("ATUALIZAR", "NOVO", "RESTAURAR", "MOVER_PERDIDO")
+                        )]
                     acoes.append({
                         "acao": "MATRICULADO",
                         "lead_id": best_lid,
@@ -3193,10 +3277,25 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                     })
                     acoes_lead_ids.add(best_lid)
                     n_mat_d1 += 1
-        log.info("MATRICULADO (janela 7d) cruzado com kommo_sync: %d", n_mat_d1)
+        log.info("MATRICULADO (%s) cruzado com CRM: %d",
+                 "D-1/D-2" if use_bwipo_crm() else "janela 7d", n_mat_d1)
         log.info("Duplicatas ativas fechadas (RGM já em Venda Ganha): %d", n_dup_perdido)
     except Exception as exc:
         log.warning("Erro na geração de MATRICULADO D-1: %s", exc, exc_info=True)
+
+    if use_bwipo_crm():
+        try:
+            from services.bwipo_match import aceite_presos
+            extras = aceite_presos(acoes_lead_ids)
+            acoes.extend(extras)
+            n_ag = sum(1 for a in extras if a["acao"] == "MATRICULADO")
+            n_ap = sum(1 for a in extras if a["acao"] == "MOVER_PERDIDO")
+            log.info(
+                "Aceite preso (matrícula anterior a hoje, 14d): %d Ganho, %d Perdido",
+                n_ag, n_ap,
+            )
+        except Exception as exc:
+            log.warning("Erro no acerto de Aceite preso: %s", exc, exc_info=True)
 
     _n_mat_pre_dedup = sum(1 for a in acoes if a["acao"] == "MATRICULADO")
     log.info("MATRICULADO ANTES do dedup: %d (D-1=%d)", _n_mat_pre_dedup, n_mat_d1)
@@ -3211,15 +3310,23 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
     # final, garantindo que nada é criado em duplicidade contra o Kommo real.
     n_orf_novo = 0
     try:
-        # Carrega índices (idx_cpf/email/tel/rgm) próprios para esse bloco —
-        # isola do try/except do MATRICULADO D-1.
-        kconn_orf = get_kommo_conn()
-        idx_cpf_orf: dict[str, set[int]] = {}
-        idx_email_orf: dict[str, set[int]] = {}
-        idx_tel_orf: dict[str, set[int]] = {}
-        idx_rgm_orf: dict[str, set[int]] = {}
-        with kconn_orf.cursor() as kcur_orf:
-            kcur_orf.execute("""
+        if use_bwipo_crm():
+            log.info("NOVO matriculado órfão (janela 60d) ignorado no Novo CRM — só data de corte")
+            mat_full = []
+            idx_cpf_orf: dict[str, set] = {}
+            idx_email_orf: dict[str, set] = {}
+            idx_tel_orf: dict[str, set] = {}
+            idx_rgm_orf: dict[str, set] = {}
+            _orf_deals = None
+        else:
+            kconn_orf = get_kommo_conn()
+            idx_cpf_orf: dict[str, set] = {}
+            idx_email_orf: dict[str, set] = {}
+            idx_tel_orf: dict[str, set] = {}
+            idx_rgm_orf: dict[str, set] = {}
+            _orf_deals = None
+            with kconn_orf.cursor() as kcur_orf:
+                kcur_orf.execute("""
                 SELECT lead_id, field_name,
                        LOWER(TRIM(values_json->0->>'value')) AS val
                 FROM lead_custom_field_values
@@ -3229,41 +3336,41 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                 ) AND values_json->0->>'value' IS NOT NULL
                   AND TRIM(values_json->0->>'value') != ''
             """)
-            for lid, fname, val in kcur_orf.fetchall():
-                if fname == "CPF":
-                    _orf_cpf = re.sub(r"[^0-9]", "", val).zfill(11)
-                    if _cpf_valido(_orf_cpf):
-                        idx_cpf_orf.setdefault(_orf_cpf, set()).add(lid)
-                elif fname in ("E-mail", "Email Acadêmico"):
-                    idx_email_orf.setdefault(val.strip(), set()).add(lid)
-                elif fname in ("Telefone Comercial", "Telefone Inscricao"):
-                    tc = re.sub(r"[^0-9]", "", val)
-                    if len(tc) >= 10:
-                        idx_tel_orf.setdefault(tc[-11:], set()).add(lid)
-                        idx_tel_orf.setdefault(tc[-10:], set()).add(lid)
-                elif fname == "RGM":
-                    idx_rgm_orf.setdefault(val.strip(), set()).add(lid)
-        kconn_orf.close()
+                for lid, fname, val in kcur_orf.fetchall():
+                    if fname == "CPF":
+                        _orf_cpf = re.sub(r"[^0-9]", "", val).zfill(11)
+                        if _cpf_valido(_orf_cpf):
+                            idx_cpf_orf.setdefault(_orf_cpf, set()).add(lid)
+                    elif fname in ("E-mail", "Email Acadêmico"):
+                        idx_email_orf.setdefault(val.strip(), set()).add(lid)
+                    elif fname in ("Telefone Comercial", "Telefone Inscricao"):
+                        tc = re.sub(r"[^0-9]", "", val)
+                        if len(tc) >= 10:
+                            idx_tel_orf.setdefault(tc[-11:], set()).add(lid)
+                            idx_tel_orf.setdefault(tc[-10:], set()).add(lid)
+                    elif fname == "RGM":
+                        idx_rgm_orf.setdefault(val.strip(), set()).add(lid)
+            kconn_orf.close()
 
-        dconn_orf = get_conn()
-        with dconn_orf.cursor() as dcur_orf:
-            dcur_orf.execute("""
-                SELECT cpf, rgm, email, email_ad, fone_cel, nome,
-                       data_matricula::text, tipo_matricula,
-                       polo_captador, polo_aulas, curso_limpo, rg
-                FROM mm_matriculados
-                WHERE data_matricula::date >= (CURRENT_DATE - INTERVAL '60 days')
-                  AND UPPER(COALESCE(tipo_matricula,'')) IN ('NOVA MATRICULA','RECOMPRA','RETORNO')
-                  AND UPPER(COALESCE(situacao,'')) = 'MATRICULADO'
-                  AND polo_captador IN (
-                      '18 - UNICID - GRADUAÇÃO EAD',
-                      '16 - CRUZEIRO DO SUL - GRADUAÇÃO EAD',
-                      '41 - CRUZEIRO DO SUL - PÓS-EAD'
-                  )
-                  AND cpf IS NOT NULL AND cpf != ''
-            """)
-            mat_full = dcur_orf.fetchall()
-        dconn_orf.close()
+            dconn_orf = get_conn()
+            with dconn_orf.cursor() as dcur_orf:
+                dcur_orf.execute("""
+                    SELECT cpf, rgm, email, email_ad, fone_cel, nome,
+                           data_matricula::text, tipo_matricula,
+                           polo_captador, polo_aulas, curso_limpo, rg
+                    FROM mm_matriculados
+                    WHERE data_matricula::date >= (CURRENT_DATE - INTERVAL '60 days')
+                      AND UPPER(COALESCE(tipo_matricula,'')) IN ('NOVA MATRICULA','RECOMPRA','RETORNO')
+                      AND UPPER(COALESCE(situacao,'')) = 'MATRICULADO'
+                      AND polo_captador IN (
+                          '18 - UNICID - GRADUAÇÃO EAD',
+                          '16 - CRUZEIRO DO SUL - GRADUAÇÃO EAD',
+                          '41 - CRUZEIRO DO SUL - PÓS-EAD'
+                      )
+                      AND cpf IS NOT NULL AND cpf != ''
+                """)
+                mat_full = dcur_orf.fetchall()
+            dconn_orf.close()
 
         acoes_cpfs_atuais = {a.get("cpf") for a in acoes if a.get("cpf")}
 
@@ -3303,9 +3410,23 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
 
             if cand_orf:
                 try:
-                    kconn_pick = get_kommo_conn()
-                    with kconn_pick.cursor() as kcur_pick:
-                        kcur_pick.execute("""
+                    if use_bwipo_crm() and _orf_deals is not None:
+                        pick_rows = []
+                        for _plid in cand_orf:
+                            _pd = _orf_deals.get(_plid)
+                            if not _pd:
+                                continue
+                            pick_rows.append((
+                                _plid,
+                                _pd["pipeline_id"],
+                                _pd["status_id"],
+                                False,
+                                re.sub(r"[^0-9]", "", _pd.get("rgm") or ""),
+                            ))
+                    else:
+                        kconn_pick = get_kommo_conn()
+                        with kconn_pick.cursor() as kcur_pick:
+                            kcur_pick.execute("""
                             SELECT l.id, l.pipeline_id, l.status_id,
                                    COALESCE(l.is_deleted, FALSE),
                                    (SELECT regexp_replace(COALESCE(f.values_json->0->>'value',''),
@@ -3315,8 +3436,8 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                                     LIMIT 1)
                             FROM leads l WHERE l.id = ANY(%s)
                         """, (list(cand_orf),))
-                        pick_rows = kcur_pick.fetchall()
-                    kconn_pick.close()
+                            pick_rows = kcur_pick.fetchall()
+                        kconn_pick.close()
                 except Exception as exc_pick:
                     log.warning("orfao pick leads: %s", exc_pick)
                     pick_rows = []
@@ -3325,7 +3446,7 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                     if (not r[3]) and r[1] in PIPELINES_PERMITIDOS and r[2] == 142
                 ]
                 if ganho_ok:
-                    ganho_ok.sort(key=lambda r: r[0], reverse=True)
+                    ganho_ok.sort(key=lambda r: str(r[0]), reverse=True)
                     _lid, _pip, _st, _del, _old = ganho_ok[0]
                     _ativos = cpf_rgms_ativos.get(cpf_clean_o, set())
                     if _old and _old != rgm_digits_o and _old in _ativos:
@@ -3333,7 +3454,7 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                     else:
                         acoes.append({
                             "acao": "MATRICULADO",
-                            "lead_id": int(_lid),
+                            "lead_id": _as_lead_id(_lid),
                             "nome": nome_o,
                             "cpf": cpf_clean_o,
                             "rgm": str(rgm_o or ""),
@@ -3635,12 +3756,18 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
     # --- Validate ATUALIZAR matches (name + CPF cross-check) ---
     acoes = _validar_matches_atualizar(acoes)
 
-    # --- VERIFICAÇÃO KOMMO API: checar leads NOVO contra a API real ---
-    # (roda DEPOIS da validação, para capturar NOVOs gerados pela invalidação)
-    acoes = _verificar_novos_kommo_api(acoes)
+    # --- VERIFICAÇÃO API: checar leads NOVO contra o CRM real ---
+    if use_bwipo_crm():
+        from services.bwipo_match import verificar_novos
+        acoes = verificar_novos(acoes)
+    else:
+        acoes = _verificar_novos_kommo_api(acoes)
 
     # --- FILTRO FINAL DE PIPELINE: garantir que só leads de pipelines permitidos ---
-    acoes = _filtrar_por_pipeline(acoes, PIPELINES_PERMITIDOS)
+    if use_bwipo_crm():
+        acoes = [a for a in acoes if not a.get("lead_pipeline_id") or a.get("lead_pipeline_id") in PIPELINES_PERMITIDOS or a.get("acao") in ("NOVO", "UNIFICAR")]
+    else:
+        acoes = _filtrar_por_pipeline(acoes, PIPELINES_PERMITIDOS)
 
     # --- ATUALIZAR + UNIFICAR coexistem para o mesmo CPF ---
     # Quando um CPF tem duplicatas (UNIFICAR), o lead na fase mais quente
@@ -3674,6 +3801,8 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
 
 def enriquecer_unificar(acoes):
     """Enrich UNIFICAR actions with auto-decision based on lead status and data."""
+    if use_bwipo_crm():
+        return acoes
     unificar = [a for a in acoes if a["acao"] == "UNIFICAR"]
     if not unificar:
         return acoes
@@ -4018,7 +4147,10 @@ def _build_custom_fields(field_ids, acao, fields_map):
 
 
 def executar_acoes(acoes, limit=None, log_callback=None):
-    """Execute Kommo updates/creates for the given actions."""
+    """Execute updates/creates for the given actions (Kommo ou Bwipo)."""
+    if use_bwipo_crm():
+        from services.bwipo_match import executar_acoes_bwipo
+        return executar_acoes_bwipo(acoes, limit=limit, log_callback=log_callback)
     api = KommoApiClient()
 
     all_fields = list(set(_FIELD_NAMES_FOR_UPDATE + _FIELD_NAMES_FOR_MATRICULA))
@@ -4369,14 +4501,23 @@ def run_pipeline(candidatos_files, matriculados_files, nivel="grad", log_callbac
     cruz_result = cruzar()
     _log(f"  Cruzados: {cruz_result['total']} (match={cruz_result['matched']}, sem={cruz_result['no_match']})")
 
-    # 5. Match Inscritos x Kommo (CPF + Telefone)
-    _log(">>> ETAPA 5: MATCH INSCRITOS x KOMMO (CPF + Telefone)")
-    inscritos_match = match_kommo()
+    _crm_label = "BWIPO" if use_bwipo_crm() else "KOMMO"
+    # 5. Match Inscritos x CRM (CPF + Telefone)
+    _log(f">>> ETAPA 5: MATCH INSCRITOS x {_crm_label} (CPF + Telefone)")
+    if use_bwipo_crm():
+        from services import bwipo_crm as _bwipo_crm
+        _bwipo_crm.set_index_progress(_log)
+        _log("Carregando negócios do Novo CRM (a base é grande; uma página lenta é tentada de novo).")
+    try:
+        inscritos_match = match_kommo()
+    finally:
+        if use_bwipo_crm():
+            _bwipo_crm.set_index_progress(None)
     _log(f"  Total: {inscritos_match['total']} | Match: {inscritos_match['com_match']} | Sem: {inscritos_match['sem_match']} | Lead Fechado: {inscritos_match.get('lead_fechado', 0)}")
     _log(f"  Tipos: {inscritos_match['tipos']}")
 
-    # 6. Match Matriculados x Kommo (RGM)
-    _log(">>> ETAPA 6: MATCH MATRICULADOS x KOMMO (RGM)")
+    # 6. Match Matriculados x CRM (RGM)
+    _log(f">>> ETAPA 6: MATCH MATRICULADOS x {_crm_label} (RGM)")
     matriculados_match = match_matriculados_kommo()
     _log(f"  Total: {matriculados_match['total']} | Match: {matriculados_match['com_match']} | Sem: {matriculados_match['sem_match']}")
 
