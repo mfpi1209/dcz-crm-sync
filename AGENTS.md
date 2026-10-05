@@ -12,6 +12,7 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 - **Cache:** a resposta de `GET /api/bwipo/painel` vale 5 min. Pedido repetido devolve a anterior e refaz em segundo plano. Minha Performance lê a mesma tabela.
 - **Não muda:** a regra do dono, a meta, o funil e o ticket. A primeira montagem depois do deploy ainda leva o tempo da varredura; o job dispara 30s após o boot.
 - **Conversão do ranking:** matrículas do período / leads do Pipeline Principal criados no mesmo período (dia em BRT). A conta matrícula / (matrícula + evasão) deixava quase todo mundo em 100%.
+- **Cards vs 6 meses e vs 1 ano:** o mesmo intervalo de datas, deslocado. O número é a matrícula bruta daquele passado; o percentual compara com o período da tela. Servem de norte da meta. A tabela do painel guarda o histórico dos relatórios (não só o ciclo atual). Período que não está em nenhum relatório cai em `comercial_rgm`. Não são a carteira aberta/perdida do funil.
 
 ### 2026-10-05 — Menu: só o Dashboard Comercial Bwipo
 - **Modelo usado:** Cursor Grok 4.7.

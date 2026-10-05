@@ -131,6 +131,33 @@ function _bwcNum(n) {
     return (n || 0).toLocaleString("pt-BR");
 }
 
+function _bwcBadge(id, pct) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (pct == null) {
+        el.textContent = "";
+        el.className = "hidden";
+        return;
+    }
+    el.classList.remove("hidden");
+    el.textContent = (pct >= 0 ? "↑ " : "↓ ") + Math.abs(pct).toLocaleString("pt-BR") + "%";
+    el.className = pct >= 0
+        ? "font-bold px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-700 dark:text-emerald-400"
+        : "font-bold px-1.5 py-0.5 rounded text-[10px] bg-red-500/20 text-red-600 dark:text-red-400";
+}
+
+function _bwcCompare(prefix, valor, delta, periodo) {
+    const val = document.getElementById("bwc-" + prefix + "-val");
+    const sub = document.getElementById("bwc-" + prefix + "-sub");
+    if (val) val.textContent = valor > 0 ? _bwcNum(valor) : "—";
+    if (sub) {
+        sub.textContent = (valor > 0 && delta != null)
+            ? (delta >= 0 ? "+" : "") + delta.toLocaleString("pt-BR") + " matrículas"
+            : "sem histórico no período";
+        sub.title = periodo || "Período de referência";
+    }
+}
+
 function _bwcDataBr(s) {
     const t = String(s || "").slice(0, 10);
     const iso = t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -168,8 +195,10 @@ function bwcAtualizar() {
             document.getElementById("bwc-ganho-label").textContent = _bwcNum(k.em_curso);
             document.getElementById("bwc-aberto").textContent = _bwcNum(k.aberto);
             document.getElementById("bwc-perdido").textContent = _bwcNum(k.perdido);
-            document.getElementById("bwc-aberto-card").textContent = _bwcNum(k.aberto);
-            document.getElementById("bwc-perdido-card").textContent = _bwcNum(k.perdido);
+            _bwcCompare("6m", k.vendas_6m, k.delta_6m, k.compare_6m_period);
+            _bwcCompare("1a", k.vendas_1a, k.delta_1a, k.compare_1a_period);
+            _bwcBadge("bwc-6m-badge", k.pct_6m);
+            _bwcBadge("bwc-1a-badge", k.pct_1a);
             document.getElementById("bwc-evasao").textContent = _bwcNum(k.evasao);
             document.getElementById("bwc-fora").textContent = _bwcNum(k.fora_padrao);
             const foraHero = document.getElementById("bwc-fora-hero");

@@ -1669,7 +1669,12 @@ def _rebuild_painel_base_locked() -> bool:
     try:
         from routes.comercial_rgm import _crgm_periodo_data_oficial
 
-        rows = _crgm_periodo_data_oficial(mark_missing_as_transferido=True) or []
+        from datetime import date as _date
+        rows = _crgm_periodo_data_oficial(
+            dt_ini="2018-01-01",
+            dt_fim=_date.today().isoformat(),
+            mark_missing_as_transferido=True,
+        ) or []
         if not rows:
             logger.warning("bwipo painel base: leitura vazia, tabela anterior mantida")
             return False
@@ -1879,6 +1884,37 @@ def load_painel_base(dt_ini, dt_fim, nivel, turma, ciclo):
                 nomes[parsed] = dono_nome
         fonte[rgm] = src or "sem_dono"
     return rows, dono, nomes, fonte
+
+
+def _painel_bruto_janela(dt_ini, dt_fim, nivel, turma, ciclo, polo, owner):
+    """Matrículas do intervalo, com os mesmos filtros da página. None se a tabela ainda não existe."""
+    from helpers import normalize_polo_display
+    from routes.comercial_rgm import _admin_sistema_uid
+
+    loaded = load_painel_base(dt_ini, dt_fim, nivel, turma, ciclo)
+    if loaded is None:
+        return None
+    rows, dono, nomes, _fonte = loaded
+    if polo:
+        rows = [
+            row for row in rows
+            if normalize_polo_display(row.get("polo") or "") == polo or (row.get("polo") or "") == polo
+        ]
+    if owner:
+        admin_nome = nomes.get(_admin_sistema_uid()) or _ADMIN_SISTEMA
+        rows = [
+            row for row in rows
+            if nomes.get(dono.get(row.get("rgm")), admin_nome) == owner
+        ]
+    total = len({row["rgm"] for row in rows if row.get("rgm")})
+    if total or owner:
+        return total
+    from routes.comercial_rgm import _crgm_count_bruto_from_table, _pg
+    conn = _pg()
+    try:
+        return _crgm_count_bruto_from_table(conn, dt_ini, dt_fim, polo, nivel, turma)
+    finally:
+        conn.close()
 
 
 def _painel_cache_key(dt_ini, dt_fim, polo, nivel, owner, turma, ciclo):
@@ -2113,6 +2149,31 @@ def _painel_payload(dt_ini, dt_fim, polo, nivel, owner, turma, ciclo):
         base_total = funil if owner else funil_key
         aberto_total = sum(v["aberto"] for v in base_total.values())
         perdido_total = sum(v["perdido"] for v in base_total.values())
+        vendas_6m = vendas_1a = None
+        compare_6m = compare_1a = None
+        pct_6m = pct_1a = None
+        delta_6m = delta_1a = None
+        atual = len(rgms_bruto)
+        if dt_ini and dt_fim:
+            from datetime import date as _date
+            from routes.comercial_rgm import _shift_months
+            try:
+                d_ini = _date.fromisoformat(dt_ini)
+                d_fim = _date.fromisoformat(dt_fim)
+                i6, f6 = _shift_months(d_ini, -6), _shift_months(d_fim, -6)
+                i1, f1 = _shift_months(d_ini, -12), _shift_months(d_fim, -12)
+                vendas_6m = _painel_bruto_janela(i6.isoformat(), f6.isoformat(), nivel, turma, ciclo, polo, owner)
+                vendas_1a = _painel_bruto_janela(i1.isoformat(), f1.isoformat(), nivel, turma, ciclo, polo, owner)
+                compare_6m = f"{i6.strftime('%d/%m/%Y')} a {f6.strftime('%d/%m/%Y')}"
+                compare_1a = f"{i1.strftime('%d/%m/%Y')} a {f1.strftime('%d/%m/%Y')}"
+                if vendas_6m:
+                    pct_6m = round((atual / vendas_6m - 1) * 100, 1)
+                    delta_6m = atual - vendas_6m
+                if vendas_1a:
+                    pct_1a = round((atual / vendas_1a - 1) * 100, 1)
+                    delta_1a = atual - vendas_1a
+            except Exception:
+                logger.exception("bwipo comparativo")
         return {
             "ok": True,
             "kpis": {
@@ -2127,6 +2188,14 @@ def _painel_payload(dt_ini, dt_fim, polo, nivel, owner, turma, ciclo):
                 "dias": dias,
                 "ticket": ticket,
                 "prefixo": dom or "",
+                "vendas_6m": vendas_6m,
+                "vendas_1a": vendas_1a,
+                "pct_6m": pct_6m,
+                "pct_1a": pct_1a,
+                "delta_6m": delta_6m,
+                "delta_1a": delta_1a,
+                "compare_6m_period": compare_6m,
+                "compare_1a_period": compare_1a,
             },
             "linhas": linhas,
             "prefixos": [{"pfx": p, "n": n} for p, n in sorted(pfx_acc.items())],
