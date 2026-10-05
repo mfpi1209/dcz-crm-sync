@@ -10,7 +10,7 @@ import os
 import threading
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 import psycopg2
@@ -778,7 +778,16 @@ def register_bwipo_sync_job(sched):
             max_instances=1,
             coalesce=True,
         )
-        logger.info("bwipo owner recente a cada 5 min")
+        sched.add_job(
+            rebuild_painel_base,
+            IntervalTrigger(minutes=10),
+            id="bwipo_painel_base",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            next_run_time=datetime.now(timezone.utc) + timedelta(seconds=30),
+        )
+        logger.info("bwipo owner recente a cada 5 min; base do painel a cada 10 min")
     except Exception:
         logger.exception("bwipo owner recente não agendou")
 
@@ -1513,33 +1522,408 @@ def _bwipo_funil_estoque(admin_uid: int) -> dict:
     return out
 
 
+_PAINEL_CACHE_TTL = 300
+_painel_cache: dict = {}
+_painel_cache_lock = threading.Lock()
+_painel_refreshing: set = set()
+_painel_base_lock = threading.Lock()
+
+
+def clear_painel_response_cache():
+    with _painel_cache_lock:
+        _painel_cache.clear()
+        _painel_refreshing.clear()
+    try:
+        from routes.minha_performance import _bwipo_periodo_cache, _bwipo_periodo_lock
+        with _bwipo_periodo_lock:
+            _bwipo_periodo_cache.clear()
+    except Exception:
+        logger.exception("limpar cache da minha performance")
+
+
+def _ensure_painel_base_table(cur) -> None:
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS bwipo_painel_base (
+            rgm TEXT PRIMARY KEY,
+            nome TEXT NOT NULL DEFAULT '',
+            situacao TEXT NOT NULL DEFAULT '',
+            data_matricula DATE,
+            polo TEXT NOT NULL DEFAULT '',
+            nivel TEXT NOT NULL DEFAULT '',
+            ciclo TEXT NOT NULL DEFAULT '',
+            tipo_matricula TEXT NOT NULL DEFAULT '',
+            turma TEXT NOT NULL DEFAULT '',
+            sumiu BOOLEAN NOT NULL DEFAULT FALSE,
+            dono_key TEXT,
+            dono_nome TEXT NOT NULL DEFAULT '',
+            fonte TEXT NOT NULL DEFAULT '',
+            built_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+        """
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_bwipo_painel_base_data ON bwipo_painel_base (data_matricula)"
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS bwipo_painel_meta (
+            id INTEGER PRIMARY KEY,
+            ciclo_prefix INTEGER,
+            built_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+        """
+    )
+
+
+def _painel_base_count() -> int:
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT to_regclass('public.bwipo_painel_base')")
+        if not cur.fetchone()[0]:
+            return 0
+        cur.execute("SELECT COUNT(*) FROM bwipo_painel_base")
+        return int(cur.fetchone()[0] or 0)
+    except Exception:
+        logger.exception("contar bwipo_painel_base")
+        return 0
+    finally:
+        conn.close()
+
+
+def _painel_ciclo_prefix():
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT to_regclass('public.bwipo_painel_meta')")
+        if not cur.fetchone()[0]:
+            return None
+        cur.execute("SELECT ciclo_prefix FROM bwipo_painel_meta WHERE id = 1")
+        row = cur.fetchone()
+        return int(row[0]) if row and row[0] is not None else None
+    except Exception:
+        logger.exception("prefixo do painel")
+        return None
+    finally:
+        conn.close()
+
+
+def _painel_dominant_prefix(periodo_rgms):
+    from routes.comercial_rgm import _compute_dominant_rgm_prefix, _crgm_ciclo_dominant_prefix
+
+    periodo_pfx = _compute_dominant_rgm_prefix(periodo_rgms)
+    ciclo_pfx = _painel_ciclo_prefix()
+    if ciclo_pfx is None:
+        ciclo_pfx = _crgm_ciclo_dominant_prefix()
+    candidatos = [p for p in (periodo_pfx, ciclo_pfx) if p is not None]
+    return min(candidatos) if candidatos else None
+
+
+def _dono_key_value(raw):
+    if raw is None or raw == "":
+        return None
+    text = str(raw)
+    return int(text) if text.isdigit() else text
+
+
+def _rebuild_painel_base_locked() -> bool:
+    """Quem chama já está com _painel_base_lock. Não apaga a tabela se a leitura vier vazia."""
+    try:
+        from routes.comercial_rgm import _crgm_periodo_data_oficial
+
+        rows = _crgm_periodo_data_oficial(mark_missing_as_transferido=True) or []
+        if not rows:
+            logger.warning("bwipo painel base: leitura vazia, tabela anterior mantida")
+            return False
+        datas = {row["rgm"]: row.get("data_matricula") for row in rows if row.get("rgm")}
+        dono, nomes, fonte = _atribuir_rgms(datas)
+        built = datetime.now(timezone.utc)
+        payload = []
+        for row in rows:
+            rgm = row.get("rgm")
+            if not rgm:
+                continue
+            key = dono.get(rgm)
+            payload.append((
+                rgm,
+                row.get("nome") or "",
+                row.get("situacao") or "",
+                _as_date(row.get("data_matricula")) if row.get("data_matricula") else None,
+                row.get("polo") or "",
+                row.get("nivel") or "",
+                row.get("ciclo") or "",
+                row.get("tipo_matricula") or "",
+                row.get("turma") or "",
+                bool(row.get("sumiu_do_csv")),
+                str(key) if key is not None else None,
+                nomes.get(key) or "",
+                fonte.get(rgm) or "sem_dono",
+                built,
+            ))
+        conn = get_conn()
+        try:
+            cur = conn.cursor()
+            _ensure_painel_base_table(cur)
+            cur.execute("DELETE FROM bwipo_painel_base")
+            psycopg2.extras.execute_values(
+                cur,
+                """
+                INSERT INTO bwipo_painel_base (
+                    rgm, nome, situacao, data_matricula, polo, nivel, ciclo, tipo_matricula,
+                    turma, sumiu, dono_key, dono_nome, fonte, built_at
+                ) VALUES %s
+                """,
+                payload,
+                page_size=1000,
+            )
+            from routes.comercial_rgm import _crgm_ciclo_dominant_prefix
+            cur.execute(
+                """
+                INSERT INTO bwipo_painel_meta (id, ciclo_prefix, built_at)
+                VALUES (1, %s, %s)
+                ON CONFLICT (id) DO UPDATE
+                  SET ciclo_prefix = EXCLUDED.ciclo_prefix, built_at = EXCLUDED.built_at
+                """,
+                (_crgm_ciclo_dominant_prefix(), built),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        clear_painel_response_cache()
+        logger.info("bwipo painel base: %s matrículas", len(payload))
+        return True
+    except Exception:
+        logger.exception("bwipo painel base")
+        return False
+
+
+def rebuild_painel_base() -> bool:
+    """Remonta a tabela do painel. Se outra montagem já estiver rodando, sai."""
+    if not _painel_base_lock.acquire(blocking=False):
+        return False
+    try:
+        return _rebuild_painel_base_locked()
+    finally:
+        _painel_base_lock.release()
+
+
+def schedule_painel_base_rebuild() -> None:
+    threading.Thread(target=rebuild_painel_base, name="bwipo-painel-base", daemon=True).start()
+
+
+def ensure_painel_base() -> bool:
+    if _painel_base_count() > 0:
+        return True
+    with _painel_base_lock:
+        if _painel_base_count() > 0:
+            return True
+        return _rebuild_painel_base_locked()
+
+
+def painel_base_note_pin(rgm: str, user_id: int, user_name: str) -> None:
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT to_regclass('public.bwipo_painel_base')")
+        if cur.fetchone()[0]:
+            cur.execute(
+                """
+                UPDATE bwipo_painel_base
+                   SET dono_key = %s, dono_nome = %s, fonte = 'manual'
+                 WHERE rgm = %s
+                """,
+                (str(int(user_id)), user_name or "", rgm),
+            )
+        conn.commit()
+    except Exception:
+        logger.exception("painel base pin")
+    finally:
+        conn.close()
+    clear_painel_response_cache()
+
+
+def refresh_painel_base_rgm(rgm: str) -> None:
+    """Recalcula o dono de um RGM depois que a fixação manual sai."""
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT to_regclass('public.bwipo_painel_base')")
+        if not cur.fetchone()[0]:
+            return
+        cur.execute("SELECT data_matricula FROM bwipo_painel_base WHERE rgm = %s", (rgm,))
+        found = cur.fetchone()
+        if not found:
+            return
+        data = found[0].isoformat() if found[0] else None
+        dono, nomes, fonte = _atribuir_rgms({rgm: data})
+        key = dono.get(rgm)
+        cur.execute(
+            """
+            UPDATE bwipo_painel_base
+               SET dono_key = %s, dono_nome = %s, fonte = %s
+             WHERE rgm = %s
+            """,
+            (
+                str(key) if key is not None else None,
+                nomes.get(key) or "",
+                fonte.get(rgm) or "sem_dono",
+                rgm,
+            ),
+        )
+        conn.commit()
+    except Exception:
+        logger.exception("refresh painel base rgm")
+    finally:
+        conn.close()
+    clear_painel_response_cache()
+
+
+def load_painel_base(dt_ini, dt_fim, nivel, turma, ciclo):
+    """Linhas do recorte já com dono. None se a tabela ainda não existe."""
+    if _painel_base_count() <= 0:
+        return None
+    conds = []
+    params = []
+    if dt_ini:
+        conds.append("data_matricula >= %s")
+        params.append(dt_ini)
+    if dt_fim:
+        conds.append("data_matricula <= %s")
+        params.append(dt_fim)
+    if nivel:
+        conds.append("nivel = %s")
+        params.append(nivel)
+    if turma:
+        conds.append("turma = %s")
+        params.append(turma)
+    if ciclo:
+        conds.append("ciclo = %s")
+        params.append(ciclo)
+    where = (" WHERE " + " AND ".join(conds)) if conds else ""
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            f"""
+            SELECT rgm, nome, situacao, data_matricula, polo, nivel, ciclo, tipo_matricula,
+                   turma, sumiu, dono_key, dono_nome, fonte
+              FROM bwipo_painel_base
+              {where}
+            """,
+            params,
+        )
+        fetched = cur.fetchall()
+    finally:
+        conn.close()
+    rows = []
+    dono = {}
+    nomes = {}
+    fonte = {}
+    for rgm, nome, situacao, dm, polo, nivel_v, ciclo_v, tipo, turma_v, sumiu, key, dono_nome, src in fetched:
+        if not rgm:
+            continue
+        rows.append({
+            "rgm": rgm,
+            "nome": nome or "",
+            "situacao": situacao or "",
+            "data_matricula": dm.isoformat() if dm else None,
+            "polo": polo or "",
+            "nivel": nivel_v or "",
+            "ciclo": ciclo_v or "",
+            "tipo_matricula": tipo or "",
+            "turma": turma_v or "",
+            "sumiu_do_csv": bool(sumiu),
+        })
+        parsed = _dono_key_value(key)
+        if parsed is not None:
+            dono[rgm] = parsed
+            if dono_nome:
+                nomes[parsed] = dono_nome
+        fonte[rgm] = src or "sem_dono"
+    return rows, dono, nomes, fonte
+
+
+def _painel_cache_key(dt_ini, dt_fim, polo, nivel, owner, turma, ciclo):
+    return (
+        dt_ini or "", dt_fim or "", polo or "", nivel or "",
+        owner or "", turma or "", ciclo or "",
+    )
+
+
+def _refresh_painel_cache(key, args):
+    with _painel_cache_lock:
+        if key in _painel_refreshing:
+            return
+        _painel_refreshing.add(key)
+
+    def _run():
+        try:
+            payload = _painel_payload(*args)
+            if payload.get("ok"):
+                with _painel_cache_lock:
+                    _painel_cache[key] = (time.time(), payload)
+        except Exception:
+            logger.exception("refresh painel bwipo")
+        finally:
+            with _painel_cache_lock:
+                _painel_refreshing.discard(key)
+
+    threading.Thread(target=_run, name="bwipo-painel-cache", daemon=True).start()
+
+
 @bwipo_bp.route("/api/bwipo/painel")
 def api_bwipo_painel():
     """Mesma matrícula do Dashboard Comercial. Sem responsável no Bwipo → Admin Sistema."""
+    dt_ini = (request.args.get("dt_ini") or "").strip() or None
+    dt_fim = (request.args.get("dt_fim") or "").strip() or None
+    polo = (request.args.get("polo") or "").strip()
+    nivel = (request.args.get("nivel") or "").strip() or None
+    owner = (request.args.get("owner") or "").strip()
+    turma = (request.args.get("turma") or "").strip() or None
+    ciclo = (request.args.get("ciclo") or "").strip() or None
+    key = _painel_cache_key(dt_ini, dt_fim, polo, nivel, owner, turma, ciclo)
+    args = (dt_ini, dt_fim, polo, nivel, owner, turma, ciclo)
+    now = time.time()
+    with _painel_cache_lock:
+        hit = _painel_cache.get(key)
+    if hit and now - hit[0] < _PAINEL_CACHE_TTL:
+        return jsonify(hit[1])
+    if hit:
+        _refresh_painel_cache(key, args)
+        return jsonify(hit[1])
+    payload = _painel_payload(*args)
+    if payload.get("ok"):
+        with _painel_cache_lock:
+            _painel_cache[key] = (time.time(), payload)
+        return jsonify(payload)
+    return jsonify(payload), 500
+
+
+def _painel_payload(dt_ini, dt_fim, polo, nivel, owner, turma, ciclo):
     try:
         from collections import defaultdict
 
         from helpers import normalize_polo_display
         from routes.comercial_rgm import (
             _crgm_build_periodo_sets,
-            _crgm_effective_dominant_prefix,
             _crgm_fora_padrao_rows,
             _crgm_periodo_data_oficial,
             _load_outlier_contagem_overrides,
             _rgm_conta_para_venda,
         )
 
-        dt_ini = (request.args.get("dt_ini") or "").strip() or None
-        dt_fim = (request.args.get("dt_fim") or "").strip() or None
-        polo = (request.args.get("polo") or "").strip()
-        nivel = (request.args.get("nivel") or "").strip() or None
-        owner = (request.args.get("owner") or "").strip()
-        turma = (request.args.get("turma") or "").strip() or None
-        ciclo = (request.args.get("ciclo") or "").strip() or None
-        ciclo_all = _crgm_periodo_data_oficial(
-            dt_ini=dt_ini, dt_fim=dt_fim, nivel=nivel, turma=turma, ciclo_filter=ciclo,
-            mark_missing_as_transferido=True,
-        )
+        loaded = load_painel_base(dt_ini, dt_fim, nivel, turma, ciclo)
+        if loaded is None and ensure_painel_base():
+            loaded = load_painel_base(dt_ini, dt_fim, nivel, turma, ciclo)
+        dono = nomes = fonte = None
+        if loaded is not None:
+            ciclo_all, dono, nomes, fonte = loaded
+        else:
+            ciclo_all = _crgm_periodo_data_oficial(
+                dt_ini=dt_ini, dt_fim=dt_fim, nivel=nivel, turma=turma, ciclo_filter=ciclo,
+                mark_missing_as_transferido=True,
+            )
         if polo:
             ciclo_all = [
                 row for row in ciclo_all
@@ -1550,14 +1934,15 @@ def api_bwipo_painel():
             periodo_rows, rgms_periodo, rgms_bruto, evasao_rows,
             day_rgms, _day_bruto, polo_rgms,
         ) = _crgm_build_periodo_sets(ciclo_all, dt_ini, dt_fim)
-        dom = _crgm_effective_dominant_prefix(list(rgms_periodo) or list(rgms_bruto))
+        dom = _painel_dominant_prefix(list(rgms_periodo) or list(rgms_bruto))
         overrides = _load_outlier_contagem_overrides()
         contando = {r for r in rgms_periodo if _rgm_conta_para_venda(r, dom, overrides)}
         fora_rows = _crgm_fora_padrao_rows(periodo_rows, dom, overrides, apenas_nao_conta=True)
         from routes.comercial_rgm import _admin_sistema_uid, _consultor_hidden_uids
 
-        rgm_datas = {row["rgm"]: row.get("data_matricula") for row in periodo_rows if row.get("rgm")}
-        dono, nomes, fonte = _atribuir_rgms(rgm_datas)
+        if dono is None:
+            rgm_datas = {row["rgm"]: row.get("data_matricula") for row in periodo_rows if row.get("rgm")}
+            dono, nomes, fonte = _atribuir_rgms(rgm_datas)
         admin_uid = _admin_sistema_uid()
         admin_nome = nomes.get(admin_uid) or _ADMIN_SISTEMA
         nome_key = {v: k for k, v in nomes.items()}
@@ -1685,7 +2070,7 @@ def api_bwipo_painel():
         base_total = funil if owner else funil_key
         aberto_total = sum(v["aberto"] for v in base_total.values())
         perdido_total = sum(v["perdido"] for v in base_total.values())
-        return jsonify({
+        return {
             "ok": True,
             "kpis": {
                 "matriculas": len(rgms_bruto),
@@ -1709,10 +2094,10 @@ def api_bwipo_painel():
                 "polos": sorted({normalize_polo_display(row.get("polo") or "") for row in ciclo_all if row.get("polo")} - {""}),
                 "agentes": agentes,
             },
-        })
+        }
     except Exception as e:
         logger.exception("bwipo painel")
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return {"ok": False, "error": str(e)}
 
 
 @bwipo_bp.route("/api/bwipo/painel/extras")
@@ -1975,6 +2360,7 @@ def api_bwipo_painel_conflitos_resolver():
         conn.commit()
         conn.close()
         clear_crgm_data_cache(reason=f"bwipo conflito desfeito rgm={rgm}")
+        refresh_painel_base_rgm(rgm)
         return jsonify({"ok": True, "rgm": rgm, "acao": "removido"})
     try:
         uid = int(body.get("user_id"))
@@ -2061,6 +2447,7 @@ def api_bwipo_painel_contar_venda():
     conn.commit()
     conn.close()
     clear_crgm_data_cache(reason=f"bwipo contar-venda {request.method} rgm={rgm}")
+    clear_painel_response_cache()
     return jsonify({"ok": True, "rgm": rgm, "acao": "contando" if request.method == "POST" else "removido"})
 
 
@@ -2125,6 +2512,7 @@ def api_bwipo_painel_meta_agente():
         )
         conn.commit()
         conn.close()
+        clear_painel_response_cache()
         return jsonify({"ok": True, "onde": "campanha", "campanha": camp[1], "saved": 1})
     cur.execute(
         """
@@ -2142,6 +2530,7 @@ def api_bwipo_painel_meta_agente():
     )
     conn.commit()
     conn.close()
+    clear_painel_response_cache()
     return jsonify({"ok": True, "onde": "avulsa", "saved": 1})
 
 
@@ -2239,6 +2628,7 @@ def api_bwipo_painel_tombamento():
     conn.commit()
     conn.close()
     clear_crgm_data_cache(reason=f"bwipo tombamento uid={uid}")
+    schedule_painel_base_rebuild()
     return jsonify({"ok": True, "kommo_user_id": uid, "desde": desde.isoformat() if desde else None})
 
 
@@ -2258,6 +2648,7 @@ def api_bwipo_painel_user_depara():
         cur.execute("DELETE FROM bwipo_kommo_user_depara WHERE bwipo_user_id = %s", (bid,))
         conn.commit()
         conn.close()
+        schedule_painel_base_rebuild()
         return jsonify({"ok": True, "bwipo_user_id": bid, "kommo_user_id": None})
     try:
         kid = int(body["kommo_user_id"])
@@ -2281,6 +2672,7 @@ def api_bwipo_painel_user_depara():
     )
     conn.commit()
     conn.close()
+    schedule_painel_base_rebuild()
     return jsonify({"ok": True, "bwipo_user_id": bid, "kommo_user_id": kid})
 
 
@@ -2310,6 +2702,7 @@ def api_bwipo_painel_sync_agentes():
         sem = int(cur.fetchone()[0])
     finally:
         conn.close()
+    schedule_painel_base_rebuild()
     return jsonify({"ok": True, "kommo_users": kommo_n, "depara": n, "bwipo_sem_depara": sem})
 
 

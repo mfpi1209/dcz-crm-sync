@@ -686,7 +686,7 @@ def _bwipo_key_lock(key):
 def _bwipo_periodo_calc(dt_ini, dt_fim):
     dt_ini = dt_ini or None
     dt_fim = dt_fim or None
-    from routes.bwipo_sync import _atribuir_rgms
+    from routes.bwipo_sync import _atribuir_rgms, load_painel_base
     from routes.comercial_rgm import (
         _crgm_build_periodo_sets,
         _crgm_effective_dominant_prefix,
@@ -695,19 +695,25 @@ def _bwipo_periodo_calc(dt_ini, dt_fim):
         _rgm_conta_para_venda,
     )
 
-    ciclo_all = _crgm_periodo_data_oficial(
-        dt_ini=dt_ini, dt_fim=dt_fim, mark_missing_as_transferido=True,
-    ) or []
+    loaded = load_painel_base(dt_ini, dt_fim, None, None, None)
+    if loaded is not None:
+        ciclo_all, dono, _nomes, _fonte = loaded
+    else:
+        ciclo_all = _crgm_periodo_data_oficial(
+            dt_ini=dt_ini, dt_fim=dt_fim, mark_missing_as_transferido=True,
+        ) or []
+        dono = None
     periodo_rows, rgms_periodo, rgms_bruto, *_rest = _crgm_build_periodo_sets(
         ciclo_all, dt_ini, dt_fim,
     )
     dom = _crgm_effective_dominant_prefix(list(rgms_periodo) or list(rgms_bruto))
     overrides = _load_outlier_contagem_overrides()
     contando = {r for r in rgms_periodo if _rgm_conta_para_venda(r, dom, overrides)}
-    rgm_datas = {
-        row["rgm"]: row.get("data_matricula") for row in periodo_rows if row.get("rgm")
-    }
-    dono, _nomes, _fonte = _atribuir_rgms(rgm_datas)
+    if dono is None:
+        rgm_datas = {
+            row["rgm"]: row.get("data_matricula") for row in periodo_rows if row.get("rgm")
+        }
+        dono, _nomes, _fonte = _atribuir_rgms(rgm_datas)
     return (periodo_rows, dono, contando, overrides)
 
 

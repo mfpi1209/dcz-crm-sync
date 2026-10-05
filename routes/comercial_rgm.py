@@ -151,6 +151,11 @@ def _pin_rgm_attribution(rgm: str, user_id: int, user_name: str = "", resolved_b
         cur.close()
         conn.close()
         logger.info("mini_sync pin RGM %s → uid=%s (%s) by=%s", nk, uid, user_name, resolved_by)
+        try:
+            from routes.bwipo_sync import painel_base_note_pin
+            painel_base_note_pin(nk, uid, user_name or "")
+        except Exception:
+            logger.exception("painel base pin")
         return True
     except Exception as e:
         logger.warning("pin_rgm_attribution rgm=%s: %s", nk, e)
@@ -606,7 +611,7 @@ def _crgm_periodo_data(
             snapshot_order = ""
 
         sql = f"""
-            SELECT rgm, nome, situacao, data_matricula, polo, nivel, ciclo, tipo_matricula
+            SELECT rgm, nome, situacao, data_matricula, polo, nivel, ciclo, tipo_matricula, turma
             FROM (
                 SELECT DISTINCT ON (regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g'))
                     regexp_replace(COALESCE(r.data->>'rgm',''), '[^0-9]', '', 'g')  AS rgm,
@@ -664,7 +669,7 @@ def _crgm_periodo_data(
         cur.close()
 
         result = []
-        for rgm, nome, situacao, dm, polo_v, nivel_v, ciclo_v, tipo_v in rows:
+        for rgm, nome, situacao, dm, polo_v, nivel_v, ciclo_v, tipo_v, turma_v in rows:
             if not rgm:
                 continue
             try:
@@ -680,6 +685,7 @@ def _crgm_periodo_data(
                 "nivel": nivel_v or "",
                 "ciclo": ciclo_v or "",
                 "tipo_matricula": tipo_v or "",
+                "turma": turma_v or "",
             })
         if polo:
             result = [r for r in result if normalize_polo_display(r.get("polo") or "") == polo]

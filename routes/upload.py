@@ -423,6 +423,13 @@ def _persist_snapshot_entries(entries, tipo, filename, nivel=None):
     except Exception as e:
         current_app.logger.warning("Erro ao computar stats para snapshot %s: %s", snap_id, e)
 
+    if tipo == "matriculados":
+        try:
+            from routes.bwipo_sync import schedule_painel_base_rebuild
+            schedule_painel_base_rebuild()
+        except Exception as e:
+            current_app.logger.warning("Falha ao agendar a base do painel Bwipo: %s", e)
+
     return len(entries)
 
 
