@@ -3677,6 +3677,10 @@ async function _crgmRefreshSolPendingBadge() {
         } else {
             badge.classList.add('hidden');
         }
+        document.querySelectorAll('.bwc-sol-badge').forEach((el) => {
+            el.textContent = n > 99 ? '99+' : String(n);
+            el.classList.toggle('hidden', n <= 0);
+        });
     } catch (_) {
         badge.classList.add('hidden');
     }

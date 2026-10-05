@@ -2136,6 +2136,7 @@ def _painel_payload(dt_ini, dt_fim, polo, nivel, owner, turma, ciclo):
                 "polo": normalize_polo_display(row.get("polo") or "") or (row.get("polo") or ""),
                 "nivel": row.get("nivel") or "",
                 "tipo": row.get("tipo_matricula") or "",
+                "curso": row.get("turma") or "",
                 "agente": _agente(rgm),
                 "fonte": fonte.get(rgm, "sem_dono"),
                 "conta": rgm in contando,
@@ -2917,6 +2918,50 @@ def api_bwipo_painel_agente_carteira():
     etapas = [{"etapa": r[0], "ganho": bool(r[2]), "perdido": bool(r[3]), "total": int(r[4])} for r in cur.fetchall()]
     conn.close()
     return jsonify({"ok": True, "etapas": etapas, "total": sum(e["total"] for e in etapas)})
+
+
+@bwipo_bp.route("/api/bwipo/painel/contatos", methods=["POST"])
+def api_bwipo_painel_contatos():
+    """CPF e telefone do último relatório, só dos RGMs pedidos. A lista do consultor usa isso."""
+    bruto = (request.get_json(silent=True) or {}).get("rgms") or []
+    rgms = []
+    for item in bruto[:800]:
+        digits = "".join(ch for ch in str(item) if ch.isdigit())
+        if len(digits) == 8:
+            rgms.append(digits)
+    if not rgms:
+        return jsonify({"ok": True, "contatos": {}})
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT COALESCE(r.data->>'rgm', ''),
+                   NULLIF(TRIM(COALESCE(r.data->>'cpf', '')), ''),
+                   COALESCE(
+                       NULLIF(TRIM(COALESCE(r.data->>'fone_cel', '')), ''),
+                       NULLIF(TRIM(COALESCE(r.data->>'fone_res', '')), ''),
+                       NULLIF(TRIM(COALESCE(r.data->>'fone_com', '')), '')
+                   )
+            FROM xl_rows r
+            WHERE r.snapshot_id = (
+                SELECT id FROM xl_snapshots WHERE tipo = 'matriculados' ORDER BY id DESC LIMIT 1
+            )
+              AND COALESCE(r.data->>'rgm', '') = ANY(%s)
+            """,
+            (rgms,),
+        )
+        contatos = {}
+        for rgm, cpf, telefone in cur.fetchall():
+            key = "".join(ch for ch in str(rgm) if ch.isdigit())
+            if key and key not in contatos:
+                contatos[key] = {"cpf": cpf or "", "telefone": telefone or ""}
+    except Exception:
+        logger.exception("bwipo contatos")
+        return jsonify({"ok": False, "error": "Não foi possível ler CPF e telefone"}), 500
+    finally:
+        conn.close()
+    return jsonify({"ok": True, "contatos": contatos})
 
 
 @bwipo_bp.route("/api/bwipo/painel/diagnostico")
