@@ -11,6 +11,12 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 - **Acesso:** admin e o login extra (`mikami@eduit.com.br`) continuam entrando sem o checkbox. Os demais entram quando a permissão está marcada — menu, hash e a API do blog.
 - **Não muda:** presets de categoria; o restante das telas.
 
+### 2026-10-05 — Vendas em conflito: só o Bwipo, 2 negócios com o mesmo RGM
+- **Modelo usado:** Cursor Grok 4.7.
+- **Pedido:** o card cruzava consultor em Ganho entre Kommo e Bwipo e ficava em 0. O Kommo não entra mais.
+- **Regra:** conflito = 2 ou mais negócios do Pipeline Principal no Bwipo com o mesmo RGM e data de matrícula dentro do De/Até. Negócio de outra data não entra na lista. Fixar a venda continua na mesma decisão manual.
+- **Não muda:** Consultar RGM ainda mostra Kommo e Bwipo. Duplicatas segue a mesma conta de negócios repetidos.
+
 ### 2026-10-05 — Dashboard Comercial Bwipo: tabela pronta + cache de 5 min
 - **Modelo usado:** Cursor Grok 4.7.
 - **Pedido:** a abertura do painel fazia a varredura de todos os relatórios SIAA na hora (~18s) mais o dono (~4s). Fazer o cache da resposta e uma tabela pronta.

@@ -2424,26 +2424,59 @@ def api_bwipo_painel_rgm():
 
 @bwipo_bp.route("/api/bwipo/painel/conflitos", methods=["POST"])
 def api_bwipo_painel_conflitos():
-    """RGMs do recorte com mais de um consultor em Ganho entre Kommo e Bwipo (Admin Sistema não disputa). Body: {rgms: [...]}."""
-    rgms = _rgms_body(request.get_json(force=True, silent=True) or {})
+    """RGMs do recorte com 2 ou mais negócios no Pipeline Principal do Bwipo. O Kommo não entra. Body: {rgms: [...]}."""
+    body = request.get_json(force=True, silent=True) or {}
+    rgms = _rgms_body(body)
     if not rgms:
         return jsonify({"ok": True, "conflitos": [], "total": 0, "total_nao_resolvidos": 0})
+    dt_ini = str(body.get("dt_ini") or "")[:10]
+    dt_fim = str(body.get("dt_fim") or "")[:10]
+    data_sql = ""
+    data_params: list = []
+    if len(dt_ini) == 10 and len(dt_fim) == 10:
+        data_sql = f" AND ({_DM_SQL}) BETWEEN %s AND %s"
+        data_params = [dt_ini, dt_fim]
     try:
-        from routes.comercial_rgm import _admin_sistema_uid
-
-        admin = _admin_sistema_uid()
-        cands = _candidatos_rgm(rgms)
-        res = _resolucoes(rgms)
-        conflitos = []
-        for rgm, lst in cands.items():
-            donos = {
-                c["user_id"] or f"bw:{c['agente']}"
-                for c in lst
-                if c["ganho"] and c["agente"] != "Sem responsável" and c["user_id"] != admin
-            }
-            if len(donos) <= 1:
-                continue
-            conflitos.append({"rgm": rgm, "candidatos": lst, "resolucao": res.get(rgm)})
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            f"""
+            SELECT d.rgm_norm, d.id, d.number, ud.kommo_user_id, NULLIF(btrim(d.owner_name), ''),
+                   d.stage_name, COALESCE(s.is_won, FALSE), ({_DM_SQL})
+            FROM bwipo_deals d
+            LEFT JOIN bwipo_stages s ON s.id = d.stage_id
+            LEFT JOIN bwipo_kommo_user_depara ud ON ud.bwipo_user_id = d.owner_id
+            WHERE NOT d.is_deleted AND {_PRINCIPAL_SQL}
+              {data_sql}
+              AND d.rgm_norm IN (
+                  SELECT rgm_norm FROM bwipo_deals d
+                  WHERE NOT d.is_deleted AND {_PRINCIPAL_SQL} AND d.rgm_norm = ANY(%s)
+                  {data_sql}
+                  GROUP BY rgm_norm HAVING COUNT(*) > 1
+              )
+            ORDER BY d.rgm_norm, COALESCE(s.is_won, FALSE) DESC, d.updated_at DESC NULLS LAST
+            """,
+            (*data_params, rgms, *data_params),
+        )
+        por_rgm: dict[str, list] = {}
+        for rgm, did, number, uid, nome, etapa, won, dm in cur.fetchall():
+            por_rgm.setdefault(rgm, []).append({
+                "origem": "bwipo",
+                "id": did,
+                "number": number,
+                "user_id": int(uid) if uid else None,
+                "agente": nome or "Sem responsável",
+                "etapa": etapa or "",
+                "ganho": bool(won),
+                "data": dm.isoformat() if dm else "",
+            })
+        conn.close()
+        res = _resolucoes(list(por_rgm))
+        conflitos = [
+            {"rgm": rgm, "candidatos": lst, "resolucao": res.get(rgm)}
+            for rgm, lst in por_rgm.items()
+            if len(lst) > 1
+        ]
         conflitos.sort(key=lambda c: (c["resolucao"] is not None, c["rgm"]))
         return jsonify({
             "ok": True,
