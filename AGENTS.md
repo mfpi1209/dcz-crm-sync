@@ -11,6 +11,7 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 - **Quando remonta:** upload de matriculados, tombamento, depara de consultor, sync de agentes, e um job a cada 10 min. Fixar ou desfazer uma venda atualiza só aquele RGM. Meta e "contar venda" só limpam o cache, porque entram na leitura.
 - **Cache:** a resposta de `GET /api/bwipo/painel` vale 5 min. Pedido repetido devolve a anterior e refaz em segundo plano. Minha Performance lê a mesma tabela.
 - **Não muda:** a regra do dono, a meta, o funil e o ticket. A primeira montagem depois do deploy ainda leva o tempo da varredura; o job dispara 30s após o boot.
+- **Conversão do ranking:** matrículas do período / leads do Pipeline Principal criados no mesmo período (dia em BRT). A conta matrícula / (matrícula + evasão) deixava quase todo mundo em 100%.
 
 ### 2026-10-05 — Menu: só o Dashboard Comercial Bwipo
 - **Modelo usado:** Cursor Grok 4.7.
