@@ -375,7 +375,7 @@ function _bwcCandidatos(rgm, cands, resolucao) {
             ? `<button type="button" onclick="bwcSyncCandidato({lead_id: ${c.id}}, '${rgm}')" class="px-2 py-0.5 rounded text-[10px] border border-emerald-500/40 text-emerald-600 dark:text-emerald-300">Mini-sync</button>`
             : `<button type="button" onclick="bwcSyncCandidato({deal_id: '${_bwcEsc(c.id)}'}, '${rgm}')" class="px-2 py-0.5 rounded text-[10px] border border-emerald-500/40 text-emerald-600 dark:text-emerald-300">Mini-sync</button>`;
         return `<div class="px-4 py-2 flex justify-between items-center gap-3 border-b border-slate-200/60 dark:border-slate-700/30">
-            <span><b>${_bwcEsc(c.agente)}</b> <span class="text-slate-500">· ${ref} · ${_bwcEsc(c.etapa)}</span></span>
+            <span><b>${_bwcEsc(c.agente)}</b> <span class="text-slate-500">· ${ref} · ${_bwcEsc(c.etapa)}${c.data ? " · " + _bwcDataBr(c.data) : ""}</span></span>
             <span class="flex gap-2">${fixar}${sync}</span>
         </div>`;
     }).join("");
@@ -385,7 +385,11 @@ function _bwcCarregarConflitos() {
     const rgms = [...new Set(((_bwcPayload && _bwcPayload.linhas) || []).map((l) => l.rgm))];
     const lista = document.getElementById("bwc-conflito-lista");
     document.getElementById("bwc-conflitos").textContent = "…";
-    _bwcSend("/api/bwipo/painel/conflitos", "POST", { rgms })
+    _bwcSend("/api/bwipo/painel/conflitos", "POST", {
+        rgms,
+        dt_ini: document.getElementById("bwc-dt-ini")?.value || "",
+        dt_fim: document.getElementById("bwc-dt-fim")?.value || "",
+    })
         .then((d) => {
             document.getElementById("bwc-conflitos").textContent = _bwcNum(d.total);
             document.getElementById("bwc-conflitos-sub").textContent = d.total
