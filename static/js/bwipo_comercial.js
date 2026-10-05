@@ -272,25 +272,39 @@ function _bwcIsAdmin() {
 function _bwcLista(rows, contarVenda) {
     if (!rows.length) return '<p class="px-4 py-3 text-slate-500">Ninguém neste recorte.</p>';
     const admin = contarVenda && _bwcIsAdmin();
-    return rows.slice(0, 200).map((l) => {
+    const body = rows.slice(0, 200).map((l) => {
         const sit = (l.situacao || "").toUpperCase();
         const sitCls = sit === "EM CURSO"
             ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-            : (sit.includes("CANCEL") || sit.includes("TRANC") ? "bg-rose-500/15 text-rose-500" : "bg-slate-500/15 text-slate-500");
-        return `<div class="px-4 py-2.5 border-b border-slate-200/60 dark:border-slate-700/30">
-            <div class="flex items-start justify-between gap-3">
-                <p class="min-w-0 leading-5"><button type="button" class="font-bold tabular-nums underline decoration-dotted" onclick="bwcConsultarRgm('${_bwcEsc(l.rgm)}')">${_bwcEsc(l.rgm)}</button> <span class="break-words">${_bwcEsc(l.nome)}</span></p>
-                ${admin ? `<button type="button" onclick="bwcContarVenda('${_bwcEsc(l.rgm)}', true)" class="shrink-0 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40">Contar venda</button>` : ""}
-            </div>
-            <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500">
-                <span class="px-1.5 py-0.5 rounded-full ${sitCls}">${_bwcEsc(sit || "—")}</span>
-                <span>${_bwcDataBr(l.data)}</span>
-                <span>${_bwcEsc(l.agente)} · ${_BWC_FONTE[l.fonte] || "—"}</span>
-                ${l.polo ? `<span>${_bwcEsc(l.polo)}</span>` : ""}
-                ${l.fora ? '<span class="text-orange-500">fora do padrão</span>' : ""}
-            </p>
-        </div>`;
-    }).join("") + (rows.length > 200 ? `<p class="px-4 py-2 text-slate-500">+ ${rows.length - 200} linhas</p>` : "");
+            : (sit.includes("CANCEL") || sit.includes("TRANC") ? "bg-rose-500/15 text-rose-500" : "bg-violet-500/15 text-violet-300");
+        const fonte = _BWC_FONTE[l.fonte] || "—";
+        return `<tr class="hover:bg-slate-50 dark:hover:bg-white/[0.03]">
+            <td class="px-3 py-2 whitespace-nowrap"><button type="button" class="font-mono font-semibold underline decoration-dotted" onclick="bwcConsultarRgm('${_bwcEsc(l.rgm)}')">${_bwcEsc(l.rgm)}</button></td>
+            <td class="px-3 py-2 text-[var(--text-primary)]">${_bwcEsc(l.nome)}${l.fora ? ' <span class="text-orange-500">fora do padrão</span>' : ""}</td>
+            <td class="px-3 py-2 whitespace-nowrap"><span class="inline-block px-1.5 py-0.5 rounded-full ${sitCls}">${_bwcEsc(sit || "—")}</span></td>
+            <td class="px-3 py-2 whitespace-nowrap font-mono text-blue-700 dark:text-blue-300">${_bwcDataBr(l.data)}</td>
+            <td class="px-3 py-2 whitespace-nowrap">${_bwcEsc(l.polo || "—")}</td>
+            <td class="px-3 py-2 whitespace-nowrap text-slate-500">${_bwcEsc(l.nivel || "—")}</td>
+            <td class="px-3 py-2 whitespace-nowrap text-slate-500">${_bwcEsc(l.agente)} · ${_bwcEsc(fonte)}</td>
+            ${admin ? `<td class="px-3 py-2 whitespace-nowrap"><button type="button" onclick="bwcContarVenda('${_bwcEsc(l.rgm)}', true)" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40">Contar venda</button></td>` : ""}
+        </tr>`;
+    }).join("");
+    const mais = rows.length > 200 ? `<p class="px-4 py-2 text-slate-500">+ ${rows.length - 200} linhas</p>` : "";
+    return `<div class="overflow-x-auto"><table class="w-full text-xs">
+        <thead class="sticky top-0 bg-[var(--bg-card)] text-[10px] uppercase tracking-wider text-slate-500">
+            <tr class="border-b border-slate-200 dark:border-slate-700/40">
+                <th class="px-3 py-2 text-left font-medium">RGM</th>
+                <th class="px-3 py-2 text-left font-medium">Nome</th>
+                <th class="px-3 py-2 text-left font-medium">Situação</th>
+                <th class="px-3 py-2 text-left font-medium">Data</th>
+                <th class="px-3 py-2 text-left font-medium">Polo</th>
+                <th class="px-3 py-2 text-left font-medium">Nível</th>
+                <th class="px-3 py-2 text-left font-medium">Fonte</th>
+                ${admin ? "<th></th>" : ""}
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200/70 dark:divide-slate-700/30">${body}</tbody>
+    </table></div>${mais}`;
 }
 
 function _bwcModal(titulo, sub, corpo) {
@@ -302,7 +316,7 @@ function _bwcModal(titulo, sub, corpo) {
         modal.addEventListener("click", (e) => { if (e.target === modal) bwcFecharModal(); });
         document.body.appendChild(modal);
     }
-    modal.innerHTML = `<div class="bg-[var(--bg-card)] rounded-2xl max-w-3xl w-full my-8 border border-slate-200 dark:border-slate-700">
+    modal.innerHTML = `<div class="bg-[var(--bg-card)] rounded-2xl max-w-5xl w-full my-8 border border-slate-200 dark:border-slate-700">
         <div class="px-5 py-3 flex items-center justify-between border-b border-slate-200 dark:border-slate-700">
             <div><p class="font-bold">${titulo}</p><p class="text-xs text-slate-500">${sub}</p></div>
             <button type="button" class="text-sm px-2" onclick="bwcFecharModal()">fechar</button>
