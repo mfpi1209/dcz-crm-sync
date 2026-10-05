@@ -1589,6 +1589,7 @@ function _mpSwitchTab(tab) {
 /* ═══ Matrículas Oficiais ═══ */
 
 let _mpOficialData = [];
+let _mpCiclosPainel = {};
 
 let _mpStatusFilter = 'all'; // 'all' | 'ativo' | 'evadido' | 'outros'
 
@@ -1657,6 +1658,7 @@ async function _mpLoadMatriculas() {
         const res = await api(`/api/minha-performance/matriculas?${qs}`);
         const d = await res.json();
         _mpOficialData = d.matriculas || [];
+        if (d.ciclos_painel) _mpCiclosPainel = d.ciclos_painel;
 
         const _mpContaMeta = m => m.conta_para_meta !== false;
         const counts = { all: _mpOficialData.length, ativo: 0, ativo_contando: 0, evadido: 0, outros: 0, fora_padrao: 0 };
@@ -1977,8 +1979,9 @@ function _mpPickOficialMatricula(idx) {
     document.getElementById('mp-mm-curso').value = m.curso || '';
     document.getElementById('mp-mm-polo').value = m.polo || '';
     document.getElementById('mp-mm-data').value = dt;
-    // Ciclo continua manual — não preenche das oficiais
     document.getElementById('mp-mm-nivel').value = m.nivel || '';
+    const cicloPainel = (_mpCiclosPainel || {})[m.nivel] || (_mpCiclosPainel || {})['Graduação'] || '';
+    if (cicloPainel) document.getElementById('mp-mm-ciclo').value = cicloPainel;
     const obs = document.getElementById('mp-mm-obs');
     if (obs && !obs.value.trim()) {
         obs.value = 'Importado das matrículas oficiais';
@@ -1994,7 +1997,7 @@ function _mpApplyPrefill(p) {
     if (p.curso) document.getElementById('mp-mm-curso').value = p.curso;
     if (p.polo) document.getElementById('mp-mm-polo').value = p.polo;
     if (p.data_matricula) document.getElementById('mp-mm-data').value = p.data_matricula;
-    // Ciclo é sempre manual — não sobrescreve com sync
+    if (p.ciclo) document.getElementById('mp-mm-ciclo').value = p.ciclo;
     if (p.nivel) document.getElementById('mp-mm-nivel').value = p.nivel;
     if (p.kommo_lead_id || p.lead_id) {
         document.getElementById('mp-mm-kommo').value = String(p.kommo_lead_id || p.lead_id);

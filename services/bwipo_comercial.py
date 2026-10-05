@@ -54,6 +54,7 @@ _FIELD_ALIASES = {
     "modalidade": ("modalidade_curso1", "modalidade", "modalidade_siaa"),
     "grau": ("grau_new", "grau", "grau_siaa"),
     "nro_inscricao": ("nro_da_inscricao", "nro. da inscricao", "nro da inscricao", "inscricao", "inscrição"),
+    "nome": ("nome_completo", "nome completo"),
 }
 
 

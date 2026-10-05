@@ -3952,12 +3952,23 @@ def api_minha_matriculas():
         if m.get("data_matricula"):
             m["data_matricula"] = str(m["data_matricula"])
     total_contando = sum(1 for m in mats if m.get("conta_para_meta", True) and (m.get("situacao") or "").upper() == "EM CURSO")
+    ciclos = {}
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute("SELECT nivel, ciclo FROM ciclo_atual_comercial")
+        ciclos = {n: c for n, c in cur.fetchall() if n and c}
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logger.warning("ciclos painel na lista: %s", e)
     return jsonify({
         "ok": True,
         "matriculas": mats,
         "total": len(mats),
         "total_contando": total_contando,
         "total_contavel": total_contando,
+        "ciclos_painel": ciclos,
     })
 
 
@@ -3986,6 +3997,49 @@ def _cf_pick(cf: dict, *names: str) -> str:
         v = cf.get(n.lower().strip())
         if v:
             return v
+    return ""
+
+
+def _ciclo_do_painel(nivel: str) -> str:
+    """Ciclo vigente do Dashboard Comercial para o nível (ciclo_atual_comercial)."""
+    nivel = (nivel or "").strip()
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        if nivel:
+            cur.execute(
+                "SELECT ciclo FROM ciclo_atual_comercial WHERE nivel = %s",
+                (nivel,),
+            )
+            row = cur.fetchone()
+            if row and row[0]:
+                cur.close()
+                conn.close()
+                return str(row[0]).strip()
+        cur.execute(
+            "SELECT ciclo FROM ciclo_atual_comercial ORDER BY nivel LIMIT 1"
+        )
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        return str(row[0]).strip() if row and row[0] else ""
+    except Exception as e:
+        logger.warning("ciclo do painel: %s", e)
+        return ""
+
+
+def _nome_aluno_bwipo(known: dict, contact: dict, title: str) -> str:
+    """Nome Completo do painel do negócio. Título 'Lead +telefone' não entra."""
+    nome = (known.get("nome") or "").strip()
+    if nome:
+        return nome
+    for cand in ((contact or {}).get("name"), title):
+        s = (cand or "").strip()
+        if not s:
+            continue
+        if re.match(r"^(neg[oó]cio\s+)?lead\s*\+", s, re.I):
+            continue
+        return s
     return ""
 
 
@@ -4060,8 +4114,7 @@ def _lead_to_matricula_prefill(lead: dict) -> dict:
         "curso": curso,
         "polo": polo,
         "data_matricula": data_mat,
-        # Ciclo NÃO vem do sync — o consultor preenche manualmente.
-        "ciclo": "",
+        "ciclo": _ciclo_do_painel(nivel),
         "nivel": nivel,
         "kommo_lead_id": str(lead.get("id") or ""),
     }
@@ -4134,7 +4187,7 @@ def api_mp_sync_bwipo_prefill():
         nivel = "Graduação"
     else:
         nivel = ""
-    nome = (contact.get("name") or row.get("title") or "").strip()
+    nome = _nome_aluno_bwipo(known, contact, row.get("title") or "")
     prefill = {
         "bwipo_number": row.get("number"),
         "nome": nome,
@@ -4142,7 +4195,7 @@ def api_mp_sync_bwipo_prefill():
         "curso": curso,
         "polo": (row.get("polo") or known.get("polo") or "").strip(),
         "data_matricula": _normalize_date_br(row.get("data_matricula") or known.get("data_matricula")),
-        "ciclo": "",
+        "ciclo": _ciclo_do_painel(nivel),
         "nivel": nivel,
         "kommo_lead_id": str(row.get("number") or ""),
     }
