@@ -1494,6 +1494,43 @@ def _bwipo_ticket_30(rgms: list) -> float:
     return round((sum(prices) / len(prices)) * 0.30, 2)
 
 
+def _bwipo_leads_criados(dt_ini, dt_fim, admin_uid: int) -> dict:
+    """Leads do Pipeline Principal criados no período, dia em BRT. Mesma chave do funil.
+
+    A conversão do ranking é matrícula do período / esses leads, como no painel antigo.
+    """
+    conds = [
+        "NOT d.is_deleted",
+        "position('principal' in lower(COALESCE(p.name, d.pipeline_name, ''))) > 0",
+    ]
+    params: list = []
+    if dt_ini:
+        conds.append("(d.created_at AT TIME ZONE 'America/Sao_Paulo')::date >= %s")
+        params.append(dt_ini)
+    if dt_fim:
+        conds.append("(d.created_at AT TIME ZONE 'America/Sao_Paulo')::date <= %s")
+        params.append(dt_fim)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        f"""
+        SELECT ud.kommo_user_id, NULLIF(btrim(d.owner_name), ''), COUNT(*)
+        FROM bwipo_deals d
+        LEFT JOIN bwipo_pipelines p ON p.id = d.pipeline_id
+        LEFT JOIN bwipo_kommo_user_depara ud ON ud.bwipo_user_id = d.owner_id
+        WHERE {' AND '.join(conds)}
+        GROUP BY 1, 2
+        """,
+        params,
+    )
+    out: dict = {}
+    for uid, nome, total in cur.fetchall():
+        key = int(uid) if uid else (f"bw:{nome}" if nome else admin_uid)
+        out[key] = out.get(key, 0) + int(total or 0)
+    conn.close()
+    return out
+
+
 def _bwipo_funil_estoque(admin_uid: int) -> dict:
     """Carteira atual do Pipeline Principal por agente (mesma chave do ranking). Não usa a data de matrícula."""
     conn = get_conn()
@@ -1979,7 +2016,6 @@ def _painel_payload(dt_ini, dt_fim, polo, nivel, owner, turma, ciclo):
         for ag, bucket in ranking_acc.items():
             mat = bucket["matriculas"]
             ev = bucket["evasao"]
-            base = mat + ev
             ranking.append({
                 "agente": ag,
                 "matriculas": mat,
@@ -1990,7 +2026,7 @@ def _painel_payload(dt_ini, dt_fim, polo, nivel, owner, turma, ciclo):
                 "meta": bucket.get("meta", 0),
                 "intermediaria": bucket.get("intermediaria", 0),
                 "supermeta": bucket.get("supermeta", 0),
-                "conv": round(100 * mat / base, 1) if base else 0,
+                "conv": 0,
             })
         ranking = [r for r in ranking if nome_key.get(r["agente"]) not in ocultos]
         try:
@@ -2005,6 +2041,11 @@ def _painel_payload(dt_ini, dt_fim, polo, nivel, owner, turma, ciclo):
         except Exception:
             logger.exception("bwipo funil")
             funil_key = {}
+        try:
+            leads_key = _bwipo_leads_criados(dt_ini, dt_fim, admin_uid)
+        except Exception:
+            logger.exception("bwipo leads criados")
+            leads_key = {}
         funil = {}
         for k, v in funil_key.items():
             nm = nomes.get(k)
@@ -2021,11 +2062,13 @@ def _painel_payload(dt_ini, dt_fim, polo, nivel, owner, turma, ciclo):
             item["bwipo_owner"] = key[3:] if isinstance(key, str) else None
             meta = metas_uid.get(key) or {"meta": 0, "intermediaria": 0, "supermeta": 0}
             est = funil.get(item["agente"]) or {"aberto": 0, "perdido": 0}
+            leads = leads_key.get(key, 0) if key is not None else 0
             item["meta"] = meta["meta"]
             item["intermediaria"] = meta["intermediaria"]
             item["supermeta"] = meta["supermeta"]
             item["aberto"] = est["aberto"]
             item["perdido"] = est["perdido"]
+            item["conv"] = round(100 * item["matriculas"] / leads, 1) if leads else 0
         ranking.sort(key=lambda r: (-r["matriculas"], -r["evasao"], r["agente"]))
         dias = len([s for s in day_rgms.values() if s & contando]) or 1
         em_curso = len(contando)
