@@ -2215,7 +2215,7 @@ def _painel_payload(dt_ini, dt_fim, polo, nivel, owner, turma, ciclo):
 
 @bwipo_bp.route("/api/bwipo/painel/extras")
 def api_bwipo_painel_extras():
-    """YTD e inscritos do Match no mesmo recorte do painel antigo. Roda separado para não atrasar o ranking."""
+    """YTD: matrículas de 1º de janeiro até a data Até. Roda separado para não atrasar o ranking."""
     from datetime import date as _date
 
     from routes.comercial_rgm import _crgm_count_bruto_compare, _pg
@@ -2224,7 +2224,6 @@ def api_bwipo_painel_extras():
     polo = (request.args.get("polo") or "").strip() or None
     nivel = (request.args.get("nivel") or "").strip() or None
     turma = (request.args.get("turma") or "").strip() or None
-    dt_ini = (request.args.get("dt_ini") or "").strip() or None
     try:
         ano = int(dt_fim[:4])
     except ValueError:
@@ -2232,38 +2231,9 @@ def api_bwipo_painel_extras():
     conn = _pg()
     try:
         ytd = _crgm_count_bruto_compare(conn, f"{ano}-01-01", dt_fim, polo, nivel, turma)
-        cur = conn.cursor()
-        wh, params = [], []
-        ini = dt_ini or f"{ano}-01-01"
-        wh.append("data_inscr >= %s")
-        params.append(ini)
-        wh.append("data_inscr <= %s")
-        params.append(dt_fim)
-        if polo:
-            wh.append("polo_normalizado = %s")
-            params.append(polo)
-        where = "WHERE " + " AND ".join(wh)
-        try:
-            cur.execute(
-                f"""
-                SELECT COUNT(DISTINCT cpf) FROM (
-                    SELECT cpf FROM mm_inscritos_hist {where}
-                    UNION
-                    SELECT cpf FROM mm_inscritos {where}
-                ) sub WHERE cpf IS NOT NULL
-                """,
-                params + params,
-            )
-            inscritos = int(cur.fetchone()[0] or 0)
-        except Exception:
-            conn.rollback()
-            cur = conn.cursor()
-            cur.execute(f"SELECT COUNT(*) FROM mm_inscritos_hist {where}", params)
-            inscritos = int(cur.fetchone()[0] or 0)
-        cur.close()
     finally:
         conn.close()
-    return jsonify({"ok": True, "ytd": ytd, "inscritos": inscritos})
+    return jsonify({"ok": True, "ytd": ytd})
 
 
 @bwipo_bp.route("/api/bwipo/painel/deals")
