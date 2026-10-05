@@ -395,22 +395,70 @@ function _bwcCarregarConflitos() {
                 : "";
             const porRgm = {};
             ((_bwcPayload && _bwcPayload.linhas) || []).forEach((l) => { porRgm[l.rgm] = l; });
-            lista.innerHTML = d.conflitos.length ? d.conflitos.map((c) => {
-                const l = porRgm[c.rgm] || {};
-                const res = c.resolucao
-                    ? `<span class="text-emerald-500">decidido: ${_bwcEsc(c.resolucao.user_name || c.resolucao.user_id)}</span>
-                       <button type="button" class="underline text-slate-500" onclick="bwcDesfazerVenda('${c.rgm}')">desfazer</button>`
-                    : `<span class="text-amber-500">sem decisão · hoje com ${_bwcEsc(l.agente || "—")}</span>`;
-                return `<div class="border-b border-amber-500/15">
-                    <div class="px-4 pt-2 flex justify-between gap-3"><span><b>${c.rgm}</b> ${_bwcEsc(l.nome || "")} <span class="text-slate-500">${_bwcEsc(l.data || "")}</span></span><span class="flex gap-2">${res}</span></div>
-                    ${_bwcCandidatos(c.rgm, c.candidatos, c.resolucao)}
-                </div>`;
-            }).join("") : '<p class="px-4 py-3 text-slate-500">Nenhum conflito neste recorte.</p>';
+            lista.innerHTML = d.conflitos.length
+                ? `<div class="p-3 space-y-3">${d.conflitos.map((c) => _bwcCardConflito(c, porRgm[c.rgm] || {})).join("")}</div>`
+                : '<p class="px-4 py-3 text-slate-500">Nenhum conflito neste recorte.</p>';
         })
         .catch((e) => {
             document.getElementById("bwc-conflitos").textContent = "—";
             lista.innerHTML = `<p class="px-4 py-3 text-red-400">${_bwcEsc(e.message)}</p>`;
         });
+}
+
+function _bwcCardConflito(c, linha) {
+    const resolvido = !!c.resolucao;
+    const uidAtual = c.resolucao && c.resolucao.user_id;
+    const vistos = new Set();
+    const tags = (c.candidatos || []).filter((cand) => {
+        const chave = cand.user_id || cand.agente;
+        if (vistos.has(chave)) return false;
+        vistos.add(chave);
+        return true;
+    }).map((cand) => {
+        const ativo = uidAtual && cand.user_id === uidAtual;
+        const cls = ativo
+            ? "bg-blue-100 dark:bg-blue-500/20 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30"
+            : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-400";
+        return `<span class="px-2 py-0.5 rounded-full text-[10px] font-medium ${cls}">${_bwcEsc(cand.agente)}</span>`;
+    }).join("");
+    const opcoes = (c.candidatos || []).filter((cand) => cand.user_id).map((cand) => {
+        const sel = uidAtual && cand.user_id === uidAtual ? "selected" : "";
+        const etapa = cand.ganho ? "Venda ganha" : (cand.etapa || "Aberto");
+        return `<option value="${cand.user_id}" data-nome="${_bwcEsc(cand.agente)}" ${sel}>${_bwcEsc(cand.agente)} — #${cand.number || "—"} · ${etapa}</option>`;
+    }).join("");
+    const escolha = opcoes
+        ? `<div class="flex items-center gap-3">
+            <label class="text-xs text-slate-400 shrink-0">Creditar para:</label>
+            <select class="flex-1 input-glass text-xs rounded-lg px-3 py-2" data-prev="${uidAtual || ""}" onchange="bwcFixarDoSelect(this, '${c.rgm}')">${opcoes}</select>
+            ${resolvido ? '<span class="text-emerald-400 text-xs shrink-0">Salvo</span>' : ""}
+           </div>`
+        : '<p class="text-xs text-slate-500">Responsável sem depara. Não dá para creditar daqui.</p>';
+    const desfazer = resolvido
+        ? `<button type="button" class="text-[10px] text-slate-500 underline" onclick="bwcDesfazerVenda('${c.rgm}')">Desfazer</button>`
+        : "";
+    return `<div class="rounded-xl border p-4 ${resolvido ? "border-emerald-700/40 bg-emerald-950/20" : "border-amber-700/40 bg-amber-950/10"}">
+        <div class="flex items-center gap-2 mb-2 flex-wrap">
+            <span class="material-symbols-outlined text-sm ${resolvido ? "text-emerald-500" : "text-amber-400"}">${resolvido ? "check_circle" : "warning"}</span>
+            <p class="text-[var(--text-primary)] font-medium text-sm">${_bwcEsc(linha.nome || "Aluno sem nome")}</p>
+            <span class="text-slate-500 text-xs">RGM ${c.rgm}</span>
+            <span class="text-slate-600 text-[10px]">${_bwcDataBr(linha.data || (c.candidatos[0] && c.candidatos[0].data))}</span>
+            ${desfazer}
+        </div>
+        <div class="flex flex-wrap gap-1 mb-3">${tags}</div>
+        ${escolha}
+    </div>`;
+}
+
+function bwcFixarDoSelect(sel, rgm) {
+    const opt = sel.options[sel.selectedIndex];
+    const uid = parseInt(sel.value, 10);
+    const nome = opt?.getAttribute("data-nome") || "";
+    if (!uid) return;
+    if (!window.confirm(`Fixar a venda do RGM ${rgm} em ${nome}?`)) {
+        if (sel.dataset.prev) sel.value = sel.dataset.prev;
+        return;
+    }
+    bwcFixarVenda(rgm, uid, nome, true);
 }
 
 function _bwcDepoisDeDecidir(rgm, msg) {
@@ -420,8 +468,8 @@ function _bwcDepoisDeDecidir(rgm, msg) {
     bwcAtualizar();
 }
 
-function bwcFixarVenda(rgm, userId, nome) {
-    if (!window.confirm(`Fixar a venda do RGM ${rgm} em ${nome}?`)) return;
+function bwcFixarVenda(rgm, userId, nome, jaConfirmou) {
+    if (!jaConfirmou && !window.confirm(`Fixar a venda do RGM ${rgm} em ${nome}?`)) return;
     _bwcSend("/api/bwipo/painel/conflitos/resolver", "POST", { rgm, user_id: userId, user_name: nome })
         .then(() => _bwcDepoisDeDecidir(rgm, `Venda do RGM ${rgm} fixada em ${nome}.`))
         .catch((e) => toast(e.message, "error"));
