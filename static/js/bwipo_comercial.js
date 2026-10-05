@@ -191,8 +191,6 @@ function bwcAtualizar() {
             const k = d.kpis || {};
             document.getElementById("bwc-matriculas").textContent = _bwcNum(k.matriculas);
             document.getElementById("bwc-ganho-label").textContent = _bwcNum(k.em_curso);
-            document.getElementById("bwc-aberto").textContent = _bwcNum(k.aberto);
-            document.getElementById("bwc-perdido").textContent = _bwcNum(k.perdido);
             _bwcCompare("6m", k.vendas_6m, k.delta_6m, k.compare_6m_period);
             _bwcCompare("1a", k.vendas_1a, k.delta_1a, k.compare_1a_period);
             _bwcBadge("bwc-6m-badge", k.pct_6m);
@@ -510,19 +508,15 @@ function _bwcEvasaoChips() {
 
 function _bwcCarregarExtras() {
     const ytd = document.getElementById("bwc-ytd");
-    const insc = document.getElementById("bwc-inscritos");
     if (ytd) ytd.textContent = "…";
-    if (insc) insc.textContent = "…";
     fetch("/api/bwipo/painel/extras?" + _bwcQs().toString())
         .then((r) => r.json())
         .then((d) => {
             if (!d.ok) throw new Error(d.error || "falha");
             if (ytd) ytd.textContent = _bwcNum(d.ytd);
-            if (insc) insc.textContent = _bwcNum(d.inscritos);
         })
         .catch(() => {
             if (ytd && ytd.textContent === "…") ytd.textContent = "—";
-            if (insc && insc.textContent === "…") insc.textContent = "—";
         });
 }
 
