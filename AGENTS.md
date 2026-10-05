@@ -4,6 +4,14 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-10-05 — Dashboard Comercial Bwipo: tabela pronta + cache de 5 min
+- **Modelo usado:** Cursor Grok 4.7.
+- **Pedido:** a abertura do painel fazia a varredura de todos os relatórios SIAA na hora (~18s) mais o dono (~4s). Fazer o cache da resposta e uma tabela pronta.
+- **Tabela** `bwipo_painel_base`: uma linha por RGM, com situação (sumido vira TRANSFERIDO), data, polo, nível, ciclo, turma e dono da regra `_atribuir_rgms`. A página filtra essa tabela. O prefixo dominante do ciclo fica em `bwipo_painel_meta`, gravado na mesma montagem. A conta continua em todos os snapshots, não no arquivo mais recente.
+- **Quando remonta:** upload de matriculados, tombamento, depara de consultor, sync de agentes, e um job a cada 10 min. Fixar ou desfazer uma venda atualiza só aquele RGM. Meta e "contar venda" só limpam o cache, porque entram na leitura.
+- **Cache:** a resposta de `GET /api/bwipo/painel` vale 5 min. Pedido repetido devolve a anterior e refaz em segundo plano. Minha Performance lê a mesma tabela.
+- **Não muda:** a regra do dono, a meta, o funil e o ticket. A primeira montagem depois do deploy ainda leva o tempo da varredura; o job dispara 30s após o boot.
+
 ### 2026-10-05 — Menu: só o Dashboard Comercial Bwipo
 - **Modelo usado:** Cursor Grok 4.7.
 - **Pedido:** ocultar o Dashboard Comercial antigo e deixar só o Bwipo.
