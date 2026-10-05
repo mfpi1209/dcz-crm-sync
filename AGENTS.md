@@ -4,6 +4,13 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-10-05 — Formulário de matrícula: Nome Completo e ciclo do painel
+- **Modelo usado:** Cursor Grok 4.7.
+- **Pedido:** o nome do aluno no sync Bwipo tem que vir do campo Nome Completo, e o ciclo preenche sozinho com o ciclo vigente do painel.
+- **Nome:** `nome_completo` do painel do negócio (`dealPanelFields`). Título `Lead +telefone` não entra no campo.
+- **Ciclo:** `ciclo_atual_comercial` do nível (Graduação / Pós-Graduação). Hoje os dois estão em `2026/2`. O consultor ainda pode editar antes de salvar.
+- **Não muda:** o crédito da venda; o ciclo do aluno no SIAA.
+
 ### 2026-10-02 — Minha Performance: meta diária e aceites no Bwipo
 - **Modelo usado:** Cursor Grok 4.7.
 - **Pedido:** ranking, calendário, sequência e meta diária passam a olhar o Aceite no Bwipo, da própria pessoa.
