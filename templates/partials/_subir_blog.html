@@ -39,8 +39,39 @@
 #page-subir_blog .sb-title { font-size: 22px; font-weight: 700; margin: 0; }
 #page-subir_blog .sb-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
 
-#page-subir_blog .sb-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; }
-@media (max-width: 1100px) { #page-subir_blog .sb-grid { grid-template-columns: 1fr; } }
+#page-subir_blog .sb-grid { position: relative; }
+#page-subir_blog .sb-form { margin-right: 396px; }
+#page-subir_blog .sb-side {
+    position: absolute; top: 0; right: 0; width: 380px; height: 100%;
+    display: flex; flex-direction: column; gap: 16px; overflow: hidden;
+}
+#page-subir_blog .sb-side .sb-card {
+    margin-bottom: 0; display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+}
+#page-subir_blog .sb-side .sb-card-sched,
+#page-subir_blog .sb-side .sb-card-posts { flex: 1 1 0; max-height: none; }
+#page-subir_blog .sb-side .sb-card.is-collapsed { flex: 0 0 auto; }
+#page-subir_blog .sb-side .sb-card.is-collapsed .sb-panel-body { display: none; }
+#page-subir_blog .sb-panel-head {
+    cursor: pointer; width: 100%; background: none; border: 0; color: inherit;
+    font: inherit; font-size: 14px; font-weight: 700; display: flex; align-items: center;
+    gap: 8px; padding: 0; margin: 0 0 12px 0; text-align: left;
+}
+#page-subir_blog .sb-card.is-collapsed .sb-panel-head { margin-bottom: 0; }
+#page-subir_blog .sb-panel-chevron { margin-left: auto; font-size: 18px; transition: transform .15s; }
+#page-subir_blog .sb-card.is-collapsed .sb-panel-chevron { transform: rotate(-90deg); }
+#page-subir_blog #sb-scheduled, #page-subir_blog #sb-posts {
+    overflow-y: auto; min-height: 0; flex: 1 1 auto;
+}
+@media (max-width: 1100px) {
+    #page-subir_blog .sb-form { margin-right: 0; }
+    #page-subir_blog .sb-side {
+        position: static; width: auto; height: auto; margin-top: 16px; overflow: visible;
+    }
+    #page-subir_blog .sb-side .sb-card-sched,
+    #page-subir_blog .sb-side .sb-card-posts { flex: none; max-height: none; }
+    #page-subir_blog #sb-scheduled, #page-subir_blog #sb-posts { max-height: 320px; flex: none; }
+}
 
 #page-subir_blog .sb-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
 #page-subir_blog .sb-card h3 { font-size: 14px; font-weight: 700; margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px; }
@@ -74,7 +105,42 @@
     background: var(--card); color: var(--text-muted); border: 1px solid var(--border); transition: all .15s;
 }
 #page-subir_blog .sb-tag.on { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
-#page-subir_blog .sb-tag.locked { opacity: .85; cursor: not-allowed; }
+
+#page-subir_blog .sb-editor-wrap { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--card); }
+#page-subir_blog .sb-editor-toolbar {
+    display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px;
+    border-bottom: 1px solid var(--border); background: var(--hover-row);
+}
+#page-subir_blog .sb-tb-btn {
+    min-width: 30px; height: 30px; padding: 0 8px; border-radius: 6px;
+    border: 1px solid transparent; background: transparent; color: var(--text);
+    cursor: pointer; font-size: 13px; font-weight: 700; font-family: inherit;
+    display: inline-flex; align-items: center; justify-content: center;
+}
+#page-subir_blog .sb-tb-btn:hover { background: var(--card); border-color: var(--border); }
+#page-subir_blog .sb-tb-btn.on {
+    background: var(--primary-light); color: var(--primary); border-color: var(--primary);
+}
+#page-subir_blog .sb-tb-btn .material-symbols-outlined { font-size: 18px; }
+#page-subir_blog .sb-tb-sep { width: 1px; background: var(--border); margin: 4px 4px; }
+#page-subir_blog .sb-editor {
+    min-height: 280px; max-height: 560px; overflow-y: auto; padding: 12px 14px;
+    font-size: 14px; line-height: 1.6; color: var(--text); outline: none;
+    overflow-wrap: anywhere; word-break: break-word;
+}
+#page-subir_blog .sb-editor:empty:before { content: attr(data-placeholder); color: var(--text-muted); }
+#page-subir_blog .sb-editor ul, #page-subir_blog .sb-editor ol { margin: 8px 0; padding-left: 1.5em; }
+#page-subir_blog .sb-editor ul { list-style: disc outside; }
+#page-subir_blog .sb-editor ol { list-style: decimal outside; }
+#page-subir_blog .sb-editor li { display: list-item; }
+#page-subir_blog .sb-editor h2 { font-size: 18px; margin: 14px 0 8px; }
+#page-subir_blog .sb-editor h3 { font-size: 15px; margin: 12px 0 6px; }
+#page-subir_blog .sb-editor blockquote {
+    margin: 10px 0; padding: 6px 12px; border-left: 3px solid var(--primary);
+    color: var(--text-muted);
+}
+#page-subir_blog .sb-editor a { color: var(--primary); }
+#page-subir_blog .sb-editor p { margin: 0 0 8px; }
 
 #page-subir_blog .sb-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 640px) { #page-subir_blog .sb-row2 { grid-template-columns: 1fr; } }
@@ -133,6 +199,17 @@
     width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--primary);
     border-radius: 50%; animation: sb-spin .8s linear infinite; display: inline-block;
 }
+#page-subir_blog .sb-modal {
+    display: none; position: fixed; inset: 0; z-index: 80;
+    background: rgba(15, 23, 42, .55); align-items: center; justify-content: center; padding: 16px;
+}
+#page-subir_blog .sb-modal.on { display: flex; }
+#page-subir_blog .sb-modal-card {
+    width: min(420px, 100%); background: var(--card); color: var(--text);
+    border: 1px solid var(--border); border-radius: 12px; padding: 20px;
+}
+#page-subir_blog .sb-modal-card h3 { margin: 0 0 6px; font-size: 16px; }
+#page-subir_blog .sb-modal-err { display: none; margin: 10px 0 0; font-size: 12px; color: var(--danger); }
 @keyframes sb-spin { to { transform: rotate(360deg); } }
 </style>
 
@@ -145,7 +222,7 @@
     </div>
 
     <div class="sb-grid">
-        <div>
+        <div class="sb-form">
             <div class="sb-card">
                 <h3><span class="material-symbols-outlined" style="font-size:18px;color:var(--primary)">edit_note</span> <span id="sb-form-title">Novo post</span></h3>
                 <div id="sb-editing" class="sb-editing-banner">
@@ -168,25 +245,31 @@
 
                 <div class="sb-field">
                     <label class="sb-label">Conteúdo <span class="req">*</span></label>
-                    <textarea id="sb-content" class="sb-textarea" rows="14" placeholder="Texto do artigo ou HTML simples (sem header/menu/footer do site)" oninput="sbUpdateReadTime()"></textarea>
+                    <div class="sb-editor-wrap">
+                        <div class="sb-editor-toolbar" id="sb-toolbar">
+                            <button type="button" class="sb-tb-btn" data-cmd="bold" title="Negrito" onclick="sbFmt('bold')"><b>B</b></button>
+                            <button type="button" class="sb-tb-btn" data-cmd="italic" title="Itálico" onclick="sbFmt('italic')"><i>I</i></button>
+                            <button type="button" class="sb-tb-btn" data-cmd="underline" title="Sublinhado" onclick="sbFmt('underline')"><u>U</u></button>
+                            <span class="sb-tb-sep"></span>
+                            <button type="button" class="sb-tb-btn" data-cmd="insertUnorderedList" title="Lista" onclick="sbFmt('insertUnorderedList')"><span class="material-symbols-outlined">format_list_bulleted</span></button>
+                            <button type="button" class="sb-tb-btn" data-cmd="insertOrderedList" title="Lista numerada" onclick="sbFmt('insertOrderedList')"><span class="material-symbols-outlined">format_list_numbered</span></button>
+                            <button type="button" class="sb-tb-btn" data-block="blockquote" title="Citação" onclick="sbFmtBlock('blockquote')"><span class="material-symbols-outlined">format_quote</span></button>
+                            <button type="button" class="sb-tb-btn" data-cmd="createLink" title="Link" onclick="sbFmtLink()"><span class="material-symbols-outlined">link</span></button>
+                        </div>
+                        <div id="sb-content" class="sb-editor" contenteditable="true" data-placeholder="Escreva o artigo. Use a barra acima para negrito, itálico, tópicos..." oninput="sbUpdateReadTime()" onkeyup="sbSyncToolbar()" onmouseup="sbSyncToolbar()"></div>
+                    </div>
                     <div class="sb-hint" id="sb-wordcount">0 palavras</div>
                 </div>
 
-                <div class="sb-row2">
-                    <div class="sb-field">
-                        <label class="sb-label">Categoria principal <span class="req">*</span></label>
-                        <select id="sb-category" class="sb-select" onchange="sbSyncTags()"></select>
-                    </div>
-                    <div class="sb-field">
-                        <label class="sb-label">Data de publicação <span class="req">*</span></label>
-                        <input id="sb-date" class="sb-input" type="date">
-                    </div>
+                <div class="sb-field">
+                    <label class="sb-label">Categoria principal <span class="req">*</span></label>
+                    <select id="sb-category" class="sb-select"></select>
                 </div>
 
                 <div class="sb-field">
                     <label class="sb-label">Aparece nas categorias (tags) <span class="req">*</span></label>
                     <div class="sb-tags" id="sb-tags"></div>
-                    <div class="sb-hint">A categoria principal é sempre incluída.</div>
+                    <div class="sb-hint">Clique para ligar ou desligar. A categoria principal não trava a tag.</div>
                 </div>
 
                 <div class="sb-field">
@@ -203,7 +286,7 @@
                     </div>
                     <input id="blog-file" type="file" accept=".jpg,.jpeg,.png,.webp,.gif" style="display:none" onchange="sbUpload(this.files[0])">
                     <div class="sb-img-preview" id="sb-img-preview"><img id="sb-img-tag" alt="Capa"></div>
-                    <input id="sb-image" class="sb-input" type="url" placeholder="https://... (preenchido pelo upload, ou cole uma URL)" style="margin-top:8px">
+                    <input id="sb-image" class="sb-input" type="url" placeholder="https://... (preenchido pelo upload, ou cole o link direto da imagem)" style="margin-top:8px" oninput="sbImageInput()">
                 </div>
 
                 <div class="sb-row2">
@@ -217,28 +300,63 @@
                     </div>
                 </div>
 
-                <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
+                <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px;flex-wrap:wrap">
                     <button class="sb-btn sb-btn-secondary" onclick="sbLimpar()">
                         <span class="material-symbols-outlined" style="font-size:16px">ink_eraser</span> Limpar
                     </button>
+                    <button id="sb-btn-schedule" class="sb-btn sb-btn-secondary" onclick="sbAgendar()">
+                        <span class="material-symbols-outlined" style="font-size:16px">schedule</span> Agendar
+                    </button>
                     <button id="sb-btn-publish" class="sb-btn sb-btn-primary" onclick="sbPublicar()">
-                        <span class="material-symbols-outlined" style="font-size:16px">publish</span> Publicar post
+                        <span class="material-symbols-outlined" style="font-size:16px">publish</span> Publicar agora
                     </button>
                 </div>
             </div>
         </div>
 
-        <div>
-            <div class="sb-card">
-                <h3>
+        <div class="sb-side">
+            <div class="sb-card sb-card-sched">
+                <button type="button" class="sb-panel-head" onclick="sbTogglePanel('sched')">
+                    <span class="material-symbols-outlined" style="font-size:18px;color:var(--warning)">schedule</span>
+                    Posts programados
+                    <span id="sb-sched-count" style="font-weight:600;color:var(--text-muted);font-size:12px"></span>
+                    <span class="material-symbols-outlined sb-panel-chevron">expand_more</span>
+                </button>
+                <div id="sb-scheduled" class="sb-panel-body"><div class="sb-empty">Nenhum post programado.</div></div>
+            </div>
+            <div class="sb-card sb-card-posts">
+                <button type="button" class="sb-panel-head" onclick="sbTogglePanel('posts')">
                     <span class="material-symbols-outlined" style="font-size:18px;color:var(--primary)">article</span>
                     Posts publicados
                     <span id="sb-posts-count" style="font-weight:600;color:var(--text-muted);font-size:12px"></span>
-                </h3>
-                <div id="sb-posts"><div class="sb-empty">Carregando...</div></div>
+                    <span class="material-symbols-outlined sb-panel-chevron">expand_more</span>
+                </button>
+                <div id="sb-posts" class="sb-panel-body"><div class="sb-empty">Carregando...</div></div>
             </div>
         </div>
     </div>
+
+<div id="sb-sched-modal" class="sb-modal" onclick="if (event.target === this) sbFecharAgenda()">
+    <div class="sb-modal-card">
+        <h3>Quando publicar?</h3>
+        <p class="sb-sub" style="margin-bottom:14px">Escolha a data e a hora em que o post entra no site.</p>
+        <div class="sb-row2">
+            <div class="sb-field">
+                <label class="sb-label">Data de publicação</label>
+                <input id="sb-sched-date" class="sb-input" type="date">
+            </div>
+            <div class="sb-field">
+                <label class="sb-label">Hora</label>
+                <input id="sb-sched-time" class="sb-input" type="time">
+            </div>
+        </div>
+        <div id="sb-sched-err" class="sb-modal-err"></div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+            <button type="button" class="sb-btn sb-btn-secondary" onclick="sbFecharAgenda()">Cancelar</button>
+            <button type="button" id="sb-btn-confirm-sched" class="sb-btn sb-btn-primary" onclick="sbConfirmarAgenda()">Agendar publicação</button>
+        </div>
+    </div>
+</div>
 </div>
 
 <script>
@@ -246,8 +364,519 @@
     let _loaded = false;
     let _categorias = [];
     let _editingId = null;
+    let _editingSid = null;
     let _editingFeatured = false;
+    let _savedSchedule = '';
+    let _postDate = '';
     const _MESES = { Jan: '01', Fev: '02', Mar: '03', Abr: '04', Mai: '05', Jun: '06', Jul: '07', Ago: '08', Set: '09', Out: '10', Nov: '11', Dez: '12' };
+
+    function sbContentEl() { return document.getElementById('sb-content'); }
+    function sbContentHtml() { return (sbContentEl().innerHTML || '').trim(); }
+    function sbContentText() { return (sbContentEl().innerText || '').replace(/\u200b/g, '').trim(); }
+
+    window.sbSyncToolbar = function () {
+        const ed = sbContentEl();
+        const sel = window.getSelection();
+        const inside = !!(ed && sel && sel.anchorNode && ed.contains(sel.anchorNode));
+        document.querySelectorAll('#sb-toolbar .sb-tb-btn').forEach(btn => {
+            let on = false;
+            if (inside) {
+                try {
+                    if (btn.dataset.cmd === 'createLink') {
+                        const node = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+                        on = !!(node && node.closest && node.closest('a'));
+                    } else if (btn.dataset.cmd) {
+                        on = document.queryCommandState(btn.dataset.cmd);
+                    } else if (btn.dataset.block) {
+                        const v = String(document.queryCommandValue('formatBlock') || '')
+                            .toLowerCase().replace(/[<>]/g, '');
+                        on = v === btn.dataset.block;
+                    }
+                } catch (e) { on = false; }
+            }
+            btn.classList.toggle('on', on);
+        });
+    };
+
+    function sbNodeHtml(n) {
+        if (n.nodeType === 3) {
+            return n.textContent.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+        return n.outerHTML;
+    }
+
+    function sbLiPieces(li) {
+        const nodes = [...li.childNodes];
+        const hasBreak = nodes.some(n => n.nodeType === 1 && (n.tagName === 'DIV' || n.tagName === 'P' || n.tagName === 'BR'));
+        if (!hasBreak) return [li.innerHTML];
+        const pieces = [];
+        let buf = '';
+        const flush = () => {
+            if (buf.trim()) pieces.push(buf);
+            buf = '';
+        };
+        nodes.forEach(n => {
+            if (n.nodeType === 1 && (n.tagName === 'DIV' || n.tagName === 'P' || n.tagName === 'BR')) {
+                flush();
+                if (n.tagName !== 'BR') pieces.push(n.innerHTML);
+            } else {
+                buf += sbNodeHtml(n);
+            }
+        });
+        flush();
+        return pieces.length ? pieces : [''];
+    }
+
+    function sbNormalizeList(list) {
+        let changed = false;
+        [...list.querySelectorAll(':scope > li')].forEach(li => {
+            const pieces = sbLiPieces(li);
+            if (pieces.length <= 1) return;
+            changed = true;
+            const frag = document.createDocumentFragment();
+            pieces.forEach(html => {
+                const item = document.createElement('li');
+                item.innerHTML = html.trim() || '<br>';
+                frag.appendChild(item);
+            });
+            li.replaceWith(frag);
+        });
+        return changed;
+    }
+
+    function sbCaretBlock(ed) {
+        const sel = window.getSelection();
+        let node = sel.anchorNode;
+        if (!node || !ed.contains(node) || node === ed) return null;
+        while (node.parentNode && node.parentNode !== ed) node = node.parentNode;
+        return node;
+    }
+
+    function sbBlocksForList(ed) {
+        const sel = window.getSelection();
+        const range = sel.getRangeAt(0);
+        if (range.collapsed) {
+            const block = sbCaretBlock(ed);
+            return block ? [block] : [];
+        }
+        return [...ed.childNodes].filter(child => {
+            if (child.nodeType === 3 && !child.textContent.trim()) return false;
+            try { return range.intersectsNode(child); } catch (e) { return false; }
+        });
+    }
+
+    function sbCaretOnItemLine(li) {
+        const sel = window.getSelection();
+        if (!sel.rangeCount || !li.contains(sel.anchorNode)) return false;
+        const caret = sel.getRangeAt(0);
+        const before = document.createRange();
+        before.selectNodeContents(li);
+        before.setEnd(caret.startContainer, caret.startOffset);
+        const probe = document.createElement('div');
+        probe.appendChild(before.cloneContents());
+        return !probe.querySelector('br, div, p');
+    }
+
+    function sbSplitAfterCaret(li) {
+        const sel = window.getSelection();
+        const caret = sel.getRangeAt(0);
+        const tailRange = document.createRange();
+        tailRange.setStart(caret.startContainer, caret.startOffset);
+        tailRange.setEnd(li, li.childNodes.length);
+        const tail = tailRange.extractContents();
+        while (li.lastChild && li.lastChild.nodeType === 1 && li.lastChild.tagName === 'BR') li.removeChild(li.lastChild);
+        if (!(li.textContent || '').replace(/\u200b/g, '').trim()) li.innerHTML = '<br>';
+        while (tail.firstChild && tail.firstChild.nodeType === 1 && tail.firstChild.tagName === 'BR') tail.removeChild(tail.firstChild);
+        const div = document.createElement('div');
+        if (!(tail.textContent || '').replace(/\u200b/g, '').trim()) div.innerHTML = '<br>';
+        else div.appendChild(tail);
+        const list = li.parentElement;
+        const rest = document.createElement(list.tagName.toLowerCase());
+        let n = li.nextElementSibling;
+        while (n) {
+            const next = n.nextElementSibling;
+            if (n.tagName === 'LI') rest.appendChild(n);
+            n = next;
+        }
+        list.after(div);
+        if (rest.childNodes.length) div.after(rest);
+        const r = document.createRange();
+        r.setStart(div, 0);
+        r.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(r);
+    }
+
+    function sbSelectedLis(list) {
+        const sel = window.getSelection();
+        const range = sel.getRangeAt(0);
+        const lis = [...list.children].filter(el => el.tagName === 'LI');
+        if (!range.collapsed) {
+            const hit = lis.filter(li => {
+                try { return range.intersectsNode(li); } catch (e) { return false; }
+            });
+            if (hit.length) return hit;
+        }
+        const node = sel.anchorNode;
+        const el = node && (node.nodeType === 1 ? node : node.parentElement);
+        const li = el && el.closest ? el.closest('li') : null;
+        return li && list.contains(li) ? [li] : [];
+    }
+
+    function sbFocusEnd(el) {
+        const sel = window.getSelection();
+        const r = document.createRange();
+        r.selectNodeContents(el);
+        r.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(r);
+    }
+
+    function sbUnlistItems(lis) {
+        if (!lis.length) return;
+        const list = lis[0].parentElement;
+        const tag = list.tagName.toLowerCase();
+        const selected = new Set(lis);
+        const frag = document.createDocumentFragment();
+        let bucket = null;
+        let focus = null;
+        const flush = () => {
+            if (bucket && bucket.childNodes.length) frag.appendChild(bucket);
+            bucket = null;
+        };
+        [...list.children].forEach(child => {
+            if (child.tagName !== 'LI') return;
+            if (selected.has(child)) {
+                flush();
+                const div = document.createElement('div');
+                div.innerHTML = child.innerHTML || '<br>';
+                frag.appendChild(div);
+                if (!focus) focus = div;
+            } else {
+                if (!bucket) bucket = document.createElement(tag);
+                bucket.appendChild(child);
+            }
+        });
+        flush();
+        list.replaceWith(frag);
+        if (focus) sbFocusEnd(focus);
+    }
+
+    function sbRetagItems(lis, tag) {
+        if (!lis.length) return;
+        const list = lis[0].parentElement;
+        const oldTag = list.tagName.toLowerCase();
+        const selected = new Set(lis);
+        const frag = document.createDocumentFragment();
+        let bucket = null;
+        let bucketTag = '';
+        let focus = null;
+        const flush = () => {
+            if (bucket && bucket.childNodes.length) frag.appendChild(bucket);
+            bucket = null;
+            bucketTag = '';
+        };
+        [...list.children].forEach(child => {
+            if (child.tagName !== 'LI') return;
+            const want = selected.has(child) ? tag : oldTag;
+            if (bucketTag !== want) {
+                flush();
+                bucket = document.createElement(want);
+                bucketTag = want;
+            }
+            bucket.appendChild(child);
+            if (selected.has(child) && !focus) focus = child;
+        });
+        flush();
+        list.replaceWith(frag);
+        if (focus) sbFocusEnd(focus);
+    }
+
+    function sbToggleList(tag) {
+        const ed = sbContentEl();
+        const sel = window.getSelection();
+        if (!sel || !sel.rangeCount) return;
+        const saved = sel.getRangeAt(0).cloneRange();
+        ed.focus();
+        sel.removeAllRanges();
+        sel.addRange(saved);
+        const anchor = sel.anchorNode;
+        const el = anchor && (anchor.nodeType === 1 ? anchor : anchor.parentElement);
+        const list = el && el.closest ? el.closest('ol, ul') : null;
+        const currentLi = el && el.closest ? el.closest('li') : null;
+        if (list && ed.contains(list) && currentLi && list.contains(currentLi) && !sbCaretOnItemLine(currentLi)) {
+            sbSplitAfterCaret(currentLi);
+            sbUpdateReadTime();
+            sbSyncToolbar();
+            return;
+        }
+        if (list && ed.contains(list)) {
+            if (sbListNeedsRepair(list)) {
+                sbMarkCaret();
+                sbRepairList(list);
+                sbRestoreCaret();
+            }
+            const items = sbSelectedLis(list);
+            if (list.tagName.toLowerCase() !== tag) sbRetagItems(items, tag);
+            else sbUnlistItems(items);
+            sbUpdateReadTime();
+            sbSyncToolbar();
+            return;
+        }
+        const blocks = sbBlocksForList(ed);
+        const listEl = document.createElement(tag);
+        const pieces = [];
+        (blocks.length ? blocks : [null]).forEach(block => {
+            if (!block) {
+                pieces.push('');
+                return;
+            }
+            if (block.nodeType === 1 && (block.tagName === 'OL' || block.tagName === 'UL')) {
+                [...block.children].forEach(li => { if (li.tagName === 'LI') pieces.push(li.innerHTML); });
+                return;
+            }
+            pieces.push(block.nodeType === 1 ? (block.innerHTML || '') : sbNodeHtml(block));
+        });
+        const items = pieces.map(p => String(p).trim()).filter(p => p && p !== '<br>');
+        (items.length ? items : ['']).forEach(html => {
+            const li = document.createElement('li');
+            li.innerHTML = html || '<br>';
+            listEl.appendChild(li);
+        });
+        if (blocks.length) {
+            blocks[0].before(listEl);
+            blocks.forEach(b => b.remove());
+        } else {
+            ed.appendChild(listEl);
+        }
+        const caret = listEl.querySelector('li:last-child');
+        if (caret) sbFocusEnd(caret);
+        sbUpdateReadTime();
+        sbSyncToolbar();
+    }
+
+    function sbExitList(li) {
+        const list = li.parentElement;
+        const tag = list.tagName.toLowerCase();
+        const div = document.createElement('div');
+        div.innerHTML = '<br>';
+        const rest = document.createElement(tag);
+        let n = li.nextElementSibling;
+        while (n) {
+            const next = n.nextElementSibling;
+            if (n.tagName === 'LI') rest.appendChild(n);
+            n = next;
+        }
+        li.remove();
+        if (!list.querySelector('li')) list.replaceWith(div);
+        else list.after(div);
+        if (rest.childNodes.length) div.after(rest);
+        const sel = window.getSelection();
+        const r = document.createRange();
+        r.setStart(div, 0);
+        r.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(r);
+    }
+
+    let _sbListEnterAt = 0;
+
+    function sbCurrentList() {
+        const ed = sbContentEl();
+        const sel = window.getSelection();
+        if (!ed || !sel || !sel.rangeCount) return null;
+        const node = sel.anchorNode;
+        const el = node && (node.nodeType === 1 ? node : node.parentElement);
+        const list = el && el.closest ? el.closest('ol, ul') : null;
+        return list && ed.contains(list) ? list : null;
+    }
+
+    function sbListNeedsRepair(list) {
+        return [...list.children].some(el => el.tagName !== 'LI' || sbLiPieces(el).length > 1);
+    }
+
+    function sbRepairList(list) {
+        [...list.childNodes].forEach(node => {
+            if (node.nodeType !== 1) return;
+            if (node.tagName === 'DIV' || node.tagName === 'P') {
+                const item = document.createElement('li');
+                item.innerHTML = node.innerHTML || '<br>';
+                node.replaceWith(item);
+            }
+        });
+        sbNormalizeList(list);
+    }
+
+    function sbRestoreCaret() {
+        const caret = sbContentEl().querySelector('#sb-caret');
+        if (!caret) return;
+        const sel = window.getSelection();
+        const r = document.createRange();
+        r.setStartAfter(caret);
+        r.collapse(true);
+        caret.remove();
+        sel.removeAllRanges();
+        sel.addRange(r);
+    }
+
+    function sbMarkCaret() {
+        const mark = document.createElement('span');
+        mark.id = 'sb-caret';
+        window.getSelection().getRangeAt(0).insertNode(mark);
+        return mark;
+    }
+
+    function sbNewListItem() {
+        const list = sbCurrentList();
+        if (!list) return false;
+        const sel = window.getSelection();
+        const node = sel.anchorNode;
+        const el = node && (node.nodeType === 1 ? node : node.parentElement);
+        let li = el && el.closest ? el.closest('li') : null;
+        if (!li || !list.contains(li)) {
+            li = list.querySelector('li') || list;
+        }
+        if (li.tagName === 'LI' && !(li.textContent || '').replace(/\u200b/g, '').trim()) {
+            sbExitList(li);
+            sbUpdateReadTime();
+            return true;
+        }
+        sbMarkCaret();
+        sbRepairList(list);
+        const caret = sbContentEl().querySelector('#sb-caret');
+        const host = caret && caret.closest ? caret.closest('li') : null;
+        if (!host) {
+            sbRestoreCaret();
+            return true;
+        }
+        const range = document.createRange();
+        range.setStartAfter(caret);
+        range.setEnd(host, host.childNodes.length);
+        const tail = range.extractContents();
+        caret.remove();
+        const next = document.createElement('li');
+        if (!(tail.textContent || '').replace(/\u200b/g, '').trim()) next.innerHTML = '<br>';
+        else next.appendChild(tail);
+        if (!(host.textContent || '').replace(/\u200b/g, '').trim()) host.innerHTML = '<br>';
+        host.after(next);
+        const r = document.createRange();
+        r.setStart(next, 0);
+        r.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(r);
+        sbUpdateReadTime();
+        return true;
+    }
+
+    function sbEditorKeydown(e) {
+        if (e.key !== 'Enter' || e.shiftKey || !sbCurrentList()) return;
+        e.preventDefault();
+        if (Date.now() - _sbListEnterAt < 80) return;
+        _sbListEnterAt = Date.now();
+        sbNewListItem();
+    }
+
+    function sbEditorBeforeInput(e) {
+        if (e.inputType !== 'insertParagraph' || !sbCurrentList()) return;
+        e.preventDefault();
+        if (Date.now() - _sbListEnterAt < 80) return;
+        _sbListEnterAt = Date.now();
+        sbNewListItem();
+    }
+
+    function sbFixListOnInput() {
+        const list = sbCurrentList();
+        if (!list || !sbListNeedsRepair(list)) return;
+        const sel = window.getSelection();
+        if (!sel.rangeCount) return;
+        sbMarkCaret();
+        sbRepairList(list);
+        sbRestoreCaret();
+    }
+
+    window.sbFmt = function (cmd) {
+        if (cmd === 'insertOrderedList' || cmd === 'insertUnorderedList') {
+            sbToggleList(cmd === 'insertOrderedList' ? 'ol' : 'ul');
+            return;
+        }
+        sbContentEl().focus();
+        document.execCommand(cmd, false, null);
+        sbUpdateReadTime();
+        sbSyncToolbar();
+    };
+    function sbSplitQuoteAfterCaret(quote) {
+        const sel = window.getSelection();
+        const caret = sel.getRangeAt(0);
+        const tailRange = document.createRange();
+        tailRange.setStart(caret.startContainer, caret.startOffset);
+        tailRange.setEnd(quote, quote.childNodes.length);
+        const tail = tailRange.extractContents();
+        while (quote.lastChild && quote.lastChild.nodeType === 1 && quote.lastChild.tagName === 'BR') quote.removeChild(quote.lastChild);
+        if (!(quote.textContent || '').replace(/\u200b/g, '').trim()) quote.innerHTML = '<br>';
+        while (tail.firstChild && tail.firstChild.nodeType === 1 && tail.firstChild.tagName === 'BR') tail.removeChild(tail.firstChild);
+        const div = document.createElement('div');
+        if (!(tail.textContent || '').replace(/\u200b/g, '').trim()) div.innerHTML = '<br>';
+        else div.appendChild(tail);
+        quote.after(div);
+        const r = document.createRange();
+        r.setStart(div, 0);
+        r.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(r);
+    }
+
+    function sbUnwrapQuoteLine(quote) {
+        const div = document.createElement('div');
+        if (!quote.querySelector('br, div, p')) {
+            div.innerHTML = quote.innerHTML || '<br>';
+            quote.replaceWith(div);
+            sbFocusEnd(div);
+            return;
+        }
+        while (quote.firstChild && !(quote.firstChild.nodeType === 1 && (quote.firstChild.tagName === 'BR' || quote.firstChild.tagName === 'DIV' || quote.firstChild.tagName === 'P'))) {
+            div.appendChild(quote.firstChild);
+        }
+        if (quote.firstChild && quote.firstChild.nodeType === 1 && quote.firstChild.tagName === 'BR') quote.removeChild(quote.firstChild);
+        if (!div.childNodes.length) div.innerHTML = '<br>';
+        quote.before(div);
+        if (!(quote.textContent || '').replace(/\u200b/g, '').trim()) quote.remove();
+        sbFocusEnd(div);
+    }
+
+    window.sbFmtBlock = function (tag) {
+        const ed = sbContentEl();
+        const sel = window.getSelection();
+        if (sel.rangeCount) {
+            const saved = sel.getRangeAt(0).cloneRange();
+            ed.focus();
+            sel.removeAllRanges();
+            sel.addRange(saved);
+        } else {
+            ed.focus();
+        }
+        if (tag === 'blockquote') {
+            const node = sel.anchorNode;
+            const el = node && (node.nodeType === 1 ? node : node.parentElement);
+            const quote = el && el.closest ? el.closest('blockquote') : null;
+            if (quote && ed.contains(quote)) {
+                if (sbCaretOnItemLine(quote)) sbUnwrapQuoteLine(quote);
+                else sbSplitQuoteAfterCaret(quote);
+                sbUpdateReadTime();
+                sbSyncToolbar();
+                return;
+            }
+        }
+        document.execCommand('formatBlock', false, tag);
+        sbUpdateReadTime();
+        sbSyncToolbar();
+    };
+    window.sbFmtLink = function () {
+        const url = prompt('URL do link:', 'https://');
+        if (!url) return;
+        sbContentEl().focus();
+        document.execCommand('createLink', false, url);
+        sbSyncToolbar();
+    };
 
     function dateToInput(d) {
         const m = String(d || '').match(/^(\d{2}) (\w{3}) (\d{4})$/);
@@ -269,8 +898,7 @@
     };
 
     window.sbUpdateReadTime = function () {
-        const words = (document.getElementById('sb-content').value || '')
-            .replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length;
+        const words = sbContentText().split(/\s+/).filter(Boolean).length;
         document.getElementById('sb-wordcount').textContent = words + ' palavras';
         const rt = document.getElementById('sb-readtime');
         if (!rt.dataset.touched) {
@@ -281,25 +909,14 @@
         if (e.target && e.target.id === 'sb-readtime') e.target.dataset.touched = '1';
     });
 
-    window.sbSyncTags = function () {
-        const cat = document.getElementById('sb-category').value;
-        document.querySelectorAll('#sb-tags .sb-tag').forEach(el => {
-            const isCat = el.dataset.cat === cat;
-            if (isCat) el.classList.add('on', 'locked');
-            else el.classList.remove('locked');
-        });
-    };
-
     function renderTagChips() {
         const wrap = document.getElementById('sb-tags');
         wrap.innerHTML = _categorias.map(c =>
             `<span class="sb-tag" data-cat="${esc(c)}" onclick="sbToggleTag(this)">${esc(c)}</span>`
         ).join('');
-        sbSyncTags();
     }
 
     window.sbToggleTag = function (el) {
-        if (el.classList.contains('locked')) return;
         el.classList.toggle('on');
     };
 
@@ -363,28 +980,75 @@
         el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
+    function sbPad(n) { return String(n).padStart(2, '0'); }
+    function sbToday() {
+        const n = new Date();
+        return n.getFullYear() + '-' + sbPad(n.getMonth() + 1) + '-' + sbPad(n.getDate());
+    }
+
+    function sbLocalParts(date) {
+        return {
+            date: date.getFullYear() + '-' + sbPad(date.getMonth() + 1) + '-' + sbPad(date.getDate()),
+            time: sbPad(date.getHours()) + ':' + sbPad(date.getMinutes()),
+        };
+    }
+
+    function sbFillForm(p) {
+        document.getElementById('sb-title').value = p.title || '';
+        document.getElementById('sb-summary').value = p.summary || '';
+        sbContentEl().innerHTML = p.content || '';
+        document.getElementById('sb-category').value = p.category || _categorias[0];
+        _postDate = dateToInput(p.date) || (p.scheduled_at || '').slice(0, 10);
+        _savedSchedule = (p.scheduled_at || '').slice(0, 16);
+        const rt = document.getElementById('sb-readtime');
+        rt.value = p.read_time || ''; rt.dataset.touched = '1';
+        document.getElementById('sb-image').value = p.image || '';
+        window.sbImageInput();
+        document.getElementById('sb-author-name').value = p.author_name || '';
+        document.getElementById('sb-author-role').value = p.author_role || '';
+        document.querySelectorAll('#sb-tags .sb-tag').forEach(el => {
+            el.classList.toggle('on', (p.tags || []).includes(el.dataset.cat));
+        });
+        sbUpdateSlug(); sbUpdateReadTime();
+    }
+
     window.sbLimpar = function () {
-        ['sb-title', 'sb-summary', 'sb-content', 'sb-image', 'sb-author-name', 'sb-author-role']
+        ['sb-title', 'sb-summary', 'sb-image', 'sb-author-name', 'sb-author-role']
             .forEach(id => document.getElementById(id).value = '');
+        sbContentEl().innerHTML = '';
         const rt = document.getElementById('sb-readtime');
         rt.value = ''; delete rt.dataset.touched;
         document.getElementById('sb-img-preview').style.display = 'none';
-        document.getElementById('sb-date').valueAsDate = new Date();
+        _savedSchedule = '';
+        _postDate = '';
         document.querySelectorAll('#sb-tags .sb-tag').forEach(el => el.classList.remove('on'));
-        sbSyncTags(); sbUpdateSlug(); sbUpdateReadTime();
+        sbUpdateSlug(); sbUpdateReadTime();
         document.getElementById('sb-msg').className = 'sb-msg';
-        sbSetEditing(null);
+        sbSetEditing(null, null);
     };
 
-    function sbSetEditing(id) {
-        _editingId = id;
-        if (!id) _editingFeatured = false;
-        document.getElementById('sb-editing').classList.toggle('on', !!id);
-        document.getElementById('sb-editing-id').textContent = id || '';
-        document.getElementById('sb-form-title').textContent = id ? 'Editar post' : 'Novo post';
-        document.getElementById('sb-btn-publish').innerHTML = id
-            ? '<span class="material-symbols-outlined" style="font-size:16px">save</span> Salvar alterações'
-            : '<span class="material-symbols-outlined" style="font-size:16px">publish</span> Publicar post';
+    function sbSetEditing(id, sid) {
+        _editingId = id || null;
+        _editingSid = sid || null;
+        if (!id && !sid) _editingFeatured = false;
+        const editing = !!(id || sid);
+        document.getElementById('sb-editing').classList.toggle('on', editing);
+        document.getElementById('sb-editing-id').textContent = sid ? ('programado #' + sid) : (id || '');
+        document.getElementById('sb-form-title').textContent = editing ? 'Editar post' : 'Novo post';
+        const pub = document.getElementById('sb-btn-publish');
+        const sch = document.getElementById('sb-btn-schedule');
+        if (sid) {
+            pub.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">publish</span> Publicar agora';
+            sch.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">save</span> Salvar agendamento';
+            sch.style.display = '';
+        } else if (id) {
+            pub.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">save</span> Salvar alterações';
+            sch.style.display = 'none';
+        } else {
+            pub.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">publish</span> Publicar agora';
+            sch.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">schedule</span> Agendar';
+            sch.style.display = '';
+        }
     }
 
     window.sbCancelarEdicao = function () { sbLimpar(); };
@@ -397,26 +1061,9 @@
             if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
             const p = data.post;
             sbLimpar();
-            document.getElementById('sb-title').value = p.title || '';
-            document.getElementById('sb-summary').value = p.summary || '';
-            document.getElementById('sb-content').value = p.content || '';
-            document.getElementById('sb-category').value = p.category || _categorias[0];
-            document.getElementById('sb-date').value = dateToInput(p.date);
-            const rt = document.getElementById('sb-readtime');
-            rt.value = p.read_time || ''; rt.dataset.touched = '1';
-            document.getElementById('sb-image').value = p.image || '';
-            if (p.image) {
-                document.getElementById('sb-img-tag').src = p.image;
-                document.getElementById('sb-img-preview').style.display = 'block';
-            }
-            document.getElementById('sb-author-name').value = p.author_name || '';
-            document.getElementById('sb-author-role').value = p.author_role || '';
-            document.querySelectorAll('#sb-tags .sb-tag').forEach(el => {
-                el.classList.toggle('on', (p.tags || []).includes(el.dataset.cat));
-            });
-            sbSyncTags(); sbUpdateSlug(); sbUpdateReadTime();
+            sbFillForm(p);
             document.getElementById('sb-slug').textContent = p.id + ' (não muda)';
-            sbSetEditing(p.id);
+            sbSetEditing(p.id, null);
             _editingFeatured = !!p.is_featured;
             document.getElementById('sb-msg').className = 'sb-msg';
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -434,45 +1081,232 @@
             if (_editingId === id) sbLimpar();
             sbMsg('Post apagado: ' + id, true);
             sbLoadPosts();
+            sbLoadScheduled();
         } catch (e) {
             sbMsg('Erro ao apagar: ' + e.message, false);
         }
     };
 
+    function sbDirectImageUrl(raw) {
+        const value = String(raw || '').trim();
+        try {
+            const u = new URL(value);
+            if (u.hostname.indexOf('google.') !== -1 && u.pathname.replace(/\/$/, '') === '/imgres') {
+                const inner = u.searchParams.get('imgurl') || '';
+                if (inner.indexOf('https://') === 0) return inner;
+            }
+        } catch (e) { /* campo ainda incompleto */ }
+        return value;
+    }
+
+    window.sbImageInput = function () {
+        const input = document.getElementById('sb-image');
+        const direct = sbDirectImageUrl(input.value);
+        if (direct !== input.value.trim()) input.value = direct;
+        const prev = document.getElementById('sb-img-preview');
+        const img = document.getElementById('sb-img-tag');
+        if (/^https:\/\/.+\.(jpe?g|png|webp|gif)(\.|$|\?)/i.test(direct)) {
+            img.src = direct;
+            prev.style.display = 'block';
+        }
+    };
+
+    function sbPayload() {
+        const imageInput = document.getElementById('sb-image');
+        imageInput.value = sbDirectImageUrl(imageInput.value);
+        return {
+            title: document.getElementById('sb-title').value,
+            summary: document.getElementById('sb-summary').value,
+            content: sbContentHtml(),
+            category: document.getElementById('sb-category').value,
+            tags: selectedTags(),
+            date: (_editingId && _postDate) ? _postDate : sbToday(),
+            read_time: document.getElementById('sb-readtime').value,
+            image: document.getElementById('sb-image').value,
+            is_featured: (_editingId || _editingSid) ? _editingFeatured : false,
+            author_name: document.getElementById('sb-author-name').value,
+            author_role: document.getElementById('sb-author-role').value,
+        };
+    }
+
     window.sbPublicar = async function () {
         const btn = document.getElementById('sb-btn-publish');
         const editing = _editingId;
+        const sid = _editingSid;
         btn.disabled = true;
-        btn.innerHTML = '<span class="sb-spinner" style="border-top-color:#fff"></span> ' + (editing ? 'Salvando...' : 'Publicando...');
+        btn.innerHTML = '<span class="sb-spinner" style="border-top-color:#fff"></span> ' + (editing && !sid ? 'Salvando...' : 'Publicando...');
         try {
-            const payload = {
-                title: document.getElementById('sb-title').value,
-                summary: document.getElementById('sb-summary').value,
-                content: document.getElementById('sb-content').value,
-                category: document.getElementById('sb-category').value,
-                tags: selectedTags(),
-                date: document.getElementById('sb-date').value,
-                read_time: document.getElementById('sb-readtime').value,
-                image: document.getElementById('sb-image').value,
-                is_featured: editing ? _editingFeatured : false,
-                author_name: document.getElementById('sb-author-name').value,
-                author_role: document.getElementById('sb-author-role').value,
-            };
-            const res = await fetch(editing ? '/api/blog/posts/' + encodeURIComponent(editing) : '/api/blog/posts', {
-                method: editing ? 'PUT' : 'POST',
+            const payload = sbPayload();
+            let res;
+            if (sid) {
+                res = await fetch('/api/blog/scheduled/' + sid + '/publish', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+            } else if (editing) {
+                res = await fetch('/api/blog/posts/' + encodeURIComponent(editing), {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+            } else {
+                res = await fetch('/api/blog/posts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+            }
+            const data = await res.json();
+            if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+            if (sid) {
+                sbMsg('Post publicado! Slug: ' + data.id, true);
+            } else {
+                sbMsg((editing ? 'Post atualizado: ' : 'Post publicado! Slug: ') + data.id + (data.is_featured ? ' (destaque)' : ''), true);
+            }
+            sbLimpar();
+            sbLoadPosts();
+            sbLoadScheduled();
+        } catch (e) {
+            sbMsg('Erro ao ' + (editing && !sid ? 'salvar' : 'publicar') + ': ' + e.message, false);
+        } finally {
+            btn.disabled = false;
+            sbSetEditing(_editingId, _editingSid);
+        }
+    };
+
+    function sbAgendaErr(text) {
+        const el = document.getElementById('sb-sched-err');
+        el.textContent = text || '';
+        el.style.display = text ? 'block' : 'none';
+    }
+
+    window.sbFecharAgenda = function () {
+        document.getElementById('sb-sched-modal').classList.remove('on');
+        sbAgendaErr('');
+    };
+
+    window.sbAgendar = function () {
+        const parts = _savedSchedule.length >= 16
+            ? { date: _savedSchedule.slice(0, 10), time: _savedSchedule.slice(11, 16) }
+            : sbLocalParts(new Date(Date.now() + 60 * 60 * 1000));
+        document.getElementById('sb-sched-date').value = parts.date;
+        document.getElementById('sb-sched-time').value = parts.time;
+        const confirmBtn = document.getElementById('sb-btn-confirm-sched');
+        confirmBtn.textContent = _editingSid ? 'Salvar agendamento' : 'Agendar publicação';
+        sbAgendaErr('');
+        document.getElementById('sb-sched-modal').classList.add('on');
+    };
+
+    window.sbConfirmarAgenda = async function () {
+        const btn = document.getElementById('sb-btn-confirm-sched');
+        const sid = _editingSid;
+        const day = document.getElementById('sb-sched-date').value;
+        const time = document.getElementById('sb-sched-time').value;
+        if (!day || !time) {
+            sbAgendaErr('Escolha a data e a hora.');
+            return;
+        }
+        const when = day + 'T' + time;
+        if (new Date(when) <= new Date()) {
+            sbAgendaErr('O horário precisa ser no futuro.');
+            return;
+        }
+        btn.disabled = true;
+        const old = btn.textContent;
+        btn.textContent = 'Salvando...';
+        try {
+            const payload = sbPayload();
+            payload.date = day;
+            payload.scheduled_at = when;
+            const res = await fetch(sid ? '/api/blog/scheduled/' + sid : '/api/blog/scheduled', {
+                method: sid ? 'PUT' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
             });
             const data = await res.json();
             if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
-            sbMsg((editing ? 'Post atualizado: ' : 'Post publicado! Slug: ') + data.id + (data.is_featured ? ' (destaque)' : ''), true);
+            sbFecharAgenda();
+            sbMsg((sid ? 'Agendamento atualizado. Publica em ' : 'Post programado para ') + (data.scheduled_at || when), true);
             sbLimpar();
+            sbLoadScheduled();
             sbLoadPosts();
         } catch (e) {
-            sbMsg('Erro ao ' + (editing ? 'salvar' : 'publicar') + ': ' + e.message, false);
+            sbAgendaErr(e.message);
         } finally {
             btn.disabled = false;
-            sbSetEditing(_editingId);
+            btn.textContent = old;
+        }
+    };
+
+    window.sbEditarAgendado = async function (sid) {
+        sbMsg('Carregando post programado...', true);
+        try {
+            const res = await fetch('/api/blog/scheduled/' + sid);
+            const data = await res.json();
+            if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+            const p = data.post;
+            sbLimpar();
+            sbFillForm(p);
+            sbSetEditing(null, p.id);
+            _editingFeatured = !!p.is_featured;
+            document.getElementById('sb-msg').className = 'sb-msg';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        } catch (e) {
+            sbMsg('Erro ao carregar programado: ' + e.message, false);
+        }
+    };
+
+    window.sbApagarAgendado = async function (sid) {
+        if (!confirm('Apagar o post programado #' + sid + '?\n\nEssa ação não pode ser desfeita.')) return;
+        try {
+            const res = await fetch('/api/blog/scheduled/' + sid, { method: 'DELETE' });
+            const data = await res.json();
+            if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+            if (_editingSid === sid) sbLimpar();
+            sbMsg('Post programado apagado.', true);
+            sbLoadScheduled();
+        } catch (e) {
+            sbMsg('Erro ao apagar programado: ' + e.message, false);
+        }
+    };
+
+    function fmtWhen(iso) {
+        if (!iso) return '';
+        const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+        return m ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}` : iso;
+    }
+
+    window.sbLoadScheduled = async function () {
+        const wrap = document.getElementById('sb-scheduled');
+        try {
+            const res = await fetch('/api/blog/scheduled');
+            const data = await res.json();
+            if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+            const posts = data.posts || [];
+            document.getElementById('sb-sched-count').textContent = `(${posts.length})`;
+            if (!posts.length) {
+                wrap.innerHTML = '<div class="sb-empty">Nenhum post programado.</div>';
+                return;
+            }
+            wrap.innerHTML = posts.map(p => `
+                <div class="sb-post">
+                    ${p.image ? `<img src="${esc(p.image)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+                    <div style="min-width:0">
+                        <div class="sb-post-title">${esc(p.title)}</div>
+                        <div class="sb-post-meta">${esc(p.category)} · ${esc(fmtWhen(p.scheduled_at))}</div>
+                    </div>
+                    <div class="sb-post-actions">
+                        <button class="sb-icon-btn" onclick="sbEditarAgendado(${p.id})" title="Editar programado">
+                            <span class="material-symbols-outlined" style="font-size:16px">edit</span>
+                        </button>
+                        <button class="sb-icon-btn danger" onclick="sbApagarAgendado(${p.id})" title="Apagar programado">
+                            <span class="material-symbols-outlined" style="font-size:16px">delete</span>
+                        </button>
+                    </div>
+                </div>`).join('');
+        } catch (e) {
+            wrap.innerHTML = '<div class="sb-empty">Falha ao carregar: ' + esc(e.message) + '</div>';
         }
     };
 
@@ -518,11 +1352,28 @@
         }
     };
 
+    window.sbTogglePanel = function (which) {
+        const card = document.querySelector(which === 'sched' ? '.sb-card-sched' : '.sb-card-posts');
+        if (card) card.classList.toggle('is-collapsed');
+    };
+
     window.sbLoadPage = function () {
-        if (_loaded) return;
-        _loaded = true;
-        document.getElementById('sb-date').valueAsDate = new Date();
+        if (!_loaded) {
+            _loaded = true;
+            const tb = document.getElementById('sb-toolbar');
+            if (tb) tb.addEventListener('mousedown', (e) => e.preventDefault());
+            const ed = document.getElementById('sb-content');
+            if (ed) {
+                ed.addEventListener('keydown', sbEditorKeydown, true);
+                ed.addEventListener('beforeinput', sbEditorBeforeInput);
+                ed.addEventListener('input', sbFixListOnInput);
+            }
+            document.addEventListener('selectionchange', () => {
+                if (document.activeElement === sbContentEl()) sbSyncToolbar();
+            });
+        }
         sbLoadPosts();
+        sbLoadScheduled();
     };
 })();
 </script>
