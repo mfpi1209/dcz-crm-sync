@@ -1,10 +1,13 @@
 import os
 import re
 import logging
+from datetime import date
 
 import psycopg2
 import psycopg2.extras
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, request, jsonify, session, Response
+
+from helpers import normalize_polo_display
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +59,126 @@ def _ciclo_repasse_valido(val):
         return False
     n = s.lower().replace("#", "").replace(" ", "").replace(".", "")
     return n not in ("n/a", "na", "null", "-")
+
+
+# Venda com matrícula até 30/09/2026 fica no responsável do Kommo.
+# De 01/10/2026 em diante o valor vai para o owner_id do negócio no Bwipo.
+_CORTE_REPASSE = date(2026, 10, 1)
+
+
+def _rgms_venda_nova(cur):
+    """RGMs cuja matrícula (SIAA, tabela do painel) é de 01/10/2026 em diante."""
+    cur.execute("SELECT to_regclass('public.bwipo_painel_base')")
+    if not cur.fetchone()[0]:
+        return set()
+    cur.execute(
+        """
+        SELECT rgm
+        FROM bwipo_painel_base
+        WHERE data_matricula >= %s
+          AND rgm IS NOT NULL AND rgm <> ''
+        """,
+        (_CORTE_REPASSE,),
+    )
+    return {r[0] for r in cur.fetchall() if r[0]}
+
+
+def _owners_bwipo(cur, rgms):
+    """RGM → (owner_id, nome) no Pipeline Principal. Um negócio por RGM."""
+    if not rgms:
+        return {}
+    cur.execute(
+        """
+        SELECT DISTINCT ON (d.rgm_norm)
+               d.rgm_norm,
+               d.owner_id,
+               COALESCE(NULLIF(d.owner_name, ''), 'Sem nome')
+        FROM bwipo_deals d
+        LEFT JOIN bwipo_stages s ON s.id = d.stage_id
+        WHERE NOT d.is_deleted
+          AND d.rgm_norm = ANY(%s)
+          AND COALESCE(d.owner_id, '') <> ''
+          AND (
+                position('principal' in lower(COALESCE(d.pipeline_name, ''))) > 0
+                OR COALESCE(d.pipeline_name, '') = ''
+              )
+        ORDER BY d.rgm_norm,
+                 CASE WHEN s.is_won THEN 0 ELSE 1 END,
+                 d.updated_at DESC NULLS LAST
+        """,
+        (list(rgms),),
+    )
+    return {rgm: (owner_id, nome) for rgm, owner_id, nome in cur.fetchall()}
+
+
+def _depara_owner(cur):
+    """owner_id do Bwipo → (kommo_user_id, nome). Só junta o card da mesma pessoa."""
+    cur.execute("SELECT to_regclass('public.bwipo_kommo_user_depara')")
+    if not cur.fetchone()[0]:
+        return {}
+    cur.execute(
+        """
+        SELECT bwipo_user_id, kommo_user_id, COALESCE(kommo_name, '')
+        FROM bwipo_kommo_user_depara
+        """
+    )
+    out = {}
+    for bwipo_id, kommo_uid, nome in cur.fetchall():
+        if bwipo_id and kommo_uid is not None:
+            out[bwipo_id] = (int(kommo_uid), nome)
+    return out
+
+
+def _dono_repasse(rgm, novas, kommo_map, bwipo_map):
+    """Dono de uma venda. Uma fonte só: Bwipo se a matrícula é de 01/10 em diante, senão Kommo."""
+    if rgm in novas:
+        hit = bwipo_map.get(rgm)
+        if not hit:
+            return None
+        owner_id, owner_name = hit
+        return owner_id, owner_name, owner_id
+    hit = kommo_map.get(rgm)
+    if not hit:
+        return None
+    uid, nome = hit
+    return (uid or nome), nome, None
+
+
+def _owner_ids_do_usuario(depara, kommo_uid):
+    if kommo_uid is None:
+        return set()
+    return {bwipo_id for bwipo_id, (uid, _nome) in depara.items() if uid == kommo_uid}
+
+
+def _repasse_filtros_sql():
+    """Filtros da tela (ciclo, turma, tipo) mais busca por RGM."""
+    ciclo = request.args.get("ciclo", "")
+    tipo = request.args.get("tipo", "")
+    turma = request.args.get("turma", "")
+    q = re.sub(r"\D", "", request.args.get("q") or "")
+    wheres, params = [], []
+    if ciclo:
+        wheres.append("ciclo = %s")
+        params.append(ciclo)
+    _append_filtro_tipo(wheres, params, tipo)
+    if turma:
+        wheres.append("turma ILIKE %s")
+        params.append(turma)
+    if q:
+        wheres.append("regexp_replace(COALESCE(rgm, ''), '[^0-9]', '', 'g') LIKE %s")
+        params.append(f"%{q}%")
+    where = ("WHERE " + " AND ".join(wheres)) if wheres else ""
+    return where, params
+
+
+def _fmt_valor_planilha(valor):
+    return f"{float(valor or 0):.2f}".replace(".", ",")
+
+
+def _fmt_data_planilha(valor):
+    if not valor:
+        return ""
+    return valor.strftime("%d/%m/%Y")
 
 
 def _append_filtro_tipo(wheres, params, tipo):
@@ -274,9 +397,12 @@ def api_repasse_agentes():
         kcur.close()
         kconn.close()
 
-        # ── 2. Busca pagamentos — viewer filtrado pelos próprios RGMs ─────
+        # ── 2. Vendas de 01/10/2026 em diante: dono = owner_id do Bwipo ──
         conn = _pg()
         cur = conn.cursor()
+        novas = _rgms_venda_nova(cur)
+        bwipo_map = _owners_bwipo(cur, novas)
+        depara = _depara_owner(cur)
 
         wheres = []
         params = []
@@ -288,15 +414,22 @@ def api_repasse_agentes():
             wheres.append("turma ILIKE %s")
             params.append(turma)
 
-        # Viewer: limita aos RGMs mapeados ao seu agente
-        if viewer_uid and rgm_agent:
+        # Viewer: RGMs antigos dele no Kommo, mais os novos em que ele é o owner.
+        if viewer_uid:
+            meus = set()
+            for rgm in rgm_agent:
+                if rgm not in novas:
+                    meus.add(rgm)
+            meus_owners = _owner_ids_do_usuario(depara, viewer_uid)
+            for rgm, (owner_id, _nome) in bwipo_map.items():
+                if owner_id in meus_owners:
+                    meus.add(rgm)
+            if not meus:
+                cur.close(); conn.close()
+                return jsonify({"ok": True, "is_admin": is_admin, "agentes": [],
+                                "totais": {"valor": 0, "alunos": 0}, "agentes_count": 0})
             wheres.append("regexp_replace(COALESCE(rgm, ''), '[^0-9]', '', 'g') = ANY(%s)")
-            params.append(list(rgm_agent.keys()))
-        elif viewer_uid and not rgm_agent:
-            # Agente sem RGMs mapeados — retorna vazio
-            cur.close(); conn.close()
-            return jsonify({"ok": True, "is_admin": is_admin, "agentes": [],
-                            "totais": {"valor": 0, "alunos": 0}, "agentes_count": 0})
+            params.append(list(meus))
 
         w = ("WHERE " + " AND ".join(wheres)) if wheres else ""
         cur.execute(f"""
@@ -329,21 +462,27 @@ def api_repasse_agentes():
                 "totais": {"valor": 0, "alunos": 0},
             })
 
-        # ── 3. Agrega por agente (ignora RGMs sem mapeamento) ─────────────
+        # ── 3. Agrega por agente. Uma fonte por venda, conforme a data. ──
         agent_data = {}
+        meus_owners = _owner_ids_do_usuario(depara, viewer_uid) if viewer_uid else set()
 
         for rgm, valor in rgm_valor.items():
-            if rgm not in rgm_agent:
-                continue  # ignora RGMs sem agente identificado
-            uid, aname = rgm_agent[rgm]
-            key = uid or aname
+            dono = _dono_repasse(rgm, novas, rgm_agent, bwipo_map)
+            if not dono:
+                continue
+            key, aname, owner_id = dono
+            if viewer_uid and str(key) != str(viewer_uid) and owner_id not in meus_owners:
+                continue
             if key not in agent_data:
                 agent_data[key] = {
-                    "id": uid,
+                    "id": key,
                     "nome": aname,
+                    "owner_id": owner_id,
                     "qtd_alunos": 0,
                     "total_valor": 0.0,
                 }
+            elif owner_id and not agent_data[key].get("owner_id"):
+                agent_data[key]["owner_id"] = owner_id
             agent_data[key]["qtd_alunos"] += 1
             agent_data[key]["total_valor"] += valor
 
@@ -388,23 +527,48 @@ def api_repasse_detalhe():
     kommo_uid = request.args.get("kommo_uid")
 
     try:
-        # RGMs do agente via Kommo
-        kconn = _pg_kommo()
-        kcur = kconn.cursor()
-        if kommo_uid:
-            kcur.execute("""
-                SELECT DISTINCT regexp_replace(COALESCE(v.rgm, ''), '[^0-9]', '', 'g')
-                FROM vw_leads_rgm v
-                JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
-                WHERE l.responsible_user_id = %s
-                  AND v.rgm IS NOT NULL
-            """, (int(kommo_uid),))
-            agent_rgms = {r[0] for r in kcur.fetchall() if r[0]}
-        else:
-            agent_rgms = None  # sem agente
+        conn = _pg()
+        cur = conn.cursor()
+        novas = _rgms_venda_nova(cur)
+        bwipo_map = _owners_bwipo(cur, novas)
+        depara = _depara_owner(cur)
+        cur.close()
+        conn.close()
 
-        kcur.close()
-        kconn.close()
+        if not _is_admin():
+            meu = _get_kommo_uid()
+            owners = _owner_ids_do_usuario(depara, meu)
+            if not kommo_uid or (str(kommo_uid) != str(meu) and str(kommo_uid) not in owners):
+                return jsonify({"error": "Sem permissão"}), 403
+
+        agent_rgms = set()
+        if kommo_uid:
+            pedido = str(kommo_uid)
+            try:
+                kommo_int = int(pedido)
+            except (TypeError, ValueError):
+                kommo_int = None
+
+            # Id numérico é consultor do Kommo: só venda anterior a 01/10.
+            if kommo_int is not None:
+                kconn = _pg_kommo()
+                kcur = kconn.cursor()
+                kcur.execute("""
+                    SELECT DISTINCT regexp_replace(COALESCE(v.rgm, ''), '[^0-9]', '', 'g')
+                    FROM vw_leads_rgm v
+                    JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
+                    WHERE l.responsible_user_id = %s
+                      AND v.rgm IS NOT NULL
+                """, (kommo_int,))
+                agent_rgms = {r[0] for r in kcur.fetchall() if r[0] and r[0] not in novas}
+                kcur.close()
+                kconn.close()
+
+            for rgm, (owner_id, _nome) in bwipo_map.items():
+                if rgm in novas and str(owner_id) == pedido:
+                    agent_rgms.add(rgm)
+        else:
+            agent_rgms = None
 
         # Busca recebimentos
         conn = _pg()
@@ -450,4 +614,381 @@ def api_repasse_detalhe():
         return jsonify({"ok": True, "alunos": alunos, "total": sum(a["valor"] for a in alunos)})
     except Exception as e:
         logger.error("repasse detalhe error: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+_PLANILHA_PAGE = 50
+
+
+def _planilha_rows(cur, where, params, limit=None, offset=0):
+    lim = ""
+    qparams = list(params)
+    if limit is not None:
+        lim = " LIMIT %s OFFSET %s"
+        qparams.extend([limit, offset])
+    cur.execute(
+        f"""
+        SELECT regexp_replace(COALESCE(rgm, ''), '[^0-9]', '', 'g') AS rgm,
+               valor_pago,
+               COALESCE(turma, '') AS turma,
+               COALESCE(tipo_pagamento, '') AS beleza,
+               COALESCE(ciclo, '') AS ciclo
+        FROM {_REPASSE_FONT}
+        {where}
+        ORDER BY rgm, valor_pago DESC
+        {lim}
+        """,
+        qparams,
+    )
+    return cur.fetchall()
+
+
+@repasse_bp.route("/api/repasse/planilha")
+def api_repasse_planilha():
+    """Tabela crua de recebimentos, só admin. Mesmas colunas da planilha."""
+    if not _require_login() or not _is_admin():
+        return jsonify({"error": "Sem permissão"}), 403
+    try:
+        page = int(request.args.get("page") or 1)
+    except (TypeError, ValueError):
+        page = 1
+    page = max(1, page)
+    where, params = _repasse_filtros_sql()
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        cur.execute(
+            f"SELECT COUNT(*), COALESCE(SUM(valor_pago), 0) FROM {_REPASSE_FONT} {where}",
+            params,
+        )
+        total, valor = cur.fetchone()
+        total = int(total or 0)
+        pages = max(1, (total + _PLANILHA_PAGE - 1) // _PLANILHA_PAGE)
+        if page > pages:
+            page = pages
+        offset = (page - 1) * _PLANILHA_PAGE
+        rows = _planilha_rows(cur, where, params, _PLANILHA_PAGE, offset)
+        cur.close()
+        conn.close()
+        return jsonify({
+            "ok": True,
+            "page": page,
+            "pages": pages,
+            "total": total,
+            "valor": round(float(valor or 0), 2),
+            "rows": [
+                {
+                    "rgm": rgm or "",
+                    "valor": round(float(v or 0), 2),
+                    "turma": turma or "",
+                    "beleza": beleza or "",
+                    "ciclo": ciclo or "",
+                }
+                for rgm, v, turma, beleza, ciclo in rows
+            ],
+        })
+    except Exception as e:
+        logger.error("repasse planilha error: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@repasse_bp.route("/api/repasse/planilha.csv")
+def api_repasse_planilha_csv():
+    """CSV no formato da planilha: RGM;Valor Pago;Turma;Beleza;ciclo."""
+    if not _require_login() or not _is_admin():
+        return jsonify({"error": "Sem permissão"}), 403
+    where, params = _repasse_filtros_sql()
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        rows = _planilha_rows(cur, where, params)
+        cur.close()
+        conn.close()
+        linhas = ["RGM;Valor Pago;Turma;Beleza;ciclo"]
+        for rgm, valor, turma, beleza, ciclo in rows:
+            linhas.append(";".join([
+                rgm or "",
+                _fmt_valor_planilha(valor),
+                (turma or "").replace(";", " "),
+                (beleza or "").replace(";", " "),
+                (ciclo or "").replace(";", " "),
+            ]))
+        corpo = "\ufeff" + "\n".join(linhas)
+        return Response(
+            corpo,
+            mimetype="text/csv; charset=utf-8",
+            headers={"Content-Disposition": "attachment; filename=repasse_recebimentos.csv"},
+        )
+    except Exception as e:
+        logger.error("repasse planilha csv error: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+_MESES_PT = (
+    "", "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+    "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+)
+
+
+def _ciclo_mais_recente(cur):
+    """Ciclo mais novo que ainda está na base. A base lê todos os snapshots, não só o arquivo do dia."""
+    cur.execute(
+        """
+        SELECT ciclo
+        FROM bwipo_painel_base
+        WHERE ciclo IS NOT NULL AND ciclo <> ''
+        GROUP BY ciclo
+        ORDER BY ciclo DESC
+        LIMIT 1
+        """
+    )
+    row = cur.fetchone()
+    return row[0] if row else ""
+
+
+def _ingressantes_filtros(ciclo_padrao=""):
+    """Recorte da lista de ingressantes. Ciclo sempre entra: sem escolha, vale o mais recente."""
+    tipo = (request.args.get("tipo_mat") or "NOVA MATRICULA").strip()
+    pago = (request.args.get("pago") or "").strip().lower()
+    mes = (request.args.get("mes") or "").strip()
+    dia = (request.args.get("dia") or "").strip()
+    ciclo = (request.args.get("ciclo_mat") or "").strip() or ciclo_padrao
+    nivel = (request.args.get("nivel") or "").strip()
+    q = re.sub(r"\D", "", request.args.get("q") or "")
+    wheres = ["b.rgm IS NOT NULL", "b.rgm <> ''"]
+    params = []
+    if tipo and tipo.lower() != "todos":
+        wheres.append("b.tipo_matricula = %s")
+        params.append(tipo)
+    if ciclo:
+        wheres.append("b.ciclo = %s")
+        params.append(ciclo)
+    if mes:
+        wheres.append("to_char(b.data_matricula, 'YYYY-MM') = %s")
+        params.append(mes)
+    if dia:
+        wheres.append("b.data_matricula = %s")
+        params.append(dia)
+    if nivel:
+        wheres.append("b.nivel = %s")
+        params.append(nivel)
+    if q:
+        wheres.append("b.rgm LIKE %s")
+        params.append(f"%{q}%")
+    if pago == "sim":
+        wheres.append("p.rgm IS NOT NULL")
+    elif pago == "nao":
+        wheres.append("p.rgm IS NULL")
+    return " AND ".join(wheres), params, tipo, ciclo
+
+
+def _ingressantes_from():
+    return f"""
+        FROM bwipo_painel_base b
+        LEFT JOIN (
+            SELECT regexp_replace(COALESCE(rgm, ''), '[^0-9]', '', 'g') AS rgm,
+                   SUM(valor_pago) AS valor,
+                   STRING_AGG(DISTINCT NULLIF(tipo_pagamento, ''), ', ') AS tipos
+            FROM {_REPASSE_FONT}
+            GROUP BY 1
+        ) p ON p.rgm = b.rgm
+        LEFT JOIN (
+            SELECT DISTINCT ON (rgm) rgm, modalidade, turma
+            FROM comercial_rgm
+            WHERE rgm IS NOT NULL AND rgm <> ''
+            ORDER BY rgm, id DESC
+        ) c ON c.rgm = b.rgm
+        LEFT JOIN LATERAL (
+            SELECT tc.nome
+            FROM turmas_comercial tc
+            WHERE b.data_matricula BETWEEN tc.dt_inicio AND tc.dt_fim
+            ORDER BY CASE WHEN tc.nivel = COALESCE(b.nivel, '') THEN 0 ELSE 1 END,
+                     tc.dt_inicio DESC
+            LIMIT 1
+        ) t ON TRUE
+    """
+
+
+def _ingressantes_select():
+    return """
+        SELECT b.rgm,
+               COALESCE(b.polo, '') AS polo,
+               COALESCE(b.nivel, '') AS nivel,
+               COALESCE(c.modalidade, '') AS modalidade,
+               b.data_matricula,
+               COALESCE(b.ciclo, '') AS ciclo,
+               COALESCE(t.nome, NULLIF(c.turma, ''), '') AS turma,
+               COALESCE(p.valor, 0) AS valor,
+               COALESCE(p.tipos, '') AS tipo_pagamento,
+               (p.rgm IS NOT NULL) AS pagou
+    """
+
+
+def _matriculados_linha(row):
+    rgm, polo, nivel, modalidade, data_mat, ciclo, turma, valor, tipo, pagou = row
+    return {
+        "rgm": rgm or "",
+        "polo": normalize_polo_display(polo or "") or (polo or ""),
+        "nivel": nivel or "",
+        "modalidade": modalidade or "",
+        "data_matricula": _fmt_data_planilha(data_mat),
+        "ciclo": ciclo or "",
+        "turma": turma or "",
+        "valor": round(float(valor or 0), 2),
+        "tipo_pagamento": tipo or "",
+        "pagou": bool(pagou),
+    }
+
+
+def _ingressantes_opcoes(cur, tipo, ciclo):
+    where = "WHERE rgm IS NOT NULL AND rgm <> ''"
+    params = []
+    if tipo and tipo.lower() != "todos":
+        where += " AND tipo_matricula = %s"
+        params.append(tipo)
+    mes_where = where
+    mes_params = list(params)
+    if ciclo:
+        mes_where += " AND ciclo = %s"
+        mes_params.append(ciclo)
+    cur.execute(
+        f"""
+        SELECT DISTINCT ciclo
+        FROM bwipo_painel_base
+        {where} AND ciclo IS NOT NULL AND ciclo <> ''
+        ORDER BY ciclo DESC
+        """,
+        params,
+    )
+    ciclos = [r[0] for r in cur.fetchall()]
+    cur.execute(
+        f"""
+        SELECT DISTINCT nivel
+        FROM bwipo_painel_base
+        {where} AND nivel IS NOT NULL AND nivel <> ''
+        ORDER BY nivel
+        """,
+        params,
+    )
+    niveis = [r[0] for r in cur.fetchall()]
+    cur.execute(
+        f"""
+        SELECT DISTINCT to_char(data_matricula, 'YYYY-MM')
+        FROM bwipo_painel_base
+        {mes_where} AND data_matricula IS NOT NULL
+        ORDER BY 1 DESC
+        """,
+        mes_params,
+    )
+    meses = []
+    for (chave,) in cur.fetchall():
+        if not chave or len(chave) < 7:
+            continue
+        ano, mes = chave[:4], int(chave[5:7])
+        nome = _MESES_PT[mes] if 1 <= mes <= 12 else chave
+        meses.append({"id": chave, "label": f"{nome}/{ano}"})
+    return {"ciclos": ciclos, "niveis": niveis, "meses": meses, "ciclo": ciclo}
+
+
+@repasse_bp.route("/api/repasse/matriculados")
+def api_repasse_matriculados():
+    """Ingressantes da base diária, pagos e não pagos."""
+    if not _require_login() or not _is_admin():
+        return jsonify({"error": "Sem permissão"}), 403
+    try:
+        page = int(request.args.get("page") or 1)
+    except (TypeError, ValueError):
+        page = 1
+    page = max(1, page)
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        where, params, tipo, ciclo = _ingressantes_filtros(_ciclo_mais_recente(cur))
+        cur.execute(
+            f"""
+            SELECT COUNT(*),
+                   COUNT(*) FILTER (WHERE p.rgm IS NOT NULL),
+                   COALESCE(SUM(p.valor), 0)
+            {_ingressantes_from()}
+            WHERE {where}
+            """,
+            params,
+        )
+        total, pagos, valor = cur.fetchone()
+        total = int(total or 0)
+        pages = max(1, (total + _PLANILHA_PAGE - 1) // _PLANILHA_PAGE)
+        if page > pages:
+            page = pages
+        offset = (page - 1) * _PLANILHA_PAGE
+        cur.execute(
+            f"""
+            {_ingressantes_select()}
+            {_ingressantes_from()}
+            WHERE {where}
+            ORDER BY b.data_matricula DESC NULLS LAST, b.rgm
+            LIMIT %s OFFSET %s
+            """,
+            list(params) + [_PLANILHA_PAGE, offset],
+        )
+        rows = cur.fetchall()
+        opcoes = _ingressantes_opcoes(cur, tipo, ciclo)
+        cur.close()
+        conn.close()
+        return jsonify({
+            "ok": True,
+            "page": page,
+            "pages": pages,
+            "total": total,
+            "pagos": int(pagos or 0),
+            "valor": round(float(valor or 0), 2),
+            "filtros": opcoes,
+            "rows": [_matriculados_linha(r) for r in rows],
+        })
+    except Exception as e:
+        logger.error("repasse matriculados error: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@repasse_bp.route("/api/repasse/matriculados.csv")
+def api_repasse_matriculados_csv():
+    if not _require_login() or not _is_admin():
+        return jsonify({"error": "Sem permissão"}), 403
+    try:
+        conn = _pg()
+        cur = conn.cursor()
+        where, params, _tipo, _ciclo = _ingressantes_filtros(_ciclo_mais_recente(cur))
+        cur.execute(
+            f"""
+            {_ingressantes_select()}
+            {_ingressantes_from()}
+            WHERE {where}
+            ORDER BY b.data_matricula DESC NULLS LAST, b.rgm
+            """,
+            params,
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        linhas = ["RGM;Polo;Nível;Modalidade;Data de Matrícula;Ciclo;Turma;Pagou;Valor Pago;Tipo de Pagamento"]
+        for item in (_matriculados_linha(r) for r in rows):
+            linhas.append(";".join([
+                item["rgm"],
+                item["polo"].replace(";", " "),
+                item["nivel"].replace(";", " "),
+                item["modalidade"].replace(";", " "),
+                item["data_matricula"],
+                item["ciclo"].replace(";", " "),
+                item["turma"].replace(";", " "),
+                "Sim" if item["pagou"] else "Não",
+                _fmt_valor_planilha(item["valor"]) if item["pagou"] else "",
+                item["tipo_pagamento"].replace(";", " "),
+            ]))
+        corpo = "\ufeff" + "\n".join(linhas)
+        return Response(
+            corpo,
+            mimetype="text/csv; charset=utf-8",
+            headers={"Content-Disposition": "attachment; filename=repasse_ingressantes.csv"},
+        )
+    except Exception as e:
+        logger.error("repasse matriculados csv error: %s", e)
         return jsonify({"ok": False, "error": str(e)}), 500
