@@ -282,7 +282,7 @@ from routes.siaa import siaa_bp
 from routes.match_inadimplentes import match_inadimplentes_bp
 from routes.materias_alunos import materias_alunos_bp
 from routes.academico_interacoes import academico_interacoes_bp
-from routes.blog_posts import blog_posts_bp
+from routes.blog_posts import blog_posts_bp, register_blog_schedule_job
 from routes.inscricao import inscricao_bp
 from routes.tracker_tarefas import tracker_tarefas_bp
 from routes.dist_comercial_schedule import (
@@ -406,6 +406,13 @@ except Exception as _e:
     import logging as _logging
     _logging.getLogger(__name__).warning("academico_atendimento_claim: %s", _e)
 
+try:
+    from routes.blog_posts import _ensure_blog_agendados_table
+    _ensure_blog_agendados_table()
+except Exception as _e:
+    import logging as _logging
+    _logging.getLogger(__name__).warning("blog_posts_agendados: %s", _e)
+
 # ── APScheduler ───────────────────────────────────────────────────────────
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -420,6 +427,7 @@ register_aceite_reconcile(scheduler)
 register_responsible_history_job(scheduler)
 register_funnel_cache_job(scheduler)
 register_dist_comercial_schedule_job(scheduler)
+register_blog_schedule_job(scheduler)
 from routes.conversao_backfill import register_conversao_backfill_job
 register_conversao_backfill_job(scheduler)
 warm_academic_sumidos_cache()
