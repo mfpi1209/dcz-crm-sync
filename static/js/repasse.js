@@ -4,6 +4,12 @@
 
 let _repAgentesData       = [];
 let _repDetalheData       = [];
+let _repPlanilhaPage      = 1;
+let _repPlanilhaPages     = 1;
+let _repPlanilhaTimer     = null;
+let _repMatPage           = 1;
+let _repMatPages          = 1;
+let _repMatTimer          = null;
 let _repFiltrosCarregados = false;
 let _repSelectedUid       = null;
 let _repTurmasPorCiclo    = {};
@@ -67,6 +73,11 @@ async function repInit() {
             taxaInput.classList.add('opacity-50', 'cursor-not-allowed');
             if (taxaSalvarBtn) taxaSalvarBtn.classList.add('hidden');
         }
+    }
+
+    if (!_repIsAdmin) {
+        document.getElementById('rep-planilha')?.classList.add('hidden');
+        document.getElementById('rep-mat')?.classList.add('hidden');
     }
 
     // Viewer: oculta buscar agente e mostra banner com seu nome
@@ -160,6 +171,11 @@ async function repLoad() {
         if (tipo)  qs += `tipo=${encodeURIComponent(tipo)}&`;
         if (turma) qs += `turma=${encodeURIComponent(turma)}&`;
 
+        if (_repIsAdmin) {
+            repCarregarPlanilha(1);
+            repCarregarMatriculados(1);
+        }
+
         const res = await api(`/api/repasse/agentes?${qs}`);
         let d;
         try {
@@ -252,6 +268,18 @@ function repReset() {
     else if (st) st.value = '';
     document.getElementById('rep-turma').value  = '';
     document.getElementById('rep-search').value = '';
+    const buscaPlan = document.getElementById('rep-planilha-busca');
+    if (buscaPlan) buscaPlan.value = '';
+    document.getElementById('rep-planilha')?.classList.add('hidden');
+    const buscaMat = document.getElementById('rep-mat-busca');
+    if (buscaMat) buscaMat.value = '';
+    ['rep-mat-pago', 'rep-mat-mes', 'rep-mat-dia', 'rep-mat-nivel'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    const tipoMat = document.getElementById('rep-mat-tipo');
+    if (tipoMat) tipoMat.value = 'NOVA MATRICULA';
+    document.getElementById('rep-mat')?.classList.add('hidden');
     repAtualizarTurmas();
     _repAgentesData  = [];
     _repSelectedUid  = null;
@@ -486,6 +514,209 @@ function _repSetState(state, errMsg) {
         errEl.classList.add('hidden');
         errEl.textContent = '';
     }
+}
+
+function _repFiltroQs(buscaId) {
+    const ciclo = document.getElementById('rep-ciclo')?.value || '';
+    const tipo  = document.getElementById('rep-tipo')?.value  || '';
+    const turma = document.getElementById('rep-turma')?.value || '';
+    const q     = document.getElementById(buscaId || 'rep-planilha-busca')?.value || '';
+    const parts = [];
+    if (ciclo) parts.push(`ciclo=${encodeURIComponent(ciclo)}`);
+    if (tipo)  parts.push(`tipo=${encodeURIComponent(tipo)}`);
+    if (turma) parts.push(`turma=${encodeURIComponent(turma)}`);
+    if (q.trim()) parts.push(`q=${encodeURIComponent(q.trim())}`);
+    return parts.join('&');
+}
+
+function repPlanilhaBusca() {
+    clearTimeout(_repPlanilhaTimer);
+    _repPlanilhaTimer = setTimeout(() => repCarregarPlanilha(1), 300);
+}
+
+function repPlanilhaPag(dir) {
+    const next = _repPlanilhaPage + dir;
+    if (next < 1 || next > _repPlanilhaPages) return;
+    repCarregarPlanilha(next);
+}
+
+async function repCarregarPlanilha(page) {
+    if (!_repIsAdmin) return;
+    const panel = document.getElementById('rep-planilha');
+    const loadEl = document.getElementById('rep-planilha-loading');
+    const tbody = document.getElementById('rep-planilha-tbody');
+    if (!panel || !tbody) return;
+    panel.classList.remove('hidden');
+    if (loadEl) loadEl.classList.remove('hidden');
+    tbody.innerHTML = '';
+    try {
+        const qs = _repFiltroQs();
+        const res = await api(`/api/repasse/planilha?page=${page || 1}${qs ? '&' + qs : ''}`);
+        const d = await res.json();
+        if (!res.ok || !d.ok) throw new Error(d.error || 'Erro');
+        _repPlanilhaPage = d.page || 1;
+        _repPlanilhaPages = d.pages || 1;
+        const rows = d.rows || [];
+        const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+        }[c]));
+        tbody.innerHTML = rows.length
+            ? rows.map((r) => `<tr class="border-b border-slate-200 dark:border-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800/20">
+                <td class="py-1.5 px-4 font-mono text-slate-700 dark:text-slate-300">${esc(r.rgm) || '—'}</td>
+                <td class="py-1.5 px-4 text-right font-mono text-emerald-700 dark:text-emerald-400">${_repFmtMoeda(r.valor)}</td>
+                <td class="py-1.5 px-4 text-slate-600 dark:text-slate-400">${esc(r.turma) || '—'}</td>
+                <td class="py-1.5 px-4 text-slate-600 dark:text-slate-400">${esc(r.beleza) || '—'}</td>
+                <td class="py-1.5 px-4 text-slate-600 dark:text-slate-400">${esc(r.ciclo) || '—'}</td>
+            </tr>`).join('')
+            : '<tr><td colspan="5" class="py-6 text-center text-slate-500">Nenhum recebimento nesse filtro.</td></tr>';
+        const resumo = document.getElementById('rep-planilha-resumo');
+        if (resumo) {
+            resumo.textContent = `${(d.total || 0).toLocaleString('pt-BR')} linhas · ${_repFmtMoeda(d.valor)} pagos`;
+        }
+        const pag = document.getElementById('rep-planilha-pagina');
+        if (pag) pag.textContent = `Página ${_repPlanilhaPage} de ${_repPlanilhaPages}`;
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-red-400">${e.message || 'Erro'}</td></tr>`;
+    } finally {
+        if (loadEl) loadEl.classList.add('hidden');
+    }
+}
+
+async function repExportarPlanilha() {
+    if (!_repIsAdmin) return;
+    const qs = _repFiltroQs();
+    const res = await api(`/api/repasse/planilha.csv${qs ? '?' + qs : ''}`);
+    if (!res.ok) {
+        alert('Não foi possível exportar.');
+        return;
+    }
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `repasse_recebimentos_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+}
+
+function _repMatQs() {
+    const parts = [];
+    const add = (key, id) => {
+        const v = document.getElementById(id)?.value || '';
+        if (v) parts.push(`${key}=${encodeURIComponent(v)}`);
+    };
+    add('q', 'rep-mat-busca');
+    add('pago', 'rep-mat-pago');
+    add('mes', 'rep-mat-mes');
+    add('dia', 'rep-mat-dia');
+    add('ciclo_mat', 'rep-mat-ciclo');
+    add('nivel', 'rep-mat-nivel');
+    add('tipo_mat', 'rep-mat-tipo');
+    return parts.join('&');
+}
+
+function _repFillSelect(id, options, placeholder) {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const atual = sel.value;
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+    sel.innerHTML = `<option value="">${placeholder}</option>` + options.map((o) => {
+        const value = typeof o === 'string' ? o : o.id;
+        const label = typeof o === 'string' ? o : o.label;
+        return `<option value="${esc(value)}">${esc(label)}</option>`;
+    }).join('');
+    if ([...sel.options].some((o) => o.value === atual)) sel.value = atual;
+}
+
+function _repFillCiclo(ciclos, escolhido) {
+    const sel = document.getElementById('rep-mat-ciclo');
+    if (!sel) return;
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+    const atual = sel.value || escolhido || '';
+    sel.innerHTML = (ciclos || []).map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    if ([...sel.options].some((o) => o.value === atual)) sel.value = atual;
+    else if (sel.options.length) sel.selectedIndex = 0;
+}
+
+function repMatBusca() {
+    clearTimeout(_repMatTimer);
+    _repMatTimer = setTimeout(() => repCarregarMatriculados(1), 300);
+}
+
+function repMatPag(dir) {
+    const next = _repMatPage + dir;
+    if (next < 1 || next > _repMatPages) return;
+    repCarregarMatriculados(next);
+}
+
+async function repCarregarMatriculados(page) {
+    if (!_repIsAdmin) return;
+    const panel = document.getElementById('rep-mat');
+    const loadEl = document.getElementById('rep-mat-loading');
+    const tbody = document.getElementById('rep-mat-tbody');
+    if (!panel || !tbody) return;
+    panel.classList.remove('hidden');
+    if (loadEl) loadEl.classList.remove('hidden');
+    tbody.innerHTML = '';
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+    try {
+        const qs = _repMatQs();
+        const res = await api(`/api/repasse/matriculados?page=${page || 1}${qs ? '&' + qs : ''}`);
+        const d = await res.json();
+        if (!res.ok || !d.ok) throw new Error(d.error || 'Erro');
+        _repMatPage = d.page || 1;
+        _repMatPages = d.pages || 1;
+        const f = d.filtros || {};
+        _repFillCiclo(f.ciclos || [], f.ciclo);
+        _repFillSelect('rep-mat-mes', f.meses || [], 'Todos');
+        _repFillSelect('rep-mat-nivel', f.niveis || [], 'Todos');
+        const rows = d.rows || [];
+        tbody.innerHTML = rows.length
+            ? rows.map((r) => `<tr class="border-b border-slate-200 dark:border-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800/20">
+                <td class="py-1.5 px-4 font-mono text-slate-700 dark:text-slate-300">${esc(r.rgm) || '—'}</td>
+                <td class="py-1.5 px-4 text-slate-600 dark:text-slate-400">${esc(r.polo) || '—'}</td>
+                <td class="py-1.5 px-4 text-slate-600 dark:text-slate-400">${esc(r.nivel) || '—'}</td>
+                <td class="py-1.5 px-4 text-slate-600 dark:text-slate-400">${esc(r.modalidade) || '—'}</td>
+                <td class="py-1.5 px-4 text-slate-600 dark:text-slate-400">${esc(r.data_matricula) || '—'}</td>
+                <td class="py-1.5 px-4 text-slate-600 dark:text-slate-400">${esc(r.ciclo) || '—'}</td>
+                <td class="py-1.5 px-4 text-slate-600 dark:text-slate-400">${esc(r.turma) || '—'}</td>
+                <td class="py-1.5 px-4 ${r.pagou ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-400'}">${r.pagou ? 'Sim' : 'Não'}</td>
+                <td class="py-1.5 px-4 text-right font-mono text-emerald-700 dark:text-emerald-400">${r.pagou ? _repFmtMoeda(r.valor) : '—'}</td>
+                <td class="py-1.5 px-4 text-slate-600 dark:text-slate-400">${esc(r.tipo_pagamento) || '—'}</td>
+            </tr>`).join('')
+            : '<tr><td colspan="10" class="py-6 text-center text-slate-500">Nenhum ingressante nesse filtro.</td></tr>';
+        const resumo = document.getElementById('rep-mat-resumo');
+        if (resumo) {
+            resumo.textContent = `${(d.total || 0).toLocaleString('pt-BR')} ingressantes · ${(d.pagos || 0).toLocaleString('pt-BR')} pagaram · ${_repFmtMoeda(d.valor)}`;
+        }
+        const pag = document.getElementById('rep-mat-pagina');
+        if (pag) pag.textContent = `Página ${_repMatPage} de ${_repMatPages}`;
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="10" class="py-4 text-center text-red-400">${e.message || 'Erro'}</td></tr>`;
+    } finally {
+        if (loadEl) loadEl.classList.add('hidden');
+    }
+}
+
+async function repExportarMatriculados() {
+    if (!_repIsAdmin) return;
+    const qs = _repMatQs();
+    const res = await api(`/api/repasse/matriculados.csv${qs ? '?' + qs : ''}`);
+    if (!res.ok) {
+        alert('Não foi possível exportar.');
+        return;
+    }
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `repasse_ingressantes_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
 }
 
 function _repFmtMoeda(v) {

@@ -4,6 +4,20 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-10-06 — Repasse: Kommo até 30/09, owner_id do Bwipo de 01/10 em diante
+- **Modelo usado:** Cursor Grok 4.7.
+- **Pedido:** venda anterior a 01/10/2026 continua no responsável do Kommo. Daqui em diante o valor do repasse vai para o `owner_id` do negócio no CRM novo. Sem cruzar os dois CRMs na mesma venda.
+- **Corte:** `data_matricula` na `bwipo_painel_base`. Antes de 01/10/2026, ou RGM que não está nessa tabela, o dono é o responsável do lead no Kommo (id mais alto, como já era). De 01/10/2026 em diante o dono é o `owner_id` do negócio no Pipeline Principal (`bwipo_deals`). Sem `owner_id`, a venda nova não cai no Kommo.
+- **Card:** venda antiga agrupa pelo `kommo_user_id`. Venda nova agrupa pelo `owner_id`, com o nome do dono no Bwipo. O depara só serve para o consultor logado enxergar o card novo que é dele.
+- **Não muda:** taxa (padrão 20%), fontes `comercial_pagamentos` + `comercial_recebimentos`, filtro de mensalidade, ciclo e turma.
+
+### 2026-10-06 — Migração comercial Kommo → Bwipo: estado vigente
+- **Modelo usado:** Cursor Grok 4.7.
+- **Pedido:** fechar o que já passou para o Bwipo e o que continua no Kommo, para a próxima sessão não refazer a troca.
+- **Acessos (só o nome da variável; valor fica no `.env` e no EasyPanel):** painel `https://banco-dcz-crm-sync.6tqx2r.easypanel.host/` (deploy pelo push na `master`). Banco `dcz_sync` = `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`. Espelho Kommo = banco `kommo_sync`, mesmo host, `KOMMO_PG_*` (se vazio, usa `DB_*`). API Kommo `https://admamoeduitcombr.kommo.com` = `KOMMO_TOKEN`. CRM comercial Bwipo: site `https://comercialcruzeiro.bwipo.com`, API `https://integrations.bwipo.com`, token `BWIPO_COMERCIAL_API_TOKEN` (org Comercial Cruzeiro). CRM acadêmico (`cruzeiro-ead.bwipo.com` / `crm.eduit.com.br`, `EDUIT_CRM_TOKEN`) não entra neste funil. Matriculados do Disparador = banco `disparos` (`DISPAROS_DB_NAME`). Disparador WhatsApp = `WHATSAPP_TOOL_BASE_URL` e `WHATSAPP_TOOL_API_KEY`. `GET /api/users` do Bwipo responde 401; o dono vem do card.
+- **Já no Bwipo** (detalhe nas entradas de 18/09 a 05/10): menu só o Dashboard Comercial Bwipo; venda = matrícula SIAA (sumido vira transferido); dono = manual > Bwipo se tombado e a matrícula é da data dele em diante > Kommo > Bwipo > Admin Sistema (`8261837`). Tombado: só o Hugo, desde 29/09. Diego sem id no Bwipo fica sem responsável. Leitura em `bwipo_painel_base`, resposta 5 min. Conversão = matrícula do período / leads criados no Pipeline Principal no período. Cards de 6 meses e 1 ano = a mesma janela, deslocada. **No topo da página ficou só o YTD.** Funil da home e aceite da Minha Performance = Pipeline Principal. Matrículas da Minha Performance = as do painel. Nome do aluno = Nome Completo; ciclo = ciclo vigente. Conflito = 2+ negócios Bwipo no Pipeline Principal, mesmo RGM, data dentro do filtro (Kommo fora). **Lista do consultor no formato antigo, com busca de RGM. Solicitações de ajuste continuam no canto, com o número de pendentes.** Lead novo herda o responsável do lead dessa pessoa no Kommo; sem esse lead, Admin Sistema.
+- **Não mudou:** Sync do Kommo (histórico e espelho). Repasse. Regra de quem leva a venda, meta, funil de etapas e ticket. CRM acadêmico, Disparador e Match & Merge ficaram fora desta troca. A página e as APIs do painel antigo continuam no código.
+
 ### 2026-10-05 — Vendas em conflito: só o Bwipo, 2 negócios com o mesmo RGM
 - **Modelo usado:** Cursor Grok 4.7.
 - **Pedido:** o card cruzava consultor em Ganho entre Kommo e Bwipo e ficava em 0. O Kommo não entra mais.
