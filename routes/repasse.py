@@ -29,8 +29,10 @@ KOMMO_DB_DSN = dict(
     dbname=os.getenv("KOMMO_PG_DB", "kommo_sync"),
 )
 
-# Upload em Premiação grava em comercial_recebimentos; histórico/ETF costuma estar em
-# comercial_pagamentos. O Repasse usa a união das duas fontes.
+# Upload em Premiação grava em comercial_recebimentos. comercial_pagamentos é a
+# cópia de 20/03/2026 desse histórico: o mesmo RGM e o mesmo valor já estão no
+# recebimento. O card do consultor ainda lê as duas. A planilha exportada não,
+# senão as 15 mil linhas antigas saem de novo.
 _REPASSE_FONT = """
 (
     SELECT rgm,
@@ -40,6 +42,17 @@ _REPASSE_FONT = """
            ciclo
     FROM comercial_pagamentos
     UNION ALL
+    SELECT rgm,
+           valor::double precision AS valor_pago,
+           turma,
+           tipo_pagamento,
+           ciclo
+    FROM comercial_recebimentos
+) AS repasse_fonte
+"""
+
+_PLANILHA_FONT = """
+(
     SELECT rgm,
            valor::double precision AS valor_pago,
            turma,
@@ -633,7 +646,7 @@ def _planilha_rows(cur, where, params, limit=None, offset=0):
                COALESCE(turma, '') AS turma,
                COALESCE(tipo_pagamento, '') AS beleza,
                COALESCE(ciclo, '') AS ciclo
-        FROM {_REPASSE_FONT}
+        FROM {_PLANILHA_FONT}
         {where}
         ORDER BY rgm, valor_pago DESC
         {lim}
@@ -658,7 +671,7 @@ def api_repasse_planilha():
         conn = _pg()
         cur = conn.cursor()
         cur.execute(
-            f"SELECT COUNT(*), COALESCE(SUM(valor_pago), 0) FROM {_REPASSE_FONT} {where}",
+            f"SELECT COUNT(*), COALESCE(SUM(valor_pago), 0) FROM {_PLANILHA_FONT} {where}",
             params,
         )
         total, valor = cur.fetchone()

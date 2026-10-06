@@ -9,7 +9,8 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 - **Pedido:** venda anterior a 01/10/2026 continua no responsável do Kommo. Daqui em diante o valor do repasse vai para o `owner_id` do negócio no CRM novo. Sem cruzar os dois CRMs na mesma venda.
 - **Corte:** `data_matricula` na `bwipo_painel_base`. Antes de 01/10/2026, ou RGM que não está nessa tabela, o dono é o responsável do lead no Kommo (id mais alto, como já era). De 01/10/2026 em diante o dono é o `owner_id` do negócio no Pipeline Principal (`bwipo_deals`). Sem `owner_id`, a venda nova não cai no Kommo.
 - **Card:** venda antiga agrupa pelo `kommo_user_id`. Venda nova agrupa pelo `owner_id`, com o nome do dono no Bwipo. O depara só serve para o consultor logado enxergar o card novo que é dele.
-- **Não muda:** taxa (padrão 20%), fontes `comercial_pagamentos` + `comercial_recebimentos`, filtro de mensalidade, ciclo e turma.
+- **Planilha e CSV do admin:** só `comercial_recebimentos` (as 22.921). `comercial_pagamentos` é a cópia de 20/03 já contida nessa base; juntar as duas gerava as 37 mil.
+- **Não muda:** taxa (padrão 20%), card do consultor ainda lê `comercial_pagamentos` + `comercial_recebimentos`, filtro de mensalidade, ciclo e turma.
 
 ### 2026-10-06 — Migração comercial Kommo → Bwipo: estado vigente
 - **Modelo usado:** Cursor Grok 4.7.

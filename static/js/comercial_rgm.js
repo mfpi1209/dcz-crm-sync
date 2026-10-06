@@ -2634,21 +2634,43 @@ async function crgmSyncUsers() {
     finally { btn.disabled=false; btn.classList.remove('opacity-50'); }
 }
 
+function _crgmAvisarUpload(msg, ok) {
+    _crgmErro(msg);
+    const antigo = document.getElementById('crgm-erro');
+    if (antigo && msg) antigo.style.color = ok ? '#34d399' : '#f87171';
+    const el = document.getElementById('bwc-upload-msg');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.classList.toggle('hidden', !msg);
+    el.style.color = ok ? '#34d399' : '#f87171';
+}
+
 async function crgmUpload(input) {
     const file = input.files[0]; if (!file) return; input.value='';
-    _crgmLoading(true); _crgmErro('');
+    _crgmLoading(true);
+    _crgmAvisarUpload('Enviando ' + file.name + '…', true);
     const fd = new FormData(); fd.append('file', file);
     try {
         const res = await api('/api/comercial-rgm/upload',{method:'POST',body:fd});
         const d = await res.json();
-        if (d.error) { _crgmErro(d.error); return; }
+        if (!res.ok || d.error) { _crgmAvisarUpload(d.error || 'Não foi possível enviar o arquivo.', false); return; }
         if (d.comercial_added !== undefined) {
-            _crgmErro(`Upload OK: ${d.snapshot_rows} matriculados processados, ${d.comercial_added} novos registros comerciais adicionados.`);
-            const el = document.getElementById('crgm-erro');
-            el.classList.remove('hidden'); el.style.color = '#34d399';
+            _crgmAvisarUpload(`Arquivo enviado: ${d.snapshot_rows} matriculados processados, ${d.comercial_added} novos registros comerciais.`, true);
+        } else if (d.rows !== undefined) {
+            _crgmAvisarUpload(`Arquivo enviado: ${Number(d.rows).toLocaleString('pt-BR')} linhas importadas.`, true);
+        } else {
+            _crgmAvisarUpload('Arquivo enviado.', true);
         }
-        await _crgmLoadFilters(); await _crgmLoadSnapshotInfo(); await crgmAtualizar();
-    } catch (e) { _crgmErro('Erro: '+e.message); }
+        await _crgmLoadFilters();
+        await _crgmLoadSnapshotInfo();
+        const naBwipo = document.getElementById('page-bwipo_comercial') && !document.getElementById('page-bwipo_comercial').classList.contains('hidden');
+        if (naBwipo && typeof bwcSnapshot === 'function') {
+            await bwcSnapshot();
+            if (typeof bwcAtualizar === 'function') await bwcAtualizar();
+        } else {
+            await crgmAtualizar();
+        }
+    } catch (e) { _crgmAvisarUpload('Erro: ' + e.message, false); }
     finally { _crgmLoading(false); }
 }
 
