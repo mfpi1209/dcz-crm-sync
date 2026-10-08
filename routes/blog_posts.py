@@ -94,7 +94,11 @@ def _break_long_runs(text: str) -> str:
 
 def _prepare_content(content: str) -> str:
     s = _unwrap_content(content)
-    if re.search(r"<(?:br|b|strong|i|em|u|p|div|h2|h3|ul|ol|li|blockquote|a)\b", s, re.I):
+    if re.search(
+        r"<(?:br|b|strong|i|em|u|p|div|h1|h2|h3|ul|ol|li|blockquote|a|span)\b",
+        s,
+        re.I,
+    ):
         return s
     parts = re.split(r"(<[^>]+>)", s)
     return "".join(p if p.startswith("<") else _break_long_runs(p) for p in parts)
@@ -168,11 +172,31 @@ def _plain_text(content: str) -> str:
     return re.sub(r"<[^>]+>", " ", content or "").strip()
 
 
+_EMPTY_BLOCK = (
+    r"<(?:p|div)\b[^>]*>(?:\s|&nbsp;|\u200b|<br\s*/?>)*</(?:p|div)>"
+)
+
+
+def _collapse_blank_html(html: str) -> str:
+    """Junta sequências de parágrafos vazios (colar do Word/Docs) numa quebra só."""
+    s = html or ""
+    s = re.sub(r"(?:<br\s*/?>\s*){3,}", "<br><br>", s, flags=re.I)
+    s = re.sub(
+        rf"(?:{_EMPTY_BLOCK}\s*){{2,}}",
+        "<p><br></p>",
+        s,
+        flags=re.I,
+    )
+    s = re.sub(rf"^(?:\s|{_EMPTY_BLOCK})+", "", s, flags=re.I)
+    s = re.sub(rf"(?:\s|{_EMPTY_BLOCK})+$", "", s, flags=re.I)
+    return s.strip()
+
+
 def _sanitize_content(content: str) -> str:
     s = content or ""
     s = re.sub(r"(?is)<script[^>]*>.*?</script>", "", s)
     s = re.sub(r"(?is)<style[^>]*>.*?</style>", "", s)
-    return s
+    return _collapse_blank_html(s)
 
 
 def _insert_to_supabase(row: dict) -> str:
@@ -404,13 +428,16 @@ def _validate_payload(body: dict) -> tuple[dict | None, str | None]:
         return None, "Selecione ao menos uma categoria nas tags."
     if not _DATE_RE.match(date_str):
         return None, "Data fora do formato esperado (ex.: 26 Ago 2026)."
-    if not image.startswith("https://"):
-        return None, "Imagem deve ser uma URL pública https:// (faça upload ou cole o link)."
-    if not _url_is_image(image):
-        return None, (
-            "Esse link não é o arquivo da imagem. O endereço do Google Imagens abre uma página, "
-            "não a foto. Envie o arquivo ou cole o link direto, que termina em .jpg, .png, .webp ou .gif."
-        )
+    if image:
+        if not image.startswith("https://"):
+            return None, "Imagem deve ser uma URL pública https:// (faça upload ou cole o link)."
+        if not _url_is_image(image):
+            return None, (
+                "Esse link não é o arquivo da imagem. O endereço do Google Imagens abre uma página, "
+                "não a foto. Envie o arquivo ou cole o link direto, que termina em .jpg, .png, .webp ou .gif."
+            )
+    else:
+        image = ""
     if not read_time:
         read_time = _read_time(content)
 

@@ -4,6 +4,17 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-10-08 — Subir Blog: editor cola limpo, H1/H2, desfazer, fonte, rascunho e capa opcional
+- **Modelo usado:** Cursor Grok 4.7.
+- **Pedido:** o time de conteúdo não conseguia tirar a formatação do Ctrl+V (link visual que não abre), não tinha H1/H2, a barra sumia no scroll, post novo vinha com linhas vazias, publicar exigia capa, Ctrl+Z não valia nos tópicos, faltavam fonte, rascunho, Ctrl+K e o atalho no tooltip.
+- **Colar:** o editor descarta estilo de Word/Docs. Mantém negrito, itálico, sublinhado, H1–H3, listas, citação e link com `http`, `https` ou `mailto`. Link sem endereço, ou redirect do Google, deixa de parecer link. Tamanho de fonte feito na própria barra (`data-sb-size`) sobrevive ao colar.
+- **Barra:** gruda no topo enquanto o campo de conteúdo está na tela. Tooltips trazem o atalho (Ctrl+B, Ctrl+K, Ctrl+Alt+1, Ctrl+Alt+2, Ctrl+Shift+8, Ctrl+Shift+7, Ctrl+[, Ctrl+], Ctrl+Z, Ctrl+Y).
+- **Desfazer:** pilha própria, porque tópico e citação mexem no HTML na mão e o Ctrl+Z do navegador não via essa edição. Vale o botão e o Ctrl+Z / Ctrl+Y dentro do texto, inclusive no tópico.
+- **Linhas vazias:** sequência de parágrafos vazios vira uma quebra, na hora de colar, ao abrir o post e ao salvar (também no servidor).
+- **Capa:** publicar e agendar aceitam post sem imagem (`""`). Se a URL vier preenchida, a validação https continua. A capa entra depois, editando o post.
+- **Rascunho:** fica no `localStorage` deste navegador (autosave e o botão Salvar rascunho). Não é tabela nova. Publicar ou agendar apaga o autosave e o rascunho que estava aberto.
+- **Não muda:** permissão `subir_blog`; admin e `mikami@eduit.com.br` entram sem o checkbox.
+
 ### 2026-10-06 — Repasse: Kommo até 30/09, owner_id do Bwipo de 01/10 em diante
 - **Modelo usado:** Cursor Grok 4.7.
 - **Pedido:** venda anterior a 01/10/2026 continua no responsável do Kommo. Daqui em diante o valor do repasse vai para o `owner_id` do negócio no CRM novo. Sem cruzar os dois CRMs na mesma venda.
