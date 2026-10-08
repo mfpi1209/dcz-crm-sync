@@ -4,6 +4,14 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-10-08 — Subir Blog: Tab recua o trecho selecionado
+- **Modelo usado:** Cursor Grok 4.7.
+- **Pedido:** no editor, Tab não empurrava a parte selecionada para a direita. O navegador tirava o foco do texto.
+- **Tab:** recua um passo (24px) o bloco em que está o cursor, ou cada bloco que a seleção atravessa. Numa lista, só o item da seleção. Shift+Tab volta um passo. Oito passos no máximo. O recuo vai no HTML (`margin-left` + `data-sb-indent`) e sobrevive ao salvar. Ctrl+Z desfaz.
+- **Barra:** botões de recuar à direita e à esquerda, com o atalho no tooltip.
+- **Colar:** o recuo feito nesta barra volta; margem solta de Word/Docs continua de fora.
+- **Não muda:** o resto do editor (colar limpo, H1, fonte, rascunho, capa opcional).
+
 ### 2026-10-08 — Subir Blog: editor cola limpo, H1/H2, desfazer, fonte, rascunho e capa opcional
 - **Modelo usado:** Cursor Grok 4.7.
 - **Pedido:** o time de conteúdo não conseguia tirar a formatação do Ctrl+V (link visual que não abre), não tinha H1/H2, a barra sumia no scroll, post novo vinha com linhas vazias, publicar exigia capa, Ctrl+Z não valia nos tópicos, faltavam fonte, rascunho, Ctrl+K e o atalho no tooltip.
