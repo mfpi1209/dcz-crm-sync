@@ -145,6 +145,14 @@
 }
 #page-subir_blog .sb-editor a { color: var(--primary); }
 #page-subir_blog .sb-editor p { margin: 0 0 8px; }
+#page-subir_blog .sb-editor [data-sb-indent="1"] { margin-left: 24px; }
+#page-subir_blog .sb-editor [data-sb-indent="2"] { margin-left: 48px; }
+#page-subir_blog .sb-editor [data-sb-indent="3"] { margin-left: 72px; }
+#page-subir_blog .sb-editor [data-sb-indent="4"] { margin-left: 96px; }
+#page-subir_blog .sb-editor [data-sb-indent="5"] { margin-left: 120px; }
+#page-subir_blog .sb-editor [data-sb-indent="6"] { margin-left: 144px; }
+#page-subir_blog .sb-editor [data-sb-indent="7"] { margin-left: 168px; }
+#page-subir_blog .sb-editor [data-sb-indent="8"] { margin-left: 192px; }
 
 #page-subir_blog .sb-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 640px) { #page-subir_blog .sb-row2 { grid-template-columns: 1fr; } }
@@ -276,6 +284,8 @@
                             <span class="sb-tb-sep"></span>
                             <button type="button" class="sb-tb-btn" data-cmd="insertUnorderedList" title="Tópicos (Ctrl+Shift+8)" onclick="sbFmt('insertUnorderedList')"><span class="material-symbols-outlined">format_list_bulleted</span></button>
                             <button type="button" class="sb-tb-btn" data-cmd="insertOrderedList" title="Lista numerada (Ctrl+Shift+7)" onclick="sbFmt('insertOrderedList')"><span class="material-symbols-outlined">format_list_numbered</span></button>
+                            <button type="button" class="sb-tb-btn" title="Recuar à direita (Tab)" onclick="sbIndent(1)"><span class="material-symbols-outlined">format_indent_increase</span></button>
+                            <button type="button" class="sb-tb-btn" title="Recuar à esquerda (Shift+Tab)" onclick="sbIndent(-1)"><span class="material-symbols-outlined">format_indent_decrease</span></button>
                             <button type="button" class="sb-tb-btn" data-block="blockquote" title="Citação" onclick="sbFmtBlock('blockquote')"><span class="material-symbols-outlined">format_quote</span></button>
                             <button type="button" class="sb-tb-btn" data-cmd="createLink" title="Link (Ctrl+K)" onclick="sbFmtLink()"><span class="material-symbols-outlined">link</span></button>
                             <span class="sb-tb-sep"></span>
@@ -415,7 +425,11 @@
     const _MESES = { Jan: '01', Fev: '02', Mar: '03', Abr: '04', Mai: '05', Jun: '06', Jul: '07', Ago: '08', Set: '09', Out: '10', Nov: '11', Dez: '12' };
 
     function sbContentEl() { return document.getElementById('sb-content'); }
-    function sbContentHtml() { return sbCollapseBlank(sbContentEl().innerHTML || '').trim(); }
+    function sbContentHtml() {
+        const ed = sbContentEl();
+        sbSyncIndentStyles(ed);
+        return sbCollapseBlank(ed.innerHTML || '').trim();
+    }
     function sbContentText() { return (sbContentEl().innerText || '').replace(/\u200b/g, '').trim(); }
 
     const _HIST_MAX = 200;
@@ -605,6 +619,11 @@
                 return span;
             }
             const el = document.createElement(tag.toLowerCase());
+            const indent = parseInt(node.getAttribute('data-sb-indent') || '', 10);
+            if (indent >= 1 && indent <= 8) {
+                el.setAttribute('data-sb-indent', String(indent));
+                el.style.marginLeft = (indent * 24) + 'px';
+            }
             el.appendChild(frag);
             return el;
         };
@@ -637,6 +656,7 @@
         sbPushHist(true);
         ed.focus();
         document.execCommand('insertHTML', false, clean);
+        sbSyncIndentStyles(ed);
         sbPushHist(true);
         sbUpdateReadTime();
         sbScheduleAutosave();
@@ -1134,6 +1154,100 @@
         return true;
     }
 
+    const _SB_INDENT_MAX = 8;
+
+    function sbIndentLevel(el) {
+        const n = parseInt(el.getAttribute('data-sb-indent') || '', 10);
+        if (n >= 1 && n <= _SB_INDENT_MAX) return n;
+        const px = parseInt((el.style && el.style.marginLeft) || '', 10);
+        if (px > 0) return Math.max(1, Math.min(_SB_INDENT_MAX, Math.round(px / 24)));
+        return 0;
+    }
+
+    function sbSetIndent(el, level) {
+        if (level > 0) {
+            el.setAttribute('data-sb-indent', String(level));
+            el.style.marginLeft = (level * 24) + 'px';
+        } else {
+            el.removeAttribute('data-sb-indent');
+            el.style.marginLeft = '';
+        }
+    }
+
+    function sbSyncIndentStyles(root) {
+        if (!root || !root.querySelectorAll) return;
+        root.querySelectorAll('[data-sb-indent]').forEach(el => {
+            const n = parseInt(el.getAttribute('data-sb-indent') || '', 10);
+            if (n >= 1 && n <= _SB_INDENT_MAX) el.style.marginLeft = (n * 24) + 'px';
+            else sbSetIndent(el, 0);
+        });
+    }
+
+    function sbRangeHits(range, node) {
+        try { return range.intersectsNode(node); }
+        catch (e) { return false; }
+    }
+
+    function sbIndentTargets(ed, range) {
+        const seen = new Set();
+        const out = [];
+        const push = (el) => {
+            if (!el || el === ed || seen.has(el)) return;
+            seen.add(el);
+            out.push(el);
+        };
+        const kids = [...ed.childNodes];
+        kids.forEach(child => {
+            if (child.nodeType === 3) {
+                if (!sbRangeHits(range, child) && !(range.collapsed && range.startContainer === child)) return;
+                const div = document.createElement('div');
+                child.parentNode.insertBefore(div, child);
+                div.appendChild(child);
+                push(div);
+                return;
+            }
+            if (child.nodeType !== 1) return;
+            const hit = sbRangeHits(range, child) || (range.collapsed && (child === range.startContainer || child.contains(range.startContainer)));
+            if (!hit) return;
+            if (child.tagName === 'UL' || child.tagName === 'OL') {
+                const lis = [...child.querySelectorAll('li')].filter(li => {
+                    return sbRangeHits(range, li) || (range.collapsed && (li === range.startContainer || li.contains(range.startContainer)));
+                });
+                const leaves = lis.filter(li => !lis.some(other => other !== li && li.contains(other)));
+                if (leaves.length) leaves.forEach(push);
+                else push(child);
+                return;
+            }
+            push(child);
+        });
+        return out;
+    }
+
+    let _sbTabAt = 0;
+    window.sbIndent = function (dir) {
+        const ed = sbContentEl();
+        const sel = window.getSelection();
+        if (!ed || !sel || !sel.rangeCount) return;
+        const range = sel.getRangeAt(0);
+        if (!ed.contains(range.commonAncestorContainer)) return;
+        sbPushHist(true);
+        const targets = sbIndentTargets(ed, range);
+        const step = dir < 0 ? -1 : 1;
+        let changed = false;
+        targets.forEach(el => {
+            const cur = sbIndentLevel(el);
+            const next = Math.max(0, Math.min(_SB_INDENT_MAX, cur + step));
+            if (next === cur) return;
+            sbSetIndent(el, next);
+            changed = true;
+        });
+        if (changed) {
+            sbPushHist(true);
+            sbScheduleAutosave();
+            sbSyncToolbar();
+        }
+    };
+
     function sbEditorKeydown(e) {
         const mod = e.ctrlKey || e.metaKey;
         if (mod && !e.altKey && (e.key === 'z' || e.key === 'Z')) {
@@ -1172,6 +1286,12 @@
             window.sbFontStep(e.key === ']' ? 1 : -1);
             return;
         }
+        if (e.key === 'Tab' && !mod && !e.altKey) {
+            e.preventDefault();
+            _sbTabAt = Date.now();
+            window.sbIndent(e.shiftKey ? -1 : 1);
+            return;
+        }
         if (e.key !== 'Enter' || e.shiftKey || !sbCurrentList()) return;
         e.preventDefault();
         if (Date.now() - _sbListEnterAt < 80) return;
@@ -1191,6 +1311,11 @@
         if (e.inputType === 'historyRedo') {
             e.preventDefault();
             window.sbRedo();
+            return;
+        }
+        if (e.inputType === 'insertText' && e.data === '\t') {
+            e.preventDefault();
+            if (Date.now() - _sbTabAt > 40) window.sbIndent(1);
             return;
         }
         if (e.inputType !== 'insertParagraph' || !sbCurrentList()) return;
@@ -1449,6 +1574,7 @@
         document.getElementById('sb-title').value = p.title || '';
         document.getElementById('sb-summary').value = p.summary || '';
         sbContentEl().innerHTML = sbCollapseBlank(p.content || '');
+        sbSyncIndentStyles(sbContentEl());
         document.getElementById('sb-category').value = p.category || _categorias[0];
         _postDate = dateToInput(p.date) || (p.scheduled_at || '').slice(0, 10);
         _savedSchedule = (p.scheduled_at || '').slice(0, 16);
@@ -1823,10 +1949,12 @@
     };
 
     function sbFormSnap() {
+        const ed = sbContentEl();
+        sbSyncIndentStyles(ed);
         return {
             title: document.getElementById('sb-title').value,
             summary: document.getElementById('sb-summary').value,
-            content: sbContentEl().innerHTML,
+            content: ed.innerHTML,
             category: document.getElementById('sb-category').value,
             tags: selectedTags(),
             read_time: document.getElementById('sb-readtime').value,
@@ -1902,6 +2030,7 @@
         document.getElementById('sb-title').value = s.title || '';
         document.getElementById('sb-summary').value = s.summary || '';
         sbContentEl().innerHTML = s.content || '';
+        sbSyncIndentStyles(sbContentEl());
         if (s.category && [...document.getElementById('sb-category').options].some(o => o.value === s.category)) {
             document.getElementById('sb-category').value = s.category;
         }
