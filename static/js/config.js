@@ -430,6 +430,7 @@ const PAGE_LABELS = {
     'meta-campaigns': 'Campaign Performance',
     dist_comercial: 'Distribuição Comercial',
     atualizar_preco: 'Atualizar Preço',
+    precos_bwipo: 'Preços dos cursos (Bwipo)',
     captacao: 'Captação Externa',
     clicks: 'QR Codes',
     leads_promotores: 'Leads · Promotores',
@@ -583,7 +584,7 @@ const PAGE_GROUPS_CONFIG = [
         pages: [
             'dist_consultor', 'comercial_rgm', 'bwipo_comercial', 'premiacao_admin', 'dist_comercial', 'inscricao',
             'recadastros', 'comercial_dashboard', 'auditoria_comercial',
-            'atualizar_preco', 'leads_parados', 'minha_performance', 'repasse',
+            'atualizar_preco', 'precos_bwipo', 'leads_parados', 'minha_performance', 'repasse',
             'captacao', 'clicks', 'leads_promotores',
         ],
     },

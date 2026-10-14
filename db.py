@@ -1749,6 +1749,27 @@ def _ensure_bwipo_sync_tables():
         logger.warning("Could not ensure bwipo_sync tables: %s", e)
 
 
+def _ensure_precos_bwipo_page():
+    """Quem já atualiza preço no Kommo vê a página de preços do Bwipo."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO user_permissions (user_id, page)
+                SELECT p.user_id, 'precos_bwipo'
+                FROM user_permissions p
+                WHERE p.page = 'atualizar_preco'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM user_permissions x
+                      WHERE x.user_id = p.user_id AND x.page = 'precos_bwipo'
+                  )
+            """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure precos_bwipo page grants: %s", e)
+
+
 def _ensure_bwipo_comercial_page():
     """Quem vê o Dashboard Comercial ou o Sync Bwipo vê a página de observação."""
     try:

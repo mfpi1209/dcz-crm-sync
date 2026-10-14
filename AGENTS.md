@@ -4,6 +4,17 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-10-13 — Preços dos cursos no Bwipo: snapshot + PUT do produto
+- **Modelo usado:** Cursor Grok 4.7.
+- **Pedido:** a planilha de update (CURSO, GRAU, CANAL, preço base, desconto, valor final) atualiza o produto no CRM comercial e guarda histórico para o painel comparar (mais barato, mais caro, menor preço em 6 meses).
+- **Chave:** curso + grau, depois de eliminar a repetição por polo. Graduação EAD deste arquivo = 143 produtos. Digital → `EAD`, Semipresencial → `HYBRID`.
+- **Cotas fixas:** `BALCÃO ESTRATÉGICO` gravada como **Balcão Estratégico**, e `APROVADOS` gravada como **Mar Aberto** (casa com a cota que já existe com esse nome). As duas sobem sempre. Outra bolsa entra pelo `+` de todos os cursos ou pelo `+` de um curso só. Canais de fora mantêm o desconto e recebem o preço base novo. Preço do produto = PREÇO SIAA. Desconto = percentual do 1º semestre.
+- **Não mexe:** grade curricular, imagem, descrição, vínculo Meta. Produto que não existe é criado sem imagem e sem grade.
+- **Dois uploads (14/10):** a página tem lugar para Graduação e Pós. O que funciona (CRM, sites, histórico, cotas) é só Graduação. A Pós aceita o arquivo na tela e não envia: a leitura espera uma amostra do arquivo de preço.
+- **API:** `GET/PUT/POST https://integrations.bwipo.com/api/products` com `BWIPO_COMERCIAL_API_TOKEN`. Página `precos_bwipo`.
+- **Sites (14/10):** o mesmo upload tem o botão **Atualizar sites**. Manda o `VALOR COM DESCONTO` do canal Balcão Estratégico para a graduação de Site Cruzeiro, Eduit-ead e Eduit New (`/api/atualizar_wix_canal`, `wix2`, `wix3`). Não grava snapshot e não mexe no CRM.
+- **IA no Postgres (14/10):** `documents_precos` e `documents_corporativa` também existem no `dcz_sync` (`id`, `content`, `metadata`, `updated_at`). A primeira leitura copia o catálogo do Supabase. O Atualizar IA segue a mesma regra (casa o curso que já existe e troca o preço) e grava nos dois. Salesbot não entrou.
+
 ### 2026-10-06 — Repasse: Kommo até 30/09, owner_id do Bwipo de 01/10 em diante
 - **Modelo usado:** Cursor Grok 4.7.
 - **Pedido:** venda anterior a 01/10/2026 continua no responsável do Kommo. Daqui em diante o valor do repasse vai para o `owner_id` do negócio no CRM novo. Sem cruzar os dois CRMs na mesma venda.

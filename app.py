@@ -325,6 +325,8 @@ app.register_blueprint(blog_posts_bp)
 app.register_blueprint(inscricao_bp)
 app.register_blueprint(tracker_tarefas_bp)
 app.register_blueprint(dist_comercial_schedule_bp)
+from routes.bwipo_precos import bwipo_precos_bp
+app.register_blueprint(bwipo_precos_bp)
 
 # ── Atualizar Preço — rotas do webapp standalone integrado ────────────────
 try:
@@ -377,6 +379,7 @@ from db import (
     _ensure_bwipo_sync_tables,
     _ensure_bwipo_sync_page,
     _ensure_bwipo_comercial_page,
+    _ensure_precos_bwipo_page,
 )
 
 _ensure_schedules_table()
@@ -406,6 +409,7 @@ _ensure_dist_comercial_schedule_tables()
 _ensure_bwipo_sync_tables()
 _ensure_bwipo_sync_page()
 _ensure_bwipo_comercial_page()
+_ensure_precos_bwipo_page()
 
 try:
     from routes.academico_interacoes import _ensure_claim_table

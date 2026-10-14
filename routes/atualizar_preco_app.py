@@ -478,11 +478,111 @@ def _supa_fetch_all(table, select='*', extra_qs=''):
         if len(batch) < page_size:
             break
         offset += page_size
+    if table in _IA_PG_TABLES:
+        _pg_seed_ia_if_empty(table, all_items)
     return all_items
+
+
+_IA_PG_TABLES = ('documents_precos', 'documents_corporativa')
+
+
+def _pg_ensure_ia_docs():
+    from db import get_conn
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            for table in _IA_PG_TABLES:
+                cur.execute(
+                    f"""
+                    CREATE TABLE IF NOT EXISTS {table} (
+                        id TEXT PRIMARY KEY,
+                        content TEXT,
+                        metadata JSONB,
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                    """
+                )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _pg_seed_ia_if_empty(table, docs):
+    """Copia o catálogo do Supabase uma vez. A atualização segue em cima dessa cópia."""
+    if table not in _IA_PG_TABLES or not docs:
+        return
+    from psycopg2.extras import Json, execute_values
+    from db import get_conn
+    _pg_ensure_ia_docs()
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT COUNT(*) FROM {table}")
+            if cur.fetchone()[0]:
+                return
+            rows = []
+            for doc in docs:
+                meta = doc.get('metadata')
+                if isinstance(meta, str):
+                    try:
+                        meta = _json_mod.loads(meta)
+                    except Exception:
+                        meta = None
+                rows.append((
+                    str(doc.get('id')),
+                    doc.get('content'),
+                    Json(meta) if isinstance(meta, (dict, list)) else None,
+                ))
+            execute_values(
+                cur,
+                f"INSERT INTO {table} (id, content, metadata) VALUES %s ON CONFLICT (id) DO NOTHING",
+                rows,
+                page_size=500,
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _pg_patch_ia(table, row_id, payload):
+    """Mesma linha que o Supabase recebe: content + metadata."""
+    if table not in _IA_PG_TABLES:
+        return
+    from psycopg2.extras import Json
+    from db import get_conn
+    _pg_ensure_ia_docs()
+    meta = payload.get('metadata')
+    if isinstance(meta, str):
+        try:
+            meta = _json_mod.loads(meta)
+        except Exception:
+            meta = None
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                INSERT INTO {table} (id, content, metadata, updated_at)
+                VALUES (%s, %s, %s, NOW())
+                ON CONFLICT (id) DO UPDATE
+                SET content = EXCLUDED.content,
+                    metadata = EXCLUDED.metadata,
+                    updated_at = NOW()
+                """,
+                (
+                    str(row_id),
+                    payload.get('content'),
+                    Json(meta) if isinstance(meta, (dict, list)) else None,
+                ),
+            )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def _supa_patch_row(table, row_id, payload):
     """PATCH one row by id. Returns HTTP status code."""
+    _pg_patch_ia(table, row_id, payload)
     hdrs = {
         'apikey': _SUPA_SECRET,
         'Authorization': f'Bearer {_SUPA_SECRET}',

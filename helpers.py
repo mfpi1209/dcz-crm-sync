@@ -58,7 +58,7 @@ ALL_PAGES = [
     "leads_parados", "dist_consultor", "minha_performance", "premiacao_admin",
     "macro_email", "ajustes_matricula", "repasse",
     "recadastros", "vocacional", "comercial_dashboard", "auditoria_comercial",
-    "meta-campaigns", "dist_comercial", "atualizar_preco",
+    "meta-campaigns", "dist_comercial", "atualizar_preco", "precos_bwipo",
     "comparar_cursos", "recomendacao_cursos", "localizacao_polos", "info_cursos",
     "leads_inscricao", "captacao", "clicks", "leads_promotores", "meus_atendimentos",
     "premiacoes_internas", "aprovacao_premiacoes",
