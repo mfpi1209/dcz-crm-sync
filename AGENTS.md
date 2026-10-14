@@ -8,7 +8,7 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 - **Modelo usado:** Cursor Grok 4.7.
 - **Pedido:** no site, a capa da home, da graduação, da pós e do blog passou a ter texto alternativo. Quem programa o post no Subir Blog precisa preencher o mesmo tipo de descrição na capa do artigo.
 - **Campo:** `Texto alternativo da capa`, opcional, até 180 caracteres. Entra no publicar agora, no agendar e no rascunho deste navegador. Sem capa, o campo pode ficar vazio.
-- **Grava:** `image_alt` em `blog_posts_agendados` (Postgres do painel) e em `blog_posts` no Supabase acadêmico. A coluna do Supabase ainda não existe (`column blog_posts.image_alt does not exist`). Enquanto isso, post sem esse texto publica e agenda como antes; post com texto é recusado no agendar e no publicar, para a descrição não se perder. SQL no projeto do site: `ALTER TABLE public.blog_posts ADD COLUMN IF NOT EXISTS image_alt text;`.
+- **Grava:** `image_alt` em `blog_posts_agendados` (Postgres do painel) e em `blog_posts` no Supabase acadêmico. A coluna do site foi criada em 14/10 (`image_alt text`). Post com texto passa a gravar. Se a coluna sumir, o agendar e o publicar com texto são recusados, para a descrição não se perder.
 - **Site:** a capa do artigo ainda usa o título como `alt`. O texto novo só aparece na página quando o site ler `image_alt`.
 - **Não muda:** capa continua opcional; slug, autor e o restante do post.
 
