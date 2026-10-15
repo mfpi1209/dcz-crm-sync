@@ -54,6 +54,10 @@ function _bpEhAprovados(canal) {
     return f === 'aprovados' || f === 'mar aberto';
 }
 
+function _bpCanalMarAberto() {
+    return (_bpPreview && _bpPreview.canais || []).find(c => _bpEhAprovados(c.canal));
+}
+
 function _bpFixas() {
     return (_bpPreview && _bpPreview.canais || []).filter(c => _bpEhBase(c.canal) || _bpEhAprovados(c.canal));
 }
@@ -66,11 +70,30 @@ function _bpOpcionais() {
     return (_bpPreview && _bpPreview.canais || []).filter(c => !(_bpEhBase(c.canal) || _bpEhAprovados(c.canal)));
 }
 
+const _bpSites = {
+    wix: ['Site Cruzeiro', '/api/atualizar_wix_canal'],
+    wix2: ['Eduit-ead', '/api/atualizar_wix2_canal'],
+    wix3: ['Eduit New', '/api/atualizar_wix3_canal'],
+};
+
 function _bpBotoes(travar) {
-    ['bp-btn-aplicar', 'bp-btn-hist', 'bp-btn-sites'].forEach(id => {
+    ['bp-btn-aplicar', 'bp-btn-hist', 'bp-btn-ia', 'bp-btn-site', 'bp-site'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.disabled = travar;
     });
+}
+
+function bpLog(alvo, texto, tipo) {
+    const box = document.getElementById('bp-log');
+    if (!box) return;
+    const vazio = document.getElementById('bp-log-vazio');
+    if (vazio) vazio.remove();
+    const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const linha = document.createElement('div');
+    linha.className = 'bp-log-linha' + (tipo === 'ok' ? ' is-ok' : tipo === 'erro' ? ' is-erro' : '');
+    linha.innerHTML = `<span class="bp-log-hora">${hora}</span><span class="bp-log-alvo">${_bpEsc(alvo)}</span><span class="bp-log-txt">${_bpEsc(texto)}</span>`;
+    box.appendChild(linha);
+    box.scrollTop = box.scrollHeight;
 }
 
 async function bpPreview() {
@@ -86,6 +109,7 @@ async function bpPreview() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.ok) {
         status.textContent = data.error || 'Falha ao ler a planilha.';
+        _bpBotoes(false);
         return;
     }
     _bpPreview = data;
@@ -363,7 +387,9 @@ async function bpAplicar(somenteHistorico) {
         ? `Gravar o histórico de ${n} cursos, sem mexer no CRM?`
         : `Aplicar ${n} cursos no CRM? Sobem Balcão Estratégico e Mar Aberto. Grade e imagem ficam.`;
     if (!window.confirm(msg)) return;
+    const alvo = somenteHistorico ? 'Histórico' : 'CRM';
     status.textContent = somenteHistorico ? 'Gravando histórico…' : 'Atualizando o CRM… pode levar alguns minutos.';
+    bpLog(alvo, somenteHistorico ? `Gravando ${n} cursos, sem mexer no CRM.` : `Começou. ${n} cursos. Balcão Estratégico e Mar Aberto.`, 'info');
     _bpBotoes(true);
     const body = new FormData();
     body.append('file', file);
@@ -375,51 +401,123 @@ async function bpAplicar(somenteHistorico) {
     _bpBotoes(false);
     if (!res.ok || !data.ok) {
         status.textContent = data.error || 'Falha ao aplicar.';
+        bpLog(alvo, data.error || 'Falha ao aplicar.', 'erro');
         return;
     }
+    (data.resultados || []).forEach(r => {
+        const nome = `${r.curso || ''}${r.grau ? ' · ' + r.grau : ''}`;
+        bpLog('CRM', r.ok ? `${nome} — ${r.acao || 'ok'}` : `${nome} — ${r.erro || 'erro'}`, r.ok ? 'ok' : 'erro');
+    });
     const r = data.resumo || {};
     status.textContent = somenteHistorico
         ? `Histórico ${data.snapshot_id} gravado.`
         : `Aplicado. ${r.ok || 0} ok, ${r.erro || 0} erro.`;
+    bpLog(alvo, somenteHistorico ? `Gravado. Snapshot ${data.snapshot_id}.` : `Fechou. ${r.ok || 0} ok, ${r.erro || 0} erro.`, (r.erro ? 'erro' : 'ok'));
     bpPainel();
 }
 
-async function bpAtualizarSites() {
+async function bpAtualizarSite() {
+    const file = _bpFile();
+    const sel = document.getElementById('bp-site');
+    const site = _bpSites[sel && sel.value];
+    if (!file || !_bpPreview || !site) return;
+    const status = document.getElementById('bp-status');
+    const [nome, url] = site;
+    const aberto = _bpCanalMarAberto();
+    if (!aberto) {
+        status.textContent = 'A planilha não tem o canal Mar Aberto.';
+        bpLog(nome, 'A planilha não tem o canal Mar Aberto.', 'erro');
+        return;
+    }
+    if (!window.confirm(`Atualizar ${nome} com o valor do Mar Aberto?`)) return;
+    status.textContent = `Atualizando ${nome}…`;
+    bpLog(nome, 'Começou. O valor é o do Mar Aberto.', 'info');
+    _bpBotoes(true);
+    const body = new FormData();
+    body.append('file', file);
+    body.append('canal', aberto.canal);
+    try {
+        const res = await fetch(url, { method: 'POST', body });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.error) {
+            status.textContent = `${nome}: ${data.error || 'falhou'}`;
+            bpLog(nome, data.error || 'Falhou.', 'erro');
+            return;
+        }
+        (data.linhas || []).forEach(l => {
+            const mudou = `${l.chave}: ${l.de == null ? '—' : l.de} → ${l.para}`;
+            bpLog(nome, l.ok ? mudou : `${mudou}. ${l.erro || 'erro'}`, l.ok ? 'ok' : 'erro');
+        });
+        const erros = data.erros ? `, ${data.erros} erro` : '';
+        const iguais = data.iguais ? `, ${data.iguais} iguais` : '';
+        status.textContent = `${nome}: ${data.atualizados || 0} atualizados${iguais}${erros}`;
+        bpLog(nome, `Fechou. ${data.atualizados || 0} atualizados${iguais}${erros}.`, data.erros ? 'erro' : 'ok');
+        if (data.ultimo_erro) bpLog(nome, data.ultimo_erro, 'erro');
+    } catch (e) {
+        status.textContent = `${nome}: ${e.message || 'falhou'}`;
+        bpLog(nome, e.message || 'Falhou.', 'erro');
+    } finally {
+        _bpBotoes(false);
+    }
+}
+
+async function bpAtualizarIa() {
     const file = _bpFile();
     if (!file || !_bpPreview) return;
     const status = document.getElementById('bp-status');
-    const base = (_bpPreview.canais || []).find(c => _bpEhBase(c.canal));
-    if (!base) {
-        status.textContent = 'A planilha não tem o canal Balcão Estratégico.';
+    const aberto = _bpCanalMarAberto();
+    if (!aberto) {
+        status.textContent = 'A planilha não tem o canal Mar Aberto.';
+        bpLog('IA', 'A planilha não tem o canal Mar Aberto.', 'erro');
         return;
     }
-    const sites = [
-        ['Site Cruzeiro', '/api/atualizar_wix_canal'],
-        ['Eduit-ead', '/api/atualizar_wix2_canal'],
-        ['Eduit New', '/api/atualizar_wix3_canal'],
-    ];
-    if (!window.confirm('Atualizar Site Cruzeiro, Eduit-ead e Eduit New com o valor do Balcão Estratégico?')) return;
+    if (!window.confirm('Atualizar a base da IA com o valor do Mar Aberto? O curso que já existe troca o preço em documents_precos e em cursos_salesbot, no Postgres e no Supabase.')) return;
+    status.textContent = 'Atualizando a base da IA…';
+    bpLog('IA', 'Começou. O valor é o do Mar Aberto.', 'info');
     _bpBotoes(true);
-    const partes = [];
-    for (const [nome, url] of sites) {
-        status.textContent = `Atualizando ${nome}…`;
-        const body = new FormData();
-        body.append('file', file);
-        body.append('canal', base.canal);
-        try {
-            const res = await fetch(url, { method: 'POST', body });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok || data.error) partes.push(`${nome}: ${data.error || 'falhou'}`);
-            else {
-                const erros = data.erros ? `, ${data.erros} erro` : '';
-                partes.push(`${nome}: ${data.atualizados || 0} atualizados${erros}`);
-            }
-        } catch (e) {
-            partes.push(`${nome}: ${e.message || 'falhou'}`);
+    const body = () => {
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('canal', aberto.canal);
+        return fd;
+    };
+    const fechar = (alvo, data) => {
+        (data.linhas || []).forEach(l => {
+            const mudou = `${l.chave}: ${l.de == null ? '—' : l.de} → ${l.para}`;
+            bpLog(alvo, l.ok ? mudou : `${mudou}. ${l.erro || 'erro'}`, l.ok ? 'ok' : 'erro');
+        });
+        const erros = data.erros ? `, ${data.erros} erro` : '';
+        const iguais = data.iguais ? `, ${data.iguais} iguais` : '';
+        bpLog(alvo, `Fechou. ${data.atualizados || 0} atualizados${iguais}${erros}.`, data.erros ? 'erro' : 'ok');
+        if (data.ultimo_erro) bpLog(alvo, data.ultimo_erro, 'erro');
+        return `${data.atualizados || 0} atualizados${iguais}${erros}`;
+    };
+    try {
+        const res = await fetch('/api/atualizar_grad_canal', { method: 'POST', body: body() });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.error) {
+            status.textContent = `IA: ${data.error || 'falhou'}`;
+            bpLog('IA', data.error || 'Falhou.', 'erro');
+        } else {
+            const resumo = fechar('IA', data);
+            status.textContent = `IA: ${resumo}`;
         }
+        bpLog('Salesbot', 'Começou. Preço eduit 1 do curso que já existe.', 'info');
+        const res2 = await fetch('/api/atualizar_salesbot_canal', { method: 'POST', body: body() });
+        const data2 = await res2.json().catch(() => ({}));
+        if (!res2.ok || data2.error) {
+            status.textContent = `Salesbot: ${data2.error || 'falhou'}`;
+            bpLog('Salesbot', data2.error || 'Falhou.', 'erro');
+        } else {
+            const resumo2 = fechar('Salesbot', data2);
+            status.textContent = `Salesbot: ${resumo2}`;
+        }
+    } catch (e) {
+        status.textContent = `IA: ${e.message || 'falhou'}`;
+        bpLog('IA', e.message || 'Falhou.', 'erro');
+    } finally {
+        _bpBotoes(false);
     }
-    _bpBotoes(false);
-    status.textContent = partes.join(' · ');
 }
 
 async function bpPainel() {

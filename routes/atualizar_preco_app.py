@@ -480,10 +480,103 @@ def _supa_fetch_all(table, select='*', extra_qs=''):
         offset += page_size
     if table in _IA_PG_TABLES:
         _pg_seed_ia_if_empty(table, all_items)
+    if table == 'cursos_salesbot':
+        _pg_seed_salesbot_if_empty(all_items)
     return all_items
 
 
 _IA_PG_TABLES = ('documents_precos', 'documents_corporativa')
+
+# Colunas reais de public.cursos_salesbot no Supabase. O fluxo n8n lê essa
+# tabela no Postgres (curso_sinonimo / Curso) e grava "Preço eduit 1" no negócio.
+_SALESBOT_COLS = (
+    'curso_sinonimo', 'Curso', 'Chave 1', 'Chave 2', 'Chave 3', 'Contagem',
+    'Semestres', 'Área', 'Preço eduit 1', 'Tipo 1', 'Grau site 1',
+    'Preço eduit 2', 'Tipo 2', 'Grau site 2', 'Semestres 2',
+    'Preço eduit 3', 'Tipo 3', 'Grau site 3', 'Semestres 3',
+    'Código', 'Hoje', 'Turma de Ingresso', 'modalidade', 'modalidade2',
+)
+
+
+def _pg_ident(name):
+    return '"' + str(name).replace('"', '""') + '"'
+
+
+def _pg_ensure_salesbot():
+    from db import get_conn
+    cols = ', '.join(
+        ('curso_sinonimo TEXT PRIMARY KEY' if c == 'curso_sinonimo' else f'{_pg_ident(c)} TEXT')
+        for c in _SALESBOT_COLS
+    )
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute('CREATE EXTENSION IF NOT EXISTS unaccent')
+            cur.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS cursos_salesbot (
+                    {cols},
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _pg_seed_salesbot_if_empty(docs):
+    """Copia o catálogo do Supabase uma vez. O preço novo entra por cima dessa cópia."""
+    if not docs:
+        return 0
+    from psycopg2.extras import execute_values
+    from db import get_conn
+    _pg_ensure_salesbot()
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute('SELECT COUNT(*) FROM cursos_salesbot')
+            if cur.fetchone()[0]:
+                return 0
+            rows = [
+                tuple(None if doc.get(c) is None else str(doc.get(c)) for c in _SALESBOT_COLS)
+                for doc in docs
+                if doc.get('curso_sinonimo')
+            ]
+            col_sql = ', '.join(_pg_ident(c) for c in _SALESBOT_COLS)
+            execute_values(
+                cur,
+                f'INSERT INTO cursos_salesbot ({col_sql}) VALUES %s ON CONFLICT (curso_sinonimo) DO NOTHING',
+                rows,
+                page_size=200,
+            )
+            inserted = cur.rowcount
+        conn.commit()
+        return inserted
+    finally:
+        conn.close()
+
+
+def _pg_patch_salesbot_preco(sinonimo, preco):
+    """Atualiza o preço que o agente lê, na linha que já existe."""
+    if not sinonimo or preco is None:
+        return
+    from db import get_conn
+    _pg_ensure_salesbot()
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE cursos_salesbot
+                SET "Preço eduit 1" = %s, updated_at = NOW()
+                WHERE curso_sinonimo = %s
+                """,
+                (str(preco), str(sinonimo)),
+            )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def _pg_ensure_ia_docs():
@@ -598,6 +691,8 @@ def _supa_patch_row(table, row_id, payload):
 
 def _supa_patch_text_key(table, key_col, key_val, payload):
     """PATCH by text primary key (e.g. curso_sinonimo)."""
+    if table == 'cursos_salesbot' and key_col == 'curso_sinonimo' and 'Preço eduit 1' in payload:
+        _pg_patch_salesbot_preco(key_val, payload.get('Preço eduit 1'))
     hdrs = {
         'apikey': _SUPA_SECRET,
         'Authorization': f'Bearer {_SUPA_SECRET}',
@@ -848,7 +943,8 @@ def atualizar_grad_canal():
             return jsonify({'error': 'Coluna CANAL não encontrada'}), 400
         idx = _build_grad_index_canal(rows, headers, canal, canal_col, siaa_col)
         docs = _supa_fetch_all('documents_precos')
-        atualizados, erros, ultimo_erro = 0, 0, ''
+        atualizados, erros, iguais, ultimo_erro = 0, 0, 0, ''
+        linhas = []
         for doc in docs:
             outer, inner = _get_meta_pair(doc)
             tipo = _norm(str(inner.get('tipo') or ''))
@@ -863,7 +959,9 @@ def atualizar_grad_canal():
                 continue
             novo_fmt  = _fmt_valor_int(idx[key])
             atual_fmt = _fmt_valor_int(inner.get('valor'))
+            chave = ' · '.join(p for p in (curso, grau, modal) if p)
             if novo_fmt is None or novo_fmt == atual_fmt:
+                iguais += 1
                 continue
             updated_inner = dict(inner)
             updated_inner['valor'] = novo_fmt
@@ -873,10 +971,15 @@ def atualizar_grad_canal():
                 _supa_patch_row('documents_precos', doc['id'],
                                 {'metadata': new_meta, 'content': new_content})
                 atualizados += 1
+                linhas.append({'chave': chave, 'de': atual_fmt, 'para': novo_fmt, 'ok': True})
             except Exception as e:
                 erros += 1
                 ultimo_erro = str(e)
-        return jsonify({'atualizados': atualizados, 'erros': erros, 'ultimo_erro': ultimo_erro})
+                linhas.append({'chave': chave, 'de': atual_fmt, 'para': novo_fmt, 'ok': False, 'erro': str(e)[:180]})
+        return jsonify({
+            'atualizados': atualizados, 'erros': erros, 'iguais': iguais,
+            'ultimo_erro': ultimo_erro, 'linhas': linhas,
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1333,7 +1436,8 @@ def atualizar_salesbot_canal():
             if price is not None:
                 price_index[_norm(str(curso))] = price
         docs = _supa_fetch_all('cursos_salesbot', select='*')
-        atualizados, erros, ultimo_erro = 0, 0, ''
+        atualizados, erros, iguais, ultimo_erro = 0, 0, 0, ''
+        linhas = []
         for doc in docs:
             curso_sb  = str(doc.get('Curso') or doc.get('curso_sinonimo') or '')
             sinonimo  = str(doc.get('curso_sinonimo') or '')
@@ -1344,6 +1448,7 @@ def atualizar_salesbot_canal():
             novo_fmt  = _fmt_valor_int(price_index[key_curso])
             atual_fmt = _fmt_valor_int(atual1)
             if novo_fmt is None or novo_fmt == atual_fmt:
+                iguais += 1
                 continue
             try:
                 _supa_patch_text_key(
@@ -1351,10 +1456,15 @@ def atualizar_salesbot_canal():
                     {'Preço eduit 1': novo_fmt}
                 )
                 atualizados += 1
+                linhas.append({'chave': curso_sb, 'de': atual_fmt, 'para': novo_fmt, 'ok': True})
             except Exception as e:
                 erros += 1
                 ultimo_erro = str(e)
-        return jsonify({'atualizados': atualizados, 'erros': erros, 'ultimo_erro': ultimo_erro})
+                linhas.append({'chave': curso_sb, 'de': atual_fmt, 'para': novo_fmt, 'ok': False, 'erro': str(e)[:180]})
+        return jsonify({
+            'atualizados': atualizados, 'erros': erros, 'iguais': iguais,
+            'ultimo_erro': ultimo_erro, 'linhas': linhas,
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1786,7 +1896,8 @@ def _relay_wix_grad_update(canal_xlsx_bytes, get_items_fn, put_fn,
     """
     price_idx = _wix_grad_price_index(canal_xlsx_bytes)
     items     = _wix_call_with_retry(get_items_fn)
-    atualizados, erros, ultimo_erro = 0, 0, ''
+    atualizados, erros, iguais, ultimo_erro = 0, 0, 0, ''
+    linhas = []
     for it in items:
         d         = it.get('data', it) if isinstance(it, dict) else it
         chave_raw = d.get('chave') or d.get('chave1') or d.get('chave_1') or ''
@@ -1802,6 +1913,7 @@ def _relay_wix_grad_update(canal_xlsx_bytes, get_items_fn, put_fn,
         except (ValueError, TypeError):
             atual_int = None
         if atual_int == novo:
+            iguais += 1
             continue
         iid = d.get('_id') or d.get('id')
         if not iid:
@@ -1811,11 +1923,19 @@ def _relay_wix_grad_update(canal_xlsx_bytes, get_items_fn, put_fn,
         try:
             _wix_call_with_retry(lambda: put_fn(iid, _clean_data(full)))
             atualizados += 1
+            linhas.append({'chave': chave, 'de': atual_int, 'para': novo, 'ok': True})
             _time.sleep(0.15)  # evita burst que dispara rate limit do Wix
         except Exception as e:
             erros += 1
             ultimo_erro = str(e)
-    return jsonify({'atualizados': atualizados, 'erros': erros, 'ultimo_erro': ultimo_erro})
+            linhas.append({'chave': chave, 'de': atual_int, 'para': novo, 'ok': False, 'erro': str(e)[:180]})
+    return jsonify({
+        'atualizados': atualizados,
+        'erros': erros,
+        'iguais': iguais,
+        'ultimo_erro': ultimo_erro,
+        'linhas': linhas,
+    })
 
 
 @app.route('/api/preview_wix_canal', methods=['POST'])

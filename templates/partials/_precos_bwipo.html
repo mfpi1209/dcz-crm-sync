@@ -52,6 +52,18 @@
   #page-precos_bwipo .bp-sort .bp-seta { font-size: 9px; opacity: .35; line-height: 1; }
   #page-precos_bwipo .bp-sort.is-on { color: var(--text-primary); }
   #page-precos_bwipo .bp-sort.is-on .bp-seta { opacity: 1; }
+  #page-precos_bwipo .bp-log { max-height: 22rem; overflow: auto; }
+  #page-precos_bwipo .bp-log-linha {
+    display: grid; grid-template-columns: 4.5rem 8.5rem minmax(0, 1fr);
+    gap: 8px; align-items: baseline;
+    padding: 7px 16px; border-top: 1px solid var(--border);
+    font-size: 12px; line-height: 1.4;
+  }
+  #page-precos_bwipo .bp-log-hora { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  #page-precos_bwipo .bp-log-alvo { font-weight: 650; }
+  #page-precos_bwipo .bp-log-linha.is-ok .bp-log-alvo { color: #34d399; }
+  #page-precos_bwipo .bp-log-linha.is-erro .bp-log-alvo { color: #fb7185; }
+  #page-precos_bwipo .bp-log-linha.is-erro .bp-log-txt { color: #fb7185; }
   @media (max-width: 800px) {
     #page-precos_bwipo .bp-row { grid-template-columns: 1fr; }
   }
@@ -88,10 +100,21 @@
                 <p id="bp-pos-nota" class="text-sm text-[var(--text-muted)]">A leitura entra quando chegar a amostra do arquivo de preço.</p>
             </div>
         </div>
-        <div class="flex flex-wrap items-center justify-end gap-3">
+        <div class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+                <div class="text-[11px] uppercase tracking-wider text-[var(--text-muted)] mb-2">Sites</div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <select id="bp-site" class="input-glass px-3 py-2 text-sm rounded-xl" disabled>
+                        <option value="wix">Site Cruzeiro</option>
+                        <option value="wix2">Eduit-ead</option>
+                        <option value="wix3">Eduit New</option>
+                    </select>
+                    <button type="button" id="bp-btn-site" onclick="bpAtualizarSite()" class="btn-secondary text-sm px-4 py-2 rounded-xl" disabled>Atualizar este site</button>
+                </div>
+            </div>
             <div class="flex items-center gap-2">
+                <button type="button" id="bp-btn-ia" onclick="bpAtualizarIa()" class="btn-secondary text-sm px-4 py-2 rounded-xl" disabled>Atualizar a IA</button>
                 <button type="button" id="bp-btn-hist" onclick="bpAplicar(true)" class="btn-secondary text-sm px-4 py-2 rounded-xl" disabled>Só gravar histórico</button>
-                <button type="button" id="bp-btn-sites" onclick="bpAtualizarSites()" class="btn-secondary text-sm px-4 py-2 rounded-xl" disabled>Atualizar sites</button>
                 <button type="button" id="bp-btn-aplicar" onclick="bpAplicar(false)" class="btn-success text-white text-sm px-4 py-2 rounded-xl" disabled>Aplicar no CRM</button>
             </div>
         </div>
@@ -100,6 +123,13 @@
             <div id="bp-canais" class="flex flex-wrap items-center gap-2"></div>
         </div>
         <p id="bp-status" class="text-sm text-[var(--text-muted)]"></p>
+    </div>
+
+    <div class="bp-card overflow-hidden">
+        <div class="px-4 py-3 font-semibold">Log</div>
+        <div id="bp-log" class="bp-log">
+            <p id="bp-log-vazio" class="px-4 py-6 text-sm text-[var(--text-muted)]">O CRM, cada site e a base da IA aparecem aqui, curso a curso, quando a atualização roda.</p>
+        </div>
     </div>
 
     <div id="bp-insights" class="hidden space-y-3">
