@@ -130,6 +130,7 @@ def _ensure_blog_agendados_table():
                     date TEXT NOT NULL,
                     read_time TEXT,
                     image TEXT NOT NULL,
+                    image_alt TEXT NOT NULL DEFAULT '',
                     is_featured BOOLEAN NOT NULL DEFAULT FALSE,
                     author_name TEXT,
                     author_role TEXT,
@@ -139,6 +140,10 @@ def _ensure_blog_agendados_table():
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
                 """
+            )
+            cur.execute(
+                "ALTER TABLE blog_posts_agendados "
+                "ADD COLUMN IF NOT EXISTS image_alt TEXT NOT NULL DEFAULT ''"
             )
             cur.execute(
                 "CREATE INDEX IF NOT EXISTS idx_blog_agendados_at "
@@ -199,6 +204,66 @@ def _sanitize_content(content: str) -> str:
     return _collapse_blank_html(s)
 
 
+_IMAGE_ALT_COL: bool | None = None
+
+
+def _image_alt_column(base: str, key: str) -> bool:
+    """A capa do site lê image_alt só se a coluna existir em blog_posts.
+
+    Só memoriza o sim. Enquanto a coluna não existe, cada publicação confere de novo.
+    """
+    global _IMAGE_ALT_COL
+    if _IMAGE_ALT_COL is True:
+        return True
+    url = f"{base}/rest/v1/{_TABLE}?select=image_alt&limit=1"
+    req = urllib.request.Request(
+        url,
+        method="GET",
+        headers={
+            "apikey": key,
+            "Authorization": f"Bearer {key}",
+            "User-Agent": "dcz-crm-sync/1.0",
+            "Accept": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            r.read()
+        _IMAGE_ALT_COL = True
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", "replace")
+        if e.code == 400 and "image_alt" in detail:
+            return False
+        raise RuntimeError(f"Supabase {e.code}: {detail[:400]}") from e
+    return True
+
+
+_IMAGE_ALT_MISSING = (
+    "O texto alternativo da capa não entrou no site: a tabela blog_posts "
+    "ainda não tem a coluna image_alt."
+)
+
+
+def _image_alt_block(row: dict) -> str | None:
+    """Recusa agendar com texto alternativo se o site ainda não tem a coluna."""
+    if not (row.get("image_alt") or "").strip():
+        return None
+    base, key = _cfg()
+    if _image_alt_column(base, key):
+        return None
+    return _IMAGE_ALT_MISSING
+
+
+def _payload_for_site(row: dict, base: str, key: str) -> dict:
+    payload = dict(row)
+    if _image_alt_column(base, key):
+        return payload
+    if (payload.get("image_alt") or "").strip():
+        raise ValueError(_IMAGE_ALT_MISSING)
+    payload.pop("image_alt", None)
+    return payload
+
+
 def _insert_to_supabase(row: dict) -> str:
     base, key = _cfg()
     slug = _unique_slug(base, key, row["title"])
@@ -210,7 +275,7 @@ def _insert_to_supabase(row: dict) -> str:
             {"is_featured": False},
             {"Prefer": "return=minimal"},
         )
-    payload = dict(row)
+    payload = _payload_for_site(row, base, key)
     payload["id"] = slug
     _req("POST", f"{base}/rest/v1/{_TABLE}", key, payload, {"Prefer": "return=minimal"})
     return slug
@@ -230,6 +295,7 @@ def _agendado_to_row(rec: dict) -> dict:
         "date": rec["date"],
         "read_time": rec.get("read_time") or "",
         "image": rec["image"],
+        "image_alt": (rec.get("image_alt") or "").strip(),
         "is_featured": bool(rec.get("is_featured")),
         "author_name": rec.get("author_name") or "Eduit",
         "author_role": rec.get("author_role") or "Blog Eduit",
@@ -254,6 +320,7 @@ def _agendado_public(rec: dict) -> dict:
         "date": rec.get("date") or "",
         "read_time": rec.get("read_time") or "",
         "image": rec.get("image") or "",
+        "image_alt": rec.get("image_alt") or "",
         "is_featured": bool(rec.get("is_featured")),
         "author_name": rec.get("author_name") or "",
         "author_role": rec.get("author_role") or "",
@@ -401,6 +468,8 @@ def _validate_payload(body: dict) -> tuple[dict | None, str | None]:
     category = (body.get("category") or "").strip()
     tags = body.get("tags") or []
     image = _direct_image_url(body.get("image") or "")
+    image_alt = re.sub(r"<[^>]+>", "", body.get("image_alt") or "")
+    image_alt = re.sub(r"\s+", " ", image_alt).strip()
     read_time = (body.get("read_time") or "").strip()
     author_name = (body.get("author_name") or "").strip() or "Eduit"
     author_role = (body.get("author_role") or "").strip() or "Blog Eduit"
@@ -438,6 +507,8 @@ def _validate_payload(body: dict) -> tuple[dict | None, str | None]:
             )
     else:
         image = ""
+    if len(image_alt) > 180:
+        return None, "O texto alternativo da capa pode ter no máximo 180 caracteres."
     if not read_time:
         read_time = _read_time(content)
 
@@ -451,6 +522,7 @@ def _validate_payload(body: dict) -> tuple[dict | None, str | None]:
         "date": date_str,
         "read_time": read_time,
         "image": image,
+        "image_alt": image_alt,
         "is_featured": bool(body.get("is_featured")),
         "author_name": author_name,
         "author_role": author_role,
@@ -515,8 +587,11 @@ def update_post(post_id: str):
             # só 1 destaque por vez: desmarca os outros (exceto este)
             _req("PATCH", f"{base}/rest/v1/{_TABLE}?is_featured=eq.true&id=neq.{q}", key,
                  {"is_featured": False}, {"Prefer": "return=minimal"})
-        _req("PATCH", f"{base}/rest/v1/{_TABLE}?id=eq.{q}", key, row,
+        _req("PATCH", f"{base}/rest/v1/{_TABLE}?id=eq.{q}", key,
+             _payload_for_site(row, base, key),
              {"Prefer": "return=minimal"})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.exception("blog: falha ao atualizar post")
         return jsonify({"error": str(e)}), 502
@@ -595,6 +670,13 @@ def create_scheduled():
     if sat <= datetime.now(_TZ):
         return jsonify({"error": "O horário do agendamento precisa ser no futuro."}), 400
     try:
+        blocked = _image_alt_block(row)
+    except Exception as e:
+        logger.exception("blog: falha ao conferir image_alt")
+        return jsonify({"error": str(e)}), 502
+    if blocked:
+        return jsonify({"error": blocked}), 400
+    try:
         _ensure_blog_agendados_table()
         conn = get_conn()
         try:
@@ -603,11 +685,11 @@ def create_scheduled():
                     """
                     INSERT INTO blog_posts_agendados (
                         title, summary, content, category, badge, tags, date,
-                        read_time, image, is_featured, author_name, author_role,
+                        read_time, image, image_alt, is_featured, author_name, author_role,
                         author_avatar, scheduled_at
                     ) VALUES (
                         %(title)s, %(summary)s, %(content)s, %(category)s, %(badge)s,
-                        %(tags)s, %(date)s, %(read_time)s, %(image)s, %(is_featured)s,
+                        %(tags)s, %(date)s, %(read_time)s, %(image)s, %(image_alt)s, %(is_featured)s,
                         %(author_name)s, %(author_role)s, %(author_avatar)s, %(scheduled_at)s
                     ) RETURNING id
                     """,
@@ -660,6 +742,13 @@ def update_scheduled(sid: int):
     if sat <= datetime.now(_TZ):
         return jsonify({"error": "O horário do agendamento precisa ser no futuro."}), 400
     try:
+        blocked = _image_alt_block(row)
+    except Exception as e:
+        logger.exception("blog: falha ao conferir image_alt")
+        return jsonify({"error": str(e)}), 502
+    if blocked:
+        return jsonify({"error": blocked}), 400
+    try:
         _ensure_blog_agendados_table()
         conn = get_conn()
         try:
@@ -670,6 +759,7 @@ def update_scheduled(sid: int):
                         title=%(title)s, summary=%(summary)s, content=%(content)s,
                         category=%(category)s, badge=%(badge)s, tags=%(tags)s,
                         date=%(date)s, read_time=%(read_time)s, image=%(image)s,
+                        image_alt=%(image_alt)s,
                         is_featured=%(is_featured)s, author_name=%(author_name)s,
                         author_role=%(author_role)s, author_avatar=%(author_avatar)s,
                         scheduled_at=%(scheduled_at)s, updated_at=NOW()
@@ -731,6 +821,7 @@ def publish_scheduled_now(sid: int):
                             title=%(title)s, summary=%(summary)s, content=%(content)s,
                             category=%(category)s, badge=%(badge)s, tags=%(tags)s,
                             date=%(date)s, read_time=%(read_time)s, image=%(image)s,
+                            image_alt=%(image_alt)s,
                             is_featured=%(is_featured)s, author_name=%(author_name)s,
                             author_role=%(author_role)s, author_avatar=%(author_avatar)s,
                             scheduled_at=%(scheduled_at)s, updated_at=NOW()
