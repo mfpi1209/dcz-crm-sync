@@ -1973,6 +1973,70 @@ def api_bwipo_painel():
     return jsonify(payload), 500
 
 
+def _bwipo_evasao_fora_relatorio(dt_ini, dt_fim, ja: set) -> list[dict]:
+    """Matrícula no Bwipo que nunca entrou no relatório dos nossos polos.
+
+    Polo errado ou transferência no mesmo dia: o SIAA não traz a pessoa, então
+    ela não vira venda nem evasão. Entra na evasão como TRANSFERIDO.
+    """
+    conds = [
+        "NOT d.is_deleted",
+        _PRINCIPAL_SQL,
+        "COALESCE(s.is_won, FALSE)",
+        "d.rgm_norm ~ '^[0-9]{8}$'",
+        f"{_DM_SQL} IS NOT NULL",
+    ]
+    params: list = []
+    if dt_ini:
+        conds.append(f"{_DM_SQL} >= %s")
+        params.append(dt_ini)
+    if dt_fim:
+        conds.append(f"{_DM_SQL} <= %s")
+        params.append(dt_fim)
+    if ja:
+        conds.append("d.rgm_norm <> ALL(%s)")
+        params.append(list(ja))
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            f"""
+            SELECT DISTINCT ON (d.rgm_norm)
+                   d.rgm_norm, d.title, ({_DM_SQL}), d.polo, {_NIVEL_SQL}, d.curso
+            FROM bwipo_deals d
+            LEFT JOIN bwipo_stages s ON s.id = d.stage_id
+            WHERE {" AND ".join(conds)}
+            ORDER BY d.rgm_norm, d.updated_at DESC NULLS LAST
+            """,
+            params,
+        )
+        rows = []
+        rgms = []
+        for rgm, title, dm, polo, nivel, curso in cur.fetchall():
+            rgms.append(rgm)
+            rows.append({
+                "rgm": rgm,
+                "nome": title or "",
+                "situacao": "TRANSFERIDO",
+                "data_matricula": dm.isoformat() if hasattr(dm, "isoformat") else str(dm)[:10],
+                "polo": polo or "",
+                "nivel": nivel or "Graduação",
+                "ciclo": "",
+                "tipo_matricula": "",
+                "turma": curso or "",
+            })
+        if not rgms:
+            return []
+        cur.execute(
+            "SELECT DISTINCT data->>'rgm' FROM xl_rows WHERE data->>'rgm' = ANY(%s)",
+            (rgms,),
+        )
+        ja_relatorio = {r[0] for r in cur.fetchall()}
+        return [row for row in rows if row["rgm"] not in ja_relatorio]
+    finally:
+        conn.close()
+
+
 def _painel_payload(dt_ini, dt_fim, polo, nivel, owner, turma, ciclo):
     try:
         from collections import defaultdict
@@ -2011,6 +2075,28 @@ def _painel_payload(dt_ini, dt_fim, polo, nivel, owner, turma, ciclo):
         overrides = _load_outlier_contagem_overrides()
         contando = {r for r in rgms_periodo if _rgm_conta_para_venda(r, dom, overrides)}
         fora_rows = _crgm_fora_padrao_rows(periodo_rows, dom, overrides, apenas_nao_conta=True)
+        ja = {row.get("rgm") for row in periodo_rows if row.get("rgm")}
+        extras = _bwipo_evasao_fora_relatorio(dt_ini, dt_fim, ja)
+        if polo and extras:
+            extras = [
+                row for row in extras
+                if normalize_polo_display(row.get("polo") or "") == polo
+                or (row.get("polo") or "") == polo
+            ]
+        if nivel and extras:
+            extras = [row for row in extras if row.get("nivel") == nivel]
+        if turma and extras:
+            extras = [row for row in extras if row.get("turma") == turma]
+        if extras and dono is not None:
+            e_dono, e_nomes, e_fonte = _atribuir_rgms(
+                {row["rgm"]: row.get("data_matricula") for row in extras}
+            )
+            dono.update(e_dono)
+            nomes.update({k: v for k, v in e_nomes.items() if v})
+            fonte.update(e_fonte)
+        if extras:
+            periodo_rows.extend(extras)
+            evasao_rows.extend(extras)
         from routes.comercial_rgm import _admin_sistema_uid, _consultor_hidden_uids
 
         if dono is None:
@@ -2488,18 +2574,59 @@ def api_bwipo_painel_conflitos_resolver():
     return jsonify({"ok": True, "rgm": rgm, "user_id": uid})
 
 
+def _deals_do_rgm(rgm: str) -> list[dict]:
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT d.id, d.number, d.title, d.stage_name, NULLIF(btrim(d.owner_name), '')
+        FROM bwipo_deals d
+        LEFT JOIN bwipo_stages s ON s.id = d.stage_id
+        WHERE NOT d.is_deleted AND d.rgm_norm = %s
+        ORDER BY COALESCE(s.is_won, FALSE) DESC, d.updated_at DESC NULLS LAST
+        """,
+        (rgm,),
+    )
+    rows = [
+        {"id": did, "number": number, "title": title or "", "etapa": etapa or "", "agente": owner or ""}
+        for did, number, title, etapa, owner in cur.fetchall()
+    ]
+    conn.close()
+    return rows
+
+
 @bwipo_bp.route("/api/bwipo/painel/mini-sync", methods=["POST"])
 def api_bwipo_painel_mini_sync():
-    """Atualiza um lead Kommo ({lead_id}) ou um negócio Bwipo ({deal_id}|{number}) e, se estiver em
-    Ganho com RGM, fixa a venda no responsável dele — mesmo efeito do mini-sync do painel antigo."""
-    from routes.comercial_rgm import _pin_rgm_attribution, clear_crgm_data_cache, crgm_kommo_sync_lead
+    """Atualiza um negócio do Bwipo ({deal_id}|{number}|{rgm}) no espelho. Em Ganho com RGM
+    e responsável com depara, fixa a venda nesse consultor."""
+    from routes.comercial_rgm import _pin_rgm_attribution, clear_crgm_data_cache
 
     body = request.get_json(force=True, silent=True) or {}
-    if body.get("lead_id"):
-        return crgm_kommo_sync_lead()
+    if body.get("lead_id") and not body.get("deal_id") and not body.get("number") and not body.get("rgm"):
+        return jsonify({"ok": False, "error": "Informe o número do card no Bwipo ou o RGM."}), 400
+    deal_id = (body.get("deal_id") or "").strip() or None
+    number = None
+    if not deal_id and body.get("number"):
+        try:
+            number = int(str(body.get("number")).strip().lstrip("#"))
+        except (TypeError, ValueError):
+            return jsonify({"ok": False, "error": "Número do card inválido."}), 400
+    if not deal_id and number is None:
+        rgm = rgm_norm(body.get("rgm"))
+        if not rgm or len(rgm) != 8:
+            return jsonify({"ok": False, "error": "Informe o número do card ou um RGM de 8 dígitos."}), 400
+        found = _deals_do_rgm(rgm)
+        if len(found) > 1:
+            return jsonify({
+                "ok": True, "pick": found, "rgm": rgm,
+                "msg": f"{len(found)} negócios com o RGM {rgm}. Escolha qual atualizar.",
+            })
+        if len(found) == 1:
+            deal_id = found[0]["id"]
+        else:
+            return jsonify({"ok": False, "error": f"Nenhum negócio no Bwipo com o RGM {rgm}."}), 404
     try:
-        number = int(body["number"]) if body.get("number") else None
-        row = refresh_deal(deal_id=body.get("deal_id"), number=number)
+        row = refresh_deal(deal_id=deal_id, number=number)
     except BwipoComercialError as e:
         return jsonify({"ok": False, "error": str(e)}), getattr(e, "status", 400) or 400
     except Exception as e:

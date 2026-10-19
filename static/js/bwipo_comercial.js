@@ -370,8 +370,8 @@ function _bwcCandidatos(rgm, cands, resolucao) {
             ? `<button type="button" onclick="bwcFixarVenda('${rgm}', ${c.user_id}, '${_bwcEsc(c.agente).replace(/'/g, "\\'")}')" class="px-2 py-0.5 rounded text-[10px] font-semibold border border-amber-500/40 text-amber-600 dark:text-amber-300 ${escolhido ? "bg-amber-500/25" : ""}">${escolhido ? "Venda fixada aqui" : "Fixar venda aqui"}</button>`
             : `<span class="text-[10px] text-slate-500" title="Responsável do Bwipo sem depara com o Kommo">sem depara</span>`;
         const sync = c.origem === "kommo"
-            ? `<button type="button" onclick="bwcSyncCandidato({lead_id: ${c.id}}, '${rgm}')" class="px-2 py-0.5 rounded text-[10px] border border-emerald-500/40 text-emerald-600 dark:text-emerald-300">Mini-sync</button>`
-            : `<button type="button" onclick="bwcSyncCandidato({deal_id: '${_bwcEsc(c.id)}'}, '${rgm}')" class="px-2 py-0.5 rounded text-[10px] border border-emerald-500/40 text-emerald-600 dark:text-emerald-300">Mini-sync</button>`;
+            ? ""
+            : `<button type="button" onclick="bwcSyncCandidato({deal_id: '${_bwcEsc(c.id)}'}, '${rgm}')" class="px-2 py-0.5 rounded text-[10px] border border-emerald-500/40 text-emerald-600 dark:text-emerald-300">Atualizar</button>`;
         return `<div class="px-4 py-2 flex justify-between items-center gap-3 border-b border-slate-200/60 dark:border-slate-700/30">
             <span><b>${_bwcEsc(c.agente)}</b> <span class="text-slate-500">· ${ref} · ${_bwcEsc(c.etapa)}${c.data ? " · " + _bwcDataBr(c.data) : ""}</span></span>
             <span class="flex gap-2">${fixar}${sync}</span>
@@ -491,19 +491,59 @@ function bwcContarVenda(rgm, contar) {
 }
 
 function bwcSyncCandidato(body, rgm) {
-    toast("Sincronizando…", "info", 2000);
+    toast("Sincronizando no Bwipo…", "info", 2000);
     _bwcSend("/api/bwipo/painel/mini-sync", "POST", body)
         .then((d) => _bwcDepoisDeDecidir(rgm || d.rgm, d.msg || "Sincronizado."))
         .catch((e) => toast(e.message, "error", 7000));
 }
 
-function bwcMiniSync() {
-    const v = (window.prompt("Mini-sync\n\nID do lead no Kommo (ex.: 21870683)\nou número do card no Bwipo com # (ex.: #4997)\nou RGM com 8 dígitos para escolher o lead:") || "").trim();
-    if (!v) return;
-    if (v.startsWith("#")) return bwcSyncCandidato({ number: v.replace(/\D/g, "") });
-    const digits = v.replace(/\D/g, "");
-    if (digits.length === 8) return bwcConsultarRgm(digits);
-    if (digits) return bwcSyncCandidato({ lead_id: digits });
+function bwcToggleLead() {
+    const panel = document.getElementById("bwc-lead-panel");
+    if (!panel) return;
+    panel.classList.toggle("hidden");
+    if (!panel.classList.contains("hidden")) document.getElementById("bwc-lead-number")?.focus();
+}
+
+function bwcAtualizarLead(dealId) {
+    const btn = document.getElementById("bwc-lead-btn");
+    const msg = document.getElementById("bwc-lead-msg");
+    const pick = document.getElementById("bwc-lead-pick");
+    const number = (document.getElementById("bwc-lead-number")?.value || "").replace(/\D/g, "");
+    const rgm = (document.getElementById("bwc-lead-rgm")?.value || "").replace(/\D/g, "");
+    let body = null;
+    if (dealId) body = { deal_id: dealId };
+    else if (number) body = { number };
+    else if (rgm.length === 8) body = { rgm };
+    else {
+        toast("Informe o número do card ou um RGM de 8 dígitos.", "error");
+        return;
+    }
+    if (btn) btn.disabled = true;
+    if (msg) {
+        msg.classList.remove("hidden");
+        msg.textContent = "Buscando no Bwipo…";
+    }
+    if (pick && !dealId) {
+        pick.classList.add("hidden");
+        pick.innerHTML = "";
+    }
+    _bwcSend("/api/bwipo/painel/mini-sync", "POST", body)
+        .then((d) => {
+            if (msg) msg.textContent = d.msg || "Atualizado.";
+            if (pick && d.pick && d.pick.length) {
+                pick.classList.remove("hidden");
+                pick.innerHTML = d.pick.map((c) =>
+                    `<button type="button" onclick="bwcAtualizarLead('${_bwcEsc(c.id)}')" class="text-xs px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-700">#${_bwcEsc(c.number)} ${_bwcEsc(c.title)} · ${_bwcEsc(c.etapa || "")}</button>`
+                ).join("");
+            }
+            if (d.pinned) bwcAtualizar();
+            toast(d.msg || "Atualizado.", "success");
+        })
+        .catch((e) => {
+            if (msg) msg.textContent = e.message;
+            toast(e.message, "error", 7000);
+        })
+        .finally(() => { if (btn) btn.disabled = false; });
 }
 
 function _bwcPaint() {

@@ -14,7 +14,7 @@
                 <button type="button" onclick="bwcAbrirPainel('crgm-congelar-panel','crgmToggleCongelar')" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600">Congelar</button>
                 <button type="button" onclick="bwcAbrirDuplicatas()" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600">Duplicatas</button>
                 <button type="button" onclick="bwcAbrirSemData()" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600">Sem data</button>
-                <button type="button" onclick="bwcAbrirPainel('crgm-kommo-lead-panel','crgmToggleKommoLead')" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600">Atualizar lead</button>
+                <button type="button" onclick="bwcToggleLead()" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600">Atualizar lead</button>
                 <button type="button" data-bwc-admin onclick="bwcSyncAgentes()" class="hidden px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600">Sync agentes</button>
                 <button type="button" data-bwc-admin onclick="bwcAbrirConsultores()" class="hidden px-3 py-1.5 rounded-lg border border-blue-500/40 text-blue-500">Editar consultores</button>
                 <label class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 cursor-pointer">Upload
@@ -34,6 +34,28 @@
     </div>
 
     <div id="bwc-paineis"></div>
+
+    <div id="bwc-lead-panel" class="hidden glass-card p-5 mb-6 border border-emerald-500/30">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-bold text-[#00346f] dark:text-white font-display">Atualizar negócio na base Bwipo</h3>
+            <button type="button" onclick="bwcToggleLead()" class="text-slate-500 hover:text-[#00346f] dark:hover:text-white text-xs">Fechar</button>
+        </div>
+        <p class="text-xs text-slate-600 dark:text-slate-400 mb-4">Busca o card na API do Bwipo e grava no espelho. Informe o <strong class="text-slate-800 dark:text-slate-300">número do card</strong> (o # da URL) ou o <strong class="text-slate-800 dark:text-slate-300">RGM</strong> de 8 dígitos. Se o negócio estiver em Ganho com responsável ligado ao consultor, a venda fica fixada nele.</p>
+        <div class="flex flex-wrap items-end gap-4">
+            <div>
+                <label class="block text-[10px] text-slate-500 mb-1">Número do card (Bwipo)</label>
+                <input type="text" id="bwc-lead-number" placeholder="Ex: 4997" class="input-glass px-3 py-2 text-sm w-36" inputmode="numeric">
+            </div>
+            <div class="text-slate-600 text-xs pt-6">ou</div>
+            <div>
+                <label class="block text-[10px] text-slate-500 mb-1">RGM (8 dígitos)</label>
+                <input type="text" id="bwc-lead-rgm" placeholder="Ex: 48411612" class="input-glass px-3 py-2 text-sm w-36" maxlength="12" inputmode="numeric">
+            </div>
+            <button type="button" onclick="bwcAtualizarLead()" id="bwc-lead-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-5 py-2.5 rounded-lg">Buscar e atualizar</button>
+        </div>
+        <div id="bwc-lead-msg" class="hidden mt-4 text-xs p-3 rounded-lg border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900/40"></div>
+        <div id="bwc-lead-pick" class="hidden mt-3 flex flex-wrap gap-2"></div>
+    </div>
 
     <div class="glass-card p-4 mb-4">
         <div class="flex flex-wrap items-end gap-3">
@@ -190,7 +212,7 @@
             <div class="flex items-center gap-2">
                 <input id="bwc-rgm" type="text" inputmode="numeric" maxlength="12" placeholder="Consultar RGM" class="input-glass px-2 py-1 text-xs w-32" onkeydown="if(event.key==='Enter')bwcConsultarRgm()">
                 <button type="button" onclick="bwcConsultarRgm()" class="text-xs px-2 py-1 rounded-lg border border-blue-500/30 text-blue-500">Buscar</button>
-                <button type="button" onclick="bwcMiniSync()" title="Atualiza um lead do Kommo ou um negócio do Bwipo e, se estiver em Ganho, fixa a venda no responsável" class="text-xs px-2 py-1 rounded-lg border border-emerald-500/30 text-emerald-500">Mini-sync</button>
+                <button type="button" onclick="bwcToggleLead()" title="Atualiza um negócio do Bwipo pelo número do card ou pelo RGM" class="text-xs px-2 py-1 rounded-lg border border-emerald-500/30 text-emerald-500">Atualizar</button>
                 <button type="button" onclick="crgmToggleSolicitacoes()"
                     class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/40 text-orange-500 text-xs font-semibold">
                     <span class="material-symbols-outlined text-sm">assignment</span>

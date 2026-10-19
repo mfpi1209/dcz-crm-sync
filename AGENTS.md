@@ -4,6 +4,16 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-10-19 — Matrícula no Bwipo que nunca entrou no SIAA conta como evasão
+- **Modelo usado:** Cursor Grok 4.7.
+- **Pedido:** RGM 50574191 (Luciana, card #87480, matrícula 13/10) foi matriculada no polo errado ou se transferiu no mesmo dia. Nunca apareceu no relatório, então não entrava nem como venda nem como evasão.
+- **Agora:** Ganho no Bwipo com RGM e data no recorte, e esse RGM nunca apareceu em nenhum relatório de matriculados, entra na evasão como TRANSFERIDO, no consultor da venda. Não soma matrícula. No período 01–18/10 são 6 RGMs; a Luciana (50574191 e o outro card 50574663) fica na evasão da Sabrina, que continua com 72 vendas.
+
+### 2026-10-19 — Atualizar lead do Dashboard Bwipo grava no Bwipo
+- **Modelo usado:** Cursor Grok 4.7.
+- **Pedido:** o painel "Atualizar lead" aberto no Dashboard Comercial Bwipo ainda buscava o lead no Kommo.
+- **Agora:** o botão abre o painel do Bwipo. Número do card ou RGM de 8 dígitos chama `POST /api/bwipo/painel/mini-sync`, que lê o negócio na API e grava no espelho. Vários cards com o mesmo RGM pedem a escolha. Ganho com responsável que tem depara continua fixando a venda. ID de lead Kommo nesse botão não sincroniza mais.
+
 ### 2026-10-13 — Preços dos cursos no Bwipo: snapshot + PUT do produto
 - **Modelo usado:** Cursor Grok 4.7.
 - **Pedido:** a planilha de update (CURSO, GRAU, CANAL, preço base, desconto, valor final) atualiza o produto no CRM comercial e guarda histórico para o painel comparar (mais barato, mais caro, menor preço em 6 meses).
