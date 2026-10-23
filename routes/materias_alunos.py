@@ -52,6 +52,7 @@ def _new_job(total: int, intervalo: int) -> dict:
         "sucesso": 0,
         "sem_materias": 0,
         "erros": 0,
+        "com_email": 0,
         "ultimo_rgm": None,
         "ultimo_aluno": None,
         "ultima_msg": None,
@@ -235,8 +236,34 @@ def _ja_consultados(rgms: list[str]) -> set[str]:
 
 # ---------- Persistencia por RGM ----------
 
-def _upsert_materias(rgm: str, aluno: str, materias: list[dict]):
-    """Upsert em eduit.public.materias_alunos: 1 linha por aluno (PK rgm)."""
+_cols_ok = False
+_cols_lock = threading.Lock()
+
+
+def _ensure_email_cols(conn) -> None:
+    """Garante as colunas de e-mail em eduit.public.materias_alunos (1x por processo)."""
+    global _cols_ok
+    if _cols_ok:
+        return
+    with _cols_lock:
+        if _cols_ok:
+            return
+        with conn.cursor() as cur:
+            cur.execute("""
+                ALTER TABLE public.materias_alunos
+                    ADD COLUMN IF NOT EXISTS email_academico TEXT,
+                    ADD COLUMN IF NOT EXISTS email_pessoal   TEXT
+            """)
+        conn.commit()
+        _cols_ok = True
+
+
+def _upsert_materias(rgm: str, aluno: str, materias: list[dict],
+                     email_academico: str | None = None,
+                     email_pessoal: str | None = None):
+    """Upsert em eduit.public.materias_alunos: 1 linha por aluno (PK rgm).
+
+    E-mails: se a busca nao trouxe valor (None), preserva o que ja estava gravado."""
     itens: list[dict] = []
     vistos: set[tuple] = set()
     for m in materias or ():
@@ -251,19 +278,22 @@ def _upsert_materias(rgm: str, aluno: str, materias: list[dict]):
         itens.append({"disciplina": nome, "data": data})
     conn = _eduit_conn()
     try:
+        _ensure_email_cols(conn)
         with conn.cursor() as cur:
             cur.execute(
                 """
                 INSERT INTO public.materias_alunos
-                    (rgm, aluno, materias, qtd_materias, consultado_em)
-                VALUES (%s, %s, %s, %s, NOW())
+                    (rgm, aluno, materias, qtd_materias, email_academico, email_pessoal, consultado_em)
+                VALUES (%s, %s, %s, %s, %s, %s, NOW())
                 ON CONFLICT (rgm) DO UPDATE SET
                     aluno = EXCLUDED.aluno,
                     materias = EXCLUDED.materias,
                     qtd_materias = EXCLUDED.qtd_materias,
+                    email_academico = COALESCE(EXCLUDED.email_academico, public.materias_alunos.email_academico),
+                    email_pessoal   = COALESCE(EXCLUDED.email_pessoal,   public.materias_alunos.email_pessoal),
                     consultado_em = EXCLUDED.consultado_em
                 """,
-                (rgm, aluno, Json(itens), len(itens)),
+                (rgm, aluno, Json(itens), len(itens), email_academico or None, email_pessoal or None),
             )
         conn.commit()
     finally:
@@ -301,12 +331,15 @@ def _worker(rgms: list[str], intervalo: int):
             res = buscar_materias(cookie, rgm)
             aluno_nome = res.get("aluno")
             materias = res.get("materias") or []
-            _upsert_materias(rgm, aluno_nome, materias)
+            _upsert_materias(rgm, aluno_nome, materias,
+                             res.get("email_academico"), res.get("email_pessoal"))
             with _job_lock:
                 if materias:
                     _job["sucesso"] += 1
                 else:
                     _job["sem_materias"] += 1
+                if res.get("email_academico"):
+                    _job["com_email"] += 1
         except SessaoExpirada as e:
             with _job_lock:
                 _job["status"] = "session_expired"
@@ -474,8 +507,8 @@ def api_diag():
     # Chamada instrumentada ao SIAA
     from urllib.parse import quote
     from siaa.materias_alunos_client import (
-        _sessao_cookie, _viewstate, _turmas, _parse_grid, _redirecionou,
-        CONS_JSF, CONS_HIST, HDR_NAV, HDR_AJAX,
+        _sessao_cookie, _viewstate, _turmas, _parse_grid, _redirecionou, _extrair_emails,
+        CONS_JSF, CONS_HIST, CONS_DADOS, HDR_NAV, HDR_AJAX,
     )
     steps: list[dict] = []
     rgm_num = re.sub(r"\D", "", rgm)
@@ -519,6 +552,25 @@ def api_diag():
         if _redirecionou(rb):
             return jsonify({"ok": False, "info": info, "steps": steps, "diag": "redirect no POST buscar"}), 502
 
+        # Dados Cadastrais -> e-mails
+        emails: dict = {}
+        rd = s.get(CONS_DADOS, headers={**HDR_NAV, "Referer": CONS_JSF, "Sec-Fetch-Dest": "iframe"}, timeout=T, allow_redirects=False)
+        if not _redirecionou(rd):
+            emails = _extrair_emails(rd.text or "")
+        steps.append({
+            "step": "GET dados",
+            "status": rd.status_code,
+            "location": rd.headers.get("Location"),
+            "content_type": rd.headers.get("Content-Type"),
+            "len": len(rd.text or ""),
+            "redirected": _redirecionou(rd),
+            "emails": emails.get("emails"),
+            "email_academico": emails.get("email_academico"),
+            "email_pessoal": emails.get("email_pessoal"),
+            # trechos com "mail" ajudam a ajustar o parser se o rotulo for diferente
+            "mail_snippets": [m.group(0)[:160] for m in re.finditer(r".{0,80}mail.{0,80}", rd.text or "", re.I)][:6],
+        })
+
         rh = s.get(CONS_HIST, headers={**HDR_NAV, "Referer": CONS_JSF, "Sec-Fetch-Dest": "iframe"}, timeout=60, allow_redirects=False)
         steps.append({
             "step": "GET historico",
@@ -540,6 +592,8 @@ def api_diag():
             "steps": steps,
             "turma_selected": sel,
             "turmas_total": len(turmas),
+            "email_academico": emails.get("email_academico"),
+            "email_pessoal": emails.get("email_pessoal"),
             "materias_encontradas": len(materias),
             "materias_amostra": [m.get("disciplina") for m in materias[:5]],
         })

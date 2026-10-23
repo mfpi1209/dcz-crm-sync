@@ -123,7 +123,7 @@
     <div class="ma-topbar">
         <div>
             <h1 class="ma-title">Matérias dos Alunos</h1>
-            <div class="ma-sub">Consulta em lote no SIAA (módulo Acadêmico) e grava em <code>eduit.materias_alunos</code>.</div>
+            <div class="ma-sub">Consulta em lote no SIAA (módulo Acadêmico) — matérias + e-mail acadêmico/pessoal (Dados Cadastrais) — e grava em <code>eduit.materias_alunos</code>.</div>
         </div>
     </div>
 
@@ -208,6 +208,7 @@
             <div class="ma-stat"><div class="ma-stat-label">Sucesso</div><div class="ma-stat-val" id="ma-s-ok" style="color:var(--success)">0</div></div>
             <div class="ma-stat"><div class="ma-stat-label">Sem matérias</div><div class="ma-stat-val" id="ma-s-sm" style="color:var(--warning)">0</div></div>
             <div class="ma-stat"><div class="ma-stat-label">Erros</div><div class="ma-stat-val" id="ma-s-er" style="color:var(--danger)">0</div></div>
+            <div class="ma-stat"><div class="ma-stat-label">Com e-mail</div><div class="ma-stat-val" id="ma-s-em" style="color:var(--primary)">0</div></div>
         </div>
         <div style="margin-top:12px; font-size:12px; color:var(--text-muted);">
             Último RGM: <span id="ma-last-rgm">–</span>
@@ -436,6 +437,7 @@
         document.getElementById('ma-s-ok').textContent = j.sucesso;
         document.getElementById('ma-s-sm').textContent = j.sem_materias;
         document.getElementById('ma-s-er').textContent = j.erros;
+        document.getElementById('ma-s-em').textContent = j.com_email || 0;
         document.getElementById('ma-last-rgm').textContent = j.ultimo_rgm || '–';
         document.getElementById('ma-last-aluno').textContent = j.ultimo_aluno || '';
 
