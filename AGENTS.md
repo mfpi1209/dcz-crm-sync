@@ -4,6 +4,12 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-10-26 — Sync Bwipo não remonta o depara dos leads com o Kommo
+- **Modelo usado:** Cursor Grok 4.7.
+- **Pedido:** a incremental parava em "Montando depara Kommo → Bwipo" (cerca de 51 mil casamentos). O Kommo não é mais o CRM do dia. Tirar esse passo da sync do botão, para ela ficar mais rápida.
+- **Agora:** `_run_sync` não chama `_rebuild_depara`. Contatos, negócios, etapas, responsável e origem continuam vindo da API do Bwipo. O mapa dos consultores (`_rebuild_user_depara`) continua, porque meta e crédito usam o `kommo_user_id`.
+- **Não muda:** a tabela `bwipo_kommo_depara` e a busca manual na tela de Sync. Elas ficam com o último resultado. Dono da venda e origem do negócio não liam essa tabela.
+
 ### 2026-10-19 — Matrícula no Bwipo que nunca entrou no SIAA conta como evasão
 - **Modelo usado:** Cursor Grok 4.7.
 - **Pedido:** RGM 50574191 (Luciana, card #87480, matrícula 13/10) foi matriculada no polo errado ou se transferiu no mesmo dia. Nunca apareceu no relatório, então não entrava nem como venda nem como evasão.

@@ -711,20 +711,11 @@ def _run_sync(task: dict, mode: str):
             n_u = 0
             _task_log(task, f"Depara consultores falhou: {ue}", 87)
 
-        try:
-            n_m = _rebuild_depara(cur, task)
-            conn.commit()
-        except Exception as de:
-            conn.rollback()
-            logger.exception("bwipo depara: %s", de)
-            n_m = 0
-            _task_log(task, f"Depara falhou (espelho ok): {de}", 95)
-
         _set_meta(cur, "run", "completed", n_c + n_d, full=full)
         conn.commit()
         _task_log(
             task,
-            f"Concluído: {n_c} contatos, {n_d} negócios, {n_m} deparas, {n_u} consultores.",
+            f"Concluído: {n_c} contatos, {n_d} negócios, {n_u} consultores.",
             100,
         )
         task["status"] = "completed"
