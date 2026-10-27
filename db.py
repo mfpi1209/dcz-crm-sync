@@ -1770,6 +1770,27 @@ def _ensure_precos_bwipo_page():
         logger.warning("Could not ensure precos_bwipo page grants: %s", e)
 
 
+def _ensure_comissao_page():
+    """Quem vê o Dashboard Comercial Bwipo vê a Comissão."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO user_permissions (user_id, page)
+                SELECT p.user_id, 'comissao'
+                FROM user_permissions p
+                WHERE p.page = 'bwipo_comercial'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM user_permissions x
+                      WHERE x.user_id = p.user_id AND x.page = 'comissao'
+                  )
+            """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure comissao page grants: %s", e)
+
+
 def _ensure_bwipo_comercial_page():
     """Quem vê o Dashboard Comercial ou o Sync Bwipo vê a página de observação."""
     try:

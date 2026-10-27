@@ -418,6 +418,7 @@ const PAGE_LABELS = {
     minha_performance: 'Minha Performance',
     leads_parados: 'Leads Parados',
     premiacao_admin: 'Premiação (Admin)',
+    comissao: 'Comissão',
     ajustes_matricula: 'Ajustes de Matrícula',
     macro_email: 'Macro Email',
     repasse: 'Repasse',
@@ -487,7 +488,7 @@ const CATEGORY_PRESETS = {
     'Supervisor Comercial': [
         'dashboard', 'search', 'avisos',
         ..._PRESET_FERRAMENTAS_FULL,
-        'dist_consultor', 'comercial_rgm', 'dist_comercial', 'inscricao',
+        'dist_consultor', 'comercial_rgm', 'comissao', 'dist_comercial', 'inscricao',
         'recadastros', 'comercial_dashboard', 'auditoria_comercial',
         'leads_parados', 'minha_performance', 'repasse',
         'solicitacoes_ti', 'meus_chamados_ti',
@@ -585,7 +586,7 @@ const PAGE_GROUPS_CONFIG = [
             'dist_consultor', 'comercial_rgm', 'bwipo_comercial', 'premiacao_admin', 'dist_comercial', 'inscricao',
             'recadastros', 'comercial_dashboard', 'auditoria_comercial',
             'atualizar_preco', 'precos_bwipo', 'leads_parados', 'minha_performance', 'repasse',
-            'captacao', 'clicks', 'leads_promotores',
+            'captacao', 'clicks', 'leads_promotores', 'comissao',
         ],
     },
     {

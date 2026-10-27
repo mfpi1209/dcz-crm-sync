@@ -4,6 +4,12 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-10-27 — Comissão no menu Comercial
+- **Modelo usado:** Cursor Grok 4.7.
+- **Pedido:** submenu Comissão no fim do Comercial, com grupos no mesmo formato da Premiação, e a conta das matrículas do Dashboard Comercial Bwipo no período da própria aba.
+- **Agora:** a página `comissao` lê as matrículas em curso do painel. A faixa (Inter, Meta, Super) é a meta que o ranking já mostra. Alta paga 10/15/20 na graduação e 10/10/20 na pós. Impulso paga 8/12/16 e 8/10/16. Abaixo de Inter fica em zero. Os grupos são os da campanha em `premiacao_grupo`. Sem adicional de indicação: o espelho não traz essa origem.
+- **Não muda:** o ranking, a Premiação e o valor de PIX. Fica só no local até o usuário pedir para subir.
+
 ### 2026-10-26 — Sync Bwipo não remonta o depara dos leads com o Kommo
 - **Modelo usado:** Cursor Grok 4.7.
 - **Pedido:** a incremental parava em "Montando depara Kommo → Bwipo" (cerca de 51 mil casamentos). O Kommo não é mais o CRM do dia. Tirar esse passo da sync do botão, para ela ficar mais rápida.

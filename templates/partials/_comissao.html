@@ -1,0 +1,70 @@
+<section id="page-comissao" class="hidden p-4 md:p-8 max-w-7xl mx-auto space-y-4">
+    <div class="mb-2 pb-6 border-b border-[var(--border)]">
+        <h2 class="text-3xl font-bold font-display text-[var(--text-primary)] dark:text-white mb-1">Comissão</h2>
+        <p class="text-sm text-[var(--text-muted)] max-w-3xl leading-relaxed">Matrículas em curso do Dashboard Comercial Bwipo, no período abaixo. A faixa é a meta do ranking. O valor por matrícula segue o grupo.</p>
+    </div>
+
+    <div class="glass-card p-5 border border-emerald-500/20">
+        <h3 class="text-sm font-bold text-[var(--text-primary)] dark:text-white font-display mb-4">Grupos</h3>
+        <div class="flex flex-wrap items-end gap-3 mb-4">
+            <div>
+                <label class="block text-[10px] text-slate-500 mb-1">Campanha</label>
+                <select id="cm-camp" onchange="cmCampanha()" class="input-glass px-3 py-1.5 text-xs text-slate-900 dark:text-slate-300 min-w-[220px]"></select>
+            </div>
+            <button type="button" onclick="cmNovoGrupo()" class="text-xs px-4 py-1.5 rounded-lg flex items-center gap-1.5 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10">+ Novo Grupo</button>
+        </div>
+        <div id="cm-grupos" class="space-y-3">
+            <p class="text-xs text-slate-600">Selecione uma campanha</p>
+        </div>
+    </div>
+
+    <div class="glass-card p-5">
+        <div class="flex flex-wrap items-end gap-3 mb-4">
+            <div>
+                <label class="block text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1 font-semibold">De</label>
+                <input id="cm-de" type="date" class="input-glass px-3 py-2 text-sm text-slate-900 dark:text-slate-200 rounded-lg">
+            </div>
+            <div>
+                <label class="block text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1 font-semibold">Até</label>
+                <input id="cm-ate" type="date" class="input-glass px-3 py-2 text-sm text-slate-900 dark:text-slate-200 rounded-lg">
+            </div>
+            <button type="button" onclick="cmCalcular()" class="btn-primary text-xs px-4 py-2">Calcular</button>
+            <p id="cm-curso" class="text-xs text-slate-500"></p>
+        </div>
+        <div id="cm-tabelas" class="grid md:grid-cols-2 gap-3 mb-4 text-xs"></div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-[10px] uppercase tracking-wider text-slate-500 border-b border-[var(--border)]">
+                        <th class="py-2 pr-3">Agente</th>
+                        <th class="py-2 pr-3">Grupo</th>
+                        <th class="py-2 pr-3 text-right">Matr.</th>
+                        <th class="py-2 pr-3 text-right">Grad</th>
+                        <th class="py-2 pr-3 text-right">Pós</th>
+                        <th class="py-2 pr-3">Faixa</th>
+                        <th class="py-2 pr-3 text-right">R$/grad</th>
+                        <th class="py-2 pr-3 text-right">R$/pós</th>
+                        <th class="py-2 text-right">Comissão</th>
+                    </tr>
+                </thead>
+                <tbody id="cm-body">
+                    <tr><td colspan="9" class="py-6 text-xs text-slate-500">Calcule para ver a comissão do período.</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div id="cm-sem" class="mt-4 text-xs text-amber-400/90"></div>
+    </div>
+
+    <div id="cm-modal" class="hidden fixed inset-0 z-[9999] flex items-start justify-center bg-black/60 pt-16">
+        <div class="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-5 w-full max-w-md relative">
+            <button type="button" onclick="document.getElementById('cm-modal').classList.add('hidden')" class="absolute top-3 right-3 text-slate-500">✕</button>
+            <h4 id="cm-modal-title" class="text-sm font-bold text-[var(--text-primary)] mb-4">Novo Grupo</h4>
+            <input type="hidden" id="cm-modal-id" value="">
+            <label class="block text-[10px] text-slate-500 mb-1">Nome</label>
+            <input id="cm-modal-nome" type="text" placeholder="Alta Performance ou Impulso" class="input-glass px-3 py-1.5 text-xs w-full mb-3">
+            <label class="block text-[10px] text-slate-500 mb-1">Consultores</label>
+            <div id="cm-modal-membros" class="max-h-64 overflow-y-auto space-y-1 mb-4"></div>
+            <button type="button" onclick="cmSalvarGrupo()" class="btn-primary text-xs px-4 py-1.5">Salvar</button>
+        </div>
+    </div>
+</section>

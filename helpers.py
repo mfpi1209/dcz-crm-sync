@@ -55,7 +55,7 @@ ALL_PAGES = [
     "dashboard", "search", "sync", "kommo_sync", "bwipo_sync", "bwipo_comercial", "update", "pipeline", "match_merge",
     "comercial_rgm", "logs", "distribuicao", "ativacoes", "intelligence", "inadimplencia",
     "feedback", "config", "schedule", "inscricao", "avisos", "kommo_dispatcher",
-    "leads_parados", "dist_consultor", "minha_performance", "premiacao_admin",
+    "leads_parados", "dist_consultor", "minha_performance", "premiacao_admin", "comissao",
     "macro_email", "ajustes_matricula", "repasse",
     "recadastros", "vocacional", "comercial_dashboard", "auditoria_comercial",
     "meta-campaigns", "dist_comercial", "atualizar_preco", "precos_bwipo",
