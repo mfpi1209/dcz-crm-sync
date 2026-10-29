@@ -3,6 +3,7 @@
 Baseado no fluxo validado:
   GET  wacdcon18/consultaAcademico.jsf?init=true   -> ViewState
   POST wacdcon18/consultaAcademico.jsf             -> carrega aluno (buscar)
+  GET  wacdcon18/dados.xhtml                       -> dados cadastrais (e-mails)
   GET  wacdcon18/historico.xhtml                   -> grid inicial + turmas
   POST wacdcon18/historico.xhtml                   -> troca de turma (AJAX)
 
@@ -23,6 +24,20 @@ log = logging.getLogger(__name__)
 CONS_BASE = "https://siaa.cruzeirodosul.edu.br/siaa_academico/secure/academico/consulta/wacdcon18"
 CONS_JSF  = CONS_BASE + "/consultaAcademico.jsf"
 CONS_HIST = CONS_BASE + "/historico.xhtml"
+CONS_DADOS = CONS_BASE + "/dados.xhtml"   # aba "Dados Cadastrais" do TabView
+
+# Dominios que caracterizam o e-mail academico/institucional (sufixos, csv via env).
+_DOMINIOS_ACADEMICOS = tuple(
+    d.strip().lower().lstrip("@")
+    for d in os.getenv("SIAA_EMAIL_ACADEMICO_DOMINIOS", "cruzeirodosul.edu.br,.edu.br").split(",")
+    if d.strip()
+)
+# Locais de e-mail que sao contato institucional da pagina, nao do aluno.
+_EMAIL_LOCAL_BLOCKLIST = frozenset({
+    "suporte", "contato", "atendimento", "noreply", "no-reply", "nao-responda",
+    "sac", "ouvidoria", "secretaria", "financeiro", "cobranca", "webmaster",
+})
+_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
 
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
        "(KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0")
@@ -140,6 +155,70 @@ def _parse_grid(text: str) -> list[dict]:
     return out
 
 
+def _eh_academico(email: str) -> bool:
+    dom = email.rsplit("@", 1)[-1].lower()
+    for d in _DOMINIOS_ACADEMICOS:
+        if dom == d.lstrip(".") or dom.endswith("." + d.lstrip(".")):
+            return True
+    return False
+
+
+def _extrair_emails(text: str) -> dict:
+    """Extrai e-mails da aba Dados Cadastrais.
+
+    1) Pares rotulo/valor cujo rotulo contenha "mail" (reusa o parser do Consulta SIAA);
+    2) fallback: todos os e-mails do HTML, ignorando contatos institucionais da pagina.
+    Retorna {email_academico, email_pessoal, emails: [todos, em ordem]}.
+    """
+    if not text:
+        return {"email_academico": None, "email_pessoal": None, "emails": []}
+    try:
+        from siaa.parser import _extract_label_values
+        labels = _extract_label_values(text)
+    except Exception as e:  # parser e best-effort; nao derruba a consulta
+        log.warning("materias: parser de rotulos falhou: %s", e)
+        labels = {}
+
+    ordenados: list[str] = []
+    vistos: set[str] = set()
+    por_rotulo: dict[str, str] = {}   # "ad" | "pessoal" -> email
+
+    def _add(v: str) -> str | None:
+        first = None
+        for m in _EMAIL_RE.findall(html.unescape(v or "")):
+            m = m.strip().lower()
+            if m.split("@", 1)[0] in _EMAIL_LOCAL_BLOCKLIST:
+                continue
+            first = first or m
+            if m not in vistos:
+                vistos.add(m)
+                ordenados.append(m)
+        return first
+
+    # 1) rotulos com "mail". No SIAA (dados.xhtml): "E-mail AD:" = institucional
+    #    (Active Directory, ex. @cs.unicid.edu.br) e "E-mail:" = pessoal.
+    for k, v in labels.items():
+        if "mail" not in k:
+            continue
+        e = _add(v)
+        if not e:
+            continue
+        k2 = re.sub(r"[^a-z]+", " ", k).strip()
+        if re.search(r"\bad\b|institucional|academic", k2):
+            por_rotulo.setdefault("ad", e)
+        elif k2 in ("e mail", "email", "mail", "e mail pessoal", "email pessoal"):
+            por_rotulo.setdefault("pessoal", e)
+    # 2) fallback: varredura do HTML inteiro
+    if not ordenados:
+        _add(text)
+
+    academico = por_rotulo.get("ad") or next((e for e in ordenados if _eh_academico(e)), None)
+    pessoal = por_rotulo.get("pessoal") if por_rotulo.get("pessoal") != academico else None
+    if not pessoal:
+        pessoal = next((e for e in ordenados if e != academico), None)
+    return {"email_academico": academico, "email_pessoal": pessoal, "emails": ordenados}
+
+
 def _turmas(text: str) -> tuple[str | None, list[str]]:
     m = re.search(r'id="formNota:turmas_input".*?</select>', text, re.DOTALL)
     bloco = m.group(0) if m else text
@@ -166,10 +245,25 @@ def _troca_turma(s: requests.Session, vs: str, val: str) -> str:
 
 # ---------- Public API ----------
 
+def buscar_dados_cadastrais(s: requests.Session) -> str:
+    """GET da aba Dados Cadastrais do aluno ja carregado na sessao. Retorna o HTML."""
+    rd = s.get(CONS_DADOS,
+               headers={**HDR_NAV, "Referer": CONS_JSF, "Sec-Fetch-Dest": "iframe"},
+               timeout=60, allow_redirects=False)
+    if _redirecionou(rd):
+        raise SessaoExpirada()
+    return rd.text or ""
+
+
 def buscar_materias(cookie_str: str, rgm: str, empresa: str = "12") -> dict:
-    """Consulta as materias de um RGM. Retorna {aluno, rgm, materias: [{sigla, disciplina, resultado}]}.
+    """Consulta as materias de um RGM.
+
+    Retorna {aluno, rgm, email_academico, email_pessoal,
+             materias: [{sigla, disciplina, resultado, data}]}.
 
     Levanta SessaoExpirada se o SIAA redirecionar (cookie invalido/expirado).
+    A busca de e-mails (aba Dados Cadastrais) e best-effort: falha de rede/parse
+    nao derruba a consulta das materias.
     """
     rgm = re.sub(r"\D", "", rgm or "")
     if not rgm:
@@ -200,6 +294,15 @@ def buscar_materias(cookie_str: str, rgm: str, empresa: str = "12") -> dict:
 
     mn = re.search(r'filterAluno"[^>]*value="([^"]*)"', rb.text)
     aluno = html.unescape(mn.group(1)).strip() if mn else rgm
+
+    # Dados Cadastrais -> e-mails (best-effort, exceto sessao expirada)
+    emails = {"email_academico": None, "email_pessoal": None, "emails": []}
+    try:
+        emails = _extrair_emails(buscar_dados_cadastrais(s))
+    except SessaoExpirada:
+        raise
+    except Exception as e:
+        log.warning("materias: falha ao obter dados cadastrais rgm=%s: %s", rgm, e)
 
     rh = s.get(CONS_HIST,
                headers={**HDR_NAV, "Referer": CONS_JSF, "Sec-Fetch-Dest": "iframe"},
@@ -234,4 +337,10 @@ def buscar_materias(cookie_str: str, rgm: str, empresa: str = "12") -> dict:
         seen.add(k)
         uniq.append(m)
 
-    return {"aluno": aluno, "rgm": rgm, "materias": uniq}
+    return {
+        "aluno": aluno,
+        "rgm": rgm,
+        "email_academico": emails.get("email_academico"),
+        "email_pessoal": emails.get("email_pessoal"),
+        "materias": uniq,
+    }
