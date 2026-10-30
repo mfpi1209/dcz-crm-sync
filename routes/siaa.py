@@ -20,6 +20,10 @@ import requests
 from flask import Blueprint, jsonify, request, session
 
 from siaa.parser import process_siaa_http_rgm
+from siaa.siaa_http_client import (
+    DEFAULT_HEADERS, ENDPOINT as SIAA_ACADEMICO_URL, FIN_CONSULTA as SIAA_FINANCEIRO_URL,
+    GET_EXTRA_HEADERS, _extract_view_state_from_html, _is_access_denied_html,
+)
 from siaa.insights import (
     build_insights, fetch_latest_captura, fetch_documentos,
     fetch_titulos, supabase_configured, normalize_rgm,
@@ -157,22 +161,35 @@ def siaa_sessao_testar():
     if err is not None:
         return err
 
+    # Testa direto no SIAA com o User-Agent do siaa_http_client. O /test do
+    # servidor de sessao usa um UA antigo que o WAF do SIAA barra com 403.
+    url = SIAA_ACADEMICO_URL if module == "academico" else SIAA_FINANCEIRO_URL
     try:
-        r = requests.post(
-            f"{SIAA_URL}/session/{module}/test",
-            headers={"Authorization": f"Bearer {SIAA_TOKEN}"},
-            json={"cookie": cookie},
-            timeout=60,
+        r = requests.get(
+            url,
+            headers={**DEFAULT_HEADERS, **GET_EXTRA_HEADERS, "Cookie": _cookie_do_curl(cookie)},
+            allow_redirects=False,
+            timeout=30,
         )
     except requests.RequestException as e:
         logger.error("siaa_sessao_testar: erro de rede module=%s", module)
         return jsonify({"ok": False, "error": str(e)}), 502
 
-    logger.info("siaa_sessao_testar: module=%s len=%d status=%d", module, len(cookie), r.status_code)
+    alive = r.status_code == 200 and not _is_access_denied_html(r.text)
+    if module == "academico":
+        alive = alive and bool(_extract_view_state_from_html(r.text))
+    logger.info("siaa_sessao_testar: module=%s len=%d status=%d alive=%s",
+                module, len(cookie), r.status_code, alive)
+    return jsonify({"alive": alive, "module": module, "status": r.status_code})
 
-    try:
-        resp_data = r.json()
-    except ValueError:
-        resp_data = {"ok": r.status_code < 400, "raw": r.text[:300]}
 
-    return jsonify(resp_data), r.status_code
+def _cookie_do_curl(texto):
+    """Extrai o header Cookie de um 'Copy as cURL (bash)'; texto sem cURL vale como o proprio header."""
+    for padrao in (
+        r"""(?:-b|--cookie)\s+(['"])(.*?)\1""",
+        r"""-H\s+(['"])[Cc]ookie:\s*(.*?)\1""",
+    ):
+        m = re.search(padrao, texto, re.DOTALL)
+        if m:
+            return m.group(2).strip()
+    return texto.strip()

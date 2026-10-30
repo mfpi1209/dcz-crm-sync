@@ -9,7 +9,8 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 - **Pedido:** cURL recém-capturado do Acadêmico dava "Sessão morta (HTTP 403)" no Testar, e Matérias dos Alunos acusava sessão expirada.
 - **Causa:** o mesmo cookie, deste PC, responde 200 com User-Agent Chrome/Edge 150 ou 156 e **403** com Chrome/Edge 147. A página de 403 é o "Opss, página não encontrada!" do WAF, com código de suporte. Cookie inválido com UA novo dá 302 para `access_denied.jsf?codigoErro=5`, não 403. Então o 403 é bloqueio de navegador antigo, não sessão morta.
 - **Agora:** `siaa_http_client.py` e `materias_alunos_client.py` mandam UA e `sec-ch-ua` do Edge 156, iguais ao cURL do usuário.
-- **Fora deste repo:** o servidor de sessão (`SIAA_SESSION_URL`) faz o teste com o próprio UA e continua respondendo `{"alive":false,"status":403}`. Precisa da mesma troca lá. Se o WAF subir o corte de novo, trocar a versão nos três lugares.
+- **Testar (mesmo dia):** o `/test` do servidor de sessão (`SIAA_SESSION_URL`) usa um UA antigo e continua respondendo `{"alive":false,"status":403}`. O código dele não está em repo nenhum do `mfpi1209`. Então `POST /siaa-sessao/testar` deixou de chamá-lo: tira o Cookie do cURL colado (`-b`/`--cookie` ou `-H 'Cookie: ...'`) e faz GET direto no SIAA com o UA do `siaa_http_client`. VIVO = 200 sem página de acesso negado (Acadêmico também exige ViewState). O Salvar continua gravando no servidor de sessão, que só guarda o cookie.
+- Se o WAF subir o corte de novo, trocar a versão em `siaa_http_client.py` e `materias_alunos_client.py`.
 
 ### 2026-10-26 — Sync Bwipo não remonta o depara dos leads com o Kommo
 - **Modelo usado:** Cursor Grok 4.7.
