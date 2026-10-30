@@ -176,17 +176,12 @@
     }
 
     function itensVisiveis(items) {
-        const dia = $('cti-board-date')?.value || '';
         return items.filter(t => {
             const nome = (t.responsavel_nome || '').trim();
             if (_respFilter === '__livre') {
                 if (nome) return false;
             } else if (_respFilter !== 'todos' && nome !== _respFilter) {
                 return false;
-            }
-            if (dia) {
-                const m = /^(\d{4}-\d{2}-\d{2})/.exec(t.prazo_desejado || '');
-                if (!m || m[1] !== dia) return false;
             }
             if (_prazoFilter !== 'todos') {
                 if (t.status === 'Concluído') return false;
@@ -203,21 +198,16 @@
 
     function paintBoardHead() {
         const agora = new Date();
-        const escolhida = $('cti-board-date')?.value || '';
-        const base = escolhida
-            ? new Date(+escolhida.slice(0, 4), +escolhida.slice(5, 7) - 1, +escolhida.slice(8, 10))
-            : agora;
-        const mes = base.toLocaleDateString('pt-BR', { month: 'long' });
+        const mes = agora.toLocaleDateString('pt-BR', { month: 'long' });
+        const mesCap = mes.charAt(0).toUpperCase() + mes.slice(1);
         const monthEl = $('cti-board-month');
-        if (monthEl) monthEl.textContent = mes.charAt(0).toUpperCase() + mes.slice(1);
+        if (monthEl) monthEl.textContent = mesCap;
         const diaNome = agora.toLocaleDateString('pt-BR', { weekday: 'long' });
-        const mesHoje = agora.toLocaleDateString('pt-BR', { month: 'long' });
-        const mesCap = mesHoje.charAt(0).toUpperCase() + mesHoje.slice(1);
         const todayEl = $('cti-board-today');
         if (todayEl) {
             todayEl.textContent = `Hoje é ${diaNome.charAt(0).toUpperCase() + diaNome.slice(1)}, ${agora.getDate()} de ${mesCap}, ${agora.getFullYear()}`;
         }
-        const n = (_respFilter !== 'todos' ? 1 : 0) + (_prazoFilter !== 'todos' ? 1 : 0) + (escolhida ? 1 : 0);
+        const n = (_respFilter !== 'todos' ? 1 : 0) + (_prazoFilter !== 'todos' ? 1 : 0);
         const badge = $('cti-filtros-n');
         const btn = $('cti-filtros-btn');
         if (badge) {
@@ -913,12 +903,8 @@
             _prazoFilter = 'todos';
             if (fResp) fResp.value = 'todos';
             if (fPrazo) fPrazo.value = 'todos';
-            const data = $('cti-board-date');
-            if (data) data.value = '';
             render();
         });
-        const dataFiltro = $('cti-board-date');
-        if (dataFiltro) dataFiltro.addEventListener('change', () => render());
         const criar = $('cti-criar');
         if (criar) criar.addEventListener('click', () => {
             if (typeof navigate === 'function') navigate('solicitacoes_ti');
