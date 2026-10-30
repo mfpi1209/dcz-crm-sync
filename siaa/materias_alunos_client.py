@@ -25,14 +25,14 @@ CONS_JSF  = CONS_BASE + "/consultaAcademico.jsf"
 CONS_HIST = CONS_BASE + "/historico.xhtml"
 
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-       "(KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0")
+       "(KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0")
 
 # Fingerprint de browser identico ao siaa_http_client (Consulta SIAA), que
 # funciona em producao. O SIAA/WAF exige esses headers para nao redirecionar.
 _BROWSER_BASE = {
     "User-Agent": _UA,
     "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-    "sec-ch-ua": '"Microsoft Edge";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
+    "sec-ch-ua": '"Not:A-Brand";v="8", "Chromium";v="156", "Microsoft Edge";v="156"',
     "sec-ch-ua-mobile": "?0",
     "sec-ch-ua-platform": '"Windows"',
 }

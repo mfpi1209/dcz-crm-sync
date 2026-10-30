@@ -4,6 +4,13 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-10-30 — SIAA 403 "Sessão morta" era o WAF barrando User-Agent antigo
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** cURL recém-capturado do Acadêmico dava "Sessão morta (HTTP 403)" no Testar, e Matérias dos Alunos acusava sessão expirada.
+- **Causa:** o mesmo cookie, deste PC, responde 200 com User-Agent Chrome/Edge 150 ou 156 e **403** com Chrome/Edge 147. A página de 403 é o "Opss, página não encontrada!" do WAF, com código de suporte. Cookie inválido com UA novo dá 302 para `access_denied.jsf?codigoErro=5`, não 403. Então o 403 é bloqueio de navegador antigo, não sessão morta.
+- **Agora:** `siaa_http_client.py` e `materias_alunos_client.py` mandam UA e `sec-ch-ua` do Edge 156, iguais ao cURL do usuário.
+- **Fora deste repo:** o servidor de sessão (`SIAA_SESSION_URL`) faz o teste com o próprio UA e continua respondendo `{"alive":false,"status":403}`. Precisa da mesma troca lá. Se o WAF subir o corte de novo, trocar a versão nos três lugares.
+
 ### 2026-10-26 — Sync Bwipo não remonta o depara dos leads com o Kommo
 - **Modelo usado:** Cursor Grok 4.7.
 - **Pedido:** a incremental parava em "Montando depara Kommo → Bwipo" (cerca de 51 mil casamentos). O Kommo não é mais o CRM do dia. Tirar esse passo da sync do botão, para ela ficar mais rápida.
