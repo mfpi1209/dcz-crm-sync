@@ -287,32 +287,18 @@ def _bloqueio_availability() -> str | None:
     return mensagem_preservada(situacao, None)
 
 
+def _interromper_lote(motivo: str, status: str = "error") -> None:
+    with _job_lock:
+        if _job is None:
+            return
+        _job["status"] = status
+        _job["ultima_msg"] = motivo
+        _job["terminado_em"] = datetime.now(timezone.utc).isoformat()
+
+
 def _worker(rgms: list[str], intervalo: int):
     global _job
-    bloqueio = _bloqueio_availability()
-    if bloqueio:
-        with _job_lock:
-            if _job is not None:
-                _job["status"] = "error"
-                _job["ultima_msg"] = bloqueio
-                _job["terminado_em"] = datetime.now(timezone.utc).isoformat()
-        return
-    try:
-        cookie = _load_cookie_academico()
-    except ConsultaInconclusiva as e:
-        with _job_lock:
-            if _job is not None:
-                _job["status"] = "error"
-                _job["ultima_msg"] = str(e)
-                _job["terminado_em"] = datetime.now(timezone.utc).isoformat()
-        return
-    except SessaoExpirada as e:
-        with _job_lock:
-            if _job is not None:
-                _job["status"] = "session_expired"
-                _job["ultima_msg"] = str(e)
-                _job["terminado_em"] = datetime.now(timezone.utc).isoformat()
-        return
+    cookie = None
 
     for i, rgm in enumerate(rgms):
         with _job_lock:
@@ -320,6 +306,19 @@ def _worker(rgms: list[str], intervalo: int):
                 if _job is not None:
                     _job["status"] = "cancelled"
                     _job["terminado_em"] = datetime.now(timezone.utc).isoformat()
+                return
+        bloqueio = _bloqueio_availability()
+        if bloqueio:
+            _interromper_lote(bloqueio)
+            return
+        if cookie is None:
+            try:
+                cookie = _load_cookie_academico()
+            except ConsultaInconclusiva as e:
+                _interromper_lote(str(e))
+                return
+            except SessaoExpirada as e:
+                _interromper_lote(str(e), "session_expired")
                 return
 
         aluno_nome = None
