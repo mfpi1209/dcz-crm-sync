@@ -30,8 +30,9 @@ from openpyxl import load_workbook
 from psycopg2.extras import Json, RealDictCursor
 
 from db import DB_DSN
+from siaa.availability import consultar_availability, decidir_consulta, mensagem_preservada
 from siaa.materias_alunos_client import (
-    SessaoExpirada, SESSAO_EXPIRADA_MSG, _load_cookie_academico, buscar_materias,
+    ConsultaInconclusiva, SessaoExpirada, SESSAO_EXPIRADA_MSG, _load_cookie_academico, buscar_materias,
 )
 
 logger = logging.getLogger(__name__)
@@ -276,10 +277,35 @@ def _registrar_erro(rgm: str, aluno: str | None, msg: str):
 
 # ---------- Worker (thread) ----------
 
+def _bloqueio_availability() -> str | None:
+    situacao = consultar_availability(
+        (os.environ.get("SIAA_SESSION_URL", "") or "").rstrip("/"),
+        os.environ.get("SIAA_SESSION_TOKEN", "") or "",
+    )
+    if decidir_consulta(situacao) != "preservar":
+        return None
+    return mensagem_preservada(situacao, None)
+
+
 def _worker(rgms: list[str], intervalo: int):
     global _job
+    bloqueio = _bloqueio_availability()
+    if bloqueio:
+        with _job_lock:
+            if _job is not None:
+                _job["status"] = "error"
+                _job["ultima_msg"] = bloqueio
+                _job["terminado_em"] = datetime.now(timezone.utc).isoformat()
+        return
     try:
         cookie = _load_cookie_academico()
+    except ConsultaInconclusiva as e:
+        with _job_lock:
+            if _job is not None:
+                _job["status"] = "error"
+                _job["ultima_msg"] = str(e)
+                _job["terminado_em"] = datetime.now(timezone.utc).isoformat()
+        return
     except SessaoExpirada as e:
         with _job_lock:
             if _job is not None:
@@ -420,9 +446,25 @@ def api_start():
     if not rgms:
         return jsonify({"ok": False, "error": "nenhum RGM pendente para processar"}), 400
 
+    bloqueio = _bloqueio_availability()
+    if bloqueio:
+        return jsonify({
+            "ok": False,
+            "error": bloqueio,
+            "session_expired": False,
+            "siaa_consultado": False,
+        }), 503
+
     # valida cookie antes de subir a thread (falha rapido)
     try:
         _load_cookie_academico()
+    except ConsultaInconclusiva as e:
+        return jsonify({
+            "ok": False,
+            "error": str(e),
+            "session_expired": False,
+            "siaa_consultado": False,
+        }), 503
     except SessaoExpirada as e:
         return jsonify({"ok": False, "error": str(e), "session_expired": True}), 409
 
@@ -463,6 +505,10 @@ def api_diag():
         cookie = _load_cookie_academico()
         info["cookie_len"] = len(cookie)
         info["cookie_preview"] = cookie[:120]
+    except ConsultaInconclusiva as e:
+        info["error"] = str(e)
+        info["session_expired"] = False
+        return jsonify({"ok": False, "info": info}), 503
     except SessaoExpirada as e:
         info["error"] = str(e)
         return jsonify({"ok": False, "info": info}), 502
@@ -470,6 +516,15 @@ def api_diag():
     rgm = _s(request.args.get("rgm"))
     if not rgm:
         return jsonify({"ok": True, "info": info, "hint": "passe ?rgm=NNNN para testar chamada real ao SIAA"})
+    bloqueio = _bloqueio_availability()
+    if bloqueio:
+        return jsonify({
+            "ok": False,
+            "error": bloqueio,
+            "session_expired": False,
+            "siaa_consultado": False,
+            "info": info,
+        }), 503
 
     # Chamada instrumentada ao SIAA
     from urllib.parse import quote
