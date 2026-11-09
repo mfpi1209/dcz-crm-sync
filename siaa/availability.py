@@ -7,8 +7,10 @@ def consultar_availability(url: str, token: str, get=None, timeout: float = 6) -
     """404 é API antiga. Falha de rede fica desconhecida e não declara o SIAA indisponível."""
     base = (url or "").strip().rstrip("/")
     segredo = (token or "").strip()
-    if not base or not segredo:
+    if not base and not segredo:
         return {"estado": "nao_configurado", "motivo": ""}
+    if not base or not segredo:
+        return {"estado": "configuracao_incompleta", "motivo": "falha_configuracao"}
     pedido = get
     if pedido is None:
         import requests
@@ -55,6 +57,11 @@ def mensagem_preservada(situacao: dict, data: str | None) -> str:
         return f"SIAA em pausa. Exibindo captura de {quando}."
     if estado == "expirada" or motivo == "sessao_expirada":
         return f"Sessao expirada. Exibindo captura de {quando}."
+    if estado == "configuracao_incompleta":
+        return (
+            f"Falha de configuracao da session-api. Ultima captura de {quando}. "
+            "O SIAA nao foi consultado."
+        )
     if estado == "desconhecido":
         return (
             f"Falha ao consultar a session-api. Ultima captura de {quando}. "

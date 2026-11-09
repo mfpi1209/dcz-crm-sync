@@ -66,6 +66,19 @@ class DisponibilidadePainelTest(unittest.TestCase):
             "seguir",
         )
 
+    def test_configuracao_parcial_preserva_sem_parecer_expirada(self) -> None:
+        for url, token in (("https://session.test", ""), ("", "tok")):
+            def proibido(*_a, **_k):
+                raise AssertionError("http")
+
+            situacao = consultar_availability(url, token, get=proibido)
+            self.assertEqual(situacao["estado"], "configuracao_incompleta")
+            self.assertEqual(decidir_consulta(situacao), "preservar")
+            texto = mensagem_preservada(situacao, "2026-11-08T19:27:34Z")
+            self.assertIn("Falha de configuracao", texto)
+            self.assertNotIn("Sessao expirada", texto)
+            self.assertNotIn("SIAA em pausa", texto)
+
     def test_data_ausente_nao_vira_zero(self) -> None:
         self.assertIsNone(data_da_captura({}))
         self.assertIn("data indisponivel", mensagem_preservada({"estado": "pausa", "motivo": "http_403"}, None))
