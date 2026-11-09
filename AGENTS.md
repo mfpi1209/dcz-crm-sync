@@ -4,6 +4,15 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-09 — Conversão do ranking Bwipo usa os leads do Kommo até 30/09/2026
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** filtrando o ciclo 2026/1, a coluna Conv. do ranking dava 0%. O denominador eram só os leads do Pipeline Principal do Bwipo, que começa em 15/09/2026.
+- **Agora:** `_bwipo_leads_criados` soma os leads do Kommo (pipeline **Funil de vendas**) para os dias **até 30/09/2026** e os do Bwipo **de 01/10/2026 em diante**. É o mesmo corte do Repasse. Entre 15 e 30/09 os dois CRMs rodaram juntos, e o Bwipo tem 49.734 negócios importados em 22/09. Por isso esse trecho fica só no Kommo.
+- **Consultor do lead do Kommo:** o primeiro dono que **não** é administrador do Kommo, segundo a `lead_responsible_history`. O lead entra sem dono (0) ou num administrador (Admin Sistema, Isabela, TI, Ana Paula), que distribuem. A Isabela repassou 98% dos leads que recebeu da fila, em mediana 15 min depois. Sem troca registrada, vale o responsável atual. Sem consultor nenhum, vai para o Admin Sistema. Consultor excluído é reatribuído (`_consultor_reassign_map`).
+- **Tabela pronta:** `kommo_leads_dia (dia, kommo_user_id, n)` no dcz_sync, montada por `services/kommo_leads_dia.py`, 2 min após o boot e todo dia às 04:00 (cerca de 11 s). O request só soma linhas. Sem a tabela, a parte do Kommo fica zerada, como antes.
+- **Trade-off conhecido:** o numerador continua com a regra do dono da venda (responsável **atual** no Kommo). Para os consultores ativos, a época e o atual dão quase o mesmo número. Quem teve leads redistribuídos (Bruno, Andreina, Sabrina no 2026/1) fica perto de 0%. O Admin Sistema fica alto (31,9%), porque recebe as vendas sem lead. A alternativa (responsável atual nos dois lados) foi descartada: dava Diogo 87%, Jessyca 33% e Admin com 40 mil leads.
+- **Não muda:** o numerador, Aberto e Perdidos (carteira atual do Bwipo) e a conversão de períodos a partir de 01/10/2026.
+
 ### 2026-11-09 — Dashboard Bwipo: Ciclo e Turma voltam a preencher De/Até
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** escolher "1º Semestre 2026" no Ciclo não mudava as datas do filtro.

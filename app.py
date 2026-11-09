@@ -439,6 +439,8 @@ register_aceite_reconcile(scheduler)
 register_responsible_history_job(scheduler)
 register_funnel_cache_job(scheduler)
 register_bwipo_sync_job(scheduler)
+from services.kommo_leads_dia import register_job as register_kommo_leads_dia_job
+register_kommo_leads_dia_job(scheduler)
 register_dist_comercial_schedule_job(scheduler)
 from routes.minha_performance import register_bwipo_periodo_warm
 register_bwipo_periodo_warm(scheduler)

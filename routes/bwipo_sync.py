@@ -1486,10 +1486,23 @@ def _bwipo_ticket_30(rgms: list) -> float:
 
 
 def _bwipo_leads_criados(dt_ini, dt_fim, admin_uid: int) -> dict:
-    """Leads do Pipeline Principal criados no período, dia em BRT. Mesma chave do funil.
+    """Leads criados no período, dia em BRT. Mesma chave do funil.
 
     A conversão do ranking é matrícula do período / esses leads, como no painel antigo.
+    Até 30/09/2026 os leads vêm do Kommo (Funil de vendas, tabela pronta `kommo_leads_dia`);
+    de 01/10/2026 em diante, do Pipeline Principal do Bwipo.
     """
+    from services.kommo_leads_dia import CORTE_KOMMO_BWIPO, leads_por_consultor
+
+    out: dict = {}
+    try:
+        out.update(leads_por_consultor(dt_ini, dt_fim))
+    except Exception:
+        logger.exception("leads do Kommo para a conversão")
+    if dt_fim and str(dt_fim)[:10] < CORTE_KOMMO_BWIPO.isoformat():
+        return out
+    if not dt_ini or str(dt_ini)[:10] < CORTE_KOMMO_BWIPO.isoformat():
+        dt_ini = CORTE_KOMMO_BWIPO.isoformat()
     conds = [
         "NOT d.is_deleted",
         "position('principal' in lower(COALESCE(p.name, d.pipeline_name, ''))) > 0",
@@ -1514,7 +1527,6 @@ def _bwipo_leads_criados(dt_ini, dt_fim, admin_uid: int) -> dict:
         """,
         params,
     )
-    out: dict = {}
     for uid, nome, total in cur.fetchall():
         key = int(uid) if uid else (f"bw:{nome}" if nome else admin_uid)
         out[key] = out.get(key, 0) + int(total or 0)
