@@ -19,6 +19,12 @@ import re
 import requests
 from flask import Blueprint, jsonify, request, session
 
+from siaa.availability import (
+    consultar_availability,
+    data_da_captura,
+    decidir_consulta,
+    mensagem_preservada,
+)
 from siaa.parser import process_siaa_http_rgm
 from siaa.insights import (
     build_insights, fetch_latest_captura, fetch_documentos,
@@ -45,20 +51,33 @@ def api_siaa_aluno(rgm):
     do_refresh = request.args.get("refresh", "0") == "1"
     refresh_status = None
     refresh_message = None
+    situacao_availability = None
     if do_refresh:
-        try:
-            process_siaa_http_rgm(rgm_norm, save_supabase=True, debug=False)
-            refresh_status = "ok"
-            refresh_message = "Consulta online ao SIAA realizada automaticamente."
-        except Exception as exc:
-            logger.warning("api_siaa_aluno refresh falhou rgm=%s: %s", rgm_norm, exc)
-            refresh_status = "fail"
-            refresh_message = "Nao foi possivel consultar o SIAA agora. Exibindo a ultima captura disponivel."
+        situacao_availability = consultar_availability(
+            (os.environ.get("SIAA_SESSION_URL", "") or "").rstrip("/"),
+            os.environ.get("SIAA_SESSION_TOKEN", "") or "",
+        )
+        if decidir_consulta(situacao_availability) == "preservar":
+            refresh_status = "preservado"
+        else:
+            try:
+                process_siaa_http_rgm(rgm_norm, save_supabase=True, debug=False)
+                refresh_status = "ok"
+                refresh_message = "Consulta online ao SIAA realizada automaticamente."
+            except Exception as exc:
+                logger.warning("api_siaa_aluno refresh falhou rgm=%s: %s", rgm_norm, exc)
+                refresh_status = "fail"
+                refresh_message = "Nao foi possivel consultar o SIAA agora. Exibindo a ultima captura disponivel."
 
     captura, err = fetch_latest_captura(rgm_norm)
     if err:
         return jsonify({"ok": False, "error": err, "rgm": rgm_norm}), 502
 
+    if refresh_status == "preservado":
+        refresh_message = mensagem_preservada(
+            situacao_availability or {},
+            data_da_captura(captura),
+        )
     if not captura:
         return jsonify({
             "ok": True,
@@ -66,6 +85,7 @@ def api_siaa_aluno(rgm):
             "rgm": rgm_norm,
             "refresh_status": refresh_status,
             "refresh_message": refresh_message,
+            "siaa_consultado": refresh_status == "ok",
         })
 
     captura_id = captura.get("id")
@@ -84,6 +104,8 @@ def api_siaa_aluno(rgm):
         "rgm": rgm_norm,
         "refresh_status": refresh_status,
         "refresh_message": refresh_message,
+        "capturado_em": data_da_captura(captura) if refresh_status == "preservado" else None,
+        "siaa_consultado": refresh_status == "ok",
         "insights": build_insights(captura, documentos, titulos),
     })
 

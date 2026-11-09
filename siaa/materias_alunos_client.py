@@ -69,9 +69,13 @@ SESSAO_EXPIRADA_MSG = (
 
 
 class SessaoExpirada(RuntimeError):
-    """Sinaliza que o cookie SIAA (Academico) expirou/e ausente."""
+    """Redirecionamento de login. Não cobre 403 nem ViewState ausente."""
     def __init__(self, msg: str = SESSAO_EXPIRADA_MSG):
         super().__init__(msg)
+
+
+class ConsultaInconclusiva(RuntimeError):
+    """Falha de cookie, 403 ou ViewState ausente. Não é sessão expirada."""
 
 
 # ---------- Cookie loader ----------
@@ -85,11 +89,11 @@ def _load_cookie_academico() -> str:
         cookie = (_load_cookie_header("academico") or "").strip()
         if cookie:
             return cookie
-        raise SessaoExpirada()
-    except SessaoExpirada:
+        raise ConsultaInconclusiva("cookie academico ausente")
+    except (SessaoExpirada, ConsultaInconclusiva):
         raise
     except Exception as e:
-        raise SessaoExpirada(f"Falha ao obter cookie: {e}. " + SESSAO_EXPIRADA_MSG)
+        raise ConsultaInconclusiva(f"Falha ao obter cookie: {e}")
 
 
 # ---------- Helpers ----------
@@ -114,6 +118,20 @@ def _redirecionou(r: requests.Response) -> bool:
         return True
     loc = r.headers.get("Location") or ""
     return "access_denied" in loc
+
+
+def _exigir_sessao_ou_inconclusiva(r: requests.Response) -> None:
+    if _redirecionou(r):
+        raise SessaoExpirada()
+    if r.status_code == 403:
+        raise ConsultaInconclusiva("http 403")
+
+
+def _viewstate_obrigatorio(text: str) -> str:
+    vs = _viewstate(text)
+    if not vs:
+        raise ConsultaInconclusiva("viewstate ausente")
+    return vs
 
 
 def _viewstate(text: str) -> str | None:
@@ -159,8 +177,7 @@ def _troca_turma(s: requests.Session, vs: str, val: str) -> str:
             f"&formNota=formNota&formNota%3Aturmas_input={val}"
             f"&javax.faces.ViewState={quote(vs, safe='')}")
     r = s.post(CONS_HIST, data=body, headers={**HDR_AJAX, "Referer": CONS_HIST}, timeout=90)
-    if _redirecionou(r):
-        raise SessaoExpirada()
+    _exigir_sessao_ou_inconclusiva(r)
     return r.text
 
 
@@ -179,11 +196,8 @@ def buscar_materias(cookie_str: str, rgm: str, empresa: str = "12") -> dict:
 
     r0 = s.get(CONS_JSF, params={"init": "true"}, headers=HDR_NAV,
                timeout=60, allow_redirects=False)
-    if _redirecionou(r0):
-        raise SessaoExpirada()
-    vs = _viewstate(r0.text)
-    if not vs:
-        raise SessaoExpirada()
+    _exigir_sessao_ou_inconclusiva(r0)
+    vs = _viewstate_obrigatorio(r0.text)
 
     body = ("javax.faces.partial.ajax=true&javax.faces.source=formPrincipal%3AbtnBuscar"
             "&javax.faces.partial.execute=%40all&javax.faces.partial.render=formPrincipal"
@@ -195,8 +209,7 @@ def buscar_materias(cookie_str: str, rgm: str, empresa: str = "12") -> dict:
     rb = s.post(CONS_JSF, data=body,
                 headers={**HDR_AJAX, "Referer": CONS_JSF + "?init=true"},
                 timeout=60, allow_redirects=False)
-    if _redirecionou(rb):
-        raise SessaoExpirada()
+    _exigir_sessao_ou_inconclusiva(rb)
 
     mn = re.search(r'filterAluno"[^>]*value="([^"]*)"', rb.text)
     aluno = html.unescape(mn.group(1)).strip() if mn else rgm
@@ -204,8 +217,7 @@ def buscar_materias(cookie_str: str, rgm: str, empresa: str = "12") -> dict:
     rh = s.get(CONS_HIST,
                headers={**HDR_NAV, "Referer": CONS_JSF, "Sec-Fetch-Dest": "iframe"},
                timeout=60, allow_redirects=False)
-    if _redirecionou(rh):
-        raise SessaoExpirada()
+    _exigir_sessao_ou_inconclusiva(rh)
 
     vs_h = _viewstate(rh.text)
     sel, turmas = _turmas(rh.text)
