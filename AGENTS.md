@@ -4,6 +4,17 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-09 — Dashboard Bwipo: Ciclo e Turma voltam a preencher De/Até
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** escolher "1º Semestre 2026" no Ciclo não mudava as datas do filtro.
+- **Causa:** `bwipo_comercial.js` lia `window._crgmCiclosData` e `window._crgmTurmasData`. No `comercial_rgm.js` elas são `let` de topo, que ficam no escopo global entre scripts mas não em `window`. A busca dava sempre vazio desde a criação da tela (`7137385`).
+- **Agora:** `_bwcCiclos()` e `_bwcTurmas()` leem pelo nome. O ciclo preenche De/Até com as datas do cadastro (`ciclos_comercial`). A turma preenche De/Até e o nível.
+- **Não muda:** ciclo e turma **não** vão como parâmetro para `/api/bwipo/painel` (nunca foram). O nome do cadastro (`26.1`, `Fevereiro`) não bate com `bwipo_painel_base.ciclo` (`2026/1`, do SIAA) nem com `turma` (lá é o nome do curso). A conta continua por data de matrícula.
+- **Atenção:** o cadastro `26.1` vai de 01/01 a 30/06/2026, mas a 1ª matrícula do ciclo SIAA 2026/1 é de 18/11/2025 e as turmas do ciclo começam em 18/11/2025. Existem também `2026/2` (14/05–15/12) e `26.2` (13/05–16/08) duplicados. Ajustar as datas é decisão do usuário.
+- **Ajuste feito (mesmo dia, pedido do usuário):** `ciclos_comercial` id 3 (`26.1`) passou a começar em **18/11/2025** (era 01/01/2026). O fim continua em 30/06/2026.
+- **2026/2 duplicado (mesmo dia, pedido do usuário):** apagado o `26.2` (id 6, 13/05–16/08/2026, sem turma). Fica o `2026/2` (id 5, 14/05–15/12/2026, com as 10 turmas), agora com descrição "2º Semestre 2026", ano 2026 e semestre 2. Ao ser criado em 06/10, o `26.2` gravou `26.2` como ciclo vigente da Graduação em `ciclo_atual_comercial`. Esse campo é comparado com o ciclo do SIAA (`2026/2`) no recorte padrão e no prefixo dominante do `comercial_rgm.py`, e preenche o ciclo do formulário de matrícula. Voltou para `2026/2`.
+- **Regra para ciclo novo:** quem marca "ativo" no "+ Novo ciclo" grava o **nome** do ciclo em `ciclo_atual_comercial`. Então o nome do ciclo vigente tem que estar no formato do SIAA (`2026/1`, `2027/1`), não `26.1`.
+
 ### 2026-10-30 — SIAA 403 "Sessão morta" era o WAF barrando User-Agent antigo
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** cURL recém-capturado do Acadêmico dava "Sessão morta (HTTP 403)" no Testar, e Matérias dos Alunos acusava sessão expirada.

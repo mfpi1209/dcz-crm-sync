@@ -80,9 +80,19 @@ function bwcAbrirPainel(panelId, toggleName) {
     if (typeof fn === "function") fn();
 }
 
+// _crgmCiclosData/_crgmTurmasData são `let` no comercial_rgm.js: ficam no escopo global
+// compartilhado entre scripts, mas não em `window`. Ler pelo nome.
+function _bwcCiclos() {
+    return typeof _crgmCiclosData !== "undefined" ? (_crgmCiclosData || []) : [];
+}
+
+function _bwcTurmas() {
+    return typeof _crgmTurmasData !== "undefined" ? (_crgmTurmasData || []) : [];
+}
+
 function bwcCicloChanged() {
     const id = parseInt(document.getElementById("bwc-ciclo")?.value, 10);
-    const ciclo = (window._crgmCiclosData || []).find((c) => c.id === id);
+    const ciclo = _bwcCiclos().find((c) => c.id === id);
     if (ciclo && typeof _crgmNormalizePeriodInputs === "function") {
         const n = _crgmNormalizePeriodInputs(ciclo.dt_inicio, ciclo.dt_fim);
         document.getElementById("bwc-dt-ini").value = n.dtIni;
@@ -96,7 +106,7 @@ function bwcCicloChanged() {
 
 function bwcTurmaChanged() {
     const id = parseInt(document.getElementById("bwc-turma")?.value, 10);
-    const turma = (window._crgmTurmasData || []).find((t) => t.id === id);
+    const turma = _bwcTurmas().find((t) => t.id === id);
     if (turma) {
         document.getElementById("bwc-dt-ini").value = String(turma.dt_inicio).slice(0, 10);
         document.getElementById("bwc-dt-fim").value = String(turma.dt_fim).slice(0, 10);
@@ -112,13 +122,10 @@ function _bwcQs() {
     const agente = document.getElementById("bwc-agente")?.value || "";
     const ini = document.getElementById("bwc-dt-ini")?.value || "";
     const fim = document.getElementById("bwc-dt-fim")?.value || "";
-    const cicloSel = document.getElementById("bwc-ciclo");
-    const ciclo = (window._crgmCiclosData || []).find((c) => String(c.id) === (cicloSel?.value || ""));
-    const turma = (window._crgmTurmasData || []).find((t) => String(t.id) === (document.getElementById("bwc-turma")?.value || ""));
+    // Ciclo e turma comerciais só preenchem De/Até (e o nível). Não vão para a API:
+    // o nome do cadastro ("26.1", "Fevereiro") não bate com ciclo/turma do SIAA na base.
     if (polo) p.set("polo", polo);
     if (nivel) p.set("nivel", nivel);
-    if (ciclo) p.set("ciclo", ciclo.nome);
-    if (turma) p.set("turma", turma.nome);
     if (agente) p.set("owner", agente);
     if (ini) p.set("dt_ini", ini);
     if (fim) p.set("dt_fim", fim);
