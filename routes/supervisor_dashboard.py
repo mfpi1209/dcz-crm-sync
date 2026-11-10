@@ -16,6 +16,7 @@ import psycopg2.extras
 from flask import Blueprint, request, jsonify
 
 from helpers import BRT
+from services import leads_rgm
 
 logger = logging.getLogger(__name__)
 
@@ -409,13 +410,13 @@ def _ranking_consultores(dt_ini: date, dt_fim: date, top_n: int = 10) -> list[di
             cur = kc.cursor()
             ph = ",".join(["%s"] * len(rgms_periodo))
             cur.execute(
-                f"""
+                leads_rgm.sql(f"""
                 SELECT l.responsible_user_id, COUNT(DISTINCT v.rgm) AS total
                 FROM vw_leads_rgm v
                 JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
                 WHERE v.rgm IN ({ph})
                 GROUP BY l.responsible_user_id
-                """,
+                """),
                 list(rgms_periodo),
             )
             for uid, total in cur.fetchall():

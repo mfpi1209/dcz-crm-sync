@@ -507,6 +507,9 @@ def api_kommo_sync():
                 _tasks[task_id]["progress"] = 100
                 _tasks[task_id]["status"] = "completed"
                 _log("Sincronização concluída com sucesso!", 100)
+                # RGM novo ou trocado no Kommo entra na cópia indexada sem esperar o job.
+                from services.leads_rgm import agendar_refresh
+                agendar_refresh()
             else:
                 if not _tasks[task_id].get("cancelled"):
                     _tasks[task_id]["status"] = "error"

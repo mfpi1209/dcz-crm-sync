@@ -8,6 +8,7 @@ import psycopg2.extras
 from flask import Blueprint, request, jsonify, session, Response
 
 from helpers import normalize_polo_display
+from services import leads_rgm
 
 logger = logging.getLogger(__name__)
 
@@ -376,7 +377,7 @@ def api_repasse_agentes():
 
         if viewer_uid:
             # Viewer: busca apenas os RGMs do próprio agente
-            kcur.execute("""
+            kcur.execute(leads_rgm.sql("""
                 SELECT DISTINCT ON (rgm_norm)
                     regexp_replace(COALESCE(v.rgm, ''), '[^0-9]', '', 'g') AS rgm_norm,
                     l.responsible_user_id,
@@ -387,10 +388,10 @@ def api_repasse_agentes():
                 WHERE v.rgm IS NOT NULL AND v.rgm != ''
                   AND l.responsible_user_id = %s
                 ORDER BY rgm_norm, l.id DESC
-            """, (viewer_uid,))
+            """), (viewer_uid,))
         else:
             # Admin: carrega todos os mapeamentos
-            kcur.execute("""
+            kcur.execute(leads_rgm.sql("""
                 SELECT DISTINCT ON (rgm_norm)
                     regexp_replace(COALESCE(v.rgm, ''), '[^0-9]', '', 'g') AS rgm_norm,
                     l.responsible_user_id,
@@ -400,7 +401,7 @@ def api_repasse_agentes():
                 LEFT JOIN users u ON u.id = l.responsible_user_id
                 WHERE v.rgm IS NOT NULL AND v.rgm != ''
                 ORDER BY rgm_norm, l.id DESC
-            """)
+            """))
 
         rgm_agent = {}
         for rgm_norm, uid, aname in kcur.fetchall():
@@ -566,13 +567,13 @@ def api_repasse_detalhe():
             if kommo_int is not None:
                 kconn = _pg_kommo()
                 kcur = kconn.cursor()
-                kcur.execute("""
+                kcur.execute(leads_rgm.sql("""
                     SELECT DISTINCT regexp_replace(COALESCE(v.rgm, ''), '[^0-9]', '', 'g')
                     FROM vw_leads_rgm v
                     JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
                     WHERE l.responsible_user_id = %s
                       AND v.rgm IS NOT NULL
-                """, (kommo_int,))
+                """), (kommo_int,))
                 agent_rgms = {r[0] for r in kcur.fetchall() if r[0] and r[0] not in novas}
                 kcur.close()
                 kconn.close()
