@@ -4,6 +4,20 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-10 — Lentidão: base do painel grava só o que mudou e o RGM do Kommo vem de uma cópia indexada
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** todo filtro, atualização e carregamento do painel demorava muito.
+- **Causa 1:** o job `bwipo_painel_base` (10 min) apagava a tabela inteira, regravava tudo e chamava `clear_painel_response_cache()`, que zera o cache do Dashboard Bwipo e o da Minha Performance (20–45 s por recorte). A cada 10 min, quem abria qualquer recorte pagava a conta inteira, mesmo sem nada ter mudado.
+- **Causa 2:** `vw_leads_rgm` abre o `custom_fields_json` de todos os leads do Kommo em cada consulta e só depois filtra pelo RGM. Nenhum índice ajuda. Ela roda na montagem da base, no dono da venda, no Repasse, na Minha Performance, no Supervisor e no Comercial antigo.
+- **Agora (base):** `_rebuild_painel_base_locked` compara com a tabela e grava só as linhas novas ou alteradas (`ON CONFLICT DO UPDATE`) e apaga só as que saíram. O job chama com `invalidar="suave"`: sem mudança, os caches ficam como estão; com mudança, `_expirar_caches_painel()` vence as respostas sem apagar, e a próxima leitura devolve a anterior na hora e refaz em segundo plano. Upload, tombamento, depara e sync de agentes continuam "forte" (limpam os caches sempre). Uma montagem "forte" pedida enquanto outra roda fica pendente e roda em seguida; antes ela se perdia.
+- **Agora (RGM do Kommo):** `services/leads_rgm.py` cria no `kommo_sync` a materialized view `mv_leads_rgm (lead_id, rgm)` com índice único em `lead_id` e índice em `rgm`. As 15 consultas passam o SQL por `leads_rgm.sql(...)`, que troca `vw_leads_rgm` por `mv_leads_rgm` quando a cópia está pronta; antes disso, voltam para a view.
+- **Kommo desativado (mesmo dia, pedido do usuário):** o espelho `kommo_sync` não muda mais. Por padrão (`LEADS_RGM_REFRESH_MIN=0`) a cópia é criada uma vez e reaproveitada no boot, sem refresh periódico. Um job confere a cada 10 min se ela ainda existe e recria se sumir. Um sync manual do Kommo ainda refaz a cópia no fim. Com `LEADS_RGM_REFRESH_MIN > 0` volta o refresh periódico (`REFRESH ... CONCURRENTLY`, sem bloquear leitura), e a cópia vence após `LEADS_RGM_MAX_AGE_MIN` (180) sem refresh.
+- **Jobs da API do Kommo desligados (mesmo dia):** `aceite_reconcile` (a cada 10 min) e `responsible_history_daily` (04:30) só falhariam com o Kommo desativado. Agora só são registrados com `KOMMO_API_JOBS=1`. Os botões manuais (sync do Kommo, mini-sync, Leads Parados, importar usuários) ficaram como estavam.
+- **O Kommo continua sendo lido:** dono da venda (regra 3, responsável no Kommo, para quem não está tombado), Repasse e conversão até 30/09, e o NOVO do Bwipo herdando o responsável. Tudo isso lê o espelho `kommo_sync`, não a API. **Não apagar o banco `kommo_sync`.**
+- **Não muda:** as regras de crédito, o dono da venda, o TTL de 5 min dos caches e a view `vw_leads_rgm` (continua existindo e é a fonte da cópia). Para mudar a view, siga o passo a passo no topo de `sql/vw_leads_rgm.sql` (DROP e CREATE da cópia na mesma transação).
+- **A conferir no EasyPanel:** o Upload Comercial grava no Kommo, a menos que `UPLOAD_COMERCIAL_CRM=bwipo` esteja definido (`match_merge_lib.use_bwipo_crm`). Sem isso, com o Kommo desativado, ele deve falhar.
+- **Ainda pendente (não feito aqui):** a montagem lê todos os uploads de matriculados desde 2018 (`all_snapshots=True`), sem retenção; `get_conn()` abre uma conexão nova a cada chamada (sem pool); os jobs rodam no mesmo processo das 4 threads do gunicorn.
+
 ### 2026-11-09 — Conversão do ranking Bwipo usa os leads do Kommo até 30/09/2026
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** filtrando o ciclo 2026/1, a coluna Conv. do ranking dava 0%. O denominador eram só os leads do Pipeline Principal do Bwipo, que começa em 15/09/2026.
