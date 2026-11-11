@@ -500,6 +500,13 @@ def api_diag():
         "SIAA_SESSION_URL": (os.environ.get("SIAA_SESSION_URL", "") or "").strip() or None,
         "SIAA_SESSION_TOKEN_len": len((os.environ.get("SIAA_SESSION_TOKEN", "") or "").strip()),
     }
+    # Mesma consulta que trava o /start: mostra o estado cru da session-api.
+    try:
+        info["availability"] = consultar_availability(
+            info["SIAA_SESSION_URL"] or "", (os.environ.get("SIAA_SESSION_TOKEN", "") or "").strip()
+        )
+    except Exception as e:
+        info["availability"] = {"estado": "erro", "motivo": str(e)}
     try:
         cookie = _load_cookie_academico()
         info["cookie_len"] = len(cookie)

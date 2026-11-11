@@ -4,6 +4,13 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-11 — Matérias dos Alunos travado: pausa da session-api por cookie morto, mensagem agora diz o motivo
+- **Modelo usado:** Claude Fable 5.1.
+- **Sintoma:** Analisar funcionava, Iniciar processamento devolvia 503 "Consulta ao vivo adiada. Exibindo captura de data indisponivel." Cookie do Acadêmico carregado, nenhum job travado.
+- **Causa:** `/availability` da session-api respondia `estado=pausa, motivo=http_403`: o Acadêmico tinha morrido (SIAA 302 → `access_denied.jsf`) e o keep-alive do `eduit-insights` tratava isso como pausa controlada global, não como sessão expirada. `mensagem_preservada` não mapeava esse motivo e caía no texto genérico. A correção de raiz está no `eduit-insights` (AGENTS de lá, 2026-11-11): 302+access_denied vira `expirada` por módulo, `/test` roda durante pausa por 403, e salvar cookie novo sonda na hora.
+- **Aqui:** `siaa/availability.py` ganha mensagem para `pausa` + `http_403`/`inconclusivo` ("o SIAA recusou a sonda do cookie, atualize em Sessao SIAA"), `expirada` mostra o módulo, e o fallback inclui `estado/motivo`. `/api/materias-alunos/diag` passa a devolver o `/availability` cru para não precisar abrir log do EasyPanel.
+- **Operação:** quando aparecer pausa por 403 ou expirada, colar cURL novo em Sessao SIAA e Salvar; com a session-api atualizada o botão Iniciar volta a funcionar na sequência. Com a session-api antiga, Salvar grava mas a pausa só sai na próxima sonda do backoff (até 45 min).
+
 ### 2026-11-10 — Lentidão: base do painel grava só o que mudou e o RGM do Kommo vem de uma cópia indexada
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** todo filtro, atualização e carregamento do painel demorava muito.

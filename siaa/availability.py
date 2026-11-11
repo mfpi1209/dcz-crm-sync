@@ -55,8 +55,18 @@ def mensagem_preservada(situacao: dict, data: str | None) -> str:
     motivo = str((situacao or {}).get("motivo") or "")
     if estado == "pausa" and motivo == "indisponivel_siaa":
         return f"SIAA em pausa. Exibindo captura de {quando}."
+    if estado == "pausa" and motivo in {"http_403", "inconclusivo"}:
+        # Pausa controlada da session-api por resposta do SIAA a sonda do cookie
+        # (403/acesso negado ou sem marcador JSF): e problema de sessao, nao do
+        # SIAA. Sai com cookie novo em Sessao SIAA (2026-11-11).
+        return (
+            f"Session-api em pausa ({motivo}): o SIAA recusou a sonda do cookie. "
+            f"Atualize o cookie na tela Sessao SIAA. Exibindo captura de {quando}."
+        )
     if estado == "expirada" or motivo == "sessao_expirada":
-        return f"Sessao expirada. Exibindo captura de {quando}."
+        modulo = str((situacao or {}).get("modulo") or "")
+        qual = f" ({modulo})" if modulo else ""
+        return f"Sessao expirada{qual}. Atualize o cookie na tela Sessao SIAA. Exibindo captura de {quando}."
     if estado == "configuracao_incompleta":
         return (
             f"Falha de configuracao da session-api. Ultima captura de {quando}. "
@@ -67,7 +77,8 @@ def mensagem_preservada(situacao: dict, data: str | None) -> str:
             f"Falha ao consultar a session-api. Ultima captura de {quando}. "
             "O SIAA nao foi consultado."
         )
-    return f"Consulta ao vivo adiada. Exibindo captura de {quando}."
+    detalhe = f" (estado={estado or '?'}, motivo={motivo or '?'})"
+    return f"Consulta ao vivo adiada{detalhe}. Exibindo captura de {quando}."
 
 
 def data_da_captura(captura: dict | None) -> str | None:

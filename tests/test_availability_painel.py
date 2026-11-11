@@ -95,3 +95,13 @@ class DisponibilidadePainelTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_mensagem_pausa_por_403_e_fallback_com_detalhe():
+    from siaa.availability import mensagem_preservada
+    m = mensagem_preservada({"estado": "pausa", "motivo": "http_403"}, "2026-11-10")
+    assert "http_403" in m and "Sessao SIAA" in m
+    m = mensagem_preservada({"estado": "expirada", "motivo": "sessao_expirada", "modulo": "academico"}, None)
+    assert "academico" in m and "Sessao SIAA" in m
+    m = mensagem_preservada({"estado": "pausa", "motivo": "janela_x"}, None)
+    assert "estado=pausa" in m and "motivo=janela_x" in m
