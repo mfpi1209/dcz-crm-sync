@@ -89,6 +89,18 @@ def main() -> int:
     exig = (corpo or {}).get("required") if isinstance(corpo, dict) else ""
     _linha("(c/e) campanhas", f"{st} — {msg or 'ok'}{' · exige ' + exig if exig else ''}")
 
+    # Construtor de campanhas: GET sem `id` não lê nem cria rascunho. 400 DRAFT_ID_REQUIRED =
+    # recurso campaign_builder_v2 ligado; 403 FEATURE_DISABLED = desligado.
+    st, corpo, dt = _get("/api/campaign-builder/drafts")
+    erro = (corpo or {}).get("error") if isinstance(corpo, dict) else None
+    codigo = erro.get("code") if isinstance(erro, dict) else ""
+    situacao = {"DRAFT_ID_REQUIRED": "recurso campaign_builder_v2 LIGADO", "FEATURE_DISABLED": "recurso campaign_builder_v2 desligado"}.get(codigo, "resposta não prevista")
+    _linha("(c) construtor de campanhas", f"{st} {codigo} — {situacao}")
+
+    st, corpo, dt = _get("/api/whatsapp-template-configs/approved")
+    modelos = corpo if isinstance(corpo, list) else (corpo or {}).get("items") or (corpo or {}).get("templates") or (corpo or {}).get("data") or []
+    _linha("(c) templates aprovados", f"{st} · {len(modelos) if isinstance(modelos, list) else '?'} itens")
+
     st, corpo, dt = _get("/api/tags?counts=1")
     tags = corpo if isinstance(corpo, list) else (corpo or {}).get("items") or []
     _linha("(f) etiquetas", f"{st} · {len(tags)} etiquetas")
