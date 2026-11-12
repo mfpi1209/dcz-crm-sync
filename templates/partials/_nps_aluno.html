@@ -1,0 +1,99 @@
+<section id="page-nps_aluno" class="hidden p-4 md:p-8 max-w-6xl mx-auto space-y-5">
+<style>
+  #page-nps_aluno .np-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; }
+  #page-nps_aluno .np-rot { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); }
+  #page-nps_aluno .np-val { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  #page-nps_aluno .np-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  #page-nps_aluno table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #page-nps_aluno th {
+    text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--text-muted); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  #page-nps_aluno td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  #page-nps_aluno tr:last-child td { border-bottom: 0; }
+  #page-nps_aluno .np-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  #page-nps_aluno .np-rolavel { overflow-x: auto; }
+  #page-nps_aluno .np-sel { font-size: 11px; font-weight: 650; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+  #page-nps_aluno .np-ok { color: #34d399; }
+  #page-nps_aluno .np-aviso { color: #f59e0b; }
+  #page-nps_aluno .np-neutro { color: var(--text-muted); }
+  #page-nps_aluno .np-faixa { border-radius: 12px; padding: 12px 14px; font-size: 13px; line-height: 1.45; border: 1px solid rgba(245, 158, 11, .45); background: rgba(245, 158, 11, .12); }
+  #page-nps_aluno .np-barras { display: grid; grid-template-columns: repeat(11, minmax(0, 1fr)); gap: 4px; align-items: end; height: 120px; }
+  #page-nps_aluno .np-barra { border-radius: 4px 4px 0 0; min-height: 2px; }
+  #page-nps_aluno .np-barra.det { background: #fb7185; }
+  #page-nps_aluno .np-barra.neu { background: #94a3b8; }
+  #page-nps_aluno .np-barra.pro { background: #34d399; }
+  #page-nps_aluno .np-eixo { display: grid; grid-template-columns: repeat(11, minmax(0, 1fr)); gap: 4px; font-size: 11px; color: var(--text-muted); text-align: center; font-variant-numeric: tabular-nums; }
+  #page-nps_aluno .np-motivo { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; display: grid; grid-template-columns: 3rem 1fr; gap: 10px; }
+  #page-nps_aluno .np-motivo:last-child { border-bottom: 0; }
+</style>
+
+    <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+            <h2 class="text-3xl font-bold font-display text-[var(--text-primary)] mb-1">NPS do Aluno</h2>
+            <p class="text-sm text-[var(--text-muted)] max-w-2xl">Nota de 0 a 10 que o aluno dá depois do atendimento, respondida no WhatsApp. A leitura é por data de envio da pesquisa. Recorte com menos de 30 respostas não mostra número.</p>
+        </div>
+        <div class="flex flex-wrap items-end gap-2">
+            <label class="text-xs text-[var(--text-muted)]">De<br><input type="date" id="np-de" class="input-field text-sm px-2 py-1 rounded-lg"></label>
+            <label class="text-xs text-[var(--text-muted)]">Até<br><input type="date" id="np-ate" class="input-field text-sm px-2 py-1 rounded-lg"></label>
+            <button type="button" onclick="npAtualizar()" class="btn-secondary text-sm px-4 py-2 rounded-xl">Atualizar</button>
+            <button type="button" id="np-btn-coletar" onclick="npColetar()" class="btn-secondary text-sm px-4 py-2 rounded-xl hidden">Coletar agora</button>
+        </div>
+    </div>
+
+    <div id="np-faixa" class="np-faixa hidden"></div>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="np-card p-4"><div class="np-rot">NPS</div><div id="np-nps" class="np-val mt-1">—</div><div id="np-nps-sub" class="np-sub"></div></div>
+        <div class="np-card p-4"><div class="np-rot">Respostas</div><div id="np-resp" class="np-val mt-1">—</div><div id="np-resp-sub" class="np-sub"></div></div>
+        <div class="np-card p-4"><div class="np-rot">Resolvido, segundo o aluno</div><div id="np-res" class="np-val mt-1">—</div><div id="np-res-sub" class="np-sub"></div></div>
+        <div class="np-card p-4"><div class="np-rot">Última coleta</div><div id="np-coleta" class="np-val mt-1" style="font-size:18px">—</div><div id="np-coleta-sub" class="np-sub"></div></div>
+    </div>
+
+    <div class="np-card p-4">
+        <div class="np-rot mb-3">Distribuição das notas</div>
+        <div id="np-dist-vazio" class="text-sm text-[var(--text-muted)]">Sem respostas suficientes no período.</div>
+        <div id="np-dist" class="hidden">
+            <div id="np-barras" class="np-barras"></div>
+            <div class="np-eixo mt-1"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span></div>
+        </div>
+    </div>
+
+    <div class="np-card p-4">
+        <div class="np-rot mb-2">Por departamento</div>
+        <div class="np-rolavel"><table><thead><tr>
+            <th>Departamento</th><th class="np-num">Enviadas</th><th class="np-num">Respostas</th><th class="np-num">Taxa</th>
+            <th class="np-num">NPS</th><th class="np-num">Margem</th><th class="np-num">Detratores</th><th class="np-num">Resolvido</th><th>Leitura</th>
+        </tr></thead><tbody id="np-deptos"></tbody></table></div>
+    </div>
+
+    <div class="np-card p-4">
+        <div class="np-rot mb-2">Por semana de envio</div>
+        <div class="np-rolavel"><table><thead><tr>
+            <th>Semana de</th><th class="np-num">Enviadas</th><th class="np-num">Respostas</th><th class="np-num">Taxa</th>
+            <th class="np-num">NPS</th><th class="np-num">Margem</th><th class="np-num">Resolvido</th><th>Leitura</th>
+        </tr></thead><tbody id="np-semanas"></tbody></table></div>
+    </div>
+
+    <div id="np-bloco-atendentes" class="np-card p-4 hidden">
+        <div class="np-rot mb-1">Por atendente</div>
+        <p class="text-xs text-[var(--text-muted)] mb-2">Quem enviou a última mensagem humana na conversa que gerou a pesquisa. Compare só dentro do mesmo departamento e só linhas marcadas como comparáveis.</p>
+        <div class="np-rolavel"><table><thead><tr>
+            <th>Atendente</th><th>Departamento</th><th class="np-num">Respostas</th><th class="np-num">NPS</th><th class="np-num">Margem</th>
+            <th class="np-num">Detratores</th><th class="np-num">Resolvido</th><th>Leitura</th>
+        </tr></thead><tbody id="np-atendentes"></tbody></table></div>
+    </div>
+
+    <div class="np-card p-4">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <div class="np-rot">O que os alunos escreveram</div>
+            <select id="np-classe" onchange="npMotivos()" class="input-field text-sm px-2 py-1 rounded-lg">
+                <option value="detrator">Notas de 0 a 6</option>
+                <option value="neutro">Notas 7 e 8</option>
+                <option value="promotor">Notas 9 e 10</option>
+                <option value="">Todas</option>
+            </select>
+        </div>
+        <div id="np-motivos" class="text-sm text-[var(--text-muted)]">—</div>
+    </div>
+</section>

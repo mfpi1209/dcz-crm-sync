@@ -436,6 +436,8 @@ const PAGE_LABELS = {
     leads_promotores: 'Leads · Promotores',
     meus_atendimentos: 'Meus Atendimentos',
     academico_interacoes: 'Interações Acadêmicas',
+    nps_aluno: 'NPS do Aluno',
+    nps_aluno_atendentes: 'NPS do Aluno · Por atendente (com nome)',
     premiacoes_internas: 'Premiações (Gestores)',
     aprovacao_premiacoes: 'Central de Aprovação de Premiações',
     rematricula: 'Rematrícula',
@@ -560,7 +562,7 @@ const PAGE_GROUPS_CONFIG = [
         icon: 'school',
         color: 'var(--primary)',
         pages: [
-            'meus_atendimentos', 'academico_interacoes', 'ativacoes', 'distribuicao', 'intelligence',
+            'meus_atendimentos', 'academico_interacoes', 'nps_aluno', 'nps_aluno_atendentes', 'ativacoes', 'distribuicao', 'intelligence',
             'inadimplencia', 'feedback', 'macro_email', 'rematricula', 'disparador_whatsapp',
             'disparador_whatsapp_painel', 'disparador_whatsapp_metas',
             'disparador_whatsapp_disparador', 'disparador_whatsapp_alunos',
