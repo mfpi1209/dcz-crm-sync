@@ -76,6 +76,7 @@ ALL_PAGES = [
     "tracker_tarefas",
     "academico_interacoes",
     "subir_blog",
+    "motor_ativacoes",
     # Sub-permissoes do Disparador WhatsApp (uma por aba do iframe do
     # tool_whatsapp_alunos). Quem tem 'disparador_whatsapp' mas nenhuma
     # sub abaixo => ve TUDO (compat). Quem tem 1+ sub => ve so as marcadas.
