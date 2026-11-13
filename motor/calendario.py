@@ -61,6 +61,13 @@ def dia_util_ate(d: date, extras: frozenset[date] = frozenset()) -> date:
     return d
 
 
+def dia_util_a_partir_de(d: date, extras: frozenset[date] = frozenset()) -> date:
+    """O próprio dia, se útil; senão o primeiro dia útil seguinte."""
+    while not eh_dia_util(d, extras):
+        d += timedelta(days=1)
+    return d
+
+
 def somar_dias_uteis(d: date, n: int, extras: frozenset[date] = frozenset()) -> date:
     """Avança n dias úteis a partir de d (n=0 devolve d)."""
     passo = 1 if n >= 0 else -1
@@ -106,6 +113,17 @@ def data_do_ciclo(ciclo: str, dia: int) -> date:
     prox = date(ano + (mes == 12), mes % 12 + 1, 1)
     ultimo = (prox - timedelta(days=1)).day
     return date(ano, mes, min(dia, ultimo))
+
+
+def prazo_efetivo(ciclo: str, dia: int, extras: frozenset[date] = frozenset()) -> date:
+    """Prazo de pagamento do dia 10 ou do dia 25 no ciclo.
+
+    Quando o dia cai em fim de semana ou feriado, o pagamento pode ser feito no
+    primeiro dia útil seguinte (regra do Marcelo, 13/11/2026; referência: 25/10/2026,
+    domingo, valeu em 26/10). É a única fonte de prazo do motor: corte de "pagou em
+    dia", datas de lembrete, janela de recuperação e a data que vai no texto do aviso.
+    """
+    return dia_util_a_partir_de(data_do_ciclo(ciclo, dia), extras)
 
 
 def parse_feriados(texto: str) -> frozenset[date]:

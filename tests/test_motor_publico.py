@@ -80,8 +80,8 @@ class ClasseDoCicloTest(unittest.TestCase):
     def test_corte_do_dia_10_tem_folga_de_dias_uteis(self) -> None:
         # 10/11/2026 é terça; +3 dias úteis = sexta 13/11.
         self.assertEqual(corte_dia10("2026-11", 3), date(2026, 11, 13))
-        # 10/10/2026 é sábado; 12/10 é feriado → 13, 14, 15.
-        self.assertEqual(corte_dia10("2026-10", 3), date(2026, 10, 15))
+        # 10/10/2026 é sábado e 12/10 é feriado: o prazo vai para terça 13/10; +3 dias úteis = 16/10.
+        self.assertEqual(corte_dia10("2026-10", 3), date(2026, 10, 16))
 
     def test_baixa_ate_o_corte_e_em_dia_depois_e_tardio(self) -> None:
         self.assertEqual(classificar_ciclo("2026-11", date(2026, 11, 9), encerrado=False), E)
@@ -96,6 +96,68 @@ class ClasseDoCicloTest(unittest.TestCase):
         classes = {"2026-05": N, "2026-06": N, "2026-09": E, "2026-10": T, "2026-11": Classe.ABERTO}
         self.assertEqual(historico_do_semestre(classes, "2026-11"), (E, T))
         self.assertEqual(historico_do_semestre(classes, "2026-07"), ())
+
+
+class PrazoEfetivoTest(unittest.TestCase):
+    """Dia 10 ou 25 em fim de semana ou feriado: o pagamento pode ser feito no primeiro dia útil seguinte."""
+
+    def test_prazo_vai_para_o_primeiro_dia_util_seguinte(self) -> None:
+        from motor.calendario import prazo_efetivo
+
+        self.assertEqual(prazo_efetivo("2026-10", 25), date(2026, 10, 26))   # domingo → segunda (a referência do Marcelo)
+        self.assertEqual(prazo_efetivo("2026-10", 10), date(2026, 10, 13))   # sábado, com feriado em 12/10 → terça
+        self.assertEqual(prazo_efetivo("2026-12", 25), date(2026, 12, 28))   # Natal numa sexta → segunda
+        self.assertEqual(prazo_efetivo("2027-01", 10), date(2027, 1, 11))    # domingo → segunda
+        self.assertEqual(prazo_efetivo("2026-11", 10), date(2026, 11, 10))   # dia útil: fica como está
+        self.assertEqual(prazo_efetivo("2026-11", 25), date(2026, 11, 25))
+        # Feriado extra do ambiente também empurra o prazo.
+        self.assertEqual(prazo_efetivo("2026-11", 25, frozenset({date(2026, 11, 25)})), date(2026, 11, 26))
+
+    def test_corte_de_pagou_em_dia_conta_do_prazo_efetivo(self) -> None:
+        from motor.estados import corte_dia25
+
+        # Outubro: prazo em 13/10. Baixa em 16/10 ainda é em dia; em 19/10 já é tardio.
+        self.assertEqual(classificar_ciclo("2026-10", date(2026, 10, 16), encerrado=True), E)
+        self.assertEqual(classificar_ciclo("2026-10", date(2026, 10, 19), encerrado=True), T)
+        self.assertEqual(corte_dia10("2027-01", 3), date(2027, 1, 14))        # prazo 11/01 + 3 dias úteis
+        self.assertEqual(corte_dia25("2026-10", 3), date(2026, 10, 29))       # prazo 26/10 + 3 dias úteis
+        self.assertEqual(corte_dia25("2026-12", 3), date(2026, 12, 31))       # prazo 28/12 + 3 dias úteis
+
+    def test_lembretes_contam_para_tras_do_prazo_efetivo(self) -> None:
+        # Outubro, dia 25: prazo na segunda 26/10 → sexta 23, quinta 22 e quarta 21.
+        self.assertEqual(datas_de_lembrete("2026-10", Frente.DIA25), (date(2026, 10, 21), date(2026, 10, 22), date(2026, 10, 23)))
+        # Outubro, dia 10: prazo na terça 13/10 → sexta 9, quinta 8 e quarta 7 (12/10 é feriado).
+        self.assertEqual(datas_de_lembrete("2026-10", Frente.DIA10), (date(2026, 10, 7), date(2026, 10, 8), date(2026, 10, 9)))
+        # Dezembro, dia 25: prazo na segunda 28/12 → quinta 24, quarta 23 e terça 22.
+        self.assertEqual(datas_de_lembrete("2026-12", Frente.DIA25), (date(2026, 12, 22), date(2026, 12, 23), date(2026, 12, 24)))
+        # Janeiro de 2027, dia 10: prazo na segunda 11/01 → sexta 8, quinta 7 e quarta 6.
+        self.assertEqual(datas_de_lembrete("2027-01", Frente.DIA10), (date(2027, 1, 6), date(2027, 1, 7), date(2027, 1, 8)))
+        self.assertEqual(parcela_do_dia(date(2026, 10, 23), Frente.DIA25), 1.0)
+
+    def test_recuperacao_comeca_depois_do_prazo_efetivo_do_dia_25(self) -> None:
+        self.assertEqual(datas_de_recuperacao("2026-10"), (date(2026, 10, 27), date(2026, 10, 28), date(2026, 10, 29), date(2026, 10, 30)))
+        self.assertEqual(datas_de_recuperacao("2026-12"), (date(2026, 12, 29), date(2026, 12, 30)))
+        # No dia do prazo (26/10) ainda é dia de pagar, não de recuperação; o ciclo só conta como vencido depois.
+        self.assertEqual([a.mensagem for a in acoes_do_dia(date(2026, 10, 26))], [])
+        kw = dict(ciclo="2026-10", financeira_aberta=True, dia10_aberto=True)
+        self.assertEqual(historico_com_ciclo_vencido((E,), hoje=date(2026, 10, 26), **kw), (E,))
+        self.assertEqual(historico_com_ciclo_vencido((E,), hoje=date(2026, 10, 27), **kw), (E, N))
+        kw = dict(ciclo="2026-12", financeira_aberta=True, dia10_aberto=True)
+        self.assertEqual(historico_com_ciclo_vencido((E,), hoje=date(2026, 12, 28), **kw), (E,))
+        self.assertEqual(historico_com_ciclo_vencido((E,), hoje=date(2026, 12, 29), **kw), (E, N))
+
+    def test_data_no_texto_do_aviso_e_o_prazo_efetivo(self) -> None:
+        from motor.envio import componentes_do_template
+
+        def textos(mensagem, ciclo):
+            return [p["text"] for p in componentes_do_template(mensagem, ciclo)["components"][0]["parameters"]][1:]
+
+        self.assertEqual(textos("lembrete_dia25", "2026-10"), ["outubro", "26/10"])
+        self.assertEqual(textos("lembrete_dia10", "2026-10"), ["outubro", "13/10"])
+        self.assertEqual(textos("lembrete_dia25", "2026-12"), ["dezembro", "28/12"])
+        self.assertEqual(textos("lembrete_dia10", "2027-01"), ["janeiro", "11/01"])
+        self.assertEqual(textos("lembrete_dia25", "2026-11"), ["novembro", "25/11"])
+        self.assertEqual(textos("aviso_calouro", "2026-12"), ["dezembro", "28/12"])
 
 
 class EstadosTest(unittest.TestCase):

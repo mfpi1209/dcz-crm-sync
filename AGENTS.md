@@ -4,6 +4,19 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-13 — Motor de Ativações: prazo efetivo (dia 10 ou 25 em fim de semana ou feriado vale no primeiro dia útil seguinte)
+- **Modelo usado:** Claude Fable 5.2.
+- **Decisão do Marcelo (13/11):** "use 26/10 como referência, foi o primeiro dia útil, isso pode acontecer tanto com dia 10, assim como dia 25. O pagto pode ser feito no prox dia util".
+- **Uma função só:** `motor.calendario.prazo_efetivo(ciclo, dia, feriados)`. Ninguém mais no motor usa o dia 10 ou o dia 25 "cru". Feriados = nacionais (fixos, Carnaval, Sexta-feira Santa, Corpus Christi) mais os de `MOTOR_FERIADOS`.
+- **Onde entra:**
+  - corte de "pagou em dia" e corte do dia 25: prazo efetivo + `folga_baixa_du` dias úteis (`estados.corte_dia10`, `estados.corte_dia25`);
+  - lembretes: os 3 dias úteis **antes do prazo efetivo** (`agenda.datas_de_lembrete`);
+  - recuperação: dias úteis **depois do prazo efetivo do dia 25**, até o dia 30 (`agenda.datas_de_recuperacao`). No dia do prazo ainda é dia de pagar: o ciclo só conta como "sem pagar" a partir do dia seguinte (`estados.historico_com_ciclo_vencido`);
+  - texto do aviso: a variável `{{3}}` do template leva o prazo efetivo (`envio.componentes_do_template`). Em outubro/2026 o lembrete do dia 25 diria "26/10".
+- **Casos cobertos por teste (`PrazoEfetivoTest`):** 25/10/2026 (domingo) → 26/10; 10/10/2026 (sábado, com feriado em 12/10) → 13/10; 25/12/2026 (Natal) → 28/12; 10/01/2027 (domingo) → 11/01.
+- **Efeito no calendário:** outubro/2026 teria lembretes do dia 10 em 7, 8 e 9/10 e do dia 25 em 21, 22 e 23/10, com recuperação de 27 a 30/10. Dezembro/2026: lembretes do dia 25 em 22, 23 e 24/12, recuperação em 29 e 30/12, corte do dia 25 em 31/12. **Novembro/2026 não muda** (10 e 25 são dias úteis): lembretes do dia 25 em 19, 23 e 24/11.
+- **Ponto de atenção:** 24/12 e 31/12 contam como dia útil. Se a equipe não atende nesses dias, incluir as datas em `MOTOR_FERIADOS` (o motor então recua os lembretes para 21, 22 e 23/12). Feriado municipal ou bancário fora da lista nacional também só entra por `MOTOR_FERIADOS`.
+
 ### 2026-11-13 — Motor de Ativações: envio real vira UMA campanha por dia sobre a etiqueta do dia (substitui o "lote com etiqueta por aluno")
 - **Modelo usado:** Claude Fable 5.2.
 - **Decisão do Marcelo (13/11, "vamos vamos"):** o motor não etiqueta mais aluno por aluno a cada lote. Esta entrada **substitui o item 7 e os "Trilhos do envio real" da entrada abaixo**, e tira do envio real a ordem por risco e o loteador por lista de contatos (a ordem de envio é a do CRM). Em simulação nada disso muda: o motor continua montando lotes por aluno para mostrar o que consideraria elegível.

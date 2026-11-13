@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Iterable, Mapping, Optional
 
-from motor.calendario import para_brt
+from motor.calendario import para_brt, prazo_efetivo
 from motor.config import MotorConfig
 from motor.crm import BAIXA, CrmErro, CrmMotor
 from motor.governador import dentro_da_janela, tamanho_do_lote
@@ -55,11 +55,15 @@ def etiqueta_de_controle(ciclo: str) -> str:
     return f"motor-controle-{ciclo}"
 
 
-def componentes_do_template(mensagem: str, ciclo: str) -> dict:
-    """Variáveis do corpo: {{1}} primeiro nome, {{2}} mês, {{3}} prazo. O nome é resolvido pelo CRM por destinatário."""
+def componentes_do_template(mensagem: str, ciclo: str, feriados: frozenset = frozenset()) -> dict:
+    """Variáveis do corpo: {{1}} primeiro nome, {{2}} mês da mensalidade, {{3}} prazo.
+
+    O prazo que vai no texto é o prazo efetivo (dia 25 num domingo vira o dia 26).
+    O nome é resolvido pelo CRM por destinatário.
+    """
     mes = int(ciclo.split("-")[1])
-    prazo = {Mensagem.LEMBRETE_DIA10.value: 10, Mensagem.LEMBRETE_DIA25.value: 25, Mensagem.AVISO_CALOURO.value: 25}.get(mensagem)
-    textos = [NOME] + ([MESES[mes - 1], f"{prazo:02d}/{mes:02d}"] if prazo else [])
+    dia = {Mensagem.LEMBRETE_DIA10.value: 10, Mensagem.LEMBRETE_DIA25.value: 25, Mensagem.AVISO_CALOURO.value: 25}.get(mensagem)
+    textos = [NOME] + ([MESES[mes - 1], f"{prazo_efetivo(ciclo, dia, feriados):%d/%m}"] if dia else [])
     return {"version": 1, "components": [{"type": "body", "parameters": [{"type": "text", "text": t} for t in textos]}]}
 
 
@@ -326,7 +330,7 @@ class Envio:
             try:
                 campanha = self.crm.criar_campanha(
                     nome=f"Motor {hoje:%d/%m} ({acao['mensagem']})", canal_id=cfg_msg["canal"], template=cfg_msg["template"], idioma=cfg_msg["idioma"],
-                    componentes=componentes_do_template(acao["mensagem"], ciclo), tag_ids=[tag_dia], excluir_tag_ids=excluir, velocidade=self.cfg.velocidade,
+                    componentes=componentes_do_template(acao["mensagem"], ciclo, self.cfg.feriados), tag_ids=[tag_dia], excluir_tag_ids=excluir, velocidade=self.cfg.velocidade,
                 )
             except CrmErro as e:
                 if 400 <= e.status < 500:

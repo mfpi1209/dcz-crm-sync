@@ -28,6 +28,7 @@ def com_estado(aluno: Aluno, *, ciclo: str, hoje: date, cfg: MotorConfig, contro
         hoje=hoje,
         financeira_aberta=aluno.financeira_aberta,
         dia10_aberto=aluno.dia10_aberto,
+        feriados=cfg.feriados,
     )
     estado = calcular_estado(
         hist,
