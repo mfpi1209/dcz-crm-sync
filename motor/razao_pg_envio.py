@@ -12,7 +12,7 @@ import psycopg2.extras
 
 from motor.classificador import ROTULOS_DE_EXPERIENCIA
 from motor.modelos import Experiencia
-from motor.razao import CAMPOS_DO_LOTE, ERRO_NUMERO_SEM_WHATSAPP, LOTES_ATIVOS, STATUS_DO_CRM, efeito_da_resposta
+from motor.razao import CAMPANHA_ATIVA, CAMPOS_DO_LOTE, ERRO_NUMERO_SEM_WHATSAPP, efeito_da_resposta, status_do_destinatario
 
 
 def _json(v: Any) -> Optional[str]:
@@ -23,38 +23,88 @@ class RazaoPgEnvio:
     """Espera `self._tx()` da classe que o usa."""
 
     # ── aprovação e encerramento do plano ─────────────────────────────────
-    def aprovar_plano(self, dia: date, simulado: bool, usuario: str) -> bool:
+    def aprovar_plano(self, dia: date, simulado: bool, usuario: str, etiqueta: str = "") -> bool:
         with self._tx() as cur:
             cur.execute(
                 """
-                UPDATE motor_planos SET status = 'aprovado', aprovado_por = %s, aprovado_em = NOW()
+                UPDATE motor_planos SET status = 'aprovado', aprovado_por = %s, aprovado_em = NOW(), etiqueta_dia = %s
                 WHERE dia = %s AND simulado = %s AND status = 'proposto'
                 """,
-                (usuario, dia, simulado),
+                (usuario, etiqueta.strip() or None, dia, simulado),
             )
             return cur.rowcount == 1
+
+    def atualizar_campanha(self, plano_id: int, campanha: dict) -> None:
+        with self._tx() as cur:
+            cur.execute("UPDATE motor_planos SET campanha = %s WHERE id = %s", (_json(campanha), plano_id))
+
+    def planos_com_campanha_ativa(self) -> list[dict]:
+        with self._tx(dicionario=True) as cur:
+            cur.execute("SELECT * FROM motor_planos WHERE NOT simulado AND campanha->>'estado' = ANY(%s) ORDER BY dia", (list(CAMPANHA_ATIVA),))
+            return [dict(r) for r in cur.fetchall()]
+
+    # ── grupo de controle no CRM ──────────────────────────────────────────
+    def controle_pendente(self, ciclo: str, limite: int = 1000) -> list[str]:
+        """Alunos do controle do ciclo que estão na base de hoje e ainda não receberam a etiqueta do mês."""
+        with self._tx() as cur:
+            cur.execute(
+                """
+                SELECT c.contact_id FROM motor_aluno_ciclo c JOIN motor_alunos a USING (contact_id)
+                WHERE c.ciclo = %s AND c.controle AND NOT c.controle_etiquetado
+                  AND a.carga_id = (SELECT MAX(id) FROM motor_cargas WHERE completa)
+                ORDER BY c.contact_id LIMIT %s
+                """,
+                (ciclo, max(0, limite)),
+            )
+            return [r[0] for r in cur.fetchall()]
+
+    def marcar_controle_etiquetado(self, ciclo: str, contact_ids) -> None:
+        ids = list(contact_ids)
+        if not ids:
+            return
+        with self._tx() as cur:
+            cur.execute("UPDATE motor_aluno_ciclo SET controle_etiquetado = TRUE, atualizado_em = NOW() WHERE ciclo = %s AND contact_id = ANY(%s)", (ciclo, ids))
+
+    def registrar_destinatarios(self, *, ciclo: str, dia: date, frente: str, mensagem: str, itens) -> int:
+        """Grava no livro-razão quem a campanha do dia alcançou, pelo que o CRM devolve por destinatário.
+
+        Erro 131026 bloqueia o número. Quem ficou sem envio entra como `nao_enviado`.
+        """
+        linhas = []
+        for i in itens:
+            status = status_do_destinatario(i)
+            if status:
+                linhas.append((i["contact_id"], ciclo, dia, frente, mensagem, status, i.get("erro_codigo"), i.get("entregue_em"), i.get("lido_em"), i.get("respondeu_em")))
+        if not linhas:
+            return 0
+        with self._tx() as cur:
+            psycopg2.extras.execute_values(
+                cur,
+                """
+                INSERT INTO motor_mensagens (contact_id, ciclo, dia, simulado, frente, mensagem, status, erro_codigo, entregue_em, lido_em, respondeu_em)
+                VALUES %s
+                ON CONFLICT (contact_id, dia, simulado) DO UPDATE SET status = EXCLUDED.status, erro_codigo = EXCLUDED.erro_codigo,
+                    entregue_em = EXCLUDED.entregue_em, lido_em = EXCLUDED.lido_em,
+                    respondeu_em = COALESCE(motor_mensagens.respondeu_em, EXCLUDED.respondeu_em)
+                """,
+                linhas,
+                template="(%s, %s, %s, FALSE, %s, %s, %s, %s, %s, %s, %s)",
+                page_size=200,
+            )
+            sem_whatsapp = [l[0] for l in linhas if l[6] == ERRO_NUMERO_SEM_WHATSAPP]
+            if sem_whatsapp:
+                cur.execute("UPDATE motor_alunos SET bloqueio_motor = 'erro_131026' WHERE contact_id = ANY(%s)", (sem_whatsapp,))
+        return len(linhas)
 
     def encerrar_plano(self, dia: date, simulado: bool) -> None:
         with self._tx() as cur:
             cur.execute("UPDATE motor_planos SET status = 'encerrado' WHERE dia = %s AND simulado = %s", (dia, simulado))
 
-    # ── lotes em envio real ───────────────────────────────────────────────
+    # ── janelas da campanha do dia (linhas de motor_lotes) ────────────────
     def lote(self, lote_id: int) -> dict:
         with self._tx(dicionario=True) as cur:
             cur.execute("SELECT * FROM motor_lotes WHERE id = %s", (lote_id,))
             return dict(cur.fetchone())
-
-    def lotes_ativos(self) -> list[dict]:
-        with self._tx(dicionario=True) as cur:
-            cur.execute("SELECT * FROM motor_lotes WHERE NOT simulado AND status = ANY(%s) ORDER BY id", (list(LOTES_ATIVOS),))
-            return [dict(r) for r in cur.fetchall()]
-
-    def lotes_para_leitura(self) -> list[dict]:
-        with self._tx(dicionario=True) as cur:
-            cur.execute(
-                "SELECT * FROM motor_lotes WHERE NOT simulado AND status = 'concluido' AND crm_campaign_id IS NOT NULL AND leituras < 2 ORDER BY id"
-            )
-            return [dict(r) for r in cur.fetchall()]
 
     def lotes_liberados_hoje(self, dia: date, simulado: bool) -> int:
         with self._tx() as cur:
@@ -69,55 +119,6 @@ class RazaoPgEnvio:
                 "UPDATE motor_lotes SET " + ", ".join(f"{c} = %s" for c in colunas) + ", atualizado_em = NOW() WHERE id = %s",
                 [_json(campos[c]) if c == "fila" else campos[c] for c in colunas] + [lote_id],
             )
-
-    def contatos_do_lote(self, lote_id: int, status: str, limite: int = 1000) -> list[str]:
-        with self._tx() as cur:
-            cur.execute(
-                "SELECT contact_id FROM motor_mensagens WHERE lote_id = %s AND status = %s ORDER BY id LIMIT %s",
-                (lote_id, status, limite),
-            )
-            return [r[0] for r in cur.fetchall()]
-
-    def marcar_mensagens(self, lote_id: int, contact_ids, status: str, erro: str = "") -> None:
-        ids = list(contact_ids)
-        if not ids:
-            return
-        with self._tx() as cur:
-            cur.execute(
-                "UPDATE motor_mensagens SET status = %s, erro = %s WHERE lote_id = %s AND contact_id = ANY(%s)",
-                (status, erro or None, lote_id, ids),
-            )
-
-    def cancelar_pendentes(self, lote_id: int) -> int:
-        with self._tx() as cur:
-            cur.execute(
-                "UPDATE motor_mensagens SET status = 'cancelado' WHERE lote_id = %s AND status IN ('reservado', 'etiquetado')",
-                (lote_id,),
-            )
-            return cur.rowcount
-
-    def aplicar_destinatarios(self, lote_id: int, itens) -> int:
-        """Grava status, código de erro e horários de cada destinatário. Erro 131026 bloqueia o número."""
-        linhas = [
-            (STATUS_DO_CRM[i["status"]], i.get("erro_codigo"), i.get("entregue_em"), i.get("lido_em"), i.get("respondeu_em"), lote_id, i["contact_id"])
-            for i in itens if i.get("status") in STATUS_DO_CRM
-        ]
-        if not linhas:
-            return 0
-        with self._tx() as cur:
-            psycopg2.extras.execute_batch(
-                cur,
-                """
-                UPDATE motor_mensagens SET status = %s, erro_codigo = %s, entregue_em = %s, lido_em = %s,
-                       respondeu_em = COALESCE(respondeu_em, %s)
-                WHERE lote_id = %s AND contact_id = %s
-                """,
-                linhas,
-            )
-            sem_whatsapp = [l[6] for l in linhas if l[1] == ERRO_NUMERO_SEM_WHATSAPP]
-            if sem_whatsapp:
-                cur.execute("UPDATE motor_alunos SET bloqueio_motor = 'erro_131026' WHERE contact_id = ANY(%s)", (sem_whatsapp,))
-        return len(linhas)
 
     def acao(self, chave: str) -> Optional[dict]:
         with self._tx(dicionario=True) as cur:
@@ -136,8 +137,9 @@ class RazaoPgEnvio:
         """Grava uma resposta recebida pelo webhook. Devolve o id, ou None se não é para gravar.
 
         Só entra resposta de quem recebeu envio real do motor nos últimos 7
-        dias. Com `observar` (dia de observação), entra também quem está na
-        base com a mensalidade em aberto. No máximo `max_por_dia` por aluno.
+        dias. Em dia de campanha do motor, ou com `observar` (dia de
+        observação), entra também quem está na base com a mensalidade em
+        aberto. No máximo `max_por_dia` por aluno.
         """
         with self._tx() as cur:
             cur.execute(
@@ -151,7 +153,9 @@ class RazaoPgEnvio:
             envio = cur.fetchone()
             if envio is None:
                 if not observar:
-                    return None
+                    cur.execute("SELECT 1 FROM motor_planos WHERE dia = %s AND NOT simulado AND campanha IS NOT NULL", (dia,))
+                    if cur.fetchone() is None:
+                        return None
                 cur.execute("SELECT 1 FROM motor_alunos WHERE contact_id = %s AND dia10_aberto", (contact_id,))
                 if cur.fetchone() is None:
                     return None

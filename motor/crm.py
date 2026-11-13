@@ -33,7 +33,7 @@ from motor.calendario import BRT
 from motor.modelos import Fila
 
 BASE_PADRAO = "https://integrations.bwipo.com"
-FILTROS_DE_CAMPANHA_ACEITOS = frozenset({"tagIds"})
+FILTROS_DE_CAMPANHA_ACEITOS = frozenset({"tagIds", "excludeTagIds"})
 CACHE_DA_FILA_S = 15.0
 ALTA, BAIXA = "alta", "baixa"
 
@@ -339,12 +339,17 @@ class CrmMotor:
     def desetiquetar_contato(self, contact_id: str, tag_id: str) -> None:
         self._chamar("DELETE", f"/api/contacts/{self._id(contact_id)}/tags", {"tagId": tag_id}, prioridade=BAIXA)
 
-    def criar_campanha(self, *, nome: str, canal_id: str, template: str, idioma: str, componentes: Any, tag_ids: list[str], velocidade: int = 1) -> dict:
-        """Cria a campanha em rascunho (não envia). O público é sempre a etiqueta do lote.
+    def criar_campanha(self, *, nome: str, canal_id: str, template: str, idioma: str, componentes: Any, tag_ids: list[str],
+                       excluir_tag_ids: Optional[list[str]] = None, velocidade: int = 1) -> dict:
+        """Cria a campanha em rascunho (não envia). O público é a etiqueta do dia, menos as etiquetas de exclusão.
 
         Só `tagIds` não vazio passa: filtro vazio ou com outra chave alargaria o público.
+        `excludeTagIds` depende do backend_crm1#278; se o CRM ainda não o aceitar, responde 400
+        `AUDIENCE_FILTERS_INVALID` e quem chama recusa o lançamento (nunca lança sem a exclusão).
         """
-        filtros = {"tagIds": [t for t in tag_ids if t]}
+        filtros: dict = {"tagIds": [t for t in tag_ids if t]}
+        if excluir_tag_ids:
+            filtros["excludeTagIds"] = [t for t in excluir_tag_ids if t]
         validar_filtros_de_campanha(filtros)
         corpo = {
             "name": nome,
@@ -376,10 +381,13 @@ class CrmMotor:
 
 def validar_filtros_de_campanha(filtros: Any) -> None:
     if not isinstance(filtros, dict) or set(filtros) - FILTROS_DE_CAMPANHA_ACEITOS:
-        raise ValueError("filtro de campanha fora do permitido (só tagIds)")
+        raise ValueError("filtro de campanha fora do permitido (só tagIds e excludeTagIds)")
     tags = filtros.get("tagIds")
     if not isinstance(tags, list) or not tags or not all(isinstance(t, str) and t.strip() for t in tags):
-        raise ValueError("campanha sem etiqueta de lote: o CRM enviaria para todos os contatos")
+        raise ValueError("campanha sem etiqueta de público: o CRM enviaria para todos os contatos")
+    excluir = filtros.get("excludeTagIds", [])
+    if not isinstance(excluir, list) or not all(isinstance(t, str) and t.strip() for t in excluir) or set(excluir) & set(tags):
+        raise ValueError("etiquetas de exclusão inválidas")
 
 
 def limpar_destinatario(item: dict) -> dict:

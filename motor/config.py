@@ -82,7 +82,10 @@ class MotorConfig:
     max_msgs_ciclo: int = 2
     nivel_alvo: str = "graduacao"     # vazio = qualquer nível
     dias_antes_vencimento: int = 3    # público dividido nos N dias úteis antes do vencimento
-    velocidade: int = 1               # mensagens por segundo na campanha do lote
+    velocidade: int = 1               # mensagens por segundo na campanha do dia
+    pausa_atraso_s: int = 5           # a pausa pega em cerca de 5 s: são umas 5 mensagens a mais por janela
+    publico_diferenca_max: float = 0.02  # fração do público da etiqueta do dia que pode não bater com a base
+    carga_dia_min_mudancas: int = 50  # mudanças no campo Dia 10 que caracterizam a carga do dia (0 = não esperar)
 
     # Grupo de controle.
     controle_pct: float = 5.0
@@ -154,6 +157,8 @@ def carregar() -> MotorConfig:
         nivel_alvo=(os.getenv("MOTOR_NIVEL_ALVO", "graduacao") or "").strip().lower(),
         dias_antes_vencimento=_int("MOTOR_DIAS_ANTES_VENCIMENTO", 3, 1, 5),
         velocidade=_int("MOTOR_VELOCIDADE", 1, 1, VELOCIDADE_ABSOLUTA),
+        publico_diferenca_max=_float("MOTOR_PUBLICO_DIFERENCA_MAX", 0.02, 0.0, 0.10),
+        carga_dia_min_mudancas=_int("MOTOR_CARGA_DIA_MIN_MUDANCAS", 50, 0, 1_000_000),
         controle_pct=_float("MOTOR_CONTROLE_PCT", 5.0, 0.0, 50.0),
         controle_sal=(os.getenv("MOTOR_CONTROLE_SAL") or "motor-ativacoes-v1").strip(),
         fila_sobe_segura=sobe_segura,

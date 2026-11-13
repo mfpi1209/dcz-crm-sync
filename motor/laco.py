@@ -4,9 +4,9 @@
   2. classifica as respostas que chegaram pelo webhook
   3. lê a fila de atendimento e roda a fórmula do governador
   4. faz a carga do dia (base de negócios do CRM) e a refaz durante a janela
-  5. monta o plano do dia às 8h30 (uma pessoa aprova na página)
-  6. em modo real, avança os lotes em envio: etiqueta, lança, acompanha, pausa
-  7. dentro da janela, pede a ordem ao piloto e libera o próximo lote
+  5. monta o plano do dia quando a carga do dia é detectada (uma pessoa aprova na página)
+  6. em modo real, anda a campanha do dia: lança, abre janelas, mede, pausa, cancela
+  7. em simulação, pede a ordem ao piloto e libera o próximo lote simulado
 
 Em simulação o motor monta os lotes, registra o que faria e não chama nenhum
 endpoint que escreve no CRM. Modo real exige `MOTOR_ENABLED=1`,
@@ -38,7 +38,7 @@ from motor.trilhos import modo_efetivo, validar_lote
 logger = logging.getLogger(__name__)
 
 RETENTATIVA_CARGA = timedelta(minutes=15)
-RECARGA_NA_JANELA = timedelta(minutes=60)
+RECARGA_NA_JANELA = timedelta(minutes=30)
 # Estes rótulos tiram o aluno dos envios mesmo com confiança baixa: na dúvida, não insistir.
 EFEITO_SEMPRE = frozenset({"pediu_parar", "numero_errado", "reclamou"})
 
@@ -108,25 +108,27 @@ class Laco:
             self.razao.diario("controle", "worker", f"Motor em modo: {modo}.", {"por": controle.atualizado_por, "motivo": controle.parada_motivo})
             self._ultimo_modo = modo
         self._classificar_respostas(agora)
-        if modo == "parado":
-            if self.envio is not None:
-                self.envio.avancar(agora, parada=controle.parada_motivo or "acionada na página")
-            return modo
-        if modo == "desligado":
-            if self.envio is not None:
-                self.envio.avancar(agora, pausar="motor desligado")
+        hoje = agora.date()
+        if modo in ("parado", "desligado"):
+            # Parada geral cancela a campanha do dia; motor desligado pausa o que estiver enviando.
+            if self.envio is not None and self.crm is not None and self.crm.permitir_escrita:
+                self.envio.avancar(
+                    agora, plano=self.razao.plano(hoje, False), decisao=Decisao.PAUSAR, motivo=modo, fila=None,
+                    parada=(controle.parada_motivo or "acionada na página") if modo == "parado" else None, desligado=modo == "desligado",
+                )
             return modo
 
         simulado = modo != "real"
         fila, decisao, motivo = self._governar(agora, simulado)
         self._carga(agora, simulado)
         self._plano(agora, simulado)
-        if not simulado:
+        if simulado:
+            self._rodada(agora, fila, decisao, motivo, controle)
+        else:
             self.envio.avancar(
-                agora, pausar=motivo if decisao == Decisao.PAUSAR else None, retomar=decisao == Decisao.LIBERAR,
-                fim_da_janela=not dentro_da_janela(agora, self.cfg), aguardando=fila.aguardando if fila else None,
+                agora, plano=self.razao.plano(hoje, False), decisao=decisao, motivo=motivo, fila=fila,
+                lotes_liberados=self.razao.lotes_liberados_hoje(hoje, False), fila_base=nivel_de_antes(self._lote_ativo, agora, self.cfg),
             )
-        self._rodada(agora, fila, decisao, motivo, controle, simulado)
         return modo
 
     # ── respostas dos alunos ──────────────────────────────────────────────
@@ -169,8 +171,8 @@ class Laco:
         hoje = agora.date()
         fila: Optional[Fila] = None
         erro = ""
-        ativos = [] if simulado else self.razao.lotes_ativos()
-        ler = self._perto_da_janela(agora) or bool(ativos)
+        em_envio = [] if simulado else self.razao.planos_com_campanha_ativa()
+        ler = self._perto_da_janela(agora) or bool(em_envio)
         if ler and self.crm is not None:
             try:
                 fila = self.crm.fila_agora()  # `lida_em` vem do `asOf` da resposta
@@ -189,7 +191,7 @@ class Laco:
         self._lote_ativo = self.razao.ultimo_lote_liberado(hoje, simulado)
         decisao, motivo = decidir(
             fila, self.cfg, agora=agora, lote_ativo=self._lote_ativo,
-            campanha_em_andamento=any(l["status"] == "enviando" for l in ativos), experiencia=experiencia,
+            campanha_em_andamento=any(p["campanha"]["estado"] == "enviando" for p in em_envio), experiencia=experiencia,
         )
         if ler:
             self.razao.registrar_fila(fila, decisao.value, motivo, erro)
@@ -215,9 +217,17 @@ class Laco:
             return
         feita = self.razao.carga_do_dia(hoje)
         if feita:
-            pendentes = [l for l in self.razao.lotes(hoje, simulado) if l["status"] == "planejado"]
-            recente = self._carga_em is not None and agora - self._carga_em < RECARGA_NA_JANELA
-            if recente or not pendentes or not dentro_da_janela(agora, self.cfg):
+            # Refaz a carga a cada 30 min enquanto ela ainda pode mudar o dia: esperando a carga da
+            # equipe para fechar o plano, com lotes simulados pendentes, ou antes de lançar a campanha.
+            if self._carga_em is not None and agora - self._carga_em < RECARGA_NA_JANELA:
+                return
+            if not dentro_da_janela(agora, self.cfg):
+                return
+            plano = self.razao.plano(hoje, simulado)
+            esperando = plano is None and bool(self._acoes(hoje))
+            pendentes = simulado and any(l["status"] == "planejado" for l in self.razao.lotes(hoje, True))
+            antes_de_lancar = (not simulado) and plano is not None and plano["status"] == "aprovado" and not (plano.get("campanha") or {}).get("id")
+            if not (esperando or pendentes or antes_de_lancar):
                 return
         try:
             mapa = montar_mapa(self.crm.campos_do_negocio())
@@ -272,6 +282,15 @@ class Laco:
                 f"mínimo {self.cfg.carga_min_abertos}). Sem plano hoje.",
             )
             return
+        # A carga do campo Dia 10 é importada pela equipe ao longo do dia (entre 10h e 14h, às vezes mais
+        # tarde). O plano só fecha depois dela: antes, a base ainda é a de ontem.
+        mudancas = self.razao.mudancas_do_dia(hoje)
+        if mudancas < self.cfg.carga_dia_min_mudancas:
+            self._uma_vez(
+                f"plano-sem-carga-do-dia:{hoje}", "plano", "trilhos",
+                f"A carga do dia ainda não foi detectada ({mudancas} mudanças no Dia 10 hoje; mínimo {self.cfg.carga_dia_min_mudancas}). O plano fecha depois dela.",
+            )
+            return
         ciclo = carga["ciclo"]
         alunos = self.razao.alunos(ciclo=ciclo, hoje=hoje, simulado=simulado, cfg=self.cfg)
         selecoes = [selecionar(alunos, a, hoje=hoje, cfg=self.cfg, parcela=self._parcela(hoje, a)) for a in acoes]
@@ -295,47 +314,38 @@ class Laco:
         }
         self.razao.salvar_plano(
             dia=hoje, simulado=simulado, ciclo=ciclo, piloto=self.piloto.nome, resumo=resumo,
-            lotes=[{"ordem": l.ordem, "frente": l.frente.value, "mensagem": l.mensagem.value, "tamanho": l.tamanho} for l in plano.lotes],
+            # No envio real não há lote por lista: as janelas da campanha do dia nascem na hora.
+            lotes=[{"ordem": l.ordem, "frente": l.frente.value, "mensagem": l.mensagem.value, "tamanho": l.tamanho} for l in plano.lotes] if simulado else [],
         )
         self.razao.diario(
             "plano", self.piloto.nome,
             f"Plano {'simulado' if simulado else 'REAL'} de {hoje:%d/%m}: {plano.total} alunos em {len(plano.lotes)} lotes"
             + (f"; {plano.adiados} ficam para o próximo dia de envio" if plano.adiados else "")
-            + ("." if simulado else ". Aguardando aprovação na página."),
+            + ("." if simulado else " (estimativa do motor). Aguardando aprovação, com a etiqueta do dia, na página."),
             resumo,
         )
 
-    # ── rodada do piloto ──────────────────────────────────────────────────
-    def _rodada(self, agora: datetime, fila: Optional[Fila], decisao: Decisao, motivo: str, controle, simulado: bool) -> None:
+    # ── rodada do piloto (simulação) ──────────────────────────────────────
+    def _rodada(self, agora: datetime, fila: Optional[Fila], decisao: Decisao, motivo: str, controle) -> None:
+        """Em simulação o motor monta lotes por aluno e registra o que faria. No envio real quem anda é `Envio`."""
         hoje = agora.date()
-        plano = self.razao.plano(hoje, simulado)
+        plano = self.razao.plano(hoje, True)
         if not plano or plano["status"] == "encerrado":
             return
-        lotes = self.razao.lotes(hoje, simulado)
+        lotes = self.razao.lotes(hoje, True)
         pendentes = [l for l in lotes if l["status"] == "planejado"]
         if not pendentes:
             return
         if not dentro_da_janela(agora, self.cfg):
             if agora.hour >= self.cfg.janela_fim_h:
                 for l in pendentes:
-                    self.razao.marcar_lote(l["id"], "adiado", "fim da janela de envio")
-                self.razao.diario("lote", "trilhos", f"Fim da janela: {len(pendentes)} lotes adiados para o próximo dia de envio.")
-            return
-        aprovado = plano["status"] == "aprovado"
-        if not simulado and not aprovado:
-            self._uma_vez(f"sem-aprovacao:{hoje}", "plano", "trilhos", "Plano do dia ainda não aprovado: nenhum lote real sai antes da aprovação na página.")
-            return
-        # Um lote real por vez: o próximo só sai depois de o anterior ser lançado.
-        if not simulado and any(l["status"] in ("etiquetando", "pausado") for l in lotes):
-            return
-        # Lote em erro espera uma pessoa: enquanto isso nenhum lote real novo sai.
-        if not simulado and any(l["status"] == "erro" for l in lotes):
-            self._uma_vez(f"lote-em-erro:{hoje}", "lote", "trilhos", "Há lote em erro esperando uma pessoa: nenhum lote novo sai hoje até alguém conferir.")
+                    self.razao.marcar_lote(l["id"], "adiado", "fim do expediente")
+                self.razao.diario("lote", "trilhos", f"Fim do expediente: {len(pendentes)} lotes adiados para o próximo dia de envio.")
             return
 
         ciclo = plano["ciclo"]
-        enviados = self.razao.enviados_hoje(hoje, simulado)
-        liberados = self.razao.lotes_liberados_hoje(hoje, simulado)
+        enviados = self.razao.enviados_hoje(hoje, True)
+        liberados = self.razao.lotes_liberados_hoje(hoje, True)
         sugerido = tamanho_do_lote(fila, self.cfg, liberados, nivel_de_antes(self._lote_ativo, agora, self.cfg))
         retrato = Retrato(
             agora=agora, fila=fila, decisao_governador=decisao, motivo_governador=motivo, tamanho_sugerido=sugerido,
@@ -364,15 +374,9 @@ class Laco:
         if acao is None:
             self.razao.marcar_lote(alvo["id"], "recusado", "mensagem fora do calendário de hoje")
             return
-        if not simulado:
-            impedimento = self.envio.impedimento(alvo["mensagem"])
-            if impedimento:
-                self.razao.marcar_lote(alvo["id"], "recusado", impedimento)
-                self.razao.diario("lote", "trilhos", f"Lote {alvo['ordem']} recusado: {impedimento}.")
-                return
 
         # Lista recalculada a cada lote: já sem quem teve baixa ou recebeu algo hoje.
-        alunos = self.razao.alunos(ciclo=ciclo, hoje=hoje, simulado=simulado, cfg=self.cfg)
+        alunos = self.razao.alunos(ciclo=ciclo, hoje=hoje, simulado=True, cfg=self.cfg)
         tamanho = max(1, min(ordem.tamanho, sugerido, self.cfg.lote_max))
         selecao = selecionar(alunos, acao, hoje=hoje, cfg=self.cfg, parcela=self._parcela(hoje, acao))
         montado = lotear([selecao], dia=hoje, cfg=self.cfg, tamanho=tamanho, enviados_hoje=enviados, primeira_ordem=alvo["ordem"], max_lotes=1,
@@ -382,30 +386,28 @@ class Laco:
             return
         lote = montado.lotes[0]
         indice = {a.contact_id: a for a in alunos}
-        recusas = validar_lote(lote, alunos=indice, agora=agora, cfg=self.cfg, controle=controle, enviados_hoje=enviados, plano_aprovado=aprovado)
+        recusas = validar_lote(lote, alunos=indice, agora=agora, cfg=self.cfg, controle=controle, enviados_hoje=enviados,
+                               plano_aprovado=plano["status"] == "aprovado")
         if recusas:
             texto = "; ".join(str(r) for r in recusas)
             self.razao.marcar_lote(alvo["id"], "recusado", texto[:500])
             self.razao.diario("lote", "trilhos", f"Lote {lote.ordem} recusado pelos trilhos: {texto}.")
             return
 
-        estados = {cid: indice[cid].estado.value for cid in lote.contact_ids}
-        fila_dict = asdict(fila) if fila else None
-        if simulado:
-            # Simulação: registra o que seria feito no CRM e não chama nada que escreve.
-            self.razao.registrar_acao(
-                f"sim:{hoje.isoformat()}:{lote.ordem}:lancar", "lancar_lote", lote_id=alvo["id"], simulado=True,
-                requisicao={
-                    "faria": ["criar a etiqueta do lote", "etiquetar os contatos", "criar a campanha em rascunho", "lançar a campanha"],
-                    "mensagem": lote.mensagem.value, "destinatarios": lote.tamanho,
-                },
-            )
-            self.razao.liberar_lote(alvo["id"], lote, estados, ciclo=ciclo, dia=hoje, simulado=True, status="simulado", motivo=ordem.motivo, fila=fila_dict, agora=agora)
-            texto = f"Lote {lote.ordem} ({lote.mensagem.value}) liberado em simulação: {lote.tamanho} alunos. {ordem.motivo}."
-        else:
-            self.envio.iniciar(alvo, lote, estados, ciclo=ciclo, agora=agora, fila=fila_dict, motivo=ordem.motivo)
-            texto = f"Lote {lote.ordem} ({lote.mensagem.value}) reservado para envio real: {lote.tamanho} alunos. Etiquetando antes de lançar. {ordem.motivo}."
-        self.razao.diario("lote", self.piloto.nome, texto, {"ordem": lote.ordem, "tamanho": lote.tamanho, "frente": lote.frente.value})
+        # Simulação: registra o que seria feito no CRM e não chama nada que escreve.
+        self.razao.registrar_acao(
+            f"sim:{hoje.isoformat()}:{lote.ordem}:janela", "janela_de_envio", lote_id=alvo["id"], simulado=True,
+            requisicao={
+                "faria": ["retomar a campanha do dia", f"deixar andar cerca de {lote.tamanho} mensagens", "pausar a campanha"],
+                "mensagem": lote.mensagem.value, "destinatarios": lote.tamanho,
+            },
+        )
+        self.razao.liberar_lote(
+            alvo["id"], lote, {cid: indice[cid].estado.value for cid in lote.contact_ids}, ciclo=ciclo, dia=hoje, simulado=True,
+            status="simulado", motivo=ordem.motivo, fila=asdict(fila) if fila else None, agora=agora,
+        )
+        self.razao.diario("lote", self.piloto.nome, f"Lote {lote.ordem} ({lote.mensagem.value}) liberado em simulação: {lote.tamanho} alunos. {ordem.motivo}.",
+                          {"ordem": lote.ordem, "tamanho": lote.tamanho, "frente": lote.frente.value})
 
         # Lote saiu menor que o previsto e não há outro da mesma mensagem na fila do plano:
         # o que sobrou vira um lote novo, para não ficar para trás sem aparecer.
@@ -414,6 +416,6 @@ class Laco:
         cabe = self.cfg.teto_diario - enviados - lote.tamanho
         if sobra > 0 and not outros and cabe > 0:
             self.razao.adicionar_lote(
-                plano["id"], dia=hoje, simulado=simulado, ordem=max(l["ordem"] for l in lotes) + 1,
+                plano["id"], dia=hoje, simulado=True, ordem=max(l["ordem"] for l in lotes) + 1,
                 frente=alvo["frente"], mensagem=alvo["mensagem"], tamanho=min(sobra, self.cfg.lote_max, cabe),
             )

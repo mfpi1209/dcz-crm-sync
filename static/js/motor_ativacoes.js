@@ -12,8 +12,8 @@ const MT_MENSAGENS = {
 };
 const MT_FRENTES = { dia10: 'Dia 10', dia25: 'Dia 25', recuperacao: 'Recuperação' };
 const MT_STATUS = {
-    planejado: ['Planejado', 'mt-neutro'], simulado: ['Liberado (simulação)', 'mt-ok'], etiquetando: ['Etiquetando', 'mt-aviso'], enviando: ['Enviando', 'mt-ok'],
-    cancelado: ['Cancelado', 'mt-ruim'], erro: ['Erro: precisa de uma pessoa', 'mt-ruim'],
+    planejado: ['Planejado', 'mt-neutro'], simulado: ['Liberado (simulação)', 'mt-ok'], enviando: ['Enviando', 'mt-ok'],
+    cancelado: ['Cancelado', 'mt-ruim'],
     pausado: ['Pausado', 'mt-aviso'], concluido: ['Concluído', 'mt-neutro'], adiado: ['Adiado', 'mt-aviso'], recusado: ['Recusado', 'mt-ruim'],
 };
 const MT_DECISAO = { liberar: ['Libera', 'mt-ok'], segurar: ['Segura', 'mt-aviso'], pausar: ['Pausa', 'mt-ruim'] };
@@ -125,7 +125,7 @@ function _mtRender(e, diario) {
         _mtFaixa('Modo simulação: o motor monta os lotes e registra o que faria. Nenhuma mensagem é enviada e nada é gravado no CRM.', 'is-sim');
     } else if (modo === 'real') {
         _mtSet('mt-modo', 'Envio real', 'mt-ruim');
-        _mtFaixa('ENVIO REAL: com o plano do dia aprovado, os lotes saem para os alunos pelo CRM. A parada geral cancela o que estiver em andamento.', 'is-parada');
+        _mtFaixa('ENVIO REAL: com o plano do dia aprovado e a etiqueta do dia informada, a campanha do dia sai para os alunos pelo CRM, em janelas. A parada geral cancela a campanha.', 'is-parada');
     } else if (modo === 'desligado') {
         _mtSet('mt-modo', 'Desligado', 'mt-neutro');
         _mtFaixa('Ligado na página, mas o worker está com MOTOR_ENABLED=0. Ele só começa a simular depois que a variável mudar no serviço do worker.', 'is-sim');
@@ -175,6 +175,8 @@ function _mtPlano(e) {
     _mtMostrar('mt-plano-corpo', !!p);
     _mtMostrar('mt-btn-aprovar', !!p && p.status === 'proposto');
     _mtMostrar('mt-plano-status', !!p);
+    window._mtPlanoReal = !!(p && !p.simulado);
+    _mtCampanha(p);
     _mtSet('mt-plano-titulo', p ? (p.simulado ? 'Plano do dia (simulado)' : 'Plano do dia (envio real)') : 'Plano do dia');
     if (p) {
         const st = { proposto: ['Aguardando aprovação', 'mt-aviso'], aprovado: ['Aprovado por ' + (p.aprovado_por || '—'), 'mt-ok'],
@@ -280,10 +282,42 @@ function _mtExperiencia(e) {
     }
 }
 
+function _mtCampanha(p) {
+    const el = document.getElementById('mt-campanha');
+    if (!el) return;
+    const c = p && p.campanha;
+    const real = !!(p && !p.simulado);
+    _mtSet('mt-lotes-titulo', real ? 'Janelas de envio de hoje' : 'Lotes de hoje');
+    if (!real) { el.classList.add('hidden'); return; }
+    const estados = { enviando: ['enviando', 'mt-ok'], pausada: ['pausada', 'mt-aviso'], concluida: ['concluída', 'mt-neutro'],
+        cancelada: ['cancelada', 'mt-ruim'], erro: ['em erro: precisa de uma pessoa', 'mt-ruim'], recusada: ['não lançada: a conferência do público recusou', 'mt-ruim'] };
+    let texto = 'Etiqueta do dia: ' + (p.etiqueta_dia || 'não informada') + '. ';
+    let classe = '';
+    if (!c || !c.estado) {
+        texto += 'Campanha do dia ainda não lançada.';
+    } else {
+        const e = estados[c.estado] || [c.estado, ''];
+        classe = e[1];
+        texto += 'Campanha do dia ' + e[0];
+        if (c.total != null) texto += ': ' + _mtNum(c.processados || 0) + ' de ' + _mtNum(c.total) + ' processados, ' + _mtNum(c.falhas || 0) + ' falhas';
+        if (c.janela) texto += ', janela ' + c.janela;
+        if (c.nao_enviados) texto += ', ' + _mtNum(c.nao_enviados) + ' ficaram sem receber';
+        texto += '.' + (c.motivo ? ' ' + c.motivo + '.' : '');
+    }
+    el.className = 'text-sm mt-2 ' + classe;
+    el.textContent = texto;
+}
+
 async function mtAprovarPlano() {
-    if (!window.confirm('Aprovar o plano de hoje? Em envio real, os lotes só saem depois desta aprovação.')) return;
+    let etiqueta = '';
+    if (window._mtPlanoReal) {
+        etiqueta = window.prompt('Envio real. Qual é a etiqueta do dia (a que a importação da equipe aplicou no público de hoje)? Sem ela nada sai.', '');
+        if (etiqueta === null || !etiqueta.trim()) return;
+    } else if (!window.confirm('Aprovar o plano simulado de hoje? Em simulação a aprovação não envia nada.')) {
+        return;
+    }
     try {
-        const res = await api('/api/motor/plano/aprovar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        const res = await api('/api/motor/plano/aprovar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ etiqueta: (etiqueta || '').trim() }) });
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.error || 'Não consegui aprovar.');
         toast('Plano aprovado.', 'success');

@@ -20,11 +20,10 @@ from motor.seletor import com_estado
 
 Msg = tuple[date, str, str]  # (dia, frente, mensagem)
 
-LOTES_ATIVOS = ("etiquetando", "enviando", "pausado")
-LOTES_LIBERADOS = ("simulado", "etiquetando", "enviando", "pausado", "concluido", "cancelado")
+CAMPANHA_ATIVA = ("enviando", "pausada")
+CAMPANHA_FINAL = ("concluida", "cancelada")
 CAMPOS_DO_LOTE = frozenset({
-    "status", "motivo", "crm_campaign_id", "crm_tag_id", "crm_status", "etiquetados", "enviados", "entregues",
-    "lidos", "respondidos", "falhas", "stats_em", "leituras", "leitura_pagina", "tamanho", "liberado_em", "fila",
+    "status", "motivo", "crm_campaign_id", "enviados", "entregues", "lidos", "respondidos", "falhas", "tamanho", "liberado_em", "fila",
 })
 # Status de destinatário no CRM → status da mensagem no livro-razão.
 # PENDING só aparece aqui em campanha já concluída: o CRM não chegou a enviar.
@@ -32,6 +31,18 @@ STATUS_DO_CRM = {"SENT": "enviado", "DELIVERED": "entregue", "READ": "lido", "FA
 # Mensagens que não chegaram a sair: não contam no limite do aluno nem no teto do dia.
 NAO_SAIRAM = ("cancelado", "nao_enviado")
 ERRO_NUMERO_SEM_WHATSAPP = 131026
+
+
+def status_do_destinatario(item: Mapping[str, Any]) -> Optional[str]:
+    """Status no livro-razão a partir do destinatário do CRM.
+
+    Ao cancelar a campanha o CRM marca os pendentes como FAILED sem hora de envio e sem
+    código de erro: são "não enviado", não falha de entrega.
+    """
+    status = STATUS_DO_CRM.get(str(item.get("status") or ""))
+    if status == "falhou" and item.get("enviado_em") is None and item.get("erro_codigo") is None:
+        return "nao_enviado"
+    return status
 
 
 def primeiro_ciclo_do_semestre(ciclo: str) -> str:
@@ -80,6 +91,8 @@ def montar_alunos(
             nivel=r.get("nivel") or "",
             nivel_misto=bool(r.get("nivel_misto")),
             suspenso=bool(vigente.suspenso) if vigente else False,
+            etiquetas=frozenset(r.get("etiquetas") or ()),
+            controle_etiquetado=bool(vigente.controle_etiquetado) if vigente else False,
             dia10_aberto=bool(r.get("dia10_aberto")),
             financeira_aberta=bool(r.get("financeira_aberta")),
             tem_telefone=bool(r.get("tem_telefone", True)),
@@ -130,6 +143,7 @@ class RazaoBase:
             "novas_baixas": contagem["baixa"],
             "abertos_no_ciclo": contagem["aberto"],
             "reabertos": contagem["reaberto"],
+            "mudancas": sum(contagem.values()),
         }
         resumo["carga_id"] = self._gravar_carga(dia, ciclo, linhas, mudancas, resumo)
         return resumo
@@ -192,7 +206,7 @@ class RazaoMemoria(RazaoBase):
                 "contact_id": cid, "deal_id": l.deal_id, "situacao": l.situacao, "nivel": l.nivel,
                 "nivel_misto": l.nivel_misto, "calouro": l.calouro,
                 "dia10_aberto": bool(l.dia10_aberto), "financeira_aberta": bool(l.financeira_aberta),
-                "tem_telefone": l.tem_telefone, "bloqueio": l.bloqueio, "carga_id": carga_id,
+                "tem_telefone": l.tem_telefone, "bloqueio": l.bloqueio, "etiquetas": sorted(l.etiquetas), "carga_id": carga_id,
             }
         for cid, reg in mudancas.items():
             self.ciclos.setdefault(cid, {})[ciclo] = reg
@@ -201,6 +215,9 @@ class RazaoMemoria(RazaoBase):
     def carga_do_dia(self, dia: date) -> Optional[dict]:
         feitas = [c for c in self.cargas if c["dia"] == dia and c["completa"]]
         return feitas[-1] if feitas else None
+
+    def mudancas_do_dia(self, dia: date) -> int:
+        return sum(c["mudancas"] for c in self.cargas if c["dia"] == dia and c["completa"])
 
     def _retratos(self) -> list[dict]:
         if not self.cargas:
@@ -226,18 +243,53 @@ class RazaoMemoria(RazaoBase):
         plano_id = len(self.planos) + 1
         self.planos[(dia, simulado)] = {
             "id": plano_id, "dia": dia, "simulado": simulado, "ciclo": ciclo, "piloto": piloto,
-            "status": "proposto", "resumo": resumo, "aprovado_por": None,
+            "status": "proposto", "resumo": resumo, "aprovado_por": None, "etiqueta_dia": None, "campanha": None,
         }
         for l in lotes:
             self.adicionar_lote(plano_id, dia=dia, simulado=simulado, ordem=l["ordem"], frente=l["frente"], mensagem=l["mensagem"], tamanho=l["tamanho"])
         return plano_id
 
-    def aprovar_plano(self, dia: date, simulado: bool, usuario: str) -> bool:
+    def aprovar_plano(self, dia: date, simulado: bool, usuario: str, etiqueta: str = "") -> bool:
         p = self.planos.get((dia, simulado))
         if not p or p["status"] != "proposto":
             return False
-        p.update(status="aprovado", aprovado_por=usuario)
+        p.update(status="aprovado", aprovado_por=usuario, etiqueta_dia=etiqueta.strip() or None)
         return True
+
+    def atualizar_campanha(self, plano_id: int, campanha: dict) -> None:
+        next(p for p in self.planos.values() if p["id"] == plano_id)["campanha"] = dict(campanha)
+
+    def planos_com_campanha_ativa(self) -> list[dict]:
+        return [p for p in self.planos.values() if not p["simulado"] and (p["campanha"] or {}).get("estado") in CAMPANHA_ATIVA]
+
+    # grupo de controle no CRM
+    def controle_pendente(self, ciclo: str, limite: int = 1000) -> list[str]:
+        """Alunos do controle do ciclo que estão na base de hoje e ainda não receberam a etiqueta do mês."""
+        na_base = {r["contact_id"] for r in self._retratos()}
+        return [cid for cid, regs in sorted(self.ciclos.items()) if ciclo in regs and regs[ciclo].controle and not regs[ciclo].controle_etiquetado and cid in na_base][:max(0, limite)]
+
+    def marcar_controle_etiquetado(self, ciclo: str, contact_ids: Iterable[str]) -> None:
+        for cid in contact_ids:
+            self.ciclos[cid][ciclo] = replace(self.ciclos[cid][ciclo], controle_etiquetado=True)
+
+    def registrar_destinatarios(self, *, ciclo: str, dia: date, frente: str, mensagem: str, itens: Iterable[Mapping[str, Any]]) -> int:
+        """Grava no livro-razão quem a campanha do dia alcançou, pelo que o CRM devolve por destinatário."""
+        por_contato = {m["contact_id"]: m for m in self.msgs if m["dia"] == dia and not m["simulado"]}
+        n = 0
+        for i in itens:
+            status = status_do_destinatario(i)
+            if not status:
+                continue
+            m = por_contato.get(i["contact_id"])
+            if m is None:
+                m = {"contact_id": i["contact_id"], "ciclo": ciclo, "dia": dia, "simulado": False, "variante": "A", "frente": frente,
+                     "mensagem": mensagem, "estado": "", "lote_id": None}
+                self.msgs.append(m)
+            m.update(status=status, erro_codigo=i.get("erro_codigo"), respondeu_em=i.get("respondeu_em"))
+            if i.get("erro_codigo") == ERRO_NUMERO_SEM_WHATSAPP:
+                self.retratos.setdefault(i["contact_id"], {"contact_id": i["contact_id"]})["bloqueio_motor"] = "erro_131026"
+            n += 1
+        return n
 
     def encerrar_plano(self, dia: date, simulado: bool) -> None:
         if (dia, simulado) in self.planos:
@@ -249,8 +301,7 @@ class RazaoMemoria(RazaoBase):
             "id": len(self.lotes_db) + 1, "plano_id": plano_id, "dia": dia, "simulado": simulado, "ordem": ordem,
             "frente": frente, "mensagem": mensagem, "variante": "A", "tamanho_previsto": tamanho, "tamanho": 0,
             "status": "planejado", "motivo": "", "liberado_em": None, "fila": None,
-            "crm_campaign_id": None, "crm_tag_id": None, "crm_status": None, "etiquetados": 0, "enviados": 0,
-            "entregues": 0, "lidos": 0, "respondidos": 0, "falhas": 0, "stats_em": None, "leituras": 0, "leitura_pagina": 0,
+            "crm_campaign_id": None, "enviados": 0, "entregues": 0, "lidos": 0, "respondidos": 0, "falhas": 0,
         })
 
     def lotes(self, dia: date, simulado: bool) -> list[dict]:
@@ -258,12 +309,6 @@ class RazaoMemoria(RazaoBase):
 
     def lote(self, lote_id: int) -> dict:
         return next(l for l in self.lotes_db if l["id"] == lote_id)
-
-    def lotes_ativos(self) -> list[dict]:
-        return [l for l in self.lotes_db if not l["simulado"] and l["status"] in LOTES_ATIVOS]
-
-    def lotes_para_leitura(self) -> list[dict]:
-        return [l for l in self.lotes_db if not l["simulado"] and l["status"] == "concluido" and l["crm_campaign_id"] and l["leituras"] < 2]
 
     def liberar_lote(self, lote_id: int, lote: Lote, estados: Mapping[str, str], *, ciclo: str, dia: date, simulado: bool, status: str, motivo: str, fila: Optional[dict], agora: datetime) -> int:
         ja = {(m["contact_id"], m["dia"], m["simulado"]) for m in self.msgs}
@@ -284,37 +329,6 @@ class RazaoMemoria(RazaoBase):
     def atualizar_lote(self, lote_id: int, **campos) -> None:
         assert set(campos) <= CAMPOS_DO_LOTE, set(campos) - CAMPOS_DO_LOTE
         self.lote(lote_id).update(campos)
-
-    def contatos_do_lote(self, lote_id: int, status: str, limite: int = 1000) -> list[str]:
-        return [m["contact_id"] for m in self.msgs if m["lote_id"] == lote_id and m["status"] == status][:limite]
-
-    def marcar_mensagens(self, lote_id: int, contact_ids: Iterable[str], status: str, erro: str = "") -> None:
-        alvo = set(contact_ids)
-        for m in self.msgs:
-            if m["lote_id"] == lote_id and m["contact_id"] in alvo:
-                m.update(status=status, erro=erro or None)
-
-    def cancelar_pendentes(self, lote_id: int) -> int:
-        n = 0
-        for m in self.msgs:
-            if m["lote_id"] == lote_id and m["status"] in ("reservado", "etiquetado"):
-                m["status"] = "cancelado"
-                n += 1
-        return n
-
-    def aplicar_destinatarios(self, lote_id: int, itens: Iterable[Mapping[str, Any]]) -> int:
-        por_contato = {m["contact_id"]: m for m in self.msgs if m["lote_id"] == lote_id}
-        n = 0
-        for i in itens:
-            m = por_contato.get(i["contact_id"])
-            status = STATUS_DO_CRM.get(i["status"])
-            if not m or not status:
-                continue
-            m.update(status=status, erro_codigo=i.get("erro_codigo"), respondeu_em=i.get("respondeu_em"))
-            if i.get("erro_codigo") == ERRO_NUMERO_SEM_WHATSAPP:
-                self.retratos.setdefault(i["contact_id"], {"contact_id": i["contact_id"]})["bloqueio_motor"] = "erro_131026"
-            n += 1
-        return n
 
     def enviados_hoje(self, dia: date, simulado: bool) -> int:
         return sum(1 for m in self.msgs if m["dia"] == dia and m["simulado"] == simulado and m["status"] not in NAO_SAIRAM)

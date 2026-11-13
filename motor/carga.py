@@ -91,6 +91,7 @@ class Linha:
     tem_telefone: bool = True
     bloqueio: Optional[str] = None
     nivel_misto: bool = False                 # contato com negócios em níveis diferentes
+    etiquetas: frozenset = frozenset()        # nomes das etiquetas do contato e dos negócios dele (sem acento, minúsculas)
 
 
 def sim_nao(valor: Any) -> Optional[bool]:
@@ -114,7 +115,8 @@ def normalizar(deal: Mapping[str, Any], mapa: MapaCampos, bloqueios: frozenset[s
         for c in (deal.get("customFields") or [])
         if isinstance(c, dict)
     }
-    tags = {_fold(t.get("name")) for t in (contato.get("tags") or []) if isinstance(t, dict)}
+    # O público de campanha por etiqueta casa etiqueta no contato OU em qualquer negócio dele.
+    tags = {_fold(t.get("name")) for t in list(contato.get("tags") or []) + list(deal.get("tags") or []) if isinstance(t, dict) and t.get("name")}
     return Linha(
         contact_id=contact_id,
         deal_id=deal_id,
@@ -125,6 +127,7 @@ def normalizar(deal: Mapping[str, Any], mapa: MapaCampos, bloqueios: frozenset[s
         financeira_aberta=sim_nao(valores.get(mapa.financeira)),
         tem_telefone=bool(str(contato.get("phone") or "").strip()),
         bloqueio="recusou_mensagens" if (bloqueios and tags & bloqueios) else None,
+        etiquetas=frozenset(tags),
     )
 
 
@@ -137,7 +140,9 @@ def consolidar(linhas: Iterable[Linha]) -> dict[str, Linha]:
     """Uma linha por contato (o aluno com duas matrículas recebe uma mensagem só)."""
     por_contato: dict[str, Linha] = {}
     niveis: dict[str, set[str]] = {}
+    etiquetas: dict[str, set[str]] = {}
     for l in linhas:
+        etiquetas.setdefault(l.contact_id, set()).update(l.etiquetas)
         nivel = "".join(_fold(l.nivel).split())
         if nivel:
             niveis.setdefault(l.contact_id, set()).add(nivel)
@@ -153,6 +158,9 @@ def consolidar(linhas: Iterable[Linha]) -> dict[str, Linha]:
     for cid, vistos in niveis.items():
         if len(vistos) > 1:
             por_contato[cid] = replace(por_contato[cid], nivel_misto=True)
+    for cid, nomes in etiquetas.items():
+        if nomes != por_contato[cid].etiquetas:
+            por_contato[cid] = replace(por_contato[cid], etiquetas=frozenset(nomes))
     return por_contato
 
 
@@ -163,6 +171,7 @@ class RegistroCiclo:
     controle: bool = False
     declarou_pagamento_em: Optional[date] = None
     suspenso: bool = False  # reclamou no ciclo: régua suspensa
+    controle_etiquetado: bool = False  # já recebeu no CRM a etiqueta do grupo de controle do mês
 
 
 def evoluir_ciclo(

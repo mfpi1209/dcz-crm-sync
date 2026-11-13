@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS motor_cargas (
     abertos_dia10      INTEGER NOT NULL DEFAULT 0,
     abertos_financeira INTEGER NOT NULL DEFAULT 0,
     novas_baixas       INTEGER NOT NULL DEFAULT 0,
+    mudancas           INTEGER NOT NULL DEFAULT 0,   -- aberturas + baixas + reaberturas vistas nesta carga
     erro               TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_motor_cargas_dia ON motor_cargas (dia DESC, id DESC);
@@ -60,6 +61,7 @@ CREATE TABLE IF NOT EXISTS motor_alunos (
     dia10_aberto         BOOLEAN NOT NULL DEFAULT FALSE,
     financeira_aberta    BOOLEAN NOT NULL DEFAULT FALSE,
     tem_telefone         BOOLEAN NOT NULL DEFAULT TRUE,
+    etiquetas            TEXT[] NOT NULL DEFAULT '{}',   -- nomes das etiquetas do contato no CRM (sem acento, minúsculas)
     nivel_misto          BOOLEAN NOT NULL DEFAULT FALSE, -- negócio em mais de um nível: fica fora
     bloqueio             TEXT,                           -- vem da carga (etiqueta do contato)
     bloqueio_motor       TEXT,                           -- gravado pelo motor (pediu para parar, número errado, erro 131026); a carga não apaga
@@ -82,6 +84,7 @@ CREATE TABLE IF NOT EXISTS motor_aluno_ciclo (
     controle              BOOLEAN NOT NULL DEFAULT FALSE,
     declarou_pagamento_em DATE,
     suspenso              BOOLEAN NOT NULL DEFAULT FALSE, -- reclamou: régua suspensa até o próximo ciclo
+    controle_etiquetado   BOOLEAN NOT NULL DEFAULT FALSE, -- etiqueta do grupo de controle do mês já aplicada no CRM
     atualizado_em         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (contact_id, ciclo)
 );
@@ -97,12 +100,15 @@ CREATE TABLE IF NOT EXISTS motor_planos (
     status    TEXT NOT NULL DEFAULT 'proposto',       -- proposto | aprovado | encerrado
     aprovado_por TEXT,
     aprovado_em  TIMESTAMPTZ,
+    etiqueta_dia TEXT,                                 -- etiqueta do público do dia (aplicada pela importação da equipe), informada na aprovação
+    campanha     JSONB,                                -- campanha do dia no CRM: id, estado, contagens, janela em curso
     resumo    JSONB NOT NULL DEFAULT '{}'::jsonb,
     criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (dia, simulado)
 );
 
 -- Lotes do plano. Em simulação o lote "liberado" fica com status 'simulado'.
+-- Em envio real cada linha é uma JANELA da campanha do dia: retoma, deixa andar e pausa.
 CREATE TABLE IF NOT EXISTS motor_lotes (
     id               BIGSERIAL PRIMARY KEY,
     plano_id         BIGINT NOT NULL REFERENCES motor_planos(id) ON DELETE CASCADE,
@@ -114,22 +120,16 @@ CREATE TABLE IF NOT EXISTS motor_lotes (
     variante         TEXT NOT NULL DEFAULT 'A',
     tamanho_previsto INTEGER NOT NULL DEFAULT 0,
     tamanho          INTEGER NOT NULL DEFAULT 0,
-    -- planejado | simulado | etiquetando | enviando | pausado | concluido | cancelado | adiado | recusado | erro
+    -- planejado | simulado | enviando | pausado | concluido | cancelado | adiado | recusado
     status           TEXT NOT NULL DEFAULT 'planejado',
     motivo           TEXT NOT NULL DEFAULT '',
     fila             JSONB,
     crm_campaign_id  TEXT,
-    crm_tag_id       TEXT,
-    crm_status       TEXT,                              -- status da campanha no CRM
-    etiquetados      INTEGER NOT NULL DEFAULT 0,
-    enviados         INTEGER NOT NULL DEFAULT 0,        -- destinatários já processados pela campanha
-    entregues        INTEGER NOT NULL DEFAULT 0,
+    enviados         INTEGER NOT NULL DEFAULT 0,        -- destinatários já processados pela campanha até esta janela
+    entregues        INTEGER NOT NULL DEFAULT 0,        -- entregues nesta janela
     lidos            INTEGER NOT NULL DEFAULT 0,
     respondidos      INTEGER NOT NULL DEFAULT 0,
     falhas           INTEGER NOT NULL DEFAULT 0,
-    stats_em         TIMESTAMPTZ,
-    leituras         INTEGER NOT NULL DEFAULT 0,        -- leituras de destinatários concluídas (2 h e 24 h)
-    leitura_pagina   INTEGER NOT NULL DEFAULT 0,        -- próxima página da leitura em andamento
     criado_em        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     liberado_em      TIMESTAMPTZ,
     atualizado_em    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -149,7 +149,7 @@ CREATE TABLE IF NOT EXISTS motor_mensagens (
     variante      TEXT NOT NULL DEFAULT 'A',
     estado        TEXT NOT NULL DEFAULT '',           -- estado do aluno na hora do lote
     lote_id       BIGINT REFERENCES motor_lotes(id) ON DELETE CASCADE,
-    -- simulado | reservado | etiquetado | enviado | entregue | lido | falhou | cancelado | nao_enviado
+    -- simulado | enviado | entregue | lido | falhou | nao_enviado
     status        TEXT NOT NULL DEFAULT 'simulado',
     erro          TEXT,
     erro_codigo   INTEGER,                            -- código da Meta (ex.: 131026)

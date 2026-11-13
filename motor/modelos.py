@@ -68,6 +68,8 @@ class Aluno:
     tem_telefone: bool = True
     nivel_misto: bool = False         # contato com negócio em mais de um nível (fica fora)
     suspenso: bool = False            # reclamou neste ciclo: régua suspensa até o próximo
+    etiquetas: frozenset = frozenset()  # etiquetas do contato no CRM (nomes sem acento, minúsculas)
+    controle_etiquetado: bool = False   # controle do mês já etiquetado no CRM
     bloqueio: Optional[str] = None    # "erro_131026" | "recusou_mensagens" | "numero_errado"
     historico: tuple[Classe, ...] = ()  # ciclos fechados do semestre, do mais antigo ao mais recente
     estado: Estado = Estado.SEM_HISTORICO

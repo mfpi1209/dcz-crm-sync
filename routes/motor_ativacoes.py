@@ -99,7 +99,7 @@ def api_motor_estado():
             # Plano real, se existir; senão o simulado.
             cur.execute(
                 """
-                SELECT id, dia, simulado, ciclo, piloto, status, resumo, criado_em, aprovado_por, aprovado_em
+                SELECT id, dia, simulado, ciclo, piloto, status, resumo, criado_em, aprovado_por, aprovado_em, etiqueta_dia, campanha
                 FROM motor_planos WHERE dia = %s ORDER BY simulado ASC, id DESC LIMIT 1
                 """,
                 (agora.date(),),
@@ -109,7 +109,7 @@ def api_motor_estado():
             cur.execute(
                 """
                 SELECT l.ordem, l.frente, l.mensagem, l.variante, l.tamanho_previsto, l.tamanho, l.status, l.motivo, l.liberado_em,
-                       l.etiquetados, l.enviados, l.entregues, l.lidos, l.respondidos, l.falhas, l.crm_status,
+                       l.enviados, l.entregues, l.lidos, l.respondidos, l.falhas,
                        (SELECT COUNT(DISTINCT r.contact_id) FROM motor_respostas r
                          WHERE r.lote_id = l.id AND r.rotulo = ANY(%s)) AS parar_reclamar
                 FROM motor_lotes l WHERE l.dia = %s AND l.simulado = %s ORDER BY l.ordem
@@ -159,25 +159,33 @@ def api_motor_estado():
 
 @motor_ativacoes_bp.route("/api/motor/plano/aprovar", methods=["POST"])
 def api_motor_plano_aprovar():
-    """Aprova o plano de hoje (o real, se existir; senão o simulado). Em modo real nenhum lote sai sem isso."""
+    """Aprova o plano de hoje (o real, se existir; senão o simulado). Em modo real nada sai sem isso.
+
+    No plano real a aprovação informa a etiqueta do dia: o público da campanha.
+    """
     denied = _gate()
     if denied:
         return denied
     usuario = (session.get("username") or "admin").strip()[:120]
+    etiqueta = str((request.get_json(silent=True) or {}).get("etiqueta") or "").strip()[:200]
     hoje = agora_brt().date()
     conn = get_conn()
     try:
         if not tabelas_instaladas(conn):
             return jsonify({"ok": False, "error": "Tabelas do motor ainda não foram criadas."}), 409
         with conn.cursor() as cur:
+            cur.execute("SELECT simulado FROM motor_planos WHERE dia = %s AND status = 'proposto' ORDER BY simulado ASC, id DESC LIMIT 1", (hoje,))
+            alvo = cur.fetchone()
+            if alvo and not alvo[0] and not etiqueta:
+                return jsonify({"ok": False, "error": "Informe a etiqueta do dia (a que a importação da equipe aplicou no público de hoje)."}), 400
             cur.execute(
                 """
-                UPDATE motor_planos SET status = 'aprovado', aprovado_por = %s, aprovado_em = NOW()
+                UPDATE motor_planos SET status = 'aprovado', aprovado_por = %s, aprovado_em = NOW(), etiqueta_dia = NULLIF(%s, '')
                 WHERE id = (SELECT id FROM motor_planos WHERE dia = %s ORDER BY simulado ASC, id DESC LIMIT 1)
                   AND status = 'proposto'
                 RETURNING simulado, resumo->>'total', resumo->>'lotes'
                 """,
-                (usuario, hoje),
+                (usuario, etiqueta, hoje),
             )
             linha = cur.fetchone()
             if not linha:
@@ -185,7 +193,7 @@ def api_motor_plano_aprovar():
                 return jsonify({"ok": False, "error": "Não há plano de hoje aguardando aprovação."}), 409
             cur.execute(
                 "INSERT INTO motor_diario (tipo, autor, texto) VALUES ('plano', %s, %s)",
-                (f"usuario:{usuario}", f"Plano {'simulado' if linha[0] else 'REAL'} de {hoje:%d/%m} aprovado: {linha[1]} alunos em {linha[2]} lotes."),
+                (f"usuario:{usuario}", f"Plano {'simulado' if linha[0] else 'REAL'} de {hoje:%d/%m} aprovado" + (f", etiqueta do dia \"{etiqueta}\"" if etiqueta else "") + f": estimativa de {linha[1]} alunos."),
             )
         conn.commit()
     except Exception:

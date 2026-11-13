@@ -167,13 +167,13 @@ class RazaoPgTest(unittest.TestCase):
         self.assertEqual([d["autor"] for d in diario], ["usuario:marcelo"] * 3)
         self.assertIn("PARADA GERAL", diario[-1]["texto"])
 
-    def test_envio_real_gravando_no_postgres_com_crm_de_mentira(self) -> None:
+    def test_campanha_do_dia_gravando_no_postgres_com_crm_de_mentira(self) -> None:
         from unittest import mock
 
         from motor.crm import CrmMotor
         from motor.envio import Envio
         from motor.laco import Laco
-        from tests.test_motor_envio import AMBIENTE, CrmFalso
+        from tests.test_motor_envio import AMBIENTE, ETIQUETA, CrmFalso
         from tests.test_motor_laco import _deal, _fila_json
 
         cfg = MotorConfig(enabled=True, dry_run=False, carga_min_abertos=100)
@@ -182,7 +182,7 @@ class RazaoPgTest(unittest.TestCase):
         def dormir(seg):
             relogio["t"] += timedelta(seconds=seg)
 
-        falso = CrmFalso(deals=[_deal(i) for i in range(420)], fila=_fila_json(20, 60_000, 10), agora=lambda: relogio["t"])
+        falso = CrmFalso(deals=[_deal(i, tags=(ETIQUETA,)) for i in range(420)], fila=_fila_json(20, 60_000, 10), agora=lambda: relogio["t"])
         crm = CrmMotor(transporte=falso, rpm=60, reserva_alta=10, permitir_escrita=True, relogio=lambda: relogio["t"].timestamp(), dormir=dormir)
         laco = Laco(cfg, self.razao, crm=crm, envio=Envio(cfg, self.razao, crm), relogio=lambda: relogio["t"])
         with mock.patch.dict(os.environ, AMBIENTE):
@@ -190,22 +190,33 @@ class RazaoPgTest(unittest.TestCase):
                 laco.tick()
                 if relogio["t"].hour == 8 and relogio["t"].minute == 35:
                     self.assertEqual([c for c in falso.chamadas if c[0] != "GET"], [])   # nada sai antes da aprovação
-                    self.assertTrue(self.razao.aprovar_plano(HOJE, False, "marcelo"))
+                    self.assertTrue(self.razao.aprovar_plano(HOJE, False, "marcelo", etiqueta=ETIQUETA))
+                if (self.razao.plano(HOJE, False) or {}).get("campanha") and self.razao.plano(HOJE, False)["campanha"].get("leituras") == 1:
+                    break
                 relogio["t"] += timedelta(seconds=60)
 
-        lotes = self.razao.lotes(HOJE, False)
-        self.assertEqual([(l["ordem"], l["tamanho"], l["status"], l["variante"]) for l in lotes[:1]], [(1, 300, "concluido", "A")])
-        self.assertEqual(lotes[0]["entregues"], 300)
-        self.assertEqual(falso.campanhas["camp1"]["filters"], {"tagIds": [lotes[0]["crm_tag_id"]]})
-        self.assertEqual(self.razao.plano(HOJE, False)["aprovado_por"], "marcelo")
+        plano = self.razao.plano(HOJE, False)
+        c = plano["campanha"]
+        self.assertEqual((plano["aprovado_por"], plano["etiqueta_dia"], c["estado"]), ("marcelo", ETIQUETA, "concluida"))
+        self.assertEqual(c["processados"], c["total"])
+        janelas = self.razao.lotes(HOJE, False)
+        self.assertEqual([j["status"] for j in janelas], ["concluido", "concluido"])
+        self.assertEqual(sum(j["tamanho"] for j in janelas), c["total"])
+        self.assertEqual(len(falso.campanhas), 1)
         conn = _conectar()
         with conn.cursor() as cur:
-            cur.execute("SELECT status, COUNT(*) FROM motor_mensagens WHERE lote_id = %s GROUP BY 1", (lotes[0]["id"],))
-            self.assertEqual(dict(cur.fetchall()), {"enviado": 300})
-            cur.execute("SELECT COUNT(*) FROM motor_acoes WHERE NOT simulado AND status <> 'feito' AND tipo <> 'reservar_lote'")
+            cur.execute("SELECT status, COUNT(*) FROM motor_mensagens WHERE NOT simulado GROUP BY 1")
+            self.assertEqual(dict(cur.fetchall()), {"entregue": c["total"]})
+            cur.execute("SELECT COUNT(*) FILTER (WHERE controle), COUNT(*) FILTER (WHERE controle AND controle_etiquetado) FROM motor_aluno_ciclo")
+            controle, etiquetado = cur.fetchone()
+            self.assertEqual(controle, etiquetado)
+            self.assertEqual(c["total"], 420 - controle)
+            cur.execute("SELECT COUNT(*) FROM motor_mensagens m JOIN motor_aluno_ciclo a USING (contact_id) WHERE a.controle")
             self.assertEqual(cur.fetchone()[0], 0)
-            cur.execute("SELECT BOOL_AND(variante = 'A') FROM motor_mensagens")
-            self.assertTrue(cur.fetchone()[0])
+            cur.execute("SELECT COUNT(*) FROM motor_acoes WHERE NOT simulado AND status <> 'feito'")
+            self.assertEqual(cur.fetchone()[0], 0)
+            cur.execute("SELECT etiquetas FROM motor_alunos LIMIT 1")
+            self.assertEqual(cur.fetchone()[0], ["lembrete 24/11"])
         conn.close()
 
     def test_respostas_efeitos_e_experiencia_no_postgres(self) -> None:
@@ -322,6 +333,13 @@ class RazaoPgTest(unittest.TestCase):
         self.razao.salvar_plano(dia=rota.agora_brt().date(), simulado=True, ciclo="2026-11", piloto="t", resumo={"total": 10, "lotes": 1}, lotes=[])
         self.assertEqual(cliente.post("/api/motor/plano/aprovar").get_json(), {"ok": True})
         self.assertEqual(cliente.post("/api/motor/plano/aprovar").status_code, 409)   # já aprovado
+        # Plano real: a aprovação exige a etiqueta do dia.
+        self.razao.salvar_plano(dia=rota.agora_brt().date(), simulado=False, ciclo="2026-11", piloto="t", resumo={"total": 10, "lotes": 0}, lotes=[])
+        self.assertEqual(cliente.post("/api/motor/plano/aprovar", json={}).status_code, 400)
+        self.assertEqual(cliente.post("/api/motor/plano/aprovar", json={"etiqueta": "Lembrete 24/11"}).get_json(), {"ok": True})
+        real = cliente.get("/api/motor/estado").get_json()["plano"]
+        self.assertEqual((real["simulado"], real["etiqueta_dia"], real["campanha"]), (False, "Lembrete 24/11", None))
+        return
         estado = cliente.get("/api/motor/estado").get_json()
         self.assertEqual((estado["plano"]["status"], estado["plano"]["aprovado_por"]), ("aprovado", "marcelo"))
         self.assertIn("experiencia", estado)

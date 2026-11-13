@@ -101,38 +101,38 @@ class RazaoPg(RazaoPgEnvio, RazaoBase):
     def _registros_do_ciclo(self, ciclo: str) -> dict[str, RegistroCiclo]:
         with self._tx() as cur:
             cur.execute(
-                "SELECT contact_id, aberto_em, baixa_dia10_em, controle, declarou_pagamento_em, suspenso FROM motor_aluno_ciclo WHERE ciclo = %s",
+                "SELECT contact_id, aberto_em, baixa_dia10_em, controle, declarou_pagamento_em, suspenso, controle_etiquetado FROM motor_aluno_ciclo WHERE ciclo = %s",
                 (ciclo,),
             )
-            return {r[0]: RegistroCiclo(r[1], r[2], r[3], r[4], r[5]) for r in cur.fetchall()}
+            return {r[0]: RegistroCiclo(r[1], r[2], r[3], r[4], r[5], r[6]) for r in cur.fetchall()}
 
     def _gravar_carga(self, dia, ciclo, linhas, mudancas, resumo) -> int:
         with self._tx() as cur:
             cur.execute(
                 """
-                INSERT INTO motor_cargas (dia, ciclo, concluida_em, completa, ciclo_aberto, negocios, alunos, abertos_dia10, abertos_financeira, novas_baixas)
-                VALUES (%s, %s, NOW(), TRUE, %s, %s, %s, %s, %s, %s) RETURNING id
+                INSERT INTO motor_cargas (dia, ciclo, concluida_em, completa, ciclo_aberto, negocios, alunos, abertos_dia10, abertos_financeira, novas_baixas, mudancas)
+                VALUES (%s, %s, NOW(), TRUE, %s, %s, %s, %s, %s, %s, %s) RETURNING id
                 """,
                 (dia, ciclo, resumo["ciclo_aberto"], resumo["negocios"], resumo["alunos"],
-                 resumo["abertos_dia10"], resumo["abertos_financeira"], resumo["novas_baixas"]),
+                 resumo["abertos_dia10"], resumo["abertos_financeira"], resumo["novas_baixas"], resumo["mudancas"]),
             )
             carga_id = cur.fetchone()[0]
             psycopg2.extras.execute_values(
                 cur,
                 """
-                INSERT INTO motor_alunos (contact_id, deal_id, situacao, nivel, nivel_misto, calouro, dia10_aberto, financeira_aberta, tem_telefone, bloqueio, carga_id, visto_em)
+                INSERT INTO motor_alunos (contact_id, deal_id, situacao, nivel, nivel_misto, calouro, dia10_aberto, financeira_aberta, tem_telefone, bloqueio, etiquetas, carga_id, visto_em)
                 VALUES %s
                 ON CONFLICT (contact_id) DO UPDATE SET
                     deal_id = EXCLUDED.deal_id, situacao = EXCLUDED.situacao, nivel = EXCLUDED.nivel, nivel_misto = EXCLUDED.nivel_misto, calouro = EXCLUDED.calouro,
                     dia10_aberto = EXCLUDED.dia10_aberto, financeira_aberta = EXCLUDED.financeira_aberta,
-                    tem_telefone = EXCLUDED.tem_telefone, bloqueio = EXCLUDED.bloqueio,
+                    tem_telefone = EXCLUDED.tem_telefone, bloqueio = EXCLUDED.bloqueio, etiquetas = EXCLUDED.etiquetas,
                     carga_id = EXCLUDED.carga_id, visto_em = NOW()
                 """,
                 [
-                    (cid, l.deal_id, l.situacao, l.nivel, l.nivel_misto, l.calouro, bool(l.dia10_aberto), bool(l.financeira_aberta), l.tem_telefone, l.bloqueio, carga_id)
+                    (cid, l.deal_id, l.situacao, l.nivel, l.nivel_misto, l.calouro, bool(l.dia10_aberto), bool(l.financeira_aberta), l.tem_telefone, l.bloqueio, sorted(l.etiquetas), carga_id)
                     for cid, l in linhas.items()
                 ],
-                template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())",
+                template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())",
                 page_size=1000,
             )
             if mudancas:
@@ -158,12 +158,17 @@ class RazaoPg(RazaoPgEnvio, RazaoBase):
             r = cur.fetchone()
             return dict(r) if r else None
 
+    def mudancas_do_dia(self, dia: date) -> int:
+        with self._tx() as cur:
+            cur.execute("SELECT COALESCE(SUM(mudancas), 0) FROM motor_cargas WHERE dia = %s AND completa", (dia,))
+            return int(cur.fetchone()[0])
+
     def _retratos(self) -> list[dict]:
         with self._tx(dicionario=True) as cur:
             cur.execute(
                 """
                 SELECT contact_id, deal_id, situacao, nivel, nivel_misto, calouro, dia10_aberto, financeira_aberta,
-                       tem_telefone, bloqueio, bloqueio_motor, pediu_silencio, lembretes_sem_reacao
+                       tem_telefone, bloqueio, bloqueio_motor, etiquetas, pediu_silencio, lembretes_sem_reacao
                 FROM motor_alunos
                 WHERE carga_id = (SELECT MAX(id) FROM motor_cargas WHERE completa)
                 """
@@ -174,11 +179,11 @@ class RazaoPg(RazaoPgEnvio, RazaoBase):
         out: dict[str, dict[str, RegistroCiclo]] = {}
         with self._tx() as cur:
             cur.execute(
-                "SELECT contact_id, ciclo, aberto_em, baixa_dia10_em, controle, declarou_pagamento_em, suspenso FROM motor_aluno_ciclo WHERE ciclo >= %s",
+                "SELECT contact_id, ciclo, aberto_em, baixa_dia10_em, controle, declarou_pagamento_em, suspenso, controle_etiquetado FROM motor_aluno_ciclo WHERE ciclo >= %s",
                 (ciclo_min,),
             )
-            for cid, ciclo, aberto, baixa, controle, declarou, suspenso in cur.fetchall():
-                out.setdefault(cid, {})[ciclo] = RegistroCiclo(aberto, baixa, controle, declarou, suspenso)
+            for cid, ciclo, aberto, baixa, controle, declarou, suspenso, etiquetado in cur.fetchall():
+                out.setdefault(cid, {})[ciclo] = RegistroCiclo(aberto, baixa, controle, declarou, suspenso, etiquetado)
         return out
 
     def _mensagens(self, ciclo: str, simulado: bool) -> dict[str, list[Msg]]:
