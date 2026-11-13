@@ -101,8 +101,9 @@ class LoteAtivo:
     """Último lote liberado, para a regra de vida mínima e de falha de envio."""
     lote_id: int
     liberado_em: datetime
-    enviados: int = 0
+    enviados: int = 0   # destinatários já processados (enviados, entregues, lidos ou com falha)
     falhas: int = 0
+    fila_base: Optional[int] = None  # conversas aguardando quando o lote saiu
 
 
 @dataclass(frozen=True)

@@ -12,7 +12,8 @@ from motor.governador import decidir, dentro_da_janela, tamanho_do_lote
 from motor.modelos import Aluno, Controle, Decisao, Fila, Frente, Lote, LoteAtivo, Mensagem
 from motor.trilhos import modo_efetivo, motivo_exclusao, pausa_de_emergencia, validar_lote
 
-CFG = MotorConfig(enabled=True, dry_run=True)
+# Expediente curto (até as 14h) na maior parte dos testes; o padrão de 22h tem teste próprio.
+CFG = MotorConfig(enabled=True, dry_run=True, janela_fim_h=14)
 LIGADO = Controle(ligado=True)
 # Terça-feira, 24/11/2026, 10h (dia útil dentro da janela).
 AGORA = datetime(2026, 11, 24, 10, 0, tzinfo=BRT)
@@ -55,6 +56,12 @@ class JanelaTest(unittest.TestCase):
         cfg = replace(CFG, feriados=frozenset({HOJE}))
         self.assertFalse(dentro_da_janela(AGORA, cfg))
 
+    def test_padrao_e_o_expediente_ate_as_22h(self) -> None:
+        padrao = MotorConfig()
+        self.assertTrue(dentro_da_janela(AGORA.replace(hour=21, minute=59), padrao))
+        self.assertFalse(dentro_da_janela(AGORA.replace(hour=22, minute=0), padrao))
+        self.assertFalse(dentro_da_janela(AGORA.replace(hour=8, minute=59), padrao))
+
     def test_horario_em_utc_e_convertido_para_brasilia(self) -> None:
         from datetime import timezone
 
@@ -91,7 +98,7 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(cfg.lote_max, LOTE_ABSOLUTO)
         self.assertEqual(cfg.teto_diario, TETO_DIARIO_ABSOLUTO)
         self.assertEqual(cfg.janela_inicio_h, 9)
-        self.assertEqual(cfg.janela_fim_h, 21)  # o fim é configurável, com teto de 21h em código
+        self.assertEqual(cfg.janela_fim_h, 22)  # fim do expediente configurável, com teto de 22h em código
         self.assertEqual(cfg.max_msgs_ciclo, 2)
         self.assertEqual(cfg.crm_rpm, 60)
 
@@ -242,39 +249,72 @@ class ValidarLoteTest(unittest.TestCase):
 
 
 class GovernadorTest(unittest.TestCase):
+    """A fila conta pela subida desde o último lote: +30 segura, +60 pausa. A maior espera não entra."""
+
     def _d(self, fila, **kw):
         base = dict(agora=AGORA)
         base.update(kw)
         return decidir(fila, CFG, **base)[0]
 
-    def test_libera_com_fila_baixa_e_equipe_suficiente(self) -> None:
-        self.assertEqual(self._d(_fila()), Decisao.LIBERAR)
+    def _lote(self, base=20, minutos=40, **kw) -> LoteAtivo:
+        return LoteAtivo(lote_id=1, liberado_em=AGORA - timedelta(minutes=minutos), fila_base=base, **kw)
 
-    def test_segura_no_teto_e_com_poucos_atendentes(self) -> None:
-        self.assertEqual(self._d(_fila(aguardando=CFG.fila_teto)), Decisao.SEGURAR)
-        self.assertEqual(self._d(_fila(aguardando=CFG.fila_critica)), Decisao.SEGURAR)
+    def test_libera_com_equipe_suficiente(self) -> None:
+        self.assertEqual(self._d(_fila()), Decisao.LIBERAR)
         self.assertEqual(self._d(_fila(online=CFG.atendentes_min - 1)), Decisao.SEGURAR)
 
-    def test_pausa_acima_do_critico_e_com_sla_estourado(self) -> None:
-        self.assertEqual(self._d(_fila(aguardando=CFG.fila_critica + 1)), Decisao.PAUSAR)
-        self.assertEqual(self._d(_fila(espera_s=CFG.sla_espera_s + 1)), Decisao.PAUSAR)
+    def test_sem_lote_anterior_o_numero_absoluto_da_fila_nao_segura(self) -> None:
+        # O awaitingReply do CRM veio em 90 num dia comum (57 conversas paradas havia mais de 1 h).
+        self.assertEqual(self._d(_fila(aguardando=90)), Decisao.LIBERAR)
+        self.assertEqual(self._d(_fila(aguardando=178)), Decisao.LIBERAR)
+
+    def test_segura_quando_a_fila_sobe_30_desde_o_lote_anterior(self) -> None:
+        self.assertEqual(self._d(_fila(aguardando=49), lote_ativo=self._lote(base=20)), Decisao.LIBERAR)
+        decisao, motivo = decidir(_fila(aguardando=50), CFG, agora=AGORA, lote_ativo=self._lote(base=20))
+        self.assertEqual(decisao, Decisao.SEGURAR)
+        self.assertIn("subiu 30", motivo)
+        self.assertEqual(self._d(_fila(aguardando=79), lote_ativo=self._lote(base=20)), Decisao.SEGURAR)
+
+    def test_pausa_quando_a_fila_sobe_60_desde_o_lote(self) -> None:
+        self.assertEqual(self._d(_fila(aguardando=80), lote_ativo=self._lote(base=20)), Decisao.PAUSAR)
+        # 10/11: cerca de 45 aguardando antes do envio e 178 às 17h20.
+        self.assertEqual(self._d(_fila(aguardando=178, online=13), lote_ativo=self._lote(base=45)), Decisao.PAUSAR)
+        # A fila caiu abaixo do nível do lote: segue normal.
+        self.assertEqual(self._d(_fila(aguardando=5), lote_ativo=self._lote(base=45)), Decisao.LIBERAR)
+
+    def test_maior_espera_nao_segura_nem_pausa(self) -> None:
+        # Ao vivo, em 13/11, a maior espera veio em 38 horas úteis com overSla ligado.
+        fila = _fila(espera_s=38 * 3600)
+        self.assertEqual(self._d(fila), Decisao.LIBERAR)
+        self.assertEqual(self._d(fila, lote_ativo=self._lote(base=20)), Decisao.LIBERAR)
+
+    def test_nivel_do_lote_vale_por_duas_horas(self) -> None:
+        # Três horas depois a subida já não é daquele lote: o próximo mede do nível de agora.
+        self.assertEqual(self._d(_fila(aguardando=90), lote_ativo=self._lote(base=20, minutos=119)), Decisao.PAUSAR)
+        self.assertEqual(self._d(_fila(aguardando=90), lote_ativo=self._lote(base=20, minutos=181)), Decisao.LIBERAR)
+
+    def test_limites_da_fila_so_apertam(self) -> None:
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(os.environ, {"MOTOR_FILA_SOBE_SEGURA": "500", "MOTOR_FILA_SOBE_PAUSA": "900"}, clear=False):
+            cfg = carregar()
+        self.assertEqual((cfg.fila_sobe_segura, cfg.fila_sobe_pausa), (30, 60))
+        with mock.patch.dict(os.environ, {"MOTOR_FILA_SOBE_SEGURA": "10", "MOTOR_FILA_SOBE_PAUSA": "5"}, clear=False):
+            cfg = carregar()
+        self.assertEqual((cfg.fila_sobe_segura, cfg.fila_sobe_pausa), (10, 10))   # a pausa nunca fica abaixo do segurar
 
     def test_pausa_fora_da_janela_mesmo_com_fila_vazia(self) -> None:
         self.assertEqual(self._d(_fila(aguardando=0), agora=AGORA.replace(hour=14)), Decisao.PAUSAR)
 
     def test_lote_anterior_precisa_de_30_minutos_de_vida(self) -> None:
-        novo = LoteAtivo(lote_id=1, liberado_em=AGORA - timedelta(minutes=29))
-        velho = LoteAtivo(lote_id=1, liberado_em=AGORA - timedelta(minutes=30))
-        self.assertEqual(self._d(_fila(), lote_ativo=novo), Decisao.SEGURAR)
-        self.assertEqual(self._d(_fila(), lote_ativo=velho), Decisao.LIBERAR)
+        self.assertEqual(self._d(_fila(), lote_ativo=self._lote(base=20, minutos=29)), Decisao.SEGURAR)
+        self.assertEqual(self._d(_fila(), lote_ativo=self._lote(base=20, minutos=30)), Decisao.LIBERAR)
 
     def test_falha_de_envio_acima_de_6_por_cento_pausa(self) -> None:
-        ruim = LoteAtivo(lote_id=1, liberado_em=AGORA - timedelta(hours=1), enviados=1000, falhas=61)
-        ok = LoteAtivo(lote_id=1, liberado_em=AGORA - timedelta(hours=1), enviados=1000, falhas=60)
-        pouco = LoteAtivo(lote_id=1, liberado_em=AGORA - timedelta(hours=1), enviados=10, falhas=5)
-        self.assertEqual(self._d(_fila(), lote_ativo=ruim), Decisao.PAUSAR)
-        self.assertEqual(self._d(_fila(), lote_ativo=ok), Decisao.LIBERAR)
-        self.assertEqual(self._d(_fila(), lote_ativo=pouco), Decisao.LIBERAR)
+        self.assertEqual(self._d(_fila(), lote_ativo=self._lote(minutos=60, enviados=1000, falhas=61)), Decisao.PAUSAR)
+        self.assertEqual(self._d(_fila(), lote_ativo=self._lote(minutos=60, enviados=1000, falhas=60)), Decisao.LIBERAR)
+        self.assertEqual(self._d(_fila(), lote_ativo=self._lote(minutos=60, enviados=10, falhas=5)), Decisao.LIBERAR)
 
     def test_sem_leitura_da_fila_nunca_libera(self) -> None:
         self.assertEqual(self._d(None), Decisao.SEGURAR)
@@ -282,41 +322,45 @@ class GovernadorTest(unittest.TestCase):
         self.assertEqual(self._d(velha), Decisao.SEGURAR)
         self.assertEqual(self._d(None, campanha_em_andamento=True), Decisao.PAUSAR)
 
-    def test_retrato_de_10_11_teria_pausado(self) -> None:
-        # 178 conversas aguardando às 17h20 do dia 10/11 com 7 a 13 atendentes.
-        self.assertEqual(self._d(_fila(aguardando=178, online=13)), Decisao.PAUSAR)
-        # Antes do envio havia cerca de 45 aguardando: libera.
-        self.assertEqual(self._d(_fila(aguardando=45, online=10)), Decisao.LIBERAR)
-
     def test_tamanho_do_lote_pelo_que_a_equipe_absorve(self) -> None:
         # Conta do simulador: folga = 8 × 6 − 1,1 × 28 = 17,2 por hora; em 30 min, 8,6;
-        # mais metade do espaço até o teto da fila (60 − 20 = 40 → 20) = 28,6 conversas;
-        # 28,6 ÷ 0,025 = 1.144 → arredonda para 1.150.
+        # mais metade do espaço que a fila ainda pode subir (30 → 15) = 23,6 conversas;
+        # 23,6 ÷ 0,025 = 944 → arredonda para 950.
         fila = _fila(aguardando=20, online=8)
-        self.assertEqual(tamanho_do_lote(fila, CFG, lotes_liberados_hoje=2), 1150)
+        self.assertEqual(tamanho_do_lote(fila, CFG, lotes_liberados_hoje=2), 950)
+        # A fila já subiu 20 desde o lote anterior: sobra espaço de 10 → 8,6 + 5 = 13,6 → 550.
+        self.assertEqual(tamanho_do_lote(_fila(aguardando=40, online=8), CFG, 2, fila_base=20), 550)
         # Rampa do dia: o 1º lote sai com no máximo 300 e o 2º com no máximo 600.
         self.assertEqual(tamanho_do_lote(fila, CFG, lotes_liberados_hoje=0), 300)
         self.assertEqual(tamanho_do_lote(fila, CFG, lotes_liberados_hoje=1), 600)
         # Nunca passa do máximo, nem com equipe grande.
         self.assertEqual(tamanho_do_lote(_fila(aguardando=0, online=50), CFG, 5), CFG.lote_max)
-        # Folga pequena ainda sai no lote mínimo; fila no teto e sem folga não sai nada.
-        self.assertEqual(tamanho_do_lote(_fila(aguardando=55, online=5), CFG, 5), CFG.lote_min)
-        self.assertEqual(tamanho_do_lote(_fila(aguardando=60, online=5), CFG, 5), 0)
+        # Folga pequena ainda sai no lote mínimo; sem folga e sem espaço não sai nada.
+        self.assertEqual(tamanho_do_lote(_fila(aguardando=48, online=5), CFG, 5, fila_base=20), CFG.lote_min)
+        self.assertEqual(tamanho_do_lote(_fila(aguardando=50, online=5), CFG, 5, fila_base=20), 0)
         self.assertEqual(tamanho_do_lote(None, CFG), 0)
 
-    def test_ultimo_lote_sai_uma_hora_antes_do_fim_da_janela(self) -> None:
-        def em(h, m, cfg=CFG):
+    def test_ultimo_lote_sai_uma_hora_antes_do_fim_do_expediente(self) -> None:
+        def em(h, m, cfg):
             t = AGORA.replace(hour=h, minute=m)
             return decidir(_fila(lida_em=t), cfg, agora=t)
 
-        self.assertEqual(em(12, 59)[0], Decisao.LIBERAR)
-        decisao, motivo = em(13, 0)
+        # Padrão (decisão do Marcelo, 13/11): atendimento até as 22h, último lote até as 21h.
+        padrao = MotorConfig(enabled=True, dry_run=True)
+        self.assertEqual((padrao.janela_inicio_h, padrao.janela_fim_h, padrao.corte_min), (9, 22, 60))
+        self.assertEqual(em(20, 59, padrao)[0], Decisao.LIBERAR)
+        decisao, motivo = em(21, 0, padrao)
         self.assertEqual(decisao, Decisao.SEGURAR)
         self.assertIn("corte", motivo)
-        # Com a janela até as 18h (decisão do Marcelo, ainda não tomada), o corte vai para as 17h.
-        ate_18 = replace(CFG, janela_fim_h=18)
-        self.assertEqual(em(16, 59, ate_18)[0], Decisao.LIBERAR)
-        self.assertEqual(em(17, 0, ate_18)[0], Decisao.SEGURAR)
+        self.assertEqual(em(21, 59, padrao)[0], Decisao.SEGURAR)
+        self.assertEqual(em(22, 0, padrao)[0], Decisao.PAUSAR)           # fim do expediente
+        # Corte menor não empurra o último lote para depois das 21h (teto em código).
+        self.assertEqual(em(21, 10, replace(padrao, corte_min=30))[0], Decisao.SEGURAR)
+        # Expediente mais curto configurado: o corte acompanha.
+        self.assertEqual(em(12, 59, CFG)[0], Decisao.LIBERAR)             # CFG dos testes: até as 14h
+        self.assertEqual(em(13, 0, CFG)[0], Decisao.SEGURAR)
+        self.assertEqual(em(16, 59, replace(CFG, janela_fim_h=18))[0], Decisao.LIBERAR)
+        self.assertEqual(em(17, 0, replace(CFG, janela_fim_h=18))[0], Decisao.SEGURAR)
 
     def test_trava_de_experiencia_segura_e_encerra(self) -> None:
         from motor.governador import trava_de_experiencia
@@ -342,18 +386,19 @@ class GovernadorTest(unittest.TestCase):
 
 
 class PausaDeEmergenciaTest(unittest.TestCase):
-    def test_sem_campanha_em_andamento_nao_ha_o_que_pausar(self) -> None:
-        self.assertIsNone(
-            pausa_de_emergencia(_fila(aguardando=999), CFG, agora=AGORA, campanha_em_andamento=False)
-        )
+    LOTE = LoteAtivo(lote_id=1, liberado_em=AGORA - timedelta(minutes=10), fila_base=20)
 
-    def test_pausa_pela_fila_pelo_sla_pelo_fim_da_janela_e_as_cegas(self) -> None:
+    def test_sem_campanha_em_andamento_nao_ha_o_que_pausar(self) -> None:
+        self.assertIsNone(pausa_de_emergencia(_fila(aguardando=999), CFG, agora=AGORA, campanha_em_andamento=False, lote_ativo=self.LOTE))
+
+    def test_pausa_pela_subida_da_fila_pelo_fim_do_expediente_e_as_cegas(self) -> None:
         def p(fila, agora=AGORA):
-            return pausa_de_emergencia(fila, CFG, agora=agora, campanha_em_andamento=True)
+            return pausa_de_emergencia(fila, CFG, agora=agora, campanha_em_andamento=True, lote_ativo=self.LOTE)
 
         self.assertIsNone(p(_fila()))
-        self.assertIn("limite crítico", p(_fila(aguardando=CFG.fila_critica + 1)))
-        self.assertIn("SLA", p(_fila(espera_s=CFG.sla_espera_s + 60)))
+        self.assertIsNone(p(_fila(aguardando=79)))                 # +59: ainda não pausa
+        self.assertIn("fila subiu 60", p(_fila(aguardando=80)))
+        self.assertIsNone(p(_fila(espera_s=40 * 3600)))            # maior espera não pausa
         self.assertIn("janela", p(_fila(), agora=AGORA.replace(hour=14)))
         self.assertIn("sem leitura", p(None))
 

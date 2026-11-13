@@ -349,7 +349,7 @@ class PilotoFormulaTest(unittest.TestCase):
 class LacoEmSimulacaoTest(unittest.TestCase):
     """Um dia inteiro (terça 24/11/2026, lembrete do dia 25) com 3.000 alunos em aberto."""
 
-    CFG = MotorConfig(enabled=True, dry_run=True, carga_min_abertos=100, lote_max=1200, teto_diario=7000)
+    CFG = MotorConfig(enabled=True, dry_run=True, carga_min_abertos=100, lote_max=1200, teto_diario=7000, janela_fim_h=14)
 
     def setUp(self) -> None:
         self.agora = datetime(2026, 11, 24, 7, 0, tzinfo=BRT)
@@ -436,12 +436,26 @@ class LacoEmSimulacaoTest(unittest.TestCase):
         self.assertEqual(len(self.razao.msgs), antes)
         self.assertEqual(self.razao.ponto["modo"], "parado")
 
-    def test_fila_acima_do_critico_segura_os_lotes(self) -> None:
-        self.transporte.fila = _fila_json(aguardando=178, online=13)
-        self._ate(13, 0)
-        self.assertEqual(self.razao.msgs, [])
-        self.assertTrue(self.razao.plano(date(2026, 11, 24), True))
-        self.assertIn("pausar", {l["decisao"] for l in self.razao.leituras})
+    def test_fila_que_sobe_depois_do_lote_segura_e_depois_pausa(self) -> None:
+        self._ate(9, 2)                                             # 1º lote sai com a fila em 20
+        self.assertEqual(len(self.razao.msgs), 300)
+        self.transporte.fila = _fila_json(aguardando=55, online=10)  # subiu 35: segura
+        self._ate(10, 0)
+        self.assertEqual(len(self.razao.msgs), 300)
+        self.assertNotIn("pausar", {l["decisao"] for l in self.razao.leituras if l["fila"] and l["fila"].lida_em.hour >= 9})
+        self.transporte.fila = _fila_json(aguardando=85, online=10)  # subiu 65: pausa
+        self._ate(10, 30)
+        self.assertEqual(self.razao.leituras[-1]["decisao"], "pausar")
+        self.assertIn("fila subiu 65", self.razao.leituras[-1]["motivo"])
+        self.transporte.fila = _fila_json(aguardando=25, online=10)  # voltou ao normal: o 2º lote sai
+        self._ate(11, 0)
+        self.assertEqual(len(self.razao.msgs), 900)
+
+    def test_fila_alta_sem_lote_anterior_nao_trava_o_primeiro_lote(self) -> None:
+        # O número absoluto do CRM inclui conversas paradas há horas: sozinho, não segura.
+        self.transporte.fila = _fila_json(aguardando=90, ms=38 * 3600 * 1000, online=10)
+        self._ate(9, 2)
+        self.assertEqual(len(self.razao.msgs), 300)
 
     def test_sem_leitura_da_fila_nada_e_liberado(self) -> None:
         self.transporte.fila = None  # hoje a API responde 401 ao Bearer nesta rota
@@ -467,16 +481,16 @@ class LacoEmSimulacaoTest(unittest.TestCase):
         self.assertTrue(any("segue em simulação" in e["texto"] for e in self.razao.entradas_diario))
 
     def test_lote_menor_que_o_previsto_gera_lote_para_a_sobra(self) -> None:
-        # 6 atendentes: folga de 5,2 por hora + metade do espaço da fila = 22,6 conversas → lotes de 900,
-        # abaixo dos 1.200 planejados (e os dois primeiros ainda menores, pela rampa de 300 e 600).
+        # 6 atendentes: folga de 5,2 por hora (2,6 em 30 min) + metade do espaço da fila (15) = 17,6 conversas
+        # → lotes de 700, abaixo dos 1.200 planejados (e os dois primeiros ainda menores, pela rampa).
         self.transporte.fila = _fila_json(20, 60_000, 6)
         self._ate(15, 0)
         lotes = self.razao.lotes(date(2026, 11, 24), True)
         simulados = [l for l in lotes if l["status"] == "simulado"]
-        self.assertEqual([l["tamanho"] for l in simulados[:3]], [300, 600, 900])
+        self.assertEqual([l["tamanho"] for l in simulados[:3]], [300, 600, 700])
         # O último lote pode absorver um resto menor que o lote mínimo.
-        self.assertTrue(all(l["tamanho"] <= 900 for l in simulados[:-1]))
-        self.assertLess(simulados[-1]["tamanho"], 900 + self.CFG.lote_min)
+        self.assertTrue(all(l["tamanho"] <= 700 for l in simulados[:-1]))
+        self.assertLess(simulados[-1]["tamanho"], 700 + self.CFG.lote_min)
         self.assertGreater(len(lotes), 3)  # o plano original tinha 3 lotes (1.200 + 1.200 + resto)
         controle = sum(no_controle(f"c{i}", "2026-11", self.CFG.controle_sal, self.CFG.controle_pct) for i in range(3000))
         self.assertEqual(len(self.razao.msgs), 3000 - controle)

@@ -9,14 +9,19 @@ Contrato: nota `api-integracoes-campanhas-fila.md` e AGENTS.md.
     para as chamadas de prioridade alta: fila, resultado e pausa passam na
     frente de etiquetagem, destinatários e carga
   - 429: espera o `Retry-After`; se repetir, dobra a espera a cada tentativa
+  - 403: o token é de um usuário de papel mínimo; a permissão que faltou (`required`)
+    fica registrada e a mesma rota não é chamada de novo até o worker reiniciar
   - trava de escrita: em simulação qualquer chamada que não seja GET levanta
     `EscritaBloqueada` antes de sair para a rede
   - a resposta de destinatários traz nome e telefone: são descartados aqui
+  - o cliente se dosa sozinho: as respostas normais do CRM não trazem cabeçalho de
+    limite (só o 429 traz), então nada aqui depende de `X-RateLimit-*`
 """
 from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 import time
 import urllib.parse
@@ -48,6 +53,19 @@ class CrmErro(RuntimeError):
     @property
     def codigo(self) -> str:
         return str(self.corpo.get("code") or "") if isinstance(self.corpo, dict) else ""
+
+    @property
+    def permissao(self) -> str:
+        """Permissão que faltou ao token, quando o CRM respondeu 403 (campo `required`)."""
+        return str(self.corpo.get("required") or "") if self.status == 403 and isinstance(self.corpo, dict) else ""
+
+
+_COM_ID = re.compile(r"/(campaigns|contacts|deals)/[^/?]+")
+
+
+def rota_de(caminho: str) -> str:
+    """'/api/contacts/abc/tags?x=1' → '/api/contacts/{id}/tags': a mesma rota para qualquer id."""
+    return _COM_ID.sub(r"/\1/{id}", caminho.split("?")[0])
 
 
 def base_url() -> str:
@@ -173,6 +191,9 @@ class CrmMotor:
         self.espera_max_s = espera_max_s
         self.chamadas = 0
         self._fila_cache: Optional[tuple[float, Fila]] = None
+        # Rotas que o CRM negou por falta de permissão do token (403). Não são tentadas de novo
+        # até o worker reiniciar: corrigir o papel do usuário do token e reimplantar.
+        self.negadas: dict[tuple[str, str], str] = {}
 
     # ── núcleo ────────────────────────────────────────────────────────────
 
@@ -180,6 +201,10 @@ class CrmMotor:
         metodo = metodo.upper()
         if metodo != "GET" and not self.permitir_escrita:
             raise EscritaBloqueada(f"{metodo} {caminho.split('?')[0]} bloqueado: motor em simulação")
+        chave = (metodo, rota_de(caminho))
+        if chave in self.negadas:
+            falta = self.negadas[chave]
+            raise CrmErro(f"permissão negada antes (permissão exigida: {falta}); não tento de novo", 403, {"required": falta, "repetida": True})
         ultimo: tuple[int, Any] = (0, None)
         seguidos_429 = 0
         for tentativa in range(self.max_tentativas):
@@ -196,6 +221,9 @@ class CrmMotor:
                 seguidos_429 += 1
                 continue
             seguidos_429 = 0
+            if status == 403:
+                self.negadas[chave] = str((dados or {}).get("required") or "não informada") if isinstance(dados, dict) else "não informada"
+                break
             if status >= 500 and metodo == "GET":
                 self._dormir(float(min(30, 2 ** tentativa)))
                 continue
@@ -277,6 +305,19 @@ class CrmMotor:
 
     def campanha_stats(self, campanha_id: str) -> dict:
         return self._chamar("GET", f"/api/integrations/campaigns/{self._id(campanha_id)}/stats", prioridade=ALTA) or {}
+
+    def campanha_contagem(self, campanha_id: str, status: tuple[str, ...] = ("SENT", "DELIVERED", "READ", "FAILED")) -> dict[str, int]:
+        """Quantos destinatários há em cada status, pelo campo `total` da rota de destinatários.
+
+        É a medida do lote: o `stats` conta diferente (na campanha de 10/11 dizia
+        0 pendentes e havia 183 destinatários PENDING numa campanha concluída).
+        Uma chamada por status, pedindo um item só.
+        """
+        contagem: dict[str, int] = {}
+        for s in status:
+            dados = self._chamar("GET", f"/api/integrations/campaigns/{self._id(campanha_id)}/recipients?status={s}&page=1&perPage=1", prioridade=ALTA) or {}
+            contagem[s] = int(dados.get("total") or 0)
+        return contagem
 
     def campanha_destinatarios_pagina(self, campanha_id: str, pagina: int, *, status: str = "", por_pagina: int = 100) -> tuple[list[dict], int]:
         """Uma página de destinatários, já sem nome, telefone e texto de erro. Devolve (itens, total de páginas)."""

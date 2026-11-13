@@ -20,9 +20,12 @@ from motor.calendario import parse_feriados
 LOTE_ABSOLUTO = 1500
 TETO_DIARIO_ABSOLUTO = 12000
 JANELA_MAIS_CEDO_H = 9
-JANELA_MAIS_TARDE_H = 21
+JANELA_MAIS_TARDE_H = 22        # fim do expediente do atendimento (decisão do Marcelo, 13/11: "vai até as 22h")
+ULTIMO_LOTE_MAIS_TARDE_H = 21   # nenhum lote novo sai depois das 21h, seja qual for a configuração
 MAX_MSGS_CICLO_ABSOLUTO = 2
 CRM_RPM_ABSOLUTO = 60           # o CRM corta em 240/min por organização; o motor reserva 60
+FILA_SOBE_SEGURA_ABSOLUTO = 30  # conversas aguardando acima do nível de quando o lote saiu
+FILA_SOBE_PAUSA_ABSOLUTO = 60
 EXP_SEGURA_ABSOLUTO = 8.0       # pedidos para parar + reclamações por 1.000 entregues
 EXP_ENCERRA_ABSOLUTO = 15.0
 EXP_MIN_CASOS_ABSOLUTO = 5
@@ -70,8 +73,8 @@ class MotorConfig:
 
     # Janela de envio (dia útil, horário de Brasília) e volumes.
     janela_inicio_h: int = 9
-    janela_fim_h: int = 14
-    corte_min: int = 60               # último lote sai até N minutos antes do fim da janela
+    janela_fim_h: int = 22            # fim do expediente: depois disso o que estiver enviando é pausado
+    corte_min: int = 60               # último lote sai até N minutos antes do fim do expediente (padrão: 21h)
     teto_diario: int = 4000
     lote_max: int = 1200
     lote_min: int = 200
@@ -85,11 +88,12 @@ class MotorConfig:
     controle_pct: float = 5.0
     controle_sal: str = "motor-ativacoes-v1"
 
-    # Governador de fila (limites provisórios até a leitura de 19/11).
-    fila_teto: int = 60
-    fila_critica: int = 100
+    # Governador de fila: mede a subida desde o último lote, não um teto fixo (o número
+    # do CRM inclui conversas paradas há horas). A maior espera não entra nas regras.
+    fila_sobe_segura: int = 30
+    fila_sobe_pausa: int = 60
+    fila_base_validade_min: int = 120
     atendentes_min: int = 5
-    sla_espera_min: int = 60
     falha_envio_max: float = 0.06
     falha_amostra_min: int = 50
     vida_min_lote_min: int = 30
@@ -121,10 +125,6 @@ class MotorConfig:
     crm_reserva_alta: int = 10        # chamadas por minuto reservadas a fila, resultado e pausa
     feriados: frozenset[date] = field(default_factory=frozenset)
 
-    @property
-    def sla_espera_s(self) -> int:
-        return self.sla_espera_min * 60
-
     def publico(self) -> dict:
         """Configuração exibível na página (sem sal do sorteio)."""
         d = {k: getattr(self, k) for k in self.__dataclass_fields__ if k not in ("controle_sal", "feriados")}
@@ -135,9 +135,9 @@ class MotorConfig:
 
 def carregar() -> MotorConfig:
     inicio = _int("MOTOR_JANELA_INICIO_H", 9, JANELA_MAIS_CEDO_H, JANELA_MAIS_TARDE_H - 1)
-    fim = _int("MOTOR_JANELA_FIM_H", 14, inicio + 1, JANELA_MAIS_TARDE_H)
+    fim = _int("MOTOR_JANELA_FIM_H", 22, inicio + 1, JANELA_MAIS_TARDE_H)
     lote_max = _int("MOTOR_LOTE_MAX", 1200, 1, LOTE_ABSOLUTO)
-    teto = _int("MOTOR_FILA_TETO", 60, 1, 10000)
+    sobe_segura = _int("MOTOR_FILA_SOBE_SEGURA", 30, 1, FILA_SOBE_SEGURA_ABSOLUTO)
     rpm = _int("MOTOR_CRM_RPM", 60, 2, CRM_RPM_ABSOLUTO)
     segura = _float("MOTOR_EXP_SEGURA_POR_MIL", 8.0, 0.5, EXP_SEGURA_ABSOLUTO)
     return MotorConfig(
@@ -156,10 +156,10 @@ def carregar() -> MotorConfig:
         velocidade=_int("MOTOR_VELOCIDADE", 1, 1, VELOCIDADE_ABSOLUTA),
         controle_pct=_float("MOTOR_CONTROLE_PCT", 5.0, 0.0, 50.0),
         controle_sal=(os.getenv("MOTOR_CONTROLE_SAL") or "motor-ativacoes-v1").strip(),
-        fila_teto=teto,
-        fila_critica=_int("MOTOR_FILA_CRITICA", 100, teto, 100000),
+        fila_sobe_segura=sobe_segura,
+        fila_sobe_pausa=_int("MOTOR_FILA_SOBE_PAUSA", 60, sobe_segura, FILA_SOBE_PAUSA_ABSOLUTO),
+        fila_base_validade_min=_int("MOTOR_FILA_BASE_VALIDADE_MIN", 120, 30, 24 * 60),
         atendentes_min=_int("MOTOR_ATENDENTES_MIN", 5, 1, 1000),
-        sla_espera_min=_int("MOTOR_SLA_ESPERA_MIN", 60, 1, 24 * 60),
         falha_envio_max=_float("MOTOR_FALHA_ENVIO_MAX", 0.06, 0.0, 0.06),
         falha_amostra_min=_int("MOTOR_FALHA_AMOSTRA_MIN", 50, 1, 100000),
         vida_min_lote_min=_int("MOTOR_VIDA_MIN_LOTE_MIN", 30, 5, 24 * 60),

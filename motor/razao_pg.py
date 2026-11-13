@@ -185,7 +185,7 @@ class RazaoPg(RazaoPgEnvio, RazaoBase):
         out: dict[str, list[Msg]] = {}
         with self._tx() as cur:
             cur.execute(
-                "SELECT contact_id, dia, frente, mensagem FROM motor_mensagens WHERE ciclo = %s AND simulado = %s AND status <> 'cancelado'",
+                "SELECT contact_id, dia, frente, mensagem FROM motor_mensagens WHERE ciclo = %s AND simulado = %s AND status NOT IN ('cancelado', 'nao_enviado')",
                 (ciclo, simulado),
             )
             for cid, dia, frente, mensagem in cur.fetchall():
@@ -259,21 +259,21 @@ class RazaoPg(RazaoPgEnvio, RazaoBase):
 
     def enviados_hoje(self, dia: date, simulado: bool) -> int:
         with self._tx() as cur:
-            cur.execute("SELECT COUNT(*) FROM motor_mensagens WHERE dia = %s AND simulado = %s AND status <> 'cancelado'", (dia, simulado))
+            cur.execute("SELECT COUNT(*) FROM motor_mensagens WHERE dia = %s AND simulado = %s AND status NOT IN ('cancelado', 'nao_enviado')", (dia, simulado))
             return cur.fetchone()[0]
 
     def ultimo_lote_liberado(self, dia: date, simulado: bool) -> Optional[LoteAtivo]:
         with self._tx() as cur:
             cur.execute(
                 """
-                SELECT id, liberado_em, enviados, falhas FROM motor_lotes
+                SELECT id, liberado_em, enviados, falhas, (fila->>'aguardando')::int FROM motor_lotes
                 WHERE dia = %s AND simulado = %s AND liberado_em IS NOT NULL
                 ORDER BY liberado_em DESC LIMIT 1
                 """,
                 (dia, simulado),
             )
             r = cur.fetchone()
-        return LoteAtivo(lote_id=r[0], liberado_em=r[1], enviados=r[2], falhas=r[3]) if r else None
+        return LoteAtivo(lote_id=r[0], liberado_em=r[1], enviados=r[2], falhas=r[3], fila_base=r[4]) if r else None
 
     def registrar_acao(self, chave: str, tipo: str, *, lote_id: Optional[int], simulado: bool, requisicao: Optional[dict] = None) -> bool:
         with self._tx() as cur:

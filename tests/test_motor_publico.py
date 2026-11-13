@@ -354,9 +354,11 @@ class LoteadorTest(unittest.TestCase):
         self.assertEqual(len(plano.lotes), 1)
         self.assertEqual(plano.adiados, 2000)
 
-    def test_lotes_que_cabem_numa_manha(self) -> None:
-        # 5 horas de janela com 30 minutos entre lotes.
-        self.assertEqual(lotes_que_cabem_na_janela(CFG), 10)
+    def test_lotes_que_cabem_num_dia(self) -> None:
+        # Das 9h ao último lote às 21h, com 30 minutos entre lotes.
+        self.assertEqual(lotes_que_cabem_na_janela(CFG), 24)
+        # Expediente até as 14h: último lote às 13h.
+        self.assertEqual(lotes_que_cabem_na_janela(replace(CFG, janela_fim_h=14)), 8)
 
 
 if __name__ == "__main__":

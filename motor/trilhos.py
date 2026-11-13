@@ -3,7 +3,7 @@
 Todo lote passa por `validar_lote` imediatamente antes de ser liberado, venha
 de onde vier. Se um trilho recusa, o lote não sai.
 
-  - janela das 9h às 14h em dia útil
+  - expediente das 9h às 22h em dia útil, com o último lote até as 21h
   - teto diário e tamanho máximo de lote
   - exclusões: situação diferente de "Em Curso", número com erro 131026, quem
     recusou mensagens, sem telefone, grupo de controle
@@ -157,9 +157,9 @@ def pausa_de_emergencia(
 ) -> Optional[str]:
     """Motivo para pausar agora o que estiver em andamento (None = segue).
 
-    Roda a cada leitura da fila e não depende do piloto: fila crítica, espera
-    acima do SLA, falha de envio acima de 6%, trava de experiência no nível de
-    encerrar, fim da janela ou fila às cegas.
+    Roda a cada leitura da fila e não depende do piloto: fila 60 acima do nível
+    do lote, falha de envio acima de 6%, trava de experiência no nível de
+    encerrar, fim do expediente ou fila às cegas. A fila conta pela subida desde o lote.
     """
     if not campanha_em_andamento:
         return None

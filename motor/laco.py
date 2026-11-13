@@ -28,7 +28,7 @@ from motor.calendario import agora_brt, ciclo_de, eh_dia_util, para_brt
 from motor.carga import consolidar, montar_mapa, normalizar, tags_de_bloqueio
 from motor.classificador import Classificador, ClassificadorRegras
 from motor.config import MotorConfig
-from motor.governador import decidir, dentro_da_janela, tamanho_do_lote, teto_da_rampa, trava_de_experiencia
+from motor.governador import decidir, dentro_da_janela, nivel_de_antes, tamanho_do_lote, teto_da_rampa, trava_de_experiencia
 from motor.loteador import lotear, lotes_que_cabem_na_janela
 from motor.modelos import Decisao, Fila
 from motor.piloto import LotePendente, Piloto, PilotoFormula, Retrato
@@ -69,6 +69,7 @@ class Laco:
         self._carga_falhou_em: Optional[datetime] = None
         self._limpeza_em: Optional[datetime] = None
         self._ultimo_erro = ""
+        self._lote_ativo = None
 
     # ── utilidades ────────────────────────────────────────────────────────
     def _uma_vez(self, chave: str, tipo: str, autor: str, texto: str, dados: Optional[dict] = None) -> None:
@@ -123,7 +124,7 @@ class Laco:
         if not simulado:
             self.envio.avancar(
                 agora, pausar=motivo if decisao == Decisao.PAUSAR else None, retomar=decisao == Decisao.LIBERAR,
-                fim_da_janela=not dentro_da_janela(agora, self.cfg),
+                fim_da_janela=not dentro_da_janela(agora, self.cfg), aguardando=fila.aguardando if fila else None,
             )
         self._rodada(agora, fila, decisao, motivo, controle, simulado)
         return modo
@@ -174,7 +175,10 @@ class Laco:
             try:
                 fila = self.crm.fila_agora()  # `lida_em` vem do `asOf` da resposta
             except Exception as e:  # leitura da fila nunca derruba o laço
-                erro = f"{type(e).__name__}: {e}"[:300]
+                if getattr(e, "status", 0) == 403:
+                    erro = f"sem permissão no token do motor ({getattr(e, 'permissao', '') or 'não informada'}); corrija o papel do usuário do token e reinicie o worker"
+                else:
+                    erro = f"{type(e).__name__}: {e}"[:300]
         elif ler:
             erro = "CRM não configurado (EDUIT_CRM_TOKEN)"
         if ler and fila is None:
@@ -182,8 +186,9 @@ class Laco:
             if fila is not None:
                 erro = f"fila de ensaio (MOTOR_SIM_FILA), não é leitura real. {erro}".strip()
         experiencia = self.razao.experiencia_do_dia(hoje, simulado)
+        self._lote_ativo = self.razao.ultimo_lote_liberado(hoje, simulado)
         decisao, motivo = decidir(
-            fila, self.cfg, agora=agora, lote_ativo=self.razao.ultimo_lote_liberado(hoje, simulado),
+            fila, self.cfg, agora=agora, lote_ativo=self._lote_ativo,
             campanha_em_andamento=any(l["status"] == "enviando" for l in ativos), experiencia=experiencia,
         )
         if ler:
@@ -226,6 +231,10 @@ class Laco:
         except Exception as e:
             self._carga_falhou_em = agora
             self._ultimo_erro = f"carga: {type(e).__name__}: {e}"[:300]
+            if getattr(e, "status", 0) == 403:  # falta permissão no token: uma entrada só, sem insistir
+                self._uma_vez(f"carga-403:{getattr(e, 'permissao', '')}", "erro", "worker",
+                              f"Carga sem permissão no token do motor ({getattr(e, 'permissao', '') or 'não informada'}). Corrija o papel do usuário do token e reinicie o worker.")
+                return
             self.razao.diario("erro", "worker", f"Carga falhou e nada foi alterado: {self._ultimo_erro}")
             return
         self._carga_em = agora
@@ -319,11 +328,15 @@ class Laco:
         # Um lote real por vez: o próximo só sai depois de o anterior ser lançado.
         if not simulado and any(l["status"] in ("etiquetando", "pausado") for l in lotes):
             return
+        # Lote em erro espera uma pessoa: enquanto isso nenhum lote real novo sai.
+        if not simulado and any(l["status"] == "erro" for l in lotes):
+            self._uma_vez(f"lote-em-erro:{hoje}", "lote", "trilhos", "Há lote em erro esperando uma pessoa: nenhum lote novo sai hoje até alguém conferir.")
+            return
 
         ciclo = plano["ciclo"]
         enviados = self.razao.enviados_hoje(hoje, simulado)
         liberados = self.razao.lotes_liberados_hoje(hoje, simulado)
-        sugerido = tamanho_do_lote(fila, self.cfg, liberados)
+        sugerido = tamanho_do_lote(fila, self.cfg, liberados, nivel_de_antes(self._lote_ativo, agora, self.cfg))
         retrato = Retrato(
             agora=agora, fila=fila, decisao_governador=decisao, motivo_governador=motivo, tamanho_sugerido=sugerido,
             pendentes=tuple(LotePendente(l["ordem"], l["frente"], l["mensagem"], l["tamanho_previsto"]) for l in pendentes),

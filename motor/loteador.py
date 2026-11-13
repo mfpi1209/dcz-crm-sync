@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Sequence
 
-from motor.config import MotorConfig
+from motor.config import ULTIMO_LOTE_MAIS_TARDE_H, MotorConfig
 from motor.modelos import Lote, Selecao
 from motor.seletor import risco
 from motor.sorteio import ordem_estavel
@@ -84,6 +84,7 @@ def lotear(
 
 
 def lotes_que_cabem_na_janela(cfg: MotorConfig) -> int:
-    """Quantos lotes cabem numa manhã respeitando a vida mínima entre lotes."""
-    minutos = (cfg.janela_fim_h - cfg.janela_inicio_h) * 60
+    """Quantos lotes cabem num dia, do início do expediente ao corte, com a vida mínima entre lotes."""
+    ultimo = min(cfg.janela_fim_h * 60 - cfg.corte_min, ULTIMO_LOTE_MAIS_TARDE_H * 60)
+    minutos = max(0, ultimo - cfg.janela_inicio_h * 60)
     return max(1, minutos // cfg.vida_min_lote_min)

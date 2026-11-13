@@ -39,12 +39,18 @@ class CrmFalso(Transporte):
         self.publico_a_mais = 0                   # simula etiqueta casando onde não devia
         self.contatos_invalidos: set[str] = set()
         self.falhas = 0
+        self.presos = 0                           # destinatários que ficam PENDING numa campanha concluída
+        self.negar: dict[tuple[str, str], str] = {}  # (método, começo do caminho) → permissão que falta ao token
 
     def __call__(self, metodo, caminho, corpo=None):
         if self.agora:
             self.horas.append(self.agora())
         url = urllib.parse.urlparse(caminho)
         partes = url.path.strip("/").split("/")
+        for (m, comeco), falta in self.negar.items():
+            if metodo == m and url.path.startswith(comeco):
+                self.chamadas.append((metodo, caminho))
+                return 403, {}, {"message": "Acesso negado.", "required": falta}
         if metodo != "GET":
             self.chamadas.append((metodo, caminho))
             self.corpos.append((metodo, url.path, corpo))
@@ -88,23 +94,31 @@ class CrmFalso(Transporte):
             c["status"] = para
             return 200, {}, {"message": "ok", "status": para}
         if acao == "stats":
-            total = len(publico) + self.publico_a_mais
             if self.conclui_sozinha and c["status"] in ("PROCESSING", "SENDING"):
                 c["status"] = "COMPLETED"
-            feito = c["status"] == "COMPLETED"
-            return 200, {}, {"status": c["status"], "totalRecipients": total, "pendingCount": 0 if feito else total,
-                             "sentCount": total - self.falhas if feito else 0, "deliveredCount": total - self.falhas if feito else 0,
-                             "readCount": 0, "repliedCount": 0, "failedCount": self.falhas if feito else 0}
+            # Como em produção: o stats diz 0 pendentes mesmo havendo destinatário PENDING.
+            return 200, {}, {"status": c["status"], "totalRecipients": len(publico) + self.publico_a_mais, "pendingCount": 0,
+                             "deliveryRate": 100, "repliedCount": 0}
         if acao == "recipients":
-            pagina = int(q.get("page", ["1"])[0])
-            fatia = publico[(pagina - 1) * 100: pagina * 100]
-            itens = [{"id": f"r{i}", "contactId": cid, "contact": {"id": cid, "name": "Fulano de Tal", "phone": "5511999990000"},
-                      "status": "FAILED" if n == 0 else "READ", "errorCode": 131026 if n == 0 else None,
-                      "errorMessage": "Número 5511999990000 sem WhatsApp (code 131026)" if n == 0 else None,
-                      "sentAt": "2026-11-24T12:10:00.000Z", "deliveredAt": "2026-11-24T12:10:05.000Z", "readAt": "2026-11-24T12:20:00.000Z",
-                      "repliedAt": None} for n, (i, cid) in enumerate(enumerate(fatia))]
-            return 200, {}, {"items": itens, "total": len(publico), "page": pagina, "perPage": 100, "totalPages": -(-len(publico) // 100)}
+            por_contato = self._status_dos_destinatarios(c, publico)
+            filtro = q.get("status", [""])[0]
+            escolhidos = [cid for cid in publico if not filtro or por_contato[cid] == filtro]
+            pagina, por = int(q.get("page", ["1"])[0]), int(q.get("perPage", ["50"])[0])
+            fatia = escolhidos[(pagina - 1) * por: pagina * por]
+            itens = [{"id": f"r{cid}", "contactId": cid, "contact": {"id": cid, "name": "Fulano de Tal", "phone": "5511999990000"},
+                      "status": por_contato[cid], "errorCode": 131026 if por_contato[cid] == "FAILED" else None,
+                      "errorMessage": "Número 5511999990000 sem WhatsApp (code 131026)" if por_contato[cid] == "FAILED" else None,
+                      "sentAt": "2026-11-24T12:10:00.000Z", "deliveredAt": "2026-11-24T12:10:05.000Z", "readAt": None, "repliedAt": None}
+                     for cid in fatia]
+            return 200, {}, {"items": itens, "total": len(escolhidos), "page": pagina, "perPage": por, "totalPages": -(-len(escolhidos) // por)}
         return 404, {}, {"message": "rota não prevista no teste"}
+
+    def _status_dos_destinatarios(self, campanha, publico) -> dict:
+        """Campanha concluída: `falhas` com FAILED, `presos` ainda PENDING, o resto DELIVERED. Antes disso, tudo PENDING."""
+        if campanha["status"] != "COMPLETED":
+            return {cid: "PENDING" for cid in publico}
+        return {cid: "FAILED" if n < self.falhas else "PENDING" if n < self.falhas + self.presos else "DELIVERED" for n, cid in enumerate(publico)}
+
 
 
 class LimiteComPrioridadeTest(unittest.TestCase):
@@ -173,11 +187,16 @@ class ClienteDasRotasDeIntegracaoTest(unittest.TestCase):
         for i in range(3):
             crm.etiquetar_contato(f"c{i}", tag)
         camp = crm.criar_campanha(nome="n", canal_id="c", template="t", idioma="pt_BR", componentes=[], tag_ids=[tag])
+        t.falhas, t.presos = 1, 1
+        t.campanhas[camp["id"]]["status"] = "COMPLETED"
         itens, paginas = crm.campanha_destinatarios_pagina(camp["id"], 1)
         self.assertEqual(paginas, 1)
         self.assertEqual({i["contact_id"] for i in itens}, {"c0", "c1", "c2"})
         self.assertEqual(sorted(itens[0]), ["contact_id", "entregue_em", "enviado_em", "erro_codigo", "lido_em", "respondeu_em", "status"])
         self.assertEqual((itens[0]["status"], itens[0]["erro_codigo"]), ("FAILED", 131026))
+        # A medida do lote vem do total por status, com um item por chamada.
+        self.assertEqual(crm.campanha_contagem(camp["id"]), {"SENT": 0, "DELIVERED": 1, "READ": 0, "FAILED": 1})
+        self.assertTrue(all("perPage=1" in c for _, c in t.chamadas[-4:]))
         bruto = repr(itens)
         self.assertNotIn("Fulano", bruto)
         self.assertNotIn("5511999990000", bruto)
@@ -192,6 +211,21 @@ class ClienteDasRotasDeIntegracaoTest(unittest.TestCase):
                 chamada()
         self.assertEqual(t.chamadas, [])
 
+    def test_403_guarda_a_permissao_que_faltou_e_nao_chama_de_novo(self) -> None:
+        t = CrmFalso()
+        t.negar[("GET", "/api/integrations/campaigns")] = "campaign:view"
+        crm = self._crm(t)
+        with self.assertRaises(CrmErro) as ctx:
+            crm.campanha_stats("camp1")
+        self.assertEqual((ctx.exception.status, ctx.exception.permissao), (403, "campaign:view"))
+        self.assertEqual(len(t.chamadas), 1)
+        with self.assertRaises(CrmErro) as ctx:
+            crm.campanha_stats("camp2")              # mesma rota, outra campanha
+        self.assertEqual(ctx.exception.permissao, "campaign:view")
+        self.assertEqual(len(t.chamadas), 1)            # não foi à rede de novo
+        self.assertEqual(crm.negadas, {("GET", "/api/integrations/campaigns/{id}/stats"): "campaign:view"})
+        crm.criar_etiqueta("x")                       # outra rota segue normal
+
     def test_template_e_canal_vem_do_ambiente(self) -> None:
         self.assertIsNone(configuracao("lembrete_dia25"))
         with mock.patch.dict(os.environ, AMBIENTE):
@@ -203,7 +237,7 @@ class ClienteDasRotasDeIntegracaoTest(unittest.TestCase):
 class EnvioRealTest(unittest.TestCase):
     """Terça 24/11/2026 em modo real, com 700 alunos de graduação em aberto e um CRM de mentira."""
 
-    CFG = MotorConfig(enabled=True, dry_run=False, carga_min_abertos=100)
+    CFG = MotorConfig(enabled=True, dry_run=False, carga_min_abertos=100, janela_fim_h=14)
 
     def setUp(self) -> None:
         amb = mock.patch.dict(os.environ, AMBIENTE)
@@ -293,8 +327,8 @@ class EnvioRealTest(unittest.TestCase):
         self.assertEqual((camp["sendRate"], camp["templateName"], camp["channelId"], camp["type"]), (1, "motor_lembrete_dia25_a", "canal1", "TEMPLATE"))
         self.assertEqual(camp["filters"], {"tagIds": [l1["crm_tag_id"]]})
         self.assertEqual(len(self.crm_falso.etiquetados[l1["crm_tag_id"]]), 300)
-        # "enviado" até a leitura de destinatários (2 h depois), que troca por lido ou falhou.
-        self.assertTrue(all(m["status"] in ("enviado", "lido", "falhou") and not m["simulado"] for m in self.razao.msgs))
+        # "enviado" até a leitura de destinatários (2 h depois), que troca pelo status de cada um.
+        self.assertTrue(all(m["status"] in ("enviado", "entregue", "lido", "falhou") and not m["simulado"] for m in self.razao.msgs))
 
         # O 2º lote só sai 30 minutos depois do LANÇAMENTO do 1º.
         self.assertGreaterEqual(l2["liberado_em"] - l1["liberado_em"], timedelta(minutes=30))
@@ -303,7 +337,7 @@ class EnvioRealTest(unittest.TestCase):
         self.assertTrue(all(horas[i] - horas[i - 60] >= timedelta(seconds=60) for i in range(60, len(horas))))
         self.assertTrue(all(a["status"] == "feito" for k, a in self.razao.acoes.items() if k.startswith("real:") and not k.endswith(":reservar")))
 
-    def test_fila_critica_pausa_a_campanha_e_a_melhora_retoma(self) -> None:
+    def test_fila_que_sobe_60_pausa_a_campanha_e_a_melhora_retoma(self) -> None:
         self.crm_falso.conclui_sozinha = False
         self.aprovar()
         self.ate(12, 0, parar=lambda: self.lote(1)["status"] == "enviando")
@@ -314,7 +348,7 @@ class EnvioRealTest(unittest.TestCase):
         self.assertEqual(self.lote(1)["status"], "pausado")
         self.assertIn(("POST", "/api/integrations/campaigns/camp1/pause"), self.escritas())
         self.assertEqual(self.crm_falso.campanhas["camp1"]["status"], "PAUSED")
-        self.assertIn("limite crítico", self.lote(1)["motivo"])
+        self.assertIn("fila subiu 158", self.lote(1)["motivo"])           # de 20, no lançamento, para 178
         self.assertEqual(self.lote(2)["status"], "planejado")             # nenhum lote novo com o anterior pausado
         self.crm_falso.fila = _fila_json(20, 60_000, 10)
         self.agora += timedelta(minutes=35)
@@ -398,6 +432,38 @@ class EnvioRealTest(unittest.TestCase):
         self.assertEqual(self.lote(1)["tamanho"], 298)
         self.assertEqual(sum(1 for m in self.razao.msgs if m["status"] == "falhou"), 2)
 
+    def test_token_sem_permissao_para_o_lote_registra_no_diario_e_nao_insiste(self) -> None:
+        self.crm_falso.negar[("POST", "/api/integrations/campaigns")] = "campaign:create"
+        self.aprovar()
+        self.ate(11, 0)
+        self.assertEqual(self.lote(1)["status"], "erro")
+        self.assertIn("campaign:create", self.lote(1)["motivo"])
+        tentativas = [c for c in self.escritas() if c[1] == "/api/integrations/campaigns"]
+        self.assertEqual(len(tentativas), 1)                                       # uma tentativa só
+        avisos = [e for e in self.razao.entradas_diario if "campaign:create" in e["texto"]]
+        self.assertEqual(len(avisos), 1)
+        self.assertEqual(self.crm_falso.campanhas, {})
+        # Lote em erro segura o dia: o lote 2 não chega a ser etiquetado.
+        self.assertEqual(self.lote(2)["status"], "planejado")
+        self.assertEqual(len([c for c in self.escritas() if "/api/contacts/" in c[1]]), 300)
+        self.assertTrue(any("lote em erro" in e["texto"] for e in self.razao.entradas_diario))
+
+    def test_token_sem_permissao_para_etiquetar_para_no_primeiro_contato(self) -> None:
+        self.crm_falso.negar[("POST", "/api/contacts/")] = "contact:edit"
+        self.aprovar()
+        self.ate(11, 0)
+        self.assertEqual(self.lote(1)["status"], "erro")
+        self.assertIn("contact:edit", self.lote(1)["motivo"])
+        self.assertEqual(len([c for c in self.escritas() if "/api/contacts/" in c[1]]), 1)
+
+    def test_token_sem_permissao_para_a_fila_avisa_uma_vez_e_nada_sai(self) -> None:
+        self.crm_falso.negar[("GET", "/api/integrations/service-queue")] = "report:view"
+        self.aprovar()
+        self.ate(11, 0)
+        self.assertEqual(len([c for c in self.crm_falso.chamadas if "service-queue" in c[1]]), 1)
+        self.assertEqual(len([e for e in self.razao.entradas_diario if "report:view" in e["texto"]]), 1)
+        self.assertEqual(self.escritas(), [])
+
     def test_sem_template_configurado_o_lote_nao_sai(self) -> None:
         with mock.patch.dict(os.environ, {"MOTOR_TEMPLATE_LEMBRETE_DIA25": ""}):
             self.aprovar()
@@ -406,24 +472,30 @@ class EnvioRealTest(unittest.TestCase):
         self.assertEqual(self.lote(1)["status"], "recusado")
 
     def test_leitura_de_destinatarios_duas_horas_depois_sem_dado_pessoal(self) -> None:
-        self.crm_falso.falhas = 1
+        self.crm_falso.falhas, self.crm_falso.presos = 1, 2
         self.aprovar()
         self.ate(9, 30, parar=lambda: self.lote(1)["status"] == "concluido")
+        # O lote é medido pelos destinatários por status, não pelo stats (que diz 0 pendentes).
+        l1 = self.lote(1)
+        self.assertEqual((l1["enviados"], l1["entregues"], l1["falhas"]), (298, 297, 1))
+        self.assertEqual(l1["motivo"], "2 não enviados pelo CRM")
         lancado = self.lote(1)["liberado_em"]
         self.agora = lancado + timedelta(hours=1, minutes=59)
         self.laco.tick()
-        self.assertFalse([c for c in self.crm_falso.chamadas if "recipients" in c[1]])
+        self.assertFalse([c for c in self.crm_falso.chamadas if "recipients?page=" in c[1]])   # só as contagens por status até aqui
         self.agora = lancado + timedelta(hours=2, minutes=1)
         for _ in range(8):
             self.laco.tick()
             self.agora += timedelta(seconds=30)
         self.assertEqual(self.lote(1)["leituras"], 1)
-        leituras = [c for c in self.crm_falso.chamadas if "/camp1/recipients" in c[1]]
+        leituras = [c for c in self.crm_falso.chamadas if "/camp1/recipients?page=" in c[1]]
         self.assertEqual(len(leituras), 3)                                         # 300 destinatários = 3 páginas
-        status = {m["status"] for m in self.razao.msgs if m["lote_id"] == self.lote(1)["id"]}
-        self.assertEqual(status, {"lido", "falhou"})
+        do_lote = [m["status"] for m in self.razao.msgs if m["lote_id"] == self.lote(1)["id"]]
+        self.assertEqual({s: do_lote.count(s) for s in set(do_lote)}, {"entregue": 297, "falhou": 1, "nao_enviado": 2})
         bloqueados = [r for r in self.razao.retratos.values() if r.get("bloqueio_motor") == "erro_131026"]
-        self.assertEqual(len(bloqueados), 3)                                       # o primeiro de cada página, no CRM de mentira
+        self.assertEqual(len(bloqueados), 1)
+        # PENDING em campanha concluída = não enviado: não conta no teto do dia nem no limite do aluno.
+        self.assertEqual(self.razao.enviados_hoje(DIA, False), sum(1 for m in self.razao.msgs if m["status"] not in ("nao_enviado", "cancelado")))
         tudo = json.dumps([self.razao.msgs, list(self.razao.retratos.values())], default=str)
         self.assertNotIn("Fulano", tudo)
         self.assertNotIn("5511999990000", tudo)

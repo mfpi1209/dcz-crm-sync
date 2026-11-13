@@ -8,8 +8,9 @@ Etapas de um lote (coluna `status` de `motor_lotes`):
                orçamento de chamadas (cerca de 50 por minuto), em vários ticks
   enviando     campanha TEMPLATE criada com `filters.tagIds`, conferida e
                lançada a 1 mensagem por segundo; resultado lido a cada minuto
-  pausado      pausa de emergência (fila crítica, falha acima de 6%, trava de
-               experiência, fim da janela); retoma quando o governador libera
+  pausado      pausa de emergência (fila 60 acima do nível do lote, falha acima
+               de 6%, trava de experiência, fim do expediente); retoma quando o
+               governador libera
   concluido / cancelado / erro
 
 Cada passo que escreve no CRM é registrado antes em `motor_acoes`, com chave
@@ -56,6 +57,7 @@ class Envio:
         self.razao = razao
         self.crm = crm
         self._leu_destinatarios_em: Optional[datetime] = None
+        self._aguardando: Optional[int] = None
 
     # ── começo de um lote ─────────────────────────────────────────────────
     def impedimento(self, mensagem: str) -> Optional[str]:
@@ -75,7 +77,9 @@ class Envio:
                                   requisicao={"mensagem": lote.mensagem.value, "destinatarios": lote.tamanho, "ciclo": ciclo})
 
     # ── a cada tick ───────────────────────────────────────────────────────
-    def avancar(self, agora: datetime, *, pausar: Optional[str] = None, parada: Optional[str] = None, retomar: bool = False, fim_da_janela: bool = False) -> None:
+    def avancar(self, agora: datetime, *, pausar: Optional[str] = None, parada: Optional[str] = None, retomar: bool = False,
+                fim_da_janela: bool = False, aguardando: Optional[int] = None) -> None:
+        self._aguardando = aguardando
         hoje = para_brt(agora).date()
         for lote in self.razao.lotes_ativos():
             try:
@@ -97,9 +101,22 @@ class Envio:
                         self._retomar(lote)
                     self._ler_resultado(lote, agora)
             except CrmErro as e:
+                if e.status == 403:
+                    self._sem_permissao(lote, e)
+                    continue
                 self.razao.diario("erro", "trilhos", f"Lote {lote['ordem']}: o CRM respondeu {e.status} ({e}). Tento de novo no próximo ciclo.")
         if not parada:
             self._ler_destinatarios(agora)
+
+    def _sem_permissao(self, lote: Mapping, erro: CrmErro) -> None:
+        """403: o token não tem a permissão. Registra qual faltou e para o lote, sem tentar de novo."""
+        if lote["status"] == "enviando" and lote["crm_campaign_id"]:
+            try:  # sem conseguir acompanhar, o mais seguro é pausar o que está saindo
+                self.crm.pausar_campanha(lote["crm_campaign_id"])
+            except CrmErro:
+                pass
+        self._erro(lote, f"falta permissão no token do motor: {erro.permissao or 'não informada'}. "
+                         "Corrija o papel do usuário do token e reinicie o worker")
 
     def _erro(self, lote: Mapping, texto: str) -> None:
         self.razao.atualizar_lote(lote["id"], status="erro", motivo=texto[:500])
@@ -166,6 +183,9 @@ class Envio:
                 if e.status in (400, 404):  # contato apagado ou inválido: sai do lote, o resto segue
                     falharam.append(cid)
                     continue
+                if e.status == 403:  # sem permissão para etiquetar: não adianta seguir
+                    self.razao.marcar_mensagens(lote["id"], feitos, "etiquetado")
+                    raise
                 break
         self.razao.marcar_mensagens(lote["id"], feitos, "etiquetado")
         self.razao.marcar_mensagens(lote["id"], falharam, "falhou", "contato recusado ao etiquetar")
@@ -217,12 +237,14 @@ class Envio:
             return self._erro(lote, "a criação da campanha ficou sem resposta do CRM; confira as campanhas antes de continuar")
         except CrmErro as e:
             self._recusado(lote, passo, e)
-            if e.status == 429 or e.status >= 500:
-                raise  # passageiro: tenta de novo no próximo tick (5xx fica como passo incerto)
+            if e.status == 429 or e.status >= 500 or e.status == 403:
+                raise  # 429/5xx: tenta de novo no próximo tick; 403: quem chamou registra a permissão e para o lote
             return self._erro(lote, f"o CRM recusou o passo '{passo}' ({e.status}: {e})")
         self.razao.marcar_mensagens(lote["id"], etiquetados, "enviado")
         # A vida mínima do lote conta do lançamento, não da reserva.
-        self.razao.atualizar_lote(lote["id"], status="enviando", crm_status="PROCESSING", tamanho=len(etiquetados), liberado_em=agora)
+        # O nível da fila que vale para o governador é o do lançamento (a etiquetagem leva minutos).
+        campos = {"fila": {"aguardando": self._aguardando}} if self._aguardando is not None else {}
+        self.razao.atualizar_lote(lote["id"], status="enviando", crm_status="PROCESSING", tamanho=len(etiquetados), liberado_em=agora, **campos)
         self.razao.diario("lote", "trilhos", f"Lote {lote['ordem']} ({lote['mensagem']}) LANÇADO: {len(etiquetados)} alunos, {self.cfg.velocidade} mensagem por segundo.",
                           {"ordem": lote["ordem"], "tamanho": len(etiquetados), "campanha": campanha_id})
 
@@ -257,15 +279,21 @@ class Envio:
         self.razao.diario("pausa", "trilhos", f"Lote {lote['ordem']} CANCELADO: {motivo} ({pendentes} alunos não chegaram a ser enviados).")
 
     def _ler_resultado(self, lote: Mapping, agora: datetime) -> None:
+        """Mede o lote pelos destinatários em cada status (a cada 1 min por campanha ativa).
+
+        O `stats` do CRM dá o status da campanha, o total e os respondidos; o
+        que foi enviado, entregue, lido e falhou vem da contagem por status.
+        """
         if lote["stats_em"] and para_brt(agora) - para_brt(lote["stats_em"]) < INTERVALO_STATS:
             return
         st = self.crm.campanha_stats(lote["crm_campaign_id"])
+        cont = self.crm.campanha_contagem(lote["crm_campaign_id"])
         total = int(st.get("totalRecipients") or 0)
-        processados = max(0, total - int(st.get("pendingCount") or 0))
+        falhas = cont.get("FAILED", 0)
+        processados = cont.get("SENT", 0) + cont.get("DELIVERED", 0) + cont.get("READ", 0) + falhas
         self.razao.atualizar_lote(
-            lote["id"], enviados=processados, entregues=int(st.get("deliveredCount") or 0), lidos=int(st.get("readCount") or 0),
-            respondidos=int(st.get("repliedCount") or 0), falhas=int(st.get("failedCount") or 0),
-            crm_status=str(st.get("status") or ""), stats_em=agora,
+            lote["id"], enviados=processados, entregues=cont.get("DELIVERED", 0) + cont.get("READ", 0), lidos=cont.get("READ", 0),
+            respondidos=int(st.get("repliedCount") or 0), falhas=falhas, crm_status=str(st.get("status") or ""), stats_em=agora,
         )
         # Trilho: a campanha nunca pode ter mais gente que o lote (etiqueta casando onde não devia).
         if total > int(lote["tamanho"] or 0):
@@ -273,8 +301,11 @@ class Envio:
             return
         status = str(st.get("status") or "")
         if status == "COMPLETED":
-            self.razao.atualizar_lote(lote["id"], status="concluido", motivo="")
-            self.razao.diario("lote", "trilhos", f"Lote {lote['ordem']} concluído: {processados} processados, {st.get('failedCount') or 0} falhas.")
+            # Campanha concluída com destinatário ainda pendente: o CRM não enviou para ele.
+            sem_envio = max(0, total - processados)
+            self.razao.atualizar_lote(lote["id"], status="concluido", motivo=f"{sem_envio} não enviados pelo CRM" if sem_envio else "")
+            self.razao.diario("lote", "trilhos", f"Lote {lote['ordem']} concluído: {processados} processados, {falhas} falhas"
+                              + (f", {sem_envio} não enviados" if sem_envio else "") + ".")
         elif status in ("CANCELLED", "FAILED"):
             self.razao.atualizar_lote(lote["id"], status="cancelado", motivo=f"campanha {status} no CRM")
 

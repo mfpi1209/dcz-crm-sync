@@ -149,7 +149,7 @@ CREATE TABLE IF NOT EXISTS motor_mensagens (
     variante      TEXT NOT NULL DEFAULT 'A',
     estado        TEXT NOT NULL DEFAULT '',           -- estado do aluno na hora do lote
     lote_id       BIGINT REFERENCES motor_lotes(id) ON DELETE CASCADE,
-    -- simulado | reservado | etiquetado | enviado | entregue | lido | falhou | cancelado
+    -- simulado | reservado | etiquetado | enviado | entregue | lido | falhou | cancelado | nao_enviado
     status        TEXT NOT NULL DEFAULT 'simulado',
     erro          TEXT,
     erro_codigo   INTEGER,                            -- código da Meta (ex.: 131026)

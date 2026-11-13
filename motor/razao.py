@@ -24,10 +24,13 @@ LOTES_ATIVOS = ("etiquetando", "enviando", "pausado")
 LOTES_LIBERADOS = ("simulado", "etiquetando", "enviando", "pausado", "concluido", "cancelado")
 CAMPOS_DO_LOTE = frozenset({
     "status", "motivo", "crm_campaign_id", "crm_tag_id", "crm_status", "etiquetados", "enviados", "entregues",
-    "lidos", "respondidos", "falhas", "stats_em", "leituras", "leitura_pagina", "tamanho", "liberado_em",
+    "lidos", "respondidos", "falhas", "stats_em", "leituras", "leitura_pagina", "tamanho", "liberado_em", "fila",
 })
 # Status de destinatário no CRM → status da mensagem no livro-razão.
-STATUS_DO_CRM = {"SENT": "enviado", "DELIVERED": "entregue", "READ": "lido", "FAILED": "falhou"}
+# PENDING só aparece aqui em campanha já concluída: o CRM não chegou a enviar.
+STATUS_DO_CRM = {"SENT": "enviado", "DELIVERED": "entregue", "READ": "lido", "FAILED": "falhou", "PENDING": "nao_enviado"}
+# Mensagens que não chegaram a sair: não contam no limite do aluno nem no teto do dia.
+NAO_SAIRAM = ("cancelado", "nao_enviado")
 ERRO_NUMERO_SEM_WHATSAPP = 131026
 
 
@@ -211,7 +214,7 @@ class RazaoMemoria(RazaoBase):
     def _mensagens(self, ciclo: str, simulado: bool) -> dict[str, list[Msg]]:
         out: dict[str, list[Msg]] = {}
         for m in self.msgs:
-            if m["ciclo"] == ciclo and m["simulado"] == simulado and m["status"] != "cancelado":
+            if m["ciclo"] == ciclo and m["simulado"] == simulado and m["status"] not in NAO_SAIRAM:
                 out.setdefault(m["contact_id"], []).append((m["dia"], m["frente"], m["mensagem"]))
         return out
 
@@ -314,7 +317,7 @@ class RazaoMemoria(RazaoBase):
         return n
 
     def enviados_hoje(self, dia: date, simulado: bool) -> int:
-        return sum(1 for m in self.msgs if m["dia"] == dia and m["simulado"] == simulado and m["status"] != "cancelado")
+        return sum(1 for m in self.msgs if m["dia"] == dia and m["simulado"] == simulado and m["status"] not in NAO_SAIRAM)
 
     def lotes_liberados_hoje(self, dia: date, simulado: bool) -> int:
         return sum(1 for l in self.lotes(dia, simulado) if l["liberado_em"])
@@ -324,7 +327,8 @@ class RazaoMemoria(RazaoBase):
         if not liberados:
             return None
         u = max(liberados, key=lambda l: l["liberado_em"])
-        return LoteAtivo(lote_id=u["id"], liberado_em=u["liberado_em"], enviados=u["enviados"], falhas=u["falhas"])
+        return LoteAtivo(lote_id=u["id"], liberado_em=u["liberado_em"], enviados=u["enviados"], falhas=u["falhas"],
+                         fila_base=(u.get("fila") or {}).get("aguardando"))
 
     # ações (idempotência)
     def registrar_acao(self, chave: str, tipo: str, *, lote_id: Optional[int], simulado: bool, requisicao: Optional[dict] = None) -> bool:

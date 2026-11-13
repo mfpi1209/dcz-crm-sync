@@ -67,7 +67,7 @@ class RazaoPgEnvio:
         with self._tx() as cur:
             cur.execute(
                 "UPDATE motor_lotes SET " + ", ".join(f"{c} = %s" for c in colunas) + ", atualizado_em = NOW() WHERE id = %s",
-                [campos[c] for c in colunas] + [lote_id],
+                [_json(campos[c]) if c == "fila" else campos[c] for c in colunas] + [lote_id],
             )
 
     def contatos_do_lote(self, lote_id: int, status: str, limite: int = 1000) -> list[str]:
@@ -143,7 +143,7 @@ class RazaoPgEnvio:
             cur.execute(
                 """
                 SELECT id, lote_id FROM motor_mensagens
-                WHERE contact_id = %s AND NOT simulado AND status <> 'cancelado' AND dia >= %s::date - 7
+                WHERE contact_id = %s AND NOT simulado AND status NOT IN ('cancelado', 'nao_enviado') AND dia >= %s::date - 7
                 ORDER BY dia DESC, id DESC LIMIT 1
                 """,
                 (contact_id, dia),

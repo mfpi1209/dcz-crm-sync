@@ -241,12 +241,12 @@ function _mtLimites(cfg) {
     if (!el) return;
     if (!cfg) { el.textContent = 'O worker ainda não informou os limites.'; return; }
     const linhas = [
-        'Janela: ' + cfg.janela_inicio_h + 'h às ' + cfg.janela_fim_h + 'h, em dia útil · último lote ' + cfg.corte_min + ' min antes do fim',
+        'Expediente: ' + cfg.janela_inicio_h + 'h às ' + cfg.janela_fim_h + 'h, em dia útil · último lote ' + cfg.corte_min + ' min antes do fim (nunca depois das 21h)',
         'Teto diário: ' + _mtNum(cfg.teto_diario) + ' · lotes de ' + (cfg.rampa || []).map(_mtNum).join(', ') + ' e depois até ' + _mtNum(cfg.lote_max),
         'Trava de experiência: segura com ' + cfg.exp_segura_por_mil + ' por 1.000 e encerra o dia com ' + cfg.exp_encerra_por_mil + ' (mínimo de ' + cfg.exp_min_casos + ' casos)',
         'Público: ' + (cfg.nivel_alvo === 'graduacao' ? 'só graduação' : (cfg.nivel_alvo || 'todos os níveis')) + ' · respostas classificadas por ' + (cfg.classificador || '—') + ' · API do CRM a ' + cfg.crm_rpm + ' chamadas por minuto',
-        'Fila: teto ' + cfg.fila_teto + ' · crítico ' + cfg.fila_critica + ' · mínimo de ' + cfg.atendentes_min + ' atendentes online',
-        'SLA de espera: ' + cfg.sla_espera_min + ' min · falha de envio até ' + Math.round(cfg.falha_envio_max * 100) + '%',
+        'Fila: segura quando sobe ' + cfg.fila_sobe_segura + ' desde o lote anterior e pausa quando sobe ' + cfg.fila_sobe_pausa + ' · mínimo de ' + cfg.atendentes_min + ' atendentes online',
+        'Falha de envio até ' + Math.round(cfg.falha_envio_max * 100) + '% · a maior espera aparece na tabela, mas não entra nas regras',
         'Grupo de controle: ' + cfg.controle_pct + '% · até ' + cfg.max_msgs_ciclo + ' mensagens por aluno no ciclo',
     ];
     el.innerHTML = linhas.map(l => '<div>' + _mtEsc(l) + '</div>').join('');
