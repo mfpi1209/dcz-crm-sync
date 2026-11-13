@@ -44,10 +44,14 @@ def nomes_dos_campos() -> dict[str, str]:
     }
 
 
+# Etiquetas do contato que sempre tiram o aluno dos envios (comparadas sem acento e sem maiúsculas).
+TAGS_DE_BLOQUEIO_FIXAS = frozenset({"sem lembretes de mensalidade", "sem mensagens automaticas"})
+
+
 def tags_de_bloqueio() -> frozenset[str]:
     """Etiquetas do contato que tiram o aluno dos envios (recusou mensagens, número com erro 131026)."""
     bruto = os.getenv("MOTOR_TAGS_BLOQUEIO") or ""
-    return frozenset(_fold(t) for t in bruto.split(",") if t.strip())
+    return TAGS_DE_BLOQUEIO_FIXAS | frozenset(_fold(t) for t in bruto.split(",") if t.strip())
 
 
 @dataclass(frozen=True)
@@ -62,7 +66,7 @@ class MapaCampos:
 def montar_mapa(campos_por_nome: Mapping[str, str], nomes: Optional[Mapping[str, str]] = None) -> MapaCampos:
     """Resolve os ids dos campos. Sem Dia 10, Financeira ou Situação a carga não roda (nada de adivinhar)."""
     nomes = nomes or nomes_dos_campos()
-    faltando = [nomes[k] for k in ("dia10", "financeira", "situacao") if nomes[k] not in campos_por_nome]
+    faltando = [nomes[k] for k in ("dia10", "financeira", "situacao", "nivel") if nomes[k] not in campos_por_nome]
     if faltando:
         raise CargaErro("campo de negócio não encontrado no CRM: " + ", ".join(faltando))
     return MapaCampos(
@@ -86,6 +90,7 @@ class Linha:
     financeira_aberta: Optional[bool] = None
     tem_telefone: bool = True
     bloqueio: Optional[str] = None
+    nivel_misto: bool = False                 # contato com negócios em níveis diferentes
 
 
 def sim_nao(valor: Any) -> Optional[bool]:
@@ -131,7 +136,11 @@ def _peso(l: Linha) -> tuple:
 def consolidar(linhas: Iterable[Linha]) -> dict[str, Linha]:
     """Uma linha por contato (o aluno com duas matrículas recebe uma mensagem só)."""
     por_contato: dict[str, Linha] = {}
+    niveis: dict[str, set[str]] = {}
     for l in linhas:
+        nivel = "".join(_fold(l.nivel).split())
+        if nivel:
+            niveis.setdefault(l.contact_id, set()).add(nivel)
         atual = por_contato.get(l.contact_id)
         if atual is None or _peso(l) > _peso(atual):
             # Bloqueio e falta de telefone valem para o contato inteiro.
@@ -140,6 +149,10 @@ def consolidar(linhas: Iterable[Linha]) -> dict[str, Linha]:
             por_contato[l.contact_id] = l
         elif l.bloqueio and not atual.bloqueio:
             por_contato[l.contact_id] = replace(atual, bloqueio=l.bloqueio)
+    # Negócio na graduação e na pós: fica de fora, porque a regra de desconto muda de um nível para o outro.
+    for cid, vistos in niveis.items():
+        if len(vistos) > 1:
+            por_contato[cid] = replace(por_contato[cid], nivel_misto=True)
     return por_contato
 
 
@@ -149,6 +162,7 @@ class RegistroCiclo:
     baixa_dia10_em: Optional[date] = None
     controle: bool = False
     declarou_pagamento_em: Optional[date] = None
+    suspenso: bool = False  # reclamou no ciclo: régua suspensa
 
 
 def evoluir_ciclo(

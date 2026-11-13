@@ -6,7 +6,7 @@ import unittest
 from dataclasses import replace
 from datetime import date
 
-from motor.agenda import acoes_do_dia, datas_de_lembrete, datas_de_recuperacao
+from motor.agenda import acoes_do_dia, datas_de_lembrete, datas_de_recuperacao, parcela_do_dia
 from motor.agenda import (
     ACAO_AVISO_CALOURO,
     ACAO_FIRME,
@@ -14,8 +14,6 @@ from motor.agenda import (
     ACAO_LEMBRETE_DIA25,
     ACAO_RECONHECIMENTO,
     ACAO_RECUPERACAO,
-    DIAS_LEMBRETE_DIA10,
-    DIAS_LEMBRETE_DIA25,
 )
 from motor.config import MotorConfig
 from motor.estados import (
@@ -27,7 +25,7 @@ from motor.estados import (
 )
 from motor.loteador import lotear, lotes_que_cabem_na_janela
 from motor.modelos import Aluno, Classe, Estado, Frente, Mensagem
-from motor.seletor import com_estado, contar_por_estado, no_alvo, selecionar
+from motor.seletor import com_estado, contar_por_estado, no_alvo, no_dia, risco, selecionar
 from motor.sorteio import faixa, no_controle
 
 CFG = MotorConfig(enabled=True, dry_run=True)
@@ -35,7 +33,7 @@ E, T, N = Classe.EM_DIA, Classe.TARDIO, Classe.NAO_PAGOU
 
 
 def _aluno(cid="c1", **kw) -> Aluno:
-    base = dict(contact_id=cid, deal_id="d" + cid, dia10_aberto=True)
+    base = dict(contact_id=cid, deal_id="d" + cid, dia10_aberto=True, nivel="Graduação")
     base.update(kw)
     return Aluno(**base)
 
@@ -149,11 +147,24 @@ class EstadosTest(unittest.TestCase):
 
 
 class AgendaTest(unittest.TestCase):
-    def test_dia_de_lembrete_em_fim_de_semana_e_antecipado(self) -> None:
-        # Novembro/2026: dia 8 é domingo → sexta 6; dia 9 é segunda.
-        self.assertEqual(datas_de_lembrete("2026-11", DIAS_LEMBRETE_DIA10), (date(2026, 11, 6), date(2026, 11, 9)))
-        # Dia 22 é domingo e 20/11 é feriado → quinta 19; dia 24 é terça.
-        self.assertEqual(datas_de_lembrete("2026-11", DIAS_LEMBRETE_DIA25), (date(2026, 11, 19), date(2026, 11, 24)))
+    def test_lembretes_saem_nos_3_dias_uteis_antes_do_vencimento(self) -> None:
+        # Vencimento em 10/11 (terça): segunda 9, sexta 6 e quinta 5.
+        self.assertEqual(datas_de_lembrete("2026-11", Frente.DIA10), (date(2026, 11, 5), date(2026, 11, 6), date(2026, 11, 9)))
+        # Vencimento em 25/11 (quarta): terça 24, segunda 23 e quinta 19 (20/11 é feriado).
+        self.assertEqual(datas_de_lembrete("2026-11", Frente.DIA25), (date(2026, 11, 19), date(2026, 11, 23), date(2026, 11, 24)))
+        self.assertEqual(datas_de_lembrete("2026-12", Frente.DIA10, n_dias=2), (date(2026, 12, 8), date(2026, 12, 9)))
+
+    def test_publico_e_dividido_pelos_dias_antes_do_vencimento(self) -> None:
+        self.assertAlmostEqual(parcela_do_dia(date(2026, 11, 19), Frente.DIA25), 1 / 3)
+        self.assertAlmostEqual(parcela_do_dia(date(2026, 11, 23), Frente.DIA25), 2 / 3)
+        self.assertEqual(parcela_do_dia(date(2026, 11, 24), Frente.DIA25), 1.0)
+        self.assertEqual(parcela_do_dia(date(2026, 11, 26), Frente.RECUPERACAO), 1.0)
+        ids = [f"c{i}" for i in range(6000)]
+        terco = {i for i in ids if no_dia(i, "2026-11", "dia25", 1 / 3)}
+        dois = {i for i in ids if no_dia(i, "2026-11", "dia25", 2 / 3)}
+        self.assertTrue(terco < dois)                       # quem entra no 1º dia continua dentro no 2º
+        self.assertTrue(1800 < len(terco) < 2200 and 3800 < len(dois) < 4200)
+        self.assertTrue(all(no_dia(i, "2026-11", "dia25", 1.0) for i in ids[:50]))
 
     def test_recuperacao_so_em_dia_util_de_26_a_30(self) -> None:
         self.assertEqual(
@@ -219,6 +230,12 @@ class SeletorTest(unittest.TestCase):
         self.assertTrue(no_alvo(nao_reage, ACAO_FIRME))
         self.assertFalse(no_alvo(nao_reage, ACAO_RECUPERACAO))
 
+    def test_parcela_do_dia_deixa_o_resto_para_outro_dia(self) -> None:
+        alunos = [_aluno(f"t{i}", estado=Estado.TARDIO) for i in range(900)]
+        sel = selecionar(alunos, ACAO_LEMBRETE_DIA10, hoje=self.HOJE, cfg=CFG, parcela=1 / 3)
+        self.assertEqual(len(sel.elegiveis) + sel.exclusoes["fica_para_outro_dia"], 900)
+        self.assertTrue(220 < len(sel.elegiveis) < 380)
+
     def test_exclusoes_dos_trilhos_sao_contadas_por_motivo(self) -> None:
         alunos = [
             _aluno("a", estado=Estado.TARDIO),
@@ -275,6 +292,13 @@ class LoteadorTest(unittest.TestCase):
         plano = lotear([self._sel(ACAO_LEMBRETE_DIA10, 2450, "t")], dia=self.DIA, cfg=CFG, tamanho=1200)
         self.assertEqual([l.tamanho for l in plano.lotes], [1200, 1200, 50])
 
+    def test_juntar_o_resto_nao_fura_o_teto_da_rampa(self) -> None:
+        # 1º lote do dia com teto de 300: os 99 que sobram não entram nele.
+        sel = self._sel(ACAO_LEMBRETE_DIA10, 399, "t")
+        plano = lotear([sel], dia=self.DIA, cfg=CFG, tamanho=300, teto_do_lote=300)
+        self.assertEqual([l.tamanho for l in plano.lotes], [300, 99])
+        self.assertEqual([l.tamanho for l in lotear([sel], dia=self.DIA, cfg=CFG, tamanho=300).lotes], [399])
+
     def test_respeita_o_teto_diario(self) -> None:
         cfg = replace(CFG, teto_diario=1500)
         plano = lotear([self._sel(ACAO_LEMBRETE_DIA10, 2500, "t")], dia=self.DIA, cfg=cfg, tamanho=1000)
@@ -309,6 +333,17 @@ class LoteadorTest(unittest.TestCase):
         b = lotear([sel], dia=self.DIA, cfg=CFG, tamanho=100).lotes
         self.assertEqual([l.contact_ids for l in a], [l.contact_ids for l in b])
         self.assertNotEqual(list(a[0].contact_ids), sorted(a[0].contact_ids))
+
+    def test_maior_risco_sai_primeiro_e_dentro_do_risco_a_ordem_e_sorteada(self) -> None:
+        tardios = [_aluno(f"t{i}", estado=Estado.TARDIO) for i in range(30)]
+        calouros = [_aluno(f"k{i}", estado=Estado.SEM_HISTORICO, calouro=True, historico=(E,)) for i in range(30)]
+        veteranos = [_aluno(f"v{i}", estado=Estado.SEM_HISTORICO) for i in range(30)]
+        self.assertGreater(risco(tardios[0]), risco(calouros[0]))
+        self.assertGreater(risco(calouros[0]), risco(veteranos[0]))
+        sel = selecionar(veteranos + calouros + tardios, ACAO_LEMBRETE_DIA10, hoje=self.DIA, cfg=CFG)
+        ids = [c for l in lotear([sel], dia=self.DIA, cfg=CFG, tamanho=1000).lotes for c in l.contact_ids]
+        self.assertEqual([i[0] for i in ids], ["t"] * 30 + ["k"] * 30 + ["v"] * 30)
+        self.assertNotEqual(ids[:30], sorted(ids[:30]))
 
     def test_sem_elegiveis_nao_gera_lote(self) -> None:
         plano = lotear([self._sel(ACAO_LEMBRETE_DIA10, 0, "t")], dia=self.DIA, cfg=CFG, tamanho=1000)

@@ -34,7 +34,7 @@ CAMPOS = {"dia": "f_dia", "situacaofinanceira": "f_fin", "situacao": "f_sit", "c
 MAPA = montar_mapa(CAMPOS, {"dia10": "dia", "financeira": "situacaofinanceira", "situacao": "situacao", "calouro": "calouro", "nivel": "nivel"})
 
 
-def _deal(i: int, dia="Sim", fin="Não", situacao="Em Curso", calouro="Não", phone="5511999990000", tags=()):
+def _deal(i: int, dia="Sim", fin="Não", situacao="Em Curso", calouro="Não", phone="5511999990000", tags=(), nivel="Graduação"):
     return {
         "id": f"d{i}", "contactId": f"c{i}",
         "contact": {"id": f"c{i}", "name": "Fulano de Tal", "phone": phone, "tags": [{"name": t} for t in tags]},
@@ -43,6 +43,7 @@ def _deal(i: int, dia="Sim", fin="Não", situacao="Em Curso", calouro="Não", ph
             {"customFieldId": "f_fin", "value": fin},
             {"customFieldId": "f_sit", "value": situacao},
             {"customFieldId": "f_cal", "value": calouro},
+            {"customFieldId": "f_niv", "value": nivel},
         ],
     }
 
@@ -63,11 +64,12 @@ class Relogio:
 class Transporte:
     """CRM de mentira: guarda cada chamada e responde pelo roteiro."""
 
-    def __init__(self, deals=(), fila=None, respostas=None):
+    def __init__(self, deals=(), fila=None, respostas=None, agora=None):
         self.deals = list(deals)
         self.fila = fila
         self.respostas = list(respostas or [])
         self.chamadas: list[tuple[str, str]] = []
+        self.agora = agora  # função que devolve o relógio do teste, para o `asOf` da fila
 
     def __call__(self, metodo, caminho, corpo=None):
         self.chamadas.append((metodo, caminho))
@@ -81,19 +83,17 @@ class Transporte:
             pagina, por = int(q["page"][0]), int(q["perPage"][0])
             fatia = self.deals[(pagina - 1) * por: pagina * por]
             return 200, {}, {"items": fatia, "hasMore": pagina * por < len(self.deals)}
-        if url.path == "/api/painel/service":
+        if url.path == "/api/integrations/service-queue":
             if self.fila is None:
                 return 401, {}, {"message": "Não autorizado."}
-            return 200, {}, self.fila
+            as_of = self.agora().isoformat() if self.agora else self.fila["asOf"]
+            return 200, {}, {**self.fila, "asOf": as_of}
         return 404, {}, {"message": "rota não prevista no teste"}
 
 
-def _fila_json(aguardando=20, ms=120_000, online=8):
-    return {"agora": {"ok": True, "data": {
-        "asOf": "2026-11-24T13:00:00Z", "awaitingReply": aguardando, "inService": 3,
-        "longestWait": {"ms": ms, "overSla": False, "slaMinutes": 60},
-        "agents": {"online": online, "total": 13}}},
-        "volume": {"ok": False, "error": "omitido"}}
+def _fila_json(aguardando=20, ms=120_000, online=8, as_of="2026-11-24T13:00:00.000Z"):
+    return {"asOf": as_of, "awaitingReply": aguardando, "inService": 3,
+            "longestWait": {"ms": ms, "overSla": False, "slaMinutes": 60}, "agents": {"online": online, "total": 13}}
 
 
 def _crm(transporte, **kw) -> CrmMotor:
@@ -104,7 +104,7 @@ def _crm(transporte, **kw) -> CrmMotor:
 class LimiteDeTaxaTest(unittest.TestCase):
     def test_nunca_passa_do_limite_por_minuto(self) -> None:
         r = Relogio()
-        limite = LimiteDeTaxa(240, r.agora, r.dormir)
+        limite = LimiteDeTaxa(240, 0, r.agora, r.dormir)
         marcas = []
         for _ in range(1000):
             limite.aguardar()
@@ -116,7 +116,7 @@ class LimiteDeTaxaTest(unittest.TestCase):
 
     def test_abaixo_do_limite_nao_espera(self) -> None:
         r = Relogio()
-        limite = LimiteDeTaxa(180, r.agora, r.dormir)
+        limite = LimiteDeTaxa(180, 0, r.agora, r.dormir)
         self.assertEqual(sum(limite.aguardar() for _ in range(180)), 0.0)
         self.assertGreater(limite.aguardar(), 0.0)
 
@@ -131,7 +131,8 @@ class ClienteCrmTest(unittest.TestCase):
         r = Relogio()
         crm = CrmMotor(transporte=t, relogio=r.agora, dormir=r.dormir)
         self.assertEqual(crm.etiquetas(), [{"id": "t1", "name": "x"}])
-        self.assertEqual(r.sonecas, [7.0, 3.0])
+        # 1º 429: o Retry-After (7 s). Repetiu: o tempo pedido (3 s) dobrado.
+        self.assertEqual(r.sonecas, [7.0, 6.0])
         self.assertEqual(len(t.chamadas), 3)
 
     def test_429_sem_fim_desiste_com_erro(self) -> None:
@@ -187,8 +188,21 @@ class ClienteCrmTest(unittest.TestCase):
         self.assertIn("withTotal=0", t.chamadas[0][1])
 
     def test_fila_no_formato_do_painel(self) -> None:
-        fila = _crm(Transporte(fila=_fila_json(45, 300_000, 10))).fila_agora()
+        t = Transporte(fila=_fila_json(45, 300_000, 10))
+        r = Relogio()
+        crm = CrmMotor(transporte=t, relogio=r.agora, dormir=r.dormir)
+        fila = crm.fila_agora()
         self.assertEqual((fila.aguardando, fila.maior_espera_s, fila.atendentes_online), (45, 300, 10))
+        # A hora da leitura é o `asOf` da resposta, não a hora da chamada.
+        self.assertEqual(fila.lida_em.isoformat(), "2026-11-24T13:00:00+00:00")
+        self.assertEqual(t.chamadas, [("GET", "/api/integrations/service-queue?clock=business")])
+        # O CRM guarda a resposta por 15 s: antes disso o cliente nem chama de novo.
+        r.t += 14
+        crm.fila_agora()
+        self.assertEqual(len(t.chamadas), 1)
+        r.t += 2
+        crm.fila_agora()
+        self.assertEqual(len(t.chamadas), 2)
 
     def test_fila_recusada_ou_fora_do_formato_levanta(self) -> None:
         with self.assertRaises(CrmErro) as ctx:
@@ -283,7 +297,10 @@ class ClassificadorTest(unittest.TestCase):
         self.assertEqual(r.classificar("ja paguei ontem").rotulo, "ja_paguei")
         self.assertEqual(r.classificar("me manda o boleto").rotulo, "como_pagar")
         self.assertEqual(r.classificar("quero trancar o curso").rotulo, "cancelar_trancar")
-        self.assertEqual(r.classificar("bom dia").rotulo, "outro")
+        self.assertEqual(r.classificar("bom dia").rotulo, "sem_conteudo")
+        self.assertEqual(r.classificar("parem de mandar mensagem").rotulo, "pediu_parar")
+        self.assertEqual(r.classificar("isso é um absurdo, vou no procon").rotulo, "reclamou")
+        self.assertEqual(r.classificar("numero errado, nao sou aluno").rotulo, "numero_errado")
         self.assertTrue(r.classificar("ja paguei ontem").precisa_de_revisao)
 
     def test_classificador_recebe_o_texto_ja_anonimizado(self) -> None:
@@ -340,13 +357,15 @@ class LacoEmSimulacaoTest(unittest.TestCase):
         deals += [_deal(5000 + i, dia="Não") for i in range(50)]               # já pagaram
         deals += [_deal(6000 + i, situacao="Trancado") for i in range(20)]     # fora de Em Curso
         deals += [_deal(7000 + i, phone="") for i in range(10)]                # sem telefone
-        self.transporte = Transporte(deals=deals, fila=_fila_json(20, 60_000, 10))
+        self.transporte = Transporte(deals=deals, fila=_fila_json(20, 60_000, 10), agora=lambda: self.agora)
         self.razao = RazaoMemoria()
         self.razao.controle = Controle(ligado=True)
         self.laco = self._laco(self.CFG)
 
     def _laco(self, cfg) -> Laco:
-        return Laco(cfg, self.razao, crm=_crm(self.transporte), piloto=PilotoFormula(), relogio=lambda: self.agora)
+        # O relógio do cliente acompanha o do teste, para o cache de 15 s da fila vencer entre os ticks.
+        crm = CrmMotor(transporte=self.transporte, rpm=240, reserva_alta=0, relogio=lambda: self.agora.timestamp(), dormir=lambda s: None)
+        return Laco(cfg, self.razao, crm=crm, piloto=PilotoFormula(), relogio=lambda: self.agora)
 
     def _ate(self, hora: int, minuto: int = 0, passo_min: int = 2) -> None:
         fim = self.agora.replace(hour=hora, minute=minuto)
@@ -448,14 +467,16 @@ class LacoEmSimulacaoTest(unittest.TestCase):
         self.assertTrue(any("segue em simulação" in e["texto"] for e in self.razao.entradas_diario))
 
     def test_lote_menor_que_o_previsto_gera_lote_para_a_sobra(self) -> None:
-        # 6 atendentes × 8 − 20 aguardando = 28 → lotes de 700, abaixo dos 1.200 planejados.
+        # 6 atendentes: folga de 5,2 por hora + metade do espaço da fila = 22,6 conversas → lotes de 900,
+        # abaixo dos 1.200 planejados (e os dois primeiros ainda menores, pela rampa de 300 e 600).
         self.transporte.fila = _fila_json(20, 60_000, 6)
         self._ate(15, 0)
         lotes = self.razao.lotes(date(2026, 11, 24), True)
         simulados = [l for l in lotes if l["status"] == "simulado"]
-        # O último lote pode absorver um resto menor que o lote mínimo (até 99 a mais).
-        self.assertTrue(all(l["tamanho"] <= 700 for l in simulados[:-1]))
-        self.assertLess(simulados[-1]["tamanho"], 700 + self.CFG.lote_min)
+        self.assertEqual([l["tamanho"] for l in simulados[:3]], [300, 600, 900])
+        # O último lote pode absorver um resto menor que o lote mínimo.
+        self.assertTrue(all(l["tamanho"] <= 900 for l in simulados[:-1]))
+        self.assertLess(simulados[-1]["tamanho"], 900 + self.CFG.lote_min)
         self.assertGreater(len(lotes), 3)  # o plano original tinha 3 lotes (1.200 + 1.200 + resto)
         controle = sum(no_controle(f"c{i}", "2026-11", self.CFG.controle_sal, self.CFG.controle_pct) for i in range(3000))
         self.assertEqual(len(self.razao.msgs), 3000 - controle)

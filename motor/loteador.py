@@ -14,6 +14,7 @@ from typing import Sequence
 
 from motor.config import MotorConfig
 from motor.modelos import Lote, Selecao
+from motor.seletor import risco
 from motor.sorteio import ordem_estavel
 
 
@@ -41,9 +42,12 @@ def lotear(
     enviados_hoje: int = 0,
     primeira_ordem: int = 1,
     max_lotes: int | None = None,
+    teto_do_lote: int | None = None,
 ) -> PlanoLotes:
     """Monta os lotes do dia a partir das seleções (uma por ação)."""
     tam = _tamanho_valido(tamanho, cfg)
+    # Juntar o resto pequeno nunca pode passar do teto do lote (o da rampa do dia, quando houver).
+    teto = min(cfg.lote_max, teto_do_lote) if teto_do_lote else cfg.lote_max
     plano = PlanoLotes()
     restante = max(0, cfg.teto_diario - enviados_hoje)
     ja_no_dia: set[str] = set()
@@ -52,7 +56,9 @@ def lotear(
     for sel in sorted(selecoes, key=lambda s: s.acao.prioridade):
         chave = f"{dia.isoformat()}|{sel.acao.mensagem.value}"
         ids: list[str] = []
-        for aluno in sorted(sel.elegiveis, key=lambda a: (ordem_estavel(a.contact_id, chave), a.contact_id)):
+        # Maior risco primeiro; dentro do mesmo risco, ordem sorteada (quem fica de
+        # fora pelo teto do dia é uma amostra ao acaso do seu grupo de risco).
+        for aluno in sorted(sel.elegiveis, key=lambda a: (-risco(a), ordem_estavel(a.contact_id, chave), a.contact_id)):
             if aluno.contact_id in ja_no_dia:
                 plano.repetidos += 1
                 continue
@@ -65,7 +71,7 @@ def lotear(
 
         pedacos = [cabem[i:i + tam] for i in range(0, len(cabem), tam)]
         # Resto pequeno junta com o lote anterior quando cabe no máximo.
-        if len(pedacos) >= 2 and len(pedacos[-1]) < cfg.lote_min and len(pedacos[-2]) + len(pedacos[-1]) <= cfg.lote_max:
+        if len(pedacos) >= 2 and len(pedacos[-1]) < cfg.lote_min and len(pedacos[-2]) + len(pedacos[-1]) <= teto:
             resto = pedacos.pop()
             pedacos[-1] = pedacos[-1] + resto
         for pedaco in pedacos:

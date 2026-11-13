@@ -12,7 +12,7 @@ from typing import Iterable
 from motor.config import MotorConfig
 from motor.estados import calcular_estado, historico_com_ciclo_vencido
 from motor.modelos import Acao, Aluno, Estado, Mensagem, Selecao
-from motor.sorteio import no_controle
+from motor.sorteio import no_controle, ordem_estavel
 from motor.trilhos import motivo_exclusao
 
 
@@ -62,13 +62,41 @@ def no_alvo(aluno: Aluno, acao: Acao) -> bool:
     return False
 
 
-def selecionar(alunos: Iterable[Aluno], acao: Acao, *, hoje: date, cfg: MotorConfig) -> Selecao:
+def no_dia(aluno_id: str, ciclo: str, frente: str, parcela: float) -> bool:
+    """O aluno cai na parcela do público que já pode receber hoje?
+
+    Sorteio estável por aluno, ciclo e frente: quem entra com 1/3 continua
+    dentro com 2/3 e com o público inteiro.
+    """
+    if parcela >= 1.0:
+        return True
+    return ordem_estavel(aluno_id, f"parcela|{ciclo}|{frente}") / float(1 << 64) < parcela
+
+
+def risco(aluno: Aluno) -> float:
+    """Prioridade na ordem dos lotes (maior sai primeiro). Dentro do mesmo risco a ordem é sorteada.
+
+    Premissa registrada no AGENTS.md: o risco de não pagar vem do estado do
+    aluno, e o calouro pesa mais dentro do mesmo estado (34,6% dos calouros
+    não pagaram no ciclo de outubro, contra 15,4% dos veteranos).
+    """
+    base = {
+        Estado.PRIMEIRO_ATRASO: 5.0, Estado.NAO_REAGE: 4.0, Estado.TARDIO: 3.0,
+        Estado.SEM_HISTORICO: 2.0, Estado.EM_DIA: 1.0, Estado.SILENCIADO: 0.0,
+    }[aluno.estado]
+    return base + (0.5 if aluno.calouro else 0.0)
+
+
+def selecionar(alunos: Iterable[Aluno], acao: Acao, *, hoje: date, cfg: MotorConfig, parcela: float = 1.0) -> Selecao:
     sel = Selecao(acao=acao)
+    ciclo = f"{hoje.year:04d}-{hoje.month:02d}"
     for aluno in alunos:
         if not no_alvo(aluno, acao):
             sel.fora_do_alvo += 1
             continue
         motivo = motivo_exclusao(aluno, frente=acao.frente, mensagem=acao.mensagem, hoje=hoje, cfg=cfg)
+        if not motivo and not no_dia(aluno.contact_id, ciclo, acao.frente.value, parcela):
+            motivo = "fica_para_outro_dia"
         if motivo:
             sel.exclusoes[motivo] = sel.exclusoes.get(motivo, 0) + 1
         else:

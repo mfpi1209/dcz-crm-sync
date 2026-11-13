@@ -11,10 +11,11 @@ import psycopg2.extras
 from motor.carga import RegistroCiclo
 from motor.modelos import Controle, Fila, Lote, LoteAtivo
 from motor.razao import Msg, RazaoBase
+from motor.razao_pg_envio import RazaoPgEnvio
 
 TABELAS = (
     "motor_controle", "motor_worker", "motor_cargas", "motor_alunos", "motor_aluno_ciclo",
-    "motor_planos", "motor_lotes", "motor_mensagens", "motor_fila_leituras", "motor_diario", "motor_acoes",
+    "motor_planos", "motor_lotes", "motor_mensagens", "motor_fila_leituras", "motor_diario", "motor_acoes", "motor_respostas",
 )
 
 
@@ -31,7 +32,7 @@ def tabelas_instaladas(conn) -> bool:
         return cur.fetchone()[0] == len(TABELAS)
 
 
-class RazaoPg(RazaoBase):
+class RazaoPg(RazaoPgEnvio, RazaoBase):
     def __init__(self, conectar: Callable[[], Any]):
         self._conectar = conectar
 
@@ -100,10 +101,10 @@ class RazaoPg(RazaoBase):
     def _registros_do_ciclo(self, ciclo: str) -> dict[str, RegistroCiclo]:
         with self._tx() as cur:
             cur.execute(
-                "SELECT contact_id, aberto_em, baixa_dia10_em, controle, declarou_pagamento_em FROM motor_aluno_ciclo WHERE ciclo = %s",
+                "SELECT contact_id, aberto_em, baixa_dia10_em, controle, declarou_pagamento_em, suspenso FROM motor_aluno_ciclo WHERE ciclo = %s",
                 (ciclo,),
             )
-            return {r[0]: RegistroCiclo(r[1], r[2], r[3], r[4]) for r in cur.fetchall()}
+            return {r[0]: RegistroCiclo(r[1], r[2], r[3], r[4], r[5]) for r in cur.fetchall()}
 
     def _gravar_carga(self, dia, ciclo, linhas, mudancas, resumo) -> int:
         with self._tx() as cur:
@@ -119,19 +120,19 @@ class RazaoPg(RazaoBase):
             psycopg2.extras.execute_values(
                 cur,
                 """
-                INSERT INTO motor_alunos (contact_id, deal_id, situacao, nivel, calouro, dia10_aberto, financeira_aberta, tem_telefone, bloqueio, carga_id, visto_em)
+                INSERT INTO motor_alunos (contact_id, deal_id, situacao, nivel, nivel_misto, calouro, dia10_aberto, financeira_aberta, tem_telefone, bloqueio, carga_id, visto_em)
                 VALUES %s
                 ON CONFLICT (contact_id) DO UPDATE SET
-                    deal_id = EXCLUDED.deal_id, situacao = EXCLUDED.situacao, nivel = EXCLUDED.nivel, calouro = EXCLUDED.calouro,
+                    deal_id = EXCLUDED.deal_id, situacao = EXCLUDED.situacao, nivel = EXCLUDED.nivel, nivel_misto = EXCLUDED.nivel_misto, calouro = EXCLUDED.calouro,
                     dia10_aberto = EXCLUDED.dia10_aberto, financeira_aberta = EXCLUDED.financeira_aberta,
                     tem_telefone = EXCLUDED.tem_telefone, bloqueio = EXCLUDED.bloqueio,
                     carga_id = EXCLUDED.carga_id, visto_em = NOW()
                 """,
                 [
-                    (cid, l.deal_id, l.situacao, l.nivel, l.calouro, bool(l.dia10_aberto), bool(l.financeira_aberta), l.tem_telefone, l.bloqueio, carga_id)
+                    (cid, l.deal_id, l.situacao, l.nivel, l.nivel_misto, l.calouro, bool(l.dia10_aberto), bool(l.financeira_aberta), l.tem_telefone, l.bloqueio, carga_id)
                     for cid, l in linhas.items()
                 ],
-                template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())",
+                template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())",
                 page_size=1000,
             )
             if mudancas:
@@ -161,8 +162,8 @@ class RazaoPg(RazaoBase):
         with self._tx(dicionario=True) as cur:
             cur.execute(
                 """
-                SELECT contact_id, deal_id, situacao, nivel, calouro, dia10_aberto, financeira_aberta,
-                       tem_telefone, bloqueio, pediu_silencio, lembretes_sem_reacao
+                SELECT contact_id, deal_id, situacao, nivel, nivel_misto, calouro, dia10_aberto, financeira_aberta,
+                       tem_telefone, bloqueio, bloqueio_motor, pediu_silencio, lembretes_sem_reacao
                 FROM motor_alunos
                 WHERE carga_id = (SELECT MAX(id) FROM motor_cargas WHERE completa)
                 """
@@ -173,18 +174,18 @@ class RazaoPg(RazaoBase):
         out: dict[str, dict[str, RegistroCiclo]] = {}
         with self._tx() as cur:
             cur.execute(
-                "SELECT contact_id, ciclo, aberto_em, baixa_dia10_em, controle, declarou_pagamento_em FROM motor_aluno_ciclo WHERE ciclo >= %s",
+                "SELECT contact_id, ciclo, aberto_em, baixa_dia10_em, controle, declarou_pagamento_em, suspenso FROM motor_aluno_ciclo WHERE ciclo >= %s",
                 (ciclo_min,),
             )
-            for cid, ciclo, aberto, baixa, controle, declarou in cur.fetchall():
-                out.setdefault(cid, {})[ciclo] = RegistroCiclo(aberto, baixa, controle, declarou)
+            for cid, ciclo, aberto, baixa, controle, declarou, suspenso in cur.fetchall():
+                out.setdefault(cid, {})[ciclo] = RegistroCiclo(aberto, baixa, controle, declarou, suspenso)
         return out
 
     def _mensagens(self, ciclo: str, simulado: bool) -> dict[str, list[Msg]]:
         out: dict[str, list[Msg]] = {}
         with self._tx() as cur:
             cur.execute(
-                "SELECT contact_id, dia, frente, mensagem FROM motor_mensagens WHERE ciclo = %s AND simulado = %s",
+                "SELECT contact_id, dia, frente, mensagem FROM motor_mensagens WHERE ciclo = %s AND simulado = %s AND status <> 'cancelado'",
                 (ciclo, simulado),
             )
             for cid, dia, frente, mensagem in cur.fetchall():
@@ -236,16 +237,16 @@ class RazaoPg(RazaoBase):
         with self._tx() as cur:
             psycopg2.extras.execute_values(
                 cur,
-                "INSERT INTO motor_mensagens (contact_id, ciclo, dia, simulado, frente, mensagem, estado, lote_id, status) VALUES %s",
+                "INSERT INTO motor_mensagens (contact_id, ciclo, dia, simulado, frente, mensagem, variante, estado, lote_id, status) VALUES %s",
                 [
-                    (cid, ciclo, dia, simulado, lote.frente.value, lote.mensagem.value, estados.get(cid, ""), lote_id, "simulado" if simulado else "enviado")
+                    (cid, ciclo, dia, simulado, lote.frente.value, lote.mensagem.value, lote.variante, estados.get(cid, ""), lote_id, "simulado" if simulado else "reservado")
                     for cid in lote.contact_ids
                 ],
                 page_size=1000,
             )
             cur.execute(
-                "UPDATE motor_lotes SET status = %s, motivo = %s, tamanho = %s, liberado_em = %s, fila = %s, atualizado_em = NOW() WHERE id = %s",
-                (status, motivo, lote.tamanho, agora, _json(fila), lote_id),
+                "UPDATE motor_lotes SET status = %s, motivo = %s, tamanho = %s, liberado_em = %s, fila = %s, variante = %s, atualizado_em = NOW() WHERE id = %s",
+                (status, motivo, lote.tamanho, agora, _json(fila), lote.variante, lote_id),
             )
         return lote.tamanho
 
@@ -258,19 +259,16 @@ class RazaoPg(RazaoBase):
 
     def enviados_hoje(self, dia: date, simulado: bool) -> int:
         with self._tx() as cur:
-            cur.execute("SELECT COUNT(*) FROM motor_mensagens WHERE dia = %s AND simulado = %s", (dia, simulado))
+            cur.execute("SELECT COUNT(*) FROM motor_mensagens WHERE dia = %s AND simulado = %s AND status <> 'cancelado'", (dia, simulado))
             return cur.fetchone()[0]
 
     def ultimo_lote_liberado(self, dia: date, simulado: bool) -> Optional[LoteAtivo]:
         with self._tx() as cur:
             cur.execute(
                 """
-                SELECT l.id, l.liberado_em,
-                       COUNT(m.id) FILTER (WHERE m.status <> 'simulado'),
-                       COUNT(m.id) FILTER (WHERE m.status = 'falhou')
-                FROM motor_lotes l LEFT JOIN motor_mensagens m ON m.lote_id = l.id
-                WHERE l.dia = %s AND l.simulado = %s AND l.liberado_em IS NOT NULL
-                GROUP BY l.id ORDER BY l.liberado_em DESC LIMIT 1
+                SELECT id, liberado_em, enviados, falhas FROM motor_lotes
+                WHERE dia = %s AND simulado = %s AND liberado_em IS NOT NULL
+                ORDER BY liberado_em DESC LIMIT 1
                 """,
                 (dia, simulado),
             )
@@ -284,9 +282,10 @@ class RazaoPg(RazaoBase):
                 INSERT INTO motor_acoes (chave, tipo, lote_id, simulado, status, requisicao)
                 VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (chave) DO NOTHING
                 """,
-                (chave, tipo, lote_id, simulado, "simulado" if simulado else "feito", _json(requisicao)),
+                (chave, tipo, lote_id, simulado, "simulado" if simulado else "iniciada", _json(requisicao)),
             )
             return cur.rowcount == 1
+
 
 
 class _Tx:

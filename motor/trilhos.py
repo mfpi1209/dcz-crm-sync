@@ -22,7 +22,7 @@ from typing import Iterable, Mapping, Optional
 
 from motor.calendario import dias_uteis_entre, para_brt
 from motor.config import MotorConfig
-from motor.governador import dentro_da_janela, fila_vencida
+from motor.governador import antes_do_corte, dentro_da_janela
 from motor.modelos import Aluno, Controle, Fila, Frente, Lote, Mensagem
 
 SITUACAO_ATIVA = "em curso"
@@ -40,6 +40,11 @@ class Recusa:
 def _fold(s: str) -> str:
     n = unicodedata.normalize("NFKD", s or "")
     return "".join(c for c in n if not unicodedata.combining(c)).lower().strip()
+
+
+def normalizar_nivel(s: str) -> str:
+    """'  Graduação ' → 'graduacao': sem espaços, sem acento, sem diferença de maiúsculas."""
+    return "".join(_fold(s).split())
 
 
 def modo_efetivo(cfg: MotorConfig, controle: Controle) -> str:
@@ -68,10 +73,16 @@ def motivo_exclusao(
         return "grupo_de_controle"
     if _fold(aluno.situacao) != SITUACAO_ATIVA:
         return "situacao_diferente_de_em_curso"
+    if aluno.nivel_misto:
+        return "negocio_em_dois_niveis"
+    if cfg.nivel_alvo and normalizar_nivel(aluno.nivel) != cfg.nivel_alvo:
+        return "fora_do_nivel_do_piloto"
     if not aluno.tem_telefone:
         return "sem_telefone"
     if aluno.bloqueio:
         return aluno.bloqueio
+    if aluno.suspenso:
+        return "reclamou_no_ciclo"
     if hoje in aluno.dias_com_mensagem:
         return "ja_recebeu_hoje"
     if aluno.msgs_ciclo >= cfg.max_msgs_ciclo:
@@ -94,16 +105,24 @@ def validar_lote(
     cfg: MotorConfig,
     controle: Controle,
     enviados_hoje: int,
+    plano_aprovado: bool = False,
 ) -> list[Recusa]:
-    """Última barreira antes de liberar um lote. Lista vazia = pode sair."""
+    """Última barreira antes de liberar um lote. Lista vazia = pode sair.
+
+    Em modo real nenhum lote sai sem o plano do dia aprovado por uma pessoa.
+    """
     recusas: list[Recusa] = []
     modo = modo_efetivo(cfg, controle)
     if modo == "parado":
         recusas.append(Recusa("parada_geral", controle.parada_motivo))
     elif modo == "desligado":
         recusas.append(Recusa("motor_desligado"))
+    elif modo == "real" and not plano_aprovado:
+        recusas.append(Recusa("plano_nao_aprovado"))
     if not dentro_da_janela(agora, cfg):
         recusas.append(Recusa("fora_da_janela", f"{cfg.janela_inicio_h}h–{cfg.janela_fim_h}h em dia útil"))
+    elif not antes_do_corte(agora, cfg):
+        recusas.append(Recusa("depois_do_corte", f"último lote até {cfg.corte_min} min antes das {cfg.janela_fim_h}h"))
     if lote.tamanho == 0:
         recusas.append(Recusa("lote_vazio"))
     if lote.tamanho > cfg.lote_max:
@@ -133,23 +152,26 @@ def pausa_de_emergencia(
     *,
     agora: datetime,
     campanha_em_andamento: bool,
+    lote_ativo=None,
+    experiencia=None,
 ) -> Optional[str]:
     """Motivo para pausar agora o que estiver em andamento (None = segue).
 
-    Roda a cada leitura da fila (1 a 2 minutos) e não depende do piloto.
+    Roda a cada leitura da fila e não depende do piloto: fila crítica, espera
+    acima do SLA, falha de envio acima de 6%, trava de experiência no nível de
+    encerrar, fim da janela ou fila às cegas.
     """
     if not campanha_em_andamento:
         return None
-    if not dentro_da_janela(agora, cfg):
-        return "fim da janela de envio"
-    if fila_vencida(fila, agora, cfg):
-        return "sem leitura recente da fila"
-    assert fila is not None
-    if fila.aguardando > cfg.fila_critica:
-        return f"fila em {fila.aguardando}, acima do limite crítico ({cfg.fila_critica})"
-    if fila.maior_espera_s > cfg.sla_espera_s:
-        return f"maior espera de {fila.maior_espera_s // 60} min, acima do SLA ({cfg.sla_espera_min} min)"
-    return None
+    from motor.governador import decidir
+    from motor.modelos import Decisao
+
+    decisao, motivo = decidir(
+        fila, cfg, agora=agora, lote_ativo=lote_ativo, campanha_em_andamento=True, experiencia=experiencia
+    )
+    if decisao != Decisao.PAUSAR:
+        return None
+    return "fim da janela de envio" if motivo == "fora da janela de envio" else motivo
 
 
 def contar_exclusoes(motivos: Iterable[Optional[str]]) -> dict[str, int]:

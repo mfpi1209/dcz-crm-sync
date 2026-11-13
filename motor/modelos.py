@@ -66,7 +66,9 @@ class Aluno:
     dia10_aberto: bool = False        # campo "Dia 10" = Sim (dado D-1)
     financeira_aberta: bool = False   # campo "Financeira" = Sim (dado D-1)
     tem_telefone: bool = True
-    bloqueio: Optional[str] = None    # "erro_131026" | "recusou_mensagens"
+    nivel_misto: bool = False         # contato com negócio em mais de um nível (fica fora)
+    suspenso: bool = False            # reclamou neste ciclo: régua suspensa até o próximo
+    bloqueio: Optional[str] = None    # "erro_131026" | "recusou_mensagens" | "numero_errado"
     historico: tuple[Classe, ...] = ()  # ciclos fechados do semestre, do mais antigo ao mais recente
     estado: Estado = Estado.SEM_HISTORICO
     controle: bool = False
@@ -104,6 +106,17 @@ class LoteAtivo:
 
 
 @dataclass(frozen=True)
+class Experiencia:
+    """Pedidos para parar e reclamações do dia, contra o que foi entregue."""
+    casos: int = 0       # alunos distintos que pediram para parar ou reclamaram
+    entregues: int = 0   # mensagens entregues no dia (ou enviadas, enquanto a entrega não é conhecida)
+
+    @property
+    def por_mil(self) -> float:
+        return self.casos * 1000.0 / self.entregues if self.entregues > 0 else 0.0
+
+
+@dataclass(frozen=True)
 class Acao:
     """Uma linha do calendário do ciclo: qual mensagem sai hoje e para quais estados."""
     frente: Frente
@@ -126,6 +139,7 @@ class Lote:
     frente: Frente
     mensagem: Mensagem
     contact_ids: tuple[str, ...]
+    variante: str = "A"
 
     @property
     def tamanho(self) -> int:

@@ -3,7 +3,7 @@
 -- Aplicar: python scripts/apply_motor_sql.py
 -- NÃO roda no boot do painel nem do worker; aplicar em produção só com autorização.
 --
--- O motor guarda só identificadores do CRM, datas e status.
+-- O motor guarda só identificadores do CRM, datas, status e rótulos de resposta.
 -- Nome, telefone, CPF, RGM e e-mail ficam no CRM.
 
 -- Chaves que a página do painel grava (liga/desliga e parada geral).
@@ -60,7 +60,9 @@ CREATE TABLE IF NOT EXISTS motor_alunos (
     dia10_aberto         BOOLEAN NOT NULL DEFAULT FALSE,
     financeira_aberta    BOOLEAN NOT NULL DEFAULT FALSE,
     tem_telefone         BOOLEAN NOT NULL DEFAULT TRUE,
-    bloqueio             TEXT,
+    nivel_misto          BOOLEAN NOT NULL DEFAULT FALSE, -- negócio em mais de um nível: fica fora
+    bloqueio             TEXT,                           -- vem da carga (etiqueta do contato)
+    bloqueio_motor       TEXT,                           -- gravado pelo motor (pediu para parar, número errado, erro 131026); a carga não apaga
     pediu_silencio       BOOLEAN NOT NULL DEFAULT FALSE,
     lembretes_sem_reacao INTEGER NOT NULL DEFAULT 0,
     carga_id             BIGINT,
@@ -79,6 +81,7 @@ CREATE TABLE IF NOT EXISTS motor_aluno_ciclo (
     baixa_dia10_em        DATE,                       -- dia em que o Dia 10 virou Não (baixa D-1)
     controle              BOOLEAN NOT NULL DEFAULT FALSE,
     declarou_pagamento_em DATE,
+    suspenso              BOOLEAN NOT NULL DEFAULT FALSE, -- reclamou: régua suspensa até o próximo ciclo
     atualizado_em         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (contact_id, ciclo)
 );
@@ -92,6 +95,8 @@ CREATE TABLE IF NOT EXISTS motor_planos (
     ciclo     TEXT NOT NULL,
     piloto    TEXT NOT NULL DEFAULT 'formula',
     status    TEXT NOT NULL DEFAULT 'proposto',       -- proposto | aprovado | encerrado
+    aprovado_por TEXT,
+    aprovado_em  TIMESTAMPTZ,
     resumo    JSONB NOT NULL DEFAULT '{}'::jsonb,
     criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (dia, simulado)
@@ -106,13 +111,25 @@ CREATE TABLE IF NOT EXISTS motor_lotes (
     ordem            INTEGER NOT NULL,
     frente           TEXT NOT NULL,
     mensagem         TEXT NOT NULL,
+    variante         TEXT NOT NULL DEFAULT 'A',
     tamanho_previsto INTEGER NOT NULL DEFAULT 0,
     tamanho          INTEGER NOT NULL DEFAULT 0,
-    status           TEXT NOT NULL DEFAULT 'planejado', -- planejado | simulado | liberado | pausado | concluido | adiado | recusado
+    -- planejado | simulado | etiquetando | enviando | pausado | concluido | cancelado | adiado | recusado | erro
+    status           TEXT NOT NULL DEFAULT 'planejado',
     motivo           TEXT NOT NULL DEFAULT '',
     fila             JSONB,
     crm_campaign_id  TEXT,
     crm_tag_id       TEXT,
+    crm_status       TEXT,                              -- status da campanha no CRM
+    etiquetados      INTEGER NOT NULL DEFAULT 0,
+    enviados         INTEGER NOT NULL DEFAULT 0,        -- destinatários já processados pela campanha
+    entregues        INTEGER NOT NULL DEFAULT 0,
+    lidos            INTEGER NOT NULL DEFAULT 0,
+    respondidos      INTEGER NOT NULL DEFAULT 0,
+    falhas           INTEGER NOT NULL DEFAULT 0,
+    stats_em         TIMESTAMPTZ,
+    leituras         INTEGER NOT NULL DEFAULT 0,        -- leituras de destinatários concluídas (2 h e 24 h)
+    leitura_pagina   INTEGER NOT NULL DEFAULT 0,        -- próxima página da leitura em andamento
     criado_em        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     liberado_em      TIMESTAMPTZ,
     atualizado_em    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -129,10 +146,15 @@ CREATE TABLE IF NOT EXISTS motor_mensagens (
     simulado      BOOLEAN NOT NULL DEFAULT TRUE,
     frente        TEXT NOT NULL,
     mensagem      TEXT NOT NULL,
+    variante      TEXT NOT NULL DEFAULT 'A',
     estado        TEXT NOT NULL DEFAULT '',           -- estado do aluno na hora do lote
     lote_id       BIGINT REFERENCES motor_lotes(id) ON DELETE CASCADE,
-    status        TEXT NOT NULL DEFAULT 'simulado',   -- simulado | enviado | entregue | lido | falhou
+    -- simulado | reservado | etiquetado | enviado | entregue | lido | falhou | cancelado
+    status        TEXT NOT NULL DEFAULT 'simulado',
     erro          TEXT,
+    erro_codigo   INTEGER,                            -- código da Meta (ex.: 131026)
+    entregue_em   TIMESTAMPTZ,
+    lido_em       TIMESTAMPTZ,
     respondeu_em  TIMESTAMPTZ,
     classificacao TEXT,
     confianca     NUMERIC(4,3),
@@ -180,3 +202,28 @@ CREATE TABLE IF NOT EXISTS motor_acoes (
     resposta   JSONB,
     criado_em  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Respostas dos alunos (webhook message_received do CRM). Guarda rótulo e confiança.
+-- texto_pendente: texto já mascarado, só até o worker classificar (minutos).
+-- texto_mascarado: só com MOTOR_GUARDAR_TEXTO=1, por no máximo 30 dias (expira_em).
+CREATE TABLE IF NOT EXISTS motor_respostas (
+    id              BIGSERIAL PRIMARY KEY,
+    recebida_em     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    dia             DATE NOT NULL,
+    contact_id      TEXT NOT NULL,
+    wa_message_id   TEXT UNIQUE,                       -- idempotência do webhook
+    mensagem_id     BIGINT REFERENCES motor_mensagens(id) ON DELETE SET NULL,
+    lote_id         BIGINT REFERENCES motor_lotes(id) ON DELETE SET NULL,
+    rotulo          TEXT,                              -- NULL = aguardando classificação
+    confianca       NUMERIC(4,3),
+    origem          TEXT,                              -- botao | jev | regras
+    revisar         BOOLEAN NOT NULL DEFAULT FALSE,    -- confiança abaixo de 0,7
+    classificada_em TIMESTAMPTZ,
+    texto_pendente  TEXT,
+    texto_mascarado TEXT,
+    expira_em       TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_motor_respostas_dia ON motor_respostas (dia, rotulo);
+CREATE INDEX IF NOT EXISTS idx_motor_respostas_lote ON motor_respostas (lote_id);
+CREATE INDEX IF NOT EXISTS idx_motor_respostas_pendentes ON motor_respostas (id) WHERE rotulo IS NULL;
+CREATE INDEX IF NOT EXISTS idx_motor_respostas_contato ON motor_respostas (contact_id, dia);

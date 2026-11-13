@@ -42,7 +42,7 @@
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="text-3xl font-bold font-display text-[var(--text-primary)] mb-1">Motor de Ativações</h2>
-            <p class="text-sm text-[var(--text-muted)] max-w-2xl">Avisos de pagamento em lotes, dosados pela fila de atendimento. Esta versão só simula: monta os lotes e registra o que faria, sem enviar nada.</p>
+            <p class="text-sm text-[var(--text-muted)] max-w-2xl">Avisos de pagamento em lotes, dosados pela fila de atendimento. Em simulação o motor monta os lotes e registra o que faria, sem enviar nada.</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
             <button type="button" id="mt-btn-ligar" onclick="mtControle('ligar')" class="btn-secondary text-sm px-4 py-2 rounded-xl hidden">Ligar</button>
@@ -58,19 +58,24 @@
         <div class="mt-card p-4"><div class="mt-rot">Motor</div><div id="mt-modo" class="mt-val mt-neutro mt-1">—</div><div id="mt-modo-sub" class="text-xs text-[var(--text-muted)] mt-1"></div></div>
         <div class="mt-card p-4"><div class="mt-rot">Worker</div><div id="mt-worker" class="mt-val mt-neutro mt-1">—</div><div id="mt-worker-sub" class="text-xs text-[var(--text-muted)] mt-1"></div></div>
         <div class="mt-card p-4"><div class="mt-rot">Fila agora</div><div id="mt-fila" class="mt-val mt-1">—</div><div id="mt-fila-sub" class="text-xs text-[var(--text-muted)] mt-1"></div></div>
-        <div class="mt-card p-4"><div class="mt-rot">Simulado hoje</div><div id="mt-hoje" class="mt-val mt-1">—</div><div id="mt-hoje-sub" class="text-xs text-[var(--text-muted)] mt-1"></div></div>
+        <div class="mt-card p-4"><div id="mt-hoje-rot" class="mt-rot">Simulado hoje</div><div id="mt-hoje" class="mt-val mt-1">—</div><div id="mt-hoje-sub" class="text-xs text-[var(--text-muted)] mt-1"></div></div>
     </div>
 
     <div class="mt-card p-5 space-y-3">
         <div class="flex flex-wrap items-baseline justify-between gap-2">
-            <h3 class="text-lg font-bold text-[var(--text-primary)]">Plano do dia (simulado)</h3>
-            <span id="mt-plano-meta" class="text-xs text-[var(--text-muted)]"></span>
+            <h3 id="mt-plano-titulo" class="text-lg font-bold text-[var(--text-primary)]">Plano do dia</h3>
+            <div class="flex flex-wrap items-center gap-2">
+                <span id="mt-plano-status" class="mt-sel mt-neutro hidden"></span>
+                <button type="button" id="mt-btn-aprovar" onclick="mtAprovarPlano()" class="btn-success text-white text-sm px-4 py-2 rounded-xl hidden">Aprovar plano</button>
+            </div>
+        </div>
+        <div><span id="mt-plano-meta" class="text-xs text-[var(--text-muted)]"></span>
         </div>
         <p id="mt-plano-vazio" class="text-sm text-[var(--text-muted)]"></p>
         <div id="mt-plano-corpo" class="hidden space-y-4">
             <div class="mt-rolavel">
                 <table>
-                    <thead><tr><th>Frente</th><th>Mensagem</th><th class="mt-num">Elegíveis</th><th class="mt-num">Fora do alvo</th><th>Tirados pelos trilhos</th></tr></thead>
+                    <thead><tr><th>Frente</th><th>Mensagem</th><th class="mt-num">Elegíveis hoje</th><th class="mt-num">Fora do alvo</th><th>Tirados pelos trilhos</th></tr></thead>
                     <tbody id="mt-plano-acoes"></tbody>
                 </table>
             </div>
@@ -83,10 +88,17 @@
         <p id="mt-lotes-vazio" class="text-sm text-[var(--text-muted)]">Nenhum lote planejado para hoje.</p>
         <div id="mt-lotes-wrap" class="mt-rolavel hidden">
             <table>
-                <thead><tr><th class="mt-num">#</th><th>Mensagem</th><th class="mt-num">Previsto</th><th class="mt-num">Liberado</th><th>Situação</th><th>Hora</th><th>Motivo</th></tr></thead>
+                <thead><tr><th class="mt-num">#</th><th>Mensagem</th><th class="mt-num">Previsto</th><th class="mt-num">Liberado</th><th class="mt-num">Entregues</th><th class="mt-num">Falhas</th><th class="mt-num" title="Alunos que pediram para parar ou reclamaram">Parar / reclamar</th><th>Situação</th><th>Hora</th><th>Motivo</th></tr></thead>
                 <tbody id="mt-lotes"></tbody>
             </table>
         </div>
+    </div>
+
+    <div class="mt-card p-5 space-y-3">
+        <h3 class="text-lg font-bold text-[var(--text-primary)]">Respostas e experiência (hoje)</h3>
+        <p id="mt-exp-linha" class="text-sm"></p>
+        <div id="mt-respostas" class="flex flex-wrap gap-2"></div>
+        <p class="text-xs text-[var(--text-muted)]">O CRM não avisa quando o robô assume a conversa, então esta contagem é menor que o total de respostas.</p>
     </div>
 
     <div class="grid md:grid-cols-2 gap-5">

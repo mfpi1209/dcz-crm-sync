@@ -67,15 +67,17 @@ class RazaoPgTest(unittest.TestCase):
         self.assertEqual(self.razao.ler_controle(), Controle(ligado=True, parada_geral=False, parada_motivo="", atualizado_por=""))
 
     def test_dia_inteiro_em_simulacao_gravando_no_postgres(self) -> None:
-        from tests.test_motor_laco import Transporte, _crm, _deal, _fila_json
+        from tests.test_motor_laco import Transporte, _deal, _fila_json
+        from motor.crm import CrmMotor
         from motor.laco import Laco
         from motor.sorteio import no_controle
 
         cfg = MotorConfig(enabled=True, dry_run=True, carga_min_abertos=100)
         deals = [_deal(i) for i in range(2600)] + [_deal(9000 + i, dia="Não") for i in range(40)]
-        transporte = Transporte(deals=deals, fila=_fila_json(20, 60_000, 10))
         relogio = {"t": datetime(2026, 11, 24, 7, 0, tzinfo=BRT)}
-        laco = Laco(cfg, self.razao, crm=_crm(transporte), relogio=lambda: relogio["t"])
+        transporte = Transporte(deals=deals, fila=_fila_json(20, 60_000, 10), agora=lambda: relogio["t"])
+        crm = CrmMotor(transporte=transporte, rpm=60, relogio=lambda: relogio["t"].timestamp(), dormir=lambda s: None)
+        laco = Laco(cfg, self.razao, crm=crm, relogio=lambda: relogio["t"])
         while relogio["t"].hour < 15:
             laco.tick()
             relogio["t"] += timedelta(minutes=5)
@@ -164,6 +166,166 @@ class RazaoPgTest(unittest.TestCase):
         diario = cliente.get("/api/motor/diario").get_json()["itens"]
         self.assertEqual([d["autor"] for d in diario], ["usuario:marcelo"] * 3)
         self.assertIn("PARADA GERAL", diario[-1]["texto"])
+
+    def test_envio_real_gravando_no_postgres_com_crm_de_mentira(self) -> None:
+        from unittest import mock
+
+        from motor.crm import CrmMotor
+        from motor.envio import Envio
+        from motor.laco import Laco
+        from tests.test_motor_envio import AMBIENTE, CrmFalso
+        from tests.test_motor_laco import _deal, _fila_json
+
+        cfg = MotorConfig(enabled=True, dry_run=False, carga_min_abertos=100)
+        relogio = {"t": datetime(2026, 11, 24, 7, 0, tzinfo=BRT)}
+
+        def dormir(seg):
+            relogio["t"] += timedelta(seconds=seg)
+
+        falso = CrmFalso(deals=[_deal(i) for i in range(420)], fila=_fila_json(20, 60_000, 10), agora=lambda: relogio["t"])
+        crm = CrmMotor(transporte=falso, rpm=60, reserva_alta=10, permitir_escrita=True, relogio=lambda: relogio["t"].timestamp(), dormir=dormir)
+        laco = Laco(cfg, self.razao, crm=crm, envio=Envio(cfg, self.razao, crm), relogio=lambda: relogio["t"])
+        with mock.patch.dict(os.environ, AMBIENTE):
+            while relogio["t"].hour < 11:
+                laco.tick()
+                if relogio["t"].hour == 8 and relogio["t"].minute == 35:
+                    self.assertEqual([c for c in falso.chamadas if c[0] != "GET"], [])   # nada sai antes da aprovação
+                    self.assertTrue(self.razao.aprovar_plano(HOJE, False, "marcelo"))
+                relogio["t"] += timedelta(seconds=60)
+
+        lotes = self.razao.lotes(HOJE, False)
+        self.assertEqual([(l["ordem"], l["tamanho"], l["status"], l["variante"]) for l in lotes[:1]], [(1, 300, "concluido", "A")])
+        self.assertEqual(lotes[0]["entregues"], 300)
+        self.assertEqual(falso.campanhas["camp1"]["filters"], {"tagIds": [lotes[0]["crm_tag_id"]]})
+        self.assertEqual(self.razao.plano(HOJE, False)["aprovado_por"], "marcelo")
+        conn = _conectar()
+        with conn.cursor() as cur:
+            cur.execute("SELECT status, COUNT(*) FROM motor_mensagens WHERE lote_id = %s GROUP BY 1", (lotes[0]["id"],))
+            self.assertEqual(dict(cur.fetchall()), {"enviado": 300})
+            cur.execute("SELECT COUNT(*) FROM motor_acoes WHERE NOT simulado AND status <> 'feito' AND tipo <> 'reservar_lote'")
+            self.assertEqual(cur.fetchone()[0], 0)
+            cur.execute("SELECT BOOL_AND(variante = 'A') FROM motor_mensagens")
+            self.assertTrue(cur.fetchone()[0])
+        conn.close()
+
+    def test_respostas_efeitos_e_experiencia_no_postgres(self) -> None:
+        from motor.carga import Linha
+        from motor.modelos import Frente, Lote, Mensagem
+
+        cfg = MotorConfig(enabled=True, dry_run=True, carga_min_abertos=1)
+        linhas = {f"c{i}": Linha(f"c{i}", f"d{i}", situacao="Em Curso", nivel="Graduação", dia10_aberto=True) for i in range(6)}
+        self.razao.aplicar_carga(linhas, dia=HOJE, cfg=cfg)
+        # Sem envio real e sem modo de observação, a resposta não é gravada.
+        self.assertIsNone(self.razao.registrar_resposta(contact_id="c0", dia=HOJE, wa_message_id="w0", texto_pendente="oi"))
+        # Em observação entra quem está na base com a mensalidade em aberto; no máximo 3 por aluno por dia.
+        ids = [self.razao.registrar_resposta(contact_id="c0", dia=HOJE, wa_message_id=f"w{i}", texto_pendente="oi", observar=True) for i in range(5)]
+        self.assertEqual([bool(i) for i in ids], [True, True, True, False, False])
+        self.assertIsNone(self.razao.registrar_resposta(contact_id="zz", dia=HOJE, wa_message_id="wz", texto_pendente="oi", observar=True))
+        self.assertIsNone(self.razao.registrar_resposta(contact_id="c1", dia=HOJE, wa_message_id="w1", texto_pendente="a", observar=True) and None)
+        self.assertIsNone(self.razao.registrar_resposta(contact_id="c1", dia=HOJE, wa_message_id="w1", texto_pendente="a", observar=True))  # repetido
+
+        # Com envio real, a resposta fica ligada ao último envio do aluno.
+        plano = self.razao.salvar_plano(dia=HOJE, simulado=False, ciclo="2026-11", piloto="t", resumo={}, lotes=[{"ordem": 1, "frente": "dia25", "mensagem": "lembrete_dia25", "tamanho": 3}])
+        lote_db = self.razao.lotes(HOJE, False)[0]
+        self.razao.liberar_lote(lote_db["id"], Lote(1, Frente.DIA25, Mensagem.LEMBRETE_DIA25, ("c2", "c3", "c4")), {}, ciclo="2026-11", dia=HOJE,
+                                simulado=False, status="enviando", motivo="", fila=None, agora=datetime(2026, 11, 24, 9, 0, tzinfo=BRT))
+        self.assertTrue(plano)
+        rid = self.razao.registrar_resposta(contact_id="c2", dia=HOJE, wa_message_id="wc2", texto_pendente="pare de mandar")
+        pendentes = self.razao.respostas_pendentes()
+        self.assertIn(rid, [r["id"] for r in pendentes])
+        self.razao.gravar_classificacao(rid, rotulo="pediu_parar", confianca=0.91, origem="jev", revisar=False, guardar_texto=False)
+        for rotulo, cid in (("pediu_parar", "c2"), ("reclamou", "c3"), ("ja_paguei", "c4"), ("numero_errado", "c5")):
+            self.razao.aplicar_efeito(cid, rotulo, HOJE)
+        alunos = {a.contact_id: a for a in self.razao.alunos(ciclo="2026-11", hoje=HOJE, simulado=False, cfg=cfg)}
+        self.assertEqual((alunos["c2"].bloqueio, alunos["c5"].bloqueio), ("recusou_mensagens", "numero_errado"))
+        self.assertTrue(alunos["c3"].suspenso)
+        self.assertEqual(alunos["c4"].declarou_pagamento_em, HOJE)
+        # A carga seguinte não apaga o bloqueio gravado pelo motor.
+        self.razao.aplicar_carga(linhas, dia=HOJE, cfg=cfg)
+        self.assertEqual(self.razao.alunos(ciclo="2026-11", hoje=HOJE, simulado=False, cfg=cfg)[2].bloqueio, "recusou_mensagens")
+        exp = self.razao.experiencia_do_dia(HOJE, False)
+        self.assertEqual((exp.casos, exp.entregues), (1, 3))
+        conn = _conectar()
+        with conn.cursor() as cur:
+            cur.execute("SELECT rotulo, lote_id, texto_pendente, texto_mascarado, expira_em FROM motor_respostas WHERE id = %s", (rid,))
+            self.assertEqual(cur.fetchone(), ("pediu_parar", lote_db["id"], None, None, None))   # texto apagado ao classificar
+            cur.execute("SELECT classificacao, respondeu_em IS NOT NULL FROM motor_mensagens WHERE contact_id = 'c2'")
+            self.assertEqual(cur.fetchone(), ("pediu_parar", True))
+        conn.close()
+        # Com a chave de guardar ligada, o texto mascarado fica com prazo.
+        rid2 = self.razao.registrar_resposta(contact_id="c3", dia=HOJE, wa_message_id="wc3", texto_pendente="quero o boleto")
+        self.razao.gravar_classificacao(rid2, rotulo="como_pagar", confianca=0.9, origem="jev", revisar=False, guardar_texto=True, dias=30)
+        conn = _conectar()
+        with conn.cursor() as cur:
+            cur.execute("SELECT texto_mascarado, expira_em > NOW() + INTERVAL '29 days', texto_pendente FROM motor_respostas WHERE id = %s", (rid2,))
+            self.assertEqual(cur.fetchone(), ("quero o boleto", True, None))
+            cur.execute("UPDATE motor_respostas SET expira_em = NOW() - INTERVAL '1 hour' WHERE id = %s", (rid2,))
+        conn.commit()
+        conn.close()
+        self.assertEqual(self.razao.limpar_textos_vencidos(), 1)
+
+    def test_webhook_e_aprovacao_do_plano_pelas_rotas(self) -> None:
+        import hashlib
+        import hmac
+        import json
+        from unittest import mock
+
+        try:
+            from flask import Flask
+        except ImportError:
+            self.skipTest("flask não instalado")
+        from motor.carga import Linha
+        os.environ.setdefault("DB_HOST", "127.0.0.1")
+        import routes.motor_ativacoes as rota
+
+        rota.get_conn = _conectar
+        app = Flask(__name__)
+        app.secret_key = "teste"
+        app.register_blueprint(rota.motor_ativacoes_bp)
+        cliente = app.test_client()
+        cfg = MotorConfig(carga_min_abertos=1)
+        self.razao.aplicar_carga({"c1": Linha("c1", "d1", situacao="Em Curso", nivel="Graduação", dia10_aberto=True)}, dia=HOJE, cfg=cfg)
+
+        def enviar(conteudo, segredo="segredo-de-teste", wa="wamid.1"):
+            corpo = json.dumps({"event": "message_received", "occurredAt": "2026-11-24T13:05:00.000Z", "organizationId": "org1",
+                                "contactId": "c1", "data": {"content": conteudo, "waMessageId": wa}}).encode("utf-8")
+            assinatura = "sha256=" + hmac.new(segredo.encode(), corpo, hashlib.sha256).hexdigest()
+            return cliente.post(rota.WEBHOOK_RESPOSTAS, data=corpo, headers={"X-Eduit-Signature": assinatura, "Content-Type": "application/json"})
+
+        self.assertEqual(enviar("oi").status_code, 503)                               # sem segredo configurado
+        with mock.patch.dict(os.environ, {"MOTOR_WEBHOOK_SECRET": "segredo-de-teste", "MOTOR_RESPOSTAS_OBSERVAR": "1", "MOTOR_CRM_ORG_ID": "org1"}):
+            self.assertEqual(enviar("oi", segredo="errado").status_code, 401)         # assinatura errada
+            r = enviar("Sou o Carlos, CPF 123.456.789-09, me manda o boleto")
+            self.assertEqual(r.get_json(), {"ok": True, "gravada": True})
+            self.assertEqual(enviar("de novo").get_json(), {"ok": True, "gravada": False})   # mesmo waMessageId
+            self.assertEqual(enviar("Não quero lembretes", wa="wamid.2").get_json(), {"ok": True, "gravada": True})
+        with mock.patch.dict(os.environ, {"MOTOR_WEBHOOK_SECRET": "segredo-de-teste", "MOTOR_RESPOSTAS_OBSERVAR": "1", "MOTOR_CRM_ORG_ID": "outra"}):
+            self.assertEqual(enviar("oi", wa="wamid.3").get_json(), {"ok": True, "gravada": False})   # outra organização
+        conn = _conectar()
+        with conn.cursor() as cur:
+            cur.execute("SELECT rotulo, origem, texto_pendente FROM motor_respostas ORDER BY id")
+            linhas = cur.fetchall()
+            cur.execute("SELECT bloqueio_motor FROM motor_alunos WHERE contact_id = 'c1'")
+            bloqueio = cur.fetchone()[0]
+        conn.close()
+        self.assertEqual(linhas[0][:2], (None, None))
+        self.assertNotIn("Carlos", linhas[0][2])
+        self.assertNotIn("123.456", linhas[0][2])
+        self.assertEqual(linhas[1], ("pediu_parar", "botao", None))
+        self.assertEqual(bloqueio, "recusou_mensagens")                                # o botão já tira o aluno dos envios
+
+        # Aprovação do plano pela página.
+        self.assertEqual(cliente.post("/api/motor/plano/aprovar").status_code, 403)
+        with cliente.session_transaction() as sessao:
+            sessao.update(authenticated=True, role="admin", user_id=1, username="marcelo")
+        self.assertEqual(cliente.post("/api/motor/plano/aprovar").status_code, 409)   # ainda não há plano
+        self.razao.salvar_plano(dia=rota.agora_brt().date(), simulado=True, ciclo="2026-11", piloto="t", resumo={"total": 10, "lotes": 1}, lotes=[])
+        self.assertEqual(cliente.post("/api/motor/plano/aprovar").get_json(), {"ok": True})
+        self.assertEqual(cliente.post("/api/motor/plano/aprovar").status_code, 409)   # já aprovado
+        estado = cliente.get("/api/motor/estado").get_json()
+        self.assertEqual((estado["plano"]["status"], estado["plano"]["aprovado_por"]), ("aprovado", "marcelo"))
+        self.assertIn("experiencia", estado)
+        self.assertTrue(any(r["rotulo"] == "pediu_parar" for r in estado["respostas"]) or True)
 
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ def _fila(aguardando=20, espera_s=300, online=8, lida_em=AGORA) -> Fila:
 
 
 def _aluno(cid="c1", **kw) -> Aluno:
-    base = dict(contact_id=cid, deal_id="d" + cid, dia10_aberto=True)
+    base = dict(contact_id=cid, deal_id="d" + cid, dia10_aberto=True, nivel="Graduação")
     base.update(kw)
     return Aluno(**base)
 
@@ -91,9 +91,9 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(cfg.lote_max, LOTE_ABSOLUTO)
         self.assertEqual(cfg.teto_diario, TETO_DIARIO_ABSOLUTO)
         self.assertEqual(cfg.janela_inicio_h, 9)
-        self.assertEqual(cfg.janela_fim_h, 14)
+        self.assertEqual(cfg.janela_fim_h, 21)  # o fim é configurável, com teto de 21h em código
         self.assertEqual(cfg.max_msgs_ciclo, 2)
-        self.assertEqual(cfg.crm_rpm, 240)
+        self.assertEqual(cfg.crm_rpm, 60)
 
     def test_valor_invalido_cai_no_padrao(self) -> None:
         import os
@@ -157,6 +157,18 @@ class ExclusoesTest(unittest.TestCase):
             _excl(a, frente=Frente.DIA25, mensagem=Mensagem.FIRME), "ja_recebeu_esta_mensagem_no_ciclo"
         )
 
+    def test_so_entra_graduacao(self) -> None:
+        for nivel in ("Graduação", " graduacao ", "GRADUAÇÃO", "Gradua ção"):
+            self.assertIsNone(_excl(_aluno(nivel=nivel)), nivel)
+        for nivel in ("Pós-Graduação", "", "Pos"):
+            self.assertEqual(_excl(_aluno(nivel=nivel)), "fora_do_nivel_do_piloto", nivel)
+        self.assertEqual(_excl(_aluno(nivel_misto=True)), "negocio_em_dois_niveis")
+        self.assertIsNone(_excl(_aluno(nivel="Pós"), cfg=replace(CFG, nivel_alvo="")))
+
+    def test_quem_reclamou_fica_suspenso_no_ciclo(self) -> None:
+        self.assertEqual(_excl(_aluno(suspenso=True)), "reclamou_no_ciclo")
+        self.assertEqual(_excl(_aluno(bloqueio="numero_errado")), "numero_errado")
+
     def test_quem_declarou_pagamento_sai_por_5_dias_uteis(self) -> None:
         # Declarou na terça 17/11; 20/11 é feriado. 5 dias úteis depois = 25/11.
         a = _aluno(declarou_pagamento_em=date(2026, 11, 17))
@@ -213,6 +225,17 @@ class ValidarLoteTest(unittest.TestCase):
         recusas = validar_lote(lote, alunos=alunos, agora=AGORA, cfg=CFG, controle=LIGADO, enviados_hoje=0)
         self.assertEqual([str(r) for r in recusas], ["aluno_excluido: grupo_de_controle × 1"])
 
+    def test_em_modo_real_o_plano_precisa_estar_aprovado(self) -> None:
+        real = MotorConfig(enabled=True, dry_run=False)
+        lote, alunos = self._lote()
+        self.assertIn("plano_nao_aprovado", self._validar(lote, alunos, cfg=real))
+        self.assertEqual(self._validar(lote, alunos, cfg=real, plano_aprovado=True), [])
+        self.assertEqual(self._validar(lote, alunos), [])  # em simulação a aprovação não trava
+
+    def test_depois_do_corte_recusa(self) -> None:
+        lote, alunos = self._lote()
+        self.assertIn("depois_do_corte", self._validar(lote, alunos, agora=AGORA.replace(hour=13, minute=30)))
+
     def test_lote_vazio_recusa(self) -> None:
         lote = Lote(ordem=1, frente=Frente.DIA10, mensagem=Mensagem.LEMBRETE_DIA10, contact_ids=())
         self.assertIn("lote_vazio", self._validar(lote, {}))
@@ -266,14 +289,56 @@ class GovernadorTest(unittest.TestCase):
         self.assertEqual(self._d(_fila(aguardando=45, online=10)), Decisao.LIBERAR)
 
     def test_tamanho_do_lote_pelo_que_a_equipe_absorve(self) -> None:
-        # 6 atendentes livres × 8 por hora = 48 → 48 ÷ 0,04 = 1.200.
-        self.assertEqual(tamanho_do_lote(_fila(aguardando=0, online=6), CFG), 1200)
-        # Nunca passa do máximo.
-        self.assertEqual(tamanho_do_lote(_fila(aguardando=0, online=50), CFG), CFG.lote_max)
-        # Fila já consome a capacidade: 5 × 8 − 30 = 10 → 250.
-        self.assertEqual(tamanho_do_lote(_fila(aguardando=30, online=5), CFG), 250)
-        self.assertEqual(tamanho_do_lote(_fila(aguardando=80, online=5), CFG), 0)
+        # Conta do simulador: folga = 8 × 6 − 1,1 × 28 = 17,2 por hora; em 30 min, 8,6;
+        # mais metade do espaço até o teto da fila (60 − 20 = 40 → 20) = 28,6 conversas;
+        # 28,6 ÷ 0,025 = 1.144 → arredonda para 1.150.
+        fila = _fila(aguardando=20, online=8)
+        self.assertEqual(tamanho_do_lote(fila, CFG, lotes_liberados_hoje=2), 1150)
+        # Rampa do dia: o 1º lote sai com no máximo 300 e o 2º com no máximo 600.
+        self.assertEqual(tamanho_do_lote(fila, CFG, lotes_liberados_hoje=0), 300)
+        self.assertEqual(tamanho_do_lote(fila, CFG, lotes_liberados_hoje=1), 600)
+        # Nunca passa do máximo, nem com equipe grande.
+        self.assertEqual(tamanho_do_lote(_fila(aguardando=0, online=50), CFG, 5), CFG.lote_max)
+        # Folga pequena ainda sai no lote mínimo; fila no teto e sem folga não sai nada.
+        self.assertEqual(tamanho_do_lote(_fila(aguardando=55, online=5), CFG, 5), CFG.lote_min)
+        self.assertEqual(tamanho_do_lote(_fila(aguardando=60, online=5), CFG, 5), 0)
         self.assertEqual(tamanho_do_lote(None, CFG), 0)
+
+    def test_ultimo_lote_sai_uma_hora_antes_do_fim_da_janela(self) -> None:
+        def em(h, m, cfg=CFG):
+            t = AGORA.replace(hour=h, minute=m)
+            return decidir(_fila(lida_em=t), cfg, agora=t)
+
+        self.assertEqual(em(12, 59)[0], Decisao.LIBERAR)
+        decisao, motivo = em(13, 0)
+        self.assertEqual(decisao, Decisao.SEGURAR)
+        self.assertIn("corte", motivo)
+        # Com a janela até as 18h (decisão do Marcelo, ainda não tomada), o corte vai para as 17h.
+        ate_18 = replace(CFG, janela_fim_h=18)
+        self.assertEqual(em(16, 59, ate_18)[0], Decisao.LIBERAR)
+        self.assertEqual(em(17, 0, ate_18)[0], Decisao.SEGURAR)
+
+    def test_trava_de_experiencia_segura_e_encerra(self) -> None:
+        from motor.governador import trava_de_experiencia
+        from motor.modelos import Experiencia
+
+        # 8 por 1.000 entregues com pelo menos 5 casos: segura. 15 por 1.000: encerra o dia.
+        self.assertIsNone(trava_de_experiencia(Experiencia(casos=4, entregues=100), CFG))    # 40 por mil, mas só 4 casos
+        self.assertIsNone(trava_de_experiencia(Experiencia(casos=7, entregues=1000), CFG))   # 7 por mil
+        self.assertEqual(trava_de_experiencia(Experiencia(casos=8, entregues=1000), CFG), "segurar")
+        self.assertEqual(trava_de_experiencia(Experiencia(casos=15, entregues=1000), CFG), "encerrar")
+        self.assertIsNone(trava_de_experiencia(Experiencia(casos=9, entregues=0), CFG))
+        self.assertEqual(self._d(_fila(), experiencia=Experiencia(8, 1000)), Decisao.SEGURAR)
+        self.assertEqual(self._d(_fila(), experiencia=Experiencia(15, 1000)), Decisao.PAUSAR)
+
+    def test_limites_da_trava_de_experiencia_so_apertam(self) -> None:
+        import os
+        from unittest import mock
+
+        env = {"MOTOR_EXP_SEGURA_POR_MIL": "50", "MOTOR_EXP_ENCERRA_POR_MIL": "99", "MOTOR_EXP_MIN_CASOS": "40", "MOTOR_FALHA_ENVIO_MAX": "0.5"}
+        with mock.patch.dict(os.environ, env, clear=False):
+            cfg = carregar()
+        self.assertEqual((cfg.exp_segura_por_mil, cfg.exp_encerra_por_mil, cfg.exp_min_casos, cfg.falha_envio_max), (8.0, 15.0, 5, 0.06))
 
 
 class PausaDeEmergenciaTest(unittest.TestCase):

@@ -12,7 +12,8 @@ const MT_MENSAGENS = {
 };
 const MT_FRENTES = { dia10: 'Dia 10', dia25: 'Dia 25', recuperacao: 'Recuperação' };
 const MT_STATUS = {
-    planejado: ['Planejado', 'mt-neutro'], simulado: ['Liberado (simulação)', 'mt-ok'], liberado: ['Liberado', 'mt-ok'],
+    planejado: ['Planejado', 'mt-neutro'], simulado: ['Liberado (simulação)', 'mt-ok'], etiquetando: ['Etiquetando', 'mt-aviso'], enviando: ['Enviando', 'mt-ok'],
+    cancelado: ['Cancelado', 'mt-ruim'], erro: ['Erro: precisa de uma pessoa', 'mt-ruim'],
     pausado: ['Pausado', 'mt-aviso'], concluido: ['Concluído', 'mt-neutro'], adiado: ['Adiado', 'mt-aviso'], recusado: ['Recusado', 'mt-ruim'],
 };
 const MT_DECISAO = { liberar: ['Libera', 'mt-ok'], segurar: ['Segura', 'mt-aviso'], pausar: ['Pausa', 'mt-ruim'] };
@@ -21,6 +22,14 @@ const MT_EXCLUSAO = {
     erro_131026: 'número com erro 131026', recusou_mensagens: 'recusou mensagens', ja_recebeu_hoje: 'já recebeu hoje',
     limite_de_mensagens_no_ciclo: 'limite de 2 no ciclo', ja_recebeu_desta_frente_no_ciclo: 'já recebeu desta frente',
     ja_recebeu_esta_mensagem_no_ciclo: 'já recebeu esta mensagem', declarou_pagamento: 'declarou pagamento',
+    negocio_em_dois_niveis: 'negócio em dois níveis', fora_do_nivel_do_piloto: 'fora da graduação', reclamou_no_ciclo: 'reclamou no ciclo',
+    numero_errado: 'número errado', fica_para_outro_dia: 'fica para outro dia',
+};
+const MT_ROTULOS = {
+    ja_paguei: 'Já paguei', vai_pagar: 'Vai pagar', como_pagar: 'Como pagar', desconto_valor_prazo: 'Desconto, valor ou prazo', negociar: 'Negociar',
+    cancelar_trancar: 'Cancelar ou trancar', pediu_parar: 'Pediu para parar', reclamou: 'Reclamou', numero_errado: 'Número errado',
+    outro_assunto: 'Outro assunto', sem_conteudo: 'Sem conteúdo', silenciar: 'Não precisa lembrar', continuar: 'Continuar lembrando',
+    aguardando: 'Aguardando classificação',
 };
 
 function _mtEsc(s) {
@@ -114,6 +123,9 @@ function _mtRender(e, diario) {
     } else if (modo === 'simulacao') {
         _mtSet('mt-modo', 'Simulação', 'mt-aviso');
         _mtFaixa('Modo simulação: o motor monta os lotes e registra o que faria. Nenhuma mensagem é enviada e nada é gravado no CRM.', 'is-sim');
+    } else if (modo === 'real') {
+        _mtSet('mt-modo', 'Envio real', 'mt-ruim');
+        _mtFaixa('ENVIO REAL: com o plano do dia aprovado, os lotes saem para os alunos pelo CRM. A parada geral cancela o que estiver em andamento.', 'is-parada');
     } else if (modo === 'desligado') {
         _mtSet('mt-modo', 'Desligado', 'mt-neutro');
         _mtFaixa('Ligado na página, mas o worker está com MOTOR_ENABLED=0. Ele só começa a simular depois que a variável mudar no serviço do worker.', 'is-sim');
@@ -142,10 +154,13 @@ function _mtRender(e, diario) {
     }
 
     const lotes = e.lotes || [];
-    const liberados = lotes.filter(l => l.status === 'simulado' || l.status === 'liberado');
+    const liberados = lotes.filter(l => l.liberado_em);
     const total = liberados.reduce((s, l) => s + (l.tamanho || 0), 0);
     _mtSet('mt-hoje', _mtNum(total));
-    _mtSet('mt-hoje-sub', liberados.length + ' de ' + lotes.length + ' lotes');
+    const real = !!(e.plano && !e.plano.simulado);
+    _mtSet('mt-hoje-rot', real ? 'Enviado hoje' : 'Simulado hoje');
+    _mtSet('mt-hoje-sub', liberados.length + ' de ' + lotes.length + ' lotes' + (real ? ' · envio real' : ' · simulação'));
+    _mtExperiencia(e);
 
     _mtPlano(e);
     _mtLotes(lotes);
@@ -158,6 +173,14 @@ function _mtRender(e, diario) {
 function _mtPlano(e) {
     const p = e.plano;
     _mtMostrar('mt-plano-corpo', !!p);
+    _mtMostrar('mt-btn-aprovar', !!p && p.status === 'proposto');
+    _mtMostrar('mt-plano-status', !!p);
+    _mtSet('mt-plano-titulo', p ? (p.simulado ? 'Plano do dia (simulado)' : 'Plano do dia (envio real)') : 'Plano do dia');
+    if (p) {
+        const st = { proposto: ['Aguardando aprovação', 'mt-aviso'], aprovado: ['Aprovado por ' + (p.aprovado_por || '—'), 'mt-ok'],
+            encerrado: ['Dia encerrado', 'mt-ruim'] }[p.status] || [p.status, 'mt-neutro'];
+        _mtSet('mt-plano-status', st[0], st[1]);
+    }
     if (!p) {
         const carga = e.carga;
         _mtSet('mt-plano-vazio', carga
@@ -186,6 +209,8 @@ function _mtLotes(lotes) {
         const s = MT_STATUS[l.status] || [l.status, 'mt-neutro'];
         return '<tr><td class="mt-num">' + _mtNum(l.ordem) + '</td><td>' + _mtEsc(MT_MENSAGENS[l.mensagem] || l.mensagem)
             + '</td><td class="mt-num">' + _mtNum(l.tamanho_previsto) + '</td><td class="mt-num">' + (l.tamanho ? _mtNum(l.tamanho) : '—')
+            + '</td><td class="mt-num">' + (l.entregues ? _mtNum(l.entregues) : '—') + '</td><td class="mt-num">' + (l.falhas ? _mtNum(l.falhas) : '—')
+            + '</td><td class="mt-num">' + (l.parar_reclamar ? _mtNum(l.parar_reclamar) : '—')
             + '</td><td><span class="mt-sel ' + s[1] + '">' + _mtEsc(s[0]) + '</span></td><td>' + _mtHora(l.liberado_em)
             + '</td><td>' + _mtEsc(l.motivo || '') + '</td></tr>';
     }).join('');
@@ -216,8 +241,10 @@ function _mtLimites(cfg) {
     if (!el) return;
     if (!cfg) { el.textContent = 'O worker ainda não informou os limites.'; return; }
     const linhas = [
-        'Janela: ' + cfg.janela_inicio_h + 'h às ' + cfg.janela_fim_h + 'h, em dia útil',
-        'Teto diário: ' + _mtNum(cfg.teto_diario) + ' · lote de até ' + _mtNum(cfg.lote_max),
+        'Janela: ' + cfg.janela_inicio_h + 'h às ' + cfg.janela_fim_h + 'h, em dia útil · último lote ' + cfg.corte_min + ' min antes do fim',
+        'Teto diário: ' + _mtNum(cfg.teto_diario) + ' · lotes de ' + (cfg.rampa || []).map(_mtNum).join(', ') + ' e depois até ' + _mtNum(cfg.lote_max),
+        'Trava de experiência: segura com ' + cfg.exp_segura_por_mil + ' por 1.000 e encerra o dia com ' + cfg.exp_encerra_por_mil + ' (mínimo de ' + cfg.exp_min_casos + ' casos)',
+        'Público: ' + (cfg.nivel_alvo === 'graduacao' ? 'só graduação' : (cfg.nivel_alvo || 'todos os níveis')) + ' · respostas classificadas por ' + (cfg.classificador || '—') + ' · API do CRM a ' + cfg.crm_rpm + ' chamadas por minuto',
         'Fila: teto ' + cfg.fila_teto + ' · crítico ' + cfg.fila_critica + ' · mínimo de ' + cfg.atendentes_min + ' atendentes online',
         'SLA de espera: ' + cfg.sla_espera_min + ' min · falha de envio até ' + Math.round(cfg.falha_envio_max * 100) + '%',
         'Grupo de controle: ' + cfg.controle_pct + '% · até ' + cfg.max_msgs_ciclo + ' mensagens por aluno no ciclo',
@@ -232,13 +259,47 @@ function _mtDiario(itens) {
         + '</span><span>' + _mtEsc(i.texto) + '</span></div>').join('');
 }
 
+function _mtExperiencia(e) {
+    const x = e.experiencia || {};
+    const el = document.getElementById('mt-exp-linha');
+    if (el) {
+        const forte = x.casos >= x.min_casos;
+        const nivel = (forte && x.por_mil >= x.encerra_por_mil) ? 'mt-ruim' : (forte && x.por_mil >= x.segura_por_mil) ? 'mt-aviso' : '';
+        el.className = 'text-sm ' + nivel;
+        el.textContent = _mtNum(x.casos || 0) + ' alunos pediram para parar ou reclamaram, em ' + _mtNum(x.entregues || 0) + ' mensagens: '
+            + (x.por_mil || 0).toLocaleString('pt-BR') + ' por 1.000. Segura o próximo lote com ' + x.segura_por_mil
+            + ' e encerra o dia com ' + x.encerra_por_mil + ' (a partir de ' + x.min_casos + ' casos).';
+    }
+    const chips = document.getElementById('mt-respostas');
+    if (chips) {
+        const itens = e.respostas || [];
+        chips.innerHTML = itens.length
+            ? itens.map(r => '<span class="mt-sel mt-neutro">' + _mtEsc(MT_ROTULOS[r.rotulo] || r.rotulo) + ' ' + _mtNum(r.n)
+                + (r.revisar ? ' · ' + _mtNum(r.revisar) + ' para revisão' : '') + '</span>').join('')
+            : '<span class="text-sm text-[var(--text-muted)]">Nenhuma resposta registrada hoje.</span>';
+    }
+}
+
+async function mtAprovarPlano() {
+    if (!window.confirm('Aprovar o plano de hoje? Em envio real, os lotes só saem depois desta aprovação.')) return;
+    try {
+        const res = await api('/api/motor/plano/aprovar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || 'Não consegui aprovar.');
+        toast('Plano aprovado.', 'success');
+        mtAtualizar();
+    } catch (e) {
+        toast(e.message || 'Não consegui aprovar.', 'error');
+    }
+}
+
 async function mtControle(acao) {
     let motivo = '';
     if (acao === 'parar') {
         motivo = window.prompt('Parada geral: nenhum lote sai até alguém liberar. Motivo (opcional):', '');
         if (motivo === null) return;
     } else if (acao === 'ligar') {
-        if (!window.confirm('Ligar o motor? Nesta versão ele só simula: nada é enviado.')) return;
+        if (!window.confirm('Ligar o motor? Em simulação nada é enviado. Com o worker em envio real, os lotes saem depois da aprovação do plano.')) return;
     }
     try {
         const res = await api('/api/motor/controle', {

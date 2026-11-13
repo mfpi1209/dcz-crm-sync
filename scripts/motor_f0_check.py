@@ -47,13 +47,22 @@ def main() -> int:
         return 1
     print(f"Host: {base_url()} (só GET)\n")
 
-    st, corpo, dt = _get("/api/painel/service?section=agora&clock=business")
-    bloco = (corpo or {}).get("agora") if isinstance(corpo, dict) else None
-    if st == 200 and isinstance(bloco, dict) and bloco.get("ok"):
-        d = bloco["data"]
-        _linha("(a) fila agora", f"200 em {dt:.1f}s · campos: {sorted(d)} · aguardando={d.get('awaitingReply')} online={(d.get('agents') or {}).get('online')}")
+    st, corpo, dt = _get("/api/integrations/service-queue?clock=business")
+    if st == 200 and isinstance(corpo, dict) and "awaitingReply" in corpo:
+        _linha("(a) fila (rota de integração)", f"200 em {dt:.1f}s · asOf={corpo.get('asOf')} · aguardando={corpo.get('awaitingReply')} "
+               f"em atendimento={corpo.get('inService')} online={(corpo.get('agents') or {}).get('online')} "
+               f"sla={(corpo.get('longestWait') or {}).get('slaMinutes')} min")
     else:
-        _linha("(a) fila agora", f"{st} — {(corpo or {}).get('message') if isinstance(corpo, dict) else ''} (com Bearer a rota exige sessão)")
+        msg = (corpo or {}).get("message") if isinstance(corpo, dict) else ""
+        exig = (corpo or {}).get("required") if isinstance(corpo, dict) else ""
+        _linha("(a) fila (rota de integração)", f"{st} — {msg}{' · exige ' + exig if exig else ''}")
+
+    # Campanha inexistente: 404 = rota no ar e token com campaign:view; 403 traz a permissão que falta.
+    st, corpo, dt = _get("/api/integrations/campaigns/conferencia-do-motor/stats")
+    msg = (corpo or {}).get("message") if isinstance(corpo, dict) else ""
+    exig = (corpo or {}).get("required") if isinstance(corpo, dict) else ""
+    situacao = {404: "rota no ar e permissão de leitura ok", 403: "falta permissão", 401: "token recusado ou rota ainda não publicada"}.get(st, "resposta não prevista")
+    _linha("(c) resultado de campanha", f"{st} — {situacao}{' · exige ' + exig if exig else ''} {msg}".rstrip())
 
     st, corpo, dt = _get("/api/conversations?counts=1&perPage=1")
     chaves = sorted(k for k in (corpo or {}) if k != "items") if isinstance(corpo, dict) else []
@@ -87,7 +96,7 @@ def main() -> int:
     st, corpo, dt = _get("/api/campaigns?perPage=1")
     msg = (corpo or {}).get("message") if isinstance(corpo, dict) else ""
     exig = (corpo or {}).get("required") if isinstance(corpo, dict) else ""
-    _linha("(c/e) campanhas", f"{st} — {msg or 'ok'}{' · exige ' + exig if exig else ''}")
+    _linha("(c/e) campanhas (rota de sessão)", f"{st} — {msg or 'ok'}{' · exige ' + exig if exig else ''} (esperado 401: só sessão)")
 
     # Construtor de campanhas: GET sem `id` não lê nem cria rascunho. 400 DRAFT_ID_REQUIRED =
     # recurso campaign_builder_v2 ligado; 403 FEATURE_DISABLED = desligado.

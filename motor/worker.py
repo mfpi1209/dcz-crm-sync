@@ -66,7 +66,9 @@ def main() -> int:
     from db import get_conn
     from motor import VERSAO
     from motor.config import carregar
+    from motor.classificador import criar_classificador
     from motor.crm import CrmMotor
+    from motor.envio import Envio
     from motor.laco import Laco
     from motor.piloto import criar_piloto
     from motor.razao_pg import RazaoPg
@@ -81,11 +83,18 @@ def main() -> int:
         VERSAO, cfg.enabled, cfg.dry_run, cfg.tick_s, cfg.janela_inicio_h, cfg.janela_fim_h,
     )
     razao = RazaoPg(get_conn)
-    # Trava de escrita sempre ligada nesta versão: nenhum POST/PUT/DELETE sai para o CRM.
-    crm = CrmMotor(rpm=cfg.crm_rpm, permitir_escrita=False) if eduit_crm.configured() else None
+    # A escrita no CRM só destrava com as duas variáveis juntas. Ligar na página e
+    # aprovar o plano do dia são as outras duas chaves, conferidas a cada lote.
+    escrita = cfg.enabled and not cfg.dry_run
+    crm = CrmMotor(rpm=cfg.crm_rpm, reserva_alta=cfg.crm_reserva_alta, permitir_escrita=escrita) if eduit_crm.configured() else None
     if crm is None:
         logger.warning("EDUIT_CRM_TOKEN não configurado: sem fila e sem carga.")
+    if escrita:
+        logger.warning("ESCRITA NO CRM DESTRAVADA (MOTOR_ENABLED=1 e MOTOR_DRY_RUN=0): lotes reais saem com o motor ligado e o plano aprovado.")
     piloto = criar_piloto()
+    classificador = criar_classificador()
+    logger.info("Classificador de respostas: %s", classificador.nome)
+    envio = Envio(cfg, razao, crm) if crm is not None else None
 
     trava = None
     laco = None
@@ -109,7 +118,7 @@ def main() -> int:
                 _parar.wait(ESPERA_SEM_TRAVA_S)
                 continue
             if laco is None:
-                laco = Laco(cfg, razao, crm=crm, piloto=piloto)
+                laco = Laco(cfg, razao, crm=crm, piloto=piloto, classificador=classificador, envio=envio)
             modo = laco.tick()
             logger.debug("tick ok (%s)", modo)
         except Exception:
