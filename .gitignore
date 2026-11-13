@@ -7,6 +7,7 @@ __pycache__/
 logs/
 reports/
 _*.py
+!__init__.py
 _*.txt
 *.egg-info/
 .venv/
@@ -21,3 +22,4 @@ fb_dump.json
 capturas_siaa/
 cookies/
 flask_*.log
+.motor-local/
