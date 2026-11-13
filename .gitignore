@@ -7,6 +7,7 @@ __pycache__/
 logs/
 reports/
 _*.py
+!__init__.py
 _*.txt
 *.egg-info/
 .venv/
