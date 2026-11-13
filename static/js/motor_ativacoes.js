@@ -66,6 +66,7 @@ function _mtMostrar(id, sim) {
 
 function loadMotorAtivacoes() {
     mtAtualizar();
+    if (typeof mtrIniciar === 'function') mtrIniciar();
     if (_mtTimer) clearInterval(_mtTimer);
     _mtTimer = setInterval(() => {
         const pagina = document.getElementById('page-motor_ativacoes');

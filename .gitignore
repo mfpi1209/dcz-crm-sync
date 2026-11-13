@@ -21,3 +21,4 @@ fb_dump.json
 capturas_siaa/
 cookies/
 flask_*.log
+.motor-local/

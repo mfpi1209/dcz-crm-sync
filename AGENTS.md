@@ -4,6 +4,24 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-13 — Motor de Ativações: ambiente local de teste e reprise de rodada real
+- **Modelo usado:** Claude Fable 5.2.
+- **Pedido do Marcelo (13/11):** "o motor pode ser publicado local para testes" e refazer rodadas reais "simulando exatamente o que aconteceu, mas com disparo mais cedo, dosando por fila", sem nenhuma mensagem real.
+- **Ambiente local (`scripts/motor_local.py`, tudo em `.motor-local/`, fora do git):**
+  - `python scripts/motor_local.py preparar` — uma vez: cria o ambiente Python (`requirements.txt`), um Postgres próprio em `127.0.0.1:55440` (banco `dcz_sync_local`) e as tabelas `motor_`.
+  - **Subir:** configuração `motor-local` do `.claude/launch.json` (ou `python scripts/motor_local.py`). Sobe o Postgres local, o worker em processo próprio (`.motor-local/worker.log`) e o painel em `http://127.0.0.1:5057/`, já logado (`DEV_SKIP_AUTH`), página Acadêmico → Motor de Ativações.
+  - **Parar:** parar a configuração (ou Ctrl+C). Se sobrar processo: `python scripts/motor_local.py parar`.
+  - **Zerar o banco local:** `python scripts/motor_local.py zerar`.
+  - **Travas do script:** o banco é sempre o local (as variáveis de banco do script valem sobre o ambiente e sobre qualquer `.env`); `MOTOR_ENABLED=1` e `MOTOR_DRY_RUN=1` fixos, então a escrita no CRM fica travada; os agendamentos do painel não rodam; só escuta em 127.0.0.1.
+  - **Leitura do CRM ao vivo (opcional, só GET):** `EDUIT_CRM_TOKEN` em `.motor-local/env` (modelo: `.env.motor-local.example`). Sem token o worker fica sem fila e sem carga, e o ambiente serve para a reprise.
+  - **Limite:** local não recebe o webhook de respostas do CRM (precisaria de endereço público). Resposta de aluno ao vivo não aparece; a página avisa.
+- **Reprise (`motor/reprise.py`, `routes/motor_reprise.py`, bloco "Reprise de uma rodada real" na página):** lê `rodada_AAAA-MM-DD.json` da pasta `MOTOR_REPRISE_DIR` (local: `.motor-local/rodadas`). Sem a pasta, o bloco não aparece, então **em produção nada muda**. Não chama o CRM, não lê nem grava no banco, não envia.
+  - **Arquivo de rodada:** sem identificador de contato, sem texto e sem nome de atendente. `destinatarios` na ordem real ({`envio_s`, `humano_s`...}), `fila_humana_de_fundo_por_minuto` (chegadas de fundo, 1.440 posições), `atendentes_ativos_por_meia_hora` (48). **Arquivo de rodada não entra no repositório.**
+  - **Conta:** relógio simulado minuto a minuto; fila = fundo + alunos da rodada que chegam a atendente conforme o motor envia; equipe real do dia atendendo em ordem de chegada, 7,8 primeiros atendimentos por atendente por hora (calibrado em 10/11). Quem decide é `governador.decidir`, com os limites da tela.
+  - **Parâmetros da tela:** início (9h às 10h; nunca depois das 10h), lotes (1º, 2º, demais) ou tamanho pela folga (`governador.tamanho_do_lote`), trava de segurar e de pausar, base da trava, intervalo entre lotes, parcela que a IA segura a mais (0 a 40%), atendimentos por hora, teto do dia.
+  - **Padrão da tela = simulação de referência de 13/11:** lotes 300/600/1.200, 15 min entre lotes, +30/+60 sobre o nível de antes do 1º lote do dia, sem teto do dia. Conferido: 10/11 às 10h dá 14 lotes, último envio 18h04, pico 118 (referência: 14, 18h03, 117); 26/10 dá 7 lotes, 11h58, pico 23 (referência: 7, 11h58, 24). Diferença de 1 por arredondamento de minuto.
+- **Divergência a decidir (a página avisa):** o padrão da reprise não é igual ao código do motor em três pontos. No código, a trava mede a subida desde o **último lote** (valendo 2 h), o intervalo é de **30 min** e o teto é de **4.000 por dia**. Com as regras do código (base "último lote", 30 min, tamanho pela folga), 10/11 dá 14 lotes, último envio 18h10 e pico 109; 26/10 dá 8 lotes, 13h32 e pico 22. Qual das duas vale no piloto é decisão do Marcelo.
+
 ### 2026-11-13 — Motor de Ativações: prazo efetivo (dia 10 ou 25 em fim de semana ou feriado vale no primeiro dia útil seguinte)
 - **Modelo usado:** Claude Fable 5.2.
 - **Decisão do Marcelo (13/11):** "use 26/10 como referência, foi o primeiro dia útil, isso pode acontecer tanto com dia 10, assim como dia 25. O pagto pode ser feito no prox dia util".

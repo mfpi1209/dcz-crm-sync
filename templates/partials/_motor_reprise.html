@@ -1,0 +1,95 @@
+    <div id="mtr-bloco" class="mt-card p-5 space-y-4 hidden">
+<style>
+  #page-motor_ativacoes { --mtr-motor: #2a78d6; --mtr-real: #eb6834; }
+  .dark #page-motor_ativacoes { --mtr-motor: #3987e5; --mtr-real: #d95926; }
+  #mtr-bloco label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); margin-bottom: 4px; }
+  #mtr-bloco input[type="number"], #mtr-bloco input[type="time"], #mtr-bloco select {
+    width: 100%; background: var(--bg-main); color: var(--text-primary); border: 1px solid var(--border);
+    border-radius: 10px; padding: 7px 10px; font-size: 13px; font-variant-numeric: tabular-nums;
+  }
+  #mtr-bloco .mtr-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  #mtr-bloco .mtr-tres { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  #mtr-bloco .mtr-graf { position: relative; }
+  #mtr-bloco .mtr-graf svg { width: 100%; height: auto; display: block; }
+  #mtr-bloco .mtr-dica {
+    position: absolute; pointer-events: none; background: var(--bg-main); border: 1px solid var(--border); border-radius: 10px;
+    padding: 7px 10px; font-size: 12px; line-height: 1.5; white-space: nowrap; color: var(--text-primary); box-shadow: 0 6px 18px rgba(0,0,0,.18);
+  }
+  #mtr-bloco .mtr-chave { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+  #mtr-bloco .mtr-legenda { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; color: var(--text-muted); }
+  #mtr-bloco .mtr-duas { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 430px), 1fr)); }
+  #mtr-bloco .mtr-fixo { white-space: nowrap; }
+  #mtr-bloco .mtr-nota { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+</style>
+        <div>
+            <h3 class="text-lg font-bold text-[var(--text-primary)]">Reprise de uma rodada real</h3>
+            <p class="text-sm text-[var(--text-muted)] max-w-3xl">O motor refaz um dia que já aconteceu: mesmos alunos, na mesma ordem, com a mesma equipe e as mesmas conversas de fundo, mas começando cedo e dosando pela fila. Nenhuma mensagem é enviada e o CRM não é chamado.</p>
+        </div>
+        <div id="mtr-local" class="mt-faixa is-sim hidden">Ambiente local: o CRM não consegue entregar aqui o webhook de respostas (precisaria de um endereço público). Resposta de aluno ao vivo não aparece neste ambiente; a reprise cobre isso com o histórico da rodada.</div>
+
+        <div class="mtr-grade">
+            <div style="grid-column: span 2"><label for="mtr-rodada">Rodada</label><select id="mtr-rodada"></select></div>
+            <div><label for="mtr-inicio">Início (9h às 10h)</label><input type="time" id="mtr-inicio" min="09:00" max="10:00" step="300"></div>
+            <div style="grid-column: span 2"><label>Lotes: 1º, 2º e demais</label>
+                <div class="mtr-tres"><input type="number" id="mtr-lote1" min="50" step="50" aria-label="1º lote"><input type="number" id="mtr-lote2" min="50" step="50" aria-label="2º lote"><input type="number" id="mtr-lote3" min="50" step="50" aria-label="Demais lotes"></div></div>
+            <div><label for="mtr-tamanho">Tamanho do lote</label><select id="mtr-tamanho"><option value="fixo">Como acima</option><option value="folga">Pela folga da equipe</option></select></div>
+            <div><label for="mtr-intervalo">Entre lotes (min)</label><input type="number" id="mtr-intervalo" min="1" max="240"></div>
+            <div><label for="mtr-segura">Segura com fila +</label><input type="number" id="mtr-segura" min="1"></div>
+            <div><label for="mtr-pausa">Pausa com fila +</label><input type="number" id="mtr-pausa" min="1"></div>
+            <div><label for="mtr-base">Base da trava</label><select id="mtr-base"><option value="dia">Antes do 1º lote do dia</option><option value="lote">Último lote (2 h)</option></select></div>
+            <div><label for="mtr-ia">IA segura a mais: <span id="mtr-ia-valor">0%</span></label><input type="range" id="mtr-ia" min="0" max="40" step="1" style="width:100%"></div>
+            <div><label for="mtr-atend">Atendimentos por atendente/h</label><input type="number" id="mtr-atend" min="0.5" max="30" step="0.1"></div>
+            <div><label for="mtr-teto">Teto do dia (0 = tudo)</label><input type="number" id="mtr-teto" min="0" step="500"></div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <button type="button" id="mtr-rodar" onclick="mtrRodar()" class="btn-primary text-sm px-4 py-2 rounded-xl">Refazer a rodada</button>
+            <button type="button" onclick="mtrPadrao()" class="btn-secondary text-sm px-4 py-2 rounded-xl">Voltar ao padrão</button>
+            <span id="mtr-estado" class="text-xs text-[var(--text-muted)]"></span>
+        </div>
+
+        <div id="mtr-resultado" class="space-y-4 hidden">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div class="mt-card p-4"><div class="mt-rot">Lotes do motor</div><div id="mtr-k-lotes" class="mt-val mt-1">—</div><div id="mtr-k-lotes-sub" class="text-xs text-[var(--text-muted)] mt-1"></div></div>
+                <div class="mt-card p-4"><div class="mt-rot">Último envio</div><div id="mtr-k-fim" class="mt-val mt-1">—</div><div id="mtr-k-fim-sub" class="text-xs text-[var(--text-muted)] mt-1"></div></div>
+                <div class="mt-card p-4"><div class="mt-rot">Pico da fila</div><div id="mtr-k-pico" class="mt-val mt-1">—</div><div id="mtr-k-pico-sub" class="text-xs text-[var(--text-muted)] mt-1"></div></div>
+                <div class="mt-card p-4"><div class="mt-rot">Segurando · pausado</div><div id="mtr-k-seg" class="mt-val mt-1">—</div><div id="mtr-k-seg-sub" class="text-xs text-[var(--text-muted)] mt-1"></div></div>
+            </div>
+
+            <div>
+                <div class="flex flex-wrap items-end justify-between gap-2 mb-2">
+                    <h4 class="text-sm font-bold text-[var(--text-primary)]">Conversas esperando atendente, minuto a minuto</h4>
+                    <div class="mtr-legenda">
+                        <span><span class="mtr-chave" style="background: var(--mtr-motor)"></span>Motor (reprise)</span>
+                        <span><span class="mtr-chave" style="background: var(--mtr-real)"></span>Dia real</span>
+                        <span><span class="mtr-chave" style="background: var(--text-muted); width: 2px; height: 10px"></span>Início de lote do motor</span>
+                    </div>
+                </div>
+                <div class="mtr-graf"><div id="mtr-grafico"></div><div id="mtr-dica" class="mtr-dica hidden"></div></div>
+                <p class="mtr-nota mt-1">O dia real passa pelo mesmo modelo de fila do motor (equipe e conversas de fundo do dia), para comparar igual com igual.</p>
+            </div>
+
+            <div class="mtr-duas">
+                <div class="mtr-rolavel mt-rolavel">
+                    <h4 class="text-sm font-bold text-[var(--text-primary)] mb-1">Motor e dia real</h4>
+                    <table><thead><tr><th></th><th class="mt-num">Motor</th><th class="mt-num">Dia real</th></tr></thead><tbody id="mtr-compara"></tbody></table>
+                </div>
+                <div class="mt-rolavel">
+                    <h4 class="text-sm font-bold text-[var(--text-primary)] mb-1">Fila por hora</h4>
+                    <table><thead><tr><th>Hora</th><th class="mt-num">Atendentes</th><th class="mt-num">Envios motor</th><th class="mt-num">Pico motor</th><th class="mt-num">Envios real</th><th class="mt-num">Pico real</th></tr></thead><tbody id="mtr-horas"></tbody></table>
+                </div>
+            </div>
+
+            <div class="mtr-duas">
+                <div class="mt-rolavel">
+                    <h4 class="text-sm font-bold text-[var(--text-primary)] mb-1">Lotes</h4>
+                    <table><thead><tr><th>Lote</th><th>Envio</th><th class="mt-num">Tamanho</th><th class="mt-num">Fila</th><th class="mt-num">Atendentes</th></tr></thead><tbody id="mtr-lotes"></tbody></table>
+                </div>
+                <div class="mt-rolavel">
+                    <h4 class="text-sm font-bold text-[var(--text-primary)] mb-1">Quando o motor segurou ou pausou</h4>
+                    <p id="mtr-trechos-vazio" class="text-sm text-[var(--text-muted)] hidden">Não precisou segurar nem pausar.</p>
+                    <table><thead><tr><th>Período</th><th class="mt-num">Min</th><th>Estado</th><th>Motivo</th></tr></thead><tbody id="mtr-trechos"></tbody></table>
+                </div>
+            </div>
+            <div id="mtr-avisos" class="mtr-nota space-y-1"></div>
+        </div>
+    </div>
