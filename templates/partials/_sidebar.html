@@ -19,7 +19,7 @@
             {% set _show_comercial = nav_can('dist_consultor') or nav_can('comercial_rgm') or nav_can('bwipo_comercial') or nav_can('dist_comercial') or nav_can('inscricao') or nav_can('recadastros') or nav_can('comercial_dashboard') or nav_can('auditoria_comercial') or nav_can('atualizar_preco') or nav_can('precos_bwipo') or nav_can('leads_parados') or _show_minha_perf_in_comercial or nav_can('repasse') or nav_can('captacao') or nav_can('clicks') or nav_can('leads_promotores') or nav_can('premiacao_admin') %}
             {% set _show_voc = nav_can('vocacional') %}
             {% set _show_meta = nav_can('meta-campaigns') %}
-            {% set _show_ti = nav_is_admin and (nav_can('ia_comercial') or nav_can('page_views') or nav_can('match_inadimplentes') or nav_can('materias_alunos') or nav_can('tracker_tarefas')) %}
+            {% set _show_ti = nav_is_admin and (nav_can('ia_comercial') or nav_can('page_views') or nav_can('match_inadimplentes') or nav_can('materias_alunos') or nav_can('tracker_tarefas') or nav_can('conexao_siaa')) %}
             {% set _show_chamados = nav_can('solicitacoes_ti') or nav_can('meus_chamados_ti') or nav_can('chamados_ti') %}
             {% set _show_sistema = nav_can('pipeline') or nav_can('update') or nav_can('ajustes_matricula') or nav_can('kommo_sync') or nav_can('bwipo_sync') or nav_can('match_merge') or nav_can('config') or nav_can('schedule') or nav_can('kommo_dispatcher') or nav_can('logs') %}
             <div class="space-y-1">
@@ -448,6 +448,12 @@
                     <a href="#tracker_tarefas" onclick="navigate('tracker_tarefas')" class="sidebar-link sidebar-sub" data-page="tracker_tarefas">
                         <span class="material-symbols-outlined text-base">checklist</span>
                         Tracker de Tarefas
+                    </a>
+                    {% endif %}
+                    {% if nav_can('conexao_siaa') %}
+                    <a href="#conexao_siaa" onclick="navigate('conexao_siaa')" class="sidebar-link sidebar-sub" data-page="conexao_siaa">
+                        <span class="material-symbols-outlined text-base">sync_alt</span>
+                        Conexão SIAA
                     </a>
                     {% endif %}
                 </div>
