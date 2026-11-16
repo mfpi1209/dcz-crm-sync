@@ -4,6 +4,13 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-16 — Conexão SIAA na pasta TI
+- **Modelo usado:** Claude Sonnet 5.5.
+- **Pedido:** mostrar no painel o estado real da sessão do SIAA (acadêmico e financeiro), editar a agenda do keepalive e acionar a pausa manual, sem abrir o EasyPanel.
+- **Decisão:** página admin-only `conexao_siaa` (grupo TI, ícone `sync_alt`) e blueprint `routes/conexao_siaa.py`, que repassa à session-api (`/conexao/status|historico|agenda|pausa-manual`, contrato em `eduit-insights/docs/CONTRATO-CONEXAO-SIAA.md`) com `SIAA_SESSION_TOKEN` só no servidor. Resposta passa por lista branca de campos; erro da session-api vira mensagem curta, sem URL, token ou corpo cru; 409 de versão é repassado. Registrada em `ALL_PAGES`, `_NAV_ADMIN_ONLY`, `PAGES`/`PAGE_TITLES` e no grupo TI da Config.
+- **Regra de exibição:** o estado vem só do campo `estado`; "serviço no ar" ou "cookie armazenado" nunca viram sessão válida. A página lê só o que o keepalive registrou (atualiza a cada ~30 s) e lista as chamadas que não obedecem à agenda (`fora_da_agenda`).
+- **Não muda:** nenhuma rota existente; agenda nasce desativada, sem horários padrão. Teste: `python -m unittest tests.test_conexao_siaa`.
+
 ### 2026-11-11 — Matérias dos Alunos travado: pausa da session-api por cookie morto, mensagem agora diz o motivo
 - **Modelo usado:** Claude Fable 5.1.
 - **Sintoma:** Analisar funcionava, Iniciar processamento devolvia 503 "Consulta ao vivo adiada. Exibindo captura de data indisponivel." Cookie do Acadêmico carregado, nenhum job travado.
