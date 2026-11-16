@@ -4,6 +4,14 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-16 — Renovação automática na página Conexão SIAA
+- **Modelo usado:** Claude Sonnet 5.5.
+- **Pedido:** controlar e acompanhar a renovação automática das sessões (contrato `CONTRATO-RENOVACAO-SIAA.md` do eduit-insights) na mesma página, só admin.
+- **Decisão:** rotas de repasse no mesmo blueprint (`/api/conexao-siaa/renovacao/status|execucoes|config|suspensao|solicitar|liberar`), token só no servidor, lista branca estrita (campos de lista fixa só passam se forem rótulos `[a-z0-9_]`; qualquer outro valor vira null). Erros traduzidos sem detalhe; 409 repassa `versao`/`execucao_ativa`/`pausa_manual`. As rotas do executor (`/renovacao/executor/*`) não existem no painel. Card "Renovação automática" + histórico de execuções paginado, com o mesmo polling do histórico de eventos (recarrega a 1ª página em silêncio, preserva "Carregar mais").
+- **Segurança de UX:** o polling (~30 s) só faz GET. "Renovar agora" exige confirmação (credenciais enviadas ao SIAA, sessões substituídas), gera um `pedido_id` por confirmação no cliente, fica desabilitado enquanto envia e enquanto houver execução ativa; após falha ambígua (timeout/502/504) reaproveita o mesmo `pedido_id` por até 2 min (a API é idempotente). "Liberar nova tentativa" só com episódio bloqueado. "Publicação confirmada" e "Sessão validada" são colunas distintas.
+- **Suposição:** `liberar` usa `config.versao` como `versao` (o contrato não diz de qual objeto vem).
+- **Testes:** `python -m unittest tests.test_conexao_siaa_renovacao tests.test_conexao_siaa_renovacao_js` (o segundo roda `tests/js/conexao_siaa_renovacao_harness.js` com Node, sem rede). Sem deploy; depende da session-api com as rotas `/renovacao/*`.
+
 ### 2026-11-16 — Conexão SIAA na pasta TI
 - **Modelo usado:** Claude Sonnet 5.5.
 - **Pedido:** mostrar no painel o estado real da sessão do SIAA (acadêmico e financeiro), editar a agenda do keepalive e acionar a pausa manual, sem abrir o EasyPanel.
