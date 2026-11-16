@@ -435,7 +435,7 @@ function csRenderHistorico() {
     csEl('cs-h-info').textContent = h.itens.length ? h.itens.length + ' eventos exibidos' + (h.proximo ? '' : ' (fim do histórico)') : '';
 }
 
-async function csCarregarHistorico(anexar) {
+async function csCarregarHistorico(anexar, silencioso) {
     const h = csState.historico;
     if (h.carregando) return;
     h.carregando = true;
@@ -444,21 +444,30 @@ async function csCarregarHistorico(anexar) {
     if (mod) q.set('modulo', mod);
     q.set('limite', csEl('cs-h-limite').value);
     if (anexar && h.proximo) q.set('antes', h.proximo);
-    if (!anexar) { h.itens = []; h.proximo = null; }
-    csRenderHistorico();
+    if (anexar) h.paginou = true;
+    // Recarga silenciosa (polling): mantém a tabela até a resposta chegar.
+    if (!anexar && !silencioso) { h.itens = []; h.proximo = null; h.paginou = false; }
+    if (!silencioso) csRenderHistorico();
     const r = await csFetch('GET', '/historico?' + q.toString());
     h.carregando = false;
     if (r.status === 200 && r.data.ok) {
-        h.itens = h.itens.concat(r.data.itens || []);
+        h.itens = anexar ? h.itens.concat(r.data.itens || []) : (r.data.itens || []);
         h.proximo = r.data.proximo_antes || null;
         csMostrarErro('');
-    } else {
+    } else if (!silencioso) {
         csMostrarErro(r.data.error || 'Não foi possível ler o histórico.');
     }
     csRenderHistorico();
 }
 function conexaoSiaaHistoricoRecarregar() { return csCarregarHistorico(false); }
 function conexaoSiaaHistoricoMais() { return csCarregarHistorico(true); }
+
+// Polling: status sempre; histórico só na primeira página (quem clicou em
+// "Carregar mais" está lendo eventos antigos e não perde a posição).
+function csPoll() {
+    conexaoSiaaLoadStatus();
+    if (!csState.historico.paginou) csCarregarHistorico(false, true);
+}
 
 // ── Ciclo de vida da página ───────────────────────────────────────────────
 function conexaoSiaaRefresh() {
@@ -473,7 +482,7 @@ function conexaoSiaaOnPage(ativo) {
     if (csState.tick) { clearInterval(csState.tick); csState.tick = null; }
     if (!ativo) return;
     conexaoSiaaRefresh();
-    csState.timer = setInterval(function () { if (!document.hidden) conexaoSiaaLoadStatus(); }, CS_POLL_MS);
+    csState.timer = setInterval(function () { if (!document.hidden) csPoll(); }, CS_POLL_MS);
     csState.tick = setInterval(csRenderFresh, 1000);
 }
 
