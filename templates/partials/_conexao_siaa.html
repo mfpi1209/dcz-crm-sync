@@ -73,6 +73,12 @@
 #page-conexao_siaa .cs-table tbody tr:hover { background: var(--hover-row); }
 #page-conexao_siaa .cs-empty { text-align: center; padding: 28px 16px; color: var(--text-muted); font-size: 14px; }
 #page-conexao_siaa .cs-hint { font-size: 12px; color: var(--text-muted); }
+#page-conexao_siaa .cs-rn-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+#page-conexao_siaa .cs-rn-sep { border-top: 1px solid var(--border); margin: 14px 0; }
+#page-conexao_siaa .cs-rn-sub { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); margin: 14px 0 6px; }
+#page-conexao_siaa .cs-rn-note { font-size: 12px; color: var(--text-muted); margin: 0 0 12px; padding-left: 18px; }
+#page-conexao_siaa .cs-rn-note li { margin: 2px 0; }
+#page-conexao_siaa .cs-two { display: flex; flex-direction: column; gap: 2px; font-size: 12px; white-space: nowrap; }
 </style>
 
 <div class="cs-topbar">
@@ -99,6 +105,42 @@
     <div class="cs-card" id="cs-worker"></div>
     <div class="cs-card" id="cs-agenda-resumo"></div>
     <div class="cs-card" id="cs-pausa"></div>
+</div>
+
+<div class="cs-card" style="margin-bottom:16px" id="cs-renov-card">
+    <div class="cs-card-head">
+        <div class="cs-card-title"><span class="material-symbols-outlined">autorenew</span>Renovação automática</div>
+        <span id="cs-renov-badge"></span>
+    </div>
+    <ul class="cs-rn-note">
+        <li>A renovação automática só roda dentro da agenda do keepalive e apenas depois de o SIAA confirmar que a sessão expirou. Nunca é disparada por duração presumida (8 ou 12 horas).</li>
+        <li>Fora da agenda não há login automático. Se a sessão expirar e nenhuma renovação rodar, o módulo aparece como "precisa de renovação".</li>
+        <li>"Renovar agora" é uma decisão humana e pode rodar fora da agenda. Ela envia credenciais ao SIAA e substitui as sessões servidas pela API.</li>
+    </ul>
+    <div class="cs-alert cs-alert-ok hidden" id="cs-renov-msg" role="status"></div>
+    <div id="cs-renov-corpo"><div class="cs-empty">Carregando…</div></div>
+    <div class="cs-rn-sep"></div>
+    <div class="cs-card-head" style="margin-bottom:8px">
+        <div class="cs-card-title" style="font-size:14px"><span class="material-symbols-outlined">history</span>Histórico de renovações</div>
+        <select class="cs-select" id="cs-rn-limite" onchange="conexaoSiaaRenovExecucoesRecarregar()" aria-label="Quantidade por página">
+            <option value="10">10 por vez</option>
+            <option value="25" selected>25 por vez</option>
+            <option value="50">50 por vez</option>
+            <option value="100">100 por vez</option>
+        </select>
+    </div>
+    <div class="cs-table-wrap">
+        <table class="cs-table">
+            <thead><tr>
+                <th>Início</th><th>Tipo</th><th>Estado</th><th>Gatilho</th><th>Duração</th><th>Login</th><th>Acadêmico</th><th>Financeiro</th><th>Erro</th>
+            </tr></thead>
+            <tbody id="cs-rn-body"><tr><td colspan="9" class="cs-empty">Carregando…</td></tr></tbody>
+        </table>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
+        <button class="cs-btn" type="button" id="cs-rn-mais" onclick="conexaoSiaaRenovExecucoesMais()" style="display:none">Carregar mais</button>
+        <span class="cs-hint" id="cs-rn-info"></span>
+    </div>
 </div>
 
 <div class="cs-card" style="margin-bottom:16px">
