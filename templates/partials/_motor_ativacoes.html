@@ -45,6 +45,7 @@
             <p class="text-sm text-[var(--text-muted)] max-w-2xl">Avisos de pagamento em lotes, dosados pela fila de atendimento. Em simulação o motor monta os lotes e registra o que faria, sem enviar nada.</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
+            <button type="button" id="mt-btn-instalar" onclick="mtInstalar()" class="btn-primary text-sm px-4 py-2 rounded-xl hidden">Instalar o motor</button>
             <button type="button" id="mt-btn-ligar" onclick="mtControle('ligar')" class="btn-secondary text-sm px-4 py-2 rounded-xl hidden">Ligar</button>
             <button type="button" id="mt-btn-desligar" onclick="mtControle('desligar')" class="btn-secondary text-sm px-4 py-2 rounded-xl hidden">Desligar</button>
             <button type="button" id="mt-btn-retomar" onclick="mtControle('retomar')" class="btn-secondary text-sm px-4 py-2 rounded-xl hidden">Liberar parada</button>

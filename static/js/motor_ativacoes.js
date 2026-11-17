@@ -102,10 +102,12 @@ function _mtRender(e, diario) {
         botoes.forEach(b => _mtMostrar(b, false));
         _mtSet('mt-modo', 'Não instalado', 'mt-neutro');
         _mtSet('mt-modo-sub', 'As tabelas do motor ainda não foram criadas neste banco.');
-        _mtFaixa('O motor ainda não foi instalado: faltam as tabelas motor_ (scripts/apply_motor_sql.py) e o serviço do worker.', 'is-sim');
+        _mtFaixa('O motor ainda não foi instalado neste banco. Um administrador cria as tabelas pelo botão "Instalar o motor"; depois falta só o serviço do worker.', 'is-sim');
+        _mtMostrar('mt-btn-instalar', true);
         _mtAgenda(e.agenda || []);
         return;
     }
+    _mtMostrar('mt-btn-instalar', false);
     const c = e.controle || {};
     const w = e.worker;
     const vivo = !!e.worker_vivo;
@@ -326,6 +328,20 @@ async function mtAprovarPlano() {
         mtAtualizar();
     } catch (e) {
         toast(e.message || 'Não consegui aprovar.', 'error');
+    }
+}
+
+async function mtInstalar() {
+    if (!window.confirm('Criar as tabelas do motor neste banco? Só são criadas tabelas motor_. O motor continua desligado e em simulação.')) return;
+    try {
+        const res = await api('/api/motor/instalar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || 'Não consegui instalar.');
+        toast(data.ja_estava ? 'As tabelas já existiam.' : 'Tabelas do motor criadas. O motor segue desligado.', 'success');
+        mtAtualizar();
+        if (typeof mtzCarregar === 'function') mtzCarregar();
+    } catch (e) {
+        toast(e.message || 'Não consegui instalar.', 'error');
     }
 }
 

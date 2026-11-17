@@ -131,6 +131,45 @@ class RazaoPgTest(unittest.TestCase):
         self.assertTrue(self.razao.registrar_acao("sim:x:1", "lancar_lote", lote_id=None, simulado=True))
         self.assertFalse(self.razao.registrar_acao("sim:x:1", "lancar_lote", lote_id=None, simulado=True))
 
+    def test_instalar_pela_pagina_so_administrador_e_nao_liga_nada(self) -> None:
+        try:
+            from flask import Flask
+        except ImportError:
+            self.skipTest("flask não instalado")
+        os.environ.setdefault("DB_HOST", "127.0.0.1")
+        import routes.motor_ativacoes as rota
+
+        rota.get_conn = _conectar
+        app = Flask(__name__)
+        app.secret_key = "teste"
+        app.register_blueprint(rota.motor_ativacoes_bp)
+        cliente = app.test_client()
+        self.assertEqual(cliente.post("/api/motor/instalar").status_code, 403)
+        with cliente.session_transaction() as s:
+            s.update(authenticated=True, role="gestor", user_id=7, username="alguem")
+        self.assertEqual(cliente.post("/api/motor/instalar").status_code, 403)
+
+        conn = _conectar()
+        with conn, conn.cursor() as cur:
+            cur.execute("DROP TABLE motor_respostas, motor_acoes, motor_diario CASCADE")
+        conn.close()
+        self.assertFalse(self.razao.instalado())
+        with cliente.session_transaction() as s:
+            s.update(authenticated=True, role="admin", user_id=1, username="marcelo")
+        self.assertEqual(cliente.post("/api/motor/instalar").get_json(), {"ok": True, "ja_estava": False})
+        self.assertTrue(self.razao.instalado())
+        self.assertEqual(cliente.post("/api/motor/instalar").get_json(), {"ok": True, "ja_estava": True})
+        # Instalar não liga o motor nem apaga o que já existia.
+        self.assertTrue(self.razao.ler_controle().ligado)   # o setUp deixou ligado; a instalação não mexe
+        conn = _conectar()
+        with conn, conn.cursor() as cur:
+            cur.execute("SELECT autor, texto FROM motor_diario ORDER BY id")
+            diario = cur.fetchall()
+        conn.close()
+        self.assertEqual([d[0] for d in diario], ["usuario:marcelo", "usuario:marcelo"])
+        self.assertIn("criadas pela página", diario[0][1])
+        self.assertIn("já existiam", diario[1][1])
+
     def test_rota_de_resultados_le_o_livro_razao(self) -> None:
         try:
             from flask import Flask
