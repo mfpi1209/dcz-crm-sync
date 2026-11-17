@@ -14,6 +14,7 @@ from pathlib import Path
 
 from flask import Blueprint, jsonify, request
 
+from motor.calendario import agora_brt
 from motor.reprise import Parametros, carregar_rodada, ler_parametros, listar_rodadas, reprisar
 from motor.reprise_rotas import chamadas_do_dia
 from routes.motor_ativacoes import _gate
@@ -66,4 +67,6 @@ def api_motor_reprise():
         return jsonify({"ok": False, "error": "Não consegui ler esta rodada."}), 400
     parametros = corpo.get("parametros") if isinstance(corpo.get("parametros"), dict) else {}
     resultado = reprisar(rodada, ler_parametros(parametros))
+    if rodada.get("dia") == agora_brt().date().isoformat():
+        resultado["avisos"].insert(0, "Rodada de hoje: o dia ainda não fechou. Respostas, passagens para atendente, fila de fundo e equipe só vão até a hora em que o arquivo foi gerado, então a fila da tarde aparece menor do que será.")
     return jsonify({"ok": True, **resultado, "crm": chamadas_do_dia(resultado)})
