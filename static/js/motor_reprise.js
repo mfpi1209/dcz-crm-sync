@@ -24,7 +24,7 @@ async function mtrIniciar() {
         _mtMostrar('mtr-local', !!d.local);
         _mtMostrar('mtr-bloco', true);
         mtrPadrao(false);
-        mtrRodar();
+        mtrRodar(false);
     } catch (e) { /* sem reprise: o bloco fica escondido */ }
 }
 
@@ -60,7 +60,7 @@ function _mtrParametros() {
     };
 }
 
-async function mtrRodar() {
+async function mtrRodar(rolar) {
     const botao = _mtrEl('mtr-rodar');
     botao.disabled = true;
     _mtrEl('mtr-estado').textContent = 'Refazendo a rodada…';
@@ -74,6 +74,7 @@ async function mtrRodar() {
         if (!res.ok || !d.ok) throw new Error(d.error || 'Não consegui refazer a rodada.');
         _mtrDados = d;
         _mtrRender(d);
+        _mtrAutoFilme(rolar !== false);
         _mtrEl('mtr-estado').textContent = '';
     } catch (e) {
         _mtrEl('mtr-estado').textContent = e.message || 'Não consegui refazer a rodada.';
@@ -128,6 +129,23 @@ function _mtrRender(d) {
 function _mtrHm(minuto) { return String(Math.floor(minuto / 60)).padStart(2, '0') + ':' + String(minuto % 60).padStart(2, '0'); }
 
 let _mtrFilme = null;   // animação em curso: { quadro, aoParar }
+let _mtrObservador = null;
+
+// Toda rodada começa passando o dia como filme. Se o gráfico não está na tela, o filme espera ele aparecer.
+function _mtrAutoFilme(rolar) {
+    const alvo = _mtrEl('mtr-grafico');
+    if (_mtrObservador) { _mtrObservador.disconnect(); _mtrObservador = null; }
+    if (rolar) _mtrEl('mtr-filme').scrollIntoView({ block: 'start' });   // título, relógio e gráfico inteiros na tela
+    const caixa = alvo.getBoundingClientRect();
+    if (rolar || (caixa.top < window.innerHeight * 0.8 && caixa.bottom > 0)) { mtrFilme(); return; }
+    if (typeof IntersectionObserver !== 'function') return;
+    _mtrObservador = new IntersectionObserver(entradas => {
+        if (!entradas.some(e => e.isIntersecting)) return;
+        _mtrObservador.disconnect(); _mtrObservador = null;
+        if (!_mtrFilme) mtrFilme();
+    }, { threshold: 0.4 });
+    _mtrObservador.observe(alvo);
+}
 
 function _mtrGrafico(d) {
     mtrPararFilme();
@@ -208,7 +226,7 @@ function mtrFilme() {
     if (!f) return;
     const duracao = Number(_mtrEl('mtr-filme-dur').value || 30) * 1000, inicio = performance.now();
     _mtrEl('mtr-dica').classList.add('hidden');
-    botao.textContent = '■ Parar';
+    botao.textContent = '■ Mostrar tudo';
     const quadro = agora => {
         const i = Math.min(f.n - 1, Math.floor((agora - inicio) / duracao * (f.n - 1)));
         f.area.setAttribute('width', f.x(i));
@@ -219,7 +237,7 @@ function mtrFilme() {
     };
     _mtrFilme = {
         quadro: 0,
-        aoParar: () => { f.area.setAttribute('width', f.W); f.cursor.setAttribute('visibility', 'hidden'); botao.textContent = '▶ Assistir o dia'; },
+        aoParar: () => { f.area.setAttribute('width', f.W); f.cursor.setAttribute('visibility', 'hidden'); botao.textContent = '▶ Assistir de novo'; },
     };
     _mtrFilme.quadro = requestAnimationFrame(quadro);
 }

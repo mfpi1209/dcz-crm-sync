@@ -19,6 +19,7 @@
   #mtr-bloco .mtr-legenda { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; color: var(--text-muted); }
   #mtr-bloco .mtr-duas { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 430px), 1fr)); }
   #mtr-bloco .mtr-fixo { white-space: nowrap; }
+  #mtr-filme { scroll-margin-top: 96px; }
   #mtr-bloco .mtr-nota { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
 </style>
         <div>
@@ -57,7 +58,7 @@
 
             <div>
                 <div class="flex flex-wrap items-end justify-between gap-2 mb-2">
-                    <div class="flex flex-wrap items-center gap-3"><h4 class="text-sm font-bold text-[var(--text-primary)]">Envios e fila ao longo do dia</h4><button type="button" id="mtr-filme" onclick="mtrFilme()" class="btn-secondary text-xs px-3 py-1.5 rounded-lg">▶ Assistir o dia</button><label style="display:inline; margin:0; text-transform:none; letter-spacing:0">Duração <select id="mtr-filme-dur" style="width:auto; display:inline-block; padding:3px 8px"><option value="15">15 s</option><option value="30" selected>30 s</option><option value="60">1 min</option><option value="120">2 min</option></select></label></div>
+                    <div class="flex flex-wrap items-center gap-3"><h4 class="text-sm font-bold text-[var(--text-primary)]">Envios e fila ao longo do dia</h4><button type="button" id="mtr-filme" onclick="mtrFilme()" class="btn-secondary text-xs px-3 py-1.5 rounded-lg">▶ Assistir de novo</button><label style="display:inline; margin:0; text-transform:none; letter-spacing:0">Duração <select id="mtr-filme-dur" style="width:auto; display:inline-block; padding:3px 8px"><option value="15">15 s</option><option value="30" selected>30 s</option><option value="60">1 min</option><option value="120">2 min</option></select></label></div>
                     <div class="mtr-legenda">
                         <span><span class="mtr-chave" style="background: var(--mtr-motor)"></span>Motor (reprise)</span>
                         <span><span class="mtr-chave" style="background: var(--mtr-real)"></span>Dia real</span>
