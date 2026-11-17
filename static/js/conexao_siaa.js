@@ -589,6 +589,7 @@ const CS_RN_ERROS = {
     preparacao_recusada: 'A preparação foi recusada antes do login.',
     disponibilidade_bloqueia: 'A disponibilidade do SIAA impediu a renovação.',
     navegador_falhou: 'O navegador do executor falhou.',
+    canvas_indisponivel: 'A tela do Windows App não ficou pronta a tempo (não é recusa de credencial).',
     login_falhou: 'O login não foi concluído.',
     mfa_herdado_ou_ambiguo: 'A verificação em duas etapas (MFA) ficou ambígua ou herdada.',
     conta_divergente: 'A conta exibida não é a esperada.',
