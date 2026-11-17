@@ -4,6 +4,12 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-17 — Preços dos cursos: o canal que sobe para os sites também é escolhido na tela
+- **Modelo usado:** Claude Fable 5.1.
+- **Pedido:** mesmo caso da entrada abaixo (IA), agora nos sites: o botão **Atualizar este site** parava com "A planilha não tem o canal Mar Aberto". A planilha de Graduação de 17/11 traz 9 canais (Balcão Estratégico, Balcão|Comercial 10/15/20%, Captadora, Clube de Benefícios, Educação Corporativa, Esquenta Black, Segunda Grad e Transferência) e nenhum APROVADOS; o site vai usar outro canal.
+- **Agora:** ao lado do seletor de site há `#bp-canal-site`, preenchido com os canais da planilha, igual ao `#bp-canal-ia`. Vem marcado o APROVADOS quando existe; sem ele fica vazio e o botão pede a escolha. O `VALOR COM DESCONTO` do canal escolhido vai para o site pelas rotas que já recebiam o canal no form (`/api/atualizar_wix_canal`, `wix2`, `wix3`). A confirmação e o log citam o canal.
+- **Não muda:** backend; as cotas fixas no CRM (Balcão Estratégico e Mar Aberto). O canal do site e o da IA são escolhidos separadamente.
+
 ### 2026-11-17 — Preços dos cursos: o canal que sobe para a IA é escolhido na tela
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** o canal APROVADOS (Mar Aberto) saiu da planilha de Graduação, e o botão **Atualizar a IA** parava com "A planilha não tem o canal Mar Aberto".

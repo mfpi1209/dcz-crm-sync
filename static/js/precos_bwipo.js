@@ -77,7 +77,7 @@ const _bpSites = {
 };
 
 function _bpBotoes(travar) {
-    ['bp-btn-aplicar', 'bp-btn-hist', 'bp-btn-ia', 'bp-canal-ia', 'bp-btn-site', 'bp-site'].forEach(id => {
+    ['bp-btn-aplicar', 'bp-btn-hist', 'bp-btn-ia', 'bp-canal-ia', 'bp-btn-site', 'bp-site', 'bp-canal-site'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.disabled = travar;
     });
@@ -117,6 +117,7 @@ async function bpPreview() {
     _bpPorCurso = {};
     bpRenderCanais();
     bpRenderCanalIa();
+    bpRenderCanalSite();
     bpRenderCursos();
     bpInsights();
     document.getElementById('bp-preview-wrap').classList.remove('hidden');
@@ -135,6 +136,26 @@ function bpRenderCanalIa() {
         `<option value="${_bpEsc(c.canal)}">${_bpEsc(c.label || c.canal)}</option>`
     ).join('');
     sel.value = aberto ? aberto.canal : '';
+}
+
+// Canal cujo VALOR COM DESCONTO sobe para o site escolhido. Mesma regra do canal
+// da IA: vem marcado o Mar Aberto (APROVADOS) quando existe; sem ele, o usuário
+// escolhe (17/11: a planilha de Graduação deixou de trazer o APROVADOS).
+function bpRenderCanalSite() {
+    const sel = document.getElementById('bp-canal-site');
+    if (!sel) return;
+    const canais = (_bpPreview && _bpPreview.canais) || [];
+    const aberto = _bpCanalMarAberto();
+    sel.innerHTML = '<option value="">Canal do site</option>' + canais.map(c =>
+        `<option value="${_bpEsc(c.canal)}">${_bpEsc(c.label || c.canal)}</option>`
+    ).join('');
+    sel.value = aberto ? aberto.canal : '';
+}
+
+function _bpCanalSite() {
+    const sel = document.getElementById('bp-canal-site');
+    const v = sel ? sel.value : '';
+    return v ? _bpCanal(v) : null;
 }
 
 function _bpCanalIa() {
@@ -443,15 +464,16 @@ async function bpAtualizarSite() {
     if (!file || !_bpPreview || !site) return;
     const status = document.getElementById('bp-status');
     const [nome, url] = site;
-    const aberto = _bpCanalMarAberto();
+    const aberto = _bpCanalSite();
     if (!aberto) {
-        status.textContent = 'A planilha não tem o canal Mar Aberto.';
-        bpLog(nome, 'A planilha não tem o canal Mar Aberto.', 'erro');
+        status.textContent = 'Escolha o canal do site ao lado do botão.';
+        bpLog(nome, 'Nenhum canal escolhido para o site.', 'erro');
         return;
     }
-    if (!window.confirm(`Atualizar ${nome} com o valor do Mar Aberto?`)) return;
+    const nomeCanal = aberto.label || aberto.canal;
+    if (!window.confirm(`Atualizar ${nome} com o valor com desconto do canal ${nomeCanal}?`)) return;
     status.textContent = `Atualizando ${nome}…`;
-    bpLog(nome, 'Começou. O valor é o do Mar Aberto.', 'info');
+    bpLog(nome, `Começou. O valor é o do canal ${nomeCanal}.`, 'info');
     _bpBotoes(true);
     const body = new FormData();
     body.append('file', file);
