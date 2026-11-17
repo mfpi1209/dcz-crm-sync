@@ -4,6 +4,13 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-17 — Motor de Ativações: instalar as tabelas pela página (revisa "o SQL só se aplica por script")
+- **Modelo usado:** Claude Fable 5.2.
+- **Decisão do Marcelo (17/11):** em vez de alguém rodar `scripts/apply_motor_sql.py` no servidor, a página ganha o botão "Instalar o motor" (`POST /api/motor/instalar`).
+- **Trilhos:** só `role = admin`; roda o mesmo `sql/motor_ativacoes.sql` (só cria o que falta) pela conexão do próprio painel; registra no diário quem instalou. **Continua não rodando no boot.** Instalar não liga o motor, não inicia worker e não fala com o CRM.
+- O script `scripts/apply_motor_sql.py` continua valendo para quem preferir o servidor.
+- **PR 131 mergeado em 17/11** (autorizado pelo Marcelo): em produção o motor está desligado e em simulação até existirem as tabelas, o serviço do worker e o token.
+
 ### 2026-11-17 — Motor de Ativações: resultado do ciclo (motor × controle), comportamento e previsão, textos dos avisos
 - **Modelo usado:** Claude Fable 5.2.
 - **Objetivo do Marcelo (17/11):** motor organizado, com avaliação dos KPIs, integrado ao CRM, que meça melhor os resultados, tire o processo da mão da operação, ative mais cedo dosando a fila, melhore os textos e entenda o comportamento para prever.

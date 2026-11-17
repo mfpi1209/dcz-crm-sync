@@ -2,7 +2,8 @@
 
 Só lê as tabelas motor_ e grava as chaves liga/desliga/parada em
 `motor_controle`. Quem executa é o worker (`python -m motor.worker`), em
-serviço separado. Esta rota não fala com o CRM e não cria tabela.
+serviço separado. Estas rotas não falam com o CRM. Tabela só é criada quando um administrador
+aciona "Instalar" (`POST /api/motor/instalar`).
 """
 from __future__ import annotations
 
@@ -10,6 +11,7 @@ import json
 import logging
 import os
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import psycopg2.extras
 from flask import Blueprint, jsonify, request, session
@@ -240,6 +242,35 @@ def webhook_motor_respostas():
         logger.exception("motor: falha ao gravar resposta do webhook")  # sem o corpo: não registrar texto de aluno
         return jsonify({"ok": False}), 500
     return jsonify({"ok": True, "gravada": bool(novo)})
+
+
+@motor_ativacoes_bp.route("/api/motor/instalar", methods=["POST"])
+def api_motor_instalar():
+    """Cria as tabelas motor_ que faltam (o SQL só cria o que não existe). Só administrador.
+
+    Não liga o motor, não inicia worker e não fala com o CRM: depois de instalar,
+    o motor continua desligado e em simulação.
+    """
+    if not session.get("authenticated") or (session.get("role") or "") != "admin":
+        return jsonify({"ok": False, "error": "Só administrador pode instalar o motor."}), 403
+    usuario = (session.get("username") or "admin")[:80]
+    ddl = (Path(__file__).resolve().parent.parent / "sql" / "motor_ativacoes.sql").read_text(encoding="utf-8")
+    conn = get_conn()
+    try:
+        ja_estava = tabelas_instaladas(conn)
+        with conn, conn.cursor() as cur:
+            cur.execute(ddl)
+            cur.execute(
+                "INSERT INTO motor_diario (tipo, autor, texto) VALUES ('controle', %s, %s)",
+                (f"usuario:{usuario}", "Tabelas do motor conferidas pela página (já existiam)." if ja_estava
+                 else "Tabelas do motor criadas pela página. O motor segue desligado e em simulação."),
+            )
+    except Exception:
+        logger.exception("Falha ao instalar as tabelas do motor")
+        return jsonify({"ok": False, "error": "Não consegui criar as tabelas. Veja o log do painel."}), 500
+    finally:
+        conn.close()
+    return jsonify({"ok": True, "ja_estava": ja_estava})
 
 
 @motor_ativacoes_bp.route("/api/motor/diario")
