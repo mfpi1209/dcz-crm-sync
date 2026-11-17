@@ -77,7 +77,7 @@ const _bpSites = {
 };
 
 function _bpBotoes(travar) {
-    ['bp-btn-aplicar', 'bp-btn-hist', 'bp-btn-ia', 'bp-btn-site', 'bp-site'].forEach(id => {
+    ['bp-btn-aplicar', 'bp-btn-hist', 'bp-btn-ia', 'bp-canal-ia', 'bp-btn-site', 'bp-site'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.disabled = travar;
     });
@@ -116,11 +116,31 @@ async function bpPreview() {
     _bpGlobais = [];
     _bpPorCurso = {};
     bpRenderCanais();
+    bpRenderCanalIa();
     bpRenderCursos();
     bpInsights();
     document.getElementById('bp-preview-wrap').classList.remove('hidden');
     status.textContent = '';
     _bpBotoes(false);
+}
+
+// Canal cujo VALOR COM DESCONTO sobe para a IA. Vem marcado o Mar Aberto (APROVADOS)
+// quando a planilha tem; sem ele, o usuário escolhe.
+function bpRenderCanalIa() {
+    const sel = document.getElementById('bp-canal-ia');
+    if (!sel) return;
+    const canais = (_bpPreview && _bpPreview.canais) || [];
+    const aberto = _bpCanalMarAberto();
+    sel.innerHTML = '<option value="">Canal da IA</option>' + canais.map(c =>
+        `<option value="${_bpEsc(c.canal)}">${_bpEsc(c.label || c.canal)}</option>`
+    ).join('');
+    sel.value = aberto ? aberto.canal : '';
+}
+
+function _bpCanalIa() {
+    const sel = document.getElementById('bp-canal-ia');
+    const v = sel ? sel.value : '';
+    return v ? _bpCanal(v) : null;
 }
 
 function bpRenderCanais() {
@@ -465,15 +485,16 @@ async function bpAtualizarIa() {
     const file = _bpFile();
     if (!file || !_bpPreview) return;
     const status = document.getElementById('bp-status');
-    const aberto = _bpCanalMarAberto();
+    const aberto = _bpCanalIa();
     if (!aberto) {
-        status.textContent = 'A planilha não tem o canal Mar Aberto.';
-        bpLog('IA', 'A planilha não tem o canal Mar Aberto.', 'erro');
+        status.textContent = 'Escolha o canal da IA ao lado do botão.';
+        bpLog('IA', 'Nenhum canal escolhido para a IA.', 'erro');
         return;
     }
-    if (!window.confirm('Atualizar a base da IA com o valor do Mar Aberto? O curso que já existe troca o preço em documents_precos e em cursos_salesbot, no Postgres e no Supabase.')) return;
+    const nomeCanal = aberto.label || aberto.canal;
+    if (!window.confirm(`Atualizar a base da IA com o valor com desconto do canal ${nomeCanal}? O curso que já existe troca o preço em documents_precos e em cursos_salesbot, no Postgres e no Supabase.`)) return;
     status.textContent = 'Atualizando a base da IA…';
-    bpLog('IA', 'Começou. O valor é o do Mar Aberto.', 'info');
+    bpLog('IA', `Começou. O valor é o do canal ${nomeCanal}.`, 'info');
     _bpBotoes(true);
     const body = () => {
         const fd = new FormData();

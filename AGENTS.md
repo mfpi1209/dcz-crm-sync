@@ -4,6 +4,12 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-17 — Preços dos cursos: o canal que sobe para a IA é escolhido na tela
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** o canal APROVADOS (Mar Aberto) saiu da planilha de Graduação, e o botão **Atualizar a IA** parava com "A planilha não tem o canal Mar Aberto".
+- **Agora:** ao lado do botão há um seletor (`#bp-canal-ia`) com os canais da planilha carregada. Vem marcado o APROVADOS quando existe; se não existir, fica vazio e o botão pede a escolha. O `VALOR COM DESCONTO` do canal escolhido vai para `documents_precos` e `cursos_salesbot` (`/api/atualizar_grad_canal` e `/api/atualizar_salesbot_canal`, que já recebiam o canal no form).
+- **Não muda:** os sites continuam usando só o APROVADOS. As cotas fixas no CRM (Balcão Estratégico e Mar Aberto) também não mudam.
+
 ### 2026-11-09 — Conversão do ranking Bwipo usa os leads do Kommo até 30/09/2026
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** filtrando o ciclo 2026/1, a coluna Conv. do ranking dava 0%. O denominador eram só os leads do Pipeline Principal do Bwipo, que começa em 15/09/2026.
