@@ -111,6 +111,8 @@ class ReprisarTest(unittest.TestCase):
         r = reprisar(_rodada(), Parametros())
         self.assertNotIn("destinatarios", json.dumps(r))
         self.assertEqual(len(r["serie"]["motor"]), 14 * 60)
+        self.assertEqual(sum(r["serie"]["motor_envios"]), r["motor"]["enviados"])
+        self.assertEqual(sum(r["serie"]["real_envios"]), r["real"]["enviados"])
         self.assertEqual([h["hora"] for h in r["horas"]], list(range(8, 22)))
         self.assertTrue(any("teto de 4.000" in a for a in reprisar(_rodada(envios=5000), Parametros())["avisos"]))
 

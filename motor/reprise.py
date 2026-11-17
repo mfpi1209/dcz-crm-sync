@@ -371,6 +371,9 @@ def reprisar(rodada: dict, p: Parametros) -> dict:
     return {
         "dia": rodada["dia"], "campanhas": rodada.get("campanhas") or [], "parametros": {**p.__dict__, "lotes": list(p.lotes), "inicio": _hm(p.inicio_min)},
         "motor": motor, "real": real, "lotes": lotes, "trechos": trechos, "horas": horas,
-        "serie": {"de_min": 8 * 60, "motor": fila.por_minuto[8 * 60:22 * 60], "real": fila_real.por_minuto[8 * 60:22 * 60]},
+        "serie": {
+            "de_min": 8 * 60, "motor": fila.por_minuto[8 * 60:22 * 60], "real": fila_real.por_minuto[8 * 60:22 * 60],
+            "motor_envios": envios[8 * 60:22 * 60], "real_envios": envios_real[8 * 60:22 * 60],
+        },
         "avisos": _avisos(p, cfg, total),
     }

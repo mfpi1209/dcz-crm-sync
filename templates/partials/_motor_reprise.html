@@ -57,13 +57,14 @@
 
             <div>
                 <div class="flex flex-wrap items-end justify-between gap-2 mb-2">
-                    <h4 class="text-sm font-bold text-[var(--text-primary)]">Conversas esperando atendente, minuto a minuto</h4>
+                    <div class="flex flex-wrap items-center gap-3"><h4 class="text-sm font-bold text-[var(--text-primary)]">Envios e fila ao longo do dia</h4><button type="button" id="mtr-filme" onclick="mtrFilme()" class="btn-secondary text-xs px-3 py-1.5 rounded-lg">▶ Assistir o dia</button><label style="display:inline; margin:0; text-transform:none; letter-spacing:0">Duração <select id="mtr-filme-dur" style="width:auto; display:inline-block; padding:3px 8px"><option value="15">15 s</option><option value="30" selected>30 s</option><option value="60">1 min</option><option value="120">2 min</option></select></label></div>
                     <div class="mtr-legenda">
                         <span><span class="mtr-chave" style="background: var(--mtr-motor)"></span>Motor (reprise)</span>
                         <span><span class="mtr-chave" style="background: var(--mtr-real)"></span>Dia real</span>
                         <span><span class="mtr-chave" style="background: var(--text-muted); width: 2px; height: 10px"></span>Início de lote do motor</span>
                     </div>
                 </div>
+                <div id="mtr-relogio" class="text-sm font-semibold text-[var(--text-primary)] mb-1" style="font-variant-numeric: tabular-nums; min-height: 1.3em"></div>
                 <div class="mtr-graf"><div id="mtr-grafico"></div><div id="mtr-dica" class="mtr-dica hidden"></div></div>
                 <p class="mtr-nota mt-1">O dia real passa pelo mesmo modelo de fila do motor (equipe e conversas de fundo do dia), para comparar igual com igual.</p>
             </div>

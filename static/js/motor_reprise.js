@@ -127,51 +127,99 @@ function _mtrRender(d) {
 
 function _mtrHm(minuto) { return String(Math.floor(minuto / 60)).padStart(2, '0') + ':' + String(minuto % 60).padStart(2, '0'); }
 
+let _mtrFilme = null;   // animação em curso: { quadro, aoParar }
+
 function _mtrGrafico(d) {
-    const W = 900, H = 250, E = 34, D = 14, T = 16, B = 24;
-    const s = d.serie, n = s.motor.length, maxY = Math.max(10, ...s.motor, ...s.real);
-    const passo = [5, 10, 20, 25, 50, 100, 200, 500].find(v => maxY / v <= 5) || 1000;
-    const topo = Math.ceil(maxY / passo) * passo;
+    mtrPararFilme();
+    // Dois painéis com o mesmo eixo de horas: envios acumulados em cima, fila embaixo (cada um com a sua escala).
+    const W = 900, E = 46, D = 14, T1 = 22, H1 = 120, VAO = 34, H2 = 190, B = 24;
+    const T2 = T1 + H1 + VAO, H = T2 + H2 + B;
+    const s = d.serie, n = s.motor.length;
+    const acumular = serie => { let t = 0; return serie.map(v => (t += v)); };
+    const envM = acumular(s.motor_envios), envR = acumular(s.real_envios);
+    const escala = max => { const passo = [5, 10, 20, 25, 50, 100, 200, 500, 1000, 2000, 2500, 5000, 10000].find(v => max / v <= 4) || 20000; return { passo, topo: Math.max(passo, Math.ceil(max / passo) * passo) }; };
+    const eE = escala(Math.max(10, envM[n - 1], envR[n - 1])), eF = escala(Math.max(10, ...s.motor, ...s.real));
     const x = i => E + (W - E - D) * i / (n - 1);
-    const y = v => T + (H - T - B) * (1 - v / topo);
-    const linha = serie => serie.map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join('');
-    let g = '';
-    for (let v = 0; v <= topo; v += passo) {
-        g += `<line x1="${E}" x2="${W - D}" y1="${y(v)}" y2="${y(v)}" stroke="var(--border)" stroke-width="1"/>`
-           + `<text x="${E - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--text-muted)">${v}</text>`;
-    }
-    for (let h = 8; h <= 22; h += 2) {
-        g += `<text x="${x((h * 60) - s.de_min)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="var(--text-muted)">${h}h</text>`;
-    }
+    const yE = v => T1 + H1 * (1 - v / eE.topo), yF = v => T2 + H2 * (1 - v / eF.topo);
+    const linha = (serie, y) => serie.map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join('');
+    const grade = (e, y) => { let g = ''; for (let v = 0; v <= e.topo; v += e.passo) g += `<line x1="${E}" x2="${W - D}" y1="${y(v)}" y2="${y(v)}" stroke="var(--border)" stroke-width="1"/><text x="${E - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--text-muted)">${v.toLocaleString('pt-BR')}</text>`; return g; };
+    let fundo = grade(eE, yE) + grade(eF, yF)
+        + `<text x="${E}" y="${T1 - 8}" font-size="12" font-weight="600" fill="var(--text-primary)">Envios acumulados</text>`
+        + `<text x="${E}" y="${T2 - 8}" font-size="12" font-weight="600" fill="var(--text-primary)">Conversas esperando atendente</text>`;
+    for (let h = 8; h <= 22; h += 2) fundo += `<text x="${x(h * 60 - s.de_min)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="var(--text-muted)">${h}h</text>`;
+
     const minutoDe = hm => { const [a, b] = hm.split(':').map(Number); return a * 60 + b - s.de_min; };
+    let dados = '';
     d.lotes.forEach(l => {
         const i = minutoDe(l.inicio);
-        if (i >= 0 && i < n) g += `<line x1="${x(i)}" x2="${x(i)}" y1="${H - B}" y2="${H - B - 9}" stroke="var(--text-muted)" stroke-width="2"/>`;
+        if (i >= 0 && i < n) dados += `<line x1="${x(i)}" x2="${x(i)}" y1="${T2 + H2}" y2="${T2 + H2 - 9}" stroke="var(--text-muted)" stroke-width="2"/>`;
     });
     const pico = (serie, cor, acima) => {
-        const v = Math.max(...serie), i = serie.indexOf(v);
-        const ancora = x(i) > W - 90 ? 'end' : 'start';
-        return `<circle cx="${x(i)}" cy="${y(v)}" r="4" fill="${cor}" stroke="var(--bg-card)" stroke-width="2"/>`
-             + `<text x="${x(i) + (ancora === 'end' ? -8 : 8)}" y="${y(v) + (acima ? -6 : 14)}" text-anchor="${ancora}" font-size="12" font-weight="600" fill="var(--text-primary)">${v} às ${_mtrHm(i + s.de_min)}</text>`;
+        const v = Math.max(...serie), i = serie.indexOf(v), ancora = x(i) > W - 90 ? 'end' : 'start';
+        return `<circle cx="${x(i)}" cy="${yF(v)}" r="4" fill="${cor}" stroke="var(--bg-card)" stroke-width="2"/>`
+             + `<text x="${x(i) + (ancora === 'end' ? -8 : 8)}" y="${yF(v) + (acima ? -6 : 14)}" text-anchor="${ancora}" font-size="12" font-weight="600" fill="var(--text-primary)">${v} às ${_mtrHm(i + s.de_min)}</text>`;
     };
-    g += `<path d="${linha(s.real)}" fill="none" stroke="var(--mtr-real)" stroke-width="2" stroke-linejoin="round"/>`
-       + `<path d="${linha(s.motor)}" fill="none" stroke="var(--mtr-motor)" stroke-width="2" stroke-linejoin="round"/>`
-       + pico(s.real, 'var(--mtr-real)', true) + pico(s.motor, 'var(--mtr-motor)', Math.max(...s.motor) < Math.max(...s.real) * 0.85 || Math.max(...s.motor) > Math.max(...s.real))
-       + `<line id="mtr-cursor" x1="0" x2="0" y1="${T}" y2="${H - B}" stroke="var(--text-muted)" stroke-width="1" visibility="hidden"/>`
-       + `<rect id="mtr-alvo" x="${E}" y="${T}" width="${W - E - D}" height="${H - T - B}" fill="transparent"/>`;
-    _mtrEl('mtr-grafico').innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Conversas esperando atendente por minuto: motor e dia real">${g}</svg>`;
+    const tracos = (a, b, y) => `<path d="${linha(a, y)}" fill="none" stroke="var(--mtr-real)" stroke-width="2" stroke-linejoin="round"/><path d="${linha(b, y)}" fill="none" stroke="var(--mtr-motor)" stroke-width="2" stroke-linejoin="round"/>`;
+    dados += tracos(envR, envM, yE) + tracos(s.real, s.motor, yF)
+        + pico(s.real, 'var(--mtr-real)', true) + pico(s.motor, 'var(--mtr-motor)', Math.max(...s.motor) < Math.max(...s.real) * 0.85 || Math.max(...s.motor) > Math.max(...s.real));
+    _mtrEl('mtr-grafico').innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Envios acumulados e conversas esperando atendente ao longo do dia: motor e dia real">`
+        + `<defs><clipPath id="mtr-corte"><rect id="mtr-corte-area" x="0" y="0" width="${W}" height="${H}"/></clipPath></defs>${fundo}`
+        + `<g clip-path="url(#mtr-corte)">${dados}</g>`
+        + `<line id="mtr-cursor" x1="0" x2="0" y1="${T1}" y2="${T2 + H2}" stroke="var(--text-muted)" stroke-width="1" visibility="hidden"/>`
+        + `<rect id="mtr-alvo" x="${E}" y="${T1}" width="${W - E - D}" height="${T2 + H2 - T1}" fill="transparent"/></svg>`;
 
-    const alvo = _mtrEl('mtr-alvo'), cursor = _mtrEl('mtr-cursor'), dica = _mtrEl('mtr-dica');
+    // Estado do motor em cada minuto, para o relógio do filme.
+    const estados = new Array(n).fill('');
+    d.trechos.forEach(t => { for (let i = Math.max(0, minutoDe(t.de)); i < Math.min(n, minutoDe(t.ate)); i++) estados[i] = (t.estado === 'pausado' ? 'pausado: ' : 'segurando: ') + t.causa; });
+    const primeiro = s.motor_envios.findIndex(v => v > 0), total = envM[n - 1];
+    const estadoEm = i => s.motor_envios[i] > 0 ? 'enviando' : estados[i] || (primeiro < 0 || i < primeiro ? 'aguardando o início' : (envM[i] >= total ? 'envio do dia concluído' : 'entre lotes'));
+    const relogio = i => `${_mtrHm(i + s.de_min)} · motor enviou ${envM[i].toLocaleString('pt-BR')} de ${total.toLocaleString('pt-BR')} · fila ${s.motor[i]} · ${estadoEm(i)}`;
+
+    const alvo = _mtrEl('mtr-alvo'), cursor = _mtrEl('mtr-cursor'), dica = _mtrEl('mtr-dica'), area = _mtrEl('mtr-corte-area');
+    const mover = i => { cursor.setAttribute('x1', x(i)); cursor.setAttribute('x2', x(i)); cursor.setAttribute('visibility', 'visible'); };
     alvo.addEventListener('mousemove', ev => {
+        if (_mtrFilme) return;
         const caixa = alvo.getBoundingClientRect();
         const i = Math.max(0, Math.min(n - 1, Math.round((ev.clientX - caixa.left) / caixa.width * (n - 1))));
-        cursor.setAttribute('x1', x(i)); cursor.setAttribute('x2', x(i)); cursor.setAttribute('visibility', 'visible');
-        dica.innerHTML = `<strong>${_mtrHm(i + s.de_min)}</strong><br><span class="mtr-chave" style="background: var(--mtr-motor)"></span>Motor: ${s.motor[i]}<br><span class="mtr-chave" style="background: var(--mtr-real)"></span>Dia real: ${s.real[i]}`;
+        mover(i);
+        dica.innerHTML = `<strong>${_mtrHm(i + s.de_min)}</strong><br><span class="mtr-chave" style="background: var(--mtr-motor)"></span>Motor: ${envM[i].toLocaleString('pt-BR')} envios · fila ${s.motor[i]}`
+            + `<br><span class="mtr-chave" style="background: var(--mtr-real)"></span>Dia real: ${envR[i].toLocaleString('pt-BR')} envios · fila ${s.real[i]}`;
         dica.classList.remove('hidden');
-        const pai = dica.parentElement.getBoundingClientRect();
-        const esquerda = ev.clientX - pai.left;
-        dica.style.left = (esquerda > pai.width - 170 ? esquerda - dica.offsetWidth - 12 : esquerda + 12) + 'px';
+        const pai = dica.parentElement.getBoundingClientRect(), esquerda = ev.clientX - pai.left;
+        dica.style.left = (esquerda > pai.width - 250 ? esquerda - dica.offsetWidth - 12 : esquerda + 12) + 'px';
         dica.style.top = Math.max(0, ev.clientY - pai.top - 30) + 'px';
     });
-    alvo.addEventListener('mouseleave', () => { cursor.setAttribute('visibility', 'hidden'); dica.classList.add('hidden'); });
+    alvo.addEventListener('mouseleave', () => { if (_mtrFilme) return; cursor.setAttribute('visibility', 'hidden'); dica.classList.add('hidden'); });
+    _mtrEl('mtr-relogio').textContent = '';
+    _mtrGrafico.filme = { n, x, W, area, mover, relogio, cursor };
+}
+
+function mtrPararFilme() {
+    if (!_mtrFilme) return;
+    cancelAnimationFrame(_mtrFilme.quadro);
+    _mtrFilme.aoParar();
+    _mtrFilme = null;
+}
+
+// Passa o dia como um filme: o gráfico vai sendo revelado das 8h às 22h, com o relógio e o estado do motor.
+function mtrFilme() {
+    if (_mtrFilme) { mtrPararFilme(); return; }
+    const f = _mtrGrafico.filme, botao = _mtrEl('mtr-filme');
+    if (!f) return;
+    const duracao = Number(_mtrEl('mtr-filme-dur').value || 30) * 1000, inicio = performance.now();
+    _mtrEl('mtr-dica').classList.add('hidden');
+    botao.textContent = '■ Parar';
+    const quadro = agora => {
+        const i = Math.min(f.n - 1, Math.floor((agora - inicio) / duracao * (f.n - 1)));
+        f.area.setAttribute('width', f.x(i));
+        f.mover(i);
+        _mtrEl('mtr-relogio').textContent = f.relogio(i);
+        if (i >= f.n - 1) { mtrPararFilme(); return; }
+        _mtrFilme.quadro = requestAnimationFrame(quadro);
+    };
+    _mtrFilme = {
+        quadro: 0,
+        aoParar: () => { f.area.setAttribute('width', f.W); f.cursor.setAttribute('visibility', 'hidden'); botao.textContent = '▶ Assistir o dia'; },
+    };
+    _mtrFilme.quadro = requestAnimationFrame(quadro);
 }
