@@ -125,7 +125,7 @@ from db import get_conn as _nav_get_conn
 # _ensure_chamados_ti_page.
 _NAV_ALWAYS = ("avisos", "profile")
 # Páginas restritas a admin — nunca visíveis para outros perfis, mesmo com permissão explícita.
-_NAV_ADMIN_ONLY = frozenset({"siaa_consulta", "siaa_sessao", "match_inadimplentes", "materias_alunos", "tracker_tarefas"})
+_NAV_ADMIN_ONLY = frozenset({"siaa_consulta", "siaa_sessao", "match_inadimplentes", "materias_alunos", "tracker_tarefas", "conexao_siaa"})
 # Conjunto completo conhecido pelo front (PAGES no utils.js + páginas pessoais)
 _NAV_KNOWN_PAGES = sorted(set(_NAV_ALL_PAGES) | set(_NAV_ALWAYS) | {"dashboard"})
 
@@ -286,6 +286,7 @@ from routes.academico_interacoes import academico_interacoes_bp
 from routes.blog_posts import blog_posts_bp, register_blog_schedule_job
 from routes.inscricao import inscricao_bp
 from routes.tracker_tarefas import tracker_tarefas_bp
+from routes.conexao_siaa import conexao_siaa_bp
 from routes.dist_comercial_schedule import (
     dist_comercial_schedule_bp,
     register_dist_comercial_schedule_job,
@@ -324,6 +325,7 @@ app.register_blueprint(academico_interacoes_bp)
 app.register_blueprint(blog_posts_bp)
 app.register_blueprint(inscricao_bp)
 app.register_blueprint(tracker_tarefas_bp)
+app.register_blueprint(conexao_siaa_bp)
 app.register_blueprint(dist_comercial_schedule_bp)
 from routes.bwipo_precos import bwipo_precos_bp
 app.register_blueprint(bwipo_precos_bp)

@@ -456,6 +456,7 @@ const PAGE_LABELS = {
     chamados_ti: 'Fila de chamados · TI',
     chamados_marketing: 'Fila de chamados · Marketing',
     tracker_tarefas: 'Tracker de Tarefas - TI',
+    conexao_siaa: 'Conexão SIAA',
 };
 
 // ---------------------------------------------------------------------------
@@ -626,7 +627,7 @@ const PAGE_GROUPS_CONFIG = [
         section: 'Operação',
         icon: 'developer_board',
         color: 'var(--primary)',
-        pages: ['tracker_tarefas'],
+        pages: ['tracker_tarefas', 'conexao_siaa'],
     },
     {
         label: 'Premiações Internas',
