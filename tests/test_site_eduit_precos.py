@@ -74,6 +74,13 @@ class PlanejarTest(unittest.TestCase):
         of = [Oferta(5, 5, "fisica-licenciatura", None, Decimal("340"))]
         self.assertEqual(planejar(of, {})["sem_chave"], ["fisica-licenciatura"])
 
+    def test_curso_divergente_da_oferta_entra_na_troca(self):
+        # oferta já no preço novo, mas cursos.preco (o que o site mostra) ficou para trás
+        of = [Oferta(92, 92, "marketing", "MarketingEADTecnólogo", Decimal("180"), Decimal("161"))]
+        p = planejar(of, {"MarketingEADTecnólogo": 180})
+        self.assertEqual(p["iguais"], 0)
+        self.assertEqual([t["para"] for t in p["trocas"]], [180])
+
     def test_sem_preco_reportado(self):
         of = [Oferta(9, 9, "x", "XEADBacharelado", Decimal("100"))]
         self.assertEqual(planejar(of, {})["sem_preco"], ["XEADBacharelado"])
@@ -112,6 +119,30 @@ class ConectarTest(unittest.TestCase):
             with self.assertRaises(SiteEduitNaoConfigurado) as ctx:
                 conectar()
         self.assertEqual(str(ctx.exception), "Site eduit.com.br não configurado (SITE_EDUIT_DB_*).")
+
+    def _env(self, **extra):
+        base = {k: v for k, v in os.environ.items() if not k.startswith("SITE_EDUIT_DB_")}
+        base.update(extra)
+        return mock.patch.dict(os.environ, base, clear=True)
+
+    def test_config_sem_usuario_ou_senha(self):
+        with self._env(SITE_EDUIT_DB_HOST="banco_banco", SITE_EDUIT_DB_USER="u"):
+            with self.assertRaises(SiteEduitNaoConfigurado):
+                conectar()
+        with self._env(SITE_EDUIT_DB_HOST="banco_banco", SITE_EDUIT_DB_PASS="p"):
+            with self.assertRaises(SiteEduitNaoConfigurado):
+                conectar()
+
+    def test_conexao_tem_timeouts_e_keepalive(self):
+        fake = mock.MagicMock()
+        with self._env(SITE_EDUIT_DB_HOST="banco_banco", SITE_EDUIT_DB_USER="u", SITE_EDUIT_DB_PASS="p"), \
+                mock.patch.dict("sys.modules", {"psycopg2": fake}):
+            conectar()
+        kw = fake.connect.call_args.kwargs
+        self.assertEqual(kw["connect_timeout"], 10)
+        self.assertIn("statement_timeout=15000", kw["options"])
+        self.assertIn("lock_timeout=5000", kw["options"])
+        self.assertEqual((kw["keepalives"], kw["keepalives_idle"]), (1, 30))
 
 
 if __name__ == "__main__":

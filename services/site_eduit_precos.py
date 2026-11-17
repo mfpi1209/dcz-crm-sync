@@ -28,6 +28,7 @@ class Oferta(NamedTuple):
     slug: str
     chave: str | None
     valor: Decimal | None
+    preco_curso: Decimal | None = None  # cursos.preco, o que o site mostra
 
 
 def _preco_da_chave(chave: str, price_idx: dict[str, int]) -> int | None:
@@ -59,7 +60,8 @@ def planejar(ofertas: list[Oferta], price_idx: dict[str, int]) -> dict:
             sem_preco.append(chave)
             continue
         de = _int_ou_none(of.valor)
-        if de == para:
+        curso_ok = of.preco_curso is None or _int_ou_none(of.preco_curso) == para
+        if de == para and curso_ok:
             iguais += 1
             continue
         trocas.append({"oferta_id": of.oferta_id, "curso_id": of.curso_id,
@@ -70,7 +72,7 @@ def planejar(ofertas: list[Oferta], price_idx: dict[str, int]) -> dict:
 def carregar_ofertas(cur) -> list[Oferta]:
     cur.execute(
         """
-        SELECT o.id, o.curso_id, c.slug, o.chave, o.valor
+        SELECT o.id, o.curso_id, c.slug, o.chave, o.valor, c.preco
           FROM curso_ofertas o
           JOIN cursos c ON c.id = o.curso_id
          WHERE c.tipo = 'graduacao'
@@ -106,17 +108,24 @@ def aplicar(conn, plano: dict) -> dict:
 
 def conectar():
     host = (os.getenv("SITE_EDUIT_DB_HOST") or "").strip()
-    if not host:
+    user = (os.getenv("SITE_EDUIT_DB_USER") or "").strip()
+    password = os.getenv("SITE_EDUIT_DB_PASS") or ""
+    if not (host and user and password):
         raise SiteEduitNaoConfigurado("Site eduit.com.br não configurado (SITE_EDUIT_DB_*).")
     import psycopg2
 
+    # Nada pode prender uma das 4 threads do gunicorn: lock/statement com prazo
+    # e keepalive para conexão TCP meio aberta.
     return psycopg2.connect(
         host=host,
         port=int(os.getenv("SITE_EDUIT_DB_PORT") or 5432),
         dbname=os.getenv("SITE_EDUIT_DB_NAME") or "site_anhanguera",
-        user=os.getenv("SITE_EDUIT_DB_USER") or "postgres",
-        password=os.getenv("SITE_EDUIT_DB_PASS") or "",
+        user=user,
+        password=password,
         connect_timeout=10,
+        options="-c statement_timeout=15000 -c lock_timeout=5000",
+        keepalives=1,
+        keepalives_idle=30,
     )
 
 
