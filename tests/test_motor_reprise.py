@@ -101,7 +101,8 @@ class ReprisarTest(unittest.TestCase):
         self.assertEqual(r["motor"]["enviados"], 3000)
         self.assertTrue(all(l["tamanho"] <= teto for l, teto in zip(r["lotes"], [300, 600] + [1200] * 20)))
         self.assertEqual(r["lotes"][1]["inicio"], "10:30")
-        self.assertFalse(any("1º lote do dia" in a for a in r["avisos"]))
+        self.assertTrue(any("desde o último lote" in a for a in r["avisos"]))
+        self.assertFalse(any("desde o último lote" in a for a in reprisar(_rodada(envios=3000), Parametros())["avisos"]))
 
     def test_dia_que_nao_e_util_nao_envia(self) -> None:
         r = reprisar(_rodada(dia="2026-11-15"), Parametros())   # domingo e feriado

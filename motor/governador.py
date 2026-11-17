@@ -128,8 +128,9 @@ def decidir(
     assert fila is not None
     base = nivel_de_antes(lote_ativo, agora, cfg)
     subiu = fila.aguardando - base if base is not None else 0
+    do_dia = cfg.fila_base == "dia"
     if subiu >= cfg.fila_sobe_pausa:
-        return Decisao.PAUSAR, f"fila subiu {subiu} desde o lote (de {base} para {fila.aguardando}; limite de pausa {cfg.fila_sobe_pausa})"
+        return Decisao.PAUSAR, f"fila subiu {subiu} desde {'antes do 1º lote do dia' if do_dia else 'o lote'} (de {base} para {fila.aguardando}; limite de pausa {cfg.fila_sobe_pausa})"
 
     if not antes_do_corte(agora, cfg):
         return Decisao.SEGURAR, f"corte de {cfg.corte_min} min antes do fim do expediente: sem lote novo hoje"
@@ -139,7 +140,7 @@ def decidir(
             f"(limite {cfg.exp_segura_por_mil:g})"
         )
     if subiu >= cfg.fila_sobe_segura:
-        return Decisao.SEGURAR, f"fila subiu {subiu} desde o lote anterior (de {base} para {fila.aguardando}; limite {cfg.fila_sobe_segura})"
+        return Decisao.SEGURAR, f"fila subiu {subiu} desde {'antes do 1º lote do dia' if do_dia else 'o lote anterior'} (de {base} para {fila.aguardando}; limite {cfg.fila_sobe_segura})"
     if fila.atendentes_online < cfg.atendentes_min:
         return Decisao.SEGURAR, (
             f"{fila.atendentes_online} atendentes online, abaixo do mínimo ({cfg.atendentes_min})"
@@ -150,7 +151,7 @@ def decidir(
             falta = cfg.vida_min_lote_min - int(vida.total_seconds() // 60)
             return Decisao.SEGURAR, f"lote anterior com menos de {cfg.vida_min_lote_min} min de vida (faltam {falta} min)"
 
-    detalhe = f", {subiu:+d} desde o lote anterior" if base is not None else ""
+    detalhe = f", {subiu:+d} desde {'antes do 1º lote do dia' if do_dia else 'o lote anterior'}" if base is not None else ""
     return Decisao.LIBERAR, f"fila em {fila.aguardando}{detalhe}, {fila.atendentes_online} atendentes online"
 
 

@@ -216,8 +216,8 @@ def _avisos(p: Parametros, cfg: MotorConfig, total: int) -> list[str]:
             f"Esta reprise envia até {teto:,} no dia. O motor de verdade vem com teto de {padrao.teto_diario:,} por dia "
             f"(máximo em código: {TETO_DIARIO_ABSOLUTO:,}) e divide o público nos 3 dias úteis antes do prazo.".replace(",", ".")
         )
-    if p.base == "dia":
-        avisos.append("A trava mede a subida desde antes do 1º lote do dia. O padrão do motor é medir desde o último lote (valendo 2 h); a base do dia liga com MOTOR_FILA_BASE=dia. Troque em \"Base da trava\" para comparar.")
+    if p.base == "lote":
+        avisos.append("A trava está medindo a subida desde o último lote (valendo 2 h). A regra do piloto, decidida em 17/11, é medir desde antes do 1º lote do dia.")
     if p.intervalo_min != padrao.vida_min_lote_min:
         avisos.append(f"Intervalo entre lotes de {p.intervalo_min} min; o padrão do motor é {padrao.vida_min_lote_min} min.")
     if abs(p.atend_por_hora - padrao.atend_por_hora) > 1e-9 and p.pela_folga:
@@ -302,8 +302,6 @@ def reprisar(rodada: dict, p: Parametros) -> dict:
             if m >= cfg.janela_fim_h * 60:
                 break      # fim do expediente: a campanha do dia é cancelada e o que falta fica como não enviado
             continue
-        if p.base == "dia":
-            motivo = motivo.replace("desde o lote anterior", "desde antes do 1º lote").replace("desde o lote", "desde antes do 1º lote")
         if resto > 0:
             if decisao == Decisao.PAUSAR:
                 pausado += 1

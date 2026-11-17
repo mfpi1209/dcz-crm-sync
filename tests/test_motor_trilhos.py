@@ -288,10 +288,14 @@ class GovernadorTest(unittest.TestCase):
         self.assertEqual(self._d(fila), Decisao.LIBERAR)
         self.assertEqual(self._d(fila, lote_ativo=self._lote(base=20)), Decisao.LIBERAR)
 
-    def test_nivel_do_lote_vale_por_duas_horas(self) -> None:
-        # Três horas depois a subida já não é daquele lote: o próximo mede do nível de agora.
+    def test_nivel_do_lote_vale_por_duas_horas_so_na_base_do_lote(self) -> None:
+        # Padrão (17/11): a referência é o nível de antes do 1º lote do dia e não expira.
         self.assertEqual(self._d(_fila(aguardando=90), lote_ativo=self._lote(base=20, minutos=119)), Decisao.PAUSAR)
-        self.assertEqual(self._d(_fila(aguardando=90), lote_ativo=self._lote(base=20, minutos=181)), Decisao.LIBERAR)
+        self.assertEqual(self._d(_fila(aguardando=90), lote_ativo=self._lote(base=20, minutos=181)), Decisao.PAUSAR)
+        # Com MOTOR_FILA_BASE=lote, três horas depois a subida já não é daquele lote: mede do nível de agora.
+        por_lote = replace(CFG, fila_base="lote")
+        self.assertEqual(decidir(_fila(aguardando=90), por_lote, agora=AGORA, lote_ativo=self._lote(base=20, minutos=119))[0], Decisao.PAUSAR)
+        self.assertEqual(decidir(_fila(aguardando=90), por_lote, agora=AGORA, lote_ativo=self._lote(base=20, minutos=181))[0], Decisao.LIBERAR)
 
     def test_limites_da_fila_so_apertam(self) -> None:
         import os
@@ -418,7 +422,7 @@ class BaseDaTravaTest(unittest.TestCase):
         agora = datetime(2026, 11, 24, 15, 0, tzinfo=BRT)
         lote = LoteAtivo(lote_id=1, liberado_em=agora - timedelta(hours=3), fila_base=20)
         fila = Fila(aguardando=55, maior_espera_s=0, atendentes_online=10, lida_em=agora)
-        por_lote, por_dia = MotorConfig(), replace(MotorConfig(), fila_base="dia")
+        por_lote, por_dia = replace(MotorConfig(), fila_base="lote"), MotorConfig()   # "dia" é o padrão desde 17/11
         self.assertIsNone(nivel_de_antes(lote, agora, por_lote))          # 3 h depois, o lote já não explica a fila
         self.assertEqual(nivel_de_antes(lote, agora, por_dia), 20)
         self.assertEqual(decidir(fila, por_lote, agora=agora, lote_ativo=lote)[0], Decisao.LIBERAR)
@@ -432,10 +436,10 @@ class BaseDaTravaTest(unittest.TestCase):
 
         from motor.config import carregar
 
-        with mock.patch.dict(os.environ, {"MOTOR_FILA_BASE": "DIA"}):
-            self.assertEqual(carregar().fila_base, "dia")
-        with mock.patch.dict(os.environ, {"MOTOR_FILA_BASE": "qualquer"}):
+        with mock.patch.dict(os.environ, {"MOTOR_FILA_BASE": "LOTE"}):
             self.assertEqual(carregar().fila_base, "lote")
+        with mock.patch.dict(os.environ, {"MOTOR_FILA_BASE": "qualquer"}):
+            self.assertEqual(carregar().fila_base, "dia")
 
 
 if __name__ == "__main__":
