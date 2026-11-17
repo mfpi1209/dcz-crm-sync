@@ -33,7 +33,7 @@ BANCO, USUARIO = "dcz_sync_local", "motor"
 EXE = ".exe" if os.name == "nt" else ""
 
 # Só estas chaves do arquivo local chegam ao painel e ao worker; o banco nunca vem de arquivo.
-PERMITIDAS = ("EDUIT_CRM_TOKEN", "EDUIT_CRM_BASE_URL", "MOTOR_REPRISE_DIR", "MOTOR_FERIADOS", "TYPESAFE_API_KEY", "MOTOR_CRM_ORG_ID")
+PERMITIDAS = ("EDUIT_CRM_TOKEN", "MOTOR_CRM_BASE_URL", "EDUIT_CRM_BASE_URL", "MOTOR_REPRISE_DIR", "MOTOR_FERIADOS", "TYPESAFE_API_KEY", "MOTOR_CRM_ORG_ID")
 
 
 def _pg_bin() -> Path:
