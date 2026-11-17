@@ -149,5 +149,45 @@ class TextosTest(unittest.TestCase):
         self.assertEqual(avaliar("lembrete_dia25", "Oi, {{1}}. A de {{2}} vence em {{3}}, e o PIX está na área do aluno.", ("Quero pagar", "Já paguei")), [])
 
 
+class HistoricoTest(unittest.TestCase):
+    def test_le_csv_e_recusa_o_que_nao_serve(self) -> None:
+        from motor.historico import ler_csv, resumo
+
+        texto = (
+            "\ufeffContact_ID;Ciclo;Baixa_Em\n"
+            "c1;2026-09;2026-09-08\n"
+            "c1;2026-10;\n"
+            "c2;2026-10;2026-10-20T10:00:00\n"
+            "c2;2026-10;2026-10-09\n"          # repetida: vale a baixa mais antiga
+            "c3;2026-11;2026-11-05\n"          # ciclo corrente: é do motor
+            "c4;2026-10;2026-11-02\n"          # baixa fora do mês
+            "c5;2026-13;\n"
+            ";2026-10;\n"
+            "c6;2026-10;ontem\n"
+        )
+        linhas, fora = ler_csv(texto, hoje=HOJE)
+        self.assertEqual([(l["contact_id"], l["ciclo"], l["baixa_dia10_em"]) for l in linhas], [
+            ("c1", "2026-09", date(2026, 9, 8)), ("c1", "2026-10", None), ("c2", "2026-10", date(2026, 10, 9)),
+        ])
+        self.assertTrue(all(l["controle"] is False and l["aberto_em"].day == 1 for l in linhas))
+        self.assertEqual(fora, {"repetida": 1, "ciclo corrente ou futuro": 1, "baixa fora do mês do ciclo": 1, "ciclo inválido": 1, "sem contact_id": 1, "data de baixa inválida": 1})
+        self.assertEqual(resumo(linhas), {"2026-09": {"alunos": 1, "com_baixa": 1}, "2026-10": {"alunos": 2, "com_baixa": 1}})
+        with self.assertRaises(ValueError):
+            ler_csv("aluno,mes\nx,y\n", hoje=HOJE)
+
+    def test_historico_importado_alimenta_a_previsao(self) -> None:
+        from motor.historico import ler_csv
+
+        csv_txt = "contact_id,ciclo,baixa_em\n" + "".join(
+            f"h{i},2026-{m:02d},{'2026-%02d-08' % m if i % 4 else ''}\n" for i in range(200) for m in (9, 10)
+        )
+        linhas, fora = ler_csv(csv_txt, hoje=HOJE)
+        self.assertEqual((len(linhas), fora), (400, {}))
+        atuais = [{**_linha(i, "2026-11", None), "contact_id": f"h{i}"} for i in range(200)]
+        c = comportamento(linhas + atuais, hoje=HOJE)
+        self.assertEqual(c["ciclos_de_base"], ["2026-09", "2026-10"])
+        self.assertEqual(c["previsao"]["em_dia"]["esperado"], 150)
+
+
 if __name__ == "__main__":
     unittest.main()

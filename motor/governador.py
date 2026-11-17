@@ -71,9 +71,14 @@ def nivel_de_antes(lote: Optional[LoteAtivo], agora: datetime, cfg: MotorConfig)
     Passadas `fila_base_validade_min` (padrão 2 h: 87% das respostas de um lote
     chegam nesse prazo), a subida da fila já não é desse lote, e o próximo
     lote volta a medir a partir do nível do momento.
+
+    Com `MOTOR_FILA_BASE=dia` a referência é o nível de antes do primeiro lote
+    do dia e não expira: a fila não pode subir "um degrau por lote".
     """
     if lote is None or lote.fila_base is None:
         return None
+    if cfg.fila_base == "dia":
+        return lote.fila_base   # nível de antes do 1º lote do dia: vale o dia inteiro
     if para_brt(agora) - para_brt(lote.liberado_em) > timedelta(minutes=cfg.fila_base_validade_min):
         return None
     return lote.fila_base

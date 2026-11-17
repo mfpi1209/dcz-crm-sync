@@ -403,5 +403,40 @@ class PausaDeEmergenciaTest(unittest.TestCase):
         self.assertIn("sem leitura", p(None))
 
 
+class BaseDaTravaTest(unittest.TestCase):
+    """MOTOR_FILA_BASE: subida medida desde o último lote (padrão) ou desde antes do 1º lote do dia."""
+
+    def test_base_do_dia_nao_expira_e_base_do_lote_expira(self) -> None:
+        from dataclasses import replace
+        from datetime import datetime, timedelta
+
+        from motor.calendario import BRT
+        from motor.config import MotorConfig
+        from motor.governador import decidir, nivel_de_antes
+        from motor.modelos import Decisao, Fila, LoteAtivo
+
+        agora = datetime(2026, 11, 24, 15, 0, tzinfo=BRT)
+        lote = LoteAtivo(lote_id=1, liberado_em=agora - timedelta(hours=3), fila_base=20)
+        fila = Fila(aguardando=55, maior_espera_s=0, atendentes_online=10, lida_em=agora)
+        por_lote, por_dia = MotorConfig(), replace(MotorConfig(), fila_base="dia")
+        self.assertIsNone(nivel_de_antes(lote, agora, por_lote))          # 3 h depois, o lote já não explica a fila
+        self.assertEqual(nivel_de_antes(lote, agora, por_dia), 20)
+        self.assertEqual(decidir(fila, por_lote, agora=agora, lote_ativo=lote)[0], Decisao.LIBERAR)
+        decisao, motivo = decidir(fila, por_dia, agora=agora, lote_ativo=lote)
+        self.assertEqual(decisao, Decisao.SEGURAR)                       # +35 sobre o nível de antes do 1º lote
+        self.assertIn("fila subiu 35", motivo)
+
+    def test_livro_razao_devolve_o_nivel_do_primeiro_lote_do_dia(self) -> None:
+        import os
+        from unittest import mock
+
+        from motor.config import carregar
+
+        with mock.patch.dict(os.environ, {"MOTOR_FILA_BASE": "DIA"}):
+            self.assertEqual(carregar().fila_base, "dia")
+        with mock.patch.dict(os.environ, {"MOTOR_FILA_BASE": "qualquer"}):
+            self.assertEqual(carregar().fila_base, "lote")
+
+
 if __name__ == "__main__":
     unittest.main()

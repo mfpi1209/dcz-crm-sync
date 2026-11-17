@@ -267,7 +267,8 @@ class RazaoPg(RazaoPgEnvio, RazaoBase):
             cur.execute("SELECT COUNT(*) FROM motor_mensagens WHERE dia = %s AND simulado = %s AND status NOT IN ('cancelado', 'nao_enviado')", (dia, simulado))
             return cur.fetchone()[0]
 
-    def ultimo_lote_liberado(self, dia: date, simulado: bool) -> Optional[LoteAtivo]:
+    def ultimo_lote_liberado(self, dia: date, simulado: bool, base_do_dia: bool = False) -> Optional[LoteAtivo]:
+        """Último lote liberado. Com `base_do_dia`, o nível de fila que ele carrega é o de antes do 1º lote do dia."""
         with self._tx() as cur:
             cur.execute(
                 """
@@ -278,6 +279,13 @@ class RazaoPg(RazaoPgEnvio, RazaoBase):
                 (dia, simulado),
             )
             r = cur.fetchone()
+            if r and base_do_dia:
+                cur.execute(
+                    "SELECT (fila->>'aguardando')::int FROM motor_lotes WHERE dia = %s AND simulado = %s AND liberado_em IS NOT NULL "
+                    "ORDER BY liberado_em ASC LIMIT 1",
+                    (dia, simulado),
+                )
+                r = (*r[:4], cur.fetchone()[0])
         return LoteAtivo(lote_id=r[0], liberado_em=r[1], enviados=r[2], falhas=r[3], fila_base=r[4]) if r else None
 
     def registrar_acao(self, chave: str, tipo: str, *, lote_id: Optional[int], simulado: bool, requisicao: Optional[dict] = None) -> bool:

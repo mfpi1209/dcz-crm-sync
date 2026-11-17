@@ -336,11 +336,14 @@ class RazaoMemoria(RazaoBase):
     def lotes_liberados_hoje(self, dia: date, simulado: bool) -> int:
         return sum(1 for l in self.lotes(dia, simulado) if l["liberado_em"])
 
-    def ultimo_lote_liberado(self, dia: date, simulado: bool) -> Optional[LoteAtivo]:
+    def ultimo_lote_liberado(self, dia: date, simulado: bool, base_do_dia: bool = False) -> Optional[LoteAtivo]:
         liberados = [l for l in self.lotes(dia, simulado) if l["liberado_em"]]
         if not liberados:
             return None
         u = max(liberados, key=lambda l: l["liberado_em"])
+        if base_do_dia:
+            primeiro = min(liberados, key=lambda l: l["liberado_em"])
+            u = {**u, "fila": primeiro.get("fila")}
         return LoteAtivo(lote_id=u["id"], liberado_em=u["liberado_em"], enviados=u["enviados"], falhas=u["falhas"],
                          fila_base=(u.get("fila") or {}).get("aguardando"))
 

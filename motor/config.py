@@ -96,6 +96,7 @@ class MotorConfig:
     fila_sobe_segura: int = 30
     fila_sobe_pausa: int = 60
     fila_base_validade_min: int = 120
+    fila_base: str = "lote"            # "lote": subida desde o último lote; "dia": desde antes do 1º lote do dia
     atendentes_min: int = 5
     falha_envio_max: float = 0.06
     falha_amostra_min: int = 50
@@ -164,6 +165,7 @@ def carregar() -> MotorConfig:
         fila_sobe_segura=sobe_segura,
         fila_sobe_pausa=_int("MOTOR_FILA_SOBE_PAUSA", 60, sobe_segura, FILA_SOBE_PAUSA_ABSOLUTO),
         fila_base_validade_min=_int("MOTOR_FILA_BASE_VALIDADE_MIN", 120, 30, 24 * 60),
+        fila_base="dia" if (os.getenv("MOTOR_FILA_BASE") or "").strip().lower() == "dia" else "lote",
         atendentes_min=_int("MOTOR_ATENDENTES_MIN", 5, 1, 1000),
         falha_envio_max=_float("MOTOR_FALHA_ENVIO_MAX", 0.06, 0.0, 0.06),
         falha_amostra_min=_int("MOTOR_FALHA_AMOSTRA_MIN", 50, 1, 100000),

@@ -197,7 +197,7 @@ def _config(p: Parametros) -> MotorConfig:
     return replace(
         MotorConfig(),
         fila_sobe_segura=p.fila_sobe_segura, fila_sobe_pausa=p.fila_sobe_pausa,
-        fila_base_validade_min=MINUTOS if p.base == "dia" else MotorConfig().fila_base_validade_min,
+        fila_base=p.base,
         vida_min_lote_min=p.intervalo_min, atendentes_min=p.atendentes_min, atend_por_hora=p.atend_por_hora,
         rampa=(p.lotes[0], p.lotes[1]), lote_max=p.lotes[2], lote_min=min(MotorConfig().lote_min, p.lotes[0]),
     )
@@ -217,7 +217,7 @@ def _avisos(p: Parametros, cfg: MotorConfig, total: int) -> list[str]:
             f"(máximo em código: {TETO_DIARIO_ABSOLUTO:,}) e divide o público nos 3 dias úteis antes do prazo.".replace(",", ".")
         )
     if p.base == "dia":
-        avisos.append("A trava mede a subida desde antes do 1º lote do dia. No código do motor, hoje, ela mede desde o último lote (valendo 2 h): troque em \"Base da trava\" para comparar.")
+        avisos.append("A trava mede a subida desde antes do 1º lote do dia. O padrão do motor é medir desde o último lote (valendo 2 h); a base do dia liga com MOTOR_FILA_BASE=dia. Troque em \"Base da trava\" para comparar.")
     if p.intervalo_min != padrao.vida_min_lote_min:
         avisos.append(f"Intervalo entre lotes de {p.intervalo_min} min; o padrão do motor é {padrao.vida_min_lote_min} min.")
     if abs(p.atend_por_hora - padrao.atend_por_hora) > 1e-9 and p.pela_folga:

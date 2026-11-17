@@ -188,7 +188,7 @@ class Laco:
             if fila is not None:
                 erro = f"fila de ensaio (MOTOR_SIM_FILA), não é leitura real. {erro}".strip()
         experiencia = self.razao.experiencia_do_dia(hoje, simulado)
-        self._lote_ativo = self.razao.ultimo_lote_liberado(hoje, simulado)
+        self._lote_ativo = self.razao.ultimo_lote_liberado(hoje, simulado, base_do_dia=self.cfg.fila_base == "dia")
         decisao, motivo = decidir(
             fila, self.cfg, agora=agora, lote_ativo=self._lote_ativo,
             campanha_em_andamento=any(p["campanha"]["estado"] == "enviando" for p in em_envio), experiencia=experiencia,
