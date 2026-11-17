@@ -2027,6 +2027,27 @@ def atualizar_wix3_canal():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/atualizar_site_eduit_canal', methods=['POST'])
+def atualizar_site_eduit_canal():
+    """Site www.eduit.com.br (Postgres site_anhanguera, só graduação).
+    Mesmo índice de preço dos sites Wix; a gravação fica em services/site_eduit_precos."""
+    from services.site_eduit_precos import SiteEduitNaoConfigurado, atualizar_site_eduit
+
+    f     = request.files.get('file')
+    canal = (request.form.get('canal') or '').strip()
+    if not f or not canal:
+        return jsonify({'error': 'Arquivo e canal são obrigatórios'}), 400
+    try:
+        price_idx = _wix_grad_price_index(_build_canal_xlsx(f.read(), canal))
+        if not price_idx:
+            return jsonify({'error': 'Nenhum preço desse canal na planilha.'}), 400
+        return jsonify(atualizar_site_eduit(price_idx))
+    except SiteEduitNaoConfigurado as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 # ═══════════════════════════════════════════════════════════════════
 # Wix Pós-Graduação — mapeamento N×N (9 endpoints)
 # ═══════════════════════════════════════════════════════════════════

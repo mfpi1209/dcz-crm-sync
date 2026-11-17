@@ -4,6 +4,13 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-17 — Preços dos cursos: o site www.eduit.com.br entra no "Atualizar este site"
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** o `www.eduit.com.br` (React + Express, não é Wix) também vende os cursos e ficava de fora da atualização de preço.
+- **Agora:** o seletor de sites tem **eduit.com.br**. A rota `POST /api/atualizar_site_eduit_canal` monta o mesmo índice de preço dos sites Wix (`_build_canal_xlsx` + `_wix_grad_price_index`, canal escolhido em `#bp-canal-site`) e chama `services/site_eduit_precos.py`. O serviço grava no Postgres `site_anhanguera`, só na graduação (`cursos.tipo = 'graduacao'`). Casa pela `curso_ofertas.chave`, que tem o formato da `chave1` do Eduit New, com o alias `Cst Em`, e muda `curso_ofertas.valor` e `cursos.preco` juntos (o site lê `cursos.preco`), numa transação só. Conexão: `SITE_EDUIT_DB_HOST`, `SITE_EDUIT_DB_PORT`, `SITE_EDUIT_DB_NAME`, `SITE_EDUIT_DB_USER`, `SITE_EDUIT_DB_PASS`. São variáveis separadas, sem URL, porque a senha tem caracteres que quebram uma URL. Sem o host, o botão responde "Site eduit.com.br não configurado".
+- **Pendente:** 8 licenciaturas estão com `curso_ofertas.chave` vazia (física, geografia, filosofia, ciências biológicas, matemática, química, história, letras português e inglês) e aparecem no log como "Sem chave no site" até alguém preencher a chave.
+- **Não muda:** as rotas e coleções dos três sites Wix, a IA, Aplicar no CRM, o histórico e a Pós do site (350 ofertas, 70 cursos com mais de uma duração).
+
 ### 2026-11-17 — Preços dos cursos: o canal que sobe para os sites também é escolhido na tela
 - **Modelo usado:** Claude Fable 5.1.
 - **Pedido:** mesmo caso da entrada abaixo (IA), agora nos sites: o botão **Atualizar este site** parava com "A planilha não tem o canal Mar Aberto". A planilha de Graduação de 17/11 traz 9 canais (Balcão Estratégico, Balcão|Comercial 10/15/20%, Captadora, Clube de Benefícios, Educação Corporativa, Esquenta Black, Segunda Grad e Transferência) e nenhum APROVADOS; o site vai usar outro canal.

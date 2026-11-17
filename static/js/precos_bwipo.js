@@ -74,6 +74,7 @@ const _bpSites = {
     wix: ['Site Cruzeiro', '/api/atualizar_wix_canal'],
     wix2: ['Eduit-ead', '/api/atualizar_wix2_canal'],
     wix3: ['Eduit New', '/api/atualizar_wix3_canal'],
+    eduit: ['eduit.com.br', '/api/atualizar_site_eduit_canal'],
 };
 
 function _bpBotoes(travar) {
@@ -490,9 +491,13 @@ async function bpAtualizarSite() {
             const mudou = `${l.chave}: ${l.de == null ? '—' : l.de} → ${l.para}`;
             bpLog(nome, l.ok ? mudou : `${mudou}. ${l.erro || 'erro'}`, l.ok ? 'ok' : 'erro');
         });
+        if ((data.sem_chave || []).length) {
+            bpLog(nome, `Sem chave no site: ${data.sem_chave.join(', ')}`, 'erro');
+        }
         const erros = data.erros ? `, ${data.erros} erro` : '';
         const iguais = data.iguais ? `, ${data.iguais} iguais` : '';
-        status.textContent = `${nome}: ${data.atualizados || 0} atualizados${iguais}${erros}`;
+        const semPreco = (data.sem_preco || []).length ? `, ${data.sem_preco.length} fora da planilha` : '';
+        status.textContent = `${nome}: ${data.atualizados || 0} atualizados${iguais}${erros}${semPreco}`;
         bpLog(nome, `Fechou. ${data.atualizados || 0} atualizados${iguais}${erros}.`, data.erros ? 'erro' : 'ok');
         if (data.ultimo_erro) bpLog(nome, data.ultimo_erro, 'erro');
     } catch (e) {
