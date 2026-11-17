@@ -131,6 +131,51 @@ class RazaoPgTest(unittest.TestCase):
         self.assertTrue(self.razao.registrar_acao("sim:x:1", "lancar_lote", lote_id=None, simulado=True))
         self.assertFalse(self.razao.registrar_acao("sim:x:1", "lancar_lote", lote_id=None, simulado=True))
 
+    def test_rota_de_resultados_le_o_livro_razao(self) -> None:
+        try:
+            from flask import Flask
+        except ImportError:
+            self.skipTest("flask não instalado")
+        os.environ.setdefault("DB_HOST", "127.0.0.1")
+        import routes.motor_ativacoes as rota_pagina
+        import routes.motor_resultados as rota
+
+        rota_pagina.get_conn = rota.get_conn = _conectar
+        conn = _conectar()
+        with conn, conn.cursor() as cur:
+            for i in range(240):
+                controle, pagou = i % 6 == 0, i % 3 != 0
+                cur.execute(
+                    "INSERT INTO motor_aluno_ciclo (contact_id, ciclo, aberto_em, baixa_dia10_em, controle) VALUES (%s, '2026-10', '2026-10-01', %s, %s)",
+                    (f"r{i}", date(2026, 10, 8) if pagou else None, controle),
+                )
+                if not controle and i < 100:
+                    cur.execute(
+                        "INSERT INTO motor_mensagens (contact_id, ciclo, dia, simulado, frente, mensagem, variante, estado, status, classificacao) "
+                        "VALUES (%s, '2026-10', '2026-10-07', FALSE, 'dia10', 'lembrete_dia10', 'A', 'sem_historico', 'entregue', %s)",
+                        (f"r{i}", "ja_paguei" if i < 10 else None),
+                    )
+        conn.close()
+        app = Flask(__name__)
+        app.secret_key = "teste"
+        app.register_blueprint(rota.motor_resultados_bp)
+        cliente = app.test_client()
+        self.assertEqual(cliente.get("/api/motor/resultados").status_code, 403)
+        with cliente.session_transaction() as s:
+            s.update(authenticated=True, role="admin", user_id=1, username="marcelo")
+        d = cliente.get("/api/motor/resultados?ciclo=2026-10").get_json()
+        self.assertTrue(d["ok"] and d["instalado"])
+        self.assertEqual(d["ciclos"], ["2026-10"])
+        r = d["resultado"]
+        self.assertEqual((r["motor"]["alunos"], r["controle"]["alunos"]), (200, 40))
+        self.assertEqual(r["por_mensagem"][0]["sairam"], sum(1 for i in range(100) if i % 6))
+        self.assertEqual(r["cobertura"]["controle_que_recebeu"], 0)
+        self.assertEqual(r["respostas"], {"ja_paguei": sum(1 for i in range(10) if i % 6)})
+        self.assertEqual(len(d["textos"]), 9)
+        self.assertIn("previsao", d["comportamento"])
+        # Ciclo que não existe cai no mais recente; valor estranho não vira SQL.
+        self.assertEqual(cliente.get("/api/motor/resultados?ciclo=2026-10';--").get_json()["resultado"]["ciclo"], "2026-10")
+
     def test_rotas_da_pagina(self) -> None:
         try:
             from flask import Flask

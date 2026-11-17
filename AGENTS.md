@@ -4,6 +4,20 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-17 — Motor de Ativações: resultado do ciclo (motor × controle), comportamento e previsão, textos dos avisos
+- **Modelo usado:** Claude Fable 5.2.
+- **Objetivo do Marcelo (17/11):** motor organizado, com avaliação dos KPIs, integrado ao CRM, que meça melhor os resultados, tire o processo da mão da operação, ative mais cedo dosando a fila, melhore os textos e entenda o comportamento para prever.
+- **Resultado do ciclo (`motor/resultados.py`, `GET /api/motor/resultados`):** comparação por **intenção de tratar**. De um lado todos os alunos fora do controle (recebendo ou não mensagem), do outro os 5% sorteados. Como o sorteio é por aluno, a diferença é o efeito do motor. **Não comparar "quem recebeu" com "quem não recebeu"**: quem recebe é escolhido pelo estado, e a conta sairia viciada.
+  - Medidas: pagou em dia (baixa até o prazo efetivo do dia 10 + folga), pagou até o dia 25, diferença em pontos percentuais com intervalo de 95%, alunos a mais em dia, por estado do aluno ao entrar no ciclo.
+  - "Conclusivo" só com o intervalo inteiro acima (ou abaixo) de zero **e** controle com 100 alunos ou mais. Com 5% de controle em ~15 mil alunos, efeito menor que uns 3,5 pontos não dá para afirmar num ciclo só.
+  - Por mensagem e variante: entrega, leitura, resposta, pedidos para parar ou reclamações por 1.000, e pagou em dia de quem recebeu (descritivo, serve para comparar variantes, não para medir efeito).
+  - Avisos na tela: ciclo ainda aberto, controle pequeno, controle contaminado (aluno do controle que recebeu mensagem), ciclo sem envio real.
+- **Comportamento e previsão (`motor/previsao.py`):** dos ciclos fechados do semestre, de cada estado quantos pagaram em dia, depois ou não pagaram no ciclo seguinte; aplica essas taxas aos alunos de hoje (previsão com margem) e compara o que já foi pago com a curva dos ciclos fechados (ritmo). Estado com menos de 30 casos usa a taxa geral; sem ciclo fechado não há previsão. **É leitura: não muda decisão do motor.**
+- **Textos (`motor/textos.py`):** 9 propostas (6 mensagens, variantes A/B onde faz sentido) e `avaliar`, que aponta variável faltando, texto começando ou terminando em variável, tamanho, CAIXA ALTA, pontuação repetida, palavra de ameaça fora da mensagem firme, botão longo e botão que o motor não lê sem IA. **Nenhuma proposta está cadastrada na Meta nem no CRM** (`aprovado=False`); o envio real segue usando `MOTOR_TEMPLATE_<MENSAGEM>`.
+- **Limite conhecido:** uma campanha por dia = um template, então A e B da mesma mensagem não saem no mesmo dia. Comparar variantes pede alternar por dia ou por ciclo (decisão em aberto).
+- **Ambiente local:** `python scripts/motor_local.py demonstrar` põe 6.000 alunos de mentira (`demo-...`) no banco local para ver os blocos; `zerar` apaga.
+- **Depende do histórico:** sem importar set–nov, a previsão só aparece depois do primeiro ciclo completo no livro-razão do motor.
+
 ### 2026-11-13 — Motor de Ativações: ambiente local de teste e reprise de rodada real
 - **Modelo usado:** Claude Fable 5.2.
 - **Pedido do Marcelo (13/11):** "o motor pode ser publicado local para testes" e refazer rodadas reais "simulando exatamente o que aconteceu, mas com disparo mais cedo, dosando por fila", sem nenhuma mensagem real.

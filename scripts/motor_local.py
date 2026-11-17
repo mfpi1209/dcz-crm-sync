@@ -4,6 +4,7 @@
     python scripts/motor_local.py            # sobe Postgres, worker e painel em http://127.0.0.1:5057
     python scripts/motor_local.py parar      # para worker e Postgres que tenham ficado de pé
     python scripts/motor_local.py zerar      # apaga o banco local e recria vazio
+    python scripts/motor_local.py demonstrar # alunos de mentira no banco local, para ver resultados e previsão
 
 Tudo fica em `.motor-local/` (fora do git). O banco é sempre o local, em
 127.0.0.1: as variáveis de banco deste script valem sobre as do ambiente e
@@ -168,6 +169,48 @@ def zerar() -> None:
     print("Banco local zerado, com as tabelas motor_ recriadas.")
 
 
+def demonstrar() -> None:
+    """Enche o banco LOCAL com alunos de mentira (4 ciclos, controle de 5%, envios de outubro), para ver resultados e previsão."""
+    codigo = r"""
+import hashlib, psycopg2
+from datetime import date, timedelta
+c = psycopg2.connect(host='127.0.0.1', port=PORTA, user=USUARIO, dbname=BANCO)
+cur = c.cursor()
+cur.execute("DELETE FROM motor_mensagens WHERE contact_id LIKE 'demo-%'")
+cur.execute("DELETE FROM motor_aluno_ciclo WHERE contact_id LIKE 'demo-%'")
+def sorte(*p): return int(hashlib.sha256('|'.join(map(str, p)).encode()).hexdigest()[:8], 16) / 0xFFFFFFFF
+ciclos, envios = [], []
+for i in range(6000):
+    cid, perfil = f'demo-{i:05d}', sorte('perfil', i)          # perfil: propensão a pagar em dia
+    controle = sorte('controle', i) < 0.05
+    for mes in (8, 9, 10, 11):
+        ciclo, s = f'2026-{mes:02d}', sorte('paga', i, mes)
+        tratado = mes >= 10 and not controle                    # o motor "entra" em outubro
+        em_dia = 0.25 + 0.5 * perfil + (0.06 if tratado else 0.0)
+        baixa = None
+        if mes < 11 or s < 0.35:
+            if s < em_dia: baixa = date(2026, mes, 3) + timedelta(days=int(s * 20) % 9)
+            elif s < em_dia + 0.22: baixa = date(2026, mes, 17) + timedelta(days=int(s * 50) % 10)
+        ciclos.append((cid, ciclo, date(2026, mes, 1), baixa, controle))
+        if mes == 10 and tratado and perfil < 0.7:
+            st = 'falhou' if sorte('f', i) < 0.04 else ('lido' if sorte('l', i) < 0.6 else 'entregue')
+            r = sorte('r', i)
+            rot = None if r > 0.09 or st == 'falhou' else ('ja_paguei' if r < 0.04 else 'como_pagar' if r < 0.07 else 'pediu_parar' if r < 0.074 else 'outro_assunto')
+            envios.append((cid, ciclo, date(2026, 10, 7), 'dia10', 'lembrete_dia10', 'A' if i % 2 else 'B', 'tardio', st, rot))
+cur.executemany("INSERT INTO motor_aluno_ciclo (contact_id, ciclo, aberto_em, baixa_dia10_em, controle) VALUES (%s,%s,%s,%s,%s)", ciclos)
+cur.executemany("INSERT INTO motor_mensagens (contact_id, ciclo, dia, simulado, frente, mensagem, variante, estado, status, classificacao) VALUES (%s,%s,%s,FALSE,%s,%s,%s,%s,%s,%s)", envios)
+cur.execute("INSERT INTO motor_diario (tipo, autor, texto) VALUES ('controle', 'usuario:local', 'Dados de DEMONSTRAÇÃO carregados no banco local: 6.000 alunos de mentira (demo-...). Nenhum é aluno real.')")
+c.commit(); c.close()
+""".replace("PORTA", repr(PORTA_PG)).replace("USUARIO", repr(USUARIO)).replace("BANCO", repr(BANCO))
+    meu = _subir_pg()
+    env = _ambiente()
+    _aplicar_sql(env)
+    subprocess.check_call([str(VENV_PY), "-c", codigo], cwd=RAIZ, env=env)
+    if meu is not None:
+        _parar_pg()
+    print("Banco local com 6.000 alunos de mentira (demo-...). Para apagar: python scripts/motor_local.py zerar")
+
+
 def subir() -> None:
     if not VENV_PY.is_file():
         sys.exit("Ambiente local ainda não preparado. Rode: python scripts/motor_local.py preparar")
@@ -203,7 +246,7 @@ def subir() -> None:
 
 if __name__ == "__main__":
     comando = sys.argv[1] if len(sys.argv) > 1 else "subir"
-    acoes = {"preparar": preparar, "subir": subir, "parar": parar, "zerar": zerar}
+    acoes = {"preparar": preparar, "subir": subir, "parar": parar, "zerar": zerar, "demonstrar": demonstrar}
     if comando not in acoes:
         sys.exit(__doc__)
     acoes[comando]()

@@ -331,8 +331,10 @@ from routes.bwipo_precos import bwipo_precos_bp
 app.register_blueprint(bwipo_precos_bp)
 from routes.motor_ativacoes import motor_ativacoes_bp
 from routes.motor_reprise import motor_reprise_bp
+from routes.motor_resultados import motor_resultados_bp
 app.register_blueprint(motor_ativacoes_bp)
 app.register_blueprint(motor_reprise_bp)
+app.register_blueprint(motor_resultados_bp)
 
 # ── Atualizar Preço — rotas do webapp standalone integrado ────────────────
 try:
