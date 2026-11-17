@@ -86,8 +86,10 @@
             {% include 'partials/_match_inadimplentes.html' %}
             {% include 'partials/_materias_alunos.html' %}
             {% include 'partials/_tracker_tarefas.html' %}
+            {% include 'partials/_conexao_siaa.html' %}
             {% include 'partials/_academico_interacoes.html' %}
             {% include 'partials/_subir_blog.html' %}
+            {% include 'partials/_motor_ativacoes.html' %}
         </main>
     </div>
 </div>
@@ -379,6 +381,7 @@
 <script defer src="{{ url_for('static', filename='js/feedback.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/inscricao.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/tracker_tarefas.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/conexao_siaa.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/ferramentas.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/leads_inscricao.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/disparador_whatsapp.js') }}?v={{_v}}"></script>
@@ -409,6 +412,9 @@
 <script defer src="{{ url_for('static', filename='js/meus_chamados_ti.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/chamados_ti.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/precos_bwipo.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/motor_ativacoes.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/motor_reprise.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/motor_resultados.js') }}?v={{_v}}"></script>
 
 </body>
 </html>

@@ -1,0 +1,55 @@
+    <div id="mtz-bloco" class="mt-card p-5 space-y-4 hidden">
+        <div class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+                <h3 class="text-lg font-bold text-[var(--text-primary)]">Resultado do ciclo</h3>
+                <p class="text-sm text-[var(--text-muted)] max-w-3xl">Pagamento dos alunos que ficaram com o motor contra o grupo de controle, que não recebe nada. O sorteio do controle é por aluno, então a diferença entre os dois é o efeito do motor.</p>
+            </div>
+            <div><label for="mtz-ciclo" class="mt-rot block mb-1">Ciclo</label><select id="mtz-ciclo" onchange="mtzCarregar()" class="bg-[var(--bg-main)] text-[var(--text-primary)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"></select></div>
+        </div>
+        <div id="mtz-faixa" class="mt-faixa is-sim hidden"></div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="mt-card p-4"><div class="mt-rot">Pagou em dia · motor</div><div id="mtz-k-motor" class="mt-val mt-1">—</div><div id="mtz-k-motor-sub" class="text-xs text-[var(--text-muted)] mt-1"></div></div>
+            <div class="mt-card p-4"><div class="mt-rot">Pagou em dia · controle</div><div id="mtz-k-controle" class="mt-val mt-1">—</div><div id="mtz-k-controle-sub" class="text-xs text-[var(--text-muted)] mt-1"></div></div>
+            <div class="mt-card p-4"><div class="mt-rot">Efeito do motor</div><div id="mtz-k-efeito" class="mt-val mt-1">—</div><div id="mtz-k-efeito-sub" class="text-xs text-[var(--text-muted)] mt-1"></div></div>
+            <div class="mt-card p-4"><div class="mt-rot">Receberam mensagem</div><div id="mtz-k-cobertura" class="mt-val mt-1">—</div><div id="mtz-k-cobertura-sub" class="text-xs text-[var(--text-muted)] mt-1"></div></div>
+        </div>
+        <div class="mt-rolavel">
+            <h4 class="text-sm font-bold text-[var(--text-primary)] mb-1">Por estado do aluno ao entrar no ciclo</h4>
+            <table><thead><tr><th>Estado</th><th class="mt-num">Alunos · motor</th><th class="mt-num">Em dia</th><th class="mt-num">Até o dia 25</th><th class="mt-num">Alunos · controle</th><th class="mt-num">Em dia</th><th class="mt-num">Diferença</th></tr></thead><tbody id="mtz-estados"></tbody></table>
+        </div>
+        <div class="mt-rolavel">
+            <h4 class="text-sm font-bold text-[var(--text-primary)] mb-1">Por mensagem e variante</h4>
+            <p id="mtz-msgs-vazio" class="text-sm text-[var(--text-muted)] hidden">Nenhum envio real neste ciclo.</p>
+            <table id="mtz-msgs-tabela"><thead><tr><th>Mensagem</th><th>Variante</th><th class="mt-num">Saíram</th><th class="mt-num">Entrega</th><th class="mt-num">Leitura</th><th class="mt-num">Resposta</th><th class="mt-num">Parar ou reclamar / 1.000</th><th class="mt-num">Pagou em dia</th></tr></thead><tbody id="mtz-msgs"></tbody></table>
+            <p class="text-xs text-[var(--text-muted)] mt-1">"Pagou em dia" por mensagem é de quem recebeu, sem controle: serve para comparar variantes da mesma mensagem, não para medir o efeito.</p>
+        </div>
+        <div id="mtz-respostas" class="text-sm text-[var(--text-muted)]"></div>
+    </div>
+
+    <div id="mtz-bloco-previsao" class="mt-card p-5 space-y-4 hidden">
+        <div>
+            <h3 class="text-lg font-bold text-[var(--text-primary)]">Comportamento e previsão</h3>
+            <p class="text-sm text-[var(--text-muted)] max-w-3xl">O que o histórico de pagamento do semestre diz sobre o ciclo corrente. É leitura para quem aprova o plano: não muda nenhuma decisão do motor.</p>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="mt-card p-4"><div class="mt-rot">Devem pagar em dia</div><div id="mtz-p-emdia" class="mt-val mt-1">—</div><div id="mtz-p-emdia-sub" class="text-xs text-[var(--text-muted)] mt-1"></div></div>
+            <div class="mt-card p-4"><div class="mt-rot">Devem pagar depois</div><div id="mtz-p-tardio" class="mt-val mt-1">—</div><div id="mtz-p-tardio-sub" class="text-xs text-[var(--text-muted)] mt-1"></div></div>
+            <div class="mt-card p-4"><div class="mt-rot">Devem ficar sem pagar</div><div id="mtz-p-nao" class="mt-val mt-1">—</div><div id="mtz-p-nao-sub" class="text-xs text-[var(--text-muted)] mt-1"></div></div>
+            <div class="mt-card p-4"><div class="mt-rot">Ritmo até hoje</div><div id="mtz-p-ritmo" class="mt-val mt-1">—</div><div id="mtz-p-ritmo-sub" class="text-xs text-[var(--text-muted)] mt-1"></div></div>
+        </div>
+        <p id="mtz-p-nota" class="text-sm text-[var(--text-muted)]"></p>
+        <div class="mt-rolavel">
+            <h4 class="text-sm font-bold text-[var(--text-primary)] mb-1">De cada estado, como o aluno fechou o ciclo seguinte</h4>
+            <table><thead><tr><th>Estado</th><th class="mt-num">Casos no histórico</th><th class="mt-num">Pagou em dia</th><th class="mt-num">Pagou depois</th><th class="mt-num">Não pagou</th><th class="mt-num">Alunos hoje</th></tr></thead><tbody id="mtz-comportamento"></tbody></table>
+        </div>
+    </div>
+
+    <div id="mtz-bloco-textos" class="mt-card p-5 space-y-3 hidden">
+        <div>
+            <h3 class="text-lg font-bold text-[var(--text-primary)]">Textos dos avisos</h3>
+            <p class="text-sm text-[var(--text-muted)] max-w-3xl">Propostas por mensagem e variante, com a verificação de qualidade. Nenhuma está cadastrada na Meta nem no CRM: o envio real usa o template configurado no ambiente.</p>
+        </div>
+        <div class="mt-rolavel">
+            <table><thead><tr><th>Mensagem</th><th>Var.</th><th>O que testa</th><th>Texto</th><th>Botões</th><th>Verificação</th></tr></thead><tbody id="mtz-textos"></tbody></table>
+        </div>
+    </div>

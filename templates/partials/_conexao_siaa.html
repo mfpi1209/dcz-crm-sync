@@ -1,0 +1,252 @@
+<div id="page-conexao_siaa" class="hidden">
+<style>
+#page-conexao_siaa {
+    --bg: #f1f5f9; --card: #ffffff; --border: #e2e8f0; --text: #0f172a; --text-muted: #64748b;
+    --hover-row: #f8fafc; --primary: #4f46e5; --primary-light: #e0e7ff;
+    --success: #16a34a; --success-light: #dcfce7; --warning: #b45309; --warning-light: #fef3c7;
+    --danger: #dc2626; --danger-light: #fee2e2; --neutral: #64748b; --neutral-light: #e2e8f0;
+    padding: 24px; background: var(--bg); min-height: 100%; color: var(--text);
+}
+.dark #page-conexao_siaa {
+    --bg: #0f172a; --card: #1e293b; --border: #334155; --text: #f1f5f9; --text-muted: #94a3b8;
+    --hover-row: #263348; --primary: #818cf8; --primary-light: rgba(129,140,248,.16);
+    --success: #4ade80; --success-light: rgba(34,197,94,.15); --warning: #fbbf24; --warning-light: rgba(251,191,36,.15);
+    --danger: #f87171; --danger-light: rgba(248,113,113,.15); --neutral: #94a3b8; --neutral-light: rgba(148,163,184,.15);
+}
+#page-conexao_siaa .cs-topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+#page-conexao_siaa .cs-title { font-size: 22px; font-weight: 700; margin: 0; }
+#page-conexao_siaa .cs-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; max-width: 70ch; }
+#page-conexao_siaa .cs-fresh { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); }
+#page-conexao_siaa .cs-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--neutral); }
+#page-conexao_siaa .cs-dot.ok { background: var(--success); }
+#page-conexao_siaa .cs-dot.err { background: var(--danger); }
+#page-conexao_siaa .cs-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+#page-conexao_siaa .cs-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+@media (max-width: 1100px) { #page-conexao_siaa .cs-grid-3 { grid-template-columns: 1fr; } }
+@media (max-width: 800px) { #page-conexao_siaa .cs-grid { grid-template-columns: 1fr; } #page-conexao_siaa { padding: 14px; } }
+#page-conexao_siaa .cs-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; min-width: 0; }
+#page-conexao_siaa .cs-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+#page-conexao_siaa .cs-card-title { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+#page-conexao_siaa .cs-card-title .material-symbols-outlined { font-size: 20px; color: var(--primary); }
+#page-conexao_siaa .cs-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 100px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+#page-conexao_siaa .cs-badge.t-ok { background: var(--success-light); color: var(--success); }
+#page-conexao_siaa .cs-badge.t-warn { background: var(--warning-light); color: var(--warning); }
+#page-conexao_siaa .cs-badge.t-bad { background: var(--danger-light); color: var(--danger); }
+#page-conexao_siaa .cs-badge.t-neutral { background: var(--neutral-light); color: var(--neutral); }
+#page-conexao_siaa .cs-kv { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 8px 12px; font-size: 13px; margin: 0; }
+#page-conexao_siaa .cs-kv dt { color: var(--text-muted); }
+#page-conexao_siaa .cs-kv dd { margin: 0; word-break: break-word; }
+#page-conexao_siaa .cs-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; }
+#page-conexao_siaa .cs-muted { color: var(--text-muted); font-size: 12px; }
+#page-conexao_siaa .cs-alert { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 12px; border: 1px solid transparent; }
+#page-conexao_siaa .cs-alert.hidden { display: none; }
+#page-conexao_siaa .cs-alert-err { background: var(--danger-light); color: var(--danger); border-color: var(--danger); }
+#page-conexao_siaa .cs-alert-ok { background: var(--success-light); color: var(--success); border-color: var(--success); }
+#page-conexao_siaa .cs-alert-warn { background: var(--warning-light); color: var(--warning); border-color: var(--warning); }
+#page-conexao_siaa .cs-renovar { margin-top: 12px; }
+#page-conexao_siaa .cs-notice { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; }
+#page-conexao_siaa .cs-notice .material-symbols-outlined { color: var(--warning); font-size: 20px; flex: none; }
+#page-conexao_siaa .cs-notice ul { margin: 6px 0 0; padding-left: 18px; color: var(--text-muted); }
+#page-conexao_siaa .cs-notice li { margin: 2px 0; }
+#page-conexao_siaa .cs-btn { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; border: 1px solid var(--border); background: var(--card); color: var(--text); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+#page-conexao_siaa .cs-btn:hover { background: var(--hover-row); }
+#page-conexao_siaa .cs-btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+#page-conexao_siaa .cs-btn-primary:hover { filter: brightness(1.08); background: var(--primary); }
+#page-conexao_siaa .cs-btn-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+#page-conexao_siaa .cs-btn-danger:hover { filter: brightness(1.08); background: var(--danger); }
+#page-conexao_siaa .cs-btn:disabled { opacity: .5; cursor: not-allowed; }
+#page-conexao_siaa .cs-input, #page-conexao_siaa .cs-select { padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--text); font-size: 13px; }
+#page-conexao_siaa .cs-input:focus, #page-conexao_siaa .cs-select:focus { outline: none; border-color: var(--primary); }
+#page-conexao_siaa .cs-input:disabled, #page-conexao_siaa .cs-select:disabled { opacity: .5; }
+.dark #page-conexao_siaa .cs-select option { background: #1e293b; color: #f1f5f9; }
+#page-conexao_siaa .cs-field { display: flex; flex-direction: column; gap: 4px; }
+#page-conexao_siaa .cs-field > label, #page-conexao_siaa .cs-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
+#page-conexao_siaa .cs-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+#page-conexao_siaa .cs-days { display: flex; gap: 6px; flex-wrap: wrap; }
+#page-conexao_siaa .cs-day { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 100px; font-size: 13px; cursor: pointer; user-select: none; }
+#page-conexao_siaa .cs-day:has(input:checked) { background: var(--primary-light); border-color: var(--primary); color: var(--primary); font-weight: 600; }
+#page-conexao_siaa .cs-switch { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+#page-conexao_siaa .cs-table-wrap { overflow-x: auto; }
+#page-conexao_siaa table.cs-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+#page-conexao_siaa .cs-table th { text-align: left; padding: 8px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); border-bottom: 1px solid var(--border); white-space: nowrap; }
+#page-conexao_siaa .cs-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+#page-conexao_siaa .cs-table tbody tr:hover { background: var(--hover-row); }
+#page-conexao_siaa .cs-empty { text-align: center; padding: 28px 16px; color: var(--text-muted); font-size: 14px; }
+#page-conexao_siaa .cs-hint { font-size: 12px; color: var(--text-muted); }
+#page-conexao_siaa .cs-rn-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+#page-conexao_siaa .cs-rn-sep { border-top: 1px solid var(--border); margin: 14px 0; }
+#page-conexao_siaa .cs-rn-sub { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); margin: 14px 0 6px; }
+#page-conexao_siaa .cs-rn-note { font-size: 12px; color: var(--text-muted); margin: 0 0 12px; padding-left: 18px; }
+#page-conexao_siaa .cs-rn-note li { margin: 2px 0; }
+#page-conexao_siaa .cs-two { display: flex; flex-direction: column; gap: 2px; font-size: 12px; white-space: nowrap; }
+</style>
+
+<div class="cs-topbar">
+    <div>
+        <h1 class="cs-title">Conexão SIAA</h1>
+        <div class="cs-sub">Estado da sessão do SIAA como o keepalive a registrou. Esta página só lê o que já foi registrado: não dispara consulta ao SIAA.</div>
+    </div>
+    <div class="cs-fresh">
+        <span class="cs-dot" id="cs-dot"></span>
+        <span id="cs-fresh-txt">Carregando…</span>
+        <button class="cs-btn" id="cs-refresh" type="button" onclick="conexaoSiaaRefresh()" title="Reler o estado registrado">
+            <span class="material-symbols-outlined" style="font-size:16px">refresh</span>Atualizar
+        </button>
+    </div>
+</div>
+
+<div class="cs-alert cs-alert-err hidden" id="cs-alert" role="alert"></div>
+
+<div class="cs-grid" id="cs-modulos">
+    <div class="cs-card"><div class="cs-empty">Carregando…</div></div>
+</div>
+
+<div class="cs-grid-3">
+    <div class="cs-card" id="cs-worker"></div>
+    <div class="cs-card" id="cs-agenda-resumo"></div>
+    <div class="cs-card" id="cs-pausa"></div>
+</div>
+
+<div class="cs-card" style="margin-bottom:16px" id="cs-renov-card">
+    <div class="cs-card-head">
+        <div class="cs-card-title"><span class="material-symbols-outlined">autorenew</span>Renovação automática</div>
+        <span id="cs-renov-badge"></span>
+    </div>
+    <ul class="cs-rn-note">
+        <li>A renovação automática só roda dentro da agenda do keepalive e apenas depois de o SIAA confirmar que a sessão expirou. Nunca é disparada por duração presumida (8 ou 12 horas).</li>
+        <li>Fora da agenda não há login automático. Se a sessão expirar e nenhuma renovação rodar, o módulo aparece como "precisa de renovação".</li>
+        <li>"Renovar agora" é uma decisão humana e pode rodar fora da agenda. Ela envia credenciais ao SIAA e substitui as sessões servidas pela API.</li>
+    </ul>
+    <div class="cs-alert cs-alert-ok hidden" id="cs-renov-msg" role="status"></div>
+    <div id="cs-renov-corpo"><div class="cs-empty">Carregando…</div></div>
+    <div class="cs-rn-sep"></div>
+    <div class="cs-card-head" style="margin-bottom:8px">
+        <div class="cs-card-title" style="font-size:14px"><span class="material-symbols-outlined">history</span>Histórico de renovações</div>
+        <select class="cs-select" id="cs-rn-limite" onchange="conexaoSiaaRenovExecucoesRecarregar()" aria-label="Quantidade por página">
+            <option value="10">10 por vez</option>
+            <option value="25" selected>25 por vez</option>
+            <option value="50">50 por vez</option>
+            <option value="100">100 por vez</option>
+        </select>
+    </div>
+    <div class="cs-table-wrap">
+        <table class="cs-table">
+            <thead><tr>
+                <th>Início</th><th>Tipo</th><th>Estado</th><th>Gatilho</th><th>Duração</th><th>Login</th><th>Acadêmico</th><th>Financeiro</th><th>Erro</th>
+            </tr></thead>
+            <tbody id="cs-rn-body"><tr><td colspan="9" class="cs-empty">Carregando…</td></tr></tbody>
+        </table>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
+        <button class="cs-btn" type="button" id="cs-rn-mais" onclick="conexaoSiaaRenovExecucoesMais()" style="display:none">Carregar mais</button>
+        <span class="cs-hint" id="cs-rn-info"></span>
+    </div>
+</div>
+
+<div class="cs-card" style="margin-bottom:16px">
+    <div class="cs-notice">
+        <span class="material-symbols-outlined">info</span>
+        <div>
+            <strong>Estas chamadas não obedecem à agenda nem à pausa manual</strong>
+            <div class="cs-muted" style="margin-top:2px">Elas podem consultar o SIAA mesmo com a agenda fechada. A agenda e a pausa só controlam as verificações periódicas do keepalive.</div>
+            <ul id="cs-fora"></ul>
+        </div>
+    </div>
+</div>
+
+<div class="cs-card" style="margin-bottom:16px">
+    <div class="cs-card-head">
+        <div class="cs-card-title"><span class="material-symbols-outlined">event_repeat</span>Agenda do keepalive</div>
+        <span class="cs-hint">Fuso fixo: America/Sao_Paulo</span>
+    </div>
+    <div class="cs-alert cs-alert-ok hidden" id="cs-agenda-msg" role="status"></div>
+    <div id="cs-agenda-form">
+        <div class="cs-row" style="margin-bottom:14px">
+            <label class="cs-switch"><input type="checkbox" id="cs-ag-ativa"> Agenda ativa</label>
+            <span class="cs-hint" id="cs-ag-ativa-hint">Desativada: o keepalive verifica o SIAA o tempo todo.</span>
+        </div>
+        <div class="cs-field" style="margin-bottom:14px">
+            <span class="cs-label">Dias da semana</span>
+            <div class="cs-days" id="cs-ag-dias"></div>
+        </div>
+        <div class="cs-row" style="margin-bottom:6px">
+            <div class="cs-field"><label for="cs-ag-inicio">Início</label><input type="time" class="cs-input" id="cs-ag-inicio"></div>
+            <div class="cs-field"><label for="cs-ag-fim">Fim</label><input type="time" class="cs-input" id="cs-ag-fim"></div>
+            <div class="cs-field"><label for="cs-ag-tipo-iv">Intervalo</label>
+                <select class="cs-select" id="cs-ag-tipo-iv" onchange="csAgendaMudou()">
+                    <option value="fixo">Fixo</option>
+                    <option value="aleatorio">Aleatório</option>
+                </select>
+            </div>
+            <div class="cs-field" id="cs-ag-fixo-modo"><label for="cs-ag-modo-iv">Valor fixo</label>
+                <select class="cs-select" id="cs-ag-modo-iv" onchange="csAgendaMudou()">
+                    <option value="padrao">Padrão do serviço</option>
+                    <option value="custom">Personalizado</option>
+                </select>
+            </div>
+            <div class="cs-field" id="cs-ag-fixo-seg"><label for="cs-ag-iv">Segundos (60–1800)</label><input type="number" class="cs-input" id="cs-ag-iv" min="60" max="1800" step="1" style="width:130px" oninput="csAgendaMudou()"></div>
+            <div class="cs-field" id="cs-ag-alea-min"><label for="cs-ag-min">Mínimo (minutos, 1–30)</label><input type="number" class="cs-input" id="cs-ag-min" min="1" max="30" step="1" value="5" style="width:130px" oninput="csAgendaMudou()"></div>
+            <div class="cs-field" id="cs-ag-alea-max"><label for="cs-ag-max">Máximo (minutos, 1–30)</label><input type="number" class="cs-input" id="cs-ag-max" min="1" max="30" step="1" value="8" style="width:130px" oninput="csAgendaMudou()"></div>
+        </div>
+        <div class="cs-hint" id="cs-ag-iv-hint" style="margin-bottom:6px">A aleatoriedade apenas distribui as verificações no tempo: não evita detecção nem aumenta a duração da sessão. Os valores 5 e 8 são só uma proposta; o modo só muda quando você escolhe Aleatório e salva.</div>
+        <div class="cs-hint" id="cs-ag-meia-noite" style="min-height:18px;margin-bottom:14px"></div>
+        <div class="cs-row">
+            <button class="cs-btn cs-btn-primary" type="button" id="cs-ag-salvar" onclick="conexaoSiaaSalvarAgenda()">
+                <span class="material-symbols-outlined" style="font-size:16px">save</span>Salvar agenda
+            </button>
+            <button class="cs-btn" type="button" id="cs-ag-descartar" onclick="conexaoSiaaDescartarAgenda()">Descartar alterações</button>
+            <span class="cs-hint" id="cs-ag-versao"></span>
+        </div>
+    </div>
+</div>
+
+<div class="cs-card" style="margin-bottom:16px">
+    <div class="cs-card-head">
+        <div class="cs-card-title"><span class="material-symbols-outlined">download</span>Diagnóstico</div>
+    </div>
+    <div class="cs-muted" style="margin-bottom:10px">Gera um arquivo JSON com os registros já existentes (sondas, renovações, agenda e intervalos), sem cookies, tokens nem dados de alunos. Não consulta o SIAA.</div>
+    <div class="cs-alert cs-alert-err hidden" id="cs-diag-msg" role="alert"></div>
+    <div class="cs-row" style="align-items:center">
+        <select class="cs-select" id="cs-diag-periodo" aria-label="Período do diagnóstico">
+            <option value="6h">Últimas 6 horas</option>
+            <option value="24h" selected>Últimas 24 horas</option>
+            <option value="3d">Últimos 3 dias</option>
+            <option value="7d">Últimos 7 dias</option>
+        </select>
+        <button class="cs-btn" type="button" id="cs-diag-btn" onclick="conexaoSiaaExportarDiagnostico()">
+            <span class="material-symbols-outlined" style="font-size:16px">download</span>Exportar diagnóstico (JSON)
+        </button>
+    </div>
+</div>
+
+<div class="cs-card">
+    <div class="cs-card-head">
+        <div class="cs-card-title"><span class="material-symbols-outlined">history</span>Histórico recente</div>
+        <div class="cs-row" style="align-items:center">
+            <select class="cs-select" id="cs-h-modulo" onchange="conexaoSiaaHistoricoRecarregar()" aria-label="Módulo">
+                <option value="">Todos os módulos</option>
+                <option value="academico">Acadêmico</option>
+                <option value="financeiro">Financeiro</option>
+            </select>
+            <select class="cs-select" id="cs-h-limite" onchange="conexaoSiaaHistoricoRecarregar()" aria-label="Quantidade por página">
+                <option value="25">25 por vez</option>
+                <option value="50" selected>50 por vez</option>
+                <option value="100">100 por vez</option>
+                <option value="200">200 por vez</option>
+            </select>
+        </div>
+    </div>
+    <div class="cs-table-wrap">
+        <table class="cs-table">
+            <thead><tr>
+                <th>Quando</th><th>Módulo</th><th>Resultado</th><th>Motivo</th><th>Etapa</th><th>Modo</th><th>HTTP</th><th>Duração</th><th>Origem</th>
+            </tr></thead>
+            <tbody id="cs-h-body"><tr><td colspan="9" class="cs-empty">Carregando…</td></tr></tbody>
+        </table>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
+        <button class="cs-btn" type="button" id="cs-h-mais" onclick="conexaoSiaaHistoricoMais()" style="display:none">Carregar mais</button>
+        <span class="cs-hint" id="cs-h-info"></span>
+    </div>
+</div>
+</div>

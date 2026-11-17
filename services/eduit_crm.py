@@ -89,6 +89,53 @@ def _request(method: str, path: str, body: Any = None) -> Any:
         raise EduitCrmError(f"Falha ao conectar no CRM EduIT: {e.reason}", 502) from e
 
 
+def request_full(
+    method: str,
+    path: str,
+    body: Any = None,
+    *,
+    base: Optional[str] = None,
+    timeout: int = _TIMEOUT,
+    user_agent: str = "dcz-crm-sync/motor-ativacoes",
+) -> tuple[int, dict, Any]:
+    """Como `_request`, mas devolve (status, headers, corpo) em vez de levantar em 4xx/5xx.
+
+    Usado pelo Motor de Ativações, que precisa ler o 429 (`Retry-After`) e o
+    403 (`required`). `base` troca o host: Bearer só é aceito na API pública
+    (https://integrations.bwipo.com). Só levanta sem token ou sem conexão.
+    """
+    token = _token()
+    if not token:
+        raise EduitCrmError("EDUIT_CRM_TOKEN não configurado no .env", 503)
+    url = (base or _base()).rstrip("/") + path
+    data = None if body is None else json.dumps(body).encode("utf-8")
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+        "User-Agent": user_agent,
+    }
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+
+    def _parse(raw: str) -> Any:
+        if not raw:
+            return None
+        try:
+            return json.loads(raw)
+        except ValueError:
+            return {"message": raw[:500]}
+
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status, {k.lower(): v for k, v in resp.headers.items()}, _parse(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        raw = e.read().decode("utf-8", errors="replace")
+        return e.code, {k.lower(): v for k, v in (e.headers or {}).items()}, _parse(raw)
+    except urllib.error.URLError as e:
+        raise EduitCrmError(f"Falha ao conectar no CRM EduIT: {e.reason}", 502) from e
+
+
 def phone_candidates(raw: str) -> list[str]:
     digits = re.sub(r"\D+", "", raw or "")
     if not digits:

@@ -4,6 +4,20 @@
 -- fazia sumir leads da view e inflar transferencia/regresso.
 -- Pipelines: "Funil de vendas" e "Licenciado"; RGM = 8 dígitos após normalizar.
 -- Aplicar no banco Kommo (PG): psql ... -f sql/vw_leads_rgm.sql
+--
+-- As consultas do painel leem a cópia indexada mv_leads_rgm (services/leads_rgm.py),
+-- que o app cria no boot. Com o Kommo desativado ela não é refeita sozinha, então
+-- depois de mudar esta view a cópia fica com o resultado antigo até ser refeita.
+-- Para mudar a view, faça tudo numa transação, sem deixar a cópia sumir:
+--   BEGIN;
+--   DROP MATERIALIZED VIEW IF EXISTS mv_leads_rgm;
+--   CREATE OR REPLACE VIEW vw_leads_rgm AS ...;   -- (o conteúdo abaixo)
+--   CREATE MATERIALIZED VIEW mv_leads_rgm AS SELECT lead_id, rgm FROM vw_leads_rgm;
+--   CREATE UNIQUE INDEX mv_leads_rgm_lead_uq ON mv_leads_rgm (lead_id);
+--   CREATE INDEX mv_leads_rgm_rgm_idx ON mv_leads_rgm (rgm);
+--   COMMIT;
+-- Se só rodar este arquivo (mesmas colunas), refaça a cópia depois:
+--   REFRESH MATERIALIZED VIEW CONCURRENTLY mv_leads_rgm;
 
 CREATE OR REPLACE VIEW vw_leads_rgm AS
 WITH rgm_from_json AS (

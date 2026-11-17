@@ -29,6 +29,7 @@ import psycopg2.extras
 from flask import Blueprint, request, jsonify, session, g, has_request_context
 
 from helpers import normalize_polo_display
+from services import leads_rgm
 
 from services.atividade_kommo import (
     horas_media_por_consultor,
@@ -1225,7 +1226,7 @@ def _crgm_kommo_lookup_rgms(rgms):
     try:
         ek_conn = _pg_kommo()
         ek_cur = ek_conn.cursor()
-        ek_cur.execute("""
+        ek_cur.execute(leads_rgm.sql("""
             SELECT DISTINCT ON (v.rgm) v.rgm, l.responsible_user_id,
                    u.name AS user_name
             FROM vw_leads_rgm v
@@ -1234,7 +1235,7 @@ def _crgm_kommo_lookup_rgms(rgms):
             WHERE l.responsible_user_id IS NOT NULL
               AND v.rgm = ANY(%s)
             ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC
-        """, (lookup,))
+        """), (lookup,))
         for row_k in ek_cur.fetchall():
             nk = _normalize_rgm(row_k[0])
             if nk:
@@ -3168,14 +3169,14 @@ def _build_agent_ranking_completa_vw(
         kconn = _pg_kommo()
         kcur = kconn.cursor()
         if _rgms_para_lookup:
-            kcur.execute("""
+            kcur.execute(leads_rgm.sql("""
                 SELECT DISTINCT ON (v.rgm) v.rgm, l.responsible_user_id
                 FROM vw_leads_rgm v
                 JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
                 WHERE l.responsible_user_id IS NOT NULL
                   AND v.rgm = ANY(%s)
                 ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC
-            """, (_rgms_para_lookup,))
+            """), (_rgms_para_lookup,))
         rgm_to_uid = {}
         for row in kcur.fetchall():
             nk = _normalize_rgm(row[0])
@@ -4678,13 +4679,13 @@ def crgm_agente_detalhe():
         try:
             kconn = _pg_kommo()
             kcur  = kconn.cursor()
-            kcur.execute("""
+            kcur.execute(leads_rgm.sql("""
                 SELECT DISTINCT ON (v.rgm) v.rgm, l.responsible_user_id
                 FROM vw_leads_rgm v
                 JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
                 WHERE l.responsible_user_id IS NOT NULL
                 ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC
-            """)
+            """))
             rgm_to_uid = {}
             for row in kcur.fetchall():
                 nk = _normalize_rgm(row[0])
@@ -5612,7 +5613,7 @@ def crgm_conflitos():
         # 2. Todos os leads ativos para esses RGMs no Kommo
         kconn = _pg_kommo()
         kcur = kconn.cursor()
-        kcur.execute("""
+        kcur.execute(leads_rgm.sql("""
             SELECT v.rgm, l.id AS lead_id, l.responsible_user_id,
                    l.status_id, u.name AS agente_nome,
                    ps.name AS status_nome
@@ -5624,7 +5625,7 @@ def crgm_conflitos():
             ORDER BY v.rgm,
                      CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END,
                      l.id DESC
-        """)
+        """))
 
         from collections import defaultdict
         rgm_leads_map = defaultdict(list)
@@ -5849,7 +5850,7 @@ def crgm_rgm_atribuicao():
         kconn = _pg_kommo()
         kcur = kconn.cursor()
         kcur.execute(
-            """
+            leads_rgm.sql("""
             SELECT l.id, l.responsible_user_id, u.name, ps.name, l.status_id
             FROM vw_leads_rgm v
             JOIN leads l ON l.id = v.lead_id AND l.is_deleted = FALSE
@@ -5858,7 +5859,7 @@ def crgm_rgm_atribuicao():
             WHERE regexp_replace(COALESCE(v.rgm, ''), '[^0-9]', '', 'g') = %s
               AND l.responsible_user_id IS NOT NULL
             ORDER BY CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC
-            """,
+            """),
             (rgm_n,),
         )
         for lead_id, uid, agente, status_nome, status_id in kcur.fetchall():
@@ -5951,7 +5952,7 @@ def dist_consultor_fechadas_periodo():
         # 2. No Kommo: para cada RGM, descobre lead_id + consultor responsável
         kconn = _pg_kommo()
         kcur  = kconn.cursor()
-        kcur.execute("""
+        kcur.execute(leads_rgm.sql("""
             SELECT DISTINCT ON (v.rgm)
                 v.rgm,
                 v.lead_id,
@@ -5966,7 +5967,7 @@ def dist_consultor_fechadas_periodo():
             ORDER BY v.rgm,
                      CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END,
                      l.id DESC
-        """, (rgm_list,))
+        """), (rgm_list,))
         rgm_rows = kcur.fetchall()  # [(rgm, lead_id, consultor, uid, status_id, created_at)]
 
         # 3. Busca lead_ids que foram distribuídos no período
@@ -6110,7 +6111,7 @@ def dist_consultor_matriculas_por_origem():
         # 2. Para cada RGM, busca lead_id no Kommo
         kconn = _pg_kommo()
         kcur  = kconn.cursor()
-        kcur.execute("""
+        kcur.execute(leads_rgm.sql("""
             SELECT DISTINCT ON (v.rgm)
                 v.rgm,
                 v.lead_id,
@@ -6125,7 +6126,7 @@ def dist_consultor_matriculas_por_origem():
             ORDER BY v.rgm,
                      CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END,
                      l.id DESC
-        """, (rgm_list,))
+        """), (rgm_list,))
         lead_rows = kcur.fetchall()
         rgm_to_lead = {r[0]: r[1] for r in lead_rows if r[1]}
         lead_meta = {r[1]: {"status_id": r[4], "created_at": r[5]} for r in lead_rows if r[1]}
@@ -6341,15 +6342,17 @@ def dist_consultor_sem_origem():
         kconn = _pg_kommo()
         kcur  = kconn.cursor()
         kcur.execute(
-            "SELECT DISTINCT ON (v.rgm) v.rgm, v.lead_id, "
-            "  to_char(to_timestamp(l.created_at) AT TIME ZONE 'America/Sao_Paulo', 'DD/MM/YYYY') AS lead_criado, "
-            "  l.responsible_user_id, "
-            "  l.status_id, "
-            "  l.created_at "
-            "FROM vw_leads_rgm v "
-            "JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted "
-            "WHERE v.rgm = ANY(%s) "
-            "ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC",
+            leads_rgm.sql(
+                "SELECT DISTINCT ON (v.rgm) v.rgm, v.lead_id, "
+                "  to_char(to_timestamp(l.created_at) AT TIME ZONE 'America/Sao_Paulo', 'DD/MM/YYYY') AS lead_criado, "
+                "  l.responsible_user_id, "
+                "  l.status_id, "
+                "  l.created_at "
+                "FROM vw_leads_rgm v "
+                "JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted "
+                "WHERE v.rgm = ANY(%s) "
+                "ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC"
+            ),
             (rgm_list,)
         )
         # kommo_map: rgm -> {lead_id, lead_criado, responsible_user_id, status_id, created_at}
@@ -6559,7 +6562,7 @@ def dist_consultor_detalhe():
         # 2. Kommo: lead_id + consultor responsável + created_at por RGM
         kconn = _pg_kommo()
         kcur  = kconn.cursor()
-        kcur.execute("""
+        kcur.execute(leads_rgm.sql("""
             SELECT DISTINCT ON (v.rgm)
                 v.rgm,
                 v.lead_id,
@@ -6575,7 +6578,7 @@ def dist_consultor_detalhe():
             ORDER BY v.rgm,
                      CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END,
                      l.id DESC
-        """, (rgm_list,))
+        """), (rgm_list,))
         lead_rows = kcur.fetchall()
 
         # Filtra pelo consultor solicitado (usando _KNOWN_USERS e fallbacks)

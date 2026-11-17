@@ -552,6 +552,9 @@ def _load_schedules_from_db():
 
 DELTA_INTERVAL_MINUTES = int(os.getenv("KOMMO_DELTA_INTERVAL", "5"))
 ACEITE_RECONCILE_MINUTES = int(os.getenv("ACEITE_RECONCILE_INTERVAL", "10"))
+# Kommo desativado: os jobs que chamam a API dele (reconciliação de aceites e
+# histórico de responsáveis) só falhariam. KOMMO_API_JOBS=1 religa os dois.
+KOMMO_API_JOBS = os.getenv("KOMMO_API_JOBS", "0").strip().lower() in ("1", "true", "yes", "on")
 
 
 def register_delta_interval(sched):
@@ -584,6 +587,10 @@ def register_aceite_reconcile(sched):
         sched.remove_job("aceite_reconcile")
     except Exception:
         pass
+
+    if not KOMMO_API_JOBS:
+        logger.info("Aceite reconcile NOT registered (Kommo desativado; KOMMO_API_JOBS=1 religa)")
+        return
 
     if ACEITE_RECONCILE_MINUTES == 10:
         trigger = CronTrigger(
@@ -628,6 +635,10 @@ def register_responsible_history_job(sched):
         sched.remove_job("responsible_history_daily")
     except Exception:
         pass
+
+    if not KOMMO_API_JOBS:
+        logger.info("Responsible history daily NOT registered (Kommo desativado; KOMMO_API_JOBS=1 religa)")
+        return
 
     sched.add_job(
         _run_responsible_history_daily,

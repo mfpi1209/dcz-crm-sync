@@ -36,6 +36,7 @@ BRT = _tz(timedelta(hours=-3))
 import psycopg2
 import psycopg2.extras
 from flask import Blueprint, request, jsonify, session, g, has_request_context
+from services import leads_rgm
 
 logger = logging.getLogger(__name__)
 
@@ -434,13 +435,13 @@ def _get_rgm_to_uid_map() -> dict[str, int]:
     try:
         kconn = _pg_kommo()
         kcur = kconn.cursor()
-        kcur.execute("""
+        kcur.execute(leads_rgm.sql("""
             SELECT DISTINCT ON (v.rgm) v.rgm, l.responsible_user_id
             FROM vw_leads_rgm v
             JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
             WHERE l.responsible_user_id IS NOT NULL
             ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC
-        """)
+        """))
         for rgm_raw, uid in kcur.fetchall():
             n = _normalize_rgm(rgm_raw)
             if n and uid:

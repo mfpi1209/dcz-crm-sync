@@ -19,6 +19,7 @@ from flask import Blueprint, jsonify, request, session
 
 from db import get_conn
 from helpers import fold_name
+from services import leads_rgm
 from services.bwipo_comercial import (
     BwipoComercialError,
     api_base,
@@ -772,6 +773,7 @@ def register_bwipo_sync_job(sched):
         sched.add_job(
             rebuild_painel_base,
             IntervalTrigger(minutes=10),
+            kwargs={"invalidar": "suave"},
             id="bwipo_painel_base",
             replace_existing=True,
             max_instances=1,
@@ -1567,6 +1569,8 @@ _painel_cache: dict = {}
 _painel_cache_lock = threading.Lock()
 _painel_refreshing: set = set()
 _painel_base_lock = threading.Lock()
+# Montagem "forte" pedida enquanto outra rodava: roda de novo ao terminar.
+_painel_base_pendente = False
 
 
 def clear_painel_response_cache():
@@ -1579,6 +1583,24 @@ def clear_painel_response_cache():
             _bwipo_periodo_cache.clear()
     except Exception:
         logger.exception("limpar cache da minha performance")
+
+
+def _expirar_caches_painel():
+    """Vence as respostas guardadas sem apagar.
+
+    A próxima leitura devolve a resposta anterior na hora e refaz em segundo plano,
+    em vez de fazer a pessoa esperar a conta inteira (20–45 s na Minha Performance).
+    """
+    with _painel_cache_lock:
+        for key, (_ts, payload) in list(_painel_cache.items()):
+            _painel_cache[key] = (0.0, payload)
+    try:
+        from routes.minha_performance import _bwipo_periodo_cache, _bwipo_periodo_lock
+        with _bwipo_periodo_lock:
+            for key, (_ts, payload) in list(_bwipo_periodo_cache.items()):
+                _bwipo_periodo_cache[key] = (0.0, payload)
+    except Exception:
+        logger.exception("vencer cache da minha performance")
 
 
 def _ensure_painel_base_table(cur) -> None:
@@ -1667,8 +1689,20 @@ def _dono_key_value(raw):
     return int(text) if text.isdigit() else text
 
 
-def _rebuild_painel_base_locked() -> bool:
-    """Quem chama já está com _painel_base_lock. Não apaga a tabela se a leitura vier vazia."""
+_PAINEL_BASE_COLS = (
+    "rgm", "nome", "situacao", "data_matricula", "polo", "nivel", "ciclo", "tipo_matricula",
+    "turma", "sumiu", "dono_key", "dono_nome", "fonte",
+)
+
+
+def _rebuild_painel_base_locked(invalidar: str = "forte") -> bool:
+    """Quem chama já está com _painel_base_lock. Não apaga a tabela se a leitura vier vazia.
+
+    Grava só as linhas que mudaram. `invalidar`:
+    - "forte" (upload, tombamento, depara, sync de agentes): limpa os caches sempre,
+      porque quem pediu quer ver o número novo na próxima leitura.
+    - "suave" (job de 10 min): só vence os caches se alguma linha mudou.
+    """
     try:
         from routes.comercial_rgm import _crgm_periodo_data_oficial
 
@@ -1684,13 +1718,13 @@ def _rebuild_painel_base_locked() -> bool:
         datas = {row["rgm"]: row.get("data_matricula") for row in rows if row.get("rgm")}
         dono, nomes, fonte = _atribuir_rgms(datas)
         built = datetime.now(timezone.utc)
-        payload = []
+        novos: dict = {}
         for row in rows:
             rgm = row.get("rgm")
             if not rgm:
                 continue
             key = dono.get(rgm)
-            payload.append((
+            novos[rgm] = (
                 rgm,
                 row.get("nome") or "",
                 row.get("situacao") or "",
@@ -1704,51 +1738,81 @@ def _rebuild_painel_base_locked() -> bool:
                 str(key) if key is not None else None,
                 nomes.get(key) or "",
                 fonte.get(rgm) or "sem_dono",
-                built,
-            ))
+            )
+        from routes.comercial_rgm import _crgm_ciclo_dominant_prefix
+        prefixo = _crgm_ciclo_dominant_prefix()
+        cols = ", ".join(_PAINEL_BASE_COLS)
         conn = get_conn()
         try:
             cur = conn.cursor()
             _ensure_painel_base_table(cur)
-            cur.execute("DELETE FROM bwipo_painel_base")
-            psycopg2.extras.execute_values(
-                cur,
-                """
-                INSERT INTO bwipo_painel_base (
-                    rgm, nome, situacao, data_matricula, polo, nivel, ciclo, tipo_matricula,
-                    turma, sumiu, dono_key, dono_nome, fonte, built_at
-                ) VALUES %s
-                """,
-                payload,
-                page_size=1000,
-            )
-            from routes.comercial_rgm import _crgm_ciclo_dominant_prefix
-            cur.execute(
-                """
-                INSERT INTO bwipo_painel_meta (id, ciclo_prefix, built_at)
-                VALUES (1, %s, %s)
-                ON CONFLICT (id) DO UPDATE
-                  SET ciclo_prefix = EXCLUDED.ciclo_prefix, built_at = EXCLUDED.built_at
-                """,
-                (_crgm_ciclo_dominant_prefix(), built),
-            )
+            cur.execute(f"SELECT {cols} FROM bwipo_painel_base")
+            atual = {r[0]: tuple(r) for r in cur.fetchall()}
+            mudou = [linha for rgm, linha in novos.items() if atual.get(rgm) != linha]
+            saiu = [rgm for rgm in atual if rgm not in novos]
+            cur.execute("SELECT ciclo_prefix FROM bwipo_painel_meta WHERE id = 1")
+            meta = cur.fetchone()
+            meta_mudou = meta is None or meta[0] != prefixo
+            if saiu:
+                cur.execute("DELETE FROM bwipo_painel_base WHERE rgm = ANY(%s)", (saiu,))
+            if mudou:
+                sets = ", ".join(f"{c} = EXCLUDED.{c}" for c in _PAINEL_BASE_COLS[1:])
+                psycopg2.extras.execute_values(
+                    cur,
+                    f"""
+                    INSERT INTO bwipo_painel_base ({cols}, built_at) VALUES %s
+                    ON CONFLICT (rgm) DO UPDATE SET {sets}, built_at = EXCLUDED.built_at
+                    """,
+                    [linha + (built,) for linha in mudou],
+                    page_size=1000,
+                )
+            if mudou or saiu or meta_mudou:
+                cur.execute(
+                    """
+                    INSERT INTO bwipo_painel_meta (id, ciclo_prefix, built_at)
+                    VALUES (1, %s, %s)
+                    ON CONFLICT (id) DO UPDATE
+                      SET ciclo_prefix = EXCLUDED.ciclo_prefix, built_at = EXCLUDED.built_at
+                    """,
+                    (prefixo, built),
+                )
             conn.commit()
         finally:
             conn.close()
-        clear_painel_response_cache()
-        logger.info("bwipo painel base: %s matrículas", len(payload))
+        alterou = bool(mudou or saiu or meta_mudou)
+        if invalidar == "forte":
+            clear_painel_response_cache()
+        elif alterou:
+            _expirar_caches_painel()
+        logger.info(
+            "bwipo painel base: %s matrículas, %s gravadas, %s removidas, caches %s",
+            len(novos), len(mudou), len(saiu),
+            "limpos" if invalidar == "forte" else ("vencidos" if alterou else "mantidos"),
+        )
         return True
     except Exception:
         logger.exception("bwipo painel base")
         return False
 
 
-def rebuild_painel_base() -> bool:
-    """Remonta a tabela do painel. Se outra montagem já estiver rodando, sai."""
+def rebuild_painel_base(invalidar: str = "forte") -> bool:
+    """Remonta a tabela do painel.
+
+    Se outra montagem já estiver rodando, uma chamada "forte" fica pendente e roda
+    quando a atual terminar (antes ela se perdia e o número novo só vinha na
+    rodada seguinte do job).
+    """
+    global _painel_base_pendente
     if not _painel_base_lock.acquire(blocking=False):
+        if invalidar == "forte":
+            _painel_base_pendente = True
         return False
     try:
-        return _rebuild_painel_base_locked()
+        ok = _rebuild_painel_base_locked(invalidar)
+        while _painel_base_pendente:
+            _painel_base_pendente = False
+            ok = _rebuild_painel_base_locked("forte")
+        return ok
     finally:
         _painel_base_lock.release()
 
@@ -2369,7 +2433,7 @@ def _candidatos_rgm(rgms: list[str]) -> dict[str, list[dict]]:
     try:
         kcur = kconn.cursor()
         kcur.execute(
-            """
+            leads_rgm.sql("""
             SELECT v.rgm, l.id, l.responsible_user_id, u.name, l.status_id, ps.name
             FROM vw_leads_rgm v
             JOIN leads l ON l.id = v.lead_id AND NOT l.is_deleted
@@ -2377,7 +2441,7 @@ def _candidatos_rgm(rgms: list[str]) -> dict[str, list[dict]]:
             LEFT JOIN pipeline_statuses ps ON ps.id = l.status_id
             WHERE l.responsible_user_id IS NOT NULL AND v.rgm = ANY(%s)
             ORDER BY v.rgm, CASE WHEN l.status_id = 142 THEN 0 ELSE 1 END, l.id DESC
-            """,
+            """),
             (rgms,),
         )
         for rgm, lid, uid, nome, st, st_nome in kcur.fetchall():

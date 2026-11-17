@@ -403,6 +403,7 @@ const PAGE_LABELS = {
     match_merge: 'Upload Comercial', comercial_rgm: 'Comercial RGM',
     logs: 'Logs / Relatórios', distribuicao: 'Distribuição',
     ativacoes: 'Ativações Acadêmicas',
+    motor_ativacoes: 'Motor de Ativações',
     intelligence: 'Inteligência', inadimplencia: 'Inadimplência',
     feedback: 'Feedback', config: 'Configurações', schedule: 'Agendamento',
     inscricao: 'Inscrições',
@@ -455,6 +456,7 @@ const PAGE_LABELS = {
     chamados_ti: 'Fila de chamados · TI',
     chamados_marketing: 'Fila de chamados · Marketing',
     tracker_tarefas: 'Tracker de Tarefas - TI',
+    conexao_siaa: 'Conexão SIAA',
 };
 
 // ---------------------------------------------------------------------------
@@ -560,7 +562,7 @@ const PAGE_GROUPS_CONFIG = [
         icon: 'school',
         color: 'var(--primary)',
         pages: [
-            'meus_atendimentos', 'academico_interacoes', 'ativacoes', 'distribuicao', 'intelligence',
+            'meus_atendimentos', 'academico_interacoes', 'ativacoes', 'motor_ativacoes', 'distribuicao', 'intelligence',
             'inadimplencia', 'feedback', 'macro_email', 'rematricula', 'disparador_whatsapp',
             'disparador_whatsapp_painel', 'disparador_whatsapp_metas',
             'disparador_whatsapp_disparador', 'disparador_whatsapp_alunos',
@@ -625,7 +627,7 @@ const PAGE_GROUPS_CONFIG = [
         section: 'Operação',
         icon: 'developer_board',
         color: 'var(--primary)',
-        pages: ['tracker_tarefas'],
+        pages: ['tracker_tarefas', 'conexao_siaa'],
     },
     {
         label: 'Premiações Internas',
