@@ -8,8 +8,10 @@ a session-api só devolve o que o keepalive registrou.
 GET  /api/conexao-siaa/status
 GET  /api/conexao-siaa/historico?modulo=&limite=&antes=
 GET  /api/conexao-siaa/agenda
-PUT  /api/conexao-siaa/agenda          {ativa, dias, inicio, fim, intervalo_s, versao}
+PUT  /api/conexao-siaa/agenda          {ativa, dias, inicio, fim, intervalo_s, versao,
+                                        intervalo_modo, intervalo_min_min, intervalo_max_min}
 POST /api/conexao-siaa/pausa-manual    {ativa, motivo, versao}
+GET  /api/conexao-siaa/diagnostico?periodo=6h|24h|3d|7d   (download JSON)
 
 Renovação automática (repasse de /renovacao/* da session-api; as rotas do
 executor NUNCA são expostas aqui):
@@ -25,12 +27,14 @@ Só admin (mesma regra das demais páginas de TI).
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
+from datetime import datetime, timedelta, timezone
 
 import requests
-from flask import Blueprint, jsonify, request, session
+from flask import Blueprint, Response, jsonify, request, session
 
 logger = logging.getLogger(__name__)
 conexao_siaa_bp = Blueprint("conexao_siaa_bp", __name__)
@@ -91,12 +95,17 @@ _MODULO = {
 _AGENDA = {
     "ativa": _b, "dias": _dias, "inicio": _s, "fim": _s, "fuso": _s,
     "intervalo_s": _i, "versao": _i, "atualizada_em": _s,
+    "intervalo_modo": lambda v: _enum(v), "intervalo_min_min": _i, "intervalo_max_min": _i,
     "aberta_agora": _b, "proxima_mudanca": _s, "ilegivel": _b,
 }
 _PAUSA = {"ativa": _b, "desde": _s, "motivo": _s, "versao": _i, "ilegivel": _b}
 _STATUS = {
     "gerado_em": _s,
-    "worker": _sub({"visto_em": _s, "iniciado_em": _s, "modo": _s, "intervalo_s": _i}),
+    "worker": _sub({
+        "visto_em": _s, "iniciado_em": _s, "modo": _s, "intervalo_s": _i,
+        "intervalo_modo": lambda v: _enum(v), "intervalo_min_s": _i, "intervalo_max_s": _i,
+        "intervalo_sorteado_s": _i, "proxima_execucao": _s,
+    }),
     "agenda": _sub(_AGENDA),
     "pausa_manual": _sub(_PAUSA),
     "disponibilidade": _sub({"estado": _s, "motivo": _s}),
@@ -126,7 +135,7 @@ def _erro(msg, status):
     return jsonify({"ok": False, "error": msg}), status
 
 
-def _chamar(method, caminho, params=None, corpo=None, prefixo="conexao"):
+def _chamar(method, caminho, params=None, corpo=None, prefixo="conexao", timeout=_TIMEOUT):
     """Devolve (status_http_da_api, json|None) ou (None, mensagem_amigavel)."""
     base = (os.environ.get("SIAA_SESSION_URL", "") or "").rstrip("/")
     token = os.environ.get("SIAA_SESSION_TOKEN", "") or ""
@@ -137,7 +146,7 @@ def _chamar(method, caminho, params=None, corpo=None, prefixo="conexao"):
             method, f"{base}/{prefixo}/{caminho}",
             params=params, json=corpo,
             headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
-            timeout=_TIMEOUT,
+            timeout=timeout,
         )
     except requests.Timeout:
         return None, ("A session-api demorou demais para responder.", 504)
@@ -218,8 +227,30 @@ def _validar_agenda(d):
         return None, "ativa: exige ao menos um dia e início diferente do fim"
     if _int_estrito(d.get("versao")) is None:
         return None, "versao: inteiro esperado"
-    return {"ativa": d["ativa"], "dias": sorted(dias), "inicio": d.get("inicio"), "fim": d.get("fim"),
-            "intervalo_s": iv, "versao": d["versao"]}, None
+    corpo = {"ativa": d["ativa"], "dias": sorted(dias), "inicio": d.get("inicio"), "fim": d.get("fim"),
+             "intervalo_s": iv, "versao": d["versao"]}
+    # Intervalo aleatório (aditivo): sem `intervalo_modo` o corpo é o de sempre (fixo).
+    modo = d.get("intervalo_modo")
+    if modo is None and "intervalo_modo" not in d:
+        if d.get("intervalo_min_min") is not None or d.get("intervalo_max_min") is not None:
+            return None, "intervalo_modo: informe fixo ou aleatorio"
+        return corpo, None
+    if modo not in ("fixo", "aleatorio"):
+        return None, "intervalo_modo: use fixo ou aleatorio"
+    mn, mx = d.get("intervalo_min_min"), d.get("intervalo_max_min")
+    if modo == "aleatorio":
+        if _int_estrito(mn) is None or _int_estrito(mx) is None:
+            return None, "intervalo aleatório: mínimo e máximo em minutos (inteiros)"
+        if not (1 <= mn <= 30 and 1 <= mx <= 30):
+            return None, "intervalo aleatório: de 1 a 30 minutos"
+        if mn > mx:
+            return None, "intervalo aleatório: o mínimo não pode passar do máximo"
+    else:  # fixo: valores guardados só seguem se válidos; senão null (ignorados pelo serviço)
+        ok = (_int_estrito(mn) is not None and _int_estrito(mx) is not None
+              and 1 <= mn <= 30 and 1 <= mx <= 30 and mn <= mx)
+        mn, mx = (mn, mx) if ok else (None, None)
+    corpo.update({"intervalo_modo": modo, "intervalo_min_min": mn, "intervalo_max_min": mx})
+    return corpo, None
 
 
 def _validar_pausa(d):
@@ -510,3 +541,118 @@ def api_renov_liberar():
         return _erro(erro, 400)
     st, d = _renov("POST", "liberar", corpo=corpo)
     return _responder(st, d, lambda x: _aninhado(x, "episodio", _R_EPISODIO), generico_400=True)
+
+
+# ---------------------------------------------------------------------------
+# Exportação de diagnóstico (download JSON, lista branca estrita)
+# ---------------------------------------------------------------------------
+
+_PERIODOS = {"6h": timedelta(hours=6), "24h": timedelta(hours=24), "3d": timedelta(days=3), "7d": timedelta(days=7)}
+_TIMEOUT_DIAG = (3, 30)
+_TOKENISH = re.compile(r"[A-Za-z0-9+/_=-]{24,}|[A-Za-z0-9_.-]+=[^\s]+|Bearer|JSESSIONID|ViewState", re.I)
+
+
+def _texto(v):
+    """Frase curta e legível; descarta o que parece cookie, token ou chave=valor."""
+    if not isinstance(v, str) or len(v) > 160 or _TOKENISH.search(v):
+        return None
+    return v
+
+
+def _formato(v):
+    return v if v == "conexao-siaa-diagnostico" else None
+
+
+def _hhmm(v):
+    return v if isinstance(v, str) and _HHMM.match(v) else None
+
+
+def _fuso(v):
+    return v if isinstance(v, str) and re.match(r"^[A-Za-z_]+/[A-Za-z_]+$", v) else None
+
+
+def _lista(spec, maximo):
+    return lambda v: [_pick(x, spec) for x in v[:maximo]] if isinstance(v, list) else []
+
+
+_D_RES = {"em": _iso, "classe": _enum, "motivo": _enum, "etapa": _enum, "modo": _enum,
+          "status_http": _i, "duracao_ms": _i, "origem": _enum}
+_D_MODULO = {
+    "estado": _enum, "ultima_confirmacao": _iso, "ultima_verificacao": _iso, "proxima_execucao": _iso,
+    "modo_usado": _enum, "precisa_renovacao": _b, "ultimo_resultado": _opt(_D_RES),
+}
+_D_SONDA = dict(_D_RES, modulo=_enum)
+_D_REN_MOD = {"coleta": _enum, "http": _i, "publicacao": _enum, "vinculo": _enum, "sessao_validada": _b}
+
+
+def _d_gatilho(v):
+    if isinstance(v, dict):
+        return _pick(v, {"modulos": _mods, "motivo": _enum})
+    return _enum(v)
+
+
+def _d_modulos_ren(v):
+    if isinstance(v, dict):
+        return {m: _opt(_D_REN_MOD)(v.get(m)) for m in _MODULOS if isinstance(v.get(m), dict)}
+    return _mods(v)
+
+
+_D_RENOVACAO_ITEM = {
+    "criada_em": _iso, "inicio": _iso, "fim": _iso, "tipo": _enum, "estado": _enum, "gatilho": _d_gatilho,
+    "duracao_ms": _i, "login": _enum, "modulos": _d_modulos_ren, "erro": _enum, "janela_fechou_durante": _b,
+}
+_DIAGNOSTICO = {
+    "formato": _formato, "versao_formato": _i, "exportado_em": _iso,
+    "periodo": _sub({"desde": _iso, "ate": _iso}),
+    "agenda": _sub({
+        "ativa": _b, "dias": _dias, "inicio": _hhmm, "fim": _hhmm, "fuso": _fuso, "intervalo_s": _i,
+        "intervalo_modo": _enum, "intervalo_min_min": _i, "intervalo_max_min": _i, "versao": _i,
+        "atualizada_em": _iso, "aberta_agora": _b, "proxima_mudanca": _iso, "ilegivel": _b,
+    }),
+    "intervalos": _sub({"modo": _enum, "fixo_s": _i, "min_s": _i, "max_s": _i, "sorteado_s": _i,
+                        "proxima_execucao": _iso}),
+    "worker": _sub({"visto_em": _iso, "iniciado_em": _iso, "modo": _enum}),
+    "pausa_manual": _sub({"ativa": _b, "desde": _iso}),
+    "disponibilidade": _sub({"estado": _enum, "motivo": _enum}),
+    "modulos": _sub({m: _sub(_D_MODULO) for m in _MODULOS}),
+    "renovacao": _sub({
+        "config": _sub({"ativa": _b, "suspensa": _b, "versao": _i}),
+        "estado": _enum, "motivo_estado": _texto, "ultima_renovacao_ok": _iso,
+        "episodio": _opt({"desde": _iso, "modulos": _mods, "motivo": _enum, "tentativas_automaticas": _i,
+                          "bloqueado": _b, "bloqueio_motivo": _enum}),
+    }),
+    "sondas": _lista(_D_SONDA, 5000),
+    "renovacoes": _lista(_D_RENOVACAO_ITEM, 500),
+    "limites": _sub({"max_sondas": _i, "max_renovacoes": _i, "truncado": _b}),
+}
+
+
+def _agora_utc():
+    return datetime.now(timezone.utc).replace(microsecond=0)
+
+
+def _fmt_z(dt):
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+@conexao_siaa_bp.route("/api/conexao-siaa/diagnostico", methods=["GET"])
+def api_conexao_diagnostico():
+    if (f := _forbidden()) is not None:
+        return f
+    periodo = (request.args.get("periodo") or "24h").strip().lower()
+    if periodo not in _PERIODOS:
+        return _erro("periodo: use 6h, 24h, 3d ou 7d.", 400)
+    ate = _agora_utc()
+    desde = ate - _PERIODOS[periodo]
+    st, d = _chamar("GET", "diagnostico", params={"desde": _fmt_z(desde), "ate": _fmt_z(ate)},
+                    timeout=_TIMEOUT_DIAG)
+    if st == 200 and not isinstance(d, dict):
+        return _erro("A session-api respondeu de forma inesperada.", 502)
+    if st != 200:
+        return _responder(st, d, lambda x: {}, generico_400=True)
+    corpo = json.dumps(_pick(d, _DIAGNOSTICO), ensure_ascii=False, indent=2)
+    nome = "conexao-siaa-diagnostico-" + ate.strftime("%Y%m%dT%H%M%SZ") + ".json"
+    resp = Response(corpo, status=200, mimetype="application/json")
+    resp.headers["Content-Disposition"] = f'attachment; filename="{nome}"'
+    resp.headers["Cache-Control"] = "no-store"
+    return resp

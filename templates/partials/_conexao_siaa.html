@@ -172,14 +172,23 @@
         <div class="cs-row" style="margin-bottom:6px">
             <div class="cs-field"><label for="cs-ag-inicio">Início</label><input type="time" class="cs-input" id="cs-ag-inicio"></div>
             <div class="cs-field"><label for="cs-ag-fim">Fim</label><input type="time" class="cs-input" id="cs-ag-fim"></div>
-            <div class="cs-field"><label for="cs-ag-modo-iv">Intervalo</label>
-                <select class="cs-select" id="cs-ag-modo-iv">
+            <div class="cs-field"><label for="cs-ag-tipo-iv">Intervalo</label>
+                <select class="cs-select" id="cs-ag-tipo-iv" onchange="csAgendaMudou()">
+                    <option value="fixo">Fixo</option>
+                    <option value="aleatorio">Aleatório</option>
+                </select>
+            </div>
+            <div class="cs-field" id="cs-ag-fixo-modo"><label for="cs-ag-modo-iv">Valor fixo</label>
+                <select class="cs-select" id="cs-ag-modo-iv" onchange="csAgendaMudou()">
                     <option value="padrao">Padrão do serviço</option>
                     <option value="custom">Personalizado</option>
                 </select>
             </div>
-            <div class="cs-field"><label for="cs-ag-iv">Segundos (60–1800)</label><input type="number" class="cs-input" id="cs-ag-iv" min="60" max="1800" step="1" style="width:130px"></div>
+            <div class="cs-field" id="cs-ag-fixo-seg"><label for="cs-ag-iv">Segundos (60–1800)</label><input type="number" class="cs-input" id="cs-ag-iv" min="60" max="1800" step="1" style="width:130px" oninput="csAgendaMudou()"></div>
+            <div class="cs-field" id="cs-ag-alea-min"><label for="cs-ag-min">Mínimo (minutos, 1–30)</label><input type="number" class="cs-input" id="cs-ag-min" min="1" max="30" step="1" value="5" style="width:130px" oninput="csAgendaMudou()"></div>
+            <div class="cs-field" id="cs-ag-alea-max"><label for="cs-ag-max">Máximo (minutos, 1–30)</label><input type="number" class="cs-input" id="cs-ag-max" min="1" max="30" step="1" value="8" style="width:130px" oninput="csAgendaMudou()"></div>
         </div>
+        <div class="cs-hint" id="cs-ag-iv-hint" style="margin-bottom:6px">A aleatoriedade apenas distribui as verificações no tempo: não evita detecção nem aumenta a duração da sessão. Os valores 5 e 8 são só uma proposta; o modo só muda quando você escolhe Aleatório e salva.</div>
         <div class="cs-hint" id="cs-ag-meia-noite" style="min-height:18px;margin-bottom:14px"></div>
         <div class="cs-row">
             <button class="cs-btn cs-btn-primary" type="button" id="cs-ag-salvar" onclick="conexaoSiaaSalvarAgenda()">
@@ -188,6 +197,25 @@
             <button class="cs-btn" type="button" id="cs-ag-descartar" onclick="conexaoSiaaDescartarAgenda()">Descartar alterações</button>
             <span class="cs-hint" id="cs-ag-versao"></span>
         </div>
+    </div>
+</div>
+
+<div class="cs-card" style="margin-bottom:16px">
+    <div class="cs-card-head">
+        <div class="cs-card-title"><span class="material-symbols-outlined">download</span>Diagnóstico</div>
+    </div>
+    <div class="cs-muted" style="margin-bottom:10px">Gera um arquivo JSON com os registros já existentes (sondas, renovações, agenda e intervalos), sem cookies, tokens nem dados de alunos. Não consulta o SIAA.</div>
+    <div class="cs-alert cs-alert-err hidden" id="cs-diag-msg" role="alert"></div>
+    <div class="cs-row" style="align-items:center">
+        <select class="cs-select" id="cs-diag-periodo" aria-label="Período do diagnóstico">
+            <option value="6h">Últimas 6 horas</option>
+            <option value="24h" selected>Últimas 24 horas</option>
+            <option value="3d">Últimos 3 dias</option>
+            <option value="7d">Últimos 7 dias</option>
+        </select>
+        <button class="cs-btn" type="button" id="cs-diag-btn" onclick="conexaoSiaaExportarDiagnostico()">
+            <span class="material-symbols-outlined" style="font-size:16px">download</span>Exportar diagnóstico (JSON)
+        </button>
     </div>
 </div>
 

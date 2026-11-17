@@ -4,6 +4,13 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-16 — Intervalo aleatório e exportação na Conexão SIAA
+- **Modelo usado:** Claude Sonnet 5.5.
+- **Pedido:** configurar o intervalo aleatório do keepalive e exportar diagnóstico na página Conexão SIAA (contrato `CONTRATO-INTERVALO-DIAGNOSTICO.md` do eduit-insights; o backend é feito à parte).
+- **Decisão:** o editor da agenda ganha "Intervalo" Fixo (como antes) ou Aleatório (mín./máx. em minutos, 1–30, mín ≤ máx). Os campos vêm com 5 e 8 só como proposta; o modo exibido é sempre o salvo e o polling nunca o troca. O PUT envia `intervalo_modo`/`intervalo_min_min`/`intervalo_max_min` (sem `intervalo_modo` o corpo é o antigo; no fixo o par só segue se válido, senão null), validado no painel (`_validar_agenda`) e no cliente; início/fim null com agenda desativada e o 409 seguem iguais. Cards mostram modo, configuração, intervalo sorteado e próxima execução agendada, com aviso de que a aleatoriedade só distribui as verificações no tempo (não evita detecção nem aumenta a duração da sessão). Lista branca ampliada (`worker`, `agenda`).
+- **Exportação:** `GET /api/conexao-siaa/diagnostico?periodo=6h|24h|3d|7d` (admin; padrão 24h) calcula `desde/ate` em UTC, repassa a `/conexao/diagnostico` (timeout de leitura 30 s) e aplica lista branca estrita da estrutura do contrato: rótulos só `[a-z0-9_]`, datas ISO, texto livre só em `motivo_estado` (descarta o que parece token ou chave=valor), listas limitadas a 5000/500. Devolve download com `Content-Disposition: attachment` e `Cache-Control: no-store`; erros viram mensagem curta sem detalhe. O botão baixa via fetch (GET, sem escrita).
+- **Testes:** `python -m unittest tests.test_conexao_siaa tests.test_conexao_siaa_renovacao tests.test_conexao_siaa_renovacao_js tests.test_conexao_siaa_intervalo` (inclui `tests/js/conexao_siaa_intervalo_harness.js`, Node, sem rede). Sem deploy; depende do backend com os campos novos e `/conexao/diagnostico`.
+
 ### 2026-11-16 — Renovação automática na página Conexão SIAA
 - **Modelo usado:** Claude Sonnet 5.5.
 - **Pedido:** controlar e acompanhar a renovação automática das sessões (contrato `CONTRATO-RENOVACAO-SIAA.md` do eduit-insights) na mesma página, só admin.
