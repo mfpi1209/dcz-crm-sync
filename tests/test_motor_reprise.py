@@ -118,6 +118,42 @@ class ReprisarTest(unittest.TestCase):
         self.assertTrue(any("teto de 4.000" in a for a in reprisar(_rodada(envios=5000), Parametros())["avisos"]))
 
 
+class RotasDoCrmTest(unittest.TestCase):
+    """O roteiro das chamadas ao CRM sai do resultado da reprise, sem chamar nada."""
+
+    def test_dia_que_termina_lanca_pausa_e_retoma_sem_cancelar(self) -> None:
+        from motor.reprise_rotas import chamadas_do_dia
+
+        r = reprisar(_rodada(envios=3000), Parametros())
+        c = chamadas_do_dia(r)
+        rotas = [(x["metodo"], x["rota"].split("/")[-1]) for x in c["chamadas"] if x["tipo"] == "escrita"]
+        self.assertEqual(rotas.count(("POST", "campaigns")), 1)
+        self.assertEqual(rotas.count(("POST", "launch")), 1)
+        self.assertEqual(rotas.count(("POST", "resume")), 3)       # 4 lotes: 1 lançamento + 3 retomadas
+        self.assertEqual(rotas.count(("POST", "pause")), 3)        # o último lote termina a campanha, sem pausa
+        self.assertEqual(rotas.count(("POST", "cancel")), 0)
+        controle = next(x for x in c["chamadas"] if x["rota"] == "/api/contacts/{id}/tags")
+        self.assertEqual(controle["vezes"], 150)                    # 5% de 3.000
+        self.assertEqual(c["resumo"]["acoes_de_pessoa"], 1)
+        self.assertEqual(c["resumo"]["leituras_da_fila"], 13 * 120)
+        self.assertEqual([x["min"] for x in c["chamadas"]], sorted(x["min"] for x in c["chamadas"]))
+        lancamento = next(x for x in c["chamadas"] if x["rota"].endswith("/launch"))
+        self.assertEqual(lancamento["hora"], "10:00")
+        self.assertLess(next(x for x in c["chamadas"] if x["tipo"] == "pessoa")["min"], lancamento["min"])
+
+    def test_dia_que_nao_termina_cancela_no_fim_do_expediente_e_pausa_de_protecao_entra(self) -> None:
+        from motor.reprise_rotas import chamadas_do_dia
+
+        c = chamadas_do_dia(reprisar(_rodada(envios=6000), ler_parametros({"intervalo_min": 240})))
+        cancel = [x for x in c["chamadas"] if x["rota"].endswith("/cancel")]
+        self.assertEqual([x["hora"] for x in cancel], ["22:00"])
+        self.assertIn("3.900 alunos não receberam", cancel[0]["descricao"])
+        apertado = chamadas_do_dia(reprisar(_rodada(envios=6000, a_cada=4, atraso_s=120, atendentes=5), Parametros()))
+        self.assertTrue(any("Pausa de proteção" in x["descricao"] for x in apertado["chamadas"]))
+        sem_lote = chamadas_do_dia(reprisar(_rodada(atendentes=4), Parametros()))
+        self.assertFalse(any(x["rota"].startswith("/api/integrations/campaigns") for x in sem_lote["chamadas"]))
+
+
 class ArquivosTest(unittest.TestCase):
     def test_lista_e_carrega_so_arquivos_de_rodada(self) -> None:
         with tempfile.TemporaryDirectory() as pasta:

@@ -124,6 +124,23 @@ function _mtrRender(d) {
     _mtrEl('mtr-avisos').innerHTML = d.avisos.map(a => `<p>${_mtEsc(a)}</p>`).join('');
     _mtMostrar('mtr-resultado', true);
     _mtrGrafico(d);
+    _mtrGrafico.filme.marcar = _mtrChamadas(d);
+    _mtrGrafico.filme.deMin = d.serie.de_min;
+}
+
+// Roteiro das chamadas ao CRM. Devolve a função que o filme usa para acender as linhas até a hora corrente.
+function _mtrChamadas(d) {
+    const c = d.crm || { chamadas: [], resumo: {} }, r = c.resumo;
+    _mtrEl('mtr-chamadas-resumo').textContent = c.chamadas.length
+        ? `${_mtNum(r.acoes_de_pessoa)} ação de pessoa no dia (aprovar o plano). O resto é do motor: ${_mtNum(r.escritas_de_campanha)} comandos na campanha (criar, lançar, pausar, retomar, cancelar), ${_mtNum(r.escritas - r.escritas_de_campanha)} chamadas de etiqueta e ${_mtNum(r.leituras_da_fila)} leituras da fila.`
+        : '';
+    const cor = { escrita: 'mt-aviso', leitura: 'mt-neutro', pessoa: 'mt-ok' };
+    _mtrEl('mtr-chamadas').innerHTML = c.chamadas.map(x => `<tr data-min="${x.min}"><td class="mtr-fixo">${x.hora}</td><td>`
+        + (x.metodo === '—' ? '<span class="mt-ok" style="font-weight:650">Pessoa</span>'
+            : `<span class="${cor[x.tipo]}" style="font-weight:650">${x.metodo}</span> <code style="font-size:12px; word-break:break-all">${_mtEsc(x.rota)}</code>${x.vezes > 1 ? ' × ' + _mtNum(x.vezes) : ''}`)
+        + `<div style="color: var(--text-muted); margin-top: 2px">${_mtEsc(x.descricao)}</div></td></tr>`).join('');
+    const linhas = [..._mtrEl('mtr-chamadas').rows];
+    return minuto => linhas.forEach(tr => { tr.style.opacity = minuto == null || Number(tr.dataset.min) <= minuto ? '1' : '.3'; });
 }
 
 function _mtrHm(minuto) { return String(Math.floor(minuto / 60)).padStart(2, '0') + ':' + String(minuto % 60).padStart(2, '0'); }
@@ -232,12 +249,13 @@ function mtrFilme() {
         f.area.setAttribute('width', f.x(i));
         f.mover(i);
         _mtrEl('mtr-relogio').textContent = f.relogio(i);
+        if (f.marcar) f.marcar(i + f.deMin);
         if (i >= f.n - 1) { mtrPararFilme(); return; }
         _mtrFilme.quadro = requestAnimationFrame(quadro);
     };
     _mtrFilme = {
         quadro: 0,
-        aoParar: () => { f.area.setAttribute('width', f.W); f.cursor.setAttribute('visibility', 'hidden'); botao.textContent = '▶ Assistir de novo'; },
+        aoParar: () => { if (f.marcar) f.marcar(null); f.area.setAttribute('width', f.W); f.cursor.setAttribute('visibility', 'hidden'); botao.textContent = '▶ Assistir de novo'; },
     };
     _mtrFilme.quadro = requestAnimationFrame(quadro);
 }

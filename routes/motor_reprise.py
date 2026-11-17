@@ -15,6 +15,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request
 
 from motor.reprise import Parametros, carregar_rodada, ler_parametros, listar_rodadas, reprisar
+from motor.reprise_rotas import chamadas_do_dia
 from routes.motor_ativacoes import _gate
 
 logger = logging.getLogger(__name__)
@@ -64,4 +65,5 @@ def api_motor_reprise():
         logger.warning("Reprise: rodada inválida (%s)", type(e).__name__)
         return jsonify({"ok": False, "error": "Não consegui ler esta rodada."}), 400
     parametros = corpo.get("parametros") if isinstance(corpo.get("parametros"), dict) else {}
-    return jsonify({"ok": True, **reprisar(rodada, ler_parametros(parametros))})
+    resultado = reprisar(rodada, ler_parametros(parametros))
+    return jsonify({"ok": True, **resultado, "crm": chamadas_do_dia(resultado)})
