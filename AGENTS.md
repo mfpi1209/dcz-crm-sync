@@ -4,6 +4,14 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-17 — Preços dos cursos: cotas livres na subida para o CRM
+- **Modelo usado:** Claude Fable 5.1.
+- **Pedido:** Balcão Estratégico e Mar Aberto subiam sempre, como chips fixos; as outras cotas entravam pelo +. A planilha nova não tem o APROVADOS e a equipe quer escolher livremente quais cotas sobem, uma ou várias.
+- **Agora:** nenhuma cota é obrigatória. Ao carregar a planilha, Estratégico e Mar Aberto vêm marcados **se existirem**, mas são chips removíveis como qualquer outro; o + oferece todos os canais da planilha, global ou por curso. Sem nenhuma cota marcada, Aplicar no CRM para com "Escolha ao menos uma cota". A confirmação e o log listam as cotas que sobem.
+- **Backend (`routes/bwipo_precos.py`):** `parse_workbook` não descarta mais curso sem Estratégico — a linha-base é o Estratégico quando existe, senão a primeira cota (o PREÇO SIAA é igual em todos os canais do curso). `aplicar` deixa de injetar `BASE_CANAL`/`APROVADOS_CANAL` e de exigir Estratégico na planilha. `_apply_prices` sobe só as cotas escolhidas (`_rows_para_subir`); o canal principal do produto (`course.channel`/`discountPercent`) é o Estratégico se escolhido, senão a primeira cota escolhida. `pricingOptions` de canais não escolhidos continuam no produto, só com o preço base atualizado (como antes).
+- **Não muda:** site e IA (seletores próprios); histórico (`/api/bwipo-precos/painel` segue com Estratégico como canal padrão de consulta).
+- **Testes:** `tests/test_bwipo_precos_cotas.py`.
+
 ### 2026-11-17 — Preços dos cursos: o site www.eduit.com.br entra no "Atualizar este site"
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** o `www.eduit.com.br` (React + Express, não é Wix) também vende os cursos e ficava de fora da atualização de preço.

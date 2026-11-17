@@ -1,8 +1,10 @@
 """Preços de curso no CRM Bwipo (Graduação).
 
 Planilha de update → snapshot no Postgres → PUT /api/products.
-Cota padrão: BALCÃO ESTRATÉGICO, gravada em Title Case (Balcão Estratégico).
-Outros canais só entram se marcados na subida. Grade, imagem e descrição ficam.
+As cotas que sobem são as escolhidas na tela (globais + por curso); nenhuma é
+obrigatória (17/11). O preço base é o PREÇO SIAA, igual em todos os canais do
+curso; o canal principal do produto é o Balcão Estratégico quando escolhido,
+senão a primeira cota escolhida. Grade, imagem e descrição ficam.
 """
 from __future__ import annotations
 
@@ -68,10 +70,6 @@ def _is_base(canal: str) -> bool:
 
 def _is_aprovados(canal: str) -> bool:
     return _fold(canal) == "aprovados"
-
-
-def _is_fixa(canal: str) -> bool:
-    return _is_base(canal) or _is_aprovados(canal)
 
 
 def crm_channel_name(canal: str, label: str) -> str:
@@ -232,10 +230,9 @@ def parse_workbook(file_obj) -> dict:
         }
     lista = []
     for bucket in cursos.values():
-        base_row = next((c for c in bucket["canais"].values() if _is_base(c["canal"])), None)
-        if not base_row:
+        if not bucket["canais"]:
             continue
-        lista.append({**bucket, "base": base_row})
+        lista.append({**bucket, "base": _linha_principal(bucket["canais"].values())})
     lista.sort(key=lambda x: (_fold(x["curso"]), _fold(x["grau"])))
     canais = {}
     for item in lista:
@@ -319,10 +316,26 @@ def _pick_option(options: list[dict], canal: str, label: str):
     return None
 
 
+def _linha_principal(rows) -> dict:
+    """Balcão Estratégico quando presente; senão a primeira linha. O PREÇO SIAA
+    é o mesmo em todos os canais do curso, então qualquer uma serve de base."""
+    rows = list(rows)
+    return next((c for c in rows if _is_base(c["canal"])), rows[0])
+
+
+def _rows_para_subir(item: dict, selected: set[str]) -> list[dict]:
+    """Cotas escolhidas, na ordem da planilha, Estratégico primeiro se escolhido."""
+    rows = [c for c in item["canais"].values() if c["canal"] in selected]
+    rows.sort(key=lambda c: 0 if _is_base(c["canal"]) else 1)
+    return rows
+
+
 def _apply_prices(product: dict | None, item: dict, selected: set[str]) -> dict:
-    base_row = item["base"]
+    selected_rows = _rows_para_subir(item, selected)
+    if not selected_rows:
+        raise BwipoComercialError("Nenhuma cota escolhida para este curso.", 400)
+    base_row = selected_rows[0]
     base_num = float(base_row["base"])
-    selected_rows = [c for c in item["canais"].values() if c["canal"] in selected or _is_base(c["canal"])]
     if product:
         cc = product.get("courseConfig") or {}
         options = [dict(o) for o in (cc.get("pricingOptions") or []) if isinstance(o, dict)]
@@ -498,7 +511,6 @@ def api_preview():
                 "label": crm_channel_name(c["canal"], c["label"]),
                 "desconto": float(c["desconto"]),
                 "final": float(c["final"]),
-                "fixa": _is_fixa(c["canal"]),
             } for c in item["canais"].values()],
         })
     return jsonify({
@@ -531,16 +543,15 @@ def api_aplicar():
         por_curso = {}
     if not isinstance(por_curso, dict):
         por_curso = {}
-    selected.add(BASE_CANAL)
-    selected.add(APROVADOS_CANAL)
     try:
         parsed = parse_workbook(f)
     except ValueError as e:
         return jsonify({"ok": False, "error": str(e)}), 400
     file_canais = {c["canal"] for c in parsed["canais"]}
-    selected = {c for c in selected if c in file_canais or _is_base(c)}
-    if not any(_is_base(c) for c in file_canais):
-        return jsonify({"ok": False, "error": "A planilha não tem BALCÃO ESTRATÉGICO."}), 400
+    selected = {c for c in selected if c in file_canais}
+    tem_por_curso = any(isinstance(v, list) and v for v in por_curso.values())
+    if not somente_historico and not selected and not tem_por_curso:
+        return jsonify({"ok": False, "error": "Escolha ao menos uma cota para subir."}), 400
 
     resultados = []
     if not somente_historico:

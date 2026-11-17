@@ -58,7 +58,9 @@ function _bpCanalMarAberto() {
     return (_bpPreview && _bpPreview.canais || []).find(c => _bpEhAprovados(c.canal));
 }
 
-function _bpFixas() {
+// Cotas que vêm marcadas ao carregar a planilha (Estratégico e Mar Aberto, quando
+// existem). Desde 17/11 nenhuma é obrigatória: todas são chips removíveis.
+function _bpSugeridas() {
     return (_bpPreview && _bpPreview.canais || []).filter(c => _bpEhBase(c.canal) || _bpEhAprovados(c.canal));
 }
 
@@ -67,7 +69,7 @@ function _bpFold(s) {
 }
 
 function _bpOpcionais() {
-    return (_bpPreview && _bpPreview.canais || []).filter(c => !(_bpEhBase(c.canal) || _bpEhAprovados(c.canal)));
+    return (_bpPreview && _bpPreview.canais || []);
 }
 
 const _bpSites = {
@@ -114,7 +116,7 @@ async function bpPreview() {
         return;
     }
     _bpPreview = data;
-    _bpGlobais = [];
+    _bpGlobais = _bpSugeridas().map(c => c.canal);
     _bpPorCurso = {};
     bpRenderCanais();
     bpRenderCanalIa();
@@ -168,17 +170,13 @@ function _bpCanalIa() {
 function bpRenderCanais() {
     const box = document.getElementById('bp-canais');
     if (!box) return;
-    const fixas = _bpFixas();
-    const chips = fixas.map(c => {
-        const nome = _bpEhBase(c.canal) ? 'Balcão Estratégico' : 'Mar Aberto';
-        return `<span class="bp-pill">${_bpEsc(nome)}</span>`;
-    }).join('');
     const extras = _bpGlobais.map(canal => {
         const c = _bpCanal(canal);
         const nome = (c && c.label) || canal;
         return `<span class="bp-pill">${_bpEsc(nome)}<button type="button" onclick="bpTirarGlobal('${_bpEsc(canal)}')" aria-label="Remover">×</button></span>`;
     }).join('');
-    box.innerHTML = chips + extras + `<button type="button" class="bp-plus" onclick="bpAbrirMenu(event, null)" aria-label="Adicionar cota para todos">+</button>`;
+    const vazio = extras ? '' : `<span class="text-xs text-amber-500">Nenhuma cota escolhida. Use o + para adicionar.</span>`;
+    box.innerHTML = extras + vazio + `<button type="button" class="bp-plus" onclick="bpAbrirMenu(event, null)" aria-label="Adicionar cota para todos">+</button>`;
 }
 
 function bpTirarGlobal(canal) {
@@ -385,17 +383,12 @@ function bpRenderCursos() {
     const contagem = document.getElementById('bp-contagem');
     if (contagem) contagem.textContent = q ? `${linhas.length} de ${_bpPreview.linhas.length}` : `${_bpPreview.linhas.length} cursos`;
     box.innerHTML = linhas.map(l => {
-        const fixas = (l.cotas || []).filter(c => c.fixa).sort((a, b) => (_bpEhBase(a.canal) ? 0 : 1) - (_bpEhBase(b.canal) ? 0 : 1));
         const extras = []
             .concat(_bpGlobais)
             .concat(_bpPorCurso[l.chave] || [])
-            .filter((c, i, arr) => arr.indexOf(c) === i && !(_bpEhBase(c) || _bpEhAprovados(c)));
-        const blocos = fixas.map(c => `
-            <div class="bp-cota">
-                <span>${_bpEsc(c.label)}</span>
-                <b>${_bpMoney(c.final)}</b>
-                <span>${Number(c.desconto).toLocaleString('pt-BR')}%</span>
-            </div>`).join('');
+            .filter((c, i, arr) => arr.indexOf(c) === i)
+            .sort((a, b) => (_bpEhBase(a) ? 0 : 1) - (_bpEhBase(b) ? 0 : 1));
+        const blocos = '';
         const mais = extras.map(canal => {
             const c = _bpCotaDoCurso(l, canal) || { label: canal, final: null, desconto: null };
             const soDeste = (_bpPorCurso[l.chave] || []).includes(canal);
@@ -425,13 +418,21 @@ async function bpAplicar(somenteHistorico) {
     if (!file || !_bpPreview) return;
     const status = document.getElementById('bp-status');
     const n = _bpPreview.cursos || 0;
+    const nomes = _bpGlobais.map(canal => { const c = _bpCanal(canal); return (c && c.label) || canal; });
+    const porCurso = Object.values(_bpPorCurso).some(l => l && l.length);
+    if (!somenteHistorico && !nomes.length && !porCurso) {
+        status.textContent = 'Escolha ao menos uma cota para subir.';
+        bpLog('CRM', 'Nenhuma cota escolhida.', 'erro');
+        return;
+    }
+    const lista = nomes.join(', ') + (porCurso ? ' (e cotas marcadas por curso)' : '');
     const msg = somenteHistorico
         ? `Gravar o histórico de ${n} cursos, sem mexer no CRM?`
-        : `Aplicar ${n} cursos no CRM? Sobem Balcão Estratégico e Mar Aberto. Grade e imagem ficam.`;
+        : `Aplicar ${n} cursos no CRM? Sobem: ${lista || 'só as cotas marcadas por curso'}. Grade e imagem ficam.`;
     if (!window.confirm(msg)) return;
     const alvo = somenteHistorico ? 'Histórico' : 'CRM';
     status.textContent = somenteHistorico ? 'Gravando histórico…' : 'Atualizando o CRM… pode levar alguns minutos.';
-    bpLog(alvo, somenteHistorico ? `Gravando ${n} cursos, sem mexer no CRM.` : `Começou. ${n} cursos. Balcão Estratégico e Mar Aberto.`, 'info');
+    bpLog(alvo, somenteHistorico ? `Gravando ${n} cursos, sem mexer no CRM.` : `Começou. ${n} cursos. Cotas: ${lista || 'por curso'}.`, 'info');
     _bpBotoes(true);
     const body = new FormData();
     body.append('file', file);
