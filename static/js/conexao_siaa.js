@@ -180,11 +180,25 @@ function csRenderModulos(st) {
             '<dl class="cs-kv">' +
             '<dt>Última confirmação</dt><dd>' + csEsc(csData(m.ultima_confirmacao, true)) + (m.ultima_confirmacao ? ' <span class="cs-muted">(' + csEsc(csHa(m.ultima_confirmacao)) + ')</span>' : '') + '</dd>' +
             '<dt>Última verificação</dt><dd>' + csEsc(csData(m.ultima_verificacao, true)) + '</dd>' +
-            '<dt>Próxima execução</dt><dd>' + csEsc(csProximaExecucao(m, st)) + '</dd>' +
+            '<dt>Próxima execução agendada</dt><dd>' + csEsc(csProximaExecucao(m, st)) + '</dd>' +
             '<dt>Modo usado</dt><dd>' + csEsc(modo) + '</dd>' +
             '<dt>Último resultado</dt><dd>' + csUltimoResultado(m.ultimo_resultado) + '</dd>' +
             '</dl>' + renovar + '</div>';
     }).join('');
+}
+
+const CS_ALEATORIO_AVISO = '<div class="cs-hint" style="margin-top:10px">A aleatoriedade só distribui as verificações no tempo; não evita detecção nem aumenta a duração da sessão.</div>';
+
+// Texto do modo e da configuração. `w` = worker (segundos) ou `a` = agenda (minutos).
+function csIntervaloTexto(w, a) {
+    const modo = (w && w.intervalo_modo) || (a && a.intervalo_modo) || 'fixo';
+    if (modo === 'aleatorio') {
+        const mn = w && w.intervalo_min_s ? w.intervalo_min_s / 60 : (a && a.intervalo_min_min);
+        const mx = w && w.intervalo_max_s ? w.intervalo_max_s / 60 : (a && a.intervalo_max_min);
+        return 'Aleatório: ' + (mn || '?') + ' a ' + (mx || '?') + ' min';
+    }
+    const fixo = (a && a.intervalo_s) || (w && w.intervalo_s);
+    return 'Fixo: ' + (fixo ? fixo + ' s' : 'padrão do serviço');
 }
 
 function csRenderWorker(st) {
@@ -192,7 +206,9 @@ function csRenderWorker(st) {
     let vivo = '<span class="cs-badge t-neutral">Sem sinal</span>';
     if (w.visto_em) {
         const idade = (Date.now() - new Date(w.visto_em).getTime()) / 1000;
-        const limite = (w.intervalo_s || 300) + 120;
+        // Sinal de vida a cada tick (<=10 s) fora dos ciclos, independente do intervalo
+        // das sondas; um ciclo lento pode passar de 2 min. Mesmo limite da API (300 s).
+        const limite = 300;
         vivo = idade <= limite ? '<span class="cs-badge t-ok">Ativo</span>' : '<span class="cs-badge t-warn">Sem sinal recente</span>';
     }
     const modo = w.modo ? (CS_MODOS[w.modo] || w.modo) : '—';
@@ -202,8 +218,11 @@ function csRenderWorker(st) {
         '<dt>Último sinal</dt><dd>' + csEsc(csData(w.visto_em, true)) + (w.visto_em ? ' <span class="cs-muted">(' + csEsc(csHa(w.visto_em)) + ')</span>' : '') + '</dd>' +
         '<dt>Iniciado em</dt><dd>' + csEsc(csData(w.iniciado_em)) + '</dd>' +
         '<dt>Modo configurado</dt><dd>' + csEsc(modo) + '</dd>' +
-        '<dt>Intervalo efetivo</dt><dd>' + (w.intervalo_s ? csEsc(w.intervalo_s) + ' s' : '—') + '</dd>' +
-        '</dl>';
+        '<dt>Intervalo</dt><dd>' + csEsc(csIntervaloTexto(w, null)) + '</dd>' +
+        (w.intervalo_modo === 'aleatorio' ? '<dt>Sorteado agora</dt><dd>' + (w.intervalo_sorteado_s ? csEsc(csDuracao(w.intervalo_sorteado_s)) + ' <span class="cs-muted">(' + csEsc(w.intervalo_sorteado_s) + ' s)</span>' : '—') + '</dd>'
+            : '<dt>Intervalo efetivo</dt><dd>' + (w.intervalo_s ? csEsc(w.intervalo_s) + ' s' : '—') + '</dd>') +
+        '<dt>Próxima execução agendada</dt><dd>' + (w.proxima_execucao ? csEsc(csData(w.proxima_execucao, true)) + csEsc(csEmBreve(w.proxima_execucao)) : '—') + '</dd>' +
+        '</dl>' + CS_ALEATORIO_AVISO;
 }
 
 function csDiasTexto(dias) {
@@ -223,7 +242,7 @@ function csRenderAgendaResumo(st) {
             '<dt>Janela</dt><dd>' + csEsc(a.inicio) + ' às ' + csEsc(a.fim) + (csAtravessa(a.inicio, a.fim) ? ' <span class="cs-muted">(atravessa a meia-noite)</span>' : '') + '</dd>' +
             '<dt>Dias</dt><dd>' + csEsc(csDiasTexto(a.dias)) + '</dd>' +
             '<dt>' + (a.aberta_agora ? 'Fecha em' : 'Abre em') + '</dt><dd>' + csEsc(csData(a.proxima_mudanca)) + csEsc(csEmBreve(a.proxima_mudanca)) + '</dd>' +
-            '<dt>Intervalo</dt><dd>' + (a.intervalo_s ? csEsc(a.intervalo_s) + ' s' : 'Padrão do serviço') + '</dd></dl>';
+            '<dt>Intervalo</dt><dd>' + csEsc(csIntervaloTexto(null, a)) + '</dd></dl>' + CS_ALEATORIO_AVISO;
     }
     const ilegivel = [a.ilegivel ? 'agenda' : '', (st.pausa_manual || {}).ilegivel ? 'pausa manual' : ''].filter(Boolean);
     if (ilegivel.length) {
@@ -321,6 +340,10 @@ function csPreencherAgenda(a) {
     const custom = a.intervalo_s !== null && a.intervalo_s !== undefined;
     csEl('cs-ag-modo-iv').value = custom ? 'custom' : 'padrao';
     csEl('cs-ag-iv').value = custom ? a.intervalo_s : '';
+    // O modo exibido é sempre o salvo; 5 e 8 são só a proposta dos campos.
+    csEl('cs-ag-tipo-iv').value = a.intervalo_modo === 'aleatorio' ? 'aleatorio' : 'fixo';
+    csEl('cs-ag-min').value = typeof a.intervalo_min_min === 'number' ? a.intervalo_min_min : 5;
+    csEl('cs-ag-max').value = typeof a.intervalo_max_min === 'number' ? a.intervalo_max_min : 8;
     csEl('cs-ag-versao').textContent = a.versao !== undefined && a.versao !== null ? 'Versão ' + a.versao : '';
     csAgendaMudou(true);
 }
@@ -331,8 +354,12 @@ function csAgendaMudou(inicial) {
     csEl('cs-ag-ativa-hint').textContent = ativa
         ? 'Ativa: fora da janela o keepalive não consulta o SIAA.'
         : 'Desativada: o keepalive verifica o SIAA o tempo todo.';
+    const alea = csEl('cs-ag-tipo-iv').value === 'aleatorio';
     const custom = csEl('cs-ag-modo-iv').value === 'custom';
-    csEl('cs-ag-iv').disabled = !custom;
+    csEl('cs-ag-iv').disabled = alea || !custom;
+    csEl('cs-ag-modo-iv').disabled = alea;
+    csEl('cs-ag-min').disabled = !alea;
+    csEl('cs-ag-max').disabled = !alea;
     const at = csAtravessa(csEl('cs-ag-inicio').value, csEl('cs-ag-fim').value);
     csEl('cs-ag-meia-noite').textContent = at ? 'Atravessa a meia-noite: a janela começa no dia marcado e termina na manhã seguinte.' : '';
 }
@@ -352,13 +379,17 @@ function csAvisarAgendaMudou() {
 function csLerAgenda() {
     const dias = Array.prototype.slice.call(document.querySelectorAll('#cs-ag-dias .cs-ag-dia'))
         .filter(function (c) { return c.checked; }).map(function (c) { return parseInt(c.value, 10); });
-    const custom = csEl('cs-ag-modo-iv').value === 'custom';
+    const alea = csEl('cs-ag-tipo-iv').value === 'aleatorio';
+    const custom = !alea && csEl('cs-ag-modo-iv').value === 'custom';
     return {
         ativa: csEl('cs-ag-ativa').checked,
         dias: dias,
         inicio: csEl('cs-ag-inicio').value,
         fim: csEl('cs-ag-fim').value,
-        intervalo_s: custom ? parseInt(csEl('cs-ag-iv').value, 10) : null,
+        intervalo_s: custom ? parseInt(csEl('cs-ag-iv').value, 10) : (alea ? ((csState.agendaBase || {}).intervalo_s === undefined ? null : (csState.agendaBase || {}).intervalo_s) : null),
+        intervalo_modo: alea ? 'aleatorio' : 'fixo',
+        intervalo_min_min: parseInt(csEl('cs-ag-min').value, 10),
+        intervalo_max_min: parseInt(csEl('cs-ag-max').value, 10),
     };
 }
 
@@ -367,7 +398,12 @@ function csValidarAgenda(a) {
     if (a.ativa && (!a.inicio || !a.fim)) return 'Informe início e fim.';
     if (a.ativa && a.inicio === a.fim) return 'Início e fim não podem ser iguais.';
     if ((a.inicio && !/^([01]\d|2[0-3]):[0-5]\d$/.test(a.inicio)) || (a.fim && !/^([01]\d|2[0-3]):[0-5]\d$/.test(a.fim))) return 'Horário inválido (use HH:MM).';
-    if (a.intervalo_s !== null && (isNaN(a.intervalo_s) || a.intervalo_s < 60 || a.intervalo_s > 1800)) return 'Intervalo: de 60 a 1800 segundos, ou padrão do serviço.';
+    if (a.intervalo_modo === 'aleatorio') {
+        const mn = a.intervalo_min_min, mx = a.intervalo_max_min;
+        if (isNaN(mn) || isNaN(mx)) return 'Intervalo aleatório: informe mínimo e máximo em minutos.';
+        if (mn < 1 || mn > 30 || mx < 1 || mx > 30) return 'Intervalo aleatório: de 1 a 30 minutos.';
+        if (mn > mx) return 'Intervalo aleatório: o mínimo não pode passar do máximo.';
+    } else if (a.intervalo_s !== null && (isNaN(a.intervalo_s) || a.intervalo_s < 60 || a.intervalo_s > 1800)) return 'Intervalo: de 60 a 1800 segundos, ou padrão do serviço.';
     return '';
 }
 
@@ -385,6 +421,12 @@ async function conexaoSiaaSalvarAgenda() {
     const base = csState.agendaBase || {};
     if (!a.inicio) a.inicio = null;
     if (!a.fim) a.fim = null;
+    if (a.intervalo_modo !== 'aleatorio') {
+        // Fixo: o par mín./máx. não vale; mantém só o que já estava salvo (a proposta
+        // 5–8 exibida no formulário não é gravada sem o admin escolher Aleatório).
+        a.intervalo_min_min = typeof base.intervalo_min_min === 'number' ? base.intervalo_min_min : null;
+        a.intervalo_max_min = typeof base.intervalo_max_min === 'number' ? base.intervalo_max_min : null;
+    }
     a.versao = typeof base.versao === 'number' ? base.versao : 0;
     const btn = csEl('cs-ag-salvar');
     btn.disabled = true;
@@ -409,6 +451,41 @@ async function conexaoSiaaSalvarAgenda() {
 function conexaoSiaaDescartarAgenda() {
     csAgendaMsg('', true);
     csPreencherAgenda((csState.status && csState.status.agenda) || {});
+}
+
+// ── Exportação de diagnóstico ─────────────────────────────────────────────
+// Só GET, por clique do admin. O servidor devolve o arquivo já saneado.
+async function conexaoSiaaExportarDiagnostico() {
+    const msg = csEl('cs-diag-msg'), btn = csEl('cs-diag-btn');
+    const periodo = csEl('cs-diag-periodo').value || '24h';
+    const falha = function (t) { msg.textContent = t; msg.className = 'cs-alert cs-alert-err' + (t ? '' : ' hidden'); };
+    falha('');
+    btn.disabled = true;
+    try {
+        let res;
+        try {
+            res = await fetch(CS_API + '/diagnostico?periodo=' + encodeURIComponent(periodo),
+                { method: 'GET', headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
+        } catch (e) { falha('Sem conexão com o painel.'); return; }
+        if (res.status !== 200) {
+            let d = null;
+            try { d = await res.json(); } catch (e) { d = null; }
+            falha((d && d.error) || 'Não foi possível gerar o diagnóstico.');
+            return;
+        }
+        const cd = (res.headers && res.headers.get && res.headers.get('Content-Disposition')) || '';
+        const m = /filename="([^"]+)"/.exec(cd);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = m ? m[1] : 'conexao-siaa-diagnostico.json';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    } catch (e) {
+        falha('Não foi possível gerar o diagnóstico.');
+    } finally {
+        btn.disabled = false;
+    }
 }
 
 // ── Histórico ─────────────────────────────────────────────────────────────
