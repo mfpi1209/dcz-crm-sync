@@ -230,5 +230,31 @@ class RegressaoAcademicoTest(Base):
         self.assertIn("boom", r.get_json()["error"])
 
 
+class TransporteTest(Base):
+    def test_servidor_de_sessao_sem_https_recusa_o_curl(self):
+        with patch.object(siaa_mod, "SIAA_URL", "http://203.0.113.10:5056"):
+            for rota in ("salvar", "testar"):
+                r, m = self._post(rota, resp=_Resp(200, _resp_suja()))
+                self.assertEqual(r.status_code, 500)
+                m.assert_not_called()
+
+    def test_http_continua_valendo_para_os_modulos_antigos(self):
+        with patch.object(siaa_mod, "SIAA_URL", "http://203.0.113.10:5056"):
+            r, m = self._post("testar", resp=_Resp(200, {"ok": True, "alive": True}), module="academico",
+                              cookie=COOKIE)
+        self.assertEqual(r.status_code, 200)
+        m.assert_called_once()
+
+    def test_timeout_maior_e_aviso_de_conferir_antes_de_salvar_de_novo(self):
+        r, m = self._post("salvar", resp=_Resp(200, _resp_suja()))
+        self.assertEqual(m.call_args.kwargs["timeout"], (5, 120))
+        r, m = self._post("salvar", exc=requests.Timeout("tempo esgotado " + COOKIE))
+        self.assertEqual(r.status_code, 504)
+        corpo = r.get_data(as_text=True)
+        self.assertIn("Conex", corpo)
+        for proibido in ("jsid-ficticio", CPF):
+            self.assertNotIn(proibido, corpo)
+
+
 if __name__ == "__main__":
     unittest.main()

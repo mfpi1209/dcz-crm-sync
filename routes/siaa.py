@@ -136,6 +136,18 @@ def _validar_sessao_payload(data):
     return module, cookie, None
 
 
+def _curl_sem_https(module):
+    """O cURL leva cookies e a busca original: só trafega para a session-api em HTTPS."""
+    if module in _MODULOS_CURL and not SIAA_URL.lower().startswith("https://"):
+        return jsonify({"ok": False, "error": "servidor de sessão sem HTTPS; envio do cURL recusado"}), 500
+    return None
+
+
+def _timeout_sessao(module):
+    # Testar: GET (até 60 s) + ping (até 40 s) na session-api; Salvar: gravação + GET.
+    return (5, 120) if module in _MODULOS_CURL else 60
+
+
 def _corpo_sessao(module, cookie):
     return {"curl": cookie} if module in _MODULOS_CURL else {"cookie": cookie}
 
@@ -220,14 +232,21 @@ def siaa_sessao_salvar():
     module, cookie, err = _validar_sessao_payload(data)
     if err is not None:
         return err
+    if (sem_https := _curl_sem_https(module)) is not None:
+        return sem_https
 
     try:
         r = requests.post(
             f"{SIAA_URL}/session/{module}",
             headers={"Authorization": f"Bearer {SIAA_TOKEN}"},
             json=_corpo_sessao(module, cookie),
-            timeout=60,
+            timeout=_timeout_sessao(module),
         )
+    except requests.Timeout:
+        logger.error("siaa_sessao_salvar: timeout module=%s", module)
+        if module in _MODULOS_CURL:
+            return jsonify({"ok": False, "error": "Sem resposta do servidor de sessão a tempo. A sessão pode ter sido gravada: confira em Conexão SIAA antes de salvar de novo."}), 504
+        return jsonify({"ok": False, "error": "timeout"}), 504
     except requests.RequestException as e:
         logger.error("siaa_sessao_salvar: erro de rede module=%s", module)
         if module in _MODULOS_CURL:
@@ -259,14 +278,21 @@ def siaa_sessao_testar():
     module, cookie, err = _validar_sessao_payload(data)
     if err is not None:
         return err
+    if (sem_https := _curl_sem_https(module)) is not None:
+        return sem_https
 
     try:
         r = requests.post(
             f"{SIAA_URL}/session/{module}/test",
             headers={"Authorization": f"Bearer {SIAA_TOKEN}"},
             json=_corpo_sessao(module, cookie),
-            timeout=60,
+            timeout=_timeout_sessao(module),
         )
+    except requests.Timeout:
+        logger.error("siaa_sessao_testar: timeout module=%s", module)
+        if module in _MODULOS_CURL:
+            return jsonify({"ok": False, "error": "Sem resposta do servidor de sessão a tempo. Tente testar de novo."}), 504
+        return jsonify({"ok": False, "error": "timeout"}), 504
     except requests.RequestException as e:
         logger.error("siaa_sessao_testar: erro de rede module=%s", module)
         if module in _MODULOS_CURL:
