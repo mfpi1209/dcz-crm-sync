@@ -31,14 +31,167 @@ function _bpFile() {
     return input && input.files && input.files[0];
 }
 
-function bpArquivoPos() {
+// ── Pós-Graduação (18/11): CRM pelo SKU_CRM e sites Wix pelas rotas de Pós ──
+let _bpPosPreview = null;
+
+const _bpPosSites = {
+    wix: ['Site Cruzeiro', '/api/listar_campos_wix_pos', '/api/atualizar_wix_pos_canais'],
+    wix2: ['Eduit-ead', '/api/listar_campos_wix2_pos', '/api/atualizar_wix2_pos_canais'],
+    wix3: ['Eduit New', '/api/listar_campos_wix3_pos', '/api/atualizar_wix3_pos_canais'],
+};
+
+function _bpFilePos() {
     const input = document.getElementById('bp-file-pos');
-    const file = input && input.files && input.files[0];
-    const name = document.getElementById('bp-file-pos-name');
+    return input && input.files && input.files[0];
+}
+
+function _bpPosBotoes(travar) {
+    ['bp-pos-btn-crm', 'bp-pos-btn-teste', 'bp-pos-btn-site', 'bp-pos-site', 'bp-pos-canal-site'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = travar;
+    });
+}
+
+async function bpArquivoPos() {
+    const file = _bpFilePos();
     const nota = document.getElementById('bp-pos-nota');
-    if (!file || !name || !nota) return;
-    name.textContent = file.name;
-    nota.textContent = 'Planilha escolhida. A Pós ainda não é lida: falta a amostra do arquivo de preço.';
+    if (!file || !nota) return;
+    document.getElementById('bp-file-pos-name').textContent = file.name;
+    nota.textContent = 'Lendo a planilha de Pós e cruzando com o CRM…';
+    _bpPosBotoes(true);
+    const body = new FormData();
+    body.append('file', file);
+    const res = await fetch('/api/bwipo-precos/pos/preview', { method: 'POST', body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) {
+        nota.textContent = data.error || 'Falha ao ler a planilha de Pós.';
+        bpLog('Pós', data.error || 'Falha ao ler a planilha.', 'erro');
+        return;
+    }
+    _bpPosPreview = data;
+    nota.textContent = `${data.cursos} cursos × duração. No CRM: ${data.atualizar} com produto, ${data.sem_produto} sem produto (não são criados).`;
+    const canais = data.canais || [];
+    document.getElementById('bp-pos-canais').innerHTML = canais.map(c =>
+        `<label class="inline-flex items-center gap-1"><input type="checkbox" class="bp-pos-canal" value="${_bpEsc(c.canal)}" checked> ${_bpEsc(c.label || c.canal)}</label>`
+    ).join('');
+    const sel = document.getElementById('bp-pos-canal-site');
+    sel.innerHTML = '<option value="">Canal do site</option>' + _bpOpcaoSiaa() + canais.map(c =>
+        `<option value="${_bpEsc(c.canal)}">${_bpEsc(c.label || c.canal)}</option>`
+    ).join('');
+    sel.value = canais.length === 1 ? canais[0].canal : '';
+    document.getElementById('bp-pos-wrap').classList.remove('hidden');
+    bpLog('Pós', `Planilha lida: ${data.cursos} cursos × duração, ${data.atualizar} com produto no CRM, ${data.sem_produto} sem produto.`, 'info');
+    if (data.inativos) bpLog('Pós', `${data.inativos} com STATUS_CRM Inativo: ficam de fora.`, 'info');
+    if ((data.sem_sku || []).length) bpLog('Pós', `Sem SKU_CRM (ficam de fora): ${data.sem_sku.join(', ')}`, 'erro');
+    if ((data.conflitos || []).length) bpLog('Pós', `Valores diferentes para o mesmo SKU e canal: ${data.conflitos.join(', ')}`, 'erro');
+    const sem = (data.linhas || []).filter(l => l.acao === 'sem_produto');
+    if (sem.length) bpLog('Pós', `Sem produto no CRM: ${sem.map(l => l.sku).join(', ')}`, 'erro');
+    if (data.amostra) {
+        const a = data.amostra;
+        bpLog('Pós', `Produto de Pós no CRM (ex.: ${a.produto}): nível ${a.level || '—'}, cotas ${(a.cotas || []).join(', ') || '—'}.`, 'info');
+    }
+    _bpPosBotoes(false);
+    await bpPosCampos();
+}
+
+async function bpPosCampos() {
+    const box = document.getElementById('bp-pos-campos');
+    const site = _bpPosSites[document.getElementById('bp-pos-site').value];
+    if (!box || !site) return;
+    box.innerHTML = '<span class="text-[var(--text-muted)]">Carregando campos…</span>';
+    const res = await fetch(site[1]);
+    const campos = await res.json().catch(() => []);
+    box.innerHTML = '<span class="text-[var(--text-muted)]">Campos que recebem o preço:</span>' + (Array.isArray(campos) ? campos : []).map(c =>
+        `<label class="inline-flex items-center gap-1"><input type="checkbox" class="bp-pos-campo" value="${_bpEsc(c.key)}" ${c.key === 'mix' ? '' : 'checked'}> ${_bpEsc(c.label || c.key)}</label>`
+    ).join('');
+}
+
+async function bpPosAplicar(teste) {
+    const file = _bpFilePos();
+    if (!file || !_bpPosPreview) return;
+    const canais = [...document.querySelectorAll('.bp-pos-canal:checked')].map(i => i.value);
+    if (!canais.length) {
+        bpLog('Pós · CRM', 'Nenhuma cota escolhida.', 'erro');
+        return;
+    }
+    const nomes = canais.map(c => { const x = (_bpPosPreview.canais || []).find(k => k.canal === c); return (x && x.label) || c; });
+    const alvo = teste ? (_bpPosPreview.linhas || []).find(l => l.acao === 'atualizar') : null;
+    if (teste && !alvo) {
+        bpLog('Pós · CRM', 'Nenhum produto de Pós com SKU no CRM para testar.', 'erro');
+        return;
+    }
+    const pergunta = teste
+        ? `Atualizar só "${alvo.curso} · ${alvo.duracao}" (SKU ${alvo.sku}) no CRM? Cotas: ${nomes.join(', ')}. Depois confira o produto no Bwipo.`
+        : `Atualizar ${_bpPosPreview.atualizar} produtos de Pós no CRM? Cotas: ${nomes.join(', ')}. Produto que não existe não é criado.`;
+    if (!window.confirm(pergunta)) return;
+    bpLog('Pós · CRM', teste ? `Teste em 1 produto: ${alvo.curso} · ${alvo.duracao}.` : `Começou. ${_bpPosPreview.atualizar} produtos. Cotas: ${nomes.join(', ')}.`, 'info');
+    _bpPosBotoes(true);
+    const body = new FormData();
+    body.append('file', file);
+    body.append('canais', JSON.stringify(canais));
+    if (teste) body.append('so_sku', alvo.sku);
+    try {
+        const res = await fetch('/api/bwipo-precos/pos/aplicar', { method: 'POST', body });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) {
+            bpLog('Pós · CRM', data.error || 'Falha ao aplicar.', 'erro');
+            return;
+        }
+        (data.resultados || []).forEach(r => {
+            const nome = `${r.curso || ''} · ${r.duracao || ''}`;
+            if (r.ok) bpLog('Pós · CRM', `${nome} — atualizado`, 'ok');
+            else if (r.acao === 'erro') bpLog('Pós · CRM', `${nome} — ${r.erro || 'erro'}`, 'erro');
+        });
+        const r = data.resumo || {};
+        bpLog('Pós · CRM', `Fechou. ${r.ok || 0} ok, ${r.erro || 0} erro, ${r.sem_produto || 0} sem produto.`, r.erro ? 'erro' : 'ok');
+    } catch (e) {
+        bpLog('Pós · CRM', e.message || 'Falhou.', 'erro');
+    } finally {
+        _bpPosBotoes(false);
+    }
+}
+
+async function bpPosAtualizarSite() {
+    const file = _bpFilePos();
+    const site = _bpPosSites[document.getElementById('bp-pos-site').value];
+    if (!file || !_bpPosPreview || !site) return;
+    const nome = `${site[0]} · Pós`;
+    const canal = _bpCanalAlvoPos(document.getElementById('bp-pos-canal-site').value);
+    if (!canal) {
+        bpLog(nome, 'Escolha o canal do site ao lado do botão.', 'erro');
+        return;
+    }
+    const campos = [...document.querySelectorAll('.bp-pos-campo:checked')].map(i => i.value);
+    if (!campos.length) {
+        bpLog(nome, 'Marque ao menos um campo do site.', 'erro');
+        return;
+    }
+    if (!window.confirm(`Atualizar a Pós de ${site[0]} (campos ${campos.join(', ')}) com ${_bpDescreveValor(canal)}?`)) return;
+    bpLog(nome, `Começou. Campos ${campos.join(', ')}; o valor é ${_bpDescreveValor(canal)}.`, 'info');
+    _bpPosBotoes(true);
+    const body = new FormData();
+    body.append('file', file);
+    body.append('mapping', JSON.stringify(campos.map(campo => ({ campo, canal: canal.canal }))));
+    try {
+        const res = await fetch(site[2], { method: 'POST', body });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.error) {
+            bpLog(nome, data.error || 'Falhou.', 'erro');
+            return;
+        }
+        bpLog(nome, `Fechou. ${data.atualizados || 0} atualizados${data.erros ? `, ${data.erros} erro` : ''}.`, data.erros ? 'erro' : 'ok');
+        if (data.ultimo_erro) bpLog(nome, data.ultimo_erro, 'erro');
+    } catch (e) {
+        bpLog(nome, e.message || 'Falhou.', 'erro');
+    } finally {
+        _bpPosBotoes(false);
+    }
+}
+
+function _bpCanalAlvoPos(v) {
+    if (!v) return null;
+    if (v === _BP_SIAA) return { canal: _BP_SIAA, label: _BP_SIAA_LABEL, siaa: true };
+    return ((_bpPosPreview && _bpPosPreview.canais) || []).find(c => c.canal === v) || null;
 }
 
 function _bpCanal(nome) {

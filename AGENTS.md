@@ -4,6 +4,14 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-18 — Preços dos cursos: Pós-Graduação no CRM e nos sites Wix
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** subir a planilha de Pós (export com PRODUTO, CURSOS, CERTIFICADORA, CANAL, DURAÇÃO "6 meses", PARCELAS "12 parcelas", PREÇO SIAA, DESCONTO 0,35, VALOR COM DESCONTO, SKU_CRM, STATUS_CRM; uma linha por curso × duração × canal) no CRM e nos sites. eduit.com.br e IA ficam para depois (o eduit.com.br tem quase só ofertas de "12 Meses", a planilha traz 6 e 9).
+- **CRM (`routes/bwipo_precos.py`):** `parse_pos_workbook` agrupa por SKU_CRM (comparado por `_sku_key`: sem acento, minúsculo, sem espaço); STATUS_CRM "Inativo" e linha sem SKU ficam de fora (voltam em `inativos`/`sem_sku`). `_pos_index` indexa por SKU os produtos cujo `courseConfig.level` não é GRADUATION. **Pós nunca cria produto**: sem SKU no CRM vira `sem_produto`. `_apply_prices_pos` faz o PUT como na graduação, mas o `course` copia de volta tudo do `courseConfig` que não é preço (menos id/datas), e a cota escolhida grava `months` e `installments` da planilha. Rotas: `POST /api/bwipo-precos/pos/preview` (devolve `amostra` com nível, campos e cotas de um produto de Pós do CRM, para conferência) e `POST /api/bwipo-precos/pos/aplicar` com `canais` (e `so_sku` opcional: botão "Testar em 1 produto", para conferir no Bwipo antes de subir todos — o formato do produto de Pós no CRM não foi visto no desenvolvimento, sem token local). Sem histórico (as tabelas de snapshot são da graduação).
+- **Sites Wix:** a tela nova chama as rotas de Pós que já existiam (`/api/atualizar_wix{,2,3}_pos_canais`, casamento por nome + meses em `atualizar_preco_app.py`) com `mapping` = cada campo marcado → o canal escolhido (ou `__SIAA__`). Campos vêm de `/api/listar_campos_wix*_pos`; `mix` vem desmarcado.
+- **Não muda:** graduação inteira (CRM, sites, IA, histórico, duplicatas); rotas antigas de Pós.
+- **Testes:** `tests/test_bwipo_precos_pos.py`.
+
 ### 2026-11-18 — Site eduit.com.br: a duração da planilha também é gravada
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** "Segurança No Trabalho" tem DURAÇÃO 6 na planilha, mas o site seguia mostrando "4 semestres". O "Atualizar este site" do eduit.com.br só gravava o preço.
