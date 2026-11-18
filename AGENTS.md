@@ -4,6 +4,13 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-18 — Consulta de inscrições (sessão manual por cURL)
+- **Modelo usado:** Claude Opus 5.5 (coordenação), testes por agentes Sonnet.
+- **Pedido:** terceiro módulo de sessão SIAA, `inscricoes`, atualizado só manualmente e mantido pelo ping JSF do keepalive (backend no `eduit-insights`, `docs/CONTRATO-CONEXAO-SIAA.md`, seção do módulo manual).
+- **Atualizar sessão SIAA:** card "Consulta de inscrições" (grid `auto-fit`, responsivo) com cURL, Testar e Salvar. `/siaa-sessao/testar|salvar` repassam `{"curl": texto}` a `/session/inscricoes[/test]`; quem valida destino e extrai o cookie é a session-api (o painel nunca interpreta nem registra o cURL; log só módulo/len/status). Resposta passa por lista branca (`_resposta_curl`): sem cookie, ViewState ou hash. Campo limpo após salvar com sucesso. Acadêmico/financeiro inalterados.
+- **Conexão SIAA:** card Inscrições (estados `nao_configurada` e `atualizacao_manual`, com avisos próprios), filtro do histórico e exportação incluem o módulo (`_MODULOS_STATUS`). A renovação automática continua só com acadêmico/financeiro (`_MODULOS`, `CS_MODULOS_RENOVACAO`).
+- **Não muda:** gatilho, fluxo e critério de sucesso da renovação; rotas existentes. Sem deploy.
+
 ### 2026-11-18 — Preços dos cursos: Pós-Graduação no CRM e nos sites Wix
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** subir a planilha de Pós (export com PRODUTO, CURSOS, CERTIFICADORA, CANAL, DURAÇÃO "6 meses", PARCELAS "12 parcelas", PREÇO SIAA, DESCONTO 0,35, VALOR COM DESCONTO, SKU_CRM, STATUS_CRM; uma linha por curso × duração × canal) no CRM e nos sites. eduit.com.br e IA ficam para depois (o eduit.com.br tem quase só ofertas de "12 Meses", a planilha traz 6 e 9).

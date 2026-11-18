@@ -86,11 +86,17 @@
 /* ── Grid de cards ───────────────────────────────────────── */
 #page-siaa_sessao .siaa-sessao-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
     gap: 16px;
 }
-@media (max-width: 900px) {
-    #page-siaa_sessao .siaa-sessao-grid { grid-template-columns: 1fr; }
+@media (max-width: 640px) {
+    #page-siaa_sessao .content { padding: 14px; }
+}
+#page-siaa_sessao .siaa-sessao-hint {
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--text-muted);
+    margin: -6px 0 0;
 }
 
 /* ── Card individual ─────────────────────────────────────── */
@@ -259,6 +265,27 @@
             </div>
             <div class="siaa-sessao-msg" id="siaa-sessao-msg-financeiro"></div>
         </div>
+
+        <!-- Card Inscricoes (atualizacao manual; fora da renovacao automatica) -->
+        <div class="siaa-sessao-card" data-module="inscricoes">
+            <div class="siaa-sessao-card-header">
+                <span class="siaa-sessao-title">Consulta de inscrições</span>
+                <span class="siaa-sessao-status" data-status="idle">—</span>
+            </div>
+            <p class="siaa-sessao-hint">
+                Na tela Consulta de inscrições do SIAA, copie qualquer requisição para
+                <code>wsvcon01.jsf</code> como <strong>Copy as cURL (bash)</strong>.
+                Só os cookies da sessão são usados: a busca do cURL (CPF e demais campos)
+                é descartada e nunca é repetida nem gravada. Esta sessão não é renovada
+                automaticamente; quando expirar, cole um cURL novo.
+            </p>
+            <textarea id="siaa-sessao-input-inscricoes" autocomplete="off" spellcheck="false" placeholder="Cole aqui o Copy as cURL (bash) da Consulta de inscrições do SIAA..."></textarea>
+            <div class="siaa-sessao-actions">
+                <button onclick="siaaSessaoTestar('inscricoes')">Testar</button>
+                <button onclick="siaaSessaoSalvar('inscricoes')" class="primary">Salvar</button>
+            </div>
+            <div class="siaa-sessao-msg" id="siaa-sessao-msg-inscricoes"></div>
+        </div>
     </div>
 
     <div class="siaa-sessao-batch">
@@ -291,6 +318,27 @@
         if (el) { el.className = 'siaa-sessao-msg ' + kind; el.textContent = text; }
     }
 
+    var SIAA_SESSAO_CURL = ['inscricoes'];
+
+    function siaaSessaoTextoTeste(data) {
+        if (data.alive === true) {
+            return ['alive', 'VIVO', 'success', 'Sessão válida: a página abriu e o ping JSF respondeu' +
+                (data.formulario ? ' (formulário ' + data.formulario + ').' : '.')];
+        }
+        if (data.classe === 'sessao_expirada') {
+            return ['dead', 'EXPIRADA', 'error', 'Sessão expirada. Faça login no SIAA e copie um cURL novo.'];
+        }
+        if (data.classe === 'indisponivel_siaa') {
+            return ['error', 'SIAA FORA', 'warn', 'O SIAA não respondeu (' + (data.motivo || 'sem resposta') + '). Tente de novo em instantes.'];
+        }
+        if (data.etapa === 'formulario') {
+            var ids = (data.formularios_encontrados || []).join(', ');
+            return ['error', 'INCONCLUSIVO', 'warn', 'A página abriu, mas o formulário da consulta não foi identificado (' +
+                (data.motivo || '—') + ')' + (ids ? '. Formulários na página: ' + ids + '.' : '.')];
+        }
+        return ['error', 'INCONCLUSIVO', 'warn', 'Resultado inconclusivo (' + (data.classe || '—') + ', ' + (data.motivo || '—') + ').'];
+    }
+
     window.siaaSessaoTestar = async function (module) {
         var input = document.getElementById('siaa-sessao-input-' + module);
         var cookie = (input ? input.value : '').trim();
@@ -304,6 +352,12 @@
             if (status >= 400 || data.ok === false) {
                 siaaSessaoSetStatus(module, 'error', 'ERRO');
                 siaaSessaoSetMsg(module, 'error', data.error || ('HTTP ' + status));
+                return;
+            }
+            if (SIAA_SESSAO_CURL.indexOf(module) >= 0) {
+                var t = siaaSessaoTextoTeste(data);
+                siaaSessaoSetStatus(module, t[0], t[1]);
+                siaaSessaoSetMsg(module, t[2], t[3]);
                 return;
             }
             var alive = data.alive === true || data.alive === 'true' || data.status === 200;
@@ -335,6 +389,22 @@
                 siaaSessaoSetMsg(module, 'error', data.error || ('HTTP ' + status));
                 return;
             }
+            if (SIAA_SESSAO_CURL.indexOf(module) >= 0) {
+                // Gravado: o campo é limpo (o cURL tem dados da busca e cookies).
+                if (input) input.value = '';
+                var pub = data.publicacao || {};
+                var sonda = data.sonda || {};
+                if (pub.sonda_validou) {
+                    siaaSessaoSetStatus(module, 'saved', 'SALVO');
+                    siaaSessaoSetMsg(module, 'success', 'Sessão salva e confirmada pelo SIAA (vínculo: ' + (pub.vinculo || '—') + ').');
+                } else {
+                    siaaSessaoSetStatus(module, 'error', 'SALVO SEM CONFIRMAR');
+                    siaaSessaoSetMsg(module, 'warn', 'Sessão salva, mas a confirmação não passou (' +
+                        (sonda.classe || 'sem sonda') + (sonda.motivo ? ', ' + sonda.motivo : '') +
+                        '). Veja o estado em Conexão SIAA; se expirou, cole um cURL novo.');
+                }
+                return;
+            }
             siaaSessaoSetStatus(module, 'saved', 'SALVO');
             var len = typeof data.length === 'number' ? data.length : null;
             siaaSessaoSetMsg(module, 'success', 'Salvo com sucesso' + (len ? (' (' + len + ' chars).') : '.'));
@@ -345,7 +415,7 @@
     };
 
     window.siaaSessaoTestarTodos = async function () {
-        await Promise.all(['academico', 'financeiro'].map(function (m) {
+        await Promise.all(['academico', 'financeiro', 'inscricoes'].map(function (m) {
             var el = document.getElementById('siaa-sessao-input-' + m);
             if (el && el.value.trim()) return window.siaaSessaoTestar(m);
             return Promise.resolve();
@@ -353,7 +423,7 @@
     };
 
     window.siaaSessaoSalvarTodos = async function () {
-        await Promise.all(['academico', 'financeiro'].map(function (m) {
+        await Promise.all(['academico', 'financeiro', 'inscricoes'].map(function (m) {
             var el = document.getElementById('siaa-sessao-input-' + m);
             if (el && el.value.trim()) return window.siaaSessaoSalvar(m);
             return Promise.resolve();
