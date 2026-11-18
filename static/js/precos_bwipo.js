@@ -521,9 +521,13 @@ async function bpAtualizarSite() {
             return;
         }
         (data.linhas || []).forEach(l => {
-            const mudou = `${l.chave}: ${l.de == null ? '—' : l.de} → ${l.para}`;
+            const dur = l.dur_para ? ` · duração ${l.dur_de || '—'} → ${l.dur_para}` : '';
+            const mudou = `${l.chave}: ${l.de == null ? '—' : l.de} → ${l.para}${dur}`;
             bpLog(nome, l.ok ? mudou : `${mudou}. ${l.erro || 'erro'}`, l.ok ? 'ok' : 'erro');
         });
+        if ((data.duracao_ambigua || []).length) {
+            bpLog(nome, `Duração não alterada (mais de uma na planilha): ${data.duracao_ambigua.join(', ')}`, 'info');
+        }
         if ((data.sem_chave || []).length) {
             bpLog(nome, `Sem chave no site: ${data.sem_chave.join(', ')}`, 'erro');
         }

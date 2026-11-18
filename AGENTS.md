@@ -4,6 +4,15 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-18 — Site eduit.com.br: a duração da planilha também é gravada
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** "Segurança No Trabalho" tem DURAÇÃO 6 na planilha, mas o site seguia mostrando "4 semestres". O "Atualizar este site" do eduit.com.br só gravava o preço.
+- **Agora:** `_grad_duracoes_chave` (`routes/atualizar_preco_app.py`) lê a coluna DURAÇÃO (semestres) com o mesmo filtro de canal e a mesma chave do índice de preço dos sites (nome + submodalidade + grau, "Cst Em " no Tecnólogo). `services/site_eduit_precos.py`: `indice_duracao` formata "N semestres"; `planejar` marca troca quando a duração da oferta **ou** do curso difere; `aplicar` grava `curso_ofertas.duracao` e `cursos.duracao` na mesma transação do preço. O log mostra "duração X → Y".
+- **Ambíguo:** chave com mais de uma duração na planilha (hoje "Ciências Econômicas 2.0" EAD e "Engenharia Ambiental 2.0" Semipresencial) não muda e volta em `duracao_ambigua`.
+- **Simulação 18/11 (`preço corigido.xlsx` × banco do site, só leitura):** mudam 5 durações: Segurança No Trabalho 4→6, Produção Cultural 4→6, Ciência Política EAD 8→6, Física e Matemática Semipresencial 8→6.
+- **Não muda:** sites Wix (seguem só preço), IA, CRM, Pós.
+- **Testes:** `tests/test_site_eduit_precos.py` (`DuracaoTest`).
+
 ### 2026-11-18 — Preços dos cursos: opção "Preço SIAA (sem desconto)" no site e na IA
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** poder subir o preço base da planilha (coluna PREÇO SIAA), sem desconto e sem cota, para os sites e para o agente de IA.

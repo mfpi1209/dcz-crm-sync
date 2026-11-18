@@ -15,6 +15,7 @@ from services.site_eduit_precos import (
     SiteEduitNaoConfigurado,
     aplicar,
     conectar,
+    indice_duracao,
     planejar,
 )
 
@@ -110,6 +111,57 @@ class AplicarTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             aplicar(conn, self._plano(2))
         self.assertEqual((conn.commits, conn.rollbacks), (0, 1))
+
+
+class DuracaoTest(unittest.TestCase):
+    """Duração da planilha (semestres) também vai para o site (18/11)."""
+
+    def test_indice_formata_semestres(self):
+        idx, ambiguas = indice_duracao([("SegurançaEADTecnólogo", "6"), ("SegurançaEADTecnólogo", 6.0),
+                                        ("XEADBacharelado", "8")])
+        self.assertEqual(idx, {"SegurançaEADTecnólogo": "6 semestres", "XEADBacharelado": "8 semestres"})
+        self.assertEqual(ambiguas, set())
+
+    def test_indice_duracao_ambigua_fica_de_fora(self):
+        idx, ambiguas = indice_duracao([("EcoEADBacharelado", "4"), ("EcoEADBacharelado", "8"), ("Y", None), ("Z", "abc")])
+        self.assertEqual(idx, {})
+        self.assertEqual(ambiguas, {"EcoEADBacharelado"})
+
+    def _oferta(self, valor="179", dur="4 semestres", dur_curso="4 semestres"):
+        return Oferta(117, 117, "seguranca-do-trabalho", "Segurança No TrabalhoEADTecnólogo",
+                      Decimal(valor), Decimal(valor), dur, dur_curso)
+
+    def test_so_duracao_mudou_entra_na_troca(self):
+        p = planejar([self._oferta()], {"Segurança No TrabalhoEADTecnólogo": 179},
+                     {"Cst Em Segurança No TrabalhoEADTecnólogo": "6 semestres"})
+        self.assertEqual(p["iguais"], 0)
+        t = p["trocas"][0]
+        self.assertEqual((t["de"], t["para"], t["dur_de"], t["dur_para"]), (179, 179, "4 semestres", "6 semestres"))
+
+    def test_duracao_do_curso_divergente_entra(self):
+        p = planejar([self._oferta(dur="6 semestres", dur_curso="4 semestres")],
+                     {"Segurança No TrabalhoEADTecnólogo": 179}, {"Segurança No TrabalhoEADTecnólogo": "6 semestres"})
+        self.assertEqual(p["trocas"][0]["dur_para"], "6 semestres")
+
+    def test_duracao_igual_e_iguais(self):
+        p = planejar([self._oferta(dur="6 semestres", dur_curso="6 semestres")],
+                     {"Segurança No TrabalhoEADTecnólogo": 179}, {"Segurança No TrabalhoEADTecnólogo": "6 semestres"})
+        self.assertEqual((p["trocas"], p["iguais"]), ([], 1))
+
+    def test_sem_duracao_no_indice_nao_mexe(self):
+        p = planejar([self._oferta()], {"Segurança No TrabalhoEADTecnólogo": 180}, {})
+        self.assertNotIn("dur_para", p["trocas"][0])
+
+    def test_aplicar_grava_duracao(self):
+        conn = _FakeConn()
+        plano = {"trocas": [{"oferta_id": 117, "curso_id": 117, "chave": "S", "de": 179, "para": 179,
+                             "dur_de": "4 semestres", "dur_para": "6 semestres"}],
+                 "iguais": 0, "sem_chave": [], "sem_preco": [], "duracao_ambigua": ["EcoEADBacharelado"]}
+        r = aplicar(conn, plano)
+        self.assertIn(("UPDATE curso_ofertas SET duracao = %s WHERE id = %s", ("6 semestres", 117)), conn.sqls)
+        self.assertIn(("UPDATE cursos SET duracao = %s WHERE id = %s", ("6 semestres", 117)), conn.sqls)
+        self.assertEqual(r["linhas"][0]["dur_para"], "6 semestres")
+        self.assertEqual(r["duracao_ambigua"], ["EcoEADBacharelado"])
 
 
 class ConectarTest(unittest.TestCase):
