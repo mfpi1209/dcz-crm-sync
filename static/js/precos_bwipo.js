@@ -134,16 +134,40 @@ async function bpPosAplicar(teste) {
         const res = await fetch('/api/bwipo-precos/pos/aplicar', { method: 'POST', body });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.ok) {
-            bpLog('Pós · CRM', data.error || 'Falha ao aplicar.', 'erro');
+            bpLog('Pós · CRM', data.error || `Falha ao aplicar (HTTP ${res.status}).`, 'erro');
             return;
         }
-        (data.resultados || []).forEach(r => {
-            const nome = `${r.curso || ''} · ${r.duracao || ''}`;
-            if (r.ok) bpLog('Pós · CRM', `${nome} — atualizado`, 'ok');
-            else if (r.acao === 'erro') bpLog('Pós · CRM', `${nome} — ${r.erro || 'erro'}`, 'erro');
-        });
-        const r = data.resumo || {};
-        bpLog('Pós · CRM', `Fechou. ${r.ok || 0} ok, ${r.erro || 0} erro, ${r.sem_produto || 0} sem produto.`, r.erro ? 'erro' : 'ok');
+        // Roda em segundo plano no servidor; aqui só acompanha (18/11).
+        let desde = 0;
+        let ultimoAviso = 0;
+        while (true) {
+            await new Promise(ok => setTimeout(ok, 2000));
+            const st = await fetch(`/api/bwipo-precos/pos/aplicar/${encodeURIComponent(data.job_id)}?desde=${desde}`);
+            const job = await st.json().catch(() => ({}));
+            if (!st.ok || !job.ok) {
+                bpLog('Pós · CRM', job.error || `Perdi o acompanhamento (HTTP ${st.status}). A subida pode seguir no servidor.`, 'erro');
+                return;
+            }
+            (job.resultados || []).forEach(r => {
+                const nome = `${r.curso || ''} · ${r.duracao || ''}`;
+                if (r.ok) bpLog('Pós · CRM', `${nome} — atualizado`, 'ok');
+                else if (r.acao === 'erro') bpLog('Pós · CRM', `${nome} — ${r.erro || 'erro'}`, 'erro');
+            });
+            desde += (job.resultados || []).length;
+            if (job.status === 'erro') {
+                bpLog('Pós · CRM', `Parou: ${job.erro || 'erro'}.`, 'erro');
+                return;
+            }
+            if (job.status === 'fim') {
+                const r = job.resumo || {};
+                bpLog('Pós · CRM', `Fechou. ${r.ok || 0} ok, ${r.erro || 0} erro, ${r.sem_produto || 0} sem produto.`, r.erro ? 'erro' : 'ok');
+                return;
+            }
+            if (job.feitos - ultimoAviso >= 50) {
+                ultimoAviso = job.feitos;
+                bpLog('Pós · CRM', `Andamento: ${job.feitos} de ${job.total}.`, 'info');
+            }
+        }
     } catch (e) {
         bpLog('Pós · CRM', e.message || 'Falhou.', 'erro');
     } finally {

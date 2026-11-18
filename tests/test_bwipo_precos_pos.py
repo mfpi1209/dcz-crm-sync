@@ -122,6 +122,20 @@ def test_apply_pos_sem_cota_escolhida_erro(monkeypatch):
         bp._apply_prices_pos(_prod("a", RH6), item, set())
 
 
+@pytest.fixture(autouse=True)
+def _job_sincrono(monkeypatch):
+    monkeypatch.setattr(bp, "_rodar_em_segundo_plano", lambda fn: fn())
+    monkeypatch.setattr(bp, "_POS_JOBS", {})
+
+
+def _status(client, r):
+    body = r.get_json()
+    assert r.status_code == 200, body
+    st = client.get(f"/api/bwipo-precos/pos/aplicar/{body['job_id']}")
+    assert st.status_code == 200
+    return st.get_json()
+
+
 @pytest.fixture
 def client():
     from flask import Flask
@@ -156,9 +170,9 @@ def test_rota_aplicar_pos_so_atualiza_e_nunca_cria(client, monkeypatch):
     r = client.post("/api/bwipo-precos/pos/aplicar", data={
         "file": (_xlsx(ROWS), "p.xlsx"), "canais": '["ESQUENTA BLACK"]',
     }, content_type="multipart/form-data")
-    body = r.get_json()
-    assert r.status_code == 200, body
+    body = _status(client, r)
     assert chamadas == [("PUT", "/api/products/a")]
+    assert body["status"] == "fim" and (body["feitos"], body["total"]) == (2, 2)
     assert {x["sku"]: x["acao"] for x in body["resultados"]} == {RH6: "atualizado", RH9: "sem_produto"}
     assert body["resumo"] == {"cursos": 2, "ok": 1, "erro": 0, "sem_produto": 1, "inativos": 1}
 
@@ -170,7 +184,7 @@ def test_rota_aplicar_pos_teste_em_um_sku(client, monkeypatch):
     r = client.post("/api/bwipo-precos/pos/aplicar", data={
         "file": (_xlsx(ROWS), "p.xlsx"), "canais": '["ESQUENTA BLACK"]', "so_sku": RH9,
     }, content_type="multipart/form-data")
-    assert r.status_code == 200 and chamadas == [("PUT", "/api/products/b")]
+    assert _status(client, r)["status"] == "fim" and chamadas == [("PUT", "/api/products/b")]
     r = client.post("/api/bwipo-precos/pos/aplicar", data={
         "file": (_xlsx(ROWS), "p.xlsx"), "canais": '["ESQUENTA BLACK"]', "so_sku": "NAO EXISTE",
     }, content_type="multipart/form-data")
@@ -182,3 +196,79 @@ def test_rota_aplicar_pos_exige_cota(client, monkeypatch):
     r = client.post("/api/bwipo-precos/pos/aplicar", data={"file": (_xlsx(ROWS), "p.xlsx"), "canais": "[]"},
                     content_type="multipart/form-data")
     assert r.status_code == 400
+
+
+def _post_todos(client):
+    return client.post("/api/bwipo-precos/pos/aplicar", data={
+        "file": (_xlsx(ROWS), "p.xlsx"), "canais": '["ESQUENTA BLACK"]',
+    }, content_type="multipart/form-data")
+
+
+def test_job_tenta_de_novo_erro_passageiro(client, monkeypatch):
+    monkeypatch.setattr(bp, "_list_products", lambda: [_prod("a", RH6), _prod("b", RH9)])
+    falhas = {"a": [TimeoutError("timed out"), bp.BwipoComercialError("lento", 504)]}
+    chamadas = []
+
+    def fake(m, p, body=None):
+        chamadas.append(p)
+        pid = p.rsplit("/", 1)[-1]
+        if falhas.get(pid):
+            raise falhas[pid].pop(0)
+        return {}
+
+    monkeypatch.setattr(bp, "bwipo_request", fake)
+    body = _status(client, _post_todos(client))
+    assert chamadas == ["/api/products/a"] * 3 + ["/api/products/b"]
+    assert body["resumo"]["ok"] == 2 and body["resumo"]["erro"] == 0
+
+
+def test_job_erro_inesperado_vira_linha_e_segue(client, monkeypatch):
+    monkeypatch.setattr(bp, "_list_products", lambda: [_prod("a", RH6), _prod("b", RH9)])
+
+    def fake(m, p, body=None):
+        if p.endswith("/a"):
+            raise ConnectionResetError("caiu")
+        return {}
+
+    monkeypatch.setattr(bp, "bwipo_request", fake)
+    body = _status(client, _post_todos(client))
+    linhas = {x["sku"]: x for x in body["resultados"]}
+    assert linhas[RH6]["acao"] == "erro" and "ConnectionResetError" in linhas[RH6]["erro"]
+    assert linhas[RH9]["acao"] == "atualizado"
+    assert (body["resumo"]["ok"], body["resumo"]["erro"]) == (1, 1)
+
+
+def test_job_erro_4xx_nao_tenta_de_novo(client, monkeypatch):
+    monkeypatch.setattr(bp, "_list_products", lambda: [_prod("a", RH6)])
+    chamadas = []
+
+    def fake(m, p, body=None):
+        chamadas.append(p)
+        raise bp.BwipoComercialError("campo inválido", 400)
+
+    monkeypatch.setattr(bp, "bwipo_request", fake)
+    body = _status(client, _post_todos(client))
+    assert chamadas == ["/api/products/a"] and body["resumo"]["erro"] == 1
+
+
+def test_job_falha_ao_ler_crm_fica_no_status(client, monkeypatch):
+    def quebra():
+        raise bp.BwipoComercialError("sem token", 503)
+
+    monkeypatch.setattr(bp, "_list_products", quebra)
+    body = _status(client, _post_todos(client))
+    assert body["status"] == "erro" and "sem token" in body["erro"]
+
+
+def test_um_job_por_vez_e_status_desconhecido(client, monkeypatch):
+    bp._POS_JOBS["x"] = {"status": "rodando"}
+    assert _post_todos(client).status_code == 409
+    assert client.get("/api/bwipo-precos/pos/aplicar/nao-existe").status_code == 404
+
+
+def test_status_desde_devolve_so_o_que_falta(client, monkeypatch):
+    monkeypatch.setattr(bp, "_list_products", lambda: [_prod("a", RH6)])
+    monkeypatch.setattr(bp, "bwipo_request", lambda m, p, body=None: {})
+    job_id = _post_todos(client).get_json()["job_id"]
+    r = client.get(f"/api/bwipo-precos/pos/aplicar/{job_id}?desde=1").get_json()
+    assert [x["sku"] for x in r["resultados"]] == [RH9]

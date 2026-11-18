@@ -11,8 +11,10 @@ from __future__ import annotations
 import json
 import logging
 import re
+import threading
 import time
 import unicodedata
+import uuid
 from decimal import Decimal, ROUND_HALF_UP
 
 import openpyxl
@@ -1106,32 +1108,98 @@ def api_pos_aplicar():
         parsed["cursos"] = [i for i in parsed["cursos"] if _sku_key(i["sku"]) == so_sku]
         if not parsed["cursos"]:
             return jsonify({"ok": False, "error": "Esse SKU não está na planilha."}), 400
-    try:
-        products = _list_products()
-    except BwipoComercialError as e:
-        return jsonify({"ok": False, "error": str(e)}), e.status
-    index = _pos_index(products)
-    resultados = []
-    for item in parsed["cursos"]:
-        info = {"sku": item["sku"], "curso": item["curso"], "duracao": item["duracao"]}
-        prod = index.get(_sku_key(item["sku"]))
-        if not prod:
-            resultados.append({**info, "ok": False, "acao": "sem_produto",
-                               "erro": "Sem produto com esse SKU no CRM; Pós não cria produto."})
-            continue
-        do_curso = {c for c in selected if c in item["canais"]}
+    user = session.get("username") or ""
+    with _POS_JOBS_LOCK:
+        if any(j["status"] == "rodando" for j in _POS_JOBS.values()):
+            return jsonify({"ok": False, "error": "Já há uma subida de Pós rodando. Espere terminar."}), 409
+        job_id = uuid.uuid4().hex[:12]
+        job = {"id": job_id, "status": "rodando", "total": len(parsed["cursos"]), "feitos": 0,
+               "resultados": [], "resumo": None, "erro": None, "user": user}
+        _POS_JOBS[job_id] = job
+        for velho in [k for k, j in _POS_JOBS.items() if k != job_id and j["status"] != "rodando"][:-5]:
+            _POS_JOBS.pop(velho, None)
+    _rodar_em_segundo_plano(lambda: _job_pos(job, parsed, selected))
+    return jsonify({"ok": True, "job_id": job_id, "total": job["total"]})
+
+
+# Subida da Pós em segundo plano (18/11): 572 PUTs não cabem num request (4 threads
+# no gunicorn; a primeira tentativa caiu com 500 no meio). Um job por vez, em memória
+# (1 worker); a tela acompanha por GET /api/bwipo-precos/pos/aplicar/<job_id>.
+_POS_JOBS: dict[str, dict] = {}
+_POS_JOBS_LOCK = threading.Lock()
+_POS_TENTATIVAS = 3
+
+
+def _rodar_em_segundo_plano(fn) -> None:
+    threading.Thread(target=fn, daemon=True, name="precos-pos").start()
+
+
+def _erro_passageiro(e: Exception) -> bool:
+    """Timeout, conexão caída, resposta inválida, 429 e 5xx: vale tentar de novo."""
+    if isinstance(e, BwipoComercialError):
+        return e.status in (429, 502, 503, 504)
+    return True
+
+
+def _aplicar_pos_com_retry(prod: dict, item: dict, selected: set[str]) -> dict:
+    for tentativa in range(1, _POS_TENTATIVAS + 1):
         try:
-            done = _apply_prices_pos(prod, item, do_curso)
-            resultados.append({**info, "ok": True, **done})
-        except BwipoComercialError as e:
-            resultados.append({**info, "ok": False, "acao": "erro", "erro": str(e)[:300]})
-        time.sleep(0.2)
-    resumo = {
-        "cursos": len(parsed["cursos"]),
-        "ok": sum(1 for r in resultados if r.get("ok")),
-        "erro": sum(1 for r in resultados if r.get("acao") == "erro"),
-        "sem_produto": sum(1 for r in resultados if r.get("acao") == "sem_produto"),
-        "inativos": len(parsed["inativos"]),
-    }
-    logger.info("precos pos aplicados por %s: %s", session.get("username") or "", resumo)
-    return jsonify({"ok": True, "resumo": resumo, "resultados": resultados})
+            return _apply_prices_pos(prod, item, selected)
+        except Exception as e:  # noqa: BLE001 — qualquer falha vira linha, nunca derruba o job
+            if tentativa == _POS_TENTATIVAS or not _erro_passageiro(e):
+                raise
+            logger.warning("precos pos %s: tentativa %s falhou (%s)", item["sku"], tentativa, e)
+            time.sleep(1.5 * tentativa)
+    raise RuntimeError("inalcançável")
+
+
+def _job_pos(job: dict, parsed: dict, selected: set[str]) -> None:
+    try:
+        index = _pos_index(_list_products())
+        for item in parsed["cursos"]:
+            info = {"sku": item["sku"], "curso": item["curso"], "duracao": item["duracao"]}
+            prod = index.get(_sku_key(item["sku"]))
+            if not prod:
+                linha = {**info, "ok": False, "acao": "sem_produto",
+                         "erro": "Sem produto com esse SKU no CRM; Pós não cria produto."}
+            else:
+                do_curso = {c for c in selected if c in item["canais"]}
+                try:
+                    linha = {**info, "ok": True, **_aplicar_pos_com_retry(prod, item, do_curso)}
+                except Exception as e:  # noqa: BLE001
+                    linha = {**info, "ok": False, "acao": "erro", "erro": f"{type(e).__name__}: {e}"[:300]}
+                time.sleep(0.2)
+            job["resultados"].append(linha)
+            job["feitos"] += 1
+        res = job["resultados"]
+        job["resumo"] = {
+            "cursos": len(parsed["cursos"]),
+            "ok": sum(1 for r in res if r.get("ok")),
+            "erro": sum(1 for r in res if r.get("acao") == "erro"),
+            "sem_produto": sum(1 for r in res if r.get("acao") == "sem_produto"),
+            "inativos": len(parsed["inativos"]),
+        }
+        job["status"] = "fim"
+        logger.info("precos pos aplicados por %s: %s", job["user"], job["resumo"])
+    except Exception as e:  # noqa: BLE001
+        logger.exception("precos pos: job %s parou", job["id"])
+        job["erro"] = f"{type(e).__name__}: {e}"[:300]
+        job["status"] = "erro"
+
+
+@bwipo_precos_bp.route("/api/bwipo-precos/pos/aplicar/<job_id>")
+def api_pos_aplicar_status(job_id):
+    denied = _gate()
+    if denied:
+        return denied
+    job = _POS_JOBS.get(job_id)
+    if not job:
+        return jsonify({"ok": False, "error": "Subida não encontrada (o servidor pode ter reiniciado)."}), 404
+    try:
+        desde = max(0, int(request.args.get("desde") or 0))
+    except ValueError:
+        desde = 0
+    return jsonify({
+        "ok": True, "status": job["status"], "total": job["total"], "feitos": job["feitos"],
+        "resultados": job["resultados"][desde:], "resumo": job["resumo"], "erro": job["erro"],
+    })
