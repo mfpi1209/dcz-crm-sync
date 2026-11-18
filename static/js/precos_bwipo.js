@@ -45,6 +45,25 @@ function _bpCanal(nome) {
     return (_bpPreview && _bpPreview.canais || []).find(c => c.canal === nome);
 }
 
+// Opção "Preço SIAA" do site e da IA (18/11): sobe o PREÇO SIAA da planilha, sem
+// desconto e sem cota. O backend já entende o canal '__SIAA__' (SIAA_SENTINEL).
+const _BP_SIAA = '__SIAA__';
+const _BP_SIAA_LABEL = 'Preço SIAA (sem desconto)';
+
+function _bpOpcaoSiaa() {
+    return `<option value="${_BP_SIAA}">${_BP_SIAA_LABEL}</option>`;
+}
+
+function _bpCanalAlvo(v) {
+    if (!v) return null;
+    if (v === _BP_SIAA) return { canal: _BP_SIAA, label: _BP_SIAA_LABEL, siaa: true };
+    return _bpCanal(v);
+}
+
+function _bpDescreveValor(c) {
+    return c.siaa ? 'o PREÇO SIAA, sem desconto e sem cota' : `o valor com desconto do canal ${c.label || c.canal}`;
+}
+
 function _bpEhBase(canal) {
     return _bpFold(canal).includes('estrateg');
 }
@@ -142,7 +161,7 @@ function bpRenderCanalIa() {
     if (!sel) return;
     const canais = (_bpPreview && _bpPreview.canais) || [];
     const aberto = _bpCanalMarAberto();
-    sel.innerHTML = '<option value="">Canal da IA</option>' + canais.map(c =>
+    sel.innerHTML = '<option value="">Canal da IA</option>' + _bpOpcaoSiaa() + canais.map(c =>
         `<option value="${_bpEsc(c.canal)}">${_bpEsc(c.label || c.canal)}</option>`
     ).join('');
     sel.value = aberto ? aberto.canal : '';
@@ -156,7 +175,7 @@ function bpRenderCanalSite() {
     if (!sel) return;
     const canais = (_bpPreview && _bpPreview.canais) || [];
     const aberto = _bpCanalMarAberto();
-    sel.innerHTML = '<option value="">Canal do site</option>' + canais.map(c =>
+    sel.innerHTML = '<option value="">Canal do site</option>' + _bpOpcaoSiaa() + canais.map(c =>
         `<option value="${_bpEsc(c.canal)}">${_bpEsc(c.label || c.canal)}</option>`
     ).join('');
     sel.value = aberto ? aberto.canal : '';
@@ -165,13 +184,13 @@ function bpRenderCanalSite() {
 function _bpCanalSite() {
     const sel = document.getElementById('bp-canal-site');
     const v = sel ? sel.value : '';
-    return v ? _bpCanal(v) : null;
+    return _bpCanalAlvo(v);
 }
 
 function _bpCanalIa() {
     const sel = document.getElementById('bp-canal-ia');
     const v = sel ? sel.value : '';
-    return v ? _bpCanal(v) : null;
+    return _bpCanalAlvo(v);
 }
 
 function bpRenderCanais() {
@@ -486,10 +505,9 @@ async function bpAtualizarSite() {
         bpLog(nome, 'Nenhum canal escolhido para o site.', 'erro');
         return;
     }
-    const nomeCanal = aberto.label || aberto.canal;
-    if (!window.confirm(`Atualizar ${nome} com o valor com desconto do canal ${nomeCanal}?`)) return;
+    if (!window.confirm(`Atualizar ${nome} com ${_bpDescreveValor(aberto)}?`)) return;
     status.textContent = `Atualizando ${nome}…`;
-    bpLog(nome, `Começou. O valor é o do canal ${nomeCanal}.`, 'info');
+    bpLog(nome, `Começou. O valor é ${_bpDescreveValor(aberto)}.`, 'info');
     _bpBotoes(true);
     const body = new FormData();
     body.append('file', file);
@@ -533,10 +551,9 @@ async function bpAtualizarIa() {
         bpLog('IA', 'Nenhum canal escolhido para a IA.', 'erro');
         return;
     }
-    const nomeCanal = aberto.label || aberto.canal;
-    if (!window.confirm(`Atualizar a base da IA com o valor com desconto do canal ${nomeCanal}? O curso que já existe troca o preço em documents_precos e em cursos_salesbot, no Postgres e no Supabase.`)) return;
+    if (!window.confirm(`Atualizar a base da IA com ${_bpDescreveValor(aberto)}? O curso que já existe troca o preço em documents_precos e em cursos_salesbot, no Postgres e no Supabase.`)) return;
     status.textContent = 'Atualizando a base da IA…';
-    bpLog('IA', `Começou. O valor é o do canal ${nomeCanal}.`, 'info');
+    bpLog('IA', `Começou. O valor é ${_bpDescreveValor(aberto)}.`, 'info');
     _bpBotoes(true);
     const body = () => {
         const fd = new FormData();

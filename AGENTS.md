@@ -4,6 +4,14 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-18 — Preços dos cursos: opção "Preço SIAA (sem desconto)" no site e na IA
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** poder subir o preço base da planilha (coluna PREÇO SIAA), sem desconto e sem cota, para os sites e para o agente de IA.
+- **Agora (`static/js/precos_bwipo.js`):** os seletores "Canal do site" e "Canal da IA" ganham a opção "Preço SIAA (sem desconto)", valor `__SIAA__`. O backend já tratava esse canal (`SIAA_SENTINEL` em `routes/atualizar_preco_app.py`): `_build_canal_xlsx` (sites Wix 1/2/3 e eduit.com.br), `_build_grad_index_canal` (IA, `documents_precos`) e `atualizar_salesbot_canal` (`cursos_salesbot`) leem todas as linhas e usam o PREÇO SIAA no lugar do VALOR COM DESCONTO. A confirmação e o log dizem "o PREÇO SIAA, sem desconto e sem cota". O padrão continua sendo o Mar Aberto quando a planilha tem.
+- **Arredondamento:** igual ao dos canais, inteiro (`_fmt_valor_int` na IA, `int(round())` nos sites). Ex.: 410,50 vira 410.
+- **Não muda:** Aplicar no CRM (cotas), histórico, rotas do backend.
+- **Testes:** `tests/test_precos_siaa_site_ia.py` (pulado fora do Python 3.14, porque o módulo carrega um `.pyc` 3.14).
+
 ### 2026-11-18 — Preços dos cursos: "Cst Em X" e "X (4.0)" não criam produto no CRM; limpeza das duplicatas
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** a subida de 17/11 20:51 (`data (2).xlsx`, snapshot 4) trazia 81 nomes "Cst Em …" e 47 "… (4.0)/(4.0I)/(4.0I Mais)". Como o casamento era por nome exato + grau, o painel criou produtos novos (ex.: "Cst Em Análise E Desenvolvimento De Sistemas" ao lado de "Análise E Desenvolvimento De Sistemas"), e a subida das 21:04 atualizou as cópias, não os originais. O certo é existir só o curso de nome limpo.
