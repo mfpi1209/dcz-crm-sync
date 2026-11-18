@@ -4,6 +4,15 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-18 — Preços dos cursos: "Cst Em X" e "X (4.0)" não criam produto no CRM; limpeza das duplicatas
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** a subida de 17/11 20:51 (`data (2).xlsx`, snapshot 4) trazia 81 nomes "Cst Em …" e 47 "… (4.0)/(4.0I)/(4.0I Mais)". Como o casamento era por nome exato + grau, o painel criou produtos novos (ex.: "Cst Em Análise E Desenvolvimento De Sistemas" ao lado de "Análise E Desenvolvimento De Sistemas"), e a subida das 21:04 atualizou as cópias, não os originais. O certo é existir só o curso de nome limpo.
+- **Agora (`routes/bwipo_precos.py`):** `nome_base()` tira o prefixo "Cst Em " e o sufixo "(4.0…)"/"(Ead)" e junta espaços duplos; `eh_variante()` diz se o nome tinha isso. `parse_workbook` junta as linhas pelo nome base: se a planilha traz o nome limpo, ele manda; senão fica a variante sem sufixo; as demais voltam em `ignorados` (log da tela). O curso passa a se chamar pelo nome base. `_grad_index` só indexa produto de nome limpo (espaços duplos juntados): uma variante do CRM nunca é alvo da subida, mesmo sem o original (senão "X (4.0)" Semipresencial levaria o preço do "X" Digital). Variante da planilha sem produto no CRM é **pulada** (`_acao_item` → "pular"), nunca criada; aparece como "Pular" na pré-visualização e "pulado" no resumo.
+- **Limpeza:** cartão "Duplicatas no CRM" na tela. `GET /api/bwipo-precos/duplicatas` só lista. Em "apagar" entra a variante de graduação que tem o original no mesmo grau **e** SKU no formato de `_sku()` (nome sem espaços + EAD/HIBRIDO), a marca dos produtos criados pela subida. À parte: "outros" (tem original, SKU de outro formato, pode ser legítimo) e "sem_base" (sem original); nenhum dos dois é apagado. `POST /api/bwipo-precos/duplicatas/apagar` com `{ids}` relê o CRM e apaga (`DELETE /api/products/{id}`) só os ids que ainda estão em "apagar"; o original nunca entra. Cada apagado vai para o log do servidor com o usuário. Os DELETEs rodam dentro do request (~1–2 min para ~128), como já faz Aplicar no CRM; é ação rara e manual.
+- **Histórico:** o snapshot grava o curso pelo nome base; linhas antigas "Cst Em X" do histórico ficam como estão.
+- **Não muda:** sites Wix (lá o alias "Cst Em" é o formato certo), eduit.com.br, IA, cotas livres, histórico. Pós não é tocada (só `level = GRADUATION`).
+- **Testes:** `tests/test_bwipo_precos_duplicatas.py`.
+
 ### 2026-11-17 — Preços dos cursos: cotas livres na subida para o CRM
 - **Modelo usado:** Claude Fable 5.1.
 - **Pedido:** Balcão Estratégico e Mar Aberto subiam sempre, como chips fixos; as outras cotas entravam pelo +. A planilha nova não tem o APROVADOS e a equipe quer escolher livremente quais cotas sobem, uma ou várias.

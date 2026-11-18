@@ -139,6 +139,20 @@
         </div>
     </div>
 
+    <div class="bp-card overflow-hidden">
+        <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+            <div>
+                <div class="font-semibold">Duplicatas no CRM</div>
+                <div class="text-xs text-[var(--text-muted)]">Produtos "Cst Em …" e "… (4.0)" que já têm o curso de nome limpo no mesmo grau. O curso de nome limpo nunca é apagado.</div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button type="button" id="bp-btn-dup" onclick="bpDuplicatas()" class="btn-secondary text-sm px-4 py-2 rounded-xl">Procurar duplicatas</button>
+                <button type="button" id="bp-btn-dup-apagar" onclick="bpApagarDuplicatas()" class="btn-danger text-white text-sm px-4 py-2 rounded-xl hidden">Apagar</button>
+            </div>
+        </div>
+        <div id="bp-dup" class="hidden px-4 pb-4 space-y-2 text-sm"></div>
+    </div>
+
     <div id="bp-insights" class="hidden space-y-3">
         <div id="bp-insights-cards" class="grid grid-cols-2 lg:grid-cols-4 gap-3"></div>
         <div id="bp-insights-notas" class="bp-card px-4 py-3 space-y-1"></div>

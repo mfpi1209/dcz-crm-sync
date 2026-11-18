@@ -89,6 +89,29 @@ def _sku(name: str, mode: str) -> str:
     return base + ("EAD" if mode == "EAD" else "HIBRIDO")
 
 
+# Variantes do mesmo curso que não podem virar produto próprio no CRM (18/11):
+# "Cst Em X", "X (4.0)", "X (4.0I)", "X (4.0I Mais)", "X (Ead)". Todas são "X".
+_RE_CST = re.compile(r"^\s*cst\s+em\s+", re.IGNORECASE)
+_RE_SUFIXO = re.compile(r"\s*\(\s*(?:4\.0[^)]*|ead)\s*\)\s*$", re.IGNORECASE)
+
+
+def nome_base(nome) -> str:
+    n = _RE_CST.sub("", str(nome or ""))
+    n = _RE_SUFIXO.sub("", n)
+    return " ".join(n.split())
+
+
+def eh_variante(nome) -> bool:
+    return nome_base(nome) != " ".join(str(nome or "").split())
+
+
+def _rank_variante(nome) -> int:
+    """0 = nome limpo; 1 = só o prefixo Cst Em; 2 = com sufixo (4.0…)/(Ead)."""
+    if not eh_variante(nome):
+        return 0
+    return 2 if _RE_SUFIXO.search(str(nome or "")) else 1
+
+
 def _allowed() -> bool:
     if not session.get("authenticated"):
         return False
@@ -228,11 +251,37 @@ def parse_workbook(file_obj) -> dict:
             "desconto": desconto,
             "final": final,
         }
-    lista = []
+    # Variantes (Cst Em / 4.0) viram o curso base. Se a planilha também traz o
+    # nome limpo, ele manda; senão fica a variante sem sufixo. As outras são
+    # ignoradas e voltam em "ignorados".
+    escolhido: dict = {}
+    ignorados = []
     for bucket in cursos.values():
         if not bucket["canais"]:
             continue
-        lista.append({**bucket, "base": _linha_principal(bucket["canais"].values())})
+        key = (_fold(nome_base(bucket["curso"])), _fold(bucket["grau"]))
+        atual = escolhido.get(key)
+        if atual is None or _rank_variante(bucket["curso"]) < _rank_variante(atual["curso"]):
+            if atual is not None:
+                ignorados.append(atual)
+            escolhido[key] = bucket
+        else:
+            ignorados.append(bucket)
+    lista = []
+    for bucket in escolhido.values():
+        lista.append({
+            **bucket,
+            "curso": nome_base(bucket["curso"]),
+            "nome_planilha": bucket["curso"],
+            "variante": eh_variante(bucket["curso"]),
+            "base": _linha_principal(bucket["canais"].values()),
+        })
+    ignorados_out = [{
+        "curso": b["curso"],
+        "grau": b["grau"],
+        "sub": b["sub"],
+        "fica": nome_base(b["curso"]),
+    } for b in ignorados]
     lista.sort(key=lambda x: (_fold(x["curso"]), _fold(x["grau"])))
     canais = {}
     for item in lista:
@@ -240,7 +289,7 @@ def parse_workbook(file_obj) -> dict:
             canais.setdefault(c["canal"], {"canal": c["canal"], "label": c["label"], "base": _is_base(c["canal"]), "cursos": 0})
             canais[c["canal"]]["cursos"] += 1
     ordem = sorted(canais.values(), key=lambda c: (0 if _is_base(c["canal"]) else 1 if _is_aprovados(c["canal"]) else 2, c["label"]))
-    return {"cursos": lista, "canais": ordem, "conflitos": conflitos[:30]}
+    return {"cursos": lista, "canais": ordem, "conflitos": conflitos[:30], "ignorados": ignorados_out}
 
 
 def _list_products() -> list[dict]:
@@ -260,13 +309,78 @@ def _list_products() -> list[dict]:
 
 
 def _grad_index(products: list[dict]) -> dict:
+    """(nome, grau) → produto, só produtos de nome limpo. Uma variante do CRM
+    ("Cst Em X", "X (4.0)") nunca é alvo: sem o "X", a linha cria ou é pulada."""
     idx = {}
     for p in products:
         cc = p.get("courseConfig") or {}
-        if cc.get("level") != "GRADUATION":
+        if cc.get("level") != "GRADUATION" or eh_variante(p.get("name")):
             continue
-        idx[(_fold(p.get("name")), _fold(cc.get("grau")))] = p
+        idx[(_fold(nome_base(p.get("name"))), _fold(cc.get("grau")))] = p
     return idx
+
+
+def _criado_pelo_painel(p: dict) -> bool:
+    """SKU no formato de _sku(): nome sem espaços + EAD/HIBRIDO."""
+    sku = str(p.get("sku") or "")
+    return sku in (_sku(p.get("name"), "EAD"), _sku(p.get("name"), "HYBRID"))
+
+
+def _acao_item(item: dict, product: dict | None) -> str:
+    """atualizar | criar | pular. Variante (Cst Em / 4.0) nunca cria produto."""
+    if product:
+        return "atualizar"
+    return "pular" if item.get("variante") else "criar"
+
+
+def _duplicatas(products: list[dict]) -> dict:
+    """Produtos de graduação com nome de variante.
+    "apagar": criado pelo painel (SKU de _sku()) e há o de nome limpo no mesmo grau.
+    "outros": há o original, mas o SKU não é do painel; pode ser legítimo, não apaga.
+    "sem_base": não há o original; análise manual."""
+    grad = [p for p in products if (p.get("courseConfig") or {}).get("level") == "GRADUATION"]
+    originais = {}
+    for p in grad:
+        if not eh_variante(p.get("name")):
+            key = (_fold(nome_base(p.get("name"))), _fold((p.get("courseConfig") or {}).get("grau")))
+            originais.setdefault(key, p)
+    apagar, outros, sem_base = [], [], []
+    for p in grad:
+        if not eh_variante(p.get("name")):
+            continue
+        grau = (p.get("courseConfig") or {}).get("grau") or ""
+        orig = originais.get((_fold(nome_base(p.get("name"))), _fold(grau)))
+        linha = {"id": p.get("id"), "nome": p.get("name") or "", "sku": p.get("sku") or "",
+                 "preco": p.get("price"), "grau": grau,
+                 "mantem_id": (orig or {}).get("id"), "mantem_nome": (orig or {}).get("name")}
+        if not orig:
+            sem_base.append(linha)
+        elif _criado_pelo_painel(p):
+            apagar.append(linha)
+        else:
+            outros.append(linha)
+    for lista in (apagar, outros, sem_base):
+        lista.sort(key=lambda x: _fold(x["nome"]))
+    return {"apagar": apagar, "outros": outros, "sem_base": sem_base}
+
+
+def _apagar_duplicatas(ids: list, products: list[dict]) -> list[dict]:
+    """Apaga só os ids que, na lista atual do CRM, ainda são duplicata com original."""
+    validos = {str(x["id"]): x for x in _duplicatas(products)["apagar"]}
+    out = []
+    for raw in ids:
+        pid = str(raw)
+        dup = validos.get(pid)
+        if not dup:
+            out.append({"id": pid, "nome": "", "ok": False, "erro": "Não é duplicata com original no CRM; não apaguei."})
+            continue
+        try:
+            bwipo_request("DELETE", f"/api/products/{pid}")
+            out.append({"id": pid, "nome": dup["nome"], "mantem_nome": dup["mantem_nome"], "ok": True})
+        except BwipoComercialError as e:
+            out.append({"id": pid, "nome": dup["nome"], "ok": False, "erro": str(e)[:300]})
+        time.sleep(0.2)
+    return out
 
 
 def _similar_name(item: dict, products: list[dict]) -> str | None:
@@ -482,18 +596,19 @@ def api_preview():
         return jsonify({"ok": False, "error": str(e)}), e.status
     index = _grad_index(products)
     linhas = []
-    n_up = n_new = 0
+    n_up = n_new = n_pular = 0
     for item in parsed["cursos"]:
         prod = index.get((_fold(item["curso"]), _fold(item["grau"])))
         b = item["base"]
-        if prod:
+        acao = _acao_item(item, prod)
+        aviso = None
+        if acao == "atualizar":
             n_up += 1
-            acao = "atualizar"
-            aviso = None
-        else:
+        elif acao == "criar":
             n_new += 1
-            acao = "criar"
             aviso = _similar_name(item, products)
+        else:
+            n_pular += 1
         linhas.append({
             "chave": f"{_fold(item['curso'])}|{_fold(item['grau'])}",
             "curso": item["curso"],
@@ -505,6 +620,7 @@ def api_preview():
             "final": float(b["final"]),
             "acao": acao,
             "aviso": aviso,
+            "nome_planilha": item.get("nome_planilha") or item["curso"],
             "produto": (prod or {}).get("name"),
             "cotas": [{
                 "canal": c["canal"],
@@ -518,8 +634,10 @@ def api_preview():
         "cursos": len(linhas),
         "atualizar": n_up,
         "criar": n_new,
+        "pular": n_pular,
         "canais": parsed["canais"],
         "conflitos": parsed["conflitos"],
+        "ignorados": parsed["ignorados"],
         "linhas": linhas,
     })
 
@@ -567,6 +685,12 @@ def api_aplicar():
                 extras = []
             do_curso = {c for c in (selected | set(extras)) if c in item["canais"]}
             prod = index.get((_fold(item["curso"]), _fold(item["grau"])))
+            if _acao_item(item, prod) == "pular":
+                resultados.append({
+                    "curso": item["curso"], "grau": item["grau"], "ok": False, "acao": "pulado",
+                    "erro": f"Pulado: não há \"{item['curso']}\" no CRM e variante não cria produto.",
+                })
+                continue
             try:
                 done = _apply_prices(prod, item, do_curso)
                 resultados.append({"curso": item["curso"], "grau": item["grau"], "ok": True, **done})
@@ -580,7 +704,9 @@ def api_aplicar():
     resumo = {
         "cursos": len(parsed["cursos"]),
         "ok": sum(1 for r in resultados if r.get("ok")),
-        "erro": sum(1 for r in resultados if not r.get("ok")),
+        "erro": sum(1 for r in resultados if r.get("acao") == "erro"),
+        "pulado": sum(1 for r in resultados if r.get("acao") == "pulado"),
+        "ignorados": len(parsed["ignorados"]),
         "somente_historico": somente_historico,
     }
     conn = get_conn()
@@ -691,4 +817,43 @@ def api_painel():
             "canais": s[4] or [],
             "aplicado_em": s[5].isoformat() if s[5] else None,
         } for s in snaps],
+    })
+
+
+@bwipo_precos_bp.route("/api/bwipo-precos/duplicatas")
+def api_duplicatas():
+    """Só lista: variantes Cst Em / (4.0) que têm o produto de nome limpo no CRM."""
+    denied = _gate()
+    if denied:
+        return denied
+    try:
+        products = _list_products()
+    except BwipoComercialError as e:
+        return jsonify({"ok": False, "error": str(e)}), e.status
+    return jsonify({"ok": True, **_duplicatas(products)})
+
+
+@bwipo_precos_bp.route("/api/bwipo-precos/duplicatas/apagar", methods=["POST"])
+def api_duplicatas_apagar():
+    """Apaga no CRM os ids pedidos, mas só os que, relidos agora, ainda são
+    duplicata com original. O original nunca entra."""
+    denied = _gate()
+    if denied:
+        return denied
+    ids = (request.get_json(silent=True) or {}).get("ids")
+    if not isinstance(ids, list) or not ids:
+        return jsonify({"ok": False, "error": "Nenhum produto escolhido."}), 400
+    try:
+        products = _list_products()
+    except BwipoComercialError as e:
+        return jsonify({"ok": False, "error": str(e)}), e.status
+    resultados = _apagar_duplicatas(ids, products)
+    user = session.get("username") or session.get("display_name") or ""
+    logger.warning("duplicatas apagadas por %s: %s", user,
+                   [(r["id"], r.get("nome")) for r in resultados if r["ok"]])
+    return jsonify({
+        "ok": True,
+        "apagados": sum(1 for r in resultados if r["ok"]),
+        "erros": sum(1 for r in resultados if not r["ok"]),
+        "resultados": resultados,
     })

@@ -124,6 +124,13 @@ async function bpPreview() {
     bpRenderCursos();
     bpInsights();
     document.getElementById('bp-preview-wrap').classList.remove('hidden');
+    const ign = data.ignorados || [];
+    if (ign.length) {
+        bpLog('Planilha', `${ign.length} ${ign.length === 1 ? 'linha ignorada' : 'linhas ignoradas'} (Cst Em / 4.0 do mesmo curso): ${ign.map(i => i.curso).join(', ')}`, 'info');
+    }
+    if (data.pular) {
+        bpLog('Planilha', `${data.pular} ${data.pular === 1 ? 'curso' : 'cursos'} com nome Cst Em / 4.0 sem produto no CRM: não serão criados.`, 'erro');
+    }
     status.textContent = '';
     _bpBotoes(false);
 }
@@ -313,9 +320,10 @@ function bpInsights() {
     const econ = _bpMedia(pares.map(p => p.dif));
     const econPct = _bpMedia(pares.map(p => p.pct));
     const criar = linhas.filter(l => l.acao === 'criar');
-    const atualizar = linhas.length - criar.length;
+    const atualizar = linhas.filter(l => l.acao === 'atualizar').length;
+    const pular = linhas.filter(l => l.acao === 'pular').length;
     cards.innerHTML = [
-        _bpCard('Cursos', String(linhas.length), `${atualizar} para atualizar · ${criar.length} para criar`),
+        _bpCard('Cursos', String(linhas.length), `${atualizar} para atualizar · ${criar.length} para criar${pular ? ` · ${pular} pulados` : ''}`),
         _bpCard('Mais barato', _bpMoney(menor.c.final), `${menor.l.curso} · ${Number(menor.c.desconto).toLocaleString('pt-BR')}%`),
         _bpCard('Mais caro', _bpMoney(maior.c.final), `${maior.l.curso} · ${Number(maior.c.desconto).toLocaleString('pt-BR')}%`),
         _bpCard('Estratégico vs Mar Aberto', econ == null ? '—' : _bpMoney(econ), econPct == null ? '' : `em média ${econPct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% abaixo · média ${_bpMoney(media)}`),
@@ -395,10 +403,15 @@ function bpRenderCursos() {
             const x = soDeste ? `<button type="button" onclick="bpTirarCurso('${_bpEsc(l.chave)}','${_bpEsc(canal)}')">×</button>` : '';
             return `<div class="bp-cota"><span>${_bpEsc(c.label)} ${x}</span><b>${_bpMoney(c.final)}</b><span>${c.desconto == null ? '' : Number(c.desconto).toLocaleString('pt-BR') + '%'}</span></div>`;
         }).join('');
-        const aviso = l.aviso ? `<div class="text-xs text-amber-500 mt-1">Parecido com ${_bpEsc(l.aviso)}</div>` : '';
+        let aviso = l.aviso ? `<div class="text-xs text-amber-500 mt-1">Parecido com ${_bpEsc(l.aviso)}</div>` : '';
+        if (l.nome_planilha && l.nome_planilha !== l.curso) {
+            aviso += `<div class="text-xs text-[var(--text-muted)] mt-1">Na planilha: ${_bpEsc(l.nome_planilha)}</div>`;
+        }
         const badge = l.acao === 'criar'
             ? '<span class="text-xs font-semibold text-sky-500">Criar</span>'
-            : '<span class="text-xs font-semibold text-emerald-500">Atualizar</span>';
+            : l.acao === 'pular'
+                ? '<span class="text-xs font-semibold text-amber-500" title="Nome Cst Em / 4.0 sem produto no CRM: não cria">Pular</span>'
+                : '<span class="text-xs font-semibold text-emerald-500">Atualizar</span>';
         return `<div class="bp-row">
             <div>
                 <div class="font-semibold">${_bpEsc(l.curso)}</div>
@@ -452,10 +465,11 @@ async function bpAplicar(somenteHistorico) {
         bpLog('CRM', r.ok ? `${nome} — ${r.acao || 'ok'}` : `${nome} — ${r.erro || 'erro'}`, r.ok ? 'ok' : 'erro');
     });
     const r = data.resumo || {};
+    const pulados = r.pulado ? `, ${r.pulado} pulados` : '';
     status.textContent = somenteHistorico
         ? `Histórico ${data.snapshot_id} gravado.`
-        : `Aplicado. ${r.ok || 0} ok, ${r.erro || 0} erro.`;
-    bpLog(alvo, somenteHistorico ? `Gravado. Snapshot ${data.snapshot_id}.` : `Fechou. ${r.ok || 0} ok, ${r.erro || 0} erro.`, (r.erro ? 'erro' : 'ok'));
+        : `Aplicado. ${r.ok || 0} ok, ${r.erro || 0} erro${pulados}.`;
+    bpLog(alvo, somenteHistorico ? `Gravado. Snapshot ${data.snapshot_id}.` : `Fechou. ${r.ok || 0} ok, ${r.erro || 0} erro${pulados}.`, (r.erro ? 'erro' : 'ok'));
     bpPainel();
 }
 
@@ -663,4 +677,93 @@ function bpFiltrar() {
             <td class="py-2 pr-4">${menor}</td>
         </tr>`;
     }).join('');
+}
+
+// Duplicatas "Cst Em X" / "X (4.0)" no CRM (18/11). Primeiro só lista; apagar é
+// um segundo clique com confirmação, e o servidor relê o CRM antes de apagar.
+let _bpDup = null;
+
+async function bpDuplicatas() {
+    const box = document.getElementById('bp-dup');
+    const btn = document.getElementById('bp-btn-dup');
+    const apagar = document.getElementById('bp-btn-dup-apagar');
+    if (!box) return;
+    btn.disabled = true;
+    apagar.classList.add('hidden');
+    box.classList.remove('hidden');
+    box.innerHTML = '<p class="text-[var(--text-muted)]">Lendo os produtos do CRM…</p>';
+    try {
+        const res = await fetch('/api/bwipo-precos/duplicatas');
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) throw new Error(data.error || 'Falha ao listar.');
+        _bpDup = data;
+        bpRenderDuplicatas();
+        bpLog('Duplicatas', `${data.apagar.length} para apagar, ${(data.outros || []).length} que não foram criadas pelo painel, ${data.sem_base.length} sem original.`, 'info');
+    } catch (e) {
+        box.innerHTML = `<p class="text-rose-500">${_bpEsc(e.message)}</p>`;
+        bpLog('Duplicatas', e.message, 'erro');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+function bpRenderDuplicatas() {
+    const box = document.getElementById('bp-dup');
+    const apagar = document.getElementById('bp-btn-dup-apagar');
+    if (!box || !_bpDup) return;
+    const lin = x => `<label class="flex items-start gap-2 py-1">
+            <input type="checkbox" class="bp-dup-chk mt-1" value="${_bpEsc(x.id)}" checked onchange="bpContarDuplicatas()">
+            <span><b>${_bpEsc(x.nome)}</b> <span class="text-[var(--text-muted)]">· ${_bpEsc(x.grau)} · ${_bpMoney(x.preco)}</span><br>
+            <span class="text-xs text-[var(--text-muted)]">Fica: ${_bpEsc(x.mantem_nome)}</span></span>
+        </label>`;
+    const bloco = (lista, titulo) => lista && lista.length
+        ? `<div class="pt-3"><div class="font-semibold">${titulo} (${lista.length}), não serão apagados:</div>
+            <div class="text-xs text-[var(--text-muted)]">${lista.map(x => `${_bpEsc(x.nome)} (${_bpEsc(x.grau)}${x.sku ? ' · ' + _bpEsc(x.sku) : ''})`).join(' · ')}</div></div>`
+        : '';
+    const semBase = bloco(_bpDup.outros, 'Têm o original, mas não foram criados pelo painel')
+        + bloco(_bpDup.sem_base, 'Sem o curso original no CRM');
+    box.innerHTML = (_bpDup.apagar.length
+        ? `<div class="max-h-80 overflow-auto">${_bpDup.apagar.map(lin).join('')}</div>`
+        : '<p class="text-[var(--text-muted)]">Nenhuma duplicata com o curso original no CRM.</p>') + semBase;
+    apagar.classList.toggle('hidden', !_bpDup.apagar.length);
+    bpContarDuplicatas();
+}
+
+function _bpDupMarcados() {
+    return [...document.querySelectorAll('.bp-dup-chk:checked')].map(el => el.value);
+}
+
+function bpContarDuplicatas() {
+    const btn = document.getElementById('bp-btn-dup-apagar');
+    if (!btn) return;
+    const n = _bpDupMarcados().length;
+    btn.textContent = `Apagar ${n} ${n === 1 ? 'duplicata' : 'duplicatas'}`;
+    btn.disabled = !n;
+}
+
+async function bpApagarDuplicatas() {
+    const ids = _bpDupMarcados();
+    if (!ids.length) return;
+    if (!window.confirm(`Apagar ${ids.length} produtos duplicados no CRM? Não tem como desfazer. O curso de nome limpo fica.`)) return;
+    const btn = document.getElementById('bp-btn-dup-apagar');
+    btn.disabled = true;
+    document.getElementById('bp-btn-dup').disabled = true;
+    bpLog('Duplicatas', `Apagando ${ids.length}…`, 'info');
+    try {
+        const res = await fetch('/api/bwipo-precos/duplicatas/apagar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) throw new Error(data.error || 'Falha ao apagar.');
+        (data.resultados || []).forEach(r => {
+            bpLog('Duplicatas', r.ok ? `${r.nome} — apagado (fica ${r.mantem_nome})` : `${r.nome || r.id} — ${r.erro}`, r.ok ? 'ok' : 'erro');
+        });
+        bpLog('Duplicatas', `Fechou. ${data.apagados} apagados, ${data.erros} erro.`, data.erros ? 'erro' : 'ok');
+    } catch (e) {
+        bpLog('Duplicatas', e.message, 'erro');
+    }
+    document.getElementById('bp-btn-dup').disabled = false;
+    bpDuplicatas();
 }
