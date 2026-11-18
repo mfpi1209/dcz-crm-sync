@@ -4,6 +4,13 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-18 — Consulta de inscrições (sessão manual por cURL)
+- **Modelo usado:** Claude Opus 5.5 (coordenação), testes por agentes Sonnet.
+- **Pedido:** terceiro módulo de sessão SIAA, `inscricoes`, atualizado só manualmente e mantido pelo ping JSF do keepalive (backend no `eduit-insights`, `docs/CONTRATO-CONEXAO-SIAA.md`, seção do módulo manual).
+- **Atualizar sessão SIAA:** card "Consulta de inscrições" (grid `auto-fit`, responsivo) com cURL, Testar e Salvar. `/siaa-sessao/testar|salvar` repassam `{"curl": texto}` a `/session/inscricoes[/test]`; quem valida destino e extrai o cookie é a session-api (o painel nunca interpreta nem registra o cURL; log só módulo/len/status). Resposta passa por lista branca (`_resposta_curl`): sem cookie, ViewState ou hash. Campo limpo após salvar com sucesso. Acadêmico/financeiro inalterados.
+- **Conexão SIAA:** card Inscrições (estados `nao_configurada` e `atualizacao_manual`, com avisos próprios), filtro do histórico e exportação incluem o módulo (`_MODULOS_STATUS`). A renovação automática continua só com acadêmico/financeiro (`_MODULOS`, `CS_MODULOS_RENOVACAO`).
+- **Não muda:** gatilho, fluxo e critério de sucesso da renovação; rotas existentes. Sem deploy.
+
 ### 2026-11-16 — Intervalo aleatório e exportação na Conexão SIAA
 - **Modelo usado:** Claude Sonnet 5.5.
 - **Pedido:** configurar o intervalo aleatório do keepalive e exportar diagnóstico na página Conexão SIAA (contrato `CONTRATO-INTERVALO-DIAGNOSTICO.md` do eduit-insights; o backend é feito à parte).

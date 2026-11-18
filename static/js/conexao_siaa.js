@@ -7,7 +7,10 @@ const CS_API = '/api/conexao-siaa';
 const CS_TZ = 'America/Sao_Paulo';
 const CS_POLL_MS = 30000;
 const CS_DIAS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-const CS_MODULOS = [['academico', 'Acadêmico', 'school'], ['financeiro', 'Financeiro', 'payments']];
+const CS_MODULOS = [['academico', 'Acadêmico', 'school'], ['financeiro', 'Financeiro', 'payments'], ['inscricoes', 'Inscrições', 'how_to_reg']];
+// A renovação automática cobre só acadêmico e financeiro; inscrições é atualizada à mão (cURL).
+const CS_MODULOS_RENOVACAO = CS_MODULOS.slice(0, 2);
+const CS_MODULOS_MANUAIS = ['inscricoes'];
 
 const CS_ESTADOS = {
     valida: ['Válida', 't-ok'],
@@ -19,6 +22,8 @@ const CS_ESTADOS = {
     pausa_indisponibilidade: ['Pausa por indisponibilidade', 't-warn'],
     desatualizada: ['Verificação desatualizada', 't-warn'],
     sem_dados: ['Sem dados', 't-neutral'],
+    nao_configurada: ['Não configurada', 't-neutral'],
+    atualizacao_manual: ['Atualização manual necessária', 't-bad'],
 };
 const CS_MODOS = { get: 'GET', jsf: 'Ping JSF', get_fallback: 'GET (fallback do JSF)' };
 const CS_CLASSES = {
@@ -172,9 +177,15 @@ function csRenderModulos(st) {
     root.innerHTML = CS_MODULOS.map(function (mm) {
         const m = (st.modulos || {})[mm[0]] || {};
         const modo = m.modo_usado ? (CS_MODOS[m.modo_usado] || m.modo_usado) : '—';
-        const renovar = m.precisa_renovacao
+        const manual = CS_MODULOS_MANUAIS.indexOf(mm[0]) >= 0;
+        let renovar = m.precisa_renovacao && !manual
             ? '<div class="cs-alert cs-alert-err cs-renovar" role="alert">Precisa renovar a sessão: o último resultado foi sessão expirada. A renovação exige login com MFA dentro do RemoteApp e semeadura em Atualizar sessão SIAA.</div>'
             : '';
+        if (manual && m.estado === 'nao_configurada') {
+            renovar = '<div class="cs-hint cs-manual" style="margin-top:10px">Sessão ainda não cadastrada; nada é verificado. Cadastre em Atualizar sessão SIAA, card Inscrições.</div>';
+        } else if (manual && m.estado === 'atualizacao_manual') {
+            renovar = '<div class="cs-alert cs-alert-err cs-manual" role="alert">Sessão expirada. Cole um cURL novo em Atualizar sessão SIAA, card Inscrições. A renovação automática não cobre este módulo.</div>';
+        }
         return '<div class="cs-card" data-modulo="' + mm[0] + '">' +
             '<div class="cs-card-head"><div class="cs-card-title"><span class="material-symbols-outlined">' + mm[2] + '</span>' + csEsc(mm[1]) + '</div>' + csBadge(m.estado) + '</div>' +
             '<dl class="cs-kv">' +
@@ -490,7 +501,8 @@ async function conexaoSiaaExportarDiagnostico() {
 
 // ── Histórico ─────────────────────────────────────────────────────────────
 function csHistoricoRow(it) {
-    const mod = it.modulo === 'academico' ? 'Acadêmico' : (it.modulo === 'financeiro' ? 'Financeiro' : (it.modulo || '—'));
+    const achado = CS_MODULOS.filter(function (mm) { return mm[0] === it.modulo; })[0];
+    const mod = achado ? achado[1] : (it.modulo || '—');
     const modo = it.modo ? (CS_MODOS[it.modo] || it.modo) : '—';
     const naoReq = ['fora_da_agenda', 'pausa_manual', 'adiado'].indexOf(it.classe) >= 0;
     const tom = it.classe === 'disponivel' ? 't-ok' : (naoReq ? 't-neutral' : (it.classe === 'sessao_expirada' || it.classe === 'indisponivel_siaa' ? 't-bad' : 't-warn'));
@@ -671,7 +683,7 @@ function csRnMsg(texto, tipo) {
 }
 
 function csRnModulosTabela(e) {
-    const linhas = CS_MODULOS.map(function (mm) {
+    const linhas = CS_MODULOS_RENOVACAO.map(function (mm) {
         const m = ((e.modulos || {})[mm[0]]) || {};
         return '<tr><td>' + csEsc(mm[1]) + '</td>' +
             '<td>' + csEsc(csRnLabel(CS_RN_COLETA, m.coleta)) + '</td>' +

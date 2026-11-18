@@ -120,14 +120,91 @@ def _siaa_sessao_forbidden():
     return None
 
 
+_MODULOS_SESSAO = ("academico", "financeiro", "inscricoes")
+# Módulos atualizados por cURL completo: a session-api valida destino (HTTPS, host,
+# página) e extrai só o cookie. O painel só repassa, sem registrar o conteúdo.
+_MODULOS_CURL = ("inscricoes",)
+
+
 def _validar_sessao_payload(data):
     module = (data.get("module") or "").strip().lower()
     cookie = (data.get("cookie") or "").strip()
-    if module not in ("academico", "financeiro"):
+    if module not in _MODULOS_SESSAO:
         return None, None, (jsonify({"ok": False, "error": "module invalido"}), 400)
     if not cookie:
         return None, None, (jsonify({"ok": False, "error": "cookie ausente"}), 400)
     return module, cookie, None
+
+
+def _corpo_sessao(module, cookie):
+    return {"curl": cookie} if module in _MODULOS_CURL else {"cookie": cookie}
+
+
+def _txt(v, n=200):
+    return v[:n] if isinstance(v, str) else None
+
+
+def _rotulo(v):
+    return v if isinstance(v, str) and re.fullmatch(r"[a-z0-9_]{1,40}", v) else None
+
+
+def _int(v):
+    return v if isinstance(v, int) and not isinstance(v, bool) else None
+
+
+def _bool(v):
+    return v if isinstance(v, bool) else None
+
+
+_ERRO_SUSPEITO = re.compile(r"=|\d{6,}|jsessionid|ts01|viewstate|curl\s+['\"]?https?:", re.IGNORECASE)
+
+
+def _erro_seguro(v):
+    """Mensagem de erro só se não parecer conter cookie, CPF, ViewState ou o cURL."""
+    texto = _txt(v)
+    if texto is None:
+        return None
+    return "Não foi possível concluir a operação." if _ERRO_SUSPEITO.search(texto) else texto
+
+
+def _sem_none(d):
+    return {k: v for k, v in d.items() if v is not None}
+
+
+def _resposta_curl(data, status_code):
+    """Lista branca da resposta da session-api para módulos por cURL: nada de cookie ou ViewState."""
+    d = data if isinstance(data, dict) else {}
+    sonda = d.get("sonda") if isinstance(d.get("sonda"), dict) else None
+    pub = d.get("publicacao") if isinstance(d.get("publicacao"), dict) else None
+    ids = d.get("formularios_encontrados")
+    out = {
+        "ok": _bool(d.get("ok")) if "ok" in d else status_code < 400,
+        "module": _rotulo(d.get("module")),
+        "error": _erro_seguro(d.get("error")),
+        "codigo": _rotulo(d.get("codigo")),
+        "alive": _bool(d.get("alive")),
+        "status": _int(d.get("status")),
+        "classe": _rotulo(d.get("classe")),
+        "etapa": _rotulo(d.get("etapa")),
+        "motivo": _rotulo(d.get("motivo")),
+        "formulario": d.get("formulario") if isinstance(d.get("formulario"), str)
+        and re.fullmatch(r"[A-Za-z][A-Za-z0-9_:\-]{0,63}", d.get("formulario")) else None,
+        "formularios_encontrados": [x for x in ids if isinstance(x, str)
+                                    and re.fullmatch(r"[A-Za-z][A-Za-z0-9_:\-]{0,63}", x)][:10]
+        if isinstance(ids, list) else None,
+        "estado": _rotulo(d.get("estado")),
+        "length": _int(d.get("length")),
+        "sonda": None if sonda is None else _sem_none({
+            "alive": _bool(sonda.get("alive")), "status": _int(sonda.get("status")),
+            "classe": _rotulo(sonda.get("classe")), "adiado": _bool(sonda.get("adiado")),
+            "etapa": _rotulo(sonda.get("etapa")), "motivo": _rotulo(sonda.get("motivo")),
+        }),
+        "publicacao": None if pub is None else _sem_none({
+            "gravada": _bool(pub.get("gravada")), "sonda_validou": _bool(pub.get("sonda_validou")),
+            "vinculo": _rotulo(pub.get("vinculo")),
+        }),
+    }
+    return {k: v for k, v in out.items() if v is not None}
 
 
 @siaa_bp.route("/siaa-sessao/salvar", methods=["POST"])
@@ -148,11 +225,13 @@ def siaa_sessao_salvar():
         r = requests.post(
             f"{SIAA_URL}/session/{module}",
             headers={"Authorization": f"Bearer {SIAA_TOKEN}"},
-            json={"cookie": cookie},
+            json=_corpo_sessao(module, cookie),
             timeout=60,
         )
     except requests.RequestException as e:
         logger.error("siaa_sessao_salvar: erro de rede module=%s", module)
+        if module in _MODULOS_CURL:
+            return jsonify({"ok": False, "error": "falha de rede ao falar com o servidor de sessão"}), 502
         return jsonify({"ok": False, "error": str(e)}), 502
 
     logger.info("siaa_sessao_salvar: module=%s len=%d status=%d", module, len(cookie), r.status_code)
@@ -161,6 +240,8 @@ def siaa_sessao_salvar():
         resp_data = r.json()
     except ValueError:
         resp_data = {"ok": r.status_code < 400, "raw": r.text[:300]}
+    if module in _MODULOS_CURL:
+        return jsonify(_resposta_curl(resp_data, r.status_code)), r.status_code
 
     return jsonify(resp_data), r.status_code
 
@@ -183,11 +264,13 @@ def siaa_sessao_testar():
         r = requests.post(
             f"{SIAA_URL}/session/{module}/test",
             headers={"Authorization": f"Bearer {SIAA_TOKEN}"},
-            json={"cookie": cookie},
+            json=_corpo_sessao(module, cookie),
             timeout=60,
         )
     except requests.RequestException as e:
         logger.error("siaa_sessao_testar: erro de rede module=%s", module)
+        if module in _MODULOS_CURL:
+            return jsonify({"ok": False, "error": "falha de rede ao falar com o servidor de sessão"}), 502
         return jsonify({"ok": False, "error": str(e)}), 502
 
     logger.info("siaa_sessao_testar: module=%s len=%d status=%d", module, len(cookie), r.status_code)
@@ -196,5 +279,7 @@ def siaa_sessao_testar():
         resp_data = r.json()
     except ValueError:
         resp_data = {"ok": r.status_code < 400, "raw": r.text[:300]}
+    if module in _MODULOS_CURL:
+        return jsonify(_resposta_curl(resp_data, r.status_code)), r.status_code
 
     return jsonify(resp_data), r.status_code

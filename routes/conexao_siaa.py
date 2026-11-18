@@ -41,7 +41,10 @@ conexao_siaa_bp = Blueprint("conexao_siaa_bp", __name__)
 
 # (conexão, leitura) em segundos: curto, o painel atualiza a cada ~30 s.
 _TIMEOUT = (3, 8)
+# Renovação automática: só acadêmico e financeiro.
 _MODULOS = ("academico", "financeiro")
+# Estado/histórico/diagnóstico da conexão: inclui o módulo manual de inscrições.
+_MODULOS_STATUS = ("academico", "financeiro", "inscricoes")
 _ISO_Z = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?Z$")
 _HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
@@ -109,7 +112,7 @@ _STATUS = {
     "agenda": _sub(_AGENDA),
     "pausa_manual": _sub(_PAUSA),
     "disponibilidade": _sub({"estado": _s, "motivo": _s}),
-    "modulos": _sub({m: _sub(_MODULO) for m in _MODULOS}),
+    "modulos": _sub({m: _sub(_MODULO) for m in _MODULOS_STATUS}),
     "fora_da_agenda": _strs,
 }
 
@@ -285,8 +288,8 @@ def api_conexao_historico():
     params = {}
     modulo = (request.args.get("modulo") or "").strip().lower()
     if modulo:
-        if modulo not in _MODULOS:
-            return _erro("modulo: use academico ou financeiro.", 400)
+        if modulo not in _MODULOS_STATUS:
+            return _erro("modulo: use academico, financeiro ou inscricoes.", 400)
         params["modulo"] = modulo
     limite = request.args.get("limite")
     if limite not in (None, ""):
@@ -614,7 +617,7 @@ _DIAGNOSTICO = {
     "worker": _sub({"visto_em": _iso, "iniciado_em": _iso, "modo": _enum}),
     "pausa_manual": _sub({"ativa": _b, "desde": _iso}),
     "disponibilidade": _sub({"estado": _enum, "motivo": _enum}),
-    "modulos": _sub({m: _sub(_D_MODULO) for m in _MODULOS}),
+    "modulos": _sub({m: _sub(_D_MODULO) for m in _MODULOS_STATUS}),
     "renovacao": _sub({
         "config": _sub({"ativa": _b, "suspensa": _b, "versao": _i}),
         "estado": _enum, "motivo_estado": _texto, "ultima_renovacao_ok": _iso,
