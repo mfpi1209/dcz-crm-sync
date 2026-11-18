@@ -1755,6 +1755,38 @@ def _build_canal_xlsx(file_bytes, canal):
     return buf.getvalue()
 
 
+def _grad_duracoes_chave(file_bytes, canal):
+    """Pares (chave, DURAÇÃO) da planilha, com a mesma chave do índice de preço dos
+    sites (nome + submodalidade + grau, "Cst Em " no Tecnólogo). Filtra o canal como
+    `_build_canal_xlsx`. Usado pelo site eduit.com.br para gravar a duração (18/11)."""
+    headers, rows = _read_xlsx_rows(file_bytes)
+    canal_col = _find_col(headers, 'CANAL')
+    dur_col   = _find_col(headers, 'DURAÇÃO', 'DURACAO', 'DURAÇÃO (SEMESTRES)')
+    curso_col = _find_col(headers, 'CURSO', 'CURSOS', 'NOME DO CURSO', 'NOME_CURSO')
+    grau_col  = _find_col(headers, 'GRAU', 'GRAU DO CURSO')
+    submod_col = _find_col(headers, 'SUBMODALIDADE', 'SUB MODALIDADE',
+                            'MODALIDADE', 'TIPO MODALIDADE')
+    if not (dur_col and curso_col):
+        return []
+    out = []
+    for r in rows:
+        if canal != SIAA_SENTINEL and str(r.get(canal_col) or '').strip() != canal:
+            continue
+        curso = str(r.get(curso_col) or '').strip()
+        submod = _normalize_submod_wix(r.get(submod_col) if submod_col else '')
+        dur = r.get(dur_col)
+        if not curso or not submod or dur in (None, ''):
+            continue
+        for nome_suffix, grau_value in _expand_grau_wix(r.get(grau_col) if grau_col else ''):
+            nome = curso
+            if nome_suffix and not nome.endswith(nome_suffix):
+                nome = nome + nome_suffix
+            if grau_value == 'Tecnólogo' and not nome.lower().startswith('cst em '):
+                nome = 'Cst Em ' + nome
+            out.append((f'{nome}{submod}{grau_value}', dur))
+    return out
+
+
 def _relay_wix_route(orig_route, file_bytes):
     """Call an existing Wix route via test_client; return its JSON response."""
     with app.test_client() as c:
@@ -2023,6 +2055,28 @@ def atualizar_wix3_canal():
             price_field='preco',
             as_str=True,
         )
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/atualizar_site_eduit_canal', methods=['POST'])
+def atualizar_site_eduit_canal():
+    """Site www.eduit.com.br (Postgres site_anhanguera, só graduação).
+    Mesmo índice de preço dos sites Wix; a gravação fica em services/site_eduit_precos."""
+    from services.site_eduit_precos import SiteEduitNaoConfigurado, atualizar_site_eduit
+
+    f     = request.files.get('file')
+    canal = (request.form.get('canal') or '').strip()
+    if not f or not canal:
+        return jsonify({'error': 'Arquivo e canal são obrigatórios'}), 400
+    try:
+        file_bytes = f.read()
+        price_idx = _wix_grad_price_index(_build_canal_xlsx(file_bytes, canal))
+        if not price_idx:
+            return jsonify({'error': 'Nenhum preço desse canal na planilha.'}), 400
+        return jsonify(atualizar_site_eduit(price_idx, _grad_duracoes_chave(file_bytes, canal)))
+    except SiteEduitNaoConfigurado as e:
+        return jsonify({'error': str(e)}), 400
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

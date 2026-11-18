@@ -87,6 +87,9 @@ def require_auth():
 
     if request.path in ("/login", "/health"):
         return
+    # Webhook de respostas do Motor de Ativações: sem sessão, autenticado pela assinatura HMAC do corpo.
+    if request.path == "/webhooks/motor/respostas" and request.method == "POST":
+        return
     if request.path.startswith("/static/"):
         return
     if not session.get("authenticated"):

@@ -31,18 +31,190 @@ function _bpFile() {
     return input && input.files && input.files[0];
 }
 
-function bpArquivoPos() {
+// ── Pós-Graduação (18/11): CRM pelo SKU_CRM e sites Wix pelas rotas de Pós ──
+let _bpPosPreview = null;
+
+const _bpPosSites = {
+    wix: ['Site Cruzeiro', '/api/listar_campos_wix_pos', '/api/atualizar_wix_pos_canais'],
+    wix2: ['Eduit-ead', '/api/listar_campos_wix2_pos', '/api/atualizar_wix2_pos_canais'],
+    wix3: ['Eduit New', '/api/listar_campos_wix3_pos', '/api/atualizar_wix3_pos_canais'],
+};
+
+function _bpFilePos() {
     const input = document.getElementById('bp-file-pos');
-    const file = input && input.files && input.files[0];
-    const name = document.getElementById('bp-file-pos-name');
+    return input && input.files && input.files[0];
+}
+
+function _bpPosBotoes(travar) {
+    ['bp-pos-btn-crm', 'bp-pos-btn-teste', 'bp-pos-btn-site', 'bp-pos-site', 'bp-pos-canal-site'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = travar;
+    });
+}
+
+async function bpArquivoPos() {
+    const file = _bpFilePos();
     const nota = document.getElementById('bp-pos-nota');
-    if (!file || !name || !nota) return;
-    name.textContent = file.name;
-    nota.textContent = 'Planilha escolhida. A Pós ainda não é lida: falta a amostra do arquivo de preço.';
+    if (!file || !nota) return;
+    document.getElementById('bp-file-pos-name').textContent = file.name;
+    nota.textContent = 'Lendo a planilha de Pós e cruzando com o CRM…';
+    _bpPosBotoes(true);
+    const body = new FormData();
+    body.append('file', file);
+    const res = await fetch('/api/bwipo-precos/pos/preview', { method: 'POST', body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) {
+        nota.textContent = data.error || 'Falha ao ler a planilha de Pós.';
+        bpLog('Pós', data.error || 'Falha ao ler a planilha.', 'erro');
+        return;
+    }
+    _bpPosPreview = data;
+    nota.textContent = `${data.cursos} cursos × duração. No CRM: ${data.atualizar} com produto, ${data.sem_produto} sem produto (não são criados).`;
+    const canais = data.canais || [];
+    document.getElementById('bp-pos-canais').innerHTML = canais.map(c =>
+        `<label class="inline-flex items-center gap-1"><input type="checkbox" class="bp-pos-canal" value="${_bpEsc(c.canal)}" checked> ${_bpEsc(c.label || c.canal)}</label>`
+    ).join('');
+    const sel = document.getElementById('bp-pos-canal-site');
+    sel.innerHTML = '<option value="">Canal do site</option>' + _bpOpcaoSiaa() + canais.map(c =>
+        `<option value="${_bpEsc(c.canal)}">${_bpEsc(c.label || c.canal)}</option>`
+    ).join('');
+    sel.value = canais.length === 1 ? canais[0].canal : '';
+    document.getElementById('bp-pos-wrap').classList.remove('hidden');
+    bpLog('Pós', `Planilha lida: ${data.cursos} cursos × duração, ${data.atualizar} com produto no CRM, ${data.sem_produto} sem produto.`, 'info');
+    if (data.inativos) bpLog('Pós', `${data.inativos} com STATUS_CRM Inativo: ficam de fora.`, 'info');
+    if ((data.sem_sku || []).length) bpLog('Pós', `Sem SKU_CRM (ficam de fora): ${data.sem_sku.join(', ')}`, 'erro');
+    if ((data.conflitos || []).length) bpLog('Pós', `Valores diferentes para o mesmo SKU e canal: ${data.conflitos.join(', ')}`, 'erro');
+    const sem = (data.linhas || []).filter(l => l.acao === 'sem_produto');
+    if (sem.length) bpLog('Pós', `Sem produto no CRM: ${sem.map(l => l.sku).join(', ')}`, 'erro');
+    if (data.amostra) {
+        const a = data.amostra;
+        bpLog('Pós', `Produto de Pós no CRM (ex.: ${a.produto}): nível ${a.level || '—'}, cotas ${(a.cotas || []).join(', ') || '—'}.`, 'info');
+    }
+    _bpPosBotoes(false);
+    await bpPosCampos();
+}
+
+async function bpPosCampos() {
+    const box = document.getElementById('bp-pos-campos');
+    const site = _bpPosSites[document.getElementById('bp-pos-site').value];
+    if (!box || !site) return;
+    box.innerHTML = '<span class="text-[var(--text-muted)]">Carregando campos…</span>';
+    const res = await fetch(site[1]);
+    const campos = await res.json().catch(() => []);
+    box.innerHTML = '<span class="text-[var(--text-muted)]">Campos que recebem o preço:</span>' + (Array.isArray(campos) ? campos : []).map(c =>
+        `<label class="inline-flex items-center gap-1"><input type="checkbox" class="bp-pos-campo" value="${_bpEsc(c.key)}" ${c.key === 'mix' ? '' : 'checked'}> ${_bpEsc(c.label || c.key)}</label>`
+    ).join('');
+}
+
+async function bpPosAplicar(teste) {
+    const file = _bpFilePos();
+    if (!file || !_bpPosPreview) return;
+    const canais = [...document.querySelectorAll('.bp-pos-canal:checked')].map(i => i.value);
+    if (!canais.length) {
+        bpLog('Pós · CRM', 'Nenhuma cota escolhida.', 'erro');
+        return;
+    }
+    const nomes = canais.map(c => { const x = (_bpPosPreview.canais || []).find(k => k.canal === c); return (x && x.label) || c; });
+    const alvo = teste ? (_bpPosPreview.linhas || []).find(l => l.acao === 'atualizar') : null;
+    if (teste && !alvo) {
+        bpLog('Pós · CRM', 'Nenhum produto de Pós com SKU no CRM para testar.', 'erro');
+        return;
+    }
+    const pergunta = teste
+        ? `Atualizar só "${alvo.curso} · ${alvo.duracao}" (SKU ${alvo.sku}) no CRM? Cotas: ${nomes.join(', ')}. Depois confira o produto no Bwipo.`
+        : `Atualizar ${_bpPosPreview.atualizar} produtos de Pós no CRM? Cotas: ${nomes.join(', ')}. Produto que não existe não é criado.`;
+    if (!window.confirm(pergunta)) return;
+    bpLog('Pós · CRM', teste ? `Teste em 1 produto: ${alvo.curso} · ${alvo.duracao}.` : `Começou. ${_bpPosPreview.atualizar} produtos. Cotas: ${nomes.join(', ')}.`, 'info');
+    _bpPosBotoes(true);
+    const body = new FormData();
+    body.append('file', file);
+    body.append('canais', JSON.stringify(canais));
+    if (teste) body.append('so_sku', alvo.sku);
+    try {
+        const res = await fetch('/api/bwipo-precos/pos/aplicar', { method: 'POST', body });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) {
+            bpLog('Pós · CRM', data.error || 'Falha ao aplicar.', 'erro');
+            return;
+        }
+        (data.resultados || []).forEach(r => {
+            const nome = `${r.curso || ''} · ${r.duracao || ''}`;
+            if (r.ok) bpLog('Pós · CRM', `${nome} — atualizado`, 'ok');
+            else if (r.acao === 'erro') bpLog('Pós · CRM', `${nome} — ${r.erro || 'erro'}`, 'erro');
+        });
+        const r = data.resumo || {};
+        bpLog('Pós · CRM', `Fechou. ${r.ok || 0} ok, ${r.erro || 0} erro, ${r.sem_produto || 0} sem produto.`, r.erro ? 'erro' : 'ok');
+    } catch (e) {
+        bpLog('Pós · CRM', e.message || 'Falhou.', 'erro');
+    } finally {
+        _bpPosBotoes(false);
+    }
+}
+
+async function bpPosAtualizarSite() {
+    const file = _bpFilePos();
+    const site = _bpPosSites[document.getElementById('bp-pos-site').value];
+    if (!file || !_bpPosPreview || !site) return;
+    const nome = `${site[0]} · Pós`;
+    const canal = _bpCanalAlvoPos(document.getElementById('bp-pos-canal-site').value);
+    if (!canal) {
+        bpLog(nome, 'Escolha o canal do site ao lado do botão.', 'erro');
+        return;
+    }
+    const campos = [...document.querySelectorAll('.bp-pos-campo:checked')].map(i => i.value);
+    if (!campos.length) {
+        bpLog(nome, 'Marque ao menos um campo do site.', 'erro');
+        return;
+    }
+    if (!window.confirm(`Atualizar a Pós de ${site[0]} (campos ${campos.join(', ')}) com ${_bpDescreveValor(canal)}?`)) return;
+    bpLog(nome, `Começou. Campos ${campos.join(', ')}; o valor é ${_bpDescreveValor(canal)}.`, 'info');
+    _bpPosBotoes(true);
+    const body = new FormData();
+    body.append('file', file);
+    body.append('mapping', JSON.stringify(campos.map(campo => ({ campo, canal: canal.canal }))));
+    try {
+        const res = await fetch(site[2], { method: 'POST', body });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.error) {
+            bpLog(nome, data.error || 'Falhou.', 'erro');
+            return;
+        }
+        bpLog(nome, `Fechou. ${data.atualizados || 0} atualizados${data.erros ? `, ${data.erros} erro` : ''}.`, data.erros ? 'erro' : 'ok');
+        if (data.ultimo_erro) bpLog(nome, data.ultimo_erro, 'erro');
+    } catch (e) {
+        bpLog(nome, e.message || 'Falhou.', 'erro');
+    } finally {
+        _bpPosBotoes(false);
+    }
+}
+
+function _bpCanalAlvoPos(v) {
+    if (!v) return null;
+    if (v === _BP_SIAA) return { canal: _BP_SIAA, label: _BP_SIAA_LABEL, siaa: true };
+    return ((_bpPosPreview && _bpPosPreview.canais) || []).find(c => c.canal === v) || null;
 }
 
 function _bpCanal(nome) {
     return (_bpPreview && _bpPreview.canais || []).find(c => c.canal === nome);
+}
+
+// Opção "Preço SIAA" do site e da IA (18/11): sobe o PREÇO SIAA da planilha, sem
+// desconto e sem cota. O backend já entende o canal '__SIAA__' (SIAA_SENTINEL).
+const _BP_SIAA = '__SIAA__';
+const _BP_SIAA_LABEL = 'Preço SIAA (sem desconto)';
+
+function _bpOpcaoSiaa() {
+    return `<option value="${_BP_SIAA}">${_BP_SIAA_LABEL}</option>`;
+}
+
+function _bpCanalAlvo(v) {
+    if (!v) return null;
+    if (v === _BP_SIAA) return { canal: _BP_SIAA, label: _BP_SIAA_LABEL, siaa: true };
+    return _bpCanal(v);
+}
+
+function _bpDescreveValor(c) {
+    return c.siaa ? 'o PREÇO SIAA, sem desconto e sem cota' : `o valor com desconto do canal ${c.label || c.canal}`;
 }
 
 function _bpEhBase(canal) {
@@ -58,7 +230,9 @@ function _bpCanalMarAberto() {
     return (_bpPreview && _bpPreview.canais || []).find(c => _bpEhAprovados(c.canal));
 }
 
-function _bpFixas() {
+// Cotas que vêm marcadas ao carregar a planilha (Estratégico e Mar Aberto, quando
+// existem). Desde 17/11 nenhuma é obrigatória: todas são chips removíveis.
+function _bpSugeridas() {
     return (_bpPreview && _bpPreview.canais || []).filter(c => _bpEhBase(c.canal) || _bpEhAprovados(c.canal));
 }
 
@@ -67,17 +241,18 @@ function _bpFold(s) {
 }
 
 function _bpOpcionais() {
-    return (_bpPreview && _bpPreview.canais || []).filter(c => !(_bpEhBase(c.canal) || _bpEhAprovados(c.canal)));
+    return (_bpPreview && _bpPreview.canais || []);
 }
 
 const _bpSites = {
     wix: ['Site Cruzeiro', '/api/atualizar_wix_canal'],
     wix2: ['Eduit-ead', '/api/atualizar_wix2_canal'],
     wix3: ['Eduit New', '/api/atualizar_wix3_canal'],
+    eduit: ['eduit.com.br', '/api/atualizar_site_eduit_canal'],
 };
 
 function _bpBotoes(travar) {
-    ['bp-btn-aplicar', 'bp-btn-hist', 'bp-btn-ia', 'bp-btn-site', 'bp-site'].forEach(id => {
+    ['bp-btn-aplicar', 'bp-btn-hist', 'bp-btn-ia', 'bp-canal-ia', 'bp-btn-site', 'bp-site', 'bp-canal-site'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.disabled = travar;
     });
@@ -113,30 +288,74 @@ async function bpPreview() {
         return;
     }
     _bpPreview = data;
-    _bpGlobais = [];
+    _bpGlobais = _bpSugeridas().map(c => c.canal);
     _bpPorCurso = {};
     bpRenderCanais();
+    bpRenderCanalIa();
+    bpRenderCanalSite();
     bpRenderCursos();
     bpInsights();
     document.getElementById('bp-preview-wrap').classList.remove('hidden');
+    const ign = data.ignorados || [];
+    if (ign.length) {
+        bpLog('Planilha', `${ign.length} ${ign.length === 1 ? 'linha ignorada' : 'linhas ignoradas'} (Cst Em / 4.0 do mesmo curso): ${ign.map(i => i.curso).join(', ')}`, 'info');
+    }
+    if (data.pular) {
+        bpLog('Planilha', `${data.pular} ${data.pular === 1 ? 'curso' : 'cursos'} com nome Cst Em / 4.0 sem produto no CRM: não serão criados.`, 'erro');
+    }
     status.textContent = '';
     _bpBotoes(false);
+}
+
+// Canal cujo VALOR COM DESCONTO sobe para a IA. Vem marcado o Mar Aberto (APROVADOS)
+// quando a planilha tem; sem ele, o usuário escolhe.
+function bpRenderCanalIa() {
+    const sel = document.getElementById('bp-canal-ia');
+    if (!sel) return;
+    const canais = (_bpPreview && _bpPreview.canais) || [];
+    const aberto = _bpCanalMarAberto();
+    sel.innerHTML = '<option value="">Canal da IA</option>' + _bpOpcaoSiaa() + canais.map(c =>
+        `<option value="${_bpEsc(c.canal)}">${_bpEsc(c.label || c.canal)}</option>`
+    ).join('');
+    sel.value = aberto ? aberto.canal : '';
+}
+
+// Canal cujo VALOR COM DESCONTO sobe para o site escolhido. Mesma regra do canal
+// da IA: vem marcado o Mar Aberto (APROVADOS) quando existe; sem ele, o usuário
+// escolhe (17/11: a planilha de Graduação deixou de trazer o APROVADOS).
+function bpRenderCanalSite() {
+    const sel = document.getElementById('bp-canal-site');
+    if (!sel) return;
+    const canais = (_bpPreview && _bpPreview.canais) || [];
+    const aberto = _bpCanalMarAberto();
+    sel.innerHTML = '<option value="">Canal do site</option>' + _bpOpcaoSiaa() + canais.map(c =>
+        `<option value="${_bpEsc(c.canal)}">${_bpEsc(c.label || c.canal)}</option>`
+    ).join('');
+    sel.value = aberto ? aberto.canal : '';
+}
+
+function _bpCanalSite() {
+    const sel = document.getElementById('bp-canal-site');
+    const v = sel ? sel.value : '';
+    return _bpCanalAlvo(v);
+}
+
+function _bpCanalIa() {
+    const sel = document.getElementById('bp-canal-ia');
+    const v = sel ? sel.value : '';
+    return _bpCanalAlvo(v);
 }
 
 function bpRenderCanais() {
     const box = document.getElementById('bp-canais');
     if (!box) return;
-    const fixas = _bpFixas();
-    const chips = fixas.map(c => {
-        const nome = _bpEhBase(c.canal) ? 'Balcão Estratégico' : 'Mar Aberto';
-        return `<span class="bp-pill">${_bpEsc(nome)}</span>`;
-    }).join('');
     const extras = _bpGlobais.map(canal => {
         const c = _bpCanal(canal);
         const nome = (c && c.label) || canal;
         return `<span class="bp-pill">${_bpEsc(nome)}<button type="button" onclick="bpTirarGlobal('${_bpEsc(canal)}')" aria-label="Remover">×</button></span>`;
     }).join('');
-    box.innerHTML = chips + extras + `<button type="button" class="bp-plus" onclick="bpAbrirMenu(event, null)" aria-label="Adicionar cota para todos">+</button>`;
+    const vazio = extras ? '' : `<span class="text-xs text-amber-500">Nenhuma cota escolhida. Use o + para adicionar.</span>`;
+    box.innerHTML = extras + vazio + `<button type="button" class="bp-plus" onclick="bpAbrirMenu(event, null)" aria-label="Adicionar cota para todos">+</button>`;
 }
 
 function bpTirarGlobal(canal) {
@@ -273,9 +492,10 @@ function bpInsights() {
     const econ = _bpMedia(pares.map(p => p.dif));
     const econPct = _bpMedia(pares.map(p => p.pct));
     const criar = linhas.filter(l => l.acao === 'criar');
-    const atualizar = linhas.length - criar.length;
+    const atualizar = linhas.filter(l => l.acao === 'atualizar').length;
+    const pular = linhas.filter(l => l.acao === 'pular').length;
     cards.innerHTML = [
-        _bpCard('Cursos', String(linhas.length), `${atualizar} para atualizar · ${criar.length} para criar`),
+        _bpCard('Cursos', String(linhas.length), `${atualizar} para atualizar · ${criar.length} para criar${pular ? ` · ${pular} pulados` : ''}`),
         _bpCard('Mais barato', _bpMoney(menor.c.final), `${menor.l.curso} · ${Number(menor.c.desconto).toLocaleString('pt-BR')}%`),
         _bpCard('Mais caro', _bpMoney(maior.c.final), `${maior.l.curso} · ${Number(maior.c.desconto).toLocaleString('pt-BR')}%`),
         _bpCard('Estratégico vs Mar Aberto', econ == null ? '—' : _bpMoney(econ), econPct == null ? '' : `em média ${econPct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% abaixo · média ${_bpMoney(media)}`),
@@ -343,27 +563,27 @@ function bpRenderCursos() {
     const contagem = document.getElementById('bp-contagem');
     if (contagem) contagem.textContent = q ? `${linhas.length} de ${_bpPreview.linhas.length}` : `${_bpPreview.linhas.length} cursos`;
     box.innerHTML = linhas.map(l => {
-        const fixas = (l.cotas || []).filter(c => c.fixa).sort((a, b) => (_bpEhBase(a.canal) ? 0 : 1) - (_bpEhBase(b.canal) ? 0 : 1));
         const extras = []
             .concat(_bpGlobais)
             .concat(_bpPorCurso[l.chave] || [])
-            .filter((c, i, arr) => arr.indexOf(c) === i && !(_bpEhBase(c) || _bpEhAprovados(c)));
-        const blocos = fixas.map(c => `
-            <div class="bp-cota">
-                <span>${_bpEsc(c.label)}</span>
-                <b>${_bpMoney(c.final)}</b>
-                <span>${Number(c.desconto).toLocaleString('pt-BR')}%</span>
-            </div>`).join('');
+            .filter((c, i, arr) => arr.indexOf(c) === i)
+            .sort((a, b) => (_bpEhBase(a) ? 0 : 1) - (_bpEhBase(b) ? 0 : 1));
+        const blocos = '';
         const mais = extras.map(canal => {
             const c = _bpCotaDoCurso(l, canal) || { label: canal, final: null, desconto: null };
             const soDeste = (_bpPorCurso[l.chave] || []).includes(canal);
             const x = soDeste ? `<button type="button" onclick="bpTirarCurso('${_bpEsc(l.chave)}','${_bpEsc(canal)}')">×</button>` : '';
             return `<div class="bp-cota"><span>${_bpEsc(c.label)} ${x}</span><b>${_bpMoney(c.final)}</b><span>${c.desconto == null ? '' : Number(c.desconto).toLocaleString('pt-BR') + '%'}</span></div>`;
         }).join('');
-        const aviso = l.aviso ? `<div class="text-xs text-amber-500 mt-1">Parecido com ${_bpEsc(l.aviso)}</div>` : '';
+        let aviso = l.aviso ? `<div class="text-xs text-amber-500 mt-1">Parecido com ${_bpEsc(l.aviso)}</div>` : '';
+        if (l.nome_planilha && l.nome_planilha !== l.curso) {
+            aviso += `<div class="text-xs text-[var(--text-muted)] mt-1">Na planilha: ${_bpEsc(l.nome_planilha)}</div>`;
+        }
         const badge = l.acao === 'criar'
             ? '<span class="text-xs font-semibold text-sky-500">Criar</span>'
-            : '<span class="text-xs font-semibold text-emerald-500">Atualizar</span>';
+            : l.acao === 'pular'
+                ? '<span class="text-xs font-semibold text-amber-500" title="Nome Cst Em / 4.0 sem produto no CRM: não cria">Pular</span>'
+                : '<span class="text-xs font-semibold text-emerald-500">Atualizar</span>';
         return `<div class="bp-row">
             <div>
                 <div class="font-semibold">${_bpEsc(l.curso)}</div>
@@ -383,13 +603,21 @@ async function bpAplicar(somenteHistorico) {
     if (!file || !_bpPreview) return;
     const status = document.getElementById('bp-status');
     const n = _bpPreview.cursos || 0;
+    const nomes = _bpGlobais.map(canal => { const c = _bpCanal(canal); return (c && c.label) || canal; });
+    const porCurso = Object.values(_bpPorCurso).some(l => l && l.length);
+    if (!somenteHistorico && !nomes.length && !porCurso) {
+        status.textContent = 'Escolha ao menos uma cota para subir.';
+        bpLog('CRM', 'Nenhuma cota escolhida.', 'erro');
+        return;
+    }
+    const lista = nomes.join(', ') + (porCurso ? ' (e cotas marcadas por curso)' : '');
     const msg = somenteHistorico
         ? `Gravar o histórico de ${n} cursos, sem mexer no CRM?`
-        : `Aplicar ${n} cursos no CRM? Sobem Balcão Estratégico e Mar Aberto. Grade e imagem ficam.`;
+        : `Aplicar ${n} cursos no CRM? Sobem: ${lista || 'só as cotas marcadas por curso'}. Grade e imagem ficam.`;
     if (!window.confirm(msg)) return;
     const alvo = somenteHistorico ? 'Histórico' : 'CRM';
     status.textContent = somenteHistorico ? 'Gravando histórico…' : 'Atualizando o CRM… pode levar alguns minutos.';
-    bpLog(alvo, somenteHistorico ? `Gravando ${n} cursos, sem mexer no CRM.` : `Começou. ${n} cursos. Balcão Estratégico e Mar Aberto.`, 'info');
+    bpLog(alvo, somenteHistorico ? `Gravando ${n} cursos, sem mexer no CRM.` : `Começou. ${n} cursos. Cotas: ${lista || 'por curso'}.`, 'info');
     _bpBotoes(true);
     const body = new FormData();
     body.append('file', file);
@@ -409,10 +637,11 @@ async function bpAplicar(somenteHistorico) {
         bpLog('CRM', r.ok ? `${nome} — ${r.acao || 'ok'}` : `${nome} — ${r.erro || 'erro'}`, r.ok ? 'ok' : 'erro');
     });
     const r = data.resumo || {};
+    const pulados = r.pulado ? `, ${r.pulado} pulados` : '';
     status.textContent = somenteHistorico
         ? `Histórico ${data.snapshot_id} gravado.`
-        : `Aplicado. ${r.ok || 0} ok, ${r.erro || 0} erro.`;
-    bpLog(alvo, somenteHistorico ? `Gravado. Snapshot ${data.snapshot_id}.` : `Fechou. ${r.ok || 0} ok, ${r.erro || 0} erro.`, (r.erro ? 'erro' : 'ok'));
+        : `Aplicado. ${r.ok || 0} ok, ${r.erro || 0} erro${pulados}.`;
+    bpLog(alvo, somenteHistorico ? `Gravado. Snapshot ${data.snapshot_id}.` : `Fechou. ${r.ok || 0} ok, ${r.erro || 0} erro${pulados}.`, (r.erro ? 'erro' : 'ok'));
     bpPainel();
 }
 
@@ -423,15 +652,15 @@ async function bpAtualizarSite() {
     if (!file || !_bpPreview || !site) return;
     const status = document.getElementById('bp-status');
     const [nome, url] = site;
-    const aberto = _bpCanalMarAberto();
+    const aberto = _bpCanalSite();
     if (!aberto) {
-        status.textContent = 'A planilha não tem o canal Mar Aberto.';
-        bpLog(nome, 'A planilha não tem o canal Mar Aberto.', 'erro');
+        status.textContent = 'Escolha o canal do site ao lado do botão.';
+        bpLog(nome, 'Nenhum canal escolhido para o site.', 'erro');
         return;
     }
-    if (!window.confirm(`Atualizar ${nome} com o valor do Mar Aberto?`)) return;
+    if (!window.confirm(`Atualizar ${nome} com ${_bpDescreveValor(aberto)}?`)) return;
     status.textContent = `Atualizando ${nome}…`;
-    bpLog(nome, 'Começou. O valor é o do Mar Aberto.', 'info');
+    bpLog(nome, `Começou. O valor é ${_bpDescreveValor(aberto)}.`, 'info');
     _bpBotoes(true);
     const body = new FormData();
     body.append('file', file);
@@ -445,12 +674,20 @@ async function bpAtualizarSite() {
             return;
         }
         (data.linhas || []).forEach(l => {
-            const mudou = `${l.chave}: ${l.de == null ? '—' : l.de} → ${l.para}`;
+            const dur = l.dur_para ? ` · duração ${l.dur_de || '—'} → ${l.dur_para}` : '';
+            const mudou = `${l.chave}: ${l.de == null ? '—' : l.de} → ${l.para}${dur}`;
             bpLog(nome, l.ok ? mudou : `${mudou}. ${l.erro || 'erro'}`, l.ok ? 'ok' : 'erro');
         });
+        if ((data.duracao_ambigua || []).length) {
+            bpLog(nome, `Duração não alterada (mais de uma na planilha): ${data.duracao_ambigua.join(', ')}`, 'info');
+        }
+        if ((data.sem_chave || []).length) {
+            bpLog(nome, `Sem chave no site: ${data.sem_chave.join(', ')}`, 'erro');
+        }
         const erros = data.erros ? `, ${data.erros} erro` : '';
         const iguais = data.iguais ? `, ${data.iguais} iguais` : '';
-        status.textContent = `${nome}: ${data.atualizados || 0} atualizados${iguais}${erros}`;
+        const semPreco = (data.sem_preco || []).length ? `, ${data.sem_preco.length} fora da planilha` : '';
+        status.textContent = `${nome}: ${data.atualizados || 0} atualizados${iguais}${erros}${semPreco}`;
         bpLog(nome, `Fechou. ${data.atualizados || 0} atualizados${iguais}${erros}.`, data.erros ? 'erro' : 'ok');
         if (data.ultimo_erro) bpLog(nome, data.ultimo_erro, 'erro');
     } catch (e) {
@@ -465,15 +702,15 @@ async function bpAtualizarIa() {
     const file = _bpFile();
     if (!file || !_bpPreview) return;
     const status = document.getElementById('bp-status');
-    const aberto = _bpCanalMarAberto();
+    const aberto = _bpCanalIa();
     if (!aberto) {
-        status.textContent = 'A planilha não tem o canal Mar Aberto.';
-        bpLog('IA', 'A planilha não tem o canal Mar Aberto.', 'erro');
+        status.textContent = 'Escolha o canal da IA ao lado do botão.';
+        bpLog('IA', 'Nenhum canal escolhido para a IA.', 'erro');
         return;
     }
-    if (!window.confirm('Atualizar a base da IA com o valor do Mar Aberto? O curso que já existe troca o preço em documents_precos e em cursos_salesbot, no Postgres e no Supabase.')) return;
+    if (!window.confirm(`Atualizar a base da IA com ${_bpDescreveValor(aberto)}? O curso que já existe troca o preço em documents_precos e em cursos_salesbot, no Postgres e no Supabase.`)) return;
     status.textContent = 'Atualizando a base da IA…';
-    bpLog('IA', 'Começou. O valor é o do Mar Aberto.', 'info');
+    bpLog('IA', `Começou. O valor é ${_bpDescreveValor(aberto)}.`, 'info');
     _bpBotoes(true);
     const body = () => {
         const fd = new FormData();
@@ -614,4 +851,93 @@ function bpFiltrar() {
             <td class="py-2 pr-4">${menor}</td>
         </tr>`;
     }).join('');
+}
+
+// Duplicatas "Cst Em X" / "X (4.0)" no CRM (18/11). Primeiro só lista; apagar é
+// um segundo clique com confirmação, e o servidor relê o CRM antes de apagar.
+let _bpDup = null;
+
+async function bpDuplicatas() {
+    const box = document.getElementById('bp-dup');
+    const btn = document.getElementById('bp-btn-dup');
+    const apagar = document.getElementById('bp-btn-dup-apagar');
+    if (!box) return;
+    btn.disabled = true;
+    apagar.classList.add('hidden');
+    box.classList.remove('hidden');
+    box.innerHTML = '<p class="text-[var(--text-muted)]">Lendo os produtos do CRM…</p>';
+    try {
+        const res = await fetch('/api/bwipo-precos/duplicatas');
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) throw new Error(data.error || 'Falha ao listar.');
+        _bpDup = data;
+        bpRenderDuplicatas();
+        bpLog('Duplicatas', `${data.apagar.length} para apagar, ${(data.outros || []).length} que não foram criadas pelo painel, ${data.sem_base.length} sem original.`, 'info');
+    } catch (e) {
+        box.innerHTML = `<p class="text-rose-500">${_bpEsc(e.message)}</p>`;
+        bpLog('Duplicatas', e.message, 'erro');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+function bpRenderDuplicatas() {
+    const box = document.getElementById('bp-dup');
+    const apagar = document.getElementById('bp-btn-dup-apagar');
+    if (!box || !_bpDup) return;
+    const lin = x => `<label class="flex items-start gap-2 py-1">
+            <input type="checkbox" class="bp-dup-chk mt-1" value="${_bpEsc(x.id)}" checked onchange="bpContarDuplicatas()">
+            <span><b>${_bpEsc(x.nome)}</b> <span class="text-[var(--text-muted)]">· ${_bpEsc(x.grau)} · ${_bpMoney(x.preco)}</span><br>
+            <span class="text-xs text-[var(--text-muted)]">Fica: ${_bpEsc(x.mantem_nome)}</span></span>
+        </label>`;
+    const bloco = (lista, titulo) => lista && lista.length
+        ? `<div class="pt-3"><div class="font-semibold">${titulo} (${lista.length}), não serão apagados:</div>
+            <div class="text-xs text-[var(--text-muted)]">${lista.map(x => `${_bpEsc(x.nome)} (${_bpEsc(x.grau)}${x.sku ? ' · ' + _bpEsc(x.sku) : ''})`).join(' · ')}</div></div>`
+        : '';
+    const semBase = bloco(_bpDup.outros, 'Têm o original, mas não foram criados pelo painel')
+        + bloco(_bpDup.sem_base, 'Sem o curso original no CRM');
+    box.innerHTML = (_bpDup.apagar.length
+        ? `<div class="max-h-80 overflow-auto">${_bpDup.apagar.map(lin).join('')}</div>`
+        : '<p class="text-[var(--text-muted)]">Nenhuma duplicata com o curso original no CRM.</p>') + semBase;
+    apagar.classList.toggle('hidden', !_bpDup.apagar.length);
+    bpContarDuplicatas();
+}
+
+function _bpDupMarcados() {
+    return [...document.querySelectorAll('.bp-dup-chk:checked')].map(el => el.value);
+}
+
+function bpContarDuplicatas() {
+    const btn = document.getElementById('bp-btn-dup-apagar');
+    if (!btn) return;
+    const n = _bpDupMarcados().length;
+    btn.textContent = `Apagar ${n} ${n === 1 ? 'duplicata' : 'duplicatas'}`;
+    btn.disabled = !n;
+}
+
+async function bpApagarDuplicatas() {
+    const ids = _bpDupMarcados();
+    if (!ids.length) return;
+    if (!window.confirm(`Apagar ${ids.length} produtos duplicados no CRM? Não tem como desfazer. O curso de nome limpo fica.`)) return;
+    const btn = document.getElementById('bp-btn-dup-apagar');
+    btn.disabled = true;
+    document.getElementById('bp-btn-dup').disabled = true;
+    bpLog('Duplicatas', `Apagando ${ids.length}…`, 'info');
+    try {
+        const res = await fetch('/api/bwipo-precos/duplicatas/apagar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) throw new Error(data.error || 'Falha ao apagar.');
+        (data.resultados || []).forEach(r => {
+            bpLog('Duplicatas', r.ok ? `${r.nome} — apagado (fica ${r.mantem_nome})` : `${r.nome || r.id} — ${r.erro}`, r.ok ? 'ok' : 'erro');
+        });
+        bpLog('Duplicatas', `Fechou. ${data.apagados} apagados, ${data.erros} erro.`, data.erros ? 'erro' : 'ok');
+    } catch (e) {
+        bpLog('Duplicatas', e.message, 'erro');
+    }
+    document.getElementById('bp-btn-dup').disabled = false;
+    bpDuplicatas();
 }

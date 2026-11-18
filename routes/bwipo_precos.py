@@ -1,8 +1,10 @@
 """Preços de curso no CRM Bwipo (Graduação).
 
 Planilha de update → snapshot no Postgres → PUT /api/products.
-Cota padrão: BALCÃO ESTRATÉGICO, gravada em Title Case (Balcão Estratégico).
-Outros canais só entram se marcados na subida. Grade, imagem e descrição ficam.
+As cotas que sobem são as escolhidas na tela (globais + por curso); nenhuma é
+obrigatória (17/11). O preço base é o PREÇO SIAA, igual em todos os canais do
+curso; o canal principal do produto é o Balcão Estratégico quando escolhido,
+senão a primeira cota escolhida. Grade, imagem e descrição ficam.
 """
 from __future__ import annotations
 
@@ -70,10 +72,6 @@ def _is_aprovados(canal: str) -> bool:
     return _fold(canal) == "aprovados"
 
 
-def _is_fixa(canal: str) -> bool:
-    return _is_base(canal) or _is_aprovados(canal)
-
-
 def crm_channel_name(canal: str, label: str) -> str:
     if _is_base(canal):
         return "Balcão Estratégico"
@@ -89,6 +87,29 @@ def _mode_from_sub(sub: str) -> str:
 def _sku(name: str, mode: str) -> str:
     base = re.sub(r"\s+", "", name or "")
     return base + ("EAD" if mode == "EAD" else "HIBRIDO")
+
+
+# Variantes do mesmo curso que não podem virar produto próprio no CRM (18/11):
+# "Cst Em X", "X (4.0)", "X (4.0I)", "X (4.0I Mais)", "X (Ead)". Todas são "X".
+_RE_CST = re.compile(r"^\s*cst\s+em\s+", re.IGNORECASE)
+_RE_SUFIXO = re.compile(r"\s*\(\s*(?:4\.0[^)]*|ead)\s*\)\s*$", re.IGNORECASE)
+
+
+def nome_base(nome) -> str:
+    n = _RE_CST.sub("", str(nome or ""))
+    n = _RE_SUFIXO.sub("", n)
+    return " ".join(n.split())
+
+
+def eh_variante(nome) -> bool:
+    return nome_base(nome) != " ".join(str(nome or "").split())
+
+
+def _rank_variante(nome) -> int:
+    """0 = nome limpo; 1 = só o prefixo Cst Em; 2 = com sufixo (4.0…)/(Ead)."""
+    if not eh_variante(nome):
+        return 0
+    return 2 if _RE_SUFIXO.search(str(nome or "")) else 1
 
 
 def _allowed() -> bool:
@@ -230,12 +251,37 @@ def parse_workbook(file_obj) -> dict:
             "desconto": desconto,
             "final": final,
         }
-    lista = []
+    # Variantes (Cst Em / 4.0) viram o curso base. Se a planilha também traz o
+    # nome limpo, ele manda; senão fica a variante sem sufixo. As outras são
+    # ignoradas e voltam em "ignorados".
+    escolhido: dict = {}
+    ignorados = []
     for bucket in cursos.values():
-        base_row = next((c for c in bucket["canais"].values() if _is_base(c["canal"])), None)
-        if not base_row:
+        if not bucket["canais"]:
             continue
-        lista.append({**bucket, "base": base_row})
+        key = (_fold(nome_base(bucket["curso"])), _fold(bucket["grau"]))
+        atual = escolhido.get(key)
+        if atual is None or _rank_variante(bucket["curso"]) < _rank_variante(atual["curso"]):
+            if atual is not None:
+                ignorados.append(atual)
+            escolhido[key] = bucket
+        else:
+            ignorados.append(bucket)
+    lista = []
+    for bucket in escolhido.values():
+        lista.append({
+            **bucket,
+            "curso": nome_base(bucket["curso"]),
+            "nome_planilha": bucket["curso"],
+            "variante": eh_variante(bucket["curso"]),
+            "base": _linha_principal(bucket["canais"].values()),
+        })
+    ignorados_out = [{
+        "curso": b["curso"],
+        "grau": b["grau"],
+        "sub": b["sub"],
+        "fica": nome_base(b["curso"]),
+    } for b in ignorados]
     lista.sort(key=lambda x: (_fold(x["curso"]), _fold(x["grau"])))
     canais = {}
     for item in lista:
@@ -243,7 +289,7 @@ def parse_workbook(file_obj) -> dict:
             canais.setdefault(c["canal"], {"canal": c["canal"], "label": c["label"], "base": _is_base(c["canal"]), "cursos": 0})
             canais[c["canal"]]["cursos"] += 1
     ordem = sorted(canais.values(), key=lambda c: (0 if _is_base(c["canal"]) else 1 if _is_aprovados(c["canal"]) else 2, c["label"]))
-    return {"cursos": lista, "canais": ordem, "conflitos": conflitos[:30]}
+    return {"cursos": lista, "canais": ordem, "conflitos": conflitos[:30], "ignorados": ignorados_out}
 
 
 def _list_products() -> list[dict]:
@@ -263,13 +309,78 @@ def _list_products() -> list[dict]:
 
 
 def _grad_index(products: list[dict]) -> dict:
+    """(nome, grau) → produto, só produtos de nome limpo. Uma variante do CRM
+    ("Cst Em X", "X (4.0)") nunca é alvo: sem o "X", a linha cria ou é pulada."""
     idx = {}
     for p in products:
         cc = p.get("courseConfig") or {}
-        if cc.get("level") != "GRADUATION":
+        if cc.get("level") != "GRADUATION" or eh_variante(p.get("name")):
             continue
-        idx[(_fold(p.get("name")), _fold(cc.get("grau")))] = p
+        idx[(_fold(nome_base(p.get("name"))), _fold(cc.get("grau")))] = p
     return idx
+
+
+def _criado_pelo_painel(p: dict) -> bool:
+    """SKU no formato de _sku(): nome sem espaços + EAD/HIBRIDO."""
+    sku = str(p.get("sku") or "")
+    return sku in (_sku(p.get("name"), "EAD"), _sku(p.get("name"), "HYBRID"))
+
+
+def _acao_item(item: dict, product: dict | None) -> str:
+    """atualizar | criar | pular. Variante (Cst Em / 4.0) nunca cria produto."""
+    if product:
+        return "atualizar"
+    return "pular" if item.get("variante") else "criar"
+
+
+def _duplicatas(products: list[dict]) -> dict:
+    """Produtos de graduação com nome de variante.
+    "apagar": criado pelo painel (SKU de _sku()) e há o de nome limpo no mesmo grau.
+    "outros": há o original, mas o SKU não é do painel; pode ser legítimo, não apaga.
+    "sem_base": não há o original; análise manual."""
+    grad = [p for p in products if (p.get("courseConfig") or {}).get("level") == "GRADUATION"]
+    originais = {}
+    for p in grad:
+        if not eh_variante(p.get("name")):
+            key = (_fold(nome_base(p.get("name"))), _fold((p.get("courseConfig") or {}).get("grau")))
+            originais.setdefault(key, p)
+    apagar, outros, sem_base = [], [], []
+    for p in grad:
+        if not eh_variante(p.get("name")):
+            continue
+        grau = (p.get("courseConfig") or {}).get("grau") or ""
+        orig = originais.get((_fold(nome_base(p.get("name"))), _fold(grau)))
+        linha = {"id": p.get("id"), "nome": p.get("name") or "", "sku": p.get("sku") or "",
+                 "preco": p.get("price"), "grau": grau,
+                 "mantem_id": (orig or {}).get("id"), "mantem_nome": (orig or {}).get("name")}
+        if not orig:
+            sem_base.append(linha)
+        elif _criado_pelo_painel(p):
+            apagar.append(linha)
+        else:
+            outros.append(linha)
+    for lista in (apagar, outros, sem_base):
+        lista.sort(key=lambda x: _fold(x["nome"]))
+    return {"apagar": apagar, "outros": outros, "sem_base": sem_base}
+
+
+def _apagar_duplicatas(ids: list, products: list[dict]) -> list[dict]:
+    """Apaga só os ids que, na lista atual do CRM, ainda são duplicata com original."""
+    validos = {str(x["id"]): x for x in _duplicatas(products)["apagar"]}
+    out = []
+    for raw in ids:
+        pid = str(raw)
+        dup = validos.get(pid)
+        if not dup:
+            out.append({"id": pid, "nome": "", "ok": False, "erro": "Não é duplicata com original no CRM; não apaguei."})
+            continue
+        try:
+            bwipo_request("DELETE", f"/api/products/{pid}")
+            out.append({"id": pid, "nome": dup["nome"], "mantem_nome": dup["mantem_nome"], "ok": True})
+        except BwipoComercialError as e:
+            out.append({"id": pid, "nome": dup["nome"], "ok": False, "erro": str(e)[:300]})
+        time.sleep(0.2)
+    return out
 
 
 def _similar_name(item: dict, products: list[dict]) -> str | None:
@@ -319,10 +430,26 @@ def _pick_option(options: list[dict], canal: str, label: str):
     return None
 
 
+def _linha_principal(rows) -> dict:
+    """Balcão Estratégico quando presente; senão a primeira linha. O PREÇO SIAA
+    é o mesmo em todos os canais do curso, então qualquer uma serve de base."""
+    rows = list(rows)
+    return next((c for c in rows if _is_base(c["canal"])), rows[0])
+
+
+def _rows_para_subir(item: dict, selected: set[str]) -> list[dict]:
+    """Cotas escolhidas, na ordem da planilha, Estratégico primeiro se escolhido."""
+    rows = [c for c in item["canais"].values() if c["canal"] in selected]
+    rows.sort(key=lambda c: 0 if _is_base(c["canal"]) else 1)
+    return rows
+
+
 def _apply_prices(product: dict | None, item: dict, selected: set[str]) -> dict:
-    base_row = item["base"]
+    selected_rows = _rows_para_subir(item, selected)
+    if not selected_rows:
+        raise BwipoComercialError("Nenhuma cota escolhida para este curso.", 400)
+    base_row = selected_rows[0]
     base_num = float(base_row["base"])
-    selected_rows = [c for c in item["canais"].values() if c["canal"] in selected or _is_base(c["canal"])]
     if product:
         cc = product.get("courseConfig") or {}
         options = [dict(o) for o in (cc.get("pricingOptions") or []) if isinstance(o, dict)]
@@ -410,6 +537,179 @@ def _apply_prices(product: dict | None, item: dict, selected: set[str]) -> dict:
     return {"acao": "criado", "id": new_id}
 
 
+# ── Pós-Graduação (18/11) ─────────────────────────────────────────────────
+# Planilha de Pós: uma linha por curso × duração × canal, com SKU_CRM (o SKU do
+# produto de Pós no CRM) e STATUS_CRM. O produto casa pelo SKU; a subida só
+# atualiza preço e cota, nunca cria produto. STATUS_CRM "Inativo" fica de fora.
+_POS_COURSE_FIXOS = ("mode", "level", "grau", "semester", "gradeUrl", "postSalePipelineId")
+_POS_COURSE_FORA = {"id", "productId", "product", "createdAt", "updatedAt", "channel",
+                    "discountPercent", "pricingOptions"}
+
+
+def _sku_key(s) -> str:
+    """SKU comparável: sem acento, minúsculo, sem espaço."""
+    return re.sub(r"\s+", "", _fold(s))
+
+
+def _primeiro_int(v) -> int | None:
+    m = re.search(r"\d+", str(v or ""))
+    return int(m.group()) if m else None
+
+
+def _header_index_pos(header) -> dict:
+    want = {
+        "cursos": "curso", "curso": "curso",
+        "canal": "canal",
+        "preco siaa": "base",
+        "desconto": "desconto",
+        "valor com desconto": "final",
+        "duracao": "duracao",
+        "parcelas": "parcelas",
+        "sku_crm": "sku",
+        "status_crm": "status",
+    }
+    out = {}
+    for i, cell in enumerate(header or []):
+        key = want.get(_fold(cell))
+        if key and key not in out:
+            out[key] = i
+    missing = [k for k in ("curso", "canal", "base", "desconto", "final", "duracao", "sku") if k not in out]
+    if missing:
+        nomes = {"curso": "CURSOS", "canal": "CANAL", "base": "PREÇO SIAA", "desconto": "DESCONTO",
+                 "final": "VALOR COM DESCONTO", "duracao": "DURAÇÃO", "sku": "SKU_CRM"}
+        raise ValueError("Planilha de Pós sem coluna: " + ", ".join(nomes[k] for k in missing))
+    return out
+
+
+def parse_pos_workbook(file_obj) -> dict:
+    wb = openpyxl.load_workbook(file_obj, data_only=True)
+    rows = list(wb.active.iter_rows(values_only=True))
+    if not rows:
+        raise ValueError("Planilha vazia")
+    idx = _header_index_pos(rows[0])
+    itens: dict = {}
+    inativos: dict = {}
+    sem_sku, conflitos = [], []
+    for r in rows[1:]:
+        curso = r[idx["curso"]] if idx["curso"] < len(r) else None
+        if not curso or not isinstance(curso, str):
+            continue
+        canal = str(r[idx["canal"]] or "").strip()
+        duracao = str(r[idx["duracao"]] or "").strip()
+        if not canal:
+            continue
+        try:
+            base = _money(r[idx["base"]])
+            desconto = _pct(r[idx["desconto"]] or 0)
+            final = _money(r[idx["final"]])
+        except Exception:
+            continue
+        sku = str(r[idx["sku"]] or "").strip()
+        if not sku:
+            rotulo = f"{curso.strip()} · {duracao}"
+            if rotulo not in sem_sku:
+                sem_sku.append(rotulo)
+            continue
+        status = str(r[idx["status"]] or "").strip() if "status" in idx else ""
+        destino = inativos if _fold(status) == "inativo" else itens
+        key = _sku_key(sku)
+        bucket = destino.setdefault(key, {
+            "sku": sku,
+            "curso": curso.strip(),
+            "duracao": duracao,
+            "meses": _primeiro_int(duracao),
+            "parcelas": _primeiro_int(r[idx["parcelas"]]) if "parcelas" in idx else None,
+            "grau": "",
+            "sub": "EAD",
+            "canais": {},
+        })
+        prev = bucket["canais"].get(canal)
+        if prev and (prev["base"] != base or prev["desconto"] != desconto or prev["final"] != final):
+            conflitos.append(f"{sku} / {canal}")
+            continue
+        bucket["canais"][canal] = {
+            "canal": canal,
+            "label": crm_channel_name(canal, channel_label(canal)),
+            "base": base,
+            "desconto": desconto,
+            "final": final,
+        }
+    lista = sorted(itens.values(), key=lambda x: (_fold(x["curso"]), x["meses"] or 0))
+    for item in lista:
+        item["base"] = _linha_principal(item["canais"].values())
+    canais = {}
+    for item in lista:
+        for c in item["canais"].values():
+            canais.setdefault(c["canal"], {"canal": c["canal"], "label": c["label"], "base": _is_base(c["canal"]), "cursos": 0})
+            canais[c["canal"]]["cursos"] += 1
+    return {
+        "cursos": lista,
+        "canais": sorted(canais.values(), key=lambda c: c["label"]),
+        "inativos": [{"sku": i["sku"], "curso": i["curso"], "duracao": i["duracao"]} for i in inativos.values()],
+        "sem_sku": sem_sku,
+        "conflitos": conflitos[:30],
+    }
+
+
+def _pos_index(products: list[dict]) -> dict:
+    """SKU → produto, só produtos que não são de graduação."""
+    idx = {}
+    for p in products:
+        cc = p.get("courseConfig") or {}
+        if cc.get("level") == "GRADUATION" or not p.get("sku"):
+            continue
+        idx[_sku_key(p.get("sku"))] = p
+    return idx
+
+
+def _apply_prices_pos(product: dict, item: dict, selected: set[str]) -> dict:
+    """Atualiza preço e cotas do produto de Pós. O resto do courseConfig fica como
+    está no CRM (o que não é preço volta igual no PUT)."""
+    selected_rows = _rows_para_subir(item, selected)
+    if not selected_rows:
+        raise BwipoComercialError("Nenhuma cota escolhida para este curso.", 400)
+    base_row = selected_rows[0]
+    base_num = float(base_row["base"])
+    cc = product.get("courseConfig") or {}
+    options = [dict(o) for o in (cc.get("pricingOptions") or []) if isinstance(o, dict)]
+    for o in options:
+        o["price"] = base_num
+    for row in selected_rows:
+        opt = _pick_option(options, row["canal"], row["label"])
+        payload = {
+            "price": base_num,
+            "months": item.get("meses"),
+            "channel": crm_channel_name(row["canal"], row["label"]),
+            "installments": item.get("parcelas"),
+            "discountPercent": float(row["desconto"]),
+        }
+        if opt is None:
+            options.append(payload)
+        else:
+            opt.clear()
+            opt.update(payload)
+    course = {k: cc.get(k) for k in _POS_COURSE_FIXOS}
+    course.update({k: v for k, v in cc.items() if k not in _POS_COURSE_FORA and k not in course})
+    course.update({
+        "channel": base_row["label"],
+        "discountPercent": float(base_row["desconto"]),
+        "pricingOptions": options,
+    })
+    body = {
+        "name": product.get("name"),
+        "description": product.get("description") or "",
+        "sku": product.get("sku"),
+        "price": f"{base_row['base']:.2f}",
+        "unit": product.get("unit") or "matrícula",
+        "type": product.get("type") or "PRODUCT",
+        "kind": product.get("kind") or "COURSE",
+        "isActive": product.get("isActive", True),
+        "course": course,
+    }
+    bwipo_request("PUT", f"/api/products/{product['id']}", body)
+    return {"acao": "atualizado", "id": product["id"]}
+
+
 def _save_snapshot(conn, filename: str, parsed: dict, canais_aplicados: list[str] | None, resumo: dict) -> int:
     ensure_tables(conn)
     user = session.get("username") or session.get("display_name") or ""
@@ -469,18 +769,19 @@ def api_preview():
         return jsonify({"ok": False, "error": str(e)}), e.status
     index = _grad_index(products)
     linhas = []
-    n_up = n_new = 0
+    n_up = n_new = n_pular = 0
     for item in parsed["cursos"]:
         prod = index.get((_fold(item["curso"]), _fold(item["grau"])))
         b = item["base"]
-        if prod:
+        acao = _acao_item(item, prod)
+        aviso = None
+        if acao == "atualizar":
             n_up += 1
-            acao = "atualizar"
-            aviso = None
-        else:
+        elif acao == "criar":
             n_new += 1
-            acao = "criar"
             aviso = _similar_name(item, products)
+        else:
+            n_pular += 1
         linhas.append({
             "chave": f"{_fold(item['curso'])}|{_fold(item['grau'])}",
             "curso": item["curso"],
@@ -492,13 +793,13 @@ def api_preview():
             "final": float(b["final"]),
             "acao": acao,
             "aviso": aviso,
+            "nome_planilha": item.get("nome_planilha") or item["curso"],
             "produto": (prod or {}).get("name"),
             "cotas": [{
                 "canal": c["canal"],
                 "label": crm_channel_name(c["canal"], c["label"]),
                 "desconto": float(c["desconto"]),
                 "final": float(c["final"]),
-                "fixa": _is_fixa(c["canal"]),
             } for c in item["canais"].values()],
         })
     return jsonify({
@@ -506,8 +807,10 @@ def api_preview():
         "cursos": len(linhas),
         "atualizar": n_up,
         "criar": n_new,
+        "pular": n_pular,
         "canais": parsed["canais"],
         "conflitos": parsed["conflitos"],
+        "ignorados": parsed["ignorados"],
         "linhas": linhas,
     })
 
@@ -531,16 +834,15 @@ def api_aplicar():
         por_curso = {}
     if not isinstance(por_curso, dict):
         por_curso = {}
-    selected.add(BASE_CANAL)
-    selected.add(APROVADOS_CANAL)
     try:
         parsed = parse_workbook(f)
     except ValueError as e:
         return jsonify({"ok": False, "error": str(e)}), 400
     file_canais = {c["canal"] for c in parsed["canais"]}
-    selected = {c for c in selected if c in file_canais or _is_base(c)}
-    if not any(_is_base(c) for c in file_canais):
-        return jsonify({"ok": False, "error": "A planilha não tem BALCÃO ESTRATÉGICO."}), 400
+    selected = {c for c in selected if c in file_canais}
+    tem_por_curso = any(isinstance(v, list) and v for v in por_curso.values())
+    if not somente_historico and not selected and not tem_por_curso:
+        return jsonify({"ok": False, "error": "Escolha ao menos uma cota para subir."}), 400
 
     resultados = []
     if not somente_historico:
@@ -556,6 +858,12 @@ def api_aplicar():
                 extras = []
             do_curso = {c for c in (selected | set(extras)) if c in item["canais"]}
             prod = index.get((_fold(item["curso"]), _fold(item["grau"])))
+            if _acao_item(item, prod) == "pular":
+                resultados.append({
+                    "curso": item["curso"], "grau": item["grau"], "ok": False, "acao": "pulado",
+                    "erro": f"Pulado: não há \"{item['curso']}\" no CRM e variante não cria produto.",
+                })
+                continue
             try:
                 done = _apply_prices(prod, item, do_curso)
                 resultados.append({"curso": item["curso"], "grau": item["grau"], "ok": True, **done})
@@ -569,7 +877,9 @@ def api_aplicar():
     resumo = {
         "cursos": len(parsed["cursos"]),
         "ok": sum(1 for r in resultados if r.get("ok")),
-        "erro": sum(1 for r in resultados if not r.get("ok")),
+        "erro": sum(1 for r in resultados if r.get("acao") == "erro"),
+        "pulado": sum(1 for r in resultados if r.get("acao") == "pulado"),
+        "ignorados": len(parsed["ignorados"]),
         "somente_historico": somente_historico,
     }
     conn = get_conn()
@@ -681,3 +991,147 @@ def api_painel():
             "aplicado_em": s[5].isoformat() if s[5] else None,
         } for s in snaps],
     })
+
+
+@bwipo_precos_bp.route("/api/bwipo-precos/duplicatas")
+def api_duplicatas():
+    """Só lista: variantes Cst Em / (4.0) que têm o produto de nome limpo no CRM."""
+    denied = _gate()
+    if denied:
+        return denied
+    try:
+        products = _list_products()
+    except BwipoComercialError as e:
+        return jsonify({"ok": False, "error": str(e)}), e.status
+    return jsonify({"ok": True, **_duplicatas(products)})
+
+
+@bwipo_precos_bp.route("/api/bwipo-precos/duplicatas/apagar", methods=["POST"])
+def api_duplicatas_apagar():
+    """Apaga no CRM os ids pedidos, mas só os que, relidos agora, ainda são
+    duplicata com original. O original nunca entra."""
+    denied = _gate()
+    if denied:
+        return denied
+    ids = (request.get_json(silent=True) or {}).get("ids")
+    if not isinstance(ids, list) or not ids:
+        return jsonify({"ok": False, "error": "Nenhum produto escolhido."}), 400
+    try:
+        products = _list_products()
+    except BwipoComercialError as e:
+        return jsonify({"ok": False, "error": str(e)}), e.status
+    resultados = _apagar_duplicatas(ids, products)
+    user = session.get("username") or session.get("display_name") or ""
+    logger.warning("duplicatas apagadas por %s: %s", user,
+                   [(r["id"], r.get("nome")) for r in resultados if r["ok"]])
+    return jsonify({
+        "ok": True,
+        "apagados": sum(1 for r in resultados if r["ok"]),
+        "erros": sum(1 for r in resultados if not r["ok"]),
+        "resultados": resultados,
+    })
+
+
+@bwipo_precos_bp.route("/api/bwipo-precos/pos/preview", methods=["POST"])
+def api_pos_preview():
+    denied = _gate()
+    if denied:
+        return denied
+    f = request.files.get("file")
+    if not f:
+        return jsonify({"ok": False, "error": "Envie a planilha de Pós."}), 400
+    try:
+        parsed = parse_pos_workbook(f)
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except Exception as e:
+        logger.exception("preview precos pos")
+        return jsonify({"ok": False, "error": f"Não li a planilha de Pós: {e}"}), 400
+    try:
+        products = _list_products()
+    except BwipoComercialError as e:
+        return jsonify({"ok": False, "error": str(e)}), e.status
+    index = _pos_index(products)
+    linhas, amostra = [], None
+    for item in parsed["cursos"]:
+        prod = index.get(_sku_key(item["sku"]))
+        b = item["base"]
+        if prod and amostra is None:
+            cc = prod.get("courseConfig") or {}
+            amostra = {"produto": prod.get("name"), "sku": prod.get("sku"), "level": cc.get("level"),
+                       "campos": sorted(cc.keys()),
+                       "cotas": [o.get("channel") for o in cc.get("pricingOptions") or [] if isinstance(o, dict)]}
+        linhas.append({
+            "sku": item["sku"], "curso": item["curso"], "duracao": item["duracao"], "parcelas": item["parcelas"],
+            "base": float(b["base"]), "desconto": float(b["desconto"]), "final": float(b["final"]),
+            "acao": "atualizar" if prod else "sem_produto",
+            "produto": (prod or {}).get("name"),
+        })
+    n_up = sum(1 for l in linhas if l["acao"] == "atualizar")
+    return jsonify({
+        "ok": True,
+        "cursos": len(linhas),
+        "atualizar": n_up,
+        "sem_produto": len(linhas) - n_up,
+        "inativos": len(parsed["inativos"]),
+        "sem_sku": parsed["sem_sku"],
+        "conflitos": parsed["conflitos"],
+        "canais": parsed["canais"],
+        "amostra": amostra,
+        "linhas": linhas,
+    })
+
+
+@bwipo_precos_bp.route("/api/bwipo-precos/pos/aplicar", methods=["POST"])
+def api_pos_aplicar():
+    denied = _gate()
+    if denied:
+        return denied
+    f = request.files.get("file")
+    if not f:
+        return jsonify({"ok": False, "error": "Envie a planilha de Pós."}), 400
+    try:
+        selected = set(json.loads(request.form.get("canais") or "[]"))
+    except json.JSONDecodeError:
+        selected = set()
+    try:
+        parsed = parse_pos_workbook(f)
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    selected &= {c["canal"] for c in parsed["canais"]}
+    if not selected:
+        return jsonify({"ok": False, "error": "Escolha ao menos uma cota para subir."}), 400
+    so_sku = _sku_key(request.form.get("so_sku") or "")
+    if so_sku:  # "Testar em 1 produto": só esse SKU
+        parsed["cursos"] = [i for i in parsed["cursos"] if _sku_key(i["sku"]) == so_sku]
+        if not parsed["cursos"]:
+            return jsonify({"ok": False, "error": "Esse SKU não está na planilha."}), 400
+    try:
+        products = _list_products()
+    except BwipoComercialError as e:
+        return jsonify({"ok": False, "error": str(e)}), e.status
+    index = _pos_index(products)
+    resultados = []
+    for item in parsed["cursos"]:
+        info = {"sku": item["sku"], "curso": item["curso"], "duracao": item["duracao"]}
+        prod = index.get(_sku_key(item["sku"]))
+        if not prod:
+            resultados.append({**info, "ok": False, "acao": "sem_produto",
+                               "erro": "Sem produto com esse SKU no CRM; Pós não cria produto."})
+            continue
+        do_curso = {c for c in selected if c in item["canais"]}
+        try:
+            done = _apply_prices_pos(prod, item, do_curso)
+            resultados.append({**info, "ok": True, **done})
+        except BwipoComercialError as e:
+            resultados.append({**info, "ok": False, "acao": "erro", "erro": str(e)[:300]})
+        time.sleep(0.2)
+    resumo = {
+        "cursos": len(parsed["cursos"]),
+        "ok": sum(1 for r in resultados if r.get("ok")),
+        "erro": sum(1 for r in resultados if r.get("acao") == "erro"),
+        "sem_produto": sum(1 for r in resultados if r.get("acao") == "sem_produto"),
+        "inativos": len(parsed["inativos"]),
+    }
+    logger.info("precos pos aplicados por %s: %s", session.get("username") or "", resumo)
+    return jsonify({"ok": True, "resumo": resumo, "resultados": resultados})
