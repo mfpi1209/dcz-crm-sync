@@ -625,6 +625,7 @@ const CS_RN_BLOQUEIOS = {
     interrompida: 'execução interrompida', publicacao_incerta: 'publicação incerta',
     falha_execucao: 'execução falhou', resultado_incerto: 'resultado incerto',
     execucao_interrompida: 'execução interrompida', cancelamentos_repetidos: 'cancelamentos repetidos',
+    nao_executado: 'não executado (a execução parou antes)',
 };
 const CS_RN_GATILHOS = { sessao_expirada: 'Sessão expirada', manual: 'Pedido manual' };
 // Renovação seletiva (aditivo): resultado da execução e situação por módulo.
@@ -641,7 +642,19 @@ const CS_RN_SITUACOES = {
     falhou: ['Falhou', 't-bad'],
     incerto: ['Incerto', 't-warn'],
     pendente: ['Pendente', 't-warn'],
+    nao_executado: ['Não executado', 't-neutral'],
 };
+// Por que um módulo solicitado não foi executado (`motivo_situacao`).
+const CS_RN_NAO_EXECUTADO = {
+    falha_anterior: 'a execução parou no módulo anterior',
+    falha_antes_da_coleta: 'a execução parou antes da coleta',
+};
+function csRnSituacaoHtml(e, m, sit) {
+    if (!sit) return '—';
+    const motivo = sit === 'nao_executado' ? (((e.modulos || {})[m]) || {}).motivo_situacao : null;
+    return csRnBadge(CS_RN_SITUACOES, sit) +
+        (motivo ? ' <span class="cs-muted">' + csEsc(csRnLabel(CS_RN_NAO_EXECUTADO, motivo, '')) + '</span>' : '');
+}
 const CS_RN_LOGIN = { ok: 'OK', falhou: 'Falhou', nao_executado: 'Não executado' };
 const CS_RN_COLETA = { ok: 'OK', falhou: 'Falhou', nao_executada: 'Não executada' };
 const CS_RN_PUB = {
@@ -759,8 +772,8 @@ function csRnMsg(texto, tipo) {
 function csRnModulosTabela(e) {
     const linhas = CS_MODULOS_RENOVACAO.map(function (mm) {
         const sit = csRnSituacao(e, mm[0]);
-        const sitHtml = sit ? csRnBadge(CS_RN_SITUACOES, sit) : '—';
-        if (sit === 'nao_solicitado') {
+        const sitHtml = csRnSituacaoHtml(e, mm[0], sit);
+        if (sit === 'nao_solicitado' || sit === 'nao_executado') {
             return '<tr><td>' + csEsc(mm[1]) + '</td><td>' + sitHtml + '</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>';
         }
         const m = ((e.modulos || {})[mm[0]]) || {};
@@ -1011,7 +1024,7 @@ async function conexaoSiaaRenovLiberar() {
 // ── Histórico de execuções (mesmo comportamento do histórico de eventos) ──
 function csRnModCelula(e, m) {
     const sit = csRnSituacao(e, m);
-    if (sit === 'nao_solicitado') return csRnBadge(CS_RN_SITUACOES, sit);
+    if (sit === 'nao_solicitado' || sit === 'nao_executado') return csRnSituacaoHtml(e, m, sit);
     const x = ((e.modulos || {})[m]) || {};
     if (!x.coleta && !x.publicacao) return sit ? csRnBadge(CS_RN_SITUACOES, sit) : '<span class="cs-muted">—</span>';
     return '<div class="cs-two">' + (sit ? '<span>' + csRnBadge(CS_RN_SITUACOES, sit) + '</span>' : '') + '<span>Coleta: ' + csEsc(csRnLabel(CS_RN_COLETA, x.coleta)) + '</span>' +

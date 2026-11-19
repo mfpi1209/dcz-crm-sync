@@ -237,5 +237,17 @@ async function carregar(st, execs) {
     assert(!/não renovado: nenhum/.test(c));
     ok('estado incerta aparece junto do resultado');
 
+    // 11) solicitado e não tentado: "Não executado" com motivo, nunca "Falhou"
+    e = exec({ estado: 'falhou', erro: 'coleta_falhou', modulos_solicitados: ['academico', 'financeiro'], resultado: 'falha',
+        modulos: { academico: Object.assign({ situacao: 'falhou' }, MOD_FALHOU),
+                   financeiro: Object.assign({ situacao: 'nao_executado', motivo_situacao: 'falha_anterior' }, MOD_ZERO) } });
+    await carregar(status({ ultima_execucao: e }), [e]);
+    c = html('cs-renov-corpo');
+    assert(/Não executado/.test(linha(c, 'Financeiro')) && !/Falhou/.test(linha(c, 'Financeiro')));
+    assert(/parou no módulo anterior/.test(linha(c, 'Financeiro')));
+    h = html('cs-rn-body');
+    assert(/Não executado/.test(h));
+    ok('não tentado aparece como Não executado com o motivo');
+
     console.log('\n' + n + ' verificações passaram.');
 })().catch(e => { console.error('FALHOU:', e); process.exit(1); });

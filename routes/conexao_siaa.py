@@ -421,7 +421,7 @@ def _opt(spec):
 
 
 _R_MOD = {"coleta": _enum, "http": _i, "publicacao": _enum, "vinculo": _enum, "sessao_validada": _b,
-          "situacao": _enum}
+          "situacao": _enum, "motivo_situacao": _enum}
 _R_EXEC = {
     "id": _id, "tipo": _enum, "estado": _enum,
     "gatilho": _sub({"modulos": _mods, "motivo": _enum}),
@@ -634,7 +634,7 @@ _D_MODULO = {
 }
 _D_SONDA = dict(_D_RES, modulo=_enum)
 _D_REN_MOD = {"coleta": _enum, "http": _i, "publicacao": _enum, "vinculo": _enum, "sessao_validada": _b,
-              "situacao": _enum}
+              "situacao": _enum, "motivo_situacao": _enum}
 
 
 def _d_gatilho(v):
