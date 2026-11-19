@@ -702,8 +702,13 @@ function csRnSituacao(e, m) {
     return null;
 }
 function csRnResultadoBadge(e) {
-    if (e.resultado && CS_RN_RESULTADOS[e.resultado]) return csRnBadge(CS_RN_RESULTADOS, e.resultado);
-    return csRnBadge(CS_RN_EXEC_ESTADOS, e.estado);
+    // Resultado (completo/parcial/falha) sempre junto do estado da execução: "Incerta" e
+    // "Interrompida" não podem sumir atrás de "Falha" ou "Parcial".
+    const estado = csRnBadge(CS_RN_EXEC_ESTADOS, e.estado);
+    if (!e.resultado || !CS_RN_RESULTADOS[e.resultado]) return estado;
+    const resultado = csRnBadge(CS_RN_RESULTADOS, e.resultado);
+    // Só acrescenta o estado quando ele diz algo que o resultado não diz.
+    return (e.estado === 'incerta' || e.estado === 'interrompida') ? resultado + ' ' + estado : resultado;
 }
 // Detalhe de um resultado parcial: quais módulos renovaram e quais não.
 function csRnParcialTexto(e) {
@@ -711,7 +716,8 @@ function csRnParcialTexto(e) {
     const sol = csRnSolicitados(e);
     const ok = sol.filter(function (m) { return csRnSituacao(e, m) === 'ok'; });
     const nao = sol.filter(function (m) { return csRnSituacao(e, m) !== 'ok'; });
-    return 'Renovado: ' + (csRnNomesMods(ok) || 'nenhum') + ' · não renovado: ' + (csRnNomesMods(nao) || 'nenhum');
+    if (!nao.length) return 'Renovado: ' + csRnNomesMods(ok) + ' · resultado incerto (ver erro)';
+    return 'Renovado: ' + (csRnNomesMods(ok) || 'nenhum') + ' · não renovado: ' + csRnNomesMods(nao);
 }
 // Alvos dos controles (status.alvos). null = backend antigo (sem o campo).
 function csRnAlvo(s, chave) {

@@ -228,5 +228,14 @@ async function carregar(st, execs) {
     assert.deepStrictEqual(escritas(), []);
     ok('polling não dispara escrita');
 
+    // 10) incerta continua visível junto do resultado; parcial sem módulo pendente não diz "nenhum"
+    e = exec({ estado: 'incerta', erro: 'publicacao_incerta', modulos_solicitados: ['academico'], resultado: 'parcial',
+        modulos: { academico: Object.assign({ situacao: 'ok' }, MOD_OK), financeiro: Object.assign({ situacao: 'nao_solicitado' }, MOD_OK) } });
+    await carregar(status({ ultima_execucao: e }), [e]);
+    c = html('cs-renov-corpo');
+    assert(/Parcial/.test(c) && /Incerta/.test(c), 'estado incerta some atrás do resultado');
+    assert(!/não renovado: nenhum/.test(c));
+    ok('estado incerta aparece junto do resultado');
+
     console.log('\n' + n + ' verificações passaram.');
 })().catch(e => { console.error('FALHOU:', e); process.exit(1); });
