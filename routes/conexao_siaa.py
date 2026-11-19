@@ -22,6 +22,11 @@ POST /api/conexao-siaa/renovacao/suspensao   {suspensa, versao}
 POST /api/conexao-siaa/renovacao/solicitar   {pedido_id, confirmacao}
 POST /api/conexao-siaa/renovacao/liberar     {episodio_id, versao}
 
+Renovação seletiva por módulo (aditivo, contrato 2026-11-19): status ganha
+`alvos`, episódio `modulos_estado`, execução `modulos_solicitados`/`resultado`
+e `modulos[m].situacao`, liberar `modulos_liberados`. Ausentes (backend antigo)
+continuam null. Corpos dos POSTs não mudam.
+
 Env: SIAA_SESSION_URL, SIAA_SESSION_TOKEN (os mesmos de routes/siaa.py).
 Só admin (mesma regra das demais páginas de TI).
 """
@@ -377,7 +382,37 @@ def _iso(v):
 
 
 def _mods(v):
-    return [m for m in v if m in _MODULOS][:2] if isinstance(v, list) else []
+    if not isinstance(v, list):
+        return []
+    out = []
+    for m in v:
+        if m in _MODULOS and m not in out:
+            out.append(m)
+    return out
+
+
+def _mods_opt(v):
+    """Lista de módulos que pode faltar: ausente (backend antigo) continua null, nunca vira []."""
+    return _mods(v) if isinstance(v, list) else None
+
+
+# Renovação seletiva (aditivo): estado por módulo do episódio e alvos de cada controle.
+_R_MOD_ESTADO = {
+    "tentativas_automaticas": _i, "bloqueado": _b, "bloqueio_motivo": _enum,
+    "resolvido": _b, "resolvido_em": _iso, "liberado_em": _iso,
+}
+
+
+def _modulos_estado(v):
+    if not isinstance(v, dict):
+        return None
+    return {m: _pick(v[m], _R_MOD_ESTADO) for m in _MODULOS if isinstance(v.get(m), dict)}
+
+
+def _alvos(v):
+    if not isinstance(v, dict):
+        return None
+    return {k: _mods_opt(v.get(k)) for k in ("renovar_agora", "liberar", "automatica")}
 
 
 def _opt(spec):
@@ -385,7 +420,8 @@ def _opt(spec):
     return lambda v: _pick(v, spec) if isinstance(v, dict) else None
 
 
-_R_MOD = {"coleta": _enum, "http": _i, "publicacao": _enum, "vinculo": _enum, "sessao_validada": _b}
+_R_MOD = {"coleta": _enum, "http": _i, "publicacao": _enum, "vinculo": _enum, "sessao_validada": _b,
+          "situacao": _enum, "motivo_situacao": _enum}
 _R_EXEC = {
     "id": _id, "tipo": _enum, "estado": _enum,
     "gatilho": _sub({"modulos": _mods, "motivo": _enum}),
@@ -394,11 +430,13 @@ _R_EXEC = {
     "janela_fechou_durante": _b, "login": _enum,
     "modulos": _sub({m: _sub(_R_MOD) for m in _MODULOS}),
     "erro": _enum, "proxima_acao": _enum,
+    "modulos_solicitados": _mods_opt, "resultado": _enum,
 }
 _R_CONFIG = {"ativa": _b, "suspensa": _b, "versao": _i, "atualizada_em": _iso}
 _R_EPISODIO = {
     "id": _id, "desde": _iso, "modulos": _mods, "motivo": _enum, "tentativas_automaticas": _i,
     "bloqueado": _b, "bloqueio_motivo": _enum, "liberado_em": _iso,
+    "modulos_estado": _modulos_estado,
 }
 _R_STATUS = {
     "gerado_em": _iso, "estado": _enum, "motivo_estado": _s,
@@ -408,6 +446,7 @@ _R_STATUS = {
     "execucao_atual": _opt(_R_EXEC),
     "ultima_execucao": _opt(_R_EXEC),
     "ultima_renovacao_ok": _iso, "proxima_acao": _enum,
+    "alvos": _alvos,
 }
 _MOTIVO_ESTADO_MAX = 120
 
@@ -428,6 +467,15 @@ def _montar_execucoes(x):
 def _aninhado(x, chave, spec):
     bruto = x.get(chave) if isinstance(x, dict) and isinstance(x.get(chave), dict) else x
     return {chave: _pick(bruto, spec)}
+
+
+def _montar_liberar(x):
+    out = _aninhado(x, "episodio", _R_EPISODIO)
+    lib = x.get("modulos_liberados") if isinstance(x, dict) else None
+    if lib is None and isinstance(x, dict) and isinstance(x.get("episodio"), dict):
+        lib = x["episodio"].get("modulos_liberados")
+    out["modulos_liberados"] = _mods_opt(lib)
+    return out
 
 
 def _validar_config_renov(d, campo):
@@ -543,7 +591,7 @@ def api_renov_liberar():
     if erro:
         return _erro(erro, 400)
     st, d = _renov("POST", "liberar", corpo=corpo)
-    return _responder(st, d, lambda x: _aninhado(x, "episodio", _R_EPISODIO), generico_400=True)
+    return _responder(st, d, _montar_liberar, generico_400=True)
 
 
 # ---------------------------------------------------------------------------
@@ -585,7 +633,8 @@ _D_MODULO = {
     "modo_usado": _enum, "precisa_renovacao": _b, "ultimo_resultado": _opt(_D_RES),
 }
 _D_SONDA = dict(_D_RES, modulo=_enum)
-_D_REN_MOD = {"coleta": _enum, "http": _i, "publicacao": _enum, "vinculo": _enum, "sessao_validada": _b}
+_D_REN_MOD = {"coleta": _enum, "http": _i, "publicacao": _enum, "vinculo": _enum, "sessao_validada": _b,
+              "situacao": _enum, "motivo_situacao": _enum}
 
 
 def _d_gatilho(v):
@@ -603,6 +652,7 @@ def _d_modulos_ren(v):
 _D_RENOVACAO_ITEM = {
     "criada_em": _iso, "inicio": _iso, "fim": _iso, "tipo": _enum, "estado": _enum, "gatilho": _d_gatilho,
     "duracao_ms": _i, "login": _enum, "modulos": _d_modulos_ren, "erro": _enum, "janela_fechou_durante": _b,
+    "modulos_solicitados": _mods_opt, "resultado": _enum,
 }
 _DIAGNOSTICO = {
     "formato": _formato, "versao_formato": _i, "exportado_em": _iso,
@@ -622,7 +672,7 @@ _DIAGNOSTICO = {
         "config": _sub({"ativa": _b, "suspensa": _b, "versao": _i}),
         "estado": _enum, "motivo_estado": _texto, "ultima_renovacao_ok": _iso,
         "episodio": _opt({"desde": _iso, "modulos": _mods, "motivo": _enum, "tentativas_automaticas": _i,
-                          "bloqueado": _b, "bloqueio_motivo": _enum}),
+                          "bloqueado": _b, "bloqueio_motivo": _enum, "modulos_estado": _modulos_estado}),
     }),
     "sondas": _lista(_D_SONDA, 5000),
     "renovacoes": _lista(_D_RENOVACAO_ITEM, 500),
