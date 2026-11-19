@@ -4,6 +4,12 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-19 — Renovação seletiva: ajustes finais (proposta reduzida)
+- **Modelo usado:** Claude Opus 5.5.
+- Módulo solicitado e não tentado aparece como **"Não executado"** com o motivo (`motivo_situacao`: "a execução parou no módulo anterior" / "parou antes da coleta"), nunca como falha de coleta; o bloqueio conservador mostra "não executado (a execução parou antes)".
+- O selo mostra o resultado (Sucesso completo/Parcial/Falha) e acrescenta o estado só quando ele informa algo a mais (`incerta`, `interrompida`).
+- A API não reabre módulo resolvido no mesmo episódio; "Renovar agora" atinge os não resolvidos. Módulo resolvido que expira de novo enquanto o outro está bloqueado só volta pela semeadura manual ("Atualizar sessão SIAA") ou quando o episódio fechar.
+
 ### 2026-11-19 — Conexão SIAA: renovação seletiva por módulo no painel
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** mostrar e controlar a renovação seletiva por módulo (contrato da session-api, seção "Renovação seletiva por módulo (2026-11-19)" de `CONTRATO-RENOVACAO-SIAA.md` no `eduit-insights`).
