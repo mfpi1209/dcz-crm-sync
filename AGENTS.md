@@ -4,6 +4,14 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-19 — Conexão SIAA: renovação seletiva por módulo no painel
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** mostrar e controlar a renovação seletiva por módulo (contrato da session-api, seção "Renovação seletiva por módulo (2026-11-19)" de `CONTRATO-RENOVACAO-SIAA.md` no `eduit-insights`).
+- **Lista branca (`routes/conexao_siaa.py`):** passam, todos opcionais, `alvos` (`renovar_agora`/`liberar`/`automatica`), `episodio.modulos_estado` (por módulo: `tentativas_automaticas`, `bloqueado`, `bloqueio_motivo`, `resolvido`, `resolvido_em`, `liberado_em`), `modulos_solicitados`, `resultado` e `modulos[m].situacao` nas execuções (status, histórico e diagnóstico) e `modulos_liberados` no liberar. Rótulos só `[a-z0-9_]`, listas só `academico`/`financeiro` (sem repetição), ISO só `…Z`. Lista ausente continua `null` (não vira `[]`), para a tela distinguir backend antigo. `_mods` passou a descartar repetidos.
+- **Tela (`static/js/conexao_siaa.js`):** "Módulos solicitados" e coluna "Situação" por módulo (Renovado, Falhou, Incerto, Pendente, Não solicitado). Módulo fora de `modulos_solicitados` aparece como "Não solicitado", nunca como falha; sem o campo = os dois. Resultado: "Sucesso completo", "Parcial" (com "Renovado: X · não renovado: Y") ou "Falha"; sem `resultado` mostra o estado como antes. O histórico troca a coluna Estado por Resultado (mesma regra). Episódio com `modulos_estado` ganha tabela por módulo (bloqueado + motivo, resolvido, tentativas, liberado em). "Renovar agora" e "Liberar nova tentativa" dizem, no card e no `confirm`, quais módulos atingem (`alvos`); sem `alvos`, texto atual + "os dois módulos". `alvos.liberar` vazio esconde o Liberar. Sem `situacao` (backend antigo), a situação só é derivada como Renovado (publicação ok + sessão validada) ou Pendente (execução ativa); o resto fica "—", sem inventar falha.
+- **Não muda:** corpos dos POSTs (`{pedido_id, confirmacao}`, `{episodio_id, versao}`), polling só lê, inscrições fora da renovação. Sem deploy.
+- **Testes:** `tests/test_conexao_siaa_renovacao_seletiva.py`, `tests/js/conexao_siaa_renovacao_seletiva_harness.js` (rodado por `tests/test_conexao_siaa_renovacao_js.py`).
+
 ### 2026-11-18 — Consulta de inscrições (sessão manual por cURL)
 - **Modelo usado:** Claude Opus 5.5 (coordenação), testes por agentes Sonnet.
 - **Pedido:** terceiro módulo de sessão SIAA, `inscricoes`, atualizado só manualmente e mantido pelo ping JSF do keepalive (backend no `eduit-insights`, `docs/CONTRATO-CONEXAO-SIAA.md`, seção do módulo manual).

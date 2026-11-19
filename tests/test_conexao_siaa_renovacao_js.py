@@ -15,6 +15,11 @@ class RenovacaoJsTest(unittest.TestCase):
                            capture_output=True, text=True, timeout=60, encoding="utf-8")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
+    def test_harness_seletiva(self):
+        r = subprocess.run(["node", os.path.join(RAIZ, "tests", "js", "conexao_siaa_renovacao_seletiva_harness.js")],
+                           capture_output=True, text=True, timeout=60, encoding="utf-8")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

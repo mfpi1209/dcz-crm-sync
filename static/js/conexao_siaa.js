@@ -627,6 +627,21 @@ const CS_RN_BLOQUEIOS = {
     execucao_interrompida: 'execução interrompida', cancelamentos_repetidos: 'cancelamentos repetidos',
 };
 const CS_RN_GATILHOS = { sessao_expirada: 'Sessão expirada', manual: 'Pedido manual' };
+// Renovação seletiva (aditivo): resultado da execução e situação por módulo.
+// Backend antigo não envia `resultado` nem `situacao`: mostra-se o estado como antes.
+const CS_RN_RESULTADOS = {
+    completo: ['Sucesso completo', 't-ok'],
+    parcial: ['Parcial', 't-warn'],
+    falha: ['Falha', 't-bad'],
+    cancelada: ['Cancelada', 't-neutral'],
+};
+const CS_RN_SITUACOES = {
+    nao_solicitado: ['Não solicitado', 't-neutral'],
+    ok: ['Renovado', 't-ok'],
+    falhou: ['Falhou', 't-bad'],
+    incerto: ['Incerto', 't-warn'],
+    pendente: ['Pendente', 't-warn'],
+};
 const CS_RN_LOGIN = { ok: 'OK', falhou: 'Falhou', nao_executado: 'Não executado' };
 const CS_RN_COLETA = { ok: 'OK', falhou: 'Falhou', nao_executada: 'Não executada' };
 const CS_RN_PUB = {
@@ -662,9 +677,62 @@ function csRnDuracao(e) {
     return '—';
 }
 function csRnSimNao(v) { return v === true ? 'Sim' : (v === false ? 'Não' : '—'); }
+function csRnNomeMod(m) {
+    const x = CS_MODULOS_RENOVACAO.filter(function (mm) { return mm[0] === m; })[0];
+    return x ? x[1] : String(m);
+}
+function csRnNomesMods(lista) {
+    return (lista || []).map(csRnNomeMod).join(' e ');
+}
+function csRnValidos(lista) {
+    return Array.isArray(lista) ? CS_MODULOS_RENOVACAO.map(function (mm) { return mm[0]; }).filter(function (m) { return lista.indexOf(m) >= 0; }) : null;
+}
+// Execução antiga sem `modulos_solicitados` = os dois módulos.
+function csRnSolicitados(e) {
+    const l = csRnValidos(e && e.modulos_solicitados);
+    return l === null ? CS_MODULOS_RENOVACAO.map(function (mm) { return mm[0]; }) : l;
+}
+// Situação de um módulo na execução: a da API; sem ela (backend antigo), derivada sem inventar falha.
+function csRnSituacao(e, m) {
+    if (csRnSolicitados(e).indexOf(m) < 0) return 'nao_solicitado';
+    const x = ((e.modulos || {})[m]) || {};
+    if (x.situacao && CS_RN_SITUACOES[x.situacao]) return x.situacao;
+    if (x.publicacao === 'ok' && x.sessao_validada === true) return 'ok';
+    if (CS_RN_ATIVAS.indexOf(e.estado) >= 0) return 'pendente';
+    return null;
+}
+function csRnResultadoBadge(e) {
+    if (e.resultado && CS_RN_RESULTADOS[e.resultado]) return csRnBadge(CS_RN_RESULTADOS, e.resultado);
+    return csRnBadge(CS_RN_EXEC_ESTADOS, e.estado);
+}
+// Detalhe de um resultado parcial: quais módulos renovaram e quais não.
+function csRnParcialTexto(e) {
+    if (e.resultado !== 'parcial') return '';
+    const sol = csRnSolicitados(e);
+    const ok = sol.filter(function (m) { return csRnSituacao(e, m) === 'ok'; });
+    const nao = sol.filter(function (m) { return csRnSituacao(e, m) !== 'ok'; });
+    return 'Renovado: ' + (csRnNomesMods(ok) || 'nenhum') + ' · não renovado: ' + (csRnNomesMods(nao) || 'nenhum');
+}
+// Alvos dos controles (status.alvos). null = backend antigo (sem o campo).
+function csRnAlvo(s, chave) {
+    const a = s && s.alvos;
+    if (!a || typeof a !== 'object') return null;
+    return csRnValidos(a[chave]);
+}
+function csRnAlvoRenovarTexto(s) {
+    const l = csRnAlvo(s, 'renovar_agora');
+    return l && l.length ? csRnNomesMods(l) : 'os dois módulos (Acadêmico e Financeiro)';
+}
+function csRnPodeLiberar(s) {
+    const ep = s && s.episodio;
+    if (!ep || !ep.id) return false;
+    const l = csRnAlvo(s, 'liberar');
+    if (l !== null) return l.length > 0;
+    return !!ep.bloqueado;
+}
 function csRnGatilho(e) {
     const g = e.gatilho || {};
-    const mods = (g.modulos || []).map(function (m) { return m === 'academico' ? 'Acadêmico' : (m === 'financeiro' ? 'Financeiro' : m); }).join(' e ');
+    const mods = csRnNomesMods(g.modulos);
     const motivo = csRnLabel(CS_RN_GATILHOS, g.motivo);
     return (mods ? mods + ' · ' : '') + motivo;
 }
@@ -684,15 +752,20 @@ function csRnMsg(texto, tipo) {
 
 function csRnModulosTabela(e) {
     const linhas = CS_MODULOS_RENOVACAO.map(function (mm) {
+        const sit = csRnSituacao(e, mm[0]);
+        const sitHtml = sit ? csRnBadge(CS_RN_SITUACOES, sit) : '—';
+        if (sit === 'nao_solicitado') {
+            return '<tr><td>' + csEsc(mm[1]) + '</td><td>' + sitHtml + '</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>';
+        }
         const m = ((e.modulos || {})[mm[0]]) || {};
-        return '<tr><td>' + csEsc(mm[1]) + '</td>' +
+        return '<tr><td>' + csEsc(mm[1]) + '</td><td>' + sitHtml + '</td>' +
             '<td>' + csEsc(csRnLabel(CS_RN_COLETA, m.coleta)) + '</td>' +
             '<td>' + (m.http === null || m.http === undefined ? '—' : csEsc(m.http)) + '</td>' +
             '<td>' + csEsc(csRnLabel(CS_RN_PUB, m.publicacao)) + '</td>' +
             '<td>' + csEsc(csRnSimNao(m.sessao_validada)) + '</td></tr>';
     }).join('');
     return '<div class="cs-table-wrap"><table class="cs-table cs-rn-modulos"><thead><tr>' +
-        '<th>Módulo</th><th>Coleta</th><th>HTTP</th><th>Publicação confirmada</th><th>Sessão validada</th></tr></thead><tbody>' + linhas + '</tbody></table></div>';
+        '<th>Módulo</th><th>Situação</th><th>Coleta</th><th>HTTP</th><th>Publicação confirmada</th><th>Sessão validada</th></tr></thead><tbody>' + linhas + '</tbody></table></div>';
 }
 
 function csRnExecucaoHtml(e, titulo) {
@@ -702,8 +775,10 @@ function csRnExecucaoHtml(e, titulo) {
     const erro = e.erro ? csEsc(csRnLabel(CS_RN_ERROS, e.erro)) : '—';
     return '<div class="cs-rn-sub" style="margin-top:0">' + csEsc(titulo) + '</div>' +
         '<dl class="cs-kv">' +
-        '<dt>Resultado</dt><dd>' + csRnBadge(CS_RN_EXEC_ESTADOS, e.estado) + '</dd>' +
+        '<dt>Resultado</dt><dd>' + csRnResultadoBadge(e) +
+        (e.resultado === 'parcial' ? ' <span class="cs-muted">' + csEsc(csRnParcialTexto(e)) + '</span>' : '') + '</dd>' +
         '<dt>Tipo</dt><dd>' + csEsc(csRnLabel(CS_RN_TIPOS, e.tipo)) + '</dd>' +
+        '<dt>Módulos solicitados</dt><dd>' + csEsc(csRnNomesMods(csRnSolicitados(e)) || '—') + '</dd>' +
         '<dt>Gatilho</dt><dd>' + csEsc(csRnGatilho(e)) + '</dd>' +
         '<dt>Início</dt><dd>' + csEsc(csData(e.inicio || e.criada_em, true)) + '</dd>' +
         '<dt>Duração</dt><dd>' + csEsc(csRnDuracao(e)) + '</dd>' +
@@ -713,6 +788,23 @@ function csRnExecucaoHtml(e, titulo) {
         (e.janela_fechou_durante ? '<dt>Agenda</dt><dd>A janela fechou durante a execução; ela seguiu até concluir.</dd>' : '') +
         '</dl>' +
         '<div class="cs-rn-sub">Resultado por módulo</div>' + csRnModulosTabela(e);
+}
+
+// Estado por módulo do episódio (renovação seletiva): bloqueio, resolução e tentativas de cada um.
+function csRnEpisodioModulos(est) {
+    const linhas = CS_MODULOS_RENOVACAO.filter(function (mm) { return est[mm[0]]; }).map(function (mm) {
+        const x = est[mm[0]];
+        let sit;
+        if (x.bloqueado) sit = '<span class="cs-badge t-bad">Bloqueado</span> ' + csEsc(csRnLabel(CS_RN_BLOQUEIOS, x.bloqueio_motivo, ''));
+        else if (x.resolvido) sit = '<span class="cs-badge t-ok">Resolvido</span>' + (x.resolvido_em ? ' <span class="cs-muted">(' + csEsc(csData(x.resolvido_em, true)) + ')</span>' : '');
+        else sit = '<span class="cs-badge t-warn">Aguardando renovação</span>';
+        return '<tr><td>' + csEsc(mm[1]) + '</td><td>' + sit + '</td>' +
+            '<td>' + csEsc(x.tentativas_automaticas === null || x.tentativas_automaticas === undefined ? '—' : x.tentativas_automaticas) + '</td>' +
+            '<td>' + csEsc(x.liberado_em ? csData(x.liberado_em, true) : '—') + '</td></tr>';
+    }).join('');
+    if (!linhas) return '';
+    return '<div class="cs-table-wrap"><table class="cs-table cs-rn-ep-modulos"><thead><tr>' +
+        '<th>Módulo</th><th>Situação no episódio</th><th>Tentativas automáticas</th><th>Liberado em</th></tr></thead><tbody>' + linhas + '</tbody></table></div>';
 }
 
 function csRenderRenov() {
@@ -731,7 +823,11 @@ function csRenderRenov() {
     const cfg = s.config || {};
     const ep = s.episodio;
     const ativa = csRenovAtiva();
-    const bloq = !!(ep && ep.bloqueado);
+    const estMods = (ep && ep.modulos_estado && typeof ep.modulos_estado === 'object') ? ep.modulos_estado : null;
+    const bloq = !!(ep && (ep.bloqueado || (estMods && CS_MODULOS_RENOVACAO.some(function (mm) { return estMods[mm[0]] && estMods[mm[0]].bloqueado; }))));
+    const podeLiberar = csRnPodeLiberar(s);
+    const alvoLiberar = csRnAlvo(s, 'liberar');
+    const alvoAuto = csRnAlvo(s, 'automatica');
     const off = csRenov.enviando ? ' disabled' : '';
     const offRenovar = (csRenov.enviando || ativa) ? ' disabled' : '';
 
@@ -743,18 +839,19 @@ function csRenderRenov() {
         '<dt>Última renovação bem-sucedida</dt><dd>' + csEsc(csData(s.ultima_renovacao_ok, true)) + (s.ultima_renovacao_ok ? ' <span class="cs-muted">(' + csEsc(csHa(s.ultima_renovacao_ok)) + ')</span>' : '') + '</dd>' +
         '<dt>Executor</dt><dd>' + (s.executor && s.executor.visto_em ? 'Visto ' + csEsc(csHa(s.executor.visto_em)) + (s.executor.ocupado ? ' · ocupado' : '') : '<span class="cs-muted">Sem sinal</span>') + '</dd>' +
         '<dt>Próxima ação</dt><dd><strong>' + csEsc(csRnLabel(CS_RN_ACOES, s.proxima_acao)) + '</strong></dd>' +
+        (alvoAuto !== null ? '<dt>Renovação automática atingiria agora</dt><dd>' + csEsc(alvoAuto.length ? csRnNomesMods(alvoAuto) : 'Nenhum módulo elegível') + '</dd>' : '') +
         '</dl>';
 
     let episodio = '';
     if (ep) {
-        const mods = (ep.modulos || []).map(function (m) { return m === 'academico' ? 'Acadêmico' : (m === 'financeiro' ? 'Financeiro' : m); }).join(' e ') || '—';
+        const mods = csRnNomesMods(ep.modulos) || '—';
         episodio = '<div class="cs-rn-sub">Episódio atual</div><dl class="cs-kv">' +
             '<dt>Módulo(s)</dt><dd>' + csEsc(mods) + '</dd>' +
             '<dt>Motivo do gatilho</dt><dd>' + csEsc(csRnLabel(CS_RN_GATILHOS, ep.motivo)) + '</dd>' +
             '<dt>Desde</dt><dd>' + csEsc(csData(ep.desde, true)) + '</dd>' +
             '<dt>Tentativas automáticas</dt><dd>' + csEsc(ep.tentativas_automaticas === null || ep.tentativas_automaticas === undefined ? '—' : ep.tentativas_automaticas) + '</dd>' +
-            (bloq ? '<dt>Bloqueio</dt><dd><span class="cs-badge t-bad">Bloqueado</span> ' + csEsc(csRnLabel(CS_RN_BLOQUEIOS, ep.bloqueio_motivo, '')) + '</dd>' : '') +
-            '</dl>';
+            (bloq && !estMods ? '<dt>Bloqueio</dt><dd><span class="cs-badge t-bad">Bloqueado</span> ' + csEsc(csRnLabel(CS_RN_BLOQUEIOS, ep.bloqueio_motivo, '')) + '</dd>' : '') +
+            '</dl>' + (estMods ? csRnEpisodioModulos(estMods) : '');
     }
 
     const atual = s.execucao_atual;
@@ -762,7 +859,9 @@ function csRenderRenov() {
     const exec = atual ? csRnExecucaoHtml(atual, 'Execução em andamento') : csRnExecucaoHtml(ultima, 'Última execução');
 
     const bloqAviso = bloq
-        ? '<div class="cs-alert cs-alert-err" style="margin-top:12px" role="alert">Renovação automática bloqueada neste episódio. Não há nova tentativa automática: revise o resultado e libere uma nova tentativa quando for seguro.</div>'
+        ? '<div class="cs-alert cs-alert-err" style="margin-top:12px" role="alert">Renovação automática bloqueada neste episódio' +
+            (alvoLiberar && alvoLiberar.length ? ' para ' + csEsc(csRnNomesMods(alvoLiberar)) : '') +
+            '. Não há nova tentativa automática: revise o resultado e libere uma nova tentativa quando for seguro.</div>'
         : '';
 
     const acoes = '<div class="cs-rn-actions">' +
@@ -772,10 +871,14 @@ function csRenderRenov() {
         '<span class="material-symbols-outlined" style="font-size:16px">' + (cfg.suspensa ? 'play_arrow' : 'pause') + '</span>' + (cfg.suspensa ? 'Retomar novas renovações' : 'Suspender novas renovações') + '</button>' +
         '<button class="cs-btn cs-btn-danger" type="button" id="cs-rn-btn-renovar" onclick="conexaoSiaaRenovSolicitar()"' + offRenovar + '>' +
         '<span class="material-symbols-outlined" style="font-size:16px">autorenew</span>' + (csRenov.enviando ? 'Enviando…' : 'Renovar agora') + '</button>' +
-        (bloq ? '<button class="cs-btn cs-btn-primary" type="button" id="cs-rn-btn-liberar" onclick="conexaoSiaaRenovLiberar()"' + off + '>' +
-            '<span class="material-symbols-outlined" style="font-size:16px">lock_open</span>Liberar nova tentativa</button>' : '') +
+        (podeLiberar ? '<button class="cs-btn cs-btn-primary" type="button" id="cs-rn-btn-liberar" onclick="conexaoSiaaRenovLiberar()"' + off + '>' +
+            '<span class="material-symbols-outlined" style="font-size:16px">lock_open</span>Liberar nova tentativa' +
+            (alvoLiberar && alvoLiberar.length ? ' (' + csEsc(csRnNomesMods(alvoLiberar)) + ')' : '') + '</button>' : '') +
         '</div>' +
-        '<div class="cs-hint" style="margin-top:8px">Suspender não interrompe uma execução em andamento; só impede que novas comecem.' +
+        '<div class="cs-hint" style="margin-top:8px" id="cs-rn-alvos">"Renovar agora" atinge: ' + csEsc(csRnAlvoRenovarTexto(s)) + '.' +
+        (podeLiberar && alvoLiberar && alvoLiberar.length ? ' "Liberar nova tentativa" atinge: ' + csEsc(csRnNomesMods(alvoLiberar)) + '.' : '') +
+        (bloq && !podeLiberar ? ' Nenhum módulo bloqueado para liberar.' : '') + '</div>' +
+        '<div class="cs-hint" style="margin-top:4px">Suspender não interrompe uma execução em andamento; só impede que novas comecem.' +
         (ativa ? ' "Renovar agora" fica indisponível enquanto houver execução ativa.' : '') + '</div>';
 
     corpo.innerHTML = (csRenov.erro ? '<div class="cs-alert cs-alert-warn">' + csEsc(csRenov.erro) + '</div>' : '') +
@@ -862,6 +965,7 @@ async function conexaoSiaaRenovSuspender(suspender) {
 async function conexaoSiaaRenovSolicitar() {
     if (!csRenov.status || csRenov.enviando || csRenovAtiva()) return;
     const msg = 'Renovar agora? O sistema fará login no SIAA, ENVIANDO as credenciais, e as sessões servidas pela API serão SUBSTITUÍDAS pelas novas. ' +
+        'Módulos atingidos: ' + csRnAlvoRenovarTexto(csRenov.status) + '. ' +
         'Isso pode rodar fora da agenda e não conta como tentativa automática. Confirma?';
     if (!window.confirm(msg)) return;
     // Um pedido_id por confirmação. Só é reaproveitado (por até 2 min) se a
@@ -883,28 +987,35 @@ async function conexaoSiaaRenovSolicitar() {
 
 async function conexaoSiaaRenovLiberar() {
     const s = csRenov.status;
-    if (!s || csRenov.enviando || !s.episodio || !s.episodio.bloqueado) return;
-    const msg = 'Liberar nova tentativa? O bloqueio e as tentativas deste episódio são zerados. Nada é iniciado agora: a próxima renovação automática só roda se todas as regras (agenda, sessão expirada) valerem.';
+    if (!s || csRenov.enviando || !csRnPodeLiberar(s)) return;
+    const alvo = csRnAlvo(s, 'liberar');
+    const msg = alvo === null
+        ? 'Liberar nova tentativa? O bloqueio e as tentativas deste episódio são zerados. Nada é iniciado agora: a próxima renovação automática só roda se todas as regras (agenda, sessão expirada) valerem.'
+        : 'Liberar nova tentativa para: ' + csRnNomesMods(alvo) + '? O bloqueio e as tentativas só desse(s) módulo(s) são zerados; módulos resolvidos não mudam. ' +
+          'Nada é iniciado agora: a próxima renovação automática só roda se todas as regras (agenda, sessão expirada) valerem.';
     if (!window.confirm(msg)) return;
     const r = await csRenovEscrever('POST', '/renovacao/liberar', { episodio_id: s.episodio.id, versao: (s.config || {}).versao });
     if (await csRenovResultado(r, 'Não foi possível liberar a nova tentativa.')) {
-        csRnMsg('Nova tentativa liberada.', 'ok');
+        const lib = csRnValidos(r.data.modulos_liberados);
+        csRnMsg('Nova tentativa liberada' + (lib && lib.length ? ': ' + csRnNomesMods(lib) : '') + '.', 'ok');
         await csRenovRecarregar();
     }
 }
 
 // ── Histórico de execuções (mesmo comportamento do histórico de eventos) ──
 function csRnModCelula(e, m) {
+    const sit = csRnSituacao(e, m);
+    if (sit === 'nao_solicitado') return csRnBadge(CS_RN_SITUACOES, sit);
     const x = ((e.modulos || {})[m]) || {};
-    if (!x.coleta && !x.publicacao) return '<span class="cs-muted">—</span>';
-    return '<div class="cs-two"><span>Coleta: ' + csEsc(csRnLabel(CS_RN_COLETA, x.coleta)) + '</span>' +
+    if (!x.coleta && !x.publicacao) return sit ? csRnBadge(CS_RN_SITUACOES, sit) : '<span class="cs-muted">—</span>';
+    return '<div class="cs-two">' + (sit ? '<span>' + csRnBadge(CS_RN_SITUACOES, sit) + '</span>' : '') + '<span>Coleta: ' + csEsc(csRnLabel(CS_RN_COLETA, x.coleta)) + '</span>' +
         '<span>Publicação: ' + csEsc(csRnLabel(CS_RN_PUB, x.publicacao)) + '</span>' +
         '<span>Sessão validada: ' + csEsc(csRnSimNao(x.sessao_validada)) + '</span></div>';
 }
 function csRnLinha(e) {
     return '<tr><td style="white-space:nowrap">' + csEsc(csData(e.inicio || e.criada_em, true)) + '</td>' +
         '<td>' + csEsc(csRnLabel(CS_RN_TIPOS, e.tipo)) + '</td>' +
-        '<td>' + csRnBadge(CS_RN_EXEC_ESTADOS, e.estado) + '</td>' +
+        '<td>' + csRnResultadoBadge(e) + '</td>' +
         '<td>' + csEsc(csRnGatilho(e)) + '</td>' +
         '<td style="white-space:nowrap">' + csEsc(csRnDuracao(e)) + '</td>' +
         '<td>' + csEsc(csRnLabel(CS_RN_LOGIN, e.login)) + '</td>' +
