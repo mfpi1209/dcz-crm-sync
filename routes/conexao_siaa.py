@@ -723,10 +723,14 @@ def api_conexao_incidentes():
             conn.close()
         corpo["destinatarios_ausentes"] = ausentes
         corpo["destinatarios_encontrados"] = len(ids)
+        vivos = {i["ocorrencia"] for i in vivo["abertos"]} if vivo is not None else None
         corpo["avisos"] = [{"tipo": v["tipo"], "estado": v["estado"], "titulo": v["titulo"], "modulo": v["modulo"],
                             "motivo": v["motivo"], "aberto_em": _iso_ou_none(v["aberto_em"]),
                             "recuperado_em": _iso_ou_none(v["recuperado_em"]), "tem_aviso": bool(v["aviso_id"]),
-                            "lidos": int(v["lidos"] or 0), "destinatarios": int(v["destinatarios"] or 0)}
+                            "lidos": int(v["lidos"] or 0), "destinatarios": int(v["destinatarios"] or 0),
+                            # aberto no painel, mas a API não lista mais (estado da API perdido?): verificar
+                            "fora_da_api": bool(v["estado"] == "aberto" and vivos is not None
+                                                and v["ocorrencia"] not in vivos)}
                            for v in vinc]
     except Exception as exc:
         logger.warning("conexao_siaa: incidentes sem banco (%s)", type(exc).__name__)

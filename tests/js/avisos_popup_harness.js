@@ -45,7 +45,8 @@ function novoAmbiente({ session, local, usuario = 'fabio@eduit.com.br', resposta
         setInterval(f, ms) { ctx.intervalos.push(f); return ctx.intervalos.length; },
         clearInterval() { ctx.intervalos = []; },
         renderNotifPanel() {},
-        _showAvisosPopup(av) { popups.push(av.map(a => a.id)); },
+        _showAvisosPopup(av, ids) { popups.push(av.map(a => a.id)); ctx.marcarIds.push(ids); },
+        marcarIds: [],
         async fetch() { return resposta(); },
         async api() { return resposta(); },
     };
@@ -162,6 +163,29 @@ async function rodar(amb) { amb.intervalos[0](); for (let k = 0; k < 5; k++) awa
     i._iniciarPollingAvisos();
     await rodar(i);
     assert.deepStrictEqual(i.popups, [[20]], 'funciona sem localStorage');
+
+    // 15. popup do polling marca só os exibidos; carga mantém "todos" (null)
+    assert.deepStrictEqual(a.marcarIds[0], null, 'carga: regra de sempre');
+    assert.deepStrictEqual(a.marcarIds[1], [10], 'polling: só os exibidos');
+
+    // 16. mais de 10 incidentes: 10 exibidos e apresentados; os 2 restantes na verificação seguinte
+    const muitos = Array.from({ length: 12 }, (_, k) => S(100 + k, 'aberto'));
+    let j = novoAmbiente({ session: new Storage(), local: new Storage(), resposta: ok(muitos) });
+    j._iniciarPollingAvisos();
+    await rodar(j);
+    assert.strictEqual(j.popups[0].length, 10);
+    await rodar(j);
+    assert.deepStrictEqual(j.popups[1], [110, 111], 'restantes aparecem depois');
+
+    // 17. _popupMarcarTodos com ids chama só /lido de cada um
+    const urls = [];
+    const k = { console, document: { getElementById: () => null }, checkAvisosNaoLidos() {},
+        api: async (u, o) => { urls.push(u); return {}; } };
+    vm.createContext(k);
+    vm.runInContext(fn('_popupMarcarTodos') + 'this.m = _popupMarcarTodos;', k);
+    await k.m([10, 13]);
+    await k.m();
+    assert.deepStrictEqual(urls, ['/api/avisos/10/lido', '/api/avisos/13/lido', '/api/avisos/marcar-todos-lidos']);
 
     console.log('avisos_popup_harness: ok');
 })().catch(e => { console.error(e); process.exit(1); });

@@ -43,7 +43,8 @@ _LINK = ('<a href="#conexao_siaa" onclick="var o=document.getElementById(\'aviso
 
 DDL = """
 CREATE TABLE IF NOT EXISTS siaa_incidente_aviso (
-    ocorrencia     TEXT PRIMARY KEY,
+    ocorrencia     TEXT NOT NULL,            -- id da API
+    geracao        INTEGER NOT NULL DEFAULT 1, -- reabertura do mesmo id depois de recuperado
     tipo           TEXT NOT NULL,
     aviso_id       INTEGER REFERENCES avisos(id) ON DELETE SET NULL,
     estado         TEXT NOT NULL,            -- aberto | recuperado | recuperado_sem_aviso
@@ -53,7 +54,8 @@ CREATE TABLE IF NOT EXISTS siaa_incidente_aviso (
     aberto_em      TIMESTAMPTZ,
     recuperado_em  TIMESTAMPTZ,
     criado_em      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    atualizado_em  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    atualizado_em  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (ocorrencia, geracao)
 )
 """
 
@@ -122,7 +124,7 @@ def aviso_aberto(inc: dict) -> tuple[str, str]:
               f"<b>Motivo:</b> {e(inc['motivo'] or 'sem detalhe')}",
               f"<b>Desde:</b> {hora_brt(inc.get('aberto_em'))} (horário de Brasília)",
               _LINK]
-    return f"SIAA: {inc['titulo']}", "\n".join(linhas)
+    return f"SIAA: {e(inc['titulo'])}", "\n".join(linhas)
 
 
 def aviso_recuperado(vinc: dict, rec: dict) -> tuple[str, str]:
@@ -133,7 +135,7 @@ def aviso_recuperado(vinc: dict, rec: dict) -> tuple[str, str]:
               f"<b>Incidente aberto em:</b> {hora_brt(vinc.get('aberto_em') or rec.get('aberto_em'))}.",
               f"<b>Motivo original:</b> {e(vinc.get('motivo') or '—')}",
               _LINK]
-    return f"SIAA recuperado: {titulo}", "\n".join(linhas)
+    return f"SIAA recuperado: {e(titulo)}", "\n".join(linhas)
 
 
 # ---------------------------------------------------------------------------
@@ -161,8 +163,35 @@ def _criar_aviso(cur, ids, titulo, corpo, prioridade):
     return criar_aviso_para_usuarios(ids, titulo, corpo, prioridade=prioridade, cur=cur)
 
 
+# Erro de destinatário: no log quando muda ou a cada hora (o job roda a cada 60 s).
+_LOG_ERRO: dict = {}
+LOG_ERRO_REPETE = timedelta(hours=1)
+
+
+def _log_erro(chave: str, msg: str, agora: datetime, *args) -> None:
+    ultimo = _LOG_ERRO.get(chave)
+    if ultimo is None or agora - ultimo >= LOG_ERRO_REPETE:
+        _LOG_ERRO[chave] = agora
+        logger.error(msg, *args)
+
+
+def _ultimo_vinculo(cur, ocorrencia):
+    cur.execute("""SELECT geracao, aviso_id, estado, titulo, modulo, motivo, aberto_em, recuperado_em
+                     FROM siaa_incidente_aviso WHERE ocorrencia = %s
+                    ORDER BY geracao DESC LIMIT 1""", (ocorrencia,))
+    r = cur.fetchone()
+    if r is None:
+        return None
+    return dict(zip(("geracao", "aviso_id", "estado", "titulo", "modulo", "motivo", "aberto_em",
+                     "recuperado_em"), r))
+
+
 def sincronizar(conn, dados: dict, agora: datetime | None = None) -> dict:
-    """Aplica a visão validada (``validar``) aos avisos. Uma transação; idempotente."""
+    """Aplica a visão validada (``validar``) aos avisos. Uma transação; idempotente.
+
+    Vínculo por (ocorrência, geração). A mesma ocorrência listada como aberta depois de recuperada
+    (``aberto_em`` posterior ao ``recuperado_em``) é uma reabertura -- ex.: o estado da API se perdeu
+    e a nova falha repetiu o id -- e vira um aviso novo (geração seguinte)."""
     agora = agora or datetime.now(timezone.utc)
     res = {"criados": 0, "recuperados": 0, "ja_existentes": 0, "destinatarios": 0, "ausentes": [],
            "erro": None}
@@ -172,59 +201,62 @@ def sincronizar(conn, dados: dict, agora: datetime | None = None) -> dict:
             ids, ausentes = resolver_destinatarios(cur)
             res["destinatarios"], res["ausentes"] = len(ids), ausentes
             if ausentes:
-                logger.error("siaa_avisos: destinatário não encontrado em app_users: %s", ", ".join(ausentes))
+                _log_erro("ausentes:" + ",".join(ausentes),
+                          "siaa_avisos: destinatário não encontrado em app_users: %s", agora, ", ".join(ausentes))
             for inc in dados["abertos"]:
-                cur.execute("SELECT aviso_id, estado FROM siaa_incidente_aviso WHERE ocorrencia = %s",
-                            (inc["ocorrencia"],))
-                linha = cur.fetchone()
-                if linha is not None:
-                    res["ja_existentes"] += 1
-                    aviso_id, estado = linha
-                    if estado == "aberto" and aviso_id and ids:
-                        # destinatário cadastrado depois: só acrescenta, nunca remove nem esvazia
-                        cur.execute("""UPDATE avisos SET target_user_ids = (
-                                           SELECT ARRAY(SELECT DISTINCT unnest(target_user_ids || %s::int[]) ORDER BY 1))
-                                       WHERE id = %s AND NOT (target_user_ids @> %s::int[])""",
-                                    (ids, aviso_id, ids))
-                    continue
+                v = _ultimo_vinculo(cur, inc["ocorrencia"])
+                geracao = 1
+                if v is not None:
+                    reaberta = (v["estado"] != "aberto" and inc["aberto_em"] is not None
+                                and v["recuperado_em"] is not None and inc["aberto_em"] > v["recuperado_em"])
+                    if not reaberta:
+                        res["ja_existentes"] += 1
+                        if v["estado"] == "aberto" and v["aviso_id"] and ids:
+                            # destinatário cadastrado depois: só acrescenta, nunca remove nem esvazia
+                            cur.execute("""UPDATE avisos SET target_user_ids = (
+                                               SELECT ARRAY(SELECT DISTINCT unnest(target_user_ids || %s::int[]) ORDER BY 1))
+                                           WHERE id = %s AND NOT (target_user_ids @> %s::int[])""",
+                                        (ids, v["aviso_id"], ids))
+                        continue
+                    geracao = v["geracao"] + 1
                 if not ids:
                     res["erro"] = "sem_destinatarios"
-                    logger.error("siaa_avisos: nenhum destinatário encontrado; aviso não criado (%s)", inc["tipo"])
+                    _log_erro("sem_destinatarios", "siaa_avisos: nenhum destinatário encontrado; aviso não criado",
+                              agora)
                     continue  # tenta de novo no próximo ciclo; nunca cria aviso para todos
                 titulo, corpo = aviso_aberto(inc)
                 aviso_id = _criar_aviso(cur, ids, titulo, corpo, "urgente")
                 cur.execute("""INSERT INTO siaa_incidente_aviso
-                                   (ocorrencia, tipo, aviso_id, estado, titulo, modulo, motivo, aberto_em)
-                               VALUES (%s, %s, %s, 'aberto', %s, %s, %s, %s)""",
-                            (inc["ocorrencia"], inc["tipo"], aviso_id, inc["titulo"], inc["modulo"],
+                                   (ocorrencia, geracao, tipo, aviso_id, estado, titulo, modulo, motivo, aberto_em)
+                               VALUES (%s, %s, %s, %s, 'aberto', %s, %s, %s, %s)""",
+                            (inc["ocorrencia"], geracao, inc["tipo"], aviso_id, inc["titulo"], inc["modulo"],
                              inc["motivo"], inc["aberto_em"]))
                 res["criados"] += 1
             for rec in dados["recuperados"]:
-                cur.execute("""SELECT aviso_id, estado, titulo, modulo, motivo, aberto_em
-                                 FROM siaa_incidente_aviso WHERE ocorrencia = %s""", (rec["ocorrencia"],))
-                linha = cur.fetchone()
-                if linha is None:
+                v = _ultimo_vinculo(cur, rec["ocorrencia"])
+                if v is None:
                     # nunca virou aviso (abriu e fechou entre dois ciclos): só o registro
                     cur.execute("""INSERT INTO siaa_incidente_aviso
-                                       (ocorrencia, tipo, aviso_id, estado, titulo, modulo, aberto_em, recuperado_em)
-                                   VALUES (%s, %s, NULL, 'recuperado_sem_aviso', %s, %s, %s, %s)
-                                   ON CONFLICT (ocorrencia) DO NOTHING""",
+                                       (ocorrencia, geracao, tipo, aviso_id, estado, titulo, modulo, aberto_em,
+                                        recuperado_em)
+                                   VALUES (%s, 1, %s, NULL, 'recuperado_sem_aviso', %s, %s, %s, %s)
+                                   ON CONFLICT DO NOTHING""",
                                 (rec["ocorrencia"], rec["tipo"], rec["titulo"], rec["modulo"],
                                  rec["aberto_em"], rec["recuperado_em"]))
                     continue
-                aviso_id, estado = linha[0], linha[1]
-                if estado != "aberto":
+                if v["estado"] != "aberto":
                     continue
-                vinc = {"titulo": linha[2], "modulo": linha[3], "motivo": linha[4], "aberto_em": linha[5]}
-                if aviso_id:
-                    titulo, corpo = aviso_recuperado(vinc, rec)
+                if v["aberto_em"] is not None and rec["recuperado_em"] < v["aberto_em"]:
+                    continue  # recuperação de uma geração anterior: não fecha a atual
+                if v["aviso_id"]:
+                    titulo, corpo = aviso_recuperado(v, rec)
                     cur.execute("""UPDATE avisos SET titulo = %s, corpo = %s, prioridade = 'normal',
                                           expires_at = %s
                                     WHERE id = %s""",
-                                (titulo, corpo, rec["recuperado_em"] + EXPIRA_RECUPERADO, aviso_id))
+                                (titulo, corpo, rec["recuperado_em"] + EXPIRA_RECUPERADO, v["aviso_id"]))
                 cur.execute("""UPDATE siaa_incidente_aviso SET estado = 'recuperado', recuperado_em = %s,
-                                      atualizado_em = NOW() WHERE ocorrencia = %s""",
-                            (rec["recuperado_em"], rec["ocorrencia"]))
+                                      atualizado_em = NOW() WHERE ocorrencia = %s AND geracao = %s""",
+                            (rec["recuperado_em"], rec["ocorrencia"], v["geracao"]))
                 res["recuperados"] += 1
         conn.commit()
     except Exception:

@@ -1135,7 +1135,8 @@ function csIncidentesRender(d) {
     body.innerHTML = avisos.map(function (v) {
         const e = CS_INC_ESTADOS[v.estado] || [v.estado, 't-neutral'];
         const sit = '<span class="cs-badge ' + e[1] + '">' + csEsc(e[0]) + '</span>'
-            + (v.recuperado_em ? '<div class="cs-hint">em ' + csData(v.recuperado_em) + '</div>' : '');
+            + (v.recuperado_em ? '<div class="cs-hint">em ' + csData(v.recuperado_em) + '</div>' : '')
+            + (v.fora_da_api ? '<div class="cs-hint">A API não lista mais este incidente; verificar.</div>' : '');
         const av = v.tem_aviso ? (v.lidos + ' de ' + v.destinatarios + ' leram') : '—';
         return '<tr><td>' + csData(v.aberto_em) + '</td><td>' + csEsc(v.titulo) + '<div class="cs-hint">'
             + csEsc(v.motivo || '') + '</div></td><td>' + csEsc(v.modulo || '—') + '</td><td>' + sit

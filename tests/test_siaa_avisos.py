@@ -75,6 +75,14 @@ class TextoTest(unittest.TestCase):
         for s in SENSIVEIS:
             self.assertNotIn(s, corpo)
 
+    def test_titulo_tambem_e_escapado(self):
+        inc = siaa_avisos.validar(_api([_ab(titulo="<b onmouseover=x>T</b>")]))["abertos"][0]
+        titulo, _ = siaa_avisos.aviso_aberto(inc)
+        self.assertNotIn("<b", titulo)
+        rec = siaa_avisos.validar(_api(recuperados=[_rec()]))["recuperados"][0]
+        titulo, _ = siaa_avisos.aviso_recuperado({"titulo": "<i>x</i>"}, rec)
+        self.assertNotIn("<i>", titulo)
+
     def test_texto_da_api_e_escapado(self):
         inc = siaa_avisos.validar(_api([_ab(motivo="<img src=x onerror=alert(1)>")]))["abertos"][0]
         _, corpo = siaa_avisos.aviso_aberto(inc)
@@ -136,6 +144,31 @@ class RotaTest(unittest.TestCase):
     def test_so_admin(self):
         self._papel("viewer")
         self.assertEqual(self.client.get("/api/conexao-siaa/incidentes").status_code, 403)
+
+    def test_aberto_no_painel_e_ausente_da_api_e_sinalizado(self):
+        self._papel("admin")
+        vivo = siaa_avisos.validar(_api([_ab(oc=OC2)]))
+        vinc = [{"ocorrencia": oc, "tipo": "renovacao", "estado": "aberto", "titulo": "T", "modulo": "M",
+                 "motivo": "", "aberto_em": T0, "recuperado_em": None, "aviso_id": 9, "lidos": 0,
+                 "destinatarios": 2} for oc in (OC1, OC2)]
+
+        class Conn:
+            def cursor(self):
+                return self
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def close(self):
+                pass
+
+        with patch.object(siaa_avisos, "_chamar_alertas", return_value=(vivo, None)),                 patch("db.get_conn", return_value=Conn()),                 patch.object(siaa_avisos, "resolver_destinatarios", return_value=([1, 2], [])),                 patch.object(siaa_avisos, "ultimos_vinculos", return_value=vinc):
+            d = self.client.get("/api/conexao-siaa/incidentes").get_json()
+        self.assertEqual([a["fora_da_api"] for a in d["avisos"]], [True, False])
+        self.assertNotIn("ocorrencia", d["avisos"][0])
 
     def test_admin_sem_banco_e_sem_api_responde_sem_inventar(self):
         self._papel("admin")
@@ -215,6 +248,7 @@ class IntegracaoPgTest(unittest.TestCase):
             self.manual = cur.fetchone()[0]
         self.conn.commit()
         self.manual_antes = self._linha_aviso(self.manual)
+        siaa_avisos._LOG_ERRO.clear()
 
     def tearDown(self):
         self.conn.close()
@@ -367,6 +401,40 @@ class IntegracaoPgTest(unittest.TestCase):
         with self.conn.cursor() as cur:
             cur.execute("SELECT estado, aviso_id FROM siaa_incidente_aviso WHERE ocorrencia = %s", (OC3,))
             self.assertEqual(cur.fetchone(), ("recuperado_sem_aviso", None))
+
+    def test_reabertura_do_mesmo_id_depois_de_recuperado_gera_aviso_novo(self):
+        # estado da API perdido: a nova falha volta com o mesmo id e aberto_em posterior
+        self._sinc([_ab()])
+        self._sinc([], [_rec()])  # recuperado 12:40 BRT
+        a1, = self._siaa_avisos()
+        self._sinc([_ab(em="2026-11-23T16:10:00Z", motivo="nova falha")])
+        a1b, a2 = self._siaa_avisos()
+        self.assertEqual(a1b, a1)
+        self.assertTrue(self._linha_aviso(a1)[0].startswith("SIAA recuperado:"))  # o antigo não muda
+        self.assertEqual(self._linha_aviso(a2)[2], "urgente")
+        # polling não cria uma 3ª geração
+        self._sinc([_ab(em="2026-11-23T16:10:00Z")])
+        self.assertEqual(len(self._siaa_avisos()), 2)
+        # recuperação antiga (12:40) ainda na lista não fecha a geração nova
+        self._sinc([_ab(em="2026-11-23T16:10:00Z")], [_rec()])
+        self.assertEqual(self._linha_aviso(a2)[2], "urgente")
+        # recuperação nova fecha a geração 2
+        self.assertEqual(self._sinc([], [_rec(em="2026-11-23T16:30:00Z")])["recuperados"], 1)
+        self.assertTrue(self._linha_aviso(a2)[0].startswith("SIAA recuperado:"))
+        # aberto_em anterior à recuperação (lista inconsistente) não reabre
+        self._sinc([_ab(em="2026-11-23T16:20:00Z")])
+        self.assertEqual(len(self._siaa_avisos()), 2)
+
+    def test_erro_de_destinatario_nao_repete_no_log_a_cada_ciclo(self):
+        with self.conn.cursor() as cur:
+            cur.execute("DELETE FROM app_users WHERE lower(username) = 'marcelo@eduit.com.br'")
+        self.conn.commit()
+        t = datetime(2026, 11, 23, 15, 0, tzinfo=timezone.utc)
+        with self.assertLogs("siaa_avisos", "ERROR") as log:
+            for i in range(5):
+                siaa_avisos.sincronizar(self.conn, siaa_avisos.validar(_api([_ab()])), t + timedelta(minutes=i))
+            siaa_avisos.sincronizar(self.conn, siaa_avisos.validar(_api([_ab()])), t + timedelta(hours=1))
+        self.assertEqual(len(log.output), 2)  # 1ª vez e depois de 1 h
 
     def test_ausencia_na_lista_nao_e_recuperacao(self):
         self._sinc([_ab()])

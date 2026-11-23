@@ -446,8 +446,10 @@ async function checkAvisosNaoLidos(opts) {
         const candidatos = _avisosParaPopup(window._avisosCache, inicio, _avApresentados());
         // Popup aberto: não substitui; os novos entram na próxima verificação.
         if (candidatos.length && !document.getElementById('avisos-popup-overlay')) {
-            _showAvisosPopup(candidatos);
-            _avMarcarApresentados(candidatos.filter(a => a.siaa_estado).map(a => a.id));
+            const exibidos = candidatos.slice(0, 10);  // o popup mostra no máximo 10
+            // Popup do polling: "Marcar todos como lidos" marca só os exibidos.
+            _showAvisosPopup(exibidos, polling ? exibidos.map(a => a.id) : null);
+            _avMarcarApresentados(exibidos.filter(a => a.siaa_estado).map(a => a.id));
         }
     } catch (e) { console.error('checkAvisosNaoLidos', e); }
 }
@@ -538,7 +540,7 @@ function renderNotifPanel(items) {
     }).join('');
 }
 
-function _showAvisosPopup(avisos) {
+function _showAvisosPopup(avisos, idsParaMarcar) {
     if (!avisos || !avisos.length) return;
     const existing = document.getElementById('avisos-popup-overlay');
     if (existing) existing.remove();
@@ -574,7 +576,7 @@ function _showAvisosPopup(avisos) {
             </div>
             <div class="overflow-y-auto p-5 flex-1">${cards}</div>
             <div class="flex items-center justify-between p-4 border-t border-[var(--border)]">
-                <button onclick="_popupMarcarTodos()" class="text-xs text-violet-700 dark:text-violet-400 hover:text-violet-900 dark:hover:text-violet-300 transition">Marcar todos como lidos</button>
+                <button onclick="_popupMarcarTodos(${idsParaMarcar ? JSON.stringify(idsParaMarcar.map(Number)) : ''})" class="text-xs text-violet-700 dark:text-violet-400 hover:text-violet-900 dark:hover:text-violet-300 transition">Marcar todos como lidos</button>
                 <button onclick="document.getElementById('avisos-popup-overlay').remove(); navigate('avisos');" class="btn-primary text-white font-medium text-xs px-4 py-2 rounded-lg">Ver todos</button>
             </div>
         </div>`;
@@ -582,8 +584,12 @@ function _showAvisosPopup(avisos) {
     overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 }
 
-function _popupMarcarTodos() {
-    api('/api/avisos/marcar-todos-lidos', { method: 'POST' }).then(() => {
+function _popupMarcarTodos(ids) {
+    // Com ids (popup do polling): só os exibidos. Sem ids: regra de sempre (todos os visíveis).
+    const marcar = Array.isArray(ids)
+        ? Promise.all(ids.map(id => api('/api/avisos/' + Number(id) + '/lido', { method: 'POST' })))
+        : api('/api/avisos/marcar-todos-lidos', { method: 'POST' });
+    marcar.then(() => {
         const overlay = document.getElementById('avisos-popup-overlay');
         if (overlay) overlay.remove();
         checkAvisosNaoLidos();
