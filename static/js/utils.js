@@ -350,19 +350,72 @@ async function applySidebarPermissions() {
         const d = await res.json();
         const role = d.role || '';
         document.body.dataset.role = role;
+        window._avUsuario = d.username || '';
         if (d.categoria) document.body.dataset.categoria = d.categoria;
     } catch (e) { console.error('sidebar permissions', e); }
 }
 
 window._sidebarPermsReady = applySidebarPermissions();
-window._sidebarPermsReady.then(() => checkAvisosNaoLidos());
+window._sidebarPermsReady.then(() => { checkAvisosNaoLidos(); _iniciarPollingAvisos(); });
 
 // ---------------------------------------------------------------------------
 // Avisos — popup ao logar + badge sidebar
 // ---------------------------------------------------------------------------
-async function checkAvisosNaoLidos() {
+// Popup:
+// - carga da página: regra de sempre (1x por sessão do navegador, todos os não lidos);
+// - durante o uso (polling leve): só avisos de incidente SIAA ainda abertos e nunca apresentados
+//   neste navegador para este usuário. Aviso SIAA já recuperado nunca abre popup (continua na
+//   lista e no contador). A leitura continua individual no servidor (aviso_lido).
+const AVISOS_POLL_MS = 60000;
+let _avisosPollTimer = null;
+
+function _avChaveApresentados() { return 'avisos_siaa_apresentados_v1:' + (window._avUsuario || ''); }
+function _avApresentados() {
+    try { return new Set(JSON.parse(localStorage.getItem(_avChaveApresentados()) || '[]')); }
+    catch (e) { return new Set(); }
+}
+function _avMarcarApresentados(ids) {
+    if (!ids.length) return;
     try {
-        const res = await api('/api/avisos/nao-lidos');
+        const s = _avApresentados();
+        ids.forEach(i => s.add(i));
+        localStorage.setItem(_avChaveApresentados(), JSON.stringify(Array.from(s).slice(-300)));
+    } catch (e) { /* sem storage: na pior hipótese repete na próxima sessão */ }
+}
+
+// Quais avisos abrem popup agora. Pura: testada em tests/test_avisos_popup_js.py.
+function _avisosParaPopup(avisos, inicioDaSessao, apresentados) {
+    return (avisos || []).filter(a => {
+        if (a.siaa_estado) {
+            // incidente SIAA: só aberto e nunca apresentado (carga ou polling)
+            return a.siaa_estado === 'aberto' && !apresentados.has(a.id);
+        }
+        return inicioDaSessao;  // aviso manual: regra de sempre (só na 1ª carga da sessão)
+    });
+}
+
+function _iniciarPollingAvisos() {
+    if (_avisosPollTimer) return;
+    _avisosPollTimer = setInterval(() => { if (!document.hidden) checkAvisosNaoLidos({ polling: true }); }, AVISOS_POLL_MS);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && _avisosPollTimer) checkAvisosNaoLidos({ polling: true });
+    });
+}
+
+async function checkAvisosNaoLidos(opts) {
+    const polling = !!(opts && opts.polling);
+    try {
+        let res;
+        if (polling) {
+            // sem redirecionar no meio do uso: sessão expirada só para o polling
+            res = await fetch('/api/avisos/nao-lidos', { credentials: 'same-origin' });
+            if (res.status === 401 || res.status === 403) {
+                clearInterval(_avisosPollTimer); _avisosPollTimer = null; return;
+            }
+            if (!res.ok) return;
+        } else {
+            res = await api('/api/avisos/nao-lidos');
+        }
         const data = await res.json();
         const count = data.count || 0;
         window._avisosCache = Array.isArray(data.avisos) ? data.avisos : [];
@@ -388,9 +441,13 @@ async function checkAvisosNaoLidos() {
         }
         renderNotifPanel(window._avisosCache);
 
-        if (count > 0 && !sessionStorage.getItem('avisos_popup_shown_v2')) {
-            _showAvisosPopup(data.avisos);
-            sessionStorage.setItem('avisos_popup_shown_v2', '1');
+        const inicio = !polling && !sessionStorage.getItem('avisos_popup_shown_v2');
+        if (inicio && count > 0) sessionStorage.setItem('avisos_popup_shown_v2', '1');
+        const candidatos = _avisosParaPopup(window._avisosCache, inicio, _avApresentados());
+        // Popup aberto: não substitui; os novos entram na próxima verificação.
+        if (candidatos.length && !document.getElementById('avisos-popup-overlay')) {
+            _showAvisosPopup(candidatos);
+            _avMarcarApresentados(candidatos.filter(a => a.siaa_estado).map(a => a.id));
         }
     } catch (e) { console.error('checkAvisosNaoLidos', e); }
 }

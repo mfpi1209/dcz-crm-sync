@@ -149,6 +149,27 @@ class RotaTest(unittest.TestCase):
         self.assertEqual(d["destinatarios_configurados"], list(siaa_avisos.DESTINATARIOS))
 
 
+class OrigemPopupTest(unittest.TestCase):
+    """/api/avisos/nao-lidos marca siaa_estado; sem a tabela, tudo fica None (regra de sempre)."""
+
+    def test_erro_na_consulta_deixa_none_e_faz_rollback(self):
+        from routes.avisos import _marcar_origem_siaa
+
+        class Conn:
+            rolled = False
+
+            def cursor(self):
+                raise RuntimeError("relation does not exist")
+
+            def rollback(self):
+                Conn.rolled = True
+
+        rows = [{"id": 1}, {"id": 2}]
+        _marcar_origem_siaa(Conn(), rows)
+        self.assertEqual([r["siaa_estado"] for r in rows], [None, None])
+        self.assertTrue(Conn.rolled)
+
+
 # ---------------------------------------------------------------------------
 # Integração com Postgres de teste
 # ---------------------------------------------------------------------------
@@ -372,6 +393,16 @@ class IntegracaoPgTest(unittest.TestCase):
                 self._sinc([_ab(), _ab(oc=OC2, tipo="keepalive", titulo="Keepalive SIAA sem sinal")])
         self.assertEqual(self._siaa_avisos(), [])  # nem o 1º aviso ficou
         self.assertEqual(self._sinc([_ab(), _ab(oc=OC2, tipo="keepalive")])["criados"], 2)
+
+    def test_nao_lidos_marca_origem_siaa_e_manual_fica_none(self):
+        from routes.avisos import _marcar_origem_siaa
+        self._sinc([_ab(), _ab(oc=OC2, tipo="executor", titulo="Executor SIAA sem sinal")])
+        self._sinc([], [_rec(OC2, tipo="executor")])
+        a1, a2 = self._siaa_avisos()
+        rows = [{"id": self.manual}, {"id": a1}, {"id": a2}]
+        _marcar_origem_siaa(self.conn, rows)
+        self.assertEqual([r["siaa_estado"] for r in rows], [None, "aberto", "recuperado"])
+        self._manual_intacto()
 
     def test_conexao_siaa_mostra_vinculos_e_leituras(self):
         self._sinc([_ab()])

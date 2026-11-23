@@ -70,6 +70,26 @@ def listar_avisos():
     return jsonify(rows)
 
 
+def _marcar_origem_siaa(conn, rows):
+    """Marca os avisos gerados por incidente SIAA (``siaa_estado``: aberto | recuperado), para o
+    popup durante o uso. Avisos manuais ficam ``None``. Sem a tabela ou com erro, todos ficam
+    ``None`` e o popup segue a regra de sempre."""
+    for r in rows:
+        r["siaa_estado"] = None
+    ids = [r["id"] for r in rows]
+    if not ids:
+        return
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT aviso_id, estado FROM siaa_incidente_aviso WHERE aviso_id = ANY(%s)", (ids,))
+            estados = dict(cur.fetchall())
+    except Exception:
+        conn.rollback()
+        return
+    for r in rows:
+        r["siaa_estado"] = estados.get(r["id"])
+
+
 @avisos_bp.route("/api/avisos/nao-lidos")
 def nao_lidos():
     """Unread notices for the logged-in user (popup + badge)."""
@@ -92,6 +112,7 @@ def nao_lidos():
                 a.created_at DESC
         """, {"user_id": uid, "role": role})
         rows = cur.fetchall()
+    _marcar_origem_siaa(conn, rows)
     conn.close()
 
     for r in rows:
