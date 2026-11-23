@@ -688,6 +688,59 @@ def _fmt_z(dt):
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+# ---------------------------------------------------------------------------
+# Incidentes SIAA (alertas -> Avisos). Só leitura: estado ao vivo da session-api
+# (GET /alertas) + vínculos ocorrência -> aviso gravados pelo job do painel.
+# ---------------------------------------------------------------------------
+
+def _iso_ou_none(v):
+    return v.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") if isinstance(v, datetime) else None
+
+
+@conexao_siaa_bp.route("/api/conexao-siaa/incidentes", methods=["GET"])
+def api_conexao_incidentes():
+    f = _forbidden()
+    if f:
+        return f
+    import siaa_avisos
+    vivo, erro = siaa_avisos._chamar_alertas()
+    corpo = {"ok": True, "geracao_ativa": siaa_avisos.ativo(), "erro_api": erro,
+             "destinatarios_configurados": list(siaa_avisos.DESTINATARIOS)}
+    if vivo is not None:
+        corpo["avaliado_em"] = _iso_ou_none(vivo["avaliado_em"])
+        corpo["abertos"] = [{"tipo": i["tipo"], "titulo": i["titulo"], "modulo": i["modulo"], "motivo": i["motivo"],
+                             "aberto_em": _iso_ou_none(i["aberto_em"])} for i in vivo["abertos"]]
+    else:
+        corpo["avaliado_em"], corpo["abertos"] = None, None
+    try:
+        from db import get_conn
+        conn = get_conn()
+        try:
+            with conn.cursor() as cur:
+                ids, ausentes = siaa_avisos.resolver_destinatarios(cur)
+            vinc = siaa_avisos.ultimos_vinculos(conn)
+        finally:
+            conn.close()
+        corpo["destinatarios_ausentes"] = ausentes
+        corpo["destinatarios_encontrados"] = len(ids)
+        vivos = {i["ocorrencia"] for i in vivo["abertos"]} if vivo is not None else None
+        corpo["avisos"] = [{"tipo": v["tipo"], "estado": v["estado"], "titulo": v["titulo"], "modulo": v["modulo"],
+                            "motivo": v["motivo"], "aberto_em": _iso_ou_none(v["aberto_em"]),
+                            "recuperado_em": _iso_ou_none(v["recuperado_em"]), "tem_aviso": bool(v["aviso_id"]),
+                            "lidos": int(v["lidos"] or 0), "destinatarios": int(v["destinatarios"] or 0),
+                            # aberto no painel, mas a API não lista mais (estado da API perdido?): verificar
+                            "fora_da_api": bool(v["estado"] == "aberto" and vivos is not None
+                                                and v["ocorrencia"] not in vivos)}
+                           for v in vinc]
+    except Exception as exc:
+        logger.warning("conexao_siaa: incidentes sem banco (%s)", type(exc).__name__)
+        corpo["avisos"], corpo["destinatarios_ausentes"], corpo["destinatarios_encontrados"] = None, None, None
+    ult = siaa_avisos._ULTIMO
+    corpo["ultima_sincronizacao"] = _iso_ou_none(ult.get("em"))
+    corpo["erro_sincronizacao"] = ult.get("erro")
+    return jsonify(corpo)
+
+
 @conexao_siaa_bp.route("/api/conexao-siaa/diagnostico", methods=["GET"])
 def api_conexao_diagnostico():
     if (f := _forbidden()) is not None:

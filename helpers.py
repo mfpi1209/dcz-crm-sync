@@ -473,11 +473,16 @@ XL_TIPOS = ["matriculados", "inadimplentes", "concluintes", "acesso_ava", "sem_r
 def criar_aviso_para_usuarios(user_ids, titulo, corpo, *,
                                prioridade="normal",
                                created_by=None,
-                               expires_at=None):
+                               expires_at=None,
+                               cur=None):
     """Cria um aviso direcionado a uma lista explicita de user_ids.
 
     target_role='todos' + target_user_ids=[...] combina em AND na query de
     visibilidade (_VISIBLE_WHERE em routes/avisos.py), so os IDs listados veem.
+    Lista vazia -> None (nunca vira aviso para todos).
+
+    ``cur``: cursor de uma transacao do chamador (o INSERT entra nela e o commit
+    fica com o chamador). Sem ``cur``, abre conexao propria e faz commit.
     """
     from db import get_conn
 
@@ -493,6 +498,16 @@ def criar_aviso_para_usuarios(user_ids, titulo, corpo, *,
         raise ValueError("titulo e corpo sao obrigatorios")
 
     prio = prioridade if prioridade in ("normal", "importante", "urgente") else "normal"
+    sql = """
+                INSERT INTO avisos (
+                    titulo, corpo, prioridade, target_role,
+                    target_user_ids, created_by, expires_at
+                ) VALUES (%s, %s, %s, 'todos', %s, %s, %s)
+                RETURNING id
+                """
+    if cur is not None:
+        cur.execute(sql, (titulo, corpo, prio, ids, created_by, expires_at))
+        return cur.fetchone()[0]
 
     conn = get_conn()
     try:

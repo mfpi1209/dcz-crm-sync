@@ -107,6 +107,24 @@
     <div class="cs-card" id="cs-pausa"></div>
 </div>
 
+<div class="cs-card" style="margin-bottom:16px" id="cs-inc-card">
+    <div class="cs-card-head">
+        <div class="cs-card-title"><span class="material-symbols-outlined">notifications_active</span>Incidentes e avisos</div>
+        <span id="cs-inc-badge"></span>
+    </div>
+    <div class="cs-hint" id="cs-inc-info" style="margin-bottom:8px">Carregando…</div>
+    <div class="cs-alert cs-alert-err hidden" id="cs-inc-alerta" role="alert"></div>
+    <div id="cs-inc-abertos"></div>
+    <div class="cs-table-wrap" style="margin-top:8px">
+        <table class="cs-table">
+            <thead><tr>
+                <th>Aberto em</th><th>Incidente</th><th>Módulo</th><th>Situação</th><th>Aviso</th>
+            </tr></thead>
+            <tbody id="cs-inc-body"><tr><td colspan="5" class="cs-empty">Carregando…</td></tr></tbody>
+        </table>
+    </div>
+</div>
+
 <div class="cs-card" style="margin-bottom:16px" id="cs-renov-card">
     <div class="cs-card-head">
         <div class="cs-card-title"><span class="material-symbols-outlined">autorenew</span>Renovação automática</div>

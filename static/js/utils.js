@@ -350,19 +350,72 @@ async function applySidebarPermissions() {
         const d = await res.json();
         const role = d.role || '';
         document.body.dataset.role = role;
+        window._avUsuario = d.username || '';
         if (d.categoria) document.body.dataset.categoria = d.categoria;
     } catch (e) { console.error('sidebar permissions', e); }
 }
 
 window._sidebarPermsReady = applySidebarPermissions();
-window._sidebarPermsReady.then(() => checkAvisosNaoLidos());
+window._sidebarPermsReady.then(() => { checkAvisosNaoLidos(); _iniciarPollingAvisos(); });
 
 // ---------------------------------------------------------------------------
 // Avisos — popup ao logar + badge sidebar
 // ---------------------------------------------------------------------------
-async function checkAvisosNaoLidos() {
+// Popup:
+// - carga da página: regra de sempre (1x por sessão do navegador, todos os não lidos);
+// - durante o uso (polling leve): só avisos de incidente SIAA ainda abertos e nunca apresentados
+//   neste navegador para este usuário. Aviso SIAA já recuperado nunca abre popup (continua na
+//   lista e no contador). A leitura continua individual no servidor (aviso_lido).
+const AVISOS_POLL_MS = 60000;
+let _avisosPollTimer = null;
+
+function _avChaveApresentados() { return 'avisos_siaa_apresentados_v1:' + (window._avUsuario || ''); }
+function _avApresentados() {
+    try { return new Set(JSON.parse(localStorage.getItem(_avChaveApresentados()) || '[]')); }
+    catch (e) { return new Set(); }
+}
+function _avMarcarApresentados(ids) {
+    if (!ids.length) return;
     try {
-        const res = await api('/api/avisos/nao-lidos');
+        const s = _avApresentados();
+        ids.forEach(i => s.add(i));
+        localStorage.setItem(_avChaveApresentados(), JSON.stringify(Array.from(s).slice(-300)));
+    } catch (e) { /* sem storage: na pior hipótese repete na próxima sessão */ }
+}
+
+// Quais avisos abrem popup agora. Pura: testada em tests/test_avisos_popup_js.py.
+function _avisosParaPopup(avisos, inicioDaSessao, apresentados) {
+    return (avisos || []).filter(a => {
+        if (a.siaa_estado) {
+            // incidente SIAA: só aberto e nunca apresentado (carga ou polling)
+            return a.siaa_estado === 'aberto' && !apresentados.has(a.id);
+        }
+        return inicioDaSessao;  // aviso manual: regra de sempre (só na 1ª carga da sessão)
+    });
+}
+
+function _iniciarPollingAvisos() {
+    if (_avisosPollTimer) return;
+    _avisosPollTimer = setInterval(() => { if (!document.hidden) checkAvisosNaoLidos({ polling: true }); }, AVISOS_POLL_MS);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && _avisosPollTimer) checkAvisosNaoLidos({ polling: true });
+    });
+}
+
+async function checkAvisosNaoLidos(opts) {
+    const polling = !!(opts && opts.polling);
+    try {
+        let res;
+        if (polling) {
+            // sem redirecionar no meio do uso: sessão expirada só para o polling
+            res = await fetch('/api/avisos/nao-lidos', { credentials: 'same-origin' });
+            if (res.status === 401 || res.status === 403) {
+                clearInterval(_avisosPollTimer); _avisosPollTimer = null; return;
+            }
+            if (!res.ok) return;
+        } else {
+            res = await api('/api/avisos/nao-lidos');
+        }
         const data = await res.json();
         const count = data.count || 0;
         window._avisosCache = Array.isArray(data.avisos) ? data.avisos : [];
@@ -388,9 +441,15 @@ async function checkAvisosNaoLidos() {
         }
         renderNotifPanel(window._avisosCache);
 
-        if (count > 0 && !sessionStorage.getItem('avisos_popup_shown_v2')) {
-            _showAvisosPopup(data.avisos);
-            sessionStorage.setItem('avisos_popup_shown_v2', '1');
+        const inicio = !polling && !sessionStorage.getItem('avisos_popup_shown_v2');
+        if (inicio && count > 0) sessionStorage.setItem('avisos_popup_shown_v2', '1');
+        const candidatos = _avisosParaPopup(window._avisosCache, inicio, _avApresentados());
+        // Popup aberto: não substitui; os novos entram na próxima verificação.
+        if (candidatos.length && !document.getElementById('avisos-popup-overlay')) {
+            const exibidos = candidatos.slice(0, 10);  // o popup mostra no máximo 10
+            // Popup do polling: "Marcar todos como lidos" marca só os exibidos.
+            _showAvisosPopup(exibidos, polling ? exibidos.map(a => a.id) : null);
+            _avMarcarApresentados(exibidos.filter(a => a.siaa_estado).map(a => a.id));
         }
     } catch (e) { console.error('checkAvisosNaoLidos', e); }
 }
@@ -481,7 +540,7 @@ function renderNotifPanel(items) {
     }).join('');
 }
 
-function _showAvisosPopup(avisos) {
+function _showAvisosPopup(avisos, idsParaMarcar) {
     if (!avisos || !avisos.length) return;
     const existing = document.getElementById('avisos-popup-overlay');
     if (existing) existing.remove();
@@ -517,7 +576,7 @@ function _showAvisosPopup(avisos) {
             </div>
             <div class="overflow-y-auto p-5 flex-1">${cards}</div>
             <div class="flex items-center justify-between p-4 border-t border-[var(--border)]">
-                <button onclick="_popupMarcarTodos()" class="text-xs text-violet-700 dark:text-violet-400 hover:text-violet-900 dark:hover:text-violet-300 transition">Marcar todos como lidos</button>
+                <button onclick="_popupMarcarTodos(${idsParaMarcar ? JSON.stringify(idsParaMarcar.map(Number)) : ''})" class="text-xs text-violet-700 dark:text-violet-400 hover:text-violet-900 dark:hover:text-violet-300 transition">Marcar todos como lidos</button>
                 <button onclick="document.getElementById('avisos-popup-overlay').remove(); navigate('avisos');" class="btn-primary text-white font-medium text-xs px-4 py-2 rounded-lg">Ver todos</button>
             </div>
         </div>`;
@@ -525,8 +584,12 @@ function _showAvisosPopup(avisos) {
     overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 }
 
-function _popupMarcarTodos() {
-    api('/api/avisos/marcar-todos-lidos', { method: 'POST' }).then(() => {
+function _popupMarcarTodos(ids) {
+    // Com ids (popup do polling): só os exibidos. Sem ids: regra de sempre (todos os visíveis).
+    const marcar = Array.isArray(ids)
+        ? Promise.all(ids.map(id => api('/api/avisos/' + Number(id) + '/lido', { method: 'POST' })))
+        : api('/api/avisos/marcar-todos-lidos', { method: 'POST' });
+    marcar.then(() => {
         const overlay = document.getElementById('avisos-popup-overlay');
         if (overlay) overlay.remove();
         checkAvisosNaoLidos();

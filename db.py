@@ -1108,6 +1108,19 @@ def _ensure_avisos_tables():
         logger.warning("Could not ensure avisos tables: %s", e)
 
 
+def _ensure_siaa_incidentes_table():
+    """Vinculo ocorrencia SIAA -> aviso (siaa_avisos.py). Depende de `avisos`."""
+    try:
+        from siaa_avisos import garantir_tabela
+        conn = get_conn()
+        try:
+            garantir_tabela(conn)
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure siaa_incidente_aviso table: %s", e)
+
+
 def _ensure_dist_comercial_schedule_tables():
     """Cria as tabelas do agendamento de troca de turno (Dia/Noite) do dist_comercial.
 
