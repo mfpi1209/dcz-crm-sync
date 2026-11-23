@@ -555,6 +555,7 @@ function conexaoSiaaHistoricoMais() { return csCarregarHistorico(true); }
 // "Carregar mais" está lendo eventos antigos e não perde a posição).
 function csPoll() {
     conexaoSiaaLoadStatus();
+    csIncidentesCarregar();
     if (!csState.historico.paginou) csCarregarHistorico(false, true);
     // Renovação: só GET (status e execuções); o polling nunca escreve.
     csRenovCarregarStatus();
@@ -1075,9 +1076,81 @@ function conexaoSiaaRenovExecucoesMais() { return csRenovCarregarExecucoes(true)
 // ── Ciclo de vida da página ───────────────────────────────────────────────
 function conexaoSiaaRefresh() {
     conexaoSiaaLoadStatus();
+    csIncidentesCarregar();
     conexaoSiaaHistoricoRecarregar();
     csRenovCarregarStatus();
     csRenovCarregarExecucoes(false);
+}
+
+// ── Incidentes e avisos (só leitura) ──────────────────────────────────────
+const CS_INC_ESTADOS = {
+    aberto: ['Aberto', 't-bad'],
+    recuperado: ['Recuperado', 't-ok'],
+    recuperado_sem_aviso: ['Recuperado (sem aviso)', 't-neutral'],
+};
+
+function csIncidentesRender(d) {
+    const info = csEl('cs-inc-info'), alerta = csEl('cs-inc-alerta'), badge = csEl('cs-inc-badge');
+    if (!info) return;
+    const partes = [];
+    partes.push(d.geracao_ativa ? 'Geração de avisos ligada' : 'Geração de avisos desligada (SIAA_AVISOS_INCIDENTES)');
+    partes.push('destinatários: ' + (d.destinatarios_configurados || []).join(', '));
+    if (d.avaliado_em) partes.push('última avaliação ' + csData(d.avaliado_em) + ' (' + (csHa(d.avaliado_em) || '—') + ')');
+    if (d.ultima_sincronizacao) partes.push('última sincronização ' + csData(d.ultima_sincronizacao));
+    info.textContent = partes.join(' · ');
+    const erros = [];
+    if (d.erro_api) erros.push(d.erro_api);
+    if (d.erro_sincronizacao) erros.push(d.erro_sincronizacao);
+    if (d.destinatarios_ausentes && d.destinatarios_ausentes.length)
+        erros.push('Destinatário não encontrado no cadastro: ' + d.destinatarios_ausentes.join(', ') + '. Nenhum aviso vai para outros usuários.');
+    if (alerta) {
+        alerta.textContent = erros.join(' ');
+        alerta.classList.toggle('hidden', !erros.length);
+    }
+    const abertos = d.abertos;
+    if (badge) {
+        if (abertos === null || abertos === undefined) badge.innerHTML = '<span class="cs-badge t-neutral">Sem leitura</span>';
+        else if (abertos.length) badge.innerHTML = '<span class="cs-badge t-bad">' + abertos.length + ' aberto' + (abertos.length > 1 ? 's' : '') + '</span>';
+        else badge.innerHTML = '<span class="cs-badge t-ok">Nenhum incidente aberto</span>';
+    }
+    const box = csEl('cs-inc-abertos');
+    if (box) {
+        box.innerHTML = (abertos || []).map(function (i) {
+            return '<div class="cs-alert cs-alert-err" style="margin-bottom:6px"><b>' + csEsc(i.titulo) + '</b> — '
+                + csEsc(i.modulo || '—') + '<br>' + csEsc(i.motivo || '') + '<br><span class="cs-hint">Desde '
+                + csData(i.aberto_em) + ' (' + (csHa(i.aberto_em) || '—') + ')</span></div>';
+        }).join('');
+    }
+    const body = csEl('cs-inc-body');
+    if (!body) return;
+    const avisos = d.avisos;
+    if (avisos === null || avisos === undefined) {
+        body.innerHTML = '<tr><td colspan="5" class="cs-empty">Registro de avisos indisponível.</td></tr>';
+        return;
+    }
+    if (!avisos.length) {
+        body.innerHTML = '<tr><td colspan="5" class="cs-empty">Nenhum incidente registrado.</td></tr>';
+        return;
+    }
+    body.innerHTML = avisos.map(function (v) {
+        const e = CS_INC_ESTADOS[v.estado] || [v.estado, 't-neutral'];
+        const sit = '<span class="cs-badge ' + e[1] + '">' + csEsc(e[0]) + '</span>'
+            + (v.recuperado_em ? '<div class="cs-hint">em ' + csData(v.recuperado_em) + '</div>' : '');
+        const av = v.tem_aviso ? (v.lidos + ' de ' + v.destinatarios + ' leram') : '—';
+        return '<tr><td>' + csData(v.aberto_em) + '</td><td>' + csEsc(v.titulo) + '<div class="cs-hint">'
+            + csEsc(v.motivo || '') + '</div></td><td>' + csEsc(v.modulo || '—') + '</td><td>' + sit
+            + '</td><td>' + csEsc(av) + '</td></tr>';
+    }).join('');
+}
+
+async function csIncidentesCarregar() {
+    const r = await csFetch('GET', '/incidentes');
+    if (r.status !== 200 || !r.data || r.data.ok !== true) {
+        const info = csEl('cs-inc-info');
+        if (info) info.textContent = (r.data && r.data.error) || 'Não foi possível ler os incidentes.';
+        return;
+    }
+    csIncidentesRender(r.data);
 }
 
 function conexaoSiaaOnPage(ativo) {

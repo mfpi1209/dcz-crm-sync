@@ -372,6 +372,7 @@ from db import (
     _ensure_xl_snapshots_table,
     _ensure_engagement_tables,
     _ensure_avisos_tables,
+    _ensure_siaa_incidentes_table,
     _ensure_page_views_table,
     _ensure_funnel_log_table,
     _ensure_premiacao_tables,
@@ -402,6 +403,7 @@ _ensure_suporte_comercial_users()
 _ensure_xl_snapshots_table()
 _ensure_engagement_tables()
 _ensure_avisos_tables()
+_ensure_siaa_incidentes_table()
 _ensure_page_views_table()
 _ensure_funnel_log_table()
 _ensure_premiacao_tables()
@@ -457,6 +459,9 @@ register_bwipo_periodo_warm(scheduler)
 register_blog_schedule_job(scheduler)
 from routes.conversao_backfill import register_conversao_backfill_job
 register_conversao_backfill_job(scheduler)
+# Incidentes SIAA -> Avisos (so age com SIAA_AVISOS_INCIDENTES=1; ver siaa_avisos.py)
+from siaa_avisos import register_siaa_avisos_job
+register_siaa_avisos_job(scheduler)
 warm_academic_sumidos_cache()
 
 # ── Entrypoint ────────────────────────────────────────────────────────────
