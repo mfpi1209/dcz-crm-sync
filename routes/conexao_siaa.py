@@ -173,6 +173,7 @@ _MSG_409 = {
     "pausa_manual": "A pausa manual está ativa; desative-a antes de renovar.",
     "alvos_mudaram": "Os módulos atingidos mudaram desde a confirmação. Os dados foram recarregados; "
                      "confira e confirme de novo.",
+    "episodio_nao_bloqueado": "Não há módulo para liberar agora. Os dados foram recarregados.",
 }
 
 

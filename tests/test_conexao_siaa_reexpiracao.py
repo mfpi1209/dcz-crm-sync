@@ -62,6 +62,13 @@ class AlvosConfirmadosTest(unittest.TestCase):
         self.assertEqual((r.status_code, d["error"]), (409, "alvos_mudaram"))
         self.assertIn("mudaram", d["message"])
 
+    def test_episodio_nao_bloqueado_tem_mensagem_propria(self):
+        r, _ = self._post("liberar", {"episodio_id": "ep-1", "versao": 4},
+                          _Resp(409, {"error": "episodio_nao_bloqueado"}))
+        d = r.get_json()
+        self.assertEqual(d["error"], "episodio_nao_bloqueado")
+        self.assertIn("Não há módulo para liberar", d["message"])
+
     def test_status_repassa_reexpirado_em(self):
         st = _status()
         st["episodio"]["modulos_estado"]["academico"].update(resolvido=False, reexpirado_em="2026-11-24T14:49:59Z")
