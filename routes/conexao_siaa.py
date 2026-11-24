@@ -171,6 +171,8 @@ def _chamar(method, caminho, params=None, corpo=None, prefixo="conexao", timeout
 _MSG_409 = {
     "execucao_ativa": "Já existe uma renovação em andamento.",
     "pausa_manual": "A pausa manual está ativa; desative-a antes de renovar.",
+    "alvos_mudaram": "Os módulos atingidos mudaram desde a confirmação. Os dados foram recarregados; "
+                     "confira e confirme de novo.",
 }
 
 
@@ -399,7 +401,7 @@ def _mods_opt(v):
 # Renovação seletiva (aditivo): estado por módulo do episódio e alvos de cada controle.
 _R_MOD_ESTADO = {
     "tentativas_automaticas": _i, "bloqueado": _b, "bloqueio_motivo": _enum,
-    "resolvido": _b, "resolvido_em": _iso, "liberado_em": _iso,
+    "resolvido": _b, "resolvido_em": _iso, "liberado_em": _iso, "reexpirado_em": _iso,
 }
 
 
@@ -496,7 +498,20 @@ def _validar_solicitar(d):
         return None, "pedido_id: 32 caracteres hexadecimais"
     if d.get("confirmacao") != "substituir_sessoes":
         return None, "confirmacao: confirme a substituição das sessões"
-    return {"pedido_id": pid.lower(), "confirmacao": "substituir_sessoes"}, None
+    saida = {"pedido_id": pid.lower(), "confirmacao": "substituir_sessoes"}
+    return _com_modulos_confirmados(d, saida)
+
+
+def _com_modulos_confirmados(d, saida):
+    """``modulos`` mostrados na confirmação (opcional): a API recusa (409) se os alvos mudaram."""
+    if "modulos" not in d:
+        return saida, None
+    v = d.get("modulos")
+    if (not isinstance(v, list) or not v or len(v) > len(_MODULOS) or len(set(map(str, v))) != len(v)
+            or any(m not in _MODULOS for m in v)):
+        return None, "modulos: lista de academico/financeiro sem repetição"
+    saida["modulos"] = [m for m in _MODULOS if m in v]
+    return saida, None
 
 
 def _validar_liberar(d):
@@ -507,7 +522,7 @@ def _validar_liberar(d):
         return None, "episodio_id: identificador inválido"
     if _int_estrito(d.get("versao")) is None or d["versao"] < 0:
         return None, "versao: inteiro esperado"
-    return {"episodio_id": ep, "versao": d["versao"]}, None
+    return _com_modulos_confirmados(d, {"episodio_id": ep, "versao": d["versao"]})
 
 
 # ---------------------------------------------------------------------------

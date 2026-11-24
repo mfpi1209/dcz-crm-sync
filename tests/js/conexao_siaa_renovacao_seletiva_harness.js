@@ -163,14 +163,16 @@ async function carregar(st, execs) {
     sv.liberar = { ok: true, episodio: Object.assign({}, ep, { bloqueado: false }), modulos_liberados: ['financeiro'] };
     calls.length = 0;
     await run('conexaoSiaaRenovLiberar()'); await settle();
-    assert.deepStrictEqual(escritas().map(x => x.body), [{ episodio_id: 'ep-1', versao: 4 }], 'corpo do liberar inalterado');
+    assert.deepStrictEqual(escritas().map(x => x.body), [{ episodio_id: 'ep-1', versao: 4, modulos: ['financeiro'] }],
+        'liberar leva os alvos confirmados');
     assert(/Nova tentativa liberada: Financeiro\./.test(els['cs-renov-msg'].textContent));
     calls.length = 0;
     await run('conexaoSiaaRenovSolicitar()'); await settle();
     const w = escritas();
     assert.strictEqual(w.length, 1);
-    assert.deepStrictEqual(Object.keys(w[0].body).sort(), ['confirmacao', 'pedido_id'], 'corpo do solicitar inalterado');
-    ok('confirmações listam os módulos certos; corpos dos POSTs inalterados');
+    assert.deepStrictEqual(Object.keys(w[0].body).sort(), ['confirmacao', 'modulos', 'pedido_id']);
+    assert.deepStrictEqual(w[0].body.modulos, ['financeiro'], 'solicitar leva os alvos mostrados');
+    ok('confirmações listam os módulos certos e os POSTs levam os alvos confirmados');
 
     // 6) alvos com os dois módulos
     await carregar(status({ estado: 'bloqueada', episodio: Object.assign({}, ep, { modulos_estado: {
@@ -184,6 +186,26 @@ async function carregar(st, execs) {
     assert(/Liberar nova tentativa para: Acadêmico e Financeiro\?/.test(sv.confirms[1]));
     assert(/Renovação automática atingiria agora<\/dt><dd>Acadêmico</.test(html('cs-renov-corpo')));
     ok('confirmações com os dois módulos');
+
+    // 6b) reexpiração (24/11): acadêmico resolvido e expirado de novo; financeiro bloqueado
+    const epRe = Object.assign({}, ep, { modulos_estado: {
+        academico: { tentativas_automaticas: 1, bloqueado: false, bloqueio_motivo: null, resolvido: false,
+                     resolvido_em: '2026-11-24T01:11:59Z', liberado_em: null, reexpirado_em: '2026-11-24T14:49:59Z' },
+        financeiro: Object.assign({}, ep.modulos_estado.financeiro) } });
+    await carregar(status({ estado: 'bloqueada', episodio: epRe,
+        alvos: { renovar_agora: ['academico', 'financeiro'], liberar: ['academico', 'financeiro'], automatica: [] } }), []);
+    c = html('cs-renov-corpo');
+    assert(/Expirou de novo/.test(linha(c.split('cs-rn-ep-modulos')[1], 'Acadêmico')), 'reexpirado exibido');
+    sv.confirms.length = 0; calls.length = 0;
+    await run('conexaoSiaaRenovSolicitar()'); await settle();
+    assert(/Módulos atingidos: Acadêmico e Financeiro\./.test(sv.confirms[0]));
+    assert.deepStrictEqual(escritas()[0].body.modulos, ['academico', 'financeiro']);
+    sv.liberar = { ok: true, episodio: epRe, modulos_liberados: ['academico', 'financeiro'] };
+    sv.confirms.length = 0; calls.length = 0;
+    await run('conexaoSiaaRenovLiberar()'); await settle();
+    assert(/exatamente uma tentativa automática/.test(sv.confirms[0]));
+    assert.deepStrictEqual(escritas()[0].body.modulos, ['academico', 'financeiro']);
+    ok('reexpiração: dois alvos mostrados e enviados na confirmação');
 
     // 7) alvos.liberar vazio: Liberar não é oferecido nem envia
     await carregar(status({ estado: 'bloqueada', episodio: ep,
@@ -218,8 +240,10 @@ async function carregar(st, execs) {
     assert(/os dois módulos/.test(sv.confirms[0]) && /credenciais/i.test(sv.confirms[0]));
     assert(/^Liberar nova tentativa\? O bloqueio e as tentativas deste episódio são zerados/.test(sv.confirms[1]));
     sv.liberar = { ok: true, episodio: Object.assign({}, epAntigo, { bloqueado: false }), modulos_liberados: null };
+    calls.length = 0;
     await run('conexaoSiaaRenovLiberar()'); await settle();
     assert.strictEqual(els['cs-renov-msg'].textContent, 'Nova tentativa liberada.');
+    assert.deepStrictEqual(escritas().map(x => x.body), [{ episodio_id: 'ep-2', versao: 4 }], 'backend antigo: sem modulos');
     ok('backend antigo: textos atuais e nada quebra');
 
     // 9) polling continua só lendo

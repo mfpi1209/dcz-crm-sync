@@ -6,7 +6,8 @@ const path = require('path');
 const vm = require('vm');
 const assert = require('assert');
 
-const src = fs.readFileSync(path.join(__dirname, '..', '..', 'static', 'js', 'utils.js'), 'utf8');
+// CRLF (checkout no Windows) vira LF: os trechos são localizados por fim de linha.
+const src = fs.readFileSync(path.join(__dirname, '..', '..', 'static', 'js', 'utils.js'), 'utf8').split('\r\n').join('\n');
 
 function trecho(re) {
     const m = src.match(re);
