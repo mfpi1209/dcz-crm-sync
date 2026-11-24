@@ -665,6 +665,8 @@ const CS_RN_PUB = {
 const CS_RN_MSG_409 = {
     execucao_ativa: 'Já existe uma renovação em andamento.',
     pausa_manual: 'A pausa manual está ativa; desative-a antes de renovar.',
+    alvos_mudaram: 'Os módulos atingidos mudaram desde a confirmação. Os dados foram recarregados; confira e confirme de novo.',
+    episodio_nao_bloqueado: 'Não há módulo para liberar agora. Os dados foram recarregados.',
     versao: 'Outra pessoa alterou a configuração. Os dados foram recarregados; confira e tente de novo.',
 };
 
@@ -817,6 +819,7 @@ function csRnEpisodioModulos(est) {
         let sit;
         if (x.bloqueado) sit = '<span class="cs-badge t-bad">Bloqueado</span> ' + csEsc(csRnLabel(CS_RN_BLOQUEIOS, x.bloqueio_motivo, ''));
         else if (x.resolvido) sit = '<span class="cs-badge t-ok">Resolvido</span>' + (x.resolvido_em ? ' <span class="cs-muted">(' + csEsc(csData(x.resolvido_em, true)) + ')</span>' : '');
+        else if (x.reexpirado_em) sit = '<span class="cs-badge t-warn">Expirou de novo</span> <span class="cs-muted">(' + csEsc(csData(x.reexpirado_em, true)) + '; só por ação manual)</span>';
         else sit = '<span class="cs-badge t-warn">Aguardando renovação</span>';
         return '<tr><td>' + csEsc(mm[1]) + '</td><td>' + sit + '</td>' +
             '<td>' + csEsc(x.tentativas_automaticas === null || x.tentativas_automaticas === undefined ? '—' : x.tentativas_automaticas) + '</td>' +
@@ -994,7 +997,11 @@ async function conexaoSiaaRenovSolicitar() {
     const reaproveita = csRenov.pedido && (agora - csRenov.pedido.em) < 120000;
     const pedido = reaproveita ? csRenov.pedido : { id: csNovoPedidoId(), em: agora };
     csRenov.pedido = pedido;
-    const r = await csRenovEscrever('POST', '/renovacao/solicitar', { pedido_id: pedido.id, confirmacao: 'substituir_sessoes' });
+    // Os módulos mostrados na confirmação vão junto: se mudarem até lá, a API recusa (409) e nada roda.
+    const corpoSol = { pedido_id: pedido.id, confirmacao: 'substituir_sessoes' };
+    const alvoSol = csRnAlvo(csRenov.status, 'renovar_agora');
+    if (alvoSol && alvoSol.length) corpoSol.modulos = alvoSol;
+    const r = await csRenovEscrever('POST', '/renovacao/solicitar', corpoSol);
     const ambiguo = r.status === 0 || r.status === 502 || r.status === 504;
     if (!ambiguo) csRenov.pedido = null;
     if (await csRenovResultado(r, 'Não foi possível solicitar a renovação.')) {
@@ -1011,10 +1018,12 @@ async function conexaoSiaaRenovLiberar() {
     const alvo = csRnAlvo(s, 'liberar');
     const msg = alvo === null
         ? 'Liberar nova tentativa? O bloqueio e as tentativas deste episódio são zerados. Nada é iniciado agora: a próxima renovação automática só roda se todas as regras (agenda, sessão expirada) valerem.'
-        : 'Liberar nova tentativa para: ' + csRnNomesMods(alvo) + '? O bloqueio e as tentativas só desse(s) módulo(s) são zerados; módulos resolvidos não mudam. ' +
+        : 'Liberar nova tentativa para: ' + csRnNomesMods(alvo) + '? Cada um desses módulos ganha exatamente uma tentativa automática; módulos resolvidos não mudam. ' +
           'Nada é iniciado agora: a próxima renovação automática só roda se todas as regras (agenda, sessão expirada) valerem.';
     if (!window.confirm(msg)) return;
-    const r = await csRenovEscrever('POST', '/renovacao/liberar', { episodio_id: s.episodio.id, versao: (s.config || {}).versao });
+    const corpoLib = { episodio_id: s.episodio.id, versao: (s.config || {}).versao };
+    if (alvo && alvo.length) corpoLib.modulos = alvo;
+    const r = await csRenovEscrever('POST', '/renovacao/liberar', corpoLib);
     if (await csRenovResultado(r, 'Não foi possível liberar a nova tentativa.')) {
         const lib = csRnValidos(r.data.modulos_liberados);
         csRnMsg('Nova tentativa liberada' + (lib && lib.length ? ': ' + csRnNomesMods(lib) : '') + '.', 'ok');

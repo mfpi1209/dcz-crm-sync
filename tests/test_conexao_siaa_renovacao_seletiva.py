@@ -129,7 +129,7 @@ class RenovacaoSeletivaTest(unittest.TestCase):
         self.assertEqual(list(est), ["academico"])
         self.assertEqual(est["academico"], {"tentativas_automaticas": None, "bloqueado": None,
                                             "bloqueio_motivo": None, "resolvido": None,
-                                            "resolvido_em": None, "liberado_em": None})
+                                            "resolvido_em": None, "liberado_em": None, "reexpirado_em": None})
         ex = d["ultima_execucao"]
         self.assertIsNone(ex["resultado"])
         self.assertEqual(ex["modulos_solicitados"], [])
@@ -180,7 +180,8 @@ class RenovacaoSeletivaTest(unittest.TestCase):
             r = self.client.post(BASE + "/liberar", json={"episodio_id": "ep-1", "versao": 4,
                                                           "modulos": ["academico"]})
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(m.call_args[1]["json"], {"episodio_id": "ep-1", "versao": 4})
+        # alvos confirmados vão para a API, que os confere (409 alvos_mudaram se diferentes)
+        self.assertEqual(m.call_args[1]["json"], {"episodio_id": "ep-1", "versao": 4, "modulos": ["academico"]})
         d = r.get_json()
         self.assertEqual(d["modulos_liberados"], ["financeiro"])
         self.assertEqual(d["episodio"]["modulos_estado"]["financeiro"]["tentativas_automaticas"], 0)
@@ -200,7 +201,8 @@ class RenovacaoSeletivaTest(unittest.TestCase):
                                                                   modulos_solicitados=["financeiro"])})) as m:
             r = self.client.post(BASE + "/solicitar", json={"pedido_id": pid, "confirmacao": "substituir_sessoes",
                                                             "modulos": ["academico"]})
-        self.assertEqual(m.call_args[1]["json"], {"pedido_id": pid, "confirmacao": "substituir_sessoes"})
+        self.assertEqual(m.call_args[1]["json"], {"pedido_id": pid, "confirmacao": "substituir_sessoes",
+                                                  "modulos": ["academico"]})
         self.assertEqual(r.get_json()["execucao"]["modulos_solicitados"], ["financeiro"])
 
     def test_diagnostico_aceita_campos_novos(self):
