@@ -4,6 +4,30 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-25 — Modernização, Fase 0: compressão e cache dos estáticos (`entrega_web.py`)
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** primeira fase da modernização do painel. Medição em produção (admin, 25/11): página utilizável em 52 a 70 s. O Python montava o HTML em 0,05 a 0,8 s; o tempo ia na entrega. Os 1,8 MB de HTML e os 55 JS saíam sem compressão, pelo Gunicorn, a 60 a 100 KB/s. Os estáticos prendiam as 4 threads, e o `/api/me` (1 KB) chegou a esperar 22 s na fila.
+- **Agora:**
+  - **Compressão:** o Flask-Compress comprime HTML, JSON, CSS e JS dinâmicos (br nível 4, senão gzip 6; mínimo de 500 bytes). Custa ~25 ms de CPU por abertura do index.
+  - **Estáticos:** `/static` passa a ser servido pelo WhiteNoise, antes do Flask. As versões `.gz`/`.br` são geradas no build (`python -m whitenoise.compress static` no Dockerfile). Sem o `.gz`/`.br`, sai o arquivo cru, como antes.
+  - **Versão dos estáticos:** `?v=` passa a ser o hash do conteúdo de `static/` (`versao_estaticos`). Saiu o `{% set _v = range(100000) | random %}` do `index.html`, que sobrescrevia a versão de `app.py` desde 03/2026 e obrigava a baixar todos os JS a cada abertura.
+  - **Cache:** pedido em `/static` com `?v=` igual à versão do processo (ou `?v=<versão>-<sufixo manual>`, como `-hide-crgm`) recebe `public, max-age=31536000, immutable`. Qualquer outro pedido (sem `?v=` ou com versão de outro deploy) recebe `no-cache` + ETag (304), o mesmo de antes. Isso evita que, num deploy com o container velho e o novo no ar, o conteúdo velho fique preso no cache sob a versão nova.
+  - **Desenvolvimento:** `STATIC_AUTOREFRESH` vale `1` por padrão (local relê os arquivos e nunca usa cache longo). O Dockerfile define `STATIC_AUTOREFRESH=0`.
+- **Regra para quem mexer no front:** todo `<script>`/`<link>` de `static/js` no `index.html` precisa de `?v={{_v}}` (há teste que confere). Arquivo sem `?v=` continua funcionando, só sem cache longo.
+- **Ganho esperado (medido nos arquivos, não em produção):** JS de 1.672 KB para ~350 KB (br) na primeira visita e zero nas seguintes; HTML de ~1.860 KB para ~260 KB. Medir de novo em produção após o deploy.
+- **Teste em localhost (25/11):** `app.py` real com banco simulado (só para a página abrir), Waitress com 4 threads e cada resposta limitada a 100 KB/s, como a saída medida em produção. Perfil admin.
+
+  | | antes (`master`) | depois |
+  |---|---:|---:|
+  | 1ª visita: página utilizável | 23,0 s | 3,9 s |
+  | Visita seguinte: página utilizável | 22,5 s | 3,7 s |
+  | HTML baixado | 1.815 KB | 254 KB |
+  | JS baixados | 1.630 KB, sempre | 352 KB na 1ª visita, 0 KB depois (55/55 do cache) |
+
+  Minha Performance, Dashboard Comercial Bwipo, Preços, Chamados e Config abriram sem erro de JS.
+- **Não muda:** rotas, templates (fora a linha do `_v`), regras de negócio, autenticação (`/static` já era liberado sem sessão em `require_auth`), CSVs e downloads (`send_file`), que ficam sem compressão.
+- **Testes:** `tests/test_entrega_web.py`.
+
 ### 2026-11-19 — Renovação seletiva: ajustes finais (proposta reduzida)
 - **Modelo usado:** Claude Opus 5.5.
 - Módulo solicitado e não tentado aparece como **"Não executado"** com o motivo (`motivo_situacao`: "a execução parou no módulo anterior" / "parou antes da coleta"), nunca como falha de coleta; o bloqueio conservador mostra "não executado (a execução parou antes)".

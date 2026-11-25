@@ -23,3 +23,6 @@ capturas_siaa/
 cookies/
 flask_*.log
 .motor-local/
+# Versões comprimidas geradas no build (python -m whitenoise.compress static)
+static/**/*.gz
+static/**/*.br

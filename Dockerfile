@@ -10,6 +10,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Versões .gz/.br dos estáticos, servidas pelo WhiteNoise (entrega_web.py).
+# Na imagem os arquivos não mudam, então o WhiteNoise não relê o disco a cada pedido.
+RUN python -m whitenoise.compress static
+ENV STATIC_AUTOREFRESH=0
+
 RUN mkdir -p /app/logs /app/reports
 
 VOLUME ["/app/reports", "/app/logs"]

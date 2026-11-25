@@ -31,6 +31,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask, session, request
 
+from entrega_web import configurar_entrega, versao_estaticos
+
 load_dotenv(Path(__file__).parent / ".env")
 
 app = Flask(__name__)
@@ -38,15 +40,18 @@ app.secret_key = os.getenv("SECRET_KEY", "dcz-sync-default-key-change-me")
 
 
 def _static_cache_bust() -> str:
-    """Versão dos assets estáticos (?v=) — maior mtime em static/js."""
-    js_dir = Path(__file__).parent / "static" / "js"
+    """Versão dos assets estáticos (?v=): hash do conteúdo de static/ (muda só quando um arquivo muda)."""
     try:
-        return str(int(max(f.stat().st_mtime for f in js_dir.glob("*.js"))))
-    except (ValueError, OSError):
+        return versao_estaticos(Path(__file__).parent / "static")
+    except OSError:
         return str(int(time.time()))
 
 
 app.config["CACHE_BUST"] = _static_cache_bust()
+
+# Compressão (HTML/JSON/JS/CSS) e estáticos fora das threads do Flask, com cache por versão.
+# Ver entrega_web.py e a decisão de 25/11/2026 no AGENTS.md.
+configurar_entrega(app, Path(__file__).parent / "static", app.config["CACHE_BUST"])
 
 
 def kommo_web_base_url() -> str:
