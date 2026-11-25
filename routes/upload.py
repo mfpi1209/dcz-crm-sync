@@ -20,6 +20,7 @@ import psycopg2.extras
 import csv as _csv
 import io as _io
 from flask import Blueprint, request, jsonify, current_app, Response
+from permissoes import exige_pagina
 
 from db import get_conn
 from helpers import BRT, to_brt, XL_TIPOS, BASE_DIR, LOG_DIR, REPORTS_DIR, _normalize_digits
@@ -1562,6 +1563,7 @@ def _validate_upload_columns(filepath, tipo):
 # ---------------------------------------------------------------------------
 
 @upload_bp.route("/api/upload", methods=["POST"])
+@exige_pagina("update")
 def api_upload():
     if "file" not in request.files:
         return jsonify({"error": "Nenhum arquivo enviado."}), 400
@@ -1673,6 +1675,7 @@ def api_upload():
 
 
 @upload_bp.route("/api/upload-batch", methods=["POST"])
+@exige_pagina("update")
 def api_upload_batch():
     """Recebe múltiplos arquivos .xlsm/.xlsx para inadimplentes e processa em lote."""
     files = request.files.getlist("files")
@@ -1756,6 +1759,7 @@ def api_upload_batch():
 
 
 @upload_bp.route("/api/upload-folder", methods=["POST"])
+@exige_pagina("update")
 def api_upload_folder():
     """Processa pastas já presentes no servidor (deploy/scp)."""
     body = request.json or {}

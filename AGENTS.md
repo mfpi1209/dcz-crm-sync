@@ -4,6 +4,38 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-25 — Modernização, Fase 1: SECRET_KEY, cookies, hash de senha e permissão no servidor
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** fechar as três brechas do diagnóstico antes de separar front e back.
+- **SECRET_KEY (`seguranca.chave_da_sessao`):** o padrão `"dcz-sync-default-key-change-me"` estava público no GitHub e permitia forjar um cookie de admin. Agora, sem a variável (ou com esse valor), o painel gera uma chave aleatória por processo e avisa no log.
+  - **Não derruba o boot de propósito:** ninguém confirmou se a variável existe no EasyPanel.
+  - **Custo sem a variável:** todos logam de novo a cada reinício.
+  - **⚠️ Antes de subir mais de 1 worker do Gunicorn, definir `SECRET_KEY` no EasyPanel.** Sem ela, cada worker teria uma chave diferente e as sessões cairiam a cada request.
+- **Cookies (`configurar_cookies`):** HttpOnly e SameSite=Lax. Secure vem de `SESSION_COOKIE_SECURE`: `1` no Dockerfile, desligado no localhost em http.
+- **Senhas:**
+  - **Hash novo:** `helpers._hash_pw` e `routes/auth._hash_pw` gravam scrypt do Werkzeug, com sal (~0,5 s por hash).
+  - **Migração no login:** o `_db_auth` ainda aceita o SHA-256 antigo (64 hex) e o troca pelo novo no primeiro login certo de cada usuário. Ninguém precisa trocar a senha.
+  - **Importação Kommo/DataCrazy:** calcula o hash da senha padrão uma vez só, fora do laço.
+- **Permissão no servidor (`permissoes.exige_pagina`):**
+  - **Regra:** a mesma do `bwipo_precos._allowed`. Admin e `user_id` 0 passam; os demais precisam de **qualquer uma** das páginas na `user_permissions`; sem isso, 403 em JSON.
+  - **Origem das páginas:** cada rota recebe as páginas cujas telas a chamam (mapeado por grep no front em 25/11).
+
+  | Rota (só escrita) | Páginas |
+  |---|---|
+  | 38 rotas `/api/` do `atualizar_preco_app` (publicam preço em sites, IA e CRM) | `atualizar_preco`, `precos_bwipo` |
+  | `/api/schedules` POST/DELETE/toggle | `schedule`, `config` |
+  | `/api/turmas*` e `/api/ciclos*` POST/PUT/DELETE/seed | `config` |
+  | `/api/distribuicao` POST | `distribuicao` |
+  | `/api/macro-email/consultores` POST | `macro_email` |
+  | `/api/upload`, `/api/upload-batch`, `/api/upload-folder` | `update` |
+  | `/api/debug` | só admin |
+
+- **Não muda:** as leituras (GET) dessas telas, as rotas que já tinham checagem própria (usuários, Bwipo preços, chamados, repasse etc.), o login de emergência e o `DEV_SKIP_AUTH`.
+- **Fica para a próxima etapa:**
+  - as demais rotas sem checagem (`dashboard`, `engagement`, `inadimplencia`, `crm`, `logs`...), começando pelas de escrita;
+  - a **senha padrão fixa** dos usuários importados do Kommo/DataCrazy, que está no código e sem tela de troca de senha pelo próprio usuário.
+- **Testes:** `tests/test_seguranca_fase1.py` (53), inclusive cookie forjado com a chave antiga sendo recusado e o mapa rota → páginas. Localhost sem `SECRET_KEY`: sobe, avisa no log e o admin continua acessando.
+
 ### 2026-11-25 — Modernização, Fase 0: compressão e cache dos estáticos (`entrega_web.py`)
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** primeira fase da modernização do painel. Medição em produção (admin, 25/11): página utilizável em 52 a 70 s. O Python montava o HTML em 0,05 a 0,8 s; o tempo ia na entrega. Os 1,8 MB de HTML e os 55 JS saíam sem compressão, pelo Gunicorn, a 60 a 100 KB/s. Os estáticos prendiam as 4 threads, e o `/api/me` (1 KB) chegou a esperar 22 s na fila.

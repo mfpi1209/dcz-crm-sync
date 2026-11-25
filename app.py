@@ -32,11 +32,14 @@ from dotenv import load_dotenv
 from flask import Flask, session, request
 
 from entrega_web import configurar_entrega, versao_estaticos
+from seguranca import chave_da_sessao, configurar_cookies
 
 load_dotenv(Path(__file__).parent / ".env")
 
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "dcz-sync-default-key-change-me")
+# Sem SECRET_KEY: chave aleatória por processo (nunca a chave pública antiga). Ver seguranca.py.
+app.secret_key = chave_da_sessao()
+configurar_cookies(app)
 
 
 def _static_cache_bust() -> str:
@@ -344,6 +347,9 @@ app.register_blueprint(motor_resultados_bp)
 # ── Atualizar Preço — rotas do webapp standalone integrado ────────────────
 try:
     from routes.atualizar_preco_app import app as _preco_app
+    from permissoes import exige_pagina as _exige_pagina
+    # Estas rotas publicam preço nos sites, na IA e no CRM: só quem tem uma das telas de preço.
+    _so_precos = _exige_pagina("atualizar_preco", "precos_bwipo")
     for _rule in list(_preco_app.url_map.iter_rules()):
         _ep = _rule.endpoint
         if _rule.rule.startswith('/api/') and _ep in _preco_app.view_functions:
@@ -353,7 +359,7 @@ try:
                     app.add_url_rule(
                         _rule.rule,
                         endpoint='preco_' + _ep,
-                        view_func=_preco_app.view_functions[_ep],
+                        view_func=_so_precos(_preco_app.view_functions[_ep]),
                         methods=_methods,
                     )
                 except (AssertionError, ValueError):

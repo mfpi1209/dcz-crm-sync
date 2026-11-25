@@ -14,6 +14,8 @@ COPY . .
 # Na imagem os arquivos não mudam, então o WhiteNoise não relê o disco a cada pedido.
 RUN python -m whitenoise.compress static
 ENV STATIC_AUTOREFRESH=0
+# Cookie de sessão só por HTTPS (produção é servida em https). Localhost em http fica sem (seguranca.py).
+ENV SESSION_COOKIE_SECURE=1
 
 RUN mkdir -p /app/logs /app/reports
 
