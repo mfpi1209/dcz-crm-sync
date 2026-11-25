@@ -8,3 +8,5 @@ _*.py
 _*.txt
 .venv
 venv
+static/**/*.gz
+static/**/*.br
