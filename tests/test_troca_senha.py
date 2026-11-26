@@ -54,6 +54,9 @@ class _Cursor:
             users[params[1]]["precisa_trocar_senha"] = False
         elif s.startswith("UPDATE app_users SET pw_hash = %s WHERE id"):
             users[params[1]]["pw_hash"] = params[0]
+        elif s.startswith("SELECT id, username, role FROM app_users WHERE id"):
+            u = users.get(params[0])
+            self._linha = {k: u[k] for k in ("id", "username", "role")} if u else None
         elif s.startswith("SELECT role FROM app_users WHERE id"):
             u = users.get(params[0])
             self._linha = {"role": u["role"]} if u else None

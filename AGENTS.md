@@ -20,8 +20,14 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 - **Decisão do Raphael (26/11): nada liga a flag automaticamente.**
   - **Fora deste PR:** a importação, o login com a senha padrão e a senha definida pelo admin na tela de Usuários.
   - **Para obrigar alguém a trocar:** `UPDATE app_users SET precisa_trocar_senha = TRUE WHERE id = <id>;`, que vale no próximo login da pessoa. Hashes scrypt têm sal, então achar quem ainda usa a senha padrão pede conferência em Python, um a um, e não um `UPDATE` em SQL puro.
-- **Não muda:** a senha padrão das importações, a tela de Usuários do admin, o login de emergência, `_db_auth` e as permissões.
-- **Testes:** `tests/test_troca_senha.py` (34), com banco simulado.
+- **"Entrar como" (decisão do Raphael, 26/11):**
+  - **Por quê:** o admin precisa continuar com acesso às contas dos consultores, mesmo depois que eles troquem a senha. O painel só tem dados da empresa. **Não guardar nem pedir a senha de ninguém para isso.**
+  - **Entrar:** `POST /api/users/<id>/entrar-como`, só com `role = admin`, pelo botão "Entrar como" (ícone `login`) na tela de Usuários. Troca o usuário, o login e o papel da sessão, e o painel passa a mostrar o menu e as permissões da pessoa. O admin fica guardado em `session["admin_original"]` (só o primeiro, se encadear) e a flag de troca é desligada nessa sessão.
+  - **Voltar:** `POST /voltar-admin`, pela faixa amarela no topo (`partials/_entrar_como.html`, incluída no `index.html`). A rota fica livre mesmo com a flag ligada. `/logout` encerra tudo.
+  - **Registro:** cada entrada e cada volta vão para o log do app (`ENTRAR_COMO: admin X (id) entrou como Y (id)` / `voltou`). Não há tabela de auditoria.
+  - **Não mexe:** senha, banco e permissões gravadas.
+- **Não muda:** a senha padrão das importações, a edição e a redefinição de senha pelo admin, o login de emergência, `_db_auth` e as permissões.
+- **Testes:** `tests/test_troca_senha.py` (34) e `tests/test_entrar_como.py` (17), com banco simulado.
 
 ### 2026-11-26 — Modernização, Fase 2: testes no CI antes do build
 - **Modelo usado:** Claude Opus 5.5.

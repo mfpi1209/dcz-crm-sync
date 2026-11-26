@@ -787,6 +787,12 @@ function renderUsers() {
             <td class="text-xs whitespace-nowrap" style="color: var(--text-muted)">${u.created_at || '—'}</td>
             <td>
                 <div class="row-actions">
+                    <button onclick="entrarComoUser(${u.id}, '${safeName}')"
+                            class="row-action-btn"
+                            title="Entrar como este usuário"
+                            aria-label="Entrar como ${u.username}">
+                        <span class="material-symbols-outlined">login</span>
+                    </button>
                     <button onclick="editUser(${u.id})"
                             class="row-action-btn"
                             title="Editar usuário"
@@ -1144,6 +1150,23 @@ async function createUser() {
         _closeUserCreateModal();
         loadUsers();
     } catch (e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+// "Entrar como" (26/11): o admin passa a ver o painel como o usuário, sem senha.
+// A faixa no topo (partials/_entrar_como.html) tem o "Voltar para o admin".
+async function entrarComoUser(uid, name) {
+    if (!confirm('Entrar como "' + name + '"? Você verá o painel como esta pessoa até clicar em "Voltar para o admin".')) return;
+    try {
+        const res = await api('/api/users/' + uid + '/entrar-como', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+            toast(data.error || 'Não foi possível entrar como este usuário', 'error');
+            return;
+        }
+        window.location.href = data.redirect || '/';
+    } catch (e) {
+        toast('Erro: ' + e.message, 'error');
+    }
 }
 
 async function deleteUser(uid, name) {

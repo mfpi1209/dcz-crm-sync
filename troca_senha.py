@@ -20,8 +20,9 @@ TAMANHO_MINIMO = 8
 TAMANHO_MAXIMO = 128
 CHAVE_SESSAO = "precisa_trocar_senha"
 
-# Com a flag ligada, só isto passa: a própria troca, sair, entrar e o que não é do usuário.
-_LIVRES = {URL, "/logout", "/login", "/health"}
+# Com a flag ligada, só isto passa: a própria troca, sair, entrar, voltar ao admin
+# (Entrar como) e o que não é do usuário.
+_LIVRES = {URL, "/logout", "/login", "/health", "/voltar-admin"}
 
 SQL_COLUNA = """
     ALTER TABLE app_users

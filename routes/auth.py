@@ -466,6 +466,60 @@ def api_users_delete(uid):
     return jsonify({"ok": True})
 
 
+@auth_bp.route("/api/users/<int:uid>/entrar-como", methods=["POST"])
+def api_users_entrar_como(uid):
+    """Admin passa a ver o painel como outro usuário, sem saber a senha dele (26/11).
+
+    Guarda o admin em `session["admin_original"]` (só o primeiro, se encadear) e
+    registra no log. `/voltar-admin` desfaz. Não mexe em senha nem no banco.
+    """
+    if session.get("role") != "admin":
+        return jsonify({"error": "Sem permissão"}), 403
+    if uid == session.get("user_id"):
+        return jsonify({"error": "Você já está neste usuário"}), 400
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT id, username, role FROM app_users WHERE id = %s", (uid,))
+            alvo = cur.fetchone()
+    finally:
+        conn.close()
+    if not alvo:
+        return jsonify({"error": "Usuário não encontrado"}), 404
+
+    original = session.get("admin_original") or {
+        "user_id": session.get("user_id"),
+        "username": session.get("username"),
+        "role": session.get("role"),
+    }
+    session["admin_original"] = original
+    session["user_id"] = alvo["id"]
+    session["username"] = alvo["username"]
+    session["role"] = alvo["role"]
+    session[troca_senha.CHAVE_SESSAO] = False  # o admin nunca cai na troca de senha do outro
+    logger.info(
+        "ENTRAR_COMO: admin %s (id %s) entrou como %s (id %s)",
+        original["username"], original["user_id"], alvo["username"], alvo["id"],
+    )
+    return jsonify({"ok": True, "redirect": "/"})
+
+
+@auth_bp.route("/voltar-admin", methods=["POST"])
+def voltar_admin():
+    """Sai do "Entrar como" e volta ao admin original."""
+    original = session.pop("admin_original", None)
+    if original:
+        logger.info(
+            "ENTRAR_COMO: admin %s (id %s) voltou (estava como %s)",
+            original.get("username"), original.get("user_id"), session.get("username"),
+        )
+        session["user_id"] = original.get("user_id")
+        session["username"] = original.get("username")
+        session["role"] = original.get("role")
+        session[troca_senha.CHAVE_SESSAO] = False
+    return redirect("/")
+
+
 @auth_bp.route("/api/users/import-kommo", methods=["POST"])
 def api_users_import_kommo():
     """Import Kommo users as app_users via Kommo API v4.
