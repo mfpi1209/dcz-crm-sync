@@ -4,6 +4,35 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-26 — Permissão no servidor nas rotas que faltavam (mapa central em `permissoes.py`)
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** fechar o que a Fase 1 deixou para depois: as rotas sem checagem (dashboard, engagement, inadimplência, crm, logs etc.). A lista foi aprovada pelo Raphael em 26/11, antes de aplicar.
+- **Levantamento (26/11):**
+  - **Total:** das 411 rotas, 180 não checavam nada. Não entram nessa conta as que já usam `exige_pagina`, checagem de papel ou um auxiliar com 403 (`_gate`, `_allowed`), nem as 38 de preço protegidas no `app.py`.
+  - **Origem das páginas:** cada rota recebeu as telas que a chamam (grep em `static/js` e `templates`), para ninguém perder o que já usa pela tela.
+- **Como aplica:**
+  - **Mapa central:** `permissoes.PAGINAS_POR_ENDPOINT` (endpoint → páginas) é aplicado por `aplicar_mapa(app)` no `app.py`, depois de registrar todas as rotas. Cada view é embrulhada com `exige_pagina` e devolve 403 em JSON sem a página. Admin e `user_id` 0 passam.
+  - **Por que um mapa e não decorators:** decorators espalhados mexeriam em 26 arquivos.
+  - **Endpoint inexistente:** só avisa no log.
+- **O que ficou:**
+  - **170 endpoints com página.** Exemplos:
+    - `/api/dashboard*` e `/api/lista-alunos/*` → `dashboard` (+ `rematricula`);
+    - `/api/engagement/*`, `/api/comm/*` e `/api/snapshots/*` → `intelligence`;
+    - `/api/inadimplencia/*` → `inadimplencia`;
+    - `/api/sync*` → `sync`;
+    - `/api/comercial-rgm/*` → `comercial_rgm`, `bwipo_comercial` (`data` e `metas` também `minha_performance`);
+    - `/api/bwipo/painel*` → `bwipo_comercial`;
+    - `/api/logs*` → `logs`, `config`.
+    - Lista completa no próprio mapa.
+  - **14 só admin:** diagnóstico e manutenção que nenhuma tela chama (`*/connection-test`, `_diag/kommo*`, `debug/address`, `comercial-rgm/diagnostics|cache/clear|populate-from-matriculados`, `kommo/reconcile-aceites`, `kommo/sync-responsible-history`, `kommo/merge/session-status`, `comm/dispatch`, `comm/callback`, `meta/webhook`). Os três últimos já exigiam login, então nenhum sistema externo os alcançava.
+  - **Livres de propósito (`ROTAS_SEM_PAGINA`):** `/health`, `/login`, `/logout`, `/` (o menu já filtra), `/api/track-page-view` e `/api/avisos*` (popup para todos). O webhook do Motor continua com o HMAC.
+  - **Do próprio usuário (`ROTAS_DO_PROPRIO_USUARIO`):** `minhas-matriculas` (POST) e `solicitacoes_ti/meus`. A rota já filtra pelo `user_id` da sessão; exigir página tiraria o acesso do dono.
+- **Regra para rota nova:** toda rota `/api/` precisa de `@exige_pagina(...)` na própria rota ou de uma linha no mapa. O `tests/test_permissao_rotas.py` lê o código e falha se aparecer rota sem nenhum dos dois, e fora das listas de livres e do próprio usuário.
+- **Risco conhecido (não conferido no banco):** o painel de supervisor (comercial e acadêmico) fica dentro da página `dashboard`. Supervisor sem `dashboard` em `user_permissions` passa a receber 403 nos dados da home. Conferir antes do merge na `master`:
+  `SELECT u.id, u.username, u.categoria FROM app_users u WHERE u.role <> 'admin' AND NOT EXISTS (SELECT 1 FROM user_permissions p WHERE p.user_id = u.id AND p.page = 'dashboard');`
+- **Não muda:** as rotas que já checavam, as de preço, `exige_pagina`/`tem_alguma_pagina`, o login e o `require_auth`.
+- **Testes:** `tests/test_permissao_rotas.py` (527). Para cada endpoint do mapa: 403 sem a página, 200 com qualquer uma das páginas, admin passa. Também conferem que o endpoint existe no código, a amostra aprovada e a guarda de rota nova.
+
 ### 2026-11-26 — Modernização, Fase 2: testes no CI antes do build
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** o pytest roda antes do build da imagem. Se algum teste falhar, não há build nem deploy. Os testes também rodam em PR para a `master`.

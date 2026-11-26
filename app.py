@@ -373,6 +373,17 @@ except Exception as _e:
     import logging as _logging
     _logging.getLogger(__name__).warning(f"Atualizar Preco routes not loaded: {_e}")
 
+# ── Permissão por página nas rotas que não checavam (26/11) ───────────────
+# Depois de registrar todas as rotas: embrulha cada endpoint de
+# permissoes.PAGINAS_POR_ENDPOINT com exige_pagina (403 sem a página).
+from permissoes import aplicar_mapa as _aplicar_mapa_permissoes
+_endpoints_faltando = _aplicar_mapa_permissoes(app)
+if _endpoints_faltando:
+    import logging as _logging
+    _logging.getLogger(__name__).warning(
+        "Permissão: endpoints do mapa não registrados: %s", ", ".join(_endpoints_faltando)
+    )
+
 # ── Inicialização do banco ────────────────────────────────────────────────
 
 from db import (
