@@ -37,9 +37,31 @@ def tem_alguma_pagina(*paginas: str) -> bool:
                 "SELECT 1 FROM user_permissions WHERE user_id = %s AND page = ANY(%s) LIMIT 1",
                 (uid, list(paginas)),
             )
-            return cur.fetchone() is not None
+            if cur.fetchone() is not None:
+                return True
+            return "dashboard" in paginas and _dashboard_pelo_menu(cur, uid)
     finally:
         conn.close()
+
+
+def _dashboard_pelo_menu(cur, uid) -> bool:
+    """`dashboard` segue a regra do menu (app.inject_nav_perms / nav_can), não só a tabela.
+
+    O menu mostra a home para quem não é comercial nem suporte comercial, sem olhar
+    `user_permissions` (em 26/11, só 7 de 40 usuários tinham a página gravada).
+    """
+    from helpers import is_suporte_comercial_categoria, is_suporte_comercial_login
+
+    cur.execute("SELECT categoria, username FROM app_users WHERE id = %s", (uid,))
+    row = cur.fetchone()
+    if not row:
+        return False
+    categoria, username = row
+    if (categoria or "").strip().lower() == "comercial":
+        return False
+    if is_suporte_comercial_categoria(categoria) or is_suporte_comercial_login(username):
+        return False
+    return True
 
 
 def exige_pagina(*paginas: str):

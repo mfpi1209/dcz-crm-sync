@@ -160,8 +160,10 @@ def test_app_aplica_o_mapa_depois_de_registrar_tudo():
 # ── mecanismo: 403 sem a página, 200 com ela ─────────────────────────────
 
 class _Cur:
-    def __init__(self, paginas):
+    def __init__(self, paginas, categoria, username):
         self.paginas = paginas
+        self.categoria = categoria
+        self.username = username
         self._r = None
 
     def __enter__(self):
@@ -171,6 +173,9 @@ class _Cur:
         return False
 
     def execute(self, sql, params):
+        if "FROM app_users" in sql:
+            self._r = (self.categoria, self.username)
+            return
         _uid, pedidas = params
         self._r = (1,) if set(pedidas) & self.paginas else None
 
@@ -179,11 +184,11 @@ class _Cur:
 
 
 class _Conn:
-    def __init__(self, paginas):
-        self.paginas = paginas
+    def __init__(self, paginas, categoria, username):
+        self.args = (paginas, categoria, username)
 
     def cursor(self):
-        return _Cur(self.paginas)
+        return _Cur(*self.args)
 
     def close(self):
         pass
@@ -201,8 +206,9 @@ def app_falso():
     return a
 
 
-def _cliente(app, monkeypatch, role="viewer", uid=50, paginas=()):
-    monkeypatch.setattr(permissoes, "get_conn", lambda: _Conn(set(paginas)))
+def _cliente(app, monkeypatch, role="viewer", uid=50, paginas=(), categoria="Comercial", username="fulano@x"):
+    """Padrão: consultor comercial, para quem `dashboard` só vale pela tabela."""
+    monkeypatch.setattr(permissoes, "get_conn", lambda: _Conn(set(paginas), categoria, username))
     c = app.test_client()
     with c.session_transaction() as s:
         s.update(authenticated=True, user_id=uid, role=role)
@@ -248,3 +254,59 @@ def test_aplicar_mapa_duas_vezes_nao_embrulha_de_novo(app_falso):
     ep = "inadimplencia.api_inadimplencia_list"
     assert getattr(app_falso.view_functions[ep], "paginas_exigidas", None) == ("inadimplencia",)
     assert not hasattr(app_falso.view_functions[ep].__wrapped__, "paginas_exigidas")
+
+
+# ── `dashboard` segue a regra do menu (app.nav_can) ──────────────────────
+# O menu mostra a home para quem não é comercial nem suporte comercial, sem
+# consultar user_permissions (em 26/11, só 7 de 40 usuários tinham a página).
+DASH = sorted(ep for ep, p in MAPA.items() if "dashboard" in p)
+
+
+def test_ha_rotas_da_home_no_mapa():
+    assert "dashboard.api_dashboard" in DASH and "supervisor_dashboard.api_dashboard_supervisor" in DASH
+
+
+@pytest.mark.parametrize("categoria", [
+    "Supervisor Comercial", "Supervisor Acadêmico", "Acadêmico", "Marketing", "", None,
+])
+@pytest.mark.parametrize("endpoint", DASH)
+def test_dashboard_liberado_pelo_menu_sem_a_pagina_na_tabela(app_falso, monkeypatch, endpoint, categoria):
+    c = _cliente(app_falso, monkeypatch, paginas=set(), categoria=categoria)
+    assert c.get(app_falso.rota_de[endpoint]).status_code == 200
+
+
+@pytest.mark.parametrize("categoria,username", [
+    ("Comercial", "fulano@x"), (" comercial ", "fulano@x"), ("Suporte Comercial", "fulano@x"),
+])
+def test_comercial_e_suporte_sem_a_pagina_continuam_barrados(app_falso, monkeypatch, categoria, username):
+    c = _cliente(app_falso, monkeypatch, paginas=set(), categoria=categoria, username=username)
+    assert c.get(app_falso.rota_de["dashboard.api_dashboard"]).status_code == 403
+
+
+def test_comercial_com_a_pagina_na_tabela_passa(app_falso, monkeypatch):
+    c = _cliente(app_falso, monkeypatch, paginas={"dashboard"}, categoria="Comercial")
+    assert c.get(app_falso.rota_de["dashboard.api_dashboard"]).status_code == 200
+
+
+def test_regra_do_menu_so_vale_para_dashboard(app_falso, monkeypatch):
+    """Supervisor sem `inadimplencia` continua barrado na inadimplência."""
+    c = _cliente(app_falso, monkeypatch, paginas=set(), categoria="Supervisor Comercial")
+    assert c.get(app_falso.rota_de["inadimplencia.api_inadimplencia_list"]).status_code == 403
+
+
+def test_usuario_que_sumiu_do_banco_nao_ganha_dashboard(app_falso, monkeypatch):
+    monkeypatch.setattr(permissoes, "get_conn", lambda: _ConnSemUsuario())
+    c = app_falso.test_client()
+    with c.session_transaction() as s:
+        s.update(authenticated=True, user_id=99, role="viewer")
+    assert c.get(app_falso.rota_de["dashboard.api_dashboard"]).status_code == 403
+
+
+class _ConnSemUsuario:
+    def cursor(self):
+        cur = _Cur(set(), None, None)
+        cur.execute = lambda sql, params: setattr(cur, "_r", None)
+        return cur
+
+    def close(self):
+        pass

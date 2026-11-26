@@ -28,10 +28,13 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
   - **Livres de propósito (`ROTAS_SEM_PAGINA`):** `/health`, `/login`, `/logout`, `/` (o menu já filtra), `/api/track-page-view` e `/api/avisos*` (popup para todos). O webhook do Motor continua com o HMAC.
   - **Do próprio usuário (`ROTAS_DO_PROPRIO_USUARIO`):** `minhas-matriculas` (POST) e `solicitacoes_ti/meus`. A rota já filtra pelo `user_id` da sessão; exigir página tiraria o acesso do dono.
 - **Regra para rota nova:** toda rota `/api/` precisa de `@exige_pagina(...)` na própria rota ou de uma linha no mapa. O `tests/test_permissao_rotas.py` lê o código e falha se aparecer rota sem nenhum dos dois, e fora das listas de livres e do próprio usuário.
-- **Risco conhecido (não conferido no banco):** o painel de supervisor (comercial e acadêmico) fica dentro da página `dashboard`. Supervisor sem `dashboard` em `user_permissions` passa a receber 403 nos dados da home. Conferir antes do merge na `master`:
-  `SELECT u.id, u.username, u.categoria FROM app_users u WHERE u.role <> 'admin' AND NOT EXISTS (SELECT 1 FROM user_permissions p WHERE p.user_id = u.id AND p.page = 'dashboard');`
+- **`dashboard` segue a regra do menu, não só a tabela (`permissoes._dashboard_pelo_menu`):**
+  - **O que o banco mostrou (consulta só de leitura, 26/11, autorizada pelo Raphael):** só 7 de 40 usuários não admin têm `dashboard` em `user_permissions`. Um deles é a supervisora comercial id 53, que não tem.
+  - **Por que a tabela não basta:** o menu (`app.inject_nav_perms` / `nav_can`) mostra a home para quem não é comercial nem suporte comercial, sem consultar a tabela. Exigir só a tabela tiraria os dados da home de 33 pessoas.
+  - **Regra no servidor:** rota com `dashboard` passa para quem tem a página **ou** para quem não é `Comercial` nem suporte comercial (categoria ou login), como no menu.
+  - **Alcance:** a exceção vale só para `dashboard`. Supervisor sem `inadimplencia` continua barrado na inadimplência.
 - **Não muda:** as rotas que já checavam, as de preço, `exige_pagina`/`tem_alguma_pagina`, o login e o `require_auth`.
-- **Testes:** `tests/test_permissao_rotas.py` (527). Para cada endpoint do mapa: 403 sem a página, 200 com qualquer uma das páginas, admin passa. Também conferem que o endpoint existe no código, a amostra aprovada e a guarda de rota nova.
+- **Testes:** `tests/test_permissao_rotas.py` (624, inclusive a regra do menu para `dashboard`). Para cada endpoint do mapa: 403 sem a página, 200 com qualquer uma das páginas, admin passa. Também conferem que o endpoint existe no código, a amostra aprovada e a guarda de rota nova.
 
 ### 2026-11-26 — Modernização, Fase 2: testes no CI antes do build
 - **Modelo usado:** Claude Opus 5.5.
