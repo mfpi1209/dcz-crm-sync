@@ -23,8 +23,8 @@ Cabeçalhos repassados ao serviço:
   - Content-Type: application/json em todo não-GET (o serviço devolve 415 sem ele).
 
 Timeouts curtos (gunicorn 1 worker / 4 threads): 20 s por padrão, 60 s nas rotas
-lentas. A conferência no SIAA e o agente continuam no serviço mesmo se o painel
-desistir de esperar; a tela avisa e consulta o resultado depois.
+lentas (agente e teste de login do atendente). A conferência no SIAA responde 202
+na hora e roda no serviço; a tela acompanha por GET orq/conferencia/siaa.
 """
 
 import json
@@ -95,6 +95,7 @@ ROTAS = [
     ("GET", r"orq/crm1/retorno", "operar", False),
     ("GET", r"orq/relatorio/inscricoes(\.csv)?", "operar", False),
     ("GET", r"orq/siaa/sessao", "operar", False),
+    ("GET", r"orq/conferencia/siaa", "operar", False),
     ("GET", r"orq/agente", "operar", False),
     ("GET", r"orq/simulacao", "operar", False),
     # ── ações sem efeito na loja / da operação do dia a dia (operar) ──
@@ -120,7 +121,7 @@ ROTAS = [
     ("PUT", r"orq/config", "admin", False),
     ("POST", r"orq/engines/[a-z]+/reset", "admin", False),
     ("PUT", r"orq/siaa/sessao", "admin", False),
-    ("POST", r"orq/conferencia/siaa", "admin", True),
+    ("POST", r"orq/conferencia/siaa", "admin", False),  # 202 na hora; roda no serviço
     ("POST", r"orq/agente/verificar", "admin", True),
     ("POST", rf"orq/crm1/retorno/(reenviar|devolver/{_J})", "admin", False),
     ("PUT", r"orq/simulacao", "admin", False),

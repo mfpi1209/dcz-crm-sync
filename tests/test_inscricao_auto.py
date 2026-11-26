@@ -167,7 +167,14 @@ def test_operar_nao_chama_rota_de_admin(ambiente, metodo, rota):
     ("POST", "orq/fila/J000123/reprocessar"),
     ("POST", "orq/fila/J000123/cancelar"),
     ("GET", "orq/relatorio/inscricoes"),
+    ("GET", "orq/conferencia/siaa"),
     ("GET", "inscricoes/0f8fad5b-d9cb-469f-a165-70867728950e"),
+    # abas Painel de inscrições, Integração CRM, Afiliados e Manutenção (leitura)
+    ("GET", "painel"),
+    ("GET", "crm"),
+    ("GET", "afiliados"),
+    ("GET", "manutencao"),
+    ("GET", "manutencao/diagnosticos/0f8fad5b-d9cb-469f-a165-70867728950e"),
 ])
 def test_operar_pode(ambiente, metodo, rota):
     app, chamadas, _, paginas = ambiente
@@ -265,11 +272,27 @@ def test_erros_de_rede(ambiente, erro, status):
 def test_timeout_longo_so_nas_rotas_lentas(ambiente):
     app, chamadas, *_ = ambiente
     c = _cliente(app, role="admin")
-    c.post("/api/inscricao-auto/orq/conferencia/siaa")
     c.post("/api/inscricao-auto/orq/agente/verificar?corrigir=true")
     c.post("/api/inscricao-auto/atendente/testar")
     c.get("/api/inscricao-auto/orq/config")
-    assert [x["timeout"] for x in chamadas] == [60, 60, 60, 20]
+    # a conferência no SIAA responde 202 na hora (roda no serviço): timeout padrão
+    c.post("/api/inscricao-auto/orq/conferencia/siaa")
+    c.get("/api/inscricao-auto/orq/conferencia/siaa")
+    assert [x["timeout"] for x in chamadas] == [60, 60, 20, 20, 20]
+
+
+def test_conferencia_siaa_202_e_status_repassados(ambiente):
+    app, chamadas, resposta, paginas = ambiente
+    resposta["r"] = _Resp(202, b'{"ok":true,"emAndamento":true,"desde":"2026-11-26T10:00:00.000Z"}')
+    r = _cliente(app, role="admin").post("/api/inscricao-auto/orq/conferencia/siaa")
+    assert r.status_code == 202 and r.get_json()["emAndamento"] is True
+    resposta["r"] = _Resp(409, b'{"ok":false,"motivo":"conferencia em andamento"}')
+    r = _cliente(app, role="admin").post("/api/inscricao-auto/orq/conferencia/siaa")
+    assert r.status_code == 409 and r.get_json()["motivo"]
+    paginas["p"] = {"inscricao_automatica"}
+    resposta["r"] = _Resp(200, b'{"ok":true,"emAndamento":false,"ultima":{"ok":true,"contagem":{"confirmado":1}}}')
+    r = _cliente(app).get("/api/inscricao-auto/orq/conferencia/siaa")
+    assert r.status_code == 200 and r.get_json()["ultima"]["contagem"]["confirmado"] == 1
 
 
 def test_sem_token_nao_manda_cabecalho(ambiente, monkeypatch):
@@ -312,3 +335,47 @@ def test_pagina_registrada_em_todos_os_lugares():
     assert "'inscricao_automatica', 'inscricao_automatica_admin'," in config
     partial = (RAIZ / "templates/partials/_inscricao_automatica.html").read_text(encoding="utf-8")
     assert 'id="page-inscricao_automatica" class="hidden"' in partial
+
+
+def test_todas_as_abas_na_pagina_e_na_ordem():
+    """Todas as telas da interface do serviço viram abas desta página."""
+    import re as _re
+    partial = (RAIZ / "templates/partials/_inscricao_automatica.html").read_text(encoding="utf-8")
+    abas = _re.findall(r'id="insa-tab-([a-z]+)" data-aba=', partial)
+    assert abas == ["visao", "fila", "nova", "painel", "cadastros", "crm", "afiliados", "siaa",
+                    "agente", "manutencao", "config", "eventos", "simulacao"]
+    for a in abas:
+        assert f'id="insa-sec-{a}"' in partial, a
+    js = (RAIZ / "static/js/inscricao_automatica.js").read_text(encoding="utf-8")
+    assert "const PAINEIS = { visao, fila, nova, painel, cadastros, crm, afiliados, siaa, agente, manutencao, config, eventos, simulacao };" in js
+
+
+def test_todas_as_rotas_que_a_tela_chama_estao_liberadas():
+    """Cada chamar('<rota>') da página bate com alguma regra de ROTAS (sem a query)."""
+    import re as _re
+    js = (RAIZ / "static/js/inscricao_automatica.js").read_text(encoding="utf-8")
+    brutas = _re.findall(r"chamar\(['`]([^'`?]+)", js)
+    # interpolações viram exemplos reais: ${id} de job (J000001), de execução/diagnóstico (uuid), motor
+    exemplos = {"id": "J000001", "encodeURIComponent(b.dataset.motor)": "api"}
+    uuid = "0f8fad5b-d9cb-469f-a165-70867728950e"
+
+    def trocar(m):
+        expr = m.group(1)
+        if expr in exemplos:
+            return exemplos[expr]
+        return "J000001" if "acao" in expr else ""
+
+    rotas = set()
+    for b in brutas:
+        b = _re.sub(r"\$\{[^}]*$", "", b)  # ${cond ? '?x=1' : ''} cortado no '?': é só query
+        if b.startswith("inscricoes/${") or b.startswith("manutencao/diagnosticos/${"):
+            rotas.add(b.split("${")[0] + uuid)
+        elif "${acao}" in b:
+            rotas.update(b.replace("${id}", "J000001").replace("${acao}", x).split("${")[0] for x in ("reprocessar", "cancelar"))
+        else:
+            rotas.add(_re.sub(r"\$\{([^}]*)\}", trocar, b))
+    assert {"painel", "crm", "crm/token", "crm/modo", "afiliados", "afiliados/chave", "manutencao",
+            "manutencao/diagnosticos", "manutencao/aplicar", "manutencao/ia", "orq/conferencia/siaa"} <= rotas
+    metodos = ["GET", "POST", "PUT", "DELETE"]
+    for rota in rotas:
+        assert any(ia.achar_rota(m, rota) for m in metodos), rota

@@ -194,7 +194,7 @@
         carregadas: new Set(),
     };
     const ehAdmin = () => st.papel === 'admin';
-    const ABAS = ['visao', 'fila', 'nova', 'cadastros', 'siaa', 'agente', 'config', 'eventos', 'simulacao'];
+    const ABAS = ['visao', 'fila', 'nova', 'painel', 'cadastros', 'crm', 'afiliados', 'siaa', 'agente', 'manutencao', 'config', 'eventos', 'simulacao'];
 
     function lerLS(k) { try { return localStorage.getItem(k) || ''; } catch (_) { return ''; } }
     function gravarLS(k, v) { try { localStorage.setItem(k, v); } catch (_) { /* navegação privada */ } }
@@ -936,7 +936,7 @@
     const siaa = {
         f: { de: diasAtrasSP(7), ate: hojeSP(), polo: '', status: '', conferencia: '' },
         sessao: {},
-        conferindo: false,
+        conf: null, // GET orq/conferencia/siaa: { emAndamento, desde, ultima }
         espera: null,
         qs() { return new URLSearchParams(Object.entries(this.f).filter(([, v]) => v)).toString(); },
         montarFiltros() {
@@ -950,7 +950,13 @@
         },
         async atualizar({ abriu, lento }) {
             this.montarFiltros();
-            if (!abriu && !lento) return; // a cada ~15 s
+            // conferência em andamento: acompanha a cada ciclo (5 s); o relatório recarrega quando termina
+            const andava = !!(this.conf && this.conf.emAndamento);
+            if (abriu || lento || andava) {
+                await this.atualizarConferencia();
+                if (andava && !(this.conf && this.conf.emAndamento)) abriu = true;
+            }
+            if (!abriu && !lento) return; // relatório a cada ~15 s
             const pedido = this.qs();
             const d = await chamar(`orq/relatorio/inscricoes?${pedido}`);
             if (pedido !== this.qs()) return;
@@ -962,9 +968,7 @@
                     ? `A sessão expirou (${s.motivo || 'o SIAA recusou'}). Cole um cURL novo.`
                     : `Sessão colada por ${s.por || '?'} ${fmt.ha(s.em)}${s.valida ? ', funcionando na última conferência' : ''}.`;
             $('insa-ss-abrir').textContent = s.definida ? 'Trocar sessão' : 'Colar sessão';
-            const bConf = $('insa-rel-conferir');
-            if (!this.conferindo) bConf.disabled = !s.definida;
-            bConf.title = s.definida ? '' : 'Cole a sessão do SIAA primeiro';
+            this.desenharBotaoConferir();
             const tc = (d.totais && d.totais.conferencia) || {};
             const ts = (d.totais && d.totais.status) || {};
             const kpis = [
@@ -995,26 +999,47 @@
             $('insa-rel-tabela').innerHTML = tabela(['Recebida', 'Candidato', 'Curso e polo', 'Situação', 'Motor', 'Nº do robô', 'No SIAA'], linhas, 'Nenhuma inscrição neste período.');
         },
     };
-    async function conferirSiaa(btn) {
-        siaa.conferindo = true;
-        btn.disabled = true;
-        const rotulo = btn.innerHTML;
-        btn.textContent = 'Conferindo no SIAA…';
-        setStatus('insa-rel-status', 'Conferindo polo a polo no SIAA…', 'info');
-        try {
-            const r = await chamar('orq/conferencia/siaa', { method: 'POST' });
-            if (r.ok) {
-                const c = r.contagem || {};
-                setStatus('insa-rel-status', `Conferidas ${r.jobs} inscrições em ${(r.polos || []).length} polos: ${c.confirmado || 0} confirmadas, ${c.divergente || 0} com número diferente, ${c.ausente || 0} fora do SIAA.`, c.ausente || c.divergente ? 'erro' : 'ok');
-            } else if (r.http === 504) {
-                setStatus('insa-rel-status', `${erroDe(r)} A conferência continua no serviço; o resultado aparece na tabela quando terminar.`, 'info');
-            } else setStatus('insa-rel-status', erroDe(r), 'erro');
-        } finally {
-            siaa.conferindo = false;
-            btn.innerHTML = rotulo;
-            btn.disabled = !siaa.sessao.definida;
-            siaa.atualizar({ abriu: true });
+    siaa.desenharBotaoConferir = function () {
+        const b = $('insa-rel-conferir');
+        const andando = !!(this.conf && this.conf.emAndamento);
+        b.disabled = andando || !this.sessao.definida;
+        b.title = andando ? 'Já há uma conferência em andamento' : this.sessao.definida ? '' : 'Cole a sessão do SIAA primeiro';
+        const rot = b.querySelector('[data-rotulo]');
+        if (rot) rot.textContent = andando ? 'Conferindo no SIAA…' : 'Conferir no SIAA agora';
+    };
+    siaa.atualizarConferencia = async function () {
+        const r = await chamar('orq/conferencia/siaa');
+        if (!r.ok) {
+            // serviço sem a rota (versão antiga) ou fora do ar: não mostra nada
+            if (r.http !== 404) setStatus('insa-rel-conf', erroDe(r), 'erro');
+            else setStatus('insa-rel-conf', '');
+            return;
         }
+        this.conf = { emAndamento: !!r.emAndamento, desde: r.desde || null, ultima: r.ultima || null };
+        this.desenharBotaoConferir();
+        if (this.conf.emAndamento) {
+            setStatus('insa-rel-conf', `Conferindo polo a polo no SIAA… (começou ${fmt.ha(this.conf.desde)})`, 'info');
+            return;
+        }
+        const u = this.conf.ultima;
+        if (!u) return setStatus('insa-rel-conf', 'Nenhuma conferência feita ainda.', 'info');
+        if (u.ok === false) return setStatus('insa-rel-conf', `Última conferência ${fmt.ha(u.em)}${u.por ? ` por ${u.por}` : ''} não terminou: ${u.motivo || 'sem detalhe'}.`, 'erro');
+        const c = u.contagem || {};
+        setStatus('insa-rel-conf', `Última conferência ${fmt.ha(u.em)}${u.por ? ` por ${u.por}` : ''}: ${u.jobs != null ? `${u.jobs} inscrições, ` : ''}${c.confirmado || 0} confirmadas, ${c.divergente || 0} com número diferente, ${c.ausente || 0} fora do SIAA.`, c.ausente || c.divergente ? 'erro' : 'ok');
+    };
+    async function conferirSiaa(btn) {
+        btn.disabled = true;
+        setStatus('insa-rel-status', '');
+        const r = await chamar('orq/conferencia/siaa', { method: 'POST' });
+        if (!r.ok) {
+            setStatus('insa-rel-status', erroDe(r), 'erro');
+            await siaa.atualizarConferencia();
+            siaa.desenharBotaoConferir();
+            return;
+        }
+        siaa.conf = { ...(siaa.conf || {}), emAndamento: true, desde: r.desde || new Date().toISOString() };
+        siaa.desenharBotaoConferir();
+        setStatus('insa-rel-conf', 'Conferindo polo a polo no SIAA… O resultado aparece aqui e na tabela quando terminar.', 'info');
     }
     async function baixarCsv() {
         try {
@@ -1401,9 +1426,362 @@
     }
 
     // =======================================================================
+    // Aba: Painel de inscrições (GET painel + afiliados do período)
+    // =======================================================================
+    const ORIGEM_PAINEL = { ui: 'Interface', crm: 'CRM', manutencao: 'Manutenção' };
+    const fmtN = (n) => (n == null ? '—' : Number(n).toLocaleString('pt-BR'));
+    const brData = (d) => String(d || '').split('-').reverse().join('/');
+    function hms(s) {
+        if (s == null) return '—';
+        const hh = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = Math.round(s % 60);
+        return [hh, m, x].map((v) => String(v).padStart(2, '0')).join(':');
+    }
+    function barras(id, itens) {
+        const ul = $(id);
+        if (!itens || !itens.length) { ul.innerHTML = '<li class="insa-muted">Nenhum item.</li>'; return; }
+        const max = Math.max(...itens.map((i) => i.n));
+        ul.innerHTML = itens.slice(0, 6).map((i) => `<li title="${h(`${i.nome}: ${i.n}`)}"><span>${h(i.nome)}</span><div><i style="width:${Math.max(8, Math.round((i.n / max) * 100))}%"></i></div><b>${h(fmtN(i.n))}</b></li>`).join('');
+    }
+    const painel = {
+        soErros: false,
+        async atualizar({ abriu, lento }) {
+            if (!abriu && !lento) return; // ~15 s
+            if (!$('insa-pn-de').value) $('insa-pn-de').value = diasAtrasSP(7);
+            if (!$('insa-pn-ate').value) $('insa-pn-ate').value = hojeSP();
+            const q = new URLSearchParams({ de: $('insa-pn-de').value, ate: $('insa-pn-ate').value });
+            const busca = $('insa-pn-busca').value.trim();
+            if (busca) q.set('busca', busca);
+            if (this.soErros) q.set('erros', '1');
+            const pedido = q.toString();
+            const [p, af] = await Promise.all([chamar(`painel?${pedido}`), chamar(`afiliados?de=${q.get('de')}&ate=${q.get('ate')}`)]);
+            if (!p.ok) return setStatus('insa-pn-status', erroDe(p), 'erro');
+            setStatus('insa-pn-status', '');
+            const per = p.periodo || {};
+            $('insa-pn-periodo').textContent = `Período: ${brData(per.de)} a ${brData(per.ate)} · histórico do serviço de inscrição (Nova inscrição, CRM e manutenção)`;
+            let afValor = '—', afDet = 'conecte o Supabase em Afiliados';
+            if (af.ok && af.chave) {
+                const ap = af.periodo;
+                afValor = ap ? fmtN(ap.afiliados) : '—';
+                afDet = `${ap ? `de ${fmtN(ap.inscricoes)} inscrições · ` : ''}indicação em ${af.valor == null ? '?' : af.valor}% · total ${fmtN(af.totalIndicados)}`;
+            }
+            const kpis = [
+                { title: 'Tempo médio', value: hms(p.tempoMedioS), subtitle: p.tempoMedioS != null ? `${p.tempoMedioS} s por inscrição` : 'sem execuções no período', variant: 'primary' },
+                { title: 'Registros', value: fmtN(p.total), subtitle: `${fmtN(p.sucesso)} ok · ${fmtN(p.falha)} erro · ${fmtN(p.real)} real · ${fmtN(p.ensaio)} ensaio` },
+                { title: 'Afiliados', value: afValor, subtitle: afDet },
+            ];
+            if (mudou('pn-kpis', kpis)) $('insa-pn-kpis').innerHTML = kpis.map((k) => kpiCard(k)).join('');
+            if (!mudou('pn-dados', [pedido, p])) return;
+            barras('insa-pn-lista-erros', p.erros);
+            barras('insa-pn-formas', p.porForma);
+            barras('insa-pn-deptos', p.porDepartamento);
+            const linhas = (p.ultimos || []).map((r) => `<tr>
+                <td class="num">${h(new Date(r.em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }))}</td>
+                <td>${h(`${ORIGEM_PAINEL[r.origem] || r.origem || '—'} · ${r.modo || '—'}${r.motor ? ' · ' + r.motor : ''}`)}</td>
+                <td>${h(r.nome || '—')}${sub(r.cpf || '')}</td>
+                <td>${h(r.forma || '—')}${sub(`${r.curso || '—'} · ${r.polo || '—'}`)}</td>
+                <td title="${h(r.erro || '')}">${pill(r.ok ? 'ok' : 'erro', r.status || (r.ok ? 'OK' : 'ERRO'))}${sub(r.siaa ? `SIAA ${r.siaa}` : r.orderId || '')}</td>
+                <td class="num">${h(r.s != null ? `${r.s}s` : '—')}</td>
+            </tr>`);
+            $('insa-pn-ultimos').innerHTML = tabela(['Quando', 'Origem · modo', 'Candidato', 'Forma · curso', 'Resultado', 'Tempo'], linhas, this.soErros ? 'Nenhum erro no período.' : 'Nenhum registro no período.');
+        },
+    };
+
+    // =======================================================================
+    // Aba: Integração CRM (entrada antiga Kommo/n8n: GET crm, token, modo)
+    // =======================================================================
+    const SITUACAO_CRM = { na_fila: 'Na fila', executando: 'Executando', concluido: 'Concluída', erro: 'Erro', interrompido: 'Interrompida' };
+    const crm = {
+        tokenVisivelAte: 0, // token recém-gerado fica na tela 5 min para ser copiado
+        temToken: false,
+        async atualizar({ abriu, lento }) {
+            if (abriu && !$('insa-crm-exemplo').textContent) $('insa-crm-exemplo').textContent = exemploCrm();
+            if (!abriu && st.tick % 2) return; // ~10 s
+            const r = await chamar('crm');
+            if (!r.ok) return setStatus('insa-crm-status', erroDe(r), 'erro');
+            this.temToken = !!r.token;
+            if (Date.now() > this.tokenVisivelAte) $('insa-crm-token').textContent = r.token || 'não gerado';
+            const g = $('insa-crm-gerar');
+            g.innerHTML = `${icone('key')}${h(r.token ? 'Gerar outro' : 'Gerar token')}`;
+            const sel = $('insa-crm-modo');
+            if (document.activeElement !== sel) sel.value = r.modo;
+            sel.querySelector('[value="real"]').disabled = !r.realPermitido;
+            sel.disabled = !ehAdmin();
+            if (!mudou('crm-fila', r.fila)) return;
+            const linhas = (r.fila || []).map((x) => {
+                const res = x.resultado;
+                const det = res ? (res.siaa ? `SIAA ${res.siaa}` : res.orderId || res.erro || res.status || '') : x.posicao ? `posição ${x.posicao}` : '';
+                const tom = x.status === 'concluido' ? 'ok' : x.status === 'erro' || x.status === 'interrompido' ? 'erro' : x.status === 'executando' ? 'ativo' : 'neutro';
+                return `<tr>
+                    <td class="num">${h(new Date(x.recebidoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }))}</td>
+                    <td class="insa-mono">${h(x.idExterno || '—')}</td>
+                    <td>${h(x.nome || '—')}${sub(x.curso || '')}</td>
+                    <td>${h(x.modo)}</td>
+                    <td title="${h((res && res.erro) || '')}">${pill(tom, SITUACAO_CRM[x.status] || x.status)}${sub(det)}</td>
+                </tr>`;
+            });
+            $('insa-crm-fila').innerHTML = tabela(['Recebido', 'ID do CRM', 'Candidato · curso', 'Modo', 'Situação'], linhas, 'Nada recebido ainda.');
+        },
+    };
+    function exemploCrm() {
+        const corpo = { idExterno: 'kommo-lead-123456', nome: 'Nome Sobrenome', email: 'candidato@exemplo.com', telefone: '11999999999', cpf: '000.000.000-00', nascimento: '15/03/1995', cep: '01136-001', curso: 'Administração', polo: 'Barra Funda', forma: 'Vestibular Múltipla Escolha' };
+        const url = '<endereço do serviço de inscrição>/api/crm/inscricoes';
+        return `POST ${url}\nAuthorization: Bearer <token>\nContent-Type: application/json\n\n${JSON.stringify(corpo, null, 2)}\n\n→ 202 { "id": "…", "status": "na_fila", "posicao": 1 }\nGET ${url}/<id>  → status e resultado (orderId, nº SIAA)\n\nOpcionais: skuId/poleId no lugar de curso/polo, cupom, extras (ENEM: enemAno, notas), motor.`;
+    }
+    function gerarTokenCrm() {
+        confirmar({
+            titulo: crm.temToken ? 'Gerar um token novo?' : 'Gerar o token do CRM?',
+            texto: crm.temToken
+                ? 'O CRM precisa ser atualizado: o token atual para de funcionar. O token novo aparece uma vez só; copie e cadastre no CRM.'
+                : 'O token aparece uma vez só; copie e cadastre no CRM. Depois ele aparece mascarado.',
+            acao: 'Gerar token',
+            perigo: crm.temToken,
+            async executar() {
+                const r = await chamar('crm/token', { method: 'POST' });
+                if (!r.ok) return erroDe(r);
+                $('insa-crm-token').textContent = r.token;
+                crm.tokenVisivelAte = Date.now() + 5 * 60e3;
+                crm.temToken = true;
+                setStatus('insa-crm-status', 'Token gerado. Copie agora e cadastre no CRM: depois ele aparece mascarado.', 'ok');
+            },
+        });
+    }
+    async function salvarModoCrm(modo) {
+        const r = await chamar('crm/modo', { method: 'PUT', corpo: { modo } });
+        if (!r.ok) setStatus('insa-crm-status', erroDe(r), 'erro');
+        else setStatus('insa-crm-status', `Modo do CRM: ${modo}.`, 'ok');
+        crm.atualizar({ abriu: true });
+    }
+    function mudarModoCrm(sel) {
+        const modo = sel.value;
+        if (modo !== 'real') return salvarModoCrm(modo);
+        sel.blur();
+        confirmar({
+            titulo: 'Modo real no CRM?',
+            texto: 'O que o CRM enviar passa a gerar inscrição REAL (pedido na loja com vínculo no SIAA).',
+            alertaTexto: true,
+            acao: 'Passar para real',
+            perigo: true,
+            async executar() { await salvarModoCrm('real'); },
+        });
+        // Voltar no diálogo: recarrega e desfaz a escolha na tela
+        $('insa-dlg').addEventListener('close', () => crm.atualizar({ abriu: true }), { once: true });
+    }
+
+    // =======================================================================
+    // Aba: Afiliados (percentual no Supabase; chave do Supabase)
+    // =======================================================================
+    const afiliados = {
+        salvo: null,
+        async atualizar({ abriu }) {
+            if (!abriu) return;
+            const r = await chamar(`afiliados?de=${diasAtrasSP(7)}&ate=${hojeSP()}`);
+            const temChave = !!r.chave;
+            $('insa-af-sem-chave').classList.toggle('hidden', temChave);
+            $('insa-af-painel').classList.toggle('hidden', !temChave);
+            if (!r.ok) return setStatus('insa-af-status', erroDe(r), 'erro');
+            if (!temChave) return setStatus('insa-af-status', ehAdmin() ? '' : 'Falta a chave do Supabase no serviço (quem administra cadastra).', 'info');
+            this.salvo = r.valor;
+            mostrarAfiliados(r.valor);
+            $('insa-af-total').textContent = fmtN(r.totalIndicados);
+            const p = r.periodo;
+            $('insa-af-periodo').textContent = p ? fmtN(p.afiliados) : '—';
+            $('insa-af-periodo-det').textContent = p ? `(de ${fmtN(p.inscricoes)} inscrições)` : '';
+            $('insa-af-slider').disabled = $('insa-af-num').disabled = !ehAdmin();
+            const quando = r.atualizadoEm ? new Date(r.atualizadoEm).toLocaleString('pt-BR') : 'nunca';
+            setStatus('insa-af-status', r.configurado === false ? 'Percentual ainda não existe no Supabase: o Salvar cria.' : `Chave ${r.chave} · alterado em ${quando}`, 'info');
+        },
+    };
+    function mostrarAfiliados(v) {
+        $('insa-af-slider').value = String(v == null ? 0 : v);
+        $('insa-af-num').value = String(v == null ? 0 : v);
+        pintarAfiliados();
+    }
+    function pintarAfiliados() {
+        const v = Number($('insa-af-num').value || 0);
+        const quando = v > 0 ? `≈ 1 a cada ${Math.round(100 / v)} inscrição(ões)` : 'desligado';
+        const naoSalvo = afiliados.salvo != null && v !== afiliados.salvo;
+        $('insa-af-info').textContent = `${v}% · ${quando}${naoSalvo ? ' · não salvo' : ''}`;
+    }
+    async function gravarAfiliados(valor) {
+        const r = await chamar('afiliados', { method: 'PUT', corpo: { valor } });
+        if (!r.ok) return erroDe(r);
+        afiliados.salvo = r.valor;
+        mostrarAfiliados(r.valor);
+        setStatus('insa-af-status', `Salvo: ${r.valor}%${r.valor ? '' : ' (desligado)'}. O motor aplica em até 60 s.`, 'ok');
+        return null;
+    }
+    function salvarAfiliados() {
+        const valor = Math.round(Number($('insa-af-num').value));
+        if (!(valor >= 0 && valor <= 100)) return setStatus('insa-af-status', 'Percentual de 0 a 100.', 'erro');
+        if (valor > 0 && afiliados.salvo === 0) {
+            return confirmar({
+                titulo: `Ligar a indicação de afiliados em ${valor}%?`,
+                texto: 'Vale também para o painel de produção (mesma configuração).',
+                acao: 'Ligar',
+                executar: () => gravarAfiliados(valor),
+            });
+        }
+        gravarAfiliados(valor).then((erro) => erro && setStatus('insa-af-status', erro, 'erro'));
+    }
+
+    // =======================================================================
+    // Aba: Manutenção (problemas, diagnóstico por IA, chave da IA)
+    // =======================================================================
+    const CATEGORIAS_DIAG = {
+        dados_candidato: 'Dados do candidato', catalogo_curso_polo: 'Curso / polo', cupom_campanha: 'Cupom / campanha',
+        login_atendente: 'Login do atendente', rede_instabilidade_vtex: 'Instabilidade VTEX', motor_http: 'Motor HTTP',
+        motor_playwright: 'Motor Playwright', vinculo_siaa: 'Vínculo SIAA', inscricao_duplicada: 'Inscrição duplicada', outro: 'Outro',
+    };
+    const TIPOS_ACAO = { reexecutar: 'Reexecutar', testar_login: 'Testar login', revisar_campanha: 'Revisar campanha', conferir_manual: 'Conferir', corrigir_codigo: 'Corrigir código' };
+    const TOM_CONFIANCA = { alta: 'ok', media: 'atencao', média: 'atencao', baixa: 'erro' };
+    const manutencao = {
+        sub: 'problemas',
+        diag: null,
+        poll: null,
+        diagId: null,
+        async atualizar({ abriu, lento }) {
+            if (abriu) abrirSubManutencao(this.sub);
+            if (!abriu && !lento) return; // ~15 s
+            const r = await chamar('manutencao');
+            if (!r.ok) return setStatus('insa-mt-problemas-status', erroDe(r), 'erro');
+            const ia = r.ia || {};
+            setStatus('insa-mt-ia-estado', ia.credencial ? `IA configurada · chave ${ia.chave || '(variável de ambiente do serviço)'} · modelo ${ia.modelo}` : 'IA sem chave: cadastre a chave da API da Anthropic abaixo.', ia.credencial ? 'ok' : 'erro');
+            if (!mudou('mt-lista', [r.problemas, r.diagnosticos])) return;
+            const probs = (r.problemas || []).map((p) => `<tr>
+                <td class="num">${h(new Date(p.criadoEm).toLocaleTimeString('pt-BR'))}</td>
+                <td>${h(p.nome)}${sub(`${p.curso || ''} · ${p.polo || ''}`)}</td>
+                <td>${h(`${p.modo} · ${p.motor || 'http'}`)}</td>
+                <td>${h(`${p.status || '?'}${p.erro ? ` — ${String(p.erro).slice(0, 120)}` : ''}`)}</td>
+                <td class="acoes">${botao((p.diagnosticos || []).length ? 'Diagnosticar de novo' : 'Diagnosticar', { acao: 'mt-diagnosticar', dados: { job: p.id, titulo: `${p.nome} · ${p.curso} · ${p.polo}` } })}</td>
+            </tr>`);
+            $('insa-mt-problemas').innerHTML = tabela(['Hora', 'Candidato', 'Modo · motor', 'Problema', ''], probs, 'Nenhum problema desde o último reinício do serviço.');
+            const diags = (r.diagnosticos || []).map((d) => `<tr>
+                <td>${h(d.email || d.jobId || '—')}</td>
+                <td>${pill(d.status === 'concluido' ? 'ok' : 'ativo', d.status === 'concluido' ? 'Concluído' : 'Investigando')}</td>
+                <td class="insa-muted">${h(d.resumo || '')}</td>
+                <td class="acoes">${botao('Ver', { acao: 'mt-ver-diag', dados: { id: d.id } })}</td>
+            </tr>`);
+            $('insa-mt-diags').innerHTML = tabela(['Caso', 'Situação', 'Resumo', ''], diags, 'Nenhum diagnóstico ainda.');
+        },
+    };
+    function abrirSubManutencao(nome) {
+        manutencao.sub = nome;
+        for (const t of ['problemas', 'diagnostico', 'ia']) {
+            const b = $('insa-mt-sub-' + t);
+            b.className = t === nome ? dsSegActive() : dsSegInactive();
+            b.setAttribute('aria-selected', String(t === nome));
+            $('insa-mt-p-' + t).classList.toggle('hidden', t !== nome);
+        }
+    }
+    async function iniciarDiagnostico(corpo, titulo) {
+        setStatus('insa-mt-problemas-status', 'Iniciando diagnóstico…', 'info');
+        const r = await chamar('manutencao/diagnosticos', { method: 'POST', corpo });
+        if (!r.ok) {
+            setStatus('insa-mt-problemas-status', erroDe(r), 'erro');
+            if (r.http === 412) abrirSubManutencao('ia');
+            return;
+        }
+        setStatus('insa-mt-problemas-status', '');
+        abrirDiagnostico(r.id, `Diagnóstico · ${titulo}`, 'A IA está investigando (costuma levar de 30 s a 2 min)…');
+    }
+    function abrirDiagnostico(id, titulo, aviso) {
+        abrirSubManutencao('diagnostico');
+        $('insa-mt-diag-titulo').textContent = titulo;
+        $('insa-mt-diag-eventos').innerHTML = '';
+        $('insa-mt-diag-resultado').classList.add('hidden');
+        $('insa-mt-diag-resultado').innerHTML = '';
+        setStatus('insa-mt-diag-status', aviso || 'Carregando…', 'info');
+        acompanharDiagnostico(id);
+    }
+    function acompanharDiagnostico(id) {
+        clearInterval(manutencao.poll);
+        manutencao.diagId = id;
+        const tick = async () => {
+            const d = await chamar(`manutencao/diagnosticos/${id}`);
+            if (!d.ok) {
+                if (d.http === 404) { pararDiagnostico(); setStatus('insa-mt-diag-status', 'Diagnóstico não encontrado (o serviço pode ter reiniciado).', 'erro'); }
+                return;
+            }
+            manutencao.diag = d;
+            $('insa-mt-diag-eventos').innerHTML = (d.eventos || []).map((ev) => {
+                const hora = h(new Date(ev.em).toLocaleTimeString('pt-BR'));
+                return `<li class="${ev.tipo === 'ferramenta' ? 'ferramenta' : ''}"><time>${hora}</time><div>${ev.tipo === 'ferramenta' ? `consultou <code>${h(ev.texto)}</code>` : h(ev.texto)}</div></li>`;
+            }).join('');
+            if (d.status !== 'concluido') return;
+            pararDiagnostico();
+            if (d.erro) return setStatus('insa-mt-diag-status', `${d.erro.mensagem} (${d.erro.codigo})`, 'erro');
+            setStatus('insa-mt-diag-status', `Concluído${d.modelo ? ` · ${d.modelo}` : ''}.`, 'ok');
+            mostrarDiagnostico(d);
+            st.carregadas.delete('manutencao');
+        };
+        tick();
+        manutencao.poll = setInterval(() => { if (paginaNaFrente()) tick(); }, 2000);
+    }
+    function pararDiagnostico() {
+        clearInterval(manutencao.poll);
+        manutencao.poll = null;
+        manutencao.diagId = null;
+    }
+    function mostrarDiagnostico(d) {
+        const g = d.diagnostico || {};
+        const acoes = (g.acoes || []).map((a, i) => {
+            const tags = [TIPOS_ACAO[a.tipo] || a.tipo];
+            if (a.motor && a.motor !== 'nenhum') tags.push(`motor ${a.motor}`);
+            if (a.modo && a.modo !== 'nenhum') tags.push(a.modo);
+            if (a.cupom) tags.push(`cupom ${a.cupom}`);
+            const executavel = a.tipo === 'reexecutar' || a.tipo === 'testar_login';
+            const ja = (d.aplicadas || []).includes(i);
+            let btnHtml;
+            if (ja) btnHtml = botao('Aplicada', { acao: 'mt-aplicar', desab: true });
+            else if (!executavel) btnHtml = botao('Manual', { acao: 'mt-aplicar', desab: true, titulo: 'Siga a orientação descrita' });
+            else if (!ehAdmin()) btnHtml = '<small class="insa-muted">Aplicar é de quem administra.</small>';
+            else btnHtml = botao('Aplicar', { acao: 'mt-aplicar', classe: a.modo === 'real' ? 'btn-danger' : 'btn-primary', dados: { indice: i } });
+            return `<div class="insa-acao-ia"><div class="min-w-0"><strong class="text-[var(--text-primary)]">${h(a.titulo)}</strong><small>${h(a.motivo || '')}</small>
+                <div class="insa-row">${tags.map((t) => pill(t === 'real' ? 'erro' : 'neutro', t)).join('')}</div></div>${btnHtml}</div>`;
+        }).join('');
+        const box = $('insa-mt-diag-resultado');
+        box.innerHTML = `<div class="insa-row mb-2">${pill('ativo', CATEGORIAS_DIAG[g.categoria] || g.categoria || '—')}${pill(TOM_CONFIANCA[g.confianca] || 'neutro', `confiança ${g.confianca || '?'}`)}</div>
+            <p class="text-sm font-semibold text-[var(--text-primary)] mb-3">${h(g.resumo || '')}</p>
+            <h3 class="insa-h3 mb-1">Causa</h3><p class="text-sm text-[var(--text-primary)] mb-3">${h(g.causa || '')}</p>
+            <h3 class="insa-h3 mb-1">Evidências</h3><ul class="list-disc pl-5 text-sm text-[var(--text-secondary)] mb-3">${(g.evidencias || []).map((e) => `<li>${h(e)}</li>`).join('')}</ul>
+            <h3 class="insa-h3 mb-2">Ações propostas</h3>${acoes || '<p class="insa-muted">Nenhuma ação proposta.</p>'}`;
+        box.classList.remove('hidden');
+    }
+    function aplicarAcao(indice) {
+        const d = manutencao.diag;
+        const a = d && d.diagnostico && (d.diagnostico.acoes || [])[indice];
+        if (!a) return;
+        const real = a.modo === 'real';
+        confirmar({
+            titulo: `Aplicar "${a.titulo}"?`,
+            texto: a.tipo === 'testar_login'
+                ? 'Faz o login do atendente com o robô agora (pode levar até 1 min).'
+                : real
+                    ? `Isto cria uma inscrição REAL (motor ${a.motor || 'http'}). Confira no SIAA antes: se a inscrição já existir, ela será duplicada.`
+                    : `Reexecuta a inscrição em ensaio (motor ${a.motor || 'http'}), sem criar pedido. Acompanhe na aba Nova inscrição.`,
+            alertaTexto: real,
+            acao: real ? 'Já conferi, aplicar' : 'Aplicar',
+            perigo: real,
+            async executar() {
+                const r = await chamar('manutencao/aplicar', { method: 'POST', corpo: { diagId: d.id, indice: Number(indice) } });
+                if (!r.ok) return erroDe(r);
+                d.aplicadas = [...(d.aplicadas || []), Number(indice)];
+                mostrarDiagnostico(d);
+                if (r.jobId) {
+                    setStatus('insa-mt-diag-status', `Reexecução iniciada (${r.modo}, motor ${r.motor}). Acompanhe na aba Nova inscrição.`, 'ok');
+                    acompanhar(r.jobId);
+                    travar(true);
+                } else if (r.resultado) {
+                    setStatus('insa-mt-diag-status', r.resultado.ok ? `Login OK — sessão válida até ${new Date(r.resultado.expiraEm).toLocaleString('pt-BR')}.` : `Login falhou: ${r.resultado.erro || 'erro'}`, r.resultado.ok ? 'ok' : 'erro');
+                }
+            },
+        });
+    }
+
+    // =======================================================================
     // Abas, ciclo de atualização e visibilidade
     // =======================================================================
-    const PAINEIS = { visao, fila, nova, cadastros, siaa, agente, config, eventos, simulacao };
+    const PAINEIS = { visao, fila, nova, painel, cadastros, crm, afiliados, siaa, agente, manutencao, config, eventos, simulacao };
 
     function abaPermitida(nome) {
         if (!PAINEIS[nome]) return false;
@@ -1586,6 +1964,26 @@
                     break;
                 }
                 case 'sim-enviar': enviarSimuladas(b); break;
+                case 'pn-erros':
+                    painel.soErros = !painel.soErros;
+                    b.setAttribute('aria-pressed', String(painel.soErros));
+                    b.className = `${painel.soErros ? 'btn-danger' : 'btn-secondary'} insa-btn`;
+                    painel.atualizar({ abriu: true });
+                    break;
+                case 'crm-gerar': gerarTokenCrm(); break;
+                case 'mt-sub': abrirSubManutencao(b.dataset.sub); break;
+                case 'mt-diagnosticar': iniciarDiagnostico({ jobId: b.dataset.job }, b.dataset.titulo || b.dataset.job); break;
+                case 'mt-ver-diag': abrirDiagnostico(b.dataset.id, 'Diagnóstico'); break;
+                case 'mt-aplicar': if (b.dataset.indice != null) aplicarAcao(b.dataset.indice); break;
+                case 'mt-ia-ver': {
+                    const i = $('insa-mt-ia-chave');
+                    const ver = i.type === 'password';
+                    i.type = ver ? 'text' : 'password';
+                    b.setAttribute('aria-pressed', String(ver));
+                    b.setAttribute('aria-label', ver ? 'Ocultar chave' : 'Mostrar chave');
+                    b.querySelector('.material-symbols-outlined').textContent = ver ? 'visibility_off' : 'visibility';
+                    break;
+                }
                 default: break;
             }
         });
@@ -1622,6 +2020,32 @@
                     $('insa-pl-google').textContent = x.google ? `chave ${x.google} (Google)` : 'sem chave (usa a VTEX)';
                     setStatus('insa-pl-status', x.google ? 'Chave do Google salva: o CEP passa a ser localizado pelo Google.' : 'Chave removida: volta a usar a VTEX.', 'ok');
                 })();
+            } else if (f.id === 'insa-pn-form') {
+                painel.atualizar({ abriu: true });
+            } else if (f.id === 'insa-af-form') {
+                if (ehAdmin()) salvarAfiliados();
+            } else if (f.id === 'insa-af-chave-form') {
+                (async () => {
+                    const chave = $('insa-af-chave').value.trim();
+                    if (!chave) return setStatus('insa-af-status', 'Informe a chave.', 'erro');
+                    const x = await chamar('afiliados/chave', { method: 'PUT', corpo: { chave } });
+                    $('insa-af-chave').value = '';
+                    if (!x.ok) return setStatus('insa-af-status', erroDe(x), 'erro');
+                    afiliados.atualizar({ abriu: true });
+                })();
+            } else if (f.id === 'insa-mt-email-form') {
+                const email = $('insa-mt-email').value.trim();
+                iniciarDiagnostico({ email, observacao: $('insa-mt-obs').value.trim() }, email);
+            } else if (f.id === 'insa-mt-ia-form') {
+                (async () => {
+                    const x = await chamar('manutencao/ia', { method: 'PUT', corpo: { chave: $('insa-mt-ia-chave').value.trim() } });
+                    $('insa-mt-ia-chave').value = '';
+                    $('insa-mt-ia-chave').type = 'password';
+                    if (!x.ok) return setStatus('insa-mt-ia-status', erroDe(x), 'erro');
+                    setStatus('insa-mt-ia-status', x.credencial ? `Chave salva (${x.chave}).` : 'Chave removida.', 'ok');
+                    st.carregadas.delete('manutencao');
+                    manutencao.atualizar({ abriu: true });
+                })();
             } else if (f.id === 'insa-ss-form') {
                 (async () => {
                     const x = await chamar('orq/siaa/sessao', { method: 'PUT', corpo: { curl: $('insa-ss-curl').value } });
@@ -1646,6 +2070,12 @@
                 return;
             }
             if (t.id === 'insa-ss-curl') { $('insa-ss-salvar').disabled = !t.value.trim(); return; }
+            if (t.id === 'insa-af-slider') { $('insa-af-num').value = t.value; pintarAfiliados(); return; }
+            if (t.id === 'insa-af-num') {
+                $('insa-af-slider').value = String(Math.max(0, Math.min(100, Math.round(Number(t.value || 0)))));
+                pintarAfiliados();
+                return;
+            }
             if (t.matches('#insa-rel-filtros input[data-f]')) {
                 siaa.f[t.dataset.f] = t.value.trim();
                 clearTimeout(siaa.espera);
@@ -1660,6 +2090,7 @@
         r.addEventListener('change', (ev) => {
             const t = ev.target;
             if (t.id === 'insa-nv-forma') { aplicarForma(); return; }
+            if (t.id === 'insa-crm-modo') { if (ehAdmin()) mudarModoCrm(t); return; }
             if (t.matches('#insa-rel-filtros select[data-f]')) {
                 siaa.f[t.dataset.f] = t.value.trim();
                 siaa.atualizar({ abriu: true });
@@ -1714,6 +2145,7 @@
         st.timer = setInterval(() => { if (paginaNaFrente()) ciclo(); }, 5000);
         // acompanhamento da inscrição avulsa que ficou rodando enquanto a página estava fechada
         if (nova.jobAtual && !nova.poll) acompanhar(nova.jobAtual);
+        if (manutencao.diagId && !manutencao.poll) acompanharDiagnostico(manutencao.diagId);
     };
     window.inscricaoAutoSair = function () {
         if (!st.ativo) return;
@@ -1721,6 +2153,7 @@
         clearInterval(st.timer);
         st.timer = null;
         if (nova.poll) { clearInterval(nova.poll); nova.poll = null; }
+        if (manutencao.poll) { clearInterval(manutencao.poll); manutencao.poll = null; }
         const dlg = $('insa-dlg');
         if (dlg && dlg.open && !dlgOcupado) dlg.close();
     };

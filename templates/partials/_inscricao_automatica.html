@@ -118,6 +118,15 @@
 #page-inscricao_automatica .insa-lista-at .mail { font-weight: 600; word-break: break-all; }
 #page-inscricao_automatica details summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
 #page-inscricao_automatica .insa-tabs-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+#page-inscricao_automatica .insa-barras { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+#page-inscricao_automatica .insa-barras li { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(60px, 1fr) auto; gap: 8px; align-items: center; font-size: 12px; color: var(--text-primary); }
+#page-inscricao_automatica .insa-barras li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#page-inscricao_automatica .insa-barras li div { height: 8px; border-radius: 9999px; background: var(--insa-neutral-bg); overflow: hidden; }
+#page-inscricao_automatica .insa-barras li i { display: block; height: 100%; background: var(--primary); border-radius: 9999px; }
+#page-inscricao_automatica .insa-barras li.insa-muted { display: block; }
+#page-inscricao_automatica .insa-acao-ia { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px; background: var(--bg-elevated); }
+#page-inscricao_automatica .insa-acao-ia small { display: block; color: var(--text-secondary); font-size: 12px; margin: 2px 0 6px; }
+#page-inscricao_automatica .insa-eventos li.ferramenta code { font-size: 12px; }
 #insa-dlg { border: 1px solid var(--border); border-radius: 18px; padding: 20px; width: min(520px, calc(100vw - 32px)); background: var(--bg-card); color: var(--text-primary); box-shadow: var(--shadow-xl); }
 #insa-dlg::backdrop { background: rgba(15, 23, 42, .55); }
 #insa-dlg h4 { font-size: 16px; font-weight: 700; margin: 0 0 10px; }
@@ -172,14 +181,26 @@
                 <button type="button" role="tab" id="insa-tab-nova" data-aba="nova" class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2">
                     <span class="material-symbols-outlined text-[18px]">person_add</span>Nova inscrição
                 </button>
+                <button type="button" role="tab" id="insa-tab-painel" data-aba="painel" class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">monitoring</span>Painel de inscrições
+                </button>
                 <button type="button" role="tab" id="insa-tab-cadastros" data-aba="cadastros" class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2">
                     <span class="material-symbols-outlined text-[18px]">badge</span>Cadastros
+                </button>
+                <button type="button" role="tab" id="insa-tab-crm" data-aba="crm" class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">hub</span>Integração CRM
+                </button>
+                <button type="button" role="tab" id="insa-tab-afiliados" data-aba="afiliados" class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">group</span>Afiliados
                 </button>
                 <button type="button" role="tab" id="insa-tab-siaa" data-aba="siaa" class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2">
                     <span class="material-symbols-outlined text-[18px]">fact_check</span>Inscrições × SIAA
                 </button>
                 <button type="button" role="tab" id="insa-tab-agente" data-aba="agente" class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2">
                     <span class="material-symbols-outlined text-[18px]">build</span>Agente
+                </button>
+                <button type="button" role="tab" id="insa-tab-manutencao" data-aba="manutencao" class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">healing</span>Manutenção
                 </button>
                 <button type="button" role="tab" id="insa-tab-config" data-aba="config" data-so-admin class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2">
                     <span class="material-symbols-outlined text-[18px]">tune</span>Configuração
@@ -352,6 +373,34 @@
             </div>
         </section>
 
+        <!-- ── Painel de inscrições ── -->
+        <section id="insa-sec-painel" class="space-y-6 hidden" role="tabpanel" aria-labelledby="insa-tab-painel">
+            <div class="glass-card p-5 md:p-6">
+                <div class="insa-cab"><h3 class="insa-h3">Painel de inscrições</h3></div>
+                <form id="insa-pn-form" class="insa-grid">
+                    <label class="insa-field"><span>Data inicial</span><input id="insa-pn-de" type="date" class="input-glass px-3 py-2 text-sm"></label>
+                    <label class="insa-field"><span>Data final</span><input id="insa-pn-ate" type="date" class="input-glass px-3 py-2 text-sm"></label>
+                    <label class="insa-field largo"><span>CPF, e-mail ou nome</span><input id="insa-pn-busca" autocomplete="off" placeholder="000.000.000-00, e-mail ou nome" class="input-glass px-3 py-2 text-sm"></label>
+                    <div class="insa-row self-end">
+                        <button type="submit" class="btn-primary insa-btn"><span class="material-symbols-outlined">check</span>Aplicar</button>
+                        <button type="button" id="insa-pn-erros" class="btn-secondary insa-btn" data-acao="pn-erros" aria-pressed="false"><span class="material-symbols-outlined">error</span>Só erros</button>
+                    </div>
+                </form>
+                <p id="insa-pn-periodo" class="insa-muted mt-3"></p>
+                <p id="insa-pn-status" class="insa-status" role="status"></p>
+            </div>
+            <div id="insa-pn-kpis" class="insa-kpis"></div>
+            <div class="insa-grid">
+                <div class="glass-card p-5"><h3 class="insa-h3 mb-3">Erros</h3><ul id="insa-pn-lista-erros" class="insa-barras"></ul></div>
+                <div class="glass-card p-5"><h3 class="insa-h3 mb-3">Forma de ingresso</h3><ul id="insa-pn-formas" class="insa-barras"></ul></div>
+                <div class="glass-card p-5"><h3 class="insa-h3 mb-3">Departamento</h3><ul id="insa-pn-deptos" class="insa-barras"></ul></div>
+            </div>
+            <div class="glass-card p-5 md:p-6">
+                <div class="insa-cab"><h3 class="insa-h3">Últimos registros</h3></div>
+                <div id="insa-pn-ultimos" class="insa-table-wrap"></div>
+            </div>
+        </section>
+
         <!-- ── Cadastros ── -->
         <section id="insa-sec-cadastros" class="space-y-6 hidden" role="tabpanel" aria-labelledby="insa-tab-cadastros">
             <div class="insa-grid-2">
@@ -432,6 +481,67 @@
             </div>
         </section>
 
+        <!-- ── Integração CRM ── -->
+        <section id="insa-sec-crm" class="space-y-6 hidden" role="tabpanel" aria-labelledby="insa-tab-crm">
+            <div class="glass-card p-5 md:p-6">
+                <div class="insa-cab"><h3 class="insa-h3">Integração CRM (processamento automático)</h3></div>
+                <p class="insa-desc">O CRM envia os dados do lead e o serviço inscreve sozinho, em fila, uma por vez (mesma execução da Nova inscrição, com fallback e trava do SIAA). Repetir o mesmo <code>idExterno</code> não inscreve de novo. É a entrada antiga (Kommo/n8n); a automação do crm1 usa a Fila.</p>
+                <div class="insa-grid mb-3">
+                    <div class="insa-field">
+                        <span>Endpoint (no serviço de inscrição)</span>
+                        <code id="insa-crm-url" class="insa-mono break-all">POST /api/crm/inscricoes</code>
+                        <small>Fica no endereço do serviço de inscrição, não no painel.</small>
+                    </div>
+                    <div class="insa-field">
+                        <span>Token (Authorization: Bearer …)</span>
+                        <div class="insa-row">
+                            <code id="insa-crm-token" class="insa-mono break-all">não gerado</code>
+                            <button type="button" id="insa-crm-gerar" class="btn-secondary insa-btn mini" data-acao="crm-gerar" data-so-admin><span class="material-symbols-outlined">key</span>Gerar token</button>
+                        </div>
+                    </div>
+                    <label class="insa-field">
+                        <span>Modo do CRM</span>
+                        <select id="insa-crm-modo" class="input-glass px-3 py-2 text-sm">
+                            <option value="ensaio">Ensaio (para antes do pedido)</option>
+                            <option value="real">Real (cria a inscrição)</option>
+                        </select>
+                    </label>
+                </div>
+                <details class="mb-3">
+                    <summary>Exemplo de envio</summary>
+                    <pre id="insa-crm-exemplo" class="insa-mono mt-2 p-3 rounded-lg overflow-x-auto" style="background:var(--bg-elevated);white-space:pre"></pre>
+                </details>
+                <p id="insa-crm-status" class="insa-status" role="status" aria-live="polite"></p>
+                <div id="insa-crm-fila" class="insa-table-wrap"></div>
+            </div>
+        </section>
+
+        <!-- ── Afiliados ── -->
+        <section id="insa-sec-afiliados" class="space-y-6 hidden" role="tabpanel" aria-labelledby="insa-tab-afiliados">
+            <div class="glass-card p-5 md:p-6">
+                <div class="insa-cab"><h3 class="insa-h3">Indicação de afiliados</h3></div>
+                <p class="insa-desc">Vale para as inscrições <strong>reais</strong> da Nova inscrição e do CRM: o lead sorteado é indicado na BeeViral e a inscrição começa 55 s depois. O ensaio não sorteia. O percentual é o mesmo do painel de produção.</p>
+                <div id="insa-af-sem-chave" class="hidden">
+                    <p class="insa-desc">O percentual fica no banco de inscrições (Supabase), o mesmo que o painel de produção usa. Para o serviço ler e salvar, cole uma vez a chave de acesso desse banco (a <code>SUPABASE_INSCRICOES_KEY</code> do painel de produção). Ela fica só no servidor do serviço e volta mascarada.</p>
+                    <form id="insa-af-chave-form" class="insa-row" autocomplete="off" data-so-admin>
+                        <input id="insa-af-chave" type="password" autocomplete="new-password" spellcheck="false" placeholder="eyJ… ou sb_secret_…" class="input-glass px-3 py-2 text-sm flex-1" aria-label="Chave do Supabase">
+                        <button type="submit" class="btn-primary insa-btn"><span class="material-symbols-outlined">key</span>Salvar chave</button>
+                    </form>
+                </div>
+                <div id="insa-af-painel" class="hidden">
+                    <p class="insa-muted mb-1">0% = desligado · 10% = 1 a cada 10 inscrições, em média.</p>
+                    <p class="text-sm text-[var(--text-primary)] mb-3">Total de indicados: <strong id="insa-af-total">—</strong> · Últimos 7 dias: <strong id="insa-af-periodo">—</strong> <span id="insa-af-periodo-det" class="insa-muted"></span></p>
+                    <form id="insa-af-form" class="insa-row-end mb-2">
+                        <input id="insa-af-slider" type="range" min="0" max="100" step="1" value="0" aria-label="Percentual de indicação" class="flex-1" style="accent-color:var(--primary);min-width:160px">
+                        <label class="insa-field"><span>%</span><input id="insa-af-num" type="number" min="0" max="100" step="1" inputmode="numeric" class="input-glass px-3 py-2 text-sm w-24"></label>
+                        <button type="submit" class="btn-primary insa-btn" data-so-admin><span class="material-symbols-outlined">save</span>Salvar</button>
+                    </form>
+                    <p id="insa-af-info" class="insa-muted"></p>
+                </div>
+                <p id="insa-af-status" class="insa-status" role="status" aria-live="polite"></p>
+            </div>
+        </section>
+
         <!-- ── Inscrições × SIAA ── -->
         <section id="insa-sec-siaa" class="space-y-6 hidden" role="tabpanel" aria-labelledby="insa-tab-siaa">
             <div class="glass-card p-5 md:p-6">
@@ -439,10 +549,11 @@
                     <h3 class="insa-h3">Inscrições × SIAA</h3>
                     <div class="insa-row">
                         <button type="button" class="btn-secondary insa-btn mini" data-acao="rel-csv"><span class="material-symbols-outlined">download</span>Baixar planilha (CSV)</button>
-                        <button type="button" id="insa-rel-conferir" class="btn-primary insa-btn mini" data-acao="rel-conferir" data-so-admin disabled><span class="material-symbols-outlined">fact_check</span>Conferir no SIAA agora</button>
+                        <button type="button" id="insa-rel-conferir" class="btn-primary insa-btn mini" data-acao="rel-conferir" data-so-admin disabled><span class="material-symbols-outlined">fact_check</span><span data-rotulo>Conferir no SIAA agora</span></button>
                     </div>
                 </div>
                 <p id="insa-rel-status" class="insa-status" role="status" aria-live="polite"></p>
+                <p id="insa-rel-conf" class="insa-status" role="status" aria-live="polite"></p>
                 <div class="insa-bloco">
                     <div class="insa-cab">
                         <h3 class="insa-h3">Acesso ao SIAA</h3>
@@ -486,6 +597,58 @@
                 <p id="insa-ag-explica" class="insa-desc"></p>
                 <p id="insa-ag-status" class="insa-status" role="status"></p>
                 <div id="insa-ag-corpo"></div>
+            </div>
+        </section>
+
+        <!-- ── Manutenção ── -->
+        <section id="insa-sec-manutencao" class="space-y-6 hidden" role="tabpanel" aria-labelledby="insa-tab-manutencao">
+            <div class="glass-card p-5 md:p-6">
+                <div class="insa-cab">
+                    <h3 class="insa-h3">Manutenção</h3>
+                    <div class="ds-segment ds-segment--compact" role="tablist" aria-label="Manutenção">
+                        <button type="button" role="tab" id="insa-mt-sub-problemas" data-acao="mt-sub" data-sub="problemas" class="ds-segment__btn ds-segment__btn--active">Problemas</button>
+                        <button type="button" role="tab" id="insa-mt-sub-diagnostico" data-acao="mt-sub" data-sub="diagnostico" class="ds-segment__btn ds-segment__btn--inactive">Diagnóstico IA</button>
+                        <button type="button" role="tab" id="insa-mt-sub-ia" data-acao="mt-sub" data-sub="ia" class="ds-segment__btn ds-segment__btn--inactive">Configuração da IA</button>
+                    </div>
+                </div>
+
+                <div id="insa-mt-p-problemas">
+                    <p class="insa-desc">Execuções da Nova inscrição (desde o último reinício do serviço) que terminaram com problema. A IA investiga e propõe a correção; nada roda sem alguém aplicar.</p>
+                    <div id="insa-mt-problemas" class="insa-table-wrap mb-4"></div>
+                    <form id="insa-mt-email-form" class="insa-grid">
+                        <label class="insa-field"><span>Diagnosticar por e-mail (inscrição feita fora da tela)</span><input id="insa-mt-email" type="email" autocomplete="off" placeholder="candidato@exemplo.com" class="input-glass px-3 py-2 text-sm"></label>
+                        <label class="insa-field largo"><span>Observação (opcional)</span><input id="insa-mt-obs" autocomplete="off" maxlength="1000" placeholder="Ex.: não aparece no SIAA" class="input-glass px-3 py-2 text-sm"></label>
+                        <div class="insa-row self-end"><button type="submit" class="btn-primary insa-btn"><span class="material-symbols-outlined">auto_awesome</span>Diagnosticar</button></div>
+                    </form>
+                    <p id="insa-mt-problemas-status" class="insa-status" role="status" aria-live="polite"></p>
+                    <div class="insa-bloco mt-4">
+                        <h3 class="insa-h3 mb-2">Diagnósticos recentes</h3>
+                        <div id="insa-mt-diags" class="insa-table-wrap"></div>
+                    </div>
+                </div>
+
+                <div id="insa-mt-p-diagnostico" class="hidden">
+                    <p id="insa-mt-diag-titulo" class="insa-muted">Escolha um problema em "Problemas" ou diagnostique por e-mail.</p>
+                    <ul id="insa-mt-diag-eventos" class="insa-eventos mt-2"></ul>
+                    <div id="insa-mt-diag-resultado" class="hidden mt-3"></div>
+                    <p id="insa-mt-diag-status" class="insa-status" role="status" aria-live="polite"></p>
+                </div>
+
+                <div id="insa-mt-p-ia" class="hidden">
+                    <p class="insa-desc">O diagnóstico usa o Claude (API da Anthropic). A chave fica só no servidor do serviço de inscrição e aparece mascarada.</p>
+                    <p id="insa-mt-ia-estado" class="insa-status t-info"></p>
+                    <form id="insa-mt-ia-form" autocomplete="off" class="insa-row-end mt-3" data-so-admin>
+                        <div class="insa-field flex-1" style="min-width:200px">
+                            <span>Chave da API da Anthropic</span>
+                            <div class="insa-row">
+                                <input id="insa-mt-ia-chave" type="password" autocomplete="new-password" spellcheck="false" placeholder="sk-ant-…" class="input-glass px-3 py-2 text-sm flex-1" aria-label="Chave da API da Anthropic">
+                                <button type="button" class="btn-secondary insa-btn" data-acao="mt-ia-ver" aria-label="Mostrar chave" aria-pressed="false"><span class="material-symbols-outlined">visibility</span></button>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn-primary insa-btn"><span class="material-symbols-outlined">save</span>Salvar</button>
+                    </form>
+                    <p id="insa-mt-ia-status" class="insa-status" role="status" aria-live="polite"></p>
+                </div>
             </div>
         </section>
 
