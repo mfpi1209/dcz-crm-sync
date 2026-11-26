@@ -192,9 +192,22 @@
         ocupado: false,
         timer: null,
         carregadas: new Set(),
+        secaoDoGrupo: {}, // última sub-aba vista em cada grupo
     };
     const ehAdmin = () => st.papel === 'admin';
-    const ABAS = ['visao', 'fila', 'nova', 'painel', 'cadastros', 'crm', 'afiliados', 'siaa', 'agente', 'manutencao', 'config', 'eventos', 'simulacao'];
+    const ABAS = ['visao', 'fila', 'nova', 'painel', 'cadastros', 'afiliados', 'siaa', 'agente', 'manutencao', 'config', 'eventos', 'simulacao'];
+    // Abas de cima (grupos) → seções. Grupo com mais de uma seção mostra sub-abas.
+    const GRUPOS = {
+        visao: ['visao'],
+        fila: ['fila'],
+        nova: ['nova'],
+        relatorios: ['painel', 'siaa'],
+        manutencao: ['manutencao', 'agente', 'eventos', 'simulacao'],
+        config: ['config', 'cadastros', 'afiliados'],
+    };
+    // Seção com opções internas que sobem para as sub-abas do grupo (evita sub-aba dentro de sub-aba)
+    const SUBS_INTERNAS = { manutencao: [['problemas', 'Problemas'], ['diagnostico', 'Diagnóstico IA'], ['ia', 'Chave da IA']] };
+    const NOME_SECAO = { painel: 'Inscrições', siaa: 'Conferência SIAA', manutencao: 'Problemas', agente: 'Agente', eventos: 'Eventos', simulacao: 'Simulação', config: 'Automação', cadastros: 'Cadastros', afiliados: 'Afiliados' };
 
     function lerLS(k) { try { return localStorage.getItem(k) || ''; } catch (_) { return ''; } }
     function gravarLS(k, v) { try { localStorage.setItem(k, v); } catch (_) { /* navegação privada */ } }
@@ -1487,87 +1500,6 @@
     };
 
     // =======================================================================
-    // Aba: Integração CRM (entrada antiga Kommo/n8n: GET crm, token, modo)
-    // =======================================================================
-    const SITUACAO_CRM = { na_fila: 'Na fila', executando: 'Executando', concluido: 'Concluída', erro: 'Erro', interrompido: 'Interrompida' };
-    const crm = {
-        tokenVisivelAte: 0, // token recém-gerado fica na tela 5 min para ser copiado
-        temToken: false,
-        async atualizar({ abriu, lento }) {
-            if (abriu && !$('insa-crm-exemplo').textContent) $('insa-crm-exemplo').textContent = exemploCrm();
-            if (!abriu && st.tick % 2) return; // ~10 s
-            const r = await chamar('crm');
-            if (!r.ok) return setStatus('insa-crm-status', erroDe(r), 'erro');
-            this.temToken = !!r.token;
-            if (Date.now() > this.tokenVisivelAte) $('insa-crm-token').textContent = r.token || 'não gerado';
-            const g = $('insa-crm-gerar');
-            g.innerHTML = `${icone('key')}${h(r.token ? 'Gerar outro' : 'Gerar token')}`;
-            const sel = $('insa-crm-modo');
-            if (document.activeElement !== sel) sel.value = r.modo;
-            sel.querySelector('[value="real"]').disabled = !r.realPermitido;
-            sel.disabled = !ehAdmin();
-            if (!mudou('crm-fila', r.fila)) return;
-            const linhas = (r.fila || []).map((x) => {
-                const res = x.resultado;
-                const det = res ? (res.siaa ? `SIAA ${res.siaa}` : res.orderId || res.erro || res.status || '') : x.posicao ? `posição ${x.posicao}` : '';
-                const tom = x.status === 'concluido' ? 'ok' : x.status === 'erro' || x.status === 'interrompido' ? 'erro' : x.status === 'executando' ? 'ativo' : 'neutro';
-                return `<tr>
-                    <td class="num">${h(new Date(x.recebidoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }))}</td>
-                    <td class="insa-mono">${h(x.idExterno || '—')}</td>
-                    <td>${h(x.nome || '—')}${sub(x.curso || '')}</td>
-                    <td>${h(x.modo)}</td>
-                    <td title="${h((res && res.erro) || '')}">${pill(tom, SITUACAO_CRM[x.status] || x.status)}${sub(det)}</td>
-                </tr>`;
-            });
-            $('insa-crm-fila').innerHTML = tabela(['Recebido', 'ID do CRM', 'Candidato · curso', 'Modo', 'Situação'], linhas, 'Nada recebido ainda.');
-        },
-    };
-    function exemploCrm() {
-        const corpo = { idExterno: 'kommo-lead-123456', nome: 'Nome Sobrenome', email: 'candidato@exemplo.com', telefone: '11999999999', cpf: '000.000.000-00', nascimento: '15/03/1995', cep: '01136-001', curso: 'Administração', polo: 'Barra Funda', forma: 'Vestibular Múltipla Escolha' };
-        const url = '<endereço do serviço de inscrição>/api/crm/inscricoes';
-        return `POST ${url}\nAuthorization: Bearer <token>\nContent-Type: application/json\n\n${JSON.stringify(corpo, null, 2)}\n\n→ 202 { "id": "…", "status": "na_fila", "posicao": 1 }\nGET ${url}/<id>  → status e resultado (orderId, nº SIAA)\n\nOpcionais: skuId/poleId no lugar de curso/polo, cupom, extras (ENEM: enemAno, notas), motor.`;
-    }
-    function gerarTokenCrm() {
-        confirmar({
-            titulo: crm.temToken ? 'Gerar um token novo?' : 'Gerar o token do CRM?',
-            texto: crm.temToken
-                ? 'O CRM precisa ser atualizado: o token atual para de funcionar. O token novo aparece uma vez só; copie e cadastre no CRM.'
-                : 'O token aparece uma vez só; copie e cadastre no CRM. Depois ele aparece mascarado.',
-            acao: 'Gerar token',
-            perigo: crm.temToken,
-            async executar() {
-                const r = await chamar('crm/token', { method: 'POST' });
-                if (!r.ok) return erroDe(r);
-                $('insa-crm-token').textContent = r.token;
-                crm.tokenVisivelAte = Date.now() + 5 * 60e3;
-                crm.temToken = true;
-                setStatus('insa-crm-status', 'Token gerado. Copie agora e cadastre no CRM: depois ele aparece mascarado.', 'ok');
-            },
-        });
-    }
-    async function salvarModoCrm(modo) {
-        const r = await chamar('crm/modo', { method: 'PUT', corpo: { modo } });
-        if (!r.ok) setStatus('insa-crm-status', erroDe(r), 'erro');
-        else setStatus('insa-crm-status', `Modo do CRM: ${modo}.`, 'ok');
-        crm.atualizar({ abriu: true });
-    }
-    function mudarModoCrm(sel) {
-        const modo = sel.value;
-        if (modo !== 'real') return salvarModoCrm(modo);
-        sel.blur();
-        confirmar({
-            titulo: 'Modo real no CRM?',
-            texto: 'O que o CRM enviar passa a gerar inscrição REAL (pedido na loja com vínculo no SIAA).',
-            alertaTexto: true,
-            acao: 'Passar para real',
-            perigo: true,
-            async executar() { await salvarModoCrm('real'); },
-        });
-        // Voltar no diálogo: recarrega e desfaz a escolha na tela
-        $('insa-dlg').addEventListener('close', () => crm.atualizar({ abriu: true }), { once: true });
-    }
-
-    // =======================================================================
     // Aba: Afiliados (percentual no Supabase; chave do Supabase)
     // =======================================================================
     const afiliados = {
@@ -1672,6 +1604,7 @@
             b.setAttribute('aria-selected', String(t === nome));
             $('insa-mt-p-' + t).classList.toggle('hidden', t !== nome);
         }
+        if (st.aba === 'manutencao') marcarAbas();
     }
     async function iniciarDiagnostico(corpo, titulo) {
         setStatus('insa-mt-problemas-status', 'Iniciando diagnóstico…', 'info');
@@ -1781,7 +1714,7 @@
     // =======================================================================
     // Abas, ciclo de atualização e visibilidade
     // =======================================================================
-    const PAINEIS = { visao, fila, nova, painel, cadastros, crm, afiliados, siaa, agente, manutencao, config, eventos, simulacao };
+    const PAINEIS = { visao, fila, nova, painel, cadastros, afiliados, siaa, agente, manutencao, config, eventos, simulacao };
 
     function abaPermitida(nome) {
         if (!PAINEIS[nome]) return false;
@@ -1790,18 +1723,46 @@
         return true;
     }
 
+    const grupoDe = (aba) => Object.keys(GRUPOS).find((g) => GRUPOS[g].includes(aba)) || 'visao';
+    const secoesDe = (g) => GRUPOS[g].filter(abaPermitida);
+
+    /** Marca a aba de cima e monta as sub-abas do grupo da seção aberta (sem recarregar dados). */
+    function marcarAbas() {
+        const g = grupoDe(st.aba);
+        Object.keys(GRUPOS).forEach((gg) => {
+            const b = $('insa-tab-' + gg);
+            if (!b) return;
+            b.className = (gg === g ? dsSegActive('flex items-center gap-2') : dsSegInactive('flex items-center gap-2'))
+                + (secoesDe(gg).length ? '' : ' hidden');
+            b.setAttribute('aria-selected', String(gg === g));
+        });
+        const itens = [];
+        secoesDe(g).forEach((t) => {
+            const internas = SUBS_INTERNAS[t];
+            if (!internas) return itens.push({ t, id: `insa-sub-${t}`, rotulo: NOME_SECAO[t] || t, ativo: t === st.aba });
+            const atual = (t === 'manutencao' && manutencao.sub) || internas[0][0];
+            internas.forEach(([sub, rotulo], i) => itens.push({ t, sub, id: i ? `insa-sub-${t}-${sub}` : `insa-sub-${t}`, rotulo, ativo: t === st.aba && sub === atual }));
+        });
+        const box = $('insa-subabas');
+        box.classList.toggle('hidden', itens.length < 2);
+        box.innerHTML = itens.length < 2 ? '' : itens.map((x) => `<button type="button" role="tab" id="${x.id}" data-aba="${x.t}"${x.sub ? ` data-sub-interna="${x.sub}"` : ''} aria-selected="${x.ativo}" class="${x.ativo ? dsSegActive('') : dsSegInactive('')}">${h(x.rotulo)}</button>`).join('');
+    }
+
+    /** Clique numa aba de cima: volta para a última seção vista naquele grupo. */
+    function abrirGrupo(g) {
+        const subs = secoesDe(g);
+        if (!subs.length) return;
+        abrirAba(subs.includes(st.secaoDoGrupo[g]) ? st.secaoDoGrupo[g] : subs[0]);
+    }
+
     function abrirAba(nome, { semAtualizar = false } = {}) {
         if (!abaPermitida(nome)) nome = 'visao';
         st.aba = nome;
+        st.secaoDoGrupo[grupoDe(nome)] = nome;
         gravarLS('insa.aba', nome);
+        marcarAbas();
         ABAS.forEach((t) => {
-            const b = $('insa-tab-' + t);
             const s = $('insa-sec-' + t);
-            if (b) {
-                b.className = (t === nome ? dsSegActive('flex items-center gap-2') : dsSegInactive('flex items-center gap-2'))
-                    + ((t === 'simulacao' && !(st.saude && st.saude.simulacao)) || (t === 'config' && !ehAdmin()) ? ' hidden' : '');
-                b.setAttribute('aria-selected', String(t === nome));
-            }
             if (s) s.classList.toggle('hidden', t !== nome);
         });
         if (!semAtualizar) atualizarAba(true);
@@ -1835,9 +1796,8 @@
             } else {
                 $('insa-fora').classList.add('hidden');
                 st.saude = hh;
-                const tabSim = $('insa-tab-simulacao');
-                tabSim.classList.toggle('hidden', !hh.simulacao);
                 if (!hh.simulacao && st.aba === 'simulacao') abrirAba('visao');
+                else marcarAbas(); // sub-aba Simulação aparece/some conforme o serviço
             }
             if (a.ok) st.automacao = a.automacao;
             desenharCabecalho();
@@ -1864,8 +1824,14 @@
     function ligarEventos() {
         const r = raiz();
         r.addEventListener('click', (ev) => {
+            const grupo = ev.target.closest('[data-grupo]');
+            if (grupo && r.contains(grupo)) { abrirGrupo(grupo.dataset.grupo); return; }
             const tab = ev.target.closest('[data-aba]');
-            if (tab && r.contains(tab) && tab.closest('[role="tablist"]')) { abrirAba(tab.dataset.aba); return; }
+            if (tab && r.contains(tab) && tab.closest('[role="tablist"]')) {
+                abrirAba(tab.dataset.aba);
+                if (tab.dataset.subInterna) abrirSubManutencao(tab.dataset.subInterna);
+                return;
+            }
             const b = ev.target.closest('[data-acao]');
             if (!b || !r.contains(b) || b.disabled) return;
             const acao = b.dataset.acao;
@@ -1970,7 +1936,6 @@
                     b.className = `${painel.soErros ? 'btn-danger' : 'btn-secondary'} insa-btn`;
                     painel.atualizar({ abriu: true });
                     break;
-                case 'crm-gerar': gerarTokenCrm(); break;
                 case 'mt-sub': abrirSubManutencao(b.dataset.sub); break;
                 case 'mt-diagnosticar': iniciarDiagnostico({ jobId: b.dataset.job }, b.dataset.titulo || b.dataset.job); break;
                 case 'mt-ver-diag': abrirDiagnostico(b.dataset.id, 'Diagnóstico'); break;
@@ -2090,7 +2055,6 @@
         r.addEventListener('change', (ev) => {
             const t = ev.target;
             if (t.id === 'insa-nv-forma') { aplicarForma(); return; }
-            if (t.id === 'insa-crm-modo') { if (ehAdmin()) mudarModoCrm(t); return; }
             if (t.matches('#insa-rel-filtros select[data-f]')) {
                 siaa.f[t.dataset.f] = t.value.trim();
                 siaa.atualizar({ abriu: true });
